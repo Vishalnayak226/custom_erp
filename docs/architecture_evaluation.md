@@ -6,22 +6,28 @@ This document outlines the recommended technology stack, database design, and re
 
 ## 1. Summary of Architectural Goals
 
-1.  **Massive Scale**: Ability to spin up and manage thousands of clients (tenants) with minimal operational overhead.
-2.  **Customization Isolation**: Individual client customizations (custom fields, business rules, custom reports) must never affect other clients or break the core platform.
-3.  **Hassle-Free Release Management**: A unified core codebase that supports rolling out global updates, while allowing client-specific feature flag controls.
-4.  **Future-Proof & Robust**: Zero-downtime deployments, high performance, and protection against system-wide failure cascades.
+1.  **Massive Scale & Low Server Cost**: Ability to spin up and manage thousands of clients (tenants) with minimal operational overhead and ultra-low server costs.
+2.  **Ultra-Lightweight Footprint**: Avoid large dependencies (such as heavy Python virtual environments, JVM runtimes, or massive node_modules folders) that inflate cloud storage and RAM costs.
+3.  **Customization Isolation**: Individual client customizations (custom fields, business rules, custom reports) must never affect other clients or break the core platform.
+4.  **Hassle-Free Release Management**: A unified core codebase that supports rolling out global updates, while allowing client-specific feature flag controls.
+5.  **Ultra-Solid & Observable**: Code compiles to a safe, crash-proof binary. When issues occur, they must be caught by global handlers and tracked in a centralized log console.
 
 ---
 
-## 2. Recommended Technology Stack
+## 2. Recommended Technology Stack (Ultra-Lightweight Comparison)
 
-| Layer | Recommended Technology | Rationale |
-| :--- | :--- | :--- |
-| **Backend Language** | **Go (Golang)** | Compiled single-binary, extremely fast, very low memory footprint (allows running thousands of microservices cheaply), and a strict backward-compatibility promise. |
-| **Backend Framework** | **Standard Go Library + Gin/Fiber** | Keeps dependencies low to ensure the system never breaks due to third-party deprecations. |
-| **Frontend Framework** | **TypeScript + React or Vue** | Type-safety reduces runtime crashes. Single Page Application (SPA) architecture allows caching assets on CDNs, reducing server load. |
-| **Primary Database** | **PostgreSQL (Serverless)** | Industry-standard SQL database supporting robust transaction controls. Ideal for schema-per-tenant multi-tenancy. |
-| **Database Hosting** | **Neon / AWS Aurora Serverless v2** | Automatically scales computed power to zero when a client is inactive, enabling thousands of clients to be hosted cost-effectively. |
+To meet the requirement of keeping cloud server costs minimal and dependencies lightweight, we compare the standard runtime footprints below:
+
+| Metric | Go (Recommended) | Python (FastAPI/Django) | Node.js (NestJS) |
+| :--- | :--- | :--- | :--- |
+| **Deployment Footprint** | **~15MB - 30MB** (Single binary) | **~300MB - 800MB** (Runtime + virtualenv) | **~250MB - 600MB** (Runtime + node_modules) |
+| **Idle Memory Usage** | **~10MB - 15MB RAM** | **~80MB - 150MB RAM** | **~70MB - 120MB RAM** |
+| **Startup Time** | **< 10 milliseconds** | **~1 - 3 seconds** | **~1 - 2 seconds** |
+| **External Dependencies** | **None** (Self-contained binary) | **Requires python interpreter** + libs | **Requires Node interpreter** + packages |
+
+### Why Go is the Cost-Saver:
+- **Low RAM Overhead**: You can host **50 to 80 separate client microservices** on a single $5/month virtual server using Go, whereas Python or Node.js would consume all server memory with just 4 to 6 idle instances.
+- **Ultra-Solid Execution**: Compile-time typing catches bugs before deployment. Go has no null-pointer exceptions or runtime interpreter crashes.
 
 ---
 
@@ -104,3 +110,22 @@ To achieve "hassle-free" universal release control, implement the following pipe
   - *Universal Release*: Toggle flag `ON` for everyone.
   - *Canary / Client Release*: Toggle flag `ON` for specific Client IDs (e.g. pilot client testing).
   - *Rollback*: Instantly toggle the flag `OFF` system-wide if a bug is found, without redeploying code.
+
+---
+
+## 6. Central Log Hub & Observability (Track & Fix Easily)
+
+To ensure that any runtime error, integration failure, or user exception is instantly visible and easily patchable, a centralized **System Log & Exception Dashboard** is integrated into the core ERP admin panel.
+
+### 6.1 Logging Protocol
+1.  **Global Panic Recovery**: If a runtime crash occurs, a global middleware interceptor catches it, logs the stack trace to the DB, and gracefully returns a standard HTTP 500 error code, preventing the server instance from stopping.
+2.  **Structured JSON Logs**: Every log entry writes structured metadata:
+    - `correlation_id`: A unique UUID injected at the API gateway tracking a user's action path.
+    - `tenant_id`: Maps the error to the specific client.
+    - `error_context`: Details the database query, API URL, or payload that triggered the issue.
+
+### 6.2 The Log Hub Console
+Inside the ERP developer admin panel, a **System Log Hub** lists active logs:
+- **Filters**: Tenant, Severity (Info/Warn/Error/Panic), Module, Date range, and correlation ID.
+- **Error Details**: Shows formatted error messages, payload inputs, and file line locations (e.g. `db.go:L142`).
+- **Action Hooks**: Includes a `Retry` trigger button for failed asynchronous tasks (such as Shopify updates or Pine Labs callback payments).

@@ -16,6 +16,12 @@ All UI wireframe samples shared in early cutovers represent visual guides only. 
 5. **No Silenced Integration Failures**: Every API failure with Shopify, Unicommerce, Pine Labs, or GST must write to the integration log with status `FAILED` and support manual retry hooks.
 6. **Backend Verification Only**: Never rely solely on frontend logic. Every rule, check, and permission must be verified in backend APIs.
 
+### 1.2 Ultra-Lightweight Compiled Deployment Standard
+To keep cloud hosting fees minimal for thousands of clients:
+- **Single-Binary Execution (Go)**: Code must compile to a single binary (~15MB-30MB) with no interpreter or library requirements (unlike heavy Python or Node modules).
+- **RAM Limits**: Server startup memory footprint must stay under ~15MB RAM per client instance, allowing high-density density hosting on cheap virtual private servers.
+- **Micro-Containers**: Backend instances run inside scratch Docker images with zero bloated operating system packages.
+
 ---
 
 ## 2. Common Reusable Engines
@@ -211,7 +217,7 @@ The system automatically executes double-entry postings for the following events
 
 ---
 
-## 9. Integrations Architecture
+## 9. Integrations & Central System Log Hub
 
 Every integration interface must log transaction payloads inside the database integration table:
 
@@ -226,6 +232,19 @@ Every integration interface must log transaction payloads inside the database in
 - `error_code`, `error_message`
 - `retry_count`
 - `correlation_id` (UUID tracking actions across systems)
+
+### 9.2 Centralized System Log & Exception Dashboard
+For crash-proof resilience and instant observability, the system maintains a unified **Log Hub console** mapping all runtime exceptions:
+1. **Middleware Panic Handler**: Catch Go router runtime crashes, log full stack trace mapping line number references to `system_error_logs`, and serve a standard error JSON response, keeping the binary online.
+2. **Schema: `system_error_logs`**:
+   - `log_id` (UUID Primary Key)
+   - `tenant_id` (UUID client tracking)
+   - `correlation_id` (UUID request mapping)
+   - `severity` (Severity level badge: Panic / Error / Warning)
+   - `module_source` (e.g. POS, RTV, Stock Ledger)
+   - `error_message` & `stack_trace`
+   - `timestamp`
+3. **Log Hub Admin Panel**: User screen displaying all errors, search query filter by correlation ID, error stack trace drawer view, and `Retry` hooks to re-dispatch failed payloads.
 
 ---
 
