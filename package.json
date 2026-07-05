@@ -1,0 +1,9 @@
+{
+  "name": "ditos-erp",
+  "version": "1.0.0",
+  "description": "DitosERP Rebuilt Modules",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server -p 8080"
+  }
+}
