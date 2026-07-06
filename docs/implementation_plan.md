@@ -1,8 +1,8 @@
 # In-House Enterprise ERP: Technical Specification Document
 
-This document serves as the single source of truth and comprehensive technical blueprint for the In-House ERP system. It is designed to allow multiple developer AI agents to work on separate modules independently. 
+This document serves as the single source of truth and comprehensive technical blueprint for the In-House ERP system. It is designed to allow multiple developer AI agents to work on separate modules independently.
 
-All UI wireframe samples shared in early cutovers represent visual guides only. The primary objective of this document is to define the **underlying business logic, database schemas, validation engines, API patterns, and accounting rules** required to build a configurable, ledger-backed, audit-ready system.
+Rather than building isolated, hardcoded screens for a single industry, this system establishes a **metadata-driven pluggable ERP Kernel** (inspired by Odoo, ERPNext/Frappe, and Nocobase). The core Go backend manages document definitions (DocTypes), sequence numbering, and security, while specific industry screens (e.g., jewelry procurement, retail POS, or logistics) are loaded dynamically as configuration packages.
 
 ---
 
@@ -28,31 +28,37 @@ To keep cloud hosting fees minimal for thousands of clients:
 
 To prevent hard-coding rules in separate forms, the following engines must be built as centralized services:
 
-### 2.1 Numbering Engine
+### 2.1 The DocType Meta-Registry
+The core metadata directory of the ERP.
+- **`doctype_meta`**: Stores document type metadata definitions (e.g. DocType: `Brand`, `PurchaseOrder`, `SalesInvoice`).
+- **`doctype_fields`**: Stores individual field definitions for each DocType (name, label, fieldtype e.g. text/int/decimal/link, validation rules, mandatory flags).
+- **Generic CRUD Endpoint**: `/api/v1/doc/:doctype` processes all database writes and reads dynamically using metadata validation, eliminating the need to write custom controllers for separate forms.
+
+### 2.2 Numbering Engine
 Generates system sequences for barcodes, transactions, and vouchers.
 - **Inputs**: Document Type, Legal Entity, Store Code/Location, Financial Year.
 - **Rule Matrix**: Supports custom prefixes, separators (`-`, `/`), sequence padding width, and resetting rules (annual or monthly).
 - **Format**: `<Document Type>/<Location or State>/<Financial Year>/<Running Number>` (e.g., `PR/HO/26-27/000001`).
 
-### 2.2 Workflow & Approval Engine
+### 2.3 Workflow & Approval Engine
 Manages multi-tier approvals.
 - **Parameters**: Document Type, Amount Slabs (e.g. 0-10k, 10k-100k, >100k), Location, Department.
 - **Rules**: Supports L1/L2/L3 approval levels, dynamic approver source (role-based, reporting manager, named user), and automatic escalation after configured hours.
 - **Re-Approval Trigger**: If amount, rate, quantities, or bank details are modified in a document after approval, reset status to `Draft` and trigger re-approval.
 
-### 2.3 Validation Engine
+### 2.4 Validation Engine
 A unified endpoint checking transaction rules.
 - **Core Checks**: Negative stock, duplicate scan detection, missing tax IDs, out-of-tolerance purchase receipt quantities, and closed financial periods.
 
-### 2.4 Inventory Ledger Engine
+### 2.5 Inventory Ledger Engine
 The absolute source of truth for stock quantities. Current inventory must be calculated as a running sum of immutable ledger transactions.
 - **Supported Postings**: `GRN`, `SALE`, `SALES_RETURN`, `TRANSFER_OUT`, `TRANSFER_IN`, `STOCK_ADJUSTMENT`, `RTV` (Return to Vendor), `DAMAGE`, `LOCK`, `UNLOCK`.
 
-### 2.5 Accounting Posting Engine
+### 2.6 Accounting Posting Engine
 Maps document lines to General Ledger (GL) accounts dynamically.
 - **Variables**: Document Type, Item Category, Tax Type, Place of Supply, Legal Entity, and Store Location.
 
-### 2.6 Dynamic Label Engine
+### 2.7 Dynamic Label Engine
 Intercepts on-screen labels and replaces them using a database-mapped cache.
 - **Parameters**: Original Label (case-insensitive exact match) -> Customized Display Name. Replacements must not affect technical IDs, APIs, or database schemas.
 
@@ -77,30 +83,9 @@ All tables must follow these standard designs:
 
 ---
 
-## 4. Master Definition & Product Catalog
+## 4. Security & Access Control (RBAC)
 
-### 4.1 Master Definition Schemas
-- **Brands & Sub Brands**: `Name` (Unique), parent brand dependencies, and auto-generated `Code`.
-- **Styles & Sub Styles**: Product classification hierarchy.
-- **Product Categories**: Includes `Is Weight` and `Is Net Weight` configuration flags.
-- **Product Types**: Bound to categories; dictates applicable attributes.
-- **Item Names**: Form mapping: `Product Category` (Dropdown), `Product Type` (Dropdown), `HSN Code` (Optional), `Sticker Type` (Optional), `Name` (Optional).
-- **Colors & Secondary Colors**: Design classifications.
-- **Polishes & Sizes**: Attributes used for jewelry-specific definitions.
-- **HSN Codes**: Tax definitions mapping Code, Name, GST Rate, and Effective Date. Cannot be deleted once referenced in transactions.
-- **Region Codes**: Geographic master.
-- **Custom Attribute Masters**: Configuration parameters for dynamic attribute additions.
-
-### 4.2 Product Schema & Catalog
-- **Attributes**: Schema definitions specifying details (e.g., color, size, purity) and required status.
-- **Designs**: Code, Name, Category, HSN, brand, style.
-- **Combinations (SKUs)**: Generated variants mapping Design + Color + Size + Polish + Cost + MRP. Must have a globally unique `combinationId`.
-
----
-
-## 5. Security & Access Control (RBAC)
-
-### 5.1 Permission Matrix Rules
+### 4.1 Permission Matrix Rules
 Backend API logic must check the following actions against the user's role-location mapping:
 - **View**: Returns filtered records belonging to user-assigned stores/warehouses.
 - **Create**: Allows saving `Draft` documents for authorized stores.
@@ -115,19 +100,19 @@ Backend API logic must check the following actions against the user's role-locat
 
 ---
 
-## 6. Functional Module Specifications
+## 5. Pluggable Modules & Business Logics
 
-### 6.1 Procurement & Purchase (Procure-to-Pay)
-- **Purchase Requisition (PR)**: Internal request with mandatory cost center details.
-- **RFQ & Quotation**: Matches verified vendors. Quotation comparison calculates total landed cost including duties and taxes. Selecting a non-lowest quote requires manager sign-off.
-- **Purchase Order (PO)**: 
-  - **Quick PO Matrix Grid**: Dynamic inputs matching combinations. Columns: *Design #, Category, Item Name, Style, Color, Polish, Size, Dummy7, Dummy8, MRP, Purchase Price (Purc P), Qty, Gross Weight (G.Wt)*.
-  - **Splits**: Automatically splits PO lines by destination GSTIN if shipping across multiple states.
-- **GRN & MRP Validation**:
-  - Matches accepted PO quantity. Enforces over-receipt tolerances (e.g., max 2% over-delivery if configured).
-  - Validation: Received MRP must match PO price rules. Mismatches block posting.
-  - **Barcode Generation**: Barcodes are generated at GRN completion for accepted items only.
-- **Purchase Return (RTV)**: Barcodes scanned for return must exist in the local store and map back to a GRN. RTV sets barcode status to `RTV Pending` and dispatches as `Stock Out`.
+The following modules represent pre-configured DocType packages loaded on top of the dynamic core kernel:
+
+### 5.1 Master Definitions & Product Catalog
+- **Core DocTypes**: `Brand`, `SubBrand`, `Style`, `SubStyle`, `ProductCategory` (with `is_weight` toggles), `ProductType`, `ItemName`, `Color`, `Polish`, `Size`, `HsnCode` (with date-effective tax rates).
+- **Identity & Configurations**: Dynamic variant combinations generated via Design + Color + Size + Polish schemas mapping MRP and cost price codes.
+
+### 5.2 Procurement & Purchase (Procure-to-Pay)
+- **DocTypes**: `PurchaseRequisition`, `RFQ`, `VendorQuotation`, `PurchaseOrder`.
+- **Quick PO Matrix Input**: Front-end grid component translating matrix values (Design x Color x Size) into standard PO line documents dynamically.
+- **GRN & MRP Validation**: Validates received invoices against PO tolerances. Barcodes are generated at GRN completion for accepted items only.
+- **RTV (Return to Vendor)**: Scans barcodes, verifies they are in stock, and dispatches them under `RTV Pending` status.
 
 ```
 Procurement Error-proofing Matrix:
@@ -142,19 +127,10 @@ Procurement Error-proofing Matrix:
 +------------------------------+--------------------------------------+-------------------------------------------------+
 ```
 
-### 6.2 Inventory & Warehouse Controls
-- **Inventory Status Model**:
-  - `Available`: Sellable or transferable.
-  - `Blocked`: Reserved for orders.
-  - `QC Hold`: Received under inspection.
-  - `Rejected`: Failed GRN/QC inspection.
-  - `RTV Pending`: Queue for vendor return.
-  - `In Transit`: Dispatched but not received.
-  - `Damaged`: Local damage (requires repair/write-off).
-  - `Sold`: Dispatched to retail customers.
-  - `Lost`: Shrinkage log.
-- **Stock Movement**: Scan-based movement between local locations (Inward -> QC -> Main -> Damage).
-- **Physical Count & Variance**: File upload parses barcode lists. Variance comparison report lists differences (`Sys Qty - Phy Qty = Diff`). Posting variances creates correction logs in the inventory ledger.
+### 5.3 Inventory, Warehousing & Transfers
+- **DocTypes**: `StockLocation`, `StockMovement`, `StockTransferOut`, `StockTransferIn`.
+- **Stock Ledger**: Reconciles current stock by summing ledger transactions. Supports physical stock count spreadsheet uploads, calculating variances (`Sys Qty - Phy Qty = Diff`), and generating adjustment vouchers.
+- **Logistics**: Picking lists, bin maps, and packaging box mappings.
 
 ```
 Inventory Error-proofing Matrix:
@@ -169,22 +145,15 @@ Inventory Error-proofing Matrix:
 +------------------------------+--------------------------------------+-------------------------------------------------+
 ```
 
-### 6.3 Transfers & compliance
-- **Stock Transfer Out (TO)**: Scan-based dispatch. Enforces source barcode availability. Updates status to `In Transit`.
-- **Stock Transfer In (TI)**: Scans inbound barcodes. Must match TO reference. Discrepancies generate shortage/damage logs.
-- **GST IRN / E-Way Bill**: Branch transfers across states generate GST transfer invoices. Calls e-invoice API to retrieve IRN hash and signed QR code.
-
-### 6.4 POS Checkout Terminal & Sales
-- **Checkout Client**: Form fields: Mobile, Name, DOB, Gender, GSTIN.
-- **Cart Grids**: Scans barcode -> fetches combination attributes -> calculates prices and tax -> updates cart grid table (*Code, Item, Rate, Qty, Discount, Cost, SGST, Amount*).
-- **Bill Summary**: Computes Gross, GST, Sub-Total, and discount rules. Large font displays Total. Enforces payment matching (Tender total must equal invoice total).
-- **Sales Return**: Sales returns must link to the original sales invoice. Enforces tax reversals matching original GST calculations.
+### 5.4 POS Checkout & Retail Sales
+- **Open POS Client**: Layout mappings for customer directories (DOB, mobile, loyalty status), barcode scanning inputs, cart grids, dynamic discount approvals, and cash handovers.
+- **Sales Return**: Returns must link to original sales invoices and reverse corresponding GST calculations.
 
 ---
 
-## 7. Finance, Accounting & GST Controls
+## 6. Finance, Accounting & GST Controls
 
-### 7.1 Double-Entry GL Mapping
+### 6.1 Double-Entry GL Mapping
 The system automatically executes double-entry postings for the following events:
 - **GRN**:
   - `Debit` Inventory Asset Account (based on cost)
@@ -207,33 +176,13 @@ The system automatically executes double-entry postings for the following events
 
 ---
 
-## 8. Sticker Printing Subsystem
+## 7. Integrations & Central System Log Hub
 
-- **Sticker Templates**: Configures printed label dimensions (e.g. 40x20mm), resolution (DPI), and orientation (Landscape/Portrait).
-- **Printers Configuration**: Manages thermal printers (Type, Connection e.g. USB/Ethernet, DPI, Paper).
-- **Print Stickers Client**:
-  - *Bulk Inward Printing*: Auto-loads items based on GRN receipts, enabling bulk printing of barcode tags.
-  - *Single Print*: On-demand search queue for individual item tags.
+### 7.1 Mapped API Channels
+- **Shopify, Unicommerce, Pine Labs, OCAPI, CleverTap**: Payload sync maps with masked credentials.
+- **GST e-Invoice & IRN**: Auto-generates IRNs on dispatch and stores ack codes/signed QR payloads.
 
----
-
-## 9. Integrations & Central System Log Hub
-
-Every integration interface must log transaction payloads inside the database integration table:
-
-### 9.1 Logging Schema (`integration_log`)
-- `integration_log_id` (Primary Key)
-- `integration_name` (e.g., Shopify, Pine Labs, GST e-Invoice)
-- `direction` (Inbound / Outbound)
-- `business_reference` (Invoice No, Barcode, etc.)
-- `request_payload` (JSON payload, sensitive credentials masked)
-- `response_payload` (JSON payload response)
-- `status` (Success, Failed, Retrying)
-- `error_code`, `error_message`
-- `retry_count`
-- `correlation_id` (UUID tracking actions across systems)
-
-### 9.2 Centralized System Log & Exception Dashboard
+### 7.2 Centralized System Log & Exception Dashboard
 For crash-proof resilience and instant observability, the system maintains a unified **Log Hub console** mapping all runtime exceptions:
 1. **Middleware Panic Handler**: Catch Go router runtime crashes, log full stack trace mapping line number references to `system_error_logs`, and serve a standard error JSON response, keeping the binary online.
 2. **Schema: `system_error_logs`**:
@@ -248,21 +197,21 @@ For crash-proof resilience and instant observability, the system maintains a uni
 
 ---
 
-## 10. Implementation Sequence & Exit Criteria
+## 8. Implementation Sequence & Exit Criteria
 
 ```
 +---------------------------------------------------------------------------------------+
-|  Stage 1: Foundation & Core Engines (Sequence, Audits, Dynamic Labels)                |
+|  Stage 1: Core ERP Kernel & DocType Registry (API framework, dynamic CRUD router)     |
 +---------------------------------------------------------------------------------------+
                                           |
                                           v
 +---------------------------------------------------------------------------------------+
-|  Stage 2: Master Definitions & Attributes (Brands, Styles, Tax Codes)                 |
+|  Stage 2: Dynamic Form Rendering Engine (JS interpreter rendering from DocType meta)  |
 +---------------------------------------------------------------------------------------+
                                           |
                                           v
 +---------------------------------------------------------------------------------------+
-|  Stage 3: Product Catalog & Schemes (Designs, Combinations variant generation)         |
+|  Stage 3: Core Masters Module (Brands, Styles, Tax Codes dynamic packages)            |
 +---------------------------------------------------------------------------------------+
                                           |
                                           v
@@ -288,9 +237,6 @@ For crash-proof resilience and instant observability, the system maintains a uni
                                           v
 +---------------------------------------------------------------------------------------+
 |  Stage 8: Finance & 3-Way Match (Vendor Invoices, GL double-entry bookings)            |
-+---------------------------------------------------------------------------------------+
-                                          |
-                                          v
 +---------------------------------------------------------------------------------------+
 |  Stage 9: Third-party integrations (Shopify, Pine Labs, OCAPI, CleverTap)             |
 +---------------------------------------------------------------------------------------+
