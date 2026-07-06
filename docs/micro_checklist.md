@@ -17,6 +17,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [/] **Dynamic Label Engine**: Build case-insensitive text translation cache mapping original labels to display overlays.
   - [/] **DocType Builder UI**: Create the admin customizer panel allowing users to add custom columns, toggle mandatory rules, and define display order.
   - [/] **Parent-Child Vocabulary Aliasing**: Configure abstract database key mappings (`parent_document_id` / `child_document_id`) to support client-customized nomenclature.
+  - [/] **Dynamic Industry Configurator**: Build the backend switch API (`POST /api/v1/admin/industry`) that re-registers schemas and updates translation maps.
   - [/] **Audit Engine**: Setup database triggers to log modifications (old value, new value, user, time).
   - [/] **Panic Handler Middleware**: Configure route catch block to capture crashes and write stack traces to the log database.
 - [ ] **1.3 Base API Endpoints**
@@ -43,9 +44,14 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 
 - [ ] **3.1 Industry Profile Preset Migrations**
   - [ ] Implement **Jewelry Preset**: load Brand, Style, Size, Color, and Polish fields.
-  - [ ] Implement **F&B Preset**: load Brand, Batch, Expiry, Weight, and Temperature attributes.
+  - [ ] Implement **F&B / Beverage Preset**: load Brand, Batch, Expiry, Weight, and Temperature attributes.
   - [ ] Implement **Automobile Preset**: load Make, Model, Engine Type, Fuel Type, and Serial VIN fields.
   - [ ] Implement **Clothing Preset**: load Brand, Style, Size (S/M/L/XL), Fabric, and Color fields.
+  - [ ] Implement **Pharma / Life Sciences Preset**: recipe formulas, batches, FDA traceability.
+  - [ ] Implement **Metal & Steel Preset**: cuts, metallurgy certifications, heat number.
+  - [ ] Implement **Construction Preset**: subcontractor task schedules, progress milestones.
+  - [ ] Implement **Semiconductor Preset**: Clean-room yield logging.
+  - [ ] Implement **Logistics & Transportation Preset**: manifest details, vehicle logs.
 - [ ] **3.2 Bulk Uploads Engine**
   - [ ] Implement Excel/CSV structure verification (checks column matching before processing rows).
   - [ ] Build item import validation (validates HSN codes, duplicate keys, and category defaults).

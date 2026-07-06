@@ -106,26 +106,12 @@ If Client A requires custom business rules (e.g., verifying gold purity against 
 
 ---
 
-## 5. Industry-Specific Profiles & Dynamic Schema Builder
+## 5. Dynamic Industry Configurator & Presets
 
-Different industries require completely distinct master attributes:
-- **Jewelry**: Polish, gross/net weight, purity, stone count.
-- **Food & Beverage**: Expiry date, batch number, nutritional facts, storage temperature.
-- **Automobile**: Chassis number, engine type, fuel capacity, model year.
-- **Clothing/Apparel**: Fabric type, size codes (S/M/L/XL), design pattern, color palette.
-
-### 5.1 DocType Builder UI (The Schema Customizer)
-To make the ERP truly industry-agnostic, the system includes a **DocType Builder UI** in the developer admin panel:
-- **Add Field**: Cashiers/Admins can add new custom columns to any master record.
-- **Rename Labels**: Allows renaming standard columns universally (e.g., renaming the "Polish" field to "Fabric" or "Engine Type" on screens).
-- **Enforce Rules**: Dynamic checkboxes mapping whether fields are *Mandatory*, *Visible in Grid*, or *Read-Only*.
-
-### 5.2 Pre-Configured Industry Packages
-When creating a new tenant instance, the user chooses their industry profile. The Kernel then automatically runs migrations to load the corresponding DocType presets:
-1.  **Jewelry Preset**: Generates Brand, Style, Size, Color, and Polish fields.
-2.  **F&B Preset**: Generates Brand, Batch, Expiry, Weight, and Temperature attributes.
-3.  **Automobile Preset**: Generates Make, Model, Engine Type, Fuel Type, and Serial VIN fields.
-4.  **Clothing Preset**: Generates Brand, Style, Size (S/M/L/XL), Fabric, and Color fields.
+The system includes a centralized **Industry Configurator** allowing users to switch the operational scope of the ERP dynamically:
+*   **JSON Industry Packages**: Standardized configurations mapping DocTypes, workflows, field overrides, and sidebar navigation menus per industry (Pharma, Metal, Agriculture, construction, etc.).
+*   **The Switch API**: `POST /api/v1/admin/industry` triggers database updates reloading `doctype_meta` and `doctype_fields` records. 
+*   **UI Adaptability**: When the active industry is updated, the frontend dynamic rendering engine changes immediately, updating sidebar submenus, form headers, and column names without requiring code changes.
 
 ---
 
