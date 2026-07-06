@@ -15,6 +15,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 - [/] **1.2 Core Engines Core Logic**
   - [/] **Numbering Engine**: Implement dynamic prefix, separator, padding width, and monthly/annual sequence resets.
   - [/] **Dynamic Label Engine**: Build case-insensitive text translation cache mapping original labels to display overlays.
+  - [/] **DocType Builder UI**: Create the admin customizer panel allowing users to add custom columns, toggle mandatory rules, and define display order.
   - [/] **Audit Engine**: Setup database triggers to log modifications (old value, new value, user, time).
   - [/] **Panic Handler Middleware**: Configure route catch block to capture crashes and write stack traces to the log database.
 - [ ] **1.3 Base API Endpoints**
@@ -25,29 +26,28 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 
 ---
 
-## 📦 Stage 2: Master Data Definitions
+## 🎨 Stage 2: Dynamic Form Rendering Engine
 
-- [ ] **2.1 DocType Configurations**
-  - [ ] Register `Brand` and `SubBrand` DocType field metadata.
-  - [ ] Register `Style` and `SubStyle` DocType fields.
-  - [ ] Register `ProductCategory` (with `is_weight` toggles) and `ProductType`.
-  - [ ] Register `ItemName`, `Color`, `Polish`, `Size` DocTypes.
-  - [ ] Register `HsnCode` with effective date GST rates.
-- [ ] **2.2 Bulk Uploads Engine**
-  - [ ] Implement Excel/CSV structure verification (checks column matching before processing rows).
-  - [ ] Build item import validation (validates HSN codes, duplicate keys, and category defaults).
-  - [ ] Setup row-level error log exports returning failed rows with comments.
+- [ ] **2.1 Frontend Schema Parser**
+  - [ ] Implement dynamic JSON meta response reader (`GET /api/v1/doc/:doctype/meta`).
+  - [ ] Build React/Vue component generator drawing inputs, selectors, date-pickers, and lookups on the fly.
+- [ ] **2.2 Customizer Operations**
+  - [ ] Implement rename fields UI overriding default labels (e.g. changing "Polish" to "Fabric" or "Engine Type").
+  - [ ] Implement toggles to configure list view column visibility dynamically.
 
 ---
 
-## 💎 Stage 3: Product Catalog & variant schema
+## 📦 Stage 3: Pluggable Industry Masters
 
-- [ ] **3.1 Design & Variant Mappings**
-  - [ ] Register `DesignGroup` and `Design` DocTypes.
-  - [ ] Implement combination variations auto-generator (multiplies Design x Color x Polish x Size to output unique SKUs).
-- [ ] **3.2 Cloud Asset Configurations**
-  - [ ] Integrate S3 base path mappings for Design and Combination images.
-  - [ ] Build front-end asset browsers showing real-time product image previews.
+- [ ] **3.1 Industry Profile Preset Migrations**
+  - [ ] Implement **Jewelry Preset**: load Brand, Style, Size, Color, and Polish fields.
+  - [ ] Implement **F&B Preset**: load Brand, Batch, Expiry, Weight, and Temperature attributes.
+  - [ ] Implement **Automobile Preset**: load Make, Model, Engine Type, Fuel Type, and Serial VIN fields.
+  - [ ] Implement **Clothing Preset**: load Brand, Style, Size (S/M/L/XL), Fabric, and Color fields.
+- [ ] **3.2 Bulk Uploads Engine**
+  - [ ] Implement Excel/CSV structure verification (checks column matching before processing rows).
+  - [ ] Build item import validation (validates HSN codes, duplicate keys, and category defaults).
+  - [ ] Setup row-level error log exports returning failed rows with comments.
 
 ---
 
@@ -101,7 +101,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [ ] Build automatic background queue synchronizer with UUID-based idempotency.
 - [ ] **7.3 POS Layout Mappings**
   - [ ] Retail Layout: barcode scan, coupon limits, and customer loyalty points.
-  - [ ] F&B Layout: Seating arrangement maps, split bill routines, and kitchen ticket (KOT) printing.
+  - [ ] F&B Layout: Dynamic table seating arrangement maps, split bill routines, and kitchen ticket (KOT) printing.
   - [ ] Service Layout: Calendar booking time-slots and provider commission loggers.
 
 ---

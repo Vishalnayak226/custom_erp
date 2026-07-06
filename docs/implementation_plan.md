@@ -34,31 +34,36 @@ The core metadata directory of the ERP.
 - **`doctype_fields`**: Stores individual field definitions for each DocType (name, label, fieldtype e.g. text/int/decimal/link, validation rules, mandatory flags).
 - **Generic CRUD Endpoint**: `/api/v1/doc/:doctype` processes all database writes and reads dynamically using metadata validation, eliminating the need to write custom controllers for separate forms.
 
-### 2.2 Numbering Engine
+### 2.2 DocType Builder UI (The Schema Customizer)
+To make the ERP system highly customizable across different industries:
+- **Schema Customization**: User panel allowing admins to dynamically add custom columns, toggle mandatory rules, and set display order.
+- **Rename Labels**: Overrides the standard schema labels (e.g. renaming the "Polish" field to "Fabric" or "Engine Type" universally across POS and master tables).
+
+### 2.3 Numbering Engine
 Generates system sequences for barcodes, transactions, and vouchers.
 - **Inputs**: Document Type, Legal Entity, Store Code/Location, Financial Year.
 - **Rule Matrix**: Supports custom prefixes, separators (`-`, `/`), sequence padding width, and resetting rules (annual or monthly).
 - **Format**: `<Document Type>/<Location or State>/<Financial Year>/<Running Number>` (e.g., `PR/HO/26-27/000001`).
 
-### 2.3 Workflow & Approval Engine
+### 2.4 Workflow & Approval Engine
 Manages multi-tier approvals.
 - **Parameters**: Document Type, Amount Slabs (e.g. 0-10k, 10k-100k, >100k), Location, Department.
 - **Rules**: Supports L1/L2/L3 approval levels, dynamic approver source (role-based, reporting manager, named user), and automatic escalation after configured hours.
 - **Re-Approval Trigger**: If amount, rate, quantities, or bank details are modified in a document after approval, reset status to `Draft` and trigger re-approval.
 
-### 2.4 Validation Engine
+### 2.5 Validation Engine
 A unified endpoint checking transaction rules.
 - **Core Checks**: Negative stock, duplicate scan detection, missing tax IDs, out-of-tolerance purchase receipt quantities, and closed financial periods.
 
-### 2.5 Inventory Ledger Engine
+### 2.6 Inventory Ledger Engine
 The absolute source of truth for stock quantities. Current inventory must be calculated as a running sum of immutable ledger transactions.
 - **Supported Postings**: `GRN`, `SALE`, `SALES_RETURN`, `TRANSFER_OUT`, `TRANSFER_IN`, `STOCK_ADJUSTMENT`, `RTV` (Return to Vendor), `DAMAGE`, `LOCK`, `UNLOCK`.
 
-### 2.6 Accounting Posting Engine
+### 2.7 Accounting Posting Engine
 Maps document lines to General Ledger (GL) accounts dynamically.
 - **Variables**: Document Type, Item Category, Tax Type, Place of Supply, Legal Entity, and Store Location.
 
-### 2.7 Dynamic Label Engine
+### 2.8 Dynamic Label Engine
 Intercepts on-screen labels and replaces them using a database-mapped cache.
 - **Parameters**: Original Label (case-insensitive exact match) -> Customized Display Name. Replacements must not affect technical IDs, APIs, or database schemas.
 
@@ -104,9 +109,12 @@ Backend API logic must check the following actions against the user's role-locat
 
 The following modules represent pre-configured DocType packages loaded on top of the dynamic core kernel:
 
-### 5.1 Master Definitions & Product Catalog
-- **Core DocTypes**: `Brand`, `SubBrand`, `Style`, `SubStyle`, `ProductCategory` (with `is_weight` toggles), `ProductType`, `ItemName`, `Color`, `Polish`, `Size`, `HsnCode` (with date-effective tax rates).
-- **Identity & Configurations**: Dynamic variant combinations generated via Design + Color + Size + Polish schemas mapping MRP and cost price codes.
+### 5.1 Industry-Specific Master Templates
+To support diverse business profiles, the system loads custom attribute presets on startup:
+- **Jewelry Preset**: Brands, Styles, ProductCategory (with weight toggles), Colors, Polishes, and Sizes.
+- **Food & Beverage Preset**: Batches, Expiry parameters, Net Weight, and Temperature thresholds.
+- **Automobile Preset**: Make, Model, Engine Type, Fuel Type, and unique chassis VIN tracking.
+- **Clothing Preset**: Apparel Brands, Styles, Size Codes (S/M/L/XL), Fabric Types, and Patterns.
 
 ### 5.2 Procurement & Purchase (Procure-to-Pay)
 - **DocTypes**: `PurchaseRequisition`, `RFQ`, `VendorQuotation`, `PurchaseOrder`.
@@ -216,7 +224,7 @@ For crash-proof resilience and instant observability, the system maintains a uni
                                           |
                                           v
 +---------------------------------------------------------------------------------------+
-|  Stage 3: Core Masters Module (Brands, Styles, Tax Codes dynamic packages)            |
+|  Stage 3: Pluggable Industry Masters (Jewelry, F&B, Automobile, Clothing presets)     |
 +---------------------------------------------------------------------------------------+
                                           |
                                           v

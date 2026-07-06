@@ -51,8 +51,8 @@ The Go backend functions as a minimal core runtime engine containing only system
 
 ### 2.1 The DocType Schema Model
 A `DocType` is the definition of a document, master record, or ledger. It is represented in the database as:
-- **`doctype_meta`**: Stores document metadata (e.g. Name: `PurchaseOrder`, Module: `Procurement`, Table: `po_header`).
-- **`doctype_fields`**: Stores individual field definitions:
+- **`doctype_meta`**: Stores document type definitions (e.g. Name: `PurchaseOrder`, Module: `Procurement`, Table: `po_header`).
+- **`doctype_fields`**: Stores individual field definitions for each DocType:
   - `name`: Technical database identifier (e.g., `delivery_date`).
   - `label`: Screen display name (e.g., "Expected Delivery").
   - `fieldtype`: Data validator (e.g., `Text`, `Int`, `Decimal`, `Date`, `Select`, `Link` to another DocType).
@@ -106,12 +106,23 @@ If Client A requires custom business rules (e.g., verifying gold purity against 
 
 ---
 
-## 5. Implementation Roadmap Updates
+## 5. Industry-Specific Profiles & Dynamic Schema Builder
 
-We organize the build pipeline to develop the Kernel first, followed by pluggable industry layouts:
+Different industries require completely distinct master attributes:
+- **Jewelry**: Polish, gross/net weight, purity, stone count.
+- **Food & Beverage**: Expiry date, batch number, nutritional facts, storage temperature.
+- **Automobile**: Chassis number, engine type, fuel capacity, model year.
+- **Clothing/Apparel**: Fabric type, size codes (S/M/L/XL), design pattern, color palette.
 
-*   **Phase 1: Kernel & DocType Registry**: Build the database schema registry, dynamic API endpoints, and sequence numbering controllers.
-*   **Phase 2: Dynamic Form Interpreters**: Create the frontend React/Vue code that reads JSON meta payloads and draws forms dynamically.
-*   **Phase 3: Core Masters Module**: Load the Brands, Categories, Styles, and HSN codes as the initial DocType packages.
-*   **Phase 4: Transaction & Ledger Modules**: Load PO, GRN, and stock ledgers.
-*   **Phase 5: Customizations & Extensions**: Integrate serverless webhook connectors and feature flag triggers.
+### 5.1 DocType Builder UI (The Schema Customizer)
+To make the ERP truly industry-agnostic, the system includes a **DocType Builder UI** in the developer admin panel:
+- **Add Field**: Cashiers/Admins can add new custom columns to any master record.
+- **Rename Labels**: Allows renaming standard columns universally (e.g., renaming the "Polish" field to "Fabric" or "Engine Type" on screens).
+- **Enforce Rules**: Dynamic checkboxes mapping whether fields are *Mandatory*, *Visible in Grid*, or *Read-Only*.
+
+### 5.2 Pre-Configured Industry Packages
+When creating a new tenant instance, the user chooses their industry profile. The Kernel then automatically runs migrations to load the corresponding DocType presets:
+1.  **Jewelry Preset**: Generates Brand, Style, Size, Color, and Polish fields.
+2.  **F&B Preset**: Generates Brand, Batch, Expiry, Weight, and Temperature attributes.
+3.  **Automobile Preset**: Generates Make, Model, Engine Type, Fuel Type, and Serial VIN fields.
+4.  **Clothing Preset**: Generates Brand, Style, Size (S/M/L/XL), Fabric, and Color fields.
