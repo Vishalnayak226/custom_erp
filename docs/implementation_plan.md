@@ -145,9 +145,14 @@ Inventory Error-proofing Matrix:
 +------------------------------+--------------------------------------+-------------------------------------------------+
 ```
 
-### 5.4 POS Checkout & Retail Sales
-- **Open POS Client**: Layout mappings for customer directories (DOB, mobile, loyalty status), barcode scanning inputs, cart grids, dynamic discount approvals, and cash handovers.
-- **Sales Return**: Returns must link to original sales invoices and reverse corresponding GST calculations.
+### 5.4 Pluggable POS Checkout (Retail, F&B & Services)
+- **DocTypes**: `POSProfile`, `POSInvoice`, `CashOpeningEntry`, `CashClosingEntry`.
+- **Cash Opening & Closing Register**: Enforces drawer session control. Tethers sessions to float counts and tracks cashier cash variances at shift closing.
+- **Offline Caching Engine**: Utilizes IndexedDB for client-side product catalog, customer details, and price rules storage. Completes transactions offline and syncs back automatically using UUID idempotency keys.
+- **Extensible Layouts**:
+  - *Retail (Fashion/Jewelry)*: Enforces high-speed barcode scanning, loyalty card points redemption, and coupon limits.
+  - *F&B (Restaurant)*: Dynamic table seating configuration, kitchen ticket (KOT) print routing, and bill split allocations (by item or seat).
+  - *Services (Spa/Clinics)*: Handles calendar booking integration and provider commission logs.
 
 ---
 
