@@ -13,9 +13,10 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [ ] Initialize standard system user tables and RBAC role permission schema mapping.
   - [/] Setup `system_error_logs` schema to handle panic recovery stack traces.
 - [/] **1.2 Core Engines Core Logic**
-  - [/] **Numbering Engine**: Implement dynamic prefix, separator, padding width, and monthly/annual sequence resets.
+  - [/] **Numbering Engine**: Implement dynamic prefix, separator, padding width, and monthly/annual sequence resets. Enforce dynamic variant/child concatenation formulas (e.g. `Child = Parent + Color`).
   - [/] **Dynamic Label Engine**: Build case-insensitive text translation cache mapping original labels to display overlays.
   - [/] **DocType Builder UI**: Create the admin customizer panel allowing users to add custom columns, toggle mandatory rules, and define display order.
+  - [/] **Parent-Child Vocabulary Aliasing**: Configure abstract database key mappings (`parent_document_id` / `child_document_id`) to support client-customized nomenclature.
   - [/] **Audit Engine**: Setup database triggers to log modifications (old value, new value, user, time).
   - [/] **Panic Handler Middleware**: Configure route catch block to capture crashes and write stack traces to the log database.
 - [ ] **1.3 Base API Endpoints**
@@ -31,6 +32,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 - [ ] **2.1 Frontend Schema Parser**
   - [ ] Implement dynamic JSON meta response reader (`GET /api/v1/doc/:doctype/meta`).
   - [ ] Build React/Vue component generator drawing inputs, selectors, date-pickers, and lookups on the fly.
+  - [ ] Parse parent-child vocabulary maps to translate model references dynamically on forms and lists.
 - [ ] **2.2 Customizer Operations**
   - [ ] Implement rename fields UI overriding default labels (e.g. changing "Polish" to "Fabric" or "Engine Type").
   - [ ] Implement toggles to configure list view column visibility dynamically.

@@ -126,3 +126,28 @@ When creating a new tenant instance, the user chooses their industry profile. Th
 2.  **F&B Preset**: Generates Brand, Batch, Expiry, Weight, and Temperature attributes.
 3.  **Automobile Preset**: Generates Make, Model, Engine Type, Fuel Type, and Serial VIN fields.
 4.  **Clothing Preset**: Generates Brand, Style, Size (S/M/L/XL), Fabric, and Color fields.
+
+---
+
+## 6. Dynamic Parent-Child (Design & Combination) Vocabulary Aliasing
+
+Different companies use different terms for parent products and their children (variants):
+*   **Company A (Jewelry/Fashion)**: Parent = *Design Number*, Child = *Combination ID* or *SKU*.
+*   **Company B (Electronics)**: Parent = *Model Number*, Child = *Serial Number*.
+*   **Company C (Automobile)**: Parent = *Item Template*, Child = *Chassis Code*.
+*   **Company D (Clothing)**: Parent = *Style SKU*, Child = *Size Variant*.
+
+### 6.1 Unified Abstract Mappings
+The core ERP database schema enforces the relations abstractly:
+- **`parent_document_id`** (e.g., the base design / model definition).
+- **`child_document_id`** (e.g., the specific sellable variant SKU / combination / barcode).
+
+### 6.2 Frontend Dynamic Label Translation
+- The **Dynamic Label Engine** stores these semantic mappings per tenant. 
+- When rendering grid tables (e.g., PO checkout cart, Stock Variance report, or POS billing screen), the frontend automatically overrides the column headers to match the tenant's chosen term (e.g., replacing "Design Number" with "Parent SKU" or "Chassis Number" dynamically).
+
+### 6.3 Flexible Sequence Formatting
+For ID generation:
+1.  **Auto-Generator Rules**: The **Numbering Engine** allows the client to define concatenation formulas:
+    *   *Example*: Child SKU = `{Parent_Code} + '-' + {Color_Code} + {Size_Code}`.
+2.  **Manual Input Overrides**: Toggle option per tenant schema to allow cashiers/designers to type custom vendor design/parent codes manually, rather than forcing system auto-generation.

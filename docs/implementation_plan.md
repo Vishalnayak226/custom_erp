@@ -37,13 +37,14 @@ The core metadata directory of the ERP.
 ### 2.2 DocType Builder UI (The Schema Customizer)
 To make the ERP system highly customizable across different industries:
 - **Schema Customization**: User panel allowing admins to dynamically add custom columns, toggle mandatory rules, and set display order.
-- **Rename Labels**: Overrides the standard schema labels (e.g. renaming the "Polish" field to "Fabric" or "Engine Type" universally across POS and master tables).
+- **Rename Labels & Vocabulary Aliasing**: Overrides the standard schema labels. Admins can configure parent-child vocabulary names globally (e.g. renaming the abstract parent model to "Design Number" or "Style SKU", and child variants to "Combination ID" or "SKU").
 
 ### 2.3 Numbering Engine
 Generates system sequences for barcodes, transactions, and vouchers.
 - **Inputs**: Document Type, Legal Entity, Store Code/Location, Financial Year.
 - **Rule Matrix**: Supports custom prefixes, separators (`-`, `/`), sequence padding width, and resetting rules (annual or monthly).
 - **Format**: `<Document Type>/<Location or State>/<Financial Year>/<Running Number>` (e.g., `PR/HO/26-27/000001`).
+- **Dynamic Variant Concatenation**: Configurable sequence generation logic allowing variants (child rows) to concatenate automatically from the parent (e.g. `Child_SKU = Parent_SKU + '-' + Color_Code`). Supports manual code overrides.
 
 ### 2.4 Workflow & Approval Engine
 Manages multi-tier approvals.
