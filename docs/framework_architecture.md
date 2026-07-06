@@ -177,3 +177,29 @@ For organizations running multiple distinct entities (e.g. North India entity wi
     *   When creating an invoice, the system resolves the `store_id` state and tax jurisdiction rules.
     *   *India South (BLR)*: Applies CGST + SGST (for intra-state sales) or IGST (for inter-state transfers).
     *   *US East (NYC)*: Applies localized US State Sales Tax rates and bypasses GST format validations.
+
+---
+
+## 8. Web Security & Intellectual Property (IP) Protection
+
+To prevent reverse engineering, denial of service (DoS), and API abuse (e.g. automated Postman loop attacks):
+
+### 8.1 API Gateway Rate Limiting
+- **Mechanisms**: Implement token bucket or leaky bucket algorithms at the gateway middleware layer (utilizing Redis for multi-instance syncing).
+- **Throttling Thresholds**:
+  - *Public endpoints* (Auth/Login): Max 5 requests per IP per minute.
+  - *Standard CRUD endpoints* (`/api/v1/doc/*`): Max 60 requests per user per minute.
+  - *Heavy query report exports*: Max 3 requests per user per minute.
+- **Fail Pattern**: Requests exceeding thresholds are rejected instantly with `429 Too Many Requests`.
+
+### 8.2 Backend Injection & Payload Protection
+1.  **SQL Parameterization**: Direct string concatenation inside queries is blocked. Every database call must use prepared statements/parameter parameters exclusively.
+2.  **HTTP Request Size Limits**: Set the maximum HTTP request body size check inside the Go router middleware to 2MB (prevents memory exhaustion buffer attacks).
+3.  **Strict Token Verification**: Tenant contexts (`tenant_id`) must be parsed and verified on the server from signed JWT signatures. No raw client-supplied tenant identifiers are trusted, blocking IDOR (Insecure Direct Object Reference) leaks.
+
+### 8.3 Frontend & Binary Obfuscation
+*   **Javascript Minimization**: Frontend SPA scripts are bundled, minified, and obfuscated (using Terser/Vite bundlers) to prevent easy code extraction from browser devtools.
+*   **Stripped Go Binaries**: When compiling, backend Go binaries are stripped of debug information and symbol tables:
+    ```bash
+    go build -ldflags="-s -w" -o erp-kernel-prod
+    ```

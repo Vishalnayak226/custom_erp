@@ -61,7 +61,7 @@ The build is executed in phases, establishing the core foundation before expandi
 
 ---
 
-## 4. Target Architecture
+## 4. Target Architecture & API Security
 
 ```
                                 +-----------------------------+
@@ -84,7 +84,9 @@ The build is executed in phases, establishing the core foundation before expandi
             +---------------------+  +-------------------+  +------------------+
 ```
 
-- **Tenant Resolver**: Maps subdomains/tokens to the correct PostgreSQL tenant schema.
+- **API Rate Limiting**: The gateway throttles automated calls (like loops in Postman or curl scripts) using Redis token buckets (e.g. limit standard CRUD calls to 60/min per user; public logins to 5/min per IP). Rejections return `429 Too Many Requests`.
+- **Tenant Resolver**: Maps subdomains/tokens to the correct PostgreSQL tenant schema. Verified strictly via JWT backend signatures (IDOR-safe).
+- **Intellectual Property Protection**: Production Go binaries are compiled using symbol table strips (`go build -ldflags="-s -w"`), and JS frontend files are minified/obfuscated to hinder reverse-engineering.
 - **Log Hub**: Central dashboard capturing integration payloads and Go panic recoveries.
 
 ---

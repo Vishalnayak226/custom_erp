@@ -15,7 +15,12 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 - [/] **1.2 Core Engines Core Logic**
   - [/] **Audit Engine**: Setup database triggers to log modifications (old value, new value, user, time).
   - [/] **Panic Handler Middleware**: Configure route catch block to capture crashes and write stack traces to the log database.
-- [ ] **1.3 Base API Endpoints**
+- [ ] **1.3 API Security & Gateway Foundation**
+  - [ ] **Gateway Rate Limiting**: Implement Redis-based token bucket throttling (limit public logins to 5/min per IP, standard CRUD to 60/min per token).
+  - [ ] **Strict Tenant Resolution**: Enforce backend-only JWT verification mapping `tenant_id` securely (prevents IDOR leaks).
+  - [ ] **Prepared Parameterization**: Mandate parameterized SQL queries across all dynamic schema operations (blocks SQL injections).
+  - [ ] **Payload Limits**: Configure HTTP request body size checks in Go router (limit maximum body size to 2MB).
+- [ ] **1.4 Base API Endpoints**
   - [ ] Implement generic CRUD handler `GET /api/v1/doc/:doctype`.
   - [ ] Implement `GET /api/v1/doc/:doctype/:id` and `POST /api/v1/doc/:doctype` with dynamic field validation rules.
   - [ ] Implement prefix config api (`GET /api/v1/prefix` & `POST /api/v1/prefix`).
@@ -159,3 +164,6 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [ ] Deploy automatic tenant provisioning workflows.
   - [ ] Setup feature flag controls per tenant.
   - [ ] Load remaining industry templates (Pharma, Metal, Construction, etc.).
+- [ ] **12.2 Intellectual Property & Binary Safety**
+  - [ ] Obfuscate, minify, and bundle frontend SPA scripts to prevent reverse-engineering.
+  - [ ] Strip debug tables and symbols from release Go binaries (`go build -ldflags="-s -w"`).
