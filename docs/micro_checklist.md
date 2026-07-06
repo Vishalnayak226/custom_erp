@@ -4,7 +4,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 
 ---
 
-## 🚀 Stage 1: Core ERP Kernel & Foundation (In Progress)
+## 🚀 Stage 1 - Core Foundation (In Progress)
 
 - [/] **1.1 Base Schema Migrations**
   - [x] Establish `.gitignore`, project folder structure, and dynamic log badges.
@@ -13,11 +13,6 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [ ] Initialize standard system user tables and RBAC role permission schema mapping.
   - [/] Setup `system_error_logs` schema to handle panic recovery stack traces.
 - [/] **1.2 Core Engines Core Logic**
-  - [/] **Numbering Engine**: Implement dynamic prefix, separator, padding width, and monthly/annual sequence resets. Enforce dynamic variant/child concatenation formulas (e.g. `Child = Parent + Color`).
-  - [/] **Dynamic Label Engine**: Build case-insensitive text translation cache mapping original labels to display overlays.
-  - [/] **DocType Builder UI**: Create the admin customizer panel allowing users to add custom columns, toggle mandatory rules, and define display order.
-  - [/] **Parent-Child Vocabulary Aliasing**: Configure abstract database key mappings (`parent_document_id` / `child_document_id`) to support client-customized nomenclature.
-  - [/] **Dynamic Industry Configurator**: Build the backend switch API (`POST /api/v1/admin/industry`) that re-registers schemas and updates translation maps.
   - [/] **Audit Engine**: Setup database triggers to log modifications (old value, new value, user, time).
   - [/] **Panic Handler Middleware**: Configure route catch block to capture crashes and write stack traces to the log database.
 - [ ] **1.3 Base API Endpoints**
@@ -28,78 +23,79 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 
 ---
 
-## 🎨 Stage 2: Dynamic Form Rendering Engine
+## 🎨 Stage 2 - Dynamic Configuration
 
-- [ ] **2.1 Frontend Schema Parser**
+- [ ] **2.1 Core Schema Builders**
+  - [ ] **DocType Builder UI**: Create the admin customizer panel allowing users to add custom columns, toggle mandatory rules, and define display order.
+  - [ ] **Parent-Child Vocabulary Aliasing**: Configure abstract database key mappings (`parent_document_id` / `child_document_id`) to support client-customized nomenclature.
+  - [ ] **Numbering Engine**: Implement dynamic prefix, separator, padding width, and monthly/annual sequence resets. Enforce dynamic variant/child concatenation formulas (e.g. `Child = Parent + Color`).
+  - [ ] **Dynamic Label Engine**: Build case-insensitive text translation cache mapping original labels to display overlays.
+- [ ] **2.2 Dynamic Form Rendering Engine**
   - [ ] Implement dynamic JSON meta response reader (`GET /api/v1/doc/:doctype/meta`).
   - [ ] Build React/Vue component generator drawing inputs, selectors, date-pickers, and lookups on the fly.
   - [ ] Parse parent-child vocabulary maps to translate model references dynamically on forms and lists.
-- [ ] **2.2 Customizer Operations**
   - [ ] Implement rename fields UI overriding default labels (e.g. changing "Polish" to "Fabric" or "Engine Type").
   - [ ] Implement toggles to configure list view column visibility dynamically.
 
 ---
 
-## 📦 Stage 3: Pluggable Industry Masters
+## 📦 Stage 3 - Master Packages
 
 - [ ] **3.1 Industry Profile Preset Migrations**
   - [ ] Implement **Jewelry Preset**: load Brand, Style, Size, Color, and Polish fields.
   - [ ] Implement **F&B / Beverage Preset**: load Brand, Batch, Expiry, Weight, and Temperature attributes.
   - [ ] Implement **Automobile Preset**: load Make, Model, Engine Type, Fuel Type, and Serial VIN fields.
   - [ ] Implement **Clothing Preset**: load Brand, Style, Size (S/M/L/XL), Fabric, and Color fields.
-  - [ ] Implement **Pharma / Life Sciences Preset**: recipe formulas, batches, FDA traceability.
-  - [ ] Implement **Metal & Steel Preset**: cuts, metallurgy certifications, heat number.
-  - [ ] Implement **Construction Preset**: subcontractor task schedules, progress milestones.
-  - [ ] Implement **Semiconductor Preset**: Clean-room yield logging.
-  - [ ] Implement **Logistics & Transportation Preset**: manifest details, vehicle logs.
-- [ ] **3.2 Bulk Uploads Engine**
+- [ ] **3.2 Master Configurations**
+  - [ ] Setup Organization, Location, Item, Vendor, Customer, Employee, Tax, and GL master schemas.
+- [ ] **3.3 Bulk Uploads Engine**
   - [ ] Implement Excel/CSV structure verification (checks column matching before processing rows).
   - [ ] Build item import validation (validates HSN codes, duplicate keys, and category defaults).
   - [ ] Setup row-level error log exports returning failed rows with comments.
 
 ---
 
-## 🛒 Stage 4: Procurement & Purchase (Procure-to-Pay)
+## 🛒 Stage 4 - Procurement
 
 - [ ] **4.1 Procurement Docs**
   - [ ] Register `PurchaseRequisition` and `RFQ` DocTypes.
   - [ ] Implement Quotation Comparison grid calculating total landed cost.
   - [ ] Register `PurchaseOrder` with automatic multi-state shipping splits.
-- [ ] **4.2 PO Matrix & GRN Reconciliation**
+- [ ] **4.2 PO Matrix & Approvals**
   - [ ] Build Quick PO matrix entry grid translating SKU combinations dynamically.
-  - [ ] Build GRN receiving board matching PO quantities within tolerance.
-  - [ ] Implement MRP validation checking received prices against PO price bounds.
-  - [ ] Integrate Barcode Generator creating 10-digit barcodes for accepted GRN items only.
-- [ ] **4.3 Return to Vendor (RTV)**
-  - [ ] Register `PurchaseReturn` DocType.
-  - [ ] Build barcode scanner return validations (verify item exists in store and links to original GRN).
+  - [ ] Implement PO amendment version-controlled workflow and re-approval triggers.
 
 ---
 
-## 🗄️ Stage 5: Inventory & Warehouse Controls
+## 💎 Stage 5 - GRN and Inventory
 
-- [ ] **5.1 Locations & Ledger**
-  - [ ] Register `StockLocation` DocType with protected system directories (Main, Damage, In-Transit).
-  - [ ] Build dynamic Local Stock Movement scan tools (updates barcode locations).
-  - [ ] Implement immutable append-only `inventory_ledger` engine.
-- [ ] **5.2 Physical Count & Reconciliation**
+- [ ] **5.1 GRN Reconciliation**
+  - [ ] Build GRN receiving board matching PO quantities within tolerance.
+  - [ ] Implement MRP validation checking received prices against PO price bounds.
+  - [ ] Integrate Barcode Generator creating 10-digit barcodes for accepted GRN items only.
+- [ ] **5.2 Stock Ledger & Returns**
+  - [ ] Implement append-only `inventory_ledger` engine.
+  - [ ] Register `PurchaseReturn` (RTV) DocType. Verify barcode exists in store and links to original GRN.
+- [ ] **5.3 Physical Count**
   - [ ] Build stock count spreadsheet importer mapping barcode entries.
   - [ ] Build Stock Variance Report comparing system counts to physical counts.
   - [ ] Implement variance adjustment posting logs creating correction ledger items.
 
 ---
 
-## 🚚 Stage 6: Inter-Store Transfers
+## 🚚 Stage 6 - Warehouse and Transfer
 
-- [ ] **6.1 Inbound/Outbound Workflows**
+- [ ] **6.1 Warehouse Logistics**
+  - [ ] Implement Bin storage, putaway rules, and picking lists.
+- [ ] **6.2 Transfers**
   - [ ] Register `StockTransferOut` DocType. Enforce source barcode status locks.
   - [ ] Register `StockTransferIn` DocType. Verify incoming barcodes and log shortages.
-- [ ] **6.2 Tax Compliance**
+- [ ] **6.3 Tax compliance**
   - [ ] Integrate branch transfer tax invoicing and automatically call e-invoice APIs for interstate dispatches.
 
 ---
 
-## 💳 Stage 7: Pluggable POS Checkout
+## 💳 Stage 7 - POS and Sales
 
 - [ ] **7.1 Drawer Session Controls**
   - [ ] Register `CashOpeningEntry` and `CashClosingEntry` DocTypes.
@@ -114,7 +110,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 
 ---
 
-## 📊 Stage 8: Finance & GL accounting
+## 📊 Stage 8 - Finance
 
 - [ ] **8.1 Accounting Engine**
   - [ ] Register `ChartOfAccounts` and `GlAccount` DocTypes.
@@ -122,10 +118,11 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [ ] Implement 3-Way Match validation checking vendor invoices against PO & GRN rules.
 - [ ] **8.2 Ledger Postings**
   - [ ] Automate debit/credit postings for GRN, Invoices, Payments, Sales, and Returns.
+  - [ ] Setup bank statement reconciliation tools.
 
 ---
 
-## 🔌 Stage 9: Integrations Subsystem
+## 🔌 Stage 9 - Tax and Integrations
 
 - [ ] **9.1 API Channel Syncs**
   - [ ] Implement Shopify product/inventory mapping.
@@ -138,11 +135,27 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 
 ---
 
-## 📈 Stage 10: MIS Reporting & Analytics
+## 📈 Stage 10 - Reports and Dashboards
 
 - [ ] **10.1 Reports Engine**
   - [ ] Implement reports viewer with date, store, brand, and category filters.
   - [ ] Build Inventory Ageing (0-90+ days) and GST invoice filings export tools.
   - [ ] Implement scheduled email reports.
-- [ ] **10.2 UAT Verification**
-  - [ ] Verify database concurrency under heavy load and execute end-to-end data migrations.
+
+---
+
+## 🧪 Stage 11 - QA and Go-Live
+
+- [ ] **11.1 Test Coverage**
+  - [ ] Run UAT scripts mapping end-to-end flows.
+  - [ ] Perform concurrency testing for parallel GRNs, transfers, and POS sales.
+  - [ ] Validate data migration templates and run trial loads.
+
+---
+
+## 🚀 Stage 12 - Multi-Industry Scale
+
+- [ ] **12.1 Multi-Tenant SaaS Operations**
+  - [ ] Deploy automatic tenant provisioning workflows.
+  - [ ] Setup feature flag controls per tenant.
+  - [ ] Load remaining industry templates (Pharma, Metal, Construction, etc.).
