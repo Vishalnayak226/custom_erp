@@ -1,23 +1,32 @@
-# Generic Inhouse ERP Platform: Approach & Implementation Blueprint
+# Generic Inhouse ERP Platform: Master Approach & Implementation Blueprint
 
 A developer-ready technical specification and implementation plan for building a single, configurable, multi-tenant ERP platform supporting multiple industries, businesses, and operating models.
 
 ---
 
-## 1. Executive Decision
+## 1. Executive Decision & Product Principles
 We build one generic, configurable, audit-ready ERP platform instead of separate hardcoded apps.
 - **Product Direction**: Metadata-driven ERP platform.
 - **First Vertical**: Complete retail/jewelry vertical first as an end-to-end reference implementation.
-- **Backend Approach**: API-first, service-oriented Go backend (ultra-lightweight, compiles to single-binary, ~15MB RAM).
+- **Backend Approach**: API-first, service-oriented Go backend (compiled to single-binary, ~15MB RAM).
 - **Database**: PostgreSQL with schema-per-tenant isolation for secure data separation and customization flexibility.
 - **Frontend**: Schema-driven Single Page Application (SPA). Forms, grids, and workflows render dynamically from metadata.
-- **Customization**: Configuration-based, feature flags, metadata, and dynamic hooks.
 - **Control Model**: Mandatory audit logs, maker-checker approvals, and status-based transition gates.
+
+### Core Product Principles
+*   **Single Source of Truth**: All master data, inventory, finance, and reports come from controlled ERP records.
+*   **Document-Based Process**: Every business action must create or update a controlled document with a status and audit trail.
+*   **Ledger-Based Control**: Inventory and finance use append-only ledgers, not direct balance overwrites.
+*   **Role & Location Aware**: Users see only what they are allowed to operate.
+*   **Exception-Driven**: Dashboards highlight pending approvals, mismatches, failed syncs, and stock issues.
+*   **Fast Daily Operations**: optimized barcode scan focus, fast editable grids with copy-paste support, and keyboard shortcuts.
+*   **Beautiful & Usable**: Clean UI, consistent layout, clear colors, readable tables, and mobile-friendly approvals.
 
 ---
 
-## 2. Product Strategy: One Solution for All
-The ERP is structured in two primary layers: a stable common **ERP Kernel** and pluggable **Business Packages**.
+## 2. Platform Capabilities
+
+The system is structured in two primary layers: a stable common **ERP Kernel** and pluggable **Business Packages**.
 
 ```
 +-------------------------------------------------------------------------+
@@ -45,70 +54,47 @@ The ERP is structured in two primary layers: a stable common **ERP Kernel** and 
 +-------------------------------------------------------------------------+
 ```
 
----
-
-## 3. Recommended Build Approach
-The build is executed in phases, establishing the core foundation before expanding:
-
-*   **Phase 0: Blueprint**: Freeze architecture, schemas, and API conventions.
-*   **Phase 1: Kernel**: Core engine setup (DocType registry, RBAC, numbering, audit log hub).
-*   **Phase 2: Master Data**: Location, product, vendor, customer, and GL masters.
-*   **Phase 3: First Vertical**: End-to-end retail/jewelry flow (PR -> PO -> GRN -> Barcode -> Transfer -> POS -> Return -> Finance).
-*   **Phase 4: Reporting**: Reusable report definition renderer.
-*   **Phase 5: Integrations**: Payments, GST IRN, Shopify/OMS.
-*   **Phase 6: Multi-Industry**: Add industry presets (Pharma, Metal, Construction).
-*   **Phase 7: SaaS Scale**: Provisioning workflows and subscription feature flags.
+1.  **DocType Builder**: Admin interface to create and configure forms, fields, validation rules, list columns, and custom fields.
+2.  **Dynamic UI Renderer**: Renders forms, grids, and reports from metadata instead of hardcoded screens.
+3.  **Industry Configurator**: Loads industry presets (retail, jewelry, pharma, F&B, manufacturing, steel, construction, etc.).
+4.  **Dynamic Label Engine**: Translates terms like Design, SKU, Batch, Serial, Style, Model, and Lot per industry/client dynamically.
+5.  **Module Registry**: Enables/disables modules by tenant, industry, plan, or feature flags.
+6.  **Workflow Engine**: Configures approval rules by amount, role, department, location, and document type.
+7.  **Validation Engine**: Enforces centralized business controls before submit, approve, cancel, post, or export.
+8.  **Report Engine**: Generates standard reports, custom reports, saved filters, and exports.
+9.  **Integration Engine**: Connects POS, OMS, Shopify, payments, GST, and logistics.
 
 ---
 
-## 4. Target Architecture & API Security
+## 3. Recommended Module Coverage & Role Workbenches
 
-```
-                                +-----------------------------+
-                                |         API Gateway         |
-                                |  (Auth, Rate Limit, Tenant) |
-                                +-----------------------------+
-                                               |
-                                               v
-                                +-----------------------------+
-                                |      ERP Kernel Services    |
-                                |  (DocType, Numbering, etc.) |
-                                +-----------------------------+
-                                               |
-                        +----------------------+----------------------+
-                        |                      |                      |
-                        v                      v                      v
-            +---------------------+  +-------------------+  +------------------+
-            | PostgreSQL Database |  |   Redis / Queue   |  |  Object Storage  |
-            |  (Tenant Schemas)   |  |   (Metadata Cache)|  |  (Attachments)   |
-            +---------------------+  +-------------------+  +------------------+
-```
+### Module Coverage
+- **Core Admin**: Tenants, companies, legal entities, locations, roles, permissions, feature flags.
+- **Master Data**: Product hierarchy, vendors, customers, employees, taxes, HsnCodes, cost centers.
+- **Procurement**: PR, RFQ, vendor quotations, quote comparisons, PO, amendments, approvals.
+- **GRN & Quality**: PO receiving, invoice references, accepted/rejected/damaged counts, barcode generation, QC holds.
+- **Inventory**: Barcode stock tracking, status (available, blocked, transit, damage, sold), stock ledger, ageing.
+- **Warehouse**: Inbound, QC, putaway, bin placements, picking, packing, dispatch, physical stock count.
+- **Transfers**: Transfer requests, transfer out (TO), in-transit, transfer in (TI), shortage/damage handling.
+- **POS & Sales**: Cashier billing, customer capture, discounts, payment modes, returns, cash drawers.
+- **Finance**: Chart of accounts, GL mapping, vendor invoices, 3-way match, payments, TDS, bank reconciliation.
+- **GST & Tax**: GSTIN state master, HSN mapping, CGST/SGST/IGST, e-invoice, IRN, e-way bills.
+- **HR & Expense**: Employee master, attendance, claims, advances, approvals, reporting hierarchy.
+- **Manufacturing / Job Work**: BOM, job work orders, material issues, production receipts, costings.
 
-- **API Rate Limiting**: The gateway throttles automated calls (like loops in Postman or cURL scripts) using Redis token buckets (e.g. limit standard CRUD calls to 60/min per user; public logins to 5/min per IP). Rejections return `429 Too Many Requests`.
-- **Tenant Resolver**: Maps subdomains/tokens to the correct PostgreSQL tenant schema. Verified strictly via JWT backend signatures (IDOR-safe).
-- **Intellectual Property Protection**: Production Go binaries are compiled using symbol table strips (`go build -ldflags="-s -w"`), and JS frontend files are minified/obfuscated to hinder reverse-engineering. No source maps are exposed in production.
-- **Log Hub**: Central dashboard capturing integration payloads and Go panic recoveries.
+### Role-Based Workbenches
+- **Store Manager**: Sales, store stock, transfer in, pending approvals, returns, cash summaries.
+- **Cashier**: Open POS cart, customer lookup, checkout, payments, cash drawer closing.
+- **Warehouse Executive**: GRN, QC, putaway, picking lists, transfer out scanning.
+- **Warehouse Manager**: Pending GRN issues, excess receipts, adjustment approvals, stock variances.
+- **Procurement User**: PR, RFQ, quote comparisons, PO drafts, vendor status.
+- **Finance User**: Vendor invoices, 3-way match, payment proposals, GST, TDS, bank reconciliation.
+- **Product Team**: Product masters, pricing, categories, variant generation, sticker printing.
+- **Management**: Sales dashboard, profit margins, stock ageing, payables, exception dashboards.
 
 ---
 
-## 5. Core ERP Kernel
-No functional module bypasses the Kernel. It consists of the following engines:
-1.  **DocType Meta Registry**: Dynamic document, field, and layout definitions.
-2.  **Dynamic CRUD Handler**: Unified endpoints for `/api/v1/doc/:doctype`.
-3.  **RBAC Engine**: Location and tenant-level access control.
-4.  **Numbering Engine**: Formats document sequences (`DOC/STORE/FY/SEQ`).
-5.  **Workflow Engine**: Amount slabs, maker-checker, and correction flows.
-6.  **Validation Engine**: Checks negative stock, duplicate scans, and tax codes.
-7.  **Audit Engine**: Logs old vs. new values.
-8.  **Inventory Ledger Engine**: Immutable stock ledger postings.
-9.  **Accounting Posting Engine**: Auto-maps transactions to GL debits/credits.
-10. **Label Engine**: Dynamic on-screen terminology translations.
-11. **Report Engine**: Compiles drilldown exports from report metadata.
-12. **Integration Log Engine**: Tracks external API statuses and retries.
-
----
-
-## 6. Non-Negotiable Web Security Rules
+## 4. Non-Negotiable Web Security Rules
 
 Security must be designed from day one, not added after development.
 1.  **No Frontend-Only Validation**: Every permission, validation check, and parameter must be verified by backend APIs. The frontend is for user convenience only.
@@ -122,156 +108,51 @@ Security must be designed from day one, not added after development.
 
 ---
 
-## 7. Developer Security Checklist
+## 5. Security & Isolation Controls
 
-| Area | Mandatory Control | Developer Action |
-| :--- | :--- | :--- |
-| **Authentication** | Secure JWT with rotation. | Implement JWT middleware; expire inactive sessions; lockout failed logins. |
-| **Tenant Isolation**| Cross-tenant block. | Enforce `tenant_id` resolver in every query; run automated leakage tests. |
-| **Rate Limiting** | Prevent script/Postman floods. | Add IP/token-level limits; return HTTP 429 on abuse. |
-| **Request Limits** | Prevent payload buffer crashes. | Enforce 2MB request body size limits in backend router. |
-| **Input Validation**| Stop SQL injections & XSS. | Parameterize SQL queries; strict schema validation; HTML sanitization. |
-| **CSRF / CORS** | Block malicious page calls. | Use SameSite cookies, CSRF tokens; allow only approved CORS domains. |
-| **Uploads** | Secure file uploads. | Validate MIME type/extension; run malware scan; store outside web root. |
-| **Audit Trail** | Log sensitive operations. | Log create, update, cancel, approve, export, and login actions. |
+### Tenant Data Isolation
+- **Tenant Mapping**: Every master record, transaction, report, file upload, audit log, and integration payload must contain `tenant_id` or map to the tenant schema.
+- **Object-Level Authorization**: Every API that fetches, updates, cancels, exports, or prints a document must validate whether the logged-in user can access that exact object instance (preventing IDOR).
+  - *Example*: Changing `/api/po/1001` to `/api/po/1002` validates tenant, location, and document ownership.
+  - *Example*: Opening a sale from another location validates the assigned location filter.
+- **Download Checks**: File downloads and attachment accesses require signed URLs and parent-document permission verifications.
+- **Admin Isolation**: Super-admin actions must be locked down, logged, and restricted.
 
----
+### Environment Hardening
+- **HTTPS/TLS**: HTTPS mandatory. Strong TLS configuration. Redirect HTTP to HTTPS.
+- **CORS Policies**: Allow only approved frontend domains. Wildcards (`*`) are blocked in production.
+- **Cookies & Headers**: Cookies must use `Secure`, `HttpOnly`, and `SameSite` flags. Implement HSTS, CSP, and X-Frame-Options headers.
+- **Database & Queue Privacy**: PostgreSQL, Redis, and queues run on private networks and are not publicly exposed.
+- **Debug Modes**: Disabled in production. Technical stack traces are never shown to users.
 
-## 8. Common Threats & Required Protection
-
-- **Brute-force login**: Account lockout policy, MFA for admin/finance roles, rate limit controls.
-- **Postman/API flooding**: Gateway token bucket rate limits, request timeouts, and async job queues for heavy queries.
-- **SQL injection**: Prepared statements (no direct string query concatenation), ORM parameters validation.
-- **XSS**: Escaped outputs, content security policies (CSP), and input text sanitizers.
-- **Duplicate Callback**: Idempotency key checks, unique transaction reference constraints.
-- **Large Export Abuse**: Export permission profiles, row limits, watermarks, and export logging.
-
----
-
-## 9. Definition of Done (DoD) for Security
-
-An API or feature is not complete until:
-1.  It passes authentication, authorization, input validation, and rate limiting middlewares.
-2.  It is tested against unauthorized user, wrong tenant, and wrong location injection attempts.
-3.  Heavy endpoints implement pagination, request timeout, or async queues.
-4.  No secrets or credentials exist in source code or Git.
-5.  Security logs write to the Admin Log Hub with a unique `correlation_id`.
-6.  Production settings run with HTTPS, secure headers (HSTS, CSP), and disabled debug modes.
-7.  UAT and pen-testing security validation checklists are signed off before go-live.
+### API Abuse & Throttling
+- **Login API**: Throttling, account lockouts on repeated failures, no detailed error messages.
+- **Search API**: Enforce pagination limits, maximum page sizes, and indexed columns only.
+- **Reports & Exports**: Limit date ranges and row counts. Run heavy exports asynchronously via queues and log export actions.
+- **Webhooks & Callbacks**: Validate signatures, timestamp boundaries, and unique payment references.
 
 ---
 
-## 10. Metadata & DocType Framework
-
-Every master, transaction, and report is represented as a DocType:
-
-```
-doctype_meta Table:
-- doctype_code (e.g. PurchaseOrder)
-- module_code (e.g. Procurement)
-- table_name (e.g. po_header)
-- is_transaction (boolean)
-- has_child_table (boolean)
-- lifecycle_statuses (JSON state transition mappings)
-
-doctype_fields Table:
-- field_name (e.g. vendor_gstin)
-- display_label (e.g. "Vendor GSTIN")
-- field_type (e.g. Text, Decimal, Select, Link)
-- mandatory (boolean)
-- read_only_rule (status/role boundaries)
-- validation_rule (format validation regex)
-```
-
----
-
-## 11. Dynamic UI & Label Engine
-
-The frontend SPA dynamically renders:
-- **Forms**: Reads metadata fields and renders inputs, sections, grids, and action buttons.
-- **List Views**: Renders columns according to permissions and user configs.
-- **Dynamic Labels**: Intercepts UI text and applies localized replacements (e.g., mapping parent-child relations as *Design/Combination* in jewelry, *Model/VIN* in automobiles, or *Recipe/Batch* in pharma).
-
----
-
-## 12. Multi-Tenant Data Design
-
-- **Schema-per-Tenant**: Connects connections to isolated database schemas.
-- **Tenant Context**: Injected at the API Gateway and enforced by the database layer. No tenant ID should be accepted blindly from the frontend.
-- **Versioned Migrations**: DB upgrades are run sequentially and logged per tenant.
-
----
-
-## 13. Module Registry & Industry Packages
-
-Modules and features are enabled via configuration files:
-
-```json
-{
-  "industry_code": "METAL_FAB",
-  "industry_name": "Metal and Steel Fabrication",
-  "doctype_overrides": [
-    {
-      "doctype": "Brand",
-      "new_label": "Material Grade",
-      "fields": [
-        { "name": "alloy_composition", "label": "Alloy Composition (%)", "fieldtype": "Text", "mandatory": true }
-      ]
-    },
-    {
-      "doctype": "Combination",
-      "new_label": "Heat Number",
-      "fields": [
-        { "name": "cut_length", "label": "Cut Length (mm)", "fieldtype": "Decimal", "mandatory": true }
-      ]
-    }
-  ]
-}
-```
-
----
-
-## 14. Pluggable POS Architecture
-- **POS Profile**: Manages checkout rules, default warehouses, and cashier limits.
-- **Drawer Registers**: opening/closing sessions track float cash counts and drawer variance audits.
-- **Offline Catalog**: Caches SKU schemas locally inside browser IndexedDB. Syncs invoices back with UUID-based idempotency.
-
----
-
-## 15. Finance, GST & Compliance
-
-- **Accounting Postings**:
-  - *GRN*: Debit Inventory, Credit GR/IR Clearing.
-  - *Vendor Invoice*: Debit GR/IR, Debit Input GST -> Credit Vendor Payable.
-  - *Payment*: Debit Vendor Payable -> Credit Bank, Credit TDS Payable.
-  - *Sale*: Debit Cash/Clearing -> Credit Sales, Credit Output GST.
-  - *COGS*: Debit COGS, Credit Inventory.
-- **GST Controls**: State-wise GSTIN validation, Place of Supply determination, and automatic e-invoice IRN filings.
-
----
-
-## 16. Integrations & Log Hub
-- **Integration Log Standard**: Every payload is logged with masked credentials and supports retry hooks.
-- **Observability**: A developer Log Hub panel displays system errors, Stack Traces from Go panics, and correlation IDs.
-
----
-
-## 17. System Error-Proofing Matrix
+## 6. System Error-Proofing Matrix
 
 | Area | Risk Scenario | System Control | Standard Error Message |
 | :--- | :--- | :--- | :--- |
+| **Product** | Duplicate item creation | Unique database keys + mandatory attribute check | `ITEM_DUPLICATE`: Item already exists. |
+| **Vendor** | Incorrect bank/GST details | GST validation + maker-checker bank approval | `VENDOR_PENDING_APPROVAL`: Bank details are pending. |
+| **PO** | Unauthorized purchases | Workflow approval by amount, location, and budget | `PO_UNAUTHORIZED`: Purchase requires approval. |
 | **PO** | GRN for unapproved PO | Block GRN | `PO_NOT_APPROVED`: PO is not approved. |
-| **PO** | Qty exceeds pending PO | Enforce tolerance rule | `GRN_QTY_EXCEEDS_PO`: Received qty exceeds pending. |
-| **Invoice**| Duplicate vendor invoice | Unique vendor+invoice check | `DUPLICATE_VENDOR_INVOICE`: Invoice number already exists. |
-| **Barcode**| Duplicate barcode | Unique DB key constraint | `BARCODE_DUPLICATE`: Barcode already exists. |
-| **Inventory**| Scanned from wrong location| Check current location | `BARCODE_WRONG_LOCATION`: Barcode is not available here. |
+| **PO** | Received qty > PO | Tolerance threshold check | `GRN_QTY_EXCEEDS_PO`: Received qty exceeds pending. |
+| **Invoice**| Duplicate vendor invoice | Unique vendor + invoice + financial year check | `DUPLICATE_VENDOR_INVOICE`: Invoice already exists. |
+| **Barcode**| Duplicate barcode | Unique DB key constraint + row-level locks | `BARCODE_DUPLICATE`: Barcode already exists. |
+| **Inventory**| Scanned from wrong location| Validate source location and available status | `BARCODE_WRONG_LOCATION`: Barcode is not available here. |
 | **Inventory**| Negative stock | Block stock-out | `NEGATIVE_STOCK_BLOCKED`: Stock is not available. |
+| **Transfer**| Scan wrong transfer item | Barcode validation | `TRANSFER_SHORTAGE`: Barcode does not match transfer. |
 | **POS** | Sold barcode scanned again | Block sale | `BARCODE_ALREADY_SOLD`: This barcode is already sold. |
-| **Finance** | Payment before 3-way match| Block payment | `PAYMENT_BLOCKED`: 3-way match is incomplete. |
+| **Finance** | Payment before 3-way match| Block payment proposal | `PAYMENT_BLOCKED`: 3-way match is incomplete. |
 
 ---
 
-## 18. Stage-Wise Implementation Roadmap
+## 7. Stage-Wise Implementation Roadmap
 
 We will build the ERP system in 12 progressive stages:
 
@@ -287,3 +168,16 @@ We will build the ERP system in 12 progressive stages:
 10. **Stage 10 - Reports and Dashboards**: Setup drilldown report engines, dashboards, and automated exports.
 11. **Stage 11 - QA and Go-Live**: End-to-end integration testing, migration templates, and cutover checklists.
 12. **Stage 12 - Multi-Industry Scale**: Deploy SaaS monitoring, CI/CD pipelines, and multi-tenant subscriptions.
+
+---
+
+## 8. Definition of Done (DoD) for Security
+
+An API or feature is not complete until:
+1.  It passes authentication, authorization, input validation, and rate limiting middlewares.
+2.  It is tested against unauthorized user, wrong tenant, and wrong location injection attempts.
+3.  Heavy endpoints implement pagination, request timeout, or async queues.
+4.  No secrets or credentials exist in source code or Git.
+5.  Security logs write to the Admin Log Hub with a unique `correlation_id`.
+6.  Production settings run with HTTPS, secure headers (HSTS, CSP), and disabled debug modes.
+7.  UAT and pen-testing security validation checklists are signed off before go-live.

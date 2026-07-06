@@ -13,18 +13,18 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [ ] Initialize standard system user tables and RBAC role permission schema mapping.
   - [/] Setup `system_error_logs` schema to handle panic recovery stack traces.
 - [/] **1.2 Core Engines Core Logic**
-  - [/] **Audit Engine**: Setup database triggers to log modifications (old value, new value, user, time).
+  - [/] **Audit Engine**: Setup database triggers to log modifications (old value, new value, user, time). Enforce append-only, non-editable audits.
   - [/] **Panic Handler Middleware**: Configure route catch block to capture crashes and write stack traces to the log database.
 - [ ] **1.3 API Security & Gateway Foundation**
   - [ ] **Gateway Rate Limiting**: Implement Redis-based token bucket throttling (limit public logins to 5/min per IP, standard CRUD to 60/min per token).
   - [ ] **Strict Tenant Resolution**: Enforce backend-only JWT verification mapping `tenant_id` securely (prevents IDOR leaks).
-  - [ ] **Prepared Parameterization**: Mandate parameterized SQL queries across all dynamic schema operations (blocks SQL injections).
-  - [ ] **Payload & Size Controls**: Enforce HTTP request size limits (max 2MB body limit) and file size/MIME type validation.
+  - [ ] **Prepared Parameterization**: Mandate parameterized SQL queries across all operations (blocks SQL injections).
+  - [ ] **Payload Size Controls**: Enforce HTTP request size limits (max 2MB body limit) and file size/MIME type validation.
   - [ ] **CSRF & CORS policies**: Setup SameSite cookies, CSRF tokens, and enforce strict, non-wildcard CORS domains in production.
   - [ ] **Secrets Protection**: Scan codebase for hardcoded keys and store configs in env variables.
-  - [ ] **Audit Trail**: Configure logging for sensitive operations (create, update, cancel, approve, export, and login).
+  - [ ] **Object-Level Authorization**: Enforce user location, role, and document ownership checks on every fetching and editing API.
 - [ ] **1.4 Base API Endpoints**
-  - [ ] Implement generic CRUD handler `GET /api/v1/doc/:doctype`.
+  - [ ] Implement generic CRUD handler `GET /api/v1/doc/:doctype` supporting master, transaction, and child table reads.
   - [ ] Implement `GET /api/v1/doc/:doctype/:id` and `POST /api/v1/doc/:doctype` with dynamic field validation rules.
   - [ ] Implement prefix config api (`GET /api/v1/prefix` & `POST /api/v1/prefix`).
   - [ ] Implement labels translation api (`GET /api/v1/labels` & `POST /api/v1/labels`).
@@ -36,11 +36,11 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 - [ ] **2.1 Core Schema Builders**
   - [ ] **DocType Builder UI**: Create the admin customizer panel allowing users to add custom columns, toggle mandatory rules, and define display order.
   - [ ] **Parent-Child Vocabulary Aliasing**: Configure abstract database key mappings (`parent_document_id` / `child_document_id`) to support client-customized nomenclature.
-  - [ ] **Numbering Engine**: Implement dynamic prefix, separator, padding width, and monthly/annual sequence resets. Enforce dynamic variant/child concatenation formulas (e.g. `Child = Parent + Color`).
+  - [ ] **Numbering Engine**: Implement dynamic prefix, separator, padding width, and monthly/annual sequence resets. Enforce dynamic variant/child concatenation formulas.
   - [ ] **Dynamic Label Engine**: Build case-insensitive text translation cache mapping original labels to display overlays.
 - [ ] **2.2 Dynamic Form Rendering Engine**
   - [ ] Implement dynamic JSON meta response reader (`GET /api/v1/doc/:doctype/meta`).
-  - [ ] Build React/Vue component generator drawing inputs, selectors, date-pickers, and lookups on the fly.
+  - [ ] Build React/Vue component generator drawing text, number, date, select, link, attachment, table, and scan fields on the fly.
   - [ ] Parse parent-child vocabulary maps to translate model references dynamically on forms and lists.
   - [ ] Implement rename fields UI overriding default labels (e.g. changing "Polish" to "Fabric" or "Engine Type").
   - [ ] Implement toggles to configure list view column visibility dynamically.
@@ -54,15 +54,10 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [ ] Implement **F&B / Beverage Preset**: load Brand, Batch, Expiry, Weight, and Temperature attributes.
   - [ ] Implement **Automobile Preset**: load Make, Model, Engine Type, Fuel Type, and Serial VIN fields.
   - [ ] Implement **Clothing Preset**: load Brand, Style, Size (S/M/L/XL), Fabric, and Color fields.
-  - [ ] Implement **Pharma / Life Sciences Preset**: recipe formulas, batches, FDA traceability.
-  - [ ] Implement **Metal & Steel Preset**: cuts, metallurgy certifications, heat number.
-  - [ ] Implement **Construction Preset**: subcontractor task schedules, progress milestones.
-  - [ ] Implement **Semiconductor Preset**: Clean-room yield logging.
-  - [ ] Implement **Logistics & Transportation Preset**: manifest details, vehicle logs.
 - [ ] **3.2 Master Configurations**
-  - [ ] Setup Organization, Location, Item, Vendor, Customer, Employee, Tax, and GL master schemas.
+  - [ ] Setup Organization, Location, Item (parent/variant), Vendor, Customer, Employee, Tax, and GL master schemas.
 - [ ] **3.3 Bulk Uploads Engine**
-  - [ ] Implement Excel/CSV structure verification (checks column matching before processing rows).
+  - [ ] Implement Excel/CSV structure verification (checks column matching before processing rows). No direct silent imports.
   - [ ] Build item import validation (validates HSN codes, duplicate keys, and category defaults).
   - [ ] Setup row-level error log exports returning failed rows with comments.
 
@@ -77,6 +72,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 - [ ] **4.2 PO Matrix & Approvals**
   - [ ] Build Quick PO matrix entry grid translating SKU combinations dynamically.
   - [ ] Implement PO amendment version-controlled workflow and re-approval triggers.
+  - [ ] Every transaction features status tracking, linked documents, and mandatory cancellation reasons.
 
 ---
 
@@ -87,7 +83,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [ ] Implement MRP validation checking received prices against PO price bounds.
   - [ ] Integrate Barcode Generator creating 10-digit barcodes for accepted GRN items only.
 - [ ] **5.2 Stock Ledger & Returns**
-  - [ ] Implement append-only `inventory_ledger` engine.
+  - [ ] Implement append-only `inventory_ledger` engine. Current stock is derived or reconciled from ledger only.
   - [ ] Register `PurchaseReturn` (RTV) DocType. Verify barcode exists in store and links to original GRN.
 - [ ] **5.3 Physical Count**
   - [ ] Build stock count spreadsheet importer mapping barcode entries.
@@ -99,7 +95,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 ## 🚚 Stage 6 - Warehouse and Transfer
 
 - [ ] **6.1 Warehouse Logistics**
-  - [ ] Implement Bin storage, putaway rules, and picking lists.
+  - [ ] Implement Bin storage, putaway rules, picking lists, packing, and dispatch.
 - [ ] **6.2 Transfers**
   - [ ] Register `StockTransferOut` DocType. Enforce source barcode status locks.
   - [ ] Register `StockTransferIn` DocType. Verify incoming barcodes and log shortages.
@@ -127,11 +123,12 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 
 - [ ] **8.1 Accounting Engine**
   - [ ] Register `ChartOfAccounts` and `GlAccount` DocTypes.
-  - [ ] Build dynamic GL Mapping registry binding document categories to debits/credits.
+  - [ ] Build dynamic GL Mapping registry binding document categories to debits/credits. Finance postings always post balanced debit/credit entries.
   - [ ] Implement 3-Way Match validation checking vendor invoices against PO & GRN rules.
 - [ ] **8.2 Ledger Postings**
   - [ ] Automate debit/credit postings for GRN, Invoices, Payments, Sales, and Returns.
   - [ ] Setup bank statement reconciliation tools.
+  - [ ] Enforce maker-checker on vendor bank details creation/changes.
 
 ---
 
@@ -145,16 +142,17 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 - [ ] **9.2 Error Logs Hub**
   - [ ] Build Log Hub screen displaying integration payloads and system panic backtraces.
   - [ ] Implement `Retry` buttons for failed payloads.
-  - [ ] Verify signature tokens on incoming external callbacks (payments/GST).
+  - [ ] Verify signature tokens on incoming external webhooks and callbacks.
 
 ---
 
 ## 📈 Stage 10 - Reports and Dashboards
 
 - [ ] **10.1 Reports Engine**
-  - [ ] Implement reports viewer with date, store, brand, and category filters.
+  - [ ] Implement reports viewer with date, store, brand, and category filters. Enforce location/tenant filters and column-level permission checks.
+  - [ ] Mask sensitive columns (mobile, email, bank details, cost price) based on user roles.
   - [ ] Build Inventory Ageing (0-90+ days) and GST invoice filings export tools.
-  - [ ] Implement scheduled email reports.
+  - [ ] Configure report query timeouts and date range limitations.
 
 ---
 
@@ -165,6 +163,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [ ] Perform concurrency testing for parallel GRNs, transfers, and POS sales.
   - [ ] Validate data migration templates and run trial loads.
   - [ ] Execute security validation checklists (cross-tenant penetration attempts, token expiry checks).
+  - [ ] Enforce mobile/tablet responsive testing on approvals, scans, and dashboards.
 
 ---
 
@@ -177,3 +176,4 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 - [ ] **12.2 Intellectual Property & Binary Safety**
   - [ ] Obfuscate, minify, and bundle frontend SPA scripts to prevent reverse-engineering.
   - [ ] Strip debug tables and symbols from release Go binaries (`go build -ldflags="-s -w"`).
+  - [ ] Setup automated backups, encryption, and monthly recovery test drills.
