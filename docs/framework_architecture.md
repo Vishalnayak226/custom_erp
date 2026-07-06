@@ -137,3 +137,43 @@ For ID generation:
 1.  **Auto-Generator Rules**: The **Numbering Engine** allows the client to define concatenation formulas:
     *   *Example*: Child SKU = `{Parent_Code} + '-' + {Color_Code} + {Size_Code}`.
 2.  **Manual Input Overrides**: Toggle option per tenant schema to allow cashiers/designers to type custom vendor design/parent codes manually, rather than forcing system auto-generation.
+
+---
+
+## 7. Operational Guidelines for Multi-Industry & Multi-Location Deployments
+
+### 7.1 Client Industry Allocation & Freezing Rules
+- **Access Control (SaaS Console)**: You can assign specific industry profiles (e.g., only `RETAIL` or only `PHARMA`) to specific tenants based on their subscription tier, or release all profiles so they can run multiple operations.
+- **Industry Switching & Freezing**:
+  - *Unfrozen (No Active Transactions)*: If a client has not yet posted transactions to the stock or accounting ledgers, they can freely switch their active industry. The database metadata re-registers instantly, altering the UI menus and fields.
+  - *Frozen (Active Transactions Exist)*: Once transaction data is recorded, the active industry profile is **locked**. The configurator blocks changing the industry template to prevent database table corruption and ledger misalignment. 
+  - *Workaround*: To change industries on a live tenant, they must purge/archive historical transaction ledgers or create a new isolated tenant schema database.
+
+### 7.2 Multi-Location & Multi-Entity Corporate Hierarchy
+For organizations running multiple distinct entities (e.g. North India entity with GSTIN, South India entity with GSTIN, and US entity with EIN):
+
+```
+                       [ Parent Group Tenant Schema ]
+                                      |
+         +----------------------------+----------------------------+
+         |                                                         |
+         v                                                         v
+[ Legal Entity 1: India South ]                             [ Legal Entity 2: US East ]
+- Base Currency: INR                                        - Base Currency: USD
+- Tax Rule: Indian GST (CGST/SGST/IGST)                      - Tax Rule: US State Sales Tax
+- GSTIN: 29AAAAA1111A1Z1                                    - EIN: 12-3456789
+         |                                                         |
+         +------------------+                                      +------------------+
+         |                  |                                                         |
+         v                  v                                                         v
+  [ Store: BLR ]     [ Warehouse: WH ]                                         [ Store: NYC ]
+```
+
+1.  **Data Isolation**: All entities live within the **same tenant database schema**, allowing consolidated financial reporting and a shared parent product catalog.
+2.  **Locational Scoping**:
+    *   Every transaction document (Purchase Order, Transfer Out, Sales Invoice) must be stamped with a `legal_entity_id`, `store_id`, and `currency`.
+    *   **User RBAC Boundaries**: Cache workers and location managers are assigned specific location permissions. A cashier at the Bengaluru store cannot view stock, sales logs, or customer details of the New York City store unless granted Group-Admin rights.
+3.  **Local compliance & Tax Engine Rules**:
+    *   When creating an invoice, the system resolves the `store_id` state and tax jurisdiction rules.
+    *   *India South (BLR)*: Applies CGST + SGST (for intra-state sales) or IGST (for inter-state transfers).
+    *   *US East (NYC)*: Applies localized US State Sales Tax rates and bypasses GST format validations.
