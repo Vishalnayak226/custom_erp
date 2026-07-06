@@ -1,37 +1,31 @@
 # In-House ERP: Functional Modules Directory
 
-This directory lists all the functional modules and configuration menus mapped for the Inhouse ERP system. It serves as an index for developers to locate scope boundaries and implement modular screens.
+This directory lists all the functional modules and configuration packages mapped for the Inhouse ERP system. Industry-specific modules are loaded as metadata packages (DocTypes) on top of the core extensible ERP Kernel.
 
 ---
 
-## 1. Master Data Definitions
-Stores static attributes used to classify inventory items, tax rates, and geographies.
-*   **Brands & Sub Brands**: Defines parent-child brand entities.
-*   **Styles & Sub Styles**: Hierarchical design style descriptors.
-*   **Product Categories**: Maps items to categories; defines category-wide features (e.g., weight tracking options).
-*   **Product Types**: Connects categories to item specifications.
-*   **Item Names**: Form catalog matching HSN and Sticker tags.
-*   **Colors & Secondary Colors**: Dynamic color attribute records.
-*   **Polishes & Sizes**: Specialized parameters for physical stock items.
-*   **HSN Codes**: Stores tax rates (GST) and effective dates.
-*   **Region Codes**: Regional groupings for stores and reports.
+## 1. Core ERP Kernel (The System Foundation)
+The base Go runtime binary that runs identical code for all tenants:
+*   **DocType Meta-Registry**: Central database mappings defining all standard and custom tables, fields, validations, and lookup links.
+*   **DocType Builder UI**: Admin panel allowing users to dynamically add columns, configure mandatory checks, and define grid display rules.
+*   **Dynamic Label Engine**: Localization engine to customize UI terminology (e.g., renaming the abstract parent model to "Design Number" or "Style SKU", and variants to "Combination ID" or "Serial Number" dynamically).
+*   **Numbering Engine**: Sequence generator rules supporting custom prefixes, digit padding, reset rules (annual/monthly), and dynamic parent-child concatenation formats.
+*   **Workflow & Approval Engine**: Tiered document approvals matching amount slabs, location roles, and automatic escalations.
+*   **Log Hub & Observability Dashboard**: Central tracker capturing global panic stack traces, correlation IDs, database locks, and retry actions for failed integrations.
 
 ---
 
-## 2. Product Master & Schema
-Controls SKU structures, attribute catalogs, and design variants.
-*   **Design Groups**: Groups items by style collections.
-*   **Designs**: The parent product item (Design Number, HSN, Images).
-*   **Combinations (SKUs)**: Generates sellable product variants (Design + Color + Polish + Size).
-*   **Attributes & Schema**: Configures dynamic custom attributes per product category.
-*   **Image Management**: Direct S3 folder maps and base path loaders for designs and combinations.
-*   **Item Data Download**: Bulk item exports.
-*   **Item Targets**: Sales target mappings (Quantity/Value) by store, category, and period.
+## 2. Pluggable Industry Masters
+Pre-configured master templates loaded based on the client's industry selection:
+*   **Jewelry Master Package**: Presets for Brand, Style, Size, Color, Polish, Purity, and ProductCategory weight flags.
+*   **Food & Beverage Master Package**: Presets for Brand, Batch Number, Expiry Date, Net Weight, and storage Temperature indicators.
+*   **Automobile Master Package**: Presets for Make, Model, Engine Type, Fuel Type, and Serial VIN tracking.
+*   **Clothing/Apparel Master Package**: Presets for Brands, Style, Size Codes (S/M/L/XL), Fabric Types, and design Patterns.
 
 ---
 
 ## 3. Vendors & Suppliers
-Manages external procurement vendors and shipping contacts.
+Manages external procurement vendors and shipping contacts. Loaded dynamically on the Core Vendor/Supplier DocType models.
 *   **Vendor Directory**: Tabbed cards defining:
     *   *Basic Details*: Code, Legal Name, PAN, MSME, TDS flags.
     *   *Tax Mappings*: GSTIN per state.
@@ -44,7 +38,7 @@ Manages external procurement vendors and shipping contacts.
 
 ## 4. Procurement & Purchase
 Tracks goods procurement flows from internal requests to physical receipt.
-*   **Purchase Requisition (PR)**: Internal requisitions tracking requesting cost centers and approvals.
+*   **Purchase Requisition (PR)**: Internal requests tracking requesting cost centers and approvals.
 *   **RFQ & Quotation comparison**: Dynamic comparative grids mapping vendor price quotes to identify the lowest landed cost.
 *   **Purchase Orders (PO)**: PO amendments, state-wise shipping splits, and PO status logs.
 *   **Quick PO Form**: A matrix input grid allowing cashiers to create POS orders rapidly.
@@ -149,5 +143,5 @@ API mappings and integration loggers.
 
 ## 16. Finance & Accounting
 *   **Chart of Accounts (COA)**: GL accounts definitions.
-*   **GL Mappings**: Maps transactions (GRN, Invoice, POS, COGS) to accounting rules.
+*   **Gl Mappings**: Maps transactions (GRN, Invoice, POS, COGS) to accounting rules.
 *   **Vendor Payables & 3-Way Match**: Checks invoices against PO and GRN details before posting to accounting ledgers.
