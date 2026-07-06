@@ -19,7 +19,10 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [ ] **Gateway Rate Limiting**: Implement Redis-based token bucket throttling (limit public logins to 5/min per IP, standard CRUD to 60/min per token).
   - [ ] **Strict Tenant Resolution**: Enforce backend-only JWT verification mapping `tenant_id` securely (prevents IDOR leaks).
   - [ ] **Prepared Parameterization**: Mandate parameterized SQL queries across all dynamic schema operations (blocks SQL injections).
-  - [ ] **Payload Limits**: Configure HTTP request body size checks in Go router (limit maximum body size to 2MB).
+  - [ ] **Payload & Size Controls**: Enforce HTTP request size limits (max 2MB body limit) and file size/MIME type validation.
+  - [ ] **CSRF & CORS policies**: Setup SameSite cookies, CSRF tokens, and enforce strict, non-wildcard CORS domains in production.
+  - [ ] **Secrets Protection**: Scan codebase for hardcoded keys and store configs in env variables.
+  - [ ] **Audit Trail**: Configure logging for sensitive operations (create, update, cancel, approve, export, and login).
 - [ ] **1.4 Base API Endpoints**
   - [ ] Implement generic CRUD handler `GET /api/v1/doc/:doctype`.
   - [ ] Implement `GET /api/v1/doc/:doctype/:id` and `POST /api/v1/doc/:doctype` with dynamic field validation rules.
@@ -51,6 +54,11 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [ ] Implement **F&B / Beverage Preset**: load Brand, Batch, Expiry, Weight, and Temperature attributes.
   - [ ] Implement **Automobile Preset**: load Make, Model, Engine Type, Fuel Type, and Serial VIN fields.
   - [ ] Implement **Clothing Preset**: load Brand, Style, Size (S/M/L/XL), Fabric, and Color fields.
+  - [ ] Implement **Pharma / Life Sciences Preset**: recipe formulas, batches, FDA traceability.
+  - [ ] Implement **Metal & Steel Preset**: cuts, metallurgy certifications, heat number.
+  - [ ] Implement **Construction Preset**: subcontractor task schedules, progress milestones.
+  - [ ] Implement **Semiconductor Preset**: Clean-room yield logging.
+  - [ ] Implement **Logistics & Transportation Preset**: manifest details, vehicle logs.
 - [ ] **3.2 Master Configurations**
   - [ ] Setup Organization, Location, Item, Vendor, Customer, Employee, Tax, and GL master schemas.
 - [ ] **3.3 Bulk Uploads Engine**
@@ -137,6 +145,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 - [ ] **9.2 Error Logs Hub**
   - [ ] Build Log Hub screen displaying integration payloads and system panic backtraces.
   - [ ] Implement `Retry` buttons for failed payloads.
+  - [ ] Verify signature tokens on incoming external callbacks (payments/GST).
 
 ---
 
@@ -155,6 +164,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [ ] Run UAT scripts mapping end-to-end flows.
   - [ ] Perform concurrency testing for parallel GRNs, transfers, and POS sales.
   - [ ] Validate data migration templates and run trial loads.
+  - [ ] Execute security validation checklists (cross-tenant penetration attempts, token expiry checks).
 
 ---
 

@@ -84,9 +84,9 @@ The build is executed in phases, establishing the core foundation before expandi
             +---------------------+  +-------------------+  +------------------+
 ```
 
-- **API Rate Limiting**: The gateway throttles automated calls (like loops in Postman or curl scripts) using Redis token buckets (e.g. limit standard CRUD calls to 60/min per user; public logins to 5/min per IP). Rejections return `429 Too Many Requests`.
+- **API Rate Limiting**: The gateway throttles automated calls (like loops in Postman or cURL scripts) using Redis token buckets (e.g. limit standard CRUD calls to 60/min per user; public logins to 5/min per IP). Rejections return `429 Too Many Requests`.
 - **Tenant Resolver**: Maps subdomains/tokens to the correct PostgreSQL tenant schema. Verified strictly via JWT backend signatures (IDOR-safe).
-- **Intellectual Property Protection**: Production Go binaries are compiled using symbol table strips (`go build -ldflags="-s -w"`), and JS frontend files are minified/obfuscated to hinder reverse-engineering.
+- **Intellectual Property Protection**: Production Go binaries are compiled using symbol table strips (`go build -ldflags="-s -w"`), and JS frontend files are minified/obfuscated to hinder reverse-engineering. No source maps are exposed in production.
 - **Log Hub**: Central dashboard capturing integration payloads and Go panic recoveries.
 
 ---
@@ -108,7 +108,60 @@ No functional module bypasses the Kernel. It consists of the following engines:
 
 ---
 
-## 6. Metadata & DocType Framework
+## 6. Non-Negotiable Web Security Rules
+
+Security must be designed from day one, not added after development.
+1.  **No Frontend-Only Validation**: Every permission, validation check, and parameter must be verified by backend APIs. The frontend is for user convenience only.
+2.  **No Unauthenticated Public APIs**: No public API should work without auth tokens, rate limits, logging, and input schema validation.
+3.  **No Physical Deletion of Posted Data**: Deleting approved or posted transactions is strictly prohibited. Enforce status-based cancellations or reversal entries with full audit logs.
+4.  **No Secrets in Source Code**: No passwords, API keys, private certs, or database credentials must be committed to Git. Use environment variables or a secure Secret Manager.
+5.  **Data Isolation Boundaries**: No user should access data outside their tenant, legal entity, store, warehouse, department, or assigned role.
+6.  **Pagination on Heavy APIs**: No bulk uploads, report exports, or search APIs should return unlimited rows. Enforce strict limits and handle large files asynchronously.
+7.  **Idempotency Keys**: Enforced on all external callbacks (payments, e-invoicing, offline POS syncs) to prevent duplicate postings.
+8.  **Safe Error Handling**: System errors must never leak SQL queries, stack traces, credentials, or file paths to normal users. Detail logs belong in the secured Log Hub.
+
+---
+
+## 7. Developer Security Checklist
+
+| Area | Mandatory Control | Developer Action |
+| :--- | :--- | :--- |
+| **Authentication** | Secure JWT with rotation. | Implement JWT middleware; expire inactive sessions; lockout failed logins. |
+| **Tenant Isolation**| Cross-tenant block. | Enforce `tenant_id` resolver in every query; run automated leakage tests. |
+| **Rate Limiting** | Prevent script/Postman floods. | Add IP/token-level limits; return HTTP 429 on abuse. |
+| **Request Limits** | Prevent payload buffer crashes. | Enforce 2MB request body size limits in backend router. |
+| **Input Validation**| Stop SQL injections & XSS. | Parameterize SQL queries; strict schema validation; HTML sanitization. |
+| **CSRF / CORS** | Block malicious page calls. | Use SameSite cookies, CSRF tokens; allow only approved CORS domains. |
+| **Uploads** | Secure file uploads. | Validate MIME type/extension; run malware scan; store outside web root. |
+| **Audit Trail** | Log sensitive operations. | Log create, update, cancel, approve, export, and login actions. |
+
+---
+
+## 8. Common Threats & Required Protection
+
+- **Brute-force login**: Account lockout policy, MFA for admin/finance roles, rate limit controls.
+- **Postman/API flooding**: Gateway token bucket rate limits, request timeouts, and async job queues for heavy queries.
+- **SQL injection**: Prepared statements (no direct string query concatenation), ORM parameters validation.
+- **XSS**: Escaped outputs, content security policies (CSP), and input text sanitizers.
+- **Duplicate Callback**: Idempotency key checks, unique transaction reference constraints.
+- **Large Export Abuse**: Export permission profiles, row limits, watermarks, and export logging.
+
+---
+
+## 9. Definition of Done (DoD) for Security
+
+An API or feature is not complete until:
+1.  It passes authentication, authorization, input validation, and rate limiting middlewares.
+2.  It is tested against unauthorized user, wrong tenant, and wrong location injection attempts.
+3.  Heavy endpoints implement pagination, request timeout, or async queues.
+4.  No secrets or credentials exist in source code or Git.
+5.  Security logs write to the Admin Log Hub with a unique `correlation_id`.
+6.  Production settings run with HTTPS, secure headers (HSTS, CSP), and disabled debug modes.
+7.  UAT and pen-testing security validation checklists are signed off before go-live.
+
+---
+
+## 10. Metadata & DocType Framework
 
 Every master, transaction, and report is represented as a DocType:
 
@@ -132,7 +185,7 @@ doctype_fields Table:
 
 ---
 
-## 7. Dynamic UI & Label Engine
+## 11. Dynamic UI & Label Engine
 
 The frontend SPA dynamically renders:
 - **Forms**: Reads metadata fields and renders inputs, sections, grids, and action buttons.
@@ -141,7 +194,7 @@ The frontend SPA dynamically renders:
 
 ---
 
-## 8. Multi-Tenant Data Design
+## 12. Multi-Tenant Data Design
 
 - **Schema-per-Tenant**: Connects connections to isolated database schemas.
 - **Tenant Context**: Injected at the API Gateway and enforced by the database layer. No tenant ID should be accepted blindly from the frontend.
@@ -149,7 +202,7 @@ The frontend SPA dynamically renders:
 
 ---
 
-## 9. Module Registry & Industry Packages
+## 13. Module Registry & Industry Packages
 
 Modules and features are enabled via configuration files:
 
@@ -178,31 +231,32 @@ Modules and features are enabled via configuration files:
 
 ---
 
-## 10. Pluggable POS Architecture
+## 14. Pluggable POS Architecture
 - **POS Profile**: Manages checkout rules, default warehouses, and cashier limits.
 - **Drawer Registers**: opening/closing sessions track float cash counts and drawer variance audits.
 - **Offline Catalog**: Caches SKU schemas locally inside browser IndexedDB. Syncs invoices back with UUID-based idempotency.
 
 ---
 
-## 11. Finance, GST & Compliance
+## 15. Finance, GST & Compliance
 
 - **Accounting Postings**:
   - *GRN*: Debit Inventory, Credit GR/IR Clearing.
   - *Vendor Invoice*: Debit GR/IR, Debit Input GST -> Credit Vendor Payable.
+  - *Payment*: Debit Vendor Payable -> Credit Bank, Credit TDS Payable.
   - *Sale*: Debit Cash/Clearing -> Credit Sales, Credit Output GST.
   - *COGS*: Debit COGS, Credit Inventory.
 - **GST Controls**: State-wise GSTIN validation, Place of Supply determination, and automatic e-invoice IRN filings.
 
 ---
 
-## 12. Integrations & Log Hub
+## 16. Integrations & Log Hub
 - **Integration Log Standard**: Every payload is logged with masked credentials and supports retry hooks.
 - **Observability**: A developer Log Hub panel displays system errors, Stack Traces from Go panics, and correlation IDs.
 
 ---
 
-## 13. System Error-Proofing Matrix
+## 17. System Error-Proofing Matrix
 
 | Area | Risk Scenario | System Control | Standard Error Message |
 | :--- | :--- | :--- | :--- |
@@ -217,11 +271,11 @@ Modules and features are enabled via configuration files:
 
 ---
 
-## 14. Stage-Wise Implementation Roadmap
+## 18. Stage-Wise Implementation Roadmap
 
 We will build the ERP system in 12 progressive stages:
 
-1.  **Stage 1 - Core Foundation**: Setup Tenant, User, RBAC, DocType registry, and Log Hub.
+1.  **Stage 1 - Core Foundation**: Setup Tenant, User, RBAC, DocType registry, security rules, and Log Hub.
 2.  **Stage 2 - Dynamic Configuration**: Build DocType builder UI, Dynamic Form Renderer, Label Engine, and Numbering Engine.
 3.  **Stage 3 - Master Packages**: Initialize pre-configured industry masters (Jewelry, F&B, Automobile, Clothing presets) and CSV/Excel uploads.
 4.  **Stage 4 - Procurement**: Implement Requisitions, RFQs, Quote comparisons, PO creation, and approvals.
@@ -233,32 +287,3 @@ We will build the ERP system in 12 progressive stages:
 10. **Stage 10 - Reports and Dashboards**: Setup drilldown report engines, dashboards, and automated exports.
 11. **Stage 11 - QA and Go-Live**: End-to-end integration testing, migration templates, and cutover checklists.
 12. **Stage 12 - Multi-Industry Scale**: Deploy SaaS monitoring, CI/CD pipelines, and multi-tenant subscriptions.
-
----
-
-## 15. Standard API Response Pattern
-
-### Success Response (`200 OK`)
-```json
-{
-  "success": true,
-  "message": "Document submitted successfully.",
-  "data": {
-    "document_number": "PO/HO/26-27/000001"
-  },
-  "correlation_id": "8f4b3292-62ef-4ba6-86c4-c247f078e24c"
-}
-```
-
-### Error Response (`400 Bad Request`)
-```json
-{
-  "success": false,
-  "error_code": "PO_NOT_APPROVED",
-  "message": "PO is not approved. GRN can be created only for approved PO.",
-  "details": {
-    "po_status": "Draft"
-  },
-  "correlation_id": "8f4b3292-62ef-4ba6-86c4-c247f078e24c"
-}
-```
