@@ -122,11 +122,13 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 
 ## 🔌 Stage 9 - Tax and Integrations
 
-- [ ] **9.1 API Channel Syncs**
-  - [ ] Implement Shopify product/inventory mapping.
-  - [ ] Implement Unicommerce inventory sync.
-  - [ ] Implement Pine Labs Plutus payment terminal integrations.
-  - [ ] Implement CleverTap customer event sync.
+- [x] **9.1 API Channel Syncs**
+  - [x] Implement Shopify product/inventory mapping, delta stocks, and order webhooks.
+  - [x] Implement Unicommerce inventory sync & multi-marketplace order ingestion.
+  - [x] Implement Pine Labs Plutus payment terminal reconciliation checkouts.
+  - [x] Implement CleverTap customer order event log syncing.
+  - [x] Implement Marketplace settlements (Shopify/Amazon) payout reconciliation and commission bookings.
+  - [x] Implement logistics dispatch tracking bookings and carrier registration.
 - [ ] **9.2 Error Logs Hub**
   - [ ] Build Log Hub screen displaying integration payloads and system panic backtraces.
   - [ ] Implement `Retry` buttons for failed payloads.
