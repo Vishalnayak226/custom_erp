@@ -389,6 +389,32 @@ function renderDashboard(container) {
   `;
   container.appendChild(header);
 
+  // Quick Stats Summary Row
+  const statsRow = document.createElement('div');
+  statsRow.className = 'dashboard-stats-row';
+  statsRow.innerHTML = `
+    <div class="stat-card">
+      <span class="stat-label">DocTypes Registered</span>
+      <span class="stat-val">${state.activeDoctypes.length || 0}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Audit History Count</span>
+      <span class="stat-val">${state.auditLogs.length || 0}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Active Schema Tenant</span>
+      <span class="stat-val" style="text-transform: uppercase;">${localStorage.getItem('erp_tenant_id') || 'default'}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Platform Core Health</span>
+      <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+        <span class="pulse-dot"></span>
+        <span style="font-size: 16px; font-weight: 700; color: #10b981;">Operational</span>
+      </div>
+    </div>
+  `;
+  container.appendChild(statsRow);
+
   const grid = document.createElement('div');
   grid.className = 'dashboard-grid';
 
