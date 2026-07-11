@@ -93,6 +93,22 @@ To support scaling from 1 store to 2,000 stores without transaction database loc
 *   **Remote GitHub URL**: `https://github.com/Vishalnayak226/custom_erp.git` (Branch: `main`)
 *   **Build Handover Milestone**:
     - **Phases 1-7** (Core Foundation, Single Vertical Pilot, Omnichannel Sync, Store Fulfillment, Concurrency Scale Testing, Marketplace Expansion, and Advanced Optimization Engines) are 100% completed, integrated, verified, and pushed to GitHub.
-*   **Dev Server State**: Active background process listening on port `8080`.
-*   **Deployment Readiness**: Ready for staging/production release.
+    - **SaaS Provisioning & Feature Flags**: Built schemas cloning structures, seeding default metadata, and setting flag boundaries per tenant.
+    - **Error Logs Hub & Outbox Retries**: Built API endpoints for log querying, failed integration event resets, and webhook signature verification checks.
+    - **Premium UI Overhaul**: Created a high-fidelity Stripe/Linear-style dashboard with KPI tickers, soft glowing focus borders, and centered glassmorphism dialog modals.
+*   **Dev Server State**: Live background process running on port `8080` (Go backend) and frontend served on port `8080`.
+*   **Verification Status**: All UAT tests pass cleanly (`ok custom_erp/engines 2.776s`).
+
+---
+
+## 7. Handover Notes for Incoming AI (Claude / Codex / Gemini)
+
+Welcome! The project is fully complete and operational. To verify the build or resume development, follow these steps:
+1.  **Repository Setup**: Pull latest code from `main` branch.
+2.  **Run Database**: Ensure PostgreSQL is running on port `5435`.
+3.  **Run Tests**: Execute `go test ./...` to verify all business rules.
+4.  **Run Server**: Launch server `./erp-server.exe` or `go run main.go`.
+5.  **Build Assets**: Execute `npm run build` to package frontend minified scripts.
+6.  **Access App**: Navigate to `http://localhost:8080` in your browser. All native alerts/confirms have been replaced with a custom-styled Promise-based modal layout.
+7.  **Handover Ledger**: Reference `docs/project_ledger.md` for historical build logs and chronological records of what was built.
 
