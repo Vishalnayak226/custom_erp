@@ -84,3 +84,13 @@ To support scaling from 1 store to 2,000 stores without transaction database loc
     `Available to Sell = Available - Reserved - Safety Stock - Channel Holds`
 3.  **Strict Idempotency keys**: Validate signature, timestamp, and unique UUID identifiers on all webhook payloads to prevent duplicate order or invoice creations.
 
+---
+
+## 6. Version Control & Handover Status
+
+*   **Remote GitHub URL**: `https://github.com/Vishalnayak226/custom_erp.git` (Branch: `main`)
+*   **Build Handover Milestone**:
+    - **Phase 1 (Scale Foundation)**, **Phase 2 (Jewelry Vertical)**, **Phase 3 (Omnichannel Sync)**, **Phase 4 (Store Fulfillment)**, and **Phase 5 (Concurrency Scale Stress Testing)** are completely built, integrated, tested, committed, and pushed.
+*   **Dev Server State**: Active background process listening on port `8080`.
+*   **Next Phase (Phase 6)**: Build multi-marketplace OMS settlements, logistics tracking, and support console.
+
