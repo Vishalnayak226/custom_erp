@@ -821,3 +821,97 @@ pre {
   color: #334155;
   text-align: left;
 }
+
+/* Custom Dialog Backdrop */
+.custom-dialog-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999999;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+
+.custom-dialog-backdrop.hidden {
+  display: none !important;
+  opacity: 0;
+}
+
+/* Custom Dialog Box */
+.custom-dialog-box {
+  background-color: var(--panel-bg);
+  border-radius: 12px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: var(--shadow-lg), 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  border: 1px solid var(--border-color);
+  animation: dialogFadeIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  overflow: hidden;
+}
+
+@keyframes dialogFadeIn {
+  from {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.custom-dialog-header {
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #f8fafc;
+}
+
+.custom-dialog-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.custom-dialog-close-x {
+  background: none;
+  border: none;
+  font-size: 24px;
+  font-weight: 400;
+  color: var(--text-muted);
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition: color var(--transition-speed);
+}
+
+.custom-dialog-close-x:hover {
+  color: #ef4444;
+}
+
+.custom-dialog-body {
+  padding: 24px;
+  font-size: 14px;
+  color: #334155;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.custom-dialog-footer {
+  padding: 16px 24px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  background-color: #f8fafc;
+}

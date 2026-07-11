@@ -1,4 +1,130 @@
-// Custom ERP - Dynamic Client State & Renderer Engine
+// Custom Dialog Helper Utilities
+function showCustomAlert(message, title = 'Notification') {
+  return new Promise((resolve) => {
+    const backdrop = document.getElementById('custom-dialog-container');
+    const titleEl = document.getElementById('custom-dialog-title');
+    const msgEl = document.getElementById('custom-dialog-message');
+    const okBtn = document.getElementById('custom-dialog-ok-btn');
+    const cancelBtn = document.getElementById('custom-dialog-cancel-btn');
+    const closeBtn = document.getElementById('custom-dialog-close-btn');
+
+    titleEl.textContent = title;
+    msgEl.textContent = message;
+    
+    cancelBtn.style.display = 'none';
+    backdrop.classList.remove('hidden');
+
+    const cleanUp = () => {
+      backdrop.classList.add('hidden');
+      cancelBtn.style.display = '';
+      okBtn.replaceWith(okBtn.cloneNode(true));
+      closeBtn.replaceWith(closeBtn.cloneNode(true));
+    };
+
+    document.getElementById('custom-dialog-ok-btn').addEventListener('click', () => {
+      cleanUp();
+      resolve(true);
+    });
+
+    document.getElementById('custom-dialog-close-btn').addEventListener('click', () => {
+      cleanUp();
+      resolve(true);
+    });
+  });
+}
+
+function showCustomConfirm(message, title = 'Confirm Action') {
+  return new Promise((resolve) => {
+    const backdrop = document.getElementById('custom-dialog-container');
+    const titleEl = document.getElementById('custom-dialog-title');
+    const msgEl = document.getElementById('custom-dialog-message');
+    const okBtn = document.getElementById('custom-dialog-ok-btn');
+    const cancelBtn = document.getElementById('custom-dialog-cancel-btn');
+    const closeBtn = document.getElementById('custom-dialog-close-btn');
+
+    titleEl.textContent = title;
+    msgEl.textContent = message;
+    
+    cancelBtn.style.display = '';
+    backdrop.classList.remove('hidden');
+
+    const cleanUp = () => {
+      backdrop.classList.add('hidden');
+      okBtn.replaceWith(okBtn.cloneNode(true));
+      cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+      closeBtn.replaceWith(closeBtn.cloneNode(true));
+    };
+
+    document.getElementById('custom-dialog-ok-btn').addEventListener('click', () => {
+      cleanUp();
+      resolve(true);
+    });
+
+    document.getElementById('custom-dialog-cancel-btn').addEventListener('click', () => {
+      cleanUp();
+      resolve(false);
+    });
+
+    document.getElementById('custom-dialog-close-btn').addEventListener('click', () => {
+      cleanUp();
+      resolve(false);
+    });
+  });
+}
+
+function showCustomPrompt(message, defaultValue = '', title = 'Input Required') {
+  return new Promise((resolve) => {
+    const backdrop = document.getElementById('custom-dialog-container');
+    const titleEl = document.getElementById('custom-dialog-title');
+    const msgEl = document.getElementById('custom-dialog-message');
+    const extraEl = document.getElementById('custom-dialog-extra');
+    const okBtn = document.getElementById('custom-dialog-ok-btn');
+    const cancelBtn = document.getElementById('custom-dialog-cancel-btn');
+    const closeBtn = document.getElementById('custom-dialog-close-btn');
+
+    titleEl.textContent = title;
+    msgEl.textContent = message;
+    
+    // Create an input field dynamically
+    extraEl.innerHTML = `<input type="text" id="custom-dialog-prompt-input" class="form-input" style="width: 100%; margin-top: 12px;" value="${defaultValue}">`;
+    extraEl.classList.remove('hidden');
+    cancelBtn.style.display = '';
+
+    backdrop.classList.remove('hidden');
+    
+    const inputEl = document.getElementById('custom-dialog-prompt-input');
+    if (inputEl) {
+      inputEl.focus();
+      inputEl.select();
+    }
+
+    const cleanUp = () => {
+      backdrop.classList.add('hidden');
+      extraEl.innerHTML = '';
+      extraEl.classList.add('hidden');
+      okBtn.replaceWith(okBtn.cloneNode(true));
+      cancelBtn.replaceWith(cancelBtn.cloneNode(true));
+      closeBtn.replaceWith(closeBtn.cloneNode(true));
+    };
+
+    document.getElementById('custom-dialog-ok-btn').addEventListener('click', () => {
+      const val = document.getElementById('custom-dialog-prompt-input').value;
+      cleanUp();
+      resolve(val);
+    });
+
+    document.getElementById('custom-dialog-cancel-btn').addEventListener('click', () => {
+      cleanUp();
+      resolve(null);
+    });
+
+    document.getElementById('custom-dialog-close-btn').addEventListener('click', () => {
+      cleanUp();
+      resolve(null);
+    });
+  });
+}
+
 
 let state = {
   activeDoctypes: [],
@@ -37,11 +163,11 @@ async function apiFetch(url, options = {}) {
   });
   
   if (response.status === 401) {
-    alert('Session expired. Please log in again.');
+    await showCustomAlert('Session expired. Please log in again.', 'Unauthorized');
     return null;
   }
   if (response.status === 429) {
-    alert('Rate limit exceeded. Please throttle your requests.');
+    await showCustomAlert('Rate limit exceeded. Please throttle your requests.', 'Rate Limit');
     return null;
   }
   
@@ -159,7 +285,7 @@ function setupEventListeners() {
 
   // Sync / Reset Database
   document.getElementById('sync-btn').addEventListener('click', async () => {
-    if (confirm('Re-fetch translation cache and active schema fields?')) {
+    if (await showCustomConfirm('Re-fetch translation cache and active schema fields?')) {
       await fetchLabels();
       await fetchRegisteredDoctypes();
       renderView(currentView);
@@ -171,18 +297,18 @@ function setupEventListeners() {
     indSelector.addEventListener('change', async (e) => {
       const code = e.target.value;
       if (!code) return;
-      if (confirm(`Switch to active industry profile: ${code}? This will re-load preset table field configurations.`)) {
+      if (await showCustomConfirm(`Switch to active industry profile: ${code}? This will re-load preset table field configurations.`)) {
         const res = await apiFetch('/api/v1/admin/industry', {
           method: 'POST',
           body: JSON.stringify({ industry_code: code })
         });
         if (res && res.ok) {
-          alert('Industry configuration updated successfully!');
+          await showCustomAlert('Industry configuration updated successfully!', 'Success');
           await fetchLabels();
           await fetchRegisteredDoctypes();
           renderView('dashboard');
         } else {
-          alert('Failed to switch industry profile.');
+          await showCustomAlert('Failed to switch industry profile.', 'Error');
         }
       }
     });
@@ -417,7 +543,7 @@ window.changeDocPage = function(page) {
 };
 
 window.deleteDocRecord = async function(id) {
-  if (confirm('Delete this record?')) {
+  if (await showCustomConfirm('Delete this record?')) {
     const res = await apiFetch(`/api/v1/doc/${currentDoctype}/${id}`, { method: 'DELETE' });
     if (res && res.ok) {
       renderView('doctype-table');
@@ -524,7 +650,7 @@ window.handleDynamicFormSubmit = async function(e) {
     renderView('doctype-table');
   } else if (res) {
     const errorData = await res.json();
-    alert(`Validation Failed: ${errorData.error}`);
+    await showCustomAlert(`Validation Failed: ${errorData.error}`, 'Validation Failure');
   }
 };
 
@@ -625,34 +751,35 @@ window.loadDoctypeConfig = async function(doctypeName) {
   container.innerHTML = html;
 };
 
-window.addNewFieldConfig = function(doctypeName) {
-  const fieldname = prompt('Enter Field name (technical identifier, e.g. material_weight):');
-  const label = prompt('Enter Label (Display text, e.g. Material Weight):');
-  const fieldtype = prompt('Enter Fieldtype (Data/Number/Select/Check/Date/Link):');
-  const mandatory = confirm('Is this field mandatory?');
-  const options = prompt('Enter Options (Choice list for Select, Target DocType for Link, else leave blank):');
+window.addNewFieldConfig = async function(doctypeName) {
+  const fieldname = await showCustomPrompt('Enter Field name (technical identifier, e.g. material_weight):');
+  if (!fieldname) return;
+  const label = await showCustomPrompt('Enter Label (Display text, e.g. Material Weight):');
+  if (!label) return;
+  const fieldtype = await showCustomPrompt('Enter Fieldtype (Data/Number/Select/Check/Date/Link):');
+  if (!fieldtype) return;
+  const mandatory = await showCustomConfirm('Is this field mandatory?');
+  const options = await showCustomPrompt('Enter Options (Choice list for Select, Target DocType for Link, else leave blank):');
   
-  if (fieldname && label && fieldtype) {
-    apiFetch(`/api/v1/meta/${doctypeName}/fields`, {
-      method: 'POST',
-      body: JSON.stringify({
-        fieldname,
-        label,
-        fieldtype,
-        mandatory,
-        options,
-        display_order: 10
-      })
-    }).then(res => {
-      if (res && res.ok) {
-        loadDoctypeConfig(doctypeName);
-      }
-    });
-  }
+  apiFetch(`/api/v1/meta/${doctypeName}/fields`, {
+    method: 'POST',
+    body: JSON.stringify({
+      fieldname,
+      label,
+      fieldtype,
+      mandatory,
+      options: options || '',
+      display_order: 10
+    })
+  }).then(res => {
+    if (res && res.ok) {
+      loadDoctypeConfig(doctypeName);
+    }
+  });
 };
 
-window.deleteFieldConfig = function(doctypeName, fieldID) {
-  if (confirm('Delete this field from doctype metadata?')) {
+window.deleteFieldConfig = async function(doctypeName, fieldID) {
+  if (await showCustomConfirm('Delete this field from doctype metadata?')) {
     apiFetch(`/api/v1/meta/${doctypeName}/fields/${fieldID}`, {
       method: 'DELETE'
     }).then(res => {
@@ -786,24 +913,25 @@ function renderDynamicLabelsView(container) {
   container.appendChild(panel);
 }
 
-window.addNewLabelReplacement = function() {
-  const orig = prompt('Enter original word/label (exact case-insensitive match, e.g. Brand):');
-  const custom = prompt('Enter replacement overlay label (e.g. Material Grade):');
-  if (orig && custom) {
-    apiFetch('/api/v1/labels', {
-      method: 'POST',
-      body: JSON.stringify({ original_text: orig, custom_text: custom })
-    }).then(async res => {
-      if (res && res.ok) {
-        await fetchLabels();
-        renderView('dynamic-labels');
-      }
-    });
-  }
+window.addNewLabelReplacement = async function() {
+  const orig = await showCustomPrompt('Enter original word/label (exact case-insensitive match, e.g. Brand):');
+  if (!orig) return;
+  const custom = await showCustomPrompt('Enter replacement overlay label (e.g. Material Grade):');
+  if (!custom) return;
+  
+  apiFetch('/api/v1/labels', {
+    method: 'POST',
+    body: JSON.stringify({ original_text: orig, custom_text: custom })
+  }).then(async res => {
+    if (res && res.ok) {
+      await fetchLabels();
+      renderView('dynamic-labels');
+    }
+  });
 };
 
-window.deleteLabelReplacement = function(orig) {
-  if (confirm(`Remove label mapping for "${orig}"?`)) {
+window.deleteLabelReplacement = async function(orig) {
+  if (await showCustomConfirm(`Remove label mapping for "${orig}"?`)) {
     apiFetch(`/api/v1/labels?original_text=${encodeURIComponent(orig)}`, {
       method: 'DELETE'
     }).then(async res => {
@@ -902,17 +1030,17 @@ async function renderLogHubView(container) {
   grid.appendChild(sysPanel);
   container.appendChild(grid);
 
-  window.viewStackTrace = function(logId) {
+  window.viewStackTrace = async function(logId) {
     const log = systemLogs.find(x => x.log_id === logId);
     if (!log) return;
-    alert(`Stack Trace for ${logId}:\n\n${log.stack_trace || 'No trace available.'}`);
+    await showCustomAlert(`Stack Trace for ${logId}:\n\n${log.stack_trace || 'No trace available.'}`, 'Stack Trace');
   };
 }
 
-window.triggerPanicRecovery = function() {
-  if (confirm('Trigger deliberate panic in backend router to verify system recovery middleware?')) {
+window.triggerPanicRecovery = async function() {
+  if (await showCustomConfirm('Trigger deliberate panic in backend router to verify system recovery middleware?')) {
     apiFetch('/api/v1/debug/panic').then(async res => {
-      alert('Panic endpoint hit. Re-checking Log Hub for stack trace registration.');
+      await showCustomAlert('Panic endpoint hit. Re-checking Log Hub for stack trace registration.', 'System Recovery');
       renderView('audit-logs');
     });
   }
