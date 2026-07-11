@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"testing"
+	"time"
 )
 
 func TestEngines(t *testing.T) {
@@ -441,6 +442,113 @@ func TestEngines(t *testing.T) {
 
 		if !foundAR || !foundComm {
 			t.Errorf("Expected AR (1300) and Commission (5200) balances to be present, but weren't: %+v", testBal)
+		}
+	})
+
+	// 10. Test Advanced Optimization and Forecasting (Phase 7)
+	t.Run("AdvancedOptimizationAndForecasting", func(t *testing.T) {
+		// Clean and prepare
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'POSCart'")
+
+		// 1. Post a checkout to establish sales velocity (30 items sold)
+		cartID := "CRT-OPT-01"
+		cartDoc := map[string]interface{}{
+			"cart_number": cartID,
+			"location":    "WH01",
+			"status":      "completed",
+			"items": []map[string]interface{}{
+				{"sku": "BAR12345", "qty": 30},
+			},
+		}
+		cartBytes, _ := json.Marshal(cartDoc)
+		_, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'POSCart', $2, 'completed', 'system')", cartID, cartBytes)
+		if err != nil {
+			t.Fatalf("Failed to insert mock POSCart: %v", err)
+		}
+
+		// Calculate sales velocity over past 30 days
+		velocity, err := CalculateSalesVelocity(tenantID, "WH01", "BAR12345", 30)
+		if err != nil {
+			t.Fatalf("Failed to calculate sales velocity: %v", err)
+		}
+		if velocity != 1.0 { // 30 units sold / 30 days = 1.0 unit/day
+			t.Errorf("Expected sales velocity to be 1.0, got: %f", velocity)
+		}
+
+		// 2. Test Forecasting (30 days ahead forecast should project 30 units)
+		forecast, err := ForecastDemand(tenantID, "WH01", "BAR12345", 30)
+		if err != nil {
+			t.Fatalf("Failed to project forecast: %v", err)
+		}
+		if forecast != 30.0 {
+			t.Errorf("Expected forecast to be 30.0, got: %f", forecast)
+		}
+
+		// 3. Test Replenishment Suggestion
+		// available stock at WH01 for BAR12345 is 55 (from previous Return Anywhere test!)
+		// LeadTimeDays = 7, SafetyStock = 10 -> ReorderPoint = (1.0 * 7) + 10 = 17.
+		// Since available 55 >= reorder point 17, there should be NO replenishment suggested!
+		suggestions, err := GetReplenishmentSuggestions(tenantID, "WH01", 7, 10)
+		if err != nil {
+			t.Fatalf("Failed to compute replenishment suggestions: %v", err)
+		}
+		for _, s := range suggestions {
+			if s.SKU == "BAR12345" {
+				t.Errorf("Expected no replenishment suggestions for BAR12345, but got one: %+v", s)
+			}
+		}
+
+		// Increase LeadTimeDays to 60 -> ReorderPoint = (1.0 * 60) + 10 = 70.
+		// Since available 55 < reorder point 70, it should suggest reordering 15 units!
+		suggestions, err = GetReplenishmentSuggestions(tenantID, "WH01", 60, 10)
+		if err != nil {
+			t.Fatalf("Failed to compute replenishment suggestions with high lead time: %v", err)
+		}
+		found := false
+		for _, s := range suggestions {
+			if s.SKU == "BAR12345" {
+				found = true
+				if s.SuggestedQty != 15 {
+					t.Errorf("Expected suggested replenishment quantity to be 15, got: %d", s.SuggestedQty)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("Expected to find replenishment suggestion for BAR12345, but did not")
+		}
+
+		// 4. Test SLA Breach Scanner
+		// Clean up old task to prevent unique constraints violations
+		taskID := "TASK-SLA-01"
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", taskID)
+		taskDoc := map[string]interface{}{
+			"order_id":      "ORD-WEB-SLA",
+			"location_code": "WH01",
+			"status":        "Pending",
+		}
+		taskBytes, _ := json.Marshal(taskDoc)
+		threeHoursAgo := time.Now().UTC().Add(-3 * time.Hour)
+		_, err = db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by, created_at) VALUES ($1, 'FulfillmentTask', $2, 'Pending', 'system', $3)", taskID, taskBytes, threeHoursAgo)
+		if err != nil {
+			t.Fatalf("Failed to insert mock FulfillmentTask: %v", err)
+		}
+
+		// Check SLA breaches with 120 minutes (2 hours) threshold
+		breaches, err := GetSLABreaches(tenantID, 120.0)
+		if err != nil {
+			t.Fatalf("Failed to get SLA breaches: %v", err)
+		}
+		foundBreach := false
+		for _, b := range breaches {
+			if b.TaskID == taskID {
+				foundBreach = true
+				if b.MinutesElapsed < 179 || b.MinutesElapsed > 181 {
+					t.Errorf("Expected minutes elapsed to be around 180, got: %f", b.MinutesElapsed)
+				}
+			}
+		}
+		if !foundBreach {
+			t.Errorf("Expected to find SLA breach for task %s, but did not", taskID)
 		}
 	})
 }

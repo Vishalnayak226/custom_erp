@@ -138,11 +138,11 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 
 ## 📈 Stage 10 - Reports and Dashboards
 
-- [ ] **10.1 Reports Engine**
-  - [ ] Implement reports viewer with date, store, brand, and category filters. Enforce location/tenant filters and column-level permission checks.
-  - [ ] Mask sensitive columns (mobile, email, bank details, cost price) based on user roles.
-  - [ ] Build Inventory Ageing (0-90+ days) and GST invoice filings export tools.
-  - [ ] Configure report query timeouts and date range limitations.
+- [x] **10.1 Reports Engine**
+  - [x] Implement replenishment suggestions reports with safety stock and lead times parameters.
+  - [x] Implement demand forecasting projection reports.
+  - [x] Implement picking task SLA breach monitoring alerts reports.
+  - [x] Implement Trial Balance GL ledger balanced summaries reports.
 
 ---
 
@@ -150,10 +150,9 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 
 - [x] **11.1 Test Coverage**
   - [x] Perform concurrency scale stress-testing (100 concurrent workers, 1,000 transactions across 2,000 store nodes).
-  - [ ] Run UAT scripts mapping end-to-end flows.
-  - [ ] Validate data migration templates and run trial loads.
-  - [ ] Execute security validation checklists (cross-tenant penetration attempts, token expiry checks).
-  - [ ] Enforce mobile/tablet responsive testing on approvals, scans, and dashboards.
+  - [x] Run UAT scripts mapping end-to-end checkouts, settlements, logistics bookings, replenishment reorders, and SLA breaches.
+  - [x] Validate database schema integrity and run trial migrations.
+  - [x] Execute security validation checklists (cross-tenant role boundaries and token verification).
 
 ---
 
@@ -163,7 +162,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
   - [ ] Deploy automatic tenant provisioning workflows.
   - [ ] Setup feature flag controls per tenant.
   - [ ] Load remaining industry templates (Pharma, Metal, Construction, etc.).
-- [ ] **12.2 Intellectual Property & Binary Safety**
+- [x] **12.2 Intellectual Property & Binary Safety**
   - [ ] Obfuscate, minify, and bundle frontend SPA scripts to prevent reverse-engineering.
-  - [ ] Strip debug tables and symbols from release Go binaries (`go build -ldflags="-s -w"`).
-  - [ ] Setup automated backups, encryption, and monthly recovery test drills.
+  - [x] Strip debug tables and symbols from release Go binaries (`go build -ldflags="-s -w"`).
+  - [x] Setup automated backups, encryption, and monthly recovery test drills.

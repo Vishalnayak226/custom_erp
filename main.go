@@ -216,6 +216,11 @@ func main() {
 	http.HandleFunc("POST /api/v1/marketplace/settlement/reconcile", apiMiddleware(handleMarketplaceReconcile))
 	http.HandleFunc("POST /api/v1/marketplace/logistics/book", apiMiddleware(handleLogisticsBook))
 
+	// Optimization & Advanced Forecasting APIs
+	http.HandleFunc("GET /api/v1/optimization/replenishment-suggestions", apiMiddleware(handleReplenishmentSuggestions))
+	http.HandleFunc("GET /api/v1/optimization/sla-breaches", apiMiddleware(handleSLABreaches))
+	http.HandleFunc("POST /api/v1/optimization/forecast", apiMiddleware(handleDemandForecast))
+
 	// DocType Metadata APIs
 	http.HandleFunc("GET /api/v1/doc/{doctype}/meta", apiMiddleware(handleGetDocTypeMeta))
 	http.HandleFunc("GET /api/v1/meta/doctypes", apiMiddleware(handleGetDocTypes))
@@ -1438,5 +1443,95 @@ func handleLogisticsBook(w http.ResponseWriter, r *http.Request) {
 		"status":          "shipped",
 		"booking_id":      bookingID,
 		"tracking_number": req.TrackingNumber,
+	})
+}
+
+func handleReplenishmentSuggestions(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	locCode := r.URL.Query().Get("location_code")
+	if locCode == "" {
+		http.Error(w, "Query parameter 'location_code' is required", http.StatusBadRequest)
+		return
+	}
+
+	// Parse optional lead_time and safety_stock parameters
+	leadTime := 7
+	safetyStock := 10
+	if ltStr := r.URL.Query().Get("lead_time"); ltStr != "" {
+		_, _ = fmt.Sscanf(ltStr, "%d", &leadTime)
+	}
+	if ssStr := r.URL.Query().Get("safety_stock"); ssStr != "" {
+		_, _ = fmt.Sscanf(ssStr, "%d", &safetyStock)
+	}
+
+	suggestions, err := engines.GetReplenishmentSuggestions(tenantID, locCode, leadTime, safetyStock)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(suggestions)
+}
+
+func handleSLABreaches(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	threshold := 120.0 // Default to 2 hours
+	if threshStr := r.URL.Query().Get("threshold"); threshStr != "" {
+		_, _ = fmt.Sscanf(threshStr, "%f", &threshold)
+	}
+
+	reports, err := engines.GetSLABreaches(tenantID, threshold)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(reports)
+}
+
+func handleDemandForecast(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		LocationCode string `json:"location_code"`
+		SKU          string `json:"sku"`
+		ForecastDays int    `json:"forecast_days"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid forecasting payload", http.StatusBadRequest)
+		return
+	}
+
+	if req.LocationCode == "" || req.SKU == "" || req.ForecastDays <= 0 {
+		http.Error(w, "Fields 'location_code', 'sku', and positive 'forecast_days' are required", http.StatusBadRequest)
+		return
+	}
+
+	forecasted, err := engines.ForecastDemand(tenantID, req.LocationCode, req.SKU, req.ForecastDays)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"location_code":     req.LocationCode,
+		"sku":               req.SKU,
+		"forecast_days":     req.ForecastDays,
+		"forecasted_demand": forecasted,
 	})
 }

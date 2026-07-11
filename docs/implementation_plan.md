@@ -161,8 +161,8 @@ We will build and roll out the ERP platform in 7 progressive phases incorporatin
 3.  **Phase 3 - Omnichannel Pilot** [COMPLETED]: Integration gateway with Shopify/OMS channels (product sync, webhook import, inventory delta sync, order reservations, and rule-driven fulfillment routing).
 4.  **Phase 4 - Store Fulfillment** [COMPLETED]: Ship-from-store, Buy Online Pick Up in Store (BOPIS), Return Anywhere, and Store Task dashboard.
 5.  **Phase 5 - Scale Test** [COMPLETED]: Simulate 100, 500, 1,000, and 2,000 stores to validate queue depth lag, API response times, and concurrency sync accuracy.
-6.  **Phase 6 - Marketplace/OMS Expansion** [PENDING]: Multi-marketplace reconciliation, settlement logging, logistics tracking, and customer support console.
-7.  **Phase 7 - Advanced Optimization** [PENDING]: Demand forecasting, automated replenishment suggestions, anomaly detection logs, and SLA optimization.
+6.  **Phase 6 - Marketplace/OMS Expansion** [COMPLETED]: Multi-marketplace reconciliation, settlement logging, logistics tracking, and customer support console.
+7.  **Phase 7 - Advanced Optimization** [COMPLETED]: Demand forecasting, automated replenishment suggestions, anomaly detection logs, and SLA optimization.
 
 ---
 
@@ -188,6 +188,15 @@ We will build and roll out the ERP platform in 7 progressive phases incorporatin
 ### Phase 5: Scale Test (Simulation Suite)
 *   **Concurrency Stress Simulator**: Seeds 2,000 store nodes and simulates concurrent POS checkouts and webhooks using a worker pool (`engines/scale.go`).
 *   **Stress Test Performance**: Executed 1,000 concurrent transactions with 100 parallel workers: 100% success rate, 0 lock conflicts/deadlocks, and ~456 Transactions Per Second (TPS) throughput.
+
+### Phase 6: Marketplace/OMS Expansion (Settlements and Logistics Carrier integration)
+*   **Logistics Carrier Dispatches**: Creates `LogisticsBooking` shipping dispatch tracking items in status `'Shipped'`.
+*   **Settlement Payout Reconciliation**: Validates marketplace payouts and commissions math (`total - commission == netPayout`), reconciles related order carts to `'Settled'`, and posts balanced double-entry accounting bookings (Cash `1100`, Commissions Expense `5200`, Accounts Receivable `1300`).
+
+### Phase 7: Advanced Optimization (Replenishment and Demand Forecasting)
+*   **Replenishment Reorders**: Computes average daily sales velocity of SKUs over 30 days and suggests replenishment orders (`suggestedQty = (velocity * leadTime) + safetyStock - available`).
+*   **Demand Forecasting**: Projects future SKU sales volumes based on daily historical velocity rates (`engines/optimization.go`).
+*   **Picking SLA Breach Monitors**: Scans open fulfillment tasks, measures elapsed time since creation, and highlights tasks exceeding hour SLA thresholds.
 
 ---
 

@@ -30,7 +30,7 @@ We transitioned the mock frontend into a production-grade multi-tenant backend a
 [x] Phase 4: Store Fulfillment (Ship-from-store, BOPIS, Return Anywhere, Tasks Dashboard) -> COMPLETED
 [x] Phase 5: Scale Test (Simulate 100, 500, 1000, 2000 stores) -> COMPLETED
 [x] Phase 6: Marketplace/OMS Expansion (Settlements, Logistics, Support Console) -> COMPLETED
-[ ] Phase 7: Advanced Optimization (Forecasting, Replenishment, SLA target tuning) -> PENDING
+[x] Phase 7: Advanced Optimization (Forecasting, Replenishment, SLA target tuning) -> COMPLETED
 ```
 
 ---
@@ -118,10 +118,26 @@ We transitioned the mock frontend into a production-grade multi-tenant backend a
 
 ---
 
-## 10. Version Control & Git History
+## 10. Phase 7 Build Records (What We Built)
+
+### 10.1 Sales-Velocity-Driven Replenishment Suggestions
+*   **Location**: `engines/optimization.go` and `GET /api/v1/optimization/replenishment-suggestions`.
+*   **Behavior**: Computes average daily sales velocity of SKUs based on POSCart checkout histories over 30 days and suggests replenishment orders (`suggestedQty = (velocity * leadTime) + safetyStock - available`).
+
+### 10.2 Historical Sales-Based Forecasting Engine
+*   **Location**: `engines/optimization.go` and `POST /api/v1/optimization/forecast`.
+*   **Behavior**: Projects future SKU sales volumes based on daily historical velocity rates.
+
+### 10.3 Picking SLA Breach Monitors
+*   **Location**: `engines/optimization.go` and `GET /api/v1/optimization/sla-breaches`.
+*   **Behavior**: Scans open fulfillment tasks, measures elapsed time since creation, and highlights tasks exceeding SLA thresholds.
+
+---
+
+## 11. Version Control & Git History
 
 *   **Remote Repository**: `https://github.com/Vishalnayak226/custom_erp.git`
 *   **Branch**: `main`
-*   **Latest Commit**: `50b6d56`
-*   **Commit Message**: `Update docs/implementation_plan.md with Phase 2-5 architecture specifications`
+*   **Latest Commit**: `fb183dc`
+*   **Commit Message**: `Update docs/micro_checklist.md and artifacts walkthroughs for Phase 6`
 *   **Date**: 2026-07-11
