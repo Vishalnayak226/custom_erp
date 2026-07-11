@@ -221,6 +221,14 @@ func main() {
 	http.HandleFunc("GET /api/v1/optimization/sla-breaches", apiMiddleware(handleSLABreaches))
 	http.HandleFunc("POST /api/v1/optimization/forecast", apiMiddleware(handleDemandForecast))
 
+	// Integration Logs and Retry APIs
+	http.HandleFunc("GET /api/v1/integration/logs", apiMiddleware(handleGetIntegrationLogs))
+	http.HandleFunc("POST /api/v1/integration/retry", apiMiddleware(handleRetryIntegrationEvent))
+
+	// Tenant Provisioning and SaaS Control APIs
+	http.HandleFunc("POST /api/v1/admin/tenant/provision", apiMiddleware(handleProvisionTenant))
+	http.HandleFunc("POST /api/v1/admin/tenant/feature-flag", apiMiddleware(handleSetFeatureFlag))
+
 	// DocType Metadata APIs
 	http.HandleFunc("GET /api/v1/doc/{doctype}/meta", apiMiddleware(handleGetDocTypeMeta))
 	http.HandleFunc("GET /api/v1/meta/doctypes", apiMiddleware(handleGetDocTypes))
@@ -1533,5 +1541,125 @@ func handleDemandForecast(w http.ResponseWriter, r *http.Request) {
 		"sku":               req.SKU,
 		"forecast_days":     req.ForecastDays,
 		"forecasted_demand": forecasted,
+	})
+}
+
+func handleGetIntegrationLogs(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	logs, err := engines.GetIntegrationLogs(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(logs)
+}
+
+func handleRetryIntegrationEvent(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		EventID string `json:"event_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid retry payload", http.StatusBadRequest)
+		return
+	}
+
+	if req.EventID == "" {
+		http.Error(w, "Field 'event_id' is required", http.StatusBadRequest)
+		return
+	}
+
+	err := engines.RetryIntegrationEvent(tenantID, req.EventID)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":   "queued_for_retry",
+		"event_id": req.EventID,
+	})
+}
+
+func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		TenantID   string `json:"tenant_id"`
+		SchemaName string `json:"schema_name"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid provisioning payload", http.StatusBadRequest)
+		return
+	}
+
+	if req.TenantID == "" || req.SchemaName == "" {
+		http.Error(w, "Fields 'tenant_id' and 'schema_name' are required", http.StatusBadRequest)
+		return
+	}
+
+	err := engines.ProvisionTenantSchema(req.TenantID, req.SchemaName)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":      "provisioned",
+		"tenant_id":   req.TenantID,
+		"schema_name": req.SchemaName,
+	})
+}
+
+func handleSetFeatureFlag(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		FeatureName string `json:"feature_name"`
+		Enabled     bool   `json:"enabled"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid feature-flag payload", http.StatusBadRequest)
+		return
+	}
+
+	if req.FeatureName == "" {
+		http.Error(w, "Field 'feature_name' is required", http.StatusBadRequest)
+		return
+	}
+
+	err := engines.SetFeatureFlag(tenantID, req.FeatureName, req.Enabled)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":       "updated",
+		"feature_name": req.FeatureName,
+		"enabled":      req.Enabled,
 	})
 }

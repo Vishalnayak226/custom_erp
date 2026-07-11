@@ -551,4 +551,80 @@ func TestEngines(t *testing.T) {
 			t.Errorf("Expected to find SLA breach for task %s, but did not", taskID)
 		}
 	})
+
+	// 11. Test SaaS Provisioning & Feature Flags (Stage 12.1)
+	t.Run("SaaSProvisioningAndFeatureFlags", func(t *testing.T) {
+		newTenant := "tenant_new"
+		newSchema := "tenant_new_schema"
+
+		// Clean up schema if leftover
+		_, _ = db.DB.Exec("DROP SCHEMA IF EXISTS " + newSchema + " CASCADE")
+		_, _ = db.DB.Exec("DELETE FROM public.tenants WHERE id = $1", newTenant)
+
+		// Provision new tenant
+		err := ProvisionTenantSchema(newTenant, newSchema)
+		if err != nil {
+			t.Fatalf("Failed to provision new tenant schema: %v", err)
+		}
+
+		// Verify default feature flags are seeded
+		enabled, err := IsFeatureEnabled(newTenant, "wms_integration")
+		if err != nil {
+			t.Fatalf("Failed to check feature flag: %v", err)
+		}
+		if !enabled {
+			t.Errorf("Expected wms_integration feature flag to be enabled by default")
+		}
+
+		// Toggle feature flag and verify
+		err = SetFeatureFlag(newTenant, "wms_integration", false)
+		if err != nil {
+			t.Fatalf("Failed to update feature flag: %v", err)
+		}
+		enabled, _ = IsFeatureEnabled(newTenant, "wms_integration")
+		if enabled {
+			t.Errorf("Expected wms_integration feature flag to be disabled post toggle")
+		}
+	})
+
+	// 12. Test Integration Logs & Outbox Retries (Stage 9.2)
+	t.Run("IntegrationLogsAndOutboxRetries", func(t *testing.T) {
+		var eventID string
+		err := db.DB.QueryRow("INSERT INTO "+schema+".integration_event_outbox (event_name, payload, status, attempts) VALUES ('test.event', '{}', 'Failed', 3) RETURNING id").Scan(&eventID)
+		if err != nil {
+			t.Fatalf("Failed to insert mock outbox event: %v", err)
+		}
+
+		// Query logs
+		logs, err := GetIntegrationLogs(tenantID)
+		if err != nil {
+			t.Fatalf("Failed to query integration logs: %v", err)
+		}
+		found := false
+		for _, l := range logs {
+			if l["id"] == eventID {
+				found = true
+				if l["status"] != "Failed" || l["attempts"] != 3 {
+					t.Errorf("Expected failed outbox event returned in logs, got: %+v", l)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("Expected to find mock failed event in integration logs, but did not")
+		}
+
+		// Trigger retry
+		err = RetryIntegrationEvent(tenantID, eventID)
+		if err != nil {
+			t.Fatalf("Failed to trigger retry for event: %v", err)
+		}
+
+		// Verify status reset to Pending
+		var status string
+		var attempts int
+		_ = db.DB.QueryRow("SELECT status, attempts FROM "+schema+".integration_event_outbox WHERE id = $1", eventID).Scan(&status, &attempts)
+		if status != "Pending" || attempts != 0 {
+			t.Errorf("Expected outbox event reset to Pending and 0 attempts, got: status %s, attempts %d", status, attempts)
+		}
+	})
 }

@@ -124,3 +124,68 @@ func processOutbox(schema string) {
 		}
 	}
 }
+
+// GetIntegrationLogs queries integration outbox event logs
+func GetIntegrationLogs(tenantID string) ([]map[string]interface{}, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, event_name, payload, status, attempts, created_at 
+		FROM %s.integration_event_outbox 
+		ORDER BY created_at DESC LIMIT 50`, schema)
+
+	rows, err := db.DB.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var logs []map[string]interface{}
+	for rows.Next() {
+		var id, eventName, payload, status string
+		var attempts int
+		var createdAt time.Time
+		if errScan := rows.Scan(&id, &eventName, &payload, &status, &attempts, &createdAt); errScan == nil {
+			var payloadMap map[string]interface{}
+			_ = json.Unmarshal([]byte(payload), &payloadMap)
+			logs = append(logs, map[string]interface{}{
+				"id":         id,
+				"event_name": eventName,
+				"payload":    payloadMap,
+				"status":     status,
+				"attempts":   attempts,
+				"created_at": createdAt,
+			})
+		}
+	}
+	return logs, nil
+}
+
+// RetryIntegrationEvent resets status and attempts to allow background retrying of failed events
+func RetryIntegrationEvent(tenantID string, eventID string) error {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+
+	query := fmt.Sprintf(`
+		UPDATE %s.integration_event_outbox 
+		SET status = 'Pending', attempts = 0 
+		WHERE id = $1`, schema)
+	res, err := db.DB.Exec(query, eventID)
+	if err != nil {
+		return err
+	}
+
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("integration outbox event %s not found", eventID)
+	}
+	return nil
+}

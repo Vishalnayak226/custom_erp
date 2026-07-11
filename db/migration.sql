@@ -498,3 +498,16 @@ INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, all
 ('Cashier', 'MarketplaceSettlement', TRUE, TRUE, TRUE, FALSE),
 ('Cashier', 'LogisticsBooking', TRUE, TRUE, TRUE, FALSE)
 ON CONFLICT (role, doctype_name) DO NOTHING;
+
+-- 21. Create feature_flags table per tenant
+CREATE TABLE IF NOT EXISTS tenant_default.feature_flags (
+    feature_name VARCHAR(100) PRIMARY KEY,
+    enabled BOOLEAN DEFAULT TRUE
+);
+
+-- Seed some default feature flags
+INSERT INTO tenant_default.feature_flags (feature_name, enabled) VALUES
+('wms_integration', TRUE),
+('oms_integration', TRUE),
+('advanced_forecasting', TRUE)
+ON CONFLICT (feature_name) DO NOTHING;
