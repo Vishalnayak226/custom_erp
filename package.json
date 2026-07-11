@@ -1,7 +1,7 @@
 {
-  "name": "ditos-erp",
+  "name": "custom-erp",
   "version": "1.0.0",
-  "description": "DitosERP Rebuilt Modules",
+  "description": "Custom ERP Rebuilt Modules",
   "main": "index.html",
   "scripts": {
     "start": "npx http-server -p 8080"

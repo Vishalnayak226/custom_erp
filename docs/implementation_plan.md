@@ -154,20 +154,15 @@ Security must be designed from day one, not added after development.
 
 ## 7. Stage-Wise Implementation Roadmap
 
-We will build the ERP system in 12 progressive stages:
+We will build and roll out the ERP platform in 7 progressive phases incorporating the Omnichannel, Real-Time Sync & Enterprise Scale Add-on Blueprint:
 
-1.  **Stage 1 - Core Foundation**: Setup Tenant, User, RBAC, DocType registry, security rules, and Log Hub.
-2.  **Stage 2 - Dynamic Configuration**: Build DocType builder UI, Dynamic Form Renderer, Label Engine, and Numbering Engine.
-3.  **Stage 3 - Master Packages**: Initialize pre-configured industry masters (Jewelry, F&B, Automobile, Clothing presets) and CSV/Excel uploads.
-4.  **Stage 4 - Procurement**: Implement Requisitions, RFQs, Quote comparisons, PO creation, and approvals.
-5.  **Stage 5 - GRN and Inventory**: Enforce GRN reconciliation, barcode generation, Quality checks, and RTV returns.
-6.  **Stage 6 - Warehouse and Transfer**: Manage Bin storage, putaway, dispatch transfers (TO), receipt transfers (TI), and compliance filings.
-7.  **Stage 7 - POS and Sales**: Build POS profiles, Cash registers, offline caching checkout, and sales returns.
-8.  **Stage 8 - Finance**: Implement Vendor invoices, 3-way matching, payments, and GL posting controls.
-9.  **Stage 9 - Tax and Integrations**: Integrate GST/IRN, Pine Labs, Shopify, and message syncs.
-10. **Stage 10 - Reports and Dashboards**: Setup drilldown report engines, dashboards, and automated exports.
-11. **Stage 11 - QA and Go-Live**: End-to-end integration testing, migration templates, and cutover checklists.
-12. **Stage 12 - Multi-Industry Scale**: Deploy SaaS monitoring, CI/CD pipelines, and multi-tenant subscriptions.
+1.  **Phase 1 - Foundation**: Core ERP Kernel (DocType metadata, RBAC, numbering engine, logs) + Omnichannel foundation (Event bus, outbox queue pattern, integration logs, inventory availability read models, and reservation models).
+2.  **Phase 2 - Single Vertical Pilot**: Jewellery retail end-to-end flow: Purchase Orders (PO), GRN intake, Barcoding, Inventory Ledgers, Transfers (TO/TI), POS sales client, Sales Returns, and GL Finance postings.
+3.  **Phase 3 - Omnichannel Pilot**: Integration gateway with Shopify/OMS channels (product sync, webhook import, inventory delta sync, order reservations, and rule-driven fulfillment routing).
+4.  **Phase 4 - Store Fulfillment**: Ship-from-store, Buy Online Pick Up in Store (BOPIS), Return Anywhere, and Store Task dashboard.
+5.  **Phase 5 - Scale Test**: Simulate 100, 500, 1,000, and 2,000 stores to validate queue depth lag, API response times, and concurrency sync accuracy.
+6.  **Phase 6 - Marketplace/OMS Expansion**: Multi-marketplace reconciliation, settlement logging, logistics tracking, and customer support console.
+7.  **Phase 7 - Advanced Optimization**: Demand forecasting, automated replenishment suggestions, anomaly detection logs, and SLA optimization.
 
 ---
 

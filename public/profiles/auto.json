@@ -1,0 +1,33 @@
+{
+  "industry_code": "AUTO",
+  "industry_name": "Automobile Industry",
+  "doctype_overrides": [
+    {
+      "name": "Brand",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Vehicle Make",
+      "fields": [
+        { "fieldname": "code", "label": "Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Make Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 }
+      ]
+    },
+    {
+      "name": "Model",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Vehicle Model",
+      "fields": [
+        { "fieldname": "code", "label": "Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Model Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "engine_type", "label": "Engine Type", "fieldtype": "Select", "options": "V6,V8,Inline-4,Electric", "mandatory": true, "display_order": 3 },
+        { "fieldname": "fuel_type", "label": "Fuel Type", "fieldtype": "Select", "options": "Petrol,Diesel,Electric,Hybrid", "mandatory": true, "display_order": 4 },
+        { "fieldname": "vin_number", "label": "Serial VIN", "fieldtype": "Data", "mandatory": false, "display_order": 5 }
+      ]
+    }
+  ],
+  "labels": {
+    "Brand": "Vehicle Make",
+    "Model": "Vehicle Model"
+  }
+}

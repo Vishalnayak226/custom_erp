@@ -16,3 +16,18 @@ Thumbs.db
 *.njsproj
 *.sln
 *.swp
+
+# Compiled binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build files
+bin/
+
+# Editor configs
+.claude/
+CLAUDE.md
+graphify-out/

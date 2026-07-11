@@ -1,4 +1,4 @@
-// Mock Database for DitosERP Master Data
+// Mock Database for Custom ERP Master Data
 
 const INITIAL_ERP_DATA = {
   brands: [

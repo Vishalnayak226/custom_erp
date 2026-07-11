@@ -1,0 +1,32 @@
+{
+  "industry_code": "FOOD_BEV",
+  "industry_name": "Food and Beverage Industry",
+  "doctype_overrides": [
+    {
+      "name": "Brand",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Manufacturer Brand",
+      "fields": [
+        { "fieldname": "code", "label": "Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Brand Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 }
+      ]
+    },
+    {
+      "name": "Batch",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Product Batch",
+      "fields": [
+        { "fieldname": "code", "label": "Code/Lot ID", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "manufacturing_date", "label": "MFG Date", "fieldtype": "Date", "mandatory": true, "display_order": 2 },
+        { "fieldname": "expiry_date", "label": "Expiry Date", "fieldtype": "Date", "mandatory": true, "display_order": 3 },
+        { "fieldname": "storage_temp", "label": "Storage Temp Limit (°C)", "fieldtype": "Number", "mandatory": false, "display_order": 4 }
+      ]
+    }
+  ],
+  "labels": {
+    "Brand": "Manufacturer Brand",
+    "Batch": "Product Batch"
+  }
+}

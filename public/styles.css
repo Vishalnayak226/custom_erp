@@ -1,4 +1,4 @@
-/* DitosERP Stylesheet */
+/* Custom ERP Stylesheet */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 :root {
@@ -789,4 +789,35 @@ input:checked + .slider:before {
 .pagination-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* Tab Active State for Log Hub */
+.btn-outline.active {
+  background-color: var(--primary-color);
+  color: #ffffff;
+  border-color: var(--primary-color);
+}
+
+/* System Exception Logs Badge Custom Colors */
+.badge-danger {
+  background-color: #fecaca;
+  color: #b91c1c;
+}
+
+.badge-warning {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+/* Preformatted Stack Traces style rules */
+pre {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+  font-family: Consolas, Monaco, "Andale Mono", monospace;
+  white-space: pre-wrap;
+  color: #334155;
+  text-align: left;
 }

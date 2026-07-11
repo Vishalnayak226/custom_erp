@@ -21,19 +21,16 @@ We transitioned the mock frontend into a production-grade multi-tenant backend a
 
 ---
 
-## 3. Phase 1 Completion Ledger (Stage 1)
+## 3. Project Rollout Completion Ledger
 
 ```
-[x] Stage 1: Foundation & Core Engines (Sequence, Audits, Dynamic Labels) -> COMPLETED
-[ ] Stage 2: Master Definitions & Attributes (Brands, Styles, Tax Codes) -> PENDING
-[ ] Stage 3: Product Catalog & Schemes (Designs, Combinations variant generation) -> PENDING
-[ ] Stage 4: Procurement & Purchase (PR, PO Grid, GRN validation, Barcode generation) -> PENDING
-[ ] Stage 5: Inventory Control (Stock ledger, local stock movement scan logs) -> PENDING
-[ ] Stage 6: Transfers (Stock Transfer Out/In scanning, GST IRN/e-way integrations) -> PENDING
-[ ] Stage 7: POS checkout client (Open POS cashier checkout terminal, loyalty, checkout) -> PENDING
-[ ] Stage 8: Finance & 3-Way Match (Vendor Invoices, GL double-entry bookings) -> PENDING
-[ ] Stage 9: Third-party integrations (Shopify, Pine Labs, OCAPI, CleverTap) -> PENDING
-[ ] Stage 10: MIS Reporting (Aging analysis, GST filings summaries, export tools) -> PENDING
+[x] Phase 1: Core Foundation & Scale Infrastructure (Event Bus, Outbox, Availability, Reservations) -> COMPLETED
+[x] Phase 2: Single Vertical Pilot (Jewellery PO-GRN-Barcode-Inventory-Transfers-POS-Finance) -> COMPLETED
+[x] Phase 3: Omnichannel Pilot (Shopify Sync, Webhook Imports, Fulfillment Routing) -> COMPLETED
+[x] Phase 4: Store Fulfillment (Ship-from-store, BOPIS, Return Anywhere, Tasks Dashboard) -> COMPLETED
+[x] Phase 5: Scale Test (Simulate 100, 500, 1000, 2000 stores) -> COMPLETED
+[ ] Phase 6: Marketplace/OMS Expansion (Settlements, Logistics, Support Console) -> PENDING
+[ ] Phase 7: Advanced Optimization (Forecasting, Replenishment, SLA target tuning) -> PENDING
 ```
 
 ---
@@ -54,3 +51,31 @@ We transitioned the mock frontend into a production-grade multi-tenant backend a
 *   **Behavior**: 
   - **Audits**: Writes structural log rows detailing user actions to `audit_logs` table.
   - **Panics**: Catches Go handler panics, retrieves stack trace, logs it to database under a unique correlation UUID, and returns HTTP 500. Rendered visually inside the Log Hub interface.
+
+---
+
+## 5. Phase 2 Build Records (What We Built)
+
+### 5.1 DocType Metadata Builder & Registry APIs
+*   **Location**: `engines/doctype.go` and routes registered in `main.go`.
+*   **Behavior**: Registers custom document schemas dynamically (`POST /api/v1/meta/doctypes`) and registers custom column properties (fields name, labels, display orders, datatypes, and mandatory parameters) in `doctype_fields` (`POST /api/v1/meta/{doctype}/fields`).
+
+### 5.2 Dynamic Form & Grid Rendering Interpreter
+*   **Location**: `public/app.js` and `public/index.html`.
+*   **Behavior**: Traverses dynamic field structures queried from `/api/v1/doc/{doctype}/meta` and constructs form fields (`Data`, `Number`, `Select`, `Link`) inside a single dynamic modal (`#dynamic-modal`). Automatically queries referencing list lookups for linked fields dynamically from the backend.
+
+### 5.3 Parent-Child Vocabulary & Translation Engine
+*   **Location**: `public/app.js` DOM translator.
+*   **Behavior**: Dynamically maps vocabulary references per tenant, allowing users to override default nomenclature (such as mapping `Brand` to `Material Grade` or `Color` to `Fabric Metallurgy`) and translates UI elements instantly.
+
+---
+
+## 6. Phase 3 Build Records (What We Built)
+
+### 6.1 Industry Profile Preset Configs & Loader
+*   **Location**: `public/profiles/` directory and `SwitchIndustryProfile` in `engines/doctype.go`.
+*   **Behavior**: Provides structural configuration mappings for Jewelry, Food & Beverage, Automobile, and Clothing industries. Loads templates dynamically via a database transaction: clears old field definitions, updates doctype metadata, registers customized columns, inserts default sequential counter templates, and resets translation vocabulary overlay caches.
+
+### 6.2 Bulk Uploads Engine
+*   **Location**: `engines/import.go` and HTTP route handlers in `main.go`.
+*   **Behavior**: Parses raw CSV records, maps fields case-insensitively, validates formatting and constraints (numeric boundaries, date validity, select bounds, reference links), increments sequence codes dynamically inside a transactional context, and yields a structural validation report showing total successes and specific cell-level validation errors.

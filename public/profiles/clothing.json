@@ -1,0 +1,42 @@
+{
+  "industry_code": "CLOTHING",
+  "industry_name": "Clothing & Apparel Industry",
+  "doctype_overrides": [
+    {
+      "name": "Brand",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Apparel Brand",
+      "fields": [
+        { "fieldname": "code", "label": "Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Brand Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 }
+      ]
+    },
+    {
+      "name": "Style",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Apparel Style",
+      "fields": [
+        { "fieldname": "code", "label": "Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Style Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "fabric", "label": "Fabric Type", "fieldtype": "Select", "options": "Cotton,Polyester,Denim,Silk,Wool", "mandatory": true, "display_order": 3 }
+      ]
+    },
+    {
+      "name": "Size",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Apparel Size",
+      "fields": [
+        { "fieldname": "code", "label": "Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Size Label", "fieldtype": "Select", "options": "XS,S,M,L,XL,XXL", "mandatory": true, "display_order": 2 }
+      ]
+    }
+  ],
+  "labels": {
+    "Brand": "Apparel Brand",
+    "Style": "Apparel Style",
+    "Size": "Apparel Size"
+  }
+}

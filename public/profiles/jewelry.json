@@ -1,0 +1,44 @@
+{
+  "industry_code": "JEWELRY",
+  "industry_name": "Jewelry Industry",
+  "doctype_overrides": [
+    {
+      "name": "Brand",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Partner Brand",
+      "fields": [
+        { "fieldname": "code", "label": "Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Brand Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "designer", "label": "Lead Designer", "fieldtype": "Data", "mandatory": false, "display_order": 3 }
+      ]
+    },
+    {
+      "name": "Style",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Jewelry Style",
+      "fields": [
+        { "fieldname": "code", "label": "Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Style Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "metal_type", "label": "Base Metal Type", "fieldtype": "Select", "mandatory": true, "options": "Gold,Silver,Platinum,Brass", "display_order": 3 }
+      ]
+    },
+    {
+      "name": "Color",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Gold Color",
+      "fields": [
+        { "fieldname": "code", "label": "Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Color Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "purity_karat", "label": "Purity (Karat)", "fieldtype": "Select", "options": "14k,18k,22k,24k", "mandatory": true, "display_order": 3 }
+      ]
+    }
+  ],
+  "labels": {
+    "Brand": "Partner Brand",
+    "Style": "Jewelry Style",
+    "Color": "Gold Color"
+  }
+}
