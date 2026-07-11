@@ -457,3 +457,44 @@ INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, all
 ('HR/Admin', 'FulfillmentTask', TRUE, TRUE, TRUE, TRUE),
 ('Cashier', 'FulfillmentTask', TRUE, TRUE, TRUE, FALSE)
 ON CONFLICT (role, doctype_name) DO NOTHING;
+
+-- Seed new accounts to Chart of Accounts
+INSERT INTO tenant_default.gl_accounts (account_code, account_name, account_type) VALUES
+('1300', 'Accounts Receivable', 'Asset'),
+('5200', 'Marketplace Commission Expense', 'Expense')
+ON CONFLICT (account_code) DO NOTHING;
+
+-- Seed MarketplaceSettlement and LogisticsBooking doctype metadata
+INSERT INTO tenant_default.doctype_meta (name, module, document_type) VALUES
+('MarketplaceSettlement', 'Finance', 'Transaction'),
+('LogisticsBooking', 'Inventory', 'Transaction')
+ON CONFLICT (name) DO NOTHING;
+
+-- Seed fields for MarketplaceSettlement
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('MarketplaceSettlement', 'code', 'Settlement ID', 'Data', TRUE, NULL, 1),
+('MarketplaceSettlement', 'channel', 'Channel', 'Select', TRUE, 'Shopify,Amazon', 2),
+('MarketplaceSettlement', 'payout_date', 'Payout Date', 'Date', TRUE, NULL, 3),
+('MarketplaceSettlement', 'total_sale', 'Total Sale', 'Number', TRUE, NULL, 4),
+('MarketplaceSettlement', 'commission', 'Commission Deducted', 'Number', TRUE, NULL, 5),
+('MarketplaceSettlement', 'net_payout', 'Net Payout', 'Number', TRUE, NULL, 6),
+('MarketplaceSettlement', 'status', 'Status', 'Select', TRUE, 'Unreconciled,Reconciled', 7)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+-- Seed fields for LogisticsBooking
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('LogisticsBooking', 'code', 'Booking ID', 'Data', TRUE, NULL, 1),
+('LogisticsBooking', 'order_id', 'Order ID', 'Data', TRUE, NULL, 2),
+('LogisticsBooking', 'carrier', 'Carrier Name', 'Data', TRUE, NULL, 3),
+('LogisticsBooking', 'tracking_number', 'Tracking Number', 'Data', TRUE, NULL, 4),
+('LogisticsBooking', 'shipping_charge', 'Shipping Charge', 'Number', TRUE, NULL, 5),
+('LogisticsBooking', 'status', 'Status', 'Select', TRUE, 'Shipped,In-Transit,Delivered', 6)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+-- Seed permissions for MarketplaceSettlement and LogisticsBooking
+INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES
+('HR/Admin', 'MarketplaceSettlement', TRUE, TRUE, TRUE, TRUE),
+('HR/Admin', 'LogisticsBooking', TRUE, TRUE, TRUE, TRUE),
+('Cashier', 'MarketplaceSettlement', TRUE, TRUE, TRUE, FALSE),
+('Cashier', 'LogisticsBooking', TRUE, TRUE, TRUE, FALSE)
+ON CONFLICT (role, doctype_name) DO NOTHING;

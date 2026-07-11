@@ -29,7 +29,7 @@ We transitioned the mock frontend into a production-grade multi-tenant backend a
 [x] Phase 3: Omnichannel Pilot (Shopify Sync, Webhook Imports, Fulfillment Routing) -> COMPLETED
 [x] Phase 4: Store Fulfillment (Ship-from-store, BOPIS, Return Anywhere, Tasks Dashboard) -> COMPLETED
 [x] Phase 5: Scale Test (Simulate 100, 500, 1000, 2000 stores) -> COMPLETED
-[ ] Phase 6: Marketplace/OMS Expansion (Settlements, Logistics, Support Console) -> PENDING
+[x] Phase 6: Marketplace/OMS Expansion (Settlements, Logistics, Support Console) -> COMPLETED
 [ ] Phase 7: Advanced Optimization (Forecasting, Replenishment, SLA target tuning) -> PENDING
 ```
 
@@ -106,10 +106,22 @@ We transitioned the mock frontend into a production-grade multi-tenant backend a
 
 ---
 
-## 9. Version Control & Git History
+## 9. Phase 6 Build Records (What We Built)
+
+### 9.1 Marketplace Settlement & Reconciliation Engine
+*   **Location**: `engines/marketplace.go` and `POST /api/v1/marketplace/settlement/reconcile`.
+*   **Behavior**: Receives marketplace payout reports, validates payout math (`total - commission == net`), reconciles cart orders status to `Settled`, and posts balanced GL entries (debits Cash `1100` and Commission Expense `5200`, credits Accounts Receivable `1300`).
+
+### 9.2 Carrier Logistics Dispatch Tracker
+*   **Location**: `engines/marketplace.go` and `POST /api/v1/marketplace/logistics/book`.
+*   **Behavior**: Registers carrier dispatch metadata (`LogisticsBooking` documents in `Shipped` status) to track carrier names, tracking numbers, and shipping charges.
+
+---
+
+## 10. Version Control & Git History
 
 *   **Remote Repository**: `https://github.com/Vishalnayak226/custom_erp.git`
 *   **Branch**: `main`
-*   **Latest Commit**: `5e9eee6`
-*   **Commit Message**: `Implement Single Vertical Pilot, Omnichannel Webhook syncs, Store Fulfillment workflows, and High-Concurrency 2000-Store Scale simulations (Phases 2-5)`
+*   **Latest Commit**: `50b6d56`
+*   **Commit Message**: `Update docs/implementation_plan.md with Phase 2-5 architecture specifications`
 *   **Date**: 2026-07-11

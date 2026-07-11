@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"encoding/json"
 	"testing"
 )
 
@@ -373,6 +374,73 @@ func TestEngines(t *testing.T) {
 
 		if tb["balanced"].(bool) == false {
 			t.Errorf("GL Trial balance became unbalanced after concurrent simulation run: %+v", tb)
+		}
+	})
+
+	// 9. Test Marketplace OMS Settlements and Logistics Bookings (Phase 6)
+	t.Run("MarketplaceOMSAndLogistics", func(t *testing.T) {
+		// Clean and prepare postings
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".gl_postings")
+
+		// 1. Test Logistics Booking creation
+		bookingID, err := CreateLogisticsBooking(tenantID, "ORD-WEB-111", "FedEx", "TRK123456", 250)
+		if err != nil {
+			t.Fatalf("Failed to create logistics booking: %v", err)
+		}
+		if bookingID == "" {
+			t.Errorf("Expected booking ID returned, got empty string")
+		}
+
+		// 2. Seed Accounts Receivable balance (debit 1300, credit 4100)
+		err = SeedReceivableBalance(tenantID, 10000, "ORD-WEB-111")
+		if err != nil {
+			t.Fatalf("Failed to seed receivable balance: %v", err)
+		}
+
+		// 3. Test payout settlement reconciliation (10000 sale, 1500 commission, 8500 net payout)
+		err = ProcessMarketplaceSettlement(tenantID, "Shopify", "SETT-SH-01", 10000, 1500, 8500, []string{"ORD-WEB-111"})
+		if err != nil {
+			t.Fatalf("Failed to process marketplace settlement: %v", err)
+		}
+
+		// 4. Assert GL Balances
+		tb, err := GetTrialBalance(tenantID)
+		if err != nil {
+			t.Fatalf("Failed to fetch trial balance: %v", err)
+		}
+
+		if tb["balanced"].(bool) == false {
+			t.Errorf("GL Trial balance became unbalanced after settlement: %+v", tb)
+		}
+
+		// Marshal and unmarshal to check specific balances
+		balancesBytes, _ := json.Marshal(tb["balances"])
+		var testBal []struct {
+			Code   string `json:"account_code"`
+			Debit  int    `json:"debit"`
+			Credit int    `json:"credit"`
+		}
+		_ = json.Unmarshal(balancesBytes, &testBal)
+
+		foundAR := false
+		foundComm := false
+		for _, b := range testBal {
+			if b.Code == "1300" {
+				foundAR = true
+				if b.Debit != 10000 || b.Credit != 10000 {
+					t.Errorf("Accounts Receivable expected debit 10000, credit 10000, got: debit %d, credit %d", b.Debit, b.Credit)
+				}
+			}
+			if b.Code == "5200" {
+				foundComm = true
+				if b.Debit != 1500 {
+					t.Errorf("Marketplace Commission expected debit 1500, got: %d", b.Debit)
+				}
+			}
+		}
+
+		if !foundAR || !foundComm {
+			t.Errorf("Expected AR (1300) and Commission (5200) balances to be present, but weren't: %+v", testBal)
 		}
 	})
 }

@@ -212,6 +212,10 @@ func main() {
 	// Administration Scale Test APIs
 	http.HandleFunc("POST /api/v1/admin/scale-test", apiMiddleware(handleScaleTest))
 
+	// Marketplace & Logistics Integration APIs
+	http.HandleFunc("POST /api/v1/marketplace/settlement/reconcile", apiMiddleware(handleMarketplaceReconcile))
+	http.HandleFunc("POST /api/v1/marketplace/logistics/book", apiMiddleware(handleLogisticsBook))
+
 	// DocType Metadata APIs
 	http.HandleFunc("GET /api/v1/doc/{doctype}/meta", apiMiddleware(handleGetDocTypeMeta))
 	http.HandleFunc("GET /api/v1/meta/doctypes", apiMiddleware(handleGetDocTypes))
@@ -1358,4 +1362,81 @@ func handleScaleTest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = json.NewEncoder(w).Encode(report)
+}
+
+func handleMarketplaceReconcile(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Channel      string   `json:"channel"`
+		SettlementID string   `json:"settlement_id"`
+		TotalSale    int      `json:"total_sale"`
+		Commission   int      `json:"commission"`
+		NetPayout    int      `json:"net_payout"`
+		OrderIDs     []string `json:"order_ids"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid reconciliation payload", http.StatusBadRequest)
+		return
+	}
+
+	if req.SettlementID == "" || req.Channel == "" || req.TotalSale <= 0 {
+		http.Error(w, "Fields 'settlement_id', 'channel', and positive 'total_sale' are required", http.StatusBadRequest)
+		return
+	}
+
+	err := engines.ProcessMarketplaceSettlement(tenantID, req.Channel, req.SettlementID, req.TotalSale, req.Commission, req.NetPayout, req.OrderIDs)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":        "reconciled",
+		"settlement_id": req.SettlementID,
+		"net_received":  fmt.Sprintf("%d", req.NetPayout),
+	})
+}
+
+func handleLogisticsBook(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		OrderID        string `json:"order_id"`
+		Carrier        string `json:"carrier"`
+		TrackingNumber string `json:"tracking_number"`
+		ShippingCharge int    `json:"shipping_charge"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid logistics payload", http.StatusBadRequest)
+		return
+	}
+
+	if req.OrderID == "" || req.Carrier == "" || req.TrackingNumber == "" {
+		http.Error(w, "Fields 'order_id', 'carrier', and 'tracking_number' are required", http.StatusBadRequest)
+		return
+	}
+
+	bookingID, err := engines.CreateLogisticsBooking(tenantID, req.OrderID, req.Carrier, req.TrackingNumber, req.ShippingCharge)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":          "shipped",
+		"booking_id":      bookingID,
+		"tracking_number": req.TrackingNumber,
+	})
 }

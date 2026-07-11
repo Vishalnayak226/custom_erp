@@ -28,6 +28,7 @@ This document provides system setup maps, port directories, command recipes, and
 *   [engines/finance.go](file:///c:/Users/ABCD/Documents/Antigravity%20Projects/ERP/engines/finance.go): Balanced double-entry GL journal ledger postings.
 *   [engines/sourcing.go](file:///c:/Users/ABCD/Documents/Antigravity%20Projects/ERP/engines/sourcing.go): Rule-driven order routing, mapping, and webhook idempotency checks.
 *   [engines/fulfillment.go](file:///c:/Users/ABCD/Documents/Antigravity%20Projects/ERP/engines/fulfillment.go): Store picking tasks, re-routing on task reject, and Return Anywhere.
+*   [engines/marketplace.go](file:///c:/Users/ABCD/Documents/Antigravity%20Projects/ERP/engines/marketplace.go): Marketplace settlements reconciliation and logistics bookings dispatch tracker.
 *   [engines/outbox.go](file:///c:/Users/ABCD/Documents/Antigravity%20Projects/ERP/engines/outbox.go): Real-time event-driven outbox delta sync poller.
 *   [engines/engines_test.go](file:///c:/Users/ABCD/Documents/Antigravity%20Projects/ERP/engines/engines_test.go): Comprehensive integration tests suite.
 *   [index.html](file:///c:/Users/ABCD/Documents/Antigravity%20Projects/ERP/public/index.html): ERP UI layout.
@@ -90,7 +91,7 @@ To support scaling from 1 store to 2,000 stores without transaction database loc
 
 *   **Remote GitHub URL**: `https://github.com/Vishalnayak226/custom_erp.git` (Branch: `main`)
 *   **Build Handover Milestone**:
-    - **Phase 1 (Scale Foundation)**, **Phase 2 (Jewelry Vertical)**, **Phase 3 (Omnichannel Sync)**, **Phase 4 (Store Fulfillment)**, and **Phase 5 (Concurrency Scale Stress Testing)** are completely built, integrated, tested, committed, and pushed.
+    - **Phase 1 (Scale Foundation)**, **Phase 2 (Jewelry Vertical)**, **Phase 3 (Omnichannel Sync)**, **Phase 4 (Store Fulfillment)**, **Phase 5 (Concurrency Scale Stress Testing)**, and **Phase 6 (Marketplace/OMS Expansion)** are completely built, integrated, tested, committed, and pushed.
 *   **Dev Server State**: Active background process listening on port `8080`.
-*   **Next Phase (Phase 6)**: Build multi-marketplace OMS settlements, logistics tracking, and support console.
+*   **Next Phase (Phase 7)**: Build advanced replenishment algorithms, automated demand forecasting engines, and SLA target tuning.
 
