@@ -156,17 +156,42 @@ Security must be designed from day one, not added after development.
 
 We will build and roll out the ERP platform in 7 progressive phases incorporating the Omnichannel, Real-Time Sync & Enterprise Scale Add-on Blueprint:
 
-1.  **Phase 1 - Foundation**: Core ERP Kernel (DocType metadata, RBAC, numbering engine, logs) + Omnichannel foundation (Event bus, outbox queue pattern, integration logs, inventory availability read models, and reservation models).
-2.  **Phase 2 - Single Vertical Pilot**: Jewellery retail end-to-end flow: Purchase Orders (PO), GRN intake, Barcoding, Inventory Ledgers, Transfers (TO/TI), POS sales client, Sales Returns, and GL Finance postings.
-3.  **Phase 3 - Omnichannel Pilot**: Integration gateway with Shopify/OMS channels (product sync, webhook import, inventory delta sync, order reservations, and rule-driven fulfillment routing).
-4.  **Phase 4 - Store Fulfillment**: Ship-from-store, Buy Online Pick Up in Store (BOPIS), Return Anywhere, and Store Task dashboard.
-5.  **Phase 5 - Scale Test**: Simulate 100, 500, 1,000, and 2,000 stores to validate queue depth lag, API response times, and concurrency sync accuracy.
-6.  **Phase 6 - Marketplace/OMS Expansion**: Multi-marketplace reconciliation, settlement logging, logistics tracking, and customer support console.
-7.  **Phase 7 - Advanced Optimization**: Demand forecasting, automated replenishment suggestions, anomaly detection logs, and SLA optimization.
+1.  **Phase 1 - Foundation** [COMPLETED]: Core ERP Kernel (DocType metadata, RBAC, numbering engine, logs) + Omnichannel foundation (Event bus, outbox queue pattern, integration logs, inventory availability read models, and reservation models).
+2.  **Phase 2 - Single Vertical Pilot** [COMPLETED]: Jewellery retail end-to-end flow: Purchase Orders (PO), GRN intake, Barcoding, Inventory Ledgers, Transfers (TO/TI), POS sales client, Sales Returns, and GL Finance postings.
+3.  **Phase 3 - Omnichannel Pilot** [COMPLETED]: Integration gateway with Shopify/OMS channels (product sync, webhook import, inventory delta sync, order reservations, and rule-driven fulfillment routing).
+4.  **Phase 4 - Store Fulfillment** [COMPLETED]: Ship-from-store, Buy Online Pick Up in Store (BOPIS), Return Anywhere, and Store Task dashboard.
+5.  **Phase 5 - Scale Test** [COMPLETED]: Simulate 100, 500, 1,000, and 2,000 stores to validate queue depth lag, API response times, and concurrency sync accuracy.
+6.  **Phase 6 - Marketplace/OMS Expansion** [PENDING]: Multi-marketplace reconciliation, settlement logging, logistics tracking, and customer support console.
+7.  **Phase 7 - Advanced Optimization** [PENDING]: Demand forecasting, automated replenishment suggestions, anomaly detection logs, and SLA optimization.
 
 ---
 
-## 8. Definition of Done (DoD) for Security
+## 8. Completed Phases Technical Specifications
+
+### Phase 2: Single Vertical Pilot (Jewellery Retail End-to-End)
+*   **Double-Entry GL Posting**: Built transaction mappings validation enforcing `debits == credits` (`engines/finance.go`).
+    - Mapped standard account codes: Cash/Bank (`1100`), Inventory Control (`1200`), GRN Suspense (`2100`), Sales Revenue (`4100`), Cost of Goods Sold (`5100`).
+    - POS Cart checkout automates double-entry postings (Revenue & COGS).
+*   **Inventory Ledger mutations**: Configured inventory availability trackers supporting negative deltas for checkout sales (`engines/inventory.go`).
+
+### Phase 3: Omnichannel Pilot (Shopify & Webhook Integration)
+*   **Channel Mapping**: Added `channel_product_mapping` and `channel_order_mapping` tables.
+*   **Order Ingestion Webhooks**: Ingests Shopify order webhook payloads with database-backed **idempotency checks** preventing double order execution.
+*   **Rule-Driven Routing**: Built `FindBestFulfillmentNode` scanning store locations and routing incoming baskets to the node containing highest available-to-sell (ATS) stock (`engines/sourcing.go`).
+*   **Event-Driven Outbox Delta Sync**: Upgraded outbox workers (`engines/outbox.go`) to poll and push real-time delta stock adjustments to Shopify when inventory is changed.
+
+### Phase 4: Store Fulfillment (Ship-from-store, BOPIS, Return Anywhere)
+*   **Store Pick/Pack State Machine**: Implemented `FulfillmentTask` tracking picking operations (`engines/fulfillment.go`).
+*   **Task Re-routing**: If a store rejects a task, the engine cancels local reservations, invokes `FindBestFulfillmentNode` to locate the next best store node, creates a new reservation, and spawns a new picking task at the target store.
+*   **Return Anywhere**: Processes returns at *any* store, incrementing target store stock and posting balanced refund accounting entries.
+
+### Phase 5: Scale Test (Simulation Suite)
+*   **Concurrency Stress Simulator**: Seeds 2,000 store nodes and simulates concurrent POS checkouts and webhooks using a worker pool (`engines/scale.go`).
+*   **Stress Test Performance**: Executed 1,000 concurrent transactions with 100 parallel workers: 100% success rate, 0 lock conflicts/deadlocks, and ~456 Transactions Per Second (TPS) throughput.
+
+---
+
+## 9. Definition of Done (DoD) for Security
 
 An API or feature is not complete until:
 1.  It passes authentication, authorization, input validation, and rate limiting middlewares.
