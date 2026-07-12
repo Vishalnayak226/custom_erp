@@ -142,6 +142,28 @@ func securityHeaders(next http.Handler) http.Handler {
 	})
 }
 
+// featureGate 403s a request if the resolved tenant has the named feature
+// flag disabled. Must be composed inside apiMiddleware (e.g.
+// apiMiddleware(featureGate("wms_integration", handler))) since it reads
+// Resolved-Tenant-ID, which apiMiddleware sets before calling next. Any
+// failure to positively confirm "enabled" (DB error, flag never registered
+// for this tenant) blocks the request - same fail-closed default
+// engines.IsFeatureEnabled already applies for an unregistered flag.
+func featureGate(featureName string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tenantID := r.Header.Get("Resolved-Tenant-ID")
+		enabled, _ := engines.IsFeatureEnabled(tenantID, featureName)
+		if !enabled {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"error": fmt.Sprintf("Feature '%s' is disabled for this tenant", featureName),
+			})
+			return
+		}
+		next(w, r)
+	}
+}
+
 func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		correlationID := generateUUID()
@@ -270,25 +292,25 @@ func main() {
 	http.HandleFunc("POST /api/v1/checkout", apiMiddleware(handleCheckout))
 	http.HandleFunc("GET /api/v1/finance/trial-balance", apiMiddleware(handleTrialBalance))
 
-	// Shopify Integration Webhook APIs
-	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(handleShopifyProductMap))
-	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(handleShopifyOrderWebhook))
+	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
+	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
+	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(featureGate("oms_integration", handleShopifyOrderWebhook)))
 
-	// Store Fulfillment & Returns APIs
-	http.HandleFunc("POST /api/v1/fulfillment/task/transition", apiMiddleware(handleFulfillmentTaskTransition))
-	http.HandleFunc("POST /api/v1/fulfillment/return", apiMiddleware(handleFulfillmentReturn))
+	// Store Fulfillment & Returns APIs (gated by the "wms_integration" flag)
+	http.HandleFunc("POST /api/v1/fulfillment/task/transition", apiMiddleware(featureGate("wms_integration", handleFulfillmentTaskTransition)))
+	http.HandleFunc("POST /api/v1/fulfillment/return", apiMiddleware(featureGate("wms_integration", handleFulfillmentReturn)))
 
 	// Administration Scale Test APIs
 	http.HandleFunc("POST /api/v1/admin/scale-test", apiMiddleware(handleScaleTest))
 
-	// Marketplace & Logistics Integration APIs
-	http.HandleFunc("POST /api/v1/marketplace/settlement/reconcile", apiMiddleware(handleMarketplaceReconcile))
-	http.HandleFunc("POST /api/v1/marketplace/logistics/book", apiMiddleware(handleLogisticsBook))
+	// Marketplace & Logistics Integration APIs (gated by the "oms_integration" flag)
+	http.HandleFunc("POST /api/v1/marketplace/settlement/reconcile", apiMiddleware(featureGate("oms_integration", handleMarketplaceReconcile)))
+	http.HandleFunc("POST /api/v1/marketplace/logistics/book", apiMiddleware(featureGate("oms_integration", handleLogisticsBook)))
 
-	// Optimization & Advanced Forecasting APIs
-	http.HandleFunc("GET /api/v1/optimization/replenishment-suggestions", apiMiddleware(handleReplenishmentSuggestions))
-	http.HandleFunc("GET /api/v1/optimization/sla-breaches", apiMiddleware(handleSLABreaches))
-	http.HandleFunc("POST /api/v1/optimization/forecast", apiMiddleware(handleDemandForecast))
+	// Optimization & Advanced Forecasting APIs (gated by the "advanced_forecasting" flag)
+	http.HandleFunc("GET /api/v1/optimization/replenishment-suggestions", apiMiddleware(featureGate("advanced_forecasting", handleReplenishmentSuggestions)))
+	http.HandleFunc("GET /api/v1/optimization/sla-breaches", apiMiddleware(featureGate("advanced_forecasting", handleSLABreaches)))
+	http.HandleFunc("POST /api/v1/optimization/forecast", apiMiddleware(featureGate("advanced_forecasting", handleDemandForecast)))
 
 	// Integration Logs and Retry APIs
 	http.HandleFunc("GET /api/v1/integration/logs", apiMiddleware(handleGetIntegrationLogs))
