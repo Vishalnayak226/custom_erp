@@ -138,6 +138,8 @@ let state = {
 
 let currentView = 'dashboard';
 let currentDoctype = '';
+let posCart = []; // { sku, available, qty, salePrice, costPrice }
+let posLocation = '';
 let currentSearchQuery = '';
 let currentTablePage = 1;
 const itemsPerPage = 10;
@@ -441,6 +443,13 @@ function setupEventListeners() {
     renderView('doctype-builder');
   });
 
+  document.getElementById('menu-pos').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-pos');
+    closeSubmenus();
+    renderView('pos');
+  });
+
   ['menu-vendors', 'menu-stores', 'menu-purchase-orders', 'menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
@@ -525,6 +534,8 @@ async function renderView(view) {
 
   if (view === 'dashboard') {
     renderDashboard(root);
+  } else if (view === 'pos') {
+    renderPOSView(root);
   } else if (view === 'doctype-table') {
     await renderDocTableView(root);
   } else if (view === 'doctype-builder') {
@@ -629,6 +640,206 @@ function renderDashboard(container) {
   });
 
   container.appendChild(grid);
+}
+
+// POS / Billing screen - cashier/barcode-scan-to-sell UI against the
+// already-working checkout/availability APIs (Stage 13.4). Kept independent
+// of the generic DocType table view since a checkout cart isn't a plain
+// CRUD record: it's built up client-side line by line before a single
+// POST /api/v1/checkout submits the whole thing atomically.
+function renderPOSView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">POS / Billing</h1>
+      <p class="page-subtitle">Scan or enter a SKU to add it to the cart, then complete the sale.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.innerHTML = `
+    <div class="form-group" style="max-width: 280px;">
+      <label class="form-label" for="pos-location">Location Code</label>
+      <input type="text" id="pos-location" class="form-input" placeholder="e.g. HO" value="${posLocation}">
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 20px;">
+      <div class="form-group" style="flex: 1; margin-bottom: 0;">
+        <label class="form-label" for="pos-sku-input">Scan or Enter SKU</label>
+        <input type="text" id="pos-sku-input" class="form-input" placeholder="Barcode / SKU, then Enter" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="pos-add-btn">Add to Cart</button>
+    </div>
+    <div id="pos-scan-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>SKU</th>
+          <th>Available</th>
+          <th>Qty</th>
+          <th>Sale Price</th>
+          <th>Cost Price</th>
+          <th>Line Total</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="pos-cart-body"></tbody>
+    </table>
+    <div style="display: flex; justify-content: flex-end; align-items: center; gap: 24px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pos-payment-mode">Payment Mode</label>
+        <select id="pos-payment-mode" class="form-input">
+          <option value="Cash">Cash</option>
+          <option value="Card">Card</option>
+          <option value="UPI">UPI</option>
+        </select>
+      </div>
+      <div style="font-size: 20px; font-weight: 700;">Total: <span id="pos-cart-total">0.00</span></div>
+      <button class="btn btn-primary" id="pos-checkout-btn">Complete Sale</button>
+    </div>
+  `;
+  container.appendChild(panel);
+
+  document.getElementById('pos-location').addEventListener('change', (e) => {
+    posLocation = e.target.value.trim();
+  });
+  document.getElementById('pos-add-btn').addEventListener('click', addSKUToPOSCart);
+  document.getElementById('pos-sku-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addSKUToPOSCart();
+    }
+  });
+  document.getElementById('pos-checkout-btn').addEventListener('click', submitPOSCheckout);
+
+  renderPOSCartTable();
+}
+
+async function addSKUToPOSCart() {
+  const skuInput = document.getElementById('pos-sku-input');
+  const errorEl = document.getElementById('pos-scan-error');
+  const sku = skuInput.value.trim();
+  errorEl.classList.add('hidden');
+
+  if (!posLocation) {
+    errorEl.textContent = 'Enter a location code before adding items.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (!sku) return;
+
+  const res = await apiFetch(`/api/v1/availability?sku=${encodeURIComponent(sku)}&location=${encodeURIComponent(posLocation)}`);
+  if (!res) return;
+  if (!res.ok) {
+    errorEl.textContent = 'Failed to look up availability for this SKU.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const avail = await res.json();
+
+  const existing = posCart.find(line => line.sku === sku);
+  if (existing) {
+    existing.qty += 1;
+  } else {
+    posCart.push({ sku, available: avail.ats ?? avail.available ?? 0, qty: 1, salePrice: 0, costPrice: 0 });
+  }
+  skuInput.value = '';
+  skuInput.focus();
+  renderPOSCartTable();
+}
+
+function removeSKUFromPOSCart(sku) {
+  posCart = posCart.filter(line => line.sku !== sku);
+  renderPOSCartTable();
+}
+
+function updatePOSCartLine(sku, field, value) {
+  const line = posCart.find(l => l.sku === sku);
+  if (!line) return;
+  const num = parseFloat(value);
+  line[field] = isNaN(num) ? 0 : num;
+  renderPOSCartTable();
+}
+
+function renderPOSCartTable() {
+  const body = document.getElementById('pos-cart-body');
+  if (!body) return;
+  body.innerHTML = '';
+  let total = 0;
+
+  posCart.forEach(line => {
+    const lineTotal = line.qty * line.salePrice;
+    total += lineTotal;
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:600;">${line.sku}</td>
+      <td>${line.available}</td>
+      <td><input type="number" min="1" value="${line.qty}" class="form-input" style="width: 80px;" onchange="updatePOSCartLine('${line.sku}', 'qty', this.value)"></td>
+      <td><input type="number" min="0" step="0.01" value="${line.salePrice}" class="form-input" style="width: 100px;" onchange="updatePOSCartLine('${line.sku}', 'salePrice', this.value)"></td>
+      <td><input type="number" min="0" step="0.01" value="${line.costPrice}" class="form-input" style="width: 100px;" onchange="updatePOSCartLine('${line.sku}', 'costPrice', this.value)"></td>
+      <td>${lineTotal.toFixed(2)}</td>
+      <td><button class="action-btn action-btn-danger" onclick="removeSKUFromPOSCart('${line.sku}')">Remove</button></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  document.getElementById('pos-cart-total').textContent = total.toFixed(2);
+}
+
+async function submitPOSCheckout() {
+  const errorEl = document.getElementById('pos-scan-error');
+  errorEl.classList.add('hidden');
+
+  if (!posLocation) {
+    errorEl.textContent = 'Enter a location code before completing the sale.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (posCart.length === 0) {
+    errorEl.textContent = 'Add at least one item to the cart first.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (posCart.some(line => line.qty <= 0 || line.salePrice <= 0)) {
+    errorEl.textContent = 'Every line needs a quantity and sale price greater than zero.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const checkoutBtn = document.getElementById('pos-checkout-btn');
+  checkoutBtn.disabled = true;
+  try {
+    const cartNumber = `POS-${posLocation}-${Date.now()}`;
+    const res = await apiFetch('/api/v1/checkout', {
+      method: 'POST',
+      body: JSON.stringify({
+        cart_number: cartNumber,
+        location: posLocation,
+        payment_mode: document.getElementById('pos-payment-mode').value,
+        items: posCart.map(line => ({
+          sku: line.sku,
+          qty: line.qty,
+          sale_price: line.salePrice,
+          cost_price: line.costPrice
+        }))
+      })
+    });
+    if (!res) return;
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.error || 'Checkout failed.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    posCart = [];
+    renderPOSCartTable();
+    await showCustomAlert(`Sale ${data.cart_number} completed. Total: ${data.sale_total}`, 'Sale Complete');
+  } finally {
+    checkoutBtn.disabled = false;
+  }
 }
 
 // Render dynamic DocType CRUD Table view
