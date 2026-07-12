@@ -250,35 +250,40 @@ func SwitchIndustryProfile(tenantID string, profilePath string) error {
 		return err
 	}
 
-	// 1. Re-register doctypes and clear/re-insert fields
+	// 1. Re-register doctypes and upsert field presets.
+	// Deliberately does NOT delete existing fields first: industry profile JSON files are
+	// partial overlays declaring the industry-specific additions/overrides for a doctype,
+	// not its complete field list - none of the shipped profiles (jewelry/food_bev/auto/
+	// clothing) redeclare base fields like "status". A prior delete-then-insert here silently
+	// dropped any field a profile didn't mention on every single industry switch.
 	for _, o := range prof.DocTypeOverrides {
 		// Insert or update doctype meta
 		metaQuery := fmt.Sprintf(`
-			INSERT INTO doctype_meta (name, module, document_type) 
-			VALUES ($1, $2, $3) 
-			ON CONFLICT (name) DO UPDATE SET 
-				module = EXCLUDED.module, 
+			INSERT INTO doctype_meta (name, module, document_type)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (name) DO UPDATE SET
+				module = EXCLUDED.module,
 				document_type = EXCLUDED.document_type`)
 		_, err = tx.Exec(metaQuery, o.Name, o.Module, o.DocumentType)
 		if err != nil {
 			return fmt.Errorf("failed to register doctype %s: %w", o.Name, err)
 		}
 
-		// Delete existing fields for this doctype
-		_, err = tx.Exec("DELETE FROM doctype_fields WHERE doctype_name = $1", o.Name)
-		if err != nil {
-			return fmt.Errorf("failed to clear fields for %s: %w", o.Name, err)
-		}
-
-		// Insert new field presets
+		// Upsert the profile's field presets - fields not mentioned by this profile are left untouched
 		for _, f := range o.Fields {
 			var opts interface{}
 			if f.Options != "" {
 				opts = f.Options
 			}
 			fieldQuery := fmt.Sprintf(`
-				INSERT INTO doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) 
-				VALUES ($1, $2, $3, $4, $5, $6, $7)`)
+				INSERT INTO doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order)
+				VALUES ($1, $2, $3, $4, $5, $6, $7)
+				ON CONFLICT (doctype_name, fieldname) DO UPDATE SET
+					label = EXCLUDED.label,
+					fieldtype = EXCLUDED.fieldtype,
+					mandatory = EXCLUDED.mandatory,
+					options = EXCLUDED.options,
+					display_order = EXCLUDED.display_order`)
 			_, err = tx.Exec(fieldQuery, o.Name, f.Fieldname, f.Label, f.Fieldtype, f.Mandatory, opts, f.DisplayOrder)
 			if err != nil {
 				return fmt.Errorf("failed to save field %s for %s: %w", f.Fieldname, o.Name, err)

@@ -27,9 +27,12 @@ func CalculateSalesVelocity(tenantID string, locationCode string, sku string, da
 		return 0, err
 	}
 
+	// 'Paid' is set by checkout (handleCheckout); 'Settled' is the downstream state a
+	// marketplace-channel order transitions to after reconciliation (ProcessMarketplaceSettlement).
+	// Both represent a completed sale for velocity purposes - a settled cart was paid first.
 	query := fmt.Sprintf(`
-		SELECT data FROM %s.documents 
-		WHERE doctype = 'POSCart' AND status = 'completed' AND created_at >= NOW() - $1 * INTERVAL '1 day'`, schema)
+		SELECT data FROM %s.documents
+		WHERE doctype = 'POSCart' AND status IN ('Paid', 'Settled') AND created_at >= NOW() - $1 * INTERVAL '1 day'`, schema)
 	rows, err := db.DB.Query(query, daysRange)
 	if err != nil {
 		return 0, err

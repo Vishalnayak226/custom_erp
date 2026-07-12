@@ -105,7 +105,7 @@ func ProcessMarketplaceSettlement(tenantID string, channel string, settlementID 
 	settlementDoc := map[string]interface{}{
 		"code":        settlementID,
 		"channel":     channel,
-		"payout_date": time.Now().Format("2006-02-01"),
+		"payout_date": time.Now().Format("2006-01-02"),
 		"total_sale":  totalSale,
 		"commission":  commission,
 		"net_payout":  netPayout,

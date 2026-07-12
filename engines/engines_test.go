@@ -450,18 +450,20 @@ func TestEngines(t *testing.T) {
 		// Clean and prepare
 		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'POSCart'")
 
-		// 1. Post a checkout to establish sales velocity (30 items sold)
+		// 1. Post a checkout to establish sales velocity (30 items sold).
+		// Status is 'Paid' to match what handleCheckout actually writes in production
+		// (engines/optimization.go's CalculateSalesVelocity now matches this too).
 		cartID := "CRT-OPT-01"
 		cartDoc := map[string]interface{}{
 			"cart_number": cartID,
 			"location":    "WH01",
-			"status":      "completed",
+			"status":      "Paid",
 			"items": []map[string]interface{}{
 				{"sku": "BAR12345", "qty": 30},
 			},
 		}
 		cartBytes, _ := json.Marshal(cartDoc)
-		_, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'POSCart', $2, 'completed', 'system')", cartID, cartBytes)
+		_, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'POSCart', $2, 'Paid', 'system')", cartID, cartBytes)
 		if err != nil {
 			t.Fatalf("Failed to insert mock POSCart: %v", err)
 		}
@@ -562,9 +564,27 @@ func TestEngines(t *testing.T) {
 		_, _ = db.DB.Exec("DELETE FROM public.tenants WHERE id = $1", newTenant)
 
 		// Provision new tenant
-		err := ProvisionTenantSchema(newTenant, newSchema)
+		adminPassword, err := ProvisionTenantSchema(newTenant, newSchema)
 		if err != nil {
 			t.Fatalf("Failed to provision new tenant schema: %v", err)
+		}
+		if adminPassword == "" {
+			t.Errorf("Expected a generated admin password, got empty string")
+		}
+
+		// The new tenant's admin password hash must differ from tenant_default's - each tenant gets a unique credential
+		var tenantDefaultHash, newTenantHash string
+		_ = db.DB.QueryRow("SELECT password_hash FROM tenant_default.users WHERE id = 'admin'").Scan(&tenantDefaultHash)
+		_ = db.DB.QueryRow("SELECT password_hash FROM " + newSchema + ".users WHERE id = 'admin'").Scan(&newTenantHash)
+		if tenantDefaultHash == newTenantHash {
+			t.Errorf("Expected the new tenant's admin password hash to differ from tenant_default's, but they matched")
+		}
+
+		// The new tenant should only have the one generated admin user, not tenant_default's cashier1/manager1/system
+		var userCount int
+		_ = db.DB.QueryRow("SELECT COUNT(*) FROM " + newSchema + ".users").Scan(&userCount)
+		if userCount != 1 {
+			t.Errorf("Expected exactly 1 seeded user (admin) in the new tenant, got %d", userCount)
 		}
 
 		// Verify default feature flags are seeded

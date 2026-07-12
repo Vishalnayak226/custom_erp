@@ -163,7 +163,7 @@ async function apiFetch(url, options = {}) {
   });
   
   if (response.status === 401) {
-    await showCustomAlert('Session expired. Please log in again.', 'Unauthorized');
+    logout('Session expired. Please log in again.');
     return null;
   }
   if (response.status === 429) {
@@ -172,6 +172,86 @@ async function apiFetch(url, options = {}) {
   }
   
   return response;
+}
+
+// Auth: login screen, logout, and app-shell visibility
+function showLoginScreen() {
+  document.getElementById('login-screen').classList.remove('hidden');
+  document.getElementById('app-root').classList.add('hidden');
+}
+
+function showApp() {
+  document.getElementById('login-screen').classList.add('hidden');
+  document.getElementById('app-root').classList.remove('hidden');
+  updateSidebarUserInfo();
+}
+
+function updateSidebarUserInfo() {
+  const username = localStorage.getItem('erp_username') || '';
+  const role = localStorage.getItem('erp_role') || '';
+  const avatarEl = document.getElementById('sidebar-avatar');
+  const nameEl = document.getElementById('sidebar-username');
+  const roleEl = document.getElementById('sidebar-role');
+  if (nameEl) nameEl.textContent = username;
+  if (roleEl) roleEl.textContent = role;
+  if (avatarEl) avatarEl.textContent = (username.slice(0, 2) || '??').toUpperCase();
+}
+
+function logout(message) {
+  localStorage.removeItem('erp_token');
+  localStorage.removeItem('erp_username');
+  localStorage.removeItem('erp_role');
+  showLoginScreen();
+  if (message) {
+    showCustomAlert(message, 'Signed Out');
+  }
+}
+
+async function handleLoginSubmit(event) {
+  event.preventDefault();
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorEl = document.getElementById('login-error');
+  const submitBtn = document.getElementById('login-submit-btn');
+  errorEl.classList.add('hidden');
+  submitBtn.disabled = true;
+
+  try {
+    const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
+    const res = await fetch('/api/v1/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Tenant-ID': tenantID },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.error || 'Login failed. Please check your credentials.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    localStorage.setItem('erp_token', data.token);
+    localStorage.setItem('erp_username', data.user);
+    localStorage.setItem('erp_role', data.role);
+    document.getElementById('login-form').reset();
+    showApp();
+    await init();
+  } catch (err) {
+    errorEl.textContent = 'Unable to reach the server. Please try again.';
+    errorEl.classList.remove('hidden');
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+
+function bootstrap() {
+  document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
+
+  if (localStorage.getItem('erp_token')) {
+    showApp();
+    init();
+  } else {
+    showLoginScreen();
+  }
 }
 
 // Initializer
@@ -310,6 +390,15 @@ function setupEventListeners() {
         } else {
           await showCustomAlert('Failed to switch industry profile.', 'Error');
         }
+      }
+    });
+  }
+
+  const logoutBtn = document.getElementById('logout-btn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', async () => {
+      if (await showCustomConfirm('Are you sure you want to log out?')) {
+        logout();
       }
     });
   }
@@ -1193,4 +1282,4 @@ window.handleBulkImportSubmit = async function(e) {
 };
 
 // Window load init
-window.addEventListener('DOMContentLoaded', init);
+window.addEventListener('DOMContentLoaded', bootstrap);

@@ -1,5 +1,7 @@
 # In-House ERP: Functional Modules Directory
 
+> **Status: forward-looking specification, mostly not yet built.** Sections 1–2 (Core Kernel, Industry Masters) reflect real code. Sections 3–16 (Vendors, Procurement, Warehouse/Transfers, POS extensions, Sticker Printing, GST/Tax, HR/Assets, most Integrations) describe planned modules with no corresponding backend routes or schema today. Don't assume a module listed here exists in code without checking `main.go`/`engines/` first; see `docs/hardening_roadmap.md` for current priorities and **[docs/pdf_blueprint_gap_analysis.md](pdf_blueprint_gap_analysis.md)** for the full build-vs-spec comparison and closing plan.
+
 This directory lists all the functional modules and configuration packages mapped for the Inhouse ERP system. Industry-specific modules are loaded as metadata packages (DocTypes) on top of the core extensible ERP Kernel.
 
 ---

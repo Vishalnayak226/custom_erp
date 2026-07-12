@@ -1,5 +1,7 @@
 # Generic Inhouse ERP Platform: Master Approach & Implementation Blueprint
 
+> **Status note (2026-07-12)**: this document is the specification, closely mirroring the source Approach Blueprint PDF — it is not a record of what's built. For what actually exists in the codebase today vs this spec, see **[docs/pdf_blueprint_gap_analysis.md](pdf_blueprint_gap_analysis.md)**. In particular, the maker-checker/approval model described in §1's Control Model below is not implemented (tracked as `micro_checklist.md` Stage 13.1).
+
 A developer-ready technical specification and implementation plan for building a single, configurable, multi-tenant ERP platform supporting multiple industries, businesses, and operating models.
 
 ---
@@ -145,7 +147,7 @@ Security must be designed from day one, not added after development.
 | **Invoice**| Duplicate vendor invoice | Unique vendor + invoice + financial year check | `DUPLICATE_VENDOR_INVOICE`: Invoice already exists. |
 | **Barcode**| Duplicate barcode | Unique DB key constraint + row-level locks | `BARCODE_DUPLICATE`: Barcode already exists. |
 | **Inventory**| Scanned from wrong location| Validate source location and available status | `BARCODE_WRONG_LOCATION`: Barcode is not available here. |
-| **Inventory**| Negative stock | Block stock-out | `NEGATIVE_STOCK_BLOCKED`: Stock is not available. |
+| **Inventory**| Negative stock | Block stock-out | `NEGATIVE_STOCK_BLOCKED`: Stock is not available. ✅ Implemented 2026-07-12 in `PostInventoryLedger` (`engines/inventory.go`) — see `hardening_roadmap.md` Phase 2.1. The other rows in this table are still design spec, not yet verified against code. |
 | **Transfer**| Scan wrong transfer item | Barcode validation | `TRANSFER_SHORTAGE`: Barcode does not match transfer. |
 | **POS** | Sold barcode scanned again | Block sale | `BARCODE_ALREADY_SOLD`: This barcode is already sold. |
 | **Finance** | Payment before 3-way match| Block payment proposal | `PAYMENT_BLOCKED`: 3-way match is incomplete. |
@@ -162,7 +164,8 @@ We will build and roll out the ERP platform in 7 progressive phases incorporatin
 4.  **Phase 4 - Store Fulfillment** [COMPLETED]: Ship-from-store, Buy Online Pick Up in Store (BOPIS), Return Anywhere, and Store Task dashboard.
 5.  **Phase 5 - Scale Test** [COMPLETED]: Simulate 100, 500, 1,000, and 2,000 stores to validate queue depth lag, API response times, and concurrency sync accuracy.
 6.  **Phase 6 - Marketplace/OMS Expansion** [COMPLETED]: Multi-marketplace reconciliation, settlement logging, logistics tracking, and customer support console.
-7.  **Phase 7 - Advanced Optimization** [COMPLETED]: Demand forecasting, automated replenishment suggestions, anomaly detection logs, and SLA optimization.
+7.  **Phase 7 - Advanced Optimization** [COMPLETED, WITH A KNOWN BUG]: Demand forecasting, automated replenishment suggestions, and SLA optimization — see the note under §8 Phase 7 below. Anomaly detection logs not built.
+8.  **Phase 8 - Production Hardening** [PLANNED]: Security, correctness, test/CI, and release-hygiene backlog — see **[docs/hardening_roadmap.md](hardening_roadmap.md)** for the full phased plan.
 
 ---
 
@@ -197,6 +200,7 @@ We will build and roll out the ERP platform in 7 progressive phases incorporatin
 *   **Replenishment Reorders**: Computes average daily sales velocity of SKUs over 30 days and suggests replenishment orders (`suggestedQty = (velocity * leadTime) + safetyStock - available`).
 *   **Demand Forecasting**: Projects future SKU sales volumes based on daily historical velocity rates (`engines/optimization.go`).
 *   **Picking SLA Breach Monitors**: Scans open fulfillment tasks, measures elapsed time since creation, and highlights tasks exceeding hour SLA thresholds.
+*   ✅ **Fixed 2026-07-12**: `CalculateSalesVelocity` previously queried `POSCart` documents with `status = 'completed'`, a status this system never actually produces — checkout writes `'Paid'`, marketplace settlement transitions to `'Settled'`. Now matches `status IN ('Paid', 'Settled')`. See **[docs/hardening_roadmap.md](hardening_roadmap.md)** Phase 2.2.
 
 ---
 

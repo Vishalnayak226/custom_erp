@@ -1,5 +1,7 @@
 # In-House ERP: Pluggable POS Architecture Specification
 
+> **Status: forward-looking specification, not yet built.** The actual checkout today (`handleCheckout` in `main.go`, `POST /api/v1/checkout`) is a single synchronous online endpoint — no offline queue, no IndexedDB catalog cache, no cash opening/closing session model, no KOT/split-bill support. Everything in this document describes a planned architecture, not current behavior. Worth noting: there isn't even a POS *screen* yet — `/api/v1/checkout` has no frontend caller at all today, see `docs/pdf_blueprint_gap_analysis.md` §3. See `docs/hardening_roadmap.md` for current priorities.
+
 This document defines the technical design and business logic for the Point of Sale (POS) system. It combines standard retail POS features (barcode scan, loyalty, discounts) with learnings from restaurant POS patterns (kitchen tickets, seating layouts, bill splits) and ERPNext POS designs (offline-first databases, cash opening/closing registers, POS profiles).
 
 The POS is designed as an **extensible module** on top of our core ERP kernel, making it adaptable to retail, food & beverage (F&B), and service-oriented checkouts.

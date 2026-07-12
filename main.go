@@ -8,7 +8,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -65,6 +67,37 @@ func (rl *RateLimiter) Allow(ip string, limit int, duration time.Duration) bool 
 
 var globalLimiter = NewRateLimiter()
 
+// safeFilterKeyRe allowlists dynamic query-filter keys before they're spliced into SQL
+// (data->>'<key>'). Only plain identifiers are permitted - no quotes, operators, or whitespace.
+var safeFilterKeyRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]{0,63}$`)
+
+// Pagination bounds for the generic document list endpoint. defaultListLimit applies
+// even when the caller passes no limit/offset at all, so the endpoint can never return
+// a truly unbounded result set; maxListLimit caps what a caller can explicitly request.
+const defaultListLimit = 500
+const maxListLimit = 1000
+
+// corsAllowedOrigins is the explicit CORS allowlist. Local dev origins are always
+// included; CORS_ALLOWED_ORIGINS (comma-separated) adds more for real deployments.
+// An Origin not in this set never gets Access-Control-Allow-Origin/-Credentials -
+// the browser blocks the cross-origin response, which is the point.
+var corsAllowedOrigins = loadCORSAllowlist()
+
+func loadCORSAllowlist() map[string]bool {
+	allowed := map[string]bool{
+		"http://localhost:8080": true,
+		"http://127.0.0.1:8080": true,
+	}
+	if v := os.Getenv("CORS_ALLOWED_ORIGINS"); v != "" {
+		for _, o := range strings.Split(v, ",") {
+			if o = strings.TrimSpace(o); o != "" {
+				allowed[o] = true
+			}
+		}
+	}
+	return allowed
+}
+
 func generateUUID() string {
 	b := make([]byte, 16)
 	_, _ = rand.Read(b)
@@ -78,10 +111,9 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		w.Header().Set("X-Correlation-ID", correlationID)
 		w.Header().Set("Content-Type", "application/json")
 
-		// 1. CORS Headers (Strict, check Host origin)
+		// 1. CORS Headers (explicit allowlist - never reflect an arbitrary Origin)
 		origin := r.Header.Get("Origin")
-		if origin != "" {
-			// In production, validate origin against a whitelist
+		if origin != "" && corsAllowedOrigins[origin] {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Tenant-ID")
@@ -138,9 +170,9 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			tenantID = "default"
 		}
 
-		userID := "system"
-		role := "Guest"
-		locationCode := "HO"
+		userID := ""
+		role := ""
+		locationCode := ""
 
 		// Inspect Authorization Header
 		authHeader := r.Header.Get("Authorization")
@@ -157,11 +189,11 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid or expired token"})
 				return
 			}
-		} else {
-			// Local development / testing fallback context (emulate admin session silently)
-			userID = "admin"
-			role = "HR/Admin"
-			locationCode = "HO"
+		} else if r.URL.Path != "/api/v1/login" {
+			// No token and this isn't the login endpoint itself: reject.
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			return
 		}
 
 		// Attach Resolved Context fields
@@ -411,13 +443,43 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 
 			// Dynamic search parameter filters check (WMS/OMS query filters)
 			for key, vals := range r.URL.Query() {
-				if key == "q" || key == "tenant_id" || len(vals) == 0 {
+				if key == "q" || key == "tenant_id" || key == "limit" || key == "offset" || len(vals) == 0 {
 					continue
+				}
+				if !safeFilterKeyRe.MatchString(key) {
+					w.WriteHeader(http.StatusBadRequest)
+					_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Invalid filter parameter name: %q", key)})
+					return
 				}
 				query += fmt.Sprintf(" AND data->>'%s' = $%d", key, argIndex)
 				args = append(args, vals[0])
 				argIndex++
 			}
+
+			// Pagination: bounds the response even when the caller doesn't ask for a
+			// specific page, so this endpoint can never return an unbounded result set.
+			// Note: when a search term (q) is active, the limit/offset bound the SQL-level
+			// candidate set that gets fetched *before* the in-memory search filter below -
+			// a search could miss a match sitting past the current page's window. Moving
+			// search into SQL would remove that edge case but is a larger change than this
+			// item calls for.
+			limit := defaultListLimit
+			if v := r.URL.Query().Get("limit"); v != "" {
+				if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+					limit = parsed
+				}
+			}
+			if limit > maxListLimit {
+				limit = maxListLimit
+			}
+			offset := 0
+			if v := r.URL.Query().Get("offset"); v != "" {
+				if parsed, err := strconv.Atoi(v); err == nil && parsed >= 0 {
+					offset = parsed
+				}
+			}
+			query += fmt.Sprintf(" ORDER BY id LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+			args = append(args, limit, offset)
 
 			rows, err := db.DB.Query(query, args...)
 			if err != nil {
@@ -1595,8 +1657,14 @@ func handleRetryIntegrationEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can provision new tenants"})
 		return
 	}
 
@@ -1615,7 +1683,7 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := engines.ProvisionTenantSchema(req.TenantID, req.SchemaName)
+	adminPassword, err := engines.ProvisionTenantSchema(req.TenantID, req.SchemaName)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
@@ -1623,16 +1691,25 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]string{
-		"status":      "provisioned",
-		"tenant_id":   req.TenantID,
-		"schema_name": req.SchemaName,
+		"status":              "provisioned",
+		"tenant_id":           req.TenantID,
+		"schema_name":         req.SchemaName,
+		"admin_username":      "admin",
+		"admin_password":      adminPassword,
+		"admin_password_note": "Shown once - store it securely now. It is not persisted in plaintext anywhere and cannot be retrieved again.",
 	})
 }
 
 func handleSetFeatureFlag(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can modify feature flags"})
 		return
 	}
 

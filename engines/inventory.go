@@ -116,6 +116,25 @@ func PostInventoryLedger(tenantID string, locationCode string, items []interface
 			continue
 		}
 
+		// Floor-check: a negative delta (checkout/decrement) must not push available
+		// stock below zero. Locks the row (FOR UPDATE) so concurrent checkouts against
+		// the same SKU/location can't both pass the check before either commits.
+		if qtyVal < 0 {
+			var currentAvailable int
+			err = tx.QueryRow(fmt.Sprintf(`
+				SELECT available FROM %s.inventory_availability
+				WHERE sku = $1 AND location_code = $2
+				FOR UPDATE`, schema), sku, locationCode).Scan(&currentAvailable)
+			if err == sql.ErrNoRows {
+				return fmt.Errorf("insufficient stock for SKU %s at %s: no inventory record", sku, locationCode)
+			} else if err != nil {
+				return err
+			}
+			if currentAvailable+qtyVal < 0 {
+				return fmt.Errorf("insufficient stock for SKU %s at %s: available %d, requested %d", sku, locationCode, currentAvailable, -qtyVal)
+			}
+		}
+
 		// Perform atomic upsert for stock availability
 		query := fmt.Sprintf(`
 			INSERT INTO %s.inventory_availability (sku, location_code, on_hand, available) 

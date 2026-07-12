@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_DB: custom_erp
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          # Mapped to 5435 (not the default 5432) because both test files hardcode
+          # postgres://postgres@localhost:5435/custom_erp - matches local dev too.
+          - 5435:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Apply database schema
+        run: |
+          psql -h localhost -p 5435 -U postgres -d custom_erp -f db/migration.sql
+          psql -h localhost -p 5435 -U postgres -d custom_erp -f db/migrations_phase3.sql
+        env:
+          PGPASSWORD: ''
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./... -v

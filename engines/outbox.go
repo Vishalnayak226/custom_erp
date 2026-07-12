@@ -26,6 +26,8 @@ func PublishEvent(tx *sql.Tx, schema, eventName string, payload map[string]inter
 }
 
 // StartOutboxWorker starts a background worker that polls the outbox and dispatches events
+// for every provisioned tenant schema (re-queried each tick so newly provisioned tenants are
+// picked up without a server restart).
 func StartOutboxWorker(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	go func() {
@@ -34,11 +36,35 @@ func StartOutboxWorker(interval time.Duration) {
 				continue
 			}
 
-			// For prototype scope, we resolve schema "tenant_default"
-			schema := "tenant_default"
-			processOutbox(schema)
+			schemas, err := listTenantSchemas()
+			if err != nil {
+				log.Printf("[OUTBOX] Failed to list tenant schemas: %v", err)
+				continue
+			}
+			for _, schema := range schemas {
+				processOutbox(schema)
+			}
 		}
 	}()
+}
+
+// listTenantSchemas returns every schema registered in the tenant registry, including
+// tenant_default (seeded there for tenant_id 'default') and any tenant provisioned since.
+func listTenantSchemas() ([]string, error) {
+	rows, err := db.DB.Query("SELECT DISTINCT schema_name FROM public.tenants")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var schemas []string
+	for rows.Next() {
+		var s string
+		if err := rows.Scan(&s); err == nil {
+			schemas = append(schemas, s)
+		}
+	}
+	return schemas, nil
 }
 
 func processOutbox(schema string) {

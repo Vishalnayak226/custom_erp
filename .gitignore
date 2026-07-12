@@ -27,6 +27,17 @@ Thumbs.db
 # Go build files
 bin/
 
+# Frontend build output (regenerate via `npm run build`) - was previously tracked,
+# including a committed .map that defeated the point of shipping a minified bundle.
+public/dist/
+
+# Runtime logs (manage.ps1)
+logs/
+
+# Local credentials - never commit
+*.local.txt
+DEV_CREDENTIALS.local.txt
+
 # Editor configs
 .claude/
 CLAUDE.md

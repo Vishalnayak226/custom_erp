@@ -33,6 +33,8 @@ We transitioned the mock frontend into a production-grade multi-tenant backend a
 [x] Phase 7: Advanced Optimization (Forecasting, Replenishment, SLA target tuning) -> COMPLETED
 ```
 
+**Scope note (2026-07-12)**: Phases 1-7 above are the **Omnichannel Scale Add-on Blueprint's** rollout plan — they cover the kernel and omnichannel/scale backend, and "COMPLETED" here is accurate for that scope. It does **not** mean the full ERP described in the Master Blueprint is complete: POS/Finance/GST/CRM/HR/Assets UI, the approval/maker-checker workflow engine, MFA, and most of the ~80-report catalog were never part of this Phase 1-7 plan and remain unbuilt. See **[docs/pdf_blueprint_gap_analysis.md](pdf_blueprint_gap_analysis.md)** for the full comparison against all 6 spec PDFs and `docs/micro_checklist.md` Stage 13 for the resulting backlog.
+
 ---
 
 ## 4. Phase 1 Build Records (What We Built)
@@ -131,6 +133,30 @@ We transitioned the mock frontend into a production-grade multi-tenant backend a
 ### 10.3 Picking SLA Breach Monitors
 *   **Location**: `engines/optimization.go` and `GET /api/v1/optimization/sla-breaches`.
 *   **Behavior**: Scans open fulfillment tasks, measures elapsed time since creation, and highlights tasks exceeding SLA thresholds.
+
+### 10.4 Status-mismatch bug — fixed 2026-07-12
+*   §10.1 and §10.2 used to compute sales velocity by querying `POSCart` documents with `status = 'completed'`, which the system never actually produces. Fixed to match `status IN ('Paid', 'Settled')` — the two real statuses `handleCheckout` and `ProcessMarketplaceSettlement` actually write. Verified with a real checkout followed by a real forecast call. See `docs/hardening_roadmap.md` Phase 2.2.
+
+---
+
+## 11a. SaaS Provisioning, Feature Flags & Integration Log Retries (Build Record)
+
+*   **Tenant Provisioning**: `engines/saas.go`, `POST /api/v1/admin/tenant/provision`. Clones 19 table structures and seeds metadata from `tenant_default` into a new tenant schema. Fixed 2026-07-12 (`hardening_roadmap.md` Phase 1.6): `users` is no longer cloned into the seed loop — each new tenant gets one admin user with a unique, freshly-generated bcrypt-hashed password (`generateRandomPassword()`), not the shared placeholder hash.
+*   **Feature Flags**: `engines/saas.go`, `POST /api/v1/admin/tenant/feature-flag`. Per-tenant boolean flags backed by a new `feature_flags` table. `SetFeatureFlag` is wired to the API; `IsFeatureEnabled` isn't called from any request handler yet, so flags don't currently gate any behavior.
+*   **Integration Log Viewer & Retry**: `engines/outbox.go` (`GetIntegrationLogs`, `RetryIntegrationEvent`), `GET /api/v1/integration/logs` and `POST /api/v1/integration/retry`. Backend works; the frontend Log Hub view doesn't call either endpoint yet, so there's no integration-payload list or retry button in the UI.
+
+For the full list of known gaps and the plan to close them, see **[docs/hardening_roadmap.md](hardening_roadmap.md)**.
+
+---
+
+## 11b. Real Login Flow (Build Record, 2026-07-12)
+
+Closed `hardening_roadmap.md` Phase 1.1. Prior to this, `apiMiddleware` silently granted `HR/Admin` access to any request with no `Authorization` header — the app had no login screen at all and worked *only because of* that bug.
+
+*   **Backend**: `main.go` `apiMiddleware` now rejects any request without a valid Bearer token, except `POST /api/v1/login` itself.
+*   **Frontend**: new login screen (`public/index.html`/`app.js`/`styles.css`), logout button in the sidebar, and `apiFetch`'s 401 handling now logs the user out and returns to the login screen instead of a dead-end alert.
+*   **Credentials**: all 4 seed users reset to unique bcrypt hashes (`db/migration.sql`) — the previous shared hash's plaintext was never recorded anywhere. Dev-only plaintext is in `DEV_CREDENTIALS.local.txt` (gitignored, project root).
+*   **Token expiry (Phase 1.4)**: also closed 2026-07-12 — issued tokens now embed an `exp` claim (default 24h TTL, `JWT_EXPIRY_HOURS` overridable) and `ParseToken` rejects expired ones.
 
 ---
 

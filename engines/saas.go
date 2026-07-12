@@ -1,9 +1,23 @@
 package engines
 
 import (
+	"crypto/rand"
 	"custom_erp/db"
+	"encoding/hex"
 	"fmt"
+
+	"golang.org/x/crypto/bcrypt"
 )
+
+// generateRandomPassword returns a high-entropy, one-time-use password for a
+// newly provisioned tenant's admin account.
+func generateRandomPassword() (string, error) {
+	raw := make([]byte, 16)
+	if _, err := rand.Read(raw); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(raw), nil
+}
 
 // IsFeatureEnabled checks whether a specific SaaS module feature flag is enabled for the tenant
 func IsFeatureEnabled(tenantID string, featureName string) (bool, error) {
@@ -37,21 +51,23 @@ func SetFeatureFlag(tenantID string, featureName string, enabled bool) error {
 	return err
 }
 
-// ProvisionTenantSchema provisions a new corporate tenant schema cloned from tenant_default templates
-func ProvisionTenantSchema(tenantID string, schemaName string) error {
+// ProvisionTenantSchema provisions a new corporate tenant schema cloned from tenant_default templates.
+// Returns the freshly generated admin password - it is never persisted in plaintext anywhere and is
+// only returned this once, at creation time, for the caller to hand off securely.
+func ProvisionTenantSchema(tenantID string, schemaName string) (string, error) {
 	// 1. Insert tenant registry mapping
 	_, err := db.DB.Exec(`
-		INSERT INTO public.tenants (tenant_id, name, schema_name) 
-		VALUES ($1, $1, $2) 
+		INSERT INTO public.tenants (tenant_id, name, schema_name)
+		VALUES ($1, $1, $2)
 		ON CONFLICT (tenant_id) DO NOTHING`, tenantID, schemaName)
 	if err != nil {
-		return fmt.Errorf("failed to register tenant mapping: %v", err)
+		return "", fmt.Errorf("failed to register tenant mapping: %v", err)
 	}
 
 	// 2. Create Schema
 	_, err = db.DB.Exec(fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schemaName))
 	if err != nil {
-		return fmt.Errorf("failed to create tenant schema: %v", err)
+		return "", fmt.Errorf("failed to create tenant schema: %v", err)
 	}
 
 	// 3. Clone all table structures from tenant_default template
@@ -79,7 +95,7 @@ func ProvisionTenantSchema(tenantID string, schemaName string) error {
 
 	tx, err := db.DB.Begin()
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer tx.Rollback()
 
@@ -87,11 +103,14 @@ func ProvisionTenantSchema(tenantID string, schemaName string) error {
 		query := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s.%s (LIKE tenant_default.%s INCLUDING ALL)", schemaName, table, table)
 		_, err = tx.Exec(query)
 		if err != nil {
-			return fmt.Errorf("failed to clone table structure for %s: %v", table, err)
+			return "", fmt.Errorf("failed to clone table structure for %s: %v", table, err)
 		}
 	}
 
-	// 4. Seed metadata and master catalog configurations from template schema
+	// 4. Seed metadata and master catalog configurations from template schema.
+	// Deliberately excludes "users" - cloning it would give every new tenant the exact
+	// same admin password hash as tenant_default. A fresh admin account with a unique,
+	// randomly generated password is created explicitly below instead (step 5).
 	seeds := []string{
 		"doctype_meta",
 		"doctype_fields",
@@ -99,16 +118,37 @@ func ProvisionTenantSchema(tenantID string, schemaName string) error {
 		"gl_accounts",
 		"prefix_configs",
 		"feature_flags",
-		"users",
 	}
 
 	for _, seedTable := range seeds {
 		query := fmt.Sprintf("INSERT INTO %s.%s SELECT * FROM tenant_default.%s ON CONFLICT DO NOTHING", schemaName, seedTable, seedTable)
 		_, err = tx.Exec(query)
 		if err != nil {
-			return fmt.Errorf("failed to seed table data for %s: %v", seedTable, err)
+			return "", fmt.Errorf("failed to seed table data for %s: %v", seedTable, err)
 		}
 	}
 
-	return tx.Commit()
+	// 5. Create a unique admin account for this tenant with a freshly generated password.
+	password, err := generateRandomPassword()
+	if err != nil {
+		return "", fmt.Errorf("failed to generate admin password: %v", err)
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash admin password: %v", err)
+	}
+	_, err = tx.Exec(fmt.Sprintf(`
+		INSERT INTO %s.users (id, username, password_hash, email, role, status)
+		VALUES ('admin', 'admin', $1, $2, 'HR/Admin', 'Active')
+		ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash`, schemaName),
+		string(hash), fmt.Sprintf("admin@%s.local", tenantID))
+	if err != nil {
+		return "", fmt.Errorf("failed to create tenant admin user: %v", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return "", err
+	}
+
+	return password, nil
 }
