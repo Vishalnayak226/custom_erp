@@ -105,6 +105,43 @@ func generateUUID() string {
 }
 
 // Middleware wrapper to inject TenantID, User Claims, and enforce security policies
+// securityHeaders sets browser-enforced defensive headers on every response -
+// static assets and API alike - by wrapping the whole mux once, rather than
+// depending on every future route remembering to add apiMiddleware.
+//
+// script-src/style-src include 'unsafe-inline': public/index.html and
+// public/app.js render onclick="..." attribute handlers throughout the UI
+// (21 occurrences today), and CSP treats those the same as inline <script>
+// tags. Dropping 'unsafe-inline' would break every button in the app until
+// those are refactored to addEventListener - a separate frontend task, not
+// part of this header change. frame-ancestors 'none' (plus X-Frame-Options
+// for older browsers) still gives real clickjacking protection regardless.
+func securityHeaders(next http.Handler) http.Handler {
+	// style-src/font-src allow Google Fonts specifically (public/styles.css
+	// @imports fonts.googleapis.com, which serves @font-face rules pointing at
+	// fonts.gstatic.com) - the only external resource this app actually loads.
+	const csp = "default-src 'self'; " +
+		"script-src 'self' 'unsafe-inline'; " +
+		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
+		"font-src 'self' https://fonts.gstatic.com; " +
+		"img-src 'self' data:; " +
+		"connect-src 'self'; " +
+		"object-src 'none'; " +
+		"base-uri 'self'; " +
+		"form-action 'self'; " +
+		"frame-ancestors 'none'"
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("X-Frame-Options", "DENY")
+		// Strict-Transport-Security is a no-op over plain HTTP (dev today) and
+		// only takes effect once served over TLS - safe to set unconditionally.
+		w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
+		w.Header().Set("Content-Security-Policy", csp)
+		next.ServeHTTP(w, r)
+	})
+}
+
 func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		correlationID := generateUUID()
@@ -289,7 +326,7 @@ func main() {
 	http.Handle("/", fs)
 
 	log.Println("Starting ERP Server on http://localhost:8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
+	if err := http.ListenAndServe(":8080", securityHeaders(http.DefaultServeMux)); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }
