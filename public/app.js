@@ -126,6 +126,51 @@ function showCustomPrompt(message, defaultValue = '', title = 'Input Required') 
 }
 
 
+// Error-reporting helpers - every save/load failure must reach the user
+// through the same centered custom dialog used everywhere else, never a
+// silent no-op and never a native browser dialog.
+async function getErrorMessage(res, fallback) {
+  try {
+    const data = await res.clone().json();
+    if (data && data.error) return data.error;
+  } catch (e) {
+    // Body wasn't JSON (some backend handlers use http.Error with a plain
+    // text body) - fall through to the fallback message.
+  }
+  return fallback;
+}
+
+async function showApiError(res, fallback) {
+  const msg = await getErrorMessage(res, fallback);
+  await showCustomAlert(msg, 'Error');
+}
+
+// Inline centered retry panel for full-page load failures, so a failed GET
+// doesn't just leave the user staring at a blank view after they dismiss a
+// dialog. Mirrors the centered-card layout already used by renderMockModuleView.
+function renderErrorPanel(container, message, retryFn) {
+  container.innerHTML = '';
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '48px';
+  panel.style.textAlign = 'center';
+  panel.innerHTML = `
+    <div style="max-width: 480px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; align-items: center;">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <h2 style="font-size: 20px; font-weight: 600;">Something Went Wrong</h2>
+      <p class="text-muted" style="font-size: 14px; line-height: 1.6;">${message}</p>
+      <button class="btn btn-primary" id="error-panel-retry-btn">Try Again</button>
+    </div>
+  `;
+  container.appendChild(panel);
+  const btn = panel.querySelector('#error-panel-retry-btn');
+  if (btn && retryFn) btn.addEventListener('click', retryFn);
+}
+
 let state = {
   activeDoctypes: [],
   activeDocFields: [],
@@ -450,6 +495,13 @@ function setupEventListeners() {
     renderView('pos');
   });
 
+  document.getElementById('menu-finance').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-finance');
+    closeSubmenus();
+    renderView('finance');
+  });
+
   ['menu-vendors', 'menu-stores', 'menu-purchase-orders', 'menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
@@ -536,6 +588,8 @@ async function renderView(view) {
     renderDashboard(root);
   } else if (view === 'pos') {
     renderPOSView(root);
+  } else if (view === 'finance') {
+    await renderFinanceView(root);
   } else if (view === 'doctype-table') {
     await renderDocTableView(root);
   } else if (view === 'doctype-builder') {
@@ -840,6 +894,91 @@ async function submitPOSCheckout() {
   } finally {
     checkoutBtn.disabled = false;
   }
+}
+
+// Finance / GL screen - read-only trial balance view against the already-
+// working GET /api/v1/finance/trial-balance API (Stage 13.5). Same story as
+// the POS screen: the double-entry posting engine and API already work and
+// are tested, there was just no screen to see them.
+async function renderFinanceView(container) {
+  const res = await apiFetch('/api/v1/finance/trial-balance');
+  if (!res) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Finance / GL</h1>
+      <p class="page-subtitle">Trial balance across all posted GL accounts.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  if (!res.ok) {
+    const panel = document.createElement('div');
+    panel.className = 'table-panel';
+    panel.style.padding = '24px';
+    panel.textContent = 'Failed to load trial balance.';
+    container.appendChild(panel);
+    return;
+  }
+
+  const data = await res.json();
+  const balances = data.balances || [];
+
+  const summaryRow = document.createElement('div');
+  summaryRow.className = 'dashboard-stats-row';
+  summaryRow.innerHTML = `
+    <div class="stat-card">
+      <span class="stat-label">Total Debits</span>
+      <span class="stat-val">${(data.total_debits ?? 0).toLocaleString()}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Total Credits</span>
+      <span class="stat-val">${(data.total_credits ?? 0).toLocaleString()}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Ledger Status</span>
+      <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+        <span class="pulse-dot" style="background: ${data.balanced ? '#10b981' : '#ef4444'};"></span>
+        <span style="font-size: 16px; font-weight: 700; color: ${data.balanced ? '#10b981' : '#ef4444'};">${data.status || ''}</span>
+      </div>
+    </div>
+  `;
+  container.appendChild(summaryRow);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Account Code</th>
+          <th>Account Name</th>
+          <th>Type</th>
+          <th>Debit</th>
+          <th>Credit</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  if (balances.length === 0) {
+    html += `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No GL postings yet.</td></tr>`;
+  }
+  balances.forEach(b => {
+    html += `
+      <tr>
+        <td style="font-family: monospace;">${b.account_code}</td>
+        <td style="font-weight:600;">${b.account_name}</td>
+        <td>${b.account_type}</td>
+        <td>${b.debit.toLocaleString()}</td>
+        <td>${b.credit.toLocaleString()}</td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table>`;
+  panel.innerHTML = html;
+  container.appendChild(panel);
 }
 
 // Render dynamic DocType CRUD Table view
