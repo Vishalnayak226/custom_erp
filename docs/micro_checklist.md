@@ -165,7 +165,7 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 
 - [/] **12.1 Multi-Tenant SaaS Operations**
   - [x] Deploy automatic tenant provisioning workflows. Each new tenant now gets a unique, freshly generated admin credential (2026-07-12, `hardening_roadmap.md` Phase 1.6, verified) rather than a cloned shared hash. Restricted to `HR/Admin` callers only (Phase 1.7, verified).
-  - [x] Setup feature flag controls per tenant. *(The setter is wired to an API route; `IsFeatureEnabled` isn't called from any request handler yet, so flags don't gate anything in practice.)*
+  - [x] Setup feature flag controls per tenant. *(The setter is wired to an API route; `IsFeatureEnabled` isn't called from any request handler yet, so flags don't gate anything in practice — tracked as its own actionable item at Stage 13.2.)*
   - [ ] ~~Load remaining industry templates (Pharma, Metal, Construction, etc.).~~ Re-opened: only the original 4 profiles exist (`jewelry`, `food_bev`, `auto`, `clothing`) in `public/profiles/`; Pharma/Metal/Construction/Medical/Semiconductor/Agriculture from `industry_plugs.md` have no corresponding profile file.
 - [/] **12.2 Intellectual Property & Binary Safety**
   - [x] Obfuscate, minify, and bundle frontend SPA scripts. Sourcemap gap closed 2026-07-12 (`hardening_roadmap.md` Phase 4.2) — no more `--sourcemap` flag, and the previously-committed `.map` was untracked and gitignored along with the rest of `public/dist/`.
@@ -178,15 +178,33 @@ This checklist tracks the implementation of the In-House ERP Kernel and pluggabl
 
 Added 2026-07-12 after a full gap analysis against all 6 spec PDFs (`docs/pdf_blueprint_gap_analysis.md`). Unlike Stages 1-12, these items were never scoped into a build phase before now — they're new to this tracker, not re-opened.
 
-- [ ] **13.1 Approval / Workflow Engine (maker-checker)** — named as a "build first" common engine in both the Master Blueprint and Approach Blueprint. No `approval_log` table or approval/workflow code exists anywhere. Blocks PO approval, vendor bank-change approval, payment approval, and the entire finance maker-checker domain in the security checklist (SEC-V2 §11).
-- [ ] **13.2 POS billing screen** — `POST /api/v1/checkout` and the availability/reservation APIs work and are tested; there is no cashier/barcode-scan-to-sell UI.
-- [ ] **13.3 Finance/GL screen** — `GET /api/v1/finance/trial-balance` and double-entry postings work; there is no screen to view them.
-- [ ] **13.4 Fulfillment/reservation workbench** — task transitions and re-routing work via API; no pick/pack/dispatch UI.
-- [ ] **13.5 Marketplace settlement screen** — settlement reconciliation works via API; no UI.
-- [ ] **13.6 GST/Tax engine** — no HSN-driven GST calculation, IRN e-invoice, or e-way bill logic anywhere.
-- [ ] **13.7 Dedicated Vendor/Customer masters** — currently only free-text fields on PurchaseOrder/SalesInvoice in the seed data; **[unverified]** whether a real `Vendor`/`Customer` doctype was added later via the DocType Builder — check the live DB before starting this.
-- [ ] **13.8 Report catalog expansion** — ~4 of the ~80 reports named in the Master Blueprint exist (replenishment, forecast, SLA breach, trial balance), all API-only with no report-browsing UI.
-- [ ] **13.9 RFQ / Vendor Quote / Quote Comparison** — procurement goes straight to PurchaseOrder today.
-- [ ] **13.10 CRM/Loyalty, HR, Expense, Fixed Assets, Manufacturing/Job-Work** — no doctypes, engines, or screens for any of these five modules. Largest, lowest-priority item — scope with the user before starting.
-- [ ] **13.11 Sticker/barcode printing module** — no print-template or printer-mapping code.
-- [ ] **13.12 Security: MFA, security headers, per-API-type rate limiting** — SEC-V2 items not covered by Stages 1-12's security work; see `docs/pdf_blueprint_gap_analysis.md` §5 for the full checklist-vs-code comparison.
+**Reorganized 2026-07-13** into Phases A-E to mirror `docs/pdf_blueprint_gap_analysis.md` §9's recommended risk/effort-ordered sequencing (a prioritization proposal for the user, not a commitment to build). Two items that phased plan calls out are already tracked elsewhere and aren't duplicated here — see the cross-references inline. Also split out two items that were previously bundled into one line and, on reflection, have very different effort/priority: security response headers (cheap, high ROI) vs. MFA (biggest lift in Phase A) were one checklist line; feature-flag route gating wasn't tracked as its own actionable item at all, only as a footnote on Stage 12.1's `[x]` line.
+
+### Phase A — Cheap, high-risk-reduction security
+- [ ] **13.1 Security response headers** (HSTS, CSP, `X-Frame-Options`/`frame-ancestors`, `X-Content-Type-Options`) — none set anywhere; `apiMiddleware` sets CORS headers but no security headers. Small, self-contained middleware change.
+- [ ] **13.2 Wire `IsFeatureEnabled` into the routes it's meant to gate** — the setter API works (Stage 12.1), but no request handler actually calls `IsFeatureEnabled`, so per-tenant feature flags don't gate anything in practice today.
+- [ ] **13.3 MFA** for HR/Admin, Finance-equivalent, and production-support roles — SEC-V2 §12 marks this mandatory; no TOTP/MFA code exists anywhere. Biggest lift in this phase.
+- *(Webhook signature + timestamp validation — already tracked as a re-opened item, Stage 9.2.)*
+
+### Phase B — Frontend for logic that already exists (highest ROI)
+- [ ] **13.4 POS billing screen** — `POST /api/v1/checkout` and the availability/reservation APIs work and are tested; there is no cashier/barcode-scan-to-sell UI.
+- [ ] **13.5 Finance/GL screen** — `GET /api/v1/finance/trial-balance` and double-entry postings work; there is no screen to view them.
+- *(Log Hub wiring to `/api/v1/integration/logs` + `/retry` — already tracked as a re-opened item, Stage 9.2.)*
+- [ ] **13.6 Fulfillment/reservation workbench** — task transitions and re-routing work via API; no pick/pack/dispatch UI.
+- [ ] **13.7 Marketplace settlement screen** — settlement reconciliation works via API; no UI.
+
+### Phase C — The structural gap
+- [ ] **13.8 Approval / Workflow Engine (maker-checker)** — named as a "build first" common engine in both the Master Blueprint and Approach Blueprint. No `approval_log` table or approval/workflow code exists anywhere. Blocks PO approval, vendor bank-change approval, payment approval, and the entire finance maker-checker domain in the security checklist (SEC-V2 §11).
+
+### Phase D — Functional module breadth
+- [ ] **13.9 Dedicated Vendor/Customer masters** — confirmed absent 2026-07-13 by a live-DB check (`SELECT name FROM tenant_default.doctype_meta WHERE name ILIKE '%vendor%' OR ...` returns zero rows); currently only free-text fields on `PurchaseOrder`/`SalesInvoice`. Needs GSTIN/bank/loyalty fields per MB §4.5.
+- [ ] **13.10 GST/Tax engine** — no HSN-driven GST calculation, IRN e-invoice, or e-way bill logic anywhere.
+- [ ] **13.11 Report catalog expansion** — ~4 of the ~80 reports named in the Master Blueprint exist (replenishment, forecast, SLA breach, trial balance), all API-only with no report-browsing UI. Prioritize Current Stock, Sales Register, Vendor Ledger, Payables Ageing first.
+- [ ] **13.12 RFQ / Vendor Quote / Quote Comparison** — procurement goes straight to PurchaseOrder today. Not explicitly phased in the gap analysis's §9 plan; grouped here as functional breadth.
+- [ ] **13.13 CRM/Loyalty, HR, Expense, Fixed Assets, Manufacturing/Job-Work** — no doctypes, engines, or screens for any of these five modules. Largest, lowest-priority item — scope with the user before starting.
+
+### Phase E — Remaining ops/scale hardening
+- *(Backup/DR automation — already tracked as a re-opened item, Stage 12.2.)*
+- *(Remaining industry profiles: Pharma, Construction, Steel — already tracked as a re-opened item, Stage 12.1.)*
+- [ ] **13.14 Per-API-type rate limiting granularity** — SEC-V2 §5 specs distinct limits per API type (search/report/export/bulk-upload/webhook/GST); current limiter is a flat 2-tier 5/min-login + 60/min-everything-else.
+- [ ] **13.15 Sticker/barcode printing module** — no print-template or printer-mapping code.
