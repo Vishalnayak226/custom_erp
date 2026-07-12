@@ -509,6 +509,13 @@ function setupEventListeners() {
     renderView('fulfillment');
   });
 
+  document.getElementById('menu-marketplace').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-marketplace');
+    closeSubmenus();
+    renderView('marketplace');
+  });
+
   ['menu-vendors', 'menu-stores', 'menu-purchase-orders', 'menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
@@ -599,6 +606,8 @@ async function renderView(view) {
     await renderFinanceView(root);
   } else if (view === 'fulfillment') {
     await renderFulfillmentView(root);
+  } else if (view === 'marketplace') {
+    await renderMarketplaceView(root);
   } else if (view === 'doctype-table') {
     await renderDocTableView(root);
   } else if (view === 'doctype-builder') {
@@ -1096,6 +1105,229 @@ async function transitionFulfillmentTask(taskId, newStatus) {
     return;
   }
   renderView('fulfillment');
+}
+
+// Marketplace settlement + logistics booking screen (Stage 13.7) - both
+// MarketplaceSettlement and LogisticsBooking are already real doctypes
+// (listed via the generic GET /api/v1/doc/... endpoint, no new backend code
+// needed for reading), and reconciliation/booking already work via
+// POST /api/v1/marketplace/settlement/reconcile and .../logistics/book.
+async function renderMarketplaceView(container) {
+  const [settlementsRes, bookingsRes] = await Promise.all([
+    apiFetch('/api/v1/doc/MarketplaceSettlement'),
+    apiFetch('/api/v1/doc/LogisticsBooking')
+  ]);
+  if (!settlementsRes || !bookingsRes) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Marketplace</h1>
+      <p class="page-subtitle">Channel settlement reconciliation and logistics bookings.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const settlements = settlementsRes.ok ? await settlementsRes.json() : [];
+  const bookings = bookingsRes.ok ? await bookingsRes.json() : [];
+
+  // --- Settlements panel ---
+  const settlementPanel = document.createElement('div');
+  settlementPanel.className = 'table-panel';
+  settlementPanel.style.padding = '24px';
+  settlementPanel.style.marginBottom = '24px';
+  settlementPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Settlements</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mkt-settlement-id">Settlement ID</label>
+        <input type="text" id="mkt-settlement-id" class="form-input" style="width: 160px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mkt-channel">Channel</label>
+        <select id="mkt-channel" class="form-input" style="width: 130px;">
+          <option value="Shopify">Shopify</option>
+          <option value="Amazon">Amazon</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mkt-total-sale">Total Sale</label>
+        <input type="number" id="mkt-total-sale" class="form-input" style="width: 110px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mkt-commission">Commission</label>
+        <input type="number" id="mkt-commission" class="form-input" style="width: 110px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mkt-net-payout">Net Payout</label>
+        <input type="number" id="mkt-net-payout" class="form-input" style="width: 110px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 180px;">
+        <label class="form-label" for="mkt-order-ids">Order IDs (comma-separated)</label>
+        <input type="text" id="mkt-order-ids" class="form-input">
+      </div>
+      <button class="btn btn-primary" id="mkt-reconcile-btn">Reconcile</button>
+    </div>
+    <div id="mkt-settlement-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Settlement ID</th>
+          <th>Channel</th>
+          <th>Total Sale</th>
+          <th>Commission</th>
+          <th>Net Payout</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${settlements.length === 0
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No settlements yet.</td></tr>`
+          : settlements.map(s => `
+            <tr>
+              <td style="font-family: monospace;">${s.code || s.id}</td>
+              <td>${s.channel || ''}</td>
+              <td>${(s.total_sale ?? 0).toLocaleString()}</td>
+              <td>${(s.commission ?? 0).toLocaleString()}</td>
+              <td>${(s.net_payout ?? 0).toLocaleString()}</td>
+              <td><span class="badge ${s.status === 'Reconciled' ? 'badge-success' : 'badge-warning'}">${s.status}</span></td>
+            </tr>
+          `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(settlementPanel);
+
+  // --- Logistics bookings panel ---
+  const bookingPanel = document.createElement('div');
+  bookingPanel.className = 'table-panel';
+  bookingPanel.style.padding = '24px';
+  bookingPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Logistics Bookings</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mkt-order-id">Order ID</label>
+        <input type="text" id="mkt-order-id" class="form-input" style="width: 150px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mkt-carrier">Carrier</label>
+        <input type="text" id="mkt-carrier" class="form-input" style="width: 140px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mkt-tracking">Tracking Number</label>
+        <input type="text" id="mkt-tracking" class="form-input" style="width: 160px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mkt-shipping-charge">Shipping Charge</label>
+        <input type="number" id="mkt-shipping-charge" class="form-input" style="width: 130px;">
+      </div>
+      <button class="btn btn-primary" id="mkt-book-btn">Book</button>
+    </div>
+    <div id="mkt-booking-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Booking ID</th>
+          <th>Order ID</th>
+          <th>Carrier</th>
+          <th>Tracking Number</th>
+          <th>Shipping Charge</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${bookings.length === 0
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No logistics bookings yet.</td></tr>`
+          : bookings.map(b => `
+            <tr>
+              <td style="font-family: monospace;">${b.code || b.id}</td>
+              <td>${b.order_id || ''}</td>
+              <td>${b.carrier || ''}</td>
+              <td>${b.tracking_number || ''}</td>
+              <td>${(b.shipping_charge ?? 0).toLocaleString()}</td>
+              <td><span class="badge badge-secondary">${b.status}</span></td>
+            </tr>
+          `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(bookingPanel);
+
+  document.getElementById('mkt-reconcile-btn').addEventListener('click', submitMarketplaceReconcile);
+  document.getElementById('mkt-book-btn').addEventListener('click', submitLogisticsBooking);
+}
+
+async function submitMarketplaceReconcile() {
+  const errorEl = document.getElementById('mkt-settlement-error');
+  errorEl.classList.add('hidden');
+
+  const settlementId = document.getElementById('mkt-settlement-id').value.trim();
+  const channel = document.getElementById('mkt-channel').value;
+  const totalSale = parseFloat(document.getElementById('mkt-total-sale').value);
+  const commission = parseFloat(document.getElementById('mkt-commission').value) || 0;
+  const netPayout = parseFloat(document.getElementById('mkt-net-payout').value) || 0;
+  const orderIds = document.getElementById('mkt-order-ids').value.split(',').map(s => s.trim()).filter(Boolean);
+
+  if (!settlementId || !totalSale || totalSale <= 0) {
+    errorEl.textContent = 'Settlement ID and a positive Total Sale are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/marketplace/settlement/reconcile', {
+    method: 'POST',
+    body: JSON.stringify({
+      settlement_id: settlementId,
+      channel,
+      total_sale: totalSale,
+      commission,
+      net_payout: netPayout,
+      order_ids: orderIds
+    })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Reconciliation failed.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('marketplace');
+}
+
+async function submitLogisticsBooking() {
+  const errorEl = document.getElementById('mkt-booking-error');
+  errorEl.classList.add('hidden');
+
+  const orderId = document.getElementById('mkt-order-id').value.trim();
+  const carrier = document.getElementById('mkt-carrier').value.trim();
+  const trackingNumber = document.getElementById('mkt-tracking').value.trim();
+  const shippingCharge = parseFloat(document.getElementById('mkt-shipping-charge').value) || 0;
+
+  if (!orderId || !carrier || !trackingNumber) {
+    errorEl.textContent = 'Order ID, Carrier, and Tracking Number are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/marketplace/logistics/book', {
+    method: 'POST',
+    body: JSON.stringify({
+      order_id: orderId,
+      carrier,
+      tracking_number: trackingNumber,
+      shipping_charge: shippingCharge
+    })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Booking failed.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('marketplace');
 }
 
 // Render dynamic DocType CRUD Table view

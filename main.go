@@ -665,9 +665,15 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// Location filtering: non-admins can only see records for their location.
 			// COALESCE covers both field names in use across doctypes ("location"
 			// vs FulfillmentTask's "location_code") - matches the single-doc GET
-			// check above, which does the same for the same reason.
+			// check above, which does the same for the same reason. The "IS NULL"
+			// half matters just as much as the match itself: plenty of doctypes
+			// (MarketplaceSettlement, LogisticsBooking) have no location concept
+			// at all, and SQL's NULL = $x is never true - without this, every
+			// non-admin would silently see zero rows of any location-less
+			// doctype, not "all of them" (which is the correct behavior for a
+			// doctype with nothing to scope by).
 			if role != "HR/Admin" {
-				query += fmt.Sprintf(" AND COALESCE(data->>'location', data->>'location_code') = $%d", argIndex)
+				query += fmt.Sprintf(" AND (COALESCE(data->>'location', data->>'location_code') = $%d OR COALESCE(data->>'location', data->>'location_code') IS NULL)", argIndex)
 				args = append(args, location)
 				argIndex++
 			}
