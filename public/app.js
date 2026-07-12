@@ -175,9 +175,22 @@ async function apiFetch(url, options = {}) {
 }
 
 // Auth: login screen, logout, and app-shell visibility
+
+// Holds the short-lived enrollment/challenge token between the initial
+// username+password submit and the follow-up TOTP code submit, for
+// MFA-mandatory roles (see engines.RequiresMFA / Stage 13.3). Never
+// persisted - it's only good for one MFA step and expires in minutes.
+let pendingMFAToken = null;
+
 function showLoginScreen() {
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('app-root').classList.add('hidden');
+  // Always land back on the username/password step, not a stale MFA screen
+  // left over from a previous, unfinished login attempt.
+  pendingMFAToken = null;
+  document.getElementById('login-form').classList.remove('hidden');
+  document.getElementById('mfa-enroll-screen').classList.add('hidden');
+  document.getElementById('mfa-challenge-screen').classList.add('hidden');
 }
 
 function showApp() {
@@ -229,12 +242,20 @@ async function handleLoginSubmit(event) {
       errorEl.classList.remove('hidden');
       return;
     }
-    localStorage.setItem('erp_token', data.token);
-    localStorage.setItem('erp_username', data.user);
-    localStorage.setItem('erp_role', data.role);
-    document.getElementById('login-form').reset();
-    showApp();
-    await init();
+
+    if (data.mfa_enrollment_required) {
+      pendingMFAToken = data.enrollment_token;
+      await startMFAEnrollment();
+      return;
+    }
+    if (data.mfa_required) {
+      pendingMFAToken = data.challenge_token;
+      document.getElementById('login-form').classList.add('hidden');
+      document.getElementById('mfa-challenge-screen').classList.remove('hidden');
+      return;
+    }
+
+    completeLogin(data);
   } catch (err) {
     errorEl.textContent = 'Unable to reach the server. Please try again.';
     errorEl.classList.remove('hidden');
@@ -243,8 +264,87 @@ async function handleLoginSubmit(event) {
   }
 }
 
+// completeLogin stores the session and enters the app - the shared final
+// step whether login was a single step (non-MFA role) or ended via MFA
+// enrollment/verification.
+function completeLogin(data) {
+  localStorage.setItem('erp_token', data.token);
+  localStorage.setItem('erp_username', data.user);
+  localStorage.setItem('erp_role', data.role);
+  pendingMFAToken = null;
+  document.getElementById('login-form').reset();
+  document.getElementById('mfa-enroll-form').reset();
+  document.getElementById('mfa-challenge-form').reset();
+  showApp();
+  init();
+}
+
+// startMFAEnrollment fetches a fresh TOTP secret for a first-time MFA login
+// and reveals the enrollment screen (manual-entry code + confirmation form).
+async function startMFAEnrollment() {
+  const errorEl = document.getElementById('login-error');
+  try {
+    const res = await fetch('/api/v1/auth/mfa/enroll', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${pendingMFAToken}` }
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.error || 'Failed to start MFA enrollment. Please try logging in again.';
+      errorEl.classList.remove('hidden');
+      pendingMFAToken = null;
+      return;
+    }
+    document.getElementById('mfa-enroll-secret').textContent = data.secret;
+    document.getElementById('login-form').classList.add('hidden');
+    document.getElementById('mfa-enroll-screen').classList.remove('hidden');
+  } catch (err) {
+    errorEl.textContent = 'Unable to reach the server. Please try again.';
+    errorEl.classList.remove('hidden');
+  }
+}
+
+async function submitMFACode(url, codeInputId, errorElId, submitBtnId) {
+  const code = document.getElementById(codeInputId).value.trim();
+  const errorEl = document.getElementById(errorElId);
+  const submitBtn = document.getElementById(submitBtnId);
+  errorEl.classList.add('hidden');
+  submitBtn.disabled = true;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${pendingMFAToken}` },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errorEl.textContent = data.error || 'Invalid code. Please try again.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    completeLogin(data);
+  } catch (err) {
+    errorEl.textContent = 'Unable to reach the server. Please try again.';
+    errorEl.classList.remove('hidden');
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+
+async function handleMFAEnrollSubmit(event) {
+  event.preventDefault();
+  await submitMFACode('/api/v1/auth/mfa/activate', 'mfa-enroll-code', 'mfa-enroll-error', 'mfa-enroll-submit-btn');
+}
+
+async function handleMFAChallengeSubmit(event) {
+  event.preventDefault();
+  await submitMFACode('/api/v1/auth/mfa/verify', 'mfa-challenge-code', 'mfa-challenge-error', 'mfa-challenge-submit-btn');
+}
+
 function bootstrap() {
   document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
+  document.getElementById('mfa-enroll-form').addEventListener('submit', handleMFAEnrollSubmit);
+  document.getElementById('mfa-challenge-form').addEventListener('submit', handleMFAChallengeSubmit);
 
   if (localStorage.getItem('erp_token')) {
     showApp();

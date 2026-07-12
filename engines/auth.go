@@ -83,6 +83,26 @@ func SignToken(userID, username, role, tenantID, locationCode string) string {
 	return encodedClaims + "." + signature
 }
 
+// SignPurposeToken issues a short-lived, narrowly-scoped token for a single
+// step of a multi-step flow (MFA enrollment/challenge). Deliberately excludes
+// role/loc so it can never be mistaken for - or misused as - a full session
+// token; apiMiddleware surfaces its "purpose" claim via the Resolved-Purpose
+// header for handlers to check explicitly. tenantID IS included (unlike
+// role/loc) because apiMiddleware unconditionally re-resolves tenantID from
+// claims["tenant"] for any bearer token - omitting it would silently blank
+// out tenant scoping for the rest of the MFA flow.
+func SignPurposeToken(userID, username, tenantID, purpose string, ttl time.Duration) string {
+	exp := time.Now().Add(ttl).Unix()
+	claims := fmt.Sprintf("id=%s&user=%s&tenant=%s&purpose=%s&exp=%d", userID, username, tenantID, purpose, exp)
+	encodedClaims := base64.URLEncoding.EncodeToString([]byte(claims))
+
+	h := hmac.New(sha256.New, jwtSecret)
+	h.Write([]byte(encodedClaims))
+	signature := hex.EncodeToString(h.Sum(nil))
+
+	return encodedClaims + "." + signature
+}
+
 // ParseToken validates the signature and extracts claims
 func ParseToken(tokenStr string) (map[string]string, error) {
 	parts := strings.Split(tokenStr, ".")

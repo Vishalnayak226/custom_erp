@@ -34,6 +34,39 @@
         <div id="login-error" class="login-error hidden"></div>
         <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="login-submit-btn">Sign In</button>
       </form>
+
+      <!-- First-time MFA enrollment (HR/Admin only - SEC-V2 12) -->
+      <div id="mfa-enroll-screen" class="hidden">
+        <p class="login-subtitle">Set up two-factor authentication</p>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+          This role requires an authenticator app (Google Authenticator, Authy, etc). Add an account using the code below, then enter the 6-digit code it shows.
+        </p>
+        <div class="form-group">
+          <label class="form-label">Manual entry code</label>
+          <code id="mfa-enroll-secret" style="display: block; word-break: break-all; padding: 10px; background: var(--bg-color); border-radius: 8px; font-size: 13px;"></code>
+        </div>
+        <form id="mfa-enroll-form">
+          <div class="form-group">
+            <label class="form-label" for="mfa-enroll-code">6-digit code</label>
+            <input type="text" id="mfa-enroll-code" class="form-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
+          </div>
+          <div id="mfa-enroll-error" class="login-error hidden"></div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="mfa-enroll-submit-btn">Verify &amp; Finish Setup</button>
+        </form>
+      </div>
+
+      <!-- Returning-user MFA challenge -->
+      <div id="mfa-challenge-screen" class="hidden">
+        <p class="login-subtitle">Enter your authenticator code</p>
+        <form id="mfa-challenge-form">
+          <div class="form-group">
+            <label class="form-label" for="mfa-challenge-code">6-digit code</label>
+            <input type="text" id="mfa-challenge-code" class="form-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
+          </div>
+          <div id="mfa-challenge-error" class="login-error hidden"></div>
+          <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="mfa-challenge-submit-btn">Verify</button>
+        </form>
+      </div>
     </div>
   </div>
 

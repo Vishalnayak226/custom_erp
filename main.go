@@ -190,8 +190,8 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// 3. Rate Limiter (60/min limit per IP)
 		ip := strings.Split(r.RemoteAddr, ":")[0]
 		limit := 60
-		if strings.HasSuffix(r.URL.Path, "/login") {
-			limit = 5 // Limit logins to 5/min per IP
+		if strings.HasSuffix(r.URL.Path, "/login") || strings.HasSuffix(r.URL.Path, "/mfa/verify") || strings.HasSuffix(r.URL.Path, "/mfa/activate") {
+			limit = 5 // Limit logins and MFA code submissions to 5/min per IP - a 6-digit TOTP code is brute-forceable without this
 		}
 		if !globalLimiter.Allow(ip, limit, time.Minute) {
 			w.WriteHeader(http.StatusTooManyRequests)
@@ -230,8 +230,10 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 
 		userID := ""
+		username := ""
 		role := ""
 		locationCode := ""
+		purpose := ""
 
 		// Inspect Authorization Header
 		authHeader := r.Header.Get("Authorization")
@@ -240,9 +242,11 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			claims, err := engines.ParseToken(tokenStr)
 			if err == nil {
 				userID = claims["id"]
+				username = claims["user"]
 				role = claims["role"]
 				tenantID = claims["tenant"]
 				locationCode = claims["loc"]
+				purpose = claims["purpose"]
 			} else {
 				w.WriteHeader(http.StatusUnauthorized)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid or expired token"})
@@ -259,8 +263,13 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		r.Header.Set("Resolved-Tenant-ID", tenantID)
 		r.Header.Set("Resolved-Correlation-ID", correlationID)
 		r.Header.Set("Resolved-User-ID", userID)
+		r.Header.Set("Resolved-Username", username)
 		r.Header.Set("Resolved-Role", role)
 		r.Header.Set("Resolved-Location", locationCode)
+		// Resolved-Purpose is only non-empty for narrowly-scoped MFA
+		// enrollment/challenge tokens (see engines.SignPurposeToken) - a full
+		// session token has no "purpose" claim, so this stays "".
+		r.Header.Set("Resolved-Purpose", purpose)
 
 		next.ServeHTTP(w, r)
 	}
@@ -279,6 +288,9 @@ func main() {
 
 	// Authentication API
 	http.HandleFunc("POST /api/v1/login", apiMiddleware(handleLogin))
+	http.HandleFunc("POST /api/v1/auth/mfa/enroll", apiMiddleware(handleMFAEnroll))
+	http.HandleFunc("POST /api/v1/auth/mfa/activate", apiMiddleware(handleMFAActivate))
+	http.HandleFunc("POST /api/v1/auth/mfa/verify", apiMiddleware(handleMFAVerify))
 
 	// Generic DocType CRUD APIs (Go 1.22 enhanced routing)
 	http.HandleFunc("/api/v1/doc/{doctype}", apiMiddleware(handleGenericDoc))
@@ -399,6 +411,34 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// MFA-mandatory roles (SEC-V2 Sec.12) never get a full session token
+	// straight out of /login - they're routed into enrollment (first time)
+	// or a TOTP challenge (subsequently) instead.
+	if engines.RequiresMFA(u.Role) {
+		enabled, _, mfaErr := engines.GetUserMFAStatus(tenantID, u.ID)
+		if mfaErr != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to resolve MFA status"})
+			return
+		}
+		if !enabled {
+			enrollToken := engines.SignPurposeToken(u.ID, u.Username, tenantID, "mfa_enroll", 10*time.Minute)
+			engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "MFA_ENROLLMENT_REQUIRED", "Password correct; TOTP enrollment required before a session can be issued")
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"mfa_enrollment_required": true,
+				"enrollment_token":        enrollToken,
+			})
+			return
+		}
+		challengeToken := engines.SignPurposeToken(u.ID, u.Username, tenantID, "mfa_challenge", 5*time.Minute)
+		engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "MFA_CHALLENGE_ISSUED", "Password correct; awaiting TOTP code")
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"mfa_required":    true,
+			"challenge_token": challengeToken,
+		})
+		return
+	}
+
 	// Hardcoded default location for simplicity, can be mapped in DB users table later
 	locationCode := "HO"
 	token := engines.SignToken(u.ID, u.Username, u.Role, tenantID, locationCode)
@@ -410,6 +450,127 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		"role":  u.Role,
 		"user":  u.Username,
 	})
+}
+
+// handleMFAEnroll issues a fresh (pending, not-yet-active) TOTP secret for
+// the account named in a mfa_enroll purpose token. Safe to call more than
+// once before activation - each call simply replaces the pending secret.
+func handleMFAEnroll(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Resolved-Purpose") != "mfa_enroll" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "This endpoint requires a pending MFA enrollment token from /api/v1/login"})
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	username := r.Header.Get("Resolved-Username")
+
+	secret, err := engines.GenerateTOTPSecret()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate MFA secret"})
+		return
+	}
+	if err := engines.SetPendingMFASecret(tenantID, userID, secret); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to store MFA secret"})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"secret":      secret,
+		"otpauth_url": engines.BuildOTPAuthURL(secret, username, "CustomERP"),
+	})
+}
+
+// handleMFAActivate confirms a pending TOTP secret by verifying a code
+// against it, activates MFA for the account, and - since this is also the
+// completion of the original login attempt - issues the real session token.
+func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Resolved-Purpose") != "mfa_enroll" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "This endpoint requires a pending MFA enrollment token from /api/v1/login"})
+		return
+	}
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+
+	_, secret, err := engines.GetUserMFAStatus(tenantID, userID)
+	if err != nil || secret == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "No pending MFA enrollment found - call /api/v1/auth/mfa/enroll first"})
+		return
+	}
+	if !engines.VerifyTOTPCode(secret, req.Code) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid MFA code"})
+		return
+	}
+	if err := engines.ActivateMFA(tenantID, userID); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to activate MFA"})
+		return
+	}
+
+	role, username, err := engines.LookupUserRoleAndUsername(tenantID, userID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "MFA activated but failed to issue session"})
+		return
+	}
+	token := engines.SignToken(userID, username, role, tenantID, "HO")
+	engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_ENROLLED_AND_VERIFIED", "TOTP enrollment completed and verified")
+	_ = json.NewEncoder(w).Encode(map[string]string{"token": token, "role": role, "user": username})
+}
+
+// handleMFAVerify completes login for an already-enrolled MFA account by
+// checking a TOTP code against the stored active secret.
+func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Resolved-Purpose") != "mfa_challenge" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "This endpoint requires an MFA challenge token from /api/v1/login"})
+		return
+	}
+	var req struct {
+		Code string `json:"code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+
+	enabled, secret, err := engines.GetUserMFAStatus(tenantID, userID)
+	if err != nil || !enabled || secret == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "MFA is not enrolled for this account"})
+		return
+	}
+	if !engines.VerifyTOTPCode(secret, req.Code) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid MFA code"})
+		return
+	}
+
+	role, username, err := engines.LookupUserRoleAndUsername(tenantID, userID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "MFA verified but failed to issue session"})
+		return
+	}
+	token := engines.SignToken(userID, username, role, tenantID, "HO")
+	engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_VERIFIED", "TOTP code verified, session issued")
+	_ = json.NewEncoder(w).Encode(map[string]string{"token": token, "role": role, "user": username})
 }
 
 // Generic CRUD handler wrapping security RBAC authorization and validation rules

@@ -105,8 +105,15 @@ CREATE TABLE IF NOT EXISTS tenant_default.users (
     email VARCHAR(255),
     role VARCHAR(50) DEFAULT 'Standard',
     status VARCHAR(20) DEFAULT 'Active',
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    mfa_secret VARCHAR(64),
+    mfa_enabled BOOLEAN DEFAULT FALSE
 );
+
+-- 10.1 MFA columns (idempotent add-if-missing, for DBs migrated before this
+-- was part of the CREATE TABLE above - see engines/mfa.go, Stage 13.3)
+ALTER TABLE tenant_default.users ADD COLUMN IF NOT EXISTS mfa_secret VARCHAR(64);
+ALTER TABLE tenant_default.users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN DEFAULT FALSE;
 
 -- 11. Create role_permissions table
 CREATE TABLE IF NOT EXISTS tenant_default.role_permissions (

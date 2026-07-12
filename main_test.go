@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"custom_erp/db"
+	"custom_erp/engines"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -83,7 +84,10 @@ func TestCheckoutToForecastIntegration(t *testing.T) {
 		t.Fatalf("failed to seed inventory: %v", err)
 	}
 
-	// 1. Real login via the real handler chain (apiMiddleware + handleLogin)
+	// 1. Real login via the real handler chain (apiMiddleware + handleLogin).
+	// This test user is HR/Admin, which is MFA-mandatory (Stage 13.3) - a
+	// fresh user always has mfa_enabled=false, so login returns an
+	// enrollment token instead of a session token.
 	loginRec := doRequest(t, apiMiddleware(handleLogin), "POST", "/api/v1/login", "", map[string]string{
 		"username": testUser,
 		"password": pw,
@@ -91,13 +95,50 @@ func TestCheckoutToForecastIntegration(t *testing.T) {
 	if loginRec.Code != http.StatusOK {
 		t.Fatalf("login failed: status=%d body=%s", loginRec.Code, loginRec.Body.String())
 	}
-	var loginResp map[string]string
+	var loginResp map[string]interface{}
 	if err := json.Unmarshal(loginRec.Body.Bytes(), &loginResp); err != nil {
 		t.Fatalf("failed to decode login response: %v", err)
 	}
-	token := loginResp["token"]
+	enrollmentToken, _ := loginResp["enrollment_token"].(string)
+	if enrollmentToken == "" {
+		t.Fatalf("expected login to require MFA enrollment for a fresh HR/Admin user, got: %s", loginRec.Body.String())
+	}
+
+	// 1a. Real MFA enrollment - obtain a secret via the real handler, exactly
+	// as a client would before rendering a QR code.
+	enrollRec := doRequest(t, apiMiddleware(handleMFAEnroll), "POST", "/api/v1/auth/mfa/enroll", enrollmentToken, nil)
+	if enrollRec.Code != http.StatusOK {
+		t.Fatalf("MFA enroll failed: status=%d body=%s", enrollRec.Code, enrollRec.Body.String())
+	}
+	var enrollResp map[string]string
+	if err := json.Unmarshal(enrollRec.Body.Bytes(), &enrollResp); err != nil {
+		t.Fatalf("failed to decode MFA enroll response: %v", err)
+	}
+	secret := enrollResp["secret"]
+	if secret == "" {
+		t.Fatalf("MFA enroll succeeded but returned no secret")
+	}
+
+	// 1b. Real MFA activation - compute the same code an authenticator app
+	// would show for this secret right now, and submit it via the real
+	// handler. This both activates MFA and completes login.
+	code, err := engines.GenerateTOTPCode(secret)
+	if err != nil {
+		t.Fatalf("failed to compute TOTP code: %v", err)
+	}
+	activateRec := doRequest(t, apiMiddleware(handleMFAActivate), "POST", "/api/v1/auth/mfa/activate", enrollmentToken, map[string]string{
+		"code": code,
+	})
+	if activateRec.Code != http.StatusOK {
+		t.Fatalf("MFA activate failed: status=%d body=%s", activateRec.Code, activateRec.Body.String())
+	}
+	var activateResp map[string]string
+	if err := json.Unmarshal(activateRec.Body.Bytes(), &activateResp); err != nil {
+		t.Fatalf("failed to decode MFA activate response: %v", err)
+	}
+	token := activateResp["token"]
 	if token == "" {
-		t.Fatalf("login succeeded but returned no token")
+		t.Fatalf("MFA activation succeeded but returned no session token")
 	}
 
 	// 2. Real checkout via the real handler chain - this is what actually writes POSCart's status
