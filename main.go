@@ -638,8 +638,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			dataMap["id"] = id
 			dataMap["status"] = status
 
-			// Location Filter Validation (Object-Level Auth)
-			if docLoc, exists := dataMap["location"]; exists && fmt.Sprintf("%v", docLoc) != location && role != "HR/Admin" {
+			// Location Filter Validation (Object-Level Auth). Not every doctype
+			// names this field "location" - FulfillmentTask uses "location_code" -
+			// so check both rather than silently skipping the check (and letting
+			// through a doc from another location) whenever a doctype uses the
+			// other name.
+			docLoc, hasLoc := dataMap["location"]
+			if !hasLoc {
+				docLoc, hasLoc = dataMap["location_code"]
+			}
+			if hasLoc && fmt.Sprintf("%v", docLoc) != location && role != "HR/Admin" {
 				w.WriteHeader(http.StatusForbidden)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "This document does not belong to your assigned location."})
 				return
@@ -654,9 +662,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			args = append(args, doctype)
 			argIndex := 2
 
-			// Location filtering: non-admins can only see records for their location
+			// Location filtering: non-admins can only see records for their location.
+			// COALESCE covers both field names in use across doctypes ("location"
+			// vs FulfillmentTask's "location_code") - matches the single-doc GET
+			// check above, which does the same for the same reason.
 			if role != "HR/Admin" {
-				query += fmt.Sprintf(" AND data->>'location' = $%d", argIndex)
+				query += fmt.Sprintf(" AND COALESCE(data->>'location', data->>'location_code') = $%d", argIndex)
 				args = append(args, location)
 				argIndex++
 			}

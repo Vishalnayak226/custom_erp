@@ -502,6 +502,13 @@ function setupEventListeners() {
     renderView('finance');
   });
 
+  document.getElementById('menu-fulfillment').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-fulfillment');
+    closeSubmenus();
+    renderView('fulfillment');
+  });
+
   ['menu-vendors', 'menu-stores', 'menu-purchase-orders', 'menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
@@ -590,6 +597,8 @@ async function renderView(view) {
     renderPOSView(root);
   } else if (view === 'finance') {
     await renderFinanceView(root);
+  } else if (view === 'fulfillment') {
+    await renderFulfillmentView(root);
   } else if (view === 'doctype-table') {
     await renderDocTableView(root);
   } else if (view === 'doctype-builder') {
@@ -979,6 +988,114 @@ async function renderFinanceView(container) {
   html += `</tbody></table>`;
   panel.innerHTML = html;
   container.appendChild(panel);
+}
+
+// Fulfillment / reservation workbench (Stage 13.6) - pick/pack/dispatch
+// against FulfillmentTask documents (already a real doctype, stored via the
+// generic documents table - GET /api/v1/doc/FulfillmentTask lists them with
+// no new backend endpoint needed) and the already-working
+// POST /api/v1/fulfillment/task/transition. The backend doesn't enforce a
+// specific transition order (see engines.TransitionTaskStatus), so the
+// "next status" buttons below are a UX guardrail, not a hard constraint.
+const FULFILLMENT_STATUS_BADGE = {
+  Pending: 'badge-warning',
+  Picking: 'badge-secondary',
+  Packed: 'badge-secondary',
+  Dispatched: 'badge-success',
+  Rejected: 'badge-danger'
+};
+
+async function renderFulfillmentView(container) {
+  const res = await apiFetch('/api/v1/doc/FulfillmentTask');
+  if (!res) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Fulfillment</h1>
+      <p class="page-subtitle">Pick, pack, and dispatch tasks routed to your location.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  if (!res.ok) {
+    const panel = document.createElement('div');
+    panel.className = 'table-panel';
+    panel.style.padding = '24px';
+    panel.textContent = 'Failed to load fulfillment tasks.';
+    container.appendChild(panel);
+    return;
+  }
+
+  const tasks = await res.json();
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Task ID</th>
+          <th>Order ID</th>
+          <th>Location</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  if (!tasks || tasks.length === 0) {
+    html += `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No fulfillment tasks.</td></tr>`;
+  }
+  (tasks || []).forEach(t => {
+    const badgeClass = FULFILLMENT_STATUS_BADGE[t.status] || 'badge-secondary';
+    html += `
+      <tr>
+        <td style="font-family: monospace;">${t.code || t.id}</td>
+        <td>${t.order_id || ''}</td>
+        <td>${t.location_code || ''}</td>
+        <td><span class="badge ${badgeClass}">${t.status}</span></td>
+        <td>${renderFulfillmentActions(t)}</td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table>`;
+  panel.innerHTML = html;
+  container.appendChild(panel);
+}
+
+function renderFulfillmentActions(task) {
+  const id = task.code || task.id;
+  switch (task.status) {
+    case 'Pending':
+      return `
+        <button class="action-btn" onclick="transitionFulfillmentTask('${id}', 'Picking')">Start Picking</button>
+        <button class="action-btn action-btn-danger" onclick="transitionFulfillmentTask('${id}', 'Rejected')">Reject</button>
+      `;
+    case 'Picking':
+      return `
+        <button class="action-btn" onclick="transitionFulfillmentTask('${id}', 'Packed')">Mark Packed</button>
+        <button class="action-btn action-btn-danger" onclick="transitionFulfillmentTask('${id}', 'Rejected')">Reject</button>
+      `;
+    case 'Packed':
+      return `<button class="action-btn" onclick="transitionFulfillmentTask('${id}', 'Dispatched')">Dispatch</button>`;
+    default:
+      return '';
+  }
+}
+
+async function transitionFulfillmentTask(taskId, newStatus) {
+  const res = await apiFetch('/api/v1/fulfillment/task/transition', {
+    method: 'POST',
+    body: JSON.stringify({ task_id: taskId, status: newStatus })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showCustomAlert(data.error || 'Failed to update task status.', 'Transition Failed');
+    return;
+  }
+  renderView('fulfillment');
 }
 
 // Render dynamic DocType CRUD Table view
