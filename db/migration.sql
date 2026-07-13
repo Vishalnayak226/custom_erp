@@ -331,7 +331,9 @@ INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, field
 ('Item', 'barcode', 'Barcode', 'Data', TRUE, NULL, 3),
 ('Item', 'weight', 'Weight', 'Number', FALSE, NULL, 4),
 ('Item', 'volume', 'Volume', 'Number', FALSE, NULL, 5),
-('Item', 'category', 'Category', 'Data', FALSE, NULL, 6)
+('Item', 'category', 'Category', 'Data', FALSE, NULL, 6),
+('Item', 'hsn_code', 'HSN Code', 'Data', FALSE, NULL, 7),
+('Item', 'gst_rate', 'GST Rate (%)', 'Number', FALSE, NULL, 8)
 ON CONFLICT (doctype_name, fieldname) DO NOTHING;
 
 -- Seed fields for PurchaseOrder

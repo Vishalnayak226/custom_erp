@@ -1620,14 +1620,26 @@ async function renderPurchaseOrdersView(container) {
         <input type="text" id="po-location" class="form-input" style="width: 100px;">
       </div>
       <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="po-amount">Total Amount</label>
-        <input type="number" id="po-amount" class="form-input" style="width: 130px;">
+        <label class="form-label" for="po-amount">Total Amount (taxable value)</label>
+        <input type="number" id="po-amount" class="form-input" style="width: 150px;">
       </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="po-gst-rate">GST Rate (%)</label>
+        <input type="number" id="po-gst-rate" class="form-input" style="width: 90px;" placeholder="e.g. 18">
+      </div>
+      <div class="form-group" style="margin-bottom: 0; display: flex; align-items: center; gap: 6px; padding-bottom: 8px;">
+        <input type="checkbox" id="po-gst-interstate" style="width: auto;">
+        <label class="form-label" for="po-gst-interstate" style="margin-bottom: 0;">Interstate</label>
+      </div>
+      <button class="btn btn-outline" id="po-gst-calc-btn" type="button">Calculate GST</button>
       <button class="btn btn-primary" id="po-create-btn">Create Draft</button>
     </div>
+    <div id="po-gst-breakdown" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
     <div id="po-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
   container.appendChild(formPanel);
+
+  document.getElementById('po-gst-calc-btn').addEventListener('click', calculatePOGst);
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -1672,6 +1684,38 @@ async function renderPurchaseOrdersView(container) {
   container.appendChild(panel);
 
   document.getElementById('po-create-btn').addEventListener('click', createDraftPurchaseOrder);
+}
+
+// calculatePOGst calls the real GST engine (Stage 13.10) against whatever
+// amount/rate/interstate the maker has entered so far, purely as a helper -
+// it doesn't change what total_amount gets saved as (this codebase treats
+// total_amount as the taxable value throughout, matching engines.PostDoubleEntry's
+// existing accounting; adding a separate tax-liability GL posting is future
+// integration work, not part of this item).
+async function calculatePOGst() {
+  const breakdownEl = document.getElementById('po-gst-breakdown');
+  const amount = parseFloat(document.getElementById('po-amount').value);
+  const rate = parseFloat(document.getElementById('po-gst-rate').value);
+  const interstate = document.getElementById('po-gst-interstate').checked;
+
+  if (isNaN(amount) || isNaN(rate)) {
+    breakdownEl.textContent = 'Enter a Total Amount and GST Rate first.';
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/gst/calculate', {
+    method: 'POST',
+    body: JSON.stringify({ taxable_amount: amount, gst_rate: rate, interstate })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    breakdownEl.textContent = data.error || 'GST calculation failed.';
+    return;
+  }
+  breakdownEl.innerHTML = interstate
+    ? `IGST: <strong>${data.igst.toLocaleString()}</strong> &nbsp;|&nbsp; Total tax: <strong>${data.total_tax.toLocaleString()}</strong> &nbsp;|&nbsp; Total with GST: <strong>${data.total_amount.toLocaleString()}</strong>`
+    : `CGST: <strong>${data.cgst.toLocaleString()}</strong> &nbsp;|&nbsp; SGST: <strong>${data.sgst.toLocaleString()}</strong> &nbsp;|&nbsp; Total tax: <strong>${data.total_tax.toLocaleString()}</strong> &nbsp;|&nbsp; Total with GST: <strong>${data.total_amount.toLocaleString()}</strong>`;
 }
 
 async function createDraftPurchaseOrder() {

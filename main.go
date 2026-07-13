@@ -310,6 +310,9 @@ func main() {
 	http.HandleFunc("GET /api/v1/approval/pending", apiMiddleware(handleListPendingApprovals))
 	http.HandleFunc("GET /api/v1/approval/rules", apiMiddleware(handleApprovalRules))
 
+	// GST / Tax Engine
+	http.HandleFunc("POST /api/v1/gst/calculate", apiMiddleware(handleCalculateGST))
+
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
 	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(featureGate("oms_integration", handleShopifyOrderWebhook)))
@@ -1580,6 +1583,33 @@ func handleApprovalRules(w http.ResponseWriter, r *http.Request) {
 		rules = []engines.ApprovalRule{}
 	}
 	_ = json.NewEncoder(w).Encode(rules)
+}
+
+// handleCalculateGST computes the CGST/SGST/IGST split for a taxable amount
+// and rate (Stage 13.10). The rate itself comes from the caller (typically
+// an Item's HSN-classified gst_rate field) - this endpoint is the
+// calculation step, not an HSN-to-rate lookup service.
+func handleCalculateGST(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		TaxableAmount float64 `json:"taxable_amount"`
+		GSTRate       float64 `json:"gst_rate"`
+		Interstate    bool    `json:"interstate"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+	result, err := engines.CalculateGST(req.TaxableAmount, req.GSTRate, req.Interstate)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(result)
 }
 
 func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {

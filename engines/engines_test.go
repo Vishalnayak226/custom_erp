@@ -647,4 +647,36 @@ func TestEngines(t *testing.T) {
 			t.Errorf("Expected outbox event reset to Pending and 0 attempts, got: status %s, attempts %d", status, attempts)
 		}
 	})
+
+	t.Run("GSTCalculation", func(t *testing.T) {
+		// Intra-state: 18% splits evenly into CGST 9% + SGST 9%, no IGST.
+		intra, err := CalculateGST(1000, 18, false)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if intra.CGST != 90 || intra.SGST != 90 || intra.IGST != 0 {
+			t.Errorf("intra-state 1000@18%%: expected CGST=90 SGST=90 IGST=0, got CGST=%v SGST=%v IGST=%v", intra.CGST, intra.SGST, intra.IGST)
+		}
+		if intra.TotalTax != 180 || intra.TotalAmount != 1180 {
+			t.Errorf("intra-state 1000@18%%: expected TotalTax=180 TotalAmount=1180, got TotalTax=%v TotalAmount=%v", intra.TotalTax, intra.TotalAmount)
+		}
+
+		// Inter-state: full rate as IGST, no CGST/SGST split.
+		inter, err := CalculateGST(1000, 18, true)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if inter.IGST != 180 || inter.CGST != 0 || inter.SGST != 0 {
+			t.Errorf("inter-state 1000@18%%: expected IGST=180 CGST=0 SGST=0, got IGST=%v CGST=%v SGST=%v", inter.IGST, inter.CGST, inter.SGST)
+		}
+
+		// Negative inputs are rejected rather than silently producing a
+		// nonsensical negative tax figure.
+		if _, err := CalculateGST(-100, 18, false); err == nil {
+			t.Errorf("expected an error for negative taxable_amount, got none")
+		}
+		if _, err := CalculateGST(1000, -5, false); err == nil {
+			t.Errorf("expected an error for negative gst_rate, got none")
+		}
+	})
 }
