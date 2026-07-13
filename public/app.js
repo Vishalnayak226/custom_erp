@@ -582,6 +582,13 @@ function setupEventListeners() {
     renderView('reports');
   });
 
+  document.getElementById('menu-rfq').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-rfq');
+    closeSubmenus();
+    renderView('rfq');
+  });
+
   document.getElementById('menu-purchase-orders').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-purchase-orders');
@@ -691,6 +698,7 @@ const STATIC_VIEW_MENU_IDS = {
   marketplace: 'menu-marketplace',
   approvals: 'menu-approvals',
   reports: 'menu-reports',
+  rfq: 'menu-rfq',
   'doctype-builder': 'menu-doctype-builder',
   vendors: 'menu-vendors',
   stores: 'menu-stores',
@@ -778,6 +786,8 @@ async function renderView(view) {
     await renderApprovalsView(root);
   } else if (view === 'reports') {
     await renderReportsView(root);
+  } else if (view === 'rfq') {
+    await renderRFQView(root);
   } else if (view === 'purchase-orders') {
     await renderPurchaseOrdersView(root);
   } else if (view === 'doctype-table') {
@@ -1933,6 +1943,231 @@ async function renderPayablesAgeingReport(panel) {
       </tbody>
     </table>
   `;
+}
+
+// RFQ / Vendor Quote / Quote Comparison (Stage 13.12) - RFQ/VendorQuote
+// creation and listing use the same generic doc API as Vendor/Customer
+// (Stage 13.9); this screen adds the comparison view and winner-selection
+// action on top, which the generic endpoint doesn't provide.
+let selectedRFQId = '';
+
+async function renderRFQView(container) {
+  const res = await apiFetch('/api/v1/doc/RFQ');
+  if (!res) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">RFQ / Quotes</h1>
+      <p class="page-subtitle">Request quotes from vendors and compare them before creating a Purchase Order.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const rfqs = res.ok ? await res.json() : [];
+
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New RFQ</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="rfq-code">RFQ Number</label>
+        <input type="text" id="rfq-code" class="form-input" style="width: 150px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+        <label class="form-label" for="rfq-description">Item / Requirement Description</label>
+        <input type="text" id="rfq-description" class="form-input">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="rfq-quantity">Quantity</label>
+        <input type="number" id="rfq-quantity" class="form-input" style="width: 100px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="rfq-target-date">Target Date</label>
+        <input type="date" id="rfq-target-date" class="form-input">
+      </div>
+      <button class="btn btn-primary" id="rfq-create-btn">Create RFQ</button>
+    </div>
+    <div id="rfq-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(formPanel);
+
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  listPanel.style.marginBottom = '24px';
+  let listHtml = `
+    <table>
+      <thead><tr><th>RFQ Number</th><th>Description</th><th>Quantity</th><th>Target Date</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+  `;
+  listHtml += rfqs.length === 0
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No RFQs yet.</td></tr>`
+    : rfqs.map(r => `
+        <tr>
+          <td style="font-family: monospace;">${r.code || r.id}</td>
+          <td>${r.description || ''}</td>
+          <td>${r.quantity ?? ''}</td>
+          <td>${r.target_date || ''}</td>
+          <td><span class="badge ${r.status === 'Closed' ? 'badge-success' : 'badge-secondary'}">${r.status}</span></td>
+          <td><button class="action-btn" onclick="viewRFQQuotes('${r.id}')">View Quotes</button></td>
+        </tr>
+      `).join('');
+  listHtml += `</tbody></table>`;
+  listPanel.innerHTML = listHtml;
+  container.appendChild(listPanel);
+
+  document.getElementById('rfq-create-btn').addEventListener('click', createRFQ);
+
+  if (selectedRFQId) {
+    const quotesContainer = document.createElement('div');
+    quotesContainer.id = 'rfq-quotes-container';
+    container.appendChild(quotesContainer);
+    await renderRFQQuotesPanel(quotesContainer, selectedRFQId, rfqs.find(r => r.id === selectedRFQId));
+  }
+}
+
+async function createRFQ() {
+  const errorEl = document.getElementById('rfq-form-error');
+  errorEl.classList.add('hidden');
+
+  const code = document.getElementById('rfq-code').value.trim();
+  const description = document.getElementById('rfq-description').value.trim();
+  const quantity = parseFloat(document.getElementById('rfq-quantity').value) || 0;
+  const targetDate = document.getElementById('rfq-target-date').value;
+
+  if (!code || !description || !quantity) {
+    errorEl.textContent = 'RFQ Number, Description, and Quantity are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/doc/RFQ', {
+    method: 'POST',
+    body: JSON.stringify({ id: code, code, description, quantity, target_date: targetDate, status: 'Draft' })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to create RFQ.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('rfq');
+}
+
+function viewRFQQuotes(rfqId) {
+  selectedRFQId = rfqId;
+  renderView('rfq');
+}
+
+async function renderRFQQuotesPanel(container, rfqId, rfq) {
+  const res = await apiFetch(`/api/v1/rfq/quotes?rfq_id=${encodeURIComponent(rfqId)}`);
+  if (!res) return;
+  const quotes = res.ok ? await res.json() : [];
+  const isClosed = rfq && rfq.status === 'Closed';
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Quotes for ${rfqId}</h2>
+    ${isClosed ? '' : `
+      <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="quote-code">Quote Number</label>
+          <input type="text" id="quote-code" class="form-input" style="width: 150px;">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="quote-vendor">Vendor</label>
+          <input type="text" id="quote-vendor" class="form-input" style="width: 160px;">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="quote-price">Quoted Price</label>
+          <input type="number" id="quote-price" class="form-input" style="width: 130px;">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="quote-lead-time">Lead Time (days)</label>
+          <input type="number" id="quote-lead-time" class="form-input" style="width: 130px;">
+        </div>
+        <button class="btn btn-primary" id="quote-submit-btn">Submit Quote</button>
+      </div>
+      <div id="quote-form-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    `}
+    <table>
+      <thead><tr><th>Quote Number</th><th>Vendor</th><th>Quoted Price</th><th>Lead Time (days)</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        ${quotes.length === 0
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No quotes submitted yet.</td></tr>`
+          : quotes.map(q => `
+            <tr>
+              <td style="font-family: monospace;">${q.code || q.id}</td>
+              <td>${q.vendor || ''}</td>
+              <td>${(q.quoted_price ?? 0).toLocaleString()}</td>
+              <td>${q.lead_time_days ?? ''}</td>
+              <td><span class="badge ${q.status === 'Selected' ? 'badge-success' : q.status === 'Rejected' ? 'badge-danger' : 'badge-secondary'}">${q.status}</span></td>
+              <td>${!isClosed && q.status === 'Submitted' ? `<button class="action-btn" onclick="selectWinningQuote('${rfqId}', '${q.id}')">Select as Winner</button>` : ''}</td>
+            </tr>
+          `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(panel);
+
+  const submitBtn = document.getElementById('quote-submit-btn');
+  if (submitBtn) submitBtn.addEventListener('click', () => submitVendorQuote(rfqId));
+}
+
+async function submitVendorQuote(rfqId) {
+  const errorEl = document.getElementById('quote-form-error');
+  errorEl.classList.add('hidden');
+
+  const code = document.getElementById('quote-code').value.trim();
+  const vendor = document.getElementById('quote-vendor').value.trim();
+  const quotedPrice = parseFloat(document.getElementById('quote-price').value);
+  const leadTime = parseFloat(document.getElementById('quote-lead-time').value) || 0;
+
+  if (!code || !vendor || !quotedPrice) {
+    errorEl.textContent = 'Quote Number, Vendor, and Quoted Price are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/doc/VendorQuote', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: code, code, rfq_id: rfqId, vendor,
+      quoted_price: quotedPrice, lead_time_days: leadTime, status: 'Submitted'
+    })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to submit quote.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('rfq');
+}
+
+async function selectWinningQuote(rfqId, quoteId) {
+  const confirmed = await showCustomConfirm('This will mark this quote as the winner, reject all other quotes, and close the RFQ. Continue?', 'Select Winning Quote');
+  if (!confirmed) return;
+
+  const res = await apiFetch('/api/v1/rfq/select-quote', {
+    method: 'POST',
+    body: JSON.stringify({ rfq_id: rfqId, quote_id: quoteId })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showCustomAlert(data.error || 'Failed to select winning quote.', 'Selection Failed');
+    return;
+  }
+  renderView('rfq');
 }
 
 // Render dynamic DocType CRUD Table view

@@ -611,3 +611,38 @@ INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, all
 ('HR/Admin', 'Vendor', TRUE, TRUE, TRUE, TRUE),
 ('HR/Admin', 'Customer', TRUE, TRUE, TRUE, TRUE)
 ON CONFLICT (role, doctype_name) DO NOTHING;
+
+-- 24. RFQ / Vendor Quote / Quote Comparison (Stage 13.12) - procurement
+-- went straight to PurchaseOrder before this; not explicitly phased in the
+-- gap analysis's own plan, grouped as functional breadth (MB Sec.8.3).
+INSERT INTO tenant_default.doctype_meta (name, module, document_type) VALUES
+('RFQ', 'Procurement', 'Transaction'),
+('VendorQuote', 'Procurement', 'Transaction')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('RFQ', 'code', 'RFQ Number', 'Data', TRUE, NULL, 1),
+('RFQ', 'description', 'Item / Requirement Description', 'Data', TRUE, NULL, 2),
+('RFQ', 'quantity', 'Quantity', 'Number', TRUE, NULL, 3),
+('RFQ', 'target_date', 'Target Date', 'Date', FALSE, NULL, 4),
+('RFQ', 'status', 'Status', 'Select', TRUE, 'Draft,Sent,Closed', 5)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('VendorQuote', 'code', 'Quote Number', 'Data', TRUE, NULL, 1),
+('VendorQuote', 'rfq_id', 'RFQ Reference', 'Link', TRUE, 'RFQ', 2),
+('VendorQuote', 'vendor', 'Vendor', 'Data', TRUE, NULL, 3),
+('VendorQuote', 'quoted_price', 'Quoted Price', 'Number', TRUE, NULL, 4),
+('VendorQuote', 'lead_time_days', 'Lead Time (days)', 'Number', FALSE, NULL, 5),
+('VendorQuote', 'status', 'Status', 'Select', TRUE, 'Submitted,Selected,Rejected', 6)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+-- HR/Admin creates/manages RFQs and quotes; Store Manager can read/submit
+-- quotes for their own procurement needs (same read/update-only pattern
+-- given to Store Manager on PurchaseOrder for the approval flow, Stage 13.8).
+INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES
+('HR/Admin', 'RFQ', TRUE, TRUE, TRUE, TRUE),
+('HR/Admin', 'VendorQuote', TRUE, TRUE, TRUE, TRUE),
+('Store Manager', 'RFQ', TRUE, TRUE, TRUE, FALSE),
+('Store Manager', 'VendorQuote', TRUE, TRUE, TRUE, FALSE)
+ON CONFLICT (role, doctype_name) DO NOTHING;

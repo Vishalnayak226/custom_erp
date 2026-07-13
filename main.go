@@ -319,6 +319,10 @@ func main() {
 	http.HandleFunc("GET /api/v1/reports/vendor-ledger", apiMiddleware(handleVendorLedgerReport))
 	http.HandleFunc("GET /api/v1/reports/payables-ageing", apiMiddleware(handlePayablesAgeingReport))
 
+	// RFQ / Vendor Quote / Quote Comparison
+	http.HandleFunc("GET /api/v1/rfq/quotes", apiMiddleware(handleGetVendorQuotesForRFQ))
+	http.HandleFunc("POST /api/v1/rfq/select-quote", apiMiddleware(handleSelectWinningQuote))
+
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
 	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(featureGate("oms_integration", handleShopifyOrderWebhook)))
@@ -1684,6 +1688,55 @@ func handlePayablesAgeingReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(results)
+}
+
+// RFQ / Vendor Quote / Quote Comparison (Stage 13.12). RFQ/VendorQuote
+// creation and listing go through the existing generic doc endpoint like
+// Vendor/Customer did (Stage 13.9) - these two handlers cover only the
+// comparison view and the winner-selection action, which need logic the
+// generic endpoint doesn't have.
+func handleGetVendorQuotesForRFQ(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	rfqID := r.URL.Query().Get("rfq_id")
+	if rfqID == "" {
+		http.Error(w, "Query parameter 'rfq_id' is required", http.StatusBadRequest)
+		return
+	}
+	results, err := engines.GetVendorQuotesForRFQ(tenantID, rfqID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if results == nil {
+		results = []map[string]interface{}{}
+	}
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+func handleSelectWinningQuote(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		RfqID   string `json:"rfq_id"`
+		QuoteID string `json:"quote_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RfqID == "" || req.QuoteID == "" {
+		http.Error(w, "Fields 'rfq_id' and 'quote_id' are required", http.StatusBadRequest)
+		return
+	}
+	if err := engines.SelectWinningQuote(tenantID, req.RfqID, req.QuoteID); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "selected"})
 }
 
 func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {
