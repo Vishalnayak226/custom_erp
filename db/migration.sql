@@ -520,3 +520,54 @@ INSERT INTO tenant_default.feature_flags (feature_name, enabled) VALUES
 ('oms_integration', TRUE),
 ('advanced_forecasting', TRUE)
 ON CONFLICT (feature_name) DO NOTHING;
+
+-- 22. Approval / Workflow Engine (maker-checker) - Stage 13.8
+-- approval_log is the append-only audit trail: one row per submit/approve/
+-- reject action, independent of the document's current (mutable) status.
+CREATE TABLE IF NOT EXISTS tenant_default.approval_log (
+    id SERIAL PRIMARY KEY,
+    doctype VARCHAR(100) NOT NULL,
+    document_id VARCHAR(100) NOT NULL,
+    action VARCHAR(20) NOT NULL, -- Submitted, Approved, Rejected, Modified (re-approval reset)
+    actor_user_id VARCHAR(100) NOT NULL,
+    actor_role VARCHAR(50) NOT NULL,
+    amount NUMERIC,
+    comment TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_approval_log_doc ON tenant_default.approval_log (doctype, document_id);
+
+-- approval_rules is the amount-slab + role routing config, editable via API
+-- the same way prefix_configs/feature_flags are - a doctype with no rule row
+-- simply isn't approval-gated (SubmitForApproval rejects it explicitly
+-- rather than silently no-op'ing).
+CREATE TABLE IF NOT EXISTS tenant_default.approval_rules (
+    id SERIAL PRIMARY KEY,
+    doctype VARCHAR(100) NOT NULL,
+    min_amount NUMERIC NOT NULL DEFAULT 0,
+    max_amount NUMERIC, -- NULL = no upper bound
+    required_role VARCHAR(50) NOT NULL,
+    UNIQUE (doctype, min_amount)
+);
+
+-- Pilot doctype: PurchaseOrder. Amounts up to 49999 need a Store Manager;
+-- 50000+ needs HR/Admin. HR/Admin can also always approve as the existing
+-- catch-all admin role (enforced in engines.DecideApproval, not here).
+INSERT INTO tenant_default.approval_rules (doctype, min_amount, max_amount, required_role) VALUES
+('PurchaseOrder', 0, 49999, 'Store Manager'),
+('PurchaseOrder', 50000, NULL, 'HR/Admin')
+ON CONFLICT (doctype, min_amount) DO NOTHING;
+
+-- Extend PurchaseOrder's status enum to include the approval workflow states
+-- (existing rows/behavior unaffected - Draft/Approved/Closed still work
+-- exactly as before for anyone who doesn't use the approval flow).
+UPDATE tenant_default.doctype_fields
+SET options = 'Draft,Pending Approval,Approved,Rejected,Closed'
+WHERE doctype_name = 'PurchaseOrder' AND fieldname = 'status';
+
+-- Give Store Manager read/update access to PurchaseOrder so they can
+-- actually see and act on documents routed to them for approval - no prior
+-- role_permissions row existed for Store Manager on this doctype at all.
+INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES
+('Store Manager', 'PurchaseOrder', TRUE, FALSE, TRUE, FALSE)
+ON CONFLICT (role, doctype_name) DO NOTHING;

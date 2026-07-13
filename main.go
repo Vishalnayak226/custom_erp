@@ -304,6 +304,12 @@ func main() {
 	http.HandleFunc("POST /api/v1/checkout", apiMiddleware(handleCheckout))
 	http.HandleFunc("GET /api/v1/finance/trial-balance", apiMiddleware(handleTrialBalance))
 
+	// Approval / Workflow Engine (maker-checker)
+	http.HandleFunc("POST /api/v1/approval/submit", apiMiddleware(handleSubmitApproval))
+	http.HandleFunc("POST /api/v1/approval/decide", apiMiddleware(handleDecideApproval))
+	http.HandleFunc("GET /api/v1/approval/pending", apiMiddleware(handleListPendingApprovals))
+	http.HandleFunc("GET /api/v1/approval/rules", apiMiddleware(handleApprovalRules))
+
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
 	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(featureGate("oms_integration", handleShopifyOrderWebhook)))
@@ -784,6 +790,19 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			docID = generateUUID()
 		}
 
+		// Re-approval-on-edit (Stage 13.8): capture the status this document
+		// had *before* this write, so an edit to an already-Approved
+		// approval-gated document can be forced back into the approval
+		// queue after the upsert below, regardless of what status the
+		// incoming payload itself claims.
+		wasApproved := false
+		if id != "" {
+			var priorStatus string
+			if errPrior := db.DB.QueryRow(fmt.Sprintf(`SELECT status FROM %s.documents WHERE doctype = $1 AND id = $2`, schema), doctype, docID).Scan(&priorStatus); errPrior == nil {
+				wasApproved = priorStatus == "Approved"
+			}
+		}
+
 		payloadBytes, _ := json.Marshal(payload)
 		statusVal := "Active"
 		if s, exists := payload["status"]; exists && s != nil {
@@ -792,16 +811,24 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 
 		// Perform Upsert using parameterized parameters (SQL Injection Safe)
 		query := fmt.Sprintf(`
-			INSERT INTO %s.documents (id, doctype, data, status, created_by) 
-			VALUES ($1, $2, $3, $4, $5) 
-			ON CONFLICT (id) DO UPDATE SET 
-				data = EXCLUDED.data, 
-				status = EXCLUDED.status, 
+			INSERT INTO %s.documents (id, doctype, data, status, created_by)
+			VALUES ($1, $2, $3, $4, $5)
+			ON CONFLICT (id) DO UPDATE SET
+				data = EXCLUDED.data,
+				status = EXCLUDED.status,
 				updated_at = CURRENT_TIMESTAMP`, schema)
 		_, err = db.DB.Exec(query, docID, doctype, payloadBytes, statusVal, userID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+
+		if wasApproved {
+			if gated, errGate := engines.IsApprovalGated(tenantID, doctype); errGate == nil && gated {
+				if errReset := engines.ResetToPendingOnEdit(tenantID, doctype, docID, userID, role, payload); errReset != nil {
+					engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "APPROVAL_RESET_FAILED", r.URL.Path, errReset.Error(), "")
+				}
+			}
 		}
 
 		// GRN Callback Hook: Automatically post received items to inventory ledger
@@ -1443,6 +1470,116 @@ func handleTrialBalance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = json.NewEncoder(w).Encode(res)
+}
+
+// handleSubmitApproval moves a Draft document into the approval queue.
+func handleSubmitApproval(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Doctype    string `json:"doctype"`
+		DocumentID string `json:"document_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Doctype == "" || req.DocumentID == "" {
+		http.Error(w, "Fields 'doctype' and 'document_id' are required", http.StatusBadRequest)
+		return
+	}
+
+	allowed, err := checkPermission(tenantID, role, req.Doctype, "update")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !allowed {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "You do not have permission to submit this document."})
+		return
+	}
+
+	if err := engines.SubmitForApproval(tenantID, req.Doctype, req.DocumentID, userID, role); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "submitted"})
+}
+
+// handleDecideApproval approves or rejects a Pending Approval document.
+func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
+	userID := r.Header.Get("Resolved-User-ID")
+	location := r.Header.Get("Resolved-Location")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Doctype    string `json:"doctype"`
+		DocumentID string `json:"document_id"`
+		Decision   string `json:"decision"`
+		Comment    string `json:"comment"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Doctype == "" || req.DocumentID == "" || req.Decision == "" {
+		http.Error(w, "Fields 'doctype', 'document_id', and 'decision' are required", http.StatusBadRequest)
+		return
+	}
+
+	if err := engines.DecideApproval(tenantID, req.Doctype, req.DocumentID, userID, role, location, req.Decision, req.Comment); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	engines.LogAuditEvent(tenantID, userID, "APPROVAL_DECISION", req.Decision, fmt.Sprintf("%s %s: %s", req.Doctype, req.DocumentID, req.Decision))
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "decided", "decision": req.Decision})
+}
+
+// handleListPendingApprovals returns the caller's approval inbox.
+func handleListPendingApprovals(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
+	location := r.Header.Get("Resolved-Location")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	results, err := engines.ListPendingApprovals(tenantID, role, location)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if results == nil {
+		results = []map[string]interface{}{}
+	}
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+// handleApprovalRules lists the amount-slab/role routing configuration.
+// Read-only for now (edited directly via seed data / a future admin form,
+// same as this project's other configuration tables started out).
+func handleApprovalRules(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	rules, err := engines.GetApprovalRules(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if rules == nil {
+		rules = []engines.ApprovalRule{}
+	}
+	_ = json.NewEncoder(w).Encode(rules)
 }
 
 func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {

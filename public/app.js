@@ -189,26 +189,59 @@ let currentSearchQuery = '';
 let currentTablePage = 1;
 const itemsPerPage = 10;
 
+// Selection persistence - so refreshing the browser lands the user back on
+// the same view/doctype/search/page instead of always bouncing to Dashboard.
+const NAV_STATE_KEY = 'erp_nav_state';
+
+function saveNavState() {
+  try {
+    localStorage.setItem(NAV_STATE_KEY, JSON.stringify({
+      view: currentView,
+      doctype: currentDoctype,
+      searchQuery: currentSearchQuery,
+      page: currentTablePage
+    }));
+  } catch (e) {
+    // localStorage unavailable (private browsing quota, etc.) - not fatal,
+    // the app just won't restore the last view on next load.
+  }
+}
+
+function loadNavState() {
+  try {
+    const raw = localStorage.getItem(NAV_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 // API Helper wrapper
 async function apiFetch(url, options = {}) {
   const token = localStorage.getItem('erp_token');
   const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
-  
+
   const headers = {
     'Content-Type': 'application/json',
     'X-Tenant-ID': tenantID,
     ...options.headers
   };
-  
+
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  
-  const response = await fetch(url, {
-    ...options,
-    headers
-  });
-  
+
+  let response;
+  try {
+    response = await fetch(url, {
+      ...options,
+      headers
+    });
+  } catch (err) {
+    await showCustomAlert('Unable to reach the server. Please check your connection and try again.', 'Connection Error');
+    return null;
+  }
+
   if (response.status === 401) {
     logout('Session expired. Please log in again.');
     return null;
@@ -217,7 +250,7 @@ async function apiFetch(url, options = {}) {
     await showCustomAlert('Rate limit exceeded. Please throttle your requests.', 'Rate Limit');
     return null;
   }
-  
+
   return response;
 }
 
@@ -244,6 +277,19 @@ function showApp() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app-root').classList.remove('hidden');
   updateSidebarUserInfo();
+  restoreIndustrySelector();
+}
+
+// There's no backend "current industry" endpoint to read back - the industry
+// switch is a one-time overlay operation, not stored state. This is just
+// client-side memory of the last profile this browser switched to, same
+// tier of persistence as erp_tenant_id.
+function restoreIndustrySelector() {
+  const saved = localStorage.getItem('erp_industry_code');
+  const sel = document.getElementById('industry-selector');
+  if (sel && saved && Array.from(sel.options).some(o => o.value === saved)) {
+    sel.value = saved;
+  }
 }
 
 function updateSidebarUserInfo() {
@@ -406,14 +452,17 @@ async function init() {
   setupEventListeners();
   await fetchLabels();
   await fetchRegisteredDoctypes();
-  renderView(currentView);
+  await restoreLastView();
 }
 
 async function fetchLabels() {
   try {
     const res = await apiFetch('/api/v1/labels');
-    if (res && res.ok) {
+    if (!res) return;
+    if (res.ok) {
       state.labels = await res.json();
+    } else {
+      await showApiError(res, 'Failed to load label overlays.');
     }
   } catch (err) {
     console.error('Error fetching labels:', err);
@@ -423,9 +472,12 @@ async function fetchLabels() {
 async function fetchRegisteredDoctypes() {
   try {
     const res = await apiFetch('/api/v1/meta/doctypes');
-    if (res && res.ok) {
+    if (!res) return;
+    if (res.ok) {
       state.activeDoctypes = await res.json();
       renderSidebarSubmenu();
+    } else {
+      await showApiError(res, 'Failed to load registered DocTypes.');
     }
   } catch (err) {
     console.error('Error fetching doctypes:', err);
@@ -516,7 +568,21 @@ function setupEventListeners() {
     renderView('marketplace');
   });
 
-  ['menu-vendors', 'menu-stores', 'menu-purchase-orders', 'menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
+  document.getElementById('menu-approvals').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-approvals');
+    closeSubmenus();
+    renderView('approvals');
+  });
+
+  document.getElementById('menu-purchase-orders').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-purchase-orders');
+    closeSubmenus();
+    renderView('purchase-orders');
+  });
+
+  ['menu-vendors', 'menu-stores', 'menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -535,6 +601,7 @@ function setupEventListeners() {
     currentTablePage = 1;
     if (currentView === 'doctype-table') {
       renderDocTable();
+      saveNavState();
     }
   });
 
@@ -558,12 +625,13 @@ function setupEventListeners() {
           body: JSON.stringify({ industry_code: code })
         });
         if (res && res.ok) {
+          localStorage.setItem('erp_industry_code', code);
           await showCustomAlert('Industry configuration updated successfully!', 'Success');
           await fetchLabels();
           await fetchRegisteredDoctypes();
           renderView('dashboard');
-        } else {
-          await showCustomAlert('Failed to switch industry profile.', 'Error');
+        } else if (res) {
+          await showApiError(res, 'Failed to switch industry profile.');
         }
       }
     });
@@ -592,11 +660,88 @@ function closeSubmenus() {
   if (arrow) arrow.classList.remove('rotated');
 }
 
+// Maps a static view name to the sidebar menu item that represents it, for
+// restoring the correct highlighted item after a refresh. doctype-table is
+// handled separately below since it points at a submenu item, not a top-level one.
+const STATIC_VIEW_MENU_IDS = {
+  dashboard: 'menu-dashboard',
+  pos: 'menu-pos',
+  finance: 'menu-finance',
+  fulfillment: 'menu-fulfillment',
+  marketplace: 'menu-marketplace',
+  approvals: 'menu-approvals',
+  'doctype-builder': 'menu-doctype-builder',
+  vendors: 'menu-vendors',
+  stores: 'menu-stores',
+  'purchase-orders': 'menu-purchase-orders',
+  inventory: 'menu-inventory',
+  transfers: 'menu-transfers',
+  users: 'menu-users',
+  roles: 'menu-roles',
+  'prefix-configs': 'menu-prefix-configs',
+  'dynamic-labels': 'menu-dynamic-labels',
+  'audit-logs': 'menu-audit-logs'
+};
+
+function restoreActiveMenuState(view, doctype) {
+  closeSubmenus();
+  if (view === 'doctype-table' && doctype) {
+    const submenu = document.getElementById('submenu-master');
+    const item = submenu ? submenu.querySelector(`.submenu-item[data-view="${doctype}"]`) : null;
+    if (item) {
+      document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+      document.querySelectorAll('.submenu-item').forEach(i => i.classList.remove('active'));
+      document.getElementById('menu-master-definition').classList.add('active');
+      item.classList.add('active');
+      submenu.classList.add('open');
+      const arrow = document.querySelector('#menu-master-definition .menu-item-arrow');
+      if (arrow) arrow.classList.add('rotated');
+      return;
+    }
+  }
+  const menuId = STATIC_VIEW_MENU_IDS[view];
+  if (menuId) setActiveMenu(menuId);
+}
+
+// Restores whatever view/doctype/search/page the user was last on instead of
+// always bouncing back to Dashboard after a refresh. Falls back to Dashboard
+// if the saved doctype no longer exists (e.g. it was deleted elsewhere).
+async function restoreLastView() {
+  const saved = loadNavState();
+  let view = 'dashboard';
+  let doctype = '';
+  let searchQuery = '';
+  let page = 1;
+
+  if (saved && saved.view) {
+    if (saved.view === 'doctype-table') {
+      if (state.activeDoctypes.some(d => d.name === saved.doctype)) {
+        view = 'doctype-table';
+        doctype = saved.doctype;
+        searchQuery = saved.searchQuery || '';
+        page = saved.page || 1;
+      }
+    } else {
+      view = saved.view;
+    }
+  }
+
+  currentDoctype = doctype;
+  currentSearchQuery = searchQuery;
+  currentTablePage = page;
+  restoreActiveMenuState(view, doctype);
+  await renderView(view);
+
+  const searchBox = document.getElementById('global-search');
+  if (searchBox) searchBox.value = view === 'doctype-table' ? searchQuery : '';
+}
+
 // Router
 async function renderView(view) {
   currentView = view;
+  saveNavState();
   const root = document.getElementById('view-root');
-  root.innerHTML = ''; 
+  root.innerHTML = '';
 
   if (view === 'dashboard') {
     renderDashboard(root);
@@ -608,6 +753,10 @@ async function renderView(view) {
     await renderFulfillmentView(root);
   } else if (view === 'marketplace') {
     await renderMarketplaceView(root);
+  } else if (view === 'approvals') {
+    await renderApprovalsView(root);
+  } else if (view === 'purchase-orders') {
+    await renderPurchaseOrdersView(root);
   } else if (view === 'doctype-table') {
     await renderDocTableView(root);
   } else if (view === 'doctype-builder') {
@@ -900,12 +1049,12 @@ async function submitPOSCheckout() {
       })
     });
     if (!res) return;
-    const data = await res.json();
     if (!res.ok) {
-      errorEl.textContent = data.error || 'Checkout failed.';
+      errorEl.textContent = await getErrorMessage(res, 'Checkout failed.');
       errorEl.classList.remove('hidden');
       return;
     }
+    const data = await res.json();
     posCart = [];
     renderPOSCartTable();
     await showCustomAlert(`Sale ${data.cart_number} completed. Total: ${data.sale_total}`, 'Sale Complete');
@@ -1099,9 +1248,8 @@ async function transitionFulfillmentTask(taskId, newStatus) {
     body: JSON.stringify({ task_id: taskId, status: newStatus })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to update task status.', 'Transition Failed');
+    await showApiError(res, 'Failed to update task status.');
     return;
   }
   renderView('fulfillment');
@@ -1287,9 +1435,8 @@ async function submitMarketplaceReconcile() {
     })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    errorEl.textContent = data.error || 'Reconciliation failed.';
+    errorEl.textContent = await getErrorMessage(res, 'Reconciliation failed.');
     errorEl.classList.remove('hidden');
     return;
   }
@@ -1321,23 +1468,274 @@ async function submitLogisticsBooking() {
     })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    errorEl.textContent = data.error || 'Booking failed.';
+    errorEl.textContent = await getErrorMessage(res, 'Booking failed.');
     errorEl.classList.remove('hidden');
     return;
   }
   renderView('marketplace');
 }
 
+// Approvals inbox (Stage 13.8) - the checker side of the maker-checker
+// engine. Lists every Pending Approval document across all approval-gated
+// doctypes (GET /api/v1/approval/pending, already scoped server-side to the
+// caller's role/location) with Approve/Reject actions against the already-
+// working POST /api/v1/approval/decide.
+async function renderApprovalsView(container) {
+  const res = await apiFetch('/api/v1/approval/pending');
+  if (!res) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Approvals</h1>
+      <p class="page-subtitle">Documents awaiting your sign-off.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  if (!res.ok) {
+    const panel = document.createElement('div');
+    panel.className = 'table-panel';
+    panel.style.padding = '24px';
+    panel.textContent = 'Failed to load pending approvals.';
+    container.appendChild(panel);
+    return;
+  }
+
+  const items = await res.json();
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Doctype</th>
+          <th>Document ID</th>
+          <th>Amount</th>
+          <th>Location</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  if (!items || items.length === 0) {
+    html += `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">Nothing awaiting approval.</td></tr>`;
+  }
+  (items || []).forEach(item => {
+    const amount = item.total_amount ?? item.amount ?? '';
+    const loc = item.location || item.location_code || '';
+    html += `
+      <tr>
+        <td>${item.doctype}</td>
+        <td style="font-family: monospace;">${item.id}</td>
+        <td>${amount !== '' ? Number(amount).toLocaleString() : ''}</td>
+        <td>${loc}</td>
+        <td>
+          <button class="action-btn" onclick="decideApproval('${item.doctype}', '${item.id}', 'Approved')">Approve</button>
+          <button class="action-btn action-btn-danger" onclick="decideApproval('${item.doctype}', '${item.id}', 'Rejected')">Reject</button>
+        </td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table>`;
+  panel.innerHTML = html;
+  container.appendChild(panel);
+}
+
+async function decideApproval(doctype, documentId, decision) {
+  let comment = '';
+  if (decision === 'Rejected') {
+    comment = (await showCustomPrompt('Reason for rejection (optional):')) || '';
+  }
+  const res = await apiFetch('/api/v1/approval/decide', {
+    method: 'POST',
+    body: JSON.stringify({ doctype, document_id: documentId, decision, comment })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to record decision.');
+    return;
+  }
+  renderView('approvals');
+}
+
+// Purchase Orders screen (Stage 13.8's maker side) - this sidebar item was
+// previously a placeholder ("Module Setup Pending"); it's the pilot doctype
+// for the approval engine, so a maker needs somewhere to actually create
+// and submit one. Deliberately minimal (no line items/RFQ) - full PO
+// functional breadth is a separate, larger gap (Stage 13.12).
+async function renderPurchaseOrdersView(container) {
+  const res = await apiFetch('/api/v1/doc/PurchaseOrder');
+  if (!res) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Purchase Orders</h1>
+      <p class="page-subtitle">Create a PO as Draft, then submit it for approval.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const ordersLoadFailed = !res.ok;
+  const orders = res.ok ? await res.json() : [];
+
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Purchase Order</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="po-number">PO Number</label>
+        <input type="text" id="po-number" class="form-input" style="width: 160px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="po-vendor">Vendor</label>
+        <input type="text" id="po-vendor" class="form-input" style="width: 160px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="po-warehouse">Target Warehouse</label>
+        <input type="text" id="po-warehouse" class="form-input" style="width: 140px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="po-location">Location</label>
+        <input type="text" id="po-location" class="form-input" style="width: 100px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="po-amount">Total Amount</label>
+        <input type="number" id="po-amount" class="form-input" style="width: 130px;">
+      </div>
+      <button class="btn btn-primary" id="po-create-btn">Create Draft</button>
+    </div>
+    <div id="po-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(formPanel);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  let html = ordersLoadFailed
+    ? `<p style="padding: 16px; color: #ef4444; font-size: 13px;">Failed to load existing purchase orders.</p>`
+    : '';
+  html += `
+    <table>
+      <thead>
+        <tr>
+          <th>PO Number</th>
+          <th>Vendor</th>
+          <th>Location</th>
+          <th>Total Amount</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  if (orders.length === 0) {
+    html += `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No purchase orders yet.</td></tr>`;
+  }
+  orders.forEach(po => {
+    const statusBadge = po.status === 'Approved' ? 'badge-success'
+      : po.status === 'Rejected' ? 'badge-danger'
+      : po.status === 'Pending Approval' ? 'badge-warning'
+      : 'badge-secondary';
+    html += `
+      <tr>
+        <td style="font-family: monospace;">${po.po_number || po.code || po.id}</td>
+        <td>${po.vendor || ''}</td>
+        <td>${po.location || ''}</td>
+        <td>${(po.total_amount ?? 0).toLocaleString()}</td>
+        <td><span class="badge ${statusBadge}">${po.status}</span></td>
+        <td>${po.status === 'Draft' ? `<button class="action-btn" onclick="submitPOForApproval('${po.id}')">Submit for Approval</button>` : ''}</td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table>`;
+  panel.innerHTML = html;
+  container.appendChild(panel);
+
+  document.getElementById('po-create-btn').addEventListener('click', createDraftPurchaseOrder);
+}
+
+async function createDraftPurchaseOrder() {
+  const errorEl = document.getElementById('po-form-error');
+  errorEl.classList.add('hidden');
+
+  const poNumber = document.getElementById('po-number').value.trim();
+  const vendor = document.getElementById('po-vendor').value.trim();
+  const warehouse = document.getElementById('po-warehouse').value.trim();
+  const location = document.getElementById('po-location').value.trim();
+  const amount = parseFloat(document.getElementById('po-amount').value) || 0;
+
+  if (!poNumber || !vendor || !warehouse || !location) {
+    errorEl.textContent = 'PO Number, Vendor, Target Warehouse, and Location are all required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  // PurchaseOrder has two overlapping field registrations from this
+  // project's history (po_number/code, vendor/vendor_id both mandatory) -
+  // sending both pairs the same value matches what the one real seeded PO
+  // document already does, rather than trying to untangle that mismatch here.
+  const res = await apiFetch(`/api/v1/doc/PurchaseOrder`, {
+    method: 'POST',
+    body: JSON.stringify({
+      id: poNumber,
+      po_number: poNumber,
+      code: poNumber,
+      vendor,
+      vendor_id: vendor,
+      target_warehouse: warehouse,
+      location,
+      total_amount: amount,
+      items: '[]',
+      status: 'Draft'
+    })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    errorEl.textContent = await getErrorMessage(res, 'Failed to create purchase order.');
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('purchase-orders');
+}
+
+async function submitPOForApproval(documentId) {
+  const res = await apiFetch('/api/v1/approval/submit', {
+    method: 'POST',
+    body: JSON.stringify({ doctype: 'PurchaseOrder', document_id: documentId })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to submit for approval.');
+    return;
+  }
+  renderView('purchase-orders');
+}
+
 // Render dynamic DocType CRUD Table view
 async function renderDocTableView(container) {
   const metaRes = await apiFetch(`/api/v1/doc/${currentDoctype}/meta`);
-  if (!metaRes || !metaRes.ok) return;
+  if (!metaRes) return;
+  if (!metaRes.ok) {
+    const msg = await getErrorMessage(metaRes, `Failed to load schema for ${getTranslatedLabel(currentDoctype)}.`);
+    renderErrorPanel(container, msg, () => renderView('doctype-table'));
+    return;
+  }
   state.activeDocFields = await metaRes.json();
 
   const dataRes = await apiFetch(`/api/v1/doc/${currentDoctype}`);
-  if (!dataRes || !dataRes.ok) return;
+  if (!dataRes) return;
+  if (!dataRes.ok) {
+    const msg = await getErrorMessage(dataRes, `Failed to load records for ${getTranslatedLabel(currentDoctype)}.`);
+    renderErrorPanel(container, msg, () => renderView('doctype-table'));
+    return;
+  }
   state.docData = await dataRes.json();
 
   const header = document.createElement('div');
@@ -1369,7 +1767,7 @@ async function renderDocTableView(container) {
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
-        <input type="text" placeholder="Search table..." oninput="handleTableSearch(event)">
+        <input type="text" placeholder="Search table..." value="${currentSearchQuery}" oninput="handleTableSearch(event)">
       </div>
     </div>
     <div class="table-wrapper" id="doc-table-wrapper"></div>
@@ -1384,6 +1782,7 @@ window.handleTableSearch = function(e) {
   currentSearchQuery = e.target.value.toLowerCase();
   currentTablePage = 1;
   renderDocTable();
+  saveNavState();
 };
 
 function renderDocTable() {
@@ -1454,13 +1853,17 @@ function renderDocTable() {
 window.changeDocPage = function(page) {
   currentTablePage = page;
   renderDocTable();
+  saveNavState();
 };
 
 window.deleteDocRecord = async function(id) {
   if (await showCustomConfirm('Delete this record?')) {
     const res = await apiFetch(`/api/v1/doc/${currentDoctype}/${id}`, { method: 'DELETE' });
-    if (res && res.ok) {
+    if (!res) return;
+    if (res.ok) {
       renderView('doctype-table');
+    } else {
+      await showApiError(res, 'Failed to delete record.');
     }
   }
 };
@@ -1502,10 +1905,16 @@ window.openDynamicModal = async function() {
       fg.appendChild(select);
       
       // Fetch target link options asynchronously
-      apiFetch(`/api/v1/doc/${f.options}`).then(res => res.json()).then(data => {
-        select.innerHTML = '<option value="" disabled selected>— Select Reference —</option>';
-        data.forEach(item => {
-          select.innerHTML += `<option value="${item.name || item.id}">${item.name || item.code || item.id}</option>`;
+      apiFetch(`/api/v1/doc/${f.options}`).then(res => {
+        if (!res || !res.ok) {
+          select.innerHTML = '<option value="" disabled selected>— Failed to load options —</option>';
+          return;
+        }
+        return res.json().then(data => {
+          select.innerHTML = '<option value="" disabled selected>— Select Reference —</option>';
+          data.forEach(item => {
+            select.innerHTML += `<option value="${item.name || item.id}">${item.name || item.code || item.id}</option>`;
+          });
         });
       });
     } else if (f.fieldtype === 'Number') {
@@ -1563,8 +1972,7 @@ window.handleDynamicFormSubmit = async function(e) {
     closeDynamicModal();
     renderView('doctype-table');
   } else if (res) {
-    const errorData = await res.json();
-    await showCustomAlert(`Validation Failed: ${errorData.error}`, 'Validation Failure');
+    await showApiError(res, 'Failed to save record.');
   }
 };
 
@@ -1599,21 +2007,24 @@ async function renderDocTypeBuilderView(container) {
   container.appendChild(panel);
 }
 
-window.openNewDoctypeModal = function() {
-  const name = prompt('Enter DocType Name:');
-  const module = prompt('Enter Module Group (e.g. Master Data, Procurement):');
-  const docType = prompt('Document Type (Master/Transaction):');
-  
-  if (name && module && docType) {
-    apiFetch('/api/v1/meta/doctypes', {
-      method: 'POST',
-      body: JSON.stringify({ name, module, document_type: docType })
-    }).then(async res => {
-      if (res && res.ok) {
-        await fetchRegisteredDoctypes();
-        renderView('doctype-builder');
-      }
-    });
+window.openNewDoctypeModal = async function() {
+  const name = await showCustomPrompt('Enter DocType Name:');
+  if (!name) return;
+  const module = await showCustomPrompt('Enter Module Group (e.g. Master Data, Procurement):');
+  if (!module) return;
+  const docType = await showCustomPrompt('Document Type (Master/Transaction):');
+  if (!docType) return;
+
+  const res = await apiFetch('/api/v1/meta/doctypes', {
+    method: 'POST',
+    body: JSON.stringify({ name, module, document_type: docType })
+  });
+  if (!res) return;
+  if (res.ok) {
+    await fetchRegisteredDoctypes();
+    renderView('doctype-builder');
+  } else {
+    await showApiError(res, 'Failed to register DocType.');
   }
 };
 
@@ -1622,7 +2033,12 @@ window.loadDoctypeConfig = async function(doctypeName) {
   if (!container) return;
 
   const res = await apiFetch(`/api/v1/doc/${doctypeName}/meta`);
-  if (!res || !res.ok) return;
+  if (!res) return;
+  if (!res.ok) {
+    const msg = await getErrorMessage(res, `Failed to load fields for ${doctypeName}.`);
+    renderErrorPanel(container, msg, () => loadDoctypeConfig(doctypeName));
+    return;
+  }
   const fields = await res.json();
 
   let html = `
@@ -1674,8 +2090,8 @@ window.addNewFieldConfig = async function(doctypeName) {
   if (!fieldtype) return;
   const mandatory = await showCustomConfirm('Is this field mandatory?');
   const options = await showCustomPrompt('Enter Options (Choice list for Select, Target DocType for Link, else leave blank):');
-  
-  apiFetch(`/api/v1/meta/${doctypeName}/fields`, {
+
+  const res = await apiFetch(`/api/v1/meta/${doctypeName}/fields`, {
     method: 'POST',
     body: JSON.stringify({
       fieldname,
@@ -1685,29 +2101,38 @@ window.addNewFieldConfig = async function(doctypeName) {
       options: options || '',
       display_order: 10
     })
-  }).then(res => {
-    if (res && res.ok) {
-      loadDoctypeConfig(doctypeName);
-    }
   });
+  if (!res) return;
+  if (res.ok) {
+    loadDoctypeConfig(doctypeName);
+  } else {
+    await showApiError(res, 'Failed to add field.');
+  }
 };
 
 window.deleteFieldConfig = async function(doctypeName, fieldID) {
   if (await showCustomConfirm('Delete this field from doctype metadata?')) {
-    apiFetch(`/api/v1/meta/${doctypeName}/fields/${fieldID}`, {
+    const res = await apiFetch(`/api/v1/meta/${doctypeName}/fields/${fieldID}`, {
       method: 'DELETE'
-    }).then(res => {
-      if (res && res.ok) {
-        loadDoctypeConfig(doctypeName);
-      }
     });
+    if (!res) return;
+    if (res.ok) {
+      loadDoctypeConfig(doctypeName);
+    } else {
+      await showApiError(res, 'Failed to delete field.');
+    }
   }
 };
 
 // Render Prefix configurations view
 async function renderPrefixConfigsView(container) {
   const res = await apiFetch('/api/v1/prefix');
-  if (!res || !res.ok) return;
+  if (!res) return;
+  if (!res.ok) {
+    const msg = await getErrorMessage(res, 'Failed to load prefix configurations.');
+    renderErrorPanel(container, msg, () => renderView('prefix-configs'));
+    return;
+  }
   state.prefixConfigs = await res.json();
 
   const header = document.createElement('div');
@@ -1755,31 +2180,35 @@ async function renderPrefixConfigsView(container) {
   container.appendChild(panel);
 }
 
-window.editPrefixConfig = function(docType) {
+window.editPrefixConfig = async function(docType) {
   const c = state.prefixConfigs.find(x => x.doc_type === docType);
   if (!c) return;
 
-  const prefix = prompt('Enter Prefix:', c.prefix);
-  const separator = prompt('Enter Separator:', c.separator);
-  const padding = parseInt(prompt('Enter Padding Width:', c.padding_width));
-  const reset = prompt('Enter Reset Frequency (ANNUAL/MONTHLY/NEVER):', c.reset_frequency);
+  const prefix = await showCustomPrompt('Enter Prefix:', c.prefix);
+  if (!prefix) return;
+  const separator = await showCustomPrompt('Enter Separator:', c.separator);
+  if (!separator) return;
+  const paddingRaw = await showCustomPrompt('Enter Padding Width:', c.padding_width);
+  const padding = parseInt(paddingRaw);
+  if (!padding) return;
+  const reset = await showCustomPrompt('Enter Reset Frequency (ANNUAL/MONTHLY/NEVER):', c.reset_frequency);
 
-  if (prefix && separator && padding) {
-    apiFetch('/api/v1/prefix', {
-      method: 'POST',
-      body: JSON.stringify({
-        doc_type: docType,
-        prefix,
-        separator,
-        padding_width: padding,
-        reset_frequency: reset,
-        active_status: true
-      })
-    }).then(res => {
-      if (res && res.ok) {
-        renderView('prefix-configs');
-      }
-    });
+  const res = await apiFetch('/api/v1/prefix', {
+    method: 'POST',
+    body: JSON.stringify({
+      doc_type: docType,
+      prefix,
+      separator,
+      padding_width: padding,
+      reset_frequency: reset,
+      active_status: true
+    })
+  });
+  if (!res) return;
+  if (res.ok) {
+    renderView('prefix-configs');
+  } else {
+    await showApiError(res, 'Failed to save prefix configuration.');
   }
 };
 
@@ -1833,36 +2262,42 @@ window.addNewLabelReplacement = async function() {
   const custom = await showCustomPrompt('Enter replacement overlay label (e.g. Material Grade):');
   if (!custom) return;
   
-  apiFetch('/api/v1/labels', {
+  const res = await apiFetch('/api/v1/labels', {
     method: 'POST',
     body: JSON.stringify({ original_text: orig, custom_text: custom })
-  }).then(async res => {
-    if (res && res.ok) {
-      await fetchLabels();
-      renderView('dynamic-labels');
-    }
   });
+  if (!res) return;
+  if (res.ok) {
+    await fetchLabels();
+    renderView('dynamic-labels');
+  } else {
+    await showApiError(res, 'Failed to add label translation.');
+  }
 };
 
 window.deleteLabelReplacement = async function(orig) {
   if (await showCustomConfirm(`Remove label mapping for "${orig}"?`)) {
-    apiFetch(`/api/v1/labels?original_text=${encodeURIComponent(orig)}`, {
+    const res = await apiFetch(`/api/v1/labels?original_text=${encodeURIComponent(orig)}`, {
       method: 'DELETE'
-    }).then(async res => {
-      if (res && res.ok) {
-        await fetchLabels();
-        renderView('dynamic-labels');
-      }
     });
+    if (!res) return;
+    if (res.ok) {
+      await fetchLabels();
+      renderView('dynamic-labels');
+    } else {
+      await showApiError(res, 'Failed to remove label translation.');
+    }
   }
 };
 
 // Render Log Hub & panic dashboard logs
 async function renderLogHubView(container) {
   const auditRes = await apiFetch('/api/v1/logs/audit');
+  const auditLoadFailed = !!auditRes && !auditRes.ok;
   const auditLogs = auditRes && auditRes.ok ? await auditRes.json() : [];
 
   const sysRes = await apiFetch('/api/v1/logs/system');
+  const sysLoadFailed = !!sysRes && !sysRes.ok;
   const systemLogs = sysRes && sysRes.ok ? await sysRes.json() : [];
 
   const header = document.createElement('div');
@@ -1888,6 +2323,7 @@ async function renderLogHubView(container) {
   auditPanel.className = 'table-panel';
   auditPanel.innerHTML = `
     <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">Audit Logs</h3>
+    ${auditLoadFailed ? `<p style="padding: 0 16px 12px; color: #ef4444; font-size: 13px;">Failed to load audit logs.</p>` : ''}
     <div class="table-wrapper">
       <table>
         <thead>
@@ -1918,6 +2354,7 @@ async function renderLogHubView(container) {
   sysPanel.className = 'table-panel';
   sysPanel.innerHTML = `
     <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">System Panic & Error Logs</h3>
+    ${sysLoadFailed ? `<p style="padding: 0 16px 12px; color: #ef4444; font-size: 13px;">Failed to load system logs.</p>` : ''}
     <div class="table-wrapper">
       <table>
         <thead>
@@ -1953,10 +2390,13 @@ async function renderLogHubView(container) {
 
 window.triggerPanicRecovery = async function() {
   if (await showCustomConfirm('Trigger deliberate panic in backend router to verify system recovery middleware?')) {
-    apiFetch('/api/v1/debug/panic').then(async res => {
-      await showCustomAlert('Panic endpoint hit. Re-checking Log Hub for stack trace registration.', 'System Recovery');
-      renderView('audit-logs');
-    });
+    // A non-network response here - even a 500 - IS the success case: it proves
+    // the recovery middleware caught the panic and the server is still up.
+    // Only a dropped connection (res === null, already surfaced by apiFetch) means recovery failed.
+    const res = await apiFetch('/api/v1/debug/panic');
+    if (!res) return;
+    await showCustomAlert('Panic endpoint hit. Re-checking Log Hub for stack trace registration.', 'System Recovery');
+    renderView('audit-logs');
   }
 };
 
@@ -2036,13 +2476,23 @@ window.handleBulkImportSubmit = async function(e) {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`/api/v1/import/${currentDoctype}`, {
-    method: 'POST',
-    headers,
-    body: formData
-  });
-
   const summary = document.getElementById('import-result-summary');
+  let res;
+  try {
+    res = await fetch(`/api/v1/import/${currentDoctype}`, {
+      method: 'POST',
+      headers,
+      body: formData
+    });
+  } catch (err) {
+    summary.style.display = 'block';
+    summary.style.backgroundColor = 'rgba(255, 71, 87, 0.1)';
+    summary.style.border = '1px solid rgba(255, 71, 87, 0.3)';
+    summary.style.color = '#ff4757';
+    summary.innerHTML = `<strong>Import Failed:</strong> Unable to reach the server. Please check your connection and try again.`;
+    return;
+  }
+
   if (res.ok) {
     const result = await res.json();
     summary.style.display = 'block';
