@@ -582,7 +582,20 @@ function setupEventListeners() {
     renderView('purchase-orders');
   });
 
-  ['menu-vendors', 'menu-stores', 'menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
+  // "Vendors" is a real doctype now (Stage 13.9) - point it at the same
+  // generic doctype-table view the Master Definition submenu already uses,
+  // rather than a bespoke screen.
+  document.getElementById('menu-vendors').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-vendors');
+    closeSubmenus();
+    currentDoctype = 'Vendor';
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    renderView('doctype-table');
+  });
+
+  ['menu-stores', 'menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {

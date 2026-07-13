@@ -571,3 +571,41 @@ WHERE doctype_name = 'PurchaseOrder' AND fieldname = 'status';
 INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES
 ('Store Manager', 'PurchaseOrder', TRUE, FALSE, TRUE, FALSE)
 ON CONFLICT (role, doctype_name) DO NOTHING;
+
+-- 23. Dedicated Vendor/Customer masters (Stage 13.9) - MB Sec.4.5. Confirmed
+-- absent 2026-07-13 by a live-DB check; PurchaseOrder/SalesInvoice only ever
+-- had free-text vendor/customer fields. Registered as document_type='Master'
+-- so both appear automatically under the existing "Master Definition"
+-- submenu with full generic CRUD - no new frontend code needed for that part.
+INSERT INTO tenant_default.doctype_meta (name, module, document_type) VALUES
+('Vendor', 'Procurement', 'Master'),
+('Customer', 'Sales', 'Master')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('Vendor', 'code', 'Vendor Code', 'Data', TRUE, NULL, 1),
+('Vendor', 'name', 'Vendor Name', 'Data', TRUE, NULL, 2),
+('Vendor', 'gstin', 'GSTIN', 'Data', FALSE, NULL, 3),
+('Vendor', 'bank_account_number', 'Bank Account Number', 'Data', FALSE, NULL, 4),
+('Vendor', 'bank_ifsc', 'Bank IFSC', 'Data', FALSE, NULL, 5),
+('Vendor', 'contact_phone', 'Contact Phone', 'Data', FALSE, NULL, 6),
+('Vendor', 'contact_email', 'Contact Email', 'Data', FALSE, NULL, 7),
+('Vendor', 'status', 'Status', 'Select', TRUE, 'Active,Inactive', 8)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('Customer', 'code', 'Customer Code', 'Data', TRUE, NULL, 1),
+('Customer', 'name', 'Customer Name', 'Data', TRUE, NULL, 2),
+('Customer', 'phone', 'Phone', 'Data', FALSE, NULL, 3),
+('Customer', 'email', 'Email', 'Data', FALSE, NULL, 4),
+('Customer', 'loyalty_points', 'Loyalty Points', 'Number', FALSE, NULL, 5),
+('Customer', 'status', 'Status', 'Select', TRUE, 'Active,Inactive', 6)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+-- HR/Admin-only, matching the existing permission pattern for other
+-- master doctypes (Brand, Item, etc. - none grant Cashier/Store Manager
+-- access to master data management by default in this codebase).
+INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES
+('HR/Admin', 'Vendor', TRUE, TRUE, TRUE, TRUE),
+('HR/Admin', 'Customer', TRUE, TRUE, TRUE, TRUE)
+ON CONFLICT (role, doctype_name) DO NOTHING;
