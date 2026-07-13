@@ -313,6 +313,12 @@ func main() {
 	// GST / Tax Engine
 	http.HandleFunc("POST /api/v1/gst/calculate", apiMiddleware(handleCalculateGST))
 
+	// Report Catalog
+	http.HandleFunc("GET /api/v1/reports/current-stock", apiMiddleware(handleCurrentStockReport))
+	http.HandleFunc("GET /api/v1/reports/sales-register", apiMiddleware(handleSalesRegisterReport))
+	http.HandleFunc("GET /api/v1/reports/vendor-ledger", apiMiddleware(handleVendorLedgerReport))
+	http.HandleFunc("GET /api/v1/reports/payables-ageing", apiMiddleware(handlePayablesAgeingReport))
+
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
 	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(featureGate("oms_integration", handleShopifyOrderWebhook)))
@@ -1610,6 +1616,74 @@ func handleCalculateGST(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(result)
+}
+
+// Report catalog (Stage 13.11) - prioritized per the gap analysis's own
+// list: Current Stock, Sales Register, Vendor Ledger, Payables Ageing.
+func handleCurrentStockReport(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	results, err := engines.GetCurrentStockReport(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if results == nil {
+		results = []map[string]interface{}{}
+	}
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+func handleSalesRegisterReport(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	results, err := engines.GetSalesRegisterReport(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if results == nil {
+		results = []engines.SalesRegisterEntry{}
+	}
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+func handleVendorLedgerReport(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	vendor := r.URL.Query().Get("vendor")
+	results, err := engines.GetVendorLedgerReport(tenantID, vendor)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if results == nil {
+		results = []map[string]interface{}{}
+	}
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+func handlePayablesAgeingReport(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	results, err := engines.GetPayablesAgeingReport(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(results)
 }
 
 func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {

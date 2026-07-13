@@ -575,6 +575,13 @@ function setupEventListeners() {
     renderView('approvals');
   });
 
+  document.getElementById('menu-reports').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-reports');
+    closeSubmenus();
+    renderView('reports');
+  });
+
   document.getElementById('menu-purchase-orders').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-purchase-orders');
@@ -683,6 +690,7 @@ const STATIC_VIEW_MENU_IDS = {
   fulfillment: 'menu-fulfillment',
   marketplace: 'menu-marketplace',
   approvals: 'menu-approvals',
+  reports: 'menu-reports',
   'doctype-builder': 'menu-doctype-builder',
   vendors: 'menu-vendors',
   stores: 'menu-stores',
@@ -768,6 +776,8 @@ async function renderView(view) {
     await renderMarketplaceView(root);
   } else if (view === 'approvals') {
     await renderApprovalsView(root);
+  } else if (view === 'reports') {
+    await renderReportsView(root);
   } else if (view === 'purchase-orders') {
     await renderPurchaseOrdersView(root);
   } else if (view === 'doctype-table') {
@@ -1773,6 +1783,156 @@ async function submitPOForApproval(documentId) {
     return;
   }
   renderView('purchase-orders');
+}
+
+// Report catalog (Stage 13.11) - Current Stock, Sales Register, Vendor
+// Ledger, Payables Ageing, the four reports the gap analysis prioritized.
+let currentReportTab = 'current-stock';
+
+const REPORT_TABS = [
+  { id: 'current-stock', label: 'Current Stock' },
+  { id: 'sales-register', label: 'Sales Register' },
+  { id: 'vendor-ledger', label: 'Vendor Ledger' },
+  { id: 'payables-ageing', label: 'Payables Ageing' }
+];
+
+async function renderReportsView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Reports</h1>
+      <p class="page-subtitle">Current Stock, Sales Register, Vendor Ledger, and Payables Ageing.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const tabBar = document.createElement('div');
+  tabBar.style.display = 'flex';
+  tabBar.style.gap = '8px';
+  tabBar.style.marginBottom = '16px';
+  tabBar.innerHTML = REPORT_TABS.map(t =>
+    `<button class="btn ${t.id === currentReportTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-report-tab="${t.id}">${t.label}</button>`
+  ).join('');
+  container.appendChild(tabBar);
+  tabBar.querySelectorAll('[data-report-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentReportTab = btn.getAttribute('data-report-tab');
+      renderView('reports');
+    });
+  });
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  container.appendChild(panel);
+
+  if (currentReportTab === 'current-stock') {
+    await renderCurrentStockReport(panel);
+  } else if (currentReportTab === 'sales-register') {
+    await renderSalesRegisterReport(panel);
+  } else if (currentReportTab === 'vendor-ledger') {
+    await renderVendorLedgerReport(panel);
+  } else if (currentReportTab === 'payables-ageing') {
+    await renderPayablesAgeingReport(panel);
+  }
+}
+
+async function renderCurrentStockReport(panel) {
+  const res = await apiFetch('/api/v1/reports/current-stock');
+  if (!res) return;
+  const rows = res.ok ? await res.json() : [];
+  let html = `
+    <table>
+      <thead><tr><th>SKU</th><th>Location</th><th>On Hand</th><th>Available</th><th>Committed</th><th>Reserved</th><th>Safety Stock</th></tr></thead>
+      <tbody>
+  `;
+  html += rows.length === 0
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No inventory records.</td></tr>`
+    : rows.map(r => `
+        <tr>
+          <td style="font-family: monospace;">${r.sku}</td>
+          <td>${r.location_code}</td>
+          <td>${r.on_hand}</td>
+          <td>${r.available}</td>
+          <td>${r.committed}</td>
+          <td>${r.reserved}</td>
+          <td>${r.safety_stock}</td>
+        </tr>
+      `).join('');
+  html += `</tbody></table>`;
+  panel.innerHTML = html;
+}
+
+async function renderSalesRegisterReport(panel) {
+  const res = await apiFetch('/api/v1/reports/sales-register');
+  if (!res) return;
+  const rows = res.ok ? await res.json() : [];
+  let html = `
+    <table>
+      <thead><tr><th>Cart Number</th><th>Location</th><th>Payment Mode</th><th>Status</th><th>Sale Total</th><th>Date</th></tr></thead>
+      <tbody>
+  `;
+  html += rows.length === 0
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No completed sales yet.</td></tr>`
+    : rows.map(r => `
+        <tr>
+          <td style="font-family: monospace;">${r.cart_number}</td>
+          <td>${r.location}</td>
+          <td>${r.payment_mode}</td>
+          <td><span class="badge badge-success">${r.status}</span></td>
+          <td>${r.sale_total.toLocaleString()}</td>
+          <td>${new Date(r.created_at).toLocaleString()}</td>
+        </tr>
+      `).join('');
+  html += `</tbody></table>`;
+  panel.innerHTML = html;
+}
+
+async function renderVendorLedgerReport(panel) {
+  const res = await apiFetch('/api/v1/reports/vendor-ledger');
+  if (!res) return;
+  const rows = res.ok ? await res.json() : [];
+  let html = `
+    <table>
+      <thead><tr><th>Vendor</th><th>PO Number</th><th>Total Amount</th><th>Status</th><th>Date</th></tr></thead>
+      <tbody>
+  `;
+  html += rows.length === 0
+    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No purchase orders yet.</td></tr>`
+    : rows.map(r => `
+        <tr>
+          <td>${r.vendor || ''}</td>
+          <td style="font-family: monospace;">${r.po_number || r.id}</td>
+          <td>${(r.total_amount ?? 0).toLocaleString()}</td>
+          <td>${r.status}</td>
+          <td>${new Date(r.created_at).toLocaleString()}</td>
+        </tr>
+      `).join('');
+  html += `</tbody></table>`;
+  panel.innerHTML = html;
+}
+
+async function renderPayablesAgeingReport(panel) {
+  const res = await apiFetch('/api/v1/reports/payables-ageing');
+  if (!res) return;
+  const buckets = res.ok ? await res.json() : [];
+  panel.innerHTML = `
+    <p style="padding: 16px 16px 0; font-size: 13px; color: var(--text-muted);">
+      Buckets Approved-but-not-yet-Closed purchase orders by age since creation.
+    </p>
+    <table>
+      <thead><tr><th>Age Bucket</th><th>PO Count</th><th>Outstanding Amount</th></tr></thead>
+      <tbody>
+        ${buckets.map(b => `
+          <tr>
+            <td>${b.bucket}</td>
+            <td>${b.count}</td>
+            <td>${b.amount.toLocaleString()}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
 }
 
 // Render dynamic DocType CRUD Table view
