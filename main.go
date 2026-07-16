@@ -67,6 +67,41 @@ func (rl *RateLimiter) Allow(ip string, limit int, duration time.Duration) bool 
 
 var globalLimiter = NewRateLimiter()
 
+// rateLimitCategory classifies a request into one of SEC-V2 5's API types
+// and returns that category's per-minute budget (Stage 13.14). Categories
+// SEC-V2 names that don't apply to this codebase are omitted rather than
+// faked: Payment Callback (no payment gateway integration exists),
+// GST/IRN retry (no real IRN integration - Stage 13.10 scoped that out
+// explicitly), and POS Offline Sync (no offline-sync feature exists).
+// Webhook signature/timestamp validation is tracked separately
+// (micro_checklist Stage 9.2) - this function only assigns its rate budget.
+func rateLimitCategory(path, method string) (category string, limit int) {
+	switch {
+	case strings.HasSuffix(path, "/login") || strings.HasSuffix(path, "/mfa/verify") || strings.HasSuffix(path, "/mfa/activate"):
+		// Login API: also covers MFA code submission - a 6-digit TOTP code
+		// is brute-forceable without a tight budget here.
+		return "login", 5
+	case strings.HasPrefix(path, "/api/v1/import/"):
+		// Bulk Upload API: file processing is the heaviest per-request cost
+		// in this codebase, so it gets the tightest non-login budget.
+		return "bulk-upload", 10
+	case strings.HasPrefix(path, "/api/v1/reports/") || strings.HasSuffix(path, "/finance/trial-balance"):
+		// Report API: SEC-V2 asks these be restricted/queued as "heavy".
+		return "report", 20
+	case strings.HasPrefix(path, "/api/v1/integration/shopify/"):
+		// Webhook API: bursts from the external platform are expected and
+		// legitimate, so this gets a higher budget than login/reports.
+		return "webhook", 30
+	case strings.HasPrefix(path, "/api/v1/doc/") && method == "GET":
+		// Search API: the generic doc list/get endpoint. Already paginated
+		// server-side (Stage 1.4/hardening_roadmap Phase 2.4), so a
+		// generous budget is safe here.
+		return "search", 100
+	default:
+		return "default", 60
+	}
+}
+
 // safeFilterKeyRe allowlists dynamic query-filter keys before they're spliced into SQL
 // (data->>'<key>'). Only plain identifiers are permitted - no quotes, operators, or whitespace.
 var safeFilterKeyRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]{0,63}$`)
@@ -187,13 +222,13 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// 2. Payload size limit (Max 2MB)
 		r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
 
-		// 3. Rate Limiter (60/min limit per IP)
+		// 3. Rate Limiter - per-API-type budgets (Stage 13.14, SEC-V2 5).
+		// Keyed by ip+category rather than ip alone, so heavy traffic on one
+		// API type (e.g. search) can't exhaust the budget for an unrelated
+		// one (e.g. login) - they're independent buckets, not a shared pool.
 		ip := strings.Split(r.RemoteAddr, ":")[0]
-		limit := 60
-		if strings.HasSuffix(r.URL.Path, "/login") || strings.HasSuffix(r.URL.Path, "/mfa/verify") || strings.HasSuffix(r.URL.Path, "/mfa/activate") {
-			limit = 5 // Limit logins and MFA code submissions to 5/min per IP - a 6-digit TOTP code is brute-forceable without this
-		}
-		if !globalLimiter.Allow(ip, limit, time.Minute) {
+		category, limit := rateLimitCategory(r.URL.Path, r.Method)
+		if !globalLimiter.Allow(ip+":"+category, limit, time.Minute) {
 			w.WriteHeader(http.StatusTooManyRequests)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"error": "Rate limit exceeded. Please try again later.",
