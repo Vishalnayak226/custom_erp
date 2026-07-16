@@ -589,6 +589,13 @@ function setupEventListeners() {
     renderView('rfq');
   });
 
+  document.getElementById('menu-stickers').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-stickers');
+    closeSubmenus();
+    renderView('stickers');
+  });
+
   document.getElementById('menu-purchase-orders').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-purchase-orders');
@@ -699,6 +706,7 @@ const STATIC_VIEW_MENU_IDS = {
   approvals: 'menu-approvals',
   reports: 'menu-reports',
   rfq: 'menu-rfq',
+  stickers: 'menu-stickers',
   'doctype-builder': 'menu-doctype-builder',
   vendors: 'menu-vendors',
   stores: 'menu-stores',
@@ -788,6 +796,8 @@ async function renderView(view) {
     await renderReportsView(root);
   } else if (view === 'rfq') {
     await renderRFQView(root);
+  } else if (view === 'stickers') {
+    await renderStickersView(root);
   } else if (view === 'purchase-orders') {
     await renderPurchaseOrdersView(root);
   } else if (view === 'doctype-table') {
@@ -2168,6 +2178,188 @@ async function selectWinningQuote(rfqId, quoteId) {
     return;
   }
   renderView('rfq');
+}
+
+// Sticker / Barcode Printing (Stage 13.15) - Printer master creation/listing
+// use the same generic doc API as Vendor/Customer/RFQ; this screen adds the
+// print action (logs history, then renders a printable label sheet) and
+// print-history view on top. Labels show the barcode value as clear text
+// rather than a generated scannable barcode symbol/image - correctly
+// implementing and verifying a real barcode symbology renderer isn't
+// something that can be validated without a physical scanner in this
+// environment, and shipping an unverified fake one would be worse than a
+// clear text label (which is also how the rest of this app already treats
+// barcodes - typed/scanned as text, e.g. the POS screen's SKU input).
+let stickerSKUs = [];
+
+async function renderStickersView(container) {
+  const [printersRes, historyRes] = await Promise.all([
+    apiFetch('/api/v1/doc/Printer'),
+    apiFetch('/api/v1/stickers/history')
+  ]);
+  if (!printersRes || !historyRes) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Sticker Printing</h1>
+      <p class="page-subtitle">Print item labels (barcode, name, HSN) and track print history.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const printers = printersRes.ok ? await printersRes.json() : [];
+  const history = historyRes.ok ? await historyRes.json() : [];
+
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="sticker-printer">Printer</label>
+        <select id="sticker-printer" class="form-input" style="width: 200px;">
+          <option value="">Select a printer</option>
+          ${printers.map(p => `<option value="${p.code || p.id}">${p.name || p.code || p.id}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="sticker-copies">Copies per SKU</label>
+        <input type="number" id="sticker-copies" class="form-input" style="width: 100px;" value="1" min="1">
+      </div>
+      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 180px;">
+        <label class="form-label" for="sticker-reprint-reason">Reprint Reason (optional)</label>
+        <input type="text" id="sticker-reprint-reason" class="form-input">
+      </div>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px;">
+      <div class="form-group" style="flex: 1; margin-bottom: 0;">
+        <label class="form-label" for="sticker-sku-input">Scan or Enter SKU</label>
+        <input type="text" id="sticker-sku-input" class="form-input" placeholder="Barcode / SKU, then Enter" autocomplete="off">
+      </div>
+      <button class="btn btn-outline" id="sticker-add-btn">Add</button>
+    </div>
+    <div id="sticker-sku-list" style="margin-bottom: 16px; font-size: 13px; color: var(--text-muted);"></div>
+    <div id="sticker-form-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <button class="btn btn-primary" id="sticker-print-btn">Print Stickers</button>
+  `;
+  container.appendChild(formPanel);
+
+  const historyPanel = document.createElement('div');
+  historyPanel.className = 'table-panel';
+  let historyHtml = `
+    <table>
+      <thead><tr><th>SKU</th><th>Barcode</th><th>Printer</th><th>Printed By</th><th>Copies</th><th>Reprint Reason</th><th>Date</th></tr></thead>
+      <tbody>
+  `;
+  historyHtml += history.length === 0
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No print history yet.</td></tr>`
+    : history.map(h => `
+        <tr>
+          <td style="font-family: monospace;">${h.sku}</td>
+          <td style="font-family: monospace;">${h.barcode}</td>
+          <td>${h.printer_code}</td>
+          <td>${h.printed_by}</td>
+          <td>${h.copies}</td>
+          <td>${h.reprint_reason || ''}</td>
+          <td>${new Date(h.printed_at).toLocaleString()}</td>
+        </tr>
+      `).join('');
+  historyHtml += `</tbody></table>`;
+  historyPanel.innerHTML = historyHtml;
+  container.appendChild(historyPanel);
+
+  document.getElementById('sticker-add-btn').addEventListener('click', addStickerSKU);
+  document.getElementById('sticker-sku-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addStickerSKU();
+    }
+  });
+  document.getElementById('sticker-print-btn').addEventListener('click', printStickers);
+
+  renderStickerSKUList();
+}
+
+function addStickerSKU() {
+  const input = document.getElementById('sticker-sku-input');
+  const sku = input.value.trim();
+  if (!sku) return;
+  if (!stickerSKUs.includes(sku)) stickerSKUs.push(sku);
+  input.value = '';
+  input.focus();
+  renderStickerSKUList();
+}
+
+function removeStickerSKU(sku) {
+  stickerSKUs = stickerSKUs.filter(s => s !== sku);
+  renderStickerSKUList();
+}
+
+function renderStickerSKUList() {
+  const listEl = document.getElementById('sticker-sku-list');
+  if (!listEl) return;
+  listEl.innerHTML = stickerSKUs.length === 0
+    ? 'No SKUs added yet.'
+    : stickerSKUs.map(sku => `${sku} <button class="action-btn action-btn-danger" style="padding: 2px 8px;" onclick="removeStickerSKU('${sku}')">x</button>`).join(' &nbsp; ');
+}
+
+async function printStickers() {
+  const errorEl = document.getElementById('sticker-form-error');
+  errorEl.classList.add('hidden');
+
+  const printerCode = document.getElementById('sticker-printer').value;
+  const copies = parseInt(document.getElementById('sticker-copies').value, 10) || 1;
+  const reprintReason = document.getElementById('sticker-reprint-reason').value.trim();
+
+  if (!printerCode) {
+    errorEl.textContent = 'Select a printer first.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (stickerSKUs.length === 0) {
+    errorEl.textContent = 'Add at least one SKU first.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/stickers/print', {
+    method: 'POST',
+    body: JSON.stringify({ skus: stickerSKUs, printer_code: printerCode, reprint_reason: reprintReason, copies })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to print stickers.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  renderPrintSheet(data, copies);
+  stickerSKUs = [];
+  renderView('stickers');
+}
+
+function renderPrintSheet(labels, copies) {
+  const area = document.getElementById('sticker-print-area');
+  let html = '';
+  labels.forEach(label => {
+    for (let i = 0; i < copies; i++) {
+      html += `
+        <div class="sticker-label">
+          <div class="sticker-name">${label.name || label.sku}</div>
+          <div class="sticker-barcode">${label.barcode}</div>
+          <div class="sticker-meta">SKU: ${label.sku}${label.hsn_code ? ' &nbsp;|&nbsp; HSN: ' + label.hsn_code : ''}</div>
+        </div>
+      `;
+    }
+  });
+  area.innerHTML = html;
+  area.classList.add('printing');
+  window.print();
+  setTimeout(() => area.classList.remove('printing'), 500);
 }
 
 // Render dynamic DocType CRUD Table view

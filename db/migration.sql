@@ -646,3 +646,39 @@ INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, all
 ('Store Manager', 'RFQ', TRUE, TRUE, TRUE, FALSE),
 ('Store Manager', 'VendorQuote', TRUE, TRUE, TRUE, FALSE)
 ON CONFLICT (role, doctype_name) DO NOTHING;
+
+-- 25. Sticker/Barcode Printing (Stage 13.15) - MB Sec.15.3. Printer master
+-- registered as document_type='Master' (same pattern as Vendor/Customer,
+-- Stage 13.9) so it appears under Master Definition automatically.
+INSERT INTO tenant_default.doctype_meta (name, module, document_type) VALUES
+('Printer', 'Inventory', 'Master')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('Printer', 'code', 'Printer Code', 'Data', TRUE, NULL, 1),
+('Printer', 'name', 'Printer Name', 'Data', TRUE, NULL, 2),
+('Printer', 'location', 'Location', 'Data', FALSE, NULL, 3),
+('Printer', 'status', 'Status', 'Select', TRUE, 'Active,Inactive', 4)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES
+('HR/Admin', 'Printer', TRUE, TRUE, TRUE, TRUE),
+('Cashier', 'Printer', TRUE, FALSE, FALSE, FALSE),
+('Store Manager', 'Printer', TRUE, FALSE, FALSE, FALSE)
+ON CONFLICT (role, doctype_name) DO NOTHING;
+
+-- Print History: an append-only audit trail (who printed what, on which
+-- printer, when, and why if it's a reprint) - a dedicated SQL table rather
+-- than a doctype/document, matching the approval_log pattern (Stage 13.8),
+-- since this is a system-generated log, not a user-editable record.
+CREATE TABLE IF NOT EXISTS tenant_default.sticker_print_log (
+    id SERIAL PRIMARY KEY,
+    sku VARCHAR(100) NOT NULL,
+    barcode VARCHAR(100),
+    printer_code VARCHAR(100) NOT NULL,
+    printed_by VARCHAR(100) NOT NULL,
+    copies INT NOT NULL DEFAULT 1,
+    reprint_reason TEXT,
+    printed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_sticker_print_log_sku ON tenant_default.sticker_print_log (sku);

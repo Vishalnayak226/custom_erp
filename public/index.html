@@ -191,6 +191,18 @@
           </a>
         </li>
 
+        <li class="menu-item-container">
+          <a class="menu-item" id="menu-stickers">
+            <span class="menu-item-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+                <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+              </svg>
+            </span>
+            <span>Sticker Printing</span>
+          </a>
+        </li>
+
         <!-- Master Definition Dropdown -->
         <li class="menu-item-container">
           <a class="menu-item" id="menu-master-definition">
@@ -488,6 +500,12 @@
       </div>
     </div>
   </div>
+
+  <!-- Sticker print sheet - hidden on screen, shown only when window.print()
+       is triggered while class="printing" is active (see styles.css @media
+       print). Kept at the body level, outside app-container, so the print
+       media query can hide everything else and show only this. -->
+  <div id="sticker-print-area"></div>
 
   <script src="db.js"></script>
   <script src="app.js"></script>

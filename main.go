@@ -358,6 +358,10 @@ func main() {
 	http.HandleFunc("GET /api/v1/rfq/quotes", apiMiddleware(handleGetVendorQuotesForRFQ))
 	http.HandleFunc("POST /api/v1/rfq/select-quote", apiMiddleware(handleSelectWinningQuote))
 
+	// Sticker / Barcode Printing
+	http.HandleFunc("POST /api/v1/stickers/print", apiMiddleware(handlePrintStickers))
+	http.HandleFunc("GET /api/v1/stickers/history", apiMiddleware(handlePrintHistory))
+
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
 	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(featureGate("oms_integration", handleShopifyOrderWebhook)))
@@ -1452,49 +1456,122 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 1. Convert items structure to interface slice for PostInventoryLedger (with negative qty!)
-	itemsInterface := make([]interface{}, len(req.Items))
+	// Reject non-positive qty/prices before any side effect runs. Below this line,
+	// item.Qty is negated to decrement stock (see loop below) - an already-negative
+	// qty would flip to positive and silently ADD stock instead of being rejected,
+	// and would do so via PostInventoryLedger's own committed transaction, before
+	// the later GL-posting step even runs its own (unrelated) sign validation.
+	for _, item := range req.Items {
+		if item.Sku == "" || item.Qty <= 0 {
+			http.Error(w, fmt.Sprintf("Item quantity must be positive (sku=%q, qty=%d)", item.Sku, item.Qty), http.StatusBadRequest)
+			return
+		}
+		if item.SalePrice < 0 || item.CostPrice < 0 {
+			http.Error(w, fmt.Sprintf("Item prices cannot be negative (sku=%q)", item.Sku), http.StatusBadRequest)
+			return
+		}
+	}
+
 	totalSalePrice := 0
 	totalCostPrice := 0
+	for _, item := range req.Items {
+		totalSalePrice += int(item.SalePrice) * item.Qty
+		totalCostPrice += int(item.CostPrice) * item.Qty
+	}
 
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to resolve tenant schema"})
+		return
+	}
+
+	// Idempotency guard: atomically claim this cart_number before any side effect
+	// (inventory decrement, GL posting) runs. Without this, a duplicate submission
+	// - a network retry, a double-click, or two requests racing - would each pass
+	// through independently and double-deduct stock / double-post GL, while the
+	// final document row (a plain upsert) silently overwrites to look like only
+	// one sale happened. Only the request whose INSERT/claim actually applies
+	// proceeds; a duplicate of an already-Paid cart gets the original result
+	// replayed back, and a duplicate that arrives while the first is still being
+	// processed is told to wait rather than reprocessing.
+	payloadBytes, _ := json.Marshal(req)
+	claimQuery := fmt.Sprintf(`
+		INSERT INTO %s.documents (id, doctype, data, status, created_by)
+		VALUES ($1, 'POSCart', $2, 'Processing', 'system')
+		ON CONFLICT (id) DO UPDATE SET
+			data = EXCLUDED.data, status = 'Processing', updated_at = CURRENT_TIMESTAMP
+		WHERE %s.documents.status = 'Failed'
+		RETURNING id`, schema, schema)
+	var claimedID string
+	claimErr := db.DB.QueryRow(claimQuery, req.CartNumber, payloadBytes).Scan(&claimedID)
+	if claimErr == sql.ErrNoRows {
+		var existingStatus, existingData string
+		lookupErr := db.DB.QueryRow(fmt.Sprintf(
+			`SELECT status, data FROM %s.documents WHERE doctype = 'POSCart' AND id = $1`, schema),
+			req.CartNumber).Scan(&existingStatus, &existingData)
+		if lookupErr == nil && existingStatus == "Paid" {
+			var existing struct {
+				Items []struct {
+					Qty       int     `json:"qty"`
+					SalePrice float64 `json:"sale_price"`
+					CostPrice float64 `json:"cost_price"`
+				} `json:"items"`
+			}
+			replaySale, replayCost := 0, 0
+			if json.Unmarshal([]byte(existingData), &existing) == nil {
+				for _, it := range existing.Items {
+					replaySale += int(it.SalePrice) * it.Qty
+					replayCost += int(it.CostPrice) * it.Qty
+				}
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"status":      "completed",
+				"cart_number": req.CartNumber,
+				"sale_total":  replaySale,
+				"cost_total":  replayCost,
+			})
+			return
+		}
+		w.WriteHeader(http.StatusConflict)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "This cart is already being processed or was already completed"})
+		return
+	} else if claimErr != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to claim checkout"})
+		return
+	}
+
+	markFailed := func() {
+		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Failed', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'POSCart' AND id = $1`, schema), req.CartNumber)
+	}
+
+	// Convert items structure to interface slice for PostInventoryLedger (with negative qty!)
+	itemsInterface := make([]interface{}, len(req.Items))
 	for i, item := range req.Items {
 		itemsInterface[i] = map[string]interface{}{
 			"sku": item.Sku,
 			"qty": -item.Qty, // Negative to decrement available stock
 		}
-		totalSalePrice += int(item.SalePrice) * item.Qty
-		totalCostPrice += int(item.CostPrice) * item.Qty
 	}
 
-	// 2. Decrement inventory availability
-	err := engines.PostInventoryLedger(tenantID, req.Location, itemsInterface)
-	if err != nil {
+	// Decrement inventory availability
+	if err := engines.PostInventoryLedger(tenantID, req.Location, itemsInterface); err != nil {
+		markFailed()
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Inventory decrement failed: %v", err)})
 		return
 	}
 
-	// 3. Post balanced accounting bookings
-	err = engines.PostSalesFinanceBooking(tenantID, req.CartNumber, totalSalePrice, totalCostPrice)
-	if err != nil {
+	// Post balanced accounting bookings
+	if err := engines.PostSalesFinanceBooking(tenantID, req.CartNumber, totalSalePrice, totalCostPrice); err != nil {
+		markFailed()
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("GL Booking posting failed: %v", err)})
 		return
 	}
 
-	// 4. Save dynamic checkout document
-	schema, err := db.GetTenantSchema(tenantID)
-	if err == nil {
-		payloadBytes, _ := json.Marshal(req)
-		query := fmt.Sprintf(`
-			INSERT INTO %s.documents (id, doctype, data, status, created_by) 
-			VALUES ($1, 'POSCart', $2, 'Paid', 'system') 
-			ON CONFLICT (id) DO UPDATE SET 
-				data = EXCLUDED.data, 
-				status = EXCLUDED.status, 
-				updated_at = CURRENT_TIMESTAMP`, schema)
-		_, _ = db.DB.Exec(query, req.CartNumber, payloadBytes)
-	}
+	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Paid', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'POSCart' AND id = $1`, schema), req.CartNumber)
 
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":      "completed",
@@ -1772,6 +1849,58 @@ func handleSelectWinningQuote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "selected"})
+}
+
+// Sticker / Barcode Printing (Stage 13.15). Printer master creation/listing
+// go through the existing generic doc endpoint like Vendor/Customer/RFQ did;
+// these two handlers cover the print action and history, which need logic
+// the generic endpoint doesn't have.
+func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Skus          []string `json:"skus"`
+		PrinterCode   string   `json:"printer_code"`
+		ReprintReason string   `json:"reprint_reason"`
+		Copies        int      `json:"copies"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		return
+	}
+	if req.PrinterCode == "" {
+		http.Error(w, "Field 'printer_code' is required", http.StatusBadRequest)
+		return
+	}
+	labels, err := engines.PrintStickers(tenantID, req.Skus, req.PrinterCode, userID, req.ReprintReason, req.Copies)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	engines.LogAuditEvent(tenantID, userID, "PRINT_STICKERS", "SUCCESS", fmt.Sprintf("Printed %d sticker(s) on %s", len(labels), req.PrinterCode))
+	_ = json.NewEncoder(w).Encode(labels)
+}
+
+func handlePrintHistory(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	results, err := engines.GetPrintHistory(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if results == nil {
+		results = []engines.PrintHistoryEntry{}
+	}
+	_ = json.NewEncoder(w).Encode(results)
 }
 
 func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {
