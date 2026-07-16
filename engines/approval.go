@@ -156,14 +156,42 @@ func SubmitForApproval(tenantID, doctype, docID, requesterUserID, requesterRole 
 //  3. Location match: a non-HR/Admin approver must be at the document's
 //     location (same "location" field convention used by the generic doc
 //     endpoint's own object-level authorization).
+//
+// DecideApproval is wrapped in a single transaction that locks the document row
+// (SELECT ... FOR UPDATE) for its whole duration, mirroring the same pattern
+// engines/inventory.go uses to prevent oversell. Without this, two concurrent
+// decide calls on the same document (a double-click, a retry, or two different
+// checkers racing) could both read status="Pending Approval" before either
+// commits, so both would pass every check and both would write a decision -
+// producing duplicate approval_log rows for what's meant to be a single
+// irreversible gate, with the final status determined by write-order rather
+// than being deterministically the first decision received.
 func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocation, decision, comment string) error {
 	if decision != "Approved" && decision != "Rejected" {
 		return fmt.Errorf("decision must be 'Approved' or 'Rejected'")
 	}
 
-	data, status, createdBy, err := fetchDocument(tenantID, doctype, docID)
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var dataStr, status, createdBy string
+	err = tx.QueryRow(fmt.Sprintf(`
+		SELECT data, status, created_by FROM %s.documents
+		WHERE doctype = $1 AND id = $2 FOR UPDATE`, schema), doctype, docID).Scan(&dataStr, &status, &createdBy)
 	if err != nil {
 		return fmt.Errorf("document not found: %v", err)
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return err
 	}
 	if status != "Pending Approval" {
 		return fmt.Errorf("document is not awaiting approval (current status: %s)", status)
@@ -186,10 +214,23 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		}
 	}
 
-	if err := setDocumentStatus(tenantID, doctype, docID, decision, data); err != nil {
+	data["status"] = decision
+	marshaled, err := json.Marshal(data)
+	if err != nil {
 		return err
 	}
-	return logApprovalAction(tenantID, doctype, docID, decision, actorUserID, actorRole, amount, comment)
+	if _, err := tx.Exec(fmt.Sprintf(`
+		UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP
+		WHERE doctype = $3 AND id = $4`, schema), marshaled, decision, doctype, docID); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`
+		INSERT INTO %s.approval_log (doctype, document_id, action, actor_user_id, actor_role, amount, comment)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`, schema), doctype, docID, decision, actorUserID, actorRole, amount, comment); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 // ResetToPendingOnEdit implements "re-approval-on-edit": editing a document
