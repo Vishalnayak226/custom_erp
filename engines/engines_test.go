@@ -610,7 +610,7 @@ func TestEngines(t *testing.T) {
 	// 12. Test Integration Logs & Outbox Retries (Stage 9.2)
 	t.Run("IntegrationLogsAndOutboxRetries", func(t *testing.T) {
 		var eventID string
-		err := db.DB.QueryRow("INSERT INTO "+schema+".integration_event_outbox (event_name, payload, status, attempts) VALUES ('test.event', '{}', 'Failed', 3) RETURNING id").Scan(&eventID)
+		err := db.DB.QueryRow("INSERT INTO " + schema + ".integration_event_outbox (event_name, payload, status, attempts) VALUES ('test.event', '{}', 'Failed', 3) RETURNING id").Scan(&eventID)
 		if err != nil {
 			t.Fatalf("Failed to insert mock outbox event: %v", err)
 		}

@@ -596,6 +596,13 @@ function setupEventListeners() {
     renderView('stickers');
   });
 
+  document.getElementById('menu-hr').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-hr');
+    closeSubmenus();
+    renderView('hr');
+  });
+
   document.getElementById('menu-purchase-orders').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-purchase-orders');
@@ -707,6 +714,7 @@ const STATIC_VIEW_MENU_IDS = {
   reports: 'menu-reports',
   rfq: 'menu-rfq',
   stickers: 'menu-stickers',
+  hr: 'menu-hr',
   'doctype-builder': 'menu-doctype-builder',
   vendors: 'menu-vendors',
   stores: 'menu-stores',
@@ -798,6 +806,8 @@ async function renderView(view) {
     await renderRFQView(root);
   } else if (view === 'stickers') {
     await renderStickersView(root);
+  } else if (view === 'hr') {
+    await renderHRView(root);
   } else if (view === 'purchase-orders') {
     await renderPurchaseOrdersView(root);
   } else if (view === 'doctype-table') {
@@ -2360,6 +2370,365 @@ function renderPrintSheet(labels, copies) {
   area.classList.add('printing');
   window.print();
   setTimeout(() => area.classList.remove('printing'), 500);
+}
+
+// HR Foundation (Stage 13.13a, MB 16.3) - Employee is a Master-type doctype
+// so it already gets a full CRUD screen for free under Master Definition;
+// this screen covers Attendance, Leave, and the Payroll Export, which
+// aren't master data and need their own UI.
+let currentHRTab = 'attendance';
+const HR_TABS = [
+  { id: 'attendance', label: 'Attendance' },
+  { id: 'leave', label: 'Leave' },
+  { id: 'payroll-export', label: 'Payroll Export' }
+];
+
+async function renderHRView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">HR</h1>
+      <p class="page-subtitle">Attendance, leave, and payroll export. Manage employees under Master Definition.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const tabBar = document.createElement('div');
+  tabBar.style.display = 'flex';
+  tabBar.style.gap = '8px';
+  tabBar.style.marginBottom = '16px';
+  tabBar.innerHTML = HR_TABS.map(t =>
+    `<button class="btn ${t.id === currentHRTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-hr-tab="${t.id}">${t.label}</button>`
+  ).join('');
+  container.appendChild(tabBar);
+  tabBar.querySelectorAll('[data-hr-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentHRTab = btn.getAttribute('data-hr-tab');
+      renderView('hr');
+    });
+  });
+
+  const employeesRes = await apiFetch('/api/v1/doc/Employee');
+  const employees = employeesRes && employeesRes.ok ? await employeesRes.json() : [];
+
+  if (currentHRTab === 'attendance') {
+    await renderAttendanceTab(container, employees);
+  } else if (currentHRTab === 'leave') {
+    await renderLeaveTab(container, employees);
+  } else if (currentHRTab === 'payroll-export') {
+    renderPayrollExportTab(container);
+  }
+}
+
+function employeeOptions(employees) {
+  return employees.map(e => `<option value="${e.code || e.id}">${e.code || e.id} - ${e.name || ''}</option>`).join('');
+}
+
+async function renderAttendanceTab(container, employees) {
+  const res = await apiFetch('/api/v1/doc/Attendance');
+  const records = res && res.ok ? await res.json() : [];
+
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Mark Attendance</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="att-code">Attendance Code</label>
+        <input type="text" id="att-code" class="form-input" style="width: 150px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="att-employee">Employee</label>
+        <select id="att-employee" class="form-input" style="width: 200px;">
+          <option value="">Select employee</option>
+          ${employeeOptions(employees)}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="att-date">Date</label>
+        <input type="date" id="att-date" class="form-input">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="att-location">Location</label>
+        <input type="text" id="att-location" class="form-input" style="width: 100px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="att-status">Status</label>
+        <select id="att-status" class="form-input" style="width: 130px;">
+          <option value="Present">Present</option>
+          <option value="Absent">Absent</option>
+          <option value="Late">Late</option>
+          <option value="Leave">Leave</option>
+          <option value="Holiday">Holiday</option>
+          <option value="WeeklyOff">WeeklyOff</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="att-save-btn">Save</button>
+    </div>
+    <div id="att-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(formPanel);
+
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead><tr><th>Code</th><th>Employee</th><th>Date</th><th>Location</th><th>Status</th></tr></thead>
+      <tbody>
+  `;
+  html += records.length === 0
+    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No attendance records yet.</td></tr>`
+    : records.map(r => `
+        <tr>
+          <td style="font-family: monospace;">${r.code || r.id}</td>
+          <td>${r.employee_id || ''}</td>
+          <td>${r.date || ''}</td>
+          <td>${r.location || ''}</td>
+          <td><span class="badge ${r.status === 'Present' ? 'badge-success' : r.status === 'Absent' ? 'badge-danger' : 'badge-secondary'}">${r.status}</span></td>
+        </tr>
+      `).join('');
+  html += `</tbody></table>`;
+  listPanel.innerHTML = html;
+  container.appendChild(listPanel);
+
+  document.getElementById('att-save-btn').addEventListener('click', saveAttendance);
+}
+
+async function saveAttendance() {
+  const errorEl = document.getElementById('att-form-error');
+  errorEl.classList.add('hidden');
+
+  const code = document.getElementById('att-code').value.trim();
+  const employeeId = document.getElementById('att-employee').value;
+  const date = document.getElementById('att-date').value;
+  const location = document.getElementById('att-location').value.trim();
+  const status = document.getElementById('att-status').value;
+
+  if (!code || !employeeId || !date) {
+    errorEl.textContent = 'Attendance Code, Employee, and Date are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/doc/Attendance', {
+    method: 'POST',
+    body: JSON.stringify({ id: code, code, employee_id: employeeId, date, location, status })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to save attendance.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('hr');
+}
+
+async function renderLeaveTab(container, employees) {
+  const res = await apiFetch('/api/v1/doc/Leave');
+  const records = res && res.ok ? await res.json() : [];
+
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Apply Leave</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="leave-code">Leave Code</label>
+        <input type="text" id="leave-code" class="form-input" style="width: 150px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="leave-employee">Employee</label>
+        <select id="leave-employee" class="form-input" style="width: 200px;">
+          <option value="">Select employee</option>
+          ${employeeOptions(employees)}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="leave-type">Leave Type</label>
+        <select id="leave-type" class="form-input" style="width: 130px;">
+          <option value="Casual">Casual</option>
+          <option value="Sick">Sick</option>
+          <option value="Earned">Earned</option>
+          <option value="Unpaid">Unpaid</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="leave-from">From Date</label>
+        <input type="date" id="leave-from" class="form-input">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="leave-to">To Date</label>
+        <input type="date" id="leave-to" class="form-input">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="leave-days">Days</label>
+        <input type="number" id="leave-days" class="form-input" style="width: 90px;" min="1">
+      </div>
+      <button class="btn btn-primary" id="leave-save-btn">Apply</button>
+    </div>
+    <div id="leave-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(formPanel);
+
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead><tr><th>Code</th><th>Employee</th><th>Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+  `;
+  html += records.length === 0
+    ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No leave applications yet.</td></tr>`
+    : records.map(r => `
+        <tr>
+          <td style="font-family: monospace;">${r.code || r.id}</td>
+          <td>${r.employee_id || ''}</td>
+          <td>${r.leave_type || ''}</td>
+          <td>${r.from_date || ''}</td>
+          <td>${r.to_date || ''}</td>
+          <td>${r.days ?? ''}</td>
+          <td><span class="badge ${r.status === 'Approved' ? 'badge-success' : r.status === 'Rejected' ? 'badge-danger' : 'badge-warning'}">${r.status}</span></td>
+          <td>${r.status === 'Applied' ? `
+            <button class="action-btn" onclick="decideLeave('${r.id}', 'Approved')">Approve</button>
+            <button class="action-btn action-btn-danger" onclick="decideLeave('${r.id}', 'Rejected')">Reject</button>
+          ` : ''}</td>
+        </tr>
+      `).join('');
+  html += `</tbody></table>`;
+  listPanel.innerHTML = html;
+  container.appendChild(listPanel);
+
+  document.getElementById('leave-save-btn').addEventListener('click', saveLeave);
+}
+
+async function saveLeave() {
+  const errorEl = document.getElementById('leave-form-error');
+  errorEl.classList.add('hidden');
+
+  const code = document.getElementById('leave-code').value.trim();
+  const employeeId = document.getElementById('leave-employee').value;
+  const leaveType = document.getElementById('leave-type').value;
+  const fromDate = document.getElementById('leave-from').value;
+  const toDate = document.getElementById('leave-to').value;
+  const days = parseFloat(document.getElementById('leave-days').value);
+
+  if (!code || !employeeId || !fromDate || !toDate || !days) {
+    errorEl.textContent = 'Leave Code, Employee, From/To Date, and Days are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/doc/Leave', {
+    method: 'POST',
+    body: JSON.stringify({ id: code, code, employee_id: employeeId, leave_type: leaveType, from_date: fromDate, to_date: toDate, days, status: 'Applied' })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to apply leave.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('hr');
+}
+
+async function decideLeave(leaveId, decision) {
+  // The generic doc endpoint replaces the whole document on update, not a
+  // partial patch - fetch the current record first and resubmit it with
+  // just status changed (same pattern required when editing an Approved
+  // PurchaseOrder, Stage 13.8).
+  const getRes = await apiFetch(`/api/v1/doc/Leave/${encodeURIComponent(leaveId)}`);
+  if (!getRes) return;
+  if (!getRes.ok) {
+    await showCustomAlert('Failed to load leave record.', 'Update Failed');
+    return;
+  }
+  const leave = await getRes.json();
+  leave.status = decision;
+
+  const res = await apiFetch(`/api/v1/doc/Leave/${encodeURIComponent(leaveId)}`, {
+    method: 'POST',
+    body: JSON.stringify(leave)
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showCustomAlert(data.error || 'Failed to update leave status.', 'Update Failed');
+    return;
+  }
+  renderView('hr');
+}
+
+function renderPayrollExportTab(container) {
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 20px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="payroll-from">From</label>
+        <input type="date" id="payroll-from" class="form-input">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="payroll-to">To</label>
+        <input type="date" id="payroll-to" class="form-input">
+      </div>
+      <button class="btn btn-primary" id="payroll-export-btn">Export</button>
+    </div>
+    <div id="payroll-export-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <div id="payroll-export-results"></div>
+  `;
+  container.appendChild(panel);
+
+  document.getElementById('payroll-export-btn').addEventListener('click', runPayrollExport);
+}
+
+async function runPayrollExport() {
+  const errorEl = document.getElementById('payroll-export-error');
+  const resultsEl = document.getElementById('payroll-export-results');
+  errorEl.classList.add('hidden');
+
+  const from = document.getElementById('payroll-from').value;
+  const to = document.getElementById('payroll-to').value;
+  if (!from || !to) {
+    errorEl.textContent = 'Select both From and To dates.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch(`/api/v1/hr/payroll-export?from=${from}&to=${to}`);
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Export failed.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  let html = `
+    <table>
+      <thead><tr><th>Employee</th><th>Present Days</th><th>Absent Days</th><th>Late Days</th><th>Approved Leave Days</th></tr></thead>
+      <tbody>
+  `;
+  html += data.length === 0
+    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No records in this period.</td></tr>`
+    : data.map(e => `
+        <tr>
+          <td>${e.employee_id}</td>
+          <td>${e.present_days}</td>
+          <td>${e.absent_days}</td>
+          <td>${e.late_days}</td>
+          <td>${e.approved_leave_days}</td>
+        </tr>
+      `).join('');
+  html += `</tbody></table>`;
+  resultsEl.innerHTML = html;
 }
 
 // Render dynamic DocType CRUD Table view

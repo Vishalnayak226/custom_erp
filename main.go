@@ -362,6 +362,9 @@ func main() {
 	http.HandleFunc("POST /api/v1/stickers/print", apiMiddleware(handlePrintStickers))
 	http.HandleFunc("GET /api/v1/stickers/history", apiMiddleware(handlePrintHistory))
 
+	// HR Foundation
+	http.HandleFunc("GET /api/v1/hr/payroll-export", apiMiddleware(handlePayrollExport))
+
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
 	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(featureGate("oms_integration", handleShopifyOrderWebhook)))
@@ -880,6 +883,17 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				if errReset := engines.ResetToPendingOnEdit(tenantID, doctype, docID, userID, role, payload); errReset != nil {
 					engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "APPROVAL_RESET_FAILED", r.URL.Path, errReset.Error(), "")
 				}
+			}
+		}
+
+		// HR Access Link Hook (Stage 13.13a, MB 16.3): an Employee's
+		// active/inactive status controls their linked ERP user's ability
+		// to log in.
+		if doctype == "Employee" {
+			empUserID, _ := payload["user_id"].(string)
+			empStatus, _ := payload["status"].(string)
+			if errSync := engines.SyncEmployeeAccessLink(tenantID, empUserID, empStatus); errSync != nil {
+				engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "ACCESS_LINK_SYNC_FAILED", r.URL.Path, errSync.Error(), "")
 			}
 		}
 
@@ -1899,6 +1913,31 @@ func handlePrintHistory(w http.ResponseWriter, r *http.Request) {
 	}
 	if results == nil {
 		results = []engines.PrintHistoryEntry{}
+	}
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+// handlePayrollExport implements MB 16.3's "Payroll Interface": exports
+// approved attendance/leave data for an external payroll system to consume.
+func handlePayrollExport(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	from := r.URL.Query().Get("from")
+	to := r.URL.Query().Get("to")
+	if from == "" || to == "" {
+		http.Error(w, "Query parameters 'from' and 'to' are required (YYYY-MM-DD)", http.StatusBadRequest)
+		return
+	}
+	results, err := engines.GetPayrollExport(tenantID, from, to)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if results == nil {
+		results = []engines.PayrollExportEntry{}
 	}
 	_ = json.NewEncoder(w).Encode(results)
 }

@@ -682,3 +682,55 @@ CREATE TABLE IF NOT EXISTS tenant_default.sticker_print_log (
     printed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_sticker_print_log_sku ON tenant_default.sticker_print_log (sku);
+
+-- 26. HR Foundation (Stage 13.13a) - MB Sec.16.3. Employee is registered as
+-- document_type='Master' (appears under Master Definition automatically,
+-- same pattern as Vendor/Customer/Printer); Attendance/Leave are
+-- 'Transaction' type since they're day-to-day records, not master data.
+INSERT INTO tenant_default.doctype_meta (name, module, document_type) VALUES
+('Employee', 'HR', 'Master'),
+('Attendance', 'HR', 'Transaction'),
+('Leave', 'HR', 'Transaction')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('Employee', 'code', 'Employee ID', 'Data', TRUE, NULL, 1),
+('Employee', 'name', 'Name', 'Data', TRUE, NULL, 2),
+('Employee', 'department', 'Department', 'Data', FALSE, NULL, 3),
+('Employee', 'designation', 'Designation', 'Data', FALSE, NULL, 4),
+('Employee', 'location', 'Location', 'Data', FALSE, NULL, 5),
+('Employee', 'reporting_manager', 'Reporting Manager (Employee ID)', 'Data', FALSE, NULL, 6),
+('Employee', 'user_id', 'Linked ERP User ID', 'Data', FALSE, NULL, 7),
+('Employee', 'status', 'Status', 'Select', TRUE, 'Active,Inactive', 8)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('Attendance', 'code', 'Attendance Code', 'Data', TRUE, NULL, 1),
+('Attendance', 'employee_id', 'Employee', 'Link', TRUE, 'Employee', 2),
+('Attendance', 'date', 'Date', 'Date', TRUE, NULL, 3),
+('Attendance', 'location', 'Location', 'Data', FALSE, NULL, 4),
+('Attendance', 'status', 'Status', 'Select', TRUE, 'Present,Absent,Late,Leave,Holiday,WeeklyOff', 5)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('Leave', 'code', 'Leave Code', 'Data', TRUE, NULL, 1),
+('Leave', 'employee_id', 'Employee', 'Link', TRUE, 'Employee', 2),
+('Leave', 'leave_type', 'Leave Type', 'Select', TRUE, 'Casual,Sick,Earned,Unpaid', 3),
+('Leave', 'from_date', 'From Date', 'Date', TRUE, NULL, 4),
+('Leave', 'to_date', 'To Date', 'Date', TRUE, NULL, 5),
+('Leave', 'days', 'Days', 'Number', TRUE, NULL, 6),
+('Leave', 'status', 'Status', 'Select', TRUE, 'Applied,Approved,Rejected', 7)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+-- HR/Admin manages all HR data. Store Manager can read Employee (know
+-- their team) and create/read/update Attendance+Leave for day-to-day
+-- store operations (mark attendance, approve leave) - same read/update
+-- pattern already given for PurchaseOrder approvals (Stage 13.8).
+INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES
+('HR/Admin', 'Employee', TRUE, TRUE, TRUE, TRUE),
+('HR/Admin', 'Attendance', TRUE, TRUE, TRUE, TRUE),
+('HR/Admin', 'Leave', TRUE, TRUE, TRUE, TRUE),
+('Store Manager', 'Employee', TRUE, FALSE, FALSE, FALSE),
+('Store Manager', 'Attendance', TRUE, TRUE, TRUE, FALSE),
+('Store Manager', 'Leave', TRUE, TRUE, TRUE, FALSE)
+ON CONFLICT (role, doctype_name) DO NOTHING;
