@@ -365,6 +365,12 @@ func main() {
 	// HR Foundation
 	http.HandleFunc("GET /api/v1/hr/payroll-export", apiMiddleware(handlePayrollExport))
 
+	// Fixed Asset Management
+	http.HandleFunc("GET /api/v1/assets/register", apiMiddleware(handleAssetRegister))
+	http.HandleFunc("POST /api/v1/assets/capitalize", apiMiddleware(handleCapitalizeAsset))
+	http.HandleFunc("POST /api/v1/assets/transfer", apiMiddleware(handleTransferAsset))
+	http.HandleFunc("POST /api/v1/assets/dispose", apiMiddleware(handleDisposeAsset))
+
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
 	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(featureGate("oms_integration", handleShopifyOrderWebhook)))
@@ -1940,6 +1946,99 @@ func handlePayrollExport(w http.ResponseWriter, r *http.Request) {
 		results = []engines.PayrollExportEntry{}
 	}
 	_ = json.NewEncoder(w).Encode(results)
+}
+
+// Fixed Asset Management (Stage 13.13b). Asset creation/listing use the
+// same generic doc endpoint as Vendor/Customer/RFQ/Printer/Employee; these
+// handlers cover the lifecycle actions (capitalise/transfer/dispose) and
+// the depreciation-calculated register view, which need logic the generic
+// endpoint doesn't have.
+func handleAssetRegister(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	results, err := engines.GetAssetRegister(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if results == nil {
+		results = []engines.AssetRegisterEntry{}
+	}
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+func handleCapitalizeAsset(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		AssetID string `json:"asset_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.AssetID == "" {
+		http.Error(w, "Field 'asset_id' is required", http.StatusBadRequest)
+		return
+	}
+	if err := engines.CapitalizeAsset(tenantID, req.AssetID); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	engines.LogAuditEvent(tenantID, userID, "ASSET_CAPITALIZE", "SUCCESS", fmt.Sprintf("Asset %s capitalised", req.AssetID))
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "capitalised"})
+}
+
+func handleTransferAsset(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	username := r.Header.Get("Resolved-Username")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		AssetID      string `json:"asset_id"`
+		NewLocation  string `json:"new_location"`
+		NewCustodian string `json:"new_custodian"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.AssetID == "" || req.NewLocation == "" {
+		http.Error(w, "Fields 'asset_id' and 'new_location' are required", http.StatusBadRequest)
+		return
+	}
+	if err := engines.TransferAsset(tenantID, req.AssetID, req.NewLocation, req.NewCustodian, username); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "transferred"})
+}
+
+func handleDisposeAsset(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		AssetID      string `json:"asset_id"`
+		DisposalType string `json:"disposal_type"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.AssetID == "" || req.DisposalType == "" {
+		http.Error(w, "Fields 'asset_id' and 'disposal_type' are required", http.StatusBadRequest)
+		return
+	}
+	if err := engines.DisposeAsset(tenantID, req.AssetID, req.DisposalType); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	engines.LogAuditEvent(tenantID, userID, "ASSET_DISPOSE", "SUCCESS", fmt.Sprintf("Asset %s disposed (%s)", req.AssetID, req.DisposalType))
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "disposed"})
 }
 
 func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {

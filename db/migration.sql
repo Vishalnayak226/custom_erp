@@ -734,3 +734,39 @@ INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, all
 ('Store Manager', 'Attendance', TRUE, TRUE, TRUE, FALSE),
 ('Store Manager', 'Leave', TRUE, TRUE, TRUE, FALSE)
 ON CONFLICT (role, doctype_name) DO NOTHING;
+
+-- 27. Fixed Asset Management (Stage 13.13b) - MB Sec.16.1. Scoped to the
+-- asset-specific lifecycle (capitalisation -> depreciation -> transfer ->
+-- disposal); the PR -> PO -> GRN -> Vendor Invoice steps before
+-- capitalisation reuse the existing Procurement flow (PurchaseOrder/GRN),
+-- not duplicated here.
+INSERT INTO tenant_default.doctype_meta (name, module, document_type) VALUES
+('Asset', 'Finance', 'Transaction')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('Asset', 'code', 'Asset Number', 'Data', TRUE, NULL, 1),
+('Asset', 'category', 'Category', 'Data', FALSE, NULL, 2),
+('Asset', 'serial_number', 'Serial Number', 'Data', FALSE, NULL, 3),
+('Asset', 'vendor', 'Vendor', 'Data', FALSE, NULL, 4),
+('Asset', 'invoice_number', 'Invoice Number', 'Data', FALSE, NULL, 5),
+('Asset', 'acquisition_date', 'Acquisition Date', 'Date', TRUE, NULL, 6),
+('Asset', 'capitalisation_date', 'Capitalisation Date', 'Date', FALSE, NULL, 7),
+('Asset', 'cost', 'Cost', 'Number', TRUE, NULL, 8),
+('Asset', 'location', 'Location', 'Data', TRUE, NULL, 9),
+('Asset', 'custodian', 'Custodian', 'Data', FALSE, NULL, 10),
+('Asset', 'useful_life_years', 'Useful Life (years)', 'Number', TRUE, NULL, 11),
+('Asset', 'disposal_type', 'Disposal Type', 'Select', FALSE, 'Sale,Scrap,WriteOff', 12),
+('Asset', 'status', 'Status', 'Select', TRUE, 'Draft,Capitalised,Disposed', 13)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES
+('HR/Admin', 'Asset', TRUE, TRUE, TRUE, TRUE),
+('Store Manager', 'Asset', TRUE, FALSE, FALSE, FALSE)
+ON CONFLICT (role, doctype_name) DO NOTHING;
+
+-- New Chart of Accounts entries for the asset lifecycle's GL postings.
+INSERT INTO tenant_default.gl_accounts (account_code, account_name, account_type) VALUES
+('1400', 'Fixed Assets Account', 'Asset'),
+('5300', 'Loss on Asset Disposal', 'Expense')
+ON CONFLICT (account_code) DO NOTHING;
