@@ -375,6 +375,10 @@ func main() {
 	http.HandleFunc("POST /api/v1/expenses/verify", apiMiddleware(handleVerifyExpenseClaim))
 	http.HandleFunc("POST /api/v1/expenses/pay", apiMiddleware(handlePayExpenseClaim))
 
+	// CRM / Loyalty
+	http.HandleFunc("POST /api/v1/loyalty/redeem", apiMiddleware(handleRedeemLoyaltyPoints))
+	http.HandleFunc("GET /api/v1/loyalty/ledger", apiMiddleware(handleLoyaltyLedger))
+
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
 	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(featureGate("oms_integration", handleShopifyOrderWebhook)))
@@ -1473,6 +1477,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		CartNumber  string `json:"cart_number"`
 		Location    string `json:"location"`
 		PaymentMode string `json:"payment_mode"`
+		CustomerID  string `json:"customer_id"`
 		Items       []struct {
 			Sku       string  `json:"sku"`
 			Qty       int     `json:"qty"`
@@ -1607,6 +1612,16 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Paid', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'POSCart' AND id = $1`, schema), req.CartNumber)
+
+	// Loyalty point earn (Stage 13.13d, scoped MVP): purely additive - a
+	// failure here is logged but never fails an already-completed sale.
+	// Deliberately not wired into inventory/GL above; this checkout flow's
+	// idempotency/claim logic is load-bearing and this stays outside it.
+	if req.CustomerID != "" {
+		if errEarn := engines.EarnLoyaltyPoints(tenantID, req.CustomerID, totalSalePrice, req.CartNumber); errEarn != nil {
+			engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "LOYALTY_EARN_FAILED", r.URL.Path, errEarn.Error(), "")
+		}
+	}
 
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":      "completed",
@@ -2105,6 +2120,61 @@ func handlePayExpenseClaim(w http.ResponseWriter, r *http.Request) {
 	}
 	engines.LogAuditEvent(tenantID, userID, "EXPENSE_PAY", "SUCCESS", fmt.Sprintf("Expense claim %s paid, payable_amount=%d", req.ClaimID, payable))
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "paid", "payable_amount": payable})
+}
+
+// CRM/Loyalty (Stage 13.13d, scoped MVP). Redemption is a standalone action
+// (not wired into checkout's GL math - see handleCheckout) that burns
+// points and returns their rupee discount value; the cashier applies that
+// as a manual price adjustment before submitting the checkout.
+func handleRedeemLoyaltyPoints(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		CustomerID  string `json:"customer_id"`
+		Points      int    `json:"points"`
+		ReferenceID string `json:"reference_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.CustomerID == "" || req.Points <= 0 {
+		http.Error(w, "Fields 'customer_id' and a positive 'points' are required", http.StatusBadRequest)
+		return
+	}
+	discountValue, err := engines.RedeemLoyaltyPoints(tenantID, req.CustomerID, req.Points, req.ReferenceID)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"discount_value": discountValue})
+}
+
+func handleLoyaltyLedger(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	customerID := r.URL.Query().Get("customer_id")
+	if customerID == "" {
+		http.Error(w, "Query parameter 'customer_id' is required", http.StatusBadRequest)
+		return
+	}
+	balance, err := engines.GetLoyaltyBalance(tenantID, customerID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	ledger, err := engines.GetLoyaltyLedger(tenantID, customerID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if ledger == nil {
+		ledger = []engines.LoyaltyLedgerEntry{}
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"balance": balance, "ledger": ledger})
 }
 
 func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {

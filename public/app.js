@@ -956,10 +956,19 @@ function renderPOSView(container) {
   panel.className = 'table-panel';
   panel.style.padding = '24px';
   panel.innerHTML = `
-    <div class="form-group" style="max-width: 280px;">
-      <label class="form-label" for="pos-location">Location Code</label>
-      <input type="text" id="pos-location" class="form-input" placeholder="e.g. HO" value="${posLocation}">
+    <div style="display: flex; gap: 12px; align-items: flex-end;">
+      <div class="form-group" style="max-width: 280px; margin-bottom: 0;">
+        <label class="form-label" for="pos-location">Location Code</label>
+        <input type="text" id="pos-location" class="form-input" placeholder="e.g. HO" value="${posLocation}">
+      </div>
+      <div class="form-group" style="max-width: 220px; margin-bottom: 0;">
+        <label class="form-label" for="pos-customer">Customer Code (optional)</label>
+        <input type="text" id="pos-customer" class="form-input" placeholder="For loyalty points">
+      </div>
+      <button class="btn btn-outline" id="pos-loyalty-check-btn" type="button">Check Points</button>
+      <button class="btn btn-outline" id="pos-loyalty-redeem-btn" type="button">Redeem Points</button>
     </div>
+    <div id="pos-loyalty-info" style="margin: 8px 0 16px; font-size: 13px; color: var(--text-muted);"></div>
     <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 20px;">
       <div class="form-group" style="flex: 1; margin-bottom: 0;">
         <label class="form-label" for="pos-sku-input">Scan or Enter SKU</label>
@@ -1008,6 +1017,8 @@ function renderPOSView(container) {
     }
   });
   document.getElementById('pos-checkout-btn').addEventListener('click', submitPOSCheckout);
+  document.getElementById('pos-loyalty-check-btn').addEventListener('click', checkPOSLoyaltyBalance);
+  document.getElementById('pos-loyalty-redeem-btn').addEventListener('click', redeemPOSLoyaltyPoints);
 
   renderPOSCartTable();
 }
@@ -1113,6 +1124,7 @@ async function submitPOSCheckout() {
         cart_number: cartNumber,
         location: posLocation,
         payment_mode: document.getElementById('pos-payment-mode').value,
+        customer_id: document.getElementById('pos-customer').value.trim(),
         items: posCart.map(line => ({
           sku: line.sku,
           qty: line.qty,
@@ -1134,6 +1146,51 @@ async function submitPOSCheckout() {
   } finally {
     checkoutBtn.disabled = false;
   }
+}
+
+// CRM/Loyalty (Stage 13.13d, scoped MVP) - POS integration. Earning
+// happens automatically server-side (handleCheckout) once customer_id is
+// set; these two actions are the customer-facing "check balance" /
+// "redeem" steps a cashier drives manually before completing the sale.
+async function checkPOSLoyaltyBalance() {
+  const infoEl = document.getElementById('pos-loyalty-info');
+  const customerId = document.getElementById('pos-customer').value.trim();
+  if (!customerId) {
+    infoEl.textContent = 'Enter a customer code first.';
+    return;
+  }
+  const res = await apiFetch(`/api/v1/loyalty/ledger?customer_id=${encodeURIComponent(customerId)}`);
+  if (!res) return;
+  if (!res.ok) {
+    infoEl.textContent = 'Failed to look up loyalty balance.';
+    return;
+  }
+  const data = await res.json();
+  infoEl.textContent = `${customerId} has ${data.balance} loyalty point(s).`;
+}
+
+async function redeemPOSLoyaltyPoints() {
+  const infoEl = document.getElementById('pos-loyalty-info');
+  const customerId = document.getElementById('pos-customer').value.trim();
+  if (!customerId) {
+    infoEl.textContent = 'Enter a customer code first.';
+    return;
+  }
+  const pointsStr = window.prompt('How many points to redeem?');
+  const points = parseInt(pointsStr, 10);
+  if (!points || points <= 0) return;
+
+  const res = await apiFetch('/api/v1/loyalty/redeem', {
+    method: 'POST',
+    body: JSON.stringify({ customer_id: customerId, points })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    infoEl.textContent = data.error || 'Redemption failed.';
+    return;
+  }
+  infoEl.textContent = `Redeemed ${points} point(s) for a discount of ${data.discount_value}. Apply this manually to a cart line's Sale Price before completing the sale.`;
 }
 
 // Finance / GL screen - read-only trial balance view against the already-

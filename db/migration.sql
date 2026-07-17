@@ -821,3 +821,47 @@ INSERT INTO tenant_default.gl_accounts (account_code, account_name, account_type
 ('1500', 'GST Input Credit Account', 'Asset'),
 ('5400', 'Employee Expense Account', 'Expense')
 ON CONFLICT (account_code) DO NOTHING;
+
+-- 29. CRM/Loyalty (Stage 13.13d, scoped MVP) - CRM/Loyalty add-on blueprint
+-- Sec.3.4/3.5. Append-only ledger per the blueprint's own design rule
+-- ("Do not directly edit point balance") - balance is always SUM(Earn) -
+-- SUM(Burn) from this table, never a stored/editable field.
+CREATE TABLE IF NOT EXISTS tenant_default.loyalty_point_ledger (
+    id SERIAL PRIMARY KEY,
+    customer_id VARCHAR(100) NOT NULL,
+    transaction_type VARCHAR(10) NOT NULL, -- Earn, Burn
+    points INT NOT NULL,
+    reference_doctype VARCHAR(100),
+    reference_id VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_loyalty_ledger_customer ON tenant_default.loyalty_point_ledger (customer_id);
+
+-- 30. Manufacturing (Stage 13.13e, scoped MVP) - Manufacturing add-on
+-- blueprint Sec.7.2/7.3, single-level BOM + linear Production Order only.
+INSERT INTO tenant_default.doctype_meta (name, module, document_type) VALUES
+('BOM', 'Manufacturing', 'Master'),
+('ProductionOrder', 'Manufacturing', 'Transaction')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('BOM', 'code', 'BOM Code', 'Data', TRUE, NULL, 1),
+('BOM', 'parent_item', 'Parent Item (Finished Good SKU)', 'Data', TRUE, NULL, 2),
+('BOM', 'components', 'Components JSON ([{sku, qty}])', 'Data', TRUE, NULL, 3),
+('BOM', 'status', 'Status', 'Select', TRUE, 'Active,Inactive', 4)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('ProductionOrder', 'code', 'Production Order Number', 'Data', TRUE, NULL, 1),
+('ProductionOrder', 'bom_id', 'BOM', 'Link', TRUE, 'BOM', 2),
+('ProductionOrder', 'quantity', 'Quantity to Produce', 'Number', TRUE, NULL, 3),
+('ProductionOrder', 'location', 'Location', 'Data', TRUE, NULL, 4),
+('ProductionOrder', 'status', 'Status', 'Select', TRUE, 'Draft,Material Issued,Completed', 5)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES
+('HR/Admin', 'BOM', TRUE, TRUE, TRUE, TRUE),
+('HR/Admin', 'ProductionOrder', TRUE, TRUE, TRUE, TRUE),
+('Store Manager', 'BOM', TRUE, FALSE, FALSE, FALSE),
+('Store Manager', 'ProductionOrder', TRUE, TRUE, TRUE, FALSE)
+ON CONFLICT (role, doctype_name) DO NOTHING;
