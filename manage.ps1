@@ -1,38 +1,76 @@
 <#
-Start/stop/restart the ERP dev stack (PostgreSQL + Go server) from one place.
+Start/stop/restart the ERP dev/test/live stack (PostgreSQL + Go server) from one place.
 
 Usage:
-  .\manage.ps1              interactive menu
-  .\manage.ps1 start        start Postgres, wait until ready, then start erp-server
-  .\manage.ps1 stop         stop erp-server, then stop Postgres
-  .\manage.ps1 restart      stop then start
-  .\manage.ps1 status       show what's currently running
-  .\manage.ps1 logs         show the last lines of both log files
-  .\manage.ps1 release      stop erp-server if running, rebuild it stripped (-ldflags="-s -w"),
-                             report the size change. Does not restart it - run 'start' after.
+  .\manage.ps1                     interactive menu (dev)
+  .\manage.ps1 start                start Postgres, wait until ready, then start erp-server (dev)
+  .\manage.ps1 stop                 stop erp-server, then stop Postgres (dev)
+  .\manage.ps1 restart              stop then start (dev)
+  .\manage.ps1 status               show what's currently running (dev)
+  .\manage.ps1 logs                 show the last lines of both log files (dev)
+  .\manage.ps1 release              stop erp-server if running, rebuild it stripped (-ldflags="-s -w"),
+                                     report the size change. Does not restart it - run 'start' after.
+  .\manage.ps1 <action> -Env test   same actions, targeting the 'test' environment instead of 'dev'
+                                     (own port/database, per environments.json - see promote.ps1
+                                     for how a commit actually gets there). -Env live works the same way.
+  .\manage.ps1 fleet-status         one-shot report across all 3 environments: port up/down, live
+                                     GET /api/v1/version (commit/build time), last recorded promotion.
+
+Postgres itself (portable install, port 5435) is shared across all 3 environments - only the
+database differs per environment (see environments.json) - so 'start'/'stop' -Env test|live only
+start/stop that environment's erp-server.exe, never a second Postgres instance.
 #>
 
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("start", "stop", "restart", "status", "logs", "release")]
-    [string]$Action
+    [ValidateSet("start", "stop", "restart", "status", "logs", "release", "fleet-status")]
+    [string]$Action,
+
+    [ValidateSet("dev", "test", "live")]
+    [string]$Env = "dev"
 )
 
 $ErrorActionPreference = "Stop"
 
+$RepoRoot = $PSScriptRoot
+$envConfigPath = Join-Path $RepoRoot "environments.json"
+$envConfig = if (Test-Path $envConfigPath) { Get-Content $envConfigPath -Raw | ConvertFrom-Json } else { $null }
+
+# Stage 14.9: resolve which directory/port/database this invocation targets.
+# 'dev' always resolves to this exact working tree and the original
+# hardcoded 5435/8080/custom_erp - byte-for-byte the same as before
+# environments.json existed, so a bare `.\manage.ps1 start` behaves exactly
+# as it always has. 'test'/'live' resolve to their own git worktree
+# (created by promote.ps1, not this script) and their own database.
+function Resolve-Env($envName) {
+    if ($envName -eq "dev" -or -not $envConfig) {
+        return @{ ErpDir = $RepoRoot; PgPort = 5435; ErpPort = 8080; Database = "custom_erp" }
+    }
+    $cfg = $envConfig.$envName
+    $worktreePath = if ($cfg.worktree) { Join-Path $env:USERPROFILE $cfg.worktree } else { $RepoRoot }
+    return @{ ErpDir = $worktreePath; PgPort = $cfg.pgPort; ErpPort = $cfg.erpPort; Database = $cfg.database }
+}
+
+$resolved = Resolve-Env $Env
 $PgBin    = "$env:USERPROFILE\pg-portable\pgsql\bin"
 $PgData   = "$env:USERPROFILE\pg-data"
-$PgPort   = 5435
+$PgPort   = $resolved.PgPort
 $GoBin    = "$env:USERPROFILE\go-portable\go\bin"
-$ErpDir   = $PSScriptRoot
+$ErpDir   = $resolved.ErpDir
 $ErpExe   = Join-Path $ErpDir "erp-server.exe"
-$ErpPort  = 8080
+$ErpPort  = $resolved.ErpPort
+$ErpDatabase = $resolved.Database
 $LogDir   = Join-Path $ErpDir "logs"
 $PgLog    = Join-Path $LogDir "postgres.log"
 $ErpOutLog = Join-Path $LogDir "erp-server.out.log"
 $ErpErrLog = Join-Path $LogDir "erp-server.err.log"
 
-if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out-Null }
+if (Test-Path $ErpDir) {
+    if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out-Null }
+} elseif ($Env -ne "dev") {
+    Write-Host "'$Env' has no worktree yet at $ErpDir - run promote.ps1 -To $Env at least once first." -ForegroundColor Red
+    exit 1
+}
 
 function Test-PortOpen($port) {
     return [bool](Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue)
@@ -42,6 +80,7 @@ function Show-Status {
     $pgUp  = Test-PortOpen $PgPort
     $erpUp = Test-PortOpen $ErpPort
     Write-Host ""
+    Write-Host "  Environment: $Env  (database: $ErpDatabase)" -ForegroundColor DarkGray
     Write-Host "  PostgreSQL  (port $PgPort)  " -NoNewline
     if ($pgUp)  { Write-Host "RUNNING" -ForegroundColor Green } else { Write-Host "STOPPED" -ForegroundColor Red }
     Write-Host "  ERP Server  (port $ErpPort)  " -NoNewline
@@ -93,9 +132,15 @@ function Start-Erp {
         Write-Host "Postgres isn't running yet - the server would crash on startup. Starting Postgres first..." -ForegroundColor Yellow
         Start-Pg
     }
-    Write-Host "Starting ERP server..." -ForegroundColor Cyan
+    Write-Host "Starting ERP server ('$Env', port $ErpPort, database '$ErpDatabase')..." -ForegroundColor Cyan
+    # PORT/DATABASE_URL (Stage 14.9) let dev/test/live run the same binary
+    # side by side - for 'dev' these match main.go's own hardcoded defaults
+    # exactly, so setting them here changes nothing about dev's behavior.
+    $env:PORT = "$ErpPort"
+    $env:DATABASE_URL = "postgres://postgres@localhost:$PgPort/$ErpDatabase`?sslmode=disable"
     Start-Process -FilePath $ErpExe -WorkingDirectory $ErpDir -WindowStyle Hidden `
         -RedirectStandardOutput $ErpOutLog -RedirectStandardError $ErpErrLog
+    Remove-Item Env:\PORT, Env:\DATABASE_URL -ErrorAction SilentlyContinue
 
     for ($i = 0; $i -lt 10; $i++) {
         if (Test-PortOpen $ErpPort) { Write-Host "ERP server is up: http://localhost:$ErpPort" -ForegroundColor Green; return }
@@ -105,13 +150,16 @@ function Start-Erp {
 }
 
 function Stop-Erp {
-    $proc = Get-Process -Name "erp-server" -ErrorAction SilentlyContinue
-    if (-not $proc) {
-        Write-Host "ERP server is not running." -ForegroundColor Yellow
+    # Targeted by port, not by process name - dev/test/live can all be
+    # running erp-server.exe simultaneously (Stage 14.9), so "the process
+    # named erp-server" is ambiguous once more than one environment is up.
+    $conns = Get-NetTCPConnection -LocalPort $ErpPort -State Listen -ErrorAction SilentlyContinue
+    if (-not $conns) {
+        Write-Host "ERP server ('$Env') is not running." -ForegroundColor Yellow
         return
     }
-    Write-Host "Stopping ERP server..." -ForegroundColor Cyan
-    $proc | Stop-Process -Force
+    Write-Host "Stopping ERP server ('$Env', port $ErpPort)..." -ForegroundColor Cyan
+    $conns | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
     Write-Host "ERP server stopped." -ForegroundColor Green
 }
 
@@ -167,6 +215,35 @@ function Build-Release {
     }
 }
 
+function Show-FleetStatus {
+    if (-not $envConfig) {
+        Write-Host "environments.json not found." -ForegroundColor Red
+        return
+    }
+    Write-Host "`n==== Fleet Status ====" -ForegroundColor Magenta
+    foreach ($name in @("dev", "test", "live")) {
+        $cfg = Resolve-Env $name
+        $up = Test-PortOpen $cfg.ErpPort
+        Write-Host "`n  $name  (port $($cfg.ErpPort), database '$($cfg.Database)')" -ForegroundColor Cyan
+        if (-not $up) {
+            Write-Host "    STOPPED" -ForegroundColor Red
+            continue
+        }
+        try {
+            $v = Invoke-RestMethod -Uri "http://localhost:$($cfg.ErpPort)/api/v1/version" -TimeoutSec 3
+            Write-Host "    RUNNING - version $($v.version), commit $($v.git_commit), built $($v.build_time)" -ForegroundColor Green
+        } catch {
+            Write-Host "    RUNNING (port open) but /api/v1/version didn't respond: $($_.Exception.Message)" -ForegroundColor Yellow
+        }
+        try {
+            $last = & "$PgBin\psql.exe" -h localhost -p 5435 -U postgres -d custom_erp -tAc `
+                "SELECT git_commit || ' (' || build_status || ') at ' || promoted_at FROM public.deployments WHERE environment = '$name' ORDER BY promoted_at DESC LIMIT 1" 2>$null
+            if ($last -and $last.Trim()) { Write-Host "    Last promotion: $($last.Trim())" -ForegroundColor DarkGray }
+        } catch {}
+    }
+    Write-Host ""
+}
+
 function Show-Logs {
     Write-Host "`n--- erp-server.out.log (last 20 lines) ---" -ForegroundColor Cyan
     if (Test-Path $ErpOutLog) { Get-Content $ErpOutLog -Tail 20 } else { Write-Host "(no log yet)" }
@@ -185,6 +262,7 @@ function Invoke-Action($a) {
         "status"  { Show-Status }
         "logs"    { Show-Logs }
         "release" { Build-Release }
+        "fleet-status" { Show-FleetStatus }
     }
 }
 
@@ -203,6 +281,7 @@ while ($true) {
     Write-Host "  4) Status"
     Write-Host "  5) Show logs"
     Write-Host "  6) Build stripped release binary"
+    Write-Host "  7) Fleet status (dev/test/live)"
     Write-Host "  0) Exit"
     $choice = Read-Host "`nChoose an option"
     switch ($choice) {
@@ -212,6 +291,7 @@ while ($true) {
         "4" { Invoke-Action "status" }
         "5" { Invoke-Action "logs" }
         "6" { Invoke-Action "release" }
+        "7" { Invoke-Action "fleet-status" }
         "0" { exit }
         default { Write-Host "Invalid choice." -ForegroundColor Red }
     }

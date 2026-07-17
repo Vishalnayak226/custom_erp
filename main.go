@@ -510,8 +510,16 @@ func main() {
 	fs := http.FileServer(http.Dir("./public"))
 	http.Handle("/", fs)
 
-	log.Println("Starting ERP Server on http://localhost:8080")
-	if err := http.ListenAndServe(":8080", securityHeaders(http.DefaultServeMux)); err != nil {
+	// Stage 14.9: PORT is what lets dev/test/live (and any throwaway
+	// verification instance) run the exact same binary side by side on one
+	// machine. Defaults to 8080 so every existing deployment/doc/script that
+	// assumes the old hardcoded port keeps working unchanged.
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+	log.Printf("Starting ERP Server on http://localhost:%s\n", port)
+	if err := http.ListenAndServe(":"+port, securityHeaders(http.DefaultServeMux)); err != nil {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }

@@ -1,0 +1,21 @@
+{
+  "_comment": "Stage 14.9-14.12: dev/test/live instance registry for manage.ps1 -Env and promote.ps1. All three share the one portable Postgres server already used for dev (localhost:5435) but use separate databases - full data isolation without provisioning 3 separate Postgres clusters on one dev machine. dev runs directly out of this working tree (no worktree); test/live are separate git worktrees so they can run a different commit than whatever's currently checked out here.",
+  "dev": {
+    "erpPort": 8080,
+    "pgPort": 5435,
+    "database": "custom_erp",
+    "worktree": null
+  },
+  "test": {
+    "erpPort": 8081,
+    "pgPort": 5435,
+    "database": "custom_erp_test",
+    "worktree": "erp-worktrees/test"
+  },
+  "live": {
+    "erpPort": 8082,
+    "pgPort": 5435,
+    "database": "custom_erp_live",
+    "worktree": "erp-worktrees/live"
+  }
+}
