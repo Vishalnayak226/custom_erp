@@ -91,6 +91,7 @@ func ProvisionTenantSchema(tenantID string, schemaName string) (string, error) {
 		"channel_product_mapping",
 		"channel_order_mapping",
 		"feature_flags",
+		"module_entitlements",
 	}
 
 	tx, err := db.DB.Begin()
@@ -118,6 +119,7 @@ func ProvisionTenantSchema(tenantID string, schemaName string) (string, error) {
 		"gl_accounts",
 		"prefix_configs",
 		"feature_flags",
+		"module_entitlements",
 	}
 
 	for _, seedTable := range seeds {

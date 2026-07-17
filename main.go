@@ -199,6 +199,29 @@ func featureGate(featureName string, next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// moduleGate 403s a request if the resolved tenant has the named functional
+// module disabled (Stage 14.1, public.modules / tenant_default.module_entitlements
+// - see engines/modules.go). Sibling of featureGate: same composition rule
+// (must sit inside apiMiddleware so Resolved-Tenant-ID is already set), same
+// fail-closed default. featureGate gates optional external integrations
+// (Shopify/WMS/forecasting); moduleGate gates whole functional areas of the
+// core product (HR, Manufacturing, Assets, ...) - the two are independent
+// and can both wrap the same handler.
+func moduleGate(moduleKey string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tenantID := r.Header.Get("Resolved-Tenant-ID")
+		enabled, _ := engines.IsModuleEnabled(tenantID, moduleKey)
+		if !enabled {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"error": fmt.Sprintf("Module '%s' is disabled for this tenant", moduleKey),
+			})
+			return
+		}
+		next(w, r)
+	}
+}
+
 func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		correlationID := generateUUID()
@@ -348,40 +371,40 @@ func main() {
 	// GST / Tax Engine
 	http.HandleFunc("POST /api/v1/gst/calculate", apiMiddleware(handleCalculateGST))
 
-	// Report Catalog
-	http.HandleFunc("GET /api/v1/reports/current-stock", apiMiddleware(handleCurrentStockReport))
-	http.HandleFunc("GET /api/v1/reports/sales-register", apiMiddleware(handleSalesRegisterReport))
-	http.HandleFunc("GET /api/v1/reports/vendor-ledger", apiMiddleware(handleVendorLedgerReport))
-	http.HandleFunc("GET /api/v1/reports/payables-ageing", apiMiddleware(handlePayablesAgeingReport))
+	// Report Catalog (Stage 14.1: module-gated - "reports")
+	http.HandleFunc("GET /api/v1/reports/current-stock", apiMiddleware(moduleGate("reports", handleCurrentStockReport)))
+	http.HandleFunc("GET /api/v1/reports/sales-register", apiMiddleware(moduleGate("reports", handleSalesRegisterReport)))
+	http.HandleFunc("GET /api/v1/reports/vendor-ledger", apiMiddleware(moduleGate("reports", handleVendorLedgerReport)))
+	http.HandleFunc("GET /api/v1/reports/payables-ageing", apiMiddleware(moduleGate("reports", handlePayablesAgeingReport)))
 
-	// RFQ / Vendor Quote / Quote Comparison
-	http.HandleFunc("GET /api/v1/rfq/quotes", apiMiddleware(handleGetVendorQuotesForRFQ))
-	http.HandleFunc("POST /api/v1/rfq/select-quote", apiMiddleware(handleSelectWinningQuote))
+	// RFQ / Vendor Quote / Quote Comparison (Stage 14.1: module-gated - "rfq")
+	http.HandleFunc("GET /api/v1/rfq/quotes", apiMiddleware(moduleGate("rfq", handleGetVendorQuotesForRFQ)))
+	http.HandleFunc("POST /api/v1/rfq/select-quote", apiMiddleware(moduleGate("rfq", handleSelectWinningQuote)))
 
-	// Sticker / Barcode Printing
-	http.HandleFunc("POST /api/v1/stickers/print", apiMiddleware(handlePrintStickers))
-	http.HandleFunc("GET /api/v1/stickers/history", apiMiddleware(handlePrintHistory))
+	// Sticker / Barcode Printing (Stage 14.1: module-gated - "stickers")
+	http.HandleFunc("POST /api/v1/stickers/print", apiMiddleware(moduleGate("stickers", handlePrintStickers)))
+	http.HandleFunc("GET /api/v1/stickers/history", apiMiddleware(moduleGate("stickers", handlePrintHistory)))
 
-	// HR Foundation
-	http.HandleFunc("GET /api/v1/hr/payroll-export", apiMiddleware(handlePayrollExport))
+	// HR Foundation (Stage 14.1: module-gated - "hr")
+	http.HandleFunc("GET /api/v1/hr/payroll-export", apiMiddleware(moduleGate("hr", handlePayrollExport)))
 
-	// Fixed Asset Management
-	http.HandleFunc("GET /api/v1/assets/register", apiMiddleware(handleAssetRegister))
-	http.HandleFunc("POST /api/v1/assets/capitalize", apiMiddleware(handleCapitalizeAsset))
-	http.HandleFunc("POST /api/v1/assets/transfer", apiMiddleware(handleTransferAsset))
-	http.HandleFunc("POST /api/v1/assets/dispose", apiMiddleware(handleDisposeAsset))
+	// Fixed Asset Management (Stage 14.1: module-gated - "assets")
+	http.HandleFunc("GET /api/v1/assets/register", apiMiddleware(moduleGate("assets", handleAssetRegister)))
+	http.HandleFunc("POST /api/v1/assets/capitalize", apiMiddleware(moduleGate("assets", handleCapitalizeAsset)))
+	http.HandleFunc("POST /api/v1/assets/transfer", apiMiddleware(moduleGate("assets", handleTransferAsset)))
+	http.HandleFunc("POST /api/v1/assets/dispose", apiMiddleware(moduleGate("assets", handleDisposeAsset)))
 
-	// Expense Management
-	http.HandleFunc("POST /api/v1/expenses/verify", apiMiddleware(handleVerifyExpenseClaim))
-	http.HandleFunc("POST /api/v1/expenses/pay", apiMiddleware(handlePayExpenseClaim))
+	// Expense Management (Stage 14.1: module-gated - "expenses")
+	http.HandleFunc("POST /api/v1/expenses/verify", apiMiddleware(moduleGate("expenses", handleVerifyExpenseClaim)))
+	http.HandleFunc("POST /api/v1/expenses/pay", apiMiddleware(moduleGate("expenses", handlePayExpenseClaim)))
 
-	// CRM / Loyalty
-	http.HandleFunc("POST /api/v1/loyalty/redeem", apiMiddleware(handleRedeemLoyaltyPoints))
-	http.HandleFunc("GET /api/v1/loyalty/ledger", apiMiddleware(handleLoyaltyLedger))
+	// CRM / Loyalty (Stage 14.1: module-gated - "crm_loyalty")
+	http.HandleFunc("POST /api/v1/loyalty/redeem", apiMiddleware(moduleGate("crm_loyalty", handleRedeemLoyaltyPoints)))
+	http.HandleFunc("GET /api/v1/loyalty/ledger", apiMiddleware(moduleGate("crm_loyalty", handleLoyaltyLedger)))
 
-	// Manufacturing
-	http.HandleFunc("POST /api/v1/manufacturing/issue-material", apiMiddleware(handleIssueProductionMaterial))
-	http.HandleFunc("POST /api/v1/manufacturing/complete", apiMiddleware(handleCompleteProductionOrder))
+	// Manufacturing (Stage 14.1: module-gated - "manufacturing")
+	http.HandleFunc("POST /api/v1/manufacturing/issue-material", apiMiddleware(moduleGate("manufacturing", handleIssueProductionMaterial)))
+	http.HandleFunc("POST /api/v1/manufacturing/complete", apiMiddleware(moduleGate("manufacturing", handleCompleteProductionOrder)))
 
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
@@ -410,6 +433,11 @@ func main() {
 	// Tenant Provisioning and SaaS Control APIs
 	http.HandleFunc("POST /api/v1/admin/tenant/provision", apiMiddleware(handleProvisionTenant))
 	http.HandleFunc("POST /api/v1/admin/tenant/feature-flag", apiMiddleware(handleSetFeatureFlag))
+
+	// Module Registry / Per-Tenant Module Entitlements (Stage 14.1)
+	http.HandleFunc("GET /api/v1/admin/modules", apiMiddleware(handleListModules))
+	http.HandleFunc("GET /api/v1/admin/tenant/module-entitlements", apiMiddleware(handleGetModuleEntitlements))
+	http.HandleFunc("POST /api/v1/admin/tenant/module-entitlement", apiMiddleware(handleSetModuleEntitlement))
 
 	// DocType Metadata APIs
 	http.HandleFunc("GET /api/v1/doc/{doctype}/meta", apiMiddleware(handleGetDocTypeMeta))
@@ -692,6 +720,21 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("You do not have permission to %s %s documents.", action, doctype)})
 		return
+	}
+
+	// 1b. Module-wise access control (Stage 14.1). {doctype} is a runtime
+	// path param, so unlike the fixed module routes (moduleGate wraps those
+	// at registration time) this has to resolve module_key per-request here.
+	// A doctype with no module_key assigned (moduleKey == "") is treated as
+	// ungated/core - matches this migration's additive, fail-open-for-
+	// unmapped-doctypes design (existing doctypes keep working exactly as
+	// before until explicitly mapped).
+	if moduleKey, mErr := engines.ModuleForDoctype(tenantID, doctype); mErr == nil && moduleKey != "" {
+		if enabled, _ := engines.IsModuleEnabled(tenantID, moduleKey); !enabled {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Module '%s' is disabled for this tenant", moduleKey)})
+			return
+		}
 	}
 
 	switch r.Method {
@@ -2762,5 +2805,105 @@ func handleSetFeatureFlag(w http.ResponseWriter, r *http.Request) {
 		"status":       "updated",
 		"feature_name": req.FeatureName,
 		"enabled":      req.Enabled,
+	})
+}
+
+// handleListModules returns the global module catalog (tenant-independent) -
+// what modules exist at all, regardless of any tenant's entitlements.
+func handleListModules(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can view the module catalog"})
+		return
+	}
+
+	modules, err := engines.ListModules()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(modules)
+}
+
+// handleGetModuleEntitlements returns the module catalog joined with the
+// resolved tenant's current enabled/disabled state for each module.
+func handleGetModuleEntitlements(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can view module entitlements"})
+		return
+	}
+
+	tenantID := r.URL.Query().Get("tenant_id")
+	if tenantID == "" {
+		tenantID = r.Header.Get("Resolved-Tenant-ID")
+	}
+
+	entitlements, err := engines.ListModuleEntitlements(tenantID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(entitlements)
+}
+
+// handleSetModuleEntitlement enables or disables one module for a tenant.
+// Core modules are rejected server-side by engines.SetModuleEntitlement -
+// this handler just surfaces that error as a 400 rather than re-checking it.
+func handleSetModuleEntitlement(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can modify module entitlements"})
+		return
+	}
+
+	var req struct {
+		TenantID  string `json:"tenant_id"`
+		ModuleKey string `json:"module_key"`
+		Enabled   bool   `json:"enabled"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid module-entitlement payload", http.StatusBadRequest)
+		return
+	}
+	if req.ModuleKey == "" {
+		http.Error(w, "Field 'module_key' is required", http.StatusBadRequest)
+		return
+	}
+
+	tenantID := req.TenantID
+	if tenantID == "" {
+		tenantID = r.Header.Get("Resolved-Tenant-ID")
+	}
+
+	grantedBy := r.Header.Get("Resolved-Username")
+	if err := engines.SetModuleEntitlement(tenantID, req.ModuleKey, req.Enabled, grantedBy); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":     "updated",
+		"tenant_id":  tenantID,
+		"module_key": req.ModuleKey,
+		"enabled":    req.Enabled,
 	})
 }

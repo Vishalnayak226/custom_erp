@@ -186,3 +186,101 @@ func TestCheckoutToForecastIntegration(t *testing.T) {
 			"if this is 0, the checkout-to-forecast status mismatch has regressed", demand)
 	}
 }
+
+// TestModuleGateBlocksAndRestoresDoctypeAccess (Stage 14.1) drives the real
+// generic-doc handler chain end-to-end against tenant_default's "hr" module:
+// access is open by default, a disabled module_entitlements row 403s the
+// same doctype it did not before, and re-enabling restores it - proving the
+// runtime module_key resolution added to handleGenericDoc (main.go, right
+// next to the existing checkPermission call) actually takes effect, not just
+// that engines.IsModuleEnabled/SetModuleEntitlement compile.
+func TestModuleGateBlocksAndRestoresDoctypeAccess(t *testing.T) {
+	connStr := "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+	db.InitDB(connStr)
+
+	testUser := "__moduletest_user__"
+	pw := randomTestPassword()
+	hash, err := bcrypt.GenerateFromPassword([]byte(pw), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("failed to hash test password: %v", err)
+	}
+	db.DB.Exec(`DELETE FROM tenant_default.users WHERE id = $1`, testUser)
+	if _, err := db.DB.Exec(`INSERT INTO tenant_default.users (id, username, password_hash, email, role, status) VALUES ($1, $1, $2, $3, 'HR/Admin', 'Active')`, testUser, string(hash), testUser+"@erp.com"); err != nil {
+		t.Fatalf("failed to seed test user: %v", err)
+	}
+	defer db.DB.Exec(`DELETE FROM tenant_default.users WHERE id = $1`, testUser)
+
+	// Always restore "hr" to enabled afterward, regardless of test outcome -
+	// this runs against the shared tenant_default schema, not a disposable tenant.
+	defer func() {
+		if err := engines.SetModuleEntitlement("default", "hr", true, "test-cleanup"); err != nil {
+			t.Logf("cleanup: failed to re-enable hr module: %v", err)
+		}
+	}()
+
+	// Real login + MFA enrollment/activation, same pattern as TestCheckoutToForecastIntegration.
+	loginRec := doRequest(t, apiMiddleware(handleLogin), "POST", "/api/v1/login", "", map[string]string{
+		"username": testUser,
+		"password": pw,
+	})
+	var loginResp map[string]interface{}
+	if err := json.Unmarshal(loginRec.Body.Bytes(), &loginResp); err != nil {
+		t.Fatalf("failed to decode login response: %v", err)
+	}
+	enrollmentToken, _ := loginResp["enrollment_token"].(string)
+	if enrollmentToken == "" {
+		t.Fatalf("expected login to require MFA enrollment for a fresh HR/Admin user, got: %s", loginRec.Body.String())
+	}
+	enrollRec := doRequest(t, apiMiddleware(handleMFAEnroll), "POST", "/api/v1/auth/mfa/enroll", enrollmentToken, nil)
+	var enrollResp map[string]string
+	if err := json.Unmarshal(enrollRec.Body.Bytes(), &enrollResp); err != nil {
+		t.Fatalf("failed to decode MFA enroll response: %v", err)
+	}
+	code, err := engines.GenerateTOTPCode(enrollResp["secret"])
+	if err != nil {
+		t.Fatalf("failed to compute TOTP code: %v", err)
+	}
+	activateRec := doRequest(t, apiMiddleware(handleMFAActivate), "POST", "/api/v1/auth/mfa/activate", enrollmentToken, map[string]string{"code": code})
+	var activateResp map[string]string
+	if err := json.Unmarshal(activateRec.Body.Bytes(), &activateResp); err != nil {
+		t.Fatalf("failed to decode MFA activate response: %v", err)
+	}
+	token := activateResp["token"]
+	if token == "" {
+		t.Fatalf("MFA activation succeeded but returned no session token: %s", activateRec.Body.String())
+	}
+
+	getEmployee := func() *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/doc/Employee", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.SetPathValue("doctype", "Employee")
+		rec := httptest.NewRecorder()
+		apiMiddleware(handleGenericDoc)(rec, req)
+		return rec
+	}
+
+	// 1. Baseline: "hr" module enabled by default, Employee list should be reachable.
+	if rec := getEmployee(); rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 with hr module enabled, got status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// 2. Disable "hr" via the real engine function, confirm the same request now 403s.
+	if err := engines.SetModuleEntitlement("default", "hr", false, "test"); err != nil {
+		t.Fatalf("failed to disable hr module: %v", err)
+	}
+	rec := getEmployee()
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("expected 403 with hr module disabled, got status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("Module 'hr' is disabled")) {
+		t.Errorf("expected the module-disabled error message, got body=%s", rec.Body.String())
+	}
+
+	// 3. Re-enable, confirm access is restored (not just that the module flips in isolation).
+	if err := engines.SetModuleEntitlement("default", "hr", true, "test"); err != nil {
+		t.Fatalf("failed to re-enable hr module: %v", err)
+	}
+	if rec := getEmployee(); rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 after re-enabling hr module, got status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
