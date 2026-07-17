@@ -133,10 +133,18 @@ function Build-Release {
     $beforeSize = $null
     if (Test-Path $ErpExe) { $beforeSize = (Get-Item $ErpExe).Length }
 
-    Write-Host "Building stripped release binary (-ldflags=`"-s -w`")..." -ForegroundColor Cyan
+    # Stage 14.6: stamp the binary with its real git commit and build time so
+    # GET /api/v1/version reports something more useful than "dev"/"unknown"
+    # (main.go's defaults, meant for a bare `go build` during iterative dev).
+    $commitHash = (git rev-parse --short HEAD 2>$null)
+    if (-not $commitHash) { $commitHash = "unknown" }
+    $buildTimestamp = (Get-Date -AsUTC -Format "yyyy-MM-ddTHH:mm:ssZ")
+    $ldflags = "-s -w -X main.gitCommit=$commitHash -X main.buildTime=$buildTimestamp"
+
+    Write-Host "Building stripped release binary (-ldflags=`"$ldflags`")..." -ForegroundColor Cyan
     Push-Location $ErpDir
     try {
-        & "$GoBin\go.exe" build -ldflags="-s -w" -o erp-server.exe
+        & "$GoBin\go.exe" build -ldflags="$ldflags" -o erp-server.exe
     } finally {
         Pop-Location
     }

@@ -284,3 +284,49 @@ func TestModuleGateBlocksAndRestoresDoctypeAccess(t *testing.T) {
 		t.Fatalf("expected 200 after re-enabling hr module, got status=%d body=%s", rec.Code, rec.Body.String())
 	}
 }
+
+// TestVersionEndpointIsPublicAndTenantStampingWorks (Stage 14.6) checks two
+// things the plan explicitly called out: /api/v1/version must be reachable
+// with no Authorization header at all (same tier as /login), and
+// engines.ProvisionTenantSchema must actually persist the version it was
+// called with, not silently drop it.
+func TestVersionEndpointIsPublicAndTenantStampingWorks(t *testing.T) {
+	connStr := "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+	db.InitDB(connStr)
+
+	// 1. No Authorization header at all - must not 401.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/version", nil)
+	rec := httptest.NewRecorder()
+	apiMiddleware(handleVersion)(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected /api/v1/version to be reachable with no auth header, got status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var versionResp map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &versionResp); err != nil {
+		t.Fatalf("failed to decode version response: %v", err)
+	}
+	if versionResp["version"] != currentAppVersion() {
+		t.Errorf("expected version %q, got %q", currentAppVersion(), versionResp["version"])
+	}
+
+	// 2. Provisioning stamps the tenant with the version it's called with.
+	testTenant := "__versiontest_tenant__"
+	testSchema := "tenant___versiontest_tenant__"
+	db.DB.Exec(`DROP SCHEMA IF EXISTS ` + testSchema + ` CASCADE`)
+	db.DB.Exec(`DELETE FROM public.tenants WHERE tenant_id = $1`, testTenant)
+	defer func() {
+		db.DB.Exec(`DROP SCHEMA IF EXISTS ` + testSchema + ` CASCADE`)
+		db.DB.Exec(`DELETE FROM public.tenants WHERE tenant_id = $1`, testTenant)
+	}()
+
+	if _, err := engines.ProvisionTenantSchema(testTenant, testSchema, "9.9.9-test"); err != nil {
+		t.Fatalf("failed to provision test tenant: %v", err)
+	}
+	var recordedVersion string
+	if err := db.DB.QueryRow(`SELECT app_version FROM public.tenants WHERE tenant_id = $1`, testTenant).Scan(&recordedVersion); err != nil {
+		t.Fatalf("failed to read back stamped version: %v", err)
+	}
+	if recordedVersion != "9.9.9-test" {
+		t.Errorf("expected stamped app_version '9.9.9-test', got %q", recordedVersion)
+	}
+}

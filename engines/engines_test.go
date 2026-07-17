@@ -564,7 +564,7 @@ func TestEngines(t *testing.T) {
 		_, _ = db.DB.Exec("DELETE FROM public.tenants WHERE id = $1", newTenant)
 
 		// Provision new tenant
-		adminPassword, err := ProvisionTenantSchema(newTenant, newSchema)
+		adminPassword, err := ProvisionTenantSchema(newTenant, newSchema, "0.1.0-test")
 		if err != nil {
 			t.Fatalf("Failed to provision new tenant schema: %v", err)
 		}

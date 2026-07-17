@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"database/sql"
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -20,6 +21,27 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+// Stage 14.6: application version, embedded from the repo-root VERSION file
+// at compile time so it can never drift out of sync with the binary that
+// reads it. gitCommit/buildTime default to "dev"/"unknown" for a bare
+// `go build` and are only populated by manage.ps1's release action, via
+// `-ldflags "-X main.gitCommit=... -X main.buildTime=..."`.
+//
+//go:embed VERSION
+var embeddedVersion string
+
+var (
+	gitCommit = "dev"
+	buildTime = "unknown"
+)
+
+// currentAppVersion returns the embedded VERSION file's content with
+// surrounding whitespace (the trailing newline every text file has)
+// trimmed - callers want "0.1.0", not "0.1.0\n".
+func currentAppVersion() string {
+	return strings.TrimSpace(embeddedVersion)
+}
 
 // RequestContext holds basic metadata for tracking execution
 type RequestContext struct {
@@ -117,6 +139,17 @@ const maxListLimit = 1000
 // An Origin not in this set never gets Access-Control-Allow-Origin/-Credentials -
 // the browser blocks the cross-origin response, which is the point.
 var corsAllowedOrigins = loadCORSAllowlist()
+
+// publicRoutes lists the only endpoints reachable with no bearer token at
+// all (Stage 14.6 adds /api/v1/version to what was previously just /login -
+// a client/ops tool needs to be able to check what build is running without
+// first authenticating). Deliberately a small, explicit allowlist rather
+// than a path-prefix rule, so adding a new public route is always a
+// one-line, reviewable decision.
+var publicRoutes = map[string]bool{
+	"/api/v1/login":   true,
+	"/api/v1/version": true,
+}
 
 func loadCORSAllowlist() map[string]bool {
 	allowed := map[string]bool{
@@ -310,8 +343,8 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid or expired token"})
 				return
 			}
-		} else if r.URL.Path != "/api/v1/login" {
-			// No token and this isn't the login endpoint itself: reject.
+		} else if !publicRoutes[r.URL.Path] {
+			// No token and this isn't one of the explicit public routes: reject.
 			w.WriteHeader(http.StatusUnauthorized)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
 			return
@@ -346,6 +379,10 @@ func main() {
 
 	// Authentication API
 	http.HandleFunc("POST /api/v1/login", apiMiddleware(handleLogin))
+
+	// Version (Stage 14.6) - public, same tier as /login, so a client/ops
+	// tool can check what build is running without authenticating first.
+	http.HandleFunc("GET /api/v1/version", apiMiddleware(handleVersion))
 	http.HandleFunc("POST /api/v1/auth/mfa/enroll", apiMiddleware(handleMFAEnroll))
 	http.HandleFunc("POST /api/v1/auth/mfa/activate", apiMiddleware(handleMFAActivate))
 	http.HandleFunc("POST /api/v1/auth/mfa/verify", apiMiddleware(handleMFAVerify))
@@ -406,6 +443,10 @@ func main() {
 	http.HandleFunc("POST /api/v1/manufacturing/issue-material", apiMiddleware(moduleGate("manufacturing", handleIssueProductionMaterial)))
 	http.HandleFunc("POST /api/v1/manufacturing/complete", apiMiddleware(moduleGate("manufacturing", handleCompleteProductionOrder)))
 
+	// PIM Foundation MVP (Stage 15: module-gated - "pim")
+	http.HandleFunc("GET /api/v1/pim/workbench", apiMiddleware(moduleGate("pim", handlePIMWorkbench)))
+	http.HandleFunc("GET /api/v1/pim/completeness/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMCompleteness)))
+
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
 	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(featureGate("oms_integration", handleShopifyOrderWebhook)))
@@ -438,6 +479,9 @@ func main() {
 	http.HandleFunc("GET /api/v1/admin/modules", apiMiddleware(handleListModules))
 	http.HandleFunc("GET /api/v1/admin/tenant/module-entitlements", apiMiddleware(handleGetModuleEntitlements))
 	http.HandleFunc("POST /api/v1/admin/tenant/module-entitlement", apiMiddleware(handleSetModuleEntitlement))
+
+	// Per-Tenant Version Record (Stage 14.6)
+	http.HandleFunc("GET /api/v1/admin/tenant/version", apiMiddleware(handleGetTenantVersion))
 
 	// DocType Metadata APIs
 	http.HandleFunc("GET /api/v1/doc/{doctype}/meta", apiMiddleware(handleGetDocTypeMeta))
@@ -901,6 +945,28 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// later edits to an existing one.
 		if doctype == "ExpenseClaim" && id == "" {
 			if err := engines.ValidateExpenseClaimControls(tenantID, payload); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				return
+			}
+		}
+
+		// PIM variant uniqueness (Stage 15): unlike the ExpenseClaim check
+		// above, this runs on create AND update - an edit can introduce a
+		// duplicate variant combination just as easily as a create can.
+		// effectiveID mirrors the docID resolution a few lines below (path
+		// id on update; client-supplied payload["id"] on a create that sets
+		// one explicitly, e.g. "id: code" - this codebase's own
+		// convention; blank otherwise, which is fine since a fresh
+		// server-generated UUID can never collide with a stored sibling).
+		if doctype == "Item" {
+			effectiveID := id
+			if effectiveID == "" {
+				if payloadID, exists := payload["id"]; exists && payloadID != nil {
+					effectiveID = fmt.Sprintf("%v", payloadID)
+				}
+			}
+			if err := engines.ValidateItemVariantUniqueness(tenantID, effectiveID, payload); err != nil {
 				w.WriteHeader(http.StatusBadRequest)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 				return
@@ -2025,6 +2091,44 @@ func handlePayrollExport(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(results)
 }
 
+// PIM Foundation MVP (Stage 15). Family/Attribute/Content CRUD all use the
+// same generic doc endpoint as Vendor/Customer/Employee; these two handlers
+// cover the Product Workbench (blueprint section 7/18) and its per-item
+// drill-down, which need the completeness-scoring logic the generic
+// endpoint doesn't have.
+func handlePIMWorkbench(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	family := r.URL.Query().Get("family")
+	results, err := engines.ListWorkbench(tenantID, family)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if results == nil {
+		results = []engines.WorkbenchEntry{}
+	}
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+func handlePIMCompleteness(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	itemCode := r.PathValue("itemCode")
+	result, err := engines.CalculateCompleteness(tenantID, itemCode)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(result)
+}
+
 // Fixed Asset Management (Stage 13.13b). Asset creation/listing use the
 // same generic doc endpoint as Vendor/Customer/RFQ/Printer/Employee; these
 // handlers cover the lifecycle actions (capitalise/transfer/dispose) and
@@ -2750,7 +2854,7 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	adminPassword, err := engines.ProvisionTenantSchema(req.TenantID, req.SchemaName)
+	adminPassword, err := engines.ProvisionTenantSchema(req.TenantID, req.SchemaName, currentAppVersion())
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
@@ -2905,5 +3009,70 @@ func handleSetModuleEntitlement(w http.ResponseWriter, r *http.Request) {
 		"tenant_id":  tenantID,
 		"module_key": req.ModuleKey,
 		"enabled":    req.Enabled,
+	})
+}
+
+// handleVersion (Stage 14.6) reports the running binary's build identity.
+// Public (see publicRoutes) - an ops tool or client should be able to check
+// what's running without authenticating first, same as any /version
+// endpoint elsewhere.
+func handleVersion(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"version":    currentAppVersion(),
+		"git_commit": gitCommit,
+		"build_time": buildTime,
+	})
+}
+
+// handleGetTenantVersion (Stage 14.6) surfaces what version was recorded
+// against a tenant's schema at last provision/promotion time, alongside the
+// live binary's own version, so a mismatch is visible from the API without
+// SSH'ing into an instance. app_version here is a point-in-time compat/audit
+// record, not live per-request dispatch - one running process can only ever
+// serve one binary version, regardless of which tenant is asking.
+func handleGetTenantVersion(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can view tenant version records"})
+		return
+	}
+
+	tenantID := r.URL.Query().Get("tenant_id")
+	if tenantID == "" {
+		tenantID = r.Header.Get("Resolved-Tenant-ID")
+	}
+	if tenantID == "" || tenantID == "default" {
+		tenantID = "default"
+	}
+
+	var recordedVersion, pinnedVersion sql.NullString
+	err := db.DB.QueryRow(`SELECT app_version, pinned_version FROM public.tenants WHERE tenant_id = $1`, tenantID).Scan(&recordedVersion, &pinnedVersion)
+	if err == sql.ErrNoRows {
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Unknown tenant_id"})
+		return
+	}
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	liveVersion := currentAppVersion()
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"tenant_id":        tenantID,
+		"recorded_version": recordedVersion.String,
+		"pinned_version":   pinnedVersion.String,
+		"live_version":     liveVersion,
+		"mismatch":         recordedVersion.Valid && recordedVersion.String != liveVersion,
 	})
 }

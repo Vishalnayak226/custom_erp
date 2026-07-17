@@ -54,12 +54,18 @@ func SetFeatureFlag(tenantID string, featureName string, enabled bool) error {
 // ProvisionTenantSchema provisions a new corporate tenant schema cloned from tenant_default templates.
 // Returns the freshly generated admin password - it is never persisted in plaintext anywhere and is
 // only returned this once, at creation time, for the caller to hand off securely.
-func ProvisionTenantSchema(tenantID string, schemaName string) (string, error) {
+// appVersion (Stage 14.6) stamps public.tenants.app_version at provisioning
+// time - a point-in-time compat/audit record of which build last touched
+// this tenant's schema, not a live per-request version dispatch (one running
+// process can only ever serve one binary version). Callers pass the running
+// binary's own currentAppVersion(); tests/tooling can pass "" to leave it
+// unset.
+func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string) (string, error) {
 	// 1. Insert tenant registry mapping
 	_, err := db.DB.Exec(`
-		INSERT INTO public.tenants (tenant_id, name, schema_name)
-		VALUES ($1, $1, $2)
-		ON CONFLICT (tenant_id) DO NOTHING`, tenantID, schemaName)
+		INSERT INTO public.tenants (tenant_id, name, schema_name, app_version)
+		VALUES ($1, $1, $2, NULLIF($3, ''))
+		ON CONFLICT (tenant_id) DO NOTHING`, tenantID, schemaName, appVersion)
 	if err != nil {
 		return "", fmt.Errorf("failed to register tenant mapping: %v", err)
 	}
