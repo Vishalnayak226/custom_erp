@@ -164,6 +164,29 @@ Closed `hardening_roadmap.md` Phase 1.1. Prior to this, `apiMiddleware` silently
 
 *   **Remote Repository**: `https://github.com/Vishalnayak226/custom_erp.git`
 *   **Branch**: `main`
-*   **Latest Commit**: `fb183dc`
-*   **Commit Message**: `Update docs/micro_checklist.md and artifacts walkthroughs for Phase 6`
-*   **Date**: 2026-07-11
+*   **Latest Commit**: `ccbc539`
+*   **Commit Message**: `Close Stage 13.13e: Manufacturing (scoped MVP - BOM + Production Order)`
+*   **Date**: 2026-07-17
+
+---
+
+## 12. Stage 13 Build Records (What We Built, 2026-07-12 through 2026-07-17)
+
+Closed the "business-user-facing ERP" gap identified in `docs/pdf_blueprint_gap_analysis.md` §1 — the codebase through Phase 7 was strong on kernel/omnichannel architecture but thin on the modules an actual end user touches day to day. Every item below shipped as its own commit, live-verified against a throwaway server instance before committing. Full scope decisions, bugs found/fixed, and verification detail live in `docs/micro_checklist.md`; this is a summary index, not the detail.
+
+*   **13.1-13.3 Security & feature gating**: `securityHeaders` middleware (CSP/HSTS/X-Frame-Options/X-Content-Type-Options), `featureGate()` wrapper.
+*   **13.4-13.7 Frontend for existing backend**: POS checkout screen, Finance/GL screen, Fulfillment screen, Marketplace screen (`public/app.js` `renderPOSView`/`renderFinanceView`/`renderFulfillmentView`/`renderMarketplaceView`). Fixed two location-filter bugs in `handleGenericDoc` where non-admin users saw zero results — first because `FulfillmentTask` stores `location_code` not `location`, then a deeper SQL `COALESCE(...) IS NULL` gap that hid records from doctypes with no location concept at all (e.g. `MarketplaceSettlement`).
+*   **13.8 Maker-checker approval/workflow engine**: `engines/approval.go` — amount-slab + role + location routing, `approval_rules`/`approval_log` tables, `SubmitForApproval`/`DecideApproval`. Reused later by ExpenseClaim (13.13c) rather than rebuilt. A concurrent session later hardened `DecideApproval` against a TOCTOU double-decision race with a `FOR UPDATE` row lock (commit `bffea51`).
+*   **13.9-13.10 Vendor/Customer masters + GST fields**: Vendor/Customer doctypes; Item `hsn_code`/`gst_rate` fields plus GST GL accounts.
+*   **TOTP MFA**: `engines/mfa.go` — RFC 6238 from stdlib only (`crypto/hmac`, `crypto/sha1`, `encoding/base32`), enrollment/activation/challenge flow, required for HR/Admin roles only. Custom HMAC-signed purpose-tokens (`SignPurposeToken`) carry the MFA challenge state.
+*   **13.11 Report catalog**: `engines/reports.go` — Current Stock, Sales Register, Vendor Ledger, Payables Ageing (4 prioritized reports, not the full ~80-report spec catalog).
+*   **13.12 RFQ / Vendor Quote / Quote Comparison**: `engines/rfq.go` — `GetVendorQuotesForRFQ`, transactional `SelectWinningQuote` (winner→Selected, others→Rejected, RFQ→Closed).
+*   **13.13a HR Foundation**: `engines/hr.go` — Employee/Attendance/Leave doctypes, Employee↔user access-link sync, payroll export.
+*   **13.13b Fixed Asset Management**: `engines/assets.go` — capitalize/straight-line-depreciate/transfer/dispose lifecycle, asset register (fixed a display bug where disposed assets showed full original cost as net block instead of 0).
+*   **13.13c Expense Management**: `engines/expense.go` — claim date-window + duplicate-bill validation, verify, pay (posts GL: Debit Employee Expense + GST Input Credit, Credit Cash/Bank). Reuses the 13.8 approval engine rather than a bespoke workflow.
+*   **13.13d CRM/Loyalty (scoped MVP)**: `engines/loyalty.go` — append-only point ledger (earn/redeem, balance always `SUM(Earn)-SUM(Burn)`), wired into POS checkout as an additive side-effect. No campaigns/segmentation/vouchers.
+*   **13.13e Manufacturing (scoped MVP)**: `engines/manufacturing.go` — single-level BOM explosion, linear Production Order (Draft → Material Issued → Completed), reuses the existing inventory stock-floor check. No routing/work centers, MRP, or QC gates.
+*   **13.14 Per-API-type rate limiting**: `RateLimiter` keyed `ip:category` (login/bulk-upload/report/webhook/search/default) instead of just `ip` — fixed a real bug class where heavy traffic on one endpoint exhausted the shared budget for an unrelated one.
+*   **13.15 Sticker/barcode printing**: `engines/stickers.go` — print + history, `@media print` CSS label layout. Scoped to text labels, not real scannable symbology (unverifiable in this dev environment).
+
+For the current build tracker (what's still open), see **[docs/micro_checklist.md](micro_checklist.md)**.

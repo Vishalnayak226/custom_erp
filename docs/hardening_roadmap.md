@@ -1,5 +1,7 @@
 # Hardening Roadmap: Toward a Lightweight, Solid, Foolproof ERP
 
+> **Status: closed (2026-07-12).** All four phases below are done and verified — this document is now a historical record, not an active backlog. Current work is tracked in **[docs/micro_checklist.md](micro_checklist.md)** (Stage 13 onward).
+
 This document translates a source-verified code audit (originally `docs/UNDERSTANDING_TEMP.md`, now folded into the permanent docs) into a concrete, phased plan. The goal isn't to add new modules — it's to make what's already built lightweight, smooth, secure, and hard to break.
 
 ## What "best ERP out there" means concretely, for this codebase

@@ -16,14 +16,14 @@ A metadata-driven, pluggable, ledger-backed Enterprise Resource Planning (ERP) s
 │   └── migrations_phase3.sql      # Phase 2/3 transactional metadata
 ├── public/                        # Static frontend (index.html, app.js, styles.css, profiles/)
 ├── docs/
-│   ├── hardening_roadmap.md       # Active roadmap: security, correctness, and release-hygiene backlog
-│   ├── pdf_blueprint_gap_analysis.md # Gap analysis: this codebase vs the original spec PDFs, + phased plan
+│   ├── hardening_roadmap.md       # Closed roadmap (2026-07-12): security, correctness, release-hygiene backlog, all phases done
+│   ├── pdf_blueprint_gap_analysis.md # Gap analysis snapshot (2026-07-12) vs the original spec PDFs — mostly closed since, see micro_checklist.md
 │   ├── implementation_plan.md     # Unified Technical Specification Document (logic & constraints)
 │   ├── framework_architecture.md  # Metadata-driven pluggable DocType Kernel specification
-│   ├── pos_architecture.md        # Pluggable offline POS terminal specification (forward-looking, not yet built)
-│   ├── modules_overview.md        # Functional Modules Directory (forward-looking, not yet built)
+│   ├── pos_architecture.md        # Pluggable offline POS terminal specification (basic POS screen built, offline-first parts still forward-looking)
+│   ├── modules_overview.md        # Functional Modules Directory (several sections now built, see status banner)
 │   ├── industry_plugs.md          # Multi-industry configurator specification (4 of the listed industries are built)
-│   ├── micro_checklist.md         # Stage 1-12 build tracker
+│   ├── micro_checklist.md         # Stage 1-13 build tracker (current source of truth for what's built)
 │   ├── architecture_evaluation.md # SaaS multi-tenant scaling & Go runtime evaluation
 │   ├── project_ledger.md          # Chronological build history and architectural decisions
 │   └── ai_handover.md             # Environment setup, run commands, and dev handover notes
@@ -60,11 +60,11 @@ This serves both the API and the `public/` static frontend on `http://localhost:
 
 ## Technical Reference & Architecture
 
-*   **Current priorities**: Read **[docs/hardening_roadmap.md](docs/hardening_roadmap.md)** for the active security, correctness, and release-hygiene backlog.
-*   **Is this a complete ERP yet?**: Read **[docs/pdf_blueprint_gap_analysis.md](docs/pdf_blueprint_gap_analysis.md)** — a full comparison against the 6 original spec PDFs. Short answer: the kernel and omnichannel/scale backend are strong; POS/Finance/GST/CRM/HR/Assets UI and the approval/maker-checker workflow engine are mostly unbuilt. Includes a phased closing plan.
+*   **Current priorities**: Use **[docs/micro_checklist.md](docs/micro_checklist.md)** (Stage 13) as the live backlog — it's kept current after every closed item. `docs/hardening_roadmap.md` (security/correctness/release-hygiene) is fully closed as of 2026-07-12.
+*   **Is this a complete ERP yet?**: Short answer: much closer than before. The kernel and omnichannel/scale backend remain strong; POS, Finance/GL, GST calc, CRM/Loyalty (MVP), HR, Fixed Assets, Expense Management, Manufacturing (MVP), RFQ/vendor quotes, sticker printing, MFA, and the approval/maker-checker workflow engine are now built (Stage 13.1-13.15, see `docs/micro_checklist.md` for exact scope of each). **[docs/pdf_blueprint_gap_analysis.md](docs/pdf_blueprint_gap_analysis.md)** is the original comparison against the 6 spec PDFs, dated 2026-07-12 — treat it as a historical snapshot of what was missing *then*, not current state.
 *   **System Customizations**: Read **[docs/framework_architecture.md](docs/framework_architecture.md)** to understand how the dynamic DocType metadata schemas and UI form interpreters are structured.
 *   **Database & Accounting**: Read **[docs/implementation_plan.md](docs/implementation_plan.md)** for double-entry GL mappings, validation matrices, and API specifications.
 *   **Task Tracking**: Use **[docs/micro_checklist.md](docs/micro_checklist.md)** to mark, revise, and verify implemented stages.
 *   **Build history**: Read **[docs/project_ledger.md](docs/project_ledger.md)** for chronological architectural decisions, and **[docs/ai_handover.md](docs/ai_handover.md)** for environment/run details.
 
-Note: `docs/pos_architecture.md`, `docs/modules_overview.md`, and most of `docs/industry_plugs.md` describe forward-looking specification, not code that exists today — each carries a status banner noting this.
+Note: `docs/pos_architecture.md`, `docs/modules_overview.md`, and `docs/industry_plugs.md` mix built and forward-looking specification — each carries a status banner explaining exactly which parts are real code today.
