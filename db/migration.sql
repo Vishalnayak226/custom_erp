@@ -770,3 +770,54 @@ INSERT INTO tenant_default.gl_accounts (account_code, account_name, account_type
 ('1400', 'Fixed Assets Account', 'Asset'),
 ('5300', 'Loss on Asset Disposal', 'Expense')
 ON CONFLICT (account_code) DO NOTHING;
+
+-- 28. Expense Management (Stage 13.13c) - MB Sec.16.2. Manager Approval
+-- reuses the existing Approval/Workflow Engine (Stage 13.8's amount-slab
+-- routing + maker-checker) rather than a separate ad-hoc mechanism -
+-- ExpenseClaim -> Pending Approval -> Approved covers "Manager Approval"
+-- and the spec's "amount limit"-driven "approval workflow" control in one
+-- step. Finance Verification and Payment are added as two further linear
+-- stages on top (engines/expense.go), since those aren't amount-routed
+-- decisions, just sequential finance processing.
+INSERT INTO tenant_default.doctype_meta (name, module, document_type) VALUES
+('ExpenseClaim', 'Finance', 'Transaction')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('ExpenseClaim', 'code', 'Claim Number', 'Data', TRUE, NULL, 1),
+('ExpenseClaim', 'employee_id', 'Employee', 'Link', TRUE, 'Employee', 2),
+('ExpenseClaim', 'department', 'Department', 'Data', FALSE, NULL, 3),
+('ExpenseClaim', 'location', 'Location', 'Data', TRUE, NULL, 4),
+('ExpenseClaim', 'expense_date', 'Expense Date', 'Date', TRUE, NULL, 5),
+('ExpenseClaim', 'category', 'Category', 'Select', TRUE, 'Conveyance,Travel,Food,Hotel,Fuel,Repair,Medical,Marketing,StoreExpense,Other', 6),
+('ExpenseClaim', 'amount', 'Amount', 'Number', TRUE, NULL, 7),
+('ExpenseClaim', 'gst_amount', 'GST Amount', 'Number', FALSE, NULL, 8),
+('ExpenseClaim', 'purpose', 'Purpose', 'Data', FALSE, NULL, 9),
+('ExpenseClaim', 'advance_adjusted', 'Advance Adjusted', 'Number', FALSE, NULL, 10),
+('ExpenseClaim', 'status', 'Status', 'Select', TRUE, 'Draft,Pending Approval,Approved,Rejected,Verified,Paid', 11)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+-- Same routing pattern as PurchaseOrder (Stage 13.8): Store Manager
+-- approves smaller claims, HR/Admin approves larger ones.
+INSERT INTO tenant_default.approval_rules (doctype, min_amount, max_amount, required_role) VALUES
+('ExpenseClaim', 0, 4999, 'Store Manager'),
+('ExpenseClaim', 5000, NULL, 'HR/Admin')
+ON CONFLICT (doctype, min_amount) DO NOTHING;
+
+-- Cashier gets allow_update=TRUE (not just create) so they can edit and
+-- submit their own Draft claims - "submit for approval" (Stage 13.8's
+-- handleSubmitApproval) checks "update" permission as its gate, so without
+-- this a Cashier could create a claim but never actually submit it, which
+-- defeats the point of letting them file one in the first place.
+INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES
+('HR/Admin', 'ExpenseClaim', TRUE, TRUE, TRUE, TRUE),
+('Store Manager', 'ExpenseClaim', TRUE, TRUE, TRUE, FALSE),
+('Cashier', 'ExpenseClaim', TRUE, TRUE, TRUE, FALSE)
+ON CONFLICT (role, doctype_name) DO NOTHING;
+
+-- New Chart of Accounts entries for expense GL postings. GST Input Credit
+-- is an Asset (input tax the business can claim back), not an Expense.
+INSERT INTO tenant_default.gl_accounts (account_code, account_name, account_type) VALUES
+('1500', 'GST Input Credit Account', 'Asset'),
+('5400', 'Employee Expense Account', 'Expense')
+ON CONFLICT (account_code) DO NOTHING;

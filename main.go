@@ -371,6 +371,10 @@ func main() {
 	http.HandleFunc("POST /api/v1/assets/transfer", apiMiddleware(handleTransferAsset))
 	http.HandleFunc("POST /api/v1/assets/dispose", apiMiddleware(handleDisposeAsset))
 
+	// Expense Management
+	http.HandleFunc("POST /api/v1/expenses/verify", apiMiddleware(handleVerifyExpenseClaim))
+	http.HandleFunc("POST /api/v1/expenses/pay", apiMiddleware(handlePayExpenseClaim))
+
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
 	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(featureGate("oms_integration", handleShopifyOrderWebhook)))
@@ -839,6 +843,17 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusBadRequest)
 			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 			return
+		}
+
+		// Expense claim controls (Stage 13.13c, MB 16.2): date window and
+		// duplicate-bill check, only on creation of a new claim - not on
+		// later edits to an existing one.
+		if doctype == "ExpenseClaim" && id == "" {
+			if err := engines.ValidateExpenseClaimControls(tenantID, payload); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				return
+			}
 		}
 
 		// Setup Document ID and attributes
@@ -2039,6 +2054,57 @@ func handleDisposeAsset(w http.ResponseWriter, r *http.Request) {
 	}
 	engines.LogAuditEvent(tenantID, userID, "ASSET_DISPOSE", "SUCCESS", fmt.Sprintf("Asset %s disposed (%s)", req.AssetID, req.DisposalType))
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "disposed"})
+}
+
+// Expense Management (Stage 13.13c). Claim creation/listing and Manager
+// Approval use the existing generic doc endpoint + approval engine (Stage
+// 13.8); these two handlers cover the Finance Verification and Payment
+// stages that come after.
+func handleVerifyExpenseClaim(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ClaimID string `json:"claim_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ClaimID == "" {
+		http.Error(w, "Field 'claim_id' is required", http.StatusBadRequest)
+		return
+	}
+	if err := engines.VerifyExpenseClaim(tenantID, req.ClaimID); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	engines.LogAuditEvent(tenantID, userID, "EXPENSE_VERIFY", "SUCCESS", fmt.Sprintf("Expense claim %s finance-verified", req.ClaimID))
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "verified"})
+}
+
+func handlePayExpenseClaim(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ClaimID string `json:"claim_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ClaimID == "" {
+		http.Error(w, "Field 'claim_id' is required", http.StatusBadRequest)
+		return
+	}
+	payable, err := engines.PayExpenseClaim(tenantID, req.ClaimID)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	engines.LogAuditEvent(tenantID, userID, "EXPENSE_PAY", "SUCCESS", fmt.Sprintf("Expense claim %s paid, payable_amount=%d", req.ClaimID, payable))
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "paid", "payable_amount": payable})
 }
 
 func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {
