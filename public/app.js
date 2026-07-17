@@ -617,6 +617,13 @@ function setupEventListeners() {
     renderView('expenses');
   });
 
+  document.getElementById('menu-manufacturing').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-manufacturing');
+    closeSubmenus();
+    renderView('manufacturing');
+  });
+
   document.getElementById('menu-purchase-orders').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-purchase-orders');
@@ -731,6 +738,7 @@ const STATIC_VIEW_MENU_IDS = {
   hr: 'menu-hr',
   assets: 'menu-assets',
   expenses: 'menu-expenses',
+  manufacturing: 'menu-manufacturing',
   'doctype-builder': 'menu-doctype-builder',
   vendors: 'menu-vendors',
   stores: 'menu-stores',
@@ -828,6 +836,8 @@ async function renderView(view) {
     await renderAssetsView(root);
   } else if (view === 'expenses') {
     await renderExpensesView(root);
+  } else if (view === 'manufacturing') {
+    await renderManufacturingView(root);
   } else if (view === 'purchase-orders') {
     await renderPurchaseOrdersView(root);
   } else if (view === 'doctype-table') {
@@ -3221,6 +3231,230 @@ async function payExpenseClaim(claimId) {
     return;
   }
   renderView('expenses');
+}
+
+// Manufacturing (Stage 13.13e, scoped MVP) - single-level BOM + a linear
+// Production Order (Draft -> Material Issued -> Completed). BOM's
+// "components" field is JSON under the hood; this screen offers a simple
+// "sku:qty, sku:qty" shorthand input instead of asking a user to hand-type
+// JSON (BOM can still be edited directly via Master Definition if needed -
+// it's a Master-type doctype, so it already has a generic CRUD screen there).
+async function renderManufacturingView(container) {
+  const [bomsRes, ordersRes] = await Promise.all([
+    apiFetch('/api/v1/doc/BOM'),
+    apiFetch('/api/v1/doc/ProductionOrder')
+  ]);
+  if (!bomsRes || !ordersRes) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Manufacturing</h1>
+      <p class="page-subtitle">Single-level BOM and production orders (Draft &rarr; Material Issued &rarr; Completed).</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const boms = bomsRes.ok ? await bomsRes.json() : [];
+  const orders = ordersRes.ok ? await ordersRes.json() : [];
+
+  const bomFormPanel = document.createElement('div');
+  bomFormPanel.className = 'table-panel';
+  bomFormPanel.style.padding = '24px';
+  bomFormPanel.style.marginBottom = '24px';
+  bomFormPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New BOM</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="bom-code">BOM Code</label>
+        <input type="text" id="bom-code" class="form-input" style="width: 140px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="bom-parent-item">Parent Item (Finished Good SKU)</label>
+        <input type="text" id="bom-parent-item" class="form-input" style="width: 180px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 220px;">
+        <label class="form-label" for="bom-components">Components (sku:qty, sku:qty, ...)</label>
+        <input type="text" id="bom-components" class="form-input" placeholder="e.g. RAW-A:2, RAW-B:1">
+      </div>
+      <button class="btn btn-primary" id="bom-create-btn">Create BOM</button>
+    </div>
+    <div id="bom-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(bomFormPanel);
+
+  const orderFormPanel = document.createElement('div');
+  orderFormPanel.className = 'table-panel';
+  orderFormPanel.style.padding = '24px';
+  orderFormPanel.style.marginBottom = '24px';
+  orderFormPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Production Order</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="po-mfg-code">Order Number</label>
+        <input type="text" id="po-mfg-code" class="form-input" style="width: 150px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="po-mfg-bom">BOM</label>
+        <select id="po-mfg-bom" class="form-input" style="width: 200px;">
+          <option value="">Select a BOM</option>
+          ${boms.map(b => `<option value="${b.code || b.id}">${b.code || b.id} (${b.parent_item || ''})</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="po-mfg-qty">Quantity</label>
+        <input type="number" id="po-mfg-qty" class="form-input" style="width: 100px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="po-mfg-location">Location</label>
+        <input type="text" id="po-mfg-location" class="form-input" style="width: 110px;">
+      </div>
+      <button class="btn btn-primary" id="po-mfg-create-btn">Create Order</button>
+    </div>
+    <div id="po-mfg-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(orderFormPanel);
+
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead><tr><th>Order #</th><th>BOM</th><th>Quantity</th><th>Location</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+  `;
+  html += orders.length === 0
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No production orders yet.</td></tr>`
+    : orders.map(o => `
+        <tr>
+          <td style="font-family: monospace;">${o.code || o.id}</td>
+          <td>${o.bom_id || ''}</td>
+          <td>${o.quantity ?? ''}</td>
+          <td>${o.location || ''}</td>
+          <td><span class="badge ${o.status === 'Completed' ? 'badge-success' : 'badge-secondary'}">${o.status}</span></td>
+          <td>${renderProductionOrderActions(o)}</td>
+        </tr>
+      `).join('');
+  html += `</tbody></table>`;
+  listPanel.innerHTML = html;
+  container.appendChild(listPanel);
+
+  document.getElementById('bom-create-btn').addEventListener('click', createBOM);
+  document.getElementById('po-mfg-create-btn').addEventListener('click', createProductionOrder);
+}
+
+function renderProductionOrderActions(order) {
+  if (order.status === 'Draft') {
+    return `<button class="action-btn" onclick="issueProductionMaterial('${order.id}')">Issue Material</button>`;
+  }
+  if (order.status === 'Material Issued') {
+    return `<button class="action-btn" onclick="completeProductionOrder('${order.id}')">Complete (Receive FG)</button>`;
+  }
+  return '';
+}
+
+async function createBOM() {
+  const errorEl = document.getElementById('bom-form-error');
+  errorEl.classList.add('hidden');
+
+  const code = document.getElementById('bom-code').value.trim();
+  const parentItem = document.getElementById('bom-parent-item').value.trim();
+  const componentsRaw = document.getElementById('bom-components').value.trim();
+
+  if (!code || !parentItem || !componentsRaw) {
+    errorEl.textContent = 'BOM Code, Parent Item, and Components are all required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  let components;
+  try {
+    components = componentsRaw.split(',').map(part => {
+      const [sku, qty] = part.split(':').map(s => s.trim());
+      if (!sku || !qty || isNaN(parseFloat(qty))) throw new Error('bad format');
+      return { sku, qty: parseFloat(qty) };
+    });
+  } catch (e) {
+    errorEl.textContent = 'Components must look like "SKU:QTY, SKU:QTY" (e.g. RAW-A:2, RAW-B:1).';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/doc/BOM', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: code, code, parent_item: parentItem,
+      components: JSON.stringify(components), status: 'Active'
+    })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to create BOM.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('manufacturing');
+}
+
+async function createProductionOrder() {
+  const errorEl = document.getElementById('po-mfg-form-error');
+  errorEl.classList.add('hidden');
+
+  const code = document.getElementById('po-mfg-code').value.trim();
+  const bomId = document.getElementById('po-mfg-bom').value;
+  const quantity = parseFloat(document.getElementById('po-mfg-qty').value);
+  const location = document.getElementById('po-mfg-location').value.trim();
+
+  if (!code || !bomId || !quantity || !location) {
+    errorEl.textContent = 'Order Number, BOM, Quantity, and Location are all required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/doc/ProductionOrder', {
+    method: 'POST',
+    body: JSON.stringify({ id: code, code, bom_id: bomId, quantity, location, status: 'Draft' })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to create production order.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('manufacturing');
+}
+
+async function issueProductionMaterial(orderId) {
+  const res = await apiFetch('/api/v1/manufacturing/issue-material', {
+    method: 'POST',
+    body: JSON.stringify({ order_id: orderId })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showCustomAlert(data.error || 'Failed to issue material.', 'Material Issue Failed');
+    return;
+  }
+  renderView('manufacturing');
+}
+
+async function completeProductionOrder(orderId) {
+  const confirmed = await showCustomConfirm('This will receive the finished goods into inventory and close the order. Continue?', 'Complete Production Order');
+  if (!confirmed) return;
+
+  const res = await apiFetch('/api/v1/manufacturing/complete', {
+    method: 'POST',
+    body: JSON.stringify({ order_id: orderId })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showCustomAlert(data.error || 'Failed to complete production order.', 'Completion Failed');
+    return;
+  }
+  renderView('manufacturing');
 }
 
 // Render dynamic DocType CRUD Table view

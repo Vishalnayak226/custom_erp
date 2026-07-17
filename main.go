@@ -379,6 +379,10 @@ func main() {
 	http.HandleFunc("POST /api/v1/loyalty/redeem", apiMiddleware(handleRedeemLoyaltyPoints))
 	http.HandleFunc("GET /api/v1/loyalty/ledger", apiMiddleware(handleLoyaltyLedger))
 
+	// Manufacturing
+	http.HandleFunc("POST /api/v1/manufacturing/issue-material", apiMiddleware(handleIssueProductionMaterial))
+	http.HandleFunc("POST /api/v1/manufacturing/complete", apiMiddleware(handleCompleteProductionOrder))
+
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
 	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(featureGate("oms_integration", handleShopifyOrderWebhook)))
@@ -2175,6 +2179,57 @@ func handleLoyaltyLedger(w http.ResponseWriter, r *http.Request) {
 		ledger = []engines.LoyaltyLedgerEntry{}
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"balance": balance, "ledger": ledger})
+}
+
+// Manufacturing (Stage 13.13e, scoped MVP). BOM/ProductionOrder creation
+// and listing use the same generic doc endpoint as Vendor/Customer/etc;
+// these two handlers cover the material-issue and completion actions,
+// which need logic (BOM explosion, inventory posting) the generic endpoint
+// doesn't have.
+func handleIssueProductionMaterial(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		OrderID string `json:"order_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.OrderID == "" {
+		http.Error(w, "Field 'order_id' is required", http.StatusBadRequest)
+		return
+	}
+	if err := engines.IssueProductionMaterial(tenantID, req.OrderID); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	engines.LogAuditEvent(tenantID, userID, "PRODUCTION_MATERIAL_ISSUE", "SUCCESS", fmt.Sprintf("Material issued for production order %s", req.OrderID))
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "material_issued"})
+}
+
+func handleCompleteProductionOrder(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		OrderID string `json:"order_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.OrderID == "" {
+		http.Error(w, "Field 'order_id' is required", http.StatusBadRequest)
+		return
+	}
+	if err := engines.CompleteProductionOrder(tenantID, req.OrderID); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	engines.LogAuditEvent(tenantID, userID, "PRODUCTION_ORDER_COMPLETE", "SUCCESS", fmt.Sprintf("Production order %s completed, finished goods received", req.OrderID))
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "completed"})
 }
 
 func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {
