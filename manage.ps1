@@ -225,16 +225,17 @@ function Show-FleetStatus {
         $cfg = Resolve-Env $name
         $up = Test-PortOpen $cfg.ErpPort
         Write-Host "`n  $name  (port $($cfg.ErpPort), database '$($cfg.Database)')" -ForegroundColor Cyan
-        if (-not $up) {
+        if ($up) {
+            try {
+                $v = Invoke-RestMethod -Uri "http://localhost:$($cfg.ErpPort)/api/v1/version" -TimeoutSec 3
+                Write-Host "    RUNNING - version $($v.version), commit $($v.git_commit), built $($v.build_time)" -ForegroundColor Green
+            } catch {
+                Write-Host "    RUNNING (port open) but /api/v1/version didn't respond: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        } else {
             Write-Host "    STOPPED" -ForegroundColor Red
-            continue
         }
-        try {
-            $v = Invoke-RestMethod -Uri "http://localhost:$($cfg.ErpPort)/api/v1/version" -TimeoutSec 3
-            Write-Host "    RUNNING - version $($v.version), commit $($v.git_commit), built $($v.build_time)" -ForegroundColor Green
-        } catch {
-            Write-Host "    RUNNING (port open) but /api/v1/version didn't respond: $($_.Exception.Message)" -ForegroundColor Yellow
-        }
+        # Deployment history is worth showing even when stopped - that's the point of an audit trail.
         try {
             $last = & "$PgBin\psql.exe" -h localhost -p 5435 -U postgres -d custom_erp -tAc `
                 "SELECT git_commit || ' (' || build_status || ') at ' || promoted_at FROM public.deployments WHERE environment = '$name' ORDER BY promoted_at DESC LIMIT 1" 2>$null
