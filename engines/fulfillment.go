@@ -251,6 +251,15 @@ func ProcessReturnAnywhere(tenantID string, returnLocation string, originalOrder
 			}
 		}
 
+		// A return only ever adds stock back - unlike checkout, there's no legitimate
+		// negative-qty case here. Without this check a negative qty silently reduces
+		// the return location's stock with no floor/lock (the increment below is a
+		// bare ON CONFLICT DO UPDATE, not the row-locked floor-checked path checkout
+		// uses), which is exactly the "negative stock" loophole applied to this handler.
+		if qty <= 0 {
+			return fmt.Errorf("return quantity must be positive (sku=%q, qty=%d)", sku, qty)
+		}
+
 		salePrice := 0
 		if p, exists := itemMap["sale_price"]; exists {
 			switch v := p.(type) {
