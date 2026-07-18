@@ -326,6 +326,7 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		role := ""
 		locationCode := ""
 		purpose := ""
+		scopeDoctype := ""
 
 		// Inspect Authorization Header
 		authHeader := r.Header.Get("Authorization")
@@ -339,6 +340,7 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				tenantID = claims["tenant"]
 				locationCode = claims["loc"]
 				purpose = claims["purpose"]
+				scopeDoctype = claims["scope_doctype"]
 			} else {
 				w.WriteHeader(http.StatusUnauthorized)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid or expired token"})
@@ -362,6 +364,10 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// enrollment/challenge tokens (see engines.SignPurposeToken) - a full
 		// session token has no "purpose" claim, so this stays "".
 		r.Header.Set("Resolved-Purpose", purpose)
+		// Resolved-Scope-Doctype is only non-empty for an extension token
+		// (Stage 14.17-14.20, engines.SignExtensionToken) - enforced
+		// explicitly in handleGenericDoc, not a general-purpose claim.
+		r.Header.Set("Resolved-Scope-Doctype", scopeDoctype)
 
 		next.ServeHTTP(w, r)
 	}
@@ -510,6 +516,14 @@ func main() {
 	http.HandleFunc("GET /api/v1/admin/patch/proposals", apiMiddleware(handleListPatchProposals))
 	http.HandleFunc("POST /api/v1/admin/patch/approve", apiMiddleware(handleApprovePatchProposal))
 	http.HandleFunc("POST /api/v1/admin/patch/reject", apiMiddleware(handleRejectPatchProposal))
+
+	// 3rd-Party Extension Isolation (Stage 14.17-14.20) - out-of-process
+	// webhook hooks + scoped tokens; see engines/extensions.go.
+	http.HandleFunc("POST /api/v1/admin/extension/hooks", apiMiddleware(handleCreateExtensionHook))
+	http.HandleFunc("GET /api/v1/admin/extension/hooks", apiMiddleware(handleListExtensionHooks))
+	http.HandleFunc("DELETE /api/v1/admin/extension/hooks/{id}", apiMiddleware(handleDeleteExtensionHook))
+	http.HandleFunc("GET /api/v1/admin/extension/hooks/{id}/log", apiMiddleware(handleGetExtensionHookLog))
+	http.HandleFunc("POST /api/v1/admin/extension/token", apiMiddleware(handleIssueExtensionToken))
 
 	// DocType Metadata APIs
 	http.HandleFunc("GET /api/v1/doc/{doctype}/meta", apiMiddleware(handleGetDocTypeMeta))
@@ -777,29 +791,50 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	action := ""
-	switch r.Method {
-	case http.MethodGet:
-		action = "read"
-	case http.MethodPost:
-		action = "create"
-		if id != "" {
-			action = "update"
+	// Extension token handling (Stage 14.17-14.20): a token issued by
+	// SignExtensionToken has no role (it's not a user session) - it carries
+	// Resolved-Scope-Doctype instead, and is authorized here explicitly
+	// rather than falling through to checkPermission below (which would
+	// just deny it, correctly but with a generic and less useful error).
+	// Read-only, and only for the exact doctype it was scoped to - a hired
+	// 3rd-party developer's extension can look up what it needs to react to
+	// a hook, never write, never see another doctype or tenant.
+	if r.Header.Get("Resolved-Purpose") == "extension" {
+		scopeDoctype := r.Header.Get("Resolved-Scope-Doctype")
+		if r.Method != http.MethodGet || doctype != scopeDoctype {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("This token is scoped to read-only access on '%s'", scopeDoctype)})
+			return
 		}
-	case http.MethodDelete:
-		action = "delete"
-	}
-
-	// 1. RBAC permissions verification
-	allowed, err := checkPermission(tenantID, role, doctype, action)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if !allowed {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("You do not have permission to %s %s documents.", action, doctype)})
-		return
+		// Falls through to the normal GET handling below with an empty
+		// role - the location filter's "role != HR/Admin" branch still
+		// applies (an extension token is never location-exempt), and no
+		// module-gate/RBAC bypass beyond the doctype-scope check above.
+	} else {
+		// 1. RBAC permissions verification (skipped for a scoped extension
+		// token, which was already authorized above on narrower terms).
+		action := ""
+		switch r.Method {
+		case http.MethodGet:
+			action = "read"
+		case http.MethodPost:
+			action = "create"
+			if id != "" {
+				action = "update"
+			}
+		case http.MethodDelete:
+			action = "delete"
+		}
+		allowed, permErr := checkPermission(tenantID, role, doctype, action)
+		if permErr != nil {
+			http.Error(w, permErr.Error(), http.StatusInternalServerError)
+			return
+		}
+		if !allowed {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("You do not have permission to %s %s documents.", action, doctype)})
+			return
+		}
 	}
 
 	// 1b. Module-wise access control (Stage 14.1). {doctype} is a runtime
@@ -1038,6 +1073,18 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			statusVal = fmt.Sprintf("%v", s)
 		}
 
+		// Extension before_save hooks (Stage 14.17-14.20): synchronous, and
+		// a failure blocks the save outright - a 3rd-party pricing/
+		// validation hook that doesn't run must not let this proceed with
+		// an unreviewed value. No-op (zero network calls) when no hook is
+		// registered for this doctype, which is the overwhelmingly common
+		// case for every tenant that hasn't set one up.
+		if errHook := engines.InvokeBeforeSaveHooks(tenantID, doctype, docID, payload); errHook != nil {
+			w.WriteHeader(http.StatusBadGateway)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": errHook.Error()})
+			return
+		}
+
 		// Perform Upsert using parameterized parameters (SQL Injection Safe)
 		query := fmt.Sprintf(`
 			INSERT INTO %s.documents (id, doctype, data, status, created_by)
@@ -1051,6 +1098,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		// Extension after_save hooks (Stage 14.17-14.20): fired async - the
+		// save already committed, so a notification/sync hook's failure
+		// can't roll it back and shouldn't slow down the response.
+		engines.InvokeAfterSaveHooksAsync(tenantID, doctype, docID, payload)
 
 		if wasApproved {
 			if gated, errGate := engines.IsApprovalGated(tenantID, doctype); errGate == nil && gated {
@@ -3458,5 +3510,166 @@ func decidePatchProposal(w http.ResponseWriter, r *http.Request, decision string
 		"status":      "updated",
 		"proposal_id": req.ProposalID,
 		"decision":    decision,
+	})
+}
+
+// handleCreateExtensionHook registers a new hook and returns its secret -
+// shown exactly once, same "generated + never retrievable again" pattern
+// tenant admin passwords already use (engines.ProvisionTenantSchema).
+func handleCreateExtensionHook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can register extension hooks"})
+		return
+	}
+
+	var req struct {
+		HookPoint string `json:"hook_point"`
+		Doctype   string `json:"doctype"`
+		TargetURL string `json:"target_url"`
+		TimeoutMs int    `json:"timeout_ms"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid extension-hook payload", http.StatusBadRequest)
+		return
+	}
+	if req.Doctype == "" {
+		http.Error(w, "Field 'doctype' is required (use '*' to match every doctype)", http.StatusBadRequest)
+		return
+	}
+
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	createdBy := r.Header.Get("Resolved-Username")
+	id, secret, err := engines.RegisterExtensionHook(tenantID, req.HookPoint, req.Doctype, req.TargetURL, req.TimeoutMs, createdBy)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"id":          id,
+		"secret":      secret,
+		"secret_note": "Shown once - store it securely now. It is not persisted in plaintext anywhere and cannot be retrieved again.",
+	})
+}
+
+func handleListExtensionHooks(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can view extension hooks"})
+		return
+	}
+
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	hooks, err := engines.ListExtensionHooks(tenantID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	if hooks == nil {
+		hooks = []engines.ExtensionHook{}
+	}
+	_ = json.NewEncoder(w).Encode(hooks)
+}
+
+func handleDeleteExtensionHook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can delete extension hooks"})
+		return
+	}
+
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	hookID := r.PathValue("id")
+	if err := engines.DeleteExtensionHook(tenantID, hookID); err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted", "id": hookID})
+}
+
+func handleGetExtensionHookLog(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can view extension hook logs"})
+		return
+	}
+
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	hookID := r.PathValue("id")
+	logEntries, err := engines.GetExtensionHookLog(tenantID, hookID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	if logEntries == nil {
+		logEntries = []engines.ExtensionHookLogEntry{}
+	}
+	_ = json.NewEncoder(w).Encode(logEntries)
+}
+
+// handleIssueExtensionToken issues a tenant-and-doctype-scoped token for a
+// 3rd-party developer's extension code to call back into this API with -
+// the only credential it ever receives, alongside the inbound hook payload
+// itself. Never the core repo, never a full session, never another tenant.
+func handleIssueExtensionToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can issue extension tokens"})
+		return
+	}
+
+	var req struct {
+		ScopeDoctype string `json:"scope_doctype"`
+		TTLMinutes   int    `json:"ttl_minutes"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid extension-token payload", http.StatusBadRequest)
+		return
+	}
+	if req.ScopeDoctype == "" {
+		http.Error(w, "Field 'scope_doctype' is required", http.StatusBadRequest)
+		return
+	}
+	ttl := time.Duration(req.TTLMinutes) * time.Minute
+	if req.TTLMinutes <= 0 || ttl > 24*time.Hour {
+		ttl = time.Hour
+	}
+
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	token := engines.SignExtensionToken(tenantID, req.ScopeDoctype, ttl)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"token":              token,
+		"scope_doctype":      req.ScopeDoctype,
+		"expires_in_minutes": int(ttl.Minutes()),
 	})
 }

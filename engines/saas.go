@@ -98,6 +98,8 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		"channel_order_mapping",
 		"feature_flags",
 		"module_entitlements",
+		"extension_hooks",
+		"extension_hook_log",
 	}
 
 	tx, err := db.DB.Begin()

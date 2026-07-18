@@ -103,6 +103,26 @@ func SignPurposeToken(userID, username, tenantID, purpose string, ttl time.Durat
 	return encodedClaims + "." + signature
 }
 
+// SignExtensionToken (Stage 14.17-14.20) issues a short-lived token scoped to
+// exactly one tenant and one doctype, for handing to a 3rd-party developer's
+// extension hook so it can read back the data it needs without ever
+// receiving core source or another tenant's credentials. Same purpose-token
+// shape as SignPurposeToken (no role/loc, purpose="extension" surfaced via
+// Resolved-Purpose) plus one extra claim, scope_doctype, that
+// handleGenericDoc enforces explicitly: read-only, and only for the exact
+// doctype named here.
+func SignExtensionToken(tenantID, scopeDoctype string, ttl time.Duration) string {
+	exp := time.Now().Add(ttl).Unix()
+	claims := fmt.Sprintf("tenant=%s&purpose=extension&scope_doctype=%s&exp=%d", tenantID, scopeDoctype, exp)
+	encodedClaims := base64.URLEncoding.EncodeToString([]byte(claims))
+
+	h := hmac.New(sha256.New, jwtSecret)
+	h.Write([]byte(encodedClaims))
+	signature := hex.EncodeToString(h.Sum(nil))
+
+	return encodedClaims + "." + signature
+}
+
 // ParseToken validates the signature and extracts claims
 func ParseToken(tokenStr string) (map[string]string, error) {
 	parts := strings.Split(tokenStr, ".")

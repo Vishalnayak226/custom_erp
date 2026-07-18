@@ -12,18 +12,18 @@ import (
 
 // PatchProposal mirrors one row of public.patch_proposals for API responses.
 type PatchProposal struct {
-	ID               int        `json:"id"`
-	TenantID         string     `json:"tenant_id"`
-	ModuleSource     string     `json:"module_source"`
-	Signature        string     `json:"signature"`
-	ErrorSample      string     `json:"error_sample"`
-	OccurrenceCount  int        `json:"occurrence_count"`
-	Classification   string     `json:"classification"`
-	Status           string     `json:"status"`
-	CreatedAt        time.Time  `json:"created_at"`
-	DecidedBy        *string    `json:"decided_by,omitempty"`
-	DecidedAt        *time.Time `json:"decided_at,omitempty"`
-	Notes            *string    `json:"notes,omitempty"`
+	ID              int        `json:"id"`
+	TenantID        string     `json:"tenant_id"`
+	ModuleSource    string     `json:"module_source"`
+	Signature       string     `json:"signature"`
+	ErrorSample     string     `json:"error_sample"`
+	OccurrenceCount int        `json:"occurrence_count"`
+	Classification  string     `json:"classification"`
+	Status          string     `json:"status"`
+	CreatedAt       time.Time  `json:"created_at"`
+	DecidedBy       *string    `json:"decided_by,omitempty"`
+	DecidedAt       *time.Time `json:"decided_at,omitempty"`
+	Notes           *string    `json:"notes,omitempty"`
 }
 
 type patchPolicyRule struct {
