@@ -1,9 +1,12 @@
 package main
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	_ "embed"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -140,6 +143,50 @@ const maxListLimit = 1000
 // An Origin not in this set never gets Access-Control-Allow-Origin/-Credentials -
 // the browser blocks the cross-origin response, which is the point.
 var corsAllowedOrigins = loadCORSAllowlist()
+
+// Account-level brute-force lockout thresholds (Stage 14.21-14.24). 10
+// attempts is deliberately more permissive than the IP-scoped rate
+// limiter's 5/min (Stage 13.14) - that one already stops a single-source
+// burst; this one exists for the distributed case, so it shouldn't also
+// punish a legitimate user who mistypes a password a few times.
+const (
+	accountLockoutThreshold = 10
+	accountLockoutDuration  = 15 * time.Minute
+)
+
+// shopifyWebhookSecret (Stage 14.21-14.24, closes the same gap the
+// re-opened Stage 9.2 item tracked) - same override-via-env-var pattern as
+// JWT_SECRET/CORS_ALLOWED_ORIGINS. Unlike JWT_SECRET, this can't be
+// auto-generated and silently persisted: it has to match a value
+// configured on Shopify's side too, so an unset secret means "no real
+// Shopify integration is configured for this environment" and signature
+// verification is skipped rather than failing closed - the same posture
+// this app already has today (no verification at all), just now able to
+// actually enforce it once a real secret is set.
+var shopifyWebhookSecret = os.Getenv("SHOPIFY_WEBHOOK_SECRET")
+var shopifyWebhookSecretWarnOnce sync.Once
+
+// verifyShopifyWebhookSignature checks the X-Shopify-Hmac-Sha256 header
+// (base64 HMAC-SHA256 of the raw body) against shopifyWebhookSecret, using
+// a constant-time comparison. Returns true if verification passed OR no
+// secret is configured (logging a one-time warning in that case so an
+// operator notices verification isn't actually active).
+func verifyShopifyWebhookSignature(r *http.Request, body []byte) bool {
+	if shopifyWebhookSecret == "" {
+		shopifyWebhookSecretWarnOnce.Do(func() {
+			log.Println("[SECURITY] SHOPIFY_WEBHOOK_SECRET is not set - inbound Shopify webhook signature verification is DISABLED. Set it before accepting real Shopify traffic.")
+		})
+		return true
+	}
+	sig := r.Header.Get("X-Shopify-Hmac-Sha256")
+	if sig == "" {
+		return false
+	}
+	h := hmac.New(sha256.New, []byte(shopifyWebhookSecret))
+	h.Write(body)
+	expected := base64.StdEncoding.EncodeToString(h.Sum(nil))
+	return hmac.Equal([]byte(sig), []byte(expected))
+}
 
 // publicRoutes lists the only endpoints reachable with no bearer token at
 // all (Stage 14.6 adds /api/v1/version to what was previously just /login -
@@ -474,6 +521,9 @@ func main() {
 	// Import/Export (Stage 15.2)
 	http.HandleFunc("POST /api/v1/pim/import/{doctype}/preview", apiMiddleware(moduleGate("pim", handlePIMImportPreview)))
 	http.HandleFunc("GET /api/v1/pim/import-jobs/{id}/errors.csv", apiMiddleware(moduleGate("pim", handlePIMImportJobErrors)))
+	// Real Channel Connector Framework (Stage 16.1) - write-only credential
+	// endpoint, HR/Admin only; there is deliberately no matching GET.
+	http.HandleFunc("POST /api/v1/pim/channels/{code}/credentials", apiMiddleware(moduleGate("pim", handleSaveChannelCredential)))
 
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
@@ -586,19 +636,43 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var u struct {
-		ID           string
-		Username     string
-		PasswordHash string
-		Role         string
+		ID               string
+		Username         string
+		PasswordHash     string
+		Role             string
+		FailedLoginCount int
+		IsLocked         bool
 	}
 
-	// Query user details
+	// Query user details. is_locked is computed in SQL (locked_until > NOW())
+	// rather than scanned and compared in Go - a real bug caught live while
+	// verifying this: lib/pq returns a tz-naive `timestamp` column's value
+	// tagged as UTC, but this app server's local clock is IST (UTC+5:30), so
+	// comparing time.Now() (local) against the scanned value directly made a
+	// genuinely-expired lock look like it was still ~5.5 hours in the
+	// future. Computing the comparison in Postgres, against Postgres's own
+	// NOW(), sidesteps any app-server-vs-database clock/timezone
+	// reconciliation entirely rather than trying to get it right in Go.
 	err = db.DB.QueryRow(fmt.Sprintf(`
-		SELECT id, username, password_hash, role 
-		FROM %s.users 
-		WHERE username = $1 AND status = 'Active'`, schema), req.Username).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role)
+		SELECT id, username, password_hash, role, failed_login_count, (locked_until IS NOT NULL AND locked_until > NOW())
+		FROM %s.users
+		WHERE username = $1 AND status = 'Active'`, schema), req.Username).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.FailedLoginCount, &u.IsLocked)
 	if err != nil {
 		// Generic security error message
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid username or password"})
+		return
+	}
+
+	// Account-level brute-force lockout (Stage 14.21-14.24), independent of
+	// and in addition to the existing IP-scoped rate limiter (Stage 13.14) -
+	// that one alone doesn't slow down an attempt distributed across many
+	// IPs against a single account. Deliberately the same generic error
+	// message as every other login failure here - a distinguishable "your
+	// account is locked" response would let an attacker confirm the
+	// username is valid, the exact leak this endpoint's error messages
+	// have consistently avoided elsewhere (e.g. a deactivated Employee).
+	if u.IsLocked {
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid username or password"})
 		return
@@ -607,9 +681,25 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Check password with bcrypt (supports fallback check for local seed configs)
 	err = bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(req.Password))
 	if err != nil && u.PasswordHash != req.Password {
+		newCount := u.FailedLoginCount + 1
+		if newCount >= accountLockoutThreshold {
+			// NOW() + make_interval(...) is also computed in Postgres for the
+			// same reason as the is_locked check above - the lockout window's
+			// end time must be reckoned against the same clock it's later
+			// compared to.
+			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET failed_login_count = $1, locked_until = NOW() + make_interval(mins => $2) WHERE id = $3`, schema),
+				newCount, int(accountLockoutDuration.Minutes()), u.ID)
+		} else {
+			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET failed_login_count = $1 WHERE id = $2`, schema), newCount, u.ID)
+		}
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid username or password"})
 		return
+	}
+
+	// Correct password: clear any accumulated failure count/lock.
+	if u.FailedLoginCount > 0 {
+		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET failed_login_count = 0, locked_until = NULL WHERE id = $1`, schema), u.ID)
 	}
 
 	// MFA-mandatory roles (SEC-V2 Sec.12) never get a full session token
@@ -1060,7 +1150,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// queue after the upsert below, regardless of what status the
 		// incoming payload itself claims.
 		wasApproved := false
-		if id != "" {
+		if docID != "" {
 			var priorStatus string
 			if errPrior := db.DB.QueryRow(fmt.Sprintf(`SELECT status FROM %s.documents WHERE doctype = $1 AND id = $2`, schema), doctype, docID).Scan(&priorStatus); errPrior == nil {
 				wasApproved = priorStatus == "Approved"
@@ -1137,7 +1227,15 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// GRN Callback Hook: Automatically post received items to inventory ledger
 		if doctype == "GRN" {
 			locationCode, _ := payload["location"].(string)
-			items, _ := payload["items"].([]interface{})
+			// GRN's own registered schema (db/migrations_phase3.sql) declares the mandatory
+			// field as "received_items", a JSON-encoded string (same convention as BOM's
+			// "components" field, engines/manufacturing.go fetchBOM) - not a raw "items"
+			// array key, which was never part of GRN's declared schema and left this stock
+			// posting silently unreachable for any caller filling in the actual mandatory field.
+			var items []interface{}
+			if receivedItemsStr, ok := payload["received_items"].(string); ok && receivedItemsStr != "" {
+				_ = json.Unmarshal([]byte(receivedItemsStr), &items)
+			}
 			if locationCode != "" && len(items) > 0 {
 				errLedger := engines.PostInventoryLedger(tenantID, locationCode, items)
 				if errLedger != nil {
@@ -1156,7 +1254,6 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				_ = tx.Commit()
 			}
 		}
-
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"status": "saved",
 			"id":     docID,
@@ -1658,6 +1755,36 @@ func handlePIMImportJobErrors(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=import_errors_%s.csv", jobID))
 	_, _ = w.Write(csvBytes)
+}
+
+// handleSaveChannelCredential (Stage 16.1) stores a channel's API
+// credential fields (access token, shop domain, etc. - shape varies by
+// platform) encrypted at rest via engines.SaveChannelCredential. Write-
+// only by design: this handler never reads a credential back, and there
+// is no corresponding GET route anywhere in this file.
+func handleSaveChannelCredential(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can configure channel credentials"})
+		return
+	}
+	channelCode := r.PathValue("code")
+	var fields map[string]string
+	if err := json.NewDecoder(r.Body).Decode(&fields); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if err := engines.SaveChannelCredential(tenantID, channelCode, fields); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved", "channel": channelCode})
 }
 
 func handleGetImportTemplate(w http.ResponseWriter, r *http.Request) {
@@ -2728,12 +2855,23 @@ func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	if !verifyShopifyWebhookSignature(r, body) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid webhook signature"})
+		return
+	}
+
 	var req struct {
 		Sku        string `json:"sku"`
 		ChannelSku string `json:"channel_sku"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.Unmarshal(body, &req); err != nil {
 		http.Error(w, "Invalid mapping payload", http.StatusBadRequest)
 		return
 	}
@@ -2743,7 +2881,7 @@ func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := engines.MapChannelProduct(tenantID, "Shopify", req.Sku, req.ChannelSku)
+	err = engines.MapChannelProduct(tenantID, "Shopify", req.Sku, req.ChannelSku)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -2763,6 +2901,17 @@ func handleShopifyOrderWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
+		return
+	}
+	if !verifyShopifyWebhookSignature(r, body) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid webhook signature"})
+		return
+	}
+
 	var req struct {
 		ID        string `json:"id"`
 		LineItems []struct {
@@ -2771,7 +2920,7 @@ func handleShopifyOrderWebhook(w http.ResponseWriter, r *http.Request) {
 		} `json:"line_items"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.Unmarshal(body, &req); err != nil {
 		http.Error(w, "Invalid webhook payload", http.StatusBadRequest)
 		return
 	}

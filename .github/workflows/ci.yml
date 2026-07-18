@@ -35,9 +35,15 @@ jobs:
           go-version: '1.22'
 
       - name: Apply database schema
+        # Stage 14.21-14.24: this list was missing every Stage 14 migration
+        # file (14a-14e) - CI was silently only ever testing against
+        # pre-Stage-14 schema, which would have made any test touching
+        # those tables fail here despite passing locally. Applied in
+        # filename order, same as promote.ps1's Apply-PendingMigrations.
         run: |
-          psql -h localhost -p 5435 -U postgres -d custom_erp -f db/migration.sql
-          psql -h localhost -p 5435 -U postgres -d custom_erp -f db/migrations_phase3.sql
+          for f in db/migration.sql db/migrations_phase3.sql db/migrations_stage14a_modules.sql db/migrations_stage14b_versioning.sql db/migrations_stage14c_pipeline.sql db/migrations_stage14d_patchintake.sql db/migrations_stage14e_extensions.sql; do
+            psql -h localhost -p 5435 -U postgres -d custom_erp -f "$f"
+          done
         env:
           PGPASSWORD: ''
 
@@ -48,4 +54,19 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test ./... -v
+        run: go test ./... -p 1 -v
+        # -p 1 (Stage 14 testing note, docs/micro_checklist.md): the main
+        # and engines packages' tests both write to the same Postgres
+        # service container, and Go's default cross-package parallelism can
+        # produce a false-failing trial-balance assertion with no relation
+        # to whatever change is actually being tested.
+
+      - name: Vulnerability scan (govulncheck)
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Secrets scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
