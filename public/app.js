@@ -254,6 +254,35 @@ async function apiFetch(url, options = {}) {
   return response;
 }
 
+// apiUpload (Stage 15.2): apiFetch always forces 'Content-Type':
+// 'application/json', which breaks a multipart/form-data upload (the
+// browser needs to set that header itself, with the boundary parameter).
+// This duplicates apiFetch's auth/tenant/401/429 handling but omits
+// Content-Type entirely so fetch can set it correctly for FormData bodies.
+async function apiUpload(url, formData) {
+  const token = localStorage.getItem('erp_token');
+  const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
+  const headers = { 'X-Tenant-ID': tenantID };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  let response;
+  try {
+    response = await fetch(url, { method: 'POST', headers, body: formData });
+  } catch (err) {
+    await showCustomAlert('Unable to reach the server. Please check your connection and try again.', 'Connection Error');
+    return null;
+  }
+  if (response.status === 401) {
+    logout('Session expired. Please log in again.');
+    return null;
+  }
+  if (response.status === 429) {
+    await showCustomAlert('Rate limit exceeded. Please throttle your requests.', 'Rate Limit');
+    return null;
+  }
+  return response;
+}
+
 // Auth: login screen, logout, and app-shell visibility
 
 // Holds the short-lived enrollment/challenge token between the initial
@@ -624,6 +653,15 @@ function setupEventListeners() {
     renderView('manufacturing');
   });
 
+  document.getElementById('menu-pim').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-pim');
+    closeSubmenus();
+    currentPIMTab = 'workbench';
+    currentPIMSelectedItem = '';
+    renderView('pim');
+  });
+
   document.getElementById('menu-purchase-orders').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-purchase-orders');
@@ -739,6 +777,7 @@ const STATIC_VIEW_MENU_IDS = {
   assets: 'menu-assets',
   expenses: 'menu-expenses',
   manufacturing: 'menu-manufacturing',
+  pim: 'menu-pim',
   'doctype-builder': 'menu-doctype-builder',
   vendors: 'menu-vendors',
   stores: 'menu-stores',
@@ -838,6 +877,8 @@ async function renderView(view) {
     await renderExpensesView(root);
   } else if (view === 'manufacturing') {
     await renderManufacturingView(root);
+  } else if (view === 'pim') {
+    await renderPIMView(root);
   } else if (view === 'purchase-orders') {
     await renderPurchaseOrdersView(root);
   } else if (view === 'doctype-table') {
@@ -3457,6 +3498,476 @@ async function completeProductionOrder(orderId) {
   renderView('manufacturing');
 }
 
+// PIM (Product Information Management) Foundation MVP (Stage 15). Product
+// Family / Attribute Definition / Family Attribute are plain generic
+// doctypes - their tabs below just navigate to the same generic
+// doctype-table view "Vendors" already uses (menu-vendors, above), rather
+// than duplicating list/table rendering. Workbench is the one bespoke
+// screen, since it needs the completeness score/missing-field data the
+// generic doc endpoint doesn't have.
+let currentPIMTab = 'workbench';
+let currentPIMFamilyFilter = '';
+let currentPIMSelectedItem = '';
+const PIM_TABS = [
+  { id: 'workbench', label: 'Workbench' },
+  { id: 'families', label: 'Product Families', doctype: 'ProductFamily' },
+  { id: 'attributes', label: 'Attribute Definitions', doctype: 'ProductAttributeDef' },
+  { id: 'family-attributes', label: 'Family Attributes', doctype: 'ProductFamilyAttribute' },
+  { id: 'channels', label: 'Channels', doctype: 'Channel' },
+  { id: 'channel-category-map', label: 'Category Mapping', doctype: 'ChannelCategoryMap' },
+  { id: 'channel-field-map', label: 'Field Mapping', doctype: 'ChannelFieldMap' }
+];
+
+async function renderPIMView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">PIM</h1>
+      <p class="page-subtitle">Product family/attribute framework, completeness scoring, content enrichment, media library, and channel publishing.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const tabBar = document.createElement('div');
+  tabBar.style.display = 'flex';
+  tabBar.style.gap = '8px';
+  tabBar.style.marginBottom = '16px';
+  tabBar.innerHTML = PIM_TABS.map(t =>
+    `<button class="btn ${t.id === currentPIMTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-pim-tab="${t.id}">${t.label}</button>`
+  ).join('');
+  container.appendChild(tabBar);
+  tabBar.querySelectorAll('[data-pim-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = PIM_TABS.find(t => t.id === btn.getAttribute('data-pim-tab'));
+      if (tab.doctype) {
+        setActiveMenu('menu-pim');
+        closeSubmenus();
+        currentDoctype = tab.doctype;
+        currentSearchQuery = '';
+        currentTablePage = 1;
+        renderView('doctype-table');
+        return;
+      }
+      currentPIMTab = tab.id;
+      currentPIMSelectedItem = '';
+      renderView('pim');
+    });
+  });
+
+  if (currentPIMTab === 'workbench') {
+    await renderPIMWorkbenchTab(container);
+  }
+}
+
+async function renderPIMWorkbenchTab(container) {
+  const familiesRes = await apiFetch('/api/v1/doc/ProductFamily');
+  const families = familiesRes && familiesRes.ok ? await familiesRes.json() : [];
+
+  const filterPanel = document.createElement('div');
+  filterPanel.className = 'table-panel';
+  filterPanel.style.padding = '16px 24px';
+  filterPanel.style.marginBottom = '16px';
+  filterPanel.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-family-filter">Family</label>
+        <select id="pim-family-filter" class="form-input" style="width: 220px;">
+          <option value="">All families</option>
+          ${families.map(f => `<option value="${f.code || f.id}" ${(f.code || f.id) === currentPIMFamilyFilter ? 'selected' : ''}>${f.name || f.code || f.id}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  `;
+  container.appendChild(filterPanel);
+  filterPanel.querySelector('#pim-family-filter').addEventListener('change', (e) => {
+    currentPIMFamilyFilter = e.target.value;
+    currentPIMSelectedItem = '';
+    renderView('pim');
+  });
+
+  const query = currentPIMFamilyFilter ? `?family=${encodeURIComponent(currentPIMFamilyFilter)}` : '';
+  const wbRes = await apiFetch(`/api/v1/pim/workbench${query}`);
+  const entries = wbRes && wbRes.ok ? await wbRes.json() : [];
+
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead><tr><th>Item</th><th>Name</th><th>Family</th><th>Status</th><th>Completeness</th><th>Missing</th></tr></thead>
+      <tbody>
+  `;
+  html += entries.length === 0
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No items found. Create one under Master Definition &raquo; Item.</td></tr>`
+    : entries.map(e => {
+        const badgeClass = e.score >= 80 ? 'badge-success' : e.score >= 40 ? 'badge-warning' : 'badge-danger';
+        return `
+          <tr class="pim-workbench-row" data-item="${e.item_code}" style="cursor: pointer;">
+            <td style="font-family: monospace;">${e.item_code}</td>
+            <td>${e.name || ''}</td>
+            <td>${e.family || ''}</td>
+            <td><span class="badge badge-secondary">${e.status || ''}</span></td>
+            <td><span class="badge ${badgeClass}">${e.score}%</span></td>
+            <td>${e.missing_count}</td>
+          </tr>
+        `;
+      }).join('');
+  html += `</tbody></table>`;
+  listPanel.innerHTML = html;
+  container.appendChild(listPanel);
+
+  listPanel.querySelectorAll('.pim-workbench-row').forEach(row => {
+    row.addEventListener('click', () => {
+      currentPIMSelectedItem = row.getAttribute('data-item');
+      renderView('pim');
+    });
+  });
+
+  if (currentPIMSelectedItem) {
+    await renderPIMDetailPanel(container, currentPIMSelectedItem);
+  }
+}
+
+async function renderPIMDetailPanel(container, itemCode) {
+  const compRes = await apiFetch(`/api/v1/pim/completeness/${encodeURIComponent(itemCode)}`);
+  if (!compRes || !compRes.ok) return;
+  const comp = await compRes.json();
+
+  const attrDefsRes = await apiFetch('/api/v1/doc/ProductAttributeDef');
+  const attrDefs = attrDefsRes && attrDefsRes.ok ? await attrDefsRes.json() : [];
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.style.marginTop = '16px';
+  panel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">${itemCode} - Completeness: ${comp.score}% <span class="badge badge-secondary" style="margin-left: 8px;">${comp.enrichment_status || ''}</span></h2>
+    <p style="color: var(--text-muted); margin-bottom: 16px;">
+      Missing: ${comp.missing_fields && comp.missing_fields.length > 0 ? comp.missing_fields.join(', ') : 'Nothing - fully complete.'}
+    </p>
+
+    <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 12px;">Add / Update Attribute Value</h3>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 24px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-attr-select">Attribute</label>
+        <select id="pim-attr-select" class="form-input" style="width: 200px;">
+          <option value="">Select attribute</option>
+          ${attrDefs.map(a => `<option value="${a.code || a.id}">${a.label || a.code || a.id}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-attr-value">Value</label>
+        <input type="text" id="pim-attr-value" class="form-input" style="width: 200px;">
+      </div>
+      <button class="btn btn-primary" id="pim-attr-save-btn">Save</button>
+    </div>
+    <div id="pim-attr-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+
+    <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 12px;">Content</h3>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-content-lang">Language</label>
+        <input type="text" id="pim-content-lang" class="form-input" style="width: 90px;" value="en">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-content-title">Title</label>
+        <input type="text" id="pim-content-title" class="form-input" style="width: 220px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-content-short">Short Description</label>
+        <input type="text" id="pim-content-short" class="form-input" style="width: 260px;">
+      </div>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px;">
+      <div class="form-group" style="margin-bottom: 0; flex: 1;">
+        <label class="form-label" for="pim-content-long">Long Description</label>
+        <textarea id="pim-content-long" class="form-input" rows="3" style="width: 100%;"></textarea>
+      </div>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-content-seo">SEO Title</label>
+        <input type="text" id="pim-content-seo" class="form-input" style="width: 220px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-content-tags">Tags</label>
+        <input type="text" id="pim-content-tags" class="form-input" style="width: 220px;">
+      </div>
+      <button class="btn btn-outline" id="pim-content-save-btn">Save Draft</button>
+      <button class="btn btn-primary" id="pim-content-submit-btn">Submit for Approval</button>
+    </div>
+    <div id="pim-content-error" class="login-error hidden" style="margin-top: 16px;"></div>
+
+    <h3 style="font-size: 14px; font-weight: 700; margin: 24px 0 12px;">Media</h3>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-media-file">File (jpg/png/webp/gif/pdf)</label>
+        <input type="file" id="pim-media-file" class="form-input" accept=".jpg,.jpeg,.png,.webp,.gif,.pdf">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-media-role">Role</label>
+        <select id="pim-media-role" class="form-input" style="width: 160px;">
+          <option>Main Image</option>
+          <option>Gallery</option>
+          <option>Variant Image</option>
+          <option>Lifestyle</option>
+          <option>Certificate</option>
+          <option>Internal QC</option>
+          <option>Video/Other</option>
+        </select>
+      </div>
+      <button class="btn btn-primary" id="pim-media-upload-btn">Upload</button>
+    </div>
+    <div id="pim-media-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
+    <div id="pim-media-gallery" style="display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 24px;"></div>
+
+    <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 12px;">Channel Publishing</h3>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-publish-channel">Channel</label>
+        <select id="pim-publish-channel" class="form-input" style="width: 200px;"><option value="">Loading...</option></select>
+      </div>
+      <button class="btn btn-primary" id="pim-publish-btn">Publish</button>
+    </div>
+    <div id="pim-publish-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
+    <div id="pim-publish-log"></div>
+  `;
+  container.appendChild(panel);
+
+  document.getElementById('pim-attr-save-btn').addEventListener('click', () => savePIMAttributeValue(itemCode));
+  document.getElementById('pim-content-save-btn').addEventListener('click', () => savePIMContent(itemCode, 'Draft'));
+  document.getElementById('pim-content-submit-btn').addEventListener('click', () => submitPIMContent(itemCode));
+  document.getElementById('pim-media-upload-btn').addEventListener('click', () => uploadPIMMedia(itemCode));
+  document.getElementById('pim-publish-btn').addEventListener('click', () => publishPIMItem(itemCode));
+
+  await renderPIMMediaGallery(itemCode);
+  await renderPIMPublishSection(itemCode);
+}
+
+async function renderPIMMediaGallery(itemCode) {
+  const gallery = document.getElementById('pim-media-gallery');
+  if (!gallery) return;
+  const res = await apiFetch(`/api/v1/pim/media?item=${encodeURIComponent(itemCode)}`);
+  const media = res && res.ok ? await res.json() : [];
+
+  if (media.length === 0) {
+    gallery.innerHTML = `<div style="color: var(--text-muted); font-size: 13px;">No media uploaded yet.</div>`;
+    return;
+  }
+
+  gallery.innerHTML = media.map(m => `
+    <div class="table-panel" style="padding: 8px; width: 140px;" data-media-card="${m.id}">
+      <div style="font-size: 11px; font-weight: 600; margin-bottom: 4px;">${m.media_role}</div>
+      <img data-media-thumb="${m.id}" style="width: 100%; height: 90px; object-fit: cover; background: var(--bg-secondary); border-radius: 4px;" alt="${m.media_role}">
+      <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 6px;" data-deactivate-media="${m.id}">Deactivate</button>
+    </div>
+  `).join('');
+
+  // <img> tags can't send an Authorization header, so each thumbnail is
+  // fetched as an authenticated blob and swapped in via an object URL
+  // rather than pointing src directly at the (auth-gated) file endpoint.
+  media.forEach(async (m) => {
+    const imgRes = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/file`);
+    if (imgRes && imgRes.ok) {
+      const blob = await imgRes.blob();
+      const imgEl = gallery.querySelector(`[data-media-thumb="${m.id}"]`);
+      if (imgEl) imgEl.src = URL.createObjectURL(blob);
+    }
+  });
+
+  gallery.querySelectorAll('[data-deactivate-media]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const mediaId = btn.getAttribute('data-deactivate-media');
+      const res = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(mediaId)}/deactivate`, { method: 'POST' });
+      if (res && res.ok) renderView('pim');
+    });
+  });
+}
+
+async function uploadPIMMedia(itemCode) {
+  const errorEl = document.getElementById('pim-media-error');
+  errorEl.classList.add('hidden');
+
+  const fileInput = document.getElementById('pim-media-file');
+  const role = document.getElementById('pim-media-role').value;
+  if (!fileInput.files.length) {
+    errorEl.textContent = 'Select a file first.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+  formData.append('item', itemCode);
+  formData.append('media_role', role);
+
+  const res = await apiUpload('/api/v1/pim/media/upload', formData);
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to upload media.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('pim');
+}
+
+async function renderPIMPublishSection(itemCode) {
+  const select = document.getElementById('pim-publish-channel');
+  const logEl = document.getElementById('pim-publish-log');
+  if (!select || !logEl) return;
+
+  const channelsRes = await apiFetch('/api/v1/doc/Channel');
+  const channels = channelsRes && channelsRes.ok ? await channelsRes.json() : [];
+  select.innerHTML = channels.length === 0
+    ? `<option value="">No channels configured</option>`
+    : channels.map(c => `<option value="${c.code || c.id}">${c.name || c.code || c.id}</option>`).join('');
+
+  const logRes = await apiFetch(`/api/v1/pim/publish-log?item=${encodeURIComponent(itemCode)}`);
+  const log = logRes && logRes.ok ? await logRes.json() : [];
+  logEl.innerHTML = log.length === 0
+    ? `<div style="color: var(--text-muted); font-size: 13px;">No publish attempts yet.</div>`
+    : `<table><thead><tr><th>Channel</th><th>Status</th><th>External ID</th><th>When</th></tr></thead><tbody>${
+        log.map(l => `<tr><td>${l.channel_code}</td><td><span class="badge ${l.status === 'Published' ? 'badge-success' : 'badge-danger'}">${l.status}</span></td><td style="font-family: monospace;">${l.external_id || ''}</td><td>${l.created_at || ''}</td></tr>`).join('')
+      }</tbody></table>`;
+}
+
+async function publishPIMItem(itemCode) {
+  const errorEl = document.getElementById('pim-publish-error');
+  errorEl.classList.add('hidden');
+
+  const channel = document.getElementById('pim-publish-channel').value;
+  if (!channel) {
+    errorEl.textContent = 'Select a channel first.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/pim/publish', {
+    method: 'POST',
+    body: JSON.stringify({ item_code: itemCode, channel })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to queue publish.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  await renderPIMPublishSection(itemCode);
+}
+
+async function savePIMAttributeValue(itemCode) {
+  const errorEl = document.getElementById('pim-attr-error');
+  errorEl.classList.add('hidden');
+
+  const attributeId = document.getElementById('pim-attr-select').value;
+  const value = document.getElementById('pim-attr-value').value.trim();
+  if (!attributeId || !value) {
+    errorEl.textContent = 'Attribute and Value are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const id = `${itemCode}::${attributeId}`;
+  const res = await apiFetch('/api/v1/doc/ProductAttributeValue', {
+    method: 'POST',
+    body: JSON.stringify({ id, code: id, item: itemCode, attribute: attributeId, value, status: 'Active' })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to save attribute value.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('pim');
+}
+
+function pimContentPayload(itemCode, status) {
+  const language = document.getElementById('pim-content-lang').value.trim() || 'en';
+  const id = `${itemCode}::${language}`;
+  return {
+    id,
+    payload: {
+      id,
+      code: id,
+      product_id: itemCode,
+      language,
+      title: document.getElementById('pim-content-title').value.trim(),
+      short_desc: document.getElementById('pim-content-short').value.trim(),
+      long_desc: document.getElementById('pim-content-long').value.trim(),
+      seo_title: document.getElementById('pim-content-seo').value.trim(),
+      tags: document.getElementById('pim-content-tags').value.trim(),
+      status
+    }
+  };
+}
+
+async function savePIMContent(itemCode, status) {
+  const errorEl = document.getElementById('pim-content-error');
+  errorEl.classList.add('hidden');
+
+  const { payload } = pimContentPayload(itemCode, status);
+  if (!payload.title) {
+    errorEl.textContent = 'Title is required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/doc/ProductContent', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to save content.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('pim');
+}
+
+async function submitPIMContent(itemCode) {
+  const errorEl = document.getElementById('pim-content-error');
+  errorEl.classList.add('hidden');
+
+  // Save the current draft first so "Submit" always submits what's on
+  // screen, then submit that same id into the existing generic
+  // Approval/Workflow Engine (Stage 13.8) - no PIM-specific approval code.
+  const { id, payload } = pimContentPayload(itemCode, 'Draft');
+  if (!payload.title) {
+    errorEl.textContent = 'Title is required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const saveRes = await apiFetch('/api/v1/doc/ProductContent', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+  if (!saveRes) return;
+  if (!saveRes.ok) {
+    const data = await saveRes.json();
+    errorEl.textContent = data.error || 'Failed to save content before submitting.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/approval/submit', {
+    method: 'POST',
+    body: JSON.stringify({ doctype: 'ProductContent', document_id: id })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to submit for approval.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('pim');
+}
+
 // Render dynamic DocType CRUD Table view
 async function renderDocTableView(container) {
   const metaRes = await apiFetch(`/api/v1/doc/${currentDoctype}/meta`);
@@ -4238,11 +4749,12 @@ window.handleBulkImportSubmit = async function(e) {
     summary.style.backgroundColor = 'rgba(46, 213, 115, 0.1)';
     summary.style.border = '1px solid rgba(46, 213, 115, 0.3)';
     summary.style.color = '#2ed573';
-    
+
     let html = `
       <div style="font-weight:600; margin-bottom:8px;">Import Processed Successfully:</div>
       <div>Total Rows Parsed: ${result.total_rows}</div>
-      <div>Successfully Inserted: ${result.success_rows}</div>
+      <div>Created: ${(result.created_ids || []).length}</div>
+      <div>Updated: ${(result.updated_ids || []).length}</div>
       <div>Failed Rows: ${result.failed_rows}</div>
     `;
 
@@ -4252,10 +4764,14 @@ window.handleBulkImportSubmit = async function(e) {
         html += `<li>Row ${err.row_number}: ${err.message}</li>`;
       });
       html += `</ul>`;
+      if (result.import_job_id) {
+        const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
+        html += `<div style="margin-top:8px;"><a href="/api/v1/pim/import-jobs/${result.import_job_id}/errors.csv?tenant_id=${tenantID}" target="_blank">Download error rows (CSV)</a></div>`;
+      }
     }
 
     summary.innerHTML = html;
-    
+
     setTimeout(() => {
       closeImportModal();
       renderView('doctype-table');
@@ -4267,6 +4783,51 @@ window.handleBulkImportSubmit = async function(e) {
     summary.style.color = '#ff4757';
     summary.innerHTML = `<strong>Import Failed:</strong> Server returned an error processing the CSV request.`;
   }
+};
+
+// Preview (Stage 15.2): dry-run of the same file - nothing is written,
+// shows the create/update/reject breakdown before the user commits.
+window.handleBulkImportPreview = async function() {
+  const fileInput = document.getElementById('import-file-input');
+  if (!fileInput.files.length) {
+    await showCustomAlert('Select a CSV file first.', 'No File Selected');
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('file', fileInput.files[0]);
+
+  const summary = document.getElementById('import-result-summary');
+  const res = await apiUpload(`/api/v1/pim/import/${currentDoctype}/preview`, formData);
+  if (!res) return;
+
+  summary.style.display = 'block';
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    summary.style.backgroundColor = 'rgba(255, 71, 87, 0.1)';
+    summary.style.border = '1px solid rgba(255, 71, 87, 0.3)';
+    summary.style.color = '#ff4757';
+    summary.innerHTML = `<strong>Preview Failed:</strong> ${data.error || 'Server returned an error processing the CSV request.'}`;
+    return;
+  }
+
+  const result = await res.json();
+  summary.style.backgroundColor = 'rgba(255, 165, 2, 0.1)';
+  summary.style.border = '1px solid rgba(255, 165, 2, 0.3)';
+  summary.style.color = '#ffa502';
+  let html = `
+    <div style="font-weight:600; margin-bottom:8px;">Preview (nothing written yet):</div>
+    <div>Total Rows: ${result.total_rows}</div>
+    <div>Would Create: ${(result.created_ids || []).length}</div>
+    <div>Would Update: ${(result.updated_ids || []).length}</div>
+    <div>Would Reject: ${result.failed_rows}</div>
+  `;
+  if (result.errors && result.errors.length > 0) {
+    html += `<div style="font-weight:600; margin-top:12px;">Row Errors:</div><ul style="padding-left:16px; margin-top:4px;">`;
+    result.errors.forEach(err => { html += `<li>Row ${err.row_number}: ${err.message}</li>`; });
+    html += `</ul>`;
+  }
+  summary.innerHTML = html;
 };
 
 // Window load init

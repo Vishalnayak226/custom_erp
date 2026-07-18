@@ -256,6 +256,20 @@
           </a>
         </li>
 
+        <li class="menu-item-container">
+          <a class="menu-item" id="menu-pim">
+            <span class="menu-item-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+              </svg>
+            </span>
+            <span>PIM</span>
+          </a>
+        </li>
+
         <!-- Master Definition Dropdown -->
         <li class="menu-item-container">
           <a class="menu-item" id="menu-master-definition">
@@ -529,6 +543,7 @@
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+          <button type="button" class="btn btn-outline" onclick="handleBulkImportPreview()">Preview (no changes written)</button>
           <button type="submit" class="btn btn-primary">Process Import</button>
         </div>
       </form>

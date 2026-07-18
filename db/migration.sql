@@ -865,3 +865,266 @@ INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, all
 ('Store Manager', 'BOM', TRUE, FALSE, FALSE, FALSE),
 ('Store Manager', 'ProductionOrder', TRUE, TRUE, TRUE, FALSE)
 ON CONFLICT (role, doctype_name) DO NOTHING;
+
+-- 31. PIM Foundation MVP (Stage 15) - PIM Module Developer Blueprint v1.0.
+-- Scoped to Family/Attribute framework + Parent/Variant grouping on the
+-- existing Item doctype + Content enrichment with maker-checker approval +
+-- a Completeness Scoring engine (engines/pim.go). Media Library and Channel
+-- Mapping/Publishing are deliberately out of scope for this phase (see
+-- docs/micro_checklist.md Stage 15 note). Item stays the single source of
+-- product identity/tax/price/barcode per the blueprint's core rule - PIM
+-- never becomes a parallel product master, it only adds enrichment
+-- doctypes plus 3 optional linking fields onto Item.
+--
+-- Module-governance tables below are CREATE TABLE IF NOT EXISTS so PIM
+-- doesn't depend on db/migrations_stage14a_modules.sql (which introduces
+-- the same public.modules/module_entitlements/doctype_meta.module_key
+-- objects but, as of this writing, isn't yet wired into README.md/ci.yml's
+-- migration apply list) - safe to run whether or not that file also lands.
+CREATE TABLE IF NOT EXISTS public.modules (
+    module_key VARCHAR(100) PRIMARY KEY,
+    display_name VARCHAR(255) NOT NULL,
+    description TEXT,
+    is_core BOOLEAN DEFAULT FALSE,
+    default_enabled BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tenant_default.module_entitlements (
+    module_key VARCHAR(100) PRIMARY KEY,
+    enabled BOOLEAN DEFAULT TRUE,
+    granted_by VARCHAR(100),
+    granted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    note TEXT
+);
+
+ALTER TABLE tenant_default.doctype_meta ADD COLUMN IF NOT EXISTS module_key VARCHAR(100);
+
+INSERT INTO public.modules (module_key, display_name, description, is_core, default_enabled) VALUES
+('pim', 'Product Information Management', 'Product family/attribute framework, content enrichment with approval, completeness scoring', FALSE, TRUE)
+ON CONFLICT (module_key) DO NOTHING;
+
+INSERT INTO tenant_default.module_entitlements (module_key, enabled, granted_by, note) VALUES
+('pim', TRUE, 'system', NULL)
+ON CONFLICT (module_key) DO NOTHING;
+
+-- ProductFamily: controls which attributes are required for a given
+-- industry vertical (jewellery sees polish/purity, electronics sees
+-- warranty/voltage) - see ProductFamilyAttribute below for the mapping.
+INSERT INTO tenant_default.doctype_meta (name, module, module_key, document_type) VALUES
+('ProductFamily', 'PIM', 'pim', 'Master'),
+('ProductAttributeDef', 'PIM', 'pim', 'Master'),
+('ProductFamilyAttribute', 'PIM', 'pim', 'Master'),
+('ProductAttributeValue', 'PIM', 'pim', 'Transaction'),
+('ProductContent', 'PIM', 'pim', 'Transaction')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('ProductFamily', 'code', 'Family Code', 'Data', TRUE, NULL, 1),
+('ProductFamily', 'name', 'Family Name', 'Data', TRUE, NULL, 2),
+('ProductFamily', 'description', 'Description', 'Data', FALSE, NULL, 3),
+('ProductFamily', 'status', 'Status', 'Select', TRUE, 'Active,Inactive', 4)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('ProductAttributeDef', 'code', 'Attribute Code', 'Data', TRUE, NULL, 1),
+('ProductAttributeDef', 'label', 'Label', 'Data', TRUE, NULL, 2),
+('ProductAttributeDef', 'value_type', 'Value Type', 'Select', TRUE, 'Data,Number,Select,Date', 3),
+('ProductAttributeDef', 'value_options', 'Select Options (if Value Type=Select)', 'Data', FALSE, NULL, 4),
+('ProductAttributeDef', 'status', 'Status', 'Select', TRUE, 'Active,Inactive', 5)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('ProductFamilyAttribute', 'code', 'Code', 'Data', TRUE, NULL, 1),
+('ProductFamilyAttribute', 'family', 'Family', 'Link', TRUE, 'ProductFamily', 2),
+('ProductFamilyAttribute', 'attribute', 'Attribute', 'Link', TRUE, 'ProductAttributeDef', 3),
+('ProductFamilyAttribute', 'mandatory', 'Mandatory for Completeness', 'Select', TRUE, 'Yes,No', 4),
+('ProductFamilyAttribute', 'display_order', 'Display Order', 'Number', FALSE, NULL, 5)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+-- ProductAttributeValue id convention: "<item_code>::<attribute_code>" -
+-- makes "one value per item+attribute" self-enforcing via the generic doc
+-- handler's INSERT...ON CONFLICT(id) DO UPDATE upsert, no new dedup code.
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('ProductAttributeValue', 'code', 'Code', 'Data', TRUE, NULL, 1),
+('ProductAttributeValue', 'item', 'Item', 'Link', TRUE, 'Item', 2),
+('ProductAttributeValue', 'attribute', 'Attribute', 'Link', TRUE, 'ProductAttributeDef', 3),
+('ProductAttributeValue', 'value', 'Value', 'Data', TRUE, NULL, 4),
+('ProductAttributeValue', 'status', 'Status', 'Select', TRUE, 'Active,Inactive', 5)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+-- ProductContent id convention: "<item_code>::<language>" - same
+-- self-enforcing upsert trick as ProductAttributeValue above. Approval-
+-- gated below (single amount-agnostic slab) so it reuses the existing
+-- Approval/Workflow Engine (Stage 13.8, engines/approval.go) as-is - zero
+-- new approval code, same pattern Expense Management (Stage 13.13c) used.
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('ProductContent', 'code', 'Code', 'Data', TRUE, NULL, 1),
+('ProductContent', 'product_id', 'Product (Item)', 'Link', TRUE, 'Item', 2),
+('ProductContent', 'language', 'Language', 'Data', TRUE, NULL, 3),
+('ProductContent', 'title', 'Title', 'Data', TRUE, NULL, 4),
+('ProductContent', 'short_desc', 'Short Description', 'Data', FALSE, NULL, 5),
+('ProductContent', 'long_desc', 'Long Description', 'Data', FALSE, NULL, 6),
+('ProductContent', 'seo_title', 'SEO Title', 'Data', FALSE, NULL, 7),
+('ProductContent', 'tags', 'Tags (comma-separated)', 'Data', FALSE, NULL, 8),
+('ProductContent', 'status', 'Status', 'Select', TRUE, 'Draft,Pending Approval,Approved,Rejected', 9)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+-- New optional fields on the existing Item doctype: family linkage +
+-- parent/variant grouping. Deliberately NOT a new physical product table -
+-- a variant Item just sets parent_product_code to its parent Item's code,
+-- per the blueprint's explicit rule that PIM must never become a parallel
+-- product master. variant_option_values uses a simple "Key:Value;Key:Value"
+-- shorthand (e.g. "Color:Red;Size:M") for easy manual entry; uniqueness of
+-- the combination within a parent is enforced in engines.pim.go, hooked
+-- into main.go's handleGenericDoc (mirrors the existing ExpenseClaim
+-- validation hook, Stage 13.13c) since nothing like this exists for Item
+-- today.
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('Item', 'family', 'Product Family', 'Link', FALSE, 'ProductFamily', 9),
+('Item', 'parent_product_code', 'Parent Product Code', 'Data', FALSE, NULL, 10),
+('Item', 'variant_option_values', 'Variant Options (Key:Value;Key:Value)', 'Data', FALSE, NULL, 11)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.approval_rules (doctype, min_amount, max_amount, required_role) VALUES
+('ProductContent', 0, NULL, 'HR/Admin')
+ON CONFLICT (doctype, min_amount) DO NOTHING;
+
+-- HR/Admin: full control over the taxonomy (Family/AttributeDef/
+-- FamilyAttribute) and content. Store Manager: read-only on taxonomy
+-- (shouldn't edit config store-side), maker (create/read/update, no
+-- delete) on AttributeValue/Content - same "maker can submit, checker
+-- approves" shape as ExpenseClaim (Stage 13.13c). allow_update=TRUE is
+-- required for Store Manager to actually submit content for approval,
+-- since handleSubmitApproval gates on "update" permission - the exact gap
+-- Stage 13.13c hit and fixed for Cashier/ExpenseClaim, pre-empted here.
+INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES
+('HR/Admin', 'ProductFamily', TRUE, TRUE, TRUE, TRUE),
+('HR/Admin', 'ProductAttributeDef', TRUE, TRUE, TRUE, TRUE),
+('HR/Admin', 'ProductFamilyAttribute', TRUE, TRUE, TRUE, TRUE),
+('HR/Admin', 'ProductAttributeValue', TRUE, TRUE, TRUE, TRUE),
+('HR/Admin', 'ProductContent', TRUE, TRUE, TRUE, TRUE),
+('Store Manager', 'ProductFamily', TRUE, FALSE, FALSE, FALSE),
+('Store Manager', 'ProductAttributeDef', TRUE, FALSE, FALSE, FALSE),
+('Store Manager', 'ProductFamilyAttribute', TRUE, FALSE, FALSE, FALSE),
+('Store Manager', 'ProductAttributeValue', TRUE, TRUE, TRUE, FALSE),
+('Store Manager', 'ProductContent', TRUE, TRUE, TRUE, FALSE)
+ON CONFLICT (role, doctype_name) DO NOTHING;
+
+-- 32. PIM V2 Alignment: Media, Channel Publishing, Import/Export (Stage
+-- 15.2, PIM Module Developer Blueprint V2 - Repo-Enhanced). Rides the
+-- existing module_key='pim' registered in section 31 - no new module.
+-- PIMProductProfile is a write-through cache/derived-status doctype (see
+-- engines/pim.go's CalculateCompleteness) - it is never directly
+-- created/updated by a user, so both roles below get read-only.
+INSERT INTO tenant_default.doctype_meta (name, module, module_key, document_type) VALUES
+('PIMProductProfile', 'PIM', 'pim', 'Transaction'),
+('ProductMedia', 'PIM', 'pim', 'Transaction'),
+('Channel', 'PIM', 'pim', 'Master'),
+('ChannelCategoryMap', 'PIM', 'pim', 'Master'),
+('ChannelFieldMap', 'PIM', 'pim', 'Master'),
+('ImportJob', 'PIM', 'pim', 'Transaction')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('PIMProductProfile', 'code', 'Code', 'Data', TRUE, NULL, 1),
+('PIMProductProfile', 'product_id', 'Product (Item)', 'Link', TRUE, 'Item', 2),
+('PIMProductProfile', 'enrichment_status', 'Enrichment Status', 'Select', TRUE, 'Draft,Enrichment In Progress,Pending Approval,Approved,Ready to Publish,Published,Publish Failed,Archived', 3),
+('PIMProductProfile', 'completeness_score', 'Completeness Score', 'Number', FALSE, NULL, 4),
+('PIMProductProfile', 'missing_fields_json', 'Missing Fields (JSON)', 'Data', FALSE, NULL, 5),
+('PIMProductProfile', 'last_scored_at', 'Last Scored At', 'Data', FALSE, NULL, 6)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('ProductMedia', 'code', 'Code', 'Data', TRUE, NULL, 1),
+('ProductMedia', 'item', 'Item', 'Link', TRUE, 'Item', 2),
+('ProductMedia', 'media_role', 'Media Role', 'Select', TRUE, 'Main Image,Gallery,Variant Image,Lifestyle,Certificate,Internal QC,Video/Other', 3),
+('ProductMedia', 'file_path', 'File Path', 'Data', TRUE, NULL, 4),
+('ProductMedia', 'file_type', 'File Type', 'Data', TRUE, NULL, 5),
+('ProductMedia', 'checksum', 'Checksum', 'Data', TRUE, NULL, 6),
+('ProductMedia', 'width', 'Width (px)', 'Number', FALSE, NULL, 7),
+('ProductMedia', 'height', 'Height (px)', 'Number', FALSE, NULL, 8),
+('ProductMedia', 'version_no', 'Version', 'Number', FALSE, NULL, 9),
+('ProductMedia', 'sort_order', 'Sort Order', 'Number', FALSE, NULL, 10),
+('ProductMedia', 'status', 'Status', 'Select', TRUE, 'Active,Inactive', 11)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('Channel', 'code', 'Channel Code', 'Data', TRUE, NULL, 1),
+('Channel', 'name', 'Channel Name', 'Data', TRUE, NULL, 2),
+('Channel', 'channel_type', 'Channel Type', 'Select', TRUE, 'Website,Marketplace,OMS,Middleware', 3),
+('Channel', 'default_locale', 'Default Locale', 'Data', FALSE, NULL, 4),
+('Channel', 'default_currency', 'Default Currency', 'Data', FALSE, NULL, 5),
+('Channel', 'enabled', 'Enabled', 'Select', TRUE, 'Yes,No', 6)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('ChannelCategoryMap', 'code', 'Code', 'Data', TRUE, NULL, 1),
+('ChannelCategoryMap', 'channel', 'Channel', 'Link', TRUE, 'Channel', 2),
+('ChannelCategoryMap', 'erp_category', 'ERP Category', 'Data', TRUE, NULL, 3),
+('ChannelCategoryMap', 'channel_category', 'Channel Category', 'Data', TRUE, NULL, 4)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+-- ChannelFieldMap.mandatory drives channel-scoped completeness (Decision 3,
+-- session plan) - a field optional in ERP/PIM core can still block
+-- publish-readiness for a specific channel here.
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('ChannelFieldMap', 'code', 'Code', 'Data', TRUE, NULL, 1),
+('ChannelFieldMap', 'channel', 'Channel', 'Link', TRUE, 'Channel', 2),
+('ChannelFieldMap', 'source_field', 'Source Field (ERP/PIM)', 'Data', TRUE, NULL, 3),
+('ChannelFieldMap', 'target_field', 'Target Field (Channel)', 'Data', TRUE, NULL, 4),
+('ChannelFieldMap', 'mandatory', 'Mandatory for Publish', 'Select', TRUE, 'Yes,No', 5)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('ImportJob', 'code', 'Code', 'Data', TRUE, NULL, 1),
+('ImportJob', 'doctype_name', 'Doctype', 'Data', TRUE, NULL, 2),
+('ImportJob', 'status', 'Status', 'Select', TRUE, 'Completed,Failed', 3),
+('ImportJob', 'total_rows', 'Total Rows', 'Number', TRUE, NULL, 4),
+('ImportJob', 'success_rows', 'Success Rows', 'Number', TRUE, NULL, 5),
+('ImportJob', 'failed_rows', 'Failed Rows', 'Number', TRUE, NULL, 6),
+('ImportJob', 'error_csv', 'Error CSV (row-level failures)', 'Data', FALSE, NULL, 7)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+INSERT INTO tenant_default.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete) VALUES
+('HR/Admin', 'PIMProductProfile', TRUE, FALSE, FALSE, FALSE),
+('Store Manager', 'PIMProductProfile', TRUE, FALSE, FALSE, FALSE),
+('HR/Admin', 'ProductMedia', TRUE, TRUE, TRUE, TRUE),
+('Store Manager', 'ProductMedia', TRUE, TRUE, TRUE, FALSE),
+('HR/Admin', 'Channel', TRUE, TRUE, TRUE, TRUE),
+('Store Manager', 'Channel', TRUE, FALSE, FALSE, FALSE),
+('HR/Admin', 'ChannelCategoryMap', TRUE, TRUE, TRUE, TRUE),
+('Store Manager', 'ChannelCategoryMap', TRUE, FALSE, FALSE, FALSE),
+('HR/Admin', 'ChannelFieldMap', TRUE, TRUE, TRUE, TRUE),
+('Store Manager', 'ChannelFieldMap', TRUE, FALSE, FALSE, FALSE),
+('HR/Admin', 'ImportJob', TRUE, TRUE, TRUE, TRUE),
+('Store Manager', 'ImportJob', TRUE, TRUE, FALSE, FALSE)
+ON CONFLICT (role, doctype_name) DO NOTHING;
+
+-- System-generated publish job queue/log - dedicated SQL tables, not
+-- doctypes, same reasoning as sticker_print_log/approval_log (Stage
+-- 13.8/13.15): these are written by the background worker
+-- (engines.StartPublishQueueWorker), not authored by a user.
+CREATE TABLE IF NOT EXISTS tenant_default.pim_publish_queue (
+    job_id SERIAL PRIMARY KEY,
+    item_code VARCHAR(100) NOT NULL,
+    channel_code VARCHAR(100) NOT NULL,
+    payload_hash VARCHAR(100) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'Queued', -- Queued, Processing, Published, Failed
+    retry_count INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_pim_publish_queue_status ON tenant_default.pim_publish_queue (status);
+
+CREATE TABLE IF NOT EXISTS tenant_default.pim_publish_log (
+    id SERIAL PRIMARY KEY,
+    job_id INT NOT NULL,
+    item_code VARCHAR(100) NOT NULL,
+    channel_code VARCHAR(100) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    external_id VARCHAR(150),
+    error_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_pim_publish_log_item ON tenant_default.pim_publish_log (item_code);

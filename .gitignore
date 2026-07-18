@@ -27,6 +27,9 @@ Thumbs.db
 # Go build files
 bin/
 
+# PIM Media Library uploaded files (Stage 15.2) - user content, not source
+/media_store/
+
 # Frontend build output (regenerate via `npm run build`) - was previously tracked,
 # including a committed .map that defeated the point of shipping a minified bundle.
 public/dist/

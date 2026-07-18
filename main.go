@@ -6,6 +6,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -377,6 +378,10 @@ func main() {
 	// Start Outbox background poller (Scale and Omnichannel integration queue)
 	engines.StartOutboxWorker(5 * time.Second)
 
+	// Start PIM Publish Queue background poller (Stage 15.2 - stub connector,
+	// see engines/pim_publish.go's file header for the real-connector caveat)
+	engines.StartPublishQueueWorker(10 * time.Second)
+
 	// Authentication API
 	http.HandleFunc("POST /api/v1/login", apiMiddleware(handleLogin))
 
@@ -446,6 +451,18 @@ func main() {
 	// PIM Foundation MVP (Stage 15: module-gated - "pim")
 	http.HandleFunc("GET /api/v1/pim/workbench", apiMiddleware(moduleGate("pim", handlePIMWorkbench)))
 	http.HandleFunc("GET /api/v1/pim/completeness/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMCompleteness)))
+	// Media Library (Stage 15.2)
+	http.HandleFunc("POST /api/v1/pim/media/upload", apiMiddleware(moduleGate("pim", handlePIMMediaUpload)))
+	http.HandleFunc("GET /api/v1/pim/media/{id}/file", apiMiddleware(moduleGate("pim", handlePIMMediaFile)))
+	http.HandleFunc("GET /api/v1/pim/media", apiMiddleware(moduleGate("pim", handlePIMMediaList)))
+	http.HandleFunc("POST /api/v1/pim/media/{id}/deactivate", apiMiddleware(moduleGate("pim", handlePIMMediaDeactivate)))
+	// Channel Publishing (Stage 15.2)
+	http.HandleFunc("POST /api/v1/pim/publish", apiMiddleware(moduleGate("pim", handlePIMPublish)))
+	http.HandleFunc("GET /api/v1/pim/publish/{jobID}", apiMiddleware(moduleGate("pim", handlePIMPublishJobStatus)))
+	http.HandleFunc("GET /api/v1/pim/publish-log", apiMiddleware(moduleGate("pim", handlePIMPublishLog)))
+	// Import/Export (Stage 15.2)
+	http.HandleFunc("POST /api/v1/pim/import/{doctype}/preview", apiMiddleware(moduleGate("pim", handlePIMImportPreview)))
+	http.HandleFunc("GET /api/v1/pim/import-jobs/{id}/errors.csv", apiMiddleware(moduleGate("pim", handlePIMImportJobErrors)))
 
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
@@ -1032,6 +1049,17 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// PIM Product Profile auto-create (Stage 15.2, V2 §6.1 step 2):
+		// "PIM profile is auto-created with status PIM Draft." Create-only
+		// (id == "" means this request hit the create route, not update) -
+		// EnsurePIMProductProfile itself is also idempotent (ON CONFLICT DO
+		// NOTHING), so this is belt-and-suspenders, not load-bearing.
+		if doctype == "Item" && id == "" {
+			if errProfile := engines.EnsurePIMProductProfile(tenantID, docID); errProfile != nil {
+				engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "PIM_PROFILE_CREATE_FAILED", r.URL.Path, errProfile.Error(), "")
+			}
+		}
+
 		// HR Access Link Hook (Stage 13.13a, MB 16.3): an Employee's
 		// active/inactive status controls their linked ERP user's ability
 		// to log in.
@@ -1496,13 +1524,69 @@ func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	res, err := engines.BulkImportCSV(tenantID, doctype, file, userID)
+	res, err := engines.BulkImportCSV(tenantID, doctype, file, userID, false)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
+	jobID, errJob := engines.RecordImportJob(tenantID, doctype, res, userID)
+	if errJob != nil {
+		engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "IMPORT_JOB_RECORD_FAILED", r.URL.Path, errJob.Error(), "")
+	}
+
+	responseBytes, _ := json.Marshal(res)
+	var responseMap map[string]interface{}
+	_ = json.Unmarshal(responseBytes, &responseMap)
+	if jobID != "" {
+		responseMap["import_job_id"] = jobID
+	}
+	_ = json.NewEncoder(w).Encode(responseMap)
+}
+
+// handlePIMImportPreview (Stage 15.2, V2 §6.2/§16 Phase 3): the same CSV
+// parse/validate/existence-check logic as handleBulkImport, run with
+// dryRun=true - nothing is written, giving the create/update/reject preview
+// V2's Import Job screen wants before a user commits a bulk file.
+func handlePIMImportPreview(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	doctype := r.PathValue("doctype")
+	userID := r.Header.Get("Resolved-Role")
+
+	if err := r.ParseMultipartForm(5 << 20); err != nil {
+		http.Error(w, "Multipart payload exceeds limit", http.StatusBadRequest)
+		return
+	}
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "CSV file is mandatory under multipart FormFile 'file'", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	res, err := engines.BulkImportCSV(tenantID, doctype, file, userID, true)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 	_ = json.NewEncoder(w).Encode(res)
+}
+
+// handlePIMImportJobErrors serves a completed ImportJob's row-level failures
+// as a downloadable CSV, same Content-Disposition pattern as the CSV import
+// template endpoint above.
+func handlePIMImportJobErrors(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	jobID := r.PathValue("id")
+
+	csvBytes, err := engines.GetImportJobErrorCSV(tenantID, jobID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=import_errors_%s.csv", jobID))
+	_, _ = w.Write(csvBytes)
 }
 
 func handleGetImportTemplate(w http.ResponseWriter, r *http.Request) {
@@ -2129,12 +2213,191 @@ func handlePIMCompleteness(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	itemCode := r.PathValue("itemCode")
-	result, err := engines.CalculateCompleteness(tenantID, itemCode)
+	locale := r.URL.Query().Get("locale")
+	channelID := r.URL.Query().Get("channel")
+	result, err := engines.CalculateCompleteness(tenantID, itemCode, locale, channelID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(result)
+}
+
+// handlePIMMediaUpload (Stage 15.2). Media files are larger than the global
+// 2MB JSON body cap set in apiMiddleware - re-wrapping r.Body with a bigger
+// MaxBytesReader here, before ParseMultipartForm reads it, raises the limit
+// for this route only; every other route keeps the existing 2MB ceiling.
+func handlePIMMediaUpload(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		http.Error(w, "Upload exceeds 10MB limit or is malformed", http.StatusBadRequest)
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		http.Error(w, "File is mandatory under multipart FormFile 'file'", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	fileBytes, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "Failed to read uploaded file", http.StatusBadRequest)
+		return
+	}
+
+	itemCode := r.FormValue("item")
+	mediaRole := r.FormValue("media_role")
+
+	asset, err := engines.SaveMediaFile(tenantID, fileBytes, header.Filename, itemCode, mediaRole, userID)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(asset)
+}
+
+// handlePIMMediaFile streams a stored media file back - authenticated (this
+// route sits behind apiMiddleware+moduleGate like every other PIM route),
+// not the unauthenticated static file server public/ uses (main.go's
+// http.FileServer(http.Dir("./public")) below) - the pragmatic in-house
+// equivalent of "private storage + signed URL" (see engines/pim_media.go).
+func handlePIMMediaFile(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	mediaID := r.PathValue("id")
+	path, fileType, err := engines.GetMediaFile(tenantID, mediaID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	fileBytes, err := os.ReadFile(path)
+	if err != nil {
+		http.Error(w, "stored file missing", http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", fileType)
+	_, _ = w.Write(fileBytes)
+}
+
+func handlePIMMediaList(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	itemCode := r.URL.Query().Get("item")
+	if itemCode == "" {
+		http.Error(w, "item query parameter is required", http.StatusBadRequest)
+		return
+	}
+	results, err := engines.ListMediaForItem(tenantID, itemCode)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if results == nil {
+		results = []engines.ProductMediaAsset{}
+	}
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+func handlePIMMediaDeactivate(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	mediaID := r.PathValue("id")
+	if err := engines.DeactivateMedia(tenantID, mediaID); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deactivated"})
+}
+
+// handlePIMPublish (Stage 15.2) queues a publish job after a readiness
+// check - see engines.QueuePublish/CheckPublishReadiness for the rules and
+// the stub-connector caveat (no real channel credentials exist in this
+// environment).
+func handlePIMPublish(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ItemCode string `json:"item_code"`
+		Channel  string `json:"channel"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	jobID, alreadyQueued, err := engines.QueuePublish(tenantID, req.ItemCode, req.Channel, userID)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"job_id": jobID, "already_queued": alreadyQueued, "status": "Queued",
+	})
+}
+
+func handlePIMPublishJobStatus(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	jobID, err := strconv.Atoi(r.PathValue("jobID"))
+	if err != nil {
+		http.Error(w, "invalid job id", http.StatusBadRequest)
+		return
+	}
+	status, err := engines.GetPublishJobStatus(tenantID, jobID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(status)
+}
+
+func handlePIMPublishLog(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	itemCode := r.URL.Query().Get("item")
+	if itemCode == "" {
+		http.Error(w, "item query parameter is required", http.StatusBadRequest)
+		return
+	}
+	results, err := engines.ListPublishLogForItem(tenantID, itemCode)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if results == nil {
+		results = []engines.PublishLogEntry{}
+	}
+	_ = json.NewEncoder(w).Encode(results)
 }
 
 // Fixed Asset Management (Stage 13.13b). Asset creation/listing use the
