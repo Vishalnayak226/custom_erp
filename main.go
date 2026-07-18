@@ -382,6 +382,11 @@ func main() {
 	// see engines/pim_publish.go's file header for the real-connector caveat)
 	engines.StartPublishQueueWorker(10 * time.Second)
 
+	// Start Patch/Bug-Intake background worker (Stage 14.13-14.16). Never
+	// mutates tenant/business state - see engines/patchintake.go's file
+	// header for why that's true by construction, not just by convention.
+	engines.StartPatchIntakeWorker(24 * time.Hour)
+
 	// Authentication API
 	http.HandleFunc("POST /api/v1/login", apiMiddleware(handleLogin))
 
@@ -499,6 +504,12 @@ func main() {
 
 	// Per-Tenant Version Record (Stage 14.6)
 	http.HandleFunc("GET /api/v1/admin/tenant/version", apiMiddleware(handleGetTenantVersion))
+
+	// Patch/Bug-Intake Proposals (Stage 14.13-14.16) - a triage queue and
+	// decision audit trail, not an auto-executor; see engines/patchintake.go.
+	http.HandleFunc("GET /api/v1/admin/patch/proposals", apiMiddleware(handleListPatchProposals))
+	http.HandleFunc("POST /api/v1/admin/patch/approve", apiMiddleware(handleApprovePatchProposal))
+	http.HandleFunc("POST /api/v1/admin/patch/reject", apiMiddleware(handleRejectPatchProposal))
 
 	// DocType Metadata APIs
 	http.HandleFunc("GET /api/v1/doc/{doctype}/meta", apiMiddleware(handleGetDocTypeMeta))
@@ -1510,7 +1521,15 @@ func handleSwitchIndustry(w http.ResponseWriter, r *http.Request) {
 func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	doctype := r.PathValue("doctype")
-	userID := r.Header.Get("Resolved-Role")
+	// Bug fix (found while verifying Stage 15.2's import preview, which
+	// copies this handler's shape): this read "Resolved-Role" (e.g.
+	// "HR/Admin") into a variable literally named userID, which then got
+	// written as documents.created_by - a column with a hard FK to
+	// users(id). A role string is never a valid user id, so every bulk
+	// import row insert has always failed its FK constraint. Fixed to the
+	// actual user id header, matching every other handler in this file
+	// (e.g. handleCapitalizeAsset, handlePIMPublish).
+	userID := r.Header.Get("Resolved-User-ID")
 
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
 		http.Error(w, "Multipart payload exceeds limit", http.StatusBadRequest)
@@ -1551,7 +1570,7 @@ func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 func handlePIMImportPreview(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	doctype := r.PathValue("doctype")
-	userID := r.Header.Get("Resolved-Role")
+	userID := r.Header.Get("Resolved-User-ID")
 
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
 		http.Error(w, "Multipart payload exceeds limit", http.StatusBadRequest)
@@ -3345,5 +3364,99 @@ func handleGetTenantVersion(w http.ResponseWriter, r *http.Request) {
 		"pinned_version":   pinnedVersion.String,
 		"live_version":     liveVersion,
 		"mismatch":         recordedVersion.Valid && recordedVersion.String != liveVersion,
+	})
+}
+
+// handleListPatchProposals (Stage 14.13-14.16) lists patch-intake proposals,
+// optionally filtered by status (defaults to "pending" - the queue an admin
+// actually needs to act on; pass ?status=all to see everything).
+func handleListPatchProposals(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can view patch proposals"})
+		return
+	}
+
+	status := r.URL.Query().Get("status")
+	if status == "" {
+		status = "pending"
+	}
+	if status == "all" {
+		status = ""
+	}
+
+	proposals, err := engines.ListPatchProposals(status)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	if proposals == nil {
+		proposals = []engines.PatchProposal{}
+	}
+	_ = json.NewEncoder(w).Encode(proposals)
+}
+
+// decidePatchProposalRequest is the shared payload shape for both
+// approve/reject - kept as two distinct routes (rather than one route with
+// a decision field) so each action's intent is explicit in the URL, the
+// same convention handleSetFeatureFlag/handleSetModuleEntitlement don't
+// need but approval/rejection - a one-way decision - benefits from.
+type decidePatchProposalRequest struct {
+	ProposalID int    `json:"proposal_id"`
+	Notes      string `json:"notes"`
+}
+
+func handleApprovePatchProposal(w http.ResponseWriter, r *http.Request) {
+	decidePatchProposal(w, r, "approved")
+}
+
+func handleRejectPatchProposal(w http.ResponseWriter, r *http.Request) {
+	decidePatchProposal(w, r, "rejected")
+}
+
+// decidePatchProposal records a human decision only - it never takes any
+// further action itself. See engines/patchintake.go's package doc comment
+// for why that boundary is deliberate: applying a real fix (a
+// module-entitlement toggle, a code change promoted via promote.ps1) stays
+// a separate, manual step using the tools already built in Phases A/C.
+func decidePatchProposal(w http.ResponseWriter, r *http.Request, decision string) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can decide patch proposals"})
+		return
+	}
+
+	var req decidePatchProposalRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid patch-proposal decision payload", http.StatusBadRequest)
+		return
+	}
+	if req.ProposalID == 0 {
+		http.Error(w, "Field 'proposal_id' is required", http.StatusBadRequest)
+		return
+	}
+
+	decidedBy := r.Header.Get("Resolved-Username")
+	if err := engines.DecidePatchProposal(req.ProposalID, decision, decidedBy, req.Notes); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":      "updated",
+		"proposal_id": req.ProposalID,
+		"decision":    decision,
 	})
 }
