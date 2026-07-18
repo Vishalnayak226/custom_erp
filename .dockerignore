@@ -1,0 +1,11 @@
+.git
+.github
+*.exe
+*.log
+logs/
+media_store/
+node_modules/
+public/dist/
+DEV_CREDENTIALS.local.txt
+*.local.txt
+erp-worktrees/
