@@ -473,6 +473,9 @@ func main() {
 	// Checkout & Finance APIs
 	http.HandleFunc("POST /api/v1/checkout", apiMiddleware(handleCheckout))
 	http.HandleFunc("GET /api/v1/finance/trial-balance", apiMiddleware(handleTrialBalance))
+	http.HandleFunc("GET /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))
+	http.HandleFunc("POST /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))
+	http.HandleFunc("POST /api/v1/finance/periods/{id}/close", apiMiddleware(handleCloseAccountingPeriod))
 
 	// Approval / Workflow Engine (maker-checker)
 	http.HandleFunc("POST /api/v1/approval/submit", apiMiddleware(handleSubmitApproval))
@@ -2210,6 +2213,68 @@ func handleTrialBalance(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = json.NewEncoder(w).Encode(res)
+}
+
+func handleAccountingPeriods(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	role := r.Header.Get("Resolved-Role")
+
+	switch r.Method {
+	case http.MethodGet:
+		periods, err := engines.ListAccountingPeriods(tenantID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(periods)
+
+	case http.MethodPost:
+		if role != "HR/Admin" {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can create accounting periods"})
+			return
+		}
+		var req struct {
+			PeriodName string `json:"period_name"`
+			StartDate  string `json:"start_date"`
+			EndDate    string `json:"end_date"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PeriodName == "" || req.StartDate == "" || req.EndDate == "" {
+			http.Error(w, "period_name, start_date, and end_date are required", http.StatusBadRequest)
+			return
+		}
+		id, err := engines.CreateAccountingPeriod(tenantID, req.PeriodName, req.StartDate, req.EndDate, userID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{"id": id, "status": "created"})
+
+	default:
+		w.WriteHeader(http.StatusMethodNotAllowed)
+	}
+}
+
+func handleCloseAccountingPeriod(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	role := r.Header.Get("Resolved-Role")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can close accounting periods"})
+		return
+	}
+	periodID := r.PathValue("id")
+	if err := engines.CloseAccountingPeriod(tenantID, periodID, userID); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "closed"})
 }
 
 // handleSubmitApproval moves a Draft document into the approval queue.

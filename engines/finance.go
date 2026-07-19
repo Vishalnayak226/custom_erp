@@ -37,6 +37,10 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 		return err
 	}
 
+	if err := rejectIfCurrentPeriodClosed(tx, schema); err != nil {
+		return err
+	}
+
 	// Insert debits
 	for code, val := range debits {
 		if val <= 0 {
