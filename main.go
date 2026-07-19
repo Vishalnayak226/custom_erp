@@ -556,6 +556,10 @@ func main() {
 	http.HandleFunc("POST /api/v1/fulfillment/task/transition", apiMiddleware(featureGate("wms_integration", handleFulfillmentTaskTransition)))
 	http.HandleFunc("POST /api/v1/fulfillment/return", apiMiddleware(featureGate("wms_integration", handleFulfillmentReturn)))
 
+	// Transfer-order lifecycle (Stage 17.6)
+	http.HandleFunc("POST /api/v1/transfer/dispatch", apiMiddleware(moduleGate("inventory", handleDispatchTransferOrder)))
+	http.HandleFunc("POST /api/v1/transfer/receive", apiMiddleware(moduleGate("inventory", handleReceiveTransferOrder)))
+
 	// Administration Scale Test APIs
 	http.HandleFunc("POST /api/v1/admin/scale-test", apiMiddleware(handleScaleTest))
 
@@ -3409,6 +3413,58 @@ func handleFulfillmentReturn(w http.ResponseWriter, r *http.Request) {
 		"original_order_id": req.OriginalOrderID,
 		"returned_location": req.ReturnLocation,
 	})
+}
+
+func handleDispatchTransferOrder(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		TransferOrderID string `json:"transfer_order_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TransferOrderID == "" {
+		http.Error(w, "Field 'transfer_order_id' is required", http.StatusBadRequest)
+		return
+	}
+	if err := engines.DispatchTransferOrder(tenantID, req.TransferOrderID, userID); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Dispatched", "transfer_order_id": req.TransferOrderID})
+}
+
+func handleReceiveTransferOrder(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		TransferOrderID string `json:"transfer_order_id"`
+		ReceivedItems   []struct {
+			Sku string `json:"sku"`
+			Qty int    `json:"qty"`
+		} `json:"received_items"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TransferOrderID == "" {
+		http.Error(w, "Field 'transfer_order_id' is required", http.StatusBadRequest)
+		return
+	}
+	itemsInterface := make([]interface{}, len(req.ReceivedItems))
+	for i, item := range req.ReceivedItems {
+		itemsInterface[i] = map[string]interface{}{"sku": item.Sku, "qty": item.Qty}
+	}
+	if err := engines.ReceiveTransferOrder(tenantID, req.TransferOrderID, userID, itemsInterface); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Received", "transfer_order_id": req.TransferOrderID})
 }
 
 func handleScaleTest(w http.ResponseWriter, r *http.Request) {
