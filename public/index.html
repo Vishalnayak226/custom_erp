@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Custom ERP - Management Dashboard</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
   <!-- Login Screen -->
@@ -513,6 +513,183 @@
     </div>
   </div>
 
+  <!-- Add Field Modal -->
+  <div class="modal-overlay" id="add-field-modal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">Add Field to Schema</h3>
+        <button class="modal-close" onclick="closeAddFieldModal()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <form id="add-field-form" onsubmit="submitAddField(event)">
+        <input type="hidden" id="add-field-doctype">
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="form-group">
+            <label class="form-label">Field Name (Technical Identifier)</label>
+            <input type="text" class="form-control" id="add-field-name" placeholder="e.g. material_weight" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Display Label</label>
+            <input type="text" class="form-control" id="add-field-label" placeholder="e.g. Material Weight" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Field Type</label>
+            <select class="form-control" id="add-field-type" required>
+              <option value="Data">Data (Short Text)</option>
+              <option value="Number">Number</option>
+              <option value="Select">Select (Dropdown)</option>
+              <option value="Check">Check (Boolean)</option>
+              <option value="Date">Date</option>
+              <option value="Link">Link (Foreign Key)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+              <input type="checkbox" id="add-field-mandatory">
+              Is this field mandatory?
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Options (Required for Select/Link)</label>
+            <input type="text" class="form-control" id="add-field-options" placeholder="Comma separated list OR Target DocType">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Display Order</label>
+            <input type="number" class="form-control" id="add-field-order" placeholder="e.g. 10" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeAddFieldModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Field</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Prefix Config Modal -->
+  <div class="modal-overlay" id="edit-prefix-modal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit Prefix Configuration</h3>
+        <button class="modal-close" onclick="closeEditPrefixModal()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <form id="edit-prefix-form" onsubmit="submitEditPrefix(event)">
+        <input type="hidden" id="edit-prefix-doctype">
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="form-group">
+            <label class="form-label">Prefix</label>
+            <input type="text" class="form-control" id="edit-prefix-prefix" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Separator</label>
+            <input type="text" class="form-control" id="edit-prefix-separator" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Padding Width</label>
+            <input type="number" class="form-control" id="edit-prefix-padding" min="1" max="10" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Reset Frequency</label>
+            <select class="form-control" id="edit-prefix-reset" required>
+              <option value="NEVER">NEVER</option>
+              <option value="ANNUAL">ANNUAL</option>
+              <option value="MONTHLY">MONTHLY</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeEditPrefixModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Configuration</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Add Dynamic Label Modal -->
+  <div class="modal-overlay" id="add-label-modal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">Add Label Translation</h3>
+        <button class="modal-close" onclick="closeAddLabelModal()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <form id="add-label-form" onsubmit="submitAddLabel(event)">
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="form-group">
+            <label class="form-label">Original Word/Label</label>
+            <input type="text" class="form-control" id="add-label-orig" placeholder="e.g. Brand" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Replacement Label</label>
+            <input type="text" class="form-control" id="add-label-custom" placeholder="e.g. Material Grade" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeAddLabelModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save Translation</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Register DocType Modal -->
+  <div class="modal-overlay" id="register-doctype-modal">
+    <div class="modal-container">
+      <div class="modal-header">
+        <h3 class="modal-title">Register New DocType</h3>
+        <button class="modal-close" onclick="closeRegisterDoctypeModal()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <form id="register-doctype-form" onsubmit="submitRegisterDoctype(event)">
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+          <div class="form-group">
+            <label class="form-label">Configuration Template</label>
+            <select class="form-control" id="reg-doctype-template" onchange="applyDocTypeTemplate()">
+              <option value="none">Blank (Custom)</option>
+              <option value="Store">Store</option>
+              <option value="Customer">Customer</option>
+              <option value="Vendor">Vendor</option>
+              <option value="Item">Item</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">DocType Name</label>
+            <input type="text" class="form-control" id="reg-doctype-name" placeholder="e.g. Store, Customer, Item" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Module Group</label>
+            <select class="form-control" id="reg-doctype-module" required>
+              <option value="Master Data">Master Data</option>
+              <option value="CRM">CRM</option>
+              <option value="Inventory">Inventory</option>
+              <option value="Procurement">Procurement</option>
+              <option value="Manufacturing">Manufacturing</option>
+              <option value="Finance">Finance</option>
+              <option value="HR">HR</option>
+              <option value="Core">Core</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Document Type</label>
+            <select class="form-control" id="reg-doctype-type" required>
+              <option value="Master">Master</option>
+              <option value="Transaction">Transaction</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="closeRegisterDoctypeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Register</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Dynamic Bulk Import Modal overlay -->
   <div class="modal-overlay" id="import-modal">
     <div class="modal-container">
@@ -576,6 +753,6 @@
   <div id="sticker-print-area"></div>
 
   <script src="db.js"></script>
-  <script src="app.js"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>

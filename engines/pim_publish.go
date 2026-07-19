@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"crypto/sha256"
 	"custom_erp/db"
 	"encoding/hex"
@@ -259,17 +260,44 @@ func processPublishQueue(schema string) {
 	}
 	rows.Close()
 
-	for _, j := range jobs {
-		// Stub connector - see file header note. Always "succeeds" with a
-		// fabricated external id; a real connector call would replace this
-		// block.
-		externalID := fmt.Sprintf("STUB-%s-%s", j.itemCode, j.channelCode)
-		status := "Published"
+	tenantID, errTenant := tenantIDForSchema(schema)
+	if errTenant != nil {
+		log.Printf("[PIM-PUBLISH] Failed to resolve tenant for schema %s: %v", schema, errTenant)
+		return
+	}
 
-		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.pim_publish_queue SET status = $1, updated_at = CURRENT_TIMESTAMP WHERE job_id = $2`, schema), status, j.id)
+	for _, j := range jobs {
+		platform, _ := fetchChannelPlatform(tenantID, j.channelCode)
+		connector := resolveConnector(platform)
+
+		capacity, window := connector.RateLimit()
+		if !allowConnectorCall(j.channelCode, capacity, window) {
+			// Outbound budget exhausted for this channel right now - leave the
+			// job Queued (not Failed) so the next tick retries it, exactly like
+			// the existing retry_count/backoff shape already handles a real
+			// platform error below.
+			continue
+		}
+
+		externalID, publishErr := publishOneJob(tenantID, schema, connector, j.itemCode, j.channelCode)
+		status := "Published"
+		errMsg := ""
+		if publishErr != nil {
+			status = "Failed"
+			errMsg = publishErr.Error()
+			externalID = ""
+		}
+
+		retryIncrement := 0
+		if status == "Failed" {
+			retryIncrement = 1
+		}
+		if _, updErr := db.DB.Exec(fmt.Sprintf(`UPDATE %s.pim_publish_queue SET status = $1, retry_count = retry_count + $2, updated_at = CURRENT_TIMESTAMP WHERE job_id = $3`, schema), status, retryIncrement, j.id); updErr != nil {
+			log.Printf("[PIM-PUBLISH] failed to update queue row for job %d: %v", j.id, updErr)
+		}
 		_, _ = db.DB.Exec(fmt.Sprintf(`
-			INSERT INTO %s.pim_publish_log (job_id, item_code, channel_code, status, external_id) VALUES ($1, $2, $3, $4, $5)`, schema),
-			j.id, j.itemCode, j.channelCode, status, externalID)
+			INSERT INTO %s.pim_publish_log (job_id, item_code, channel_code, status, external_id, error_message) VALUES ($1, $2, $3, $4, $5, $6)`, schema),
+			j.id, j.itemCode, j.channelCode, status, externalID, errMsg)
 
 		if tx, errTx := db.DB.Begin(); errTx == nil {
 			_ = db.SetSearchPath(tx, schema)
@@ -278,12 +306,50 @@ func processPublishQueue(schema string) {
 				eventName = "pim.publish.failed"
 			}
 			_ = PublishEvent(tx, schema, eventName, map[string]interface{}{
-				"job_id": j.id, "item_code": j.itemCode, "channel_code": j.channelCode, "external_id": externalID,
+				"job_id": j.id, "item_code": j.itemCode, "channel_code": j.channelCode, "external_id": externalID, "platform": platform,
 			})
 			_ = tx.Commit()
 		}
 
 		advanceProfileToPublishOutcome(schema, j.itemCode, status)
-		log.Printf("[PIM-PUBLISH] job %d: %s -> %s (%s)", j.id, j.itemCode, j.channelCode, status)
+		log.Printf("[PIM-PUBLISH] job %d: %s -> %s via %s (%s)", j.id, j.itemCode, j.channelCode, platform, status)
 	}
+}
+
+// fetchChannelPlatform returns a Channel's platform field ("" if unset -
+// resolveConnector falls back to the stub in that case).
+func fetchChannelPlatform(tenantID, channelCode string) (string, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return "", err
+	}
+	var platform string
+	err = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'platform', '') FROM %s.documents WHERE doctype = 'Channel' AND id = $1`, schema), channelCode).Scan(&platform)
+	if err != nil {
+		return "", err
+	}
+	return platform, nil
+}
+
+// publishOneJob builds the outbound payload, loads the channel's credential
+// (best-effort - the stub connector ignores it entirely, so a missing
+// credential is only a real problem once a real connector needs one, and
+// that connector's own PublishProduct will report it as such), and calls
+// the resolved connector with a bounded context. Separated from
+// processPublishQueue so each attempt's panic/timeout safety (already
+// handled one level down inside doConnectorRequest) has a clean boundary.
+func publishOneJob(tenantID, schema string, connector ChannelConnector, itemCode, channelCode string) (externalID string, err error) {
+	payload, err := BuildChannelPayload(tenantID, itemCode, channelCode)
+	if err != nil {
+		return "", fmt.Errorf("failed to build channel payload: %v", err)
+	}
+
+	cred, credErr := getChannelCredential(tenantID, channelCode)
+	if credErr != nil {
+		cred = map[string]string{}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	return connector.PublishProduct(ctx, cred, *payload)
 }

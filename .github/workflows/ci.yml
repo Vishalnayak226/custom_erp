@@ -41,7 +41,7 @@ jobs:
         # those tables fail here despite passing locally. Applied in
         # filename order, same as promote.ps1's Apply-PendingMigrations.
         run: |
-          for f in db/migration.sql db/migrations_phase3.sql db/migrations_stage14a_modules.sql db/migrations_stage14b_versioning.sql db/migrations_stage14c_pipeline.sql db/migrations_stage14d_patchintake.sql db/migrations_stage14e_extensions.sql; do
+          for f in db/migration.sql db/migrations_phase3.sql db/migrations_stage14a_modules.sql db/migrations_stage14b_versioning.sql db/migrations_stage14c_pipeline.sql db/migrations_stage14d_patchintake.sql db/migrations_stage14e_extensions.sql db/migrations_stage14f_security.sql db/migrations_stage16_field_permissions.sql db/migrations_stage17_soft_delete.sql; do
             psql -h localhost -p 5435 -U postgres -d custom_erp -f "$f"
           done
         env:

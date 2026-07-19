@@ -151,7 +151,11 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 
 		// 1. Mandatory check
 		if f.Mandatory && valStr == "" {
-			return fmt.Errorf("Field %q (%s) is required", f.Label, f.Fieldname)
+			if f.Fieldname == "id" || f.Fieldname == "status" {
+				// System fields are auto-generated or defaulted by the backend
+			} else {
+				return fmt.Errorf("Field %q (%s) is required", f.Label, f.Fieldname)
+			}
 		}
 
 		// 2. Type/Format check

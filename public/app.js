@@ -188,6 +188,7 @@ let posLocation = '';
 let currentSearchQuery = '';
 let currentTablePage = 1;
 const itemsPerPage = 10;
+let bulkSelectedDocIDs = new Set();
 
 // Selection persistence - so refreshing the browser lands the user back on
 // the same view/doctype/search/page instead of always bouncing to Dashboard.
@@ -682,7 +683,9 @@ function setupEventListeners() {
     renderView('doctype-table');
   });
 
-  ['menu-stores', 'menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
+  document.getElementById('menu-stores').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-stores'); closeSubmenus(); currentDoctype = 'Store'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+
+  ['menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -3505,11 +3508,13 @@ async function completeProductionOrder(orderId) {
 // than duplicating list/table rendering. Workbench is the one bespoke
 // screen, since it needs the completeness score/missing-field data the
 // generic doc endpoint doesn't have.
-let currentPIMTab = 'workbench';
+let currentPIMTab = 'dashboard';
 let currentPIMFamilyFilter = '';
 let currentPIMSelectedItem = '';
 const PIM_TABS = [
+  { id: 'dashboard', label: 'Dashboard' },
   { id: 'workbench', label: 'Workbench' },
+	{ id: 'reports', label: 'Reports' },
   { id: 'families', label: 'Product Families', doctype: 'ProductFamily' },
   { id: 'attributes', label: 'Attribute Definitions', doctype: 'ProductAttributeDef' },
   { id: 'family-attributes', label: 'Family Attributes', doctype: 'ProductFamilyAttribute' },
@@ -3555,9 +3560,53 @@ async function renderPIMView(container) {
     });
   });
 
-  if (currentPIMTab === 'workbench') {
+  if (currentPIMTab === 'dashboard') {
+    await renderPIMDashboardTab(container);
+  } else if (currentPIMTab === 'workbench') {
     await renderPIMWorkbenchTab(container);
+  } else if (currentPIMTab === 'reports') {
+    await renderPIMReportsTab(container);
   }
+}
+
+async function renderPIMDashboardTab(container) {
+  const res = await apiFetch('/api/v1/pim/dashboard');
+  if (!res || !res.ok) { renderErrorPanel(container, 'Unable to load the PIM dashboard.', () => renderView('pim')); return; }
+  const stats = await res.json();
+  const cards = [
+    ['total_products', 'Products', 'workbench'], ['incomplete_products', 'Incomplete', 'workbench'],
+    ['pending_content_approvals', 'Pending approval', 'content'], ['ready_to_publish', 'Ready to publish', 'workbench'],
+    ['published_products', 'Published', 'workbench'], ['missing_main_images', 'Missing main image', 'workbench'],
+    ['queued_publish_jobs', 'Publish queued', 'workbench'], ['failed_publish_jobs', 'Publish failed', 'workbench']
+  ];
+  const panel = document.createElement('div'); panel.className = 'table-panel';
+  panel.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;">${cards.map(([key, label, target]) => `<button class="table-panel pim-dashboard-card" data-pim-dashboard-target="${target}" style="padding:18px;text-align:left;border:1px solid var(--border-color);cursor:pointer;"><div class="text-muted" style="font-size:12px;">${label}</div><div style="font-size:28px;font-weight:700;margin-top:6px;">${stats[key] ?? 0}</div></button>`).join('')}</div>`;
+  container.appendChild(panel);
+  panel.querySelectorAll('[data-pim-dashboard-target]').forEach(card => card.addEventListener('click', () => {
+    const target = card.getAttribute('data-pim-dashboard-target');
+    if (target === 'content') { currentDoctype = 'ProductContent'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); return; }
+    currentPIMTab = 'workbench'; renderView('pim');
+  }));
+}
+
+async function renderPIMReportsTab(container) {
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.innerHTML = `<div class="table-controls"><div class="form-group" style="margin:0;"><label class="form-label" for="pim-report-name">Report</label><select class="form-select" id="pim-report-name"><option value="content-aging">Content aging</option><option value="duplicate-media">Duplicate media</option><option value="channel-mapping-gap">Channel mapping gaps</option><option value="attribute-quality">Attribute quality</option></select></div><button class="btn btn-primary" id="pim-report-run">Run report</button></div><div class="table-wrapper" id="pim-report-results" style="margin-top:16px;"></div>`;
+  container.appendChild(panel);
+  const results = panel.querySelector('#pim-report-results');
+  const run = async () => {
+    results.innerHTML = '<div class="text-muted">Loading report…</div>';
+    const name = panel.querySelector('#pim-report-name').value;
+    const res = await apiFetch(`/api/v1/pim/reports/${encodeURIComponent(name)}`);
+    if (!res || !res.ok) { results.innerHTML = '<div class="text-muted">Unable to load this report.</div>'; return; }
+    const rows = await res.json();
+    if (!rows.length) { results.innerHTML = '<div class="text-muted">No issues found.</div>'; return; }
+    const columns = Object.keys(rows[0]);
+    results.innerHTML = `<table><thead><tr>${columns.map(column => `<th>${column.replaceAll('_', ' ')}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${columns.map(column => `<td>${row[column] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  };
+  panel.querySelector('#pim-report-run').addEventListener('click', run);
+  await run();
 }
 
 async function renderPIMWorkbenchTab(container) {
@@ -3987,6 +4036,7 @@ async function renderDocTableView(container) {
     return;
   }
   state.docData = await dataRes.json();
+  bulkSelectedDocIDs = new Set();
 
   const header = document.createElement('div');
   header.className = 'page-header';
@@ -4019,6 +4069,7 @@ async function renderDocTableView(container) {
         </svg>
         <input type="text" placeholder="Search table..." value="${currentSearchQuery}" oninput="handleTableSearch(event)">
       </div>
+      ${isPIMBulkEditDoctype() ? `<div class="bulk-edit-bar hidden" id="pim-bulk-edit-bar"><span id="pim-bulk-selection-count">0 selected</span><button class="btn btn-outline" id="pim-bulk-edit-button" onclick="openPIMBulkEditModal()" disabled>Edit Selected</button></div>` : ''}
     </div>
     <div class="table-wrapper" id="doc-table-wrapper"></div>
     <div class="pagination" id="doc-table-pagination"></div>
@@ -4052,11 +4103,13 @@ function renderDocTable() {
   const start = (currentTablePage - 1) * itemsPerPage;
   const end = Math.min(start + itemsPerPage, total);
   const items = filtered.slice(start, end);
+  const bulkEditingEnabled = isPIMBulkEditDoctype();
 
   let tableHTML = `
     <table>
       <thead>
         <tr>
+          ${bulkEditingEnabled ? `<th style="width: 42px;"><input type="checkbox" aria-label="Select all visible records" onchange="togglePIMBulkPageSelection(this.checked)" ${items.length > 0 && items.every(item => bulkSelectedDocIDs.has(item.id)) ? 'checked' : ''}></th>` : ''}
           ${state.activeDocFields.map(f => `<th>${getTranslatedLabel(f.label)}</th>`).join('')}
           <th style="text-align: right;">Actions</th>
         </tr>
@@ -4065,10 +4118,13 @@ function renderDocTable() {
   `;
 
   if (items.length === 0) {
-    tableHTML += `<tr><td colspan="${state.activeDocFields.length + 1}" class="text-center py-8 text-muted">No records found.</td></tr>`;
+    tableHTML += `<tr><td colspan="${state.activeDocFields.length + 1 + (bulkEditingEnabled ? 1 : 0)}" class="text-center py-8 text-muted">No records found.</td></tr>`;
   } else {
     items.forEach(row => {
       tableHTML += `<tr>`;
+      if (bulkEditingEnabled) {
+        tableHTML += `<td><input type="checkbox" aria-label="Select ${row.id}" data-doc-id="${encodeURIComponent(row.id)}" onchange="togglePIMBulkDocSelection(decodeURIComponent(this.dataset.docId), this.checked)" ${bulkSelectedDocIDs.has(row.id) ? 'checked' : ''}></td>`;
+      }
       state.activeDocFields.forEach(f => {
         const val = row[f.fieldname] || '';
         if (f.fieldname === 'status') {
@@ -4090,6 +4146,7 @@ function renderDocTable() {
 
   tableHTML += `</tbody></table>`;
   wrapper.innerHTML = tableHTML;
+  updatePIMBulkEditBar();
 
   paginator.innerHTML = `
     <span>Showing ${total === 0 ? 0 : start + 1}-${end} of ${total}</span>
@@ -4099,6 +4156,119 @@ function renderDocTable() {
     </div>
   `;
 }
+
+function isPIMBulkEditDoctype() {
+  if (currentDoctype === 'Item') return true;
+  const active = state.activeDoctypes.find(doc => doc.name === currentDoctype);
+  return active && String(active.module || '').toLowerCase() === 'pim';
+}
+
+function visibleDocTableItems() {
+  const filtered = state.docData.filter(d => Object.values(d).some(val => String(val).toLowerCase().includes(currentSearchQuery)));
+  const start = (currentTablePage - 1) * itemsPerPage;
+  return filtered.slice(start, Math.min(start + itemsPerPage, filtered.length));
+}
+
+function updatePIMBulkEditBar() {
+  const bar = document.getElementById('pim-bulk-edit-bar');
+  const count = document.getElementById('pim-bulk-selection-count');
+  const button = document.getElementById('pim-bulk-edit-button');
+  if (!bar || !count || !button) return;
+  const selected = bulkSelectedDocIDs.size;
+  count.textContent = `${selected} selected`;
+  button.disabled = selected === 0;
+  bar.classList.toggle('hidden', selected === 0);
+}
+
+window.togglePIMBulkDocSelection = function(id, selected) {
+  if (selected) bulkSelectedDocIDs.add(id);
+  else bulkSelectedDocIDs.delete(id);
+  updatePIMBulkEditBar();
+};
+
+window.togglePIMBulkPageSelection = function(selected) {
+  visibleDocTableItems().forEach(row => {
+    if (selected) bulkSelectedDocIDs.add(row.id);
+    else bulkSelectedDocIDs.delete(row.id);
+  });
+  renderDocTable();
+};
+
+window.openPIMBulkEditModal = function() {
+  if (bulkSelectedDocIDs.size === 0) return;
+  const fields = state.activeDocFields.filter(field => field.fieldname !== 'id' && field.fieldname !== 'code');
+  if (fields.length === 0) {
+    showCustomAlert('This document type has no editable fields.', 'Bulk Edit');
+    return;
+  }
+
+  document.getElementById('pim-bulk-edit-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'pim-bulk-edit-modal';
+  overlay.innerHTML = `
+    <div class="modal-container">
+      <div class="modal-header"><h3 class="modal-title">Edit ${bulkSelectedDocIDs.size} selected ${getTranslatedLabel(currentDoctype)} record${bulkSelectedDocIDs.size === 1 ? '' : 's'}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <form><div class="modal-body"><div class="form-group"><label class="form-label">Field</label><select class="form-select" id="pim-bulk-field"></select></div><div class="form-group"><label class="form-label" id="pim-bulk-value-label">New value</label><div id="pim-bulk-value"></div></div><p class="text-muted" style="font-size:13px; margin:0;">Preview: this change will update all ${bulkSelectedDocIDs.size} selected records. Approved records are returned to Pending Approval when their doctype is approval-gated.</p></div><div class="modal-footer"><button type="button" class="btn btn-secondary">Cancel</button><button type="submit" class="btn btn-primary">Confirm bulk edit</button></div></form>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('.btn-secondary').addEventListener('click', close);
+  const fieldSelect = overlay.querySelector('#pim-bulk-field');
+  fields.forEach(field => {
+    const option = document.createElement('option');
+    option.value = field.fieldname;
+    option.textContent = getTranslatedLabel(field.label);
+    fieldSelect.appendChild(option);
+  });
+  const renderValueInput = () => {
+    const field = fields.find(candidate => candidate.fieldname === fieldSelect.value);
+    const holder = overlay.querySelector('#pim-bulk-value');
+    holder.replaceChildren();
+    let input;
+    if (field.fieldtype === 'Select') {
+      input = document.createElement('select');
+      input.className = 'form-select';
+      field.options.split(',').filter(Boolean).forEach(value => {
+        const option = document.createElement('option');
+        option.value = value.trim();
+        option.textContent = value.trim();
+        input.appendChild(option);
+      });
+    } else {
+      input = document.createElement('input');
+      input.className = 'form-input';
+      input.type = field.fieldtype === 'Number' ? 'number' : 'text';
+    }
+    input.id = 'pim-bulk-value-input';
+    input.required = field.mandatory;
+    holder.appendChild(input);
+    overlay.querySelector('#pim-bulk-value-label').textContent = `New ${getTranslatedLabel(field.label)}`;
+  };
+  fieldSelect.addEventListener('change', renderValueInput);
+  renderValueInput();
+  overlay.querySelector('form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const field = fields.find(candidate => candidate.fieldname === fieldSelect.value);
+    const input = overlay.querySelector('#pim-bulk-value-input');
+    const value = field.fieldtype === 'Number' ? Number(input.value) : input.value;
+    if (field.mandatory && String(input.value).trim() === '') return;
+    const count = bulkSelectedDocIDs.size;
+    if (!await showCustomConfirm(`Update ${count} selected ${getTranslatedLabel(currentDoctype)} record${count === 1 ? '' : 's'}?`, 'Confirm Bulk Edit')) return;
+    const res = await apiFetch('/api/v1/pim/bulk-edit', { method: 'POST', body: JSON.stringify({ doctype: currentDoctype, ids: [...bulkSelectedDocIDs], field: field.fieldname, value }) });
+    if (!res) return;
+    if (!res.ok) {
+      await showApiError(res, 'Bulk edit failed. No records were changed.');
+      return;
+    }
+    close();
+    bulkSelectedDocIDs = new Set();
+    await showCustomAlert(`${count} record${count === 1 ? '' : 's'} updated.`, 'Bulk Edit Complete');
+    renderView('doctype-table');
+  });
+};
 
 window.changeDocPage = function(page) {
   currentTablePage = page;
@@ -4128,12 +4298,17 @@ window.openDynamicModal = async function() {
   title.textContent = `New ${getTranslatedLabel(currentDoctype)}`;
   body.innerHTML = '';
 
+  const activeDoc = state.activeDoctypes.find(d => d.name === currentDoctype);
+  const isMaster = activeDoc && activeDoc.document_type === 'Master';
+
   for (const f of state.activeDocFields) {
-    if (f.fieldname === 'id' || f.fieldname === 'status') continue;
+    if (f.fieldname === 'id') continue;
     
+    const isCodeField = isMaster && f.fieldname.toLowerCase() === 'code';
+
     const fg = document.createElement('div');
     fg.className = 'form-group';
-    fg.innerHTML = `<label class="form-label">${getTranslatedLabel(f.label)}${f.mandatory ? '<span class="required">*</span>' : ''}</label>`;
+    fg.innerHTML = `<label class="form-label">${getTranslatedLabel(f.label)}${f.mandatory && !isCodeField ? '<span class="required">*</span>' : ''}</label>`;
     
     if (f.fieldtype === 'Select') {
       const select = document.createElement('select');
@@ -4179,7 +4354,13 @@ window.openDynamicModal = async function() {
       input.className = 'form-input';
       input.type = 'text';
       input.name = f.fieldname;
-      input.required = f.mandatory;
+      if (isCodeField) {
+        input.placeholder = 'Auto-generated upon save';
+        input.readOnly = true;
+        input.required = false;
+      } else {
+        input.required = f.mandatory;
+      }
       fg.appendChild(input);
     }
     body.appendChild(fg);
@@ -4201,17 +4382,44 @@ window.handleDynamicFormSubmit = async function(e) {
   const form = document.getElementById('dynamic-modal-form');
   const payload = {};
   
+  const activeDoc = state.activeDoctypes.find(d => d.name === currentDoctype);
+  const isMaster = activeDoc && activeDoc.document_type === 'Master';
+  let codeFieldname = null;
+
   state.activeDocFields.forEach(f => {
-    if (f.fieldname === 'id' || f.fieldname === 'status') return;
+    if (f.fieldname === 'id') return;
+    const isCodeField = isMaster && f.fieldname.toLowerCase() === 'code';
     const input = form.querySelector(`[name="${f.fieldname}"]`);
     if (input) {
-      if (f.fieldtype === 'Number') {
-        payload[f.fieldname] = parseFloat(input.value);
+      if (isCodeField && !input.value) {
+        codeFieldname = f.fieldname;
       } else {
-        payload[f.fieldname] = input.value;
+        if (f.fieldtype === 'Number') {
+          payload[f.fieldname] = parseFloat(input.value);
+        } else {
+          payload[f.fieldname] = input.value;
+        }
       }
     }
   });
+
+  if (codeFieldname) {
+    const seqRes = await apiFetch('/api/v1/sequence', {
+      method: 'POST',
+      body: JSON.stringify({
+        doc_type: currentDoctype,
+        store_code: 'HQ',
+        financial_year: new Date().getFullYear().toString()
+      })
+    });
+    if (seqRes && seqRes.ok) {
+      const seqData = await seqRes.json();
+      payload[codeFieldname] = seqData.code;
+    } else {
+      await showApiError(seqRes, 'Failed to generate Code sequence.');
+      return;
+    }
+  }
 
   const res = await apiFetch(`/api/v1/doc/${currentDoctype}`, {
     method: 'POST',
@@ -4550,12 +4758,18 @@ async function renderLogHubView(container) {
   const sysLoadFailed = !!sysRes && !sysRes.ok;
   const systemLogs = sysRes && sysRes.ok ? await sysRes.json() : [];
 
+  // Stage 9.2: Integration payload logs - wire the existing backend endpoint
+  // that was previously unreachable from the UI.
+  const intRes = await apiFetch('/api/v1/integration/logs');
+  const intLoadFailed = !!intRes && !intRes.ok;
+  const intLogs = intRes && intRes.ok ? await intRes.json() : [];
+
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Log Hub</h1>
-      <p class="page-subtitle">Centralized System Audit trail and Middleware Panic recovery trace log console.</p>
+      <p class="page-subtitle">Centralized System Audit trail, Middleware Panic recovery trace log console, and Integration payload viewer.</p>
     </div>
     <button class="btn btn-outline" onclick="triggerPanicRecovery()">
       <span>Test Panic Recovery</span>
@@ -4563,73 +4777,144 @@ async function renderLogHubView(container) {
   `;
   container.appendChild(header);
 
-  const grid = document.createElement('div');
-  grid.style.display = 'grid';
-  grid.style.gridTemplateColumns = '1fr 1fr';
-  grid.style.gap = '24px';
-
-  // Audit Logs Pane
-  const auditPanel = document.createElement('div');
-  auditPanel.className = 'table-panel';
-  auditPanel.innerHTML = `
-    <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">Audit Logs</h3>
-    ${auditLoadFailed ? `<p style="padding: 0 16px 12px; color: #ef4444; font-size: 13px;">Failed to load audit logs.</p>` : ''}
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>User</th>
-            <th>Action</th>
-            <th>Details</th>
-            <th>Timestamp</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${auditLogs.map(l => `
-            <tr>
-              <td>${l.user_id}</td>
-              <td>${l.action}</td>
-              <td style="font-size:12px;">${l.details}</td>
-              <td style="font-size:11px; white-space:nowrap;">${l.created_at}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
+  // Tab switcher for the three log panes
+  const tabBar = document.createElement('div');
+  tabBar.className = 'tab-bar';
+  tabBar.style.cssText = 'display:flex; gap:0; margin-bottom:16px; border-bottom:2px solid var(--border-color);';
+  tabBar.innerHTML = `
+    <button class="log-hub-tab active" data-tab="audit" style="padding:10px 20px; border:none; background:var(--card-bg); cursor:pointer; font-weight:600; border-bottom:2px solid var(--primary-color); margin-bottom:-2px; color:var(--primary-color);">Audit Logs</button>
+    <button class="log-hub-tab" data-tab="system" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">System Errors</button>
+    <button class="log-hub-tab" data-tab="integration" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">Integration Payloads</button>
   `;
-  grid.appendChild(auditPanel);
+  container.appendChild(tabBar);
 
-  // System Panic Logs Pane
-  const sysPanel = document.createElement('div');
-  sysPanel.className = 'table-panel';
-  sysPanel.innerHTML = `
-    <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">System Panic & Error Logs</h3>
-    ${sysLoadFailed ? `<p style="padding: 0 16px 12px; color: #ef4444; font-size: 13px;">Failed to load system logs.</p>` : ''}
-    <div class="table-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Severity</th>
-            <th>Module</th>
-            <th>Error Message</th>
-            <th>Timestamp</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${systemLogs.map(l => `
-            <tr style="cursor:pointer;" onclick="viewStackTrace('${l.log_id}')">
-              <td><span class="badge badge-secondary">${l.severity}</span></td>
-              <td>${l.module_source}</td>
-              <td style="font-size:12px; color:var(--text-muted);">${l.error_message}</td>
-              <td style="font-size:11px; white-space:nowrap;">${l.created_at}</td>
-            </tr>
-          `).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-  grid.appendChild(sysPanel);
-  container.appendChild(grid);
+  // Tab content container
+  const tabContent = document.createElement('div');
+  tabContent.id = 'log-hub-tab-content';
+  container.appendChild(tabContent);
+
+  function renderAuditPane() {
+    tabContent.innerHTML = `
+      <div class="table-panel">
+        <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">Audit Logs</h3>
+        ${auditLoadFailed ? `<p style="padding: 0 16px 12px; color: #ef4444; font-size: 13px;">Failed to load audit logs.</p>` : ''}
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Action</th>
+                <th>Details</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${auditLogs.length === 0 ? '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No audit logs found.</td></tr>' : auditLogs.map(l => `
+                <tr>
+                  <td>${l.user_id}</td>
+                  <td>${l.action}</td>
+                  <td style="font-size:12px;">${l.details}</td>
+                  <td style="font-size:11px; white-space:nowrap;">${l.created_at}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderSystemPane() {
+    tabContent.innerHTML = `
+      <div class="table-panel">
+        <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">System Panic & Error Logs</h3>
+        ${sysLoadFailed ? `<p style="padding: 0 16px 12px; color: #ef4444; font-size: 13px;">Failed to load system logs.</p>` : ''}
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Severity</th>
+                <th>Module</th>
+                <th>Error Message</th>
+                <th>Timestamp</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${systemLogs.length === 0 ? '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No system logs found.</td></tr>' : systemLogs.map(l => `
+                <tr style="cursor:pointer;" onclick="viewStackTrace('${l.log_id}')">
+                  <td><span class="badge badge-secondary">${l.severity}</span></td>
+                  <td>${l.module_source}</td>
+                  <td style="font-size:12px; color:var(--text-muted);">${l.error_message}</td>
+                  <td style="font-size:11px; white-space:nowrap;">${l.created_at}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderIntegrationPane() {
+    tabContent.innerHTML = `
+      <div class="table-panel">
+        <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">Integration Payloads</h3>
+        ${intLoadFailed ? `<p style="padding: 0 16px 12px; color: #ef4444; font-size: 13px;">Failed to load integration logs.</p>` : ''}
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Event</th>
+                <th>Status</th>
+                <th>Attempts</th>
+                <th>Payload</th>
+                <th>Timestamp</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${intLogs.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No integration payloads found.</td></tr>' : intLogs.map(l => `
+                <tr>
+                  <td style="font-weight:600;">${l.event_name}</td>
+                  <td><span class="badge ${l.status === 'Dispatched' || l.status === 'Success' ? 'badge-success' : l.status === 'Failed' ? 'badge-danger' : 'badge-secondary'}">${l.status}</span></td>
+                  <td>${l.attempts}</td>
+                  <td style="font-size:11px; max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title='${JSON.stringify(l.payload || {})}'>${JSON.stringify(l.payload || {})}</td>
+                  <td style="font-size:11px; white-space:nowrap;">${l.created_at}</td>
+                  <td>
+                    ${l.status === 'Failed' ? `<button class="btn btn-sm btn-outline" onclick="retryIntegrationEvent('${l.id}')">Retry</button>` : '<span style="color:var(--text-muted); font-size:12px;">-</span>'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  // Tab switching logic
+  tabBar.querySelectorAll('.log-hub-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      tabBar.querySelectorAll('.log-hub-tab').forEach(b => {
+        b.style.borderBottom = '2px solid transparent';
+        b.style.background = 'transparent';
+        b.style.color = 'var(--text-muted)';
+        b.classList.remove('active');
+      });
+      btn.style.borderBottom = '2px solid var(--primary-color)';
+      btn.style.background = 'var(--card-bg)';
+      btn.style.color = 'var(--primary-color)';
+      btn.classList.add('active');
+
+      const tab = btn.getAttribute('data-tab');
+      if (tab === 'audit') renderAuditPane();
+      else if (tab === 'system') renderSystemPane();
+      else if (tab === 'integration') renderIntegrationPane();
+    });
+  });
+
+  // Default: show audit logs
+  renderAuditPane();
 
   window.viewStackTrace = async function(logId) {
     const log = systemLogs.find(x => x.log_id === logId);
@@ -4637,6 +4922,22 @@ async function renderLogHubView(container) {
     await showCustomAlert(`Stack Trace for ${logId}:\n\n${log.stack_trace || 'No trace available.'}`, 'Stack Trace');
   };
 }
+
+// Stage 9.2: Retry button handler for failed integration events
+window.retryIntegrationEvent = async function(eventId) {
+  if (!await showCustomConfirm('Retry this failed integration event?')) return;
+  const res = await apiFetch('/api/v1/integration/retry', {
+    method: 'POST',
+    body: JSON.stringify({ event_id: eventId })
+  });
+  if (!res) return;
+  if (res.ok) {
+    await showCustomAlert('Integration event queued for retry.', 'Retry Initiated');
+    renderView('audit-logs');
+  } else {
+    await showApiError(res, 'Failed to retry integration event.');
+  }
+};
 
 window.triggerPanicRecovery = async function() {
   if (await showCustomConfirm('Trigger deliberate panic in backend router to verify system recovery middleware?')) {

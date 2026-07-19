@@ -435,10 +435,21 @@ func main() {
 	// see engines/pim_publish.go's file header for the real-connector caveat)
 	engines.StartPublishQueueWorker(10 * time.Second)
 
+	// Start Magento Open Source order-change poller (Stage 16.4) - the
+	// substitute for native webhooks Magento Open Source does not have.
+	// Adobe Commerce Cloud channels use real webhooks instead and are
+	// skipped by this poller (see engines/connector_magento.go).
+	engines.StartMagentoPollWorker(60 * time.Second)
+
 	// Start Patch/Bug-Intake background worker (Stage 14.13-14.16). Never
 	// mutates tenant/business state - see engines/patchintake.go's file
 	// header for why that's true by construction, not just by convention.
 	engines.StartPatchIntakeWorker(24 * time.Hour)
+
+	// Start Stage 9.1 Integration Workers (Unicommerce, Pine Labs, CleverTap)
+	engines.StartUnicommerceWorker(30 * time.Second)
+	engines.StartPineLabsReconciliationWorker(5 * time.Minute)
+	engines.StartCleverTapWorker(30 * time.Second)
 
 	// Authentication API
 	http.HandleFunc("POST /api/v1/login", apiMiddleware(handleLogin))
@@ -453,6 +464,7 @@ func main() {
 	// Generic DocType CRUD APIs (Go 1.22 enhanced routing)
 	http.HandleFunc("/api/v1/doc/{doctype}", apiMiddleware(handleGenericDoc))
 	http.HandleFunc("/api/v1/doc/{doctype}/{id}", apiMiddleware(handleGenericDoc))
+	http.HandleFunc("POST /api/v1/doc/{doctype}/{id}/reactivate", apiMiddleware(handleReactivateMasterDocument))
 
 	// Availability & Reservation APIs
 	http.HandleFunc("GET /api/v1/availability", apiMiddleware(handleGetAvailability))
@@ -507,6 +519,13 @@ func main() {
 	http.HandleFunc("POST /api/v1/manufacturing/complete", apiMiddleware(moduleGate("manufacturing", handleCompleteProductionOrder)))
 
 	// PIM Foundation MVP (Stage 15: module-gated - "pim")
+	// Dashboard (Stage 16.5a) reads the existing PIM snapshot/queue state;
+	// it is a fixed PIM route, so module gating happens at registration.
+	http.HandleFunc("GET /api/v1/pim/dashboard", apiMiddleware(moduleGate("pim", handlePIMDashboard)))
+	// Bulk edit (Stage 16.5b) is deliberately a PIM-only endpoint; its
+	// handler additionally applies the target doctype's normal update RBAC.
+	http.HandleFunc("POST /api/v1/pim/bulk-edit", apiMiddleware(moduleGate("pim", handlePIMBulkEdit)))
+	http.HandleFunc("GET /api/v1/pim/reports/{name}", apiMiddleware(moduleGate("pim", handlePIMReport)))
 	http.HandleFunc("GET /api/v1/pim/workbench", apiMiddleware(moduleGate("pim", handlePIMWorkbench)))
 	http.HandleFunc("GET /api/v1/pim/completeness/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMCompleteness)))
 	// Media Library (Stage 15.2)
@@ -524,6 +543,7 @@ func main() {
 	// Real Channel Connector Framework (Stage 16.1) - write-only credential
 	// endpoint, HR/Admin only; there is deliberately no matching GET.
 	http.HandleFunc("POST /api/v1/pim/channels/{code}/credentials", apiMiddleware(moduleGate("pim", handleSaveChannelCredential)))
+	http.HandleFunc("POST /api/v1/integration/bigcommerce/webhook/{channelCode}", apiMiddleware(handleBigCommerceWebhook))
 
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
 	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
@@ -544,6 +564,25 @@ func main() {
 	http.HandleFunc("GET /api/v1/optimization/replenishment-suggestions", apiMiddleware(featureGate("advanced_forecasting", handleReplenishmentSuggestions)))
 	http.HandleFunc("GET /api/v1/optimization/sla-breaches", apiMiddleware(featureGate("advanced_forecasting", handleSLABreaches)))
 	http.HandleFunc("POST /api/v1/optimization/forecast", apiMiddleware(featureGate("advanced_forecasting", handleDemandForecast)))
+
+	// Stage 9.1: Unicommerce Integration APIs
+	http.HandleFunc("POST /api/v1/unicommerce/credentials", apiMiddleware(handleUnicommerceCredentials))
+	http.HandleFunc("GET /api/v1/unicommerce/credentials", apiMiddleware(handleGetUnicommerceCredentials))
+	http.HandleFunc("POST /api/v1/unicommerce/order", apiMiddleware(handleUnicommerceOrder))
+	http.HandleFunc("GET /api/v1/unicommerce/orders", apiMiddleware(handleListUnicommerceOrders))
+	http.HandleFunc("GET /api/v1/unicommerce/inventory-syncs", apiMiddleware(handleListUnicommerceInventorySyncs))
+
+	// Stage 9.1: Pine Labs Plutus Integration APIs
+	http.HandleFunc("POST /api/v1/pinelabs/credentials", apiMiddleware(handlePineLabsCredentials))
+	http.HandleFunc("GET /api/v1/pinelabs/credentials", apiMiddleware(handleGetPineLabsCredentials))
+	http.HandleFunc("POST /api/v1/pinelabs/transaction", apiMiddleware(handlePineLabsTransaction))
+	http.HandleFunc("POST /api/v1/pinelabs/reconcile", apiMiddleware(handlePineLabsReconcile))
+	http.HandleFunc("GET /api/v1/pinelabs/transactions", apiMiddleware(handleListPineLabsTransactions))
+
+	// Stage 9.1: CleverTap Integration APIs
+	http.HandleFunc("POST /api/v1/clevertap/credentials", apiMiddleware(handleCleverTapCredentials))
+	http.HandleFunc("GET /api/v1/clevertap/credentials", apiMiddleware(handleGetCleverTapCredentials))
+	http.HandleFunc("GET /api/v1/clevertap/logs", apiMiddleware(handleListCleverTapLogs))
 
 	// Integration Logs and Retry APIs
 	http.HandleFunc("GET /api/v1/integration/logs", apiMiddleware(handleGetIntegrationLogs))
@@ -950,7 +989,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			var status string
 			err = db.DB.QueryRow(fmt.Sprintf(`
 				SELECT data, status FROM %s.documents 
-				WHERE doctype = $1 AND id = $2`, schema), doctype, id).Scan(&dataStr, &status)
+				WHERE doctype = $1 AND id = $2 AND deleted_at IS NULL`, schema), doctype, id).Scan(&dataStr, &status)
 			if err == sql.ErrNoRows {
 				w.WriteHeader(http.StatusNotFound)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": "Document not found"})
@@ -964,6 +1003,10 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			_ = json.Unmarshal([]byte(dataStr), &dataMap)
 			dataMap["id"] = id
 			dataMap["status"] = status
+			if dataMap, err = engines.FilterFieldsForRole(tenantID, role, doctype, dataMap); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 
 			// Location Filter Validation (Object-Level Auth). Not every doctype
 			// names this field "location" - FulfillmentTask uses "location_code" -
@@ -984,7 +1027,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		} else {
 			// Retrieve multiple documents (support search, location filtering, and custom query filters)
 			searchQuery := r.URL.Query().Get("q")
-			query := fmt.Sprintf("SELECT id, data, status FROM %s.documents WHERE doctype = $1", schema)
+			query := fmt.Sprintf("SELECT id, data, status FROM %s.documents WHERE doctype = $1 AND deleted_at IS NULL", schema)
 			var args []interface{}
 			args = append(args, doctype)
 			argIndex := 2
@@ -1066,6 +1109,10 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				_ = json.Unmarshal([]byte(dataStr), &dataMap)
 				dataMap["id"] = docID
 				dataMap["status"] = status
+				if dataMap, err = engines.FilterFieldsForRole(tenantID, role, doctype, dataMap); err != nil {
+					http.Error(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
 
 				// Local search match
 				if searchQuery != "" {
@@ -1090,6 +1137,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		var payload map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
 			http.Error(w, "Invalid payload JSON", http.StatusBadRequest)
+			return
+		}
+		if err := engines.RejectRestrictedFieldWrites(tenantID, role, doctype, payload); err != nil {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 			return
 		}
 
@@ -1265,13 +1317,27 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Delete document from repository
-		_, err = db.DB.Exec(fmt.Sprintf("DELETE FROM %s.documents WHERE id = $1 AND doctype = $2", schema), id, doctype)
+		var status, documentType string
+		err = db.DB.QueryRow(fmt.Sprintf(`SELECT d.status, m.document_type FROM %s.documents d JOIN %s.doctype_meta m ON m.name = d.doctype WHERE d.id = $1 AND d.doctype = $2 AND d.deleted_at IS NULL`, schema, schema), id, doctype).Scan(&status, &documentType)
+		if err == sql.ErrNoRows {
+			http.Error(w, "Document not found or already deleted", http.StatusNotFound)
+			return
+		}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if documentType == "Transaction" && status == "Approved" {
+			http.Error(w, "Approved transactional documents cannot be deleted", http.StatusBadRequest)
+			return
+		}
+		_, err = db.DB.Exec(fmt.Sprintf("UPDATE %s.documents SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND doctype = $2 AND deleted_at IS NULL", schema), id, doctype)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
+		engines.LogAuditEvent(tenantID, userID, "SOFT_DELETE_"+doctype, "SUCCESS", "Document ID: "+id)
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 
 	default:
@@ -1280,6 +1346,10 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 }
 
 func checkPermission(tenantID string, role string, doctype string, action string) (bool, error) {
+	if role == "HR/Admin" {
+		return true, nil
+	}
+
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return false, err
@@ -1561,11 +1631,61 @@ func handleDebugPanic(w http.ResponseWriter, r *http.Request) {
 	panic("Deliberate testing panic: Dynamic recovery log engine operational!")
 }
 
+// handleReactivateMasterDocument is the only way to clear a soft-delete
+// tombstone. Transactions remain immutable once deleted; masters can be
+// restored by someone with their normal update permission.
+func handleReactivateMasterDocument(w http.ResponseWriter, r *http.Request) {
+	tenantID, role := r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-Role")
+	doctype, id := r.PathValue("doctype"), r.PathValue("id")
+	allowed, err := checkPermission(tenantID, role, doctype, "update")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !allowed {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "You do not have permission to reactivate this document."})
+		return
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var documentType string
+	if err := db.DB.QueryRow(fmt.Sprintf("SELECT document_type FROM %s.doctype_meta WHERE name = $1", schema), doctype).Scan(&documentType); err != nil {
+		http.Error(w, "Unknown document type", http.StatusNotFound)
+		return
+	}
+	if documentType != "Master" {
+		http.Error(w, "Only master documents can be reactivated", http.StatusBadRequest)
+		return
+	}
+	result, err := db.DB.Exec(fmt.Sprintf("UPDATE %s.documents SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND doctype = $2 AND deleted_at IS NOT NULL", schema), id, doctype)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	count, _ := result.RowsAffected()
+	if count == 0 {
+		http.Error(w, "Deleted document not found", http.StatusNotFound)
+		return
+	}
+	engines.LogAuditEvent(tenantID, r.Header.Get("Resolved-User-ID"), "REACTIVATE_"+doctype, "SUCCESS", "Document ID: "+id)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "reactivated"})
+}
+
 func handleGetDocTypeMeta(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
 	doctype := r.PathValue("doctype")
 
 	fields, err := engines.GetDocTypeMeta(tenantID, doctype)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	fields, err = engines.FilterFieldMetaForRole(tenantID, role, doctype, fields)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1785,6 +1905,48 @@ func handleSaveChannelCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved", "channel": channelCode})
+}
+
+// handleBigCommerceWebhook (Stage 16.3) verifies and acknowledges an
+// inbound BigCommerce webhook (product/inventory/order events). The
+// channel code in the URL identifies which stored credential's
+// webhook_secret field to verify against - BigCommerce webhook payloads
+// do not self-identify which of possibly several configured channels
+// they belong to. Scope note, stated explicitly: this acknowledges and
+// logs a verified webhook rather than driving a full order-import
+// pipeline the way the existing Shopify order webhook does - BigCommerce
+// order sync-back is not yet built, only inbound signature verification
+// (Part A.7 of the Stage 16 plan) plus a place for that logic to grow
+// into.
+func handleBigCommerceWebhook(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	channelCode := r.PathValue("channelCode")
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "failed to read request body", http.StatusBadRequest)
+		return
+	}
+
+	cred, credErr := engines.GetChannelWebhookSecret(tenantID, channelCode)
+	if credErr != nil || cred == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "channel has no webhook secret configured"})
+		return
+	}
+	sig := r.Header.Get("X-Bc-Webhook-Signature")
+	if !engines.VerifyBigCommerceWebhook(body, sig, cred) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid webhook signature"})
+		return
+	}
+
+	engines.LogAuditEvent(tenantID, "system", "BIGCOMMERCE_WEBHOOK_RECEIVED", "SUCCESS", fmt.Sprintf("channel=%s bytes=%d", channelCode, len(body)))
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "acknowledged"})
 }
 
 func handleGetImportTemplate(w http.ResponseWriter, r *http.Request) {
@@ -2386,6 +2548,73 @@ func handlePayrollExport(w http.ResponseWriter, r *http.Request) {
 // cover the Product Workbench (blueprint section 7/18) and its per-item
 // drill-down, which need the completeness-scoring logic the generic
 // endpoint doesn't have.
+func handlePIMDashboard(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	dashboard, err := engines.GetPIMDashboard(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(dashboard)
+}
+
+func handlePIMBulkEdit(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Doctype string      `json:"doctype"`
+		IDs     []string    `json:"ids"`
+		Field   string      `json:"field"`
+		Value   interface{} `json:"value"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid payload JSON", http.StatusBadRequest)
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
+	userID := r.Header.Get("Resolved-User-ID")
+	allowed, err := checkPermission(tenantID, role, req.Doctype, "update")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if !allowed {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("You do not have permission to update %s documents.", req.Doctype)})
+		return
+	}
+	updatedIDs, err := engines.BulkUpdateDocuments(tenantID, req.Doctype, req.IDs, req.Field, req.Value, userID, role)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "updated", "updated_count": len(updatedIDs), "ids": updatedIDs,
+	})
+}
+
+func handlePIMReport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	rows, err := engines.ListPIMReport(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("name"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(rows)
+}
+
 func handlePIMWorkbench(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
@@ -2552,8 +2781,17 @@ func handlePIMPublish(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
+	// Bug fix (found during Stage 16.1 live verification): this used to
+	// hardcode "status": "Queued" unconditionally, even when alreadyQueued
+	// returns an existing job that's already Published (or Failed) -
+	// misleading the caller into thinking a fresh, unprocessed job was
+	// created. Look up the job's real current status instead.
+	status := "Queued"
+	if jobStatus, errStatus := engines.GetPublishJobStatus(tenantID, jobID); errStatus == nil {
+		status = jobStatus.Status
+	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"job_id": jobID, "already_queued": alreadyQueued, "status": "Queued",
+		"job_id": jobID, "already_queued": alreadyQueued, "status": status,
 	})
 }
 
@@ -3266,6 +3504,340 @@ func handleDemandForecast(w http.ResponseWriter, r *http.Request) {
 		"forecast_days":     req.ForecastDays,
 		"forecasted_demand": forecasted,
 	})
+}
+
+// =========================================================================
+// Stage 9.1: Unicommerce Integration Handlers
+// =========================================================================
+
+func handleUnicommerceCredentials(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can configure Unicommerce credentials"})
+		return
+	}
+	var req struct {
+		StoreCode string `json:"store_code"`
+		APIKey    string `json:"api_key"`
+		APISecret string `json:"api_secret"`
+		BaseURL   string `json:"base_url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.StoreCode == "" || req.APIKey == "" || req.APISecret == "" || req.BaseURL == "" {
+		http.Error(w, "Fields 'store_code', 'api_key', 'api_secret', and 'base_url' are required", http.StatusBadRequest)
+		return
+	}
+	if err := engines.SaveUnicommerceCredential(tenantID, req.StoreCode, req.APIKey, req.APISecret, req.BaseURL); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved", "store_code": req.StoreCode})
+}
+
+func handleGetUnicommerceCredentials(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	creds, err := engines.GetUnicommerceCredentials(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if creds == nil {
+		creds = []map[string]interface{}{}
+	}
+	_ = json.NewEncoder(w).Encode(creds)
+}
+
+func handleUnicommerceOrder(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ChannelOrderID string `json:"channel_order_id"`
+		StoreCode      string `json:"store_code"`
+		Items          []struct {
+			Sku string `json:"sku"`
+			Qty int    `json:"qty"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.ChannelOrderID == "" || req.StoreCode == "" || len(req.Items) == 0 {
+		http.Error(w, "Fields 'channel_order_id', 'store_code', and 'items' are required", http.StatusBadRequest)
+		return
+	}
+	var items []map[string]interface{}
+	for _, item := range req.Items {
+		items = append(items, map[string]interface{}{
+			"sku": item.Sku,
+			"qty": item.Qty,
+		})
+	}
+	orderID, err := engines.ImportUnicommerceOrder(tenantID, req.ChannelOrderID, req.StoreCode, items)
+	if err != nil {
+		if err.Error() == "ORDER_ALREADY_IMPORTED" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ignored", "details": "Order already imported (idempotency check)"})
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "imported", "order_id": orderID})
+}
+
+func handleListUnicommerceOrders(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	orders, err := engines.ListUnicommerceOrders(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if orders == nil {
+		orders = []map[string]interface{}{}
+	}
+	_ = json.NewEncoder(w).Encode(orders)
+}
+
+func handleListUnicommerceInventorySyncs(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	syncs, err := engines.ListUnicommerceInventorySyncs(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if syncs == nil {
+		syncs = []map[string]interface{}{}
+	}
+	_ = json.NewEncoder(w).Encode(syncs)
+}
+
+// =========================================================================
+// Stage 9.1: Pine Labs Plutus Integration Handlers
+// =========================================================================
+
+func handlePineLabsCredentials(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can configure Pine Labs credentials"})
+		return
+	}
+	var req struct {
+		TerminalID string `json:"terminal_id"`
+		APIKey     string `json:"api_key"`
+		MerchantID string `json:"merchant_id"`
+		BaseURL    string `json:"base_url"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.TerminalID == "" || req.APIKey == "" || req.MerchantID == "" || req.BaseURL == "" {
+		http.Error(w, "Fields 'terminal_id', 'api_key', 'merchant_id', and 'base_url' are required", http.StatusBadRequest)
+		return
+	}
+	if err := engines.SavePineLabsCredential(tenantID, req.TerminalID, req.APIKey, req.MerchantID, req.BaseURL); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved", "terminal_id": req.TerminalID})
+}
+
+func handleGetPineLabsCredentials(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	creds, err := engines.GetPineLabsCredentials(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if creds == nil {
+		creds = []map[string]interface{}{}
+	}
+	_ = json.NewEncoder(w).Encode(creds)
+}
+
+func handlePineLabsTransaction(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		TransactionID string  `json:"transaction_id"`
+		TerminalID    string  `json:"terminal_id"`
+		CartNumber    string  `json:"cart_number"`
+		Amount        float64 `json:"amount"`
+		PaymentMode   string  `json:"payment_mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.TransactionID == "" || req.TerminalID == "" || req.CartNumber == "" || req.Amount <= 0 {
+		http.Error(w, "Fields 'transaction_id', 'terminal_id', 'cart_number', and positive 'amount' are required", http.StatusBadRequest)
+		return
+	}
+	paymentMode := req.PaymentMode
+	if paymentMode == "" {
+		paymentMode = "Card"
+	}
+	if err := engines.RecordPineLabsTransaction(tenantID, req.TransactionID, req.TerminalID, req.CartNumber, req.Amount, paymentMode); err != nil {
+		if err.Error() == "TRANSACTION_ALREADY_RECORDED" {
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ignored", "details": "Transaction already recorded"})
+			return
+		}
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "recorded", "transaction_id": req.TransactionID})
+}
+
+func handlePineLabsReconcile(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can run Pine Labs reconciliation"})
+		return
+	}
+	result, err := engines.ReconcilePineLabsTransactions(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(result)
+}
+
+func handleListPineLabsTransactions(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	txns, err := engines.ListPineLabsTransactions(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if txns == nil {
+		txns = []map[string]interface{}{}
+	}
+	_ = json.NewEncoder(w).Encode(txns)
+}
+
+// =========================================================================
+// Stage 9.1: CleverTap Integration Handlers
+// =========================================================================
+
+func handleCleverTapCredentials(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	if role != "HR/Admin" {
+		w.WriteHeader(http.StatusForbidden)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can configure CleverTap credentials"})
+		return
+	}
+	var req struct {
+		AccountID string `json:"account_id"`
+		Passcode  string `json:"passcode"`
+		Region    string `json:"region"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.AccountID == "" || req.Passcode == "" {
+		http.Error(w, "Fields 'account_id' and 'passcode' are required", http.StatusBadRequest)
+		return
+	}
+	region := req.Region
+	if region == "" {
+		region = "in1"
+	}
+	if err := engines.SaveCleverTapCredential(tenantID, req.AccountID, req.Passcode, region); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved", "account_id": req.AccountID})
+}
+
+func handleGetCleverTapCredentials(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	creds, err := engines.GetCleverTapCredentials(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if creds == nil {
+		creds = []map[string]interface{}{}
+	}
+	_ = json.NewEncoder(w).Encode(creds)
+}
+
+func handleListCleverTapLogs(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	logs, err := engines.ListCleverTapEventLogs(tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if logs == nil {
+		logs = []map[string]interface{}{}
+	}
+	_ = json.NewEncoder(w).Encode(logs)
 }
 
 func handleGetIntegrationLogs(w http.ResponseWriter, r *http.Request) {

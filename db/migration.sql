@@ -1128,3 +1128,107 @@ CREATE TABLE IF NOT EXISTS tenant_default.pim_publish_log (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_pim_publish_log_item ON tenant_default.pim_publish_log (item_code);
+
+-- 33. Real Channel Connector Framework (Stage 16.1, PIM Blueprint V2 §7 +
+-- user follow-up request for real Shopify/Magento/Adobe Commerce/
+-- BigCommerce integration, not just the Stage 15.2 stub). channel_credentials
+-- is a dedicated table (not a doctype) precisely because it must NEVER be
+-- readable through the generic doc GET endpoint the way every other PIM
+-- doctype is - encrypted_payload is opaque ciphertext (AES-256-GCM, key
+-- resolved by engines.loadOrGenerateChannelCredentialKey - same
+-- env-var-or-persisted-outside-repo pattern as the JWT signing secret,
+-- engines/auth.go). Only engines/channel_credentials.go's package-private
+-- getter ever decrypts it; no HTTP handler returns it.
+CREATE TABLE IF NOT EXISTS tenant_default.channel_credentials (
+    channel_code VARCHAR(100) PRIMARY KEY,
+    encrypted_payload BYTEA NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Channel.platform selects which engines.ChannelConnector implementation
+-- (engines/connector.go's registry) handles a channel's publish jobs.
+-- Unset/unknown falls back to the existing Stage 15.2 stub connector - zero
+-- breaking change to anything already verified.
+INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
+('Channel', 'platform', 'Platform', 'Select', FALSE, 'Generic,Shopify,BigCommerce,Magento,AdobeCommerce', 7)
+ON CONFLICT (doctype_name, fieldname) DO NOTHING;
+
+-- =========================================================================
+-- Section 34: Unicommerce Integration (Stage 9.1)
+-- Multi-marketplace inventory sync and order ingestion via Unicommerce.
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS tenant_default.unicommerce_credentials (
+    store_code VARCHAR(100) PRIMARY KEY,
+    api_key VARCHAR(255) NOT NULL,
+    api_secret VARCHAR(255) NOT NULL,
+    base_url VARCHAR(255) NOT NULL,
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tenant_default.unicommerce_inventory_sync (
+    sku VARCHAR(100) NOT NULL,
+    store_code VARCHAR(100) NOT NULL,
+    quantity INT NOT NULL DEFAULT 0,
+    last_synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (sku, store_code)
+);
+
+CREATE TABLE IF NOT EXISTS tenant_default.unicommerce_order_mapping (
+    order_id VARCHAR(200) PRIMARY KEY,
+    channel_order_id VARCHAR(200) NOT NULL,
+    store_code VARCHAR(100) NOT NULL,
+    status VARCHAR(50) DEFAULT 'Imported',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =========================================================================
+-- Section 35: Pine Labs Plutus Integration (Stage 9.1)
+-- Payment terminal transaction recording and reconciliation.
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS tenant_default.pinelabs_credentials (
+    terminal_id VARCHAR(100) PRIMARY KEY,
+    api_key VARCHAR(255) NOT NULL,
+    merchant_id VARCHAR(255) NOT NULL,
+    base_url VARCHAR(255) NOT NULL,
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tenant_default.pinelabs_transactions (
+    id SERIAL PRIMARY KEY,
+    transaction_id VARCHAR(200) NOT NULL UNIQUE,
+    terminal_id VARCHAR(100) NOT NULL,
+    cart_number VARCHAR(200),
+    amount NUMERIC(12,2) NOT NULL,
+    status VARCHAR(50) DEFAULT 'Completed',
+    payment_mode VARCHAR(50) DEFAULT 'Card',
+    reconciled BOOLEAN DEFAULT FALSE,
+    reconciled_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =========================================================================
+-- Section 36: CleverTap Integration (Stage 9.1)
+-- Customer order event log syncing for marketing automation.
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS tenant_default.clevertap_credentials (
+    account_id VARCHAR(100) PRIMARY KEY,
+    passcode VARCHAR(255) NOT NULL,
+    region VARCHAR(50) DEFAULT 'in1',
+    active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS tenant_default.clevertap_event_log (
+    id SERIAL PRIMARY KEY,
+    event_name VARCHAR(200) NOT NULL,
+    customer_id VARCHAR(200) NOT NULL,
+    event_data JSONB,
+    status VARCHAR(50) DEFAULT 'Pending',
+    sent_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

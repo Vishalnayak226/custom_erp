@@ -31,6 +31,22 @@ type RowValidationError struct {
 	Message   string `json:"message"`
 }
 
+// sanitizeCSVCell prevents spreadsheet applications from treating imported
+// or exported ERP text as a formula. A leading apostrophe is their standard
+// text escape and deliberately remains part of the stored/exported value.
+func sanitizeCSVCell(value string) string {
+	trimmed := strings.TrimLeft(value, " \t")
+	if trimmed == "" {
+		return value
+	}
+	switch trimmed[0] {
+	case '=', '+', '-', '@':
+		return "'" + value
+	default:
+		return value
+	}
+}
+
 // BulkImportCSV parses a CSV body, validates constraints, and inserts valid
 // records inside a transaction. dryRun=true (Stage 15.2) runs the exact same
 // validation/existence-check logic but never commits - the transaction is
@@ -82,7 +98,7 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 		for colIdx, val := range row {
 			if colIdx < len(headers) {
 				fieldName := headers[colIdx]
-				docData[fieldName] = strings.TrimSpace(val)
+				docData[fieldName] = sanitizeCSVCell(strings.TrimSpace(val))
 			}
 		}
 
@@ -180,7 +196,7 @@ func RecordImportJob(tenantID, doctype string, res *ImportResult, createdBy stri
 		writer := csv.NewWriter(&buf)
 		_ = writer.Write([]string{"row_number", "message"})
 		for _, e := range res.Errors {
-			_ = writer.Write([]string{fmt.Sprintf("%d", e.RowNumber), e.Message})
+			_ = writer.Write([]string{fmt.Sprintf("%d", e.RowNumber), sanitizeCSVCell(e.Message)})
 		}
 		writer.Flush()
 		errorCSV = buf.String()
@@ -256,6 +272,9 @@ func GenerateCSVTemplate(tenantID string, doctype string) ([]byte, error) {
 			continue
 		}
 		headers = append(headers, f.Fieldname)
+	}
+	for i := range headers {
+		headers[i] = sanitizeCSVCell(headers[i])
 	}
 
 	if err := writer.Write(headers); err != nil {
