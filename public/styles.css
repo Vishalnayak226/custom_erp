@@ -860,6 +860,38 @@ tr:hover td {
   min-height: 80px;
 }
 
+/* Master-data autosuggest (Stage 18.2) - a floating menu positioned under
+   whichever <input> attachTypeahead() was called on. Fixed positioning +
+   document.body append so it works unmodified under any form's DOM
+   structure/overflow, matching how .modal-overlay already escapes its
+   container. */
+.typeahead-menu {
+  position: fixed;
+  z-index: 300;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: var(--shadow-lg);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.typeahead-item {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--text-main);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.typeahead-item.active,
+.typeahead-item:hover {
+  background-color: var(--primary-color);
+  color: #fff;
+}
+
 /* Toggle Switch */
 .toggle-group {
   display: flex;

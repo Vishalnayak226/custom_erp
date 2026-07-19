@@ -284,6 +284,126 @@ async function apiUpload(url, formData) {
   return response;
 }
 
+// Reusable master-data autosuggest (Stage 18.2, docs/micro_checklist.md
+// Stage 18). Wires a plain text <input> to live search against the
+// existing generic GET /api/v1/doc/{doctype}?q=... endpoint, so screens get
+// a search-as-you-type picker without a bespoke fetch/debounce/dropdown per
+// field. Deliberately additive only: the input stays a normal free-text
+// field underneath - picking a suggestion just fills in a value. Nothing
+// here adds server-side validation or blocks typing something that doesn't
+// match a real record (Stage 17.9, db/migrations_stage17h_location_masters.sql,
+// already decided against retrofitting hard validation onto these existing
+// free-text columns - this keeps that same call for the same reason).
+function attachTypeahead(inputEl, doctype, opts = {}) {
+  const valueFields = opts.valueFields || ['code', 'name', 'id'];
+  const labelFn = opts.labelFn || (doc => {
+    const code = doc.code || doc.id || '';
+    const name = doc.name || '';
+    return name && name !== code ? `${code} — ${name}` : (code || name);
+  });
+  const limit = opts.limit || 8;
+
+  let menu = null;
+  let items = [];
+  let activeIndex = -1;
+  let debounceTimer = null;
+  let requestSeq = 0;
+
+  function onDocMouseDown(e) {
+    if (menu && !menu.contains(e.target) && e.target !== inputEl) closeMenu();
+  }
+
+  function removeMenuElement() {
+    if (menu) { menu.remove(); menu = null; }
+    document.removeEventListener('mousedown', onDocMouseDown, true);
+  }
+
+  function closeMenu() {
+    removeMenuElement();
+    items = [];
+    activeIndex = -1;
+  }
+
+  function pick(doc) {
+    let val = '';
+    for (const f of valueFields) {
+      if (doc[f] !== undefined && doc[f] !== null && doc[f] !== '') { val = doc[f]; break; }
+    }
+    inputEl.value = val;
+    closeMenu();
+    inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+    inputEl.focus();
+  }
+
+  function highlight(idx) {
+    if (!menu) return;
+    const rows = menu.querySelectorAll('.typeahead-item');
+    rows.forEach(r => r.classList.remove('active'));
+    if (idx >= 0 && rows[idx]) {
+      rows[idx].classList.add('active');
+      rows[idx].scrollIntoView({ block: 'nearest' });
+    }
+    activeIndex = idx;
+  }
+
+  function openMenu() {
+    removeMenuElement();
+    activeIndex = -1;
+    if (items.length === 0) return;
+    menu = document.createElement('div');
+    menu.className = 'typeahead-menu';
+    const rect = inputEl.getBoundingClientRect();
+    menu.style.left = `${rect.left}px`;
+    menu.style.top = `${rect.bottom + 4}px`;
+    menu.style.width = `${Math.max(rect.width, 180)}px`;
+    items.forEach((doc) => {
+      const row = document.createElement('div');
+      row.className = 'typeahead-item';
+      row.textContent = labelFn(doc);
+      row.addEventListener('mousedown', (e) => { e.preventDefault(); pick(doc); });
+      menu.appendChild(row);
+    });
+    document.body.appendChild(menu);
+    document.addEventListener('mousedown', onDocMouseDown, true);
+  }
+
+  async function search(q) {
+    const seq = ++requestSeq;
+    if (!q) { closeMenu(); return; }
+    const res = await apiFetch(`/api/v1/doc/${doctype}?q=${encodeURIComponent(q)}&limit=${limit}`);
+    if (seq !== requestSeq) return; // a newer keystroke's request already superseded this one
+    if (!res || !res.ok) { closeMenu(); return; }
+    items = await res.json();
+    if (seq !== requestSeq) return;
+    openMenu();
+  }
+
+  inputEl.setAttribute('autocomplete', 'off');
+  inputEl.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = inputEl.value.trim();
+    debounceTimer = setTimeout(() => search(q), 250);
+  });
+  inputEl.addEventListener('keydown', (e) => {
+    if (!menu || items.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(activeIndex + 1, items.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(Math.max(activeIndex - 1, 0)); }
+    else if (e.key === 'Enter') {
+      if (activeIndex >= 0) {
+        e.preventDefault();
+        // A screen-specific Enter handler (e.g. POS's scan-to-add) may also
+        // be registered on this same input - stop it from also firing when
+        // a suggestion is being picked instead. Only works if this listener
+        // was attached before that one, so attachTypeahead() call sites
+        // that share Enter with another handler must run first.
+        e.stopImmediatePropagation();
+        pick(items[activeIndex]);
+      }
+    }
+    else if (e.key === 'Escape') { closeMenu(); }
+  });
+}
+
 // Auth: login screen, logout, and app-shell visibility
 
 // Holds the short-lived enrollment/challenge token between the initial
@@ -1060,6 +1180,10 @@ function renderPOSView(container) {
   `;
   container.appendChild(panel);
 
+  attachTypeahead(document.getElementById('pos-location'), 'Location');
+  attachTypeahead(document.getElementById('pos-customer'), 'Customer');
+  attachTypeahead(document.getElementById('pos-sku-input'), 'Item');
+
   document.getElementById('pos-location').addEventListener('change', (e) => {
     posLocation = e.target.value.trim();
   });
@@ -1588,6 +1712,30 @@ async function renderMarketplaceView(container) {
 
   document.getElementById('mkt-reconcile-btn').addEventListener('click', submitMarketplaceReconcile);
   document.getElementById('mkt-book-btn').addEventListener('click', submitLogisticsBooking);
+  populateMarketplaceChannelOptions();
+}
+
+// Stage 18.3: the Channel select here was a hardcoded Shopify/Amazon
+// <option> list, unlike PIM's channel picker (renderPIMPublishSection)
+// which fetches the real Channel master. Extends rather than replaces the
+// hardcoded pair - appending any real Channel records not already covered -
+// so this can't regress to an empty dropdown if no Channel docs exist yet.
+async function populateMarketplaceChannelOptions() {
+  const select = document.getElementById('mkt-channel');
+  if (!select) return;
+  const res = await apiFetch('/api/v1/doc/Channel');
+  if (!res || !res.ok) return;
+  const channels = await res.json();
+  const existing = new Set(Array.from(select.options).map(o => o.value));
+  channels.forEach(c => {
+    const value = c.code || c.id;
+    if (!value || existing.has(value)) return;
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = c.name || value;
+    select.appendChild(opt);
+    existing.add(value);
+  });
 }
 
 async function submitMarketplaceReconcile() {
@@ -1811,6 +1959,9 @@ async function renderPurchaseOrdersView(container) {
   container.appendChild(formPanel);
 
   document.getElementById('po-gst-calc-btn').addEventListener('click', calculatePOGst);
+  attachTypeahead(document.getElementById('po-vendor'), 'Vendor');
+  attachTypeahead(document.getElementById('po-warehouse'), 'Location');
+  attachTypeahead(document.getElementById('po-location'), 'Location');
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -2270,6 +2421,8 @@ async function renderRFQQuotesPanel(container, rfqId, rfq) {
 
   const submitBtn = document.getElementById('quote-submit-btn');
   if (submitBtn) submitBtn.addEventListener('click', () => submitVendorQuote(rfqId));
+  const quoteVendorInput = document.getElementById('quote-vendor');
+  if (quoteVendorInput) attachTypeahead(quoteVendorInput, 'Vendor');
 }
 
 async function submitVendorQuote(rfqId) {
@@ -2626,6 +2779,7 @@ async function renderAttendanceTab(container, employees) {
   container.appendChild(listPanel);
 
   document.getElementById('att-save-btn').addEventListener('click', saveAttendance);
+  attachTypeahead(document.getElementById('att-location'), 'Location');
 }
 
 async function saveAttendance() {
@@ -2955,6 +3109,8 @@ async function renderAssetsView(container) {
   container.appendChild(listPanel);
 
   document.getElementById('asset-create-btn').addEventListener('click', createAsset);
+  attachTypeahead(document.getElementById('asset-location'), 'Location');
+  attachTypeahead(document.getElementById('asset-custodian'), 'Employee');
 }
 
 function renderAssetActions(asset) {
@@ -3172,6 +3328,7 @@ async function renderExpensesView(container) {
   container.appendChild(listPanel);
 
   document.getElementById('exp-create-btn').addEventListener('click', createExpenseClaim);
+  attachTypeahead(document.getElementById('exp-location'), 'Location');
 }
 
 function expenseStatusBadge(status) {
@@ -3385,6 +3542,8 @@ async function renderManufacturingView(container) {
 
   document.getElementById('bom-create-btn').addEventListener('click', createBOM);
   document.getElementById('po-mfg-create-btn').addEventListener('click', createProductionOrder);
+  attachTypeahead(document.getElementById('bom-parent-item'), 'Item');
+  attachTypeahead(document.getElementById('po-mfg-location'), 'Location');
 }
 
 function renderProductionOrderActions(order) {
