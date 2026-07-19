@@ -1,0 +1,46 @@
+{
+  "industry_code": "CONSTRUCTION",
+  "industry_name": "Construction & Contracting",
+  "doctype_overrides": [
+    {
+      "name": "Brand",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Project Phase",
+      "fields": [
+        { "fieldname": "code", "label": "Phase Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Phase Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "estimated_hours", "label": "Estimated Hours", "fieldtype": "Number", "mandatory": false, "display_order": 3 }
+      ]
+    },
+    {
+      "name": "Style",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Subcontractor Work Item",
+      "fields": [
+        { "fieldname": "code", "label": "Work Item Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Work Item Description", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "subcontractor_id", "label": "Subcontractor ID", "fieldtype": "Data", "mandatory": true, "display_order": 3 },
+        { "fieldname": "certified_payroll", "label": "Certified Payroll", "fieldtype": "Select", "mandatory": true, "options": "Yes,No", "display_order": 4 }
+      ]
+    },
+    {
+      "name": "Color",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Job Code",
+      "fields": [
+        { "fieldname": "code", "label": "Job Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Job Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "job_cost_estimate", "label": "Job Cost Estimate", "fieldtype": "Number", "mandatory": false, "display_order": 3 },
+        { "fieldname": "progress_billing_threshold", "label": "Progress Billing Threshold (%)", "fieldtype": "Number", "mandatory": false, "display_order": 4 }
+      ]
+    }
+  ],
+  "labels": {
+    "Brand": "Project Phase",
+    "Style": "Subcontractor Work Item",
+    "Color": "Job Code"
+  }
+}

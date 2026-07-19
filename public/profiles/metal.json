@@ -1,0 +1,46 @@
+{
+  "industry_code": "METAL",
+  "industry_name": "Metal & Steel Fabrication",
+  "doctype_overrides": [
+    {
+      "name": "Brand",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Material Grade",
+      "fields": [
+        { "fieldname": "code", "label": "Grade Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Grade Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "alloy_composition", "label": "Alloy Composition (%)", "fieldtype": "Data", "mandatory": false, "display_order": 3 }
+      ]
+    },
+    {
+      "name": "Style",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Heat Number",
+      "fields": [
+        { "fieldname": "code", "label": "Heat Number", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Heat Description", "fieldtype": "Data", "mandatory": false, "display_order": 2 },
+        { "fieldname": "cut_length", "label": "Cut Length (mm)", "fieldtype": "Number", "mandatory": true, "display_order": 3 },
+        { "fieldname": "thickness", "label": "Thickness (mm)", "fieldtype": "Number", "mandatory": true, "display_order": 4 }
+      ]
+    },
+    {
+      "name": "Color",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Alloy / Material",
+      "fields": [
+        { "fieldname": "code", "label": "Alloy Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Alloy Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "base_weight", "label": "Base Weight (kg)", "fieldtype": "Number", "mandatory": false, "display_order": 3 },
+        { "fieldname": "cert_code", "label": "Metallurgy Cert Code", "fieldtype": "Data", "mandatory": false, "display_order": 4 }
+      ]
+    }
+  ],
+  "labels": {
+    "Brand": "Material Grade",
+    "Style": "Heat Number",
+    "Color": "Alloy / Material"
+  }
+}

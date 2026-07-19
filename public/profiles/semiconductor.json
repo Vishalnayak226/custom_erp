@@ -1,0 +1,46 @@
+{
+  "industry_code": "SEMICONDUCTOR",
+  "industry_name": "Semiconductors",
+  "doctype_overrides": [
+    {
+      "name": "Brand",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Wafer Template",
+      "fields": [
+        { "fieldname": "code", "label": "Template Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Template Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "wafer_batch_id", "label": "Wafer Batch ID", "fieldtype": "Data", "mandatory": false, "display_order": 3 },
+        { "fieldname": "silicon_thickness", "label": "Silicon Thickness (um)", "fieldtype": "Number", "mandatory": false, "display_order": 4 }
+      ]
+    },
+    {
+      "name": "Style",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Die Barcode",
+      "fields": [
+        { "fieldname": "code", "label": "Die Barcode", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Die Description", "fieldtype": "Data", "mandatory": false, "display_order": 2 },
+        { "fieldname": "clean_room_yield", "label": "Clean-room Yield Rate (%)", "fieldtype": "Number", "mandatory": false, "display_order": 3 },
+        { "fieldname": "purity_grade", "label": "Purity Grade", "fieldtype": "Select", "mandatory": false, "options": "A,B,C,D", "display_order": 4 }
+      ]
+    },
+    {
+      "name": "Color",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Wafer Batch",
+      "fields": [
+        { "fieldname": "code", "label": "Wafer Batch ID", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Batch Description", "fieldtype": "Data", "mandatory": false, "display_order": 2 },
+        { "fieldname": "defect_density", "label": "Defect Density (per cm2)", "fieldtype": "Number", "mandatory": false, "display_order": 3 }
+      ]
+    }
+  ],
+  "labels": {
+    "Brand": "Wafer Template",
+    "Style": "Die Barcode",
+    "Color": "Wafer Batch"
+  }
+}

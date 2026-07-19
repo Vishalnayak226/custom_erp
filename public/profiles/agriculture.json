@@ -1,0 +1,45 @@
+{
+  "industry_code": "AGRICULTURE",
+  "industry_name": "Agriculture & Perishable Goods",
+  "doctype_overrides": [
+    {
+      "name": "Brand",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Crop / Livestock Category",
+      "fields": [
+        { "fieldname": "code", "label": "Category Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Category Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "fefo_enabled", "label": "FEFO Picking Enabled", "fieldtype": "Select", "mandatory": true, "options": "Yes,No", "display_order": 3 }
+      ]
+    },
+    {
+      "name": "Style",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Harvest Lot ID",
+      "fields": [
+        { "fieldname": "code", "label": "Lot ID", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Lot Description", "fieldtype": "Data", "mandatory": false, "display_order": 2 },
+        { "fieldname": "harvest_date", "label": "Harvest Date", "fieldtype": "Date", "mandatory": true, "display_order": 3 },
+        { "fieldname": "cold_chain_temp", "label": "Cold-Chain Temp Limit (°C)", "fieldtype": "Number", "mandatory": false, "display_order": 4 }
+      ]
+    },
+    {
+      "name": "Color",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Grade / Quality",
+      "fields": [
+        { "fieldname": "code", "label": "Grade Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Grade Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "soil_treatment", "label": "Soil Treatment Code", "fieldtype": "Data", "mandatory": false, "display_order": 3 }
+      ]
+    }
+  ],
+  "labels": {
+    "Brand": "Crop / Livestock Category",
+    "Style": "Harvest Lot ID",
+    "Color": "Grade / Quality"
+  }
+}

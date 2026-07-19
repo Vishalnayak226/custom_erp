@@ -1,0 +1,46 @@
+{
+  "industry_code": "PHARMA",
+  "industry_name": "Pharmaceuticals & Biotechnology",
+  "doctype_overrides": [
+    {
+      "name": "Brand",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Drug Manufacturer",
+      "fields": [
+        { "fieldname": "code", "label": "Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Manufacturer Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "fda_approval", "label": "FDA Approval Number", "fieldtype": "Data", "mandatory": false, "display_order": 3 }
+      ]
+    },
+    {
+      "name": "Style",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Product Recipe",
+      "fields": [
+        { "fieldname": "code", "label": "Recipe Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Product Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "batch_purity", "label": "Batch Purity (%)", "fieldtype": "Number", "mandatory": false, "display_order": 3 },
+        { "fieldname": "storage_condition", "label": "Storage Condition", "fieldtype": "Select", "mandatory": true, "options": "Room Temperature,Refrigerated,Frozen", "display_order": 4 }
+      ]
+    },
+    {
+      "name": "Color",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Batch / Lot",
+      "fields": [
+        { "fieldname": "code", "label": "Batch / Lot ID", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Batch Description", "fieldtype": "Data", "mandatory": false, "display_order": 2 },
+        { "fieldname": "expiry_date", "label": "Expiry Date", "fieldtype": "Date", "mandatory": true, "display_order": 3 },
+        { "fieldname": "mfg_date", "label": "Manufacturing Date", "fieldtype": "Date", "mandatory": true, "display_order": 4 }
+      ]
+    }
+  ],
+  "labels": {
+    "Brand": "Drug Manufacturer",
+    "Style": "Product Recipe",
+    "Color": "Batch / Lot"
+  }
+}

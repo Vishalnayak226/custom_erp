@@ -13,6 +13,10 @@ Usage:
   .\manage.ps1 <action> -Env test   same actions, targeting the 'test' environment instead of 'dev'
                                      (own port/database, per environments.json - see promote.ps1
                                      for how a commit actually gets there). -Env live works the same way.
+  .\manage.ps1 backup               create timestamped custom-format dumps of dev, test, and live
+  .\manage.ps1 restore -Env dev -File .\backups\dev\custom_erp_....dump
+                                     restore one environment after an explicit confirmation; its ERP
+                                     server must be stopped first.
   .\manage.ps1 fleet-status         one-shot report across all 3 environments: port up/down, live
                                      GET /api/v1/version (commit/build time), last recorded promotion.
 
@@ -23,11 +27,17 @@ start/stop that environment's erp-server.exe, never a second Postgres instance.
 
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("start", "stop", "restart", "status", "logs", "release", "fleet-status")]
+    [ValidateSet("start", "stop", "restart", "status", "logs", "release", "backup", "restore", "fleet-status")]
     [string]$Action,
 
     [ValidateSet("dev", "test", "live")]
-    [string]$Env = "dev"
+    [string]$Env = "dev",
+
+    [string]$File,
+
+    # Enables an attended or automated restore only when it exactly matches
+    # "RESTORE <environment>". Omit it to be prompted interactively.
+    [string]$ConfirmRestore
 )
 
 $ErrorActionPreference = "Stop"
@@ -64,10 +74,11 @@ $LogDir   = Join-Path $ErpDir "logs"
 $PgLog    = Join-Path $LogDir "postgres.log"
 $ErpOutLog = Join-Path $LogDir "erp-server.out.log"
 $ErpErrLog = Join-Path $LogDir "erp-server.err.log"
+$BackupRoot = Join-Path $RepoRoot "backups"
 
 if (Test-Path $ErpDir) {
     if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out-Null }
-} elseif ($Env -ne "dev") {
+} elseif ($Env -ne "dev" -and $Action -notin @("backup", "restore")) {
     Write-Host "'$Env' has no worktree yet at $ErpDir - run promote.ps1 -To $Env at least once first." -ForegroundColor Red
     exit 1
 }
@@ -215,6 +226,46 @@ function Build-Release {
     }
 }
 
+function Backup-Databases {
+    if (-not (Test-PortOpen $PgPort)) { throw "PostgreSQL is not running on port $PgPort; start it before backing up." }
+    if (-not (Test-Path "$PgBin\pg_dump.exe")) { throw "pg_dump.exe not found at $PgBin." }
+    $timestamp = Get-Date -AsUTC -Format "yyyyMMddTHHmmssZ"
+    $backupCount = 0
+    foreach ($name in @("dev", "test", "live")) {
+        $cfg = Resolve-Env $name
+        $exists = & "$PgBin\psql.exe" -h localhost -p $cfg.PgPort -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$($cfg.Database)'" 2>$null
+        if (-not $exists -or $exists.Trim() -ne "1") {
+            Write-Host "Skipping ${name}: database '$($cfg.Database)' does not exist yet." -ForegroundColor Yellow
+            continue
+        }
+        $targetDir = Join-Path $BackupRoot $name
+        if (-not (Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir -Force | Out-Null }
+        $target = Join-Path $targetDir ("{0}_{1}.dump" -f $cfg.Database, $timestamp)
+        Write-Host "Backing up $name database '$($cfg.Database)'..." -ForegroundColor Cyan
+        & "$PgBin\pg_dump.exe" -h localhost -p $cfg.PgPort -U postgres -F c "--file=$target" $cfg.Database
+        if ($LASTEXITCODE -ne 0) { throw "Backup failed for $name database '$($cfg.Database)'." }
+        $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $target).Hash
+        Set-Content -LiteralPath "$target.sha256" -Value "$hash  $(Split-Path $target -Leaf)"
+        Write-Host "  Saved $target" -ForegroundColor Green
+        $backupCount++
+    }
+    if ($backupCount -eq 0) { throw "No configured ERP databases exist to back up." }
+}
+
+function Restore-Database {
+    if (-not $File) { throw "restore requires -File <backup.dump>." }
+    $backupFile = Resolve-Path -LiteralPath $File -ErrorAction Stop
+    if (-not (Test-PortOpen $PgPort)) { throw "PostgreSQL is not running on port $PgPort." }
+    if (Test-PortOpen $ErpPort) { throw "ERP server for '$Env' is running on port $ErpPort. Stop it before restoring '$ErpDatabase'." }
+    if (-not (Test-Path "$PgBin\pg_restore.exe")) { throw "pg_restore.exe not found at $PgBin." }
+    Write-Host "WARNING: this will replace the contents of '$ErpDatabase' from '$backupFile'." -ForegroundColor Yellow
+    $confirmation = if ($ConfirmRestore) { $ConfirmRestore } else { Read-Host "Type RESTORE $Env to continue" }
+    if ($confirmation -cne "RESTORE $Env") { Write-Host "Restore cancelled." -ForegroundColor Yellow; return }
+    & "$PgBin\pg_restore.exe" -h localhost -p $PgPort -U postgres -d $ErpDatabase --clean --if-exists --no-owner $backupFile
+    if ($LASTEXITCODE -ne 0) { throw "Restore failed for '$ErpDatabase'. Review PostgreSQL output before starting ERP." }
+    Write-Host "Restore complete for '$Env' database '$ErpDatabase'." -ForegroundColor Green
+}
+
 function Show-FleetStatus {
     if (-not $envConfig) {
         Write-Host "environments.json not found." -ForegroundColor Red
@@ -263,6 +314,8 @@ function Invoke-Action($a) {
         "status"  { Show-Status }
         "logs"    { Show-Logs }
         "release" { Build-Release }
+        "backup" { Backup-Databases }
+        "restore" { Restore-Database }
         "fleet-status" { Show-FleetStatus }
     }
 }
@@ -282,7 +335,8 @@ while ($true) {
     Write-Host "  4) Status"
     Write-Host "  5) Show logs"
     Write-Host "  6) Build stripped release binary"
-    Write-Host "  7) Fleet status (dev/test/live)"
+    Write-Host "  7) Backup dev/test/live databases"
+    Write-Host "  8) Fleet status (dev/test/live)"
     Write-Host "  0) Exit"
     $choice = Read-Host "`nChoose an option"
     switch ($choice) {
@@ -292,7 +346,8 @@ while ($true) {
         "4" { Invoke-Action "status" }
         "5" { Invoke-Action "logs" }
         "6" { Invoke-Action "release" }
-        "7" { Invoke-Action "fleet-status" }
+        "7" { Invoke-Action "backup" }
+        "8" { Invoke-Action "fleet-status" }
         "0" { exit }
         default { Write-Host "Invalid choice." -ForegroundColor Red }
     }

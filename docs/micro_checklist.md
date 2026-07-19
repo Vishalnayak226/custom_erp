@@ -408,10 +408,9 @@ Added 2026-07-18 after the user asked "is PIM completely ready?" and, on hearing
   - Add one shared CSV-cell sanitizer for leading `=`, `+`, `-`, and `@` values; apply it to imports and every CSV export/error-file path.
   - **Acceptance gate:** a formula-like cell is neutralized on import and export without corrupting ordinary values.
 
-- [ ] **17.3 Backup and restore baseline**
-  - Add `manage.ps1 backup` for timestamped dev/test/live dumps and a guarded `restore -File <path>` action; ignore backup output, document daily Windows Task Scheduler backups, and record retention expectations.
-  - Perform and record one restore drill before closing the phase.
-  - **Acceptance gate:** an actual backup restores into the intended database under explicit confirmation; failed backups return a clear error.
+- [x] **17.3 Backup and restore baseline** — **DONE (2026-07-19).** `manage.ps1 backup` writes timestamped, PostgreSQL custom-format dumps plus SHA-256 sidecars under ignored `backups/<environment>/`; it backs up each configured database that exists and visibly skips unprovisioned environments. `manage.ps1 restore -Env <env> -File <path>` is deliberately guarded: it refuses when that ERP target is running and requires exact `RESTORE <env>` confirmation before `pg_restore --clean --if-exists --no-owner`.
+  - `docs/backup_restore.md` records the daily Windows Task Scheduler invocation, a minimum 30-day/local + monthly/off-machine retention expectation, and the monthly test restore-drill procedure.
+  - Dev backup verified readable with `pg_restore -l`; the SHA-256 sidecar matched. A fresh `custom_erp_test` was restored from `custom_erp_20260719T050230Z.dump` with explicit confirmation; its `public.tenants` (2) and `tenant_default.doctype_meta` (44) counts matched dev afterwards. The test ERP server remained stopped throughout the drill.
 
 - [ ] **17.4 Accounting-period control** — product decision required: adopt an admin-managed `AccountingPeriod` with Open/Closed status (recommended) and define reversal behavior before implementation.
   - Then add tenant-scoped periods, audited close/open controls, closed-period checks in `PostDoubleEntry`, and current-period reversals instead of historical mutation.

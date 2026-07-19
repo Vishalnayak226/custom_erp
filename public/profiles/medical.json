@@ -1,0 +1,46 @@
+{
+  "industry_code": "MEDICAL",
+  "industry_name": "Medical Devices",
+  "doctype_overrides": [
+    {
+      "name": "Brand",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Device Master Record (DMR)",
+      "fields": [
+        { "fieldname": "code", "label": "DMR Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Device Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "udi_code", "label": "UDI Code", "fieldtype": "Data", "mandatory": true, "display_order": 3 },
+        { "fieldname": "fda_class", "label": "FDA Class", "fieldtype": "Select", "mandatory": true, "options": "Class I,Class II,Class III", "display_order": 4 }
+      ]
+    },
+    {
+      "name": "Style",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Unique Device Identifier (UDI)",
+      "fields": [
+        { "fieldname": "code", "label": "UDI Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Device Description", "fieldtype": "Data", "mandatory": false, "display_order": 2 },
+        { "fieldname": "dhr_reference", "label": "Device History Record (DHR)", "fieldtype": "Data", "mandatory": false, "display_order": 3 },
+        { "fieldname": "sterilization_batch", "label": "Sterilization Batch", "fieldtype": "Data", "mandatory": false, "display_order": 4 }
+      ]
+    },
+    {
+      "name": "Color",
+      "module": "Master Data",
+      "document_type": "Master",
+      "new_label": "Device Type / Category",
+      "fields": [
+        { "fieldname": "code", "label": "Category Code", "fieldtype": "Data", "mandatory": true, "display_order": 1 },
+        { "fieldname": "name", "label": "Category Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
+        { "fieldname": "device_category", "label": "Device Category", "fieldtype": "Select", "mandatory": true, "options": "Implantable,Diagnostic,Surgical,Monitoring", "display_order": 3 }
+      ]
+    }
+  ],
+  "labels": {
+    "Brand": "Device Master Record (DMR)",
+    "Style": "Unique Device Identifier (UDI)",
+    "Color": "Device Type / Category"
+  }
+}

@@ -37,6 +37,9 @@ public/dist/
 # Runtime logs (manage.ps1)
 logs/
 
+# Database backup artifacts (manage.ps1 backup)
+backups/
+
 # Local credentials - never commit
 *.local.txt
 DEV_CREDENTIALS.local.txt
