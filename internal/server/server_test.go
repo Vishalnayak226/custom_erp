@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"bytes"
@@ -198,7 +198,7 @@ func TestCheckoutToForecastIntegration(t *testing.T) {
 // generic-doc handler chain end-to-end against tenant_default's "hr" module:
 // access is open by default, a disabled module_entitlements row 403s the
 // same doctype it did not before, and re-enabling restores it - proving the
-// runtime module_key resolution added to handleGenericDoc (main.go, right
+// runtime module_key resolution added to handleGenericDoc (handlers_core_doc_engine.go, right
 // next to the existing checkPermission call) actually takes effect, not just
 // that engines.IsModuleEnabled/SetModuleEntitlement compile.
 func TestModuleGateBlocksAndRestoresDoctypeAccess(t *testing.T) {

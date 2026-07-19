@@ -19,7 +19,7 @@ import (
 // restarts. This key encrypts channel_credentials.encrypted_payload
 // (AES-256-GCM) - the only place a Shopify/BigCommerce/Magento API token
 // ever exists in this system outside the operator's own head. No HTTP
-// handler in main.go ever returns a decrypted credential - getChannelCredential
+// handler in internal/server ever returns a decrypted credential - getChannelCredential
 // is package-private by design.
 var channelCredKey = loadOrGenerateChannelCredentialKey()
 

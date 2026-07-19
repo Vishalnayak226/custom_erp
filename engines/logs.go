@@ -39,6 +39,15 @@ func LogAuditEvent(tenantID, userID, action, status, details string) {
 func LogSystemError(tenantID string, correlationID string, severity, moduleSource, message, stackTrace string) {
 	log.Printf("[%s] System Error in module %s: %s", severity, moduleSource, message)
 
+	// Panics alert immediately, ahead of/independent from the DB insert below
+	// (a panic during a DB outage is exactly when the alert matters most).
+	// Non-panic failures are covered by the sustained-error-rate monitor
+	// (engines/alerting.go's StartAlertMonitor) instead of alerting on each
+	// individual occurrence.
+	if severity == "PANIC" {
+		SendOpsAlert(severity, moduleSource, message)
+	}
+
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		log.Printf("Error logging failed: cannot get tenant schema: %v", err)

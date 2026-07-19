@@ -127,7 +127,7 @@ func ListModules() ([]Module, error) {
 }
 
 // ModuleForDoctype resolves the module_key a given doctype belongs to, for
-// gating the generic doc CRUD route (main.go's handleGenericDoc) where the
+// gating the generic doc CRUD route (internal/server/handlers_core_doc_engine.go's handleGenericDoc) where the
 // doctype is a runtime path parameter and can't be gated at route-
 // registration time the way the fixed module routes are. Returns "" (no
 // error) for a doctype with no module_key assigned - such doctypes are

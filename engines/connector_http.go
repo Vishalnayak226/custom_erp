@@ -71,7 +71,7 @@ func doConnectorRequest(ctx context.Context, timeout time.Duration, method, url 
 }
 
 // Per-channel outbound rate limiter - a simple token bucket keyed by
-// channel_code, the mirror image of main.go's inbound globalLimiter (that
+// channel_code, the mirror image of internal/server/middleware.go's inbound globalLimiter (that
 // one throttles calls made INTO this app; this one throttles calls THIS
 // app makes OUT to a platform, so a busy publish queue can't blow through
 // Shopify/BigCommerce/Magento's own rate limits and get the whole

@@ -467,7 +467,7 @@ func upsertPIMProductProfile(tenantID, itemCode, status string, score float64, m
 // for a newly created Item - V2 §6.1 step 2, "PIM profile is auto-created
 // with status PIM Draft." A no-op if a profile already exists (ON CONFLICT
 // DO NOTHING), so it's safe to call unconditionally from the Item-create
-// hook in main.go's handleGenericDoc.
+// hook in handlers_core_doc_engine.go's handleGenericDoc.
 func EnsurePIMProductProfile(tenantID, itemCode string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {

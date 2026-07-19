@@ -6,8 +6,22 @@ A metadata-driven, pluggable, ledger-backed Enterprise Resource Planning (ERP) s
 
 ```
 ├── .github/workflows/ci.yml       # CI: build, vet, test against a fresh Postgres on every push/PR
-├── main.go                        # HTTP router, middleware, and all REST handlers
-├── main_test.go                   # HTTP-level integration test (real handlers via httptest)
+├── cmd/
+│   ├── server/main.go             # Real entrypoint - launcher only, calls internal/server.Run()
+│   └── reset_mfa/main.go          # Standalone utility: resets MFA for HR/Admin users
+├── internal/server/               # HTTP router, middleware, and all REST handlers (was main.go pre-2026-07-19;
+│   │                               # split into these files by domain during the Stage 19 folder restructuring)
+│   ├── routes.go                  # Run() - DB init, background workers, full route table
+│   ├── middleware.go              # Rate limiting, CORS, webhook signature verification, apiMiddleware chain
+│   ├── handlers_auth.go           # Login, TOTP MFA
+│   ├── handlers_core_doc_engine.go # Generic /api/v1/doc/:doctype engine, DocType Builder, industry switch
+│   ├── handlers_pim_pos_finance.go # CSV/PIM import, channel credentials, POS checkout, Finance/GL, approvals, GST, reports
+│   ├── handlers_procurement_pim2.go # RFQ, stickers, payroll export, PIM V2 (dashboard/bulk/media/publish)
+│   ├── handlers_operations.go     # Assets, Expense, CRM/Loyalty, Manufacturing, fulfillment, transfers, vendor invoice, optimization
+│   ├── handlers_integrations_admin.go # Unicommerce/Pine Labs/CleverTap, tenant provisioning, modules, extensions
+│   ├── server_test.go             # HTTP-level integration test (real handlers via httptest)
+│   ├── pim_dashboard_test.go / soft_delete_test.go # Additional integration tests
+│   └── VERSION                    # App version, go:embed'd into the binary at build time
 ├── go.mod / go.sum                # Go module definition
 ├── engines/                       # Business logic: finance, inventory, doctype, auth, saas, optimization, etc.
 ├── db/
@@ -15,18 +29,18 @@ A metadata-driven, pluggable, ledger-backed Enterprise Resource Planning (ERP) s
 │   ├── migration.sql              # Base schema, seed data, Chart of Accounts
 │   └── migrations_phase3.sql      # Phase 2/3 transactional metadata
 ├── public/                        # Static frontend (index.html, app.js, styles.css, profiles/)
+├── scripts/                       # Operational scripts (connector live-verification, etc.) - see scripts/archive/ for retired one-offs
 ├── docs/
-│   ├── hardening_roadmap.md       # Closed roadmap (2026-07-12): security, correctness, release-hygiene backlog, all phases done
-│   ├── pdf_blueprint_gap_analysis.md # Gap analysis snapshot (2026-07-12) vs the original spec PDFs — mostly closed since, see micro_checklist.md
-│   ├── implementation_plan.md     # Unified Technical Specification Document (logic & constraints)
-│   ├── framework_architecture.md  # Metadata-driven pluggable DocType Kernel specification
-│   ├── pos_architecture.md        # Pluggable offline POS terminal specification (basic POS screen built, offline-first parts still forward-looking)
-│   ├── modules_overview.md        # Functional Modules Directory (several sections now built, see status banner)
-│   ├── industry_plugs.md          # Multi-industry configurator specification (4 of the listed industries are built)
-│   ├── micro_checklist.md         # Stage 1-13 build tracker (current source of truth for what's built)
-│   ├── architecture_evaluation.md # SaaS multi-tenant scaling & Go runtime evaluation
+│   ├── ERP_BLUEPRINT.md           # Full project snapshot for an outside/AI reviewer - start here for "what is this system"
+│   ├── micro_checklist.md         # Live backlog/build tracker - current source of truth for what's built
 │   ├── project_ledger.md          # Chronological build history and architectural decisions
-│   └── ai_handover.md             # Environment setup, run commands, and dev handover notes
+│   ├── ai_handover.md             # Environment setup, run commands, and dev handover notes
+│   ├── README.md                  # Index of everything else in docs/
+│   ├── architecture/              # Design docs: framework_architecture.md, architecture_evaluation.md, pos_architecture.md
+│   ├── specs/                     # Spec-vs-built docs: implementation_plan.md, industry_plugs.md, modules_overview.md, pdf_blueprint_gap_analysis.md
+│   ├── operations/                # backup_restore.md, incident_runbook.md, connector_live_verification.md, hardening_roadmap.md
+│   ├── requirements/               # BRD.md, PRD.md
+│   └── guides/                    # USER_GUIDE.md (client-facing), ADMIN_GUIDE.md (operator manual)
 └── package.json                   # Frontend build script (esbuild bundling of public/app.js)
 ```
 
@@ -50,7 +64,7 @@ psql -f db/migration.sql
 psql -f db/migrations_phase3.sql
 
 # 3. Build and run the server
-go build -o erp-server.exe
+go build -o erp-server.exe ./cmd/server
 ./erp-server.exe
 ```
 This serves both the API and the `public/` static frontend on `http://localhost:8080`. You'll land on a login screen — dev credentials are in `DEV_CREDENTIALS.local.txt` at the project root (gitignored; regenerate via a throwaway bcrypt script and update `db/migration.sql` + the live `users` table if it's missing).
@@ -60,11 +74,12 @@ This serves both the API and the `public/` static frontend on `http://localhost:
 
 ## Technical Reference & Architecture
 
-*   **Current priorities**: Use **[docs/micro_checklist.md](docs/micro_checklist.md)** (Stage 13) as the live backlog — it's kept current after every closed item. `docs/hardening_roadmap.md` (security/correctness/release-hygiene) is fully closed as of 2026-07-12.
-*   **Is this a complete ERP yet?**: Short answer: much closer than before. The kernel and omnichannel/scale backend remain strong; POS, Finance/GL, GST calc, CRM/Loyalty (MVP), HR, Fixed Assets, Expense Management, Manufacturing (MVP), RFQ/vendor quotes, sticker printing, MFA, and the approval/maker-checker workflow engine are now built (Stage 13.1-13.15, see `docs/micro_checklist.md` for exact scope of each). **[docs/pdf_blueprint_gap_analysis.md](docs/pdf_blueprint_gap_analysis.md)** is the original comparison against the 6 spec PDFs, dated 2026-07-12 — treat it as a historical snapshot of what was missing *then*, not current state.
-*   **System Customizations**: Read **[docs/framework_architecture.md](docs/framework_architecture.md)** to understand how the dynamic DocType metadata schemas and UI form interpreters are structured.
-*   **Database & Accounting**: Read **[docs/implementation_plan.md](docs/implementation_plan.md)** for double-entry GL mappings, validation matrices, and API specifications.
-*   **Task Tracking**: Use **[docs/micro_checklist.md](docs/micro_checklist.md)** to mark, revise, and verify implemented stages.
-*   **Build history**: Read **[docs/project_ledger.md](docs/project_ledger.md)** for chronological architectural decisions, and **[docs/ai_handover.md](docs/ai_handover.md)** for environment/run details.
+*   **Start here**: **[docs/ERP_BLUEPRINT.md](docs/ERP_BLUEPRINT.md)** — a full project snapshot (scope, architecture, build history, known gaps) written for an outside reviewer with no other context. **[docs/README.md](docs/README.md)** indexes everything else in `docs/`.
+*   **Current priorities**: **[docs/micro_checklist.md](docs/micro_checklist.md)** is the live backlog — kept current after every closed item.
+*   **New here?**: **[docs/ai_handover.md](docs/ai_handover.md)** has environment setup, port map, and run commands. **[docs/guides/ADMIN_GUIDE.md](docs/guides/ADMIN_GUIDE.md)** is the fuller standalone operator manual. **[docs/guides/USER_GUIDE.md](docs/guides/USER_GUIDE.md)** is the client-facing, non-technical walkthrough.
+*   **Business/product scope**: **[docs/requirements/BRD.md](docs/requirements/BRD.md)** (business goals/scope) and **[docs/requirements/PRD.md](docs/requirements/PRD.md)** (functional module spec, built-vs-planned status).
+*   **System architecture**: **[docs/architecture/framework_architecture.md](docs/architecture/framework_architecture.md)** (metadata-driven DocType kernel) and **[docs/architecture/architecture_evaluation.md](docs/architecture/architecture_evaluation.md)** (stack/multi-tenancy rationale).
+*   **Operations**: **[docs/operations/backup_restore.md](docs/operations/backup_restore.md)**, **[docs/operations/incident_runbook.md](docs/operations/incident_runbook.md)**, **[docs/operations/connector_live_verification.md](docs/operations/connector_live_verification.md)**.
+*   **Build history**: **[docs/project_ledger.md](docs/project_ledger.md)** for chronological architectural decisions.
 
-Note: `docs/pos_architecture.md`, `docs/modules_overview.md`, and `docs/industry_plugs.md` mix built and forward-looking specification — each carries a status banner explaining exactly which parts are real code today.
+Note: several docs under `docs/specs/` (`implementation_plan.md`, `pos_architecture.md`, `modules_overview.md`, `industry_plugs.md`, `pdf_blueprint_gap_analysis.md`) mix built and forward-looking specification — each carries a status banner explaining exactly which parts are real code today; `docs/ERP_BLUEPRINT.md` §2 gives the current built-vs-spec picture in one table.

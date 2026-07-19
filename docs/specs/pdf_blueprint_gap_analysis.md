@@ -1,6 +1,6 @@
 # PDF Blueprint Gap Analysis
 
-> **Status: superseded snapshot.** This analysis was written 2026-07-12 and its "Thin" verdict on the business-user-facing layer (§1) drove the Stage 13 build plan in `docs/micro_checklist.md`. Most of what §3+ below lists as missing — POS screen, Finance/GL screen, GST calc, approval/maker-checker engine, MFA, security headers, RFQ/vendor quotes, sticker printing, HR, Fixed Assets, Expense Management, CRM/Loyalty (scoped MVP), Manufacturing (scoped MVP), and per-API-type rate limiting — has since been built (Stage 13.1 through 13.15, including the 13.13a-e split). Treat everything below as a historical record of what was true on 2026-07-12, not current state; **[docs/micro_checklist.md](micro_checklist.md)** is the current source of truth for what's built.
+> **Status: superseded snapshot.** This analysis was written 2026-07-12 and its "Thin" verdict on the business-user-facing layer (§1) drove the Stage 13 build plan in `docs/micro_checklist.md`. Most of what §3+ below lists as missing — POS screen, Finance/GL screen, GST calc, approval/maker-checker engine, MFA, security headers, RFQ/vendor quotes, sticker printing, HR, Fixed Assets, Expense Management, CRM/Loyalty (scoped MVP), Manufacturing (scoped MVP), and per-API-type rate limiting — has since been built (Stage 13.1 through 13.15, including the 13.13a-e split). Treat everything below as a historical record of what was true on 2026-07-12, not current state; **[docs/micro_checklist.md](../micro_checklist.md)** is the current source of truth for what's built.
 
 **Date:** 2026-07-12
 **Source documents:** `C:\Users\ABCD\Downloads\MyBusiness\IT Solution\ERP\PDF\`
@@ -187,7 +187,7 @@ Ordered by risk/effort ratio, not by PDF section order. This is a proposal for t
 
 ## 10. Cross-References
 
-- Security/correctness fixes already closed this session: [`docs/hardening_roadmap.md`](hardening_roadmap.md)
-- Granular build tracker (Stage 1-12, matches OB's rollout plan): [`docs/micro_checklist.md`](micro_checklist.md)
-- Developer setup + handover notes: [`docs/ai_handover.md`](ai_handover.md)
-- Historical build log: [`docs/project_ledger.md`](project_ledger.md)
+- Security/correctness fixes already closed this session: [`docs/operations/hardening_roadmap.md`](../operations/hardening_roadmap.md)
+- Granular build tracker (Stage 1-12, matches OB's rollout plan): [`docs/micro_checklist.md`](../micro_checklist.md)
+- Developer setup + handover notes: [`docs/ai_handover.md`](../ai_handover.md)
+- Historical build log: [`docs/project_ledger.md`](../project_ledger.md)

@@ -16,8 +16,9 @@ import (
 // infrastructure - no file-upload code existed anywhere in this codebase
 // before this. Files are stored on local disk under mediaStoreDir (NOT
 // under public/, which is served unauthenticated via http.FileServer - see
-// main.go:510) and served back only through an authenticated handler
-// (GetMediaFile + handlePIMMediaFile in main.go) - the pragmatic in-house
+// internal/server/routes.go) and served back only through an authenticated
+// handler (GetMediaFile + handlePIMMediaFile in
+// internal/server/handlers_procurement_pim2.go) - the pragmatic in-house
 // equivalent of "private storage + signed URL" for a single-binary app
 // with no CDN/object-storage/signing infra. Content-addressed by SHA-256
 // checksum for free duplicate detection and to make "never overwrite

@@ -217,7 +217,7 @@ func nullableNote(classification string) sql.NullString {
 }
 
 // ListPatchProposals returns proposals, optionally filtered by status
-// ("" means no filter). HR/Admin-only at the API layer (main.go).
+// ("" means no filter). HR/Admin-only at the API layer (internal/server).
 func ListPatchProposals(status string) ([]PatchProposal, error) {
 	query := `SELECT id, tenant_id, module_source, signature, error_sample, occurrence_count, classification, status, created_at, decided_by, decided_at, notes FROM public.patch_proposals`
 	args := []interface{}{}

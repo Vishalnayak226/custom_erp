@@ -113,7 +113,7 @@ function Start-Pg {
     & "$PgBin\pg_ctl.exe" start -D "$PgData" -l "$PgLog" -o "-p $PgPort" -w | Out-Null
 
     for ($i = 0; $i -lt 15; $i++) {
-        $ready = & "$PgBin\pg_isready.exe" -p $PgPort 2>$null
+        & "$PgBin\pg_isready.exe" -p $PgPort 2>$null | Out-Null
         if ($LASTEXITCODE -eq 0) { Write-Host "Postgres is ready." -ForegroundColor Green; return }
         Start-Sleep -Seconds 1
     }
@@ -136,7 +136,7 @@ function Start-Erp {
         return
     }
     if (-not (Test-Path $ErpExe)) {
-        Write-Host "erp-server.exe not found. Build it first:  go build -o erp-server.exe" -ForegroundColor Red
+        Write-Host "erp-server.exe not found. Build it first:  go build -o erp-server.exe ./cmd/server" -ForegroundColor Red
         return
     }
     if (-not (Test-PortOpen $PgPort)) {
@@ -145,7 +145,7 @@ function Start-Erp {
     }
     Write-Host "Starting ERP server ('$Env', port $ErpPort, database '$ErpDatabase')..." -ForegroundColor Cyan
     # PORT/DATABASE_URL (Stage 14.9) let dev/test/live run the same binary
-    # side by side - for 'dev' these match main.go's own hardcoded defaults
+    # side by side - for 'dev' these match internal/server/routes.go's own hardcoded defaults
     # exactly, so setting them here changes nothing about dev's behavior.
     $env:PORT = "$ErpPort"
     $env:DATABASE_URL = "postgres://postgres@localhost:$PgPort/$ErpDatabase`?sslmode=disable"
@@ -194,16 +194,16 @@ function Build-Release {
 
     # Stage 14.6: stamp the binary with its real git commit and build time so
     # GET /api/v1/version reports something more useful than "dev"/"unknown"
-    # (main.go's defaults, meant for a bare `go build` during iterative dev).
+    # (internal/server/server.go's defaults, meant for a bare `go build` during iterative dev).
     $commitHash = (git rev-parse --short HEAD 2>$null)
     if (-not $commitHash) { $commitHash = "unknown" }
     $buildTimestamp = (Get-Date -AsUTC -Format "yyyy-MM-ddTHH:mm:ssZ")
-    $ldflags = "-s -w -X main.gitCommit=$commitHash -X main.buildTime=$buildTimestamp"
+    $ldflags = "-s -w -X custom_erp/internal/server.gitCommit=$commitHash -X custom_erp/internal/server.buildTime=$buildTimestamp"
 
     Write-Host "Building stripped release binary (-ldflags=`"$ldflags`")..." -ForegroundColor Cyan
     Push-Location $ErpDir
     try {
-        & "$GoBin\go.exe" build -ldflags="$ldflags" -o erp-server.exe
+        & "$GoBin\go.exe" build -ldflags="$ldflags" -o erp-server.exe ./cmd/server
     } finally {
         Pop-Location
     }
@@ -226,30 +226,55 @@ function Build-Release {
     }
 }
 
-function Backup-Databases {
-    if (-not (Test-PortOpen $PgPort)) { throw "PostgreSQL is not running on port $PgPort; start it before backing up." }
-    if (-not (Test-Path "$PgBin\pg_dump.exe")) { throw "pg_dump.exe not found at $PgBin." }
-    $timestamp = Get-Date -AsUTC -Format "yyyyMMddTHHmmssZ"
-    $backupCount = 0
-    foreach ($name in @("dev", "test", "live")) {
-        $cfg = Resolve-Env $name
-        $exists = & "$PgBin\psql.exe" -h localhost -p $cfg.PgPort -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$($cfg.Database)'" 2>$null
-        if (-not $exists -or $exists.Trim() -ne "1") {
-            Write-Host "Skipping ${name}: database '$($cfg.Database)' does not exist yet." -ForegroundColor Yellow
-            continue
-        }
-        $targetDir = Join-Path $BackupRoot $name
-        if (-not (Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir -Force | Out-Null }
-        $target = Join-Path $targetDir ("{0}_{1}.dump" -f $cfg.Database, $timestamp)
-        Write-Host "Backing up $name database '$($cfg.Database)'..." -ForegroundColor Cyan
-        & "$PgBin\pg_dump.exe" -h localhost -p $cfg.PgPort -U postgres -F c "--file=$target" $cfg.Database
-        if ($LASTEXITCODE -ne 0) { throw "Backup failed for $name database '$($cfg.Database)'." }
-        $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $target).Hash
-        Set-Content -LiteralPath "$target.sha256" -Value "$hash  $(Split-Path $target -Leaf)"
-        Write-Host "  Saved $target" -ForegroundColor Green
-        $backupCount++
+# Send-OpsAlert posts a short message to the same Slack/Teams-compatible
+# incoming webhook the Go server uses (OPS_ALERT_WEBHOOK_URL, see
+# engines/alerting.go) - kept as a plain env var, not a script param, so the
+# same one value configures both halves of Stage 17.10's alerting. No-ops
+# quietly if the env var isn't set, same as the Go side.
+function Send-OpsAlert($Message) {
+    $webhookUrl = $env:OPS_ALERT_WEBHOOK_URL
+    if (-not $webhookUrl) { return }
+    try {
+        $body = @{ text = ":rotating_light: [manage.ps1] $Message" } | ConvertTo-Json
+        Invoke-RestMethod -Uri $webhookUrl -Method Post -ContentType "application/json" -Body $body -TimeoutSec 5 | Out-Null
+    } catch {
+        Write-Host "  (ops alert delivery failed: $($_.Exception.Message))" -ForegroundColor DarkYellow
     }
-    if ($backupCount -eq 0) { throw "No configured ERP databases exist to back up." }
+}
+
+function Backup-Databases {
+    # Stage 17.10: any failure below alerts to OPS_ALERT_WEBHOOK_URL (via
+    # Send-OpsAlert) before propagating, so a failed scheduled backup (see
+    # docs/operations/backup_restore.md's Task Scheduler recipe) is caught the same day
+    # rather than silently discovered at the next restore drill.
+    try {
+        if (-not (Test-PortOpen $PgPort)) { throw "PostgreSQL is not running on port $PgPort; start it before backing up." }
+        if (-not (Test-Path "$PgBin\pg_dump.exe")) { throw "pg_dump.exe not found at $PgBin." }
+        $timestamp = Get-Date -AsUTC -Format "yyyyMMddTHHmmssZ"
+        $backupCount = 0
+        foreach ($name in @("dev", "test", "live")) {
+            $cfg = Resolve-Env $name
+            $exists = & "$PgBin\psql.exe" -h localhost -p $cfg.PgPort -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$($cfg.Database)'" 2>$null
+            if (-not $exists -or $exists.Trim() -ne "1") {
+                Write-Host "Skipping ${name}: database '$($cfg.Database)' does not exist yet." -ForegroundColor Yellow
+                continue
+            }
+            $targetDir = Join-Path $BackupRoot $name
+            if (-not (Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir -Force | Out-Null }
+            $target = Join-Path $targetDir ("{0}_{1}.dump" -f $cfg.Database, $timestamp)
+            Write-Host "Backing up $name database '$($cfg.Database)'..." -ForegroundColor Cyan
+            & "$PgBin\pg_dump.exe" -h localhost -p $cfg.PgPort -U postgres -F c "--file=$target" $cfg.Database
+            if ($LASTEXITCODE -ne 0) { throw "Backup failed for $name database '$($cfg.Database)'." }
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $target).Hash
+            Set-Content -LiteralPath "$target.sha256" -Value "$hash  $(Split-Path $target -Leaf)"
+            Write-Host "  Saved $target" -ForegroundColor Green
+            $backupCount++
+        }
+        if ($backupCount -eq 0) { throw "No configured ERP databases exist to back up." }
+    } catch {
+        Send-OpsAlert "Database backup FAILED: $($_.Exception.Message)"
+        throw
+    }
 }
 
 function Restore-Database {

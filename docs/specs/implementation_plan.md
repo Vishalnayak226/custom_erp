@@ -165,7 +165,7 @@ We will build and roll out the ERP platform in 7 progressive phases incorporatin
 5.  **Phase 5 - Scale Test** [COMPLETED]: Simulate 100, 500, 1,000, and 2,000 stores to validate queue depth lag, API response times, and concurrency sync accuracy.
 6.  **Phase 6 - Marketplace/OMS Expansion** [COMPLETED]: Multi-marketplace reconciliation, settlement logging, logistics tracking, and customer support console.
 7.  **Phase 7 - Advanced Optimization** [COMPLETED, WITH A KNOWN BUG]: Demand forecasting, automated replenishment suggestions, and SLA optimization — see the note under §8 Phase 7 below. Anomaly detection logs not built.
-8.  **Phase 8 - Production Hardening** [PLANNED]: Security, correctness, test/CI, and release-hygiene backlog — see **[docs/hardening_roadmap.md](hardening_roadmap.md)** for the full phased plan.
+8.  **Phase 8 - Production Hardening** [PLANNED]: Security, correctness, test/CI, and release-hygiene backlog — see **[docs/operations/hardening_roadmap.md](../operations/hardening_roadmap.md)** for the full phased plan.
 
 ---
 
@@ -200,7 +200,7 @@ We will build and roll out the ERP platform in 7 progressive phases incorporatin
 *   **Replenishment Reorders**: Computes average daily sales velocity of SKUs over 30 days and suggests replenishment orders (`suggestedQty = (velocity * leadTime) + safetyStock - available`).
 *   **Demand Forecasting**: Projects future SKU sales volumes based on daily historical velocity rates (`engines/optimization.go`).
 *   **Picking SLA Breach Monitors**: Scans open fulfillment tasks, measures elapsed time since creation, and highlights tasks exceeding hour SLA thresholds.
-*   ✅ **Fixed 2026-07-12**: `CalculateSalesVelocity` previously queried `POSCart` documents with `status = 'completed'`, a status this system never actually produces — checkout writes `'Paid'`, marketplace settlement transitions to `'Settled'`. Now matches `status IN ('Paid', 'Settled')`. See **[docs/hardening_roadmap.md](hardening_roadmap.md)** Phase 2.2.
+*   ✅ **Fixed 2026-07-12**: `CalculateSalesVelocity` previously queried `POSCart` documents with `status = 'completed'`, a status this system never actually produces — checkout writes `'Paid'`, marketplace settlement transitions to `'Settled'`. Now matches `status IN ('Paid', 'Settled')`. See **[docs/operations/hardening_roadmap.md](../operations/hardening_roadmap.md)** Phase 2.2.
 
 ---
 

@@ -50,13 +50,13 @@ function Get-WorktreePath($envName) {
 }
 
 function Invoke-Psql([string]$Database, [string]$Sql, [string]$File) {
-    $args = @("-h", "localhost", "-p", $PgPort, "-U", "postgres", "-d", $Database, "-v", "ON_ERROR_STOP=1")
-    if ($File) { $args += @("-f", $File) } else { $args += @("-c", $Sql) }
-    & "$PgBin\psql.exe" @args
+    $psqlArgs = @("-h", "localhost", "-p", $PgPort, "-U", "postgres", "-d", $Database, "-v", "ON_ERROR_STOP=1")
+    if ($File) { $psqlArgs += @("-f", $File) } else { $psqlArgs += @("-c", $Sql) }
+    & "$PgBin\psql.exe" @psqlArgs
     if ($LASTEXITCODE -ne 0) { throw "psql against '$Database' failed (exit $LASTEXITCODE)" }
 }
 
-function Ensure-Database($dbName) {
+function Initialize-Database($dbName) {
     $exists = & "$PgBin\psql.exe" -h localhost -p $PgPort -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$dbName'"
     if ($exists -ne "1") {
         Write-Host "Creating database '$dbName'..." -ForegroundColor Cyan
@@ -64,7 +64,7 @@ function Ensure-Database($dbName) {
     }
 }
 
-function Apply-PendingMigrations($dbName) {
+function Invoke-PendingMigrations($dbName) {
     # public.schema_migrations may not exist yet on a brand-new database -
     # migration.sql itself doesn't create it (that's Stage 14.6's own
     # migration file), so bootstrap-order matters: run everything in
@@ -87,7 +87,7 @@ function Apply-PendingMigrations($dbName) {
     }
 }
 
-function Record-Deployment($environment, $commit, $appVersion, $status, $notes) {
+function Add-Deployment($environment, $commit, $appVersion, $status, $notes) {
     $escapedNotes = $notes -replace "'", "''"
     $sql = "INSERT INTO public.deployments (environment, tenant_scope, git_commit, app_version, promoted_by, build_status, notes) VALUES ('$environment', '$TenantScope', '$commit', '$appVersion', '$env:USERNAME', '$status', '$escapedNotes')"
     Invoke-Psql -Database $ControlPlaneDb -Sql $sql
@@ -139,9 +139,9 @@ if ($Rollback) {
     Stop-Environment $Env
     & git -C $worktreePath checkout --detach $prevCommit
     Push-Location $worktreePath
-    try { & "$GoBin\go.exe" build -ldflags="-s -w" -o erp-server.exe } finally { Pop-Location }
+    try { & "$GoBin\go.exe" build -ldflags="-s -w" -o erp-server.exe ./cmd/server } finally { Pop-Location }
     Start-Environment $Env $worktreePath
-    Record-Deployment -environment $Env -commit $prevCommit -appVersion "" -status "rolled_back" -notes "Rollback to previous deployment"
+    Add-Deployment -environment $Env -commit $prevCommit -appVersion "" -status "rolled_back" -notes "Rollback to previous deployment"
     exit
 }
 
@@ -172,7 +172,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "go vet failed" }
     & "$GoBin\go.exe" test ./... -p 1 2>&1 | Write-Host
     if ($LASTEXITCODE -ne 0) {
-        Record-Deployment -environment $To -commit $shortCommit -appVersion "" -status "failed" -notes "go test failed - promotion refused"
+        Add-Deployment -environment $To -commit $shortCommit -appVersion "" -status "failed" -notes "go test failed - promotion refused"
         throw "go test failed - promotion refused"
     }
 } finally {
@@ -191,25 +191,25 @@ if (-not (Test-Path $toPath)) {
 
 # 4. Ensure the target database exists and is migrated up to date.
 $toCfg = $envConfig.$To
-Ensure-Database $toCfg.database
+Initialize-Database $toCfg.database
 Write-Host "Applying migrations to '$($toCfg.database)'..." -ForegroundColor Cyan
-Apply-PendingMigrations $toCfg.database
+Invoke-PendingMigrations $toCfg.database
 
 # 5. Build the stripped release binary in the target worktree.
 Push-Location $toPath
 try {
     $buildTimestamp = (Get-Date -AsUTC -Format "yyyy-MM-ddTHH:mm:ssZ")
-    & "$GoBin\go.exe" build -ldflags="-s -w -X main.gitCommit=$shortCommit -X main.buildTime=$buildTimestamp" -o erp-server.exe
+    & "$GoBin\go.exe" build -ldflags="-s -w -X custom_erp/internal/server.gitCommit=$shortCommit -X custom_erp/internal/server.buildTime=$buildTimestamp" -o erp-server.exe ./cmd/server
     if ($LASTEXITCODE -ne 0) { throw "release build failed in target worktree" }
 } finally {
     Pop-Location
 }
-$appVersion = (Get-Content (Join-Path $toPath "VERSION") -Raw).Trim()
+$appVersion = (Get-Content (Join-Path $toPath "internal\server\VERSION") -Raw).Trim()
 
 # 6. Restart the target environment on the new binary.
 Stop-Environment $To
 Start-Environment $To $toPath
 
 # 7. Record the deployment.
-Record-Deployment -environment $To -commit $shortCommit -appVersion $appVersion -status "passed" -notes "Promoted from $From"
+Add-Deployment -environment $To -commit $shortCommit -appVersion $appVersion -status "passed" -notes "Promoted from $From"
 Write-Host "Promotion complete: $To is now running $shortCommit (v$appVersion)." -ForegroundColor Green

@@ -9,7 +9,7 @@ import (
 
 // VerifyWebhookHMAC generically checks an inbound webhook's signature
 // against a shared secret, for platforms beyond the Shopify order webhook
-// (main.go's verifyShopifyWebhookSignature, Stage 14.21-14.24, already
+// (internal/server/middleware.go's verifyShopifyWebhookSignature, Stage 14.21-14.24, already
 // closes that specific gap with its own base64 HMAC-SHA256 check against
 // SHOPIFY_WEBHOOK_SECRET - this is the generic version new inbound
 // webhooks, e.g. BigCommerce's, Stage 16.3, should call instead of
