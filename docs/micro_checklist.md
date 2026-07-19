@@ -412,11 +412,11 @@ Added 2026-07-18 after the user asked "is PIM completely ready?" and, on hearing
   - `docs/backup_restore.md` records the daily Windows Task Scheduler invocation, a minimum 30-day/local + monthly/off-machine retention expectation, and the monthly test restore-drill procedure.
   - Dev backup verified readable with `pg_restore -l`; the SHA-256 sidecar matched. A fresh `custom_erp_test` was restored from `custom_erp_20260719T050230Z.dump` with explicit confirmation; its `public.tenants` (2) and `tenant_default.doctype_meta` (44) counts matched dev afterwards. The test ERP server remained stopped throughout the drill.
 
-- [ ] **17.4 Accounting-period control** — product decision required: adopt an admin-managed `AccountingPeriod` with Open/Closed status (recommended) and define reversal behavior before implementation.
-  - Then add tenant-scoped periods, audited close/open controls, closed-period checks in `PostDoubleEntry`, and current-period reversals instead of historical mutation.
+- [ ] **17.4 Accounting-period control** — **Decision confirmed 2026-07-19: admin-managed `AccountingPeriod` doctype (start_date/end_date/status: Open/Closed), reversal-only correction (no editing a closed-period entry).**
+  - Add tenant-scoped periods, audited close/open controls, closed-period checks in `PostDoubleEntry`, and current-period reversals instead of historical mutation.
   - **Acceptance gate:** closed-period transactions are rejected, current-period postings work, and corrections preserve the original audit trail.
 
-- [ ] **17.5 GST posting enforcement** — product decision required: choose mandatory document types and whether to store a server-computed GST breakdown (recommended) instead of leaving calculation opt-in.
+- [ ] **17.5 GST posting enforcement** — **Decision confirmed 2026-07-19: enforce at both PurchaseOrder creation and Sales/checkout; server auto-computes and stores the CGST/SGST/IGST breakdown rather than leaving it opt-in.**
   - **Acceptance gate:** gated documents with missing HSN/rate fail before posting; valid intra-/inter-state transactions persist the correct tax split.
 
 - [ ] **17.6 Transfer-order lifecycle**
@@ -431,8 +431,8 @@ Added 2026-07-18 after the user asked "is PIM completely ready?" and, on hearing
   - Add VendorInvoice, vendor/invoice/financial-year duplicate protection, configurable-tolerance PO/GRN/invoice matching, and payment only from matched status or a separately audited override.
   - **Acceptance gate:** matching documents can be paid, mismatches hold, and duplicate invoice numbers are rejected.
 
-- [ ] **17.9 Location and organizational masters** — product decision required: retain transaction location values as validated codes (recommended) or migrate every free-text field to formal links.
-  - Then add Location, LegalEntity, Department, and CostCenter masters; seed current location values and validate future references against active masters.
+- [ ] **17.9 Location and organizational masters** — **Decision confirmed 2026-07-19: retain existing free-text location fields as-is; add master doctypes and validate new writes against active codes rather than migrating every doctype to a Link field.**
+  - Add Location, LegalEntity, Department, and CostCenter masters; seed current location values and validate future references against active masters.
   - **Acceptance gate:** unknown/inactive locations are rejected for new writes without breaking valid legacy data.
 
 - [ ] **17.10 Runbook and alerting** — operational contacts and an approved transport are required before alerts are activated.
