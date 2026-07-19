@@ -560,6 +560,9 @@ func main() {
 	http.HandleFunc("POST /api/v1/transfer/dispatch", apiMiddleware(moduleGate("inventory", handleDispatchTransferOrder)))
 	http.HandleFunc("POST /api/v1/transfer/receive", apiMiddleware(moduleGate("inventory", handleReceiveTransferOrder)))
 
+	// Purchase requisition conversion (Stage 17.7)
+	http.HandleFunc("POST /api/v1/procurement/convert-requisition", apiMiddleware(moduleGate("procurement", handleConvertRequisition)))
+
 	// Administration Scale Test APIs
 	http.HandleFunc("POST /api/v1/admin/scale-test", apiMiddleware(handleScaleTest))
 
@@ -3465,6 +3468,32 @@ func handleReceiveTransferOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Received", "transfer_order_id": req.TransferOrderID})
+}
+
+func handleConvertRequisition(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		RequisitionID string `json:"requisition_id"`
+		Target        string `json:"target"` // "RFQ" or "PurchaseOrder"
+		StoreCode     string `json:"store_code"`
+		FinancialYear string `json:"financial_year"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RequisitionID == "" || req.Target == "" || req.StoreCode == "" || req.FinancialYear == "" {
+		http.Error(w, "Fields 'requisition_id', 'target', 'store_code', and 'financial_year' are required", http.StatusBadRequest)
+		return
+	}
+	newID, err := engines.ConvertRequisitionToOrder(tenantID, req.RequisitionID, req.Target, req.StoreCode, req.FinancialYear, userID)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "converted", "requisition_id": req.RequisitionID, "target": req.Target, "new_document_id": newID})
 }
 
 func handleScaleTest(w http.ResponseWriter, r *http.Request) {
