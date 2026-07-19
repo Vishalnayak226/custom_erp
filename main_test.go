@@ -75,13 +75,20 @@ func TestCheckoutToForecastIntegration(t *testing.T) {
 	location := "INTEGRATIONTEST-LOC"
 	db.DB.Exec(`DELETE FROM tenant_default.inventory_availability WHERE sku = $1 AND location_code = $2`, sku, location)
 	db.DB.Exec(`DELETE FROM tenant_default.documents WHERE doctype = 'POSCart' AND id = 'INTEGRATIONTEST-CART'`)
+	db.DB.Exec(`DELETE FROM tenant_default.documents WHERE doctype = 'Item' AND id = $1`, sku)
 	defer func() {
 		db.DB.Exec(`DELETE FROM tenant_default.inventory_availability WHERE sku = $1 AND location_code = $2`, sku, location)
 		db.DB.Exec(`DELETE FROM tenant_default.documents WHERE doctype = 'POSCart' AND id = 'INTEGRATIONTEST-CART'`)
+		db.DB.Exec(`DELETE FROM tenant_default.documents WHERE doctype = 'Item' AND id = $1`, sku)
 	}()
 
 	if _, err := db.DB.Exec(`INSERT INTO tenant_default.inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 50, 50)`, sku, location); err != nil {
 		t.Fatalf("failed to seed inventory: %v", err)
+	}
+	// Stage 17.5: checkout now gates on the Item having hsn_code/gst_rate set.
+	if _, err := db.DB.Exec(`INSERT INTO tenant_default.documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')`,
+		sku, `{"name":"Integration Test Item","hsn_code":"6109","gst_rate":18}`); err != nil {
+		t.Fatalf("failed to seed test item: %v", err)
 	}
 
 	// 1. Real login via the real handler chain (apiMiddleware + handleLogin).

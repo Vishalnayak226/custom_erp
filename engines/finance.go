@@ -165,3 +165,34 @@ func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int, 
 	cogsCredits := map[string]int{"1200": costPrice} // Credit: Inventory Control Account
 	return PostDoubleEntry(tenantID, "POSCart", checkoutID, cogsDebits, cogsCredits)
 }
+
+// PostSalesGSTBooking books the output-tax liability split for a completed
+// sale (Stage 17.5), on top of PostSalesFinanceBooking's revenue posting
+// above. That posting credited the full tax-inclusive salePrice to Sales
+// Revenue (4100); this one moves the tax portion back out of 4100 and into
+// the appropriate payable account(s), leaving 4100 holding only the
+// taxable (net-of-tax) amount - Cash (1100) still holds the full amount
+// actually collected, unchanged.
+func PostSalesGSTBooking(tenantID, checkoutID string, breakdown GSTBreakdown) error {
+	// Round each component to int first, then sum those - not the other way
+	// around - so the debit side below always exactly matches what the
+	// credit side actually posts (independent per-component truncation
+	// could otherwise leave the two off by a rupee and fail PostDoubleEntry's
+	// balance check).
+	intCGST := int(breakdown.CGST)
+	intSGST := int(breakdown.SGST)
+	intIGST := int(breakdown.IGST)
+	totalTax := intCGST + intSGST + intIGST
+	if totalTax <= 0 {
+		return nil
+	}
+	debits := map[string]int{"4100": totalTax}
+	credits := map[string]int{}
+	if breakdown.Interstate {
+		credits["2202"] = intIGST // GST Output Payable - IGST
+	} else {
+		credits["2200"] = intCGST // GST Output Payable - CGST
+		credits["2201"] = intSGST // GST Output Payable - SGST
+	}
+	return PostDoubleEntry(tenantID, "POSCart", checkoutID, debits, credits)
+}

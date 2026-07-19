@@ -1189,6 +1189,20 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// GST enforcement (Stage 17.5): every non-empty PO items line must
+		// resolve to an Item with hsn_code/gst_rate set; the computed
+		// breakdown is stored on the document itself (no GL posting here -
+		// PO creation posts no GL entries in this system, GRN receipt does).
+		if doctype == "PurchaseOrder" {
+			breakdown, errGST := engines.ComputePurchaseOrderGST(tenantID, payload)
+			if errGST != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": errGST.Error()})
+				return
+			}
+			payload["gst_breakdown"] = breakdown
+		}
+
 		// Setup Document ID and attributes
 		docID := ""
 		if id != "" {
@@ -2046,6 +2060,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		Location    string `json:"location"`
 		PaymentMode string `json:"payment_mode"`
 		CustomerID  string `json:"customer_id"`
+		Interstate  bool   `json:"interstate"`
 		Items       []struct {
 			Sku       string  `json:"sku"`
 			Qty       int     `json:"qty"`
@@ -2080,6 +2095,21 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// GST enforcement (Stage 17.5): every line's Item must carry hsn_code +
+	// gst_rate before checkout can proceed - resolved and validated here,
+	// before any side effect (inventory decrement, GL posting) runs, same
+	// as the qty/price checks above. sale_price is treated as tax-inclusive
+	// (MRP convention), so the taxable amount is backed out of it.
+	gstLines := make([]engines.GSTLineInput, len(req.Items))
+	for i, item := range req.Items {
+		gstLines[i] = engines.GSTLineInput{Sku: item.Sku, Qty: item.Qty, UnitRate: item.SalePrice}
+	}
+	gstBreakdown, gstErr := engines.ComputeGSTForLines(tenantID, gstLines, req.Interstate)
+	if gstErr != nil {
+		http.Error(w, fmt.Sprintf("GST validation failed: %v", gstErr), http.StatusBadRequest)
+		return
+	}
+
 	totalSalePrice := 0
 	totalCostPrice := 0
 	for _, item := range req.Items {
@@ -2103,7 +2133,16 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// proceeds; a duplicate of an already-Paid cart gets the original result
 	// replayed back, and a duplicate that arrives while the first is still being
 	// processed is told to wait rather than reprocessing.
-	payloadBytes, _ := json.Marshal(req)
+	// Store the computed GST breakdown alongside the cart payload (Stage
+	// 17.5's "auto-compute and store" half) - merged via a generic map
+	// rather than a new struct field, since req.Items/etc. above stay the
+	// minimal client-facing request shape.
+	storedPayload := map[string]interface{}{}
+	if rawReq, errReq := json.Marshal(req); errReq == nil {
+		_ = json.Unmarshal(rawReq, &storedPayload)
+	}
+	storedPayload["gst_breakdown"] = gstBreakdown
+	payloadBytes, _ := json.Marshal(storedPayload)
 	claimQuery := fmt.Sprintf(`
 		INSERT INTO %s.documents (id, doctype, data, status, created_by)
 		VALUES ($1, 'POSCart', $2, 'Processing', 'system')
@@ -2179,6 +2218,15 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Re-split the tax-inclusive Sales Revenue posting above into taxable
+	// revenue + GST payable (Stage 17.5).
+	if err := engines.PostSalesGSTBooking(tenantID, req.CartNumber, gstBreakdown); err != nil {
+		markFailed()
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("GST booking failed: %v", err)})
+		return
+	}
+
 	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Paid', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'POSCart' AND id = $1`, schema), req.CartNumber)
 
 	// Loyalty point earn (Stage 13.13d, scoped MVP): purely additive - a
@@ -2192,10 +2240,11 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":      "completed",
-		"cart_number": req.CartNumber,
-		"sale_total":  totalSalePrice,
-		"cost_total":  totalCostPrice,
+		"status":        "completed",
+		"cart_number":   req.CartNumber,
+		"sale_total":    totalSalePrice,
+		"cost_total":    totalCostPrice,
+		"gst_breakdown": gstBreakdown,
 	})
 }
 
