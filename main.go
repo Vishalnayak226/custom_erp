@@ -563,6 +563,10 @@ func main() {
 	// Purchase requisition conversion (Stage 17.7)
 	http.HandleFunc("POST /api/v1/procurement/convert-requisition", apiMiddleware(moduleGate("procurement", handleConvertRequisition)))
 
+	// Vendor invoice 3-way match + payment (Stage 17.8)
+	http.HandleFunc("POST /api/v1/procurement/vendor-invoice/match", apiMiddleware(moduleGate("procurement", handleMatchVendorInvoice)))
+	http.HandleFunc("POST /api/v1/procurement/vendor-invoice/pay", apiMiddleware(moduleGate("procurement", handlePayVendorInvoice)))
+
 	// Administration Scale Test APIs
 	http.HandleFunc("POST /api/v1/admin/scale-test", apiMiddleware(handleScaleTest))
 
@@ -3494,6 +3498,59 @@ func handleConvertRequisition(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "converted", "requisition_id": req.RequisitionID, "target": req.Target, "new_document_id": newID})
+}
+
+func handleMatchVendorInvoice(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		InvoiceID        string  `json:"invoice_id"`
+		POID             string  `json:"po_id"`
+		GRNID            string  `json:"grn_id"`
+		TolerancePercent float64 `json:"tolerance_percent"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.InvoiceID == "" || req.POID == "" || req.GRNID == "" {
+		http.Error(w, "Fields 'invoice_id', 'po_id', and 'grn_id' are required", http.StatusBadRequest)
+		return
+	}
+	matched, err := engines.Match3Way(tenantID, req.POID, req.GRNID, req.InvoiceID, req.TolerancePercent)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	status := "MismatchHold"
+	if matched {
+		status = "Matched"
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"invoice_id": req.InvoiceID, "matched": matched, "status": status})
+}
+
+func handlePayVendorInvoice(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		InvoiceID      string `json:"invoice_id"`
+		OverrideReason string `json:"override_reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.InvoiceID == "" {
+		http.Error(w, "Field 'invoice_id' is required", http.StatusBadRequest)
+		return
+	}
+	amountPaid, err := engines.PayVendorInvoice(tenantID, req.InvoiceID, userID, req.OverrideReason)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "Paid", "invoice_id": req.InvoiceID, "amount_paid": amountPaid})
 }
 
 func handleScaleTest(w http.ResponseWriter, r *http.Request) {
