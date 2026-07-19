@@ -1214,6 +1214,28 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			payload["gst_breakdown"] = breakdown
 		}
 
+		// Location master validation (Stage 17.9): the doctypes/fields where
+		// this codebase's existing free-text location columns are actually
+		// operational (stock movement/procurement, built or touched this
+		// session) - not a blanket retrofit of every doctype that happens to
+		// have a location-shaped field, which would be a much larger and
+		// riskier change than this stage's confirmed decision called for.
+		locationFieldsByDoctype := map[string][]string{
+			"PurchaseOrder": {"location", "target_warehouse"},
+			"TransferOrder": {"from_warehouse", "to_warehouse"},
+		}
+		for _, field := range locationFieldsByDoctype[doctype] {
+			locCode, _ := payload[field].(string)
+			if locCode == "" {
+				continue
+			}
+			if err := engines.ValidateLocationReference(tenantID, locCode); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("field %q: %v", field, err)})
+				return
+			}
+		}
+
 		// Setup Document ID and attributes
 		docID := ""
 		if id != "" {
