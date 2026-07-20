@@ -137,18 +137,6 @@ body {
   flex-shrink: 0;
 }
 
-/* Dropdown Menu styling */
-.menu-submenu {
-  list-style: none;
-  padding-left: 28px;
-  margin-top: 4px;
-  display: none;
-}
-
-.menu-submenu.open {
-  display: block;
-}
-
 .submenu-item {
   display: flex;
   align-items: center;
@@ -178,8 +166,50 @@ body {
   transition: transform var(--transition-speed) ease;
 }
 
-.menu-item-arrow.rotated {
-  transform: rotate(180deg);
+/* Module hover/flyout menu (Stage 20 nav redesign): the left sidebar shows
+   only module-level entries; each module's actual screens live in a flyout
+   that appears beside it on hover (or click, for keyboard/touch users -
+   see setupModuleFlyouts() in app.js). position:fixed with JS-computed
+   top/left (not CSS position:absolute) deliberately, so the flyout is never
+   clipped by .sidebar-menu's own overflow-y:auto scroll container. */
+.menu-item-group {
+  justify-content: space-between;
+}
+
+.flyout-arrow {
+  transform: rotate(0deg);
+  transition: transform var(--transition-speed) ease;
+}
+
+.has-flyout.flyout-open .flyout-arrow {
+  transform: rotate(90deg);
+}
+
+.menu-flyout {
+  position: fixed;
+  display: none;
+  list-style: none;
+  min-width: 210px;
+  /* max-height is set per-instance by openFlyout() in app.js, based on the
+     trigger's actual vertical position - a flat viewport-height value here
+     would still let a flyout anchored low in the sidebar run off-screen. */
+  overflow-y: auto;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.16);
+  padding: 6px;
+  z-index: 100;
+}
+
+.menu-flyout.open {
+  display: block;
+}
+
+.menu-flyout .menu-item,
+.menu-flyout .submenu-item {
+  border-left: none;
+  white-space: nowrap;
 }
 
 .sidebar-footer {
@@ -1066,7 +1096,7 @@ input:checked + .slider:before {
   cursor: not-allowed;
 }
 
-/* Tab Active State for Log Hub */
+/* Tab Active State for Activity Log */
 .btn-outline.active {
   background-color: var(--primary-color);
   color: #ffffff;

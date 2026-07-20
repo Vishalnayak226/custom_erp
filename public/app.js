@@ -659,6 +659,7 @@ function bootstrap() {
 // Initializer
 async function init() {
   setupEventListeners();
+  setupModuleFlyouts();
   await fetchLabels();
   await fetchRegisteredDoctypes();
   await restoreLastView();
@@ -733,14 +734,6 @@ function setupEventListeners() {
     setActiveMenu('menu-dashboard');
     closeSubmenus();
     renderView('dashboard');
-  });
-
-  document.getElementById('menu-master-definition').addEventListener('click', (e) => {
-    e.preventDefault();
-    const submenu = document.getElementById('submenu-master');
-    const arrow = document.querySelector('#menu-master-definition .menu-item-arrow');
-    const isOpen = submenu.classList.toggle('open');
-    if (arrow) arrow.classList.toggle('rotated', isOpen);
   });
 
   document.getElementById('menu-doctype-builder').addEventListener('click', (e) => {
@@ -985,13 +978,76 @@ function setActiveMenu(menuId) {
   document.querySelectorAll('.menu-item').forEach(item => item.classList.remove('active'));
   document.querySelectorAll('.submenu-item').forEach(item => item.classList.remove('active'));
   const activeMenu = document.getElementById(menuId);
-  if (activeMenu) activeMenu.classList.add('active');
+  if (!activeMenu) return;
+  activeMenu.classList.add('active');
+  // Nav redesign: a screen inside a module's flyout also marks that
+  // module's own trigger active, so the sidebar still shows which module
+  // you're in once the flyout itself closes (mouse moves away).
+  const flyoutParent = activeMenu.closest('.has-flyout');
+  if (flyoutParent) {
+    const groupTrigger = flyoutParent.querySelector('.menu-item-group');
+    if (groupTrigger && groupTrigger !== activeMenu) groupTrigger.classList.add('active');
+  }
+}
+
+// Positions a module's flyout beside its trigger (JS-computed, not CSS
+// position:absolute, so it's never clipped by .sidebar-menu's own
+// overflow-y:auto) and shows it.
+function openFlyout(container) {
+  const trigger = container.querySelector('.menu-item-group');
+  const flyout = container.querySelector('.menu-flyout');
+  if (!trigger || !flyout) return;
+  const rect = trigger.getBoundingClientRect();
+  const margin = 12;
+  // A long flyout (e.g. Master Definition's ~25 master doctypes) anchored
+  // near the bottom of the sidebar would otherwise run off the bottom of
+  // the viewport - cap its height to the space actually available below
+  // the trigger (it scrolls internally via its own overflow-y) rather than
+  // a flat viewport-height max-height that ignores where the trigger sits.
+  const availableBelow = window.innerHeight - rect.top - margin;
+  flyout.style.top = `${Math.round(rect.top)}px`;
+  flyout.style.left = `${Math.round(rect.right + 8)}px`;
+  flyout.style.maxHeight = `${Math.max(120, Math.round(availableBelow))}px`;
+  flyout.classList.add('open');
+  container.classList.add('flyout-open');
 }
 
 function closeSubmenus() {
-  document.getElementById('submenu-master').classList.remove('open');
-  const arrow = document.querySelector('#menu-master-definition .menu-item-arrow');
-  if (arrow) arrow.classList.remove('rotated');
+  document.querySelectorAll('.menu-flyout.open').forEach(f => f.classList.remove('open'));
+  document.querySelectorAll('.has-flyout.flyout-open').forEach(c => c.classList.remove('flyout-open'));
+}
+
+// Module-grouped sidebar (Stage 20 nav redesign): the left sidebar shows
+// only module-level entries; hovering (or clicking, for keyboard/touch
+// users) reveals the module's actual screens in a flyout beside it.
+function setupModuleFlyouts() {
+  document.querySelectorAll('.has-flyout').forEach(container => {
+    const trigger = container.querySelector('.menu-item-group');
+    const flyout = container.querySelector('.menu-flyout');
+    if (!trigger || !flyout) return;
+    let hideTimer = null;
+    const show = () => { clearTimeout(hideTimer); openFlyout(container); };
+    const scheduleHide = () => { hideTimer = setTimeout(closeSubmenus, 200); };
+
+    container.addEventListener('mouseenter', show);
+    container.addEventListener('mouseleave', scheduleHide);
+    flyout.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+    flyout.addEventListener('mouseleave', scheduleHide);
+
+    trigger.addEventListener('click', (e) => {
+      e.preventDefault();
+      const wasOpen = flyout.classList.contains('open');
+      closeSubmenus();
+      if (!wasOpen) show();
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.has-flyout')) closeSubmenus();
+  });
+  window.addEventListener('resize', closeSubmenus);
+  const sidebarMenu = document.querySelector('.sidebar-menu');
+  if (sidebarMenu) sidebarMenu.addEventListener('scroll', closeSubmenus);
 }
 
 // Maps a static view name to the sidebar menu item that represents it, for
@@ -1047,9 +1103,8 @@ function restoreActiveMenuState(view, doctype) {
       document.querySelectorAll('.submenu-item').forEach(i => i.classList.remove('active'));
       document.getElementById('menu-master-definition').classList.add('active');
       item.classList.add('active');
-      submenu.classList.add('open');
-      const arrow = document.querySelector('#menu-master-definition .menu-item-arrow');
-      if (arrow) arrow.classList.add('rotated');
+      // Flyout itself stays closed on restore (it's a hover overlay now,
+      // not an inline-expand section) - only the highlight is restored.
       scrollActiveMenuIntoView();
       return;
     }
@@ -1606,7 +1661,7 @@ function renderDashboard(container) {
     { title: 'Database Schema Design', desc: 'Build schemas and customize properties', action: () => { setActiveMenu('menu-doctype-builder'); renderView('doctype-builder'); } },
     { title: 'Dynamic Labels', desc: 'Configure customized nomenclature', action: () => { setActiveMenu('menu-dynamic-labels'); renderView('dynamic-labels'); } },
     { title: 'Prefix Configs', desc: 'Configure sequential transaction prefixes', action: () => { setActiveMenu('menu-prefix-configs'); renderView('prefix-configs'); } },
-    { title: 'Log Hub', desc: 'Track audits, panics, and payloads', action: () => { setActiveMenu('menu-audit-logs'); renderView('audit-logs'); } }
+    { title: 'Activity Log', desc: 'Track audits, panics, and payloads', action: () => { setActiveMenu('menu-audit-logs'); renderView('audit-logs'); } }
   ];
 
   modules.forEach(m => {
@@ -6098,7 +6153,7 @@ window.deleteLabelReplacement = async function(orig) {
   }
 };
 
-// Render Log Hub & panic dashboard logs
+// Render Activity Log (internal name still Log Hub) & panic dashboard logs
 async function renderLogHubView(container) {
   const auditRes = await apiFetch('/api/v1/logs/audit');
   const auditLoadFailed = !!auditRes && !auditRes.ok;
@@ -6118,7 +6173,7 @@ async function renderLogHubView(container) {
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">Log Hub</h1>
+      <h1 class="page-title">Activity Log</h1>
       <p class="page-subtitle">Centralized System Audit trail, Middleware Panic recovery trace log console, and Integration payload viewer.</p>
     </div>
     <button class="btn btn-outline" onclick="triggerPanicRecovery()">
@@ -6296,7 +6351,7 @@ window.triggerPanicRecovery = async function() {
     // Only a dropped connection (res === null, already surfaced by apiFetch) means recovery failed.
     const res = await apiFetch('/api/v1/debug/panic');
     if (!res) return;
-    await showCustomAlert('Panic endpoint hit. Re-checking Log Hub for stack trace registration.', 'System Recovery');
+    await showCustomAlert('Panic endpoint hit. Re-checking Activity Log for stack trace registration.', 'System Recovery');
     renderView('audit-logs');
   }
 };

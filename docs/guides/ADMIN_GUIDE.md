@@ -84,7 +84,7 @@ Several things are configurable through the app's admin screens, not by editing 
 ### B.4 Where to Look When Something Seems Wrong
 
 1. **`.\manage.ps1 logs`** — the fastest first check. Shows the server's own output and error logs, plus the database log.
-2. **Log Hub** (in the app sidebar) — shows audit trails and recorded system errors from inside the running application.
+2. **Activity Log** (in the app sidebar, formerly "Log Hub") — shows audit trails and recorded system errors from inside the running application.
 3. **`docs/operations/incident_runbook.md`** — the full incident-response procedure: severity levels, escalation, rollback, and exactly where every kind of log lives. Read this before an incident happens, not during one.
 
 ---

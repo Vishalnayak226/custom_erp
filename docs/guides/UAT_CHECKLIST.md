@@ -13,6 +13,7 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 3. **Some screens are known to be unfinished placeholders, not bugs** — they're marked ⚠️ **Known limitation** below. Seeing "Module Setup Pending" on those specific screens is a *pass*, not a fail. If you see that message anywhere *not* marked with ⚠️ below, that's worth reporting.
 4. **Some actions will correctly refuse you** depending on which user you're logged in as — that's the security/role system working, not a bug. See "Role Access Notes" under each section, and the master notes in [Prerequisites](#0-prerequisites).
 5. Re-run this checklist after any significant change to `public/app.js`, `public/index.html`, or the database schema — it's meant to be reusable, not one-time.
+6. **Sidebar navigation was regrouped by module.** The left sidebar now shows only ~12 top-level entries; most of the screens named throughout this checklist live inside a module's **hover flyout** (hover the module name, or click it for keyboard/touch), not as their own top-level sidebar link anymore. Every section below still tells you which screen to open — just expect to hover/click a module group first. Current grouping: **POS** (POS/Billing, POS Profiles) · **Finance** (Finance/GL, Approvals) · **Fulfillment & Marketplace** (Fulfillment, Marketplace) · **Reports** (own top-level entry) · **Procurement** (Purchase Orders, Vendors, RFQ/Quotes) · **Inventory & WMS** (Inventory, Transfers, Bin Master, Stores, Sticker Printing) · **HR & Assets** (HR, Fixed Assets, Expenses) · **Manufacturing** and **PIM** (own top-level entries) · **Master Definition** (unchanged dynamic flyout of ~25 master doctypes) · **Admin & Settings** (Users, Roles, Prefix Configs, Dynamic Labels, Database Schema Design, Activity Log). Dashboard stays a direct top-level link.
 
 ---
 
@@ -46,7 +47,7 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 ## 2. Dashboard
 
 - [ ] Loads with no error, shows summary stat tiles (DocTypes Registered, Audit History Count, Active Schema Tenant, Platform Core Health).
-- [ ] Quick-launch cards (Database Schema Design, Dynamic Labels, Prefix Configs, Log Hub) navigate to the right screen when clicked.
+- [ ] Quick-launch cards (Database Schema Design, Dynamic Labels, Prefix Configs, Activity Log) navigate to the right screen when clicked.
 
 ---
 
@@ -195,7 +196,7 @@ For **each** item in the submenu:
 
 ---
 
-## 17. Vendors / Stores / POS Profiles (standalone sidebar links)
+## 17. Vendors / Stores / POS Profiles (in the Procurement / Inventory & WMS / POS module flyouts respectively)
 
 - [ ] **Vendors**: same generic table/create/delete behavior as any Master Definition entry (it points at the same underlying screen).
 - [ ] ⚠️ **Known limitation — Stores**: clicking this currently does **not** load correctly (a naming mismatch between the menu code and the registered doctype, plus the doctype has no fields configured yet). Expect either an empty/broken screen or a load error. This is a known gap, not something to spend time debugging — note it as "confirmed still broken" and move on.
@@ -214,7 +215,7 @@ For **each** item in the submenu:
 
 ---
 
-## 19. Inventory / Transfers / Users / Roles (sidebar links)
+## 19. Inventory / Transfers / Users / Roles (Inventory & WMS / Admin & Settings module flyouts)
 
 All four of these used to be dead links falling through to a "Module Setup Pending" placeholder. As of this checklist's last update, none of them are placeholders anymore — if you land on "Module Setup Pending" for any of these, that's a regression, not expected behavior.
 
@@ -255,7 +256,7 @@ All four of these used to be dead links falling through to a "Module Setup Pendi
 
 ---
 
-## 23. Log Hub
+## 23. Activity Log (formerly "Log Hub" in the sidebar)
 
 Three tabs: **Audit Logs**, **System Errors**, **Integration Payloads**.
 

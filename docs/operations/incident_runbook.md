@@ -41,7 +41,7 @@ Three triggers, deliberately not everything that gets logged (to avoid alert fat
 2. **Failed backup** — `manage.ps1 backup` (`Backup-Databases`) alerts on any failure (Postgres down, `pg_dump` failure, etc.) via the same webhook, through `Send-OpsAlert` in `manage.ps1`.
 3. **Sustained error rate** — `engines.StartAlertMonitor` polls every tenant schema's `system_error_logs` once a minute; if a schema logs 20+ rows (any severity) within a rolling 5-minute window, it alerts once, then waits out that 5-minute cooldown before alerting again for the same schema (so a stuck-broken schema pages once per window, not once per poll tick).
 
-**What's sent**: severity, source (module/schema), and a truncated (300-char) message only — never a full stack trace or request body, since the payload leaves this process for a third-party webhook. Full detail stays in `system_error_logs` / the Log Hub, one hop away via the correlation id already alongside it in `erp-server.out.log`.
+**What's sent**: severity, source (module/schema), and a truncated (300-char) message only — never a full stack trace or request body, since the payload leaves this process for a third-party webhook. Full detail stays in `system_error_logs` / the Activity Log, one hop away via the correlation id already alongside it in `erp-server.out.log`.
 
 **To activate**: set `OPS_ALERT_WEBHOOK_URL` in the environment the server and `manage.ps1` both run in (same variable name for both — one webhook covers Go-side and script-side alerts). A Slack incoming webhook URL looks like `https://hooks.slack.com/services/T000/B000/XXXX`; a Teams classic incoming webhook looks like `https://<tenant>.webhook.office.com/webhookb2/...`.
 
@@ -54,7 +54,7 @@ Three triggers, deliberately not everything that gets logged (to avoid alert fat
 | Server stdout/stderr (dev) | `logs/erp-server.out.log`, `logs/erp-server.err.log` (repo root) — `.\manage.ps1 logs` tails all three |
 | Server stdout/stderr (test/live) | Same filenames under that environment's worktree (`environments.json` → `worktree` path) |
 | Postgres log | `logs/postgres.log` |
-| Application error/panic trace | `system_error_logs` table, per tenant schema — query directly or via the Log Hub UI (integration log query/retry endpoints, `engines/logs.go` + `engines/outbox.go`) |
+| Application error/panic trace | `system_error_logs` table, per tenant schema — query directly or via the Activity Log UI (integration log query/retry endpoints, `engines/logs.go` + `engines/outbox.go`) |
 | Audit trail (document changes, approvals) | `audit_logs` table, per tenant schema (`engines/logs.go`'s `LogAuditEvent`) |
 | Deployment history | `public.deployments` table — `.\manage.ps1 fleet-status` shows the latest per environment; `promote.ps1`'s `Record-Deployment` writes every promotion/rollback |
 | Correlation id | Every panic response body and `system_error_logs` row carries one (`Resolved-Correlation-ID` header) — use it to jump from a user-reported error to its exact server-side trace |

@@ -22,7 +22,7 @@ import (
 // Deliberately sends only severity/source/a truncated message to the
 // external destination - never a full stack trace or request body, since
 // that payload leaves this process for a third-party service. Full detail
-// stays in system_error_logs / the Log Hub, one hop away via the
+// stays in system_error_logs / the Activity Log, one hop away via the
 // correlation id already in the log line next to it.
 
 var opsAlertHTTPClient = &http.Client{Timeout: 5 * time.Second}
