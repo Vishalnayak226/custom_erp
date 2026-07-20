@@ -178,13 +178,15 @@ let state = {
   prefixConfigs: [],
   labels: {},
   auditLogs: [],
-  systemLogs: []
+  systemLogs: [],
+  profile: null
 };
 
 let currentView = 'dashboard';
 let currentDoctype = '';
 let posCart = []; // { sku, available, qty, salePrice, costPrice }
 let posLocation = '';
+let posOpenSessionId = ''; // Stage 20.7: '' means no open cashier session at posLocation
 let currentSearchQuery = '';
 let currentTablePage = 1;
 const itemsPerPage = 10;
@@ -448,19 +450,76 @@ function updateSidebarUserInfo() {
   const avatarEl = document.getElementById('sidebar-avatar');
   const nameEl = document.getElementById('sidebar-username');
   const roleEl = document.getElementById('sidebar-role');
+  const popoverNameEl = document.getElementById('account-popover-name');
+  const popoverRoleEl = document.getElementById('account-popover-role');
   if (nameEl) nameEl.textContent = username;
   if (roleEl) roleEl.textContent = role;
+  if (popoverNameEl) popoverNameEl.textContent = username;
+  if (popoverRoleEl) popoverRoleEl.textContent = role;
   if (avatarEl) avatarEl.textContent = (username.slice(0, 2) || '??').toUpperCase();
 }
 
+// Fetches the logged-in user's own profile (email, linked employee, saved
+// idle-timeout preference) once per session - used to fill in the account
+// popover's email line and to seed the idle-timeout auto-logout timer.
+// Silent no-op on failure (e.g. offline): the sidebar already has
+// username/role from localStorage, this is just the enrichment layer.
+async function fetchAndApplyProfile() {
+  const res = await apiFetch('/api/v1/me');
+  if (!res || !res.ok) return;
+  const data = await res.json();
+  state.profile = data;
+  const emailEl = document.getElementById('account-popover-email');
+  if (emailEl) emailEl.textContent = data.email || '';
+  setupIdleTimeout(data.idle_timeout_minutes);
+}
+
 function logout(message) {
+  stopIdleTimeout();
+  const overlay = document.getElementById('signout-overlay');
+  if (overlay) overlay.classList.remove('hidden');
   localStorage.removeItem('erp_token');
   localStorage.removeItem('erp_username');
   localStorage.removeItem('erp_role');
-  showLoginScreen();
-  if (message) {
-    showCustomAlert(message, 'Signed Out');
-  }
+  state.profile = null;
+  setTimeout(() => {
+    if (overlay) overlay.classList.add('hidden');
+    showLoginScreen();
+    if (message) {
+      showCustomAlert(message, 'Signed Out');
+    }
+  }, 500);
+}
+
+// Idle-timeout / auto-logout (Stage 21): a client-side inactivity timer
+// seeded from the user's own Profile-screen preference, separate from and
+// shorter than the server-side JWT session TTL (engines/auth.go's
+// tokenTTL(), a hard expiry the client can't change). 0 means "never" - no
+// timer is armed and only the JWT's own expiry ever signs the user out.
+let idleTimeoutTimer = null;
+let idleTimeoutMinutes = 0;
+const IDLE_ACTIVITY_EVENTS = ['mousemove', 'keydown', 'click', 'scroll'];
+
+function resetIdleTimer() {
+  if (!idleTimeoutMinutes) return;
+  if (idleTimeoutTimer) clearTimeout(idleTimeoutTimer);
+  idleTimeoutTimer = setTimeout(() => {
+    logout('You were signed out due to inactivity.');
+  }, idleTimeoutMinutes * 60 * 1000);
+}
+
+function setupIdleTimeout(minutes) {
+  stopIdleTimeout();
+  idleTimeoutMinutes = minutes || 0;
+  if (!idleTimeoutMinutes) return;
+  IDLE_ACTIVITY_EVENTS.forEach(evt => document.addEventListener(evt, resetIdleTimer));
+  resetIdleTimer();
+}
+
+function stopIdleTimeout() {
+  if (idleTimeoutTimer) clearTimeout(idleTimeoutTimer);
+  idleTimeoutTimer = null;
+  IDLE_ACTIVITY_EVENTS.forEach(evt => document.removeEventListener(evt, resetIdleTimer));
 }
 
 async function handleLoginSubmit(event) {
@@ -603,6 +662,7 @@ async function init() {
   await fetchLabels();
   await fetchRegisteredDoctypes();
   await restoreLastView();
+  fetchAndApplyProfile();
 }
 
 async function fetchLabels() {
@@ -805,6 +865,9 @@ function setupEventListeners() {
 
   document.getElementById('menu-stores').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-stores'); closeSubmenus(); currentDoctype = 'Store'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
+  // POS Profile (Stage 20.6) - same generic doctype-table pattern as Vendors/Stores above.
+  document.getElementById('menu-pos-profiles').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-profiles'); closeSubmenus(); currentDoctype = 'POSProfile'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+
   ['menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
@@ -860,14 +923,59 @@ function setupEventListeners() {
     });
   }
 
-  const logoutBtn = document.getElementById('logout-btn');
-  if (logoutBtn) {
-    logoutBtn.addEventListener('click', async () => {
-      if (await showCustomConfirm('Are you sure you want to log out?')) {
-        logout();
-      }
-    });
-  }
+  setupAccountMenu();
+}
+
+// Account menu: a single clickable avatar/name trigger in the sidebar
+// footer that opens a small popover (My Profile / Sign Out), replacing the
+// old bare logout icon button. Closes on an outside click, Escape, or after
+// either action so it never lingers open behind a navigated-away view.
+function setupAccountMenu() {
+  const menu = document.getElementById('account-menu');
+  const trigger = document.getElementById('account-menu-trigger');
+  const popover = document.getElementById('account-popover');
+  if (!menu || !trigger || !popover) return;
+
+  const closeAccountMenu = () => {
+    menu.classList.remove('open');
+    popover.classList.add('hidden');
+    trigger.setAttribute('aria-expanded', 'false');
+  };
+  const toggleAccountMenu = () => {
+    const opening = popover.classList.contains('hidden');
+    if (opening) {
+      menu.classList.add('open');
+      popover.classList.remove('hidden');
+      trigger.setAttribute('aria-expanded', 'true');
+    } else {
+      closeAccountMenu();
+    }
+  };
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    toggleAccountMenu();
+  });
+  document.addEventListener('click', (e) => {
+    if (!menu.contains(e.target)) closeAccountMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeAccountMenu();
+  });
+
+  document.getElementById('account-menu-profile-btn').addEventListener('click', () => {
+    closeAccountMenu();
+    setActiveMenu(null);
+    closeSubmenus();
+    renderView('profile');
+  });
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    closeAccountMenu();
+    if (await showCustomConfirm('Are you sure you want to log out?')) {
+      logout();
+    }
+  });
 }
 
 function setActiveMenu(menuId) {
@@ -914,6 +1022,18 @@ const STATIC_VIEW_MENU_IDS = {
   'audit-logs': 'menu-audit-logs'
 };
 
+// Only called once, from restoreLastView() below, when the app first loads
+// (or after a browser refresh) and needs to re-highlight whatever the user
+// was last on. Deliberately NOT called from ordinary sidebar clicks - the
+// user just clicked that item themselves and can already see it, so forcing
+// a scroll there would just be unwanted extra motion on every click.
+// {block: 'center'} rather than 'nearest' so a below-the-fold item lands
+// comfortably mid-list instead of snapped flush against the bottom edge.
+function scrollActiveMenuIntoView() {
+  const active = document.querySelector('.sidebar-menu .menu-item.active, .sidebar-menu .submenu-item.active');
+  if (active) active.scrollIntoView({ block: 'center' });
+}
+
 function restoreActiveMenuState(view, doctype) {
   closeSubmenus();
   if (view === 'doctype-table' && doctype) {
@@ -927,11 +1047,15 @@ function restoreActiveMenuState(view, doctype) {
       submenu.classList.add('open');
       const arrow = document.querySelector('#menu-master-definition .menu-item-arrow');
       if (arrow) arrow.classList.add('rotated');
+      scrollActiveMenuIntoView();
       return;
     }
   }
-  const menuId = STATIC_VIEW_MENU_IDS[view];
-  if (menuId) setActiveMenu(menuId);
+  // Also runs (and correctly clears any stale highlight) for a view with no
+  // sidebar entry of its own, e.g. the Profile screen - setActiveMenu(undefined)
+  // still clears every .active class even though it won't find an element to add one to.
+  setActiveMenu(STATIC_VIEW_MENU_IDS[view]);
+  scrollActiveMenuIntoView();
 }
 
 // Restores whatever view/doctype/search/page the user was last on instead of
@@ -1014,6 +1138,16 @@ async function renderView(view) {
     renderDynamicLabelsView(root);
   } else if (view === 'audit-logs') {
     await renderLogHubView(root);
+  } else if (view === 'profile') {
+    await renderProfileView(root);
+  } else if (view === 'transfers') {
+    await renderTransfersView(root);
+  } else if (view === 'inventory') {
+    await renderInventoryView(root);
+  } else if (view === 'users') {
+    await renderUsersView(root);
+  } else if (view === 'roles') {
+    await renderRolesView(root);
   } else {
     renderMockModuleView(root, view);
   }
@@ -1043,6 +1177,385 @@ function getTranslatedLabel(text) {
     }
   }
   return text;
+}
+
+// My Profile (Stage 21): self-service account view - read-only account
+// info (including a best-effort linked Employee lookup), change own
+// password, and set the personal idle-timeout preference that drives
+// setupIdleTimeout() (see logout()/resetIdleTimer() above). Reached from
+// the sidebar account-menu popover, not a sidebar list item of its own.
+const IDLE_TIMEOUT_OPTIONS = [
+  { value: 0, label: 'Never' },
+  { value: 15, label: '15 minutes' },
+  { value: 30, label: '30 minutes' },
+  { value: 60, label: '1 hour' },
+  { value: 120, label: '2 hours' }
+];
+
+async function renderProfileView(container) {
+  const res = await apiFetch('/api/v1/me');
+  if (!res) return;
+  if (!res.ok) {
+    renderErrorPanel(container, 'Failed to load your profile.', () => renderView('profile'));
+    return;
+  }
+  const data = await res.json();
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">My Profile</h1>
+      <p class="page-subtitle">View your account details, change your password, and manage session preferences.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const infoPanel = document.createElement('div');
+  infoPanel.className = 'table-panel';
+  infoPanel.style.padding = '24px';
+  const employeeText = data.employee_id
+    ? `${data.employee_name || data.employee_id} (${data.employee_id})`
+    : 'Not linked';
+  infoPanel.innerHTML = `
+    <h3 class="card-title" style="margin-bottom: 16px;">Account Info</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px;">
+      <div><span class="stat-label">Username</span><div style="font-weight:600; margin-top:4px;">${data.username}</div></div>
+      <div><span class="stat-label">Role</span><div style="font-weight:600; margin-top:4px;">${data.role}</div></div>
+      <div><span class="stat-label">Status</span><div style="margin-top:4px;"><span class="badge ${data.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${data.status}</span></div></div>
+      <div><span class="stat-label">Employee</span><div style="font-weight:600; margin-top:4px;">${employeeText}</div></div>
+      <div><span class="stat-label">Two-Factor Authentication</span><div style="margin-top:4px;"><span class="badge ${data.mfa_enabled ? 'badge-success' : 'badge-secondary'}">${data.mfa_enabled ? 'Enabled' : 'Not enabled'}</span></div></div>
+    </div>
+  `;
+  container.appendChild(infoPanel);
+
+  const settingsPanel = document.createElement('div');
+  settingsPanel.className = 'table-panel';
+  settingsPanel.style.padding = '24px';
+  settingsPanel.innerHTML = `
+    <h3 class="card-title" style="margin-bottom: 16px;">Contact &amp; Session</h3>
+    <form id="profile-settings-form">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="profile-email">Email</label>
+          <input type="email" id="profile-email" class="form-input" value="${data.email || ''}">
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="profile-idle-timeout">Auto Logout (inactivity)</label>
+          <select id="profile-idle-timeout" class="form-select">
+            ${IDLE_TIMEOUT_OPTIONS.map(o => `<option value="${o.value}" ${o.value === data.idle_timeout_minutes ? 'selected' : ''}>${o.label}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="margin-top: 16px;">Save Changes</button>
+    </form>
+  `;
+  container.appendChild(settingsPanel);
+
+  const passwordPanel = document.createElement('div');
+  passwordPanel.className = 'table-panel';
+  passwordPanel.style.padding = '24px';
+  passwordPanel.innerHTML = `
+    <h3 class="card-title" style="margin-bottom: 16px;">Change Password</h3>
+    <form id="profile-password-form">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px;">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="profile-current-password">Current Password</label>
+          <input type="password" id="profile-current-password" class="form-input" autocomplete="current-password" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="profile-new-password">New Password</label>
+          <input type="password" id="profile-new-password" class="form-input" autocomplete="new-password" minlength="8" required>
+        </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="profile-confirm-password">Confirm New Password</label>
+          <input type="password" id="profile-confirm-password" class="form-input" autocomplete="new-password" minlength="8" required>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" style="margin-top: 16px;">Update Password</button>
+    </form>
+  `;
+  container.appendChild(passwordPanel);
+
+  document.getElementById('profile-settings-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('profile-email').value.trim();
+    const idleTimeoutMinutesVal = parseInt(document.getElementById('profile-idle-timeout').value, 10);
+    const saveRes = await apiFetch('/api/v1/me', {
+      method: 'PUT',
+      body: JSON.stringify({ email, idle_timeout_minutes: idleTimeoutMinutesVal })
+    });
+    if (!saveRes) return;
+    if (!saveRes.ok) {
+      await showApiError(saveRes, 'Failed to save changes.');
+      return;
+    }
+    setupIdleTimeout(idleTimeoutMinutesVal);
+    if (state.profile) {
+      state.profile.email = email;
+      state.profile.idle_timeout_minutes = idleTimeoutMinutesVal;
+    }
+    const emailEl = document.getElementById('account-popover-email');
+    if (emailEl) emailEl.textContent = email;
+    await showCustomAlert('Your profile has been updated.', 'Saved');
+  });
+
+  document.getElementById('profile-password-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const currentPassword = document.getElementById('profile-current-password').value;
+    const newPassword = document.getElementById('profile-new-password').value;
+    const confirmPassword = document.getElementById('profile-confirm-password').value;
+    if (newPassword !== confirmPassword) {
+      await showCustomAlert('New password and confirmation do not match.', 'Error');
+      return;
+    }
+    const changeRes = await apiFetch('/api/v1/me/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+    });
+    if (!changeRes) return;
+    if (!changeRes.ok) {
+      await showApiError(changeRes, 'Failed to change password.');
+      return;
+    }
+    document.getElementById('profile-password-form').reset();
+    await showCustomAlert('Your password has been updated.', 'Saved');
+  });
+}
+
+// Users (Stage 21 QA fix): "Users" routed to a view name the router had no
+// case for, always falling through to "Module Setup Pending" - despite
+// ADMIN_GUIDE.md §B.2 explicitly documenting this as how new users are
+// created. Nothing backed it: tenant_default.users is a raw SQL table, not
+// a generic doctype, so /api/v1/doc/{doctype} could never have reached it -
+// new internal/server/handlers_admin_identity.go endpoints back this view,
+// all HR/Admin-only (enforced server-side, matching every other admin screen).
+async function renderUsersView(container) {
+  const [usersRes, rolesRes] = await Promise.all([
+    apiFetch('/api/v1/admin/users'),
+    apiFetch('/api/v1/admin/roles')
+  ]);
+  if (!usersRes || !rolesRes) return;
+  if (!usersRes.ok) { renderErrorPanel(container, 'Failed to load users.', () => renderView('users')); return; }
+  const users = await usersRes.json();
+  const roles = rolesRes.ok ? await rolesRes.json() : [];
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Users</h1>
+      <p class="page-subtitle">Create and manage user accounts. Roles determine what each user can see and do.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New User</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="user-username">Username</label>
+        <input type="text" id="user-username" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="user-password">Password</label>
+        <input type="password" id="user-password" class="form-input" style="width: 150px;" autocomplete="new-password" minlength="8">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="user-email">Email</label>
+        <input type="email" id="user-email" class="form-input" style="width: 190px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="user-role">Role</label>
+        <select id="user-role" class="form-select" style="width: 150px;">
+          ${roles.map(r => `<option value="${r}">${r}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn btn-primary" id="user-create-btn">Create User</button>
+    </div>
+    <div id="user-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(formPanel);
+
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+  `;
+  html += users.length === 0
+    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No users found.</td></tr>`
+    : users.map(u => `
+        <tr>
+          <td style="font-weight:600;">${u.username}</td>
+          <td>${u.email || ''}</td>
+          <td>${u.role}</td>
+          <td><span class="badge ${u.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${u.status}</span></td>
+          <td>
+            ${u.status === 'Active'
+              ? `<button class="action-btn action-btn-danger" onclick="setUserStatus('${u.id}', 'Inactive')">Deactivate</button>`
+              : `<button class="action-btn" onclick="setUserStatus('${u.id}', 'Active')">Reactivate</button>`}
+          </td>
+        </tr>
+      `).join('');
+  html += `</tbody></table>`;
+  listPanel.innerHTML = html;
+  container.appendChild(listPanel);
+
+  document.getElementById('user-create-btn').addEventListener('click', createUser);
+}
+
+async function createUser() {
+  const errorEl = document.getElementById('user-form-error');
+  errorEl.classList.add('hidden');
+
+  const username = document.getElementById('user-username').value.trim();
+  const password = document.getElementById('user-password').value;
+  const email = document.getElementById('user-email').value.trim();
+  const role = document.getElementById('user-role').value;
+
+  if (!username || !password || !role) {
+    errorEl.textContent = 'Username, password, and role are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/admin/users', {
+    method: 'POST',
+    body: JSON.stringify({ username, password, email, role })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to create user.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('users');
+}
+
+window.setUserStatus = async function(id, status) {
+  const verb = status === 'Active' ? 'reactivate' : 'deactivate';
+  if (!(await showCustomConfirm(`Are you sure you want to ${verb} this user?`))) return;
+  const res = await apiFetch('/api/v1/admin/users/status', {
+    method: 'POST',
+    body: JSON.stringify({ id, status })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showCustomAlert(data.error || `Failed to ${verb} user.`, 'Error');
+    return;
+  }
+  renderView('users');
+};
+
+// Roles (Stage 21 QA fix): "Roles" had the exact same dead-mock-screen bug
+// as Users above. Shows every currently-granted (role, doctype) permission
+// row and lets an HR/Admin edit or add one - directly usable to close gaps
+// like the one Stage 18 flagged and deliberately left unfixed ("Store
+// Manager/Cashier lack read access to Vendor/Item, so the new typeahead
+// pickers are code-correct but not usable by their intended roles").
+async function renderRolesView(container) {
+  const [permsRes, rolesRes] = await Promise.all([
+    apiFetch('/api/v1/admin/role-permissions'),
+    apiFetch('/api/v1/admin/roles')
+  ]);
+  if (!permsRes || !rolesRes) return;
+  if (!permsRes.ok) { renderErrorPanel(container, 'Failed to load role permissions.', () => renderView('roles')); return; }
+  const grants = await permsRes.json();
+  const roles = rolesRes.ok ? await rolesRes.json() : [];
+  const doctypeOptions = state.activeDoctypes.map(d => d.name).sort();
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Roles</h1>
+      <p class="page-subtitle">What each role can see and do, per record type. HR/Admin can always do everything; this only governs the other roles.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Add or Update a Grant</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grant-role">Role</label>
+        <select id="grant-role" class="form-select" style="width: 150px;">
+          ${roles.map(r => `<option value="${r}">${r}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grant-doctype">Record Type</label>
+        <select id="grant-doctype" class="form-select" style="width: 190px;">
+          ${doctypeOptions.map(d => `<option value="${d}">${d}</option>`).join('')}
+        </select>
+      </div>
+      <label style="display:flex; align-items:center; gap:6px; font-size:13.5px;"><input type="checkbox" id="grant-read" checked> Read</label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:13.5px;"><input type="checkbox" id="grant-create"> Create</label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:13.5px;"><input type="checkbox" id="grant-update"> Update</label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:13.5px;"><input type="checkbox" id="grant-delete"> Delete</label>
+      <button class="btn btn-primary" id="grant-save-btn">Save Grant</button>
+    </div>
+  `;
+  container.appendChild(formPanel);
+
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead><tr><th>Role</th><th>Record Type</th><th>Read</th><th>Create</th><th>Update</th><th>Delete</th></tr></thead>
+      <tbody>
+  `;
+  html += grants.length === 0
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No grants configured yet.</td></tr>`
+    : grants.map(g => `
+        <tr>
+          <td style="font-weight:600;">${g.role}</td>
+          <td>${g.doctype_name}</td>
+          <td>${g.allow_read ? '&#10003;' : '&mdash;'}</td>
+          <td>${g.allow_create ? '&#10003;' : '&mdash;'}</td>
+          <td>${g.allow_update ? '&#10003;' : '&mdash;'}</td>
+          <td>${g.allow_delete ? '&#10003;' : '&mdash;'}</td>
+        </tr>
+      `).join('');
+  html += `</tbody></table>`;
+  listPanel.innerHTML = html;
+  container.appendChild(listPanel);
+
+  document.getElementById('grant-save-btn').addEventListener('click', saveRoleGrant);
+}
+
+async function saveRoleGrant() {
+  const role = document.getElementById('grant-role').value;
+  const doctypeName = document.getElementById('grant-doctype').value;
+  const res = await apiFetch('/api/v1/admin/role-permissions', {
+    method: 'POST',
+    body: JSON.stringify({
+      role, doctype_name: doctypeName,
+      allow_read: document.getElementById('grant-read').checked,
+      allow_create: document.getElementById('grant-create').checked,
+      allow_update: document.getElementById('grant-update').checked,
+      allow_delete: document.getElementById('grant-delete').checked
+    })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showCustomAlert(data.error || 'Failed to save grant.', 'Error');
+    return;
+  }
+  renderView('roles');
 }
 
 // Dashboard Page
@@ -1087,17 +1600,16 @@ function renderDashboard(container) {
   grid.className = 'dashboard-grid';
 
   const modules = [
-    { title: 'DocType Builder', desc: 'Build schemas and customize properties', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>`, action: () => { setActiveMenu('menu-doctype-builder'); renderView('doctype-builder'); } },
-    { title: 'Dynamic Labels', desc: 'Configure customized nomenclature', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`, action: () => { setActiveMenu('menu-dynamic-labels'); renderView('dynamic-labels'); } },
-    { title: 'Prefix Configs', desc: 'Configure sequential transaction prefixes', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line></svg>`, action: () => { setActiveMenu('menu-prefix-configs'); renderView('prefix-configs'); } },
-    { title: 'Log Hub', desc: 'Track audits, panics, and payloads', icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg>`, action: () => { setActiveMenu('menu-audit-logs'); renderView('audit-logs'); } }
+    { title: 'DocType Builder', desc: 'Build schemas and customize properties', action: () => { setActiveMenu('menu-doctype-builder'); renderView('doctype-builder'); } },
+    { title: 'Dynamic Labels', desc: 'Configure customized nomenclature', action: () => { setActiveMenu('menu-dynamic-labels'); renderView('dynamic-labels'); } },
+    { title: 'Prefix Configs', desc: 'Configure sequential transaction prefixes', action: () => { setActiveMenu('menu-prefix-configs'); renderView('prefix-configs'); } },
+    { title: 'Log Hub', desc: 'Track audits, panics, and payloads', action: () => { setActiveMenu('menu-audit-logs'); renderView('audit-logs'); } }
   ];
 
   modules.forEach(m => {
     const card = document.createElement('div');
     card.className = 'dashboard-card';
     card.innerHTML = `
-      <div class="card-icon">${m.icon}</div>
       <div class="card-content">
         <h3 class="card-title">${m.title}</h3>
         <p class="card-desc">${m.desc}</p>
@@ -1130,6 +1642,11 @@ function renderPOSView(container) {
   panel.className = 'table-panel';
   panel.style.padding = '24px';
   panel.innerHTML = `
+    <div id="pos-session-bar" style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px;">
+      <span id="pos-session-status" style="font-size: 13px; color: var(--text-muted);">Checking session&hellip;</span>
+      <button class="btn btn-outline" id="pos-session-open-btn" type="button" style="margin-left: auto;">Open Session</button>
+      <button class="btn btn-outline hidden" id="pos-session-close-btn" type="button">Close Session</button>
+    </div>
     <div style="display: flex; gap: 12px; align-items: flex-end;">
       <div class="form-group" style="max-width: 280px; margin-bottom: 0;">
         <label class="form-label" for="pos-location">Location Code</label>
@@ -1166,6 +1683,10 @@ function renderPOSView(container) {
       <tbody id="pos-cart-body"></tbody>
     </table>
     <div style="display: flex; justify-content: flex-end; align-items: center; gap: 24px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+      <div class="form-group" style="max-width: 120px; margin-bottom: 0;">
+        <label class="form-label" for="pos-discount-pct">Discount %</label>
+        <input type="number" min="0" max="100" step="0.1" value="0" id="pos-discount-pct" class="form-input">
+      </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="pos-payment-mode">Payment Mode</label>
         <select id="pos-payment-mode" class="form-input">
@@ -1186,6 +1707,7 @@ function renderPOSView(container) {
 
   document.getElementById('pos-location').addEventListener('change', (e) => {
     posLocation = e.target.value.trim();
+    refreshPOSSessionStatus();
   });
   document.getElementById('pos-add-btn').addEventListener('click', addSKUToPOSCart);
   document.getElementById('pos-sku-input').addEventListener('keydown', (e) => {
@@ -1197,8 +1719,235 @@ function renderPOSView(container) {
   document.getElementById('pos-checkout-btn').addEventListener('click', submitPOSCheckout);
   document.getElementById('pos-loyalty-check-btn').addEventListener('click', checkPOSLoyaltyBalance);
   document.getElementById('pos-loyalty-redeem-btn').addEventListener('click', redeemPOSLoyaltyPoints);
+  document.getElementById('pos-session-open-btn').addEventListener('click', openPOSSessionFlow);
+  document.getElementById('pos-session-close-btn').addEventListener('click', closePOSSessionFlow);
 
   renderPOSCartTable();
+  refreshPOSSessionStatus();
+  renderPOSReturnPanel(container);
+}
+
+// Stage 20.11: audited first per the checklist item's own instruction -
+// engines.ProcessReturnAnywhere + POST /api/v1/fulfillment/return (Stage
+// 7.2/13.6) already do the real work; there was just no screen calling it.
+// This is a thin, separate panel (own posReturnCart array) rather than a
+// mode-toggle on the sale cart above, so a return in progress can never be
+// confused with or accidentally merged into an in-progress sale.
+let posReturnCart = []; // { sku, qty, salePrice, costPrice }
+
+function renderPOSReturnPanel(container) {
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.style.marginTop = '20px';
+  panel.innerHTML = `
+    <h2 style="margin: 0 0 12px; font-size: 16px;">Process a Return</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px;">
+      <div class="form-group" style="max-width: 240px; margin-bottom: 0;">
+        <label class="form-label" for="pos-return-order-id">Original Order / Cart Number</label>
+        <input type="text" id="pos-return-order-id" class="form-input" placeholder="e.g. POS-HO-171...">
+      </div>
+      <div class="form-group" style="max-width: 200px; margin-bottom: 0;">
+        <label class="form-label" for="pos-return-location">Return Location</label>
+        <input type="text" id="pos-return-location" class="form-input" placeholder="e.g. HO" value="${posLocation}">
+      </div>
+      <div class="form-group" style="flex: 1; margin-bottom: 0;">
+        <label class="form-label" for="pos-return-sku-input">SKU to Return</label>
+        <input type="text" id="pos-return-sku-input" class="form-input" placeholder="Barcode / SKU, then Enter" autocomplete="off">
+      </div>
+      <button class="btn btn-outline" id="pos-return-add-btn" type="button">Add Line</button>
+    </div>
+    <div id="pos-return-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <table>
+      <thead>
+        <tr><th>SKU</th><th>Qty</th><th>Sale Price</th><th>Cost Price</th><th></th></tr>
+      </thead>
+      <tbody id="pos-return-body"></tbody>
+    </table>
+    <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+      <button class="btn btn-primary" id="pos-return-submit-btn" type="button">Submit Return</button>
+    </div>
+  `;
+  container.appendChild(panel);
+
+  attachTypeahead(document.getElementById('pos-return-sku-input'), 'Item');
+  document.getElementById('pos-return-add-btn').addEventListener('click', addSKUToPOSReturn);
+  document.getElementById('pos-return-sku-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addSKUToPOSReturn();
+    }
+  });
+  document.getElementById('pos-return-submit-btn').addEventListener('click', submitPOSReturn);
+
+  renderPOSReturnTable();
+}
+
+function addSKUToPOSReturn() {
+  const skuInput = document.getElementById('pos-return-sku-input');
+  const sku = skuInput.value.trim();
+  if (!sku) return;
+  const existing = posReturnCart.find(line => line.sku === sku);
+  if (existing) {
+    existing.qty += 1;
+  } else {
+    posReturnCart.push({ sku, qty: 1, salePrice: 0, costPrice: 0 });
+  }
+  skuInput.value = '';
+  skuInput.focus();
+  renderPOSReturnTable();
+}
+
+function removeSKUFromPOSReturn(sku) {
+  posReturnCart = posReturnCart.filter(line => line.sku !== sku);
+  renderPOSReturnTable();
+}
+
+function updatePOSReturnLine(sku, field, value) {
+  const line = posReturnCart.find(l => l.sku === sku);
+  if (!line) return;
+  const num = parseFloat(value);
+  line[field] = isNaN(num) ? 0 : num;
+  renderPOSReturnTable();
+}
+
+function renderPOSReturnTable() {
+  const body = document.getElementById('pos-return-body');
+  if (!body) return;
+  body.innerHTML = '';
+  posReturnCart.forEach(line => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:600;">${line.sku}</td>
+      <td><input type="number" min="1" value="${line.qty}" class="form-input" style="width: 80px;" onchange="updatePOSReturnLine('${line.sku}', 'qty', this.value)"></td>
+      <td><input type="number" min="0" step="0.01" value="${line.salePrice}" class="form-input" style="width: 100px;" onchange="updatePOSReturnLine('${line.sku}', 'salePrice', this.value)"></td>
+      <td><input type="number" min="0" step="0.01" value="${line.costPrice}" class="form-input" style="width: 100px;" onchange="updatePOSReturnLine('${line.sku}', 'costPrice', this.value)"></td>
+      <td><button class="action-btn action-btn-danger" onclick="removeSKUFromPOSReturn('${line.sku}')">Remove</button></td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+async function submitPOSReturn() {
+  const errorEl = document.getElementById('pos-return-error');
+  errorEl.classList.add('hidden');
+  const orderID = document.getElementById('pos-return-order-id').value.trim();
+  const returnLocation = document.getElementById('pos-return-location').value.trim();
+
+  if (!orderID || !returnLocation) {
+    errorEl.textContent = 'Original order/cart number and return location are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (posReturnCart.length === 0) {
+    errorEl.textContent = 'Add at least one SKU to return.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const submitBtn = document.getElementById('pos-return-submit-btn');
+  submitBtn.disabled = true;
+  try {
+    const res = await apiFetch('/api/v1/fulfillment/return', {
+      method: 'POST',
+      body: JSON.stringify({
+        return_location: returnLocation,
+        original_order_id: orderID,
+        items: posReturnCart.map(line => ({
+          sku: line.sku,
+          qty: line.qty,
+          sale_price: line.salePrice,
+          cost_price: line.costPrice
+        }))
+      })
+    });
+    if (!res) return;
+    if (!res.ok) {
+      errorEl.textContent = await getErrorMessage(res, 'Return failed.');
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    posReturnCart = [];
+    renderPOSReturnTable();
+    await showCustomAlert('Return processed and stock restocked.', 'Return Complete');
+  } finally {
+    submitBtn.disabled = false;
+  }
+}
+
+// Stage 20.7: reflects whether the acting cashier already has an Open
+// session at posLocation, so the POS screen doesn't let a cashier build a
+// whole cart before discovering handleCheckout's 400 at the very end.
+async function refreshPOSSessionStatus() {
+  const statusEl = document.getElementById('pos-session-status');
+  const openBtn = document.getElementById('pos-session-open-btn');
+  const closeBtn = document.getElementById('pos-session-close-btn');
+  if (!statusEl) return;
+
+  if (!posLocation) {
+    posOpenSessionId = '';
+    statusEl.textContent = 'Enter a location to check for an open cashier session.';
+    openBtn.classList.add('hidden');
+    closeBtn.classList.add('hidden');
+    return;
+  }
+
+  const res = await apiFetch(`/api/v1/pos/session/current?location=${encodeURIComponent(posLocation)}`);
+  if (!res || !res.ok) {
+    statusEl.textContent = 'Failed to check session status.';
+    return;
+  }
+  const data = await res.json();
+  posOpenSessionId = data.open ? data.session_id : '';
+  if (posOpenSessionId) {
+    statusEl.textContent = `Session open at ${posLocation}.`;
+    openBtn.classList.add('hidden');
+    closeBtn.classList.remove('hidden');
+  } else {
+    statusEl.textContent = `No open session at ${posLocation} - open one before selling.`;
+    openBtn.classList.remove('hidden');
+    closeBtn.classList.add('hidden');
+  }
+}
+
+async function openPOSSessionFlow() {
+  if (!posLocation) {
+    await showCustomAlert('Enter a location code first.', 'Location Required');
+    return;
+  }
+  const openingStr = await showCustomPrompt('Opening cash float for this session?');
+  if (openingStr === null) return;
+  const opening = parseFloat(openingStr);
+  const res = await apiFetch('/api/v1/pos/session/open', {
+    method: 'POST',
+    body: JSON.stringify({ location: posLocation, opening_cash: isNaN(opening) ? 0 : opening })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showCustomAlert(data.error || 'Failed to open session.', 'Error');
+    return;
+  }
+  await refreshPOSSessionStatus();
+}
+
+async function closePOSSessionFlow() {
+  if (!posOpenSessionId) return;
+  const countedStr = await showCustomPrompt('Counted cash in the till?');
+  if (countedStr === null) return;
+  const counted = parseFloat(countedStr);
+  const res = await apiFetch('/api/v1/pos/session/close', {
+    method: 'POST',
+    body: JSON.stringify({ session_id: posOpenSessionId, counted_cash: isNaN(counted) ? 0 : counted })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showCustomAlert(data.error || 'Failed to close session.', 'Error');
+    return;
+  }
+  await showCustomAlert(`Session closed. Expected: ${data.expected_cash.toFixed(2)}, Counted: ${data.counted_cash.toFixed(2)}, Variance: ${data.variance.toFixed(2)}`, 'Session Closed');
+  await refreshPOSSessionStatus();
 }
 
 async function addSKUToPOSCart() {
@@ -1296,34 +2045,78 @@ async function submitPOSCheckout() {
   checkoutBtn.disabled = true;
   try {
     const cartNumber = `POS-${posLocation}-${Date.now()}`;
+    const paymentMode = document.getElementById('pos-payment-mode').value;
+    const discountPct = parseFloat(document.getElementById('pos-discount-pct').value) || 0;
+    const cartItems = posCart.map(line => ({
+      sku: line.sku,
+      qty: line.qty,
+      sale_price: line.salePrice,
+      cost_price: line.costPrice
+    }));
     const res = await apiFetch('/api/v1/checkout', {
       method: 'POST',
       body: JSON.stringify({
         cart_number: cartNumber,
         location: posLocation,
-        payment_mode: document.getElementById('pos-payment-mode').value,
+        payment_mode: paymentMode,
         customer_id: document.getElementById('pos-customer').value.trim(),
-        items: posCart.map(line => ({
-          sku: line.sku,
-          qty: line.qty,
-          sale_price: line.salePrice,
-          cost_price: line.costPrice
-        }))
+        discount_pct: discountPct,
+        items: cartItems
       })
     });
     if (!res) return;
+    const data = await res.json();
     if (!res.ok) {
-      errorEl.textContent = await getErrorMessage(res, 'Checkout failed.');
+      errorEl.textContent = data.error || 'Checkout failed.';
       errorEl.classList.remove('hidden');
       return;
     }
-    const data = await res.json();
+
+    // Stage 20.10: a discount above the configured threshold doesn't
+    // complete the sale here - it's now Pending Approval and will finalize
+    // (inventory/GL) once a manager decides it Approved from the Approvals screen.
+    if (data.status === 'pending_approval') {
+      posCart = [];
+      renderPOSCartTable();
+      await showCustomAlert(data.message || 'This sale requires manager approval before it completes.', 'Approval Required');
+      return;
+    }
+
     posCart = [];
     renderPOSCartTable();
-    await showCustomAlert(`Sale ${data.cart_number} completed. Total: ${data.sale_total}`, 'Sale Complete');
+    const printReceipt = await showCustomConfirm(`Sale ${data.cart_number} completed. Total: ${data.sale_total}. Print receipt?`, 'Sale Complete');
+    if (printReceipt) {
+      printPOSReceipt(data.cart_number, posLocation, paymentMode, cartItems, data.sale_total);
+    }
   } finally {
     checkoutBtn.disabled = false;
   }
+}
+
+// Stage 20.14: reuses the sticker-print-area's hidden-until-printing @media
+// print pattern (styles.css) rather than a new PDF/print dependency.
+function printPOSReceipt(cartNumber, location, paymentMode, items, saleTotal) {
+  const area = document.getElementById('receipt-print-area');
+  if (!area) return;
+  const lines = items.map(it => `
+    <div class="receipt-line"><span>${it.sku} x${it.qty}</span><span>${(it.qty * it.sale_price).toFixed(2)}</span></div>
+  `).join('');
+  area.innerHTML = `
+    <div class="receipt">
+      <div class="receipt-header">
+        <div class="receipt-title">Sales Receipt</div>
+        <div>${cartNumber}</div>
+        <div>${location} &middot; ${new Date().toLocaleString()}</div>
+      </div>
+      <hr>
+      ${lines}
+      <hr>
+      <div class="receipt-line receipt-total"><span>Total (${paymentMode})</span><span>${Number(saleTotal).toFixed(2)}</span></div>
+    </div>
+  `;
+  area.classList.add('printing');
+  window.print();
+  setTimeout(() => area.classList.remove('printing'), 500);
 }
 
 // CRM/Loyalty (Stage 13.13d, scoped MVP) - POS integration. Earning
@@ -1354,7 +2147,7 @@ async function redeemPOSLoyaltyPoints() {
     infoEl.textContent = 'Enter a customer code first.';
     return;
   }
-  const pointsStr = window.prompt('How many points to redeem?');
+  const pointsStr = await showCustomPrompt('How many points to redeem?');
   const points = parseInt(pointsStr, 10);
   if (!points || points <= 0) return;
 
@@ -2147,6 +2940,79 @@ async function renderReportsView(container) {
   } else if (currentReportTab === 'payables-ageing') {
     await renderPayablesAgeingReport(panel);
   }
+}
+
+// Inventory (Stage 21 QA fix): "Inventory" routed to a view name the router
+// had no case for, always falling through to the "Module Setup Pending"
+// mock screen - despite USER_GUIDE.md §5 explicitly documenting a working
+// search-by-item stock screen. Reuses the same /api/v1/reports/current-stock
+// endpoint Reports > Current Stock already calls (no new backend), but adds
+// the client-side search box that endpoint's own report tab never had.
+let inventorySearchQuery = '';
+async function renderInventoryView(container) {
+  const res = await apiFetch('/api/v1/reports/current-stock');
+  if (!res) return;
+  if (!res.ok) { renderErrorPanel(container, 'Failed to load inventory.', () => renderView('inventory')); return; }
+  const rows = await res.json();
+  inventorySearchQuery = '';
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Inventory</h1>
+      <p class="page-subtitle">How much stock you have right now, and how much is actually free to sell (already-reserved stock excluded).</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.innerHTML = `
+    <div class="table-controls">
+      <div class="search-box">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" id="inventory-search-input" placeholder="Search by SKU or location...">
+      </div>
+    </div>
+    <div class="table-wrapper" id="inventory-table-wrapper"></div>
+  `;
+  container.appendChild(panel);
+
+  // Only the table body redraws on each keystroke - the search input itself
+  // stays untouched so it doesn't lose focus/cursor position while typing
+  // (matches renderDocTable()'s existing #doc-table-wrapper pattern).
+  function draw() {
+    const wrapper = document.getElementById('inventory-table-wrapper');
+    const filtered = inventorySearchQuery
+      ? rows.filter(r => `${r.sku} ${r.location_code}`.toLowerCase().includes(inventorySearchQuery))
+      : rows;
+    let html = `
+      <table>
+        <thead><tr><th>SKU</th><th>Location</th><th>On Hand</th><th>Available</th><th>Committed</th><th>Reserved</th><th>Safety Stock</th></tr></thead>
+        <tbody>
+    `;
+    html += filtered.length === 0
+      ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No inventory records.</td></tr>`
+      : filtered.map(r => `
+          <tr>
+            <td style="font-family: monospace;">${r.sku}</td>
+            <td>${r.location_code}</td>
+            <td>${r.on_hand}</td>
+            <td>${r.available}</td>
+            <td>${r.committed}</td>
+            <td>${r.reserved}</td>
+            <td>${r.safety_stock}</td>
+          </tr>
+        `).join('');
+    html += `</tbody></table>`;
+    wrapper.innerHTML = html;
+  }
+  draw();
+  document.getElementById('inventory-search-input').addEventListener('input', (e) => {
+    inventorySearchQuery = e.target.value.toLowerCase();
+    draw();
+  });
 }
 
 async function renderCurrentStockReport(panel) {
@@ -3176,9 +4042,9 @@ async function capitalizeAsset(assetId) {
 }
 
 async function promptTransferAsset(assetId) {
-  const newLocation = window.prompt('New location:');
+  const newLocation = await showCustomPrompt('New location:');
   if (!newLocation) return;
-  const newCustodian = window.prompt('New custodian (optional):') || '';
+  const newCustodian = (await showCustomPrompt('New custodian (optional):')) || '';
 
   const res = await apiFetch('/api/v1/assets/transfer', {
     method: 'POST',
@@ -3196,7 +4062,7 @@ async function promptTransferAsset(assetId) {
 async function promptDisposeAsset(assetId) {
   const confirmed = await showCustomConfirm('This will write off the asset\'s remaining net book value and close it out. Continue?', 'Dispose Asset');
   if (!confirmed) return;
-  const disposalType = window.prompt('Disposal type (Sale, Scrap, or WriteOff):', 'Scrap');
+  const disposalType = await showCustomPrompt('Disposal type (Sale, Scrap, or WriteOff):', 'Scrap');
   if (!disposalType) return;
 
   const res = await apiFetch('/api/v1/assets/dispose', {
@@ -3210,6 +4076,263 @@ async function promptDisposeAsset(assetId) {
     return;
   }
   renderView('assets');
+}
+
+// Transfers (Stage 21 QA fix): the sidebar's "Transfers" item routed to a
+// view name ('transfers') the router had no case for, so it always fell
+// through to the generic "Module Setup Pending" mock screen - a dead entry
+// point despite engines/transfer_orders.go already having a full dispatch/
+// receive lifecycle. TransferOrder is already a registered generic doctype
+// (Draft/Approved/Dispatched/Received), but its dispatch/receive engine
+// functions need a JSON-encoded `items` line array that has no field/UI
+// anywhere yet, so - unlike Vendors/Stores/POSProfile - this needed a small
+// bespoke view (mirroring renderAssetsView's form+list+action-button shape)
+// rather than just pointing at the generic doctype-table.
+//
+// Draft -> Approved has no approval_rules row configured for TransferOrder
+// (SubmitForApproval would just error "no approval rule configured"), so
+// "Mark Approved" here is a direct status edit an authorized role can
+// already make via the generic edit modal - this button just makes that
+// one click instead of open-modal-find-status-save. Wiring TransferOrder
+// into the maker-checker engine for real is a policy decision (which
+// amount slab, which approver role) outside a QA-fix's scope.
+let transferLineItems = [];
+
+async function renderTransfersView(container) {
+  const res = await apiFetch('/api/v1/doc/TransferOrder');
+  if (!res) return;
+  if (!res.ok) { renderErrorPanel(container, 'Failed to load transfer orders.', () => renderView('transfers')); return; }
+  const transfers = await res.json();
+  state.docData = transfers;
+  transferLineItems = [];
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Transfers</h1>
+      <p class="page-subtitle">Move stock between stores/warehouses: create a draft, get it approved, then dispatch and receive it.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Transfer (Draft)</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="transfer-number">Transfer Number</label>
+        <input type="text" id="transfer-number" class="form-input" style="width: 160px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="transfer-from">From Warehouse</label>
+        <input type="text" id="transfer-from" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="transfer-to">To Warehouse</label>
+        <input type="text" id="transfer-to" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="transfer-line-sku">SKU</label>
+        <input type="text" id="transfer-line-sku" class="form-input" style="width: 150px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="transfer-line-qty">Qty</label>
+        <input type="number" id="transfer-line-qty" class="form-input" style="width: 90px;" min="1">
+      </div>
+      <button class="btn btn-outline" id="transfer-add-line-btn" type="button">Add Line</button>
+    </div>
+    <div id="transfer-lines-list" style="margin: 12px 0;"></div>
+    <div id="transfer-form-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
+    <button class="btn btn-primary" id="transfer-create-btn">Create Transfer</button>
+  `;
+  container.appendChild(formPanel);
+
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Transfer #</th><th>From</th><th>To</th><th>Items</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  html += transfers.length === 0
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No transfers yet.</td></tr>`
+    : transfers.map(t => `
+        <tr>
+          <td style="font-family: monospace;">${t.transfer_number || t.id}</td>
+          <td>${t.from_warehouse || ''}</td>
+          <td>${t.to_warehouse || ''}</td>
+          <td>${(() => { try { return JSON.parse(t.items || '[]').length; } catch (e) { return 0; } })()}</td>
+          <td><span class="badge ${t.status === 'Received' ? 'badge-success' : t.status === 'Draft' ? 'badge-secondary' : 'badge-warning'}">${t.status}</span></td>
+          <td>${renderTransferActions(t)}</td>
+        </tr>
+      `).join('');
+  html += `</tbody></table>`;
+  listPanel.innerHTML = html;
+  container.appendChild(listPanel);
+
+  renderTransferLinesList();
+  document.getElementById('transfer-add-line-btn').addEventListener('click', addTransferLine);
+  document.getElementById('transfer-create-btn').addEventListener('click', createTransferOrder);
+  attachTypeahead(document.getElementById('transfer-from'), 'Location');
+  attachTypeahead(document.getElementById('transfer-to'), 'Location');
+}
+
+function renderTransferLinesList() {
+  const el = document.getElementById('transfer-lines-list');
+  if (!el) return;
+  if (transferLineItems.length === 0) {
+    el.innerHTML = `<p style="font-size: 13px; color: var(--text-muted);">No lines added yet.</p>`;
+    return;
+  }
+  el.innerHTML = transferLineItems.map((line, idx) => `
+    <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 13.5px;">
+      <span style="font-family: monospace;">${line.sku}</span>
+      <span>qty ${line.qty}</span>
+      <button class="action-btn action-btn-danger" type="button" onclick="removeTransferLine(${idx})">Remove</button>
+    </div>
+  `).join('');
+}
+
+function addTransferLine() {
+  const skuEl = document.getElementById('transfer-line-sku');
+  const qtyEl = document.getElementById('transfer-line-qty');
+  const sku = skuEl.value.trim();
+  const qty = parseInt(qtyEl.value, 10);
+  if (!sku || !qty || qty <= 0) return;
+  transferLineItems.push({ sku, qty });
+  skuEl.value = '';
+  qtyEl.value = '';
+  renderTransferLinesList();
+}
+
+window.removeTransferLine = function(idx) {
+  transferLineItems.splice(idx, 1);
+  renderTransferLinesList();
+};
+
+async function createTransferOrder() {
+  const errorEl = document.getElementById('transfer-form-error');
+  errorEl.classList.add('hidden');
+
+  const transferNumber = document.getElementById('transfer-number').value.trim();
+  const fromWarehouse = document.getElementById('transfer-from').value.trim();
+  const toWarehouse = document.getElementById('transfer-to').value.trim();
+
+  if (!transferNumber || !fromWarehouse || !toWarehouse || transferLineItems.length === 0) {
+    errorEl.textContent = 'Transfer Number, From/To Warehouse, and at least one line item are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/doc/TransferOrder', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: transferNumber, transfer_number: transferNumber,
+      from_warehouse: fromWarehouse, to_warehouse: toWarehouse,
+      items: JSON.stringify(transferLineItems), status: 'Draft'
+    })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to create transfer.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('transfers');
+}
+
+function renderTransferActions(t) {
+  if (t.status === 'Draft') {
+    return `<button class="action-btn" onclick="approveTransferOrder('${t.id}')">Mark Approved</button>`;
+  }
+  if (t.status === 'Approved') {
+    return `<button class="action-btn" onclick="dispatchTransferOrder('${t.id}')">Dispatch</button>`;
+  }
+  if (t.status === 'Dispatched') {
+    return `<button class="action-btn" onclick="receiveTransferOrder('${t.id}')">Receive</button>`;
+  }
+  return '';
+}
+
+// The generic doc engine's POST-with-id update replaces the whole `data`
+// blob (no JSONB merge - see internal/server/handlers_core_doc_engine.go's
+// `data = EXCLUDED.data`), so this resends every field from the
+// already-loaded row rather than just {status: ...}, or a status-only
+// payload would silently wipe transfer_number/from_warehouse/to_warehouse/items.
+async function approveTransferOrder(id) {
+  const row = state.docData.find(t => t.id === id);
+  if (!row) return;
+  const res = await apiFetch(`/api/v1/doc/TransferOrder/${id}`, {
+    method: 'POST',
+    body: JSON.stringify({ ...row, status: 'Approved' })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to approve transfer.');
+    return;
+  }
+  renderView('transfers');
+}
+
+async function dispatchTransferOrder(id) {
+  if (!(await showCustomConfirm('Dispatch this transfer? Stock will move from the source location into transit.', 'Dispatch Transfer'))) return;
+  const res = await apiFetch('/api/v1/transfer/dispatch', {
+    method: 'POST',
+    body: JSON.stringify({ transfer_order_id: id })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showCustomAlert(data.error || 'Failed to dispatch transfer.', 'Dispatch Failed');
+    return;
+  }
+  renderView('transfers');
+}
+
+// Prompts for the received quantity of each dispatched line (sequentially,
+// via the same showCustomPrompt dialog the rest of the app uses), defaulting
+// to the full dispatched qty - covers both the common full-receipt case and
+// a genuine partial/shortage receipt in one flow without a bespoke modal.
+async function receiveTransferOrder(id) {
+  const row = state.docData.find(t => t.id === id);
+  if (!row) return;
+  let dispatchedLines = [];
+  try { dispatchedLines = JSON.parse(row.dispatched_items || row.items || '[]'); } catch (e) { dispatchedLines = []; }
+  if (dispatchedLines.length === 0) {
+    await showCustomAlert('No dispatched line items found on this transfer.', 'Error');
+    return;
+  }
+
+  const receivedItems = [];
+  for (const line of dispatchedLines) {
+    const qtyStr = await showCustomPrompt(`Quantity received for ${line.sku} (dispatched ${line.qty}):`, String(line.qty));
+    if (qtyStr === null) return;
+    const qty = parseInt(qtyStr, 10);
+    receivedItems.push({ sku: line.sku, qty: isNaN(qty) ? 0 : qty });
+  }
+
+  const res = await apiFetch('/api/v1/transfer/receive', {
+    method: 'POST',
+    body: JSON.stringify({ transfer_order_id: id, received_items: receivedItems })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showCustomAlert(data.error || 'Failed to receive transfer.', 'Receive Failed');
+    return;
+  }
+  renderView('transfers');
 }
 
 // Expense Management (Stage 13.13c, MB 16.2). Claim -> Manager Approval ->
@@ -3682,7 +4805,18 @@ const PIM_TABS = [
   { id: 'channel-field-map', label: 'Field Mapping', doctype: 'ChannelFieldMap' }
 ];
 
-async function renderPIMView(container) {
+// Doctypes reachable from a PIM tab (plus ProductContent, reachable from the
+// PIM dashboard's "pending approval" shortcut) - renderDocTableView() checks
+// this to decide whether to stay inside the PIM shell (header + tab bar)
+// instead of replacing it, so clicking e.g. "Product Families" doesn't feel
+// like it left PIM for an unrelated full-page master list.
+const PIM_DOCTYPES = new Set([...PIM_TABS.filter(t => t.doctype).map(t => t.doctype), 'ProductContent']);
+
+// Renders the "PIM" title + sub-tab bar shared by every PIM screen, whether
+// that's renderPIMView's own Dashboard/Workbench/Reports tabs or a
+// doctype-table view reached via one of the doctype-backed tabs (see
+// PIM_DOCTYPES above). Always reflects currentPIMTab - callers set it first.
+function renderPIMShellHeader(container) {
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
@@ -3704,20 +4838,24 @@ async function renderPIMView(container) {
   tabBar.querySelectorAll('[data-pim-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = PIM_TABS.find(t => t.id === btn.getAttribute('data-pim-tab'));
+      setActiveMenu('menu-pim');
+      closeSubmenus();
+      currentPIMTab = tab.id;
       if (tab.doctype) {
-        setActiveMenu('menu-pim');
-        closeSubmenus();
         currentDoctype = tab.doctype;
         currentSearchQuery = '';
         currentTablePage = 1;
         renderView('doctype-table');
         return;
       }
-      currentPIMTab = tab.id;
       currentPIMSelectedItem = '';
       renderView('pim');
     });
   });
+}
+
+async function renderPIMView(container) {
+  renderPIMShellHeader(container);
 
   if (currentPIMTab === 'dashboard') {
     await renderPIMDashboardTab(container);
@@ -4196,6 +5334,14 @@ async function renderDocTableView(container) {
   }
   state.docData = await dataRes.json();
   bulkSelectedDocIDs = new Set();
+
+  // Stay inside the PIM shell (title + sub-tab bar) for doctypes reached via
+  // a PIM tab, instead of this view's own header replacing it outright -
+  // otherwise clicking e.g. "Product Families" feels like it left PIM
+  // entirely for an unrelated full-page master list.
+  if (PIM_DOCTYPES.has(currentDoctype)) {
+    renderPIMShellHeader(container);
+  }
 
   const header = document.createElement('div');
   header.className = 'page-header';

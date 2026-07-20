@@ -92,7 +92,7 @@ func RunScaleSimulation(tenantID string, numWorkers int, numTransactions int, te
 					if err == nil {
 						// Post double-entry accounting records
 						cartID := fmt.Sprintf("W-%d-CRT-%d", workerID, time.Now().UnixNano())
-						err = PostSalesFinanceBooking(tenantID, cartID, 500, 300)
+						err = PostSalesFinanceBooking(tenantID, cartID, 500, 300, "Cash")
 					}
 				} else {
 					// 2. Simulate Webhook reservation (reserves stock)

@@ -228,7 +228,7 @@ func TestEngines(t *testing.T) {
 		}
 
 		// 4. Test automated sales booking
-		err = PostSalesFinanceBooking(tenantID, "CRT-TEST-99", 5000, 3000)
+		err = PostSalesFinanceBooking(tenantID, "CRT-TEST-99", 5000, 3000, "Cash")
 		if err != nil {
 			t.Fatalf("Failed to post automated sales bookings: %v", err)
 		}

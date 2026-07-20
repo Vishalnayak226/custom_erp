@@ -108,7 +108,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 7px 10px;
+  padding: 10px 12px;
   color: var(--text-muted);
   text-decoration: none;
   font-weight: 500;
@@ -116,6 +116,7 @@ body {
   border-radius: 7px;
   cursor: pointer;
   transition: all var(--transition-speed) ease;
+  border-left: 3px solid transparent;
 }
 
 .menu-item:hover {
@@ -126,41 +127,14 @@ body {
 .menu-item.active {
   background-color: var(--primary-light);
   color: var(--primary-color);
-}
-
-.menu-item-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  background-color: var(--bg-color);
-  color: var(--text-muted);
-  flex-shrink: 0;
-  transition: all var(--transition-speed) ease;
-}
-
-.menu-item:hover .menu-item-icon {
-  background-color: var(--panel-bg);
-  color: var(--text-main);
-  box-shadow: var(--shadow-sm);
-}
-
-.menu-item.active .menu-item-icon {
-  background-color: var(--primary-color);
-  color: #ffffff;
+  border-left-color: var(--primary-color);
+  font-weight: 600;
 }
 
 .menu-item svg {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-}
-
-.menu-item-icon svg {
   width: 16px;
   height: 16px;
+  flex-shrink: 0;
 }
 
 /* Dropdown Menu styling */
@@ -209,23 +183,155 @@ body {
 }
 
 .sidebar-footer {
-  padding: 16px 24px;
+  padding: 12px;
   border-top: 1px solid var(--border-color);
-  display: flex;
-  align-items: center;
-  gap: 12px;
 }
 
-.sidebar-footer .user-info {
+.account-menu {
+  position: relative;
+}
+
+.account-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-family);
+  transition: background-color var(--transition-speed) ease;
+}
+
+.account-trigger:hover,
+.account-menu.open .account-trigger {
+  background-color: var(--bg-color);
+}
+
+.account-trigger .user-info {
   flex: 1;
   min-width: 0;
 }
 
-.sidebar-footer .user-name {
+.account-trigger .user-name {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.account-trigger-chevron {
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform var(--transition-speed) ease;
+}
+
+.account-menu.open .account-trigger-chevron {
+  transform: rotate(180deg);
+}
+
+.account-popover {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  z-index: 30;
+}
+
+.account-popover-header {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.account-popover-name {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: var(--text-main);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-popover-email {
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-popover-item {
+  display: block;
+  width: 100%;
+  padding: 9px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-family: var(--font-family);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-main);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color var(--transition-speed) ease;
+}
+
+.account-popover-item:hover {
+  background-color: var(--bg-color);
+}
+
+.account-popover-item-danger {
+  color: #ef4444;
+}
+
+.account-popover-item-danger:hover {
+  background-color: #fef2f2;
+}
+
+.signout-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: var(--bg-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.signout-overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.signout-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--border-color);
+  border-top-color: var(--primary-color);
+  border-radius: 50%;
+  animation: signoutSpin 0.7s linear infinite;
+}
+
+@keyframes signoutSpin {
+  to { transform: rotate(360deg); }
 }
 
 .avatar {
@@ -254,36 +360,6 @@ body {
 .user-role {
   font-size: 11px;
   color: var(--text-muted);
-}
-
-.logout-btn {
-  width: 34px;
-  height: 34px;
-  border: 1px solid var(--border-color);
-  background-color: var(--panel-bg);
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-muted);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: all var(--transition-speed) ease;
-}
-
-.logout-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-.logout-btn:hover {
-  background-color: #fef2f2;
-  border-color: #fecaca;
-  color: #ef4444;
-}
-
-.logout-btn:active {
-  background-color: #fee2e2;
 }
 
 /* Main Content Area */
@@ -458,34 +534,13 @@ body {
   box-shadow: var(--shadow-sm);
 }
 
-.stat-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #ffffff;
-  flex-shrink: 0;
-}
-
-.stat-icon.blue { background-color: #3b82f6; }
-.stat-icon.green { background-color: #10b981; }
-.stat-icon.purple { background-color: #8b5cf6; }
-.stat-icon.orange { background-color: #f59e0b; }
-
-.stat-icon svg {
-  width: 24px;
-  height: 24px;
-}
-
 .stat-info {
   display: flex;
   flex-direction: column;
   gap: 4px;
 }
 
-.stat-value {
+.stat-val {
   font-size: 24px;
   font-weight: 700;
   color: var(--text-main);
@@ -547,22 +602,6 @@ body {
   border-color: var(--primary-color);
 }
 
-.card-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 6px;
-  background-color: var(--primary-light);
-  color: var(--primary-color);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.card-icon svg {
-  width: 24px;
-  height: 24px;
-}
-
 .card-content {
   display: flex;
   flex-direction: column;
@@ -587,7 +626,7 @@ body {
   border: 1px solid var(--border-color);
   border-radius: 8px;
   box-shadow: var(--shadow-sm);
-  overflow: hidden;
+  overflow: auto;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -1241,12 +1280,48 @@ pre {
 }
 
 @media print {
-  body > *:not(#sticker-print-area) {
+  body > *:not(#sticker-print-area):not(#receipt-print-area) {
     display: none !important;
   }
-  #sticker-print-area.printing {
+  #sticker-print-area.printing,
+  #receipt-print-area.printing {
     display: block !important;
   }
+}
+
+.receipt {
+  width: 280px;
+  margin: 0 auto;
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  color: #000;
+}
+
+.receipt .receipt-header {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.receipt .receipt-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.receipt hr {
+  border: none;
+  border-top: 1px dashed #000;
+  margin: 6px 0;
+}
+
+.receipt .receipt-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.receipt .receipt-total {
+  font-weight: 700;
+  font-size: 13px;
 }
 
 .login-error {

@@ -20,6 +20,9 @@ These three ("the big 3") stay at `docs/` root by standing convention (see the r
 - **[guides/USER_GUIDE.md](guides/USER_GUIDE.md)** — client-facing, plain-language walkthrough. No jargon.
 - **[guides/ADMIN_GUIDE.md](guides/ADMIN_GUIDE.md)** — standalone operator manual, zero AI assistance assumed: setup from a bare machine through day-to-day operation, deployment, and incident response.
 
+## "I need to test that every module/page still works"
+- **[guides/UAT_CHECKLIST.md](guides/UAT_CHECKLIST.md)** — single walkthrough script, one section per sidebar screen, click-this-expect-that with pass/fail boxes. Flags known placeholder/limitation screens so they aren't mistaken for bugs. Re-run after significant frontend or schema changes.
+
 ## "How is this actually built?"
 - **[architecture/framework_architecture.md](architecture/framework_architecture.md)** — the metadata-driven DocType kernel.
 - **[architecture/architecture_evaluation.md](architecture/architecture_evaluation.md)** — stack choice and multi-tenancy rationale.

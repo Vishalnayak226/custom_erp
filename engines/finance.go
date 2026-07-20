@@ -146,15 +146,31 @@ func PostGRNFinanceBooking(tenantID string, grnID string, amount int) error {
 	return PostDoubleEntry(tenantID, "GRN", grnID, debits, credits)
 }
 
-// PostSalesFinanceBooking creates dynamic financial postings for sales cart checkout
-func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int, costPrice int) error {
+// paymentModeClearingAccount maps a POS payment mode to the GL asset
+// account it settles into (Stage 20.9). Unknown/empty modes fall back to
+// 1100 (Cash) - the behavior every payment mode had before this stage.
+func paymentModeClearingAccount(paymentMode string) string {
+	switch paymentMode {
+	case "Card":
+		return "1101"
+	case "UPI":
+		return "1102"
+	default:
+		return "1100"
+	}
+}
+
+// PostSalesFinanceBooking creates dynamic financial postings for sales cart checkout.
+// paymentMode selects which GL clearing account the sale settles into
+// (Stage 20.9) - previously every mode posted to 1100 regardless.
+func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int, costPrice int, paymentMode string) error {
 	if salePrice <= 0 || costPrice <= 0 {
 		return errors.New("sales and cost prices must be positive")
 	}
 
 	// 1. Post Revenue Bookings
-	revenueDebits := map[string]int{"1100": salePrice}  // Debit: Cash/Bank Account
-	revenueCredits := map[string]int{"4100": salePrice} // Credit: Sales Revenue Account
+	revenueDebits := map[string]int{paymentModeClearingAccount(paymentMode): salePrice} // Debit: Cash/Card/UPI clearing account
+	revenueCredits := map[string]int{"4100": salePrice}                                 // Credit: Sales Revenue Account
 	err := PostDoubleEntry(tenantID, "POSCart", checkoutID, revenueDebits, revenueCredits)
 	if err != nil {
 		return err

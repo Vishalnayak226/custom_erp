@@ -66,8 +66,9 @@ Add `-Env test` or `-Env live` to target an environment other than the default (
 
 ### B.2 User and Role Management
 
-- New users are created as records in the system itself (via the **Users** screen in the app, if your role has access, or directly by an HR/Admin).
-- Roles determine what a user can see and do — see the [User Guide](USER_GUIDE.md) §3 for what each role's sidebar looks like, and `../ERP_BLUEPRINT.md` §3 for how role checks are enforced (server-side, on every action — never trust a UI-only restriction).
+- **Creating a user**: **Users** screen (HR/Admin only — every other role gets a 403 from the API even though the menu item itself is currently visible to everyone, see [User Guide](USER_GUIDE.md) §3). Fill in username, password (8+ characters), email, and role, then **Create User**. New accounts start **Active**.
+- **Deactivating/reactivating a user**: same **Users** screen, the **Deactivate**/**Reactivate** action on each row. You can't deactivate the account you're currently logged in as. A deactivated user's login is rejected the same as a wrong password.
+- **Granting permissions**: **Roles** screen (also HR/Admin only) shows every currently-granted (role, record type) permission as a table, and a form above it to add or update one — pick the role and record type, check whichever of Read/Create/Update/Delete apply, **Save Grant**. A role with no row for a given record type gets **no access at all** to it (fails closed) — HR/Admin itself always has full access everywhere and never needs a row here. See the [User Guide](USER_GUIDE.md) §3 for what each role's sidebar looks like, and `../ERP_BLUEPRINT.md` §3 for how role checks are enforced (server-side, on every action — never trust a UI-only restriction).
 - **HR/Admin** and other privileged roles require MFA (Multi-Factor Authentication — a 6-digit code from an authenticator app). To reset a user's MFA if they lose their device: `cmd/reset_mfa` is a small standalone utility for exactly this — build and run it (`go run ./cmd/reset_mfa`, see its own `main.go` for exact usage), or ask a developer.
 - If a user's login is locked out after too many failed attempts, wait for the automatic lockout window to expire, or have an admin clear it directly.
 
@@ -77,7 +78,7 @@ Several things are configurable through the app's admin screens, not by editing 
 
 - **Document number formats** (invoice numbers, PO numbers, etc.) — **Prefix Configs** screen.
 - **Renaming terms** to match your industry's vocabulary (e.g. "Design Number" instead of "SKU") — **Dynamic Labels** screen.
-- **Adding new record types or custom fields** — **DocType Builder** screen (this is the same "metadata-driven" engine described in `../architecture/framework_architecture.md` — new master/transaction types don't need a code change).
+- **Adding new record types or custom fields** — **DocType Builder** screen (this is the same "metadata-driven" engine described in `../architecture/framework_architecture.md` — new master/transaction types don't need a code change). This is different from adding an actual *record* of an existing type (a new Vendor, a new Brand, etc.) — that's a business-user task, see [User Guide](USER_GUIDE.md) §8.
 - **Turning modules on/off per tenant** — module entitlements, admin-only.
 
 ### B.4 Where to Look When Something Seems Wrong

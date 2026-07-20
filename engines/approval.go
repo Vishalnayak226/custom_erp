@@ -62,6 +62,14 @@ func requiredApproverRole(tenantID, doctype string, amount float64) (string, err
 	return role, err
 }
 
+// RequiredApproverRoleForAmount is the exported form of requiredApproverRole,
+// for callers outside this package that need to decide *whether* to route a
+// document through approval before creating it (e.g. handleCheckout's
+// discount gate, Stage 20.10) rather than after the fact via SubmitForApproval.
+func RequiredApproverRoleForAmount(tenantID, doctype string, amount float64) (string, error) {
+	return requiredApproverRole(tenantID, doctype, amount)
+}
+
 // IsApprovalGated reports whether any rule exists for doctype at all -
 // used to decide whether the generic doc-update path needs to run the
 // re-approval-on-edit check for this doctype.
@@ -289,9 +297,13 @@ func ListPendingApprovals(tenantID, role, location string) ([]map[string]interfa
 
 // extractAmount pulls a routing amount out of a document's data, checking
 // the field names actually used by seeded doctypes (total_amount today;
-// extend this list as more doctypes are approval-gated).
+// extend this list as more doctypes are approval-gated). "discount_amount"
+// is POSCart-specific (Stage 20.10): its approval_rules row routes on
+// discount percentage, not the cart's rupee total, so handleCheckout stores
+// the discount percentage under this key rather than "amount"/"total_amount"
+// to avoid colliding with those keys' rupee-amount meaning on other doctypes.
 func extractAmount(data map[string]interface{}) float64 {
-	for _, key := range []string{"total_amount", "amount"} {
+	for _, key := range []string{"total_amount", "amount", "discount_amount"} {
 		if v, ok := data[key]; ok {
 			switch n := v.(type) {
 			case float64:

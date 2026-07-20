@@ -263,17 +263,21 @@ func handleCreateReservation(w http.ResponseWriter, r *http.Request) {
 
 func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	role := r.Header.Get("Resolved-Role")
+	cashier := r.Header.Get("Resolved-Username")
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req struct {
-		CartNumber  string `json:"cart_number"`
-		Location    string `json:"location"`
-		PaymentMode string `json:"payment_mode"`
-		CustomerID  string `json:"customer_id"`
-		Interstate  bool   `json:"interstate"`
+		CartNumber  string  `json:"cart_number"`
+		Location    string  `json:"location"`
+		PaymentMode string  `json:"payment_mode"`
+		CustomerID  string  `json:"customer_id"`
+		Interstate  bool    `json:"interstate"`
+		DiscountPct float64 `json:"discount_pct"`
 		Items       []struct {
 			Sku       string  `json:"sku"`
 			Qty       int     `json:"qty"`
@@ -323,18 +327,43 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	totalSalePrice := 0
-	totalCostPrice := 0
-	for _, item := range req.Items {
-		totalSalePrice += int(item.SalePrice) * item.Qty
-		totalCostPrice += int(item.CostPrice) * item.Qty
-	}
-
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to resolve tenant schema"})
 		return
+	}
+
+	// Stage 20.7: an open cashier session (for this location, opened by this
+	// cashier) is a precondition for every sale - opened/closed via
+	// POST /api/v1/pos/session/open and /close, never spoofable through this
+	// endpoint since the session lookup below is keyed off the caller's own
+	// resolved identity, not anything in the request body.
+	sessionID, sessErr := engines.GetOpenSessionForCashier(tenantID, req.Location, cashier)
+	if sessErr != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to check cashier session"})
+		return
+	}
+	if sessionID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "No open POS session for this location - open a cashier session before completing a sale."})
+		return
+	}
+
+	// Stage 20.10: a discount above a configured percentage routes through
+	// the existing maker-checker approval engine (engines/approval.go, same
+	// one PurchaseOrder/VendorInvoice already use) instead of completing the
+	// sale immediately. requiredRole == "" means either no discount or no
+	// approval_rules slab matches it - the normal synchronous path below.
+	var requiredRole string
+	if req.DiscountPct > 0 {
+		requiredRole, err = engines.RequiredApproverRoleForAmount(tenantID, "POSCart", req.DiscountPct)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to evaluate discount approval rules"})
+			return
+		}
 	}
 
 	// Idempotency guard: atomically claim this cart_number before any side effect
@@ -345,7 +374,9 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// one sale happened. Only the request whose INSERT/claim actually applies
 	// proceeds; a duplicate of an already-Paid cart gets the original result
 	// replayed back, and a duplicate that arrives while the first is still being
-	// processed is told to wait rather than reprocessing.
+	// processed is told to wait rather than reprocessing. A discount-gated cart
+	// claims as 'Draft' instead of 'Processing' - SubmitForApproval below requires
+	// that starting status - and finalization (inventory/GL) waits for approval.
 	// Store the computed GST breakdown alongside the cart payload (Stage
 	// 17.5's "auto-compute and store" half) - merged via a generic map
 	// rather than a new struct field, since req.Items/etc. above stay the
@@ -355,16 +386,30 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		_ = json.Unmarshal(rawReq, &storedPayload)
 	}
 	storedPayload["gst_breakdown"] = gstBreakdown
+	storedPayload["pos_session"] = sessionID
+	if requiredRole != "" {
+		// Percentage, not rupees - see extractAmount's comment in engines/approval.go.
+		storedPayload["discount_amount"] = req.DiscountPct
+	}
 	payloadBytes, _ := json.Marshal(storedPayload)
+
+	claimStatus := "Processing"
+	if requiredRole != "" {
+		claimStatus = "Draft"
+	}
+	claimant := userID
+	if claimant == "" {
+		claimant = "system"
+	}
 	claimQuery := fmt.Sprintf(`
 		INSERT INTO %s.documents (id, doctype, data, status, created_by)
-		VALUES ($1, 'POSCart', $2, 'Processing', 'system')
+		VALUES ($1, 'POSCart', $2, $3, $4)
 		ON CONFLICT (id) DO UPDATE SET
-			data = EXCLUDED.data, status = 'Processing', updated_at = CURRENT_TIMESTAMP
+			data = EXCLUDED.data, status = EXCLUDED.status, updated_at = CURRENT_TIMESTAMP
 		WHERE %s.documents.status = 'Failed'
 		RETURNING id`, schema, schema)
 	var claimedID string
-	claimErr := db.DB.QueryRow(claimQuery, req.CartNumber, payloadBytes).Scan(&claimedID)
+	claimErr := db.DB.QueryRow(claimQuery, req.CartNumber, payloadBytes, claimStatus, claimant).Scan(&claimedID)
 	if claimErr == sql.ErrNoRows {
 		var existingStatus, existingData string
 		lookupErr := db.DB.QueryRow(fmt.Sprintf(
@@ -393,6 +438,13 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if lookupErr == nil && existingStatus == "Pending Approval" {
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"status":      "pending_approval",
+				"cart_number": req.CartNumber,
+			})
+			return
+		}
 		w.WriteHeader(http.StatusConflict)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": "This cart is already being processed or was already completed"})
 		return
@@ -402,63 +454,129 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	markFailed := func() {
-		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Failed', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'POSCart' AND id = $1`, schema), req.CartNumber)
-	}
-
-	// Convert items structure to interface slice for PostInventoryLedger (with negative qty!)
-	itemsInterface := make([]interface{}, len(req.Items))
-	for i, item := range req.Items {
-		itemsInterface[i] = map[string]interface{}{
-			"sku": item.Sku,
-			"qty": -item.Qty, // Negative to decrement available stock
+	if requiredRole != "" {
+		if err := engines.SubmitForApproval(tenantID, "POSCart", req.CartNumber, claimant, role); err != nil {
+			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Failed', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'POSCart' AND id = $1`, schema), req.CartNumber)
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Failed to route for approval: %v", err)})
+			return
 		}
-	}
-
-	// Decrement inventory availability
-	if err := engines.PostInventoryLedger(tenantID, req.Location, itemsInterface); err != nil {
-		markFailed()
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Inventory decrement failed: %v", err)})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":        "pending_approval",
+			"cart_number":   req.CartNumber,
+			"required_role": requiredRole,
+			"message":       fmt.Sprintf("Discount of %.1f%% requires %s approval before this sale completes.", req.DiscountPct, requiredRole),
+		})
 		return
 	}
 
-	// Post balanced accounting bookings
-	if err := engines.PostSalesFinanceBooking(tenantID, req.CartNumber, totalSalePrice, totalCostPrice); err != nil {
-		markFailed()
+	saleTotal, costTotal, finalizeErr := engines.FinalizePOSCheckout(tenantID, req.CartNumber, r.Header.Get("Resolved-Correlation-ID"))
+	if finalizeErr != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("GL Booking posting failed: %v", err)})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": finalizeErr.Error()})
 		return
-	}
-
-	// Re-split the tax-inclusive Sales Revenue posting above into taxable
-	// revenue + GST payable (Stage 17.5).
-	if err := engines.PostSalesGSTBooking(tenantID, req.CartNumber, gstBreakdown); err != nil {
-		markFailed()
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("GST booking failed: %v", err)})
-		return
-	}
-
-	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Paid', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'POSCart' AND id = $1`, schema), req.CartNumber)
-
-	// Loyalty point earn (Stage 13.13d, scoped MVP): purely additive - a
-	// failure here is logged but never fails an already-completed sale.
-	// Deliberately not wired into inventory/GL above; this checkout flow's
-	// idempotency/claim logic is load-bearing and this stays outside it.
-	if req.CustomerID != "" {
-		if errEarn := engines.EarnLoyaltyPoints(tenantID, req.CustomerID, totalSalePrice, req.CartNumber); errEarn != nil {
-			engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "LOYALTY_EARN_FAILED", r.URL.Path, errEarn.Error(), "")
-		}
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status":        "completed",
 		"cart_number":   req.CartNumber,
-		"sale_total":    totalSalePrice,
-		"cost_total":    totalCostPrice,
+		"sale_total":    saleTotal,
+		"cost_total":    costTotal,
 		"gst_breakdown": gstBreakdown,
 	})
+}
+
+// handlePOSSessionOpen opens a cashier session (Stage 20.7). Cashier/user
+// identity always comes from the caller's own resolved headers, never the
+// request body - see migrations_stage20a_pos_maturity.sql's comment on why
+// POSSession grants no generic create permission to any role.
+func handlePOSSessionOpen(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	cashier := r.Header.Get("Resolved-Username")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		POSProfile  string  `json:"pos_profile"`
+		Location    string  `json:"location"`
+		OpeningCash float64 `json:"opening_cash"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Location == "" {
+		http.Error(w, "Field 'location' is required", http.StatusBadRequest)
+		return
+	}
+
+	id, err := engines.OpenPOSSession(tenantID, req.POSProfile, req.Location, cashier, userID, req.OpeningCash)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	engines.LogAuditEvent(tenantID, cashier, "POS_SESSION", "OPENED", fmt.Sprintf("Session %s opened at %s", id, req.Location))
+	_ = json.NewEncoder(w).Encode(map[string]string{"session_id": id, "status": "Open"})
+}
+
+// handlePOSSessionClose closes the caller's own open session, computing the
+// counted-vs-expected cash variance server-side (Stage 20.8).
+func handlePOSSessionClose(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	cashier := r.Header.Get("Resolved-Username")
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		SessionID   string  `json:"session_id"`
+		CountedCash float64 `json:"counted_cash"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SessionID == "" {
+		http.Error(w, "Field 'session_id' is required", http.StatusBadRequest)
+		return
+	}
+
+	expected, variance, err := engines.ClosePOSSession(tenantID, req.SessionID, cashier, req.CountedCash)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		return
+	}
+	engines.LogAuditEvent(tenantID, cashier, "POS_SESSION", "CLOSED", fmt.Sprintf("Session %s closed, variance %.2f", req.SessionID, variance))
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":        "Closed",
+		"session_id":    req.SessionID,
+		"expected_cash": expected,
+		"counted_cash":  req.CountedCash,
+		"variance":      variance,
+	})
+}
+
+// handlePOSSessionCurrent tells the POS screen whether the caller already
+// has an open session for a location, so it can show Open/Close Session UI
+// instead of surfacing handleCheckout's 400 only after the cashier tries to sell.
+func handlePOSSessionCurrent(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	cashier := r.Header.Get("Resolved-Username")
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+	location := r.URL.Query().Get("location")
+	if location == "" {
+		http.Error(w, "Query parameter 'location' is required", http.StatusBadRequest)
+		return
+	}
+
+	id, err := engines.GetOpenSessionForCashier(tenantID, location, cashier)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to look up session"})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"session_id": id, "open": id != ""})
 }
 
 func handleTrialBalance(w http.ResponseWriter, r *http.Request) {
@@ -605,6 +723,19 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "APPROVAL_DECISION", req.Decision, fmt.Sprintf("%s %s: %s", req.Doctype, req.DocumentID, req.Decision))
+
+	// Stage 20.10: a discount-gated POS sale never ran its inventory/GL side
+	// effects at request time (handleCheckout only submitted it for
+	// approval) - an Approved decision is what actually completes the sale.
+	// A Rejected cart is intentionally left as-is: no side effects ever ran,
+	// so there's nothing to undo.
+	if req.Doctype == "POSCart" && req.Decision == "Approved" {
+		if _, _, finalizeErr := engines.FinalizePOSCheckout(tenantID, req.DocumentID, r.Header.Get("Resolved-Correlation-ID")); finalizeErr != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Approved but failed to complete the sale: %v", finalizeErr)})
+			return
+		}
+	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "decided", "decision": req.Decision})
 }
 

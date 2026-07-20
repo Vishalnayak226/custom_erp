@@ -148,6 +148,14 @@ func TestCheckoutToForecastIntegration(t *testing.T) {
 		t.Fatalf("MFA activation succeeded but returned no session token")
 	}
 
+	// 1c. Stage 20.7: checkout now requires an open cashier session for the
+	// acting user's location - open one the same way a real session start
+	// would (engines.OpenPOSSession, keyed off this same testUser as cashier).
+	if _, err := engines.OpenPOSSession("default", "", location, testUser, testUser, 0); err != nil {
+		t.Fatalf("failed to open POS session: %v", err)
+	}
+	defer db.DB.Exec(`DELETE FROM tenant_default.documents WHERE doctype = 'POSSession' AND data->>'cashier' = $1`, testUser)
+
 	// 2. Real checkout via the real handler chain - this is what actually writes POSCart's status
 	checkoutRec := doRequest(t, apiMiddleware(handleCheckout), "POST", "/api/v1/checkout", token, map[string]interface{}{
 		"cart_number":  "INTEGRATIONTEST-CART",

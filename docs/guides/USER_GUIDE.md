@@ -16,7 +16,7 @@ Think of this system as one big digital notebook that your whole business shares
 4. If you have a role that needs extra security (like an Admin), you may be asked for a **6-digit code** from an authenticator app on your phone. This is called **MFA** (Multi-Factor Authentication) — it's an extra lock on the door, on top of your password.
 5. If you type your password wrong too many times in a row, the system will temporarily lock your account to keep it safe. Wait a bit and try again, or ask an admin for help.
 
-Once you're in, you'll see a **sidebar** on the left with all the areas of the system you're allowed to use. You won't see everything — only what your role needs. That's normal and it's on purpose, to keep the system simple and safe.
+Once you're in, you'll see a **sidebar** on the left with every area of the system. *(As of this writing the menu itself shows everything to everyone, regardless of role — only the actions themselves are locked down per role, checked by the server every time, not just hidden in the menu. Menu items only your role can't actually use will simply give you a "you don't have permission" message if you click into them. Trimming the menu down to just what each role needs is a known, tracked improvement, not yet built.)*
 
 ## 3. Finding Your Way Around
 
@@ -35,6 +35,8 @@ The left sidebar is your main menu. Depending on your role, you might see some o
 | **Vendors** | Your suppliers' details. |
 | **Stores** | Your shop/warehouse locations. |
 | **HR / Fixed Assets / Expenses** | Staff records, company equipment, and expense claims. |
+| **Master Definition** | A dropdown of every other reference list the system knows about (Brands, Colors, Locations, and many more) — see §6 below. |
+| **Users / Roles** | Admin-only: create accounts and control what each role can do (see the Admin Guide §B.2). You'll see these in the menu regardless of your role, but only an HR/Admin account can actually use them. |
 
 At the top of most screens, there's a **search box** and buttons to add a new record, edit one, or filter the list. These work the same way on every screen once you get used to one of them.
 
@@ -68,23 +70,49 @@ If you need to know how much stock is *actually free to sell* (not already reser
 4. Save it. Depending on the amount, it might need someone else's **approval** before it's official — that's a safety check, not a bug. You'll see it move to "pending approval," and once approved, it's ready to send to the vendor.
 5. When the stock physically arrives, someone records a **GRN** (Goods Receipt Note — basically "yes, this stock actually showed up") against that same Purchase Order. Only then does the stock count go up — an order by itself never adds stock, only a confirmed receipt does.
 
-## 7. Running a Report
+## 7. Moving Stock Between Locations (Transfers)
+
+1. Click **Transfers** in the sidebar.
+2. Fill in a Transfer Number, the From and To warehouse/location, then add one or more line items (SKU + quantity) using the **Add Line** button — a transfer needs at least one line before it can be created.
+3. Click **Create Transfer**. It starts as a **Draft**.
+4. Once it's ready to go, click **Mark Approved**.
+5. Click **Dispatch** to move the stock out of the source location (it sits "in transit" until received).
+6. When it physically arrives, click **Receive** and confirm the quantity that actually showed up for each line — if less arrived than was dispatched, entering the lower number records that shortage rather than hiding it.
+
+## 8. Managing Master Data (Vendors, Stores, Brands, and Similar Lists)
+
+"Master data" just means the reference lists everything else points to — your vendors, your stores, and (depending on your industry setup) things like brands, colors, or product categories. Most of these live directly in the sidebar (**Vendors**, **Stores**) or under the **Master Definition** dropdown, which groups every other one alphabetically.
+
+Adding a new one always works the same way, no matter which list you're in:
+
+1. Click the list in the sidebar (or open it from **Master Definition**).
+2. Click the **New [thing]** button, top right.
+3. Fill in the fields — anything marked with a **\*** is required, everything else is optional. A "Code" field usually says *"Auto-generated upon save"* — leave it blank and the system numbers it for you.
+4. Click **Save**.
+
+To change an existing one later, find it in the list (use the search box if there are a lot) and use its row's **Edit** action the same way.
+
+## 9. Running a Report
 
 1. Click **Reports**.
 2. Pick the report you need (e.g. Current Stock, Sales Register, Vendor Ledger, Payables Ageing).
 3. Set any filters (date range, store, etc.) if the report offers them.
 4. The numbers you see always come from real recorded transactions — never from someone's manual guess — so you can trust them.
 
-## 8. Approvals
+## 10. Approvals
 
 If your role can approve things (e.g. a manager approving a purchase order), you'll see an **Approvals** section listing anything waiting on you. Open an item, review it, and either approve or reject it (you can add a note explaining why). Once decided, it can't be silently changed — there's always a record of who approved what and when.
 
-## 9. If You Get Logged Out or See an Error
+## 11. Your Profile, Password, and Session
 
-- If you haven't used the system in a while, you may be logged out automatically for security — just log back in.
+Click your name at the bottom of the sidebar to open your account menu, then **My Profile**. From there you can see your role and (if set up) your linked employee record, change your own password, and set how long the system should wait before automatically signing you out if you step away — separate from the account-wide session limit your admin controls.
+
+## 12. If You Get Logged Out or See an Error
+
+- If you haven't used the system in a while, you may be logged out automatically for security (either the account-wide session limit, or your own shorter auto-logout timer from §11) — just log back in.
 - If you ever see an unexpected error screen, note the **correlation ID** shown (a short code) and pass it to your admin/support person — it helps them find exactly what happened, quickly.
 
-## 10. Glossary
+## 13. Glossary
 
 | Term | In plain English |
 |---|---|

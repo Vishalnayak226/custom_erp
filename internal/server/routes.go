@@ -64,6 +64,20 @@ func Run() {
 	http.HandleFunc("POST /api/v1/auth/mfa/activate", apiMiddleware(handleMFAActivate))
 	http.HandleFunc("POST /api/v1/auth/mfa/verify", apiMiddleware(handleMFAVerify))
 
+	// Self-service User Profile (Stage 21)
+	http.HandleFunc("GET /api/v1/me", apiMiddleware(handleGetProfile))
+	http.HandleFunc("PUT /api/v1/me", apiMiddleware(handleUpdateProfile))
+	http.HandleFunc("POST /api/v1/me/change-password", apiMiddleware(handleChangePassword))
+
+	// Admin user/role management (Stage 21 QA fix) - the Users/Roles sidebar
+	// items had never had a backend at all. HR/Admin-only, enforced in each handler.
+	http.HandleFunc("GET /api/v1/admin/users", apiMiddleware(handleListUsers))
+	http.HandleFunc("POST /api/v1/admin/users", apiMiddleware(handleCreateUser))
+	http.HandleFunc("POST /api/v1/admin/users/status", apiMiddleware(handleSetUserStatus))
+	http.HandleFunc("GET /api/v1/admin/roles", apiMiddleware(handleListRoles))
+	http.HandleFunc("GET /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))
+	http.HandleFunc("POST /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))
+
 	// Generic DocType CRUD APIs (Go 1.22 enhanced routing)
 	http.HandleFunc("/api/v1/doc/{doctype}", apiMiddleware(handleGenericDoc))
 	http.HandleFunc("/api/v1/doc/{doctype}/{id}", apiMiddleware(handleGenericDoc))
@@ -75,6 +89,9 @@ func Run() {
 
 	// Checkout & Finance APIs
 	http.HandleFunc("POST /api/v1/checkout", apiMiddleware(handleCheckout))
+	http.HandleFunc("POST /api/v1/pos/session/open", apiMiddleware(handlePOSSessionOpen))
+	http.HandleFunc("POST /api/v1/pos/session/close", apiMiddleware(handlePOSSessionClose))
+	http.HandleFunc("GET /api/v1/pos/session/current", apiMiddleware(handlePOSSessionCurrent))
 	http.HandleFunc("GET /api/v1/finance/trial-balance", apiMiddleware(handleTrialBalance))
 	http.HandleFunc("GET /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))
 	http.HandleFunc("POST /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))
