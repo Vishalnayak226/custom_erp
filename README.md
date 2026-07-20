@@ -14,7 +14,7 @@ A metadata-driven, pluggable, ledger-backed Enterprise Resource Planning (ERP) s
 │   ├── routes.go                  # Run() - DB init, background workers, full route table
 │   ├── middleware.go              # Rate limiting, CORS, webhook signature verification, apiMiddleware chain
 │   ├── handlers_auth.go           # Login, TOTP MFA
-│   ├── handlers_core_doc_engine.go # Generic /api/v1/doc/:doctype engine, DocType Builder, industry switch
+│   ├── handlers_core_doc_engine.go # Generic /api/v1/doc/:doctype engine, Database Schema Design (DocType Builder), industry switch
 │   ├── handlers_pim_pos_finance.go # CSV/PIM import, channel credentials, POS checkout, Finance/GL, approvals, GST, reports
 │   ├── handlers_procurement_pim2.go # RFQ, stickers, payroll export, PIM V2 (dashboard/bulk/media/publish)
 │   ├── handlers_operations.go     # Assets, Expense, CRM/Loyalty, Manufacturing, fulfillment, transfers, vendor invoice, optimization

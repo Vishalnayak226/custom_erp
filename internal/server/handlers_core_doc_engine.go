@@ -16,8 +16,8 @@ import (
 
 // The generic metadata-driven document engine (GET/POST/PUT/DELETE
 // /api/v1/doc/:doctype), permission checks, labels/sequence/prefix config,
-// audit/system logs, the DocType Builder admin screens, and industry
-// switching.
+// audit/system logs, the Database Schema Design admin screens (DocType
+// Builder internally), and industry switching.
 
 func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")

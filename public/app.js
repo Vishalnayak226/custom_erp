@@ -1600,7 +1600,7 @@ function renderDashboard(container) {
   grid.className = 'dashboard-grid';
 
   const modules = [
-    { title: 'DocType Builder', desc: 'Build schemas and customize properties', action: () => { setActiveMenu('menu-doctype-builder'); renderView('doctype-builder'); } },
+    { title: 'Database Schema Design', desc: 'Build schemas and customize properties', action: () => { setActiveMenu('menu-doctype-builder'); renderView('doctype-builder'); } },
     { title: 'Dynamic Labels', desc: 'Configure customized nomenclature', action: () => { setActiveMenu('menu-dynamic-labels'); renderView('dynamic-labels'); } },
     { title: 'Prefix Configs', desc: 'Configure sequential transaction prefixes', action: () => { setActiveMenu('menu-prefix-configs'); renderView('prefix-configs'); } },
     { title: 'Log Hub', desc: 'Track audits, panics, and payloads', action: () => { setActiveMenu('menu-audit-logs'); renderView('audit-logs'); } }
@@ -5739,13 +5739,14 @@ window.handleDynamicFormSubmit = async function(e) {
   }
 };
 
-// Render DocType Builder UI
+// Render Database Schema Design UI (internal name still DocType Builder -
+// see docs/micro_checklist.md Stage 2.1 for the historical build record)
 async function renderDocTypeBuilderView(container) {
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">DocType Builder</h1>
+      <h1 class="page-title">Database Schema Design</h1>
       <p class="page-subtitle">Configure schema structures, define dynamic fields, and setup RBAC rules.</p>
     </div>
     <button class="btn btn-primary" onclick="openNewDoctypeModal()">
@@ -6278,7 +6279,7 @@ function renderMockModuleView(container, view) {
       </svg>
       <h2 style="font-size: 20px; font-weight: 600;">Module Setup Pending</h2>
       <p class="text-muted" style="font-size: 14px; line-height: 1.6;">
-        This transaction screen (Stage 4+) is configured. Switch to dynamic **Master Definitions** or customize attributes using the **DocType Builder**.
+        This transaction screen (Stage 4+) is configured. Switch to dynamic **Master Definitions** or customize attributes using **Database Schema Design**.
       </p>
       <button class="btn btn-secondary" onclick="setActiveMenu('menu-dashboard'); renderView('dashboard');">Back to Dashboard</button>
     </div>

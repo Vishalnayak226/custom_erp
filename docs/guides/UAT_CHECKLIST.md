@@ -46,7 +46,7 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 ## 2. Dashboard
 
 - [ ] Loads with no error, shows summary stat tiles (DocTypes Registered, Audit History Count, Active Schema Tenant, Platform Core Health).
-- [ ] Quick-launch cards (DocType Builder, Dynamic Labels, Prefix Configs, Log Hub) navigate to the right screen when clicked.
+- [ ] Quick-launch cards (Database Schema Design, Dynamic Labels, Prefix Configs, Log Hub) navigate to the right screen when clicked.
 
 ---
 
@@ -182,7 +182,7 @@ The tab bar has 9 entries, but only the first 3 are "real" PIM tabs — the othe
 
 ## 16. Master Definition (sidebar submenu)
 
-This submenu is **built dynamically** from every registered "Master" doctype, so the exact list of entries will grow over time — you're not limited to a fixed set of names. As of this checklist's last update it includes at least: Location, Legal Entity, Department, Cost Center, Employee, Item, Printer, Batch, Brand, Color, Model, Size, Style, Vendor, Customer, Channel, Product Family, Attribute Definition, Family Attribute, POS Profile, plus any custom doctypes registered via DocType Builder.
+This submenu is **built dynamically** from every registered "Master" doctype, so the exact list of entries will grow over time — you're not limited to a fixed set of names. As of this checklist's last update it includes at least: Location, Legal Entity, Department, Cost Center, Employee, Item, Printer, Batch, Brand, Color, Model, Size, Style, Vendor, Customer, Channel, Product Family, Attribute Definition, Family Attribute, POS Profile, plus any custom doctypes registered via Database Schema Design.
 
 For **each** item in the submenu:
 - [ ] Clicking it loads a table (existing records, or "No records found" if empty) with a working search box.
@@ -243,7 +243,7 @@ All four of these used to be dead links falling through to a "Module Setup Pendi
 
 ---
 
-## 22. DocType Builder
+## 22. Database Schema Design (formerly "DocType Builder" in the sidebar — same screen, renamed for a general audience; "DocType" terminology remains internally, e.g. button labels below)
 
 - [ ] Left panel lists every registered DocType; clicking one loads its field configuration on the right.
 - [ ] "Register New DocType" (prompts for name/module/type) creates a new empty doctype that then appears in the left-hand list and in **Master Definition** (§16) if registered as type "Master".

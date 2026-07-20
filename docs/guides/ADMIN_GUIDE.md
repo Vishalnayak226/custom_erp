@@ -78,7 +78,7 @@ Several things are configurable through the app's admin screens, not by editing 
 
 - **Document number formats** (invoice numbers, PO numbers, etc.) — **Prefix Configs** screen.
 - **Renaming terms** to match your industry's vocabulary (e.g. "Design Number" instead of "SKU") — **Dynamic Labels** screen.
-- **Adding new record types or custom fields** — **DocType Builder** screen (this is the same "metadata-driven" engine described in `../architecture/framework_architecture.md` — new master/transaction types don't need a code change). This is different from adding an actual *record* of an existing type (a new Vendor, a new Brand, etc.) — that's a business-user task, see [User Guide](USER_GUIDE.md) §8.
+- **Adding new record types or custom fields** — **Database Schema Design** screen (this is the same "metadata-driven" engine described in `../architecture/framework_architecture.md` — new master/transaction types don't need a code change). This is different from adding an actual *record* of an existing type (a new Vendor, a new Brand, etc.) — that's a business-user task, see [User Guide](USER_GUIDE.md) §8.
 - **Turning modules on/off per tenant** — module entitlements, admin-only.
 
 ### B.4 Where to Look When Something Seems Wrong
@@ -174,13 +174,13 @@ JWT bearer auth with expiry, TOTP MFA for privileged roles, server-side RBAC on 
 
 ### D.6 Extending the System
 
-- **New master/transaction types**: use the DocType Builder (§B.3) — no code required for the common case.
+- **New master/transaction types**: use Database Schema Design (§B.3) — no code required for the common case.
 - **New business logic**: add to `engines/` as its own file, following the existing one-file-per-module convention.
 - **3rd-party integrations**: a scoped, read-only extension framework already exists (`extension-sdk/`, self-contained, meant to be handed to an external developer) for hooking into the platform without granting full core access.
 
 ### D.7 Governance Model
 
-Per this project's own planning references: a small central team owns the core kernel and release process; module owners own their business rules and user acceptance; client/industry-specific needs are handled through configuration first (DocType Builder, feature flags), scoped extension hooks second, and a core code change only when a genuinely reusable platform capability is missing — never a per-client fork of the codebase.
+Per this project's own planning references: a small central team owns the core kernel and release process; module owners own their business rules and user acceptance; client/industry-specific needs are handled through configuration first (Database Schema Design, feature flags), scoped extension hooks second, and a core code change only when a genuinely reusable platform capability is missing — never a per-client fork of the codebase.
 
 ---
 
