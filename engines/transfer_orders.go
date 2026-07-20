@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
@@ -31,11 +32,16 @@ func parseTransferItems(itemsJSON string) ([]transferLine, error) {
 	return lines, nil
 }
 
-// DispatchTransferOrder moves an Approved TransferOrder to Dispatched: each
-// line's qty is floor-checked and moved out of the source location's
-// `available` into its `in_transit` (Stage 17.6 migration) - never received
-// out of thin air, and never dispatched twice (row-locked, status-gated).
-func DispatchTransferOrder(tenantID, transferOrderID, userID string) error {
+// PackTransferOrder (Stage 20.19) records box/carton-to-item mapping for an
+// Approved transfer order and moves it to Packed - an optional confirmation
+// step before dispatch, not a mandatory gate: DispatchTransferOrder below
+// still accepts a plain Approved order too, so this stays additive on top
+// of the already-shipped (and UAT-documented) Approved -> Dispatch flow
+// rather than a breaking change to it.
+func PackTransferOrder(tenantID, transferOrderID, userID string, boxes []map[string]interface{}) error {
+	if len(boxes) == 0 {
+		return errors.New("at least one box is required to pack a transfer order")
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
@@ -57,7 +63,75 @@ func DispatchTransferOrder(tenantID, transferOrderID, userID string) error {
 		return fmt.Errorf("transfer order not found: %v", err)
 	}
 	if status != "Approved" {
-		return fmt.Errorf("transfer order must be Approved to dispatch (current status: %s)", status)
+		return fmt.Errorf("transfer order must be Approved to pack (current status: %s)", status)
+	}
+
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return err
+	}
+	// Every box needs a box_id and at least one {sku, qty} line - malformed
+	// entries are rejected up front rather than stored and discovered later
+	// at pack-list-printing time.
+	for i, box := range boxes {
+		boxID, _ := box["box_id"].(string)
+		if boxID == "" {
+			return fmt.Errorf("box %d is missing box_id", i+1)
+		}
+		items, ok := box["items"].([]interface{})
+		if !ok || len(items) == 0 {
+			return fmt.Errorf("box %s has no items", boxID)
+		}
+	}
+
+	boxesBytes, err := json.Marshal(boxes)
+	if err != nil {
+		return err
+	}
+	data["boxes"] = string(boxesBytes)
+	data["status"] = "Packed"
+	updatedBytes, _ := json.Marshal(data)
+	if _, err := tx.Exec(fmt.Sprintf(
+		`UPDATE %s.documents SET data = $1, status = 'Packed', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'TransferOrder' AND id = $2`, schema),
+		updatedBytes, transferOrderID); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	LogAuditEvent(tenantID, userID, "PACK_TRANSFER_ORDER", "SUCCESS", fmt.Sprintf("Packed transfer order %s into %d box(es)", transferOrderID, len(boxes)))
+	return nil
+}
+
+// DispatchTransferOrder moves an Approved *or* Packed TransferOrder to
+// Dispatched: each line's qty is floor-checked and moved out of the source
+// location's `available` into its `in_transit` (Stage 17.6 migration) -
+// never received out of thin air, and never dispatched twice (row-locked,
+// status-gated).
+func DispatchTransferOrder(tenantID, transferOrderID, userID string) error {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := db.SetSearchPath(tx, schema); err != nil {
+		return err
+	}
+
+	var dataStr, status string
+	if err := tx.QueryRow(fmt.Sprintf(
+		`SELECT data, status FROM %s.documents WHERE doctype = 'TransferOrder' AND id = $1 FOR UPDATE`, schema),
+		transferOrderID).Scan(&dataStr, &status); err != nil {
+		return fmt.Errorf("transfer order not found: %v", err)
+	}
+	if status != "Approved" && status != "Packed" {
+		return fmt.Errorf("transfer order must be Approved or Packed to dispatch (current status: %s)", status)
 	}
 
 	var data map[string]interface{}

@@ -200,6 +200,7 @@ For **each** item in the submenu:
 - [ ] **Vendors**: same generic table/create/delete behavior as any Master Definition entry (it points at the same underlying screen).
 - [ ] ⚠️ **Known limitation — Stores**: clicking this currently does **not** load correctly (a naming mismatch between the menu code and the registered doctype, plus the doctype has no fields configured yet). Expect either an empty/broken screen or a load error. This is a known gap, not something to spend time debugging — note it as "confirmed still broken" and move on.
 - [ ] **POS Profiles (Stage 20.6)**: same generic table/create/delete behavior as Vendors above. Creating one (profile name, Location, default payment mode, opening cash float, status) adds it to the table. This is metadata only right now — nothing else in the app reads it yet (POS session opening still asks for the cash float directly rather than defaulting from a profile).
+- [ ] **Bin Master (Stage 20.16)**: same generic table/create/delete behavior. Creating one (bin code, Location, zone/aisle/rack, capacity, status) adds it to the table. Also metadata only — actual putaway/pick-list/condition-transition operations are backend-only right now (§24).
 
 ---
 
@@ -220,6 +221,7 @@ All four of these used to be dead links falling through to a "Module Setup Pendi
 - [ ] **Inventory**: a searchable table of current stock per SKU/location (same underlying data as Reports → Current Stock, §8, but with a client-side search box that tab doesn't have). Typing in the search box filters the table without a page reload.
 - [ ] **Transfers**: a form to create a `TransferOrder` (from/to warehouse, items) plus a list with status-appropriate action buttons. Full lifecycle: **Draft** → "Mark Approved" → **Approved** → "Dispatch" → **Dispatched** → "Receive" → **Received**. Confirm each button only appears at its correct status.
   - ⚠️ **Known limitation**: "Mark Approved" is a direct status edit, not routed through the maker-checker Approvals screen (§7) — `TransferOrder` has no `approval_rules` entry configured. This is a documented, deliberate scope decision, not a bug.
+  - [ ] **Pack (Stage 20.19, optional step)**: from **Approved**, a "Pack" button prompts for a Box ID per line item, then moves the order to **Packed** — a new status between Approved and Dispatched. "Dispatch" still works directly from Approved too (packing is optional, not a required gate); from **Packed**, only "Dispatch" appears.
 - [ ] **Users**: a "New User" form (username, password, email, role) and a table of existing users with Deactivate/Reactivate buttons. Creating a user with a duplicate username shows a clear "already taken" error, not a generic failure. You cannot deactivate your own account (should show a clear error, not silently no-op).
 - [ ] **Roles**: an "Add or Update a Grant" form (Role, Record Type, Read/Create/Update/Delete checkboxes) and a table of every currently-configured `(role, doctype)` permission. Saving a grant for a role/doctype pair that already has one updates it in place rather than duplicating the row. This is a real, live way to close gaps like Stage 18's "Store Manager/Cashier can't read Vendor/Item" finding — try granting `Store Manager` read access to `Item` here and confirm the POS SKU typeahead (§3) then starts suggesting for that role.
 
@@ -275,6 +277,7 @@ Every module and doctype in the system is accounted for somewhere in this checkl
 - **Chart of Accounts / manual GL journal entries** — GL accounts are a fixed backend table, not an editable master; Finance (§4) is view-only. No create/edit screen for either.
 - **POS Invoice, Sales Invoice, Stock Ledger Entry, GL Post** — these are records generated *by* other actions (completing a POS sale, GL postings from GST/checkout, etc.), not things you create directly through a form. Nothing to test here beyond confirming the actions that generate them work (POS §3, Finance §4).
 - **PIM: Import Job, Product Attribute Value (as its own list), PIM Product Profile** — internal/supporting records for the PIM flows already covered in §15; no separate screen of their own.
+- **Putaway, bin-grouped pick lists, bin condition transitions (Damaged/QC-Hold/RTV), cycle counts** — Stage 20 Track B.2 WMS backend (`/api/v1/wms/*`). Bin *master data* has a screen (§17); actually assigning stock to a bin, generating a pick list, moving stock between conditions, or reconciling a cycle count are all backend/API-only right now. `CycleCountLine` rows are created via the same "Bulk Import" flow any master/transaction table supports (§16) - just no dedicated WMS screen wraps the putaway/pick-list/condition/reconcile actions yet.
 
 ---
 

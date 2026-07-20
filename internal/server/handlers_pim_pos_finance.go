@@ -736,6 +736,16 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Stage 20.22: a cycle-count variance never adjusted inventory at
+	// reconcile time - only an Approved decision actually posts it, same
+	// finalize-on-approve pattern as POSCart's discount gate just above.
+	if req.Doctype == "CycleCountLine" && req.Decision == "Approved" {
+		if finalizeErr := engines.PostCycleCountAdjustment(tenantID, req.DocumentID); finalizeErr != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Approved but failed to post the adjustment: %v", finalizeErr)})
+			return
+		}
+	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "decided", "decision": req.Decision})
 }
 

@@ -302,8 +302,10 @@ func ListPendingApprovals(tenantID, role, location string) ([]map[string]interfa
 // discount percentage, not the cart's rupee total, so handleCheckout stores
 // the discount percentage under this key rather than "amount"/"total_amount"
 // to avoid colliding with those keys' rupee-amount meaning on other doctypes.
+// "variance_qty" is CycleCountLine-specific (Stage 20.22): routes on the
+// absolute quantity variance, not a rupee amount.
 func extractAmount(data map[string]interface{}) float64 {
-	for _, key := range []string{"total_amount", "amount", "discount_amount"} {
+	for _, key := range []string{"total_amount", "amount", "discount_amount", "variance_qty"} {
 		if v, ok := data[key]; ok {
 			switch n := v.(type) {
 			case float64:

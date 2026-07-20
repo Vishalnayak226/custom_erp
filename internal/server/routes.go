@@ -87,6 +87,14 @@ func Run() {
 	http.HandleFunc("GET /api/v1/availability", apiMiddleware(handleGetAvailability))
 	http.HandleFunc("POST /api/v1/reserve", apiMiddleware(handleCreateReservation))
 
+	// WMS Maturity (Stage 20 Track B.2): putaway, bin-grouped pick lists,
+	// transfer-order pack/box-mapping, cycle-count reconciliation
+	http.HandleFunc("POST /api/v1/wms/putaway", apiMiddleware(handlePutaway))
+	http.HandleFunc("GET /api/v1/wms/pick-list", apiMiddleware(handlePickList))
+	http.HandleFunc("POST /api/v1/wms/condition-transition", apiMiddleware(handleBinConditionTransition))
+	http.HandleFunc("POST /api/v1/wms/transfer/pack", apiMiddleware(handlePackTransferOrder))
+	http.HandleFunc("POST /api/v1/wms/cycle-count/reconcile", apiMiddleware(handleReconcileCycleCount))
+
 	// Checkout & Finance APIs
 	http.HandleFunc("POST /api/v1/checkout", apiMiddleware(handleCheckout))
 	http.HandleFunc("POST /api/v1/pos/session/open", apiMiddleware(handlePOSSessionOpen))

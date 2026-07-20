@@ -868,6 +868,9 @@ function setupEventListeners() {
   // POS Profile (Stage 20.6) - same generic doctype-table pattern as Vendors/Stores above.
   document.getElementById('menu-pos-profiles').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-profiles'); closeSubmenus(); currentDoctype = 'POSProfile'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
+  // Bin (Stage 20.16) - same generic doctype-table pattern as POS Profile/Vendors/Stores above.
+  document.getElementById('menu-bins').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-bins'); closeSubmenus(); currentDoctype = 'Bin'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+
   ['menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
@@ -4257,12 +4260,53 @@ function renderTransferActions(t) {
     return `<button class="action-btn" onclick="approveTransferOrder('${t.id}')">Mark Approved</button>`;
   }
   if (t.status === 'Approved') {
+    // Pack (Stage 20.19) is an optional confirmation step, not a required
+    // gate - Dispatch stays available directly from Approved too.
+    return `<button class="action-btn" onclick="packTransferOrder('${t.id}')">Pack</button> <button class="action-btn" onclick="dispatchTransferOrder('${t.id}')">Dispatch</button>`;
+  }
+  if (t.status === 'Packed') {
     return `<button class="action-btn" onclick="dispatchTransferOrder('${t.id}')">Dispatch</button>`;
   }
   if (t.status === 'Dispatched') {
     return `<button class="action-btn" onclick="receiveTransferOrder('${t.id}')">Receive</button>`;
   }
   return '';
+}
+
+// Prompts for a Box ID per line item (same sequential-prompt pattern
+// receiveTransferOrder below uses for received qty), grouping items that
+// share a Box ID into one box before submitting - covers both "one box per
+// SKU" and "everything in one box" without a bespoke multi-box form.
+async function packTransferOrder(id) {
+  const row = state.docData.find(t => t.id === id);
+  if (!row) return;
+  let lines = [];
+  try { lines = JSON.parse(row.items || '[]'); } catch (e) { lines = []; }
+  if (lines.length === 0) {
+    await showCustomAlert('No line items found on this transfer.', 'Error');
+    return;
+  }
+
+  const boxByItem = {};
+  for (const line of lines) {
+    const boxId = await showCustomPrompt(`Box ID for ${line.sku} (qty ${line.qty}):`, 'BOX1');
+    if (boxId === null) return;
+    if (!boxByItem[boxId]) boxByItem[boxId] = [];
+    boxByItem[boxId].push({ sku: line.sku, qty: line.qty });
+  }
+  const boxes = Object.keys(boxByItem).map(boxId => ({ box_id: boxId, items: boxByItem[boxId] }));
+
+  const res = await apiFetch('/api/v1/wms/transfer/pack', {
+    method: 'POST',
+    body: JSON.stringify({ transfer_order_id: id, boxes })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showCustomAlert(data.error || 'Failed to pack transfer.', 'Pack Failed');
+    return;
+  }
+  renderView('transfers');
 }
 
 // The generic doc engine's POST-with-id update replaces the whole `data`
