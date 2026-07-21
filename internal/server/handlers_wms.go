@@ -26,11 +26,11 @@ func handlePutaway(w http.ResponseWriter, r *http.Request) {
 		Qty     int    `json:"qty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BinCode == "" || req.Sku == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'bin_code' and 'sku' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'bin_code' and 'sku' are required")
 		return
 	}
 	if err := engines.PutawayToBin(tenantID, req.BinCode, req.Sku, req.Qty, userID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
@@ -44,12 +44,12 @@ func handlePickList(w http.ResponseWriter, r *http.Request) {
 	}
 	taskID := r.URL.Query().Get("task_id")
 	if taskID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameter 'task_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameter 'task_id' is required")
 		return
 	}
 	lines, err := engines.GenerateBinPickList(tenantID, taskID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	if lines == nil {
@@ -73,11 +73,11 @@ func handleBinConditionTransition(w http.ResponseWriter, r *http.Request) {
 		ToCondition   string `json:"to_condition"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BinCode == "" || req.Sku == "" || req.FromCondition == "" || req.ToCondition == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'bin_code', 'sku', 'from_condition', and 'to_condition' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'bin_code', 'sku', 'from_condition', and 'to_condition' are required")
 		return
 	}
 	if err := engines.TransitionBinStockCondition(tenantID, req.BinCode, req.Sku, req.Qty, req.FromCondition, req.ToCondition, userID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
@@ -95,11 +95,11 @@ func handlePackTransferOrder(w http.ResponseWriter, r *http.Request) {
 		Boxes           []map[string]interface{} `json:"boxes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TransferOrderID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'transfer_order_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'transfer_order_id' is required")
 		return
 	}
 	if err := engines.PackTransferOrder(tenantID, req.TransferOrderID, userID, req.Boxes); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Packed"})
@@ -117,12 +117,12 @@ func handleReconcileCycleCount(w http.ResponseWriter, r *http.Request) {
 		CountSession string `json:"count_session"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.CountSession == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'count_session' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'count_session' is required")
 		return
 	}
 	posted, pendingApproval, err := engines.ReconcileCycleCount(tenantID, req.CountSession, userID, role)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{

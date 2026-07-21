@@ -137,22 +137,40 @@ function showCustomPrompt(message, defaultValue = '', title = 'Input Required') 
 async function getErrorDetails(res, fallback) {
   try {
     const data = await res.clone().json();
-    if (data && data.error) return { message: data.error, code: data.code || '' };
+    if (data && data.error) return { message: data.error, code: data.code || '', displayStyle: data.display_style || '' };
   } catch (e) {
     // Body wasn't JSON (a call site not yet migrated to the standardized
     // envelope) - fall through to the fallback message.
   }
-  return { message: fallback, code: '' };
+  return { message: fallback, code: '', displayStyle: '' };
 }
 
 async function getErrorMessage(res, fallback) {
   return (await getErrorDetails(res, fallback)).message;
 }
 
-async function showApiError(res, fallback) {
-  const { message, code } = await getErrorDetails(res, fallback);
+// Stage 23.8: dispatches by the catalog's own display_style instead of
+// always showing the blocking modal. Only "Toast" and "Page banner" are
+// generic enough to render without knowing which field/form the error
+// belongs to (Inline field message, Modal popup, etc. all keep the modal
+// fallback here - see apierror.go's apiErrorBody comment). title is only
+// used by the modal fallback, so existing callers passing just (res,
+// fallback) are unaffected.
+async function showApiError(res, fallback, title = 'Error') {
+  const { message, code, displayStyle } = await getErrorDetails(res, fallback);
   if (code) console.debug(`[API error] ${code}`);
-  await showCustomAlert(message, 'Error');
+  if (displayStyle === 'Toast') {
+    showToast(message, { variant: 'warning' });
+    return;
+  }
+  if (displayStyle === 'Page banner') {
+    const container = document.getElementById('view-root');
+    if (container) {
+      renderPageBanner(container, message);
+      return;
+    }
+  }
+  await showCustomAlert(message, title);
 }
 
 // Inline centered retry panel for full-page load failures, so a failed GET
@@ -1647,9 +1665,8 @@ window.setUserStatus = async function(id, status) {
     body: JSON.stringify({ id, status })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || `Failed to ${verb} user.`, 'Error');
+    await showApiError(res, `Failed to ${verb} user.`);
     return;
   }
   renderView('users');
@@ -1665,9 +1682,8 @@ window.setUserLocation = async function(id, currentLocation) {
     body: JSON.stringify({ id, location_code: location_code.trim() })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to update user location.', 'Error');
+    await showApiError(res, 'Failed to update user location.');
     return;
   }
   renderView('users');
@@ -1768,9 +1784,8 @@ async function saveRoleGrant() {
     })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to save grant.', 'Error');
+    await showApiError(res, 'Failed to save grant.');
     return;
   }
   renderView('roles');
@@ -2141,9 +2156,8 @@ async function openPOSSessionFlow() {
     body: JSON.stringify({ location: posLocation, opening_cash: isNaN(opening) ? 0 : opening })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to open session.', 'Error');
+    await showApiError(res, 'Failed to open session.');
     return;
   }
   await refreshPOSSessionStatus();
@@ -2159,9 +2173,8 @@ async function closePOSSessionFlow() {
     body: JSON.stringify({ session_id: posOpenSessionId, counted_cash: isNaN(counted) ? 0 : counted })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to close session.', 'Error');
+    await showApiError(res, 'Failed to close session.');
     return;
   }
   await showCustomAlert(`Session closed. Expected: ${data.expected_cash.toFixed(2)}, Counted: ${data.counted_cash.toFixed(2)}, Variance: ${data.variance.toFixed(2)}`, 'Session Closed');
@@ -4556,9 +4569,8 @@ async function selectWinningQuote(rfqId, quoteId) {
     body: JSON.stringify({ rfq_id: rfqId, quote_id: quoteId })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to select winning quote.', 'Selection Failed');
+    await showApiError(res, 'Failed to select winning quote.', 'Selection Failed');
     return;
   }
   renderView('rfq');
@@ -5021,7 +5033,7 @@ async function decideLeave(leaveId, decision) {
   const getRes = await apiFetch(`/api/v1/doc/Leave/${encodeURIComponent(leaveId)}`);
   if (!getRes) return;
   if (!getRes.ok) {
-    await showCustomAlert('Failed to load leave record.', 'Update Failed');
+    await showApiError(getRes, 'Failed to load leave record.', 'Update Failed');
     return;
   }
   const leave = await getRes.json();
@@ -5032,9 +5044,8 @@ async function decideLeave(leaveId, decision) {
     body: JSON.stringify(leave)
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to update leave status.', 'Update Failed');
+    await showApiError(res, 'Failed to update leave status.', 'Update Failed');
     return;
   }
   renderView('hr');
@@ -5257,9 +5268,8 @@ async function capitalizeAsset(assetId) {
     body: JSON.stringify({ asset_id: assetId })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to capitalise asset.', 'Capitalisation Failed');
+    await showApiError(res, 'Failed to capitalise asset.', 'Capitalisation Failed');
     return;
   }
   renderView('assets');
@@ -5275,9 +5285,8 @@ async function promptTransferAsset(assetId) {
     body: JSON.stringify({ asset_id: assetId, new_location: newLocation, new_custodian: newCustodian })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to transfer asset.', 'Transfer Failed');
+    await showApiError(res, 'Failed to transfer asset.', 'Transfer Failed');
     return;
   }
   renderView('assets');
@@ -5294,9 +5303,8 @@ async function promptDisposeAsset(assetId) {
     body: JSON.stringify({ asset_id: assetId, disposal_type: disposalType })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to dispose asset.', 'Disposal Failed');
+    await showApiError(res, 'Failed to dispose asset.', 'Disposal Failed');
     return;
   }
   renderView('assets');
@@ -5522,9 +5530,8 @@ async function packTransferOrder(id) {
     body: JSON.stringify({ transfer_order_id: id, boxes })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to pack transfer.', 'Pack Failed');
+    await showApiError(res, 'Failed to pack transfer.', 'Pack Failed');
     return;
   }
   renderView('transfers');
@@ -5557,9 +5564,8 @@ async function dispatchTransferOrder(id) {
     body: JSON.stringify({ transfer_order_id: id })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to dispatch transfer.', 'Dispatch Failed');
+    await showApiError(res, 'Failed to dispatch transfer.', 'Dispatch Failed');
     return;
   }
   renderView('transfers');
@@ -5592,9 +5598,8 @@ async function receiveTransferOrder(id) {
     body: JSON.stringify({ transfer_order_id: id, received_items: receivedItems })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to receive transfer.', 'Receive Failed');
+    await showApiError(res, 'Failed to receive transfer.', 'Receive Failed');
     return;
   }
   renderView('transfers');
@@ -5783,9 +5788,8 @@ async function submitExpenseForApproval(claimId) {
     body: JSON.stringify({ doctype: 'ExpenseClaim', document_id: claimId })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to submit for approval.', 'Submit Failed');
+    await showApiError(res, 'Failed to submit for approval.', 'Submit Failed');
     return;
   }
   renderView('expenses');
@@ -5797,9 +5801,8 @@ async function verifyExpenseClaim(claimId) {
     body: JSON.stringify({ claim_id: claimId })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to verify claim.', 'Verification Failed');
+    await showApiError(res, 'Failed to verify claim.', 'Verification Failed');
     return;
   }
   renderView('expenses');
@@ -5814,9 +5817,8 @@ async function payExpenseClaim(claimId) {
     body: JSON.stringify({ claim_id: claimId })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to pay claim.', 'Payment Failed');
+    await showApiError(res, 'Failed to pay claim.', 'Payment Failed');
     return;
   }
   renderView('expenses');
@@ -6023,9 +6025,8 @@ async function issueProductionMaterial(orderId) {
     body: JSON.stringify({ order_id: orderId })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to issue material.', 'Material Issue Failed');
+    await showApiError(res, 'Failed to issue material.', 'Material Issue Failed');
     return;
   }
   renderView('manufacturing');
@@ -6040,9 +6041,8 @@ async function completeProductionOrder(orderId) {
     body: JSON.stringify({ order_id: orderId })
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    await showCustomAlert(data.error || 'Failed to complete production order.', 'Completion Failed');
+    await showApiError(res, 'Failed to complete production order.', 'Completion Failed');
     return;
   }
   renderView('manufacturing');

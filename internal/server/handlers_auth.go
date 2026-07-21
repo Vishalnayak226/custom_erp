@@ -21,7 +21,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 		return
 	}
 
@@ -181,7 +181,7 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 		Code string `json:"code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 		return
 	}
 
@@ -190,7 +190,7 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 
 	_, secret, err := engines.GetUserMFAStatus(tenantID, userID)
 	if err != nil || secret == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "No pending MFA enrollment found - call /api/v1/auth/mfa/enroll first")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "No pending MFA enrollment found - call /api/v1/auth/mfa/enroll first")
 		return
 	}
 	if !engines.VerifyTOTPCode(secret, req.Code) {
@@ -223,7 +223,7 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		Code string `json:"code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 		return
 	}
 
@@ -232,7 +232,7 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 
 	enabled, secret, err := engines.GetUserMFAStatus(tenantID, userID)
 	if err != nil || !enabled || secret == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "MFA is not enrolled for this account")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "MFA is not enrolled for this account")
 		return
 	}
 	if !engines.VerifyTOTPCode(secret, req.Code) {

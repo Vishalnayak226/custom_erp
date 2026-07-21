@@ -201,7 +201,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				if !safeFilterKeyRe.MatchString(key) {
-					writeAPIErrorGeneric(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid filter parameter name: %q", key))
+					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Invalid filter parameter name: %q", key))
 					return
 				}
 				query += fmt.Sprintf(" AND data->>'%s' = $%d", key, argIndex)
@@ -288,7 +288,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		var payload map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload JSON")
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload JSON")
 			return
 		}
 		if err := engines.RejectRestrictedFieldWrites(tenantID, role, doctype, payload); err != nil {
@@ -299,7 +299,15 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// 2. Server-side metadata validation engine check
 		err = engines.ValidateDocument(tenantID, doctype, payload)
 		if err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+			// Stage 25: ValidateDocument attaches a precise catalog code for
+			// its known scenarios (mandatory/format/select/link, shared
+			// across every doctype); anything else (metadata lookup
+			// failure, etc.) falls back to generic, same as before.
+			if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
+				writeAPIError(w, r, verr.Code, verr.SubFor)
+			} else {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+			}
 			return
 		}
 
@@ -308,7 +316,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// later edits to an existing one.
 		if doctype == "ExpenseClaim" && id == "" {
 			if err := engines.ValidateExpenseClaimControls(tenantID, payload); err != nil {
-				writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 				return
 			}
 		}
@@ -329,7 +337,30 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if err := engines.ValidateItemVariantUniqueness(tenantID, effectiveID, payload); err != nil {
-				writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+				return
+			}
+			if err := engines.ValidateMasterDataRules(tenantID, effectiveID, doctype, payload); err != nil {
+				if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
+					writeAPIError(w, r, verr.Code, verr.SubFor)
+				} else {
+					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+				}
+				return
+			}
+		}
+
+		// Master Data field-format rules (Stage 25 Batch 2): Vendor/Customer
+		// don't need the id-resolution dance above (their checks are
+		// format-only, no cross-row query), so they're not folded into the
+		// Item block.
+		if doctype == "Vendor" || doctype == "Customer" {
+			if err := engines.ValidateMasterDataRules(tenantID, id, doctype, payload); err != nil {
+				if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
+					writeAPIError(w, r, verr.Code, verr.SubFor)
+				} else {
+					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+				}
 				return
 			}
 		}
@@ -341,7 +372,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		if doctype == "PurchaseOrder" {
 			breakdown, errGST := engines.ComputePurchaseOrderGST(tenantID, payload)
 			if errGST != nil {
-				writeAPIErrorGeneric(w, r, http.StatusBadRequest, errGST.Error())
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, errGST.Error())
 				return
 			}
 			payload["gst_breakdown"] = breakdown
@@ -363,7 +394,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if err := engines.ValidateLocationReference(tenantID, locCode); err != nil {
-				writeAPIErrorGeneric(w, r, http.StatusBadRequest, fmt.Sprintf("field %q: %v", field, err))
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("field %q: %v", field, err))
 				return
 			}
 		}
@@ -501,7 +532,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					// check below just skipped posting) - the GRN would
 					// have saved successfully with zero stock effect and no
 					// indication anything was wrong. Reject it instead.
-					writeAPIErrorGeneric(w, r, http.StatusBadRequest, fmt.Sprintf("received_items is not valid JSON: %v", err))
+					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("received_items is not valid JSON: %v", err))
 					return
 				}
 			}
@@ -530,7 +561,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodDelete:
 		if id == "" {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Document ID is required")
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Document ID is required")
 			return
 		}
 
@@ -545,7 +576,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if documentType == "Transaction" && status == "Approved" {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Approved transactional documents cannot be deleted")
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Approved transactional documents cannot be deleted")
 			return
 		}
 		_, err = db.DB.Exec(fmt.Sprintf("UPDATE %s.documents SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND doctype = $2 AND deleted_at IS NULL", schema), id, doctype)
@@ -617,11 +648,11 @@ func handleLabels(w http.ResponseWriter, r *http.Request) {
 			CustomText   string `json:"custom_text"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
 			return
 		}
 		if req.OriginalText == "" || req.CustomText == "" {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields original_text and custom_text are required")
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields original_text and custom_text are required")
 			return
 		}
 
@@ -639,7 +670,7 @@ func handleLabels(w http.ResponseWriter, r *http.Request) {
 		}
 		orig := r.URL.Query().Get("original_text")
 		if orig == "" {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameter original_text is required")
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameter original_text is required")
 			return
 		}
 
@@ -675,11 +706,11 @@ func handleSequence(w http.ResponseWriter, r *http.Request) {
 		FinancialYear string `json:"financial_year"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
 		return
 	}
 	if req.DocType == "" || req.FinancialYear == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "doc_type and financial_year are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "doc_type and financial_year are required")
 		return
 	}
 
@@ -748,11 +779,11 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 			ActiveStatus   bool   `json:"active_status"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
 			return
 		}
 		if !validResetFrequencies[req.ResetFrequency] {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "reset_frequency must be one of ANNUAL, MONTHLY, NEVER")
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "reset_frequency must be one of ANNUAL, MONTHLY, NEVER")
 			return
 		}
 
@@ -913,7 +944,7 @@ func handleReactivateMasterDocument(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if documentType != "Master" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Only master documents can be reactivated")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Only master documents can be reactivated")
 		return
 	}
 	result, err := db.DB.Exec(fmt.Sprintf("UPDATE %s.documents SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND doctype = $2 AND deleted_at IS NOT NULL", schema), id, doctype)
@@ -968,7 +999,7 @@ func handleSaveDocType(w http.ResponseWriter, r *http.Request) {
 		DocumentType string `json:"document_type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
 		return
 	}
 
@@ -986,7 +1017,7 @@ func handleSaveFieldDefinition(w http.ResponseWriter, r *http.Request) {
 
 	var req engines.FieldMeta
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
 		return
 	}
 
@@ -1037,11 +1068,11 @@ func handleSwitchIndustry(w http.ResponseWriter, r *http.Request) {
 		IndustryCode string `json:"industry_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
 		return
 	}
 	if !validIndustryCodes[strings.ToUpper(req.IndustryCode)] {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Unknown industry_code")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Unknown industry_code")
 		return
 	}
 

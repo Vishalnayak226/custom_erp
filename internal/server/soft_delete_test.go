@@ -44,7 +44,7 @@ func TestGenericSoftDeleteAndMasterReactivation(t *testing.T) {
 	if rec := request(http.MethodGet, "/api/v1/doc/Brand/"+brandID); rec.Code != http.StatusOK {
 		t.Fatalf("reactivated Brand GET status=%d", rec.Code)
 	}
-	if rec := request(http.MethodDelete, "/api/v1/doc/ProductContent/"+contentID); rec.Code != http.StatusBadRequest {
-		t.Fatalf("approved transaction delete status=%d, want 400", rec.Code)
+	if rec := request(http.MethodDelete, "/api/v1/doc/ProductContent/"+contentID); rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("approved transaction delete status=%d, want 422", rec.Code)
 	}
 }

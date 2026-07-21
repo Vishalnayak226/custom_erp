@@ -270,11 +270,17 @@ func featureGate(featureName string, next http.HandlerFunc) http.HandlerFunc {
 		tenantID := r.Header.Get("Resolved-Tenant-ID")
 		enabled, _ := engines.IsFeatureEnabled(tenantID, featureName)
 		if !enabled {
-			// The matrix's SAAS-0192 "Feature flag disabled" row specifies a
-			// soft 200/inline response, but this gate fails closed with 403
-			// by design (security posture, not a messaging choice) - kept as
-			// a generic-coded 403 rather than silently changing that
-			// behavior. See docs/specs/message_catalog.md's noted conflict.
+			// Decided (docs/micro_checklist.md 23.13): the matrix's SAAS-0192
+			// "Feature flag disabled" row specifies a soft 200/inline
+			// response, but this gate deliberately keeps failing closed with
+			// 403. A disabled-feature request is exactly the kind of
+			// authorization check that should never look like success to a
+			// caller that didn't pass it - a soft 200 here would mean every
+			// caller (including this codebase's own frontend fetch helpers,
+			// which treat any 2xx as "request succeeded") has to separately
+			// inspect the body to discover the action never ran, which is a
+			// worse and more error-prone contract than a plain 403. Kept as
+			// a generic-coded 403 rather than adopting the matrix's row.
 			writeAPIErrorGeneric(w, r, http.StatusForbidden, fmt.Sprintf("Feature '%s' is disabled for this tenant", featureName))
 			return
 		}

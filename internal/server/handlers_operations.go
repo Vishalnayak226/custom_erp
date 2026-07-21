@@ -46,11 +46,11 @@ func handleCapitalizeAsset(w http.ResponseWriter, r *http.Request) {
 		AssetID string `json:"asset_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.AssetID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'asset_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'asset_id' is required")
 		return
 	}
 	if err := engines.CapitalizeAsset(tenantID, req.AssetID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "ASSET_CAPITALIZE", "SUCCESS", fmt.Sprintf("Asset %s capitalised", req.AssetID))
@@ -70,11 +70,11 @@ func handleTransferAsset(w http.ResponseWriter, r *http.Request) {
 		NewCustodian string `json:"new_custodian"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.AssetID == "" || req.NewLocation == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'asset_id' and 'new_location' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'asset_id' and 'new_location' are required")
 		return
 	}
 	if err := engines.TransferAsset(tenantID, req.AssetID, req.NewLocation, req.NewCustodian, username); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "transferred"})
@@ -92,11 +92,11 @@ func handleDisposeAsset(w http.ResponseWriter, r *http.Request) {
 		DisposalType string `json:"disposal_type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.AssetID == "" || req.DisposalType == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'asset_id' and 'disposal_type' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'asset_id' and 'disposal_type' are required")
 		return
 	}
 	if err := engines.DisposeAsset(tenantID, req.AssetID, req.DisposalType); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "ASSET_DISPOSE", "SUCCESS", fmt.Sprintf("Asset %s disposed (%s)", req.AssetID, req.DisposalType))
@@ -118,11 +118,11 @@ func handleVerifyExpenseClaim(w http.ResponseWriter, r *http.Request) {
 		ClaimID string `json:"claim_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ClaimID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'claim_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'claim_id' is required")
 		return
 	}
 	if err := engines.VerifyExpenseClaim(tenantID, req.ClaimID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "EXPENSE_VERIFY", "SUCCESS", fmt.Sprintf("Expense claim %s finance-verified", req.ClaimID))
@@ -140,12 +140,12 @@ func handlePayExpenseClaim(w http.ResponseWriter, r *http.Request) {
 		ClaimID string `json:"claim_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ClaimID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'claim_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'claim_id' is required")
 		return
 	}
 	payable, err := engines.PayExpenseClaim(tenantID, req.ClaimID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "EXPENSE_PAY", "SUCCESS", fmt.Sprintf("Expense claim %s paid, payable_amount=%d", req.ClaimID, payable))
@@ -168,12 +168,12 @@ func handleRedeemLoyaltyPoints(w http.ResponseWriter, r *http.Request) {
 		ReferenceID string `json:"reference_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.CustomerID == "" || req.Points <= 0 {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'customer_id' and a positive 'points' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'customer_id' and a positive 'points' are required")
 		return
 	}
 	discountValue, err := engines.RedeemLoyaltyPoints(tenantID, req.CustomerID, req.Points, req.ReferenceID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"discount_value": discountValue})
@@ -187,7 +187,7 @@ func handleLoyaltyLedger(w http.ResponseWriter, r *http.Request) {
 	}
 	customerID := r.URL.Query().Get("customer_id")
 	if customerID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameter 'customer_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameter 'customer_id' is required")
 		return
 	}
 	balance, err := engines.GetLoyaltyBalance(tenantID, customerID)
@@ -222,11 +222,11 @@ func handleIssueProductionMaterial(w http.ResponseWriter, r *http.Request) {
 		OrderID string `json:"order_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.OrderID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'order_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'order_id' is required")
 		return
 	}
 	if err := engines.IssueProductionMaterial(tenantID, req.OrderID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "PRODUCTION_MATERIAL_ISSUE", "SUCCESS", fmt.Sprintf("Material issued for production order %s", req.OrderID))
@@ -244,11 +244,11 @@ func handleCompleteProductionOrder(w http.ResponseWriter, r *http.Request) {
 		OrderID string `json:"order_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.OrderID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'order_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'order_id' is required")
 		return
 	}
 	if err := engines.CompleteProductionOrder(tenantID, req.OrderID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "PRODUCTION_ORDER_COMPLETE", "SUCCESS", fmt.Sprintf("Production order %s completed, finished goods received", req.OrderID))
@@ -264,7 +264,7 @@ func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Failed to read request body")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Failed to read request body")
 		return
 	}
 	if !verifyShopifyWebhookSignature(r, body) {
@@ -278,12 +278,12 @@ func handleShopifyProductMap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.Unmarshal(body, &req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid mapping payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid mapping payload")
 		return
 	}
 
 	if req.Sku == "" || req.ChannelSku == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'sku' and 'channel_sku' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'sku' and 'channel_sku' are required")
 		return
 	}
 
@@ -309,7 +309,7 @@ func handleShopifyOrderWebhook(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Failed to read request body")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Failed to read request body")
 		return
 	}
 	if !verifyShopifyWebhookSignature(r, body) {
@@ -326,12 +326,12 @@ func handleShopifyOrderWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.Unmarshal(body, &req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid webhook payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid webhook payload")
 		return
 	}
 
 	if req.ID == "" || len(req.LineItems) == 0 {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'id' and 'line_items' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'id' and 'line_items' are required")
 		return
 	}
 
@@ -354,7 +354,7 @@ func handleShopifyOrderWebhook(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -377,18 +377,18 @@ func handleFulfillmentTaskTransition(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid transition payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid transition payload")
 		return
 	}
 
 	if req.TaskID == "" || req.Status == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'task_id' and 'status' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'task_id' and 'status' are required")
 		return
 	}
 
 	err := engines.TransitionTaskStatus(tenantID, req.TaskID, req.Status)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -418,12 +418,12 @@ func handleFulfillmentReturn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid return payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid return payload")
 		return
 	}
 
 	if req.ReturnLocation == "" || req.OriginalOrderID == "" || len(req.Items) == 0 {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'return_location', 'original_order_id', and 'items' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'return_location', 'original_order_id', and 'items' are required")
 		return
 	}
 
@@ -472,11 +472,11 @@ func handleDispatchTransferOrder(w http.ResponseWriter, r *http.Request) {
 		TransferOrderID string `json:"transfer_order_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TransferOrderID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'transfer_order_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'transfer_order_id' is required")
 		return
 	}
 	if err := engines.DispatchTransferOrder(tenantID, req.TransferOrderID, userID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Dispatched", "transfer_order_id": req.TransferOrderID})
@@ -497,7 +497,7 @@ func handleReceiveTransferOrder(w http.ResponseWriter, r *http.Request) {
 		} `json:"received_items"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TransferOrderID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'transfer_order_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'transfer_order_id' is required")
 		return
 	}
 	itemsInterface := make([]interface{}, len(req.ReceivedItems))
@@ -505,7 +505,7 @@ func handleReceiveTransferOrder(w http.ResponseWriter, r *http.Request) {
 		itemsInterface[i] = map[string]interface{}{"sku": item.Sku, "qty": item.Qty}
 	}
 	if err := engines.ReceiveTransferOrder(tenantID, req.TransferOrderID, userID, itemsInterface); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Received", "transfer_order_id": req.TransferOrderID})
@@ -525,12 +525,12 @@ func handleConvertRequisition(w http.ResponseWriter, r *http.Request) {
 		FinancialYear string `json:"financial_year"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RequisitionID == "" || req.Target == "" || req.StoreCode == "" || req.FinancialYear == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'requisition_id', 'target', 'store_code', and 'financial_year' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'requisition_id', 'target', 'store_code', and 'financial_year' are required")
 		return
 	}
 	newID, err := engines.ConvertRequisitionToOrder(tenantID, req.RequisitionID, req.Target, req.StoreCode, req.FinancialYear, userID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "converted", "requisition_id": req.RequisitionID, "target": req.Target, "new_document_id": newID})
@@ -549,12 +549,12 @@ func handleMatchVendorInvoice(w http.ResponseWriter, r *http.Request) {
 		TolerancePercent float64 `json:"tolerance_percent"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.InvoiceID == "" || req.POID == "" || req.GRNID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'invoice_id', 'po_id', and 'grn_id' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'invoice_id', 'po_id', and 'grn_id' are required")
 		return
 	}
 	matched, err := engines.Match3Way(tenantID, req.POID, req.GRNID, req.InvoiceID, req.TolerancePercent)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	status := "MismatchHold"
@@ -577,12 +577,12 @@ func handlePayVendorInvoice(w http.ResponseWriter, r *http.Request) {
 		OverrideReason string `json:"override_reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.InvoiceID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'invoice_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'invoice_id' is required")
 		return
 	}
 	amountPaid, pendingApproval, err := engines.PayVendorInvoice(tenantID, req.InvoiceID, userID, role, req.OverrideReason)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	// 24.11: an override no longer pays inline - it's routed to the approval
@@ -609,12 +609,12 @@ func handleScaleTest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid scale test parameters")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid scale test parameters")
 		return
 	}
 
 	if req.NumStores <= 0 || req.NumWorkers <= 0 || req.NumTransactions <= 0 {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Parameters 'num_stores', 'num_workers', and 'num_transactions' must be positive integers")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Parameters 'num_stores', 'num_workers', and 'num_transactions' must be positive integers")
 		return
 	}
 
@@ -652,18 +652,18 @@ func handleMarketplaceReconcile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid reconciliation payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid reconciliation payload")
 		return
 	}
 
 	if req.SettlementID == "" || req.Channel == "" || req.TotalSale <= 0 {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'settlement_id', 'channel', and positive 'total_sale' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'settlement_id', 'channel', and positive 'total_sale' are required")
 		return
 	}
 
 	err := engines.ProcessMarketplaceSettlement(tenantID, req.Channel, req.SettlementID, req.TotalSale, req.Commission, req.NetPayout, req.OrderIDs)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -689,12 +689,12 @@ func handleLogisticsBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid logistics payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid logistics payload")
 		return
 	}
 
 	if req.OrderID == "" || req.Carrier == "" || req.TrackingNumber == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'order_id', 'carrier', and 'tracking_number' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'order_id', 'carrier', and 'tracking_number' are required")
 		return
 	}
 
@@ -720,7 +720,7 @@ func handleReplenishmentSuggestions(w http.ResponseWriter, r *http.Request) {
 
 	locCode := r.URL.Query().Get("location_code")
 	if locCode == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameter 'location_code' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameter 'location_code' is required")
 		return
 	}
 
@@ -778,12 +778,12 @@ func handleDemandForecast(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid forecasting payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid forecasting payload")
 		return
 	}
 
 	if req.LocationCode == "" || req.SKU == "" || req.ForecastDays <= 0 {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'location_code', 'sku', and positive 'forecast_days' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'location_code', 'sku', and positive 'forecast_days' are required")
 		return
 	}
 

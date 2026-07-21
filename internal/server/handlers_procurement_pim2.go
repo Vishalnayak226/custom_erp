@@ -24,7 +24,7 @@ func handleGetVendorQuotesForRFQ(w http.ResponseWriter, r *http.Request) {
 	}
 	rfqID := r.URL.Query().Get("rfq_id")
 	if rfqID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameter 'rfq_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameter 'rfq_id' is required")
 		return
 	}
 	results, err := engines.GetVendorQuotesForRFQ(tenantID, rfqID)
@@ -49,11 +49,11 @@ func handleSelectWinningQuote(w http.ResponseWriter, r *http.Request) {
 		QuoteID string `json:"quote_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RfqID == "" || req.QuoteID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'rfq_id' and 'quote_id' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'rfq_id' and 'quote_id' are required")
 		return
 	}
 	if err := engines.SelectWinningQuote(tenantID, req.RfqID, req.QuoteID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "selected"})
@@ -77,16 +77,16 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 		Copies        int      `json:"copies"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 		return
 	}
 	if req.PrinterCode == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'printer_code' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'printer_code' is required")
 		return
 	}
 	labels, err := engines.PrintStickers(tenantID, req.Skus, req.PrinterCode, userID, req.ReprintReason, req.Copies)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "PRINT_STICKERS", "SUCCESS", fmt.Sprintf("Printed %d sticker(s) on %s", len(labels), req.PrinterCode))
@@ -121,7 +121,7 @@ func handlePayrollExport(w http.ResponseWriter, r *http.Request) {
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")
 	if from == "" || to == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameters 'from' and 'to' are required (YYYY-MM-DD)")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameters 'from' and 'to' are required (YYYY-MM-DD)")
 		return
 	}
 	results, err := engines.GetPayrollExport(tenantID, from, to)
@@ -166,7 +166,7 @@ func handlePIMBulkEdit(w http.ResponseWriter, r *http.Request) {
 		Value   interface{} `json:"value"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload JSON")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload JSON")
 		return
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
@@ -183,7 +183,7 @@ func handlePIMBulkEdit(w http.ResponseWriter, r *http.Request) {
 	}
 	updatedIDs, err := engines.BulkUpdateDocuments(tenantID, req.Doctype, req.IDs, req.Field, req.Value, userID, role)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -198,7 +198,7 @@ func handlePIMReport(w http.ResponseWriter, r *http.Request) {
 	}
 	rows, err := engines.ListPIMReport(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("name"))
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(rows)
@@ -253,20 +253,20 @@ func handlePIMMediaUpload(w http.ResponseWriter, r *http.Request) {
 
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Upload exceeds 10MB limit or is malformed")
+		writeAPIError(w, r, "GLOBAL-0007", "")
 		return
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "File is mandatory under multipart FormFile 'file'")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "File is mandatory under multipart FormFile 'file'")
 		return
 	}
 	defer file.Close()
 
 	fileBytes, err := io.ReadAll(file)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Failed to read uploaded file")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Failed to read uploaded file")
 		return
 	}
 
@@ -275,7 +275,11 @@ func handlePIMMediaUpload(w http.ResponseWriter, r *http.Request) {
 
 	asset, err := engines.SaveMediaFile(tenantID, fileBytes, header.Filename, itemCode, mediaRole, userID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
+			writeAPIError(w, r, verr.Code, verr.SubFor)
+		} else {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		}
 		return
 	}
 	_ = json.NewEncoder(w).Encode(asset)
@@ -315,7 +319,7 @@ func handlePIMMediaList(w http.ResponseWriter, r *http.Request) {
 	}
 	itemCode := r.URL.Query().Get("item")
 	if itemCode == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "item query parameter is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "item query parameter is required")
 		return
 	}
 	results, err := engines.ListMediaForItem(tenantID, itemCode)
@@ -337,7 +341,7 @@ func handlePIMMediaDeactivate(w http.ResponseWriter, r *http.Request) {
 	}
 	mediaID := r.PathValue("id")
 	if err := engines.DeactivateMedia(tenantID, mediaID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deactivated"})
@@ -359,12 +363,12 @@ func handlePIMPublish(w http.ResponseWriter, r *http.Request) {
 		Channel  string `json:"channel"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "invalid request body")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "invalid request body")
 		return
 	}
 	jobID, alreadyQueued, err := engines.QueuePublish(tenantID, req.ItemCode, req.Channel, userID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	// Bug fix (found during Stage 16.1 live verification): this used to
@@ -389,7 +393,7 @@ func handlePIMPublishJobStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	jobID, err := strconv.Atoi(r.PathValue("jobID"))
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "invalid job id")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "invalid job id")
 		return
 	}
 	status, err := engines.GetPublishJobStatus(tenantID, jobID)
@@ -408,7 +412,7 @@ func handlePIMPublishLog(w http.ResponseWriter, r *http.Request) {
 	}
 	itemCode := r.URL.Query().Get("item")
 	if itemCode == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "item query parameter is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "item query parameter is required")
 		return
 	}
 	results, err := engines.ListPublishLogForItem(tenantID, itemCode)

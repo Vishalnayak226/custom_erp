@@ -136,15 +136,15 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		LocationCode string `json:"location_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 		return
 	}
 	if req.Username == "" || req.Role == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "username and role are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "username and role are required")
 		return
 	}
 	if len(req.Password) < 8 {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Password must be at least 8 characters")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Password must be at least 8 characters")
 		return
 	}
 	// 24.1: defaults to "HO" (the column's own DEFAULT) when omitted,
@@ -175,7 +175,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
 			msg = fmt.Sprintf("Username %q is already taken.", req.Username)
 		}
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, msg)
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, msg)
 		return
 	}
 
@@ -197,7 +197,7 @@ func handleSetUserStatus(w http.ResponseWriter, r *http.Request) {
 		Status string `json:"status"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" || (req.Status != "Active" && req.Status != "Inactive") {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'id' and 'status' (Active or Inactive) are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'id' and 'status' (Active or Inactive) are required")
 		return
 	}
 
@@ -205,7 +205,7 @@ func handleSetUserStatus(w http.ResponseWriter, r *http.Request) {
 	actorUsername := r.Header.Get("Resolved-Username")
 	actorUserID := r.Header.Get("Resolved-User-ID")
 	if req.ID == actorUserID && req.Status == "Inactive" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "You cannot deactivate your own account")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "You cannot deactivate your own account")
 		return
 	}
 	schema, err := db.GetTenantSchema(tenantID)
@@ -240,7 +240,7 @@ func handleSetUserLocation(w http.ResponseWriter, r *http.Request) {
 		LocationCode string `json:"location_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" || req.LocationCode == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'id' and 'location_code' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'id' and 'location_code' are required")
 		return
 	}
 
@@ -308,7 +308,7 @@ func handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 			AllowDelete bool   `json:"allow_delete"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Role == "" || req.DoctypeName == "" {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'role' and 'doctype_name' are required")
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'role' and 'doctype_name' are required")
 			return
 		}
 		_, err := db.DB.Exec(fmt.Sprintf(`
@@ -319,7 +319,7 @@ func handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 				allow_update = EXCLUDED.allow_update, allow_delete = EXCLUDED.allow_delete`, schema),
 			req.Role, req.DoctypeName, req.AllowRead, req.AllowCreate, req.AllowUpdate, req.AllowDelete)
 		if err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
 		actorUsername := r.Header.Get("Resolved-Username")

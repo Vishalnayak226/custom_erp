@@ -34,11 +34,11 @@ func handleUnicommerceCredentials(w http.ResponseWriter, r *http.Request) {
 		BaseURL   string `json:"base_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
 		return
 	}
 	if req.StoreCode == "" || req.APIKey == "" || req.APISecret == "" || req.BaseURL == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'store_code', 'api_key', 'api_secret', and 'base_url' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'store_code', 'api_key', 'api_secret', and 'base_url' are required")
 		return
 	}
 	if err := engines.SaveUnicommerceCredential(tenantID, req.StoreCode, req.APIKey, req.APISecret, req.BaseURL); err != nil {
@@ -80,11 +80,11 @@ func handleUnicommerceOrder(w http.ResponseWriter, r *http.Request) {
 		} `json:"items"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
 		return
 	}
 	if req.ChannelOrderID == "" || req.StoreCode == "" || len(req.Items) == 0 {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'channel_order_id', 'store_code', and 'items' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'channel_order_id', 'store_code', and 'items' are required")
 		return
 	}
 	var items []map[string]interface{}
@@ -101,7 +101,7 @@ func handleUnicommerceOrder(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ignored", "details": "Order already imported (idempotency check)"})
 			return
 		}
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "imported", "order_id": orderID})
@@ -163,11 +163,11 @@ func handlePineLabsCredentials(w http.ResponseWriter, r *http.Request) {
 		BaseURL    string `json:"base_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
 		return
 	}
 	if req.TerminalID == "" || req.APIKey == "" || req.MerchantID == "" || req.BaseURL == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'terminal_id', 'api_key', 'merchant_id', and 'base_url' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'terminal_id', 'api_key', 'merchant_id', and 'base_url' are required")
 		return
 	}
 	if err := engines.SavePineLabsCredential(tenantID, req.TerminalID, req.APIKey, req.MerchantID, req.BaseURL); err != nil {
@@ -208,11 +208,11 @@ func handlePineLabsTransaction(w http.ResponseWriter, r *http.Request) {
 		PaymentMode   string  `json:"payment_mode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
 		return
 	}
 	if req.TransactionID == "" || req.TerminalID == "" || req.CartNumber == "" || req.Amount <= 0 {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'transaction_id', 'terminal_id', 'cart_number', and positive 'amount' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'transaction_id', 'terminal_id', 'cart_number', and positive 'amount' are required")
 		return
 	}
 	paymentMode := req.PaymentMode
@@ -225,7 +225,7 @@ func handlePineLabsTransaction(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ignored", "details": "Transaction already recorded"})
 			return
 		}
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "recorded", "transaction_id": req.TransactionID})
@@ -288,11 +288,11 @@ func handleCleverTapCredentials(w http.ResponseWriter, r *http.Request) {
 		Region    string `json:"region"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
 		return
 	}
 	if req.AccountID == "" || req.Passcode == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'account_id' and 'passcode' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'account_id' and 'passcode' are required")
 		return
 	}
 	region := req.Region
@@ -368,18 +368,18 @@ func handleRetryIntegrationEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid retry payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid retry payload")
 		return
 	}
 
 	if req.EventID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'event_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'event_id' is required")
 		return
 	}
 
 	err := engines.RetryIntegrationEvent(tenantID, req.EventID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -406,12 +406,12 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid provisioning payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid provisioning payload")
 		return
 	}
 
 	if req.TenantID == "" || req.SchemaName == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'tenant_id' and 'schema_name' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'tenant_id' and 'schema_name' are required")
 		return
 	}
 
@@ -449,12 +449,12 @@ func handleSetFeatureFlag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid feature-flag payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid feature-flag payload")
 		return
 	}
 
 	if req.FeatureName == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'feature_name' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'feature_name' is required")
 		return
 	}
 
@@ -538,11 +538,11 @@ func handleSetModuleEntitlement(w http.ResponseWriter, r *http.Request) {
 		Enabled   bool   `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid module-entitlement payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid module-entitlement payload")
 		return
 	}
 	if req.ModuleKey == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'module_key' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'module_key' is required")
 		return
 	}
 
@@ -553,7 +553,7 @@ func handleSetModuleEntitlement(w http.ResponseWriter, r *http.Request) {
 
 	grantedBy := r.Header.Get("Resolved-Username")
 	if err := engines.SetModuleEntitlement(tenantID, req.ModuleKey, req.Enabled, grantedBy); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -715,17 +715,17 @@ func decidePatchProposal(w http.ResponseWriter, r *http.Request, decision string
 
 	var req decidePatchProposalRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid patch-proposal decision payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid patch-proposal decision payload")
 		return
 	}
 	if req.ProposalID == 0 {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'proposal_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'proposal_id' is required")
 		return
 	}
 
 	decidedBy := r.Header.Get("Resolved-Username")
 	if err := engines.DecidePatchProposal(req.ProposalID, decision, decidedBy, req.Notes); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -757,11 +757,11 @@ func handleCreateExtensionHook(w http.ResponseWriter, r *http.Request) {
 		TimeoutMs int    `json:"timeout_ms"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid extension-hook payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid extension-hook payload")
 		return
 	}
 	if req.Doctype == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'doctype' is required (use '*' to match every doctype)")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'doctype' is required (use '*' to match every doctype)")
 		return
 	}
 
@@ -769,7 +769,7 @@ func handleCreateExtensionHook(w http.ResponseWriter, r *http.Request) {
 	createdBy := r.Header.Get("Resolved-Username")
 	id, secret, err := engines.RegisterExtensionHook(tenantID, req.HookPoint, req.Doctype, req.TargetURL, req.TimeoutMs, createdBy)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -867,11 +867,11 @@ func handleIssueExtensionToken(w http.ResponseWriter, r *http.Request) {
 		TTLMinutes   int    `json:"ttl_minutes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid extension-token payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid extension-token payload")
 		return
 	}
 	if req.ScopeDoctype == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'scope_doctype' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'scope_doctype' is required")
 		return
 	}
 	ttl := time.Duration(req.TTLMinutes) * time.Minute

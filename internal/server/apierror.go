@@ -42,11 +42,19 @@ var genericCodeForStatus = map[int]string{
 // matrix).
 var placeholderRe = regexp.MustCompile(`\{[^}]+\}`)
 
+// DisplayStyle (Stage 23.8) passes the catalog's own "Toast"/"Page banner"
+// display style straight through to the client so showApiError (public/app.js)
+// can dispatch to the matching non-blocking primitive instead of always
+// defaulting to the blocking modal - the two styles it actually dispatches on
+// are generic enough to render with no per-call-site field context; every
+// other style (Inline field message, Modal popup, ...) keeps the modal
+// fallback since only the call site knows which field it belongs to.
 type apiErrorBody struct {
 	Error         string `json:"error"`
 	Code          string `json:"code,omitempty"`
 	CorrelationID string `json:"correlation_id,omitempty"`
 	Retryable     bool   `json:"retryable,omitempty"`
+	DisplayStyle  string `json:"display_style,omitempty"`
 }
 
 // resolvedContext pulls the tenant/user/correlation context apiMiddleware
@@ -118,6 +126,7 @@ func writeAPIError(w http.ResponseWriter, r *http.Request, code string, subFor s
 		Code:          entry.Code,
 		CorrelationID: correlationID,
 		Retryable:     entry.Retryable,
+		DisplayStyle:  entry.DisplayStyle,
 	})
 }
 
@@ -148,5 +157,6 @@ func writeAPIErrorGeneric(w http.ResponseWriter, r *http.Request, status int, me
 		Code:          code,
 		CorrelationID: correlationID,
 		Retryable:     entry.Retryable,
+		DisplayStyle:  entry.DisplayStyle,
 	})
 }

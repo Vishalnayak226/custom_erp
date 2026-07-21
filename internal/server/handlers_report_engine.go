@@ -34,7 +34,7 @@ func handleRunReport(w http.ResponseWriter, r *http.Request) {
 	params := flattenQueryParams(r)
 	def, rows, err := engines.RunReport(tenantID, reportID, role, params)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
@@ -55,7 +55,7 @@ func handleReportDrillDown(w http.ResponseWriter, r *http.Request) {
 	params := flattenQueryParams(r)
 	rows, err := engines.RunReportDrillDown(tenantID, reportID, role, rowKey, params)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
@@ -75,12 +75,12 @@ func handleCreateReportExport(w http.ResponseWriter, r *http.Request) {
 		Params   map[string]string `json:"params"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ReportID == "" {
-		http.Error(w, "Field 'report_id' is required", http.StatusBadRequest)
+		http.Error(w, "Field 'report_id' is required", http.StatusUnprocessableEntity)
 		return
 	}
 	jobID, err := engines.CreateReportExportJob(tenantID, req.ReportID, role, req.Params, userID)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
+		w.WriteHeader(http.StatusUnprocessableEntity)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}

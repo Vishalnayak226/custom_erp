@@ -77,11 +77,11 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		IdleTimeoutMinutes *int    `json:"idle_timeout_minutes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 		return
 	}
 	if req.IdleTimeoutMinutes != nil && !allowedIdleTimeouts[*req.IdleTimeoutMinutes] {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "idle_timeout_minutes must be one of 0 (never), 15, 30, 60, 120")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "idle_timeout_minutes must be one of 0 (never), 15, 30, 60, 120")
 		return
 	}
 
@@ -117,11 +117,11 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		NewPassword     string `json:"new_password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 		return
 	}
 	if len(req.NewPassword) < 8 {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "New password must be at least 8 characters")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "New password must be at least 8 characters")
 		return
 	}
 

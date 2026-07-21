@@ -31,13 +31,13 @@ func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("Resolved-User-ID")
 
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Multipart payload exceeds limit")
+		writeAPIError(w, r, "GLOBAL-0007", "")
 		return
 	}
 
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "CSV file is mandatory under multipart FormFile 'file'")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "CSV file is mandatory under multipart FormFile 'file'")
 		return
 	}
 	defer file.Close()
@@ -85,12 +85,12 @@ func handlePIMImportPreview(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("Resolved-User-ID")
 
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Multipart payload exceeds limit")
+		writeAPIError(w, r, "GLOBAL-0007", "")
 		return
 	}
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "CSV file is mandatory under multipart FormFile 'file'")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "CSV file is mandatory under multipart FormFile 'file'")
 		return
 	}
 	defer file.Close()
@@ -139,7 +139,7 @@ func handleSaveChannelCredential(w http.ResponseWriter, r *http.Request) {
 	channelCode := r.PathValue("code")
 	var fields map[string]string
 	if err := json.NewDecoder(r.Body).Decode(&fields); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "invalid request body")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "invalid request body")
 		return
 	}
 	if err := engines.SaveChannelCredential(tenantID, channelCode, fields); err != nil {
@@ -170,7 +170,7 @@ func handleBigCommerceWebhook(w http.ResponseWriter, r *http.Request) {
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "failed to read request body")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "failed to read request body")
 		return
 	}
 
@@ -215,7 +215,7 @@ func handleGetAvailability(w http.ResponseWriter, r *http.Request) {
 	location := r.URL.Query().Get("location")
 
 	if sku == "" || location == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameters 'sku' and 'location' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameters 'sku' and 'location' are required")
 		return
 	}
 
@@ -244,12 +244,12 @@ func handleCreateReservation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
 		return
 	}
 
 	if req.Sku == "" || req.Location == "" || req.Qty <= 0 {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'sku', 'location', and positive 'qty' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'sku', 'location', and positive 'qty' are required")
 		return
 	}
 
@@ -260,7 +260,7 @@ func handleCreateReservation(w http.ResponseWriter, r *http.Request) {
 
 	resID, err := engines.CreateReservation(tenantID, req.Sku, req.Location, req.Qty, req.ResType, expiry)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -296,12 +296,12 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid checkout payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid checkout payload")
 		return
 	}
 
 	if req.CartNumber == "" || req.Location == "" || len(req.Items) == 0 {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'cart_number', 'location', and 'items' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'cart_number', 'location', and 'items' are required")
 		return
 	}
 
@@ -312,11 +312,11 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// the later GL-posting step even runs its own (unrelated) sign validation.
 	for _, item := range req.Items {
 		if item.Sku == "" || item.Qty <= 0 {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, fmt.Sprintf("Item quantity must be positive (sku=%q, qty=%d)", item.Sku, item.Qty))
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Item quantity must be positive (sku=%q, qty=%d)", item.Sku, item.Qty))
 			return
 		}
 		if item.SalePrice < 0 || item.CostPrice < 0 {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, fmt.Sprintf("Item prices cannot be negative (sku=%q)", item.Sku))
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Item prices cannot be negative (sku=%q)", item.Sku))
 			return
 		}
 	}
@@ -332,7 +332,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 	gstBreakdown, gstErr := engines.ComputeGSTForLines(tenantID, gstLines, req.Interstate)
 	if gstErr != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, fmt.Sprintf("GST validation failed: %v", gstErr))
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("GST validation failed: %v", gstErr))
 		return
 	}
 
@@ -353,7 +353,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if sessionID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "No open POS session for this location - open a cashier session before completing a sale.")
+		writeAPIError(w, r, "POSOFF-0238", "")
 		return
 	}
 
@@ -514,13 +514,13 @@ func handlePOSSessionOpen(w http.ResponseWriter, r *http.Request) {
 		OpeningCash float64 `json:"opening_cash"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Location == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'location' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'location' is required")
 		return
 	}
 
 	id, err := engines.OpenPOSSession(tenantID, req.POSProfile, req.Location, cashier, userID, req.OpeningCash)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, cashier, "POS_SESSION", "OPENED", fmt.Sprintf("Session %s opened at %s", id, req.Location))
@@ -542,13 +542,13 @@ func handlePOSSessionClose(w http.ResponseWriter, r *http.Request) {
 		CountedCash float64 `json:"counted_cash"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SessionID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'session_id' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'session_id' is required")
 		return
 	}
 
 	expected, variance, err := engines.ClosePOSSession(tenantID, req.SessionID, cashier, req.CountedCash)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, cashier, "POS_SESSION", "CLOSED", fmt.Sprintf("Session %s closed, variance %.2f", req.SessionID, variance))
@@ -573,7 +573,7 @@ func handlePOSSessionCurrent(w http.ResponseWriter, r *http.Request) {
 	}
 	location := r.URL.Query().Get("location")
 	if location == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameter 'location' is required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameter 'location' is required")
 		return
 	}
 
@@ -626,12 +626,16 @@ func handleAccountingPeriods(w http.ResponseWriter, r *http.Request) {
 			EndDate    string `json:"end_date"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PeriodName == "" || req.StartDate == "" || req.EndDate == "" {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "period_name, start_date, and end_date are required")
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "period_name, start_date, and end_date are required")
 			return
 		}
 		id, err := engines.CreateAccountingPeriod(tenantID, req.PeriodName, req.StartDate, req.EndDate, userID)
 		if err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+			if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
+				writeAPIError(w, r, verr.Code, verr.SubFor)
+			} else {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+			}
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]string{"id": id, "status": "created"})
@@ -655,7 +659,7 @@ func handleCloseAccountingPeriod(w http.ResponseWriter, r *http.Request) {
 	}
 	periodID := r.PathValue("id")
 	if err := engines.CloseAccountingPeriod(tenantID, periodID, userID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "closed"})
@@ -676,7 +680,7 @@ func handleSubmitApproval(w http.ResponseWriter, r *http.Request) {
 		DocumentID string `json:"document_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Doctype == "" || req.DocumentID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'doctype' and 'document_id' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'doctype' and 'document_id' are required")
 		return
 	}
 
@@ -691,7 +695,7 @@ func handleSubmitApproval(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := engines.SubmitForApproval(tenantID, req.Doctype, req.DocumentID, userID, role); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "submitted"})
@@ -715,12 +719,12 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 		Comment    string `json:"comment"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Doctype == "" || req.DocumentID == "" || req.Decision == "" {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'doctype', 'document_id', and 'decision' are required")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'doctype', 'document_id', and 'decision' are required")
 		return
 	}
 
 	if err := engines.DecideApproval(tenantID, req.Doctype, req.DocumentID, userID, role, location, req.Decision, req.Comment); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "APPROVAL_DECISION", req.Decision, fmt.Sprintf("%s %s: %s", req.Doctype, req.DocumentID, req.Decision))
@@ -811,12 +815,12 @@ func handleApprovalRules(w http.ResponseWriter, r *http.Request) {
 			RequiredRole string   `json:"required_role"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
 			return
 		}
 		newID, err := engines.UpsertApprovalRule(tenantID, req.Doctype, req.MinAmount, req.MaxAmount, req.RequiredRole, req.ID)
 		if err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 			return
 		}
 		engines.LogAuditEvent(tenantID, r.Header.Get("Resolved-User-ID"), "SAVE_APPROVAL_RULE", "SUCCESS",
@@ -843,12 +847,12 @@ func handleCalculateGST(w http.ResponseWriter, r *http.Request) {
 		Interstate    bool    `json:"interstate"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 		return
 	}
 	result, err := engines.CalculateGST(req.TaxableAmount, req.GSTRate, req.Interstate)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(result)
