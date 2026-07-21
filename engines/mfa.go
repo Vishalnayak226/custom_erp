@@ -146,15 +146,18 @@ func ActivateMFA(tenantID, userID string) error {
 	return err
 }
 
-// LookupUserRoleAndUsername resolves the role/username needed to issue a
-// full session token once MFA enrollment/challenge succeeds - the purpose
-// token that carried the request only holds id/username, not role.
-func LookupUserRoleAndUsername(tenantID, userID string) (role, username string, err error) {
+// LookupUserRoleAndUsername resolves the role/username/location_code needed
+// to issue a full session token once MFA enrollment/challenge succeeds - the
+// purpose token that carried the request only holds id/username, not role
+// or location. locationCode (24.1) replaces the two MFA handlers' previous
+// hardcoded "HO" - same real per-user value handleLogin's own non-MFA path
+// now reads.
+func LookupUserRoleAndUsername(tenantID, userID string) (role, username, locationCode string, err error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return "", "", err
+		return "", "", "", err
 	}
-	query := fmt.Sprintf("SELECT role, username FROM %s.users WHERE id = $1", schema)
-	err = db.DB.QueryRow(query, userID).Scan(&role, &username)
-	return role, username, err
+	query := fmt.Sprintf("SELECT role, username, location_code FROM %s.users WHERE id = $1", schema)
+	err = db.DB.QueryRow(query, userID).Scan(&role, &username, &locationCode)
+	return role, username, locationCode, err
 }

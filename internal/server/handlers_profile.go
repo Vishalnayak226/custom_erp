@@ -27,21 +27,19 @@ func handleGetProfile(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("Resolved-User-ID")
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	var username, email, role, status string
+	var username, email, role, status, locationCode string
 	var mfaEnabled bool
 	var idleTimeout int
 	err = db.DB.QueryRow(fmt.Sprintf(`
-		SELECT username, COALESCE(email, ''), role, status, mfa_enabled, idle_timeout_minutes
+		SELECT username, COALESCE(email, ''), role, status, mfa_enabled, idle_timeout_minutes, location_code
 		FROM %s.users WHERE id = $1`, schema), userID).
-		Scan(&username, &email, &role, &status, &mfaEnabled, &idleTimeout)
+		Scan(&username, &email, &role, &status, &mfaEnabled, &idleTimeout, &locationCode)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "User not found"})
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "User not found")
 		return
 	}
 
@@ -67,6 +65,9 @@ func handleGetProfile(w http.ResponseWriter, r *http.Request) {
 		"idle_timeout_minutes": idleTimeout,
 		"employee_id":          employeeID,
 		"employee_name":        employeeName,
+		// 24.1: read-only here, same as role - admin-managed via the Users
+		// screen (handleSetUserLocation), not self-service editable.
+		"location_code": locationCode,
 	})
 }
 
@@ -76,12 +77,11 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		IdleTimeoutMinutes *int    `json:"idle_timeout_minutes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
 		return
 	}
 	if req.IdleTimeoutMinutes != nil && !allowedIdleTimeouts[*req.IdleTimeoutMinutes] {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "idle_timeout_minutes must be one of 0 (never), 15, 30, 60, 120"})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "idle_timeout_minutes must be one of 0 (never), 15, 30, 60, 120")
 		return
 	}
 
@@ -90,22 +90,19 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	username := r.Header.Get("Resolved-Username")
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	if req.Email != nil {
 		if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET email = $1 WHERE id = $2`, schema), *req.Email, userID); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update email"})
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to update email")
 			return
 		}
 	}
 	if req.IdleTimeoutMinutes != nil {
 		if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET idle_timeout_minutes = $1 WHERE id = $2`, schema), *req.IdleTimeoutMinutes, userID); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to update session preference"})
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to update session preference")
 			return
 		}
 	}
@@ -120,12 +117,11 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		NewPassword     string `json:"new_password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
 		return
 	}
 	if len(req.NewPassword) < 8 {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "New password must be at least 8 characters"})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "New password must be at least 8 characters")
 		return
 	}
 
@@ -134,32 +130,27 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	username := r.Header.Get("Resolved-Username")
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	var currentHash string
 	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT password_hash FROM %s.users WHERE id = $1`, schema), userID).Scan(&currentHash); err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "User not found"})
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "User not found")
 		return
 	}
 	if bcrypt.CompareHashAndPassword([]byte(currentHash), []byte(req.CurrentPassword)) != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Current password is incorrect"})
+		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Current password is incorrect")
 		return
 	}
 
 	newHash, err := bcrypt.GenerateFromPassword([]byte(req.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to set new password"})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to set new password")
 		return
 	}
 	if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET password_hash = $1 WHERE id = $2`, schema), string(newHash), userID); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to set new password"})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to set new password")
 		return
 	}
 

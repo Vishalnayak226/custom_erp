@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -45,7 +46,13 @@ func PrintStickers(tenantID string, skus []string, printerCode, printedBy, repri
 		label := StickerLabel{SKU: sku}
 		if err == nil {
 			var item map[string]interface{}
-			_ = json.Unmarshal([]byte(dataStr), &item)
+			// 24.18: read-only below (nil-map-safe), so this degrades the
+			// same way an unregistered SKU already does by design (blank
+			// name/HSN, barcode falls back to the SKU itself) - just logged
+			// so a corrupt Item record doesn't go unnoticed.
+			if err := json.Unmarshal([]byte(dataStr), &item); err != nil {
+				log.Printf("[STICKERS] corrupt Item %s: %v", sku, err)
+			}
 			if v, ok := item["name"].(string); ok {
 				label.Name = v
 			}

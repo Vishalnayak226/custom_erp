@@ -13,10 +13,16 @@ Usage:
   .\manage.ps1 <action> -Env test   same actions, targeting the 'test' environment instead of 'dev'
                                      (own port/database, per environments.json - see promote.ps1
                                      for how a commit actually gets there). -Env live works the same way.
-  .\manage.ps1 backup               create timestamped custom-format dumps of dev, test, and live
-  .\manage.ps1 restore -Env dev -File .\backups\dev\custom_erp_....dump
+  .\manage.ps1 backup               create timestamped, AES-256 encrypted custom-format dumps of
+                                     dev, test, and live (see docs/operations/backup_restore.md)
+  .\manage.ps1 restore -Env dev -File .\backups\dev\custom_erp_....dump.enc
                                      restore one environment after an explicit confirmation; its ERP
-                                     server must be stopped first.
+                                     server must be stopped first. Also accepts legacy unencrypted
+                                     .dump files from before encryption was added.
+  .\manage.ps1 restore-drill        automated monthly recovery drill: restores the newest dev backup
+                                     into 'test', verifies row counts, logs the result. Never targets live.
+  .\manage.ps1 register-schedule    registers Windows Scheduled Tasks for daily backup (02:00) and
+                                     monthly restore-drill (1st, 03:00). Run once per machine.
   .\manage.ps1 fleet-status         one-shot report across all 3 environments: port up/down, live
                                      GET /api/v1/version (commit/build time), last recorded promotion.
 
@@ -27,7 +33,7 @@ start/stop that environment's erp-server.exe, never a second Postgres instance.
 
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("start", "stop", "restart", "status", "logs", "release", "backup", "restore", "fleet-status")]
+    [ValidateSet("start", "stop", "restart", "status", "logs", "release", "backup", "restore", "restore-drill", "register-schedule", "fleet-status")]
     [string]$Action,
 
     [ValidateSet("dev", "test", "live")]
@@ -242,6 +248,76 @@ function Send-OpsAlert($Message) {
     }
 }
 
+# Stage 12.2: backups-at-rest encryption via .NET's built-in AES (System.Security.Cryptography,
+# no new dependency - same "stdlib only" approach as engines/mfa.go's TOTP). Key resolution mirrors
+# the JWT_SECRET pattern already established in engines/auth.go: BACKUP_ENCRYPTION_KEY env var if
+# set, otherwise a 32-byte key is generated once and persisted outside the repo (never git-tracked)
+# so encryption works out of the box with zero required setup.
+function Get-BackupEncryptionKey {
+    if ($env:BACKUP_ENCRYPTION_KEY) {
+        $raw = [System.Text.Encoding]::UTF8.GetBytes($env:BACKUP_ENCRYPTION_KEY)
+        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+        return $sha256.ComputeHash($raw)
+    }
+    $keyPath = Join-Path $env:USERPROFILE ".erp-backup-key"
+    if (-not (Test-Path $keyPath)) {
+        $bytes = New-Object byte[] 32
+        [System.Security.Cryptography.RandomNumberGenerator]::Fill($bytes)
+        [Convert]::ToBase64String($bytes) | Set-Content -LiteralPath $keyPath -NoNewline
+        Write-Host "Generated a new backup encryption key at $keyPath - back this up separately from the repo; losing it makes existing encrypted backups unrecoverable." -ForegroundColor Yellow
+    }
+    return [Convert]::FromBase64String((Get-Content -LiteralPath $keyPath -Raw))
+}
+
+# Encrypts $PlainPath in place, writing "$PlainPath.enc" (IV prefixed to the ciphertext stream) and
+# removing the plaintext afterward. Returns the .enc path.
+function Protect-BackupFile($PlainPath) {
+    $aes = [System.Security.Cryptography.Aes]::Create()
+    try {
+        $aes.Key = Get-BackupEncryptionKey
+        $aes.GenerateIV()
+        $encPath = "$PlainPath.enc"
+        $fsOut = [System.IO.File]::Create($encPath)
+        try {
+            $fsOut.Write($aes.IV, 0, $aes.IV.Length)
+            $cryptoStream = New-Object System.Security.Cryptography.CryptoStream($fsOut, $aes.CreateEncryptor(), [System.Security.Cryptography.CryptoStreamMode]::Write)
+            $fsIn = [System.IO.File]::OpenRead($PlainPath)
+            try { $fsIn.CopyTo($cryptoStream) } finally { $fsIn.Close() }
+            $cryptoStream.FlushFinalBlock()
+            $cryptoStream.Close()
+        } finally {
+            $fsOut.Close()
+        }
+        Remove-Item -LiteralPath $PlainPath -Force
+        return $encPath
+    } finally {
+        $aes.Dispose()
+    }
+}
+
+# Decrypts $EncPath to a fresh temp file and returns its path; caller is responsible for deleting it.
+function Unprotect-BackupFile($EncPath) {
+    $aes = [System.Security.Cryptography.Aes]::Create()
+    try {
+        $aes.Key = Get-BackupEncryptionKey
+        $outPath = Join-Path ([System.IO.Path]::GetTempPath()) ("erp_restore_" + [guid]::NewGuid().ToString("N") + ".dump")
+        $fsIn = [System.IO.File]::OpenRead($EncPath)
+        try {
+            $iv = New-Object byte[] 16
+            $null = $fsIn.Read($iv, 0, 16)
+            $aes.IV = $iv
+            $cryptoStream = New-Object System.Security.Cryptography.CryptoStream($fsIn, $aes.CreateDecryptor(), [System.Security.Cryptography.CryptoStreamMode]::Read)
+            $fsOut = [System.IO.File]::Create($outPath)
+            try { $cryptoStream.CopyTo($fsOut) } finally { $fsOut.Close() }
+        } finally {
+            $fsIn.Close()
+        }
+        return $outPath
+    } finally {
+        $aes.Dispose()
+    }
+}
+
 function Backup-Databases {
     # Stage 17.10: any failure below alerts to OPS_ALERT_WEBHOOK_URL (via
     # Send-OpsAlert) before propagating, so a failed scheduled backup (see
@@ -265,9 +341,10 @@ function Backup-Databases {
             Write-Host "Backing up $name database '$($cfg.Database)'..." -ForegroundColor Cyan
             & "$PgBin\pg_dump.exe" -h localhost -p $cfg.PgPort -U postgres -F c "--file=$target" $cfg.Database
             if ($LASTEXITCODE -ne 0) { throw "Backup failed for $name database '$($cfg.Database)'." }
-            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $target).Hash
-            Set-Content -LiteralPath "$target.sha256" -Value "$hash  $(Split-Path $target -Leaf)"
-            Write-Host "  Saved $target" -ForegroundColor Green
+            $encTarget = Protect-BackupFile $target
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $encTarget).Hash
+            Set-Content -LiteralPath "$encTarget.sha256" -Value "$hash  $(Split-Path $encTarget -Leaf)"
+            Write-Host "  Saved $encTarget (AES-256 encrypted)" -ForegroundColor Green
             $backupCount++
         }
         if ($backupCount -eq 0) { throw "No configured ERP databases exist to back up." }
@@ -278,7 +355,7 @@ function Backup-Databases {
 }
 
 function Restore-Database {
-    if (-not $File) { throw "restore requires -File <backup.dump>." }
+    if (-not $File) { throw "restore requires -File <backup.dump.enc | backup.dump>." }
     $backupFile = Resolve-Path -LiteralPath $File -ErrorAction Stop
     if (-not (Test-PortOpen $PgPort)) { throw "PostgreSQL is not running on port $PgPort." }
     if (Test-PortOpen $ErpPort) { throw "ERP server for '$Env' is running on port $ErpPort. Stop it before restoring '$ErpDatabase'." }
@@ -286,9 +363,97 @@ function Restore-Database {
     Write-Host "WARNING: this will replace the contents of '$ErpDatabase' from '$backupFile'." -ForegroundColor Yellow
     $confirmation = if ($ConfirmRestore) { $ConfirmRestore } else { Read-Host "Type RESTORE $Env to continue" }
     if ($confirmation -cne "RESTORE $Env") { Write-Host "Restore cancelled." -ForegroundColor Yellow; return }
-    & "$PgBin\pg_restore.exe" -h localhost -p $PgPort -U postgres -d $ErpDatabase --clean --if-exists --no-owner $backupFile
-    if ($LASTEXITCODE -ne 0) { throw "Restore failed for '$ErpDatabase'. Review PostgreSQL output before starting ERP." }
+
+    # Backups produced since encryption was added end in .dump.enc; older plaintext .dump files
+    # from before this change still restore directly, no migration needed.
+    $tempPlain = $null
+    $restoreSource = $backupFile.Path
+    if ($restoreSource -like "*.enc") {
+        $tempPlain = Unprotect-BackupFile $restoreSource
+        $restoreSource = $tempPlain
+    }
+    try {
+        & "$PgBin\pg_restore.exe" -h localhost -p $PgPort -U postgres -d $ErpDatabase --clean --if-exists --no-owner $restoreSource
+        if ($LASTEXITCODE -ne 0) { throw "Restore failed for '$ErpDatabase'. Review PostgreSQL output before starting ERP." }
+    } finally {
+        if ($tempPlain -and (Test-Path $tempPlain)) { Remove-Item -LiteralPath $tempPlain -Force }
+    }
     Write-Host "Restore complete for '$Env' database '$ErpDatabase'." -ForegroundColor Green
+}
+
+# Stage 12.2: makes "monthly recovery test drill" a real, scriptable, non-interactive action instead
+# of a manual runbook step someone has to remember - always sources the newest dev backup and always
+# restores into 'test', matching docs/operations/backup_restore.md's own established drill pattern.
+# Deliberately refuses to ever target 'live'.
+function Invoke-RestoreDrill {
+    if ($Env -eq "live") { throw "restore-drill refuses to target 'live' - it always restores into 'test' regardless of -Env." }
+    $started = Get-Date
+    try {
+        $devBackupDir = Join-Path $BackupRoot "dev"
+        $latest = Get-ChildItem -LiteralPath $devBackupDir -Filter "*.dump*" -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -notlike "*.sha256" } |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if (-not $latest) { throw "No dev backup found under $devBackupDir - run '.\manage.ps1 backup' first." }
+
+        $testCfg = Resolve-Env "test"
+        $testDbExists = (& "$PgBin\psql.exe" -h localhost -p $testCfg.PgPort -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$($testCfg.Database)'" 2>$null)
+        if (-not $testDbExists -or $testDbExists.Trim() -ne "1") { throw "Database '$($testCfg.Database)' does not exist yet - provision it (e.g. via promote.ps1 -To test) before the first drill." }
+        if (Test-PortOpen $testCfg.ErpPort) {
+            Write-Host "Stopping 'test' ERP server (port $($testCfg.ErpPort)) for the drill..." -ForegroundColor Yellow
+            $conns = Get-NetTCPConnection -LocalPort $testCfg.ErpPort -State Listen -ErrorAction SilentlyContinue
+            $conns | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }
+        }
+
+        Write-Host "Restoring $($latest.Name) into 'test' database '$($testCfg.Database)'..." -ForegroundColor Cyan
+        $tempPlain = $null
+        $restoreSource = $latest.FullName
+        if ($restoreSource -like "*.enc") {
+            $tempPlain = Unprotect-BackupFile $restoreSource
+            $restoreSource = $tempPlain
+        }
+        try {
+            & "$PgBin\pg_restore.exe" -h localhost -p $testCfg.PgPort -U postgres -d $testCfg.Database --clean --if-exists --no-owner $restoreSource
+            if ($LASTEXITCODE -ne 0) { throw "pg_restore failed against 'test'." }
+        } finally {
+            if ($tempPlain -and (Test-Path $tempPlain)) { Remove-Item -LiteralPath $tempPlain -Force }
+        }
+
+        # Same sanity checks as the manual drill this replaces (docs/operations/backup_restore.md's
+        # "Latest verified restore drill" entry, 2026-07-19): row counts on two core tables.
+        $tenantCount = (& "$PgBin\psql.exe" -h localhost -p $testCfg.PgPort -U postgres -d $testCfg.Database -tAc "SELECT COUNT(*) FROM public.tenants" 2>$null).Trim()
+        $doctypeCount = (& "$PgBin\psql.exe" -h localhost -p $testCfg.PgPort -U postgres -d $testCfg.Database -tAc "SELECT COUNT(*) FROM tenant_default.doctype_meta" 2>$null).Trim()
+        if (-not $tenantCount -or -not $doctypeCount) { throw "Restore ran but post-restore verification queries failed." }
+
+        $duration = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
+        $logLine = "- $(Get-Date -AsUTC -Format 'yyyy-MM-ddTHH:mm:ssZ') | backup=$($latest.Name) | target=test/$($testCfg.Database) | duration=${duration}s | tenants=$tenantCount doctype_meta=$doctypeCount | verifier=automated (manage.ps1 restore-drill) | result=PASS"
+        Add-Content -LiteralPath (Join-Path $RepoRoot "docs\operations\restore_drill_log.md") -Value $logLine
+        Write-Host "Restore drill PASSED in ${duration}s (tenants=$tenantCount, doctype_meta=$doctypeCount). Logged to docs/operations/restore_drill_log.md." -ForegroundColor Green
+    } catch {
+        $duration = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
+        $logLine = "- $(Get-Date -AsUTC -Format 'yyyy-MM-ddTHH:mm:ssZ') | duration=${duration}s | verifier=automated (manage.ps1 restore-drill) | result=FAIL | error=$($_.Exception.Message)"
+        Add-Content -LiteralPath (Join-Path $RepoRoot "docs\operations\restore_drill_log.md") -Value $logLine
+        Send-OpsAlert "Monthly restore drill FAILED: $($_.Exception.Message)"
+        throw
+    }
+}
+
+# Stage 12.2: converts docs/operations/backup_restore.md's manual Task Scheduler recipe into one
+# command. Registers two tasks (idempotent - /F overwrites a prior registration of the same name)
+# rather than silently running on its own; this only executes when explicitly invoked.
+function Register-BackupSchedule {
+    $manageScript = Join-Path $RepoRoot "manage.ps1"
+    $backupCmd = "-NoProfile -ExecutionPolicy Bypass -File `"$manageScript`" backup"
+    $drillCmd = "-NoProfile -ExecutionPolicy Bypass -File `"$manageScript`" restore-drill"
+
+    schtasks.exe /Create /TN "ERP-DailyBackup" /TR "powershell.exe $backupCmd" /SC DAILY /ST 02:00 /RL LIMITED /F | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Failed to register ERP-DailyBackup scheduled task." }
+    schtasks.exe /Create /TN "ERP-MonthlyRestoreDrill" /TR "powershell.exe $drillCmd" /SC MONTHLY /D 1 /ST 03:00 /RL LIMITED /F | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw "Failed to register ERP-MonthlyRestoreDrill scheduled task." }
+
+    Write-Host "Registered scheduled tasks:" -ForegroundColor Green
+    Write-Host "  ERP-DailyBackup          daily 02:00  -> manage.ps1 backup" -ForegroundColor Cyan
+    Write-Host "  ERP-MonthlyRestoreDrill  1st @ 03:00  -> manage.ps1 restore-drill" -ForegroundColor Cyan
+    Write-Host "Manage them via taskschd.msc or 'schtasks /Query /TN ERP-DailyBackup'." -ForegroundColor DarkGray
 }
 
 function Show-FleetStatus {
@@ -341,6 +506,8 @@ function Invoke-Action($a) {
         "release" { Build-Release }
         "backup" { Backup-Databases }
         "restore" { Restore-Database }
+        "restore-drill" { Invoke-RestoreDrill }
+        "register-schedule" { Register-BackupSchedule }
         "fleet-status" { Show-FleetStatus }
     }
 }
@@ -360,8 +527,9 @@ while ($true) {
     Write-Host "  4) Status"
     Write-Host "  5) Show logs"
     Write-Host "  6) Build stripped release binary"
-    Write-Host "  7) Backup dev/test/live databases"
+    Write-Host "  7) Backup dev/test/live databases (encrypted)"
     Write-Host "  8) Fleet status (dev/test/live)"
+    Write-Host "  9) Run restore drill (dev backup -> test)"
     Write-Host "  0) Exit"
     $choice = Read-Host "`nChoose an option"
     switch ($choice) {
@@ -373,6 +541,7 @@ while ($true) {
         "6" { Invoke-Action "release" }
         "7" { Invoke-Action "backup" }
         "8" { Invoke-Action "fleet-status" }
+        "9" { Invoke-Action "restore-drill" }
         "0" { exit }
         default { Write-Host "Invalid choice." -ForegroundColor Red }
     }

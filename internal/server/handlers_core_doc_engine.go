@@ -19,6 +19,32 @@ import (
 // audit/system logs, the Database Schema Design admin screens (DocType
 // Builder internally), and industry switching.
 
+// validResetFrequencies (24.21) is the exact 3-value set
+// engines/numbering.go's sequence generator understands - anything else
+// would otherwise be accepted at save time and only surface as a problem
+// later, at sequence-generation time.
+var validResetFrequencies = map[string]bool{
+	"ANNUAL":  true,
+	"MONTHLY": true,
+	"NEVER":   true,
+}
+
+// validIndustryCodes (24.3) is shared between handleGetIndustries (the
+// list a client can pick from) and handleSwitchIndustry (which must reject
+// anything outside that same list before it touches the filesystem).
+var validIndustryCodes = map[string]bool{
+	"JEWELRY":       true,
+	"FOOD_BEV":      true,
+	"AUTO":          true,
+	"CLOTHING":      true,
+	"PHARMA":        true,
+	"METAL":         true,
+	"CONSTRUCTION":  true,
+	"MEDICAL":       true,
+	"SEMICONDUCTOR": true,
+	"AGRICULTURE":   true,
+}
+
 func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	role := r.Header.Get("Resolved-Role")
@@ -31,7 +57,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -46,8 +72,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Resolved-Purpose") == "extension" {
 		scopeDoctype := r.Header.Get("Resolved-Scope-Doctype")
 		if r.Method != http.MethodGet || doctype != scopeDoctype {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("This token is scoped to read-only access on '%s'", scopeDoctype)})
+			writeAPIErrorGeneric(w, r, http.StatusForbidden, fmt.Sprintf("This token is scoped to read-only access on '%s'", scopeDoctype))
 			return
 		}
 		// Falls through to the normal GET handling below with an empty
@@ -71,12 +96,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		}
 		allowed, permErr := checkPermission(tenantID, role, doctype, action)
 		if permErr != nil {
-			http.Error(w, permErr.Error(), http.StatusInternalServerError)
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, permErr.Error())
 			return
 		}
 		if !allowed {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("You do not have permission to %s %s documents.", action, doctype)})
+			writeAPIError(w, r, "GLOBAL-0011", "")
 			return
 		}
 	}
@@ -90,8 +114,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	// before until explicitly mapped).
 	if moduleKey, mErr := engines.ModuleForDoctype(tenantID, doctype); mErr == nil && moduleKey != "" {
 		if enabled, _ := engines.IsModuleEnabled(tenantID, moduleKey); !enabled {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Module '%s' is disabled for this tenant", moduleKey)})
+			writeAPIError(w, r, "SAAS-0191", "")
 			return
 		}
 	}
@@ -102,24 +125,34 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// Retrieve single document
 			var dataStr string
 			var status string
+			var version int
 			err = db.DB.QueryRow(fmt.Sprintf(`
-				SELECT data, status FROM %s.documents 
-				WHERE doctype = $1 AND id = $2 AND deleted_at IS NULL`, schema), doctype, id).Scan(&dataStr, &status)
+				SELECT data, status, version FROM %s.documents
+				WHERE doctype = $1 AND id = $2 AND deleted_at IS NULL`, schema), doctype, id).Scan(&dataStr, &status, &version)
 			if err == sql.ErrNoRows {
-				w.WriteHeader(http.StatusNotFound)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": "Document not found"})
+				writeAPIError(w, r, "GLOBAL-0004", "")
 				return
 			} else if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 				return
 			}
 
 			var dataMap map[string]interface{}
-			_ = json.Unmarshal([]byte(dataStr), &dataMap)
+			if err := json.Unmarshal([]byte(dataStr), &dataMap); err != nil {
+				// 24.18: a nil dataMap from a failed unmarshal would
+				// otherwise panic on the assignment just below
+				// ("assignment to entry in nil map").
+				engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "ERROR", r.URL.Path, fmt.Sprintf("corrupt stored data for %s %s: %v", doctype, id, err), "")
+				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Stored document data is corrupt")
+				return
+			}
 			dataMap["id"] = id
 			dataMap["status"] = status
+			// 24.10: surfaced so a caller can round-trip it back as
+			// expected_version on the next update - see the POST branch below.
+			dataMap["version"] = version
 			if dataMap, err = engines.FilterFieldsForRole(tenantID, role, doctype, dataMap); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 				return
 			}
 
@@ -133,8 +166,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				docLoc, hasLoc = dataMap["location_code"]
 			}
 			if hasLoc && fmt.Sprintf("%v", docLoc) != location && role != "HR/Admin" {
-				w.WriteHeader(http.StatusForbidden)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": "This document does not belong to your assigned location."})
+				writeAPIError(w, r, "GLOBAL-0011", "")
 				return
 			}
 
@@ -169,8 +201,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				if !safeFilterKeyRe.MatchString(key) {
-					w.WriteHeader(http.StatusBadRequest)
-					_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Invalid filter parameter name: %q", key)})
+					writeAPIErrorGeneric(w, r, http.StatusBadRequest, fmt.Sprintf("Invalid filter parameter name: %q", key))
 					return
 				}
 				query += fmt.Sprintf(" AND data->>'%s' = $%d", key, argIndex)
@@ -205,7 +236,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 
 			rows, err := db.DB.Query(query, args...)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 				return
 			}
 			defer rows.Close()
@@ -216,16 +247,22 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				var dataStr string
 				var status string
 				if err := rows.Scan(&docID, &dataStr, &status); err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
+					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 					return
 				}
 
 				var dataMap map[string]interface{}
-				_ = json.Unmarshal([]byte(dataStr), &dataMap)
+				if err := json.Unmarshal([]byte(dataStr), &dataMap); err != nil {
+					// 24.18: skip this one corrupt row rather than panicking
+					// on the nil-map assignment below and failing the whole
+					// list for every other, valid document.
+					engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "ERROR", r.URL.Path, fmt.Sprintf("corrupt stored data for %s %s: %v", doctype, docID, err), "")
+					continue
+				}
 				dataMap["id"] = docID
 				dataMap["status"] = status
 				if dataMap, err = engines.FilterFieldsForRole(tenantID, role, doctype, dataMap); err != nil {
-					http.Error(w, err.Error(), http.StatusInternalServerError)
+					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 					return
 				}
 
@@ -251,20 +288,18 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		var payload map[string]interface{}
 		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-			http.Error(w, "Invalid payload JSON", http.StatusBadRequest)
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload JSON")
 			return
 		}
 		if err := engines.RejectRestrictedFieldWrites(tenantID, role, doctype, payload); err != nil {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			writeAPIErrorGeneric(w, r, http.StatusForbidden, err.Error())
 			return
 		}
 
 		// 2. Server-side metadata validation engine check
 		err = engines.ValidateDocument(tenantID, doctype, payload)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 			return
 		}
 
@@ -273,8 +308,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// later edits to an existing one.
 		if doctype == "ExpenseClaim" && id == "" {
 			if err := engines.ValidateExpenseClaimControls(tenantID, payload); err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 				return
 			}
 		}
@@ -295,8 +329,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if err := engines.ValidateItemVariantUniqueness(tenantID, effectiveID, payload); err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 				return
 			}
 		}
@@ -308,8 +341,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		if doctype == "PurchaseOrder" {
 			breakdown, errGST := engines.ComputePurchaseOrderGST(tenantID, payload)
 			if errGST != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": errGST.Error()})
+				writeAPIErrorGeneric(w, r, http.StatusBadRequest, errGST.Error())
 				return
 			}
 			payload["gst_breakdown"] = breakdown
@@ -331,8 +363,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if err := engines.ValidateLocationReference(tenantID, locCode); err != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("field %q: %v", field, err)})
+				writeAPIErrorGeneric(w, r, http.StatusBadRequest, fmt.Sprintf("field %q: %v", field, err))
 				return
 			}
 		}
@@ -360,6 +391,21 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Optimistic locking (24.10): a caller can optionally include
+		// expected_version (popped out before marshaling - not document
+		// business data) to assert which version it last read. Omitted
+		// (every existing caller today) preserves the exact prior
+		// last-write-wins behavior; supplying it turns a stale concurrent
+		// edit into a clear conflict instead of a silent overwrite.
+		var expectedVersion *int
+		if v, exists := payload["expected_version"]; exists {
+			if n, ok := v.(float64); ok {
+				iv := int(n)
+				expectedVersion = &iv
+			}
+			delete(payload, "expected_version")
+		}
+
 		payloadBytes, _ := json.Marshal(payload)
 		statusVal := "Active"
 		if s, exists := payload["status"]; exists && s != nil {
@@ -373,22 +419,34 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// registered for this doctype, which is the overwhelmingly common
 		// case for every tenant that hasn't set one up.
 		if errHook := engines.InvokeBeforeSaveHooks(tenantID, doctype, docID, payload); errHook != nil {
-			w.WriteHeader(http.StatusBadGateway)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": errHook.Error()})
+			writeAPIErrorGeneric(w, r, http.StatusBadGateway, errHook.Error())
 			return
 		}
 
-		// Perform Upsert using parameterized parameters (SQL Injection Safe)
+		// Perform Upsert using parameterized parameters (SQL Injection Safe).
+		// version = version + 1 on every successful write; the ON CONFLICT
+		// DO UPDATE's WHERE clause (24.10) is what makes the write
+		// conditional - it only ever evaluates on an actual conflict (an
+		// update to a pre-existing row), never on a fresh create, and only
+		// blocks the write when the caller supplied an expected_version that
+		// no longer matches. NULL (no expected_version supplied) always
+		// passes, so this is a no-op for every caller that doesn't opt in.
 		query := fmt.Sprintf(`
-			INSERT INTO %s.documents (id, doctype, data, status, created_by)
-			VALUES ($1, $2, $3, $4, $5)
+			INSERT INTO %s.documents (id, doctype, data, status, created_by, version)
+			VALUES ($1, $2, $3, $4, $5, 1)
 			ON CONFLICT (id) DO UPDATE SET
 				data = EXCLUDED.data,
 				status = EXCLUDED.status,
-				updated_at = CURRENT_TIMESTAMP`, schema)
-		_, err = db.DB.Exec(query, docID, doctype, payloadBytes, statusVal, userID)
+				updated_at = CURRENT_TIMESTAMP,
+				version = %s.documents.version + 1
+			WHERE ($6::int IS NULL OR %s.documents.version = $6)`, schema, schema, schema)
+		result, err := db.DB.Exec(query, docID, doctype, payloadBytes, statusVal, userID, expectedVersion)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 && expectedVersion != nil {
+			writeAPIErrorGeneric(w, r, http.StatusConflict, "This document was modified by someone else since you last loaded it - please refresh and try again")
 			return
 		}
 
@@ -437,7 +495,15 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// posting silently unreachable for any caller filling in the actual mandatory field.
 			var items []interface{}
 			if receivedItemsStr, ok := payload["received_items"].(string); ok && receivedItemsStr != "" {
-				_ = json.Unmarshal([]byte(receivedItemsStr), &items)
+				if err := json.Unmarshal([]byte(receivedItemsStr), &items); err != nil {
+					// 24.18: a malformed received_items previously failed
+					// silently (items stayed nil, so the len(items) > 0
+					// check below just skipped posting) - the GRN would
+					// have saved successfully with zero stock effect and no
+					// indication anything was wrong. Reject it instead.
+					writeAPIErrorGeneric(w, r, http.StatusBadRequest, fmt.Sprintf("received_items is not valid JSON: %v", err))
+					return
+				}
 			}
 			if locationCode != "" && len(items) > 0 {
 				errLedger := engines.PostInventoryLedger(tenantID, locationCode, items)
@@ -464,27 +530,27 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 
 	case http.MethodDelete:
 		if id == "" {
-			http.Error(w, "Document ID is required", http.StatusBadRequest)
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Document ID is required")
 			return
 		}
 
 		var status, documentType string
 		err = db.DB.QueryRow(fmt.Sprintf(`SELECT d.status, m.document_type FROM %s.documents d JOIN %s.doctype_meta m ON m.name = d.doctype WHERE d.id = $1 AND d.doctype = $2 AND d.deleted_at IS NULL`, schema, schema), id, doctype).Scan(&status, &documentType)
 		if err == sql.ErrNoRows {
-			http.Error(w, "Document not found or already deleted", http.StatusNotFound)
+			writeAPIError(w, r, "GLOBAL-0004", "")
 			return
 		}
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 		if documentType == "Transaction" && status == "Approved" {
-			http.Error(w, "Approved transactional documents cannot be deleted", http.StatusBadRequest)
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Approved transactional documents cannot be deleted")
 			return
 		}
 		_, err = db.DB.Exec(fmt.Sprintf("UPDATE %s.documents SET deleted_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND doctype = $2 AND deleted_at IS NULL", schema), id, doctype)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 
@@ -492,7 +558,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 
 	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed on this endpoint")
 	}
 }
 
@@ -537,56 +603,69 @@ func handleLabels(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		labels, err := engines.GetLabels(tenantID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 		_ = json.NewEncoder(w).Encode(labels)
 
 	case http.MethodPost:
+		if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+			return
+		}
 		var req struct {
 			OriginalText string `json:"original_text"`
 			CustomText   string `json:"custom_text"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid payload", http.StatusBadRequest)
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
 			return
 		}
 		if req.OriginalText == "" || req.CustomText == "" {
-			http.Error(w, "Fields original_text and custom_text are required", http.StatusBadRequest)
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields original_text and custom_text are required")
 			return
 		}
 
 		err := engines.SaveLabel(tenantID, req.OriginalText, req.CustomText)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
 
 	case http.MethodDelete:
+		if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+			return
+		}
 		orig := r.URL.Query().Get("original_text")
 		if orig == "" {
-			http.Error(w, "Query parameter original_text is required", http.StatusBadRequest)
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameter original_text is required")
 			return
 		}
 
 		err := engines.DeleteLabel(tenantID, orig)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
 
 	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed on this endpoint")
 	}
 }
 
+// handleSequence mints numbering-sequence codes - HR/Admin-only (24.2):
+// this is global config generation, not a per-record action, so the same
+// gate as handleLabels/handlePrefix's write paths applies to the whole
+// handler rather than just a subset of methods.
 func handleSequence(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed on this endpoint")
+		return
+	}
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
 		return
 	}
 
@@ -596,17 +675,17 @@ func handleSequence(w http.ResponseWriter, r *http.Request) {
 		FinancialYear string `json:"financial_year"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
 		return
 	}
 	if req.DocType == "" || req.FinancialYear == "" {
-		http.Error(w, "doc_type and financial_year are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "doc_type and financial_year are required")
 		return
 	}
 
 	code, err := engines.GenerateSequence(tenantID, req.DocType, req.StoreCode, req.FinancialYear)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -619,17 +698,17 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	switch r.Method {
 	case http.MethodGet:
 		rows, err := db.DB.Query(fmt.Sprintf(`
-			SELECT id, doc_type, prefix, separator, padding_width, reset_frequency, active_status 
+			SELECT id, doc_type, prefix, separator, padding_width, reset_frequency, active_status
 			FROM %s.prefix_configs ORDER BY doc_type`, schema))
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 		defer rows.Close()
@@ -649,7 +728,7 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 			var c PrefixConfig
 			err := rows.Scan(&c.ID, &c.DocType, &c.Prefix, &c.Separator, &c.PaddingWidth, &c.ResetFrequency, &c.ActiveStatus)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 				return
 			}
 			configs = append(configs, c)
@@ -657,6 +736,9 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(configs)
 
 	case http.MethodPost:
+		if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+			return
+		}
 		var req struct {
 			DocType        string `json:"doc_type"`
 			Prefix         string `json:"prefix"`
@@ -666,7 +748,11 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 			ActiveStatus   bool   `json:"active_status"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid payload", http.StatusBadRequest)
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
+			return
+		}
+		if !validResetFrequencies[req.ResetFrequency] {
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "reset_frequency must be one of ANNUAL, MONTHLY, NEVER")
 			return
 		}
 
@@ -681,7 +767,7 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 				active_status = EXCLUDED.active_status`, schema)
 		_, err = db.DB.Exec(query, req.DocType, req.Prefix, req.Separator, req.PaddingWidth, req.ResetFrequency, req.ActiveStatus)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 
@@ -689,7 +775,7 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
 
 	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed on this endpoint")
 	}
 }
 
@@ -697,18 +783,37 @@ func handleAuditLogs(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed on this endpoint")
 		return
 	}
 
-	rows, err := db.DB.Query(fmt.Sprintf("SELECT id, user_id, action, status, details, created_at FROM %s.audit_logs ORDER BY created_at DESC LIMIT 100", schema))
+	// 24.20: same limit/offset query-param pattern the generic doc-list
+	// endpoint already supports, preserving the old hardcoded-100 default
+	// for a caller that passes neither, capped at the same max.
+	limit := 100
+	if v := r.URL.Query().Get("limit"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	if limit > maxListLimit {
+		limit = maxListLimit
+	}
+	offset := 0
+	if v := r.URL.Query().Get("offset"); v != "" {
+		if parsed, err := strconv.Atoi(v); err == nil && parsed >= 0 {
+			offset = parsed
+		}
+	}
+
+	rows, err := db.DB.Query(fmt.Sprintf("SELECT id, user_id, action, status, details, created_at FROM %s.audit_logs ORDER BY created_at DESC LIMIT $1 OFFSET $2", schema), limit, offset)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	defer rows.Close()
@@ -726,7 +831,7 @@ func handleAuditLogs(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var l AuditLog
 		if err := rows.Scan(&l.ID, &l.UserID, &l.Action, &l.Status, &l.Details, &l.CreatedAt); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 		logs = append(logs, l)
@@ -739,18 +844,18 @@ func handleSystemLogs(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed on this endpoint")
 		return
 	}
 
 	rows, err := db.DB.Query(fmt.Sprintf("SELECT log_id, correlation_id, severity, module_source, error_message, stack_trace, created_at FROM %s.system_error_logs ORDER BY created_at DESC LIMIT 100", schema))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	defer rows.Close()
@@ -769,7 +874,7 @@ func handleSystemLogs(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var l SystemLog
 		if err := rows.Scan(&l.LogID, &l.CorrelationID, &l.Severity, &l.ModuleSource, &l.ErrorMessage, &l.StackTrace, &l.CreatedAt); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 		logs = append(logs, l)
@@ -790,36 +895,35 @@ func handleReactivateMasterDocument(w http.ResponseWriter, r *http.Request) {
 	doctype, id := r.PathValue("doctype"), r.PathValue("id")
 	allowed, err := checkPermission(tenantID, role, doctype, "update")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if !allowed {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "You do not have permission to reactivate this document."})
+		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	var documentType string
 	if err := db.DB.QueryRow(fmt.Sprintf("SELECT document_type FROM %s.doctype_meta WHERE name = $1", schema), doctype).Scan(&documentType); err != nil {
-		http.Error(w, "Unknown document type", http.StatusNotFound)
+		writeAPIError(w, r, "GLOBAL-0004", "")
 		return
 	}
 	if documentType != "Master" {
-		http.Error(w, "Only master documents can be reactivated", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Only master documents can be reactivated")
 		return
 	}
 	result, err := db.DB.Exec(fmt.Sprintf("UPDATE %s.documents SET deleted_at = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1 AND doctype = $2 AND deleted_at IS NOT NULL", schema), id, doctype)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	count, _ := result.RowsAffected()
 	if count == 0 {
-		http.Error(w, "Deleted document not found", http.StatusNotFound)
+		writeAPIError(w, r, "GLOBAL-0004", "")
 		return
 	}
 	engines.LogAuditEvent(tenantID, r.Header.Get("Resolved-User-ID"), "REACTIVATE_"+doctype, "SUCCESS", "Document ID: "+id)
@@ -833,12 +937,12 @@ func handleGetDocTypeMeta(w http.ResponseWriter, r *http.Request) {
 
 	fields, err := engines.GetDocTypeMeta(tenantID, doctype)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	fields, err = engines.FilterFieldMetaForRole(tenantID, role, doctype, fields)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(fields)
@@ -849,7 +953,7 @@ func handleGetDocTypes(w http.ResponseWriter, r *http.Request) {
 
 	list, err := engines.GetDocTypes(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(list)
@@ -864,13 +968,13 @@ func handleSaveDocType(w http.ResponseWriter, r *http.Request) {
 		DocumentType string `json:"document_type"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
 		return
 	}
 
 	err := engines.SaveDocType(tenantID, req.Name, req.Module, req.DocumentType)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
@@ -882,13 +986,13 @@ func handleSaveFieldDefinition(w http.ResponseWriter, r *http.Request) {
 
 	var req engines.FieldMeta
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
 		return
 	}
 
 	err := engines.SaveFieldDefinition(tenantID, doctype, req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
@@ -901,7 +1005,7 @@ func handleDeleteFieldDefinition(w http.ResponseWriter, r *http.Request) {
 
 	err := engines.DeleteFieldDefinition(tenantID, doctype, id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted"})
@@ -913,25 +1017,38 @@ func handleGetIndustries(w http.ResponseWriter, r *http.Request) {
 		{"code": "FOOD_BEV", "name": "Food and Beverage Industry"},
 		{"code": "AUTO", "name": "Automobile Industry"},
 		{"code": "CLOTHING", "name": "Clothing & Apparel Industry"},
+		{"code": "PHARMA", "name": "Pharmaceuticals & Biotechnology"},
+		{"code": "METAL", "name": "Metal & Steel Fabrication"},
+		{"code": "CONSTRUCTION", "name": "Construction & Contracting"},
+		{"code": "MEDICAL", "name": "Medical Devices"},
+		{"code": "SEMICONDUCTOR", "name": "Semiconductors"},
+		{"code": "AGRICULTURE", "name": "Agriculture & Perishable Goods"},
 	}
 	_ = json.NewEncoder(w).Encode(list)
 }
 
 func handleSwitchIndustry(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 
 	var req struct {
 		IndustryCode string `json:"industry_code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	if !validIndustryCodes[strings.ToUpper(req.IndustryCode)] {
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Unknown industry_code")
 		return
 	}
 
 	profilePath := fmt.Sprintf("./public/profiles/%s.json", strings.ToLower(req.IndustryCode))
 	err := engines.SwitchIndustryProfile(tenantID, profilePath)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to switch industry: %v", err), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("Failed to switch industry: %v", err))
 		return
 	}
 

@@ -164,7 +164,7 @@ See `README.md`'s "Project Structure" section for the full current map. In short
 ### D.4 Architecture Reference
 
 - **[`../ERP_BLUEPRINT.md`](../ERP_BLUEPRINT.md)** — the full project snapshot: scope, architecture, build history, known gaps. Read this first for orientation.
-- **[`../architecture/framework_architecture.md`](../architecture/framework_architecture.md)** — the metadata-driven DocType engine every module is built on.
+- **[`../architecture/framework_architecture.md`](../architecture/framework_architecture.md)** — the metadata-driven Record Type engine every module is built on (internal/architectural docs still use the framework's original technical name, "DocType", when describing the underlying database tables and API shape — the UI and admin-facing docs use "Record Type" throughout).
 - **[`../architecture/architecture_evaluation.md`](../architecture/architecture_evaluation.md)** — why Go/PostgreSQL/schema-per-tenant, with the cost/footprint reasoning.
 - **[`../requirements/PRD.md`](../requirements/PRD.md)** — module-by-module functional requirements and built-vs-specified status.
 
@@ -190,7 +190,7 @@ Per this project's own planning references: a small central team owns the core k
 |---|---|
 | **Tenant** | One business's private, isolated slice of the shared system. |
 | **Schema-per-tenant** | The technical method keeping each tenant's data physically separate in the database, not just filtered in the app. |
-| **DocType** | A "kind of record" (e.g. Purchase Order, Item) defined as configuration, not hardcoded. |
+| **Record Type** | A "kind of record" (e.g. Purchase Order, Item) defined as configuration, not hardcoded. |
 | **RBAC** | Role-Based Access Control — what a user can do is determined by their role. |
 | **JWT** | The digital "ID card" (token) a logged-in user's browser presents on every request. |
 | **MFA / TOTP** | A second login check via a time-based code from an authenticator app. |

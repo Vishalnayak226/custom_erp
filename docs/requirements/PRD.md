@@ -113,7 +113,7 @@ Every transactional document in this system follows the same status model (not a
 
 ## 5. Error-Proofing Requirements (a first-class product requirement, not an afterthought)
 
-The planning references treat error-proofing as its own product layer — the system should prevent a wrong transaction *before* it becomes a finance, inventory, tax, or audit problem, not detect it afterward. This is a representative sample of the full matrix (see the planning references for the complete list per module); status reflects what's actually enforced in this codebase today:
+The planning references treat error-proofing as its own product layer — the system should prevent a wrong transaction *before* it becomes a finance, inventory, tax, or audit problem, not detect it afterward. **Since Stage 23 (2026-07-20)** this is backed by a real standardized message catalog (300+ codes, one per module, each with a standard user message, HTTP status, severity, and log/audit requirement) generated from `ERP_Standard_Message_Control_Matrix_Final.xlsx` — see **[docs/specs/message_catalog.md](../specs/message_catalog.md)**. This table is a representative sample of the controls, not the full list; status reflects what's actually enforced in this codebase today:
 
 | Risk | Required Control | Status |
 |---|---|---|

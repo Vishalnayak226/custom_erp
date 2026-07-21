@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	_ "embed"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -197,6 +196,7 @@ func verifyShopifyWebhookSignature(r *http.Request, body []byte) bool {
 var publicRoutes = map[string]bool{
 	"/api/v1/login":   true,
 	"/api/v1/version": true,
+	"/api/v1/health":  true,
 }
 
 func loadCORSAllowlist() map[string]bool {
@@ -270,10 +270,12 @@ func featureGate(featureName string, next http.HandlerFunc) http.HandlerFunc {
 		tenantID := r.Header.Get("Resolved-Tenant-ID")
 		enabled, _ := engines.IsFeatureEnabled(tenantID, featureName)
 		if !enabled {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"error": fmt.Sprintf("Feature '%s' is disabled for this tenant", featureName),
-			})
+			// The matrix's SAAS-0192 "Feature flag disabled" row specifies a
+			// soft 200/inline response, but this gate fails closed with 403
+			// by design (security posture, not a messaging choice) - kept as
+			// a generic-coded 403 rather than silently changing that
+			// behavior. See docs/specs/message_catalog.md's noted conflict.
+			writeAPIErrorGeneric(w, r, http.StatusForbidden, fmt.Sprintf("Feature '%s' is disabled for this tenant", featureName))
 			return
 		}
 		next(w, r)
@@ -293,10 +295,9 @@ func moduleGate(moduleKey string, next http.HandlerFunc) http.HandlerFunc {
 		tenantID := r.Header.Get("Resolved-Tenant-ID")
 		enabled, _ := engines.IsModuleEnabled(tenantID, moduleKey)
 		if !enabled {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"error": fmt.Sprintf("Module '%s' is disabled for this tenant", moduleKey),
-			})
+			// SAAS-0191 "Module disabled for tenant" - exact scenario + status
+			// (403) match for this gate.
+			writeAPIError(w, r, "SAAS-0191", "")
 			return
 		}
 		next(w, r)
@@ -308,6 +309,11 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		correlationID := generateUUID()
 		w.Header().Set("X-Correlation-ID", correlationID)
 		w.Header().Set("Content-Type", "application/json")
+		// Published to the request early (rather than only at the end of this
+		// function, with the other Resolved-* fields) so writeAPIError/
+		// writeAPIErrorGeneric can read it from any rejection point below,
+		// including ones that fire before tenant/auth resolution.
+		r.Header.Set("Resolved-Correlation-ID", correlationID)
 
 		// 1. CORS Headers (explicit allowlist - never reflect an arbitrary Origin)
 		origin := r.Header.Get("Origin")
@@ -333,14 +339,16 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		ip := strings.Split(r.RemoteAddr, ":")[0]
 		category, limit := rateLimitCategory(r.URL.Path, r.Method)
 		if !globalLimiter.Allow(ip+":"+category, limit, time.Minute) {
-			w.WriteHeader(http.StatusTooManyRequests)
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"error": "Rate limit exceeded. Please try again later.",
-			})
+			// SEC-0280 "Rate limit exceeded" - exact scenario + status (429) match.
+			writeAPIError(w, r, "SEC-0280", "")
 			return
 		}
 
-		// Panic Recovery
+		// Panic Recovery. Logging stays a direct engines.LogSystemError call
+		// (not the writeAPIError/logForEntry path) so severity is literally
+		// "PANIC" - LogSystemError special-cases that exact string to fire an
+		// immediate ops alert (engines/logs.go), which the catalog's
+		// "Critical" severity for GLOBAL-0302 must not silently swallow.
 		defer func() {
 			if err := recover(); err != nil {
 				stackTrace := string(debug.Stack())
@@ -351,10 +359,12 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				}
 				engines.LogSystemError(tenantID, correlationID, "PANIC", r.URL.Path, errMsg, stackTrace)
 
-				w.WriteHeader(http.StatusInternalServerError)
-				_ = json.NewEncoder(w).Encode(map[string]string{
-					"error":          "A critical server error occurred.",
-					"correlation_id": correlationID,
+				entry := errorCatalog["GLOBAL-0302"]
+				writeResponse(w, entry.HTTPStatus, apiErrorBody{
+					Error:         entry.UserMessage,
+					Code:          entry.Code,
+					CorrelationID: correlationID,
+					Retryable:     entry.Retryable,
 				})
 			}
 		}()
@@ -389,20 +399,20 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				purpose = claims["purpose"]
 				scopeDoctype = claims["scope_doctype"]
 			} else {
-				w.WriteHeader(http.StatusUnauthorized)
-				_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid or expired token"})
+				// GLOBAL-0009 "Session expired" - closest catalog match for a
+				// rejected/expired bearer token (401).
+				writeAPIError(w, r, "GLOBAL-0009", "")
 				return
 			}
 		} else if !publicRoutes[r.URL.Path] {
 			// No token and this isn't one of the explicit public routes: reject.
-			w.WriteHeader(http.StatusUnauthorized)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Authentication required"})
+			writeAPIError(w, r, "GLOBAL-0009", "")
 			return
 		}
 
-		// Attach Resolved Context fields
+		// Attach Resolved Context fields (Resolved-Correlation-ID was already
+		// set at the top of this function, before rate-limit/auth could reject).
 		r.Header.Set("Resolved-Tenant-ID", tenantID)
-		r.Header.Set("Resolved-Correlation-ID", correlationID)
 		r.Header.Set("Resolved-User-ID", userID)
 		r.Header.Set("Resolved-Username", username)
 		r.Header.Set("Resolved-Role", role)

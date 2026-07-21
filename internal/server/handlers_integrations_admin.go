@@ -20,12 +20,11 @@ func handleUnicommerceCredentials(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can configure Unicommerce credentials"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can configure Unicommerce credentials")
 		return
 	}
 	var req struct {
@@ -35,15 +34,15 @@ func handleUnicommerceCredentials(w http.ResponseWriter, r *http.Request) {
 		BaseURL   string `json:"base_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if req.StoreCode == "" || req.APIKey == "" || req.APISecret == "" || req.BaseURL == "" {
-		http.Error(w, "Fields 'store_code', 'api_key', 'api_secret', and 'base_url' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'store_code', 'api_key', 'api_secret', and 'base_url' are required")
 		return
 	}
 	if err := engines.SaveUnicommerceCredential(tenantID, req.StoreCode, req.APIKey, req.APISecret, req.BaseURL); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved", "store_code": req.StoreCode})
@@ -52,12 +51,12 @@ func handleUnicommerceCredentials(w http.ResponseWriter, r *http.Request) {
 func handleGetUnicommerceCredentials(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	creds, err := engines.GetUnicommerceCredentials(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if creds == nil {
@@ -69,7 +68,7 @@ func handleGetUnicommerceCredentials(w http.ResponseWriter, r *http.Request) {
 func handleUnicommerceOrder(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	var req struct {
@@ -81,11 +80,11 @@ func handleUnicommerceOrder(w http.ResponseWriter, r *http.Request) {
 		} `json:"items"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if req.ChannelOrderID == "" || req.StoreCode == "" || len(req.Items) == 0 {
-		http.Error(w, "Fields 'channel_order_id', 'store_code', and 'items' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'channel_order_id', 'store_code', and 'items' are required")
 		return
 	}
 	var items []map[string]interface{}
@@ -102,8 +101,7 @@ func handleUnicommerceOrder(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ignored", "details": "Order already imported (idempotency check)"})
 			return
 		}
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "imported", "order_id": orderID})
@@ -112,12 +110,12 @@ func handleUnicommerceOrder(w http.ResponseWriter, r *http.Request) {
 func handleListUnicommerceOrders(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	orders, err := engines.ListUnicommerceOrders(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if orders == nil {
@@ -129,12 +127,12 @@ func handleListUnicommerceOrders(w http.ResponseWriter, r *http.Request) {
 func handleListUnicommerceInventorySyncs(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	syncs, err := engines.ListUnicommerceInventorySyncs(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if syncs == nil {
@@ -151,12 +149,11 @@ func handlePineLabsCredentials(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can configure Pine Labs credentials"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can configure Pine Labs credentials")
 		return
 	}
 	var req struct {
@@ -166,15 +163,15 @@ func handlePineLabsCredentials(w http.ResponseWriter, r *http.Request) {
 		BaseURL    string `json:"base_url"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if req.TerminalID == "" || req.APIKey == "" || req.MerchantID == "" || req.BaseURL == "" {
-		http.Error(w, "Fields 'terminal_id', 'api_key', 'merchant_id', and 'base_url' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'terminal_id', 'api_key', 'merchant_id', and 'base_url' are required")
 		return
 	}
 	if err := engines.SavePineLabsCredential(tenantID, req.TerminalID, req.APIKey, req.MerchantID, req.BaseURL); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved", "terminal_id": req.TerminalID})
@@ -183,12 +180,12 @@ func handlePineLabsCredentials(w http.ResponseWriter, r *http.Request) {
 func handleGetPineLabsCredentials(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	creds, err := engines.GetPineLabsCredentials(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if creds == nil {
@@ -200,7 +197,7 @@ func handleGetPineLabsCredentials(w http.ResponseWriter, r *http.Request) {
 func handlePineLabsTransaction(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	var req struct {
@@ -211,11 +208,11 @@ func handlePineLabsTransaction(w http.ResponseWriter, r *http.Request) {
 		PaymentMode   string  `json:"payment_mode"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if req.TransactionID == "" || req.TerminalID == "" || req.CartNumber == "" || req.Amount <= 0 {
-		http.Error(w, "Fields 'transaction_id', 'terminal_id', 'cart_number', and positive 'amount' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'transaction_id', 'terminal_id', 'cart_number', and positive 'amount' are required")
 		return
 	}
 	paymentMode := req.PaymentMode
@@ -228,8 +225,7 @@ func handlePineLabsTransaction(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ignored", "details": "Transaction already recorded"})
 			return
 		}
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "recorded", "transaction_id": req.TransactionID})
@@ -239,17 +235,16 @@ func handlePineLabsReconcile(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can run Pine Labs reconciliation"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can run Pine Labs reconciliation")
 		return
 	}
 	result, err := engines.ReconcilePineLabsTransactions(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(result)
@@ -258,12 +253,12 @@ func handlePineLabsReconcile(w http.ResponseWriter, r *http.Request) {
 func handleListPineLabsTransactions(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	txns, err := engines.ListPineLabsTransactions(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if txns == nil {
@@ -280,12 +275,11 @@ func handleCleverTapCredentials(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can configure CleverTap credentials"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can configure CleverTap credentials")
 		return
 	}
 	var req struct {
@@ -294,11 +288,11 @@ func handleCleverTapCredentials(w http.ResponseWriter, r *http.Request) {
 		Region    string `json:"region"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 	if req.AccountID == "" || req.Passcode == "" {
-		http.Error(w, "Fields 'account_id' and 'passcode' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'account_id' and 'passcode' are required")
 		return
 	}
 	region := req.Region
@@ -306,7 +300,7 @@ func handleCleverTapCredentials(w http.ResponseWriter, r *http.Request) {
 		region = "in1"
 	}
 	if err := engines.SaveCleverTapCredential(tenantID, req.AccountID, req.Passcode, region); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved", "account_id": req.AccountID})
@@ -315,12 +309,12 @@ func handleCleverTapCredentials(w http.ResponseWriter, r *http.Request) {
 func handleGetCleverTapCredentials(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	creds, err := engines.GetCleverTapCredentials(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if creds == nil {
@@ -332,12 +326,12 @@ func handleGetCleverTapCredentials(w http.ResponseWriter, r *http.Request) {
 func handleListCleverTapLogs(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	logs, err := engines.ListCleverTapEventLogs(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if logs == nil {
@@ -349,13 +343,13 @@ func handleListCleverTapLogs(w http.ResponseWriter, r *http.Request) {
 func handleGetIntegrationLogs(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	logs, err := engines.GetIntegrationLogs(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -365,7 +359,7 @@ func handleGetIntegrationLogs(w http.ResponseWriter, r *http.Request) {
 func handleRetryIntegrationEvent(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -374,19 +368,18 @@ func handleRetryIntegrationEvent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid retry payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid retry payload")
 		return
 	}
 
 	if req.EventID == "" {
-		http.Error(w, "Field 'event_id' is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'event_id' is required")
 		return
 	}
 
 	err := engines.RetryIntegrationEvent(tenantID, req.EventID)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -399,12 +392,11 @@ func handleRetryIntegrationEvent(w http.ResponseWriter, r *http.Request) {
 func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can provision new tenants"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can provision new tenants")
 		return
 	}
 
@@ -414,19 +406,18 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid provisioning payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid provisioning payload")
 		return
 	}
 
 	if req.TenantID == "" || req.SchemaName == "" {
-		http.Error(w, "Fields 'tenant_id' and 'schema_name' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'tenant_id' and 'schema_name' are required")
 		return
 	}
 
 	adminPassword, err := engines.ProvisionTenantSchema(req.TenantID, req.SchemaName, currentAppVersion())
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -444,12 +435,11 @@ func handleSetFeatureFlag(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can modify feature flags"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can modify feature flags")
 		return
 	}
 
@@ -459,18 +449,18 @@ func handleSetFeatureFlag(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid feature-flag payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid feature-flag payload")
 		return
 	}
 
 	if req.FeatureName == "" {
-		http.Error(w, "Field 'feature_name' is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'feature_name' is required")
 		return
 	}
 
 	err := engines.SetFeatureFlag(tenantID, req.FeatureName, req.Enabled)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -485,20 +475,18 @@ func handleSetFeatureFlag(w http.ResponseWriter, r *http.Request) {
 // what modules exist at all, regardless of any tenant's entitlements.
 func handleListModules(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can view the module catalog"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view the module catalog")
 		return
 	}
 
 	modules, err := engines.ListModules()
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(modules)
@@ -508,13 +496,12 @@ func handleListModules(w http.ResponseWriter, r *http.Request) {
 // resolved tenant's current enabled/disabled state for each module.
 func handleGetModuleEntitlements(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can view module entitlements"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view module entitlements")
 		return
 	}
 
@@ -525,8 +512,7 @@ func handleGetModuleEntitlements(w http.ResponseWriter, r *http.Request) {
 
 	entitlements, err := engines.ListModuleEntitlements(tenantID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(entitlements)
@@ -537,13 +523,12 @@ func handleGetModuleEntitlements(w http.ResponseWriter, r *http.Request) {
 // this handler just surfaces that error as a 400 rather than re-checking it.
 func handleSetModuleEntitlement(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can modify module entitlements"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can modify module entitlements")
 		return
 	}
 
@@ -553,11 +538,11 @@ func handleSetModuleEntitlement(w http.ResponseWriter, r *http.Request) {
 		Enabled   bool   `json:"enabled"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid module-entitlement payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid module-entitlement payload")
 		return
 	}
 	if req.ModuleKey == "" {
-		http.Error(w, "Field 'module_key' is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'module_key' is required")
 		return
 	}
 
@@ -568,8 +553,7 @@ func handleSetModuleEntitlement(w http.ResponseWriter, r *http.Request) {
 
 	grantedBy := r.Header.Get("Resolved-Username")
 	if err := engines.SetModuleEntitlement(tenantID, req.ModuleKey, req.Enabled, grantedBy); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -587,7 +571,7 @@ func handleSetModuleEntitlement(w http.ResponseWriter, r *http.Request) {
 // endpoint elsewhere.
 func handleVersion(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{
@@ -595,6 +579,25 @@ func handleVersion(w http.ResponseWriter, r *http.Request) {
 		"git_commit": gitCommit,
 		"build_time": buildTime,
 	})
+}
+
+// handleHealth (24.14) is a liveness/readiness probe for a load balancer or
+// process supervisor to point at - nothing existed for this before. Public
+// (see publicRoutes), same tier as /version: a health checker shouldn't need
+// a bearer token to ask "are you up". Pings the DB directly rather than
+// trusting the pool's idle state, so a lost DB connection is reflected here
+// even if no request has touched it recently.
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	if err := db.DB.Ping(); err != nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "unavailable", "error": err.Error()})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
 
 // handleGetTenantVersion (Stage 14.6) surfaces what version was recorded
@@ -605,13 +608,12 @@ func handleVersion(w http.ResponseWriter, r *http.Request) {
 // serve one binary version, regardless of which tenant is asking.
 func handleGetTenantVersion(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can view tenant version records"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view tenant version records")
 		return
 	}
 
@@ -626,13 +628,11 @@ func handleGetTenantVersion(w http.ResponseWriter, r *http.Request) {
 	var recordedVersion, pinnedVersion sql.NullString
 	err := db.DB.QueryRow(`SELECT app_version, pinned_version FROM public.tenants WHERE tenant_id = $1`, tenantID).Scan(&recordedVersion, &pinnedVersion)
 	if err == sql.ErrNoRows {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Unknown tenant_id"})
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "Unknown tenant_id")
 		return
 	}
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -651,13 +651,12 @@ func handleGetTenantVersion(w http.ResponseWriter, r *http.Request) {
 // actually needs to act on; pass ?status=all to see everything).
 func handleListPatchProposals(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can view patch proposals"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view patch proposals")
 		return
 	}
 
@@ -671,8 +670,7 @@ func handleListPatchProposals(w http.ResponseWriter, r *http.Request) {
 
 	proposals, err := engines.ListPatchProposals(status)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if proposals == nil {
@@ -706,30 +704,28 @@ func handleRejectPatchProposal(w http.ResponseWriter, r *http.Request) {
 // a separate, manual step using the tools already built in Phases A/C.
 func decidePatchProposal(w http.ResponseWriter, r *http.Request, decision string) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can decide patch proposals"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can decide patch proposals")
 		return
 	}
 
 	var req decidePatchProposalRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid patch-proposal decision payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid patch-proposal decision payload")
 		return
 	}
 	if req.ProposalID == 0 {
-		http.Error(w, "Field 'proposal_id' is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'proposal_id' is required")
 		return
 	}
 
 	decidedBy := r.Header.Get("Resolved-Username")
 	if err := engines.DecidePatchProposal(req.ProposalID, decision, decidedBy, req.Notes); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -745,13 +741,12 @@ func decidePatchProposal(w http.ResponseWriter, r *http.Request, decision string
 // tenant admin passwords already use (engines.ProvisionTenantSchema).
 func handleCreateExtensionHook(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can register extension hooks"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can register extension hooks")
 		return
 	}
 
@@ -762,11 +757,11 @@ func handleCreateExtensionHook(w http.ResponseWriter, r *http.Request) {
 		TimeoutMs int    `json:"timeout_ms"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid extension-hook payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid extension-hook payload")
 		return
 	}
 	if req.Doctype == "" {
-		http.Error(w, "Field 'doctype' is required (use '*' to match every doctype)", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'doctype' is required (use '*' to match every doctype)")
 		return
 	}
 
@@ -774,8 +769,7 @@ func handleCreateExtensionHook(w http.ResponseWriter, r *http.Request) {
 	createdBy := r.Header.Get("Resolved-Username")
 	id, secret, err := engines.RegisterExtensionHook(tenantID, req.HookPoint, req.Doctype, req.TargetURL, req.TimeoutMs, createdBy)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -788,21 +782,19 @@ func handleCreateExtensionHook(w http.ResponseWriter, r *http.Request) {
 
 func handleListExtensionHooks(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can view extension hooks"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view extension hooks")
 		return
 	}
 
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	hooks, err := engines.ListExtensionHooks(tenantID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if hooks == nil {
@@ -813,21 +805,19 @@ func handleListExtensionHooks(w http.ResponseWriter, r *http.Request) {
 
 func handleDeleteExtensionHook(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can delete extension hooks"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can delete extension hooks")
 		return
 	}
 
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	hookID := r.PathValue("id")
 	if err := engines.DeleteExtensionHook(tenantID, hookID); err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deleted", "id": hookID})
@@ -835,13 +825,12 @@ func handleDeleteExtensionHook(w http.ResponseWriter, r *http.Request) {
 
 func handleGetExtensionHookLog(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can view extension hook logs"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view extension hook logs")
 		return
 	}
 
@@ -849,8 +838,7 @@ func handleGetExtensionHookLog(w http.ResponseWriter, r *http.Request) {
 	hookID := r.PathValue("id")
 	logEntries, err := engines.GetExtensionHookLog(tenantID, hookID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if logEntries == nil {
@@ -865,13 +853,12 @@ func handleGetExtensionHookLog(w http.ResponseWriter, r *http.Request) {
 // itself. Never the core repo, never a full session, never another tenant.
 func handleIssueExtensionToken(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can issue extension tokens"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can issue extension tokens")
 		return
 	}
 
@@ -880,11 +867,11 @@ func handleIssueExtensionToken(w http.ResponseWriter, r *http.Request) {
 		TTLMinutes   int    `json:"ttl_minutes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid extension-token payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid extension-token payload")
 		return
 	}
 	if req.ScopeDoctype == "" {
-		http.Error(w, "Field 'scope_doctype' is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'scope_doctype' is required")
 		return
 	}
 	ttl := time.Duration(req.TTLMinutes) * time.Minute

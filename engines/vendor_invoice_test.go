@@ -111,9 +111,12 @@ func TestVendorInvoice3WayMatchAndPayment(t *testing.T) {
 			t.Fatalf("Match3Way: %v", err)
 		}
 
-		paid, err := PayVendorInvoice(tenantID, "TEST-VI-INV4", "system", "")
+		paid, pending, err := PayVendorInvoice(tenantID, "TEST-VI-INV4", "system", "HR/Admin", "")
 		if err != nil {
 			t.Fatalf("PayVendorInvoice: %v", err)
+		}
+		if pending {
+			t.Fatalf("a Matched invoice should pay immediately, not route to approval")
 		}
 		if paid != 1000 {
 			t.Fatalf("expected paid=1000, got %d", paid)
@@ -125,12 +128,16 @@ func TestVendorInvoice3WayMatchAndPayment(t *testing.T) {
 			t.Fatalf("expected balanced GL debit/credit of 1000, got suspense_debit=%d cash_credit=%d", suspense, cash)
 		}
 
-		if _, err := PayVendorInvoice(tenantID, "TEST-VI-INV4", "system", ""); err == nil {
+		if _, _, err := PayVendorInvoice(tenantID, "TEST-VI-INV4", "system", "HR/Admin", ""); err == nil {
 			t.Fatalf("expected a second payment attempt to be rejected")
 		}
 	})
 
-	t.Run("MismatchHold cannot be paid without an override reason, but can with one", func(t *testing.T) {
+	// 24.11: overriding a MismatchHold invoice no longer pays inline - it
+	// routes through the same maker-checker approval engine PurchaseOrder
+	// (Stage 13.8) already uses, and only actually pays once a *different*
+	// user approves it via DecideApproval/FinalizeVendorInvoiceOverridePayment.
+	t.Run("MismatchHold cannot be paid without an override reason; with one it routes to approval and pays once approved", func(t *testing.T) {
 		cleanup()
 		seedPOAndGRN(1000, 10)
 		seedInvoice("TEST-VI-INV5", 1500, "VEND01", "INV-005", "TEST-FY")
@@ -138,11 +145,49 @@ func TestVendorInvoice3WayMatchAndPayment(t *testing.T) {
 			t.Fatalf("Match3Way: %v", err)
 		}
 
-		if _, err := PayVendorInvoice(tenantID, "TEST-VI-INV5", "system", ""); err == nil {
+		if _, _, err := PayVendorInvoice(tenantID, "TEST-VI-INV5", "system", "Store Manager", ""); err == nil {
 			t.Fatalf("expected payment without override to be rejected for a MismatchHold invoice")
 		}
-		if _, err := PayVendorInvoice(tenantID, "TEST-VI-INV5", "system", "Vendor confirmed price increase via email"); err != nil {
-			t.Fatalf("expected an overridden payment to succeed: %v", err)
+
+		// Real seeded user IDs (db/migration.sql) - documents.created_by has
+		// a foreign key to tenant_default.users, and PayVendorInvoice's
+		// override branch reassigns created_by to the requesting user (see
+		// its own comment for why), so this must be a real user id, not an
+		// arbitrary string.
+		const makerID = "manager1"   // Store Manager
+		const checkerID = "admin"    // HR/Admin
+		paid, pending, err := PayVendorInvoice(tenantID, "TEST-VI-INV5", makerID, "Store Manager", "Vendor confirmed price increase via email")
+		if err != nil {
+			t.Fatalf("expected an override submission to succeed: %v", err)
+		}
+		if !pending || paid != 0 {
+			t.Fatalf("expected the override to be claimed for approval (paid=0, pending=true), got paid=%d pending=%v", paid, pending)
+		}
+		var status string
+		db.DB.QueryRow("SELECT status FROM " + schema + ".documents WHERE id='TEST-VI-INV5'").Scan(&status)
+		if status != "Pending Approval" {
+			t.Fatalf("expected status Pending Approval after override submission, got %s", status)
+		}
+
+		// Same maker cannot approve their own override (maker-checker), a
+		// different HR/Admin checker can, and only then does the payment
+		// actually post.
+		if err := DecideApproval(tenantID, "VendorInvoice", "TEST-VI-INV5", makerID, "HR/Admin", "HO", "Approved", ""); err == nil {
+			t.Fatalf("expected the maker to be blocked from approving their own override")
+		}
+		if err := DecideApproval(tenantID, "VendorInvoice", "TEST-VI-INV5", checkerID, "HR/Admin", "HO", "Approved", "looks legitimate"); err != nil {
+			t.Fatalf("expected a different HR/Admin checker to approve: %v", err)
+		}
+		finalPaid, err := FinalizeVendorInvoiceOverridePayment(tenantID, "TEST-VI-INV5", checkerID)
+		if err != nil {
+			t.Fatalf("FinalizeVendorInvoiceOverridePayment: %v", err)
+		}
+		if finalPaid != 1500 {
+			t.Fatalf("expected finalized payment of 1500, got %d", finalPaid)
+		}
+		db.DB.QueryRow("SELECT status FROM " + schema + ".documents WHERE id='TEST-VI-INV5'").Scan(&status)
+		if status != "Paid" {
+			t.Fatalf("expected status Paid after finalization, got %s", status)
 		}
 	})
 

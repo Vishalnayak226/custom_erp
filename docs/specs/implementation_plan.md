@@ -137,6 +137,8 @@ Security must be designed from day one, not added after development.
 
 ## 6. System Error-Proofing Matrix
 
+> **Superseded (Stage 23, 2026-07-20)**: this 11-row spec-only table has been replaced by a real, code-backed 300+ code standardized message catalog covering every module, generated from `ERP_Standard_Message_Control_Matrix_Final.xlsx` into `internal/server/error_catalog_generated.go`. All 11 scenarios below have a confirmed 1:1 match in the new catalog (e.g. `ITEM_DUPLICATE`→`MASTER-0040`, `NEGATIVE_STOCK_BLOCKED`→`INVENT-0105`, `PAYMENT_BLOCKED`→`VENDOR-0096`) — nothing here was lost. See **[docs/specs/message_catalog.md](message_catalog.md)** for the live system; this table stays only as historical record of the original design intent.
+
 | Area | Risk Scenario | System Control | Standard Error Message |
 | :--- | :--- | :--- | :--- |
 | **Product** | Duplicate item creation | Unique database keys + mandatory attribute check | `ITEM_DUPLICATE`: Item already exists. |

@@ -1,5 +1,7 @@
 # In-House ERP Kernel: Metadata-Driven Framework Architecture
 
+> **Terminology note**: this is a technical architecture doc, so it keeps using "DocType" where it's describing the framework's actual database tables (`doctype_meta`/`doctype_fields`), API paths (`/api/v1/doc/:doctype`), and its design lineage from ERPNext/Frappe's own DocType concept — renaming those references would misdescribe the real code. Everywhere a user or admin actually sees this concept (the UI, `ADMIN_GUIDE.md`, `USER_GUIDE.md`), it's called a **Record Type** instead — "DocType" was fully removed from user-facing surfaces per explicit user request.
+
 This document defines the core framework architecture for the In-House ERP system, drawing inspiration from modern open-source platforms such as **Odoo** (modular plugin apps), **ERPNext / Frappe** (metadata-driven DocTypes), and **Nocobase** (dynamic schema builders). 
 
 Rather than building a hardcoded, isolated collection of forms for a single industry, we establish a **lightweight, extensible ERP Kernel** in Go. Industry-specific features (such as jewelry procurement, retail POS, or manufacturing) are loaded as pluggable metadata schemas and serverless logic hooks.

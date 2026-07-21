@@ -1,18 +1,25 @@
 package engines
 
 import (
+	"crypto/rand"
 	"custom_erp/db"
 	"database/sql"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"time"
 )
 
-// GenerateBarcode returns a unique 10-digit barcode string prefixing 'BAR'
+// GenerateBarcode returns a unique 10-digit barcode string prefixing 'BAR'.
+// 24.23: crypto/rand instead of a math/rand source seeded off the wall
+// clock, which produces a predictable sequence once an attacker knows
+// roughly when a barcode was generated. Barcodes aren't security tokens so
+// the practical risk was always low - this is a one-line stdlib swap with
+// no change to the output format.
 func GenerateBarcode() string {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	num := r.Intn(9000000) + 1000000
+	var b [4]byte
+	_, _ = rand.Read(b[:])
+	num := binary.BigEndian.Uint32(b[:])%9000000 + 1000000
 	return fmt.Sprintf("BAR%d", num)
 }
 
@@ -170,12 +177,17 @@ func CreateReservation(tenantID string, sku string, locationCode string, qty int
 		return "", err
 	}
 
-	// 1. Calculate Available-to-Sell (ATS) stock first
+	// 1. Calculate Available-to-Sell (ATS) stock first. FOR UPDATE (24.7) -
+	// without it, two concurrent reservations against the same SKU/location
+	// could both read sufficient ATS before either commits and over-reserve;
+	// the decrement path above (PostInventoryLedger) already locks this same
+	// way, this closes the inconsistency.
 	var onHand, available, committed, reserved, safetyStock int
 	err = tx.QueryRow(fmt.Sprintf(`
-		SELECT on_hand, available, committed, reserved, safety_stock 
-		FROM %s.inventory_availability 
-		WHERE sku = $1 AND location_code = $2`, schema), sku, locationCode).Scan(&onHand, &available, &committed, &reserved, &safetyStock)
+		SELECT on_hand, available, committed, reserved, safety_stock
+		FROM %s.inventory_availability
+		WHERE sku = $1 AND location_code = $2
+		FOR UPDATE`, schema), sku, locationCode).Scan(&onHand, &available, &committed, &reserved, &safetyStock)
 	if err != nil {
 		// If no inventory availability record exists, we cannot reserve stock
 		return "", fmt.Errorf("insufficient stock for reservation of SKU: %s", sku)

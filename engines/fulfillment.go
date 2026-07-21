@@ -302,15 +302,21 @@ func ProcessReturnAnywhere(tenantID string, returnLocation string, originalOrder
 		return err
 	}
 
-	// 3. Post double-entry reverse finance bookings (debit Revenue, credit Cash/Bank; debit Inventory, credit COGS)
+	// 3. Post double-entry reverse finance bookings (debit Revenue, credit Cash/Bank; debit Inventory, credit COGS).
+	// No postingKey (24.5) here: unlike GRN/SalesInvoice/etc., this function
+	// has no per-call unique identifier - a single originalOrderID can
+	// legitimately have more than one partial return processed against it
+	// over time, so keying on originalOrderID alone would wrongly block the
+	// second one. A real fix needs a dedicated per-return document/ID, out
+	// of scope for this pass.
 	revenueDebits := map[string]int{"4100": totalSalePrice}  // Debit: Sales Revenue (reduce revenue)
 	revenueCredits := map[string]int{"1100": totalSalePrice} // Credit: Cash/Bank (refund customer)
-	err = PostDoubleEntry(tenantID, "SalesReturn", originalOrderID, revenueDebits, revenueCredits)
+	err = PostDoubleEntry(tenantID, "SalesReturn", originalOrderID, revenueDebits, revenueCredits, "", "")
 	if err != nil {
 		return err
 	}
 
 	inventoryDebits := map[string]int{"1200": totalCostPrice}  // Debit: Inventory Control (receive stock)
 	inventoryCredits := map[string]int{"5100": totalCostPrice} // Credit: Cost of Goods Sold (reduce COGS)
-	return PostDoubleEntry(tenantID, "SalesReturn", originalOrderID, inventoryDebits, inventoryCredits)
+	return PostDoubleEntry(tenantID, "SalesReturn", originalOrderID, inventoryDebits, inventoryCredits, "", "")
 }

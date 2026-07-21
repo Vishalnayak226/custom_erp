@@ -186,23 +186,29 @@ func uploadMagentoMedia(ctx context.Context, cred map[string]string, sku string,
 // logs changed orders; it does not drive a full order-import pipeline the
 // way the existing Shopify order webhook does - that is deferred, not
 // silently skipped.
-func StartMagentoPollWorker(interval time.Duration) {
+func StartMagentoPollWorker(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	lastPoll := time.Now().Add(-interval)
 	go func() {
-		for range ticker.C {
-			if db.DB == nil {
-				continue
-			}
-			schemas, err := listTenantSchemas()
-			if err != nil {
-				log.Printf("[MAGENTO-POLL] failed to list tenant schemas: %v", err)
-				continue
-			}
-			since := lastPoll
-			lastPoll = time.Now()
-			for _, schema := range schemas {
-				pollMagentoChannels(schema, since)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if db.DB == nil {
+					continue
+				}
+				schemas, err := listTenantSchemas()
+				if err != nil {
+					log.Printf("[MAGENTO-POLL] failed to list tenant schemas: %v", err)
+					continue
+				}
+				since := lastPoll
+				lastPoll = time.Now()
+				for _, schema := range schemas {
+					pollMagentoChannels(schema, since)
+				}
 			}
 		}
 	}()

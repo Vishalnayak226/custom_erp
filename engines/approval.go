@@ -43,6 +43,59 @@ func GetApprovalRules(tenantID string) ([]ApprovalRule, error) {
 	return rules, nil
 }
 
+// UpsertApprovalRule (24.8) creates or edits one approval_rules row, with a
+// save-time overlap check the table itself never had: two rules for the
+// same doctype whose [min_amount, max_amount] ranges intersect would
+// otherwise silently coexist, and requiredApproverRole's own lookup
+// (`ORDER BY min_amount DESC LIMIT 1`) would just pick the higher-min_amount
+// one with no warning that the lower one is now partly unreachable.
+// ruleID == nil creates a new rule; non-nil edits that row (and excludes it
+// from its own overlap check). This is also, incidentally, the first way to
+// manage approval_rules through the API at all - previously only reachable
+// via a direct SQL migration insert, unlike prefix_configs/feature_flags'
+// existing self-service pattern this table's own comment says it follows.
+func UpsertApprovalRule(tenantID, doctype string, minAmount float64, maxAmount *float64, requiredRole string, ruleID *int) (int, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return 0, err
+	}
+	if doctype == "" || requiredRole == "" {
+		return 0, fmt.Errorf("doctype and required_role are required")
+	}
+	if maxAmount != nil && *maxAmount < minAmount {
+		return 0, fmt.Errorf("max_amount cannot be less than min_amount")
+	}
+
+	excludeID := -1
+	if ruleID != nil {
+		excludeID = *ruleID
+	}
+	var overlapping int
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT id FROM %s.approval_rules
+		WHERE doctype = $1 AND id != $2
+		  AND ($3::numeric IS NULL OR min_amount <= $3)
+		  AND (max_amount IS NULL OR max_amount >= $4)
+		LIMIT 1`, schema), doctype, excludeID, maxAmount, minAmount).Scan(&overlapping)
+	if err == nil {
+		return 0, fmt.Errorf("this range overlaps existing approval rule id %d for %s", overlapping, doctype)
+	} else if err != sql.ErrNoRows {
+		return 0, err
+	}
+
+	if ruleID != nil {
+		_, err = db.DB.Exec(fmt.Sprintf(`
+			UPDATE %s.approval_rules SET min_amount = $1, max_amount = $2, required_role = $3
+			WHERE id = $4`, schema), minAmount, maxAmount, requiredRole, *ruleID)
+		return *ruleID, err
+	}
+	var newID int
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		INSERT INTO %s.approval_rules (doctype, min_amount, max_amount, required_role)
+		VALUES ($1, $2, $3, $4) RETURNING id`, schema), doctype, minAmount, maxAmount, requiredRole).Scan(&newID)
+	return newID, err
+}
+
 // requiredApproverRole finds the rule matching doctype+amount. Returns
 // ("", nil) if the doctype has no rules configured at all (not gated) -
 // callers must distinguish that from a real error.
@@ -287,7 +340,14 @@ func ListPendingApprovals(tenantID, role, location string) ([]map[string]interfa
 			return nil, err
 		}
 		var data map[string]interface{}
-		_ = json.Unmarshal([]byte(dataStr), &data)
+		if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+			// 24.18: a nil map from a failed unmarshal would otherwise panic
+			// on the assignment just below ("assignment to entry in nil
+			// map") - log and skip this row rather than crashing the whole
+			// approvals inbox for every other pending document.
+			LogSystemError(tenantID, "", "ERROR", "ListPendingApprovals", fmt.Sprintf("corrupt data for %s %s: %v", doctype, id, err), "")
+			continue
+		}
 		data["id"] = id
 		data["doctype"] = doctype
 		results = append(results, data)
@@ -303,9 +363,14 @@ func ListPendingApprovals(tenantID, role, location string) ([]map[string]interfa
 // the discount percentage under this key rather than "amount"/"total_amount"
 // to avoid colliding with those keys' rupee-amount meaning on other doctypes.
 // "variance_qty" is CycleCountLine-specific (Stage 20.22): routes on the
-// absolute quantity variance, not a rupee amount.
+// absolute quantity variance, not a rupee amount. "invoice_amount" is
+// VendorInvoice-specific (24.11's override-approval routing) - without it,
+// every VendorInvoice decision would route/log as amount 0 regardless of
+// the real invoice_amount, which happens to still pick the right role
+// today only because this stage seeded a single flat 0..NULL rule for the
+// doctype - a tiered slab would route every override to the lowest tier.
 func extractAmount(data map[string]interface{}) float64 {
-	for _, key := range []string{"total_amount", "amount", "discount_amount", "variance_qty"} {
+	for _, key := range []string{"total_amount", "amount", "discount_amount", "variance_qty", "invoice_amount"} {
 		if v, ok := data[key]; ok {
 			switch n := v.(type) {
 			case float64:

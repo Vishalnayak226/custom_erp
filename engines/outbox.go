@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -28,21 +29,27 @@ func PublishEvent(tx *sql.Tx, schema, eventName string, payload map[string]inter
 // StartOutboxWorker starts a background worker that polls the outbox and dispatches events
 // for every provisioned tenant schema (re-queried each tick so newly provisioned tenants are
 // picked up without a server restart).
-func StartOutboxWorker(interval time.Duration) {
+func StartOutboxWorker(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	go func() {
-		for range ticker.C {
-			if db.DB == nil {
-				continue
-			}
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if db.DB == nil {
+					continue
+				}
 
-			schemas, err := listTenantSchemas()
-			if err != nil {
-				log.Printf("[OUTBOX] Failed to list tenant schemas: %v", err)
-				continue
-			}
-			for _, schema := range schemas {
-				processOutbox(schema)
+				schemas, err := listTenantSchemas()
+				if err != nil {
+					log.Printf("[OUTBOX] Failed to list tenant schemas: %v", err)
+					continue
+				}
+				for _, schema := range schemas {
+					processOutbox(schema)
+				}
 			}
 		}
 	}()
@@ -176,7 +183,9 @@ func GetIntegrationLogs(tenantID string) ([]map[string]interface{}, error) {
 		var createdAt time.Time
 		if errScan := rows.Scan(&id, &eventName, &payload, &status, &attempts, &createdAt); errScan == nil {
 			var payloadMap map[string]interface{}
-			_ = json.Unmarshal([]byte(payload), &payloadMap)
+			if err := json.Unmarshal([]byte(payload), &payloadMap); err != nil {
+				log.Printf("[OUTBOX] corrupt payload for event %s: %v", id, err)
+			}
 			logs = append(logs, map[string]interface{}{
 				"id":         id,
 				"event_name": eventName,

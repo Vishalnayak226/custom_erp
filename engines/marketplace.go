@@ -96,7 +96,7 @@ func ProcessMarketplaceSettlement(tenantID string, channel string, settlementID 
 		"1300": totalSale,
 	}
 
-	err = PostDoubleEntry(tenantID, "MarketplaceSettlement", settlementID, debits, credits)
+	err = PostDoubleEntry(tenantID, "MarketplaceSettlement", settlementID, debits, credits, "", fmt.Sprintf("MarketplaceSettlement:%s:RECONCILE", settlementID))
 	if err != nil {
 		return fmt.Errorf("failed to write settlement GL postings: %v", err)
 	}
@@ -133,5 +133,5 @@ func SeedReceivableBalance(tenantID string, amount int, documentID string) error
 	// To credit Accounts Receivable in payout, we must first debit it (debit Receivable 1300, credit Revenue 4100)
 	debits := map[string]int{"1300": amount}
 	credits := map[string]int{"4100": amount}
-	return PostDoubleEntry(tenantID, "POSCart", documentID, debits, credits)
+	return PostDoubleEntry(tenantID, "POSCart", documentID, debits, credits, "", "")
 }

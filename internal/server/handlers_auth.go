@@ -21,14 +21,14 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
 		return
 	}
 
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -37,6 +37,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		Username         string
 		PasswordHash     string
 		Role             string
+		LocationCode     string
 		FailedLoginCount int
 		IsLocked         bool
 	}
@@ -51,13 +52,12 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// NOW(), sidesteps any app-server-vs-database clock/timezone
 	// reconciliation entirely rather than trying to get it right in Go.
 	err = db.DB.QueryRow(fmt.Sprintf(`
-		SELECT id, username, password_hash, role, failed_login_count, (locked_until IS NOT NULL AND locked_until > NOW())
+		SELECT id, username, password_hash, role, location_code, failed_login_count, (locked_until IS NOT NULL AND locked_until > NOW())
 		FROM %s.users
-		WHERE username = $1 AND status = 'Active'`, schema), req.Username).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.FailedLoginCount, &u.IsLocked)
+		WHERE username = $1 AND status = 'Active'`, schema), req.Username).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.LocationCode, &u.FailedLoginCount, &u.IsLocked)
 	if err != nil {
 		// Generic security error message
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid username or password"})
+		writeAPIError(w, r, "USERAC-0021", "")
 		return
 	}
 
@@ -70,8 +70,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// username is valid, the exact leak this endpoint's error messages
 	// have consistently avoided elsewhere (e.g. a deactivated Employee).
 	if u.IsLocked {
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid username or password"})
+		writeAPIError(w, r, "USERAC-0021", "")
 		return
 	}
 
@@ -89,8 +88,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		} else {
 			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET failed_login_count = $1 WHERE id = $2`, schema), newCount, u.ID)
 		}
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid username or password"})
+		writeAPIError(w, r, "USERAC-0021", "")
 		return
 	}
 
@@ -105,8 +103,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	if engines.RequiresMFA(u.Role) {
 		enabled, _, mfaErr := engines.GetUserMFAStatus(tenantID, u.ID)
 		if mfaErr != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to resolve MFA status"})
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve MFA status")
 			return
 		}
 		if !enabled {
@@ -127,9 +124,13 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Hardcoded default location for simplicity, can be mapped in DB users table later
-	locationCode := "HO"
-	token := engines.SignToken(u.ID, u.Username, u.Role, tenantID, locationCode)
+	// 24.1: the user's own location_code, not a hardcoded "HO" - this used to
+	// silently defeat every location-scoped authorization check in
+	// handleGenericDoc (a Store Manager's token claimed "HO" access same as
+	// everyone else's). Falls back to "HO" for legacy rows via the column's
+	// own DEFAULT (db/migrations_stage24_security.sql), so an unassigned
+	// user behaves exactly as before rather than losing access.
+	token := engines.SignToken(u.ID, u.Username, u.Role, tenantID, u.LocationCode)
 
 	engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "SUCCESS", fmt.Sprintf("User logged in successfully with role %s", u.Role))
 
@@ -145,8 +146,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 // once before activation - each call simply replaces the pending secret.
 func handleMFAEnroll(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Resolved-Purpose") != "mfa_enroll" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "This endpoint requires a pending MFA enrollment token from /api/v1/login"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "This endpoint requires a pending MFA enrollment token from /api/v1/login")
 		return
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
@@ -155,13 +155,11 @@ func handleMFAEnroll(w http.ResponseWriter, r *http.Request) {
 
 	secret, err := engines.GenerateTOTPSecret()
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to generate MFA secret"})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to generate MFA secret")
 		return
 	}
 	if err := engines.SetPendingMFASecret(tenantID, userID, secret); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to store MFA secret"})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to store MFA secret")
 		return
 	}
 
@@ -176,15 +174,14 @@ func handleMFAEnroll(w http.ResponseWriter, r *http.Request) {
 // completion of the original login attempt - issues the real session token.
 func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Resolved-Purpose") != "mfa_enroll" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "This endpoint requires a pending MFA enrollment token from /api/v1/login"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "This endpoint requires a pending MFA enrollment token from /api/v1/login")
 		return
 	}
 	var req struct {
 		Code string `json:"code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
 		return
 	}
 
@@ -193,28 +190,24 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 
 	_, secret, err := engines.GetUserMFAStatus(tenantID, userID)
 	if err != nil || secret == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "No pending MFA enrollment found - call /api/v1/auth/mfa/enroll first"})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "No pending MFA enrollment found - call /api/v1/auth/mfa/enroll first")
 		return
 	}
 	if !engines.VerifyTOTPCode(secret, req.Code) {
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid MFA code"})
+		writeAPIError(w, r, "USERAC-0025", "")
 		return
 	}
 	if err := engines.ActivateMFA(tenantID, userID); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to activate MFA"})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to activate MFA")
 		return
 	}
 
-	role, username, err := engines.LookupUserRoleAndUsername(tenantID, userID)
+	role, username, locationCode, err := engines.LookupUserRoleAndUsername(tenantID, userID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "MFA activated but failed to issue session"})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "MFA activated but failed to issue session")
 		return
 	}
-	token := engines.SignToken(userID, username, role, tenantID, "HO")
+	token := engines.SignToken(userID, username, role, tenantID, locationCode)
 	engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_ENROLLED_AND_VERIFIED", "TOTP enrollment completed and verified")
 	_ = json.NewEncoder(w).Encode(map[string]string{"token": token, "role": role, "user": username})
 }
@@ -223,15 +216,14 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 // checking a TOTP code against the stored active secret.
 func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 	if r.Header.Get("Resolved-Purpose") != "mfa_challenge" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "This endpoint requires an MFA challenge token from /api/v1/login"})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "This endpoint requires an MFA challenge token from /api/v1/login")
 		return
 	}
 	var req struct {
 		Code string `json:"code"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
 		return
 	}
 
@@ -240,23 +232,20 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 
 	enabled, secret, err := engines.GetUserMFAStatus(tenantID, userID)
 	if err != nil || !enabled || secret == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "MFA is not enrolled for this account"})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "MFA is not enrolled for this account")
 		return
 	}
 	if !engines.VerifyTOTPCode(secret, req.Code) {
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Invalid MFA code"})
+		writeAPIError(w, r, "USERAC-0025", "")
 		return
 	}
 
-	role, username, err := engines.LookupUserRoleAndUsername(tenantID, userID)
+	role, username, locationCode, err := engines.LookupUserRoleAndUsername(tenantID, userID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "MFA verified but failed to issue session"})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "MFA verified but failed to issue session")
 		return
 	}
-	token := engines.SignToken(userID, username, role, tenantID, "HO")
+	token := engines.SignToken(userID, username, role, tenantID, locationCode)
 	engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_VERIFIED", "TOTP code verified, session issued")
 	_ = json.NewEncoder(w).Encode(map[string]string{"token": token, "role": role, "user": username})
 }

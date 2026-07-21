@@ -117,6 +117,11 @@
           <ul class="menu-flyout">
             <li><a class="menu-item" id="menu-finance"><span>Finance / GL</span></a></li>
             <li><a class="menu-item" id="menu-approvals"><span>Approvals</span></a></li>
+            <li><a class="menu-item" id="menu-vendor-invoices"><span>Vendor Invoices</span></a></li>
+            <li><a class="menu-item" id="menu-payment-proposals"><span>Payment Proposals</span></a></li>
+            <li><a class="menu-item" id="menu-bank-reconciliation"><span>Bank Reconciliation</span></a></li>
+            <li><a class="menu-item" id="menu-finance-notes"><span>Debit / Credit Notes</span></a></li>
+            <li><a class="menu-item" id="menu-sales-invoices"><span>Sales Invoices</span></a></li>
           </ul>
         </li>
 
@@ -364,7 +369,7 @@
           </div>
           <div class="form-group">
             <label class="form-label">Options (Required for Select/Link)</label>
-            <input type="text" class="form-control" id="add-field-options" placeholder="Comma separated list OR Target DocType">
+            <input type="text" class="form-control" id="add-field-options" placeholder="Comma separated list OR Target Record Type">
           </div>
           <div class="form-group">
             <label class="form-label">Display Order</label>
@@ -448,60 +453,6 @@
     </div>
   </div>
 
-  <!-- Register DocType Modal -->
-  <div class="modal-overlay" id="register-doctype-modal">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title">Register New DocType</h3>
-        <button class="modal-close" onclick="closeRegisterDoctypeModal()">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>
-      </div>
-      <form id="register-doctype-form" onsubmit="submitRegisterDoctype(event)">
-        <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
-          <div class="form-group">
-            <label class="form-label">Configuration Template</label>
-            <select class="form-control" id="reg-doctype-template" onchange="applyDocTypeTemplate()">
-              <option value="none">Blank (Custom)</option>
-              <option value="Store">Store</option>
-              <option value="Customer">Customer</option>
-              <option value="Vendor">Vendor</option>
-              <option value="Item">Item</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">DocType Name</label>
-            <input type="text" class="form-control" id="reg-doctype-name" placeholder="e.g. Store, Customer, Item" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Module Group</label>
-            <select class="form-control" id="reg-doctype-module" required>
-              <option value="Master Data">Master Data</option>
-              <option value="CRM">CRM</option>
-              <option value="Inventory">Inventory</option>
-              <option value="Procurement">Procurement</option>
-              <option value="Manufacturing">Manufacturing</option>
-              <option value="Finance">Finance</option>
-              <option value="HR">HR</option>
-              <option value="Core">Core</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Document Type</label>
-            <select class="form-control" id="reg-doctype-type" required>
-              <option value="Master">Master</option>
-              <option value="Transaction">Transaction</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeRegisterDoctypeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Register</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
   <!-- Dynamic Bulk Import Modal overlay -->
   <div class="modal-overlay" id="import-modal">
     <div class="modal-container">
@@ -558,6 +509,10 @@
     </div>
   </div>
 
+  <!-- Toast container (Stage 23) - showToast() in app.js appends/removes
+       individual .toast elements here; stays empty until the first toast. -->
+  <div id="toast-container"></div>
+
   <!-- Sign-out transition overlay - shown briefly between the sign-out
        confirm dialog and the login screen so the session end reads as a
        deliberate step, not an abrupt cut. -->
@@ -579,6 +534,6 @@
   <div id="receipt-print-area"></div>
 
   <script src="db.js"></script>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>

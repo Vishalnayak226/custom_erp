@@ -287,8 +287,10 @@ func TestModuleGateBlocksAndRestoresDoctypeAccess(t *testing.T) {
 	if rec.Code != http.StatusForbidden {
 		t.Errorf("expected 403 with hr module disabled, got status=%d body=%s", rec.Code, rec.Body.String())
 	}
-	if !bytes.Contains(rec.Body.Bytes(), []byte("Module 'hr' is disabled")) {
-		t.Errorf("expected the module-disabled error message, got body=%s", rec.Body.String())
+	// Stage 23: moduleGate now returns the standardized SAAS-0191 catalog
+	// message/code instead of a dynamic per-module string.
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"code":"SAAS-0191"`)) {
+		t.Errorf("expected the SAAS-0191 module-disabled error code, got body=%s", rec.Body.String())
 	}
 
 	// 3. Re-enable, confirm access is restored (not just that the module flips in isolation).

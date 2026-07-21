@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
@@ -153,7 +154,9 @@ func ListCleverTapEventLogs(tenantID string) ([]map[string]interface{}, error) {
 				sentAtPtr = &sentAt
 			}
 			var eventData map[string]interface{}
-			_ = json.Unmarshal([]byte(eventDataStr), &eventData)
+			if err := json.Unmarshal([]byte(eventDataStr), &eventData); err != nil {
+				log.Printf("[CLEVERTAP] corrupt event_data for log %s: %v", id, err)
+			}
 			logs = append(logs, map[string]interface{}{
 				"id":          id,
 				"event_name":  eventName,
@@ -170,20 +173,26 @@ func ListCleverTapEventLogs(tenantID string) ([]map[string]interface{}, error) {
 
 // StartCleverTapWorker starts a background worker that processes pending
 // CleverTap outbox events (customer event sync).
-func StartCleverTapWorker(interval time.Duration) {
+func StartCleverTapWorker(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	go func() {
-		for range ticker.C {
-			if db.DB == nil {
-				continue
-			}
-			schemas, err := listTenantSchemas()
-			if err != nil {
-				log.Printf("[CLEVERTAP] Failed to list tenant schemas: %v", err)
-				continue
-			}
-			for _, schema := range schemas {
-				processCleverTapOutbox(schema)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if db.DB == nil {
+					continue
+				}
+				schemas, err := listTenantSchemas()
+				if err != nil {
+					log.Printf("[CLEVERTAP] Failed to list tenant schemas: %v", err)
+					continue
+				}
+				for _, schema := range schemas {
+					processCleverTapOutbox(schema)
+				}
 			}
 		}
 	}()

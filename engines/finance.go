@@ -6,8 +6,25 @@ import (
 	"fmt"
 )
 
-// PostDoubleEntry writes balanced debit/credit transactions to the GL Ledger
-func PostDoubleEntry(tenantID string, docType string, docID string, debits map[string]int, credits map[string]int) error {
+// PostDoubleEntry writes balanced debit/credit transactions to the GL
+// Ledger.
+//
+// transactionDate (YYYY-MM-DD, 24.6) is the document's own transaction date
+// for the closed-period check below - pass "" to check against today
+// (CURRENT_DATE), which is every existing caller's behavior today (see
+// rejectIfCurrentPeriodClosed's own comment for why).
+//
+// postingKey (24.5) is a caller-supplied idempotency key, unique per logical
+// posting event - not per document, since one document can legitimately be
+// posted more than once over its lifecycle for different reasons (e.g. a
+// SalesInvoice is posted on approval and again on settlement). The
+// convention every call site below uses is "<DocType>:<DocID>:<PURPOSE>".
+// A client retry after a dropped response (not just a malicious replay)
+// previously had no way to detect it was retrying an already-completed
+// posting and would double-post; now a repeat call with the same key is a
+// silent no-op instead. Pass "" to opt out (e.g. test helpers that don't
+// care about this).
+func PostDoubleEntry(tenantID string, docType string, docID string, debits map[string]int, credits map[string]int, transactionDate string, postingKey string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
@@ -37,8 +54,24 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 		return err
 	}
 
-	if err := rejectIfCurrentPeriodClosed(tx, schema); err != nil {
+	if err := rejectIfCurrentPeriodClosed(tx, schema, transactionDate); err != nil {
 		return err
+	}
+
+	if postingKey != "" {
+		var alreadyPosted bool
+		if err := tx.QueryRow(fmt.Sprintf(
+			`SELECT EXISTS(SELECT 1 FROM %s.gl_postings WHERE idempotency_key = $1)`, schema), postingKey).Scan(&alreadyPosted); err != nil {
+			return err
+		}
+		if alreadyPosted {
+			return tx.Commit()
+		}
+	}
+
+	var keyArg interface{}
+	if postingKey != "" {
+		keyArg = postingKey
 	}
 
 	// Insert debits
@@ -47,9 +80,9 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 			continue
 		}
 		query := fmt.Sprintf(`
-			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id) 
-			VALUES ($1, $2, 0, $3, $4)`, schema)
-		_, err := tx.Exec(query, code, val, docType, docID)
+			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key)
+			VALUES ($1, $2, 0, $3, $4, $5)`, schema)
+		_, err := tx.Exec(query, code, val, docType, docID, keyArg)
 		if err != nil {
 			return fmt.Errorf("error posting debit for account %s: %v", code, err)
 		}
@@ -61,9 +94,9 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 			continue
 		}
 		query := fmt.Sprintf(`
-			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id) 
-			VALUES ($1, 0, $2, $3, $4)`, schema)
-		_, err := tx.Exec(query, code, val, docType, docID)
+			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key)
+			VALUES ($1, 0, $2, $3, $4, $5)`, schema)
+		_, err := tx.Exec(query, code, val, docType, docID, keyArg)
 		if err != nil {
 			return fmt.Errorf("error posting credit for account %s: %v", code, err)
 		}
@@ -143,7 +176,7 @@ func PostGRNFinanceBooking(tenantID string, grnID string, amount int) error {
 	debits := map[string]int{"1200": amount}  // Debit: Inventory Control Account
 	credits := map[string]int{"2100": amount} // Credit: GRN Suspense Account
 
-	return PostDoubleEntry(tenantID, "GRN", grnID, debits, credits)
+	return PostDoubleEntry(tenantID, "GRN", grnID, debits, credits, "", fmt.Sprintf("GRN:%s:RECEIPT", grnID))
 }
 
 // paymentModeClearingAccount maps a POS payment mode to the GL asset
@@ -171,7 +204,7 @@ func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int, 
 	// 1. Post Revenue Bookings
 	revenueDebits := map[string]int{paymentModeClearingAccount(paymentMode): salePrice} // Debit: Cash/Card/UPI clearing account
 	revenueCredits := map[string]int{"4100": salePrice}                                 // Credit: Sales Revenue Account
-	err := PostDoubleEntry(tenantID, "POSCart", checkoutID, revenueDebits, revenueCredits)
+	err := PostDoubleEntry(tenantID, "POSCart", checkoutID, revenueDebits, revenueCredits, "", fmt.Sprintf("POSCart:%s:SALE_REVENUE", checkoutID))
 	if err != nil {
 		return err
 	}
@@ -179,7 +212,7 @@ func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int, 
 	// 2. Post COGS / Inventory Bookings
 	cogsDebits := map[string]int{"5100": costPrice}  // Debit: Cost of Goods Sold Account
 	cogsCredits := map[string]int{"1200": costPrice} // Credit: Inventory Control Account
-	return PostDoubleEntry(tenantID, "POSCart", checkoutID, cogsDebits, cogsCredits)
+	return PostDoubleEntry(tenantID, "POSCart", checkoutID, cogsDebits, cogsCredits, "", fmt.Sprintf("POSCart:%s:SALE_COGS", checkoutID))
 }
 
 // PostSalesGSTBooking books the output-tax liability split for a completed
@@ -210,5 +243,5 @@ func PostSalesGSTBooking(tenantID, checkoutID string, breakdown GSTBreakdown) er
 		credits["2200"] = intCGST // GST Output Payable - CGST
 		credits["2201"] = intSGST // GST Output Payable - SGST
 	}
-	return PostDoubleEntry(tenantID, "POSCart", checkoutID, debits, credits)
+	return PostDoubleEntry(tenantID, "POSCart", checkoutID, debits, credits, "", fmt.Sprintf("POSCart:%s:SALE_GST", checkoutID))
 }

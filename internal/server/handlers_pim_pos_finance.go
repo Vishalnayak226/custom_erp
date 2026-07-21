@@ -31,20 +31,20 @@ func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("Resolved-User-ID")
 
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
-		http.Error(w, "Multipart payload exceeds limit", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Multipart payload exceeds limit")
 		return
 	}
 
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, "CSV file is mandatory under multipart FormFile 'file'", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "CSV file is mandatory under multipart FormFile 'file'")
 		return
 	}
 	defer file.Close()
 
 	res, err := engines.BulkImportCSV(tenantID, doctype, file, userID, false)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -53,9 +53,22 @@ func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 		engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "IMPORT_JOB_RECORD_FAILED", r.URL.Path, errJob.Error(), "")
 	}
 
-	responseBytes, _ := json.Marshal(res)
-	var responseMap map[string]interface{}
-	_ = json.Unmarshal(responseBytes, &responseMap)
+	// Round-trips res through JSON (struct -> map) purely to splice in
+	// import_job_id afterward - res is this engine's own well-formed
+	// struct, not external input, so a marshal/unmarshal failure here would
+	// mean an internal bug, not corrupt data. Guarded anyway (24.18) so
+	// that case degrades to "no job ID attached" instead of a nil-map panic
+	// on the assignment below.
+	responseBytes, marshalErr := json.Marshal(res)
+	responseMap := map[string]interface{}{}
+	if marshalErr == nil {
+		if err := json.Unmarshal(responseBytes, &responseMap); err != nil {
+			engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "ERROR", r.URL.Path, fmt.Sprintf("failed to round-trip import response: %v", err), "")
+			responseMap = map[string]interface{}{}
+		}
+	} else {
+		engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "ERROR", r.URL.Path, fmt.Sprintf("failed to marshal import response: %v", marshalErr), "")
+	}
 	if jobID != "" {
 		responseMap["import_job_id"] = jobID
 	}
@@ -72,19 +85,19 @@ func handlePIMImportPreview(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("Resolved-User-ID")
 
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
-		http.Error(w, "Multipart payload exceeds limit", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Multipart payload exceeds limit")
 		return
 	}
 	file, _, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, "CSV file is mandatory under multipart FormFile 'file'", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "CSV file is mandatory under multipart FormFile 'file'")
 		return
 	}
 	defer file.Close()
 
 	res, err := engines.BulkImportCSV(tenantID, doctype, file, userID, true)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(res)
@@ -99,7 +112,7 @@ func handlePIMImportJobErrors(w http.ResponseWriter, r *http.Request) {
 
 	csvBytes, err := engines.GetImportJobErrorCSV(tenantID, jobID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, err.Error())
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv")
@@ -116,22 +129,21 @@ func handleSaveChannelCredential(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can configure channel credentials"})
+		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}
 	channelCode := r.PathValue("code")
 	var fields map[string]string
 	if err := json.NewDecoder(r.Body).Decode(&fields); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if err := engines.SaveChannelCredential(tenantID, channelCode, fields); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved", "channel": channelCode})
@@ -151,27 +163,25 @@ func handleSaveChannelCredential(w http.ResponseWriter, r *http.Request) {
 func handleBigCommerceWebhook(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	channelCode := r.PathValue("channelCode")
 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, "failed to read request body", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "failed to read request body")
 		return
 	}
 
 	cred, credErr := engines.GetChannelWebhookSecret(tenantID, channelCode)
 	if credErr != nil || cred == "" {
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "channel has no webhook secret configured"})
+		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "channel has no webhook secret configured")
 		return
 	}
 	sig := r.Header.Get("X-Bc-Webhook-Signature")
 	if !engines.VerifyBigCommerceWebhook(body, sig, cred) {
-		w.WriteHeader(http.StatusUnauthorized)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid webhook signature"})
+		writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "invalid webhook signature")
 		return
 	}
 
@@ -185,7 +195,7 @@ func handleGetImportTemplate(w http.ResponseWriter, r *http.Request) {
 
 	templateBytes, err := engines.GenerateCSVTemplate(tenantID, doctype)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -197,7 +207,7 @@ func handleGetImportTemplate(w http.ResponseWriter, r *http.Request) {
 func handleGetAvailability(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -205,13 +215,13 @@ func handleGetAvailability(w http.ResponseWriter, r *http.Request) {
 	location := r.URL.Query().Get("location")
 
 	if sku == "" || location == "" {
-		http.Error(w, "Query parameters 'sku' and 'location' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameters 'sku' and 'location' are required")
 		return
 	}
 
 	res, err := engines.GetAvailableToSell(tenantID, sku, location)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -221,7 +231,7 @@ func handleGetAvailability(w http.ResponseWriter, r *http.Request) {
 func handleCreateReservation(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -234,12 +244,12 @@ func handleCreateReservation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
 		return
 	}
 
 	if req.Sku == "" || req.Location == "" || req.Qty <= 0 {
-		http.Error(w, "Fields 'sku', 'location', and positive 'qty' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'sku', 'location', and positive 'qty' are required")
 		return
 	}
 
@@ -250,8 +260,7 @@ func handleCreateReservation(w http.ResponseWriter, r *http.Request) {
 
 	resID, err := engines.CreateReservation(tenantID, req.Sku, req.Location, req.Qty, req.ResType, expiry)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 
@@ -267,7 +276,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
 	cashier := r.Header.Get("Resolved-Username")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -287,12 +296,12 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid checkout payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid checkout payload")
 		return
 	}
 
 	if req.CartNumber == "" || req.Location == "" || len(req.Items) == 0 {
-		http.Error(w, "Fields 'cart_number', 'location', and 'items' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'cart_number', 'location', and 'items' are required")
 		return
 	}
 
@@ -303,11 +312,11 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// the later GL-posting step even runs its own (unrelated) sign validation.
 	for _, item := range req.Items {
 		if item.Sku == "" || item.Qty <= 0 {
-			http.Error(w, fmt.Sprintf("Item quantity must be positive (sku=%q, qty=%d)", item.Sku, item.Qty), http.StatusBadRequest)
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, fmt.Sprintf("Item quantity must be positive (sku=%q, qty=%d)", item.Sku, item.Qty))
 			return
 		}
 		if item.SalePrice < 0 || item.CostPrice < 0 {
-			http.Error(w, fmt.Sprintf("Item prices cannot be negative (sku=%q)", item.Sku), http.StatusBadRequest)
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, fmt.Sprintf("Item prices cannot be negative (sku=%q)", item.Sku))
 			return
 		}
 	}
@@ -323,14 +332,13 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 	gstBreakdown, gstErr := engines.ComputeGSTForLines(tenantID, gstLines, req.Interstate)
 	if gstErr != nil {
-		http.Error(w, fmt.Sprintf("GST validation failed: %v", gstErr), http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, fmt.Sprintf("GST validation failed: %v", gstErr))
 		return
 	}
 
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to resolve tenant schema"})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve tenant schema")
 		return
 	}
 
@@ -341,13 +349,11 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// resolved identity, not anything in the request body.
 	sessionID, sessErr := engines.GetOpenSessionForCashier(tenantID, req.Location, cashier)
 	if sessErr != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to check cashier session"})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to check cashier session")
 		return
 	}
 	if sessionID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "No open POS session for this location - open a cashier session before completing a sale."})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "No open POS session for this location - open a cashier session before completing a sale.")
 		return
 	}
 
@@ -360,8 +366,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	if req.DiscountPct > 0 {
 		requiredRole, err = engines.RequiredApproverRoleForAmount(tenantID, "POSCart", req.DiscountPct)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to evaluate discount approval rules"})
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to evaluate discount approval rules")
 			return
 		}
 	}
@@ -383,7 +388,15 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// minimal client-facing request shape.
 	storedPayload := map[string]interface{}{}
 	if rawReq, errReq := json.Marshal(req); errReq == nil {
-		_ = json.Unmarshal(rawReq, &storedPayload)
+		if err := json.Unmarshal(rawReq, &storedPayload); err != nil {
+			// 24.18: storedPayload stays the pre-initialized empty map
+			// (never nil, so no panic risk on the assignments below), but a
+			// failure here would silently drop the whole cart payload
+			// (items, location, etc.) from what gets stored - worth logging
+			// even though req is this handler's own already-validated
+			// struct, not external input.
+			engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "ERROR", r.URL.Path, fmt.Sprintf("failed to round-trip checkout payload: %v", err), "")
+		}
 	}
 	storedPayload["gst_breakdown"] = gstBreakdown
 	storedPayload["pos_session"] = sessionID
@@ -445,20 +458,17 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		w.WriteHeader(http.StatusConflict)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "This cart is already being processed or was already completed"})
+		writeAPIErrorGeneric(w, r, http.StatusConflict, "This cart is already being processed or was already completed")
 		return
 	} else if claimErr != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to claim checkout"})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to claim checkout")
 		return
 	}
 
 	if requiredRole != "" {
 		if err := engines.SubmitForApproval(tenantID, "POSCart", req.CartNumber, claimant, role); err != nil {
 			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Failed', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'POSCart' AND id = $1`, schema), req.CartNumber)
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Failed to route for approval: %v", err)})
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("Failed to route for approval: %v", err))
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -472,8 +482,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 
 	saleTotal, costTotal, finalizeErr := engines.FinalizePOSCheckout(tenantID, req.CartNumber, r.Header.Get("Resolved-Correlation-ID"))
 	if finalizeErr != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": finalizeErr.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, finalizeErr.Error())
 		return
 	}
 
@@ -495,7 +504,7 @@ func handlePOSSessionOpen(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("Resolved-User-ID")
 	cashier := r.Header.Get("Resolved-Username")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -505,14 +514,13 @@ func handlePOSSessionOpen(w http.ResponseWriter, r *http.Request) {
 		OpeningCash float64 `json:"opening_cash"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Location == "" {
-		http.Error(w, "Field 'location' is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'location' is required")
 		return
 	}
 
 	id, err := engines.OpenPOSSession(tenantID, req.POSProfile, req.Location, cashier, userID, req.OpeningCash)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, cashier, "POS_SESSION", "OPENED", fmt.Sprintf("Session %s opened at %s", id, req.Location))
@@ -525,7 +533,7 @@ func handlePOSSessionClose(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	cashier := r.Header.Get("Resolved-Username")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -534,14 +542,13 @@ func handlePOSSessionClose(w http.ResponseWriter, r *http.Request) {
 		CountedCash float64 `json:"counted_cash"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SessionID == "" {
-		http.Error(w, "Field 'session_id' is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'session_id' is required")
 		return
 	}
 
 	expected, variance, err := engines.ClosePOSSession(tenantID, req.SessionID, cashier, req.CountedCash)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, cashier, "POS_SESSION", "CLOSED", fmt.Sprintf("Session %s closed, variance %.2f", req.SessionID, variance))
@@ -561,19 +568,18 @@ func handlePOSSessionCurrent(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	cashier := r.Header.Get("Resolved-Username")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	location := r.URL.Query().Get("location")
 	if location == "" {
-		http.Error(w, "Query parameter 'location' is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameter 'location' is required")
 		return
 	}
 
 	id, err := engines.GetOpenSessionForCashier(tenantID, location, cashier)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to look up session"})
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to look up session")
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"session_id": id, "open": id != ""})
@@ -582,13 +588,13 @@ func handlePOSSessionCurrent(w http.ResponseWriter, r *http.Request) {
 func handleTrialBalance(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	res, err := engines.GetTrialBalance(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -604,15 +610,14 @@ func handleAccountingPeriods(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		periods, err := engines.ListAccountingPeriods(tenantID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 		_ = json.NewEncoder(w).Encode(periods)
 
 	case http.MethodPost:
 		if role != "HR/Admin" {
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can create accounting periods"})
+			writeAPIError(w, r, "GLOBAL-0011", "")
 			return
 		}
 		var req struct {
@@ -621,18 +626,18 @@ func handleAccountingPeriods(w http.ResponseWriter, r *http.Request) {
 			EndDate    string `json:"end_date"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PeriodName == "" || req.StartDate == "" || req.EndDate == "" {
-			http.Error(w, "period_name, start_date, and end_date are required", http.StatusBadRequest)
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "period_name, start_date, and end_date are required")
 			return
 		}
 		id, err := engines.CreateAccountingPeriod(tenantID, req.PeriodName, req.StartDate, req.EndDate, userID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]string{"id": id, "status": "created"})
 
 	default:
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 	}
 }
 
@@ -641,17 +646,16 @@ func handleCloseAccountingPeriod(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("Resolved-User-ID")
 	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	if role != "HR/Admin" {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Only HR/Admin can close accounting periods"})
+		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}
 	periodID := r.PathValue("id")
 	if err := engines.CloseAccountingPeriod(tenantID, periodID, userID); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "closed"})
@@ -663,7 +667,7 @@ func handleSubmitApproval(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
 	userID := r.Header.Get("Resolved-User-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -672,24 +676,22 @@ func handleSubmitApproval(w http.ResponseWriter, r *http.Request) {
 		DocumentID string `json:"document_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Doctype == "" || req.DocumentID == "" {
-		http.Error(w, "Fields 'doctype' and 'document_id' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'doctype' and 'document_id' are required")
 		return
 	}
 
 	allowed, err := checkPermission(tenantID, role, req.Doctype, "update")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if !allowed {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "You do not have permission to submit this document."})
+		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}
 
 	if err := engines.SubmitForApproval(tenantID, req.Doctype, req.DocumentID, userID, role); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "submitted"})
@@ -702,7 +704,7 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("Resolved-User-ID")
 	location := r.Header.Get("Resolved-Location")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -713,13 +715,12 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 		Comment    string `json:"comment"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Doctype == "" || req.DocumentID == "" || req.Decision == "" {
-		http.Error(w, "Fields 'doctype', 'document_id', and 'decision' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'doctype', 'document_id', and 'decision' are required")
 		return
 	}
 
 	if err := engines.DecideApproval(tenantID, req.Doctype, req.DocumentID, userID, role, location, req.Decision, req.Comment); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "APPROVAL_DECISION", req.Decision, fmt.Sprintf("%s %s: %s", req.Doctype, req.DocumentID, req.Decision))
@@ -731,8 +732,7 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 	// so there's nothing to undo.
 	if req.Doctype == "POSCart" && req.Decision == "Approved" {
 		if _, _, finalizeErr := engines.FinalizePOSCheckout(tenantID, req.DocumentID, r.Header.Get("Resolved-Correlation-ID")); finalizeErr != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Approved but failed to complete the sale: %v", finalizeErr)})
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("Approved but failed to complete the sale: %v", finalizeErr))
 			return
 		}
 	}
@@ -741,8 +741,16 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 	// finalize-on-approve pattern as POSCart's discount gate just above.
 	if req.Doctype == "CycleCountLine" && req.Decision == "Approved" {
 		if finalizeErr := engines.PostCycleCountAdjustment(tenantID, req.DocumentID); finalizeErr != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("Approved but failed to post the adjustment: %v", finalizeErr)})
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("Approved but failed to post the adjustment: %v", finalizeErr))
+			return
+		}
+	}
+	// 24.11: a VendorInvoice override never paid at submit time - only an
+	// Approved decision actually posts the GL entry and marks it Paid, same
+	// finalize-on-approve pattern as the two cases just above.
+	if req.Doctype == "VendorInvoice" && req.Decision == "Approved" {
+		if _, finalizeErr := engines.FinalizeVendorInvoiceOverridePayment(tenantID, req.DocumentID, userID); finalizeErr != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("Approved but failed to complete the payment: %v", finalizeErr))
 			return
 		}
 	}
@@ -755,13 +763,13 @@ func handleListPendingApprovals(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
 	location := r.Header.Get("Resolved-Location")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
 	results, err := engines.ListPendingApprovals(tenantID, role, location)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if results == nil {
@@ -775,19 +783,49 @@ func handleListPendingApprovals(w http.ResponseWriter, r *http.Request) {
 // same as this project's other configuration tables started out).
 func handleApprovalRules(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
-	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
+	switch r.Method {
+	case http.MethodGet:
+		rules, err := engines.GetApprovalRules(tenantID)
+		if err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if rules == nil {
+			rules = []engines.ApprovalRule{}
+		}
+		_ = json.NewEncoder(w).Encode(rules)
+
+	case http.MethodPost:
+		// 24.8: the only write path into approval_rules - HR/Admin-only,
+		// same as every other global config screen (labels/sequence/prefix,
+		// Stage 24.2). Runs the save-time overlap check UpsertApprovalRule
+		// implements before the row is written.
+		if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+			return
+		}
+		var req struct {
+			ID           *int     `json:"id"`
+			Doctype      string   `json:"doctype"`
+			MinAmount    float64  `json:"min_amount"`
+			MaxAmount    *float64 `json:"max_amount"`
+			RequiredRole string   `json:"required_role"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload")
+			return
+		}
+		newID, err := engines.UpsertApprovalRule(tenantID, req.Doctype, req.MinAmount, req.MaxAmount, req.RequiredRole, req.ID)
+		if err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
+			return
+		}
+		engines.LogAuditEvent(tenantID, r.Header.Get("Resolved-User-ID"), "SAVE_APPROVAL_RULE", "SUCCESS",
+			fmt.Sprintf("%s [%v, %v] -> %s", req.Doctype, req.MinAmount, req.MaxAmount, req.RequiredRole))
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "saved", "id": newID})
+
+	default:
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 	}
-	rules, err := engines.GetApprovalRules(tenantID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if rules == nil {
-		rules = []engines.ApprovalRule{}
-	}
-	_ = json.NewEncoder(w).Encode(rules)
 }
 
 // handleCalculateGST computes the CGST/SGST/IGST split for a taxable amount
@@ -796,7 +834,7 @@ func handleApprovalRules(w http.ResponseWriter, r *http.Request) {
 // calculation step, not an HSN-to-rate lookup service.
 func handleCalculateGST(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	var req struct {
@@ -805,13 +843,12 @@ func handleCalculateGST(w http.ResponseWriter, r *http.Request) {
 		Interstate    bool    `json:"interstate"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
 		return
 	}
 	result, err := engines.CalculateGST(req.TaxableAmount, req.GSTRate, req.Interstate)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(result)
@@ -822,12 +859,12 @@ func handleCalculateGST(w http.ResponseWriter, r *http.Request) {
 func handleCurrentStockReport(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	results, err := engines.GetCurrentStockReport(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if results == nil {
@@ -839,12 +876,12 @@ func handleCurrentStockReport(w http.ResponseWriter, r *http.Request) {
 func handleSalesRegisterReport(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	results, err := engines.GetSalesRegisterReport(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if results == nil {
@@ -856,13 +893,13 @@ func handleSalesRegisterReport(w http.ResponseWriter, r *http.Request) {
 func handleVendorLedgerReport(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	vendor := r.URL.Query().Get("vendor")
 	results, err := engines.GetVendorLedgerReport(tenantID, vendor)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if results == nil {
@@ -874,12 +911,12 @@ func handleVendorLedgerReport(w http.ResponseWriter, r *http.Request) {
 func handlePayablesAgeingReport(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 	results, err := engines.GetPayablesAgeingReport(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(results)

@@ -17,7 +17,7 @@ func handlePutaway(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	var req struct {
@@ -26,12 +26,11 @@ func handlePutaway(w http.ResponseWriter, r *http.Request) {
 		Qty     int    `json:"qty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BinCode == "" || req.Sku == "" {
-		http.Error(w, "Fields 'bin_code' and 'sku' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'bin_code' and 'sku' are required")
 		return
 	}
 	if err := engines.PutawayToBin(tenantID, req.BinCode, req.Sku, req.Qty, userID); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
@@ -40,18 +39,17 @@ func handlePutaway(w http.ResponseWriter, r *http.Request) {
 func handlePickList(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	taskID := r.URL.Query().Get("task_id")
 	if taskID == "" {
-		http.Error(w, "Query parameter 'task_id' is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameter 'task_id' is required")
 		return
 	}
 	lines, err := engines.GenerateBinPickList(tenantID, taskID)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	if lines == nil {
@@ -64,7 +62,7 @@ func handleBinConditionTransition(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	var req struct {
@@ -75,12 +73,11 @@ func handleBinConditionTransition(w http.ResponseWriter, r *http.Request) {
 		ToCondition   string `json:"to_condition"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BinCode == "" || req.Sku == "" || req.FromCondition == "" || req.ToCondition == "" {
-		http.Error(w, "Fields 'bin_code', 'sku', 'from_condition', and 'to_condition' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'bin_code', 'sku', 'from_condition', and 'to_condition' are required")
 		return
 	}
 	if err := engines.TransitionBinStockCondition(tenantID, req.BinCode, req.Sku, req.Qty, req.FromCondition, req.ToCondition, userID); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
@@ -90,7 +87,7 @@ func handlePackTransferOrder(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	var req struct {
@@ -98,12 +95,11 @@ func handlePackTransferOrder(w http.ResponseWriter, r *http.Request) {
 		Boxes           []map[string]interface{} `json:"boxes"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TransferOrderID == "" {
-		http.Error(w, "Field 'transfer_order_id' is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'transfer_order_id' is required")
 		return
 	}
 	if err := engines.PackTransferOrder(tenantID, req.TransferOrderID, userID, req.Boxes); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Packed"})
@@ -114,20 +110,19 @@ func handleReconcileCycleCount(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("Resolved-User-ID")
 	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	var req struct {
 		CountSession string `json:"count_session"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.CountSession == "" {
-		http.Error(w, "Field 'count_session' is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'count_session' is required")
 		return
 	}
 	posted, pendingApproval, err := engines.ReconcileCycleCount(tenantID, req.CountSession, userID, role)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{

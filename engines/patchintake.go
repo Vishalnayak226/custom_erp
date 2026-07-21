@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -49,15 +50,21 @@ type patchPolicyRule struct {
 // see docs/micro_checklist.md's Stage 14.13-14.16 entry for the full
 // rationale on why this is a stricter reading of "never auto-deploy code to
 // live" than the original plan sketch.
-func StartPatchIntakeWorker(interval time.Duration) {
+func StartPatchIntakeWorker(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	go func() {
-		for range ticker.C {
-			if db.DB == nil {
-				continue
-			}
-			if err := runPatchIntakeCycle(); err != nil {
-				log.Printf("[PATCHINTAKE] cycle failed: %v", err)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if db.DB == nil {
+					continue
+				}
+				if err := runPatchIntakeCycle(); err != nil {
+					log.Printf("[PATCHINTAKE] cycle failed: %v", err)
+				}
 			}
 		}
 	}()

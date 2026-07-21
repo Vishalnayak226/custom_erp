@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -69,7 +70,10 @@ func GetAssetRegister(tenantID string) ([]AssetRegisterEntry, error) {
 			return nil, err
 		}
 		var data map[string]interface{}
-		_ = json.Unmarshal([]byte(dataStr), &data)
+		if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+			log.Printf("[ASSETS] corrupt Asset %s: %v", id, err)
+			continue
+		}
 
 		entry := AssetRegisterEntry{ID: id, Status: status}
 		if v, ok := data["code"].(string); ok {
@@ -170,7 +174,7 @@ func CapitalizeAsset(tenantID, assetID string) error {
 		data["capitalisation_date"] = time.Now().Format("2006-01-02")
 	}
 
-	if err := PostDoubleEntry(tenantID, "Asset", assetID, map[string]int{"1400": cost}, map[string]int{"2100": cost}); err != nil {
+	if err := PostDoubleEntry(tenantID, "Asset", assetID, map[string]int{"1400": cost}, map[string]int{"2100": cost}, "", fmt.Sprintf("Asset:%s:CAPITALIZE", assetID)); err != nil {
 		return fmt.Errorf("failed to post capitalisation GL entry: %v", err)
 	}
 	return saveAssetData(tenantID, assetID, "Capitalised", data)
@@ -226,7 +230,7 @@ func DisposeAsset(tenantID, assetID, disposalType string) error {
 	_, netBlock := calculateDepreciation(cost, usefulLife, capDate)
 
 	if netBlock > 0 {
-		if err := PostDoubleEntry(tenantID, "Asset-Disposal", assetID, map[string]int{"5300": netBlock}, map[string]int{"1400": netBlock}); err != nil {
+		if err := PostDoubleEntry(tenantID, "Asset-Disposal", assetID, map[string]int{"5300": netBlock}, map[string]int{"1400": netBlock}, "", fmt.Sprintf("Asset:%s:DISPOSE", assetID)); err != nil {
 			return fmt.Errorf("failed to post disposal GL entry: %v", err)
 		}
 	}

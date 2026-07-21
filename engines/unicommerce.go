@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"database/sql"
 	"encoding/json"
@@ -266,20 +267,26 @@ func ListUnicommerceInventorySyncs(tenantID string) ([]map[string]interface{}, e
 
 // StartUnicommerceWorker starts a background worker that processes pending
 // Unicommerce outbox events (inventory sync, order notifications).
-func StartUnicommerceWorker(interval time.Duration) {
+func StartUnicommerceWorker(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	go func() {
-		for range ticker.C {
-			if db.DB == nil {
-				continue
-			}
-			schemas, err := listTenantSchemas()
-			if err != nil {
-				log.Printf("[UNICOMMERCE] Failed to list tenant schemas: %v", err)
-				continue
-			}
-			for _, schema := range schemas {
-				processUnicommerceOutbox(schema)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if db.DB == nil {
+					continue
+				}
+				schemas, err := listTenantSchemas()
+				if err != nil {
+					log.Printf("[UNICOMMERCE] Failed to list tenant schemas: %v", err)
+					continue
+				}
+				for _, schema := range schemas {
+					processUnicommerceOutbox(schema)
+				}
 			}
 		}
 	}()

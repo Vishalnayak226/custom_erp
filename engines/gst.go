@@ -4,7 +4,15 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
+	"math"
 )
+
+// round2 (24.9) rounds to 2 decimal places (paise) using stdlib math only -
+// not shopspring/decimal, per this stage's scoping note against adding a
+// new dependency for it.
+func round2(v float64) float64 {
+	return math.Round(v*100) / 100
+}
 
 // GSTBreakdown is the result of splitting a taxable amount at a given GST
 // rate into its Indian GST components. Intra-state sales split the rate
@@ -35,20 +43,23 @@ func CalculateGST(taxableAmount, gstRate float64, interstate bool) (GSTBreakdown
 		return GSTBreakdown{}, fmt.Errorf("gst_rate cannot be negative")
 	}
 
-	totalTax := taxableAmount * gstRate / 100
+	// 24.9: round to 2 decimal places (paise) before it goes anywhere else -
+	// plain float64 division otherwise produces results like
+	// 18.018000000000003 instead of 18.02 for fractional-rupee amounts.
+	totalTax := round2(taxableAmount * gstRate / 100)
 
 	result := GSTBreakdown{
 		TaxableAmount: taxableAmount,
 		GSTRate:       gstRate,
 		Interstate:    interstate,
 		TotalTax:      totalTax,
-		TotalAmount:   taxableAmount + totalTax,
+		TotalAmount:   round2(taxableAmount + totalTax),
 	}
 	if interstate {
 		result.IGST = totalTax
 	} else {
-		result.CGST = totalTax / 2
-		result.SGST = totalTax / 2
+		result.CGST = round2(totalTax / 2)
+		result.SGST = round2(totalTax / 2)
 	}
 	return result, nil
 }

@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"fmt"
 	"log"
@@ -206,32 +207,38 @@ func ListPineLabsTransactions(tenantID string) ([]map[string]interface{}, error)
 
 // StartPineLabsReconciliationWorker periodically runs reconciliation of
 // unreconciled Pine Labs transactions against POSCart documents.
-func StartPineLabsReconciliationWorker(interval time.Duration) {
+func StartPineLabsReconciliationWorker(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	go func() {
-		for range ticker.C {
-			if db.DB == nil {
-				continue
-			}
-			schemas, err := listTenantSchemas()
-			if err != nil {
-				log.Printf("[PINELABS] Failed to list tenant schemas: %v", err)
-				continue
-			}
-			for _, schema := range schemas {
-				tenantID := schemaToTenantID(schema)
-				if tenantID == "" {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if db.DB == nil {
 					continue
 				}
-				result, err := ReconcilePineLabsTransactions(tenantID)
+				schemas, err := listTenantSchemas()
 				if err != nil {
-					log.Printf("[PINELABS] Reconciliation failed for %s: %v", schema, err)
+					log.Printf("[PINELABS] Failed to list tenant schemas: %v", err)
 					continue
 				}
-				rec, _ := result["reconciled"].(int)
-				fail, _ := result["failed"].(int)
-				if rec > 0 || fail > 0 {
-					log.Printf("[PINELABS] Reconciliation for %s: %d reconciled, %d failed", schema, rec, fail)
+				for _, schema := range schemas {
+					tenantID := schemaToTenantID(schema)
+					if tenantID == "" {
+						continue
+					}
+					result, err := ReconcilePineLabsTransactions(tenantID)
+					if err != nil {
+						log.Printf("[PINELABS] Reconciliation failed for %s: %v", schema, err)
+						continue
+					}
+					rec, _ := result["reconciled"].(int)
+					fail, _ := result["failed"].(int)
+					if rec > 0 || fail > 0 {
+						log.Printf("[PINELABS] Reconciliation for %s: %d reconciled, %d failed", schema, rec, fail)
+					}
 				}
 			}
 		}

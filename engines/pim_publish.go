@@ -220,20 +220,26 @@ func advanceProfileToPublishOutcome(schema, itemCode, publishStatus string) {
 // StartPublishQueueWorker starts a background worker that processes Queued
 // pim_publish_queue rows across every provisioned tenant schema - mirrors
 // StartOutboxWorker's exact shape (engines/outbox.go).
-func StartPublishQueueWorker(interval time.Duration) {
+func StartPublishQueueWorker(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	go func() {
-		for range ticker.C {
-			if db.DB == nil {
-				continue
-			}
-			schemas, err := listTenantSchemas()
-			if err != nil {
-				log.Printf("[PIM-PUBLISH] Failed to list tenant schemas: %v", err)
-				continue
-			}
-			for _, schema := range schemas {
-				processPublishQueue(schema)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if db.DB == nil {
+					continue
+				}
+				schemas, err := listTenantSchemas()
+				if err != nil {
+					log.Printf("[PIM-PUBLISH] Failed to list tenant schemas: %v", err)
+					continue
+				}
+				for _, schema := range schemas {
+					processPublishQueue(schema)
+				}
 			}
 		}
 	}()

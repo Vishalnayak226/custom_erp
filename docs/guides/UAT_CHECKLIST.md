@@ -46,7 +46,7 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 
 ## 2. Dashboard
 
-- [ ] Loads with no error, shows summary stat tiles (DocTypes Registered, Audit History Count, Active Schema Tenant, Platform Core Health).
+- [ ] Loads with no error, shows summary stat tiles (Record Types Registered, Audit History Count, Active Schema Tenant, Platform Core Health).
 - [ ] Quick-launch cards (Database Schema Design, Dynamic Labels, Prefix Configs, Activity Log) navigate to the right screen when clicked.
 
 ---
@@ -246,12 +246,12 @@ All four of these used to be dead links falling through to a "Module Setup Pendi
 
 ---
 
-## 22. Database Schema Design (formerly "DocType Builder" in the sidebar — same screen, renamed for a general audience; "DocType" terminology remains internally, e.g. button labels below)
+## 22. Database Schema Design (formerly "DocType Builder" in the sidebar — same screen, renamed for a general audience; "DocType" terminology has since been fully removed from the UI/docs too, replaced by "Record Type" throughout)
 
-- [ ] Left panel lists every registered DocType; clicking one loads its field configuration on the right.
-- [ ] "Register New DocType" (prompts for name/module/type) creates a new empty doctype that then appears in the left-hand list and in **Master Definition** (§16) if registered as type "Master".
-- [ ] "Add Field" on a doctype (prompts for fieldname/label/fieldtype/mandatory/options) adds a new field, and that field then appears on that doctype's create form elsewhere in the app.
-- [ ] Deleting a field removes it from the doctype's configuration and its create form.
+- [ ] Left panel lists every registered Record Type; clicking one loads its field configuration on the right.
+- [ ] "Register New Record Type" (prompts for name/module/type) creates a new empty record type that then appears in the left-hand list and in **Master Definition** (§16) if registered as type "Master".
+- [ ] "Add Field" on a record type (prompts for fieldname/label/fieldtype/mandatory/options) adds a new field, and that field then appears on that record type's create form elsewhere in the app.
+- [ ] Deleting a field removes it from the record type's configuration and its create form.
 - [ ] ⚠️ **Known limitation**: the page subtitle mentions "setup RBAC rules," but there is no RBAC editor on *this* screen specifically — that's now the **Roles** screen instead (§19). Don't spend time looking for one here; that's expected, not a missed feature. (This note used to say role/doctype access was database-only with no UI anywhere — that's no longer true as of the Roles screen shipping; only the "not on this particular page" half still holds.)
 
 ---

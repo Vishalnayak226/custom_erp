@@ -69,10 +69,25 @@ func loadOrGenerateJWTSecret() []byte {
 	return secret
 }
 
-// SignToken generates a secure, tamper-proof signature for user claims
+// newJTI (24.19) mints a random per-token identifier - cheap, stdlib-only
+// crypto/rand, giving each issued token a unique ID a future revocation-list
+// check could key off, without adopting a JWT library for it.
+func newJTI() string {
+	b := make([]byte, 16)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// SignToken generates a secure, tamper-proof signature for user claims.
+// 24.19: carries iat (issued-at) and jti (unique token ID) alongside the
+// existing claims - two more fields in the same stdlib HMAC scheme, not a
+// switch to golang-jwt (this repo's lightweight-first principle) - so a
+// token has a verifiable issue time and a per-token identity a future
+// revocation hook could check, without full RFC 7519 header compliance.
 func SignToken(userID, username, role, tenantID, locationCode string) string {
-	exp := time.Now().Add(tokenTTL()).Unix()
-	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&exp=%d", userID, username, role, tenantID, locationCode, exp)
+	now := time.Now()
+	exp := now.Add(tokenTTL()).Unix()
+	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&iat=%d&jti=%s&exp=%d", userID, username, role, tenantID, locationCode, now.Unix(), newJTI(), exp)
 	encodedClaims := base64.URLEncoding.EncodeToString([]byte(claims))
 
 	// Create HMAC signature
@@ -92,8 +107,9 @@ func SignToken(userID, username, role, tenantID, locationCode string) string {
 // claims["tenant"] for any bearer token - omitting it would silently blank
 // out tenant scoping for the rest of the MFA flow.
 func SignPurposeToken(userID, username, tenantID, purpose string, ttl time.Duration) string {
-	exp := time.Now().Add(ttl).Unix()
-	claims := fmt.Sprintf("id=%s&user=%s&tenant=%s&purpose=%s&exp=%d", userID, username, tenantID, purpose, exp)
+	now := time.Now()
+	exp := now.Add(ttl).Unix()
+	claims := fmt.Sprintf("id=%s&user=%s&tenant=%s&purpose=%s&iat=%d&jti=%s&exp=%d", userID, username, tenantID, purpose, now.Unix(), newJTI(), exp)
 	encodedClaims := base64.URLEncoding.EncodeToString([]byte(claims))
 
 	h := hmac.New(sha256.New, jwtSecret)
@@ -112,8 +128,9 @@ func SignPurposeToken(userID, username, tenantID, purpose string, ttl time.Durat
 // handleGenericDoc enforces explicitly: read-only, and only for the exact
 // doctype named here.
 func SignExtensionToken(tenantID, scopeDoctype string, ttl time.Duration) string {
-	exp := time.Now().Add(ttl).Unix()
-	claims := fmt.Sprintf("tenant=%s&purpose=extension&scope_doctype=%s&exp=%d", tenantID, scopeDoctype, exp)
+	now := time.Now()
+	exp := now.Add(ttl).Unix()
+	claims := fmt.Sprintf("tenant=%s&purpose=extension&scope_doctype=%s&iat=%d&jti=%s&exp=%d", tenantID, scopeDoctype, now.Unix(), newJTI(), exp)
 	encodedClaims := base64.URLEncoding.EncodeToString([]byte(claims))
 
 	h := hmac.New(sha256.New, jwtSecret)
@@ -123,11 +140,20 @@ func SignExtensionToken(tenantID, scopeDoctype string, ttl time.Duration) string
 	return encodedClaims + "." + signature
 }
 
+// errInvalidToken (24.22) is the single generic error ParseToken returns for
+// every failure mode - malformed, bad signature, missing/malformed expiry,
+// or genuinely expired. The source-doc finding: returning distinct text per
+// case is a minor information leak (a caller could distinguish "this token
+// is garbage" from "this token was once valid but expired"). Low
+// timing/enumeration risk in practice for this codebase's threat model, but
+// the fix is nearly free.
+var errInvalidToken = errors.New("invalid token")
+
 // ParseToken validates the signature and extracts claims
 func ParseToken(tokenStr string) (map[string]string, error) {
 	parts := strings.Split(tokenStr, ".")
 	if len(parts) != 2 {
-		return nil, errors.New("invalid token format")
+		return nil, errInvalidToken
 	}
 
 	encodedClaims := parts[0]
@@ -139,13 +165,13 @@ func ParseToken(tokenStr string) (map[string]string, error) {
 	expectedSig := hex.EncodeToString(h.Sum(nil))
 
 	if !hmac.Equal([]byte(signature), []byte(expectedSig)) {
-		return nil, errors.New("invalid signature")
+		return nil, errInvalidToken
 	}
 
 	// Decode claims
 	decodedBytes, err := base64.URLEncoding.DecodeString(encodedClaims)
 	if err != nil {
-		return nil, err
+		return nil, errInvalidToken
 	}
 
 	claimsStr := string(decodedBytes)
@@ -162,14 +188,14 @@ func ParseToken(tokenStr string) (map[string]string, error) {
 	// Enforce expiry
 	expStr, ok := claims["exp"]
 	if !ok {
-		return nil, errors.New("token missing expiry claim")
+		return nil, errInvalidToken
 	}
 	expUnix, err := strconv.ParseInt(expStr, 10, 64)
 	if err != nil {
-		return nil, errors.New("token has malformed expiry claim")
+		return nil, errInvalidToken
 	}
 	if time.Now().Unix() > expUnix {
-		return nil, errors.New("token expired")
+		return nil, errInvalidToken
 	}
 
 	return claims, nil

@@ -24,13 +24,14 @@ These three ("the big 3") stay at `docs/` root by standing convention (see the r
 - **[guides/UAT_CHECKLIST.md](guides/UAT_CHECKLIST.md)** — single walkthrough script, one section per sidebar screen, click-this-expect-that with pass/fail boxes. Flags known placeholder/limitation screens so they aren't mistaken for bugs. Re-run after significant frontend or schema changes.
 
 ## "How is this actually built?"
-- **[architecture/framework_architecture.md](architecture/framework_architecture.md)** — the metadata-driven DocType kernel.
+- **[architecture/framework_architecture.md](architecture/framework_architecture.md)** — the metadata-driven Record Type kernel (this architecture doc's own prose still uses the framework's original technical name, "DocType" — see its own note).
 - **[architecture/architecture_evaluation.md](architecture/architecture_evaluation.md)** — stack choice and multi-tenancy rationale.
 - **[architecture/pos_architecture.md](architecture/pos_architecture.md)** — POS design (mostly forward-looking spec, see its own status banner).
 
 ## "What was originally specified vs. what's actually built?"
 Everything in `specs/` mixes real, built functionality with forward-looking design — each file carries its own status banner stating exactly which parts are which.
 - **[specs/implementation_plan.md](specs/implementation_plan.md)** — the master technical spec (GL mappings, validation rules, API shapes).
+- **[specs/message_catalog.md](specs/message_catalog.md)** — the standardized error/message catalog (300+ codes, every module): source xlsx, how to regenerate, the response envelope shape, and what's wired vs. defined-but-backlogged.
 - **[specs/modules_overview.md](specs/modules_overview.md)** — the full functional module directory.
 - **[specs/industry_plugs.md](specs/industry_plugs.md)** — the multi-industry configurator spec.
 - **[specs/pdf_blueprint_gap_analysis.md](specs/pdf_blueprint_gap_analysis.md)** — a 2026-07-12 snapshot audit against the original spec PDFs; superseded, historical record only.

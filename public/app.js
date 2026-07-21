@@ -129,20 +129,30 @@ function showCustomPrompt(message, defaultValue = '', title = 'Input Required') 
 // Error-reporting helpers - every save/load failure must reach the user
 // through the same centered custom dialog used everywhere else, never a
 // silent no-op and never a native browser dialog.
-async function getErrorMessage(res, fallback) {
+// getErrorDetails (Stage 23) - the backend now returns a standardized
+// {error, code, correlation_id, retryable} body on every error response
+// (internal/server/apierror.go), so this also surfaces the catalog `code`
+// for console traceability. getErrorMessage/showApiError keep their
+// original signatures for their ~20 existing callers.
+async function getErrorDetails(res, fallback) {
   try {
     const data = await res.clone().json();
-    if (data && data.error) return data.error;
+    if (data && data.error) return { message: data.error, code: data.code || '' };
   } catch (e) {
-    // Body wasn't JSON (some backend handlers use http.Error with a plain
-    // text body) - fall through to the fallback message.
+    // Body wasn't JSON (a call site not yet migrated to the standardized
+    // envelope) - fall through to the fallback message.
   }
-  return fallback;
+  return { message: fallback, code: '' };
+}
+
+async function getErrorMessage(res, fallback) {
+  return (await getErrorDetails(res, fallback)).message;
 }
 
 async function showApiError(res, fallback) {
-  const msg = await getErrorMessage(res, fallback);
-  await showCustomAlert(msg, 'Error');
+  const { message, code } = await getErrorDetails(res, fallback);
+  if (code) console.debug(`[API error] ${code}`);
+  await showCustomAlert(message, 'Error');
 }
 
 // Inline centered retry panel for full-page load failures, so a failed GET
@@ -169,6 +179,72 @@ function renderErrorPanel(container, message, retryFn) {
   container.appendChild(panel);
   const btn = panel.querySelector('#error-panel-retry-btn');
   if (btn && retryFn) btn.addEventListener('click', retryFn);
+}
+
+// Toast (Stage 23) - non-blocking, auto-dismissing notice for messages the
+// standardized message catalog (docs/specs/message_catalog.md) marks
+// Display Style "Toast" (rate-limit, async retry notices, etc.). Distinct
+// from showCustomAlert's blocking modal, which stays the right choice for
+// anything the user must acknowledge before continuing.
+function showToast(message, opts = {}) {
+  const variant = opts.variant || 'info'; // 'info' | 'warning' | 'danger' | 'success'
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${variant}`;
+  if (opts.title) {
+    const titleEl = document.createElement('div');
+    titleEl.className = 'toast-title';
+    titleEl.textContent = opts.title;
+    toast.appendChild(titleEl);
+  }
+  const msgEl = document.createElement('div');
+  msgEl.className = 'toast-message';
+  msgEl.textContent = message;
+  toast.appendChild(msgEl);
+
+  container.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('toast-visible'));
+
+  const dismiss = () => {
+    toast.classList.remove('toast-visible');
+    setTimeout(() => toast.remove(), 300);
+  };
+  toast.addEventListener('click', dismiss);
+  setTimeout(dismiss, opts.ms || 5000);
+}
+
+// Page banner (Stage 23) - dismissible bar at the top of a screen container,
+// for messages the catalog marks Display Style "Page banner" (its largest
+// single category - module/tenant-level blocks like "Financial period
+// locked"). Unlike renderErrorPanel above, this doesn't replace the
+// container's content - it sits above a screen that otherwise still renders.
+function renderPageBanner(container, message, opts = {}) {
+  const variant = opts.variant || 'danger';
+  const existing = container.querySelector(':scope > .page-banner');
+  if (existing) existing.remove();
+
+  const banner = document.createElement('div');
+  banner.className = `page-banner page-banner-${variant}`;
+
+  const msgEl = document.createElement('span');
+  msgEl.textContent = message;
+  banner.appendChild(msgEl);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.className = 'page-banner-close';
+  closeBtn.setAttribute('aria-label', 'Dismiss');
+  closeBtn.textContent = '×';
+  closeBtn.addEventListener('click', () => banner.remove());
+  banner.appendChild(closeBtn);
+
+  container.insertBefore(banner, container.firstChild);
 }
 
 let state = {
@@ -246,11 +322,11 @@ async function apiFetch(url, options = {}) {
   }
 
   if (response.status === 401) {
-    logout('Session expired. Please log in again.');
+    logout(await getErrorMessage(response, 'Session expired. Please log in again.'));
     return null;
   }
   if (response.status === 429) {
-    await showCustomAlert('Rate limit exceeded. Please throttle your requests.', 'Rate Limit');
+    showToast(await getErrorMessage(response, 'Rate limit exceeded. Please throttle your requests.'), { variant: 'warning', title: 'Rate Limit' });
     return null;
   }
 
@@ -276,11 +352,11 @@ async function apiUpload(url, formData) {
     return null;
   }
   if (response.status === 401) {
-    logout('Session expired. Please log in again.');
+    logout(await getErrorMessage(response, 'Session expired. Please log in again.'));
     return null;
   }
   if (response.status === 429) {
-    await showCustomAlert('Rate limit exceeded. Please throttle your requests.', 'Rate Limit');
+    showToast(await getErrorMessage(response, 'Rate limit exceeded. Please throttle your requests.'), { variant: 'warning', title: 'Rate Limit' });
     return null;
   }
   return response;
@@ -688,7 +764,7 @@ async function fetchRegisteredDoctypes() {
       state.activeDoctypes = await res.json();
       renderSidebarSubmenu();
     } else {
-      await showApiError(res, 'Failed to load registered DocTypes.');
+      await showApiError(res, 'Failed to load registered record types.');
     }
   } catch (err) {
     console.error('Error fetching doctypes:', err);
@@ -778,6 +854,41 @@ function setupEventListeners() {
     renderView('approvals');
   });
 
+  document.getElementById('menu-vendor-invoices').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-vendor-invoices');
+    closeSubmenus();
+    renderView('vendor-invoices');
+  });
+
+  document.getElementById('menu-payment-proposals').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-payment-proposals');
+    closeSubmenus();
+    renderView('payment-proposals');
+  });
+
+  document.getElementById('menu-bank-reconciliation').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-bank-reconciliation');
+    closeSubmenus();
+    renderView('bank-reconciliation');
+  });
+
+  document.getElementById('menu-finance-notes').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-finance-notes');
+    closeSubmenus();
+    renderView('finance-notes');
+  });
+
+  document.getElementById('menu-sales-invoices').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-sales-invoices');
+    closeSubmenus();
+    renderView('sales-invoices');
+  });
+
   document.getElementById('menu-reports').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-reports');
@@ -856,7 +967,7 @@ function setupEventListeners() {
     renderView('doctype-table');
   });
 
-  document.getElementById('menu-stores').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-stores'); closeSubmenus(); currentDoctype = 'Store'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+  document.getElementById('menu-stores').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-stores'); closeSubmenus(); currentDoctype = 'Stores'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
   // POS Profile (Stage 20.6) - same generic doctype-table pattern as Vendors/Stores above.
   document.getElementById('menu-pos-profiles').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-profiles'); closeSubmenus(); currentDoctype = 'POSProfile'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
@@ -1020,11 +1131,18 @@ function closeSubmenus() {
 // Module-grouped sidebar (Stage 20 nav redesign): the left sidebar shows
 // only module-level entries; hovering (or clicking, for keyboard/touch
 // users) reveals the module's actual screens in a flyout beside it.
+// Idempotent per-container (marked via data-flyout-bound) and safe to call
+// again after a view (e.g. Database Schema Design) injects its own new
+// `.has-flyout` markup - re-running only binds the newly-added containers,
+// it never double-binds the sidebar's own.
+let moduleFlyoutDocListenersBound = false;
 function setupModuleFlyouts() {
   document.querySelectorAll('.has-flyout').forEach(container => {
+    if (container.dataset.flyoutBound) return;
     const trigger = container.querySelector('.menu-item-group');
     const flyout = container.querySelector('.menu-flyout');
     if (!trigger || !flyout) return;
+    container.dataset.flyoutBound = '1';
     let hideTimer = null;
     const show = () => { clearTimeout(hideTimer); openFlyout(container); };
     const scheduleHide = () => { hideTimer = setTimeout(closeSubmenus, 200); };
@@ -1042,6 +1160,8 @@ function setupModuleFlyouts() {
     });
   });
 
+  if (moduleFlyoutDocListenersBound) return;
+  moduleFlyoutDocListenersBound = true;
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.has-flyout')) closeSubmenus();
   });
@@ -1078,7 +1198,12 @@ const STATIC_VIEW_MENU_IDS = {
   roles: 'menu-roles',
   'prefix-configs': 'menu-prefix-configs',
   'dynamic-labels': 'menu-dynamic-labels',
-  'audit-logs': 'menu-audit-logs'
+  'audit-logs': 'menu-audit-logs',
+  'vendor-invoices': 'menu-vendor-invoices',
+  'payment-proposals': 'menu-payment-proposals',
+  'bank-reconciliation': 'menu-bank-reconciliation',
+  'finance-notes': 'menu-finance-notes',
+  'sales-invoices': 'menu-sales-invoices'
 };
 
 // Only called once, from restoreLastView() below, when the app first loads
@@ -1206,6 +1331,16 @@ async function renderView(view) {
     await renderUsersView(root);
   } else if (view === 'roles') {
     await renderRolesView(root);
+  } else if (view === 'vendor-invoices') {
+    await renderVendorInvoicesView(root);
+  } else if (view === 'payment-proposals') {
+    await renderPaymentProposalsView(root);
+  } else if (view === 'bank-reconciliation') {
+    await renderBankReconciliationView(root);
+  } else if (view === 'finance-notes') {
+    await renderFinanceNotesView(root);
+  } else if (view === 'sales-invoices') {
+    await renderSalesInvoicesView(root);
   } else {
     renderMockModuleView(root, view);
   }
@@ -1433,6 +1568,10 @@ async function renderUsersView(container) {
           ${roles.map(r => `<option value="${r}">${r}</option>`).join('')}
         </select>
       </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="user-location">Location Code</label>
+        <input type="text" id="user-location" class="form-input" style="width: 130px;" placeholder="HO" autocomplete="off">
+      </div>
       <button class="btn btn-primary" id="user-create-btn">Create User</button>
     </div>
     <div id="user-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
@@ -1443,18 +1582,20 @@ async function renderUsersView(container) {
   listPanel.className = 'table-panel';
   let html = `
     <table>
-      <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Location</th><th>Status</th><th></th></tr></thead>
       <tbody>
   `;
   html += users.length === 0
-    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No users found.</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No users found.</td></tr>`
     : users.map(u => `
         <tr>
           <td style="font-weight:600;">${u.username}</td>
           <td>${u.email || ''}</td>
           <td>${u.role}</td>
+          <td>${u.location_code || 'HO'}</td>
           <td><span class="badge ${u.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${u.status}</span></td>
           <td>
+            <button class="action-btn" onclick="setUserLocation('${u.id}', '${u.location_code || 'HO'}')">Set Location</button>
             ${u.status === 'Active'
               ? `<button class="action-btn action-btn-danger" onclick="setUserStatus('${u.id}', 'Inactive')">Deactivate</button>`
               : `<button class="action-btn" onclick="setUserStatus('${u.id}', 'Active')">Reactivate</button>`}
@@ -1476,6 +1617,7 @@ async function createUser() {
   const password = document.getElementById('user-password').value;
   const email = document.getElementById('user-email').value.trim();
   const role = document.getElementById('user-role').value;
+  const location_code = document.getElementById('user-location').value.trim();
 
   if (!username || !password || !role) {
     errorEl.textContent = 'Username, password, and role are required.';
@@ -1485,7 +1627,7 @@ async function createUser() {
 
   const res = await apiFetch('/api/v1/admin/users', {
     method: 'POST',
-    body: JSON.stringify({ username, password, email, role })
+    body: JSON.stringify({ username, password, email, role, location_code })
   });
   if (!res) return;
   const data = await res.json();
@@ -1508,6 +1650,24 @@ window.setUserStatus = async function(id, status) {
   const data = await res.json();
   if (!res.ok) {
     await showCustomAlert(data.error || `Failed to ${verb} user.`, 'Error');
+    return;
+  }
+  renderView('users');
+};
+
+// 24.1: real per-user location, used for location-scoped authorization
+// (handleGenericDoc) - previously every user's token silently claimed "HO".
+window.setUserLocation = async function(id, currentLocation) {
+  const location_code = await showCustomPrompt('New location code for this user:', currentLocation, 'Set Location');
+  if (location_code === null || location_code.trim() === '') return;
+  const res = await apiFetch('/api/v1/admin/users/location', {
+    method: 'POST',
+    body: JSON.stringify({ id, location_code: location_code.trim() })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showCustomAlert(data.error || 'Failed to update user location.', 'Error');
     return;
   }
   renderView('users');
@@ -1633,7 +1793,7 @@ function renderDashboard(container) {
   statsRow.className = 'dashboard-stats-row';
   statsRow.innerHTML = `
     <div class="stat-card">
-      <span class="stat-label">DocTypes Registered</span>
+      <span class="stat-label">Record Types Registered</span>
       <span class="stat-val">${state.activeDoctypes.length || 0}</span>
     </div>
     <div class="stat-card">
@@ -2226,19 +2386,45 @@ async function redeemPOSLoyaltyPoints() {
 // working GET /api/v1/finance/trial-balance API (Stage 13.5). Same story as
 // the POS screen: the double-entry posting engine and API already work and
 // are tested, there was just no screen to see them.
-async function renderFinanceView(container) {
-  const res = await apiFetch('/api/v1/finance/trial-balance');
-  if (!res) return;
+let currentFinanceTab = 'trial-balance';
+const FINANCE_TABS = [
+  { id: 'trial-balance', label: 'Trial Balance' },
+  { id: 'periods', label: 'Accounting Periods' }
+];
 
+async function renderFinanceView(container) {
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Finance / GL</h1>
-      <p class="page-subtitle">Trial balance across all posted GL accounts.</p>
+      <p class="page-subtitle">Trial balance across all posted GL accounts, and accounting-period close control.</p>
     </div>
   `;
   container.appendChild(header);
+
+  const tabBar = document.createElement('div');
+  tabBar.style.display = 'flex';
+  tabBar.style.gap = '8px';
+  tabBar.style.marginBottom = '16px';
+  tabBar.innerHTML = FINANCE_TABS.map(t =>
+    `<button class="btn ${t.id === currentFinanceTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-finance-tab="${t.id}">${t.label}</button>`
+  ).join('');
+  container.appendChild(tabBar);
+  tabBar.querySelectorAll('[data-finance-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentFinanceTab = btn.getAttribute('data-finance-tab');
+      renderView('finance');
+    });
+  });
+
+  if (currentFinanceTab === 'periods') {
+    await renderAccountingPeriodsPanel(container);
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/finance/trial-balance');
+  if (!res) return;
 
   if (!res.ok) {
     const panel = document.createElement('div');
@@ -2305,6 +2491,615 @@ async function renderFinanceView(container) {
   html += `</tbody></table>`;
   panel.innerHTML = html;
   container.appendChild(panel);
+}
+
+// Accounting Periods (Stage 20.34): this had no frontend at all before this
+// stage even though Stage 17.4's create/list/close API has existed since
+// then - a real pre-existing gap, same shape as the Transfers/Inventory/
+// Users/Roles ones Stage 22 fixed. Create + list + close, plus the new
+// read-only pre-close checklist (engines.GetPeriodCloseChecklist) surfaced
+// before the user commits to closing a period.
+async function renderAccountingPeriodsPanel(container) {
+  const res = await apiFetch('/api/v1/finance/periods');
+  if (!res) return;
+  const periods = res.ok ? await res.json() : [];
+
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Accounting Period</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="period-name">Period Name</label>
+        <input type="text" id="period-name" class="form-input" placeholder="e.g. FY2026-Q3" style="width: 160px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="period-start">Start Date</label>
+        <input type="date" id="period-start" class="form-input">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="period-end">End Date</label>
+        <input type="date" id="period-end" class="form-input">
+      </div>
+      <button class="btn btn-primary" id="period-create-btn">Create Period</button>
+    </div>
+    <div id="period-form-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+  `;
+  container.appendChild(formPanel);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.innerHTML = `
+    <table>
+      <thead><tr><th>Period Name</th><th>Start</th><th>End</th><th>Status</th><th>Closed By</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${periods.length === 0
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No accounting periods yet.</td></tr>`
+          : periods.map(p => `
+            <tr>
+              <td style="font-weight:600;">${p.period_name}</td>
+              <td>${p.start_date}</td>
+              <td>${p.end_date}</td>
+              <td><span class="badge ${p.status === 'Open' ? 'badge-success' : 'badge-secondary'}">${p.status}</span></td>
+              <td>${p.closed_by || ''}</td>
+              <td>
+                ${p.status === 'Open' ? `<button class="action-btn" onclick="showPeriodCloseChecklist('${p.id}')">Close Checklist</button>` : ''}
+              </td>
+            </tr>
+          `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(panel);
+
+  document.getElementById('period-create-btn').addEventListener('click', async () => {
+    const errorEl = document.getElementById('period-form-error');
+    errorEl.classList.add('hidden');
+    const periodName = document.getElementById('period-name').value.trim();
+    const startDate = document.getElementById('period-start').value;
+    const endDate = document.getElementById('period-end').value;
+    if (!periodName || !startDate || !endDate) {
+      errorEl.textContent = 'Period name, start date, and end date are all required.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    const createRes = await apiFetch('/api/v1/finance/periods', {
+      method: 'POST',
+      body: JSON.stringify({ period_name: periodName, start_date: startDate, end_date: endDate })
+    });
+    if (!createRes) return;
+    if (!createRes.ok) {
+      errorEl.textContent = await getErrorMessage(createRes, 'Failed to create period.');
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    renderView('finance');
+  });
+}
+
+// Shows the pre-close checklist in a confirm dialog and, if the user
+// proceeds, calls the existing close endpoint - the checklist itself never
+// blocks closing (it's advisory, see engines.PeriodCloseChecklist's own
+// comment), it just makes the consequences visible first.
+async function showPeriodCloseChecklist(periodId) {
+  const res = await apiFetch(`/api/v1/finance/periods/${periodId}/close-checklist`);
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to load close checklist.');
+    return;
+  }
+  const checklist = await res.json();
+  const lines = checklist.checks.map(c => `${c.passed ? '✓' : '✗'} ${c.name} - ${c.detail}`).join('\n');
+  const summary = checklist.ready_to_close
+    ? 'All checks passed.'
+    : 'One or more checks did not pass - review before closing.';
+  const proceed = await showCustomConfirm(
+    `${summary}\n\n${lines}\n\nClosing a period is permanent - there is no reopen. Close "${checklist.period_name}" now?`,
+    'Period Close Checklist'
+  );
+  if (!proceed) return;
+  const closeRes = await apiFetch(`/api/v1/finance/periods/${periodId}/close`, { method: 'POST' });
+  if (!closeRes) return;
+  if (!closeRes.ok) {
+    await showApiError(closeRes, 'Failed to close period.');
+    return;
+  }
+  renderView('finance');
+}
+
+// Vendor Invoices (Stage 20.27/20.28 prerequisite): VendorInvoice has
+// existed since Stage 17.8 (3-way match + pay) with zero frontend of its
+// own. Creation reuses the generic doctype-table's own New-record form
+// (VendorInvoice's fields are already registered) rather than a parallel
+// create form here - this view only adds the match/pay actions the generic
+// CRUD screen can't express.
+async function renderVendorInvoicesView(container) {
+  const [invRes, sectionsRes] = await Promise.all([
+    apiFetch('/api/v1/doc/VendorInvoice'),
+    apiFetch('/api/v1/doc/TDSSection')
+  ]);
+  if (!invRes) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Vendor Invoices</h1>
+      <p class="page-subtitle">3-way match against PO/GRN, then pay - plain or TDS-withheld.</p>
+    </div>
+    <button class="btn btn-primary" id="vi-new-btn">+ New Vendor Invoice</button>
+  `;
+  container.appendChild(header);
+  document.getElementById('vi-new-btn').addEventListener('click', () => {
+    currentDoctype = 'VendorInvoice'; currentSearchQuery = ''; currentTablePage = 1;
+    renderView('doctype-table');
+  });
+
+  const invoices = invRes.ok ? await invRes.json() : [];
+  const sections = (sectionsRes && sectionsRes.ok) ? await sectionsRes.json() : [];
+  window.__tdsSections = sections;
+
+  const STATUS_BADGE = { Draft: 'badge-secondary', Matched: 'badge-success', MismatchHold: 'badge-danger', Paid: 'badge-success' };
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.innerHTML = `
+    <table>
+      <thead><tr><th>Invoice #</th><th>Vendor</th><th>PO</th><th>GRN</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${invoices.length === 0
+          ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No vendor invoices yet.</td></tr>`
+          : invoices.map(v => `
+            <tr>
+              <td style="font-family: monospace;">${v.invoice_number || v.id}</td>
+              <td>${v.vendor_id || ''}</td>
+              <td>${v.po_id || ''}</td>
+              <td>${v.grn_id || ''}</td>
+              <td>${(v.invoice_amount ?? 0).toLocaleString()}</td>
+              <td><span class="badge ${STATUS_BADGE[v.status] || 'badge-secondary'}">${v.status}</span></td>
+              <td>${renderVendorInvoiceActions(v)}</td>
+            </tr>
+          `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(panel);
+}
+
+function renderVendorInvoiceActions(v) {
+  const id = v.id;
+  if (v.status === 'Draft' || v.status === 'MismatchHold') {
+    return `<button class="action-btn" onclick="matchVendorInvoice('${id}')">Match</button>`;
+  }
+  if (v.status === 'Matched') {
+    const sections = window.__tdsSections || [];
+    const tdsOptions = sections.map(s => `<option value="${s.section_code || s.id}">${s.section_code || s.id} (${s.rate_percent}%)</option>`).join('');
+    return `
+      <button class="action-btn" onclick="payVendorInvoicePlain('${id}')">Pay</button>
+      ${sections.length > 0 ? `
+        <select id="tds-select-${id}" class="form-select" style="width: 110px; display:inline-block; margin: 0 4px;">${tdsOptions}</select>
+        <button class="action-btn" onclick="payVendorInvoiceTDS('${id}')">Pay w/ TDS</button>
+      ` : ''}
+    `;
+  }
+  return '';
+}
+
+async function matchVendorInvoice(invoiceId) {
+  const poId = await showCustomPrompt('Enter the PO ID/number this invoice matches:', '', 'Match Invoice');
+  if (poId === null) return;
+  const grnId = await showCustomPrompt('Enter the GRN ID/number this invoice matches:', '', 'Match Invoice');
+  if (grnId === null) return;
+  const res = await apiFetch('/api/v1/procurement/vendor-invoice/match', {
+    method: 'POST',
+    body: JSON.stringify({ invoice_id: invoiceId, po_id: poId, grn_id: grnId })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Match failed.');
+    return;
+  }
+  renderView('vendor-invoices');
+}
+
+async function payVendorInvoicePlain(invoiceId) {
+  const confirmed = await showCustomConfirm('Pay this vendor invoice in full via Cash/Bank?', 'Confirm Payment');
+  if (!confirmed) return;
+  const res = await apiFetch('/api/v1/procurement/vendor-invoice/pay', {
+    method: 'POST',
+    body: JSON.stringify({ invoice_id: invoiceId })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Payment failed.');
+    return;
+  }
+  renderView('vendor-invoices');
+}
+
+async function payVendorInvoiceTDS(invoiceId) {
+  const select = document.getElementById(`tds-select-${invoiceId}`);
+  const tdsSection = select ? select.value : '';
+  if (!tdsSection) return;
+  const confirmed = await showCustomConfirm(`Pay this vendor invoice with TDS withheld under section ${tdsSection}?`, 'Confirm Payment');
+  if (!confirmed) return;
+  const res = await apiFetch('/api/v1/procurement/vendor-invoice/pay-with-tds', {
+    method: 'POST',
+    body: JSON.stringify({ invoice_id: invoiceId, tds_section: tdsSection })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Payment failed.');
+    return;
+  }
+  renderView('vendor-invoices');
+}
+
+// Payment Proposals (Stage 20.27): batches multiple Matched VendorInvoices
+// into one payment run via engines.CreatePaymentProposal/ExecutePaymentProposal.
+async function renderPaymentProposalsView(container) {
+  const [invRes, propRes] = await Promise.all([
+    apiFetch('/api/v1/doc/VendorInvoice'),
+    apiFetch('/api/v1/doc/PaymentProposal')
+  ]);
+  if (!invRes || !propRes) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Payment Proposals</h1>
+      <p class="page-subtitle">Group Matched vendor invoices into one payment run.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const invoices = (invRes.ok ? await invRes.json() : []).filter(v => v.status === 'Matched');
+  const proposals = propRes.ok ? await propRes.json() : [];
+
+  const builderPanel = document.createElement('div');
+  builderPanel.className = 'table-panel';
+  builderPanel.style.padding = '24px';
+  builderPanel.style.marginBottom = '24px';
+  builderPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Build a Proposal from Matched Invoices</h2>
+    ${invoices.length === 0 ? `<p style="color:var(--text-muted);">No Matched vendor invoices available to batch.</p>` : `
+      <table style="margin-bottom: 16px;">
+        <thead><tr><th></th><th>Invoice #</th><th>Vendor</th><th>Amount</th></tr></thead>
+        <tbody>
+          ${invoices.map(v => `
+            <tr>
+              <td><input type="checkbox" class="pp-invoice-check" value="${v.id}"></td>
+              <td style="font-family: monospace;">${v.invoice_number || v.id}</td>
+              <td>${v.vendor_id || ''}</td>
+              <td>${(v.invoice_amount ?? 0).toLocaleString()}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <button class="btn btn-primary" id="pp-create-btn">Create Proposal from Selected</button>
+    `}
+    <div id="pp-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(builderPanel);
+
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  listPanel.innerHTML = `
+    <table>
+      <thead><tr><th>Proposal #</th><th>Invoices</th><th>Total Amount</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${proposals.length === 0
+          ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No payment proposals yet.</td></tr>`
+          : proposals.map(p => {
+            let ids = [];
+            try { ids = JSON.parse(p.invoice_ids || '[]'); } catch (e) { /* leave empty */ }
+            return `
+              <tr>
+                <td style="font-family: monospace;">${p.proposal_number || p.id}</td>
+                <td>${ids.length} invoice(s)</td>
+                <td>${(p.total_amount ?? 0).toLocaleString()}</td>
+                <td><span class="badge ${p.status === 'Executed' ? 'badge-success' : 'badge-secondary'}">${p.status}</span></td>
+                <td>${p.status === 'Draft' ? `<button class="action-btn" onclick="executePaymentProposal('${p.id}')">Execute</button>` : ''}</td>
+              </tr>
+            `;
+          }).join('')}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(listPanel);
+
+  const createBtn = document.getElementById('pp-create-btn');
+  if (createBtn) createBtn.addEventListener('click', async () => {
+    const errorEl = document.getElementById('pp-form-error');
+    errorEl.classList.add('hidden');
+    const selected = Array.from(document.querySelectorAll('.pp-invoice-check:checked')).map(c => c.value);
+    if (selected.length === 0) {
+      errorEl.textContent = 'Select at least one invoice.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    const res = await apiFetch('/api/v1/finance/payment-proposal', {
+      method: 'POST',
+      body: JSON.stringify({ invoice_ids: selected })
+    });
+    if (!res) return;
+    if (!res.ok) {
+      errorEl.textContent = await getErrorMessage(res, 'Failed to create proposal.');
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    renderView('payment-proposals');
+  });
+}
+
+async function executePaymentProposal(proposalId) {
+  const confirmed = await showCustomConfirm('Execute this payment run? Every invoice in it will be paid via the standard vendor-invoice payment path.', 'Execute Payment Proposal');
+  if (!confirmed) return;
+  const res = await apiFetch(`/api/v1/finance/payment-proposal/${proposalId}/execute`, { method: 'POST' });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Execution failed.');
+    return;
+  }
+  const results = await res.json();
+  const failed = (results.results || []).filter(r => !r.paid);
+  if (failed.length > 0) {
+    await showCustomAlert(`Proposal executed with ${failed.length} failure(s):\n${failed.map(f => `${f.invoice_id}: ${f.error}`).join('\n')}`, 'Partial Failure');
+  }
+  renderView('payment-proposals');
+}
+
+// Bank Reconciliation (Stage 20.25/20.26): BankAccount/BankStatementLine
+// creation and CSV import reuse the generic doctype-table screen (linked
+// below) - this view only adds the reconcile action the generic CRUD
+// screen can't express.
+async function renderBankReconciliationView(container) {
+  const res = await apiFetch('/api/v1/doc/BankAccount');
+  if (!res) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Bank Reconciliation</h1>
+      <p class="page-subtitle">Match imported bank-statement lines against GL postings for a bank account.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const accounts = res.ok ? await res.json() : [];
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0; min-width: 220px;">
+        <label class="form-label" for="bank-recon-account">Bank Account</label>
+        <select id="bank-recon-account" class="form-select">
+          <option value="">Select a bank account...</option>
+          ${accounts.map(a => `<option value="${a.id}">${a.bank_name || ''} - ${a.account_number || a.id}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn btn-primary" id="bank-recon-btn">Reconcile</button>
+      <button class="btn btn-outline" id="bank-recon-manage-accounts-btn">Manage Bank Accounts</button>
+      <button class="btn btn-outline" id="bank-recon-manage-lines-btn">Statement Lines / Import CSV</button>
+    </div>
+    ${accounts.length === 0 ? `<p style="color:var(--text-muted);">No bank accounts yet - use "Manage Bank Accounts" to add one.</p>` : ''}
+    <div id="bank-recon-result"></div>
+  `;
+  container.appendChild(panel);
+
+  document.getElementById('bank-recon-manage-accounts-btn').addEventListener('click', () => {
+    currentDoctype = 'BankAccount'; currentSearchQuery = ''; currentTablePage = 1;
+    renderView('doctype-table');
+  });
+  document.getElementById('bank-recon-manage-lines-btn').addEventListener('click', () => {
+    currentDoctype = 'BankStatementLine'; currentSearchQuery = ''; currentTablePage = 1;
+    renderView('doctype-table');
+  });
+  document.getElementById('bank-recon-btn').addEventListener('click', async () => {
+    const bankAccount = document.getElementById('bank-recon-account').value;
+    const resultEl = document.getElementById('bank-recon-result');
+    if (!bankAccount) {
+      resultEl.innerHTML = `<p class="login-error">Select a bank account first.</p>`;
+      return;
+    }
+    const reconRes = await apiFetch('/api/v1/finance/bank-reconcile', {
+      method: 'POST',
+      body: JSON.stringify({ bank_account: bankAccount })
+    });
+    if (!reconRes) return;
+    if (!reconRes.ok) {
+      resultEl.innerHTML = `<p class="login-error">${await getErrorMessage(reconRes, 'Reconciliation failed.')}</p>`;
+      return;
+    }
+    const result = await reconRes.json();
+    resultEl.innerHTML = `
+      <div class="table-panel" style="padding: 16px; margin-top: 8px;">
+        <p><strong>${result.matched}</strong> line(s) matched.</p>
+        <p>${result.unmatched_statement_lines.length} statement line(s) still unmatched: ${result.unmatched_statement_lines.join(', ') || 'none'}</p>
+        <p>${result.unmatched_gl_postings.length} GL posting(s) still unmatched: ${result.unmatched_gl_postings.join(', ') || 'none'}</p>
+      </div>
+    `;
+  });
+}
+
+// Debit / Credit Notes (Stage 20.32). Creation reuses the generic
+// doctype-table New-record form for each doctype; this view adds the Post
+// action (GL reversal) the generic CRUD screen can't express.
+async function renderFinanceNotesView(container) {
+  const [debitRes, creditRes] = await Promise.all([
+    apiFetch('/api/v1/doc/DebitNote'),
+    apiFetch('/api/v1/doc/CreditNote')
+  ]);
+  if (!debitRes || !creditRes) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Debit / Credit Notes</h1>
+      <p class="page-subtitle">Post-facto vendor and customer adjustments, GL-reversing on Post.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const debitNotes = debitRes.ok ? await debitRes.json() : [];
+  const creditNotes = creditRes.ok ? await creditRes.json() : [];
+
+  const debitPanel = document.createElement('div');
+  debitPanel.className = 'table-panel';
+  debitPanel.style.padding = '24px';
+  debitPanel.style.marginBottom = '24px';
+  debitPanel.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+      <h2 style="font-size: 16px; font-weight: 700;">Debit Notes (to Vendors)</h2>
+      <button class="btn btn-outline btn-sm" id="dn-new-btn">+ New Debit Note</button>
+    </div>
+    <table>
+      <thead><tr><th>Note #</th><th>Vendor</th><th>Amount</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${debitNotes.length === 0
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No debit notes yet.</td></tr>`
+          : debitNotes.map(n => `
+            <tr>
+              <td style="font-family: monospace;">${n.note_number || n.id}</td>
+              <td>${n.vendor_id || ''}</td>
+              <td>${(n.amount ?? 0).toLocaleString()}</td>
+              <td>${n.reason || ''}</td>
+              <td><span class="badge ${n.status === 'Posted' ? 'badge-success' : 'badge-secondary'}">${n.status}</span></td>
+              <td>${n.status === 'Draft' ? `<button class="action-btn" onclick="postFinanceNote('DebitNote', '${n.id}')">Post</button>` : ''}</td>
+            </tr>
+          `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(debitPanel);
+
+  const creditPanel = document.createElement('div');
+  creditPanel.className = 'table-panel';
+  creditPanel.style.padding = '24px';
+  creditPanel.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+      <h2 style="font-size: 16px; font-weight: 700;">Credit Notes (to Customers)</h2>
+      <button class="btn btn-outline btn-sm" id="cn-new-btn">+ New Credit Note</button>
+    </div>
+    <table>
+      <thead><tr><th>Note #</th><th>Customer</th><th>Amount</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${creditNotes.length === 0
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No credit notes yet.</td></tr>`
+          : creditNotes.map(n => `
+            <tr>
+              <td style="font-family: monospace;">${n.note_number || n.id}</td>
+              <td>${n.customer_id || ''}</td>
+              <td>${(n.amount ?? 0).toLocaleString()}</td>
+              <td>${n.reason || ''}</td>
+              <td><span class="badge ${n.status === 'Posted' ? 'badge-success' : 'badge-secondary'}">${n.status}</span></td>
+              <td>${n.status === 'Draft' ? `<button class="action-btn" onclick="postFinanceNote('CreditNote', '${n.id}')">Post</button>` : ''}</td>
+            </tr>
+          `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(creditPanel);
+
+  document.getElementById('dn-new-btn').addEventListener('click', () => {
+    currentDoctype = 'DebitNote'; currentSearchQuery = ''; currentTablePage = 1;
+    renderView('doctype-table');
+  });
+  document.getElementById('cn-new-btn').addEventListener('click', () => {
+    currentDoctype = 'CreditNote'; currentSearchQuery = ''; currentTablePage = 1;
+    renderView('doctype-table');
+  });
+}
+
+async function postFinanceNote(doctype, id) {
+  const confirmed = await showCustomConfirm('Post this note? This books the GL reversal immediately and cannot be undone.', 'Confirm Post');
+  if (!confirmed) return;
+  const endpoint = doctype === 'DebitNote' ? `/api/v1/finance/debit-note/${id}/post` : `/api/v1/finance/credit-note/${id}/post`;
+  const res = await apiFetch(endpoint, { method: 'POST' });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to post note.');
+    return;
+  }
+  renderView('finance-notes');
+}
+
+// Sales Invoices (Stage 20.33 prerequisite): SalesInvoice has existed since
+// Stage 1 as a registered doctype with zero GL/amount/frontend - this view
+// plus engines/sales_invoice.go make it a real credit-sales flow, the
+// source Receivables Ageing reads.
+async function renderSalesInvoicesView(container) {
+  const res = await apiFetch('/api/v1/doc/SalesInvoice');
+  if (!res) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Sales Invoices</h1>
+      <p class="page-subtitle">Credit sales to customers - Post to recognize the receivable, Settle once paid.</p>
+    </div>
+    <button class="btn btn-primary" id="si-new-btn">+ New Sales Invoice</button>
+  `;
+  container.appendChild(header);
+  document.getElementById('si-new-btn').addEventListener('click', () => {
+    currentDoctype = 'SalesInvoice'; currentSearchQuery = ''; currentTablePage = 1;
+    renderView('doctype-table');
+  });
+
+  const invoices = res.ok ? await res.json() : [];
+  const STATUS_BADGE = { Draft: 'badge-secondary', Approved: 'badge-warning', Paid: 'badge-success', Cancelled: 'badge-danger' };
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.innerHTML = `
+    <table>
+      <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${invoices.length === 0
+          ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No sales invoices yet.</td></tr>`
+          : invoices.map(v => `
+            <tr>
+              <td style="font-family: monospace;">${v.invoice_number || v.id}</td>
+              <td>${v.customer || ''}</td>
+              <td>${(v.total_amount ?? 0).toLocaleString()}</td>
+              <td><span class="badge ${STATUS_BADGE[v.status] || 'badge-secondary'}">${v.status}</span></td>
+              <td>
+                ${v.status === 'Draft' ? `<button class="action-btn" onclick="postSalesInvoiceAction('${v.id}')">Post</button>` : ''}
+                ${v.status === 'Approved' ? `<button class="action-btn" onclick="settleSalesInvoiceAction('${v.id}')">Settle</button>` : ''}
+              </td>
+            </tr>
+          `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(panel);
+}
+
+async function postSalesInvoiceAction(id) {
+  const res = await apiFetch(`/api/v1/finance/sales-invoice/${id}/post`, { method: 'POST' });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to post invoice.');
+    return;
+  }
+  renderView('sales-invoices');
+}
+
+async function settleSalesInvoiceAction(id) {
+  const confirmed = await showCustomConfirm('Mark this invoice as settled (customer paid in full)?', 'Confirm Settlement');
+  if (!confirmed) return;
+  const res = await apiFetch(`/api/v1/finance/sales-invoice/${id}/settle`, { method: 'POST' });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to settle invoice.');
+    return;
+  }
+  renderView('sales-invoices');
 }
 
 // Fulfillment / reservation workbench (Stage 13.6) - pick/pack/dispatch
@@ -2694,7 +3489,7 @@ async function renderApprovalsView(container) {
     <table>
       <thead>
         <tr>
-          <th>Doctype</th>
+          <th>Record Type</th>
           <th>Document ID</th>
           <th>Amount</th>
           <th>Location</th>
@@ -2956,7 +3751,10 @@ const REPORT_TABS = [
   { id: 'current-stock', label: 'Current Stock' },
   { id: 'sales-register', label: 'Sales Register' },
   { id: 'vendor-ledger', label: 'Vendor Ledger' },
-  { id: 'payables-ageing', label: 'Payables Ageing' }
+  { id: 'payables-ageing', label: 'Payables Ageing' },
+  { id: 'receivables-ageing', label: 'Receivables Ageing' },
+  { id: 'gst-return-summary', label: 'GST Return Summary' },
+  { id: 'report-catalog', label: 'Report Catalog' }
 ];
 
 async function renderReportsView(container) {
@@ -2965,7 +3763,7 @@ async function renderReportsView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Reports</h1>
-      <p class="page-subtitle">Current Stock, Sales Register, Vendor Ledger, and Payables Ageing.</p>
+      <p class="page-subtitle">Current Stock, Sales Register, Vendor Ledger, Payables/Receivables Ageing, and GST Return Summary.</p>
     </div>
   `;
   container.appendChild(header);
@@ -2997,6 +3795,12 @@ async function renderReportsView(container) {
     await renderVendorLedgerReport(panel);
   } else if (currentReportTab === 'payables-ageing') {
     await renderPayablesAgeingReport(panel);
+  } else if (currentReportTab === 'receivables-ageing') {
+    await renderReceivablesAgeingReport(panel);
+  } else if (currentReportTab === 'gst-return-summary') {
+    await renderGSTReturnSummaryReport(panel);
+  } else if (currentReportTab === 'report-catalog') {
+    await renderReportCatalogPanel(panel);
   }
 }
 
@@ -3169,6 +3973,368 @@ async function renderPayablesAgeingReport(panel) {
       </tbody>
     </table>
   `;
+}
+
+async function renderReceivablesAgeingReport(panel) {
+  const res = await apiFetch('/api/v1/reports/receivables-ageing');
+  if (!res) return;
+  const buckets = res.ok ? await res.json() : [];
+  panel.innerHTML = `
+    <p style="padding: 16px 16px 0; font-size: 13px; color: var(--text-muted);">
+      Buckets Approved-but-not-yet-Paid sales invoices (Finance &gt; Sales Invoices) by age since creation.
+    </p>
+    <table>
+      <thead><tr><th>Age Bucket</th><th>Invoice Count</th><th>Outstanding Amount</th></tr></thead>
+      <tbody>
+        ${buckets.map(b => `
+          <tr>
+            <td>${b.bucket}</td>
+            <td>${b.count}</td>
+            <td>${b.amount.toLocaleString()}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// GST Return Summary (Stage 20.29): report-only GSTR-1/3B-shaped
+// aggregation, explicitly not e-filing/IRN. Defaults to the current
+// calendar month since a GST return is always filed for a specific period.
+async function renderGSTReturnSummaryReport(panel) {
+  const now = new Date();
+  const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  const today = now.toISOString().slice(0, 10);
+  panel.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; padding: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="gst-start-date">From</label>
+        <input type="date" id="gst-start-date" class="form-input" value="${monthStart}">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="gst-end-date">To</label>
+        <input type="date" id="gst-end-date" class="form-input" value="${today}">
+      </div>
+      <button class="btn btn-primary" id="gst-summary-btn">Run</button>
+    </div>
+    <p style="padding: 0 16px; font-size: 13px; color: var(--text-muted);">
+      Report-only summary of output tax already calculated per-transaction - not e-invoice/IRN filing.
+    </p>
+    <div id="gst-summary-result" style="padding: 0 16px 16px;"></div>
+  `;
+  const runReport = async () => {
+    const startDate = document.getElementById('gst-start-date').value;
+    const endDate = document.getElementById('gst-end-date').value;
+    const resultEl = document.getElementById('gst-summary-result');
+    const res = await apiFetch(`/api/v1/reports/gst-return-summary?start=${startDate}&end=${endDate}`);
+    if (!res) return;
+    if (!res.ok) {
+      resultEl.innerHTML = `<p class="login-error">${await getErrorMessage(res, 'Failed to load GST return summary.')}</p>`;
+      return;
+    }
+    const s = await res.json();
+    resultEl.innerHTML = `
+      <div class="dashboard-stats-row">
+        <div class="stat-card"><span class="stat-label">Taxable Value</span><span class="stat-val">${s.taxable_value.toLocaleString()}</span></div>
+        <div class="stat-card"><span class="stat-label">Output CGST</span><span class="stat-val">${s.output_cgst.toLocaleString()}</span></div>
+        <div class="stat-card"><span class="stat-label">Output SGST</span><span class="stat-val">${s.output_sgst.toLocaleString()}</span></div>
+        <div class="stat-card"><span class="stat-label">Output IGST</span><span class="stat-val">${s.output_igst.toLocaleString()}</span></div>
+        <div class="stat-card"><span class="stat-label">Total Tax Liability</span><span class="stat-val">${s.total_tax_liability.toLocaleString()}</span></div>
+        <div class="stat-card"><span class="stat-label">Transactions</span><span class="stat-val">${s.transaction_count}</span></div>
+      </div>
+    `;
+  };
+  document.getElementById('gst-summary-btn').addEventListener('click', runReport);
+  await runReport();
+}
+
+// Report Catalog (Stage 20 Track B.4, 20.35-20.40): ONE generic panel
+// driving every report in engines/report_registry.go's catalog - old (the
+// 6 tabs above) and new alike, via GET /api/v1/reports/catalog's metadata.
+// Adding a future report from here on means registering a Go function, not
+// writing a new render function like the tabs above each needed. Saved
+// filters (20.36) reuse the generic ReportFilterPreset doctype directly -
+// no dedicated save/list endpoint exists or is needed. Async export
+// (20.37) and drill-down (20.38) are both generic too, driven by
+// has_drill_down/columns metadata rather than per-report frontend code.
+let reportCatalogDefs = [];
+let reportCatalogSelectedId = '';
+
+async function renderReportCatalogPanel(panel) {
+  const res = await apiFetch('/api/v1/reports/catalog');
+  if (!res) return;
+  if (!res.ok) {
+    panel.innerHTML = `<p class="login-error" style="padding:16px;">Failed to load report catalog.</p>`;
+    return;
+  }
+  reportCatalogDefs = await res.json();
+  if (!reportCatalogSelectedId && reportCatalogDefs.length > 0) {
+    reportCatalogSelectedId = reportCatalogDefs[0].id;
+  }
+
+  const byCategory = {};
+  reportCatalogDefs.forEach(d => {
+    const cat = d.category || 'Other';
+    (byCategory[cat] = byCategory[cat] || []).push(d);
+  });
+
+  panel.innerHTML = `
+    <div style="padding: 16px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; border-bottom: 1px solid var(--border-color);">
+      <div class="form-group" style="margin-bottom: 0; min-width: 220px;">
+        <label class="form-label" for="rc-report-select">Report</label>
+        <select id="rc-report-select" class="form-select">
+          ${Object.keys(byCategory).sort().map(cat => `
+            <optgroup label="${cat}">
+              ${byCategory[cat].map(d => `<option value="${d.id}" ${d.id === reportCatalogSelectedId ? 'selected' : ''}>${d.label}</option>`).join('')}
+            </optgroup>
+          `).join('')}
+        </select>
+      </div>
+      <div id="rc-params" style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;"></div>
+      <div class="form-group" style="margin-bottom: 0; min-width: 180px;">
+        <label class="form-label" for="rc-saved-filter">Saved Filter</label>
+        <select id="rc-saved-filter" class="form-select"><option value="">— none —</option></select>
+      </div>
+      <button class="btn btn-primary" id="rc-run-btn">Run</button>
+      <button class="btn btn-outline" id="rc-save-filter-btn">Save Filter</button>
+      <button class="btn btn-outline" id="rc-export-btn">Export in Background</button>
+    </div>
+    <div id="rc-export-status" style="padding: 0 16px;"></div>
+    <div id="rc-results" style="padding: 16px;"></div>
+  `;
+
+  document.getElementById('rc-report-select').addEventListener('change', (e) => {
+    reportCatalogSelectedId = e.target.value;
+    renderReportCatalogParams();
+    loadReportCatalogSavedFilters();
+  });
+  document.getElementById('rc-run-btn').addEventListener('click', runReportCatalogReport);
+  document.getElementById('rc-save-filter-btn').addEventListener('click', saveReportCatalogFilter);
+  document.getElementById('rc-export-btn').addEventListener('click', exportReportCatalogReport);
+  document.getElementById('rc-saved-filter').addEventListener('change', (e) => {
+    applyReportCatalogSavedFilter(e.target.value);
+  });
+
+  renderReportCatalogParams();
+  await loadReportCatalogSavedFilters();
+}
+
+function currentReportCatalogDef() {
+  return reportCatalogDefs.find(d => d.id === reportCatalogSelectedId);
+}
+
+function renderReportCatalogParams() {
+  const def = currentReportCatalogDef();
+  const container = document.getElementById('rc-params');
+  if (!def || !container) return;
+  container.innerHTML = (def.params || []).map(p => `
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label" for="rc-param-${p.key}">${p.label}</label>
+      <input type="${p.type === 'date' ? 'date' : 'text'}" id="rc-param-${p.key}" class="form-input"
+             data-param-key="${p.key}" ${p.required ? 'required' : ''} style="width: 160px;">
+    </div>
+  `).join('');
+}
+
+function collectReportCatalogParams() {
+  const params = {};
+  document.querySelectorAll('#rc-params [data-param-key]').forEach(input => {
+    if (input.value) params[input.getAttribute('data-param-key')] = input.value;
+  });
+  return params;
+}
+
+function reportCatalogQueryString(params) {
+  return Object.entries(params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+}
+
+async function runReportCatalogReport() {
+  const def = currentReportCatalogDef();
+  const resultsEl = document.getElementById('rc-results');
+  if (!def || !resultsEl) return;
+  const params = collectReportCatalogParams();
+  for (const p of (def.params || [])) {
+    if (p.required && !params[p.key]) {
+      resultsEl.innerHTML = `<p class="login-error">"${p.label}" is required.</p>`;
+      return;
+    }
+  }
+  const res = await apiFetch(`/api/v1/reports/run/${def.id}?${reportCatalogQueryString(params)}`);
+  if (!res) return;
+  if (!res.ok) {
+    resultsEl.innerHTML = `<p class="login-error">${await getErrorMessage(res, 'Failed to run report.')}</p>`;
+    return;
+  }
+  const result = await res.json();
+  renderReportCatalogResultTable(resultsEl, result, params);
+}
+
+function renderReportCatalogResultTable(container, result, params) {
+  const columns = result.columns || [];
+  const rows = result.rows || [];
+  const drillKey = columns.length > 0 ? columns[0].key : null;
+  let html = `<table><thead><tr>`;
+  columns.forEach(c => { html += `<th>${c.label}</th>`; });
+  if (result.has_drill_down) html += `<th>Details</th>`;
+  html += `</tr></thead><tbody>`;
+  if (rows.length === 0) {
+    html += `<tr><td colspan="${columns.length + (result.has_drill_down ? 1 : 0)}" style="text-align:center; color:var(--text-muted);">No rows.</td></tr>`;
+  }
+  rows.forEach((row, idx) => {
+    html += `<tr>`;
+    columns.forEach(c => {
+      const val = row[c.key];
+      html += `<td>${val === null || val === undefined ? '' : val}</td>`;
+    });
+    if (result.has_drill_down) {
+      const rowKeyVal = drillKey ? String(row[drillKey]) : '';
+      html += `<td><button class="action-btn" onclick='runReportCatalogDrillDown(${JSON.stringify(result.id)}, ${JSON.stringify(rowKeyVal)}, ${idx})'>View Details</button></td>`;
+    }
+    html += `</tr><tr id="rc-drilldown-${idx}" class="hidden"><td colspan="${columns.length + 1}"></td></tr>`;
+  });
+  html += `</tbody></table>`;
+  container.innerHTML = html;
+  container.dataset.params = JSON.stringify(params);
+}
+
+async function runReportCatalogDrillDown(reportId, rowKey, rowIdx) {
+  const params = JSON.parse(document.getElementById('rc-results').dataset.params || '{}');
+  const res = await apiFetch(`/api/v1/reports/drilldown/${reportId}?row=${encodeURIComponent(rowKey)}&${reportCatalogQueryString(params)}`);
+  if (!res) return;
+  const targetRow = document.getElementById(`rc-drilldown-${rowIdx}`);
+  if (!targetRow) return;
+  if (!res.ok) {
+    targetRow.classList.remove('hidden');
+    targetRow.querySelector('td').innerHTML = `<span class="login-error">${await getErrorMessage(res, 'Drill-down failed.')}</span>`;
+    return;
+  }
+  const data = await res.json();
+  const drillRows = data.rows || [];
+  const keys = drillRows.length > 0 ? Object.keys(drillRows[0]) : [];
+  let inner = `<div style="padding:8px 0;"><table style="width:100%;"><thead><tr>${keys.map(k => `<th>${k}</th>`).join('')}</tr></thead><tbody>`;
+  inner += drillRows.length === 0
+    ? `<tr><td colspan="${keys.length || 1}" style="text-align:center; color:var(--text-muted);">No underlying rows.</td></tr>`
+    : drillRows.map(r => `<tr>${keys.map(k => `<td>${r[k] === null || r[k] === undefined ? '' : r[k]}</td>`).join('')}</tr>`).join('');
+  inner += `</tbody></table></div>`;
+  targetRow.classList.remove('hidden');
+  targetRow.querySelector('td').innerHTML = inner;
+}
+
+async function loadReportCatalogSavedFilters() {
+  const select = document.getElementById('rc-saved-filter');
+  if (!select) return;
+  select.innerHTML = `<option value="">— none —</option>`;
+  const res = await apiFetch('/api/v1/doc/ReportFilterPreset');
+  if (!res || !res.ok) return;
+  const presets = await res.json();
+  const username = localStorage.getItem('erp_username') || '';
+  presets
+    .filter(p => p.report_id === reportCatalogSelectedId && p.owner === username)
+    .forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.name;
+      select.appendChild(opt);
+    });
+}
+
+function applyReportCatalogSavedFilter(presetId) {
+  if (!presetId) return;
+  apiFetch(`/api/v1/doc/ReportFilterPreset/${presetId}`).then(async (res) => {
+    if (!res || !res.ok) return;
+    const preset = await res.json();
+    let params = {};
+    try { params = JSON.parse(preset.params || '{}'); } catch (e) { /* ignore */ }
+    Object.entries(params).forEach(([k, v]) => {
+      const input = document.querySelector(`#rc-params [data-param-key="${k}"]`);
+      if (input) input.value = v;
+    });
+  });
+}
+
+async function saveReportCatalogFilter() {
+  const def = currentReportCatalogDef();
+  if (!def) return;
+  const name = await showCustomPrompt('Name this saved filter:', '', 'Save Filter');
+  if (!name) return;
+  const params = collectReportCatalogParams();
+  const username = localStorage.getItem('erp_username') || '';
+  const presetId = `RFP-${Date.now()}`;
+  const res = await apiFetch('/api/v1/doc/ReportFilterPreset', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: presetId, report_id: def.id, name, owner: username,
+      params: JSON.stringify(params), status: 'Active'
+    })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to save filter.');
+    return;
+  }
+  await loadReportCatalogSavedFilters();
+  document.getElementById('rc-saved-filter').value = presetId;
+}
+
+async function exportReportCatalogReport() {
+  const def = currentReportCatalogDef();
+  const statusEl = document.getElementById('rc-export-status');
+  if (!def || !statusEl) return;
+  const params = collectReportCatalogParams();
+  const res = await apiFetch('/api/v1/reports/export', {
+    method: 'POST',
+    body: JSON.stringify({ report_id: def.id, params })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    statusEl.innerHTML = `<p class="login-error">${await getErrorMessage(res, 'Failed to queue export.')}</p>`;
+    return;
+  }
+  const job = await res.json();
+  statusEl.innerHTML = `<p>Export queued (job ${job.id})... waiting for it to complete.</p>`;
+  pollReportExportJob(job.id, statusEl);
+}
+
+async function pollReportExportJob(jobId, statusEl) {
+  const res = await apiFetch(`/api/v1/reports/export/${jobId}`);
+  if (!res) return;
+  if (!res.ok) {
+    statusEl.innerHTML = `<p class="login-error">${await getErrorMessage(res, 'Export job lookup failed.')}</p>`;
+    return;
+  }
+  const job = await res.json();
+  if (job.status === 'Pending') {
+    setTimeout(() => pollReportExportJob(jobId, statusEl), 2000);
+    return;
+  }
+  if (job.status === 'Failed') {
+    statusEl.innerHTML = `<p class="login-error">Export failed.</p>`;
+    return;
+  }
+  statusEl.innerHTML = `<p><button class="action-btn" id="rc-download-btn">Download CSV</button></p>`;
+  document.getElementById('rc-download-btn').addEventListener('click', () => downloadReportExportCSV(jobId));
+}
+
+// This endpoint requires the same Bearer-token auth as every other API call
+// (apiMiddleware has no query-string-token fallback), so a plain <a href>
+// opened in a new tab can't authenticate itself - fetch the CSV through the
+// normal authenticated apiFetch() and hand the browser a Blob URL instead.
+async function downloadReportExportCSV(jobId) {
+  const res = await apiFetch(`/api/v1/reports/export/${jobId}?download=1`);
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to download export.');
+    return;
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${jobId}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }
 
 // RFQ / Vendor Quote / Quote Comparison (Stage 13.12) - RFQ/VendorQuote
@@ -5849,7 +7015,7 @@ async function renderDocTypeBuilderView(container) {
       <p class="page-subtitle">Configure schema structures, define dynamic fields, and setup RBAC rules.</p>
     </div>
     <button class="btn btn-primary" onclick="openNewDoctypeModal()">
-      <span>Register New DocType</span>
+      <span>Register New Record Type</span>
     </button>
   `;
   container.appendChild(header);
@@ -5860,18 +7026,43 @@ async function renderDocTypeBuilderView(container) {
   panel.style.gridTemplateColumns = '250px 1fr';
   panel.style.gap = '24px';
   panel.style.padding = '24px';
-  
-  let listHTML = `<div class="doctype-list" style="border-right: 1px solid var(--border-color); padding-right: 16px; display:flex; flex-direction:column; gap: 8px;">`;
+
+  // Module-only list, each module's own record types revealed in a hover
+  // flyout - reuses the sidebar's own .has-flyout/.menu-flyout mechanism
+  // (setupModuleFlyouts()/openFlyout()/closeSubmenus()) rather than a
+  // second one, per explicit user request to feel identical to the sidebar
+  // ("I will hover and select"). Every doctype already carries a `module`
+  // (set via openNewDoctypeModal's "Module Group" prompt below).
+  const doctypesByModule = {};
   state.activeDoctypes.forEach(d => {
-    listHTML += `<button class="btn btn-secondary text-left" onclick="loadDoctypeConfig('${d.name}')">${d.name} (${d.document_type})</button>`;
+    const mod = d.module || 'Other';
+    (doctypesByModule[mod] = doctypesByModule[mod] || []).push(d);
   });
-  listHTML += `</div><div id="doctype-fields-config">Select a DocType from the left panel to configure its metadata schema properties.</div>`;
+
+  let listHTML = `<ul class="doctype-module-list" style="border-right: 1px solid var(--border-color); padding-right: 16px; list-style: none;">`;
+  Object.keys(doctypesByModule).sort().forEach(mod => {
+    listHTML += `
+      <li class="menu-item-container has-flyout">
+        <a class="menu-item menu-item-group" href="#">
+          <span>${mod}</span>
+          <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="9 6 15 12 9 18"></polyline>
+          </svg>
+        </a>
+        <ul class="menu-flyout">
+          ${doctypesByModule[mod].map(d => `<li><a class="menu-item" onclick="loadDoctypeConfig('${d.name}')"><span>${d.name} (${d.document_type})</span></a></li>`).join('')}
+        </ul>
+      </li>
+    `;
+  });
+  listHTML += `</ul><div id="doctype-fields-config">Hover a module on the left, then select a record type to configure its metadata schema properties.</div>`;
   panel.innerHTML = listHTML;
   container.appendChild(panel);
+  setupModuleFlyouts();
 }
 
 window.openNewDoctypeModal = async function() {
-  const name = await showCustomPrompt('Enter DocType Name:');
+  const name = await showCustomPrompt('Enter Record Type Name:');
   if (!name) return;
   const module = await showCustomPrompt('Enter Module Group (e.g. Master Data, Procurement):');
   if (!module) return;
@@ -5887,7 +7078,7 @@ window.openNewDoctypeModal = async function() {
     await fetchRegisteredDoctypes();
     renderView('doctype-builder');
   } else {
-    await showApiError(res, 'Failed to register DocType.');
+    await showApiError(res, 'Failed to register record type.');
   }
 };
 
@@ -5952,7 +7143,7 @@ window.addNewFieldConfig = async function(doctypeName) {
   const fieldtype = await showCustomPrompt('Enter Fieldtype (Data/Number/Select/Check/Date/Link):');
   if (!fieldtype) return;
   const mandatory = await showCustomConfirm('Is this field mandatory?');
-  const options = await showCustomPrompt('Enter Options (Choice list for Select, Target DocType for Link, else leave blank):');
+  const options = await showCustomPrompt('Enter Options (Choice list for Select, Target Record Type for Link, else leave blank):');
 
   const res = await apiFetch(`/api/v1/meta/${doctypeName}/fields`, {
     method: 'POST',
@@ -5974,7 +7165,7 @@ window.addNewFieldConfig = async function(doctypeName) {
 };
 
 window.deleteFieldConfig = async function(doctypeName, fieldID) {
-  if (await showCustomConfirm('Delete this field from doctype metadata?')) {
+  if (await showCustomConfirm('Delete this field from record type metadata?')) {
     const res = await apiFetch(`/api/v1/meta/${doctypeName}/fields/${fieldID}`, {
       method: 'DELETE'
     });
@@ -6014,7 +7205,7 @@ async function renderPrefixConfigsView(container) {
     <table>
       <thead>
         <tr>
-          <th>DocType</th>
+          <th>Record Type</th>
           <th>Prefix</th>
           <th>Separator</th>
           <th>Padding</th>

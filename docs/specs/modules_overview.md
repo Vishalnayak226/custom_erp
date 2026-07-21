@@ -14,6 +14,7 @@ The base Go runtime binary that runs identical code for all tenants:
 *   **Numbering Engine**: Sequence generator rules supporting custom prefixes, digit padding, reset rules (annual/monthly), and dynamic parent-child concatenation formats.
 *   **Workflow & Approval Engine**: Tiered document approvals matching amount slabs, location roles, and automatic escalations.
 *   **Log Hub & Observability Dashboard**: Central tracker capturing global panic stack traces, correlation IDs, database locks, and retry actions for failed integrations.
+*   **Standardized Message Catalog** (Stage 23): a 300+ code catalog of every user-facing error/warning/info/success message across all modules — standard wording, HTTP status, severity, and log/audit requirement per code, generated from `ERP_Standard_Message_Control_Matrix_Final.xlsx` into `internal/server/error_catalog_generated.go`. Cross-cutting, not owned by any one module below. See **[docs/specs/message_catalog.md](message_catalog.md)**.
 
 ---
 

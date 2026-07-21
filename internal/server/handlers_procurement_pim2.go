@@ -19,17 +19,17 @@ import (
 func handleGetVendorQuotesForRFQ(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	rfqID := r.URL.Query().Get("rfq_id")
 	if rfqID == "" {
-		http.Error(w, "Query parameter 'rfq_id' is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameter 'rfq_id' is required")
 		return
 	}
 	results, err := engines.GetVendorQuotesForRFQ(tenantID, rfqID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if results == nil {
@@ -41,7 +41,7 @@ func handleGetVendorQuotesForRFQ(w http.ResponseWriter, r *http.Request) {
 func handleSelectWinningQuote(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	var req struct {
@@ -49,12 +49,11 @@ func handleSelectWinningQuote(w http.ResponseWriter, r *http.Request) {
 		QuoteID string `json:"quote_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.RfqID == "" || req.QuoteID == "" {
-		http.Error(w, "Fields 'rfq_id' and 'quote_id' are required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Fields 'rfq_id' and 'quote_id' are required")
 		return
 	}
 	if err := engines.SelectWinningQuote(tenantID, req.RfqID, req.QuoteID); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "selected"})
@@ -68,7 +67,7 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	var req struct {
@@ -78,17 +77,16 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 		Copies        int      `json:"copies"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request payload", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request payload")
 		return
 	}
 	if req.PrinterCode == "" {
-		http.Error(w, "Field 'printer_code' is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Field 'printer_code' is required")
 		return
 	}
 	labels, err := engines.PrintStickers(tenantID, req.Skus, req.PrinterCode, userID, req.ReprintReason, req.Copies)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "PRINT_STICKERS", "SUCCESS", fmt.Sprintf("Printed %d sticker(s) on %s", len(labels), req.PrinterCode))
@@ -98,12 +96,12 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 func handlePrintHistory(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	results, err := engines.GetPrintHistory(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if results == nil {
@@ -117,18 +115,18 @@ func handlePrintHistory(w http.ResponseWriter, r *http.Request) {
 func handlePayrollExport(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	from := r.URL.Query().Get("from")
 	to := r.URL.Query().Get("to")
 	if from == "" || to == "" {
-		http.Error(w, "Query parameters 'from' and 'to' are required (YYYY-MM-DD)", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Query parameters 'from' and 'to' are required (YYYY-MM-DD)")
 		return
 	}
 	results, err := engines.GetPayrollExport(tenantID, from, to)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if results == nil {
@@ -145,12 +143,12 @@ func handlePayrollExport(w http.ResponseWriter, r *http.Request) {
 func handlePIMDashboard(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	dashboard, err := engines.GetPIMDashboard(tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(dashboard)
@@ -158,7 +156,7 @@ func handlePIMDashboard(w http.ResponseWriter, r *http.Request) {
 
 func handlePIMBulkEdit(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	var req struct {
@@ -168,7 +166,7 @@ func handlePIMBulkEdit(w http.ResponseWriter, r *http.Request) {
 		Value   interface{} `json:"value"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid payload JSON", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid payload JSON")
 		return
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
@@ -176,18 +174,16 @@ func handlePIMBulkEdit(w http.ResponseWriter, r *http.Request) {
 	userID := r.Header.Get("Resolved-User-ID")
 	allowed, err := checkPermission(tenantID, role, req.Doctype, "update")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if !allowed {
-		w.WriteHeader(http.StatusForbidden)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": fmt.Sprintf("You do not have permission to update %s documents.", req.Doctype)})
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, fmt.Sprintf("You do not have permission to update %s documents.", req.Doctype))
 		return
 	}
 	updatedIDs, err := engines.BulkUpdateDocuments(tenantID, req.Doctype, req.IDs, req.Field, req.Value, userID, role)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -197,13 +193,12 @@ func handlePIMBulkEdit(w http.ResponseWriter, r *http.Request) {
 
 func handlePIMReport(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	rows, err := engines.ListPIMReport(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("name"))
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(rows)
@@ -212,13 +207,13 @@ func handlePIMReport(w http.ResponseWriter, r *http.Request) {
 func handlePIMWorkbench(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	family := r.URL.Query().Get("family")
 	results, err := engines.ListWorkbench(tenantID, family)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if results == nil {
@@ -230,7 +225,7 @@ func handlePIMWorkbench(w http.ResponseWriter, r *http.Request) {
 func handlePIMCompleteness(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	itemCode := r.PathValue("itemCode")
@@ -238,7 +233,7 @@ func handlePIMCompleteness(w http.ResponseWriter, r *http.Request) {
 	channelID := r.URL.Query().Get("channel")
 	result, err := engines.CalculateCompleteness(tenantID, itemCode, locale, channelID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(result)
@@ -252,26 +247,26 @@ func handlePIMMediaUpload(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, 10<<20)
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		http.Error(w, "Upload exceeds 10MB limit or is malformed", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Upload exceeds 10MB limit or is malformed")
 		return
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, "File is mandatory under multipart FormFile 'file'", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "File is mandatory under multipart FormFile 'file'")
 		return
 	}
 	defer file.Close()
 
 	fileBytes, err := io.ReadAll(file)
 	if err != nil {
-		http.Error(w, "Failed to read uploaded file", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Failed to read uploaded file")
 		return
 	}
 
@@ -280,8 +275,7 @@ func handlePIMMediaUpload(w http.ResponseWriter, r *http.Request) {
 
 	asset, err := engines.SaveMediaFile(tenantID, fileBytes, header.Filename, itemCode, mediaRole, userID)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(asset)
@@ -295,18 +289,18 @@ func handlePIMMediaUpload(w http.ResponseWriter, r *http.Request) {
 func handlePIMMediaFile(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	mediaID := r.PathValue("id")
 	path, fileType, err := engines.GetMediaFile(tenantID, mediaID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, err.Error())
 		return
 	}
 	fileBytes, err := os.ReadFile(path)
 	if err != nil {
-		http.Error(w, "stored file missing", http.StatusNotFound)
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "stored file missing")
 		return
 	}
 	w.Header().Set("Content-Type", fileType)
@@ -316,17 +310,17 @@ func handlePIMMediaFile(w http.ResponseWriter, r *http.Request) {
 func handlePIMMediaList(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	itemCode := r.URL.Query().Get("item")
 	if itemCode == "" {
-		http.Error(w, "item query parameter is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "item query parameter is required")
 		return
 	}
 	results, err := engines.ListMediaForItem(tenantID, itemCode)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if results == nil {
@@ -338,13 +332,12 @@ func handlePIMMediaList(w http.ResponseWriter, r *http.Request) {
 func handlePIMMediaDeactivate(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	mediaID := r.PathValue("id")
 	if err := engines.DeactivateMedia(tenantID, mediaID); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deactivated"})
@@ -358,7 +351,7 @@ func handlePIMPublish(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")
 	if r.Method != http.MethodPost {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	var req struct {
@@ -366,13 +359,12 @@ func handlePIMPublish(w http.ResponseWriter, r *http.Request) {
 		Channel  string `json:"channel"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	jobID, alreadyQueued, err := engines.QueuePublish(tenantID, req.ItemCode, req.Channel, userID)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, err.Error())
 		return
 	}
 	// Bug fix (found during Stage 16.1 live verification): this used to
@@ -392,17 +384,17 @@ func handlePIMPublish(w http.ResponseWriter, r *http.Request) {
 func handlePIMPublishJobStatus(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	jobID, err := strconv.Atoi(r.PathValue("jobID"))
 	if err != nil {
-		http.Error(w, "invalid job id", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "invalid job id")
 		return
 	}
 	status, err := engines.GetPublishJobStatus(tenantID, jobID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, err.Error())
 		return
 	}
 	_ = json.NewEncoder(w).Encode(status)
@@ -411,17 +403,17 @@ func handlePIMPublishJobStatus(w http.ResponseWriter, r *http.Request) {
 func handlePIMPublishLog(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
-		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
 	itemCode := r.URL.Query().Get("item")
 	if itemCode == "" {
-		http.Error(w, "item query parameter is required", http.StatusBadRequest)
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "item query parameter is required")
 		return
 	}
 	results, err := engines.ListPublishLogForItem(tenantID, itemCode)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 	if results == nil {

@@ -29,7 +29,11 @@ func GetVendorQuotesForRFQ(tenantID, rfqID string) ([]map[string]interface{}, er
 			return nil, err
 		}
 		var data map[string]interface{}
-		_ = json.Unmarshal([]byte(dataStr), &data)
+		if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+			// 24.18: a nil map would otherwise panic on the assignment
+			// just below.
+			return nil, fmt.Errorf("vendor quote %s has corrupt stored data: %v", id, err)
+		}
 		data["id"] = id
 		results = append(results, data)
 	}
@@ -64,7 +68,9 @@ func SelectWinningQuote(tenantID, rfqID, quoteID string) error {
 	}
 
 	var winnerData map[string]interface{}
-	_ = json.Unmarshal([]byte(winnerDataStr), &winnerData)
+	if err := json.Unmarshal([]byte(winnerDataStr), &winnerData); err != nil {
+		return fmt.Errorf("winning quote %s has corrupt stored data: %v", quoteID, err)
+	}
 	winnerData["status"] = "Selected"
 	winnerMarshaled, _ := json.Marshal(winnerData)
 	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $1, status = 'Selected', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'VendorQuote' AND id = $2`, schema), winnerMarshaled, quoteID); err != nil {
@@ -87,7 +93,10 @@ func SelectWinningQuote(tenantID, rfqID, quoteID string) error {
 			return err
 		}
 		var data map[string]interface{}
-		_ = json.Unmarshal([]byte(dataStr), &data)
+		if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+			rows.Close()
+			return fmt.Errorf("vendor quote %s has corrupt stored data: %v", id, err)
+		}
 		others = append(others, otherQuote{id: id, data: data})
 	}
 	rows.Close()
@@ -105,7 +114,9 @@ func SelectWinningQuote(tenantID, rfqID, quoteID string) error {
 		return fmt.Errorf("RFQ not found: %v", err)
 	}
 	var rfqData map[string]interface{}
-	_ = json.Unmarshal([]byte(rfqDataStr), &rfqData)
+	if err := json.Unmarshal([]byte(rfqDataStr), &rfqData); err != nil {
+		return fmt.Errorf("RFQ %s has corrupt stored data: %v", rfqID, err)
+	}
 	rfqData["status"] = "Closed"
 	rfqMarshaled, _ := json.Marshal(rfqData)
 	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $1, status = 'Closed', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'RFQ' AND id = $2`, schema), rfqMarshaled, rfqID); err != nil {

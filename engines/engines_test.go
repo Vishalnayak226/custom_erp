@@ -204,7 +204,7 @@ func TestEngines(t *testing.T) {
 		// 1. Post balanced double-entry
 		debits := map[string]int{"1100": 1000}
 		credits := map[string]int{"4100": 1000}
-		err := PostDoubleEntry(tenantID, "TestVoucher", "V-001", debits, credits)
+		err := PostDoubleEntry(tenantID, "TestVoucher", "V-001", debits, credits, "", "")
 		if err != nil {
 			t.Fatalf("Failed to post balanced journal entry: %v", err)
 		}
@@ -212,9 +212,25 @@ func TestEngines(t *testing.T) {
 		// 2. Expect failure on unbalanced entries
 		badDebits := map[string]int{"1100": 1000}
 		badCredits := map[string]int{"4100": 800}
-		err = PostDoubleEntry(tenantID, "TestVoucher", "V-002", badDebits, badCredits)
+		err = PostDoubleEntry(tenantID, "TestVoucher", "V-002", badDebits, badCredits, "", "")
 		if err == nil {
 			t.Errorf("Expected error when posting unbalanced journal entries, but got none")
+		}
+
+		// 24.5: a repeat call with the same postingKey (simulating a client
+		// retry after a dropped response) must not double-post.
+		idemDebits := map[string]int{"1100": 500}
+		idemCredits := map[string]int{"4100": 500}
+		if err := PostDoubleEntry(tenantID, "TestVoucher", "V-003", idemDebits, idemCredits, "", "TestVoucher:V-003:TEST"); err != nil {
+			t.Fatalf("first idempotent post failed: %v", err)
+		}
+		if err := PostDoubleEntry(tenantID, "TestVoucher", "V-003", idemDebits, idemCredits, "", "TestVoucher:V-003:TEST"); err != nil {
+			t.Fatalf("second (retried) idempotent post should be a silent no-op, not an error: %v", err)
+		}
+		var idemCount int
+		_ = db.DB.QueryRow("SELECT COUNT(*) FROM " + schema + ".gl_postings WHERE idempotency_key = 'TestVoucher:V-003:TEST'").Scan(&idemCount)
+		if idemCount != 2 {
+			t.Fatalf("expected exactly 2 gl_postings rows (1 debit + 1 credit) from the FIRST call only, got %d", idemCount)
 		}
 
 		// 3. Test trial balance retrieval

@@ -2,6 +2,7 @@ package engines
 
 import (
 	"bytes"
+	"context"
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
@@ -91,20 +92,26 @@ var alertMonitorState = struct {
 // callers - so filtering to a fixed severity set would miss real failures).
 // This is the "sustained error rate" alert; a single PANIC still alerts
 // immediately and separately via LogSystemError itself.
-func StartAlertMonitor(pollInterval, window time.Duration, threshold int) {
+func StartAlertMonitor(ctx context.Context, pollInterval, window time.Duration, threshold int) {
 	ticker := time.NewTicker(pollInterval)
 	go func() {
-		for range ticker.C {
-			if db.DB == nil {
-				continue
-			}
-			schemas, err := listTenantSchemas()
-			if err != nil {
-				log.Printf("[ALERT-MONITOR] failed to list tenant schemas: %v", err)
-				continue
-			}
-			for _, schema := range schemas {
-				checkErrorRate(schema, window, threshold)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if db.DB == nil {
+					continue
+				}
+				schemas, err := listTenantSchemas()
+				if err != nil {
+					log.Printf("[ALERT-MONITOR] failed to list tenant schemas: %v", err)
+					continue
+				}
+				for _, schema := range schemas {
+					checkErrorRate(schema, window, threshold)
+				}
 			}
 		}
 	}()
