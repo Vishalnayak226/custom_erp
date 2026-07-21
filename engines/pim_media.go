@@ -56,7 +56,7 @@ func validateMediaFile(filename string, fileBytes []byte) (fileType string, err 
 	ext := strings.ToLower(filepath.Ext(filename))
 	expectedMIME, ok := allowedMediaExtensions[ext]
 	if !ok {
-		return "", fmt.Errorf("file type %q is not allowed - allowed types: jpg, jpeg, png, webp, gif, pdf", ext)
+		return "", &ValidationError{Code: "GLOBAL-0008", Message: fmt.Sprintf("file type %q is not allowed - allowed types: jpg, jpeg, png, webp, gif, pdf", ext)}
 	}
 
 	sniffLen := 512
@@ -66,10 +66,10 @@ func validateMediaFile(filename string, fileBytes []byte) (fileType string, err 
 	detected := http.DetectContentType(fileBytes[:sniffLen])
 	if expectedMIME == "application/pdf" {
 		if !strings.HasPrefix(detected, "application/pdf") {
-			return "", fmt.Errorf("file content does not match a PDF (detected %q) - upload rejected", detected)
+			return "", &ValidationError{Code: "GLOBAL-0008", Message: fmt.Sprintf("file content does not match a PDF (detected %q) - upload rejected", detected)}
 		}
 	} else if !strings.HasPrefix(detected, "image/") {
-		return "", fmt.Errorf("file content does not match an image (detected %q) - upload rejected", detected)
+		return "", &ValidationError{Code: "GLOBAL-0008", Message: fmt.Sprintf("file content does not match an image (detected %q) - upload rejected", detected)}
 	}
 	return expectedMIME, nil
 }

@@ -22,6 +22,14 @@ type AccountingPeriod struct {
 // that overlaps any existing period (Open or Closed) - overlapping ranges
 // would make "is today inside a closed period" ambiguous.
 func CreateAccountingPeriod(tenantID, name, startDate, endDate, userID string) (string, error) {
+	// Stage 25 (GLOBAL-0012): dates arrive as ISO "YYYY-MM-DD" strings (same
+	// assumption the overlap query below already makes by comparing them
+	// directly as SQL date literals), so a plain string compare is enough -
+	// no need to parse just to catch a swapped start/end.
+	if startDate != "" && endDate != "" && startDate > endDate {
+		return "", &ValidationError{Code: "GLOBAL-0012", Message: "Start Date cannot be later than End Date"}
+	}
+
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err

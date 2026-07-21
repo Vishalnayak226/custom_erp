@@ -131,6 +131,23 @@ func SaveDocType(tenantID string, name string, module string, docType string) er
 	return err
 }
 
+// ValidationError carries a precise error-catalog code (Stage 25, see
+// internal/server/error_catalog_generated.go) alongside the same plain-text
+// message ValidateDocument always returned - existing callers that only do
+// err != nil / err.Error() (import.go, pim_bulk.go, engines_test.go) see no
+// behavior change; handlers_core_doc_engine.go additionally type-asserts to
+// attach the precise code+field instead of falling back to a generic one.
+// Code is "" for the couple of internal-error paths below with no catalog
+// scenario (metadata lookup failure, missing doctype) - callers fall back to
+// their own generic handling for those, same as before this type existed.
+type ValidationError struct {
+	Code    string
+	SubFor  string
+	Message string
+}
+
+func (e *ValidationError) Error() string { return e.Message }
+
 // ValidateDocument checks document properties against doctype_fields rules
 func ValidateDocument(tenantID string, doctype string, docData map[string]interface{}) error {
 	fields, err := GetDocTypeMeta(tenantID, doctype)
@@ -154,7 +171,7 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 			if f.Fieldname == "id" || f.Fieldname == "status" {
 				// System fields are auto-generated or defaulted by the backend
 			} else {
-				return fmt.Errorf("Field %q (%s) is required", f.Label, f.Fieldname)
+				return &ValidationError{Code: "GLOBAL-0001", SubFor: f.Label, Message: fmt.Sprintf("Field %q (%s) is required", f.Label, f.Fieldname)}
 			}
 		}
 
@@ -165,7 +182,7 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 				var num float64
 				_, err := fmt.Sscanf(valStr, "%f", &num)
 				if err != nil {
-					return fmt.Errorf("Field %q must be a valid number", f.Label)
+					return &ValidationError{Code: "GLOBAL-0002", SubFor: f.Label, Message: fmt.Sprintf("Field %q must be a valid number", f.Label)}
 				}
 			case "Select":
 				if f.Options != "" {
@@ -178,7 +195,7 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 						}
 					}
 					if !matched {
-						return fmt.Errorf("Field %q value %q is not in allowed list (%s)", f.Label, valStr, f.Options)
+						return &ValidationError{Code: "META-0199", Message: fmt.Sprintf("Field %q value %q is not in allowed list (%s)", f.Label, valStr, f.Options)}
 					}
 				}
 			case "Link":
@@ -188,7 +205,7 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 						return err
 					}
 					if !existsLink {
-						return fmt.Errorf("Linked %s record with ID %q does not exist", f.Options, valStr)
+						return &ValidationError{Code: "META-0198", SubFor: f.Label, Message: fmt.Sprintf("Linked %s record with ID %q does not exist", f.Options, valStr)}
 					}
 				}
 			}
