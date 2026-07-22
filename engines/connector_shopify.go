@@ -93,7 +93,7 @@ func callShopifyGraphQL(ctx context.Context, shopDomain, accessToken, query stri
 		"Content-Type":           "application/json",
 		"X-Shopify-Access-Token": accessToken,
 	}
-	status, respBody, err := doConnectorRequest(ctx, 20*time.Second, http.MethodPost, url, headers, reqBody)
+	status, respBody, err := doConnectorRequest(ctx, 20*time.Second, http.MethodPost, url, headers, reqBody, "shopify")
 	if err != nil {
 		return nil, fmt.Errorf("shopify request failed: %v", err)
 	}
@@ -316,7 +316,7 @@ func putStagedUpload(ctx context.Context, uploadURL string, parameters []shopify
 		return err
 	}
 
-	status, respBody, err := doConnectorRequest(ctx, 30*time.Second, http.MethodPost, uploadURL, map[string]string{"Content-Type": writer.FormDataContentType()}, []byte(body.String()))
+	status, respBody, err := doConnectorRequest(ctx, 30*time.Second, http.MethodPost, uploadURL, map[string]string{"Content-Type": writer.FormDataContentType()}, []byte(body.String()), "shopify")
 	if err != nil {
 		return err
 	}

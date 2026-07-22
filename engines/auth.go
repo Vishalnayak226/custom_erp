@@ -4,6 +4,7 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"custom_erp/db"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
@@ -199,4 +200,41 @@ func ParseToken(tokenStr string) (map[string]string, error) {
 	}
 
 	return claims, nil
+}
+
+// seedAdminPasswordHash is the literal bcrypt hash db/migration.sql seeds
+// tenant_default.users.admin with (loophole #27, checklist 24.27) - a known
+// default credential, harmless for this project's current single-machine
+// dev setup (real dev logins already use DEV_CREDENTIALS.local.txt's
+// separate rotated credentials) but unsafe to ship into a real production
+// deployment unrotated.
+const seedAdminPasswordHash = "$2a$10$8IqlLMaxVylUfYsKtF2bxOsN8udFN3XKEeSVbHWuRmMToWCvHuv6W"
+
+// EnforceNoDefaultAdminCredentialInProduction (24.27) checks whether
+// tenant_default's seed admin account still carries the exact hash
+// db/migration.sql ships, and refuses to start when ENV=production - a
+// migration script can't safely generate its own random credential in
+// plain SQL without a new Postgres extension (pgcrypto's crypt()/gen_salt()
+// aren't already in use anywhere in this codebase), so the fix is a
+// startup-time guard at the one place every deployment already passes
+// through (Run(), right after InitDB) rather than a smarter migration.
+// Outside production this only logs a warning - the dev-bootstrap seed
+// staying in place is expected and matches the current single-machine dev
+// workflow (ai_handover.md §1).
+func EnforceNoDefaultAdminCredentialInProduction() error {
+	var hash string
+	err := db.DB.QueryRow(`SELECT password_hash FROM tenant_default.users WHERE username = 'admin'`).Scan(&hash)
+	if err != nil {
+		// No seed admin row (already rotated/removed, or a fresh schema this
+		// migration hasn't been applied to yet) - nothing to enforce.
+		return nil
+	}
+	if hash != seedAdminPasswordHash {
+		return nil
+	}
+	if os.Getenv("ENV") == "production" {
+		return fmt.Errorf("tenant_default's 'admin' account still has the default seed password from db/migration.sql - rotate it (e.g. via POST /api/v1/me/change-password after a one-time login, or UPDATE tenant_default.users directly) before running with ENV=production")
+	}
+	log.Println("[SECURITY] tenant_default's 'admin' account still has the default seed password from db/migration.sql - fine for local dev, but rotate it before any real deployment (ENV=production refuses to start with this credential still active).")
+	return nil
 }

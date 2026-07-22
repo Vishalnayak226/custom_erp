@@ -98,7 +98,7 @@ func (magentoConnector) PublishProduct(ctx context.Context, cred map[string]stri
 		"Authorization": "Bearer " + accessToken,
 	}
 	url := magentoBaseURL(cred) + "/products"
-	status, respBody, err := doConnectorRequest(ctx, 20*time.Second, http.MethodPost, url, headers, reqBody)
+	status, respBody, err := doConnectorRequest(ctx, 20*time.Second, http.MethodPost, url, headers, reqBody, "magento")
 	if err != nil {
 		return "", fmt.Errorf("magento request failed: %v", err)
 	}
@@ -164,7 +164,7 @@ func uploadMagentoMedia(ctx context.Context, cred map[string]string, sku string,
 			lastErr = err
 			continue
 		}
-		status, respBody, err := doConnectorRequest(ctx, 30*time.Second, http.MethodPost, url, headers, reqBody)
+		status, respBody, err := doConnectorRequest(ctx, 30*time.Second, http.MethodPost, url, headers, reqBody, "magento")
 		if err != nil {
 			lastErr = err
 			continue
@@ -254,7 +254,7 @@ func checkMagentoOrdersSince(cred map[string]string, channelCode string, since t
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	status, respBody, err := doConnectorRequest(ctx, 15*time.Second, http.MethodGet, url, headers, nil)
+	status, respBody, err := doConnectorRequest(ctx, 15*time.Second, http.MethodGet, url, headers, nil, "magento")
 	if err != nil {
 		log.Printf("[MAGENTO-POLL] channel %s: request failed: %v", channelCode, err)
 		return

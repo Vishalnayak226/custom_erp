@@ -47,12 +47,24 @@ func sanitizeCSVCell(value string) string {
 	}
 }
 
+// importBatchRows (24.32, loophole #9) bounds how many CSV rows share one
+// transaction. Previously the whole file - potentially thousands of rows -
+// ran inside a single transaction (held open for the entire parse/validate/
+// write loop), which for a large import holds row locks on every touched
+// document far longer than necessary and can contend with concurrent
+// writers. Batching bounds worst-case lock hold time to one batch instead
+// of the whole file; each batch's create/update existence check still only
+// ever sees already-committed (non-dry-run) or already-rolled-back (dry
+// run) state from prior batches, so the per-row "reflects pre-write state"
+// guarantee Stage 15.2 established holds unchanged across batch boundaries.
+const importBatchRows = 500
+
 // BulkImportCSV parses a CSV body, validates constraints, and inserts valid
-// records inside a transaction. dryRun=true (Stage 15.2) runs the exact same
-// validation/existence-check logic but never commits - the transaction is
-// always rolled back via the existing deferred tx.Rollback(), so a preview
-// can classify rows (create/update/reject) with zero risk of a partial
-// write, without a second parsing codepath.
+// records in batched transactions (24.32). dryRun=true (Stage 15.2) runs the
+// exact same validation/existence-check logic per row but every batch is
+// rolled back instead of committed, so a preview can classify rows
+// (create/update/reject) with zero risk of a partial write, without a
+// second parsing codepath.
 func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, dryRun bool) (*ImportResult, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -80,18 +92,39 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 		DryRun:    dryRun,
 	}
 
+	dataRows := records[1:]
+	for batchStart := 0; batchStart < len(dataRows); batchStart += importBatchRows {
+		batchEnd := batchStart + importBatchRows
+		if batchEnd > len(dataRows) {
+			batchEnd = len(dataRows)
+		}
+		if err := importBatch(tenantID, schema, doctype, userID, dryRun, headers, dataRows[batchStart:batchEnd], batchStart+2, result); err != nil {
+			return nil, err
+		}
+	}
+
+	return result, nil
+}
+
+// importBatch runs one batch of rows inside its own transaction, committing
+// (non-dry-run, at least one success in the batch) or rolling back (dry
+// run, or a batch with zero successes) - the same per-transaction rule
+// BulkImportCSV used to apply once for the whole file, now applied once per
+// batch instead.
+func importBatch(tenantID, schema, doctype, userID string, dryRun bool, headers []string, rows [][]string, firstRowNumber int, result *ImportResult) error {
 	tx, err := db.DB.Begin()
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer tx.Rollback()
 
 	if err := db.SetSearchPath(tx, schema); err != nil {
-		return nil, err
+		return err
 	}
 
-	for idx, row := range records[1:] {
-		rowNumber := idx + 2
+	batchSuccessCount := 0
+	for i, row := range rows {
+		rowNumber := firstRowNumber + i
 		docData := make(map[string]interface{})
 
 		// Map headers to CSV values
@@ -146,10 +179,10 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 		_ = tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM documents WHERE doctype = $1 AND id = $2)`, doctype, id).Scan(&alreadyExists)
 
 		// Insert document record
-		query := fmt.Sprintf(`
+		query := `
 			INSERT INTO documents (id, doctype, data, status, created_by)
 			VALUES ($1, $2, $3, $4, $5)
-			ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = CURRENT_TIMESTAMP`)
+			ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = CURRENT_TIMESTAMP`
 		_, execErr := tx.Exec(query, id, doctype, marshaled, "Active", userID)
 		if execErr != nil {
 			result.FailedRows++
@@ -161,6 +194,7 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 		}
 
 		result.SuccessRows++
+		batchSuccessCount++
 		if alreadyExists {
 			result.UpdatedIDs = append(result.UpdatedIDs, id)
 		} else {
@@ -168,16 +202,15 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 		}
 	}
 
-	// Commit transaction if there are any successful rows inserted - unless
-	// this is a dry run, in which case the deferred tx.Rollback() above
-	// undoes everything and nothing is actually written (Stage 15.2 preview).
-	if !dryRun && result.SuccessRows > 0 {
+	// Commit this batch if it has any successful rows - unless this is a
+	// dry run, in which case the deferred tx.Rollback() above undoes this
+	// batch's writes and nothing is actually persisted (Stage 15.2 preview).
+	if !dryRun && batchSuccessCount > 0 {
 		if err := tx.Commit(); err != nil {
-			return nil, err
+			return err
 		}
 	}
-
-	return result, nil
+	return nil
 }
 
 // RecordImportJob (Stage 15.2, V2 §6.2/§16 Phase 3) persists a completed

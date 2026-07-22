@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"custom_erp/db"
@@ -210,6 +211,57 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 	token := engines.SignToken(userID, username, role, tenantID, locationCode)
 	engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_ENROLLED_AND_VERIFIED", "TOTP enrollment completed and verified")
 	_ = json.NewEncoder(w).Encode(map[string]string{"token": token, "role": role, "user": username})
+}
+
+// handleForgotPassword (24.28) is deliberately identical-response
+// regardless of whether usernameOrEmail matched a real account - matching
+// handleLogin's own USERAC-0021 generic-error convention, so this endpoint
+// can't be used to enumerate valid usernames/emails.
+func handleForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		UsernameOrEmail string `json:"username_or_email"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	// resetLinkBase points at this app's own frontend reset screen; the
+	// token is appended as a query param by RequestPasswordReset. No
+	// separate PUBLIC_APP_URL setting exists in this codebase yet, so this
+	// reuses the request's own Origin when present (same-origin frontend,
+	// the only deployment shape this app has today) and falls back to the
+	// relative path otherwise.
+	resetLinkBase := "/reset-password.html"
+	if origin := r.Header.Get("Origin"); origin != "" {
+		resetLinkBase = origin + resetLinkBase
+	}
+	if err := engines.RequestPasswordReset(tenantID, strings.TrimSpace(req.UsernameOrEmail), resetLinkBase); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to process request")
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "If an account matches, a reset link has been sent."})
+}
+
+// handleResetPassword (24.28) completes a reset using the token minted by
+// handleForgotPassword. Unlike that endpoint, this one's error IS specific
+// (invalid/expired token) - there's no enumeration risk in confirming a
+// token itself is bad, only in confirming which usernames/emails exist.
+func handleResetPassword(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Token       string `json:"token"`
+		NewPassword string `json:"new_password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if err := engines.CompletePasswordReset(tenantID, strings.TrimSpace(req.Token), req.NewPassword); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
 // handleMFAVerify completes login for an already-enrolled MFA account by

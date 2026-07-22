@@ -347,3 +347,125 @@ func TestVersionEndpointIsPublicAndTenantStampingWorks(t *testing.T) {
 		t.Errorf("expected stamped app_version '9.9.9-test', got %q", recordedVersion)
 	}
 }
+
+// TestCrossTenantIsolationAndTokenSecurity (Stage 11.1). The checklist item this closes was
+// re-opened 2026-07-12 pointing at two specific findings - the "no auth header -> admin"
+// fallback and the generic-list SQL injection - both fixed and verified the same day
+// (docs/operations/hardening_roadmap.md Phase 1, closed 2026-07-12) but never re-verified
+// against a passing bar afterward. This is that re-verification, executed fresh rather than
+// just trusting the old note, covering both halves the item names: cross-tenant role
+// boundaries and token verification.
+//
+// The cross-tenant half specifically drives an active spoofing attempt (a client-supplied
+// X-Tenant-ID header naming a second, real tenant, sent alongside a validly-signed token for
+// the first) rather than only checking default behavior - proving Resolved-Tenant-ID comes
+// solely from the verified JWT's own "tenant" claim (middleware.go's Token & Tenant
+// Resolution block) for any authenticated request, never from request-controlled input.
+func TestCrossTenantIsolationAndTokenSecurity(t *testing.T) {
+	connStr := "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+	db.InitDB(connStr)
+
+	tenantA, schemaA := "__sectest_tenant_a__", "tenant___sectest_tenant_a__"
+	tenantB, schemaB := "__sectest_tenant_b__", "tenant___sectest_tenant_b__"
+	cleanup := func() {
+		db.DB.Exec(`DROP SCHEMA IF EXISTS ` + schemaA + ` CASCADE`)
+		db.DB.Exec(`DROP SCHEMA IF EXISTS ` + schemaB + ` CASCADE`)
+		db.DB.Exec(`DELETE FROM public.tenants WHERE tenant_id IN ($1, $2)`, tenantA, tenantB)
+	}
+	cleanup()
+	defer cleanup()
+
+	if _, err := engines.ProvisionTenantSchema(tenantA, schemaA, ""); err != nil {
+		t.Fatalf("failed to provision tenant A: %v", err)
+	}
+	if _, err := engines.ProvisionTenantSchema(tenantB, schemaB, ""); err != nil {
+		t.Fatalf("failed to provision tenant B: %v", err)
+	}
+	if _, err := db.DB.Exec(`INSERT INTO ` + schemaA + `.documents (id, doctype, data, status, created_by) VALUES ('SECTEST-ITEM-A', 'Item', '{"name":"Tenant A Secret Item"}', 'Active', 'system')`); err != nil {
+		t.Fatalf("failed to seed tenant A item: %v", err)
+	}
+	if _, err := db.DB.Exec(`INSERT INTO ` + schemaB + `.documents (id, doctype, data, status, created_by) VALUES ('SECTEST-ITEM-B', 'Item', '{"name":"Tenant B Secret Item"}', 'Active', 'system')`); err != nil {
+		t.Fatalf("failed to seed tenant B item: %v", err)
+	}
+
+	// Minted directly rather than via /login - tests token-level tenant scoping
+	// independent of the login/MFA flow, and is indistinguishable at the JWT layer
+	// from a token a real successful login would have issued.
+	tokenA := engines.SignToken("sectest-user-a", "sectest-user-a", "HR/Admin", tenantA, "HO")
+
+	// 1. Active spoofing attempt: tenant A's token, but the request also claims
+	// X-Tenant-ID: tenant B while asking for a document that only exists in B's schema.
+	// If tenant resolution ever preferred the header over the JWT claim, this would leak.
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/doc/Item/SECTEST-ITEM-B", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenA)
+	req.Header.Set("X-Tenant-ID", tenantB)
+	req.SetPathValue("doctype", "Item")
+	req.SetPathValue("id", "SECTEST-ITEM-B")
+	rec := httptest.NewRecorder()
+	apiMiddleware(handleGenericDoc)(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("cross-tenant read leaked: tenant A's token fetched tenant B's document via a spoofed X-Tenant-ID header, status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// 2. Same token correctly reads its own tenant's document - proves the 404 above is
+	// real isolation working correctly, not a broken handler returning 404 for everything.
+	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/doc/Item/SECTEST-ITEM-A", nil)
+	req2.Header.Set("Authorization", "Bearer "+tokenA)
+	req2.SetPathValue("doctype", "Item")
+	req2.SetPathValue("id", "SECTEST-ITEM-A")
+	rec2 := httptest.NewRecorder()
+	apiMiddleware(handleGenericDoc)(rec2, req2)
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("expected tenant A's token to read its own document, status=%d body=%s", rec2.Code, rec2.Body.String())
+	}
+
+	// 3. List endpoint from tenant A never includes tenant B's document.
+	req3 := httptest.NewRequest(http.MethodGet, "/api/v1/doc/Item", nil)
+	req3.Header.Set("Authorization", "Bearer "+tokenA)
+	req3.SetPathValue("doctype", "Item")
+	rec3 := httptest.NewRecorder()
+	apiMiddleware(handleGenericDoc)(rec3, req3)
+	if rec3.Code != http.StatusOK {
+		t.Fatalf("expected tenant A's list call to succeed, status=%d body=%s", rec3.Code, rec3.Body.String())
+	}
+	if bytes.Contains(rec3.Body.Bytes(), []byte("SECTEST-ITEM-B")) {
+		t.Errorf("cross-tenant leak: tenant A's Item list included tenant B's document: %s", rec3.Body.String())
+	}
+
+	// 4. Token verification: no Authorization header on a non-public route -> 401, not a
+	// silent fallback (the exact class of bug Phase 1.1 fixed).
+	req4 := httptest.NewRequest(http.MethodGet, "/api/v1/doc/Item", nil)
+	req4.SetPathValue("doctype", "Item")
+	rec4 := httptest.NewRecorder()
+	apiMiddleware(handleGenericDoc)(rec4, req4)
+	if rec4.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 with no auth header, got %d", rec4.Code)
+	}
+
+	// 5. Token verification: malformed token -> 401.
+	req5 := httptest.NewRequest(http.MethodGet, "/api/v1/doc/Item", nil)
+	req5.Header.Set("Authorization", "Bearer not.a.valid.jwt")
+	req5.SetPathValue("doctype", "Item")
+	rec5 := httptest.NewRecorder()
+	apiMiddleware(handleGenericDoc)(rec5, req5)
+	if rec5.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 with malformed token, got %d", rec5.Code)
+	}
+
+	// 6. Token verification: signature-tampered token (a real, validly-signed token with its
+	// last character flipped) -> 401, not silently accepted with a corrupted-but-parseable claim set.
+	lastChar := tokenA[len(tokenA)-1]
+	replacement := byte('A')
+	if lastChar == 'A' {
+		replacement = 'B'
+	}
+	tampered := tokenA[:len(tokenA)-1] + string(replacement)
+	req6 := httptest.NewRequest(http.MethodGet, "/api/v1/doc/Item", nil)
+	req6.Header.Set("Authorization", "Bearer "+tampered)
+	req6.SetPathValue("doctype", "Item")
+	rec6 := httptest.NewRecorder()
+	apiMiddleware(handleGenericDoc)(rec6, req6)
+	if rec6.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401 with a signature-tampered token, got %d", rec6.Code)
+	}
+}

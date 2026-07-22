@@ -27,6 +27,13 @@ func Run() {
 	}
 	db.InitDB(connStr)
 
+	// 24.27: refuse to start in production if the seed admin credential
+	// from db/migration.sql is still active - a fresh dev/test install is
+	// unaffected (this only fires the hard-stop when ENV=production).
+	if err := engines.EnforceNoDefaultAdminCredentialInProduction(); err != nil {
+		log.Fatalf("Refusing to start: %v", err)
+	}
+
 	// 24.15: one cancellable context threaded into every background worker,
 	// canceled from the SIGINT/SIGTERM handler at the bottom of this
 	// function so a process stop tells them to finish their current tick
@@ -79,6 +86,11 @@ func Run() {
 	http.HandleFunc("POST /api/v1/auth/mfa/enroll", apiMiddleware(handleMFAEnroll))
 	http.HandleFunc("POST /api/v1/auth/mfa/activate", apiMiddleware(handleMFAActivate))
 	http.HandleFunc("POST /api/v1/auth/mfa/verify", apiMiddleware(handleMFAVerify))
+	// Password reset (24.28) - both public (a locked-out user has no bearer
+	// token to present), rate-limited in the same tight "login" bucket as
+	// /login itself (see rateLimitCategory).
+	http.HandleFunc("POST /api/v1/auth/forgot-password", apiMiddleware(handleForgotPassword))
+	http.HandleFunc("POST /api/v1/auth/reset-password", apiMiddleware(handleResetPassword))
 
 	// Self-service User Profile (Stage 21)
 	http.HandleFunc("GET /api/v1/me", apiMiddleware(handleGetProfile))

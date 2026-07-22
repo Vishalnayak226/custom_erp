@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Platform-connector tests (Stage 16.2-16.4). Each stands up an
@@ -206,5 +207,77 @@ func TestVerifyBigCommerceWebhook(t *testing.T) {
 	tampered[0] ^= 0xFF
 	if VerifyBigCommerceWebhook(tampered, validSig, secret) {
 		t.Fatalf("tampered payload passed verification")
+	}
+}
+
+// TestConnectorCircuitBreaker (24.29). Live external-API failures aren't
+// reproducible in this test suite (no connector has real credentials yet -
+// see this stage's own scoping note), so this drives the breaker two ways:
+// an integration-level check (does doConnectorRequest itself stop hitting
+// the server once tripped?) and a unit-level check of the cooldown/reset
+// logic (circuitBreakerCooldown is 30s - too slow to actually wait out in a
+// test, so the trip/cooldown transition is exercised directly).
+func TestConnectorCircuitBreaker(t *testing.T) {
+	var hitCount int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hitCount++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	breakerKey := "test-breaker-integration"
+	ctx := context.Background()
+
+	// circuitBreakerFailureThreshold consecutive 5xx responses trip the
+	// breaker - all of these should actually reach the test server.
+	// doConnectorRequest itself doesn't turn a non-2xx status into a Go
+	// error (that's left to each connector's own caller, e.g.
+	// connector_shopify.go checking status < 200 || status >= 300) - only
+	// circuitBreakerRecord's own success check treats status>=500 as a
+	// failure, so this asserts on status, not err.
+	for i := 0; i < circuitBreakerFailureThreshold; i++ {
+		status, _, err := doConnectorRequest(ctx, 2*time.Second, http.MethodGet, server.URL, nil, nil, breakerKey)
+		if err != nil {
+			t.Fatalf("call %d: unexpected transport error: %v", i, err)
+		}
+		if status != http.StatusInternalServerError {
+			t.Fatalf("call %d: expected status 500 from the test server, got %d", i, status)
+		}
+	}
+	if hitCount != circuitBreakerFailureThreshold {
+		t.Fatalf("expected exactly %d real server hits before the breaker trips, got %d", circuitBreakerFailureThreshold, hitCount)
+	}
+
+	// One more call: the breaker should now be open and refuse to even
+	// attempt the request - hitCount must not increase.
+	_, _, err := doConnectorRequest(ctx, 2*time.Second, http.MethodGet, server.URL, nil, nil, breakerKey)
+	if err == nil || !strings.Contains(err.Error(), "circuit breaker open") {
+		t.Fatalf("expected a circuit-breaker-open error, got: %v", err)
+	}
+	if hitCount != circuitBreakerFailureThreshold {
+		t.Fatalf("breaker should have blocked this call before it reached the server - hitCount grew to %d", hitCount)
+	}
+
+	// A different breakerKey has independent state - unaffected by the
+	// first key's trip.
+	otherKey := "test-breaker-integration-other"
+	if !circuitBreakerAllow(otherKey) {
+		t.Fatalf("a different breakerKey should not be affected by another key's trip")
+	}
+
+	// Cooldown/half-open: simulate circuitBreakerCooldown having already
+	// elapsed (rather than a real 30s sleep) and confirm the breaker lets
+	// exactly one trial call through again.
+	circuitBreakerMu.Lock()
+	circuitBreakerState[breakerKey].openUntil = time.Now().Add(-time.Second)
+	circuitBreakerMu.Unlock()
+	if !circuitBreakerAllow(breakerKey) {
+		t.Fatalf("expected the breaker to allow a half-open trial call once cooldown has elapsed")
+	}
+
+	// That trial call succeeding should close the breaker again.
+	circuitBreakerRecord(breakerKey, true)
+	if !circuitBreakerAllow(breakerKey) {
+		t.Fatalf("expected the breaker to be closed (allowing calls) after a successful trial")
 	}
 }

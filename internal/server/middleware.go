@@ -92,6 +92,44 @@ func (rl *RateLimiter) Allow(ip string, limit int, duration time.Duration) bool 
 
 var globalLimiter = NewRateLimiter()
 
+// Per-tenant concurrency quota (24.30, loophole #32). This app runs one
+// shared db.DB connection pool (db/db.go's dbMaxOpenConns, currently 50)
+// across every tenant's schema via search_path, not a separate pool per
+// tenant - a real per-tenant *pool* would be a bigger architecture change
+// than this single-process/single-Postgres-instance app's current scale
+// justifies (24.30's own checklist note). This bounds each tenant's share
+// of that one shared pool instead: capping how many of a tenant's requests
+// can be in-flight at once (each holding a connection) so one noisy tenant
+// can't starve every other tenant of the shared pool.
+const perTenantMaxConcurrentRequests = 15
+
+type tenantConcurrencyLimiter struct {
+	mu      sync.Mutex
+	inFlight map[string]int
+}
+
+var tenantConcurrency = &tenantConcurrencyLimiter{inFlight: make(map[string]int)}
+
+// acquire returns true (and reserves a slot) if tenantID is below its
+// concurrency cap. Callers that get true MUST call release exactly once.
+func (l *tenantConcurrencyLimiter) acquire(tenantID string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.inFlight[tenantID] >= perTenantMaxConcurrentRequests {
+		return false
+	}
+	l.inFlight[tenantID]++
+	return true
+}
+
+func (l *tenantConcurrencyLimiter) release(tenantID string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.inFlight[tenantID] > 0 {
+		l.inFlight[tenantID]--
+	}
+}
+
 // rateLimitCategory classifies a request into one of SEC-V2 5's API types
 // and returns that category's per-minute budget (Stage 13.14). Categories
 // SEC-V2 names that don't apply to this codebase are omitted rather than
@@ -102,9 +140,12 @@ var globalLimiter = NewRateLimiter()
 // (micro_checklist Stage 9.2) - this function only assigns its rate budget.
 func rateLimitCategory(path, method string) (category string, limit int) {
 	switch {
-	case strings.HasSuffix(path, "/login") || strings.HasSuffix(path, "/mfa/verify") || strings.HasSuffix(path, "/mfa/activate"):
-		// Login API: also covers MFA code submission - a 6-digit TOTP code
-		// is brute-forceable without a tight budget here.
+	case strings.HasSuffix(path, "/login") || strings.HasSuffix(path, "/mfa/verify") || strings.HasSuffix(path, "/mfa/activate") ||
+		strings.HasSuffix(path, "/forgot-password") || strings.HasSuffix(path, "/reset-password"):
+		// Login API: also covers MFA code submission (brute-forceable
+		// 6-digit TOTP) and password reset request/completion (24.28) -
+		// both are exactly the kind of low-frequency, high-sensitivity
+		// action that needs the tightest budget, not the 60/min default.
 		return "login", 5
 	case strings.HasPrefix(path, "/api/v1/import/"):
 		// Bulk Upload API: file processing is the heaviest per-request cost
@@ -194,9 +235,11 @@ func verifyShopifyWebhookSignature(r *http.Request, body []byte) bool {
 // than a path-prefix rule, so adding a new public route is always a
 // one-line, reviewable decision.
 var publicRoutes = map[string]bool{
-	"/api/v1/login":   true,
-	"/api/v1/version": true,
-	"/api/v1/health":  true,
+	"/api/v1/login":                true,
+	"/api/v1/version":              true,
+	"/api/v1/health":               true,
+	"/api/v1/auth/forgot-password": true,
+	"/api/v1/auth/reset-password":  true,
 }
 
 func loadCORSAllowlist() map[string]bool {
@@ -431,6 +474,18 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// (Stage 14.17-14.20, engines.SignExtensionToken) - enforced
 		// explicitly in handleGenericDoc, not a general-purpose claim.
 		r.Header.Set("Resolved-Scope-Doctype", scopeDoctype)
+
+		// 24.30: per-tenant concurrency quota, checked only now that
+		// tenantID is fully resolved (a token's own tenant claim, if
+		// present, already overrode the header/query-param/default value
+		// above). Rejects fast rather than letting an already-overloaded
+		// tenant's next request queue indefinitely for a shared pool
+		// connection another tenant needs too.
+		if !tenantConcurrency.acquire(tenantID) {
+			writeAPIErrorGeneric(w, r, http.StatusServiceUnavailable, "Too many concurrent requests in flight for this tenant - please retry shortly")
+			return
+		}
+		defer tenantConcurrency.release(tenantID)
 
 		next.ServeHTTP(w, r)
 	}

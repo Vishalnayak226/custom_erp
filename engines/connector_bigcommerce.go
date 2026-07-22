@@ -89,7 +89,7 @@ func (bigCommerceConnector) PublishProduct(ctx context.Context, cred map[string]
 		return "", err
 	}
 	url := bigCommerceBaseURL(storeHash) + "/catalog/products"
-	status, respBody, err := doConnectorRequest(ctx, 20*time.Second, http.MethodPost, url, bigCommerceHeaders(accessToken), reqBody)
+	status, respBody, err := doConnectorRequest(ctx, 20*time.Second, http.MethodPost, url, bigCommerceHeaders(accessToken), reqBody, "bigcommerce")
 	if err != nil {
 		return "", fmt.Errorf("bigcommerce request failed: %v", err)
 	}
@@ -160,7 +160,7 @@ func uploadBigCommerceMedia(ctx context.Context, storeHash, accessToken string, 
 			"X-Auth-Token": accessToken,
 			"Content-Type": writer.FormDataContentType(),
 		}
-		status, respBody, err := doConnectorRequest(ctx, 30*time.Second, http.MethodPost, url, headers, body.Bytes())
+		status, respBody, err := doConnectorRequest(ctx, 30*time.Second, http.MethodPost, url, headers, body.Bytes(), "bigcommerce")
 		if err != nil {
 			lastErr = err
 			continue

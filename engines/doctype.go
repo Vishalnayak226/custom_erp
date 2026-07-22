@@ -8,6 +8,14 @@ import (
 	"strings"
 )
 
+// defaultFieldMaxLength (24.31) is the blanket per-field length cap applied
+// when a field has no explicit max_length configured (every field today) -
+// generous enough not to reject any real business data (the largest
+// existing free-text fields in this codebase, e.g. audit log details or
+// error stack traces, are logged separately, not stored via this generic
+// doc-field path), tight enough to catch a genuinely oversized value.
+const defaultFieldMaxLength = 10000
+
 type FieldMeta struct {
 	ID           string `json:"id"`
 	DocTypeName  string `json:"doctype_name"`
@@ -17,6 +25,11 @@ type FieldMeta struct {
 	Mandatory    bool   `json:"mandatory"`
 	Options      string `json:"options"`
 	DisplayOrder int    `json:"display_order"`
+	// MaxLength (24.31) is nullable - nil means "no explicit per-field
+	// limit configured," in which case ValidateDocument still applies
+	// defaultFieldMaxLength as a blanket safety net. Set this to tighten
+	// (or, up to the blanket cap, loosen) a specific field's own limit.
+	MaxLength *int `json:"max_length,omitempty"`
 }
 
 // GetDocTypeMeta retrieves the fields definition metadata for a doctype
@@ -27,8 +40,8 @@ func GetDocTypeMeta(tenantID string, doctype string) ([]FieldMeta, error) {
 	}
 
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, doctype_name, fieldname, label, fieldtype, mandatory, COALESCE(options, ''), display_order 
-		FROM %s.doctype_fields 
+		SELECT id, doctype_name, fieldname, label, fieldtype, mandatory, COALESCE(options, ''), display_order, max_length
+		FROM %s.doctype_fields
 		WHERE doctype_name = $1
 		ORDER BY display_order ASC`, schema), doctype)
 	if err != nil {
@@ -39,7 +52,7 @@ func GetDocTypeMeta(tenantID string, doctype string) ([]FieldMeta, error) {
 	var fields []FieldMeta
 	for rows.Next() {
 		var f FieldMeta
-		err := rows.Scan(&f.ID, &f.DocTypeName, &f.Fieldname, &f.Label, &f.Fieldtype, &f.Mandatory, &f.Options, &f.DisplayOrder)
+		err := rows.Scan(&f.ID, &f.DocTypeName, &f.Fieldname, &f.Label, &f.Fieldtype, &f.Mandatory, &f.Options, &f.DisplayOrder, &f.MaxLength)
 		if err != nil {
 			return nil, err
 		}
@@ -56,14 +69,15 @@ func SaveFieldDefinition(tenantID string, doctype string, f FieldMeta) error {
 	}
 
 	query := fmt.Sprintf(`
-		INSERT INTO %s.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) 
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (doctype_name, fieldname) DO UPDATE SET 
-			label = EXCLUDED.label, 
-			fieldtype = EXCLUDED.fieldtype, 
-			mandatory = EXCLUDED.mandatory, 
-			options = EXCLUDED.options, 
-			display_order = EXCLUDED.display_order`, schema)
+		INSERT INTO %s.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order, max_length)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (doctype_name, fieldname) DO UPDATE SET
+			label = EXCLUDED.label,
+			fieldtype = EXCLUDED.fieldtype,
+			mandatory = EXCLUDED.mandatory,
+			options = EXCLUDED.options,
+			display_order = EXCLUDED.display_order,
+			max_length = EXCLUDED.max_length`, schema)
 
 	var opts interface{}
 	if f.Options != "" {
@@ -72,7 +86,7 @@ func SaveFieldDefinition(tenantID string, doctype string, f FieldMeta) error {
 		opts = nil
 	}
 
-	_, err = db.DB.Exec(query, doctype, f.Fieldname, f.Label, f.Fieldtype, f.Mandatory, opts, f.DisplayOrder)
+	_, err = db.DB.Exec(query, doctype, f.Fieldname, f.Label, f.Fieldtype, f.Mandatory, opts, f.DisplayOrder, f.MaxLength)
 	return err
 }
 
@@ -172,6 +186,27 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 				// System fields are auto-generated or defaulted by the backend
 			} else {
 				return &ValidationError{Code: "GLOBAL-0001", SubFor: f.Label, Message: fmt.Sprintf("Field %q (%s) is required", f.Label, f.Fieldname)}
+			}
+		}
+
+		// 1.5 Length check (24.31, loophole #12). f.MaxLength (per-field,
+		// set via SaveFieldDefinition) tightens or loosens the blanket
+		// defaultFieldMaxLength safety net that applies to every field
+		// today, since no field has one configured yet - the existing 2MB
+		// whole-request-body cap (Stage 1.3) already bounds the extreme
+		// case, this catches a single wildly-oversized field value inside
+		// an otherwise-small request. No catalog code fits this scenario
+		// (checked docs/specs/message_catalog.md), so this returns a
+		// ValidationError with no Code - the shared handler call site
+		// already falls back to a generic 422 with this message for
+		// exactly that case, the same as any other uncataloged scenario.
+		if valStr != "" {
+			limit := defaultFieldMaxLength
+			if f.MaxLength != nil && *f.MaxLength > 0 {
+				limit = *f.MaxLength
+			}
+			if len(valStr) > limit {
+				return &ValidationError{SubFor: f.Label, Message: fmt.Sprintf("Field %q (%s) exceeds the maximum allowed length of %d characters", f.Label, f.Fieldname, limit)}
 			}
 		}
 
