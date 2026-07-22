@@ -281,10 +281,16 @@ let currentDoctype = '';
 let posCart = []; // { sku, available, qty, salePrice, costPrice }
 let posLocation = '';
 let posOpenSessionId = ''; // Stage 20.7: '' means no open cashier session at posLocation
+const OFFLINE_QUEUE_KEY = 'erp_pos_offline_queue'; // 20.13, see checkoutOnlineOrQueue below
+let offlineSyncInFlight = false;
 let currentSearchQuery = '';
 let currentTablePage = 1;
 const itemsPerPage = 10;
 let bulkSelectedDocIDs = new Set();
+// 21.9 QA-follow-up: set while the dynamic modal is editing an existing
+// record rather than creating a new one - null means "create mode".
+let editingDocID = null;
+let editingDocVersion = null;
 
 // Selection persistence - so refreshing the browser lands the user back on
 // the same view/doctype/search/page instead of always bouncing to Dashboard.
@@ -754,6 +760,7 @@ function bootstrap() {
 async function init() {
   setupEventListeners();
   setupModuleFlyouts();
+  setupOfflineSync();
   await fetchLabels();
   await fetchRegisteredDoctypes();
   await restoreLastView();
@@ -992,6 +999,9 @@ function setupEventListeners() {
 
   // Bin (Stage 20.16) - same generic doctype-table pattern as POS Profile/Vendors/Stores above.
   document.getElementById('menu-bins').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-bins'); closeSubmenus(); currentDoctype = 'Bin'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+
+  // Offline Sync Review (Stage 20.13) - same generic doctype-table pattern as POS Profile/Bin above.
+  document.getElementById('menu-pos-offline-sync').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-sync'); closeSubmenus(); currentDoctype = 'POSOfflineSyncVariance'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
   ['menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
     const btn = document.getElementById(id);
@@ -1877,6 +1887,7 @@ function renderPOSView(container) {
   panel.innerHTML = `
     <div id="pos-session-bar" style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px;">
       <span id="pos-session-status" style="font-size: 13px; color: var(--text-muted);">Checking session&hellip;</span>
+      <span id="pos-offline-queue-badge" class="badge badge-secondary hidden" style="cursor: pointer;" title="Click to try syncing now" onclick="trySyncOfflineQueue()"></span>
       <button class="btn btn-outline" id="pos-session-open-btn" type="button" style="margin-left: auto;">Open Session</button>
       <button class="btn btn-outline hidden" id="pos-session-close-btn" type="button">Close Session</button>
     </div>
@@ -1958,6 +1969,8 @@ function renderPOSView(container) {
   renderPOSCartTable();
   refreshPOSSessionStatus();
   renderPOSReturnPanel(container);
+  renderOfflineQueueBadge();
+  trySyncOfflineQueue();
 }
 
 // Stage 20.11: audited first per the checklist item's own instruction -
@@ -2165,6 +2178,17 @@ async function openPOSSessionFlow() {
 
 async function closePOSSessionFlow() {
   if (!posOpenSessionId) return;
+
+  // 20.13: the offline window is this cashier's own open session - refuse
+  // to close (client-side; the server has no way to see a queue that
+  // hasn't synced yet) while sales are still waiting to sync, so a synced
+  // sale can never land against the *next* session's cash-variance figures.
+  const stillQueued = getOfflineQueue().length;
+  if (stillQueued > 0) {
+    await showCustomAlert(`${stillQueued} sale${stillQueued === 1 ? '' : 's'} still need${stillQueued === 1 ? 's' : ''} to sync before this session can close. Reconnect and try again, or click the offline badge above to sync now.`, 'Offline Sales Pending');
+    return;
+  }
+
   const countedStr = await showCustomPrompt('Counted cash in the till?');
   if (countedStr === null) return;
   const counted = parseFloat(countedStr);
@@ -2177,6 +2201,11 @@ async function closePOSSessionFlow() {
     await showApiError(res, 'Failed to close session.');
     return;
   }
+  // 21.9 QA-follow-up: this alert previously referenced an undefined `data`
+  // variable (the response body was never parsed) - would have thrown a
+  // ReferenceError on every successful close. Found while touching this
+  // function for the offline-queue guard above.
+  const data = await res.json();
   await showCustomAlert(`Session closed. Expected: ${data.expected_cash.toFixed(2)}, Counted: ${data.counted_cash.toFixed(2)}, Variance: ${data.variance.toFixed(2)}`, 'Session Closed');
   await refreshPOSSessionStatus();
 }
@@ -2252,6 +2281,168 @@ function renderPOSCartTable() {
   document.getElementById('pos-cart-total').textContent = total.toFixed(2);
 }
 
+// 20.13 Offline-first POS queue.
+//
+// Decisions (user, 2026-07-22): the offline window is one shift, tied to
+// the cashier's own open POSSession - see closePOSSessionFlow's guard
+// below, which refuses to close a session while sales are still queued
+// rather than the server trying to police a client-side queue it can't
+// see. A sale that finally syncs after stock changed while offline always
+// posts (the goods already physically left the store and payment was
+// already taken) and is allowed to push inventory negative rather than
+// rejected - engines/pos_checkout.go's recordOfflineSyncVariance flags the
+// shortfall on a new POSOfflineSyncVariance record for a manager to review.
+//
+// cart_number (client-generated in submitPOSCheckout, unchanged from
+// before this stage) doubles as the idempotency key handleCheckout already
+// enforces server-side (see its own "Idempotency guard" comment) - reusing
+// the exact same cart_number on every sync retry is what makes retrying a
+// still-queued cart safe with zero new server-side mechanism.
+
+function getOfflineQueue() {
+  try {
+    return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || '[]');
+  } catch (e) {
+    return [];
+  }
+}
+
+function saveOfflineQueue(queue) {
+  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+  renderOfflineQueueBadge();
+}
+
+function queueOfflinePOSCart(payload) {
+  const queue = getOfflineQueue();
+  queue.push({ cartNumber: payload.cart_number, location: payload.location, payload, queuedAt: new Date().toISOString() });
+  saveOfflineQueue(queue);
+}
+
+// Renders/updates the small badge in the POS session bar showing how many
+// sales are still queued offline. A no-op on any screen other than POS
+// (the element just won't exist), so this is safe to call from anywhere -
+// in particular from the global online-event/poll handlers in
+// setupOfflineSync(), which don't know or care which view is on screen.
+function renderOfflineQueueBadge() {
+  const badge = document.getElementById('pos-offline-queue-badge');
+  if (!badge) return;
+  const queue = getOfflineQueue();
+  if (queue.length === 0) {
+    badge.classList.add('hidden');
+    badge.textContent = '';
+    return;
+  }
+  badge.classList.remove('hidden');
+  badge.textContent = `${queue.length} sale${queue.length === 1 ? '' : 's'} queued offline`;
+}
+
+// Dedicated from apiFetch (same reasoning apiUpload's own header comment
+// gives for its own bespoke fetch wrapper): a genuine network failure here
+// means "queue this sale and keep selling," not apiFetch's default of a
+// blocking "Unable to reach the server" alert - a cashier mid-shift can't
+// stop to dismiss a dialog every time connectivity blips. A reachable
+// server that responds 401/429 is not an offline condition, so those still
+// get apiFetch's normal handling. Returns 'queued' (queued locally), null
+// (401/429 already handled, same convention apiFetch itself uses), or the
+// raw Response for the caller to interpret as usual.
+async function checkoutOnlineOrQueue(payload) {
+  if (!navigator.onLine) {
+    queueOfflinePOSCart(payload);
+    return 'queued';
+  }
+  const token = localStorage.getItem('erp_token');
+  const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
+  const headers = { 'Content-Type': 'application/json', 'X-Tenant-ID': tenantID };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  let response;
+  try {
+    response = await fetch('/api/v1/checkout', { method: 'POST', headers, body: JSON.stringify(payload) });
+  } catch (err) {
+    queueOfflinePOSCart(payload);
+    return 'queued';
+  }
+  if (response.status === 401) {
+    logout(await getErrorMessage(response, 'Session expired. Please log in again.'));
+    return null;
+  }
+  if (response.status === 429) {
+    showToast(await getErrorMessage(response, 'Rate limit exceeded. Please throttle your requests.'), { variant: 'warning', title: 'Rate Limit' });
+    return null;
+  }
+  return response;
+}
+
+// Replays the offline queue in original order (oldest first) once back
+// online. Stops at the first entry that still can't reach the server (a
+// flaky reconnect, not just a flat-out offline/online flag) and leaves
+// that one plus everything after it queued for the next attempt - never
+// reorders or drops a cart just because a later one in the queue happened
+// to succeed first. A cart the server outright rejects (not a network
+// failure - a real validation error) is surfaced to the user and dropped
+// rather than retried forever, which would otherwise block the shift from
+// ever closing over one sale that can never succeed as-is.
+async function trySyncOfflineQueue() {
+  if (offlineSyncInFlight || !navigator.onLine) return;
+  const queue = getOfflineQueue();
+  if (queue.length === 0) return;
+  offlineSyncInFlight = true;
+
+  const token = localStorage.getItem('erp_token');
+  const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
+  const headers = { 'Content-Type': 'application/json', 'X-Tenant-ID': tenantID };
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  let syncedCount = 0;
+  let i = 0;
+  // Only true when the loop stopped because the server genuinely couldn't
+  // be reached (or the session expired) - never for a rejection, which is
+  // deliberately dropped instead of retried forever (see header comment).
+  let stoppedForReconnect = false;
+  try {
+    for (; i < queue.length; i++) {
+      const entry = queue[i];
+      let response;
+      try {
+        response = await fetch('/api/v1/checkout', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ ...entry.payload, offline_synced: true })
+        });
+      } catch (err) {
+        stoppedForReconnect = true;
+        break;
+      }
+      if (response.ok) {
+        syncedCount++;
+        continue;
+      }
+      if (response.status === 401) {
+        stoppedForReconnect = true;
+        logout('Session expired while syncing offline sales. Log in again to finish syncing.');
+        break;
+      }
+      const msg = await getErrorMessage(response, 'Offline sale failed to sync.');
+      await showCustomAlert(`Sale ${entry.cartNumber} could not be synced and was removed from the offline queue - it needs manual attention: ${msg}`, 'Offline Sync Failed');
+      // Dropped: the loop continues to i+1 without adding this entry back.
+    }
+  } finally {
+    saveOfflineQueue(stoppedForReconnect ? queue.slice(i) : []);
+    offlineSyncInFlight = false;
+    if (syncedCount > 0) showToast(`${syncedCount} offline sale${syncedCount === 1 ? '' : 's'} synced.`, { variant: 'success' });
+  }
+}
+
+// Registered once at app init (see init()). The 'online' browser event is
+// the primary trigger; the 30s poll is a fallback for the cases that event
+// doesn't reliably fire (some OS/browser network-transition paths), and is
+// cheap to skip when the queue is already empty.
+function setupOfflineSync() {
+  window.addEventListener('online', trySyncOfflineQueue);
+  setInterval(() => {
+    if (getOfflineQueue().length > 0) trySyncOfflineQueue();
+  }, 30000);
+}
+
 async function submitPOSCheckout() {
   const errorEl = document.getElementById('pos-scan-error');
   errorEl.classList.add('hidden');
@@ -2284,17 +2475,20 @@ async function submitPOSCheckout() {
       sale_price: line.salePrice,
       cost_price: line.costPrice
     }));
-    const res = await apiFetch('/api/v1/checkout', {
-      method: 'POST',
-      body: JSON.stringify({
-        cart_number: cartNumber,
-        location: posLocation,
-        payment_mode: paymentMode,
-        customer_id: document.getElementById('pos-customer').value.trim(),
-        discount_pct: discountPct,
-        items: cartItems
-      })
+    const res = await checkoutOnlineOrQueue({
+      cart_number: cartNumber,
+      location: posLocation,
+      payment_mode: paymentMode,
+      customer_id: document.getElementById('pos-customer').value.trim(),
+      discount_pct: discountPct,
+      items: cartItems
     });
+    if (res === 'queued') {
+      posCart = [];
+      renderPOSCartTable();
+      showToast(`No connection - sale ${cartNumber} queued offline and will sync automatically once reconnected.`, { variant: 'warning', title: 'Offline' });
+      return;
+    }
     if (!res) return;
     const data = await res.json();
     if (!res.ok) {
@@ -4775,7 +4969,7 @@ async function renderHRView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">HR</h1>
-      <p class="page-subtitle">Attendance, leave, and payroll export. Manage employees under Master Definition.</p>
+      <p class="page-subtitle">Attendance, leave, and payroll export. Manage employees under Setup.</p>
     </div>
   `;
   container.appendChild(header);
@@ -6209,7 +6403,7 @@ async function renderPIMWorkbenchTab(container) {
       <tbody>
   `;
   html += entries.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No items found. Create one under Master Definition &raquo; Item.</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No items found. Create one under Setup &raquo; Item.</td></tr>`
     : entries.map(e => {
         const badgeClass = e.score >= 80 ? 'badge-success' : e.score >= 40 ? 'badge-warning' : 'badge-danger';
         return `
@@ -6706,7 +6900,10 @@ function renderDocTable() {
       });
       tableHTML += `
         <td style="text-align: right;">
-          <button class="action-btn action-btn-danger" onclick="deleteDocRecord('${row.id}')">
+          <button class="action-btn" title="Edit" style="margin-right:4px;" onclick="editDocRecord('${row.id}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="action-btn action-btn-danger" title="Delete" onclick="deleteDocRecord('${row.id}')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
           </button>
         </td>
@@ -6858,14 +7055,17 @@ window.deleteDocRecord = async function(id) {
   }
 };
 
-// Open Dynamic Creation Modal
-window.openDynamicModal = async function() {
+// Open Dynamic Creation Modal. Pass an existing record (as returned by
+// GET /api/v1/doc/{doctype}/{id}) to switch into edit mode instead of
+// create - see editDocRecord below, the only caller that does this.
+window.openDynamicModal = async function(existingRecord) {
   const modal = document.getElementById('dynamic-modal');
   const title = document.getElementById('dynamic-modal-title');
   const body = document.getElementById('dynamic-modal-body');
   if (!modal) return;
 
-  title.textContent = `New ${getTranslatedLabel(currentDoctype)}`;
+  const isEdit = !!existingRecord;
+  title.textContent = `${isEdit ? 'Edit' : 'New'} ${getTranslatedLabel(currentDoctype)}`;
   body.innerHTML = '';
 
   const activeDoc = state.activeDoctypes.find(d => d.name === currentDoctype);
@@ -6873,13 +7073,14 @@ window.openDynamicModal = async function() {
 
   for (const f of state.activeDocFields) {
     if (f.fieldname === 'id') continue;
-    
+
     const isCodeField = isMaster && f.fieldname.toLowerCase() === 'code';
+    const existingVal = isEdit ? existingRecord[f.fieldname] : undefined;
 
     const fg = document.createElement('div');
     fg.className = 'form-group';
     fg.innerHTML = `<label class="form-label">${getTranslatedLabel(f.label)}${f.mandatory && !isCodeField ? '<span class="required">*</span>' : ''}</label>`;
-    
+
     if (f.fieldtype === 'Select') {
       const select = document.createElement('select');
       select.className = 'form-select';
@@ -6890,6 +7091,7 @@ window.openDynamicModal = async function() {
       opts.forEach(o => {
         select.innerHTML += `<option value="${o.trim()}">${o.trim()}</option>`;
       });
+      if (existingVal !== undefined && existingVal !== null) select.value = existingVal;
       fg.appendChild(select);
     } else if (f.fieldtype === 'Link') {
       const select = document.createElement('select');
@@ -6898,7 +7100,7 @@ window.openDynamicModal = async function() {
       select.required = f.mandatory;
       select.innerHTML = '<option value="" disabled selected>— Loading Lookups —</option>';
       fg.appendChild(select);
-      
+
       // Fetch target link options asynchronously
       apiFetch(`/api/v1/doc/${f.options}`).then(res => {
         if (!res || !res.ok) {
@@ -6910,6 +7112,7 @@ window.openDynamicModal = async function() {
           data.forEach(item => {
             select.innerHTML += `<option value="${item.name || item.id}">${item.name || item.code || item.id}</option>`;
           });
+          if (existingVal !== undefined && existingVal !== null) select.value = existingVal;
         });
       });
     } else if (f.fieldtype === 'Number') {
@@ -6918,6 +7121,7 @@ window.openDynamicModal = async function() {
       input.type = 'number';
       input.name = f.fieldname;
       input.required = f.mandatory;
+      if (existingVal !== undefined && existingVal !== null) input.value = existingVal;
       fg.appendChild(input);
     } else {
       const input = document.createElement('input');
@@ -6925,11 +7129,19 @@ window.openDynamicModal = async function() {
       input.type = 'text';
       input.name = f.fieldname;
       if (isCodeField) {
-        input.placeholder = 'Auto-generated upon save';
+        // On edit the code already exists and must not be regenerated -
+        // show it read-only same as the create-mode placeholder behavior,
+        // just with the real value instead of "auto-generated" text.
         input.readOnly = true;
         input.required = false;
+        if (isEdit) {
+          input.value = existingVal ?? '';
+        } else {
+          input.placeholder = 'Auto-generated upon save';
+        }
       } else {
         input.required = f.mandatory;
+        if (existingVal !== undefined && existingVal !== null) input.value = existingVal;
       }
       fg.appendChild(input);
     }
@@ -6939,12 +7151,33 @@ window.openDynamicModal = async function() {
   modal.classList.add('open');
 };
 
+// 21.9 QA-follow-up: the generic record-list screens (Vendors, Stores,
+// Bin Master, everything under Master Definition, etc.) had a Delete
+// action but no way to correct a mistake short of delete-and-recreate -
+// a real gap USER_GUIDE.md's own §8 claimed didn't exist. Reuses the
+// exact same modal/fields/submit path as create, just pre-filled and
+// posted to the /{id} update route the generic doc engine already serves.
+window.editDocRecord = async function(id) {
+  const res = await apiFetch(`/api/v1/doc/${currentDoctype}/${id}`);
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to load record for editing.');
+    return;
+  }
+  const record = await res.json();
+  editingDocID = id;
+  editingDocVersion = typeof record.version === 'number' ? record.version : null;
+  await openDynamicModal(record);
+};
+
 window.closeDynamicModal = function() {
   const modal = document.getElementById('dynamic-modal');
   if (modal) {
     modal.classList.remove('open');
     document.getElementById('dynamic-modal-form').reset();
   }
+  editingDocID = null;
+  editingDocVersion = null;
 };
 
 window.handleDynamicFormSubmit = async function(e) {
@@ -6991,7 +7224,12 @@ window.handleDynamicFormSubmit = async function(e) {
     }
   }
 
-  const res = await apiFetch(`/api/v1/doc/${currentDoctype}`, {
+  const isEdit = !!editingDocID;
+  if (isEdit && editingDocVersion !== null) {
+    payload.expected_version = editingDocVersion;
+  }
+  const endpoint = isEdit ? `/api/v1/doc/${currentDoctype}/${editingDocID}` : `/api/v1/doc/${currentDoctype}`;
+  const res = await apiFetch(endpoint, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
@@ -7000,7 +7238,7 @@ window.handleDynamicFormSubmit = async function(e) {
     closeDynamicModal();
     renderView('doctype-table');
   } else if (res) {
-    await showApiError(res, 'Failed to save record.');
+    await showApiError(res, isEdit ? 'Failed to save changes - someone else may have edited this record, refresh and try again.' : 'Failed to save record.');
   }
 };
 
@@ -7569,7 +7807,7 @@ function renderMockModuleView(container, view) {
       </svg>
       <h2 style="font-size: 20px; font-weight: 600;">Module Setup Pending</h2>
       <p class="text-muted" style="font-size: 14px; line-height: 1.6;">
-        This transaction screen (Stage 4+) is configured. Switch to dynamic **Master Definitions** or customize attributes using **Database Schema Design**.
+        This transaction screen (Stage 4+) is configured. Switch to dynamic **Setup** or customize attributes using **Database Schema Design**.
       </p>
       <button class="btn btn-secondary" onclick="setActiveMenu('menu-dashboard'); renderView('dashboard');">Back to Dashboard</button>
     </div>

@@ -141,7 +141,7 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 			"qty": -(c.Qty * orderQty), // negative to decrement, matching checkout's convention
 		}
 	}
-	if err := PostInventoryLedger(tenantID, location, items); err != nil {
+	if _, err := PostInventoryLedger(tenantID, location, items, false); err != nil {
 		return fmt.Errorf("material issue failed: %v", err)
 	}
 
@@ -178,7 +178,7 @@ func CompleteProductionOrder(tenantID, orderID string) error {
 	items := []interface{}{
 		map[string]interface{}{"sku": parentItem, "qty": orderQty},
 	}
-	if err := PostInventoryLedger(tenantID, location, items); err != nil {
+	if _, err := PostInventoryLedger(tenantID, location, items, false); err != nil {
 		return fmt.Errorf("finished goods receipt failed: %v", err)
 	}
 

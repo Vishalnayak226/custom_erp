@@ -288,7 +288,14 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		CustomerID  string  `json:"customer_id"`
 		Interstate  bool    `json:"interstate"`
 		DiscountPct float64 `json:"discount_pct"`
-		Items       []struct {
+		// OfflineSynced (20.13): set only by the POS screen's own offline
+		// queue when replaying a sale that was rung up while disconnected -
+		// never set by a normal live checkout. Stamped onto the stored cart
+		// (see storedPayload below) so FinalizePOSCheckout can allow the
+		// resulting stock to go negative instead of rejecting a sale whose
+		// goods already physically left the store.
+		OfflineSynced bool `json:"offline_synced"`
+		Items         []struct {
 			Sku       string  `json:"sku"`
 			Qty       int     `json:"qty"`
 			SalePrice float64 `json:"sale_price"`
@@ -401,6 +408,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 	storedPayload["gst_breakdown"] = gstBreakdown
 	storedPayload["pos_session"] = sessionID
+	storedPayload["offline_synced"] = req.OfflineSynced
 	if requiredRole != "" {
 		// Percentage, not rupees - see extractAmount's comment in engines/approval.go.
 		storedPayload["discount_amount"] = req.DiscountPct

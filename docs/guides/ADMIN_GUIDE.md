@@ -4,6 +4,8 @@ A complete, standalone operator manual — written so a person can pick up this 
 
 This guide reuses, rather than duplicates, the deeper operational docs that already exist — it's the table of contents and the walkthrough that ties them together. Where a topic has its own detailed doc, this guide says so and points there.
 
+*Need literal click-by-click steps for an admin screen or a maker-checker/approval workflow? See **[ADMIN_SOP.md](ADMIN_SOP.md)** — same operator-manual voice, one section per screen and per workflow.*
+
 ---
 
 ## Part A — Foundation (for someone who has never seen this system)

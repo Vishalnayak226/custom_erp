@@ -2,6 +2,8 @@
 
 **Welcome!** This guide explains how to use the ERP system. It's written in plain language for anyone using the system for the first time — no computer or accounting background needed. If a word might be unfamiliar, it's explained the first time it's used, and there's a glossary at the end.
 
+*Need literal click-by-click steps for a screen not walked through in depth below? See **[USER_SOP.md](USER_SOP.md)** — the same plain-language style, one section per screen, covering every module.*
+
 ---
 
 ## 1. What is this system?
@@ -35,7 +37,7 @@ The left sidebar is your main menu. Depending on your role, you might see some o
 | **Vendors** | Your suppliers' details. |
 | **Stores** | Your shop/warehouse locations. |
 | **HR / Fixed Assets / Expenses** | Staff records, company equipment, and expense claims. |
-| **Master Definition** | A dropdown of every other reference list the system knows about (Brands, Colors, Locations, and many more) — see §6 below. |
+| **Setup** | A dropdown of every other reference list the system knows about (Brands, Colors, Locations, and many more) — see §6 below. |
 | **Users / Roles** | Admin-only: create accounts and control what each role can do (see the Admin Guide §B.2). You'll see these in the menu regardless of your role, but only an HR/Admin account can actually use them. |
 
 At the top of most screens, there's a **search box** and buttons to add a new record, edit one, or filter the list. These work the same way on every screen once you get used to one of them.
@@ -81,11 +83,11 @@ If you need to know how much stock is *actually free to sell* (not already reser
 
 ## 8. Managing Master Data (Vendors, Stores, Brands, and Similar Lists)
 
-"Master data" just means the reference lists everything else points to — your vendors, your stores, and (depending on your industry setup) things like brands, colors, or product categories. Most of these live directly in the sidebar (**Vendors**, **Stores**) or under the **Master Definition** dropdown, which groups every other one alphabetically.
+"Master data" just means the reference lists everything else points to — your vendors, your stores, and (depending on your industry setup) things like brands, colors, or product categories. Most of these live directly in the sidebar (**Vendors**, **Stores**) or under the **Setup** dropdown, which groups every other one alphabetically.
 
 Adding a new one always works the same way, no matter which list you're in:
 
-1. Click the list in the sidebar (or open it from **Master Definition**).
+1. Click the list in the sidebar (or open it from **Setup**).
 2. Click the **New [thing]** button, top right.
 3. Fill in the fields — anything marked with a **\*** is required, everything else is optional. A "Code" field usually says *"Auto-generated upon save"* — leave it blank and the system numbers it for you.
 4. Click **Save**.

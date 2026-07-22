@@ -160,7 +160,7 @@ func TestEngines(t *testing.T) {
 		items := []interface{}{
 			map[string]interface{}{"sku": sku, "qty": 15.0},
 		}
-		err := PostInventoryLedger(tenantID, location, items)
+		_, err := PostInventoryLedger(tenantID, location, items, false)
 		if err != nil {
 			t.Fatalf("Failed to post inventory ledger from GRN callback: %v", err)
 		}

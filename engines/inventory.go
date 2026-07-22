@@ -77,26 +77,42 @@ func WriteStockLedgerEntry(tenantID string, itemID string, warehouseID string, q
 }
 
 // PostInventoryLedger updates the available stock levels upon a transaction commit (e.g., GRN posting)
-func PostInventoryLedger(tenantID string, locationCode string, items []interface{}) error {
+// NegativeStockEvent (20.13) records a floor-check violation that was let
+// through instead of rejected - only ever produced when allowNegative is
+// true. Currently that's just one caller: FinalizePOSCheckout replaying an
+// offline-queued sale, where the goods already physically left the store
+// before the server could be asked whether stock covered it. Every other
+// PostInventoryLedger caller passes allowNegative=false and keeps the
+// original strict reject-on-insufficient-stock behavior unchanged.
+type NegativeStockEvent struct {
+	SKU                string
+	LocationCode       string
+	Shortfall          int // how far below zero available ended up (positive number)
+	ResultingAvailable int
+}
+
+func PostInventoryLedger(tenantID string, locationCode string, items []interface{}, allowNegative bool) ([]NegativeStockEvent, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if len(items) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	tx, err := db.DB.Begin()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer tx.Rollback()
 
 	// Apply search path scoping
 	if err := db.SetSearchPath(tx, schema); err != nil {
-		return err
+		return nil, err
 	}
+
+	var negativeEvents []NegativeStockEvent
 
 	for _, item := range items {
 		itemMap, ok := item.(map[string]interface{})
@@ -133,31 +149,44 @@ func PostInventoryLedger(tenantID string, locationCode string, items []interface
 				WHERE sku = $1 AND location_code = $2
 				FOR UPDATE`, schema), sku, locationCode).Scan(&currentAvailable)
 			if err == sql.ErrNoRows {
-				return fmt.Errorf("insufficient stock for SKU %s at %s: no inventory record", sku, locationCode)
+				if !allowNegative {
+					return nil, fmt.Errorf("insufficient stock for SKU %s at %s: no inventory record", sku, locationCode)
+				}
+				currentAvailable = 0
 			} else if err != nil {
-				return err
+				return nil, err
 			}
 			if currentAvailable+qtyVal < 0 {
-				return fmt.Errorf("insufficient stock for SKU %s at %s: available %d, requested %d", sku, locationCode, currentAvailable, -qtyVal)
+				if !allowNegative {
+					return nil, fmt.Errorf("insufficient stock for SKU %s at %s: available %d, requested %d", sku, locationCode, currentAvailable, -qtyVal)
+				}
+				resulting := currentAvailable + qtyVal
+				negativeEvents = append(negativeEvents, NegativeStockEvent{
+					SKU: sku, LocationCode: locationCode,
+					Shortfall: -resulting, ResultingAvailable: resulting,
+				})
 			}
 		}
 
 		// Perform atomic upsert for stock availability
 		query := fmt.Sprintf(`
-			INSERT INTO %s.inventory_availability (sku, location_code, on_hand, available) 
-			VALUES ($1, $2, $3, $3) 
-			ON CONFLICT (sku, location_code) DO UPDATE SET 
-				on_hand = %s.inventory_availability.on_hand + EXCLUDED.on_hand, 
+			INSERT INTO %s.inventory_availability (sku, location_code, on_hand, available)
+			VALUES ($1, $2, $3, $3)
+			ON CONFLICT (sku, location_code) DO UPDATE SET
+				on_hand = %s.inventory_availability.on_hand + EXCLUDED.on_hand,
 				available = %s.inventory_availability.available + EXCLUDED.available,
 				updated_at = CURRENT_TIMESTAMP`, schema, schema, schema)
 
 		_, err = tx.Exec(query, sku, locationCode, qtyVal)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return negativeEvents, nil
 }
 
 // CreateReservation reserves stock temporarily for cart holds or online orders

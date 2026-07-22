@@ -88,7 +88,7 @@ func RunScaleSimulation(tenantID string, numWorkers int, numTransactions int, te
 					checkoutItems := []interface{}{
 						map[string]interface{}{"sku": testSKU, "qty": 1},
 					}
-					err = PostInventoryLedger(tenantID, locationCode, checkoutItems)
+					_, err = PostInventoryLedger(tenantID, locationCode, checkoutItems, false)
 					if err == nil {
 						// Post double-entry accounting records
 						cartID := fmt.Sprintf("W-%d-CRT-%d", workerID, time.Now().UnixNano())

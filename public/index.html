@@ -92,10 +92,10 @@
           </a>
         </li>
 
-        <!-- Module: POS -->
+        <!-- Module: POS (21.11: renamed to ERPNext's own module name; internal id left as module-pos) -->
         <li class="menu-item-container has-flyout">
           <a class="menu-item menu-item-group" href="#" id="module-pos">
-            <span>POS</span>
+            <span>Point of Sale</span>
             <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 6 15 12 9 18"></polyline>
             </svg>
@@ -103,13 +103,14 @@
           <ul class="menu-flyout">
             <li><a class="menu-item" id="menu-pos"><span>POS / Billing</span></a></li>
             <li><a class="menu-item" id="menu-pos-profiles"><span>POS Profiles</span></a></li>
+            <li><a class="menu-item" id="menu-pos-offline-sync"><span>Offline Sync Review</span></a></li>
           </ul>
         </li>
 
-        <!-- Module: Finance -->
+        <!-- Module: Finance (21.11: renamed to ERPNext's own module name; internal id left as module-finance) -->
         <li class="menu-item-container has-flyout">
           <a class="menu-item menu-item-group" href="#" id="module-finance">
-            <span>Finance</span>
+            <span>Accounting</span>
             <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 6 15 12 9 18"></polyline>
             </svg>
@@ -125,10 +126,10 @@
           </ul>
         </li>
 
-        <!-- Module: Fulfillment & Marketplace -->
+        <!-- Module: Fulfillment & Marketplace (21.11: "Fulfillment" -> "Sales", Odoo/ERPNext's own name for the order-to-delivery pipeline; "& Marketplace" kept as-is, neither reference ERP has a clean equivalent for the channel-connector piece; internal id left as module-fulfillment -->
         <li class="menu-item-container has-flyout">
           <a class="menu-item menu-item-group" href="#" id="module-fulfillment">
-            <span>Fulfillment &amp; Marketplace</span>
+            <span>Sales &amp; Marketplace</span>
             <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 6 15 12 9 18"></polyline>
             </svg>
@@ -145,10 +146,10 @@
           </a>
         </li>
 
-        <!-- Module: Procurement -->
+        <!-- Module: Procurement (21.11: renamed to ERPNext's own module name; internal id/module_key left as procurement) -->
         <li class="menu-item-container has-flyout">
           <a class="menu-item menu-item-group" href="#" id="module-procurement">
-            <span>Procurement</span>
+            <span>Buying</span>
             <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 6 15 12 9 18"></polyline>
             </svg>
@@ -160,10 +161,10 @@
           </ul>
         </li>
 
-        <!-- Module: Inventory & WMS -->
+        <!-- Module: Inventory & WMS (21.11: renamed to ERPNext's own module name, which already covers Bin/Warehouse/Transfer; internal id/module_key left as inventory) -->
         <li class="menu-item-container has-flyout">
           <a class="menu-item menu-item-group" href="#" id="module-inventory">
-            <span>Inventory &amp; WMS</span>
+            <span>Stock</span>
             <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 6 15 12 9 18"></polyline>
             </svg>
@@ -204,10 +205,10 @@
           </a>
         </li>
 
-        <!-- Master Definition Dropdown (dynamically populated - see renderSidebarSubmenu) -->
+        <!-- Master Definition Dropdown (21.11: renamed to "Setup", ERPNext's own term for master/reference-list configuration; dynamically populated - see renderSidebarSubmenu; internal id left as menu-master-definition -->
         <li class="menu-item-container has-flyout">
           <a class="menu-item menu-item-group" href="#" id="menu-master-definition">
-            <span>Master Definition</span>
+            <span>Setup</span>
             <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 6 15 12 9 18"></polyline>
             </svg>
@@ -227,10 +228,10 @@
           </ul>
         </li>
 
-        <!-- Module: Admin & Settings -->
+        <!-- Module: Admin & Settings (21.11: renamed to ERPNext's own term - "Settings" already implies admin-only there; internal id left as module-admin) -->
         <li class="menu-item-container has-flyout">
           <a class="menu-item menu-item-group" href="#" id="module-admin">
-            <span>Admin &amp; Settings</span>
+            <span>Settings</span>
             <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 6 15 12 9 18"></polyline>
             </svg>

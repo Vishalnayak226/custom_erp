@@ -13,7 +13,7 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 3. **Some screens are known to be unfinished placeholders, not bugs** — they're marked ⚠️ **Known limitation** below. Seeing "Module Setup Pending" on those specific screens is a *pass*, not a fail. If you see that message anywhere *not* marked with ⚠️ below, that's worth reporting.
 4. **Some actions will correctly refuse you** depending on which user you're logged in as — that's the security/role system working, not a bug. See "Role Access Notes" under each section, and the master notes in [Prerequisites](#0-prerequisites).
 5. Re-run this checklist after any significant change to `public/app.js`, `public/index.html`, or the database schema — it's meant to be reusable, not one-time.
-6. **Sidebar navigation was regrouped by module.** The left sidebar now shows only ~12 top-level entries; most of the screens named throughout this checklist live inside a module's **hover flyout** (hover the module name, or click it for keyboard/touch), not as their own top-level sidebar link anymore. Every section below still tells you which screen to open — just expect to hover/click a module group first. Current grouping: **POS** (POS/Billing, POS Profiles) · **Finance** (Finance/GL, Approvals) · **Fulfillment & Marketplace** (Fulfillment, Marketplace) · **Reports** (own top-level entry) · **Procurement** (Purchase Orders, Vendors, RFQ/Quotes) · **Inventory & WMS** (Inventory, Transfers, Bin Master, Stores, Sticker Printing) · **HR & Assets** (HR, Fixed Assets, Expenses) · **Manufacturing** and **PIM** (own top-level entries) · **Master Definition** (unchanged dynamic flyout of ~25 master doctypes) · **Admin & Settings** (Users, Roles, Prefix Configs, Dynamic Labels, Database Schema Design, Activity Log). Dashboard stays a direct top-level link.
+6. **Sidebar navigation was regrouped by module.** The left sidebar now shows only ~12 top-level entries; most of the screens named throughout this checklist live inside a module's **hover flyout** (hover the module name, or click it for keyboard/touch), not as their own top-level sidebar link anymore. Every section below still tells you which screen to open — just expect to hover/click a module group first. Current grouping (**21.11**: module labels renamed toward ERPNext/Odoo terminology; internal ids/behavior unchanged, so use the *new* name shown here even if an older screenshot/doc still shows the old one): **Point of Sale** (POS/Billing, POS Profiles) · **Accounting** (Finance/GL, Approvals) · **Sales & Marketplace** (Fulfillment, Marketplace) · **Reports** (own top-level entry) · **Buying** (Purchase Orders, Vendors, RFQ/Quotes) · **Stock** (Inventory, Transfers, Bin Master, Stores, Sticker Printing) · **HR & Assets** (HR, Fixed Assets, Expenses — left unchanged, no single ERPNext/Odoo app name covers this combined grouping) · **Manufacturing** and **PIM** (own top-level entries, unchanged) · **Setup** (unchanged dynamic flyout of ~25 master doctypes, formerly "Master Definition") · **Settings** (Users, Roles, Prefix Configs, Dynamic Labels, Database Schema Design, Activity Log — formerly "Admin & Settings"). Dashboard stays a direct top-level link.
 
 ---
 
@@ -176,12 +176,12 @@ The tab bar has 9 entries, but only the first 3 are "real" PIM tabs — the othe
 - [ ] **15.6 Workbench tab — channel publishing**: the Channel dropdown is populated from real Channel records (not hardcoded); clicking "Publish" produces a result — success with an external ID, or a clear rejection reason — as a new row in the publish log table below.
 - [ ] **15.7 Reports tab**: pick a report from the dropdown (**Content aging**, **Duplicate media**, **Channel mapping gaps**, **Attribute quality**) and click "Run report" — each produces a results table (or a clear "no results" state) without error.
 - [ ] **15.8 Product Families / Attribute Definitions / Family Attributes / Channels / Category Mapping / Field Mapping** (the other 6 tabs): each one takes you to a generic master table for that doctype; "New <X>" creates a record and it appears in the table.
-- [ ] **15.9 Bulk Import** (on the **Item** master table specifically — Master Definition → Item, or via the Workbench list — not a PIM-tab feature): "Bulk Import" → "Download Template CSV" gives you a real CSV; uploading a filled-in copy shows a preview/result summary (rows imported / rows rejected with reasons), not a silent pass-through.
+- [ ] **15.9 Bulk Import** (on the **Item** master table specifically — Setup → Item, or via the Workbench list — not a PIM-tab feature): "Bulk Import" → "Download Template CSV" gives you a real CSV; uploading a filled-in copy shows a preview/result summary (rows imported / rows rejected with reasons), not a silent pass-through.
 - [ ] **15.10 Bulk Edit** (Item master table only): select 2+ rows via the checkboxes, click "Edit Selected", pick a field and a new value, confirm — all selected rows update to that value. If the doctype is approval-gated, previously-Approved rows should drop back to Pending Approval, not stay silently Approved with an unreviewed change.
 
 ---
 
-## 16. Master Definition (sidebar submenu)
+## 16. Setup (sidebar submenu)
 
 This submenu is **built dynamically** from every registered "Master" doctype, so the exact list of entries will grow over time — you're not limited to a fixed set of names. As of this checklist's last update it includes at least: Location, Legal Entity, Department, Cost Center, Employee, Item, Printer, Batch, Brand, Color, Model, Size, Style, Vendor, Customer, Channel, Product Family, Attribute Definition, Family Attribute, POS Profile, plus any custom doctypes registered via Database Schema Design.
 
@@ -196,9 +196,9 @@ For **each** item in the submenu:
 
 ---
 
-## 17. Vendors / Stores / POS Profiles (in the Procurement / Inventory & WMS / POS module flyouts respectively)
+## 17. Vendors / Stores / POS Profiles (in the Buying / Stock / Point of Sale module flyouts respectively)
 
-- [ ] **Vendors**: same generic table/create/delete behavior as any Master Definition entry (it points at the same underlying screen).
+- [ ] **Vendors**: same generic table/create/delete behavior as any Setup entry (it points at the same underlying screen).
 - [ ] ⚠️ **Known limitation — Stores**: clicking this currently does **not** load correctly (a naming mismatch between the menu code and the registered doctype, plus the doctype has no fields configured yet). Expect either an empty/broken screen or a load error. This is a known gap, not something to spend time debugging — note it as "confirmed still broken" and move on.
 - [ ] **POS Profiles (Stage 20.6)**: same generic table/create/delete behavior as Vendors above. Creating one (profile name, Location, default payment mode, opening cash float, status) adds it to the table. This is metadata only right now — nothing else in the app reads it yet (POS session opening still asks for the cash float directly rather than defaulting from a profile).
 - [ ] **Bin Master (Stage 20.16)**: same generic table/create/delete behavior. Creating one (bin code, Location, zone/aisle/rack, capacity, status) adds it to the table. Also metadata only — actual putaway/pick-list/condition-transition operations are backend-only right now (§24).
@@ -215,7 +215,7 @@ For **each** item in the submenu:
 
 ---
 
-## 19. Inventory / Transfers / Users / Roles (Inventory & WMS / Admin & Settings module flyouts)
+## 19. Inventory / Transfers / Users / Roles (Stock / Settings module flyouts)
 
 All four of these used to be dead links falling through to a "Module Setup Pending" placeholder. As of this checklist's last update, none of them are placeholders anymore — if you land on "Module Setup Pending" for any of these, that's a regression, not expected behavior.
 
@@ -249,7 +249,7 @@ All four of these used to be dead links falling through to a "Module Setup Pendi
 ## 22. Database Schema Design (formerly "DocType Builder" in the sidebar — same screen, renamed for a general audience; "DocType" terminology has since been fully removed from the UI/docs too, replaced by "Record Type" throughout)
 
 - [ ] Left panel lists every registered Record Type; clicking one loads its field configuration on the right.
-- [ ] "Register New Record Type" (prompts for name/module/type) creates a new empty record type that then appears in the left-hand list and in **Master Definition** (§16) if registered as type "Master".
+- [ ] "Register New Record Type" (prompts for name/module/type) creates a new empty record type that then appears in the left-hand list and in **Setup** (§16) if registered as type "Master".
 - [ ] "Add Field" on a record type (prompts for fieldname/label/fieldtype/mandatory/options) adds a new field, and that field then appears on that record type's create form elsewhere in the app.
 - [ ] Deleting a field removes it from the record type's configuration and its create form.
 - [ ] ⚠️ **Known limitation**: the page subtitle mentions "setup RBAC rules," but there is no RBAC editor on *this* screen specifically — that's now the **Roles** screen instead (§19). Don't spend time looking for one here; that's expected, not a missed feature. (This note used to say role/doctype access was database-only with no UI anywhere — that's no longer true as of the Roles screen shipping; only the "not on this particular page" half still holds.)

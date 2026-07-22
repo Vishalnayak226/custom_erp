@@ -565,7 +565,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if locationCode != "" && len(items) > 0 {
-				errLedger := engines.PostInventoryLedger(tenantID, locationCode, items)
+				_, errLedger := engines.PostInventoryLedger(tenantID, locationCode, items, false)
 				if errLedger != nil {
 					log.Printf("Error posting GRN items to stock ledger: %v", errLedger)
 				}

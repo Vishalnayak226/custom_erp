@@ -19,6 +19,7 @@ These three ("the big 3") stay at `docs/` root by standing convention (see the r
 ## "I'm a new user / need to operate this system"
 - **[guides/USER_GUIDE.md](guides/USER_GUIDE.md)** — client-facing, plain-language walkthrough. No jargon.
 - **[guides/ADMIN_GUIDE.md](guides/ADMIN_GUIDE.md)** — standalone operator manual, zero AI assistance assumed: setup from a bare machine through day-to-day operation, deployment, and incident response.
+- **[guides/USER_SOP.md](guides/USER_SOP.md)** / **[guides/ADMIN_SOP.md](guides/ADMIN_SOP.md)** — literal, click-by-click "how to do X" procedures for every screen (the Guides above are thin summaries by comparison), including every maker-checker/approval workflow.
 
 ## "I need to test that every module/page still works"
 - **[guides/UAT_CHECKLIST.md](guides/UAT_CHECKLIST.md)** — single walkthrough script, one section per sidebar screen, click-this-expect-that with pass/fail boxes. Flags known placeholder/limitation screens so they aren't mistaken for bugs. Re-run after significant frontend or schema changes.
