@@ -4,8 +4,18 @@ import (
 	"custom_erp/db"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
+
+// ErrApprovalRoleMismatch (Stage 25 Batch 3) wraps DecideApproval's
+// role-mismatch failure so a caller can distinguish it from every other
+// reason DecideApproval can fail (document not found, wrong status,
+// maker-checker violation) without string-matching the error text. Doctype-
+// specific callers - e.g. handleDecideApproval mapping this to PURCHA-0083
+// for PurchaseOrder - check errors.Is against this sentinel; every other
+// doctype's DecideApproval call is unaffected, since none of them look for it.
+var ErrApprovalRoleMismatch = errors.New("approver role does not match the amount's required approval role")
 
 // ApprovalRule is one amount-slab -> required-role routing entry for a
 // doctype. A doctype with zero rules simply isn't approval-gated.
@@ -267,7 +277,7 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		return err
 	}
 	if actorRole != "HR/Admin" && actorRole != requiredRole {
-		return fmt.Errorf("this amount requires approval from role '%s'", requiredRole)
+		return fmt.Errorf("%w: this amount requires approval from role '%s'", ErrApprovalRoleMismatch, requiredRole)
 	}
 	if actorRole != "HR/Admin" {
 		if docLoc, ok := data["location"].(string); ok && docLoc != "" && docLoc != actorLocation {

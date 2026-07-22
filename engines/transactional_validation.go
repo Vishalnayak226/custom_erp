@@ -1,0 +1,399 @@
+package engines
+
+import (
+	"custom_erp/db"
+	"encoding/json"
+	"fmt"
+	"strings"
+)
+
+// Stage 25 Batch 3: transactional-doctype validation for the GRN/Purchase
+// Order/Transfer Order/Manufacturing/HR modules, called from
+// handlers_core_doc_engine.go's generic doc POST path - the same choke
+// point Batch 2's ValidateMasterDataRules already uses for Item/Vendor/
+// Customer. priorStatus/priorData are the document's state immediately
+// before this write (docID == "" or priorData == nil on a create); only the
+// doctypes that need to compare against their own prior state
+// (PurchaseOrder, ProductionOrder) actually use them.
+func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, priorData, payload map[string]interface{}) error {
+	switch doctype {
+	case "GRN":
+		return validateGRNRules(tenantID, docID, payload)
+	case "VendorInvoice":
+		return validateVendorInvoiceCreateRules(tenantID, payload)
+	case "PurchaseOrder":
+		return validatePurchaseOrderEditRules(tenantID, docID, priorStatus, priorData, payload)
+	case "TransferOrder":
+		return validateTransferOrderCreateRules(payload)
+	case "ProductionOrder":
+		return validateProductionOrderEditRules(priorStatus, priorData, payload)
+	case "Employee":
+		return validateEmployeeRules(tenantID, docID, payload)
+	case "Leave":
+		return validateLeaveRules(tenantID, docID, payload)
+	}
+	return nil
+}
+
+// grnReceivedLine is GRN's received_items line shape, extended (optionally -
+// every field below the first two is only checked when a caller actually
+// populates it) beyond the plain {sku, qty} vendor_invoice.go's grnItemLine
+// already reads, to carry the accepted/rejected split GOODSR-0089/0090
+// describe. Existing GRNs that only ever set qty are unaffected.
+type grnReceivedLine struct {
+	Sku             string   `json:"sku"`
+	Qty             float64  `json:"qty"`
+	AcceptedQty     *float64 `json:"accepted_qty,omitempty"`
+	RejectedQty     *float64 `json:"rejected_qty,omitempty"`
+	RejectionReason string   `json:"rejection_reason,omitempty"`
+}
+
+// fetchPOItemQuantities sums a PurchaseOrder's own ordered qty per SKU from
+// its "items" JSON field (poItemLine, shared with vendor_invoice.go's
+// Match3Way).
+func fetchPOItemQuantities(tenantID, poID string) (map[string]float64, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	var poDataStr string
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'PurchaseOrder' AND id = $1`, schema), poID).Scan(&poDataStr); err != nil {
+		return nil, err
+	}
+	var poData map[string]interface{}
+	if err := json.Unmarshal([]byte(poDataStr), &poData); err != nil {
+		return nil, err
+	}
+	itemsStr, _ := poData["items"].(string)
+	var items []poItemLine
+	if itemsStr != "" {
+		_ = json.Unmarshal([]byte(itemsStr), &items)
+	}
+	ordered := map[string]float64{}
+	for _, it := range items {
+		ordered[it.Sku] += float64(it.Qty)
+	}
+	return ordered, nil
+}
+
+// fetchGRNReceivedQuantities sums received qty per SKU across every GRN
+// already posted against poID, excluding excludeGRNID (the GRN currently
+// being validated, so its own not-yet-saved lines aren't double-counted
+// against themselves).
+func fetchGRNReceivedQuantities(tenantID, poID, excludeGRNID string) (map[string]float64, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, data FROM %s.documents WHERE doctype = 'GRN' AND data->>'po_id' = $1 AND status != 'Cancelled'`, schema), poID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	received := map[string]float64{}
+	for rows.Next() {
+		var id, dataStr string
+		if err := rows.Scan(&id, &dataStr); err != nil {
+			return nil, err
+		}
+		if excludeGRNID != "" && id == excludeGRNID {
+			continue
+		}
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+			continue
+		}
+		receivedStr, _ := data["received_items"].(string)
+		if receivedStr == "" {
+			continue
+		}
+		var lines []grnReceivedLine
+		if err := json.Unmarshal([]byte(receivedStr), &lines); err != nil {
+			continue
+		}
+		for _, l := range lines {
+			received[l.Sku] += l.Qty
+		}
+	}
+	return received, rows.Err()
+}
+
+// purchaseOrderFullyReceived reports whether every ordered line on poID has
+// already been fully received by GRNs other than excludeGRNID. A PO with no
+// parsed item lines is never treated as fully received (nothing to close).
+func purchaseOrderFullyReceived(tenantID, poID, excludeGRNID string) (bool, error) {
+	ordered, err := fetchPOItemQuantities(tenantID, poID)
+	if err != nil || len(ordered) == 0 {
+		return false, err
+	}
+	received, err := fetchGRNReceivedQuantities(tenantID, poID, excludeGRNID)
+	if err != nil {
+		return false, err
+	}
+	for sku, qty := range ordered {
+		if received[sku]+1e-9 < qty {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// validateGRNRules covers GOODSR-0089/0090 (accepted/rejected quantity),
+// GRN-0253 (cancellation blocked by a downstream invoice), and the PO
+// cross-checks PURCHA-0082/0084/0086/0087/0088 - all of them things a GRN
+// can only get wrong in relation to the PO/GRNs it references, so they live
+// together rather than split across GRN vs PurchaseOrder validators.
+func validateGRNRules(tenantID, docID string, payload map[string]interface{}) error {
+	receivedStr, _ := payload["received_items"].(string)
+	var lines []grnReceivedLine
+	if receivedStr != "" {
+		if err := json.Unmarshal([]byte(receivedStr), &lines); err != nil {
+			return fmt.Errorf("received_items is not valid JSON: %v", err)
+		}
+	}
+
+	for _, line := range lines {
+		if line.AcceptedQty != nil && *line.AcceptedQty > line.Qty+1e-9 {
+			return &ValidationError{Code: "GOODSR-0089", Message: fmt.Sprintf("accepted quantity (%v) for SKU %q cannot exceed received quantity (%v)", *line.AcceptedQty, line.Sku, line.Qty)}
+		}
+		if line.RejectedQty != nil && *line.RejectedQty > 0 && strings.TrimSpace(line.RejectionReason) == "" {
+			return &ValidationError{Code: "GOODSR-0090", Message: fmt.Sprintf("rejection reason is required for SKU %q (rejected qty %v)", line.Sku, *line.RejectedQty)}
+		}
+	}
+
+	if strField(payload, "status") == "Cancelled" {
+		schema, err := db.GetTenantSchema(tenantID)
+		if err != nil {
+			return err
+		}
+		var invoiceID string
+		err = db.DB.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'VendorInvoice' AND data->>'grn_id' = $1 LIMIT 1`, schema), docID).Scan(&invoiceID)
+		if err == nil {
+			return &ValidationError{Code: "GRN-0253", Message: fmt.Sprintf("GRN %s cannot be cancelled: vendor invoice %s already references it", docID, invoiceID)}
+		}
+	}
+
+	poID := strField(payload, "po_id")
+	if poID == "" {
+		return nil
+	}
+	ordered, err := fetchPOItemQuantities(tenantID, poID)
+	if err != nil || len(ordered) == 0 {
+		// PO not found or has no parsed item lines - the Link field's own
+		// existence is already enforced by ValidateDocument (META-0198);
+		// nothing further to cross-check here.
+		return nil
+	}
+
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var poStatus, poDataStr string
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'PurchaseOrder' AND id = $1`, schema), poID).Scan(&poDataStr, &poStatus); err != nil {
+		return nil
+	}
+	var poData map[string]interface{}
+	_ = json.Unmarshal([]byte(poDataStr), &poData)
+
+	// PURCHA-0082 / PURCHA-0086: only meaningful when PurchaseOrder is
+	// actually approval-gated (an admin configured a rule for it) - an
+	// ungated PO has no "pending approval" state to block receiving on.
+	gated, _ := IsApprovalGated(tenantID, "PurchaseOrder")
+	if gated && poStatus != "Approved" {
+		if amendReason, _ := poData["amendment_reason"].(string); amendReason != "" {
+			return &ValidationError{Code: "PURCHA-0086", Message: fmt.Sprintf("PO %s amendment is pending approval (status: %s)", poID, poStatus)}
+		}
+		return &ValidationError{Code: "PURCHA-0082", Message: fmt.Sprintf("PO %s is pending approval (status: %s)", poID, poStatus)}
+	}
+
+	// PURCHA-0088: every received line's SKU must actually be on the PO.
+	for _, line := range lines {
+		if _, ok := ordered[line.Sku]; !ok {
+			return &ValidationError{Code: "PURCHA-0088", Message: fmt.Sprintf("SKU %q is not part of PO %s", line.Sku, poID)}
+		}
+	}
+
+	receivedBefore, err := fetchGRNReceivedQuantities(tenantID, poID, docID)
+	if err != nil {
+		return err
+	}
+	fullyReceivedBefore := true
+	for sku, qty := range ordered {
+		if receivedBefore[sku]+1e-9 < qty {
+			fullyReceivedBefore = false
+			break
+		}
+	}
+	if fullyReceivedBefore && len(lines) > 0 {
+		return &ValidationError{Code: "PURCHA-0084", Message: fmt.Sprintf("PO %s is already fully received - no further GRNs are allowed", poID)}
+	}
+
+	for _, line := range lines {
+		if receivedBefore[line.Sku]+line.Qty > ordered[line.Sku]+1e-9 {
+			return &ValidationError{Code: "PURCHA-0087", Message: fmt.Sprintf("received quantity for SKU %q (%v) would exceed open PO quantity (%v)", line.Sku, receivedBefore[line.Sku]+line.Qty, ordered[line.Sku])}
+		}
+	}
+	return nil
+}
+
+// validateVendorInvoiceCreateRules covers GOODSR-0095: grn_id's own
+// existence is already enforced by ValidateDocument's Link check
+// (META-0198, it's a mandatory Link field per
+// db/migrations_stage17g_vendor_invoice.sql) - what that doesn't catch is a
+// GRN that exists but was never actually completed (no received_items at
+// all, a shell record), which is what "GRN is not completed" describes.
+func validateVendorInvoiceCreateRules(tenantID string, payload map[string]interface{}) error {
+	grnID := strField(payload, "grn_id")
+	if grnID == "" {
+		return nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var receivedItemsStr string
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'received_items', '') FROM %s.documents WHERE doctype = 'GRN' AND id = $1`, schema), grnID).Scan(&receivedItemsStr); err != nil {
+		return nil
+	}
+	if strings.TrimSpace(receivedItemsStr) == "" || strings.TrimSpace(receivedItemsStr) == "[]" {
+		return &ValidationError{Code: "GOODSR-0095", Message: fmt.Sprintf("GRN %s has no received items - it is not completed", grnID)}
+	}
+	return nil
+}
+
+// validatePurchaseOrderEditRules covers PURCHA-0085 (amendment reason
+// required to edit an Approved PO) and PO-0252 (amendment blocked once the
+// PO is fully received) - both only apply to an edit (docID/priorData
+// present) that actually changes items or total_amount, not a create and
+// not a status-only update (e.g. the approval flow moving Draft ->
+// Approved touches nothing this function cares about).
+func validatePurchaseOrderEditRules(tenantID, docID, priorStatus string, priorData, payload map[string]interface{}) error {
+	if docID == "" || priorData == nil {
+		return nil
+	}
+	oldItems, _ := priorData["items"].(string)
+	newItems, _ := payload["items"].(string)
+	oldAmount := numFromInterface(priorData["total_amount"])
+	newAmount := numFromInterface(payload["total_amount"])
+	if oldItems == newItems && oldAmount == newAmount {
+		return nil
+	}
+
+	fullyReceived, err := purchaseOrderFullyReceived(tenantID, docID, "")
+	if err != nil {
+		return err
+	}
+	if fullyReceived {
+		return &ValidationError{Code: "PO-0252", Message: "purchase order cannot be amended after full receipt"}
+	}
+
+	if priorStatus == "Approved" {
+		if strings.TrimSpace(strField(payload, "amendment_reason")) == "" {
+			return &ValidationError{Code: "PURCHA-0085", Message: "amendment reason is required to change an Approved purchase order"}
+		}
+	}
+	return nil
+}
+
+// validateTransferOrderCreateRules covers STOCKT-0111 - a plain field
+// comparison, cheap enough to run on every save rather than gating it to
+// create-only.
+func validateTransferOrderCreateRules(payload map[string]interface{}) error {
+	from := strField(payload, "from_warehouse")
+	to := strField(payload, "to_warehouse")
+	if from != "" && to != "" && from == to {
+		return &ValidationError{Code: "STOCKT-0111", Message: "source and destination location cannot be the same"}
+	}
+	return nil
+}
+
+// validateProductionOrderEditRules covers MANUFA-0144: once a production
+// order has left Draft (material issued or completed), its bom_id/quantity
+// can no longer change - those are exactly the two fields
+// IssueProductionMaterial/CompleteProductionOrder already trusted as fixed
+// at issue time.
+func validateProductionOrderEditRules(priorStatus string, priorData, payload map[string]interface{}) error {
+	if priorData == nil || priorStatus == "" || priorStatus == "Draft" {
+		return nil
+	}
+	oldBOM, _ := priorData["bom_id"].(string)
+	newBOM, _ := payload["bom_id"].(string)
+	if oldBOM != newBOM || numFromInterface(priorData["quantity"]) != numFromInterface(payload["quantity"]) {
+		return &ValidationError{Code: "MANUFA-0144", Message: fmt.Sprintf("production order cannot be amended after release (current status: %s)", priorStatus)}
+	}
+	return nil
+}
+
+// validateEmployeeRules covers HRPAYR-0149: same duplicate-field query
+// shape as master_data_validation.go's Item barcode check, just against
+// Employee's own "code" field instead of Item's "barcode".
+func validateEmployeeRules(tenantID, docID string, payload map[string]interface{}) error {
+	code := strField(payload, "code")
+	if code == "" {
+		return nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var existingID string
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT id FROM %s.documents
+		WHERE doctype = 'Employee' AND data->>'code' = $1 AND id != $2 AND status != 'Cancelled'
+		LIMIT 1`, schema), code, docID).Scan(&existingID)
+	if err == nil {
+		return &ValidationError{Code: "HRPAYR-0149", Message: fmt.Sprintf("employee code %q is already used by %s", code, existingID)}
+	}
+	return nil
+}
+
+// validateLeaveRules covers HRPAYR-0152: an overlapping-date-range query
+// against the same employee's other still-live Leave records.
+func validateLeaveRules(tenantID, docID string, payload map[string]interface{}) error {
+	employeeID := strField(payload, "employee_id")
+	fromDate := strField(payload, "from_date")
+	toDate := strField(payload, "to_date")
+	if employeeID == "" || fromDate == "" || toDate == "" {
+		return nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var existingID string
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT id FROM %s.documents
+		WHERE doctype = 'Leave' AND data->>'employee_id' = $1 AND id != $2
+		AND status NOT IN ('Rejected', 'Cancelled')
+		AND (data->>'from_date') <= $4 AND (data->>'to_date') >= $3
+		LIMIT 1`, schema), employeeID, docID, fromDate, toDate).Scan(&existingID)
+	if err == nil {
+		return &ValidationError{Code: "HRPAYR-0152", Message: fmt.Sprintf("overlaps existing leave record %s for this employee", existingID)}
+	}
+	return nil
+}
+
+// CheckAttendanceLocationMismatch (HR-0268) is a non-blocking Warning
+// (catalog Blocking:false) - it reports a mismatch for the caller to
+// log/audit, it never rejects the save. employeeID/attLocation are read
+// from the same payload the generic doc engine already has in hand.
+func CheckAttendanceLocationMismatch(tenantID string, payload map[string]interface{}) (mismatched bool, message string) {
+	employeeID := strField(payload, "employee_id")
+	attLocation := strField(payload, "location")
+	if employeeID == "" || attLocation == "" {
+		return false, ""
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return false, ""
+	}
+	var empLocation string
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT data->>'location' FROM %s.documents WHERE doctype = 'Employee' AND id = $1`, schema), employeeID).Scan(&empLocation); err != nil {
+		return false, ""
+	}
+	if empLocation == "" || empLocation == attLocation {
+		return false, ""
+	}
+	return true, fmt.Sprintf("Attendance for employee %s recorded at %q, assigned work location is %q", employeeID, attLocation, empLocation)
+}

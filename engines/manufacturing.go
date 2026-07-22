@@ -40,10 +40,16 @@ func fetchBOM(tenantID, bomID string) (parentItem string, components []bomCompon
 	if err != nil {
 		return "", nil, err
 	}
-	var dataStr string
-	err = db.DB.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'BOM' AND id = $1`, schema), bomID).Scan(&dataStr)
+	if bomID == "" {
+		return "", nil, &ValidationError{Code: "MANUFA-0140", Message: "no BOM is maintained for this finished good"}
+	}
+	var dataStr, status string
+	err = db.DB.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'BOM' AND id = $1`, schema), bomID).Scan(&dataStr, &status)
 	if err != nil {
-		return "", nil, fmt.Errorf("BOM not found: %v", err)
+		return "", nil, &ValidationError{Code: "MANUFA-0140", Message: fmt.Sprintf("BOM %s not found", bomID)}
+	}
+	if status != "" && status != "Active" {
+		return "", nil, &ValidationError{Code: "MANUFA-0141", Message: fmt.Sprintf("BOM %s is %s, not Active - select an active BOM", bomID, status)}
 	}
 	var bom struct {
 		ParentItem string `json:"parent_item"`
@@ -103,6 +109,29 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 	}
 	if len(components) == 0 {
 		return fmt.Errorf("BOM %s has no components to issue", bomID)
+	}
+
+	// MANUFA-0143: an explicit pre-check (rather than just relying on
+	// PostInventoryLedger's own generic floor-check error below) so a raw
+	// material shortage reports precisely, the same reason
+	// DispatchTransferOrder (engines/transfer_orders.go) checks available
+	// stock itself before posting instead of leaving it to the shared
+	// ledger call - PostInventoryLedger is also used by checkout/GRN, which
+	// have no catalog code of their own for this scenario, so its error
+	// can't be changed without misattaching MANUFA-0143 to those callers too.
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	for _, c := range components {
+		required := c.Qty * orderQty
+		var available float64
+		if errQ := db.DB.QueryRow(fmt.Sprintf(`SELECT available FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema), c.Sku, location).Scan(&available); errQ != nil {
+			available = 0
+		}
+		if available < required {
+			return &ValidationError{Code: "MANUFA-0143", Message: fmt.Sprintf("raw material stock is insufficient for SKU %s at %s: available %v, required %v", c.Sku, location, available, required)}
+		}
 	}
 
 	items := make([]interface{}, len(components))

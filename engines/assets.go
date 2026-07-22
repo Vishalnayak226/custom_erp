@@ -170,6 +170,14 @@ func CapitalizeAsset(tenantID, assetID string) error {
 	if cost <= 0 {
 		return fmt.Errorf("asset cost must be a positive number to capitalise")
 	}
+	// ASSET-0271: useful_life_years drives calculateDepreciation - without
+	// it, depreciation silently computes as zero forever (see that
+	// function's own usefulLifeYears <= 0 short-circuit) rather than
+	// erroring where the missing input actually is.
+	usefulLife, _ := data["useful_life_years"].(float64)
+	if usefulLife <= 0 {
+		return &ValidationError{Code: "ASSET-0271", Message: "useful_life_years must be a positive number to capitalise - depreciation cannot be calculated without it"}
+	}
 	if _, ok := data["capitalisation_date"].(string); !ok || data["capitalisation_date"] == "" {
 		data["capitalisation_date"] = time.Now().Format("2006-01-02")
 	}
@@ -188,7 +196,7 @@ func TransferAsset(tenantID, assetID, newLocation, newCustodian, actorUsername s
 		return fmt.Errorf("asset not found: %v", err)
 	}
 	if status != "Capitalised" {
-		return fmt.Errorf("only a Capitalised asset can be transferred (current status: %s)", status)
+		return &ValidationError{Code: "ASSET-0270", Message: fmt.Sprintf("only a Capitalised asset can be transferred (current status: %s)", status)}
 	}
 	oldLocation, _ := data["location"].(string)
 	oldCustodian, _ := data["custodian"].(string)
@@ -215,7 +223,7 @@ func DisposeAsset(tenantID, assetID, disposalType string) error {
 		return fmt.Errorf("asset not found: %v", err)
 	}
 	if status != "Capitalised" {
-		return fmt.Errorf("only a Capitalised asset can be disposed (current status: %s)", status)
+		return &ValidationError{Code: "ASSET-0270", Message: fmt.Sprintf("only a Capitalised asset can be disposed (current status: %s)", status)}
 	}
 
 	cost := 0

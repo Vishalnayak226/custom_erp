@@ -102,7 +102,7 @@ func handlePayVendorInvoiceWithTDS(w http.ResponseWriter, r *http.Request) {
 	}
 	netPaid, tdsAmount, err := engines.PayVendorInvoiceWithTDS(tenantID, req.InvoiceID, req.TDSSection, userID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{

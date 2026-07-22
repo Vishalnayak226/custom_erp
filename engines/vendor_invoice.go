@@ -211,7 +211,7 @@ func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 		return 0, false, fmt.Errorf("invoice is already pending an override approval decision")
 	}
 	if status != "Matched" && overrideReason == "" {
-		return 0, false, fmt.Errorf("invoice is not Matched (status: %s) - pay requires an explicit override_reason", status)
+		return 0, false, &ValidationError{Code: "VENDOR-0092", Message: fmt.Sprintf("invoice is not Matched (status: %s) - pay requires an explicit override_reason", status)}
 	}
 
 	var data map[string]interface{}

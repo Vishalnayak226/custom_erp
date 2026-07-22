@@ -50,7 +50,7 @@ func handleCapitalizeAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := engines.CapitalizeAsset(tenantID, req.AssetID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "ASSET_CAPITALIZE", "SUCCESS", fmt.Sprintf("Asset %s capitalised", req.AssetID))
@@ -74,7 +74,7 @@ func handleTransferAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := engines.TransferAsset(tenantID, req.AssetID, req.NewLocation, req.NewCustodian, username); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "transferred"})
@@ -96,7 +96,7 @@ func handleDisposeAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := engines.DisposeAsset(tenantID, req.AssetID, req.DisposalType); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "ASSET_DISPOSE", "SUCCESS", fmt.Sprintf("Asset %s disposed (%s)", req.AssetID, req.DisposalType))
@@ -226,7 +226,7 @@ func handleIssueProductionMaterial(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := engines.IssueProductionMaterial(tenantID, req.OrderID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "PRODUCTION_MATERIAL_ISSUE", "SUCCESS", fmt.Sprintf("Material issued for production order %s", req.OrderID))
@@ -248,7 +248,7 @@ func handleCompleteProductionOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := engines.CompleteProductionOrder(tenantID, req.OrderID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "PRODUCTION_ORDER_COMPLETE", "SUCCESS", fmt.Sprintf("Production order %s completed, finished goods received", req.OrderID))
@@ -438,28 +438,46 @@ func handleFulfillmentReturn(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	err := engines.ProcessReturnAnywhere(tenantID, req.ReturnLocation, req.OriginalOrderID, itemsInterface)
+	totalRefund, err := engines.ProcessReturnAnywhere(tenantID, req.ReturnLocation, req.OriginalOrderID, itemsInterface)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 
-	// Save dynamic SalesReturn document
+	// Save dynamic SalesReturn document. Field names match SalesReturn's
+	// own declared doctype_fields schema (return_number/invoice_id/
+	// amount_refunded, db/migration.sql) - a prior version of this handler
+	// persisted req's own field names (original_order_id, no amount_refunded
+	// at all) instead, which silently didn't match that schema and meant
+	// engines.sumPriorReturns (Stage 25 Batch 3, SALESR-0130's already-
+	// returned-qty check) would never have found this record. Fixed here
+	// rather than left for a future caller to rediscover, since getting
+	// SALESR-0130 right requires this to be correct going forward.
+	returnID := fmt.Sprintf("RET-%s", req.OriginalOrderID)
 	schema, err := db.GetTenantSchema(tenantID)
 	if err == nil {
-		payloadBytes, _ := json.Marshal(req)
+		docData := map[string]interface{}{
+			"return_number":   returnID,
+			"invoice_id":      req.OriginalOrderID,
+			"amount_refunded": totalRefund,
+			"items":           req.Items,
+			"return_location": req.ReturnLocation,
+		}
+		payloadBytes, _ := json.Marshal(docData)
 		query := fmt.Sprintf(`
-			INSERT INTO %s.documents (id, doctype, data, status, created_by) 
+			INSERT INTO %s.documents (id, doctype, data, status, created_by)
 			VALUES ($1, 'SalesReturn', $2, 'Returned', 'system')`, schema)
-		_, _ = db.DB.Exec(query, fmt.Sprintf("RET-%s", req.OriginalOrderID), payloadBytes)
+		_, _ = db.DB.Exec(query, returnID, payloadBytes)
 	}
 
-	_ = json.NewEncoder(w).Encode(map[string]string{
-		"status":            "refunded",
-		"original_order_id": req.OriginalOrderID,
-		"returned_location": req.ReturnLocation,
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":             "refunded",
+		"original_order_id":  req.OriginalOrderID,
+		"returned_location":  req.ReturnLocation,
+		"amount_refunded":    totalRefund,
 	})
 }
+
 
 func handleDispatchTransferOrder(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
@@ -476,7 +494,7 @@ func handleDispatchTransferOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := engines.DispatchTransferOrder(tenantID, req.TransferOrderID, userID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Dispatched", "transfer_order_id": req.TransferOrderID})
@@ -492,8 +510,9 @@ func handleReceiveTransferOrder(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		TransferOrderID string `json:"transfer_order_id"`
 		ReceivedItems   []struct {
-			Sku string `json:"sku"`
-			Qty int    `json:"qty"`
+			Sku    string `json:"sku"`
+			Qty    int    `json:"qty"`
+			Reason string `json:"reason"`
 		} `json:"received_items"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TransferOrderID == "" {
@@ -502,10 +521,10 @@ func handleReceiveTransferOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	itemsInterface := make([]interface{}, len(req.ReceivedItems))
 	for i, item := range req.ReceivedItems {
-		itemsInterface[i] = map[string]interface{}{"sku": item.Sku, "qty": item.Qty}
+		itemsInterface[i] = map[string]interface{}{"sku": item.Sku, "qty": item.Qty, "reason": item.Reason}
 	}
 	if err := engines.ReceiveTransferOrder(tenantID, req.TransferOrderID, userID, itemsInterface); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "Received", "transfer_order_id": req.TransferOrderID})
@@ -582,7 +601,7 @@ func handlePayVendorInvoice(w http.ResponseWriter, r *http.Request) {
 	}
 	amountPaid, pendingApproval, err := engines.PayVendorInvoice(tenantID, req.InvoiceID, userID, role, req.OverrideReason)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	// 24.11: an override no longer pays inline - it's routed to the approval
@@ -693,8 +712,22 @@ func handleLogisticsBook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.OrderID == "" || req.Carrier == "" || req.TrackingNumber == "" {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'order_id', 'carrier', and 'tracking_number' are required")
+	if req.OrderID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'order_id' is required")
+		return
+	}
+	// WMSLOG-0137: carried as its own precise scenario since the catalog
+	// specifically names a missing logistics partner, distinct from a
+	// missing tracking number (which has no catalog code of its own here -
+	// see docs/micro_checklist.md Stage 25 for why WMSLOG-0138/0139 aren't
+	// wired: no AWB-generation or delivery-status-update call exists to
+	// attach them to).
+	if req.Carrier == "" {
+		writeAPIError(w, r, "WMSLOG-0137", "")
+		return
+	}
+	if req.TrackingNumber == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'tracking_number' is required")
 		return
 	}
 

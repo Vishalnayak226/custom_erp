@@ -134,7 +134,10 @@ func TestTransferOrderDispatchReceiveLifecycle(t *testing.T) {
 			t.Fatalf("dispatch: %v", err)
 		}
 
-		if err := ReceiveTransferOrder(tenantID, toID, "system", []interface{}{map[string]interface{}{"sku": sku, "qty": 20}}); err != nil {
+		// TRN-0259 (Stage 25 Batch 3): a shortfall now requires a
+		// shortage/damage reason - without one, ReceiveTransferOrder
+		// rejects the call rather than silently recording the variance.
+		if err := ReceiveTransferOrder(tenantID, toID, "system", []interface{}{map[string]interface{}{"sku": sku, "qty": 20, "reason": "carton damaged in transit"}}); err != nil {
 			t.Fatalf("ReceiveTransferOrder: %v", err)
 		}
 
@@ -171,6 +174,25 @@ func TestTransferOrderDispatchReceiveLifecycle(t *testing.T) {
 		}
 		if err := ReceiveTransferOrder(tenantID, toID, "system", []interface{}{map[string]interface{}{"sku": sku, "qty": 999}}); err == nil {
 			t.Fatalf("expected rejection for receiving more than dispatched")
+		}
+	})
+
+	t.Run("short-receive without a reason is rejected (TRN-0259)", func(t *testing.T) {
+		cleanup()
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 100, 100)", sku, fromWH); err != nil {
+			t.Fatalf("seed availability: %v", err)
+		}
+		seedOrder(toID, "Approved", []map[string]interface{}{{"sku": sku, "qty": 30}})
+		if err := DispatchTransferOrder(tenantID, toID, "system"); err != nil {
+			t.Fatalf("dispatch: %v", err)
+		}
+		err := ReceiveTransferOrder(tenantID, toID, "system", []interface{}{map[string]interface{}{"sku": sku, "qty": 20}})
+		if err == nil {
+			t.Fatalf("expected a short receive with no reason to be rejected")
+		}
+		verr, ok := err.(*ValidationError)
+		if !ok || verr.Code != "TRN-0259" {
+			t.Fatalf("expected a TRN-0259 ValidationError, got: %v", err)
 		}
 	})
 }

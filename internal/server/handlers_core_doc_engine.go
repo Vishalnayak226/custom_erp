@@ -413,13 +413,31 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// had *before* this write, so an edit to an already-Approved
 		// approval-gated document can be forced back into the approval
 		// queue after the upsert below, regardless of what status the
-		// incoming payload itself claims.
+		// incoming payload itself claims. Stage 25 Batch 3 reuses this same
+		// pre-write lookup (now also capturing the prior data, not just
+		// status) for PurchaseOrder/ProductionOrder's own edit-gate checks
+		// just below, rather than a second query.
 		wasApproved := false
+		var priorStatus string
+		var priorData map[string]interface{}
 		if docID != "" {
-			var priorStatus string
-			if errPrior := db.DB.QueryRow(fmt.Sprintf(`SELECT status FROM %s.documents WHERE doctype = $1 AND id = $2`, schema), doctype, docID).Scan(&priorStatus); errPrior == nil {
+			var priorDataStr string
+			if errPrior := db.DB.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = $1 AND id = $2`, schema), doctype, docID).Scan(&priorDataStr, &priorStatus); errPrior == nil {
 				wasApproved = priorStatus == "Approved"
+				_ = json.Unmarshal([]byte(priorDataStr), &priorData)
 			}
+		}
+
+		// Stage 25 Batch 3: GRN/PurchaseOrder/TransferOrder/ProductionOrder/
+		// Employee/Leave transactional checks - same choke point as Batch
+		// 2's ValidateMasterDataRules above, just for this stage's modules.
+		if err := engines.ValidateTransactionalRules(tenantID, doctype, docID, priorStatus, priorData, payload); err != nil {
+			if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
+				writeAPIError(w, r, verr.Code, verr.SubFor)
+			} else {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+			}
+			return
 		}
 
 		// Optimistic locking (24.10): a caller can optionally include
@@ -513,6 +531,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			empStatus, _ := payload["status"].(string)
 			if errSync := engines.SyncEmployeeAccessLink(tenantID, empUserID, empStatus); errSync != nil {
 				engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "ACCESS_LINK_SYNC_FAILED", r.URL.Path, errSync.Error(), "")
+			}
+		}
+
+		// Attendance location-mismatch check (HR-0268, Stage 25 Batch 3): a
+		// Warning catalog entry with Blocking:false - it logs/audits, it
+		// never rejects the save (unlike the checks routed through
+		// ValidateTransactionalRules above, which are all Blocking:true).
+		if doctype == "Attendance" {
+			if mismatched, msg := engines.CheckAttendanceLocationMismatch(tenantID, payload); mismatched {
+				logForEntry(r, errorCatalog["HR-0268"], msg)
 			}
 		}
 

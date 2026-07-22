@@ -68,7 +68,7 @@ func PayVendorInvoiceWithTDS(tenantID, invoiceID, sectionCode, userID string) (n
 		return 0, 0, fmt.Errorf("invoice is already Paid")
 	}
 	if status != "Matched" {
-		return 0, 0, fmt.Errorf("invoice is not Matched (status: %s)", status)
+		return 0, 0, &ValidationError{Code: "VENDOR-0092", Message: fmt.Sprintf("invoice is not Matched (status: %s)", status)}
 	}
 
 	var data map[string]interface{}

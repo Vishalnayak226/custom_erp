@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -724,6 +725,16 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := engines.DecideApproval(tenantID, req.Doctype, req.DocumentID, userID, role, location, req.Decision, req.Comment); err != nil {
+		// PURCHA-0083 (Stage 25 Batch 3): DecideApproval's role-mismatch
+		// failure is generic across every approval-gated doctype
+		// (POSCart/VendorInvoice/CycleCountLine/PurchaseOrder/...) - only
+		// PurchaseOrder has a catalog scenario worded for it specifically,
+		// so it's mapped here rather than inside DecideApproval itself,
+		// which would need to pick one doctype's wording for every caller.
+		if req.Doctype == "PurchaseOrder" && errors.Is(err, engines.ErrApprovalRoleMismatch) {
+			writeAPIError(w, r, "PURCHA-0083", "")
+			return
+		}
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}

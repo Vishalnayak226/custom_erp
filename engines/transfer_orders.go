@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 type transferLine struct {
@@ -154,12 +155,12 @@ func DispatchTransferOrder(tenantID, transferOrderID, userID string) error {
 			`SELECT available FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2 FOR UPDATE`, schema),
 			line.Sku, fromWarehouse).Scan(&available); err != nil {
 			if err == sql.ErrNoRows {
-				return fmt.Errorf("insufficient stock for SKU %s at %s: no inventory record", line.Sku, fromWarehouse)
+				return &ValidationError{Code: "STOCKT-0112", Message: fmt.Sprintf("insufficient stock for SKU %s at %s: no inventory record", line.Sku, fromWarehouse)}
 			}
 			return err
 		}
 		if available < line.Qty {
-			return fmt.Errorf("insufficient stock for SKU %s at %s: available=%d, requested=%d", line.Sku, fromWarehouse, available, line.Qty)
+			return &ValidationError{Code: "STOCKT-0112", Message: fmt.Sprintf("transfer quantity exceeds available stock for SKU %s at %s: available=%d, requested=%d", line.Sku, fromWarehouse, available, line.Qty)}
 		}
 		if _, err := tx.Exec(fmt.Sprintf(
 			`UPDATE %s.inventory_availability SET available = available - $1, in_transit = in_transit + $1, updated_at = CURRENT_TIMESTAMP
@@ -233,6 +234,10 @@ func ReceiveTransferOrder(tenantID, transferOrderID, userID string, receivedItem
 	fromWarehouse, _ := data["from_warehouse"].(string)
 
 	receivedBySku := map[string]int{}
+	// reasonBySku (TRN-0259) holds each line's shortage/damage reason, if the
+	// caller supplied one - required below only for a line that actually
+	// falls short of what was dispatched.
+	reasonBySku := map[string]string{}
 	for _, itemVal := range receivedItems {
 		itemMap, ok := itemVal.(map[string]interface{})
 		if !ok {
@@ -249,6 +254,9 @@ func ReceiveTransferOrder(tenantID, transferOrderID, userID string, receivedItem
 			}
 		}
 		receivedBySku[sku] = qty
+		if reason, _ := itemMap["reason"].(string); reason != "" {
+			reasonBySku[sku] = reason
+		}
 	}
 
 	type varianceLine struct {
@@ -266,6 +274,9 @@ func ReceiveTransferOrder(tenantID, transferOrderID, userID string, receivedItem
 		}
 		if receivedQty < 0 || receivedQty > line.Qty {
 			return fmt.Errorf("received qty for SKU %s must be between 0 and the dispatched qty %d (got %d)", line.Sku, line.Qty, receivedQty)
+		}
+		if receivedQty < line.Qty && strings.TrimSpace(reasonBySku[line.Sku]) == "" {
+			return &ValidationError{Code: "TRN-0259", Message: fmt.Sprintf("received quantity for SKU %s (%d) does not match dispatched quantity (%d) - a shortage/damage reason is required", line.Sku, receivedQty, line.Qty)}
 		}
 
 		if _, err := tx.Exec(fmt.Sprintf(

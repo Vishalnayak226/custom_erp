@@ -130,6 +130,22 @@ func writeAPIError(w http.ResponseWriter, r *http.Request, code string, subFor s
 	})
 }
 
+// writeEngineError (Stage 25 Batch 3) is the same *engines.ValidationError
+// type-assert dance handlers_core_doc_engine.go's generic doc POST path
+// already does inline in three places - this gives the action-style
+// handlers in handlers_operations.go/handlers_pim_pos_finance.go (which
+// call a single-purpose engine function rather than going through the
+// generic doc engine) the same one-liner instead of duplicating the
+// assertion at every call site. fallbackStatus is used when err isn't a
+// precisely-coded *engines.ValidationError.
+func writeEngineError(w http.ResponseWriter, r *http.Request, err error, fallbackStatus int) {
+	if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
+		writeAPIError(w, r, verr.Code, verr.SubFor)
+		return
+	}
+	writeAPIErrorGeneric(w, r, fallbackStatus, err.Error())
+}
+
 // writeAPIErrorGeneric writes a standardized error envelope for a call site
 // that has no precise catalog scenario match yet. It keeps the caller's own
 // message text verbatim and only attaches the nearest generic code (by HTTP

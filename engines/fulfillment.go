@@ -7,6 +7,77 @@ import (
 	"time"
 )
 
+// salesReturnWindowDays (SALESR-0129) is a hardcoded default, same shape as
+// vendor_invoice.go's defaultVendorInvoiceTolerancePercent and
+// expense.go's 90-day claim window - no return-policy configuration table
+// exists yet to make this tenant-configurable.
+const salesReturnWindowDays = 30
+
+// resolveOriginalSale (SALESR-0129/0130/0131) looks up the sale a return
+// claims against. POSCart is checked first (this app's actual retail sale
+// path) and returns its line items so the caller can cross-check returned
+// quantities; SalesInvoice has no per-line item data at all (it's a single
+// total_amount doctype - see sales_invoice.go), so a SalesInvoice match
+// only satisfies "an original bill exists", not a quantity cross-check.
+func resolveOriginalSale(tenantID, orderID string) (lines []transferLine, saleDate time.Time, found bool, err error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, time.Time{}, false, err
+	}
+	var dataStr string
+	var createdAt time.Time
+	if errQ := db.DB.QueryRow(fmt.Sprintf(
+		`SELECT data, created_at FROM %s.documents WHERE doctype = 'POSCart' AND id = $1 AND status = 'Paid'`, schema),
+		orderID).Scan(&dataStr, &createdAt); errQ == nil {
+		var cart struct {
+			Items []transferLine `json:"items"`
+		}
+		if errU := json.Unmarshal([]byte(dataStr), &cart); errU == nil {
+			lines = cart.Items
+		}
+		return lines, createdAt, true, nil
+	}
+	if errQ := db.DB.QueryRow(fmt.Sprintf(
+		`SELECT created_at FROM %s.documents WHERE doctype = 'SalesInvoice' AND id = $1`, schema),
+		orderID).Scan(&createdAt); errQ == nil {
+		return nil, createdAt, true, nil
+	}
+	return nil, time.Time{}, false, nil
+}
+
+// sumPriorReturns totals qty already returned per SKU against orderID from
+// earlier SalesReturn documents, so a second partial return against the
+// same order can't collectively exceed what was originally sold.
+func sumPriorReturns(tenantID, orderID string) (map[string]int, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(
+		`SELECT data FROM %s.documents WHERE doctype = 'SalesReturn' AND data->>'invoice_id' = $1`, schema), orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	totals := map[string]int{}
+	for rows.Next() {
+		var dataStr string
+		if err := rows.Scan(&dataStr); err != nil {
+			return nil, err
+		}
+		var ret struct {
+			Items []transferLine `json:"items"`
+		}
+		if err := json.Unmarshal([]byte(dataStr), &ret); err != nil {
+			continue
+		}
+		for _, l := range ret.Items {
+			totals[l.Sku] += l.Qty
+		}
+	}
+	return totals, rows.Err()
+}
+
 // CreateFulfillmentTasks registers a store-level pick task
 func CreateFulfillmentTasks(tenantID string, orderID string, locationCode string, items []interface{}) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
@@ -213,21 +284,68 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 	return tx.Commit()
 }
 
-// ProcessReturnAnywhere processes sales returns at any store, updating inventory and general ledger
-func ProcessReturnAnywhere(tenantID string, returnLocation string, originalOrderID string, items []interface{}) error {
+// ProcessReturnAnywhere processes sales returns at any store, updating
+// inventory and general ledger. Returns the total refund value (sum of
+// sale_price*qty across the returned lines) so the caller can persist it
+// on the SalesReturn document as amount_refunded.
+func ProcessReturnAnywhere(tenantID string, returnLocation string, originalOrderID string, items []interface{}) (totalRefund int, err error) {
+	// SALESR-0129/0130/0131: resolved and checked before any side effect
+	// (inventory increment, GL posting) runs, same ordering discipline
+	// checkout/GRN's own validation-before-effects blocks already use.
+	soldLines, saleDate, found, errResolve := resolveOriginalSale(tenantID, originalOrderID)
+	if errResolve != nil {
+		return 0, errResolve
+	}
+	if !found {
+		return 0, &ValidationError{Code: "SALESR-0131", Message: fmt.Sprintf("no original bill found for %q - a sales return requires a valid original bill reference", originalOrderID)}
+	}
+	if !saleDate.IsZero() && time.Since(saleDate) > salesReturnWindowDays*24*time.Hour {
+		return 0, &ValidationError{Code: "SALESR-0129", Message: fmt.Sprintf("sales return is not allowed more than %d days after the original sale (%s)", salesReturnWindowDays, saleDate.Format("2006-01-02"))}
+	}
+	if len(soldLines) > 0 {
+		soldBySku := map[string]int{}
+		for _, l := range soldLines {
+			soldBySku[l.Sku] += l.Qty
+		}
+		alreadyReturned, errSum := sumPriorReturns(tenantID, originalOrderID)
+		if errSum != nil {
+			return 0, errSum
+		}
+		for _, itemVal := range items {
+			itemMap, ok := itemVal.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			sku, _ := itemMap["sku"].(string)
+			qty := 0
+			if q, exists := itemMap["qty"]; exists {
+				switch v := q.(type) {
+				case float64:
+					qty = int(v)
+				case int:
+					qty = v
+				}
+			}
+			remaining := soldBySku[sku] - alreadyReturned[sku]
+			if qty > remaining {
+				return 0, &ValidationError{Code: "SALESR-0130", Message: fmt.Sprintf("return quantity for SKU %q (%d) exceeds remaining returnable quantity (%d)", sku, qty, remaining)}
+			}
+		}
+	}
+
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	tx, err := db.DB.Begin()
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer tx.Rollback()
 
 	if err := db.SetSearchPath(tx, schema); err != nil {
-		return err
+		return 0, err
 	}
 
 	totalSalePrice := 0
@@ -257,7 +375,7 @@ func ProcessReturnAnywhere(tenantID string, returnLocation string, originalOrder
 		// bare ON CONFLICT DO UPDATE, not the row-locked floor-checked path checkout
 		// uses), which is exactly the "negative stock" loophole applied to this handler.
 		if qty <= 0 {
-			return fmt.Errorf("return quantity must be positive (sku=%q, qty=%d)", sku, qty)
+			return 0, fmt.Errorf("return quantity must be positive (sku=%q, qty=%d)", sku, qty)
 		}
 
 		salePrice := 0
@@ -292,14 +410,14 @@ func ProcessReturnAnywhere(tenantID string, returnLocation string, originalOrder
 				available = %s.inventory_availability.available + EXCLUDED.available, 
 				updated_at = CURRENT_TIMESTAMP`, schema, schema, schema), sku, returnLocation, qty)
 		if err != nil {
-			return err
+			return 0, err
 		}
 	}
 
 	// 2. Commit DB transaction first before using Finance engine
 	err = tx.Commit()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	// 3. Post double-entry reverse finance bookings (debit Revenue, credit Cash/Bank; debit Inventory, credit COGS).
@@ -313,10 +431,13 @@ func ProcessReturnAnywhere(tenantID string, returnLocation string, originalOrder
 	revenueCredits := map[string]int{"1100": totalSalePrice} // Credit: Cash/Bank (refund customer)
 	err = PostDoubleEntry(tenantID, "SalesReturn", originalOrderID, revenueDebits, revenueCredits, "", "")
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	inventoryDebits := map[string]int{"1200": totalCostPrice}  // Debit: Inventory Control (receive stock)
 	inventoryCredits := map[string]int{"5100": totalCostPrice} // Credit: Cost of Goods Sold (reduce COGS)
-	return PostDoubleEntry(tenantID, "SalesReturn", originalOrderID, inventoryDebits, inventoryCredits, "", "")
+	if err := PostDoubleEntry(tenantID, "SalesReturn", originalOrderID, inventoryDebits, inventoryCredits, "", ""); err != nil {
+		return 0, err
+	}
+	return totalSalePrice, nil
 }

@@ -343,7 +343,18 @@ func TestEngines(t *testing.T) {
 			t.Errorf("Expected WH02 reserved count to rise to 20, got: %d", wh02Reserved)
 		}
 
-		// 3. Test Return Anywhere: Return items originally from WH02 to WH01
+		// 3. Test Return Anywhere: Return items originally from WH02 to WH01.
+		// ProcessReturnAnywhere's SALESR-0129/0130/0131 checks (Stage 25
+		// Batch 3) now require a real original sale to validate the return
+		// against - seed the Paid POSCart "ORD-WEB-111" refers to as its
+		// original bill (10 units sold, 5 being returned here).
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'POSCart' AND id = $1", "ORD-WEB-111")
+		_, err = db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'POSCart', $2, 'Paid', 'system')",
+			"ORD-WEB-111", `{"items":[{"sku":"BAR12345","qty":10}]}`)
+		if err != nil {
+			t.Fatalf("Failed to seed original POSCart for Return Anywhere test: %v", err)
+		}
+
 		returnItems := []interface{}{
 			map[string]interface{}{
 				"sku":        "BAR12345",
@@ -353,7 +364,7 @@ func TestEngines(t *testing.T) {
 			},
 		}
 
-		err = ProcessReturnAnywhere(tenantID, "WH01", "ORD-WEB-111", returnItems)
+		_, err = ProcessReturnAnywhere(tenantID, "WH01", "ORD-WEB-111", returnItems)
 		if err != nil {
 			t.Fatalf("Failed to process Return Anywhere: %v", err)
 		}
