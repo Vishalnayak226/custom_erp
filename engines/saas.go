@@ -100,6 +100,7 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		"module_entitlements",
 		"extension_hooks",
 		"extension_hook_log",
+		"field_permissions",
 	}
 
 	tx, err := db.DB.Begin()
@@ -128,6 +129,7 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		"prefix_configs",
 		"feature_flags",
 		"module_entitlements",
+		"field_permissions",
 	}
 
 	for _, seedTable := range seeds {
