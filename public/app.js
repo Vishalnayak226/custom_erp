@@ -291,6 +291,7 @@ const OFFLINE_QUEUE_KEY = 'erp_pos_offline_queue'; // 20.13, see checkoutOnlineO
 let offlineSyncInFlight = false;
 let currentSearchQuery = '';
 let currentTablePage = 1;
+let currentExtensionHookLogId = ''; // which hook's log renderExtensionHookLogView shows
 const itemsPerPage = 10;
 let bulkSelectedDocIDs = new Set();
 // 21.9 QA-follow-up: set while the dynamic modal is editing an existing
@@ -841,6 +842,7 @@ const MENU_PERMISSION_MAP = {
   'menu-prefix-configs': { adminOnly: true },
   'menu-dynamic-labels': { adminOnly: true },
   'menu-doctype-builder': { adminOnly: true },
+  'menu-extension-hooks': { adminOnly: true },
   'menu-audit-logs': { adminOnly: true }
 };
 
@@ -1127,7 +1129,7 @@ function setupEventListeners() {
   // Offline Sync Review (Stage 20.13) - same generic doctype-table pattern as POS Profile/Bin above.
   document.getElementById('menu-pos-offline-sync').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-sync'); closeSubmenus(); currentDoctype = 'POSOfflineSyncVariance'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-audit-logs'].forEach(id => {
+  ['menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -1350,6 +1352,8 @@ const STATIC_VIEW_MENU_IDS = {
   roles: 'menu-roles',
   'prefix-configs': 'menu-prefix-configs',
   'dynamic-labels': 'menu-dynamic-labels',
+  'extension-hooks': 'menu-extension-hooks',
+  'extension-hook-log': 'menu-extension-hooks',
   'audit-logs': 'menu-audit-logs',
   'vendor-invoices': 'menu-vendor-invoices',
   'payment-proposals': 'menu-payment-proposals',
@@ -1471,6 +1475,10 @@ async function renderView(view) {
     await renderPrefixConfigsView(root);
   } else if (view === 'dynamic-labels') {
     renderDynamicLabelsView(root);
+  } else if (view === 'extension-hooks') {
+    await renderExtensionHooksView(root);
+  } else if (view === 'extension-hook-log') {
+    await renderExtensionHookLogView(root);
   } else if (view === 'audit-logs') {
     await renderLogHubView(root);
   } else if (view === 'profile') {
@@ -1970,6 +1978,7 @@ function renderDashboard(container) {
     { title: 'Database Schema Design', desc: 'Build schemas and customize properties', action: () => { setActiveMenu('menu-doctype-builder'); renderView('doctype-builder'); } },
     { title: 'Dynamic Labels', desc: 'Configure customized nomenclature', action: () => { setActiveMenu('menu-dynamic-labels'); renderView('dynamic-labels'); } },
     { title: 'Prefix Configs', desc: 'Configure sequential transaction prefixes', action: () => { setActiveMenu('menu-prefix-configs'); renderView('prefix-configs'); } },
+    { title: 'Extension Hooks', desc: 'Manage 3rd-party webhook hooks and scoped tokens', action: () => { setActiveMenu('menu-extension-hooks'); renderView('extension-hooks'); } },
     { title: 'Activity Log', desc: 'Track audits, panics, and payloads', action: () => { setActiveMenu('menu-audit-logs'); renderView('audit-logs'); } }
   ];
 
@@ -7705,6 +7714,287 @@ window.deleteLabelReplacement = async function(orig) {
     }
   }
 };
+
+// Extension Hooks (client extension-layer admin, docs/extension_hooks_checklist.md
+// gap found 2026-07-22): Stage 14.17-14.20 built the whole hook/token
+// mechanism (engines/extensions.go) API-only - no screen existed anywhere in
+// public/, so an admin needed curl/Postman to register a hook or issue a
+// scoped token for a client's own hired developer. Reuses the same
+// .table-panel/inline-form conventions Accounting Periods (Stage 20.34)
+// already established for this shape of screen (a small create-form panel
+// above a list table).
+async function renderExtensionHooksView(container) {
+  const res = await apiFetch('/api/v1/admin/extension/hooks');
+  if (!res) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Extension Hooks</h1>
+      <p class="page-subtitle">Webhook hooks and scoped tokens for a client's own hired developer - see extension-sdk/README.md.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  if (!res.ok) {
+    renderErrorPanel(container, 'Failed to load extension hooks.', () => renderView('extension-hooks'));
+    return;
+  }
+  const hooks = await res.json();
+
+  const hookFormPanel = document.createElement('div');
+  hookFormPanel.className = 'table-panel';
+  hookFormPanel.style.padding = '24px';
+  hookFormPanel.style.marginBottom = '24px';
+  hookFormPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Register a Hook</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="hook-point">Hook Point</label>
+        <select id="hook-point" class="form-select" style="width: 190px;">
+          <option value="document.before_save">document.before_save</option>
+          <option value="document.after_save">document.after_save</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="hook-doctype">Doctype</label>
+        <input type="text" id="hook-doctype" class="form-input" placeholder="e.g. Item, or * for every doctype" style="width: 200px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="hook-target-url">Target URL (https://)</label>
+        <input type="text" id="hook-target-url" class="form-input" placeholder="https://client-endpoint.example.com/hook" style="width: 320px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="hook-timeout">Timeout (ms)</label>
+        <input type="number" id="hook-timeout" class="form-input" value="3000" min="1" max="10000" style="width: 100px;">
+      </div>
+      <button class="btn btn-primary" id="hook-register-btn">Register Hook</button>
+    </div>
+    <div id="hook-form-error" class="login-error hidden" style="margin-bottom: 0;"></div>
+  `;
+  container.appendChild(hookFormPanel);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.marginBottom = '24px';
+  panel.innerHTML = `
+    <table>
+      <thead><tr><th>Hook Point</th><th>Doctype</th><th>Target URL</th><th>Enabled</th><th>Timeout</th><th>Created By</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${hooks.length === 0
+          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No extension hooks registered yet.</td></tr>`
+          : hooks.map(h => `
+            <tr>
+              <td>${h.hook_point}</td>
+              <td style="font-weight:600;">${h.doctype}</td>
+              <td style="font-family: monospace; max-width: 280px; overflow-wrap: anywhere;">${h.target_url}</td>
+              <td><span class="badge ${h.enabled ? 'badge-success' : 'badge-secondary'}">${h.enabled ? 'Enabled' : 'Disabled'}</span></td>
+              <td>${h.timeout_ms}ms</td>
+              <td>${h.created_by || ''}</td>
+              <td>${h.created_at ? new Date(h.created_at).toLocaleString() : ''}</td>
+              <td>
+                <button class="action-btn" onclick="viewExtensionHookLog('${h.id}')">View Log</button>
+                <button class="action-btn action-btn-danger" onclick="deleteExtensionHookRow('${h.id}')">Delete</button>
+              </td>
+            </tr>
+          `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(panel);
+
+  const tokenPanel = document.createElement('div');
+  tokenPanel.className = 'table-panel';
+  tokenPanel.style.padding = '24px';
+  tokenPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Issue an Extension Token</h2>
+    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">Scoped read-only credential for a client's own hired developer - locked to one tenant + one doctype, no role, cannot log into the UI.</p>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="token-scope-doctype">Scope Doctype</label>
+        <input type="text" id="token-scope-doctype" class="form-input" placeholder="e.g. Item" style="width: 200px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="token-ttl">TTL (minutes, max 1440)</label>
+        <input type="number" id="token-ttl" class="form-input" value="60" min="1" max="1440" style="width: 100px;">
+      </div>
+      <button class="btn btn-primary" id="token-issue-btn">Issue Token</button>
+    </div>
+    <div id="token-form-error" class="login-error hidden" style="margin-bottom: 0;"></div>
+  `;
+  container.appendChild(tokenPanel);
+
+  document.getElementById('hook-register-btn').addEventListener('click', async () => {
+    const errorEl = document.getElementById('hook-form-error');
+    errorEl.classList.add('hidden');
+    const hookPoint = document.getElementById('hook-point').value;
+    const doctype = document.getElementById('hook-doctype').value.trim();
+    const targetUrl = document.getElementById('hook-target-url').value.trim();
+    const timeoutMs = parseInt(document.getElementById('hook-timeout').value, 10) || 3000;
+    if (!doctype || !targetUrl) {
+      errorEl.textContent = 'Doctype and target URL are both required.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    const createRes = await apiFetch('/api/v1/admin/extension/hooks', {
+      method: 'POST',
+      body: JSON.stringify({ hook_point: hookPoint, doctype, target_url: targetUrl, timeout_ms: timeoutMs })
+    });
+    if (!createRes) return;
+    if (!createRes.ok) {
+      errorEl.textContent = await getErrorMessage(createRes, 'Failed to register hook.');
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    const created = await createRes.json();
+    await showOneTimeSecretDialog(
+      'Hook Registered',
+      'HMAC signing secret - shown once, store it now. It is not persisted in plaintext anywhere and cannot be retrieved again:',
+      created.secret
+    );
+    renderView('extension-hooks');
+  });
+
+  document.getElementById('token-issue-btn').addEventListener('click', async () => {
+    const errorEl = document.getElementById('token-form-error');
+    errorEl.classList.add('hidden');
+    const scopeDoctype = document.getElementById('token-scope-doctype').value.trim();
+    const ttlMinutes = parseInt(document.getElementById('token-ttl').value, 10) || 60;
+    if (!scopeDoctype) {
+      errorEl.textContent = 'Scope doctype is required.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    const tokenRes = await apiFetch('/api/v1/admin/extension/token', {
+      method: 'POST',
+      body: JSON.stringify({ scope_doctype: scopeDoctype, ttl_minutes: ttlMinutes })
+    });
+    if (!tokenRes) return;
+    if (!tokenRes.ok) {
+      errorEl.textContent = await getErrorMessage(tokenRes, 'Failed to issue token.');
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    const data = await tokenRes.json();
+    await showOneTimeSecretDialog(
+      'Extension Token Issued',
+      `Scoped to doctype "${data.scope_doctype}", expires in ${data.expires_in_minutes} minutes. Shown once - store it now:`,
+      data.token
+    );
+  });
+}
+
+window.deleteExtensionHookRow = async function(hookId) {
+  if (await showCustomConfirm('Delete this extension hook? Any 3rd-party integration depending on it will stop being called immediately.')) {
+    const res = await apiFetch(`/api/v1/admin/extension/hooks/${hookId}`, { method: 'DELETE' });
+    if (!res) return;
+    if (res.ok) {
+      renderView('extension-hooks');
+    } else {
+      await showApiError(res, 'Failed to delete extension hook.');
+    }
+  }
+};
+
+window.viewExtensionHookLog = function(hookId) {
+  currentExtensionHookLogId = hookId;
+  renderView('extension-hook-log');
+};
+
+async function renderExtensionHookLogView(container) {
+  const hookId = currentExtensionHookLogId;
+  const res = await apiFetch(`/api/v1/admin/extension/hooks/${hookId}/log`);
+  if (!res) return;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Hook Call Log</h1>
+      <p class="page-subtitle">Most recent 100 calls for this hook.</p>
+    </div>
+    <button class="btn btn-outline" onclick="renderView('extension-hooks')">Back to Extension Hooks</button>
+  `;
+  container.appendChild(header);
+
+  if (!res.ok) {
+    renderErrorPanel(container, 'Failed to load hook log.', () => renderView('extension-hook-log'));
+    return;
+  }
+  const entries = await res.json();
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.innerHTML = `
+    <table>
+      <thead><tr><th>Called At</th><th>Response Status</th><th>Latency</th><th>Error</th></tr></thead>
+      <tbody>
+        ${entries.length === 0
+          ? `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No calls logged yet for this hook.</td></tr>`
+          : entries.map(e => `
+            <tr>
+              <td>${e.called_at ? new Date(e.called_at).toLocaleString() : ''}</td>
+              <td>${e.response_status != null ? `<span class="badge ${e.response_status >= 200 && e.response_status < 300 ? 'badge-success' : 'badge-danger'}">${e.response_status}</span>` : '<span class="badge badge-secondary">-</span>'}</td>
+              <td>${e.latency_ms}ms</td>
+              <td style="color:#ef4444;">${e.error || ''}</td>
+            </tr>
+          `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(panel);
+}
+
+// showOneTimeSecretDialog: a 4th use of the existing custom-dialog chrome
+// (alongside showCustomAlert/Confirm/Prompt) for the "generated, shown once,
+// never retrievable again" pattern extension hook secrets and tokens both
+// need - a readonly, pre-selected input so the value can't be accidentally
+// edited but is one click away from being copied. Built with DOM property
+// assignment (not innerHTML interpolation) specifically because this value
+// is a live credential, not just display data.
+function showOneTimeSecretDialog(title, message, secretValue) {
+  return new Promise((resolve) => {
+    const backdrop = document.getElementById('custom-dialog-container');
+    const titleEl = document.getElementById('custom-dialog-title');
+    const msgEl = document.getElementById('custom-dialog-message');
+    const extraEl = document.getElementById('custom-dialog-extra');
+    const okBtn = document.getElementById('custom-dialog-ok-btn');
+    const cancelBtn = document.getElementById('custom-dialog-cancel-btn');
+    const closeBtn = document.getElementById('custom-dialog-close-btn');
+
+    titleEl.textContent = title;
+    msgEl.textContent = message;
+
+    extraEl.innerHTML = '';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'form-input';
+    input.style.cssText = 'width: 100%; margin-top: 12px; font-family: Consolas, Monaco, monospace;';
+    input.readOnly = true;
+    input.value = secretValue;
+    input.addEventListener('click', () => input.select());
+    extraEl.appendChild(input);
+    extraEl.classList.remove('hidden');
+    cancelBtn.style.display = 'none';
+    backdrop.classList.remove('hidden');
+
+    input.focus();
+    input.select();
+
+    const cleanUp = () => {
+      backdrop.classList.add('hidden');
+      extraEl.innerHTML = '';
+      extraEl.classList.add('hidden');
+      cancelBtn.style.display = '';
+      okBtn.replaceWith(okBtn.cloneNode(true));
+      closeBtn.replaceWith(closeBtn.cloneNode(true));
+    };
+
+    document.getElementById('custom-dialog-ok-btn').addEventListener('click', () => { cleanUp(); resolve(true); });
+    document.getElementById('custom-dialog-close-btn').addEventListener('click', () => { cleanUp(); resolve(true); });
+  });
+}
 
 // Render Activity Log (internal name still Log Hub) & panic dashboard logs
 async function renderLogHubView(container) {

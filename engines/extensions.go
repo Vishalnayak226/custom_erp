@@ -13,6 +13,8 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 )
 
@@ -60,6 +62,33 @@ func generateExtensionSecret() (string, error) {
 	return hex.EncodeToString(raw), nil
 }
 
+// validateHookTargetURL rejects any target_url that isn't https:// - a
+// document's payload (business data, potentially including customer/vendor
+// details) would otherwise be sent to a 3rd party over plain, interceptable
+// HTTP. Plain http:// stays allowed only for localhost/loopback so a hired
+// developer can register a hook against their own machine during local
+// development without needing a real TLS cert for that.
+func validateHookTargetURL(targetURL string) error {
+	if targetURL == "" {
+		return fmt.Errorf("target_url is required")
+	}
+	u, err := url.Parse(targetURL)
+	if err != nil {
+		return fmt.Errorf("target_url is not a valid URL: %v", err)
+	}
+	if u.Scheme == "https" {
+		return nil
+	}
+	if u.Scheme == "http" {
+		host := u.Hostname()
+		if host == "localhost" || host == "127.0.0.1" || host == "::1" || strings.HasSuffix(host, ".localhost") {
+			return nil
+		}
+		return fmt.Errorf("target_url must use https:// (plain http:// is only allowed for localhost/loopback addresses)")
+	}
+	return fmt.Errorf("target_url must use https://")
+}
+
 // RegisterExtensionHook creates a new hook and returns its id + secret. The
 // secret is never persisted in plaintext-retrievable form beyond this one
 // return - callers must capture it now.
@@ -67,8 +96,8 @@ func RegisterExtensionHook(tenantID, hookPoint, doctype, targetURL string, timeo
 	if hookPoint != "document.before_save" && hookPoint != "document.after_save" {
 		return "", "", fmt.Errorf("invalid hook_point %q: must be 'document.before_save' or 'document.after_save'", hookPoint)
 	}
-	if targetURL == "" {
-		return "", "", fmt.Errorf("target_url is required")
+	if err := validateHookTargetURL(targetURL); err != nil {
+		return "", "", err
 	}
 	if timeoutMs <= 0 || timeoutMs > 10000 {
 		timeoutMs = 3000
