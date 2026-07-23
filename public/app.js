@@ -6391,11 +6391,18 @@ const PIM_TABS = [
 	{ id: 'reports', label: 'Reports' },
   { id: 'families', label: 'Product Families', doctype: 'ProductFamily' },
   { id: 'attributes', label: 'Attribute Definitions', doctype: 'ProductAttributeDef' },
+  { id: 'attribute-groups', label: 'Attribute Groups', doctype: 'ProductAttributeGroup' },
   { id: 'family-attributes', label: 'Family Attributes', doctype: 'ProductFamilyAttribute' },
   { id: 'channels', label: 'Channels', doctype: 'Channel' },
   { id: 'channel-category-map', label: 'Category Mapping', doctype: 'ChannelCategoryMap' },
-  { id: 'channel-field-map', label: 'Field Mapping', doctype: 'ChannelFieldMap' }
+  { id: 'channel-field-map', label: 'Field Mapping', doctype: 'ChannelFieldMap' },
+  { id: 'channel-validation-rules', label: 'Validation Rules', doctype: 'ChannelValidationRule' }
 ];
+
+// Stage 26.4.3: taxonomy doctypes whose audit_logs trail (already captured
+// by the existing db trigger, no new storage) can be viewed via a "History"
+// row action in the generic doctype table - see viewTaxonomyHistory below.
+const TAXONOMY_HISTORY_DOCTYPES = new Set(['ProductFamily', 'ProductAttributeDef', 'ProductFamilyAttribute', 'ProductAttributeGroup']);
 
 // Doctypes reachable from a PIM tab (plus ProductContent, reachable from the
 // PIM dashboard's "pending approval" shortcut) - renderDocTableView() checks
@@ -6481,7 +6488,7 @@ async function renderPIMDashboardTab(container) {
 async function renderPIMReportsTab(container) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
-  panel.innerHTML = `<div class="table-controls"><div class="form-group" style="margin:0;"><label class="form-label" for="pim-report-name">Report</label><select class="form-select" id="pim-report-name"><option value="content-aging">Content aging</option><option value="duplicate-media">Duplicate media</option><option value="channel-mapping-gap">Channel mapping gaps</option><option value="attribute-quality">Attribute quality</option></select></div><button class="btn btn-primary" id="pim-report-run">Run report</button></div><div class="table-wrapper" id="pim-report-results" style="margin-top:16px;"></div>`;
+  panel.innerHTML = `<div class="table-controls"><div class="form-group" style="margin:0;"><label class="form-label" for="pim-report-name">Report</label><select class="form-select" id="pim-report-name"><option value="content-aging">Content aging</option><option value="duplicate-media">Duplicate media</option><option value="channel-mapping-gap">Channel mapping gaps</option><option value="attribute-quality">Attribute quality</option><option value="media-expiry">Media expiry</option><option value="content-sla-breach">Content SLA breaches</option></select></div><button class="btn btn-primary" id="pim-report-run">Run report</button><button class="btn btn-outline" id="pim-search-feed-export">Download Search Feed (CSV)</button></div><div class="table-wrapper" id="pim-report-results" style="margin-top:16px;"></div>`;
   container.appendChild(panel);
   const results = panel.querySelector('#pim-report-results');
   const run = async () => {
@@ -6495,6 +6502,23 @@ async function renderPIMReportsTab(container) {
     results.innerHTML = `<table><thead><tr>${columns.map(column => `<th>${column.replaceAll('_', ' ')}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${columns.map(column => `<td>${row[column] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   };
   panel.querySelector('#pim-report-run').addEventListener('click', run);
+  // Stage 26.4.9: search/discovery feed export - same authenticated-blob
+  // download pattern as downloadReportExportCSV, since a plain <a href>
+  // can't carry the Bearer token this endpoint requires.
+  panel.querySelector('#pim-search-feed-export').addEventListener('click', async () => {
+    const res = await apiFetch('/api/v1/pim/search-feed.csv');
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Failed to download the search feed.'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pim_search_feed.csv';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
   await run();
 }
 
@@ -6573,6 +6597,8 @@ async function renderPIMDetailPanel(container, itemCode) {
 
   const attrDefsRes = await apiFetch('/api/v1/doc/ProductAttributeDef');
   const attrDefs = attrDefsRes && attrDefsRes.ok ? await attrDefsRes.json() : [];
+  const channelsForOverrideRes = await apiFetch('/api/v1/doc/Channel');
+  const channelsForOverride = channelsForOverrideRes && channelsForOverrideRes.ok ? await channelsForOverrideRes.json() : [];
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -6596,6 +6622,17 @@ async function renderPIMDetailPanel(container, itemCode) {
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="pim-attr-value">Value</label>
         <input type="text" id="pim-attr-value" class="form-input" style="width: 200px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-attr-locale" title="Leave blank to set the global default value">Locale Override</label>
+        <input type="text" id="pim-attr-locale" class="form-input" style="width: 100px;" placeholder="e.g. fr">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-attr-channel" title="Leave blank to set the global default value">Channel Override</label>
+        <select id="pim-attr-channel" class="form-input" style="width: 160px;">
+          <option value="">All channels</option>
+          ${channelsForOverride.map(c => `<option value="${c.code || c.id}">${c.name || c.code || c.id}</option>`).join('')}
+        </select>
       </div>
       <button class="btn btn-primary" id="pim-attr-save-btn">Save</button>
     </div>
@@ -6631,10 +6668,21 @@ async function renderPIMDetailPanel(container, itemCode) {
         <label class="form-label" for="pim-content-tags">Tags</label>
         <input type="text" id="pim-content-tags" class="form-input" style="width: 220px;">
       </div>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-content-owner">Owner (username)</label>
+        <input type="text" id="pim-content-owner" class="form-input" style="width: 160px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-content-sla">SLA Due Date</label>
+        <input type="date" id="pim-content-sla" class="form-input" style="width: 160px;">
+      </div>
       <button class="btn btn-outline" id="pim-content-save-btn">Save Draft</button>
       <button class="btn btn-primary" id="pim-content-submit-btn">Submit for Approval</button>
     </div>
     <div id="pim-content-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="pim-content-history" style="margin-top: 16px;"></div>
 
     <h3 style="font-size: 14px; font-weight: 700; margin: 24px 0 12px;">Media</h3>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 12px;">
@@ -6654,6 +6702,14 @@ async function renderPIMDetailPanel(container, itemCode) {
           <option>Video/Other</option>
         </select>
       </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-media-alt">Alt Text</label>
+        <input type="text" id="pim-media-alt" class="form-input" style="width: 180px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-media-expiry">Expiry Date</label>
+        <input type="date" id="pim-media-expiry" class="form-input" style="width: 160px;">
+      </div>
       <button class="btn btn-primary" id="pim-media-upload-btn">Upload</button>
     </div>
     <div id="pim-media-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
@@ -6665,9 +6721,11 @@ async function renderPIMDetailPanel(container, itemCode) {
         <label class="form-label" for="pim-publish-channel">Channel</label>
         <select id="pim-publish-channel" class="form-input" style="width: 200px;"><option value="">Loading...</option></select>
       </div>
+      <button class="btn btn-outline" id="pim-publish-preview-btn">Preview</button>
       <button class="btn btn-primary" id="pim-publish-btn">Publish</button>
     </div>
     <div id="pim-publish-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
+    <div id="pim-publish-preview" style="margin-bottom: 12px;"></div>
     <div id="pim-publish-log"></div>
   `;
   container.appendChild(panel);
@@ -6677,9 +6735,11 @@ async function renderPIMDetailPanel(container, itemCode) {
   document.getElementById('pim-content-submit-btn').addEventListener('click', () => submitPIMContent(itemCode));
   document.getElementById('pim-media-upload-btn').addEventListener('click', () => uploadPIMMedia(itemCode));
   document.getElementById('pim-publish-btn').addEventListener('click', () => publishPIMItem(itemCode));
+  document.getElementById('pim-publish-preview-btn').addEventListener('click', () => previewPIMPublish(itemCode));
 
   await renderPIMMediaGallery(itemCode);
   await renderPIMPublishSection(itemCode);
+  await renderPIMContentHistory(itemCode);
 }
 
 async function renderPIMMediaGallery(itemCode) {
@@ -6694,18 +6754,26 @@ async function renderPIMMediaGallery(itemCode) {
   }
 
   gallery.innerHTML = media.map(m => `
-    <div class="table-panel" style="padding: 8px; width: 140px;" data-media-card="${m.id}">
-      <div style="font-size: 11px; font-weight: 600; margin-bottom: 4px;">${m.media_role}</div>
-      <img data-media-thumb="${m.id}" style="width: 100%; height: 90px; object-fit: cover; background: var(--bg-secondary); border-radius: 4px;" alt="${m.media_role}">
-      <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 6px;" data-deactivate-media="${m.id}">Deactivate</button>
+    <div class="table-panel" style="padding: 8px; width: 150px;" data-media-card="${m.id}">
+      <div style="font-size: 11px; font-weight: 600; margin-bottom: 4px;">${m.media_role} <span class="text-muted">v${m.version_no || 1}</span></div>
+      <img data-media-thumb="${m.id}" style="width: 100%; height: 90px; object-fit: cover; background: var(--bg-secondary); border-radius: 4px;" alt="${m.alt_text || m.media_role}">
+      <div class="text-muted" style="font-size:10px; margin-top:4px; word-break:break-word;">${m.alt_text || 'No alt text'}${m.expiry_date ? ` · expires ${m.expiry_date}` : ''}</div>
+      <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 6px;" data-edit-media="${m.id}" data-alt="${m.alt_text || ''}" data-expiry="${m.expiry_date || ''}">Edit Alt/Expiry</button>
+      <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 4px;" data-deactivate-media="${m.id}">Deactivate</button>
     </div>
   `).join('');
 
   // <img> tags can't send an Authorization header, so each thumbnail is
   // fetched as an authenticated blob and swapped in via an object URL
   // rather than pointing src directly at the (auth-gated) file endpoint.
+  // Prefer the generated thumbnail (26.4.4, smaller/faster) and fall back
+  // to the full file for media with no thumbnail (webp/gif/pdf/decode
+  // failure - see engines.generateThumbnail's scope note).
   media.forEach(async (m) => {
-    const imgRes = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/file`);
+    let imgRes = m.has_thumbnail ? await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/thumbnail`) : null;
+    if (!imgRes || !imgRes.ok) {
+      imgRes = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/file`);
+    }
     if (imgRes && imgRes.ok) {
       const blob = await imgRes.blob();
       const imgEl = gallery.querySelector(`[data-media-thumb="${m.id}"]`);
@@ -6718,6 +6786,22 @@ async function renderPIMMediaGallery(itemCode) {
       const mediaId = btn.getAttribute('data-deactivate-media');
       const res = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(mediaId)}/deactivate`, { method: 'POST' });
       if (res && res.ok) renderView('pim');
+    });
+  });
+
+  gallery.querySelectorAll('[data-edit-media]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const mediaId = btn.getAttribute('data-edit-media');
+      const altText = await showCustomPrompt('Alt text:', btn.getAttribute('data-alt') || '', 'Edit Media Metadata');
+      if (altText === null) return;
+      const expiryDate = await showCustomPrompt('Expiry date (YYYY-MM-DD, blank for none):', btn.getAttribute('data-expiry') || '', 'Edit Media Metadata');
+      if (expiryDate === null) return;
+      const res = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(mediaId)}/metadata`, {
+        method: 'POST', body: JSON.stringify({ alt_text: altText, expiry_date: expiryDate })
+      });
+      if (!res) return;
+      if (!res.ok) { await showApiError(res, 'Failed to update media metadata.'); return; }
+      renderView('pim');
     });
   });
 }
@@ -6738,6 +6822,8 @@ async function uploadPIMMedia(itemCode) {
   formData.append('file', fileInput.files[0]);
   formData.append('item', itemCode);
   formData.append('media_role', role);
+  formData.append('alt_text', document.getElementById('pim-media-alt').value.trim());
+  formData.append('expiry_date', document.getElementById('pim-media-expiry').value.trim());
 
   const res = await apiUpload('/api/v1/pim/media/upload', formData);
   if (!res) return;
@@ -6765,9 +6851,95 @@ async function renderPIMPublishSection(itemCode) {
   const log = logRes && logRes.ok ? await logRes.json() : [];
   logEl.innerHTML = log.length === 0
     ? `<div style="color: var(--text-muted); font-size: 13px;">No publish attempts yet.</div>`
-    : `<table><thead><tr><th>Channel</th><th>Status</th><th>External ID</th><th>When</th></tr></thead><tbody>${
-        log.map(l => `<tr><td>${l.channel_code}</td><td><span class="badge ${l.status === 'Published' ? 'badge-success' : 'badge-danger'}">${l.status}</span></td><td style="font-family: monospace;">${l.external_id || ''}</td><td>${l.created_at || ''}</td></tr>`).join('')
+    // error_code (Stage 26.4.8: marketplace error dictionary) lets a failed
+    // attempt be triaged at a glance (missing credential vs. duplicate SKU
+    // vs. a blank required field) instead of only reading the raw message.
+    : `<table><thead><tr><th>Channel</th><th>Status</th><th>External ID</th><th>Error Code</th><th>When</th></tr></thead><tbody>${
+        log.map(l => `<tr><td>${l.channel_code}</td><td><span class="badge ${l.status === 'Published' ? 'badge-success' : 'badge-danger'}">${l.status}</span></td><td style="font-family: monospace;">${l.external_id || ''}</td><td style="font-family: monospace;">${l.error_code || ''}</td><td>${l.created_at || ''}</td></tr>`).join('')
       }</tbody></table>`;
+}
+
+// previewPIMPublish (Stage 26.4.7) shows the outbound payload that would be
+// sent right now, diffed against the last publish attempt's snapshot if one
+// exists - see engines.PreviewChannelDiff for why this isn't a live
+// read-back from the platform itself.
+async function previewPIMPublish(itemCode) {
+  const errorEl = document.getElementById('pim-publish-error');
+  const previewEl = document.getElementById('pim-publish-preview');
+  errorEl.classList.add('hidden');
+
+  const channel = document.getElementById('pim-publish-channel').value;
+  if (!channel) {
+    errorEl.textContent = 'Select a channel first.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch(`/api/v1/pim/publish-preview?item=${encodeURIComponent(itemCode)}&channel=${encodeURIComponent(channel)}`);
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to build a preview.');
+    return;
+  }
+  const preview = await res.json();
+  previewEl.innerHTML = `
+    <h4 style="font-size:13px;font-weight:700;margin-bottom:8px;">${preview.has_prior_snapshot ? 'Diff vs. last publish attempt' : 'Outbound payload (no prior publish attempt for this channel to diff against)'}</h4>
+    <table><thead><tr><th>Field</th><th>Previously Published</th><th>About to Publish</th></tr></thead><tbody>${
+      (preview.fields || []).map(f => `<tr style="${f.changed ? 'font-weight:600;' : ''}"><td>${f.field}</td><td>${f.old || ''}</td><td>${f.new || ''}</td></tr>`).join('')
+    }</tbody></table>
+  `;
+}
+
+// renderPIMContentHistory (Stage 26.4.5/26.4.6) surfaces one ProductContent
+// document's approval_log history (in particular, a rejection's mandatory
+// comment) and its approved-version snapshots with a one-click restore.
+// Scoped to the language currently entered in the content form, since that
+// determines the "<item>::<language>" composite id being edited.
+async function renderPIMContentHistory(itemCode) {
+  const container = document.getElementById('pim-content-history');
+  if (!container) return;
+  const langInput = document.getElementById('pim-content-lang');
+  const language = (langInput && langInput.value.trim()) || 'en';
+  const contentID = `${itemCode}::${language}`;
+
+  const [logRes, versionsRes] = await Promise.all([
+    apiFetch(`/api/v1/approval/log?doctype=ProductContent&document_id=${encodeURIComponent(contentID)}`),
+    apiFetch(`/api/v1/pim/content/${encodeURIComponent(contentID)}/versions`)
+  ]);
+  const log = logRes && logRes.ok ? await logRes.json() : [];
+  const versions = versionsRes && versionsRes.ok ? await versionsRes.json() : [];
+
+  const logHTML = log.length === 0
+    ? `<div class="text-muted" style="font-size:13px;">No approval history yet.</div>`
+    : `<table><thead><tr><th>Action</th><th>By</th><th>Comment</th><th>When</th></tr></thead><tbody>${
+        log.map(l => `<tr><td>${l.action}</td><td>${l.actor_user_id}</td><td>${l.comment || ''}</td><td>${l.created_at || ''}</td></tr>`).join('')
+      }</tbody></table>`;
+
+  const versionsHTML = versions.length === 0
+    ? `<div class="text-muted" style="font-size:13px;">No approved versions yet.</div>`
+    : `<table><thead><tr><th>Version</th><th>Title</th><th>Approved At</th><th></th></tr></thead><tbody>${
+        versions.map(v => `<tr><td>${v.version_no}</td><td>${(v.data && v.data.title) || ''}</td><td>${v.created_at || ''}</td><td><button class="btn btn-outline btn-sm" data-rollback-version="${v.id}">Restore</button></td></tr>`).join('')
+      }</tbody></table>`;
+
+  container.innerHTML = `
+    <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 8px;">Approval History</h3>
+    ${logHTML}
+    <h3 style="font-size: 14px; font-weight: 700; margin: 16px 0 8px;">Approved Versions</h3>
+    ${versionsHTML}
+  `;
+
+  container.querySelectorAll('[data-rollback-version]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const versionID = btn.getAttribute('data-rollback-version');
+      if (!await showCustomConfirm('Restore this version as the current Draft content? It will need re-approval before publishing again.', 'Confirm Restore')) return;
+      const res = await apiFetch(`/api/v1/pim/content/${encodeURIComponent(contentID)}/rollback`, {
+        method: 'POST', body: JSON.stringify({ version_id: Number(versionID) })
+      });
+      if (!res) return;
+      if (!res.ok) { await showApiError(res, 'Failed to restore this version.'); return; }
+      renderView('pim');
+    });
+  });
 }
 
 async function publishPIMItem(itemCode) {
@@ -6801,16 +6973,23 @@ async function savePIMAttributeValue(itemCode) {
 
   const attributeId = document.getElementById('pim-attr-select').value;
   const value = document.getElementById('pim-attr-value').value.trim();
+  const locale = document.getElementById('pim-attr-locale').value.trim();
+  const channel = document.getElementById('pim-attr-channel').value;
   if (!attributeId || !value) {
     errorEl.textContent = 'Attribute and Value are required.';
     errorEl.classList.remove('hidden');
     return;
   }
 
-  const id = `${itemCode}::${attributeId}`;
+  // Stage 26.4.1: mirrors engines.attributeValueID - a blank locale+channel
+  // is the global default row (unchanged base id), either one set is a
+  // scoped override row with its own distinct id.
+  const id = (locale === '' && channel === '')
+    ? `${itemCode}::${attributeId}`
+    : `${itemCode}::${attributeId}::${locale}::${channel}`;
   const res = await apiFetch('/api/v1/doc/ProductAttributeValue', {
     method: 'POST',
-    body: JSON.stringify({ id, code: id, item: itemCode, attribute: attributeId, value, status: 'Active' })
+    body: JSON.stringify({ id, code: id, item: itemCode, attribute: attributeId, value, locale, channel, status: 'Active' })
   });
   if (!res) return;
   const data = await res.json();
@@ -6837,6 +7016,8 @@ function pimContentPayload(itemCode, status) {
       long_desc: document.getElementById('pim-content-long').value.trim(),
       seo_title: document.getElementById('pim-content-seo').value.trim(),
       tags: document.getElementById('pim-content-tags').value.trim(),
+      owner: document.getElementById('pim-content-owner').value.trim(),
+      sla_due_date: document.getElementById('pim-content-sla').value.trim(),
       status
     }
   };
@@ -6966,7 +7147,7 @@ async function renderDocTableView(container) {
         </svg>
         <input type="text" placeholder="Search table..." value="${currentSearchQuery}" oninput="handleTableSearch(event)">
       </div>
-      ${isPIMBulkEditDoctype() ? `<div class="bulk-edit-bar hidden" id="pim-bulk-edit-bar"><span id="pim-bulk-selection-count">0 selected</span><button class="btn btn-outline" id="pim-bulk-edit-button" onclick="openPIMBulkEditModal()" disabled>Edit Selected</button></div>` : ''}
+      ${isPIMBulkEditDoctype() ? `<div class="bulk-edit-bar hidden" id="pim-bulk-edit-bar"><span id="pim-bulk-selection-count">0 selected</span><button class="btn btn-outline" id="pim-bulk-edit-button" onclick="openPIMBulkEditModal()" disabled>Edit Selected</button>${currentDoctype === 'ProductContent' ? `<button class="btn btn-primary" id="pim-bulk-approve-button" onclick="bulkDecideProductContent('Approved')" disabled>Approve Selected</button><button class="btn btn-outline" id="pim-bulk-reject-button" onclick="bulkDecideProductContent('Rejected')" disabled>Reject Selected</button>` : ''}</div>` : ''}
     </div>
     <div class="table-wrapper" id="doc-table-wrapper"></div>
     <div class="pagination" id="doc-table-pagination"></div>
@@ -7031,8 +7212,12 @@ function renderDocTable() {
           tableHTML += `<td>${val}</td>`;
         }
       });
+      const showHistory = TAXONOMY_HISTORY_DOCTYPES.has(currentDoctype);
       tableHTML += `
         <td style="text-align: right;">
+          ${showHistory ? `<button class="action-btn" title="History" style="margin-right:4px;" onclick="viewTaxonomyHistory('${row.id}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </button>` : ''}
           <button class="action-btn" title="Edit" style="margin-right:4px;" onclick="editDocRecord('${row.id}')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
@@ -7078,7 +7263,43 @@ function updatePIMBulkEditBar() {
   count.textContent = `${selected} selected`;
   button.disabled = selected === 0;
   bar.classList.toggle('hidden', selected === 0);
+  const approveBtn = document.getElementById('pim-bulk-approve-button');
+  const rejectBtn = document.getElementById('pim-bulk-reject-button');
+  if (approveBtn) approveBtn.disabled = selected === 0;
+  if (rejectBtn) rejectBtn.disabled = selected === 0;
 }
+
+// bulkDecideProductContent (Stage 26.4.6) approves/rejects every currently
+// selected ProductContent row in one call - see engines.BulkDecideApproval.
+// A rejection needs a comment (APPROV-0159 already enforces this per-
+// document server-side); collected once up front rather than per row.
+window.bulkDecideProductContent = async function(decision) {
+  const ids = [...bulkSelectedDocIDs];
+  if (ids.length === 0) return;
+  let comment = '';
+  if (decision === 'Rejected') {
+    comment = (await showCustomPrompt('Reason for rejecting these documents:', '', 'Bulk Reject')) || '';
+    if (!comment.trim()) {
+      await showCustomAlert('A comment is required to reject.', 'Bulk Reject');
+      return;
+    }
+  }
+  if (!await showCustomConfirm(`${decision} ${ids.length} selected content record${ids.length === 1 ? '' : 's'}?`, `Confirm Bulk ${decision}`)) return;
+  const res = await apiFetch('/api/v1/approval/bulk-decide', {
+    method: 'POST',
+    body: JSON.stringify({ doctype: 'ProductContent', document_ids: ids, decision, comment })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, `Bulk ${decision.toLowerCase()} failed.`);
+    return;
+  }
+  const data = await res.json();
+  const failedCount = Object.keys(data.failed || {}).length;
+  bulkSelectedDocIDs = new Set();
+  await showCustomAlert(`${(data.succeeded || []).length} succeeded, ${failedCount} failed.`, `Bulk ${decision} Complete`);
+  renderView('doctype-table');
+};
 
 window.togglePIMBulkDocSelection = function(id, selected) {
   if (selected) bulkSelectedDocIDs.add(id);
@@ -7092,6 +7313,38 @@ window.togglePIMBulkPageSelection = function(selected) {
     else bulkSelectedDocIDs.delete(row.id);
   });
   renderDocTable();
+};
+
+// viewTaxonomyHistory (Stage 26.4.3) shows one taxonomy document's existing
+// audit_logs trail in a lightweight read-only modal, reusing the same
+// .modal-overlay/.modal-container primitives the bulk-edit modal below
+// uses instead of introducing a second modal component.
+window.viewTaxonomyHistory = async function(id) {
+  const res = await apiFetch(`/api/v1/pim/taxonomy-history/${encodeURIComponent(currentDoctype)}/${encodeURIComponent(id)}`);
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to load history for this record.');
+    return;
+  }
+  const entries = await res.json();
+
+  document.getElementById('pim-history-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'pim-history-modal';
+  const rows = entries.length === 0
+    ? `<tr><td colspan="3" class="text-center text-muted">No history recorded yet.</td></tr>`
+    : entries.map(e => `<tr><td>${e.created_at || ''}</td><td>${e.user_id || ''}</td><td>${e.details || ''}</td></tr>`).join('');
+  overlay.innerHTML = `
+    <div class="modal-container">
+      <div class="modal-header"><h3 class="modal-title">History: ${getTranslatedLabel(currentDoctype)} ${id}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <div class="modal-body"><div class="table-wrapper"><table><thead><tr><th>When</th><th>User</th><th>Change</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary">Close</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('.btn-secondary').addEventListener('click', close);
 };
 
 window.openPIMBulkEditModal = function() {

@@ -35,6 +35,8 @@ func ValidateMasterDataRules(tenantID, docID, doctype string, payload map[string
 		return validateVendorMasterRules(payload)
 	case "Customer":
 		return validateCustomerMasterRules(tenantID, docID, payload)
+	case "ProductContent":
+		return validateProductContentDuplicate(tenantID, docID, payload)
 	}
 	return nil
 }
@@ -73,7 +75,30 @@ func validateItemMasterRules(tenantID, docID string, payload map[string]interfac
 	}
 
 	barcode := strField(payload, "barcode")
-	if barcode == "" {
+	if barcode != "" {
+		schema, err := db.GetTenantSchema(tenantID)
+		if err != nil {
+			return err
+		}
+		var existingID string
+		err = db.DB.QueryRow(fmt.Sprintf(`
+			SELECT id FROM %s.documents
+			WHERE doctype = 'Item' AND data->>'barcode' = $1 AND id != $2 AND status != 'Cancelled'
+			LIMIT 1`, schema), barcode, docID).Scan(&existingID)
+		if err == nil {
+			return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf("Barcode %q is already used by item %s", barcode, existingID)}
+		}
+	}
+
+	// Stage 26.4.2: duplicate-item detection. A near-duplicate catalog entry
+	// (same name re-created under the same family) is a common PIM data-
+	// quality problem the barcode check above doesn't catch, since two
+	// distinct items can each get their own valid barcode. Scoped to family
+	// (not global) so "Blue Cotton Shirt" in Clothing and an unrelated
+	// "Blue Cotton Shirt" cleaning rag in a different family don't collide.
+	family := strField(payload, "family")
+	name := strField(payload, "name")
+	if family == "" || name == "" {
 		return nil
 	}
 	schema, err := db.GetTenantSchema(tenantID)
@@ -83,10 +108,40 @@ func validateItemMasterRules(tenantID, docID string, payload map[string]interfac
 	var existingID string
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
-		WHERE doctype = 'Item' AND data->>'barcode' = $1 AND id != $2 AND status != 'Cancelled'
-		LIMIT 1`, schema), barcode, docID).Scan(&existingID)
+		WHERE doctype = 'Item' AND data->>'family' = $1 AND LOWER(BTRIM(data->>'name')) = LOWER(BTRIM($2)) AND id != $3 AND status != 'Cancelled'
+		LIMIT 1`, schema), family, name, docID).Scan(&existingID)
 	if err == nil {
-		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf("Barcode %q is already used by item %s", barcode, existingID)}
+		return fmt.Errorf("an item named %q already exists in family %q: %s", name, family, existingID)
+	}
+	return nil
+}
+
+// validateProductContentDuplicate (Stage 26.4.2) blocks two different
+// products from carrying identical ProductContent titles in the same
+// language - a common copy-paste mistake that hurts channel/SEO quality
+// (duplicate listings). Scoped to the same language only, excluding the
+// content's own product (an item can obviously keep its own title across
+// edits) and excluding Rejected content (a rejected duplicate shouldn't
+// block a legitimate rewrite).
+func validateProductContentDuplicate(tenantID, docID string, payload map[string]interface{}) error {
+	title := strField(payload, "title")
+	language := strField(payload, "language")
+	productID := strField(payload, "product_id")
+	if title == "" || language == "" {
+		return nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var existingID, existingProduct string
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT id, COALESCE(data->>'product_id', '') FROM %s.documents
+		WHERE doctype = 'ProductContent' AND data->>'language' = $1 AND LOWER(BTRIM(data->>'title')) = LOWER(BTRIM($2))
+			AND id != $3 AND COALESCE(data->>'product_id', '') != $4 AND status != 'Rejected'
+		LIMIT 1`, schema), language, title, docID, productID).Scan(&existingID, &existingProduct)
+	if err == nil {
+		return fmt.Errorf("content title %q for language %q is already used by product %s (%s)", title, language, existingProduct, existingID)
 	}
 	return nil
 }

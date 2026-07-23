@@ -109,8 +109,11 @@ func (magentoConnector) PublishProduct(ctx context.Context, cred map[string]stri
 		return "", &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("magento request failed: %v", err)}
 	}
 	if status < 200 || status >= 300 {
-		// CONN-0226 (Stage 25.6): "Channel publish failed."
-		return "", &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("magento rejected the product (HTTP %d): %s", status, magentoErrorMessage(respBody))}
+		// 26.4.8: classified against the platform's own error message,
+		// falling back to CONN-0226 ("Channel publish failed") same as
+		// before this dictionary existed.
+		platformMsg := magentoErrorMessage(respBody)
+		return "", &ValidationError{Code: classifyConnectorError(platformMsg), Message: fmt.Sprintf("magento rejected the product (HTTP %d): %s", status, platformMsg)}
 	}
 
 	var result struct {

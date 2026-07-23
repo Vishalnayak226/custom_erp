@@ -5,8 +5,11 @@ import (
 	"crypto/sha256"
 	"custom_erp/db"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"log"
+	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -65,7 +68,115 @@ func CheckPublishReadiness(tenantID, itemCode, channelCode string) (*PublishRead
 		}
 	}
 
+	// Stage 26.4.7: channel validation packs - business rules beyond simple
+	// field presence (minimum image count, title length, a required tag),
+	// configured per channel via the ChannelValidationRule doctype. A no-op
+	// for a channel with no rules configured (every pre-26.4.7 Channel).
+	ruleFailures, err := evaluateChannelValidationRules(tenantID, itemCode, channelCode, defaultLocale)
+	if err != nil {
+		return nil, err
+	}
+	missing = append(missing, ruleFailures...)
+
 	return &PublishReadiness{Ready: len(missing) == 0, MissingFields: missing}, nil
+}
+
+type channelValidationRule struct {
+	RuleType  string
+	RuleValue string
+	Message   string
+}
+
+// fetchChannelValidationRules returns the Active ChannelValidationRule rows
+// configured for a channel (Stage 26.4.7).
+func fetchChannelValidationRules(tenantID, channelCode string) ([]channelValidationRule, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT COALESCE(data->>'rule_type', ''), COALESCE(data->>'rule_value', ''), COALESCE(data->>'message', '')
+		FROM %s.documents WHERE doctype = 'ChannelValidationRule' AND data->>'channel' = $1 AND status = 'Active'`, schema), channelCode)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []channelValidationRule
+	for rows.Next() {
+		var r channelValidationRule
+		if err := rows.Scan(&r.RuleType, &r.RuleValue, &r.Message); err != nil {
+			return nil, err
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+func channelRuleFailureMessage(rule channelValidationRule, detail string) string {
+	if rule.Message != "" {
+		return rule.Message
+	}
+	return fmt.Sprintf("%s: %s", rule.RuleType, detail)
+}
+
+func tagListContains(tags, target string) bool {
+	target = strings.ToLower(strings.TrimSpace(target))
+	if target == "" {
+		return true
+	}
+	for _, t := range strings.Split(tags, ",") {
+		if strings.ToLower(strings.TrimSpace(t)) == target {
+			return true
+		}
+	}
+	return false
+}
+
+// evaluateChannelValidationRules checks an item's current media count/
+// approved-content title+tags against a channel's configured validation
+// pack, returning one human-readable failure message per broken rule (added
+// straight into CheckPublishReadiness's existing missing-fields list, not a
+// second parallel readiness concept).
+func evaluateChannelValidationRules(tenantID, itemCode, channelCode, locale string) ([]string, error) {
+	rules, err := fetchChannelValidationRules(tenantID, channelCode)
+	if err != nil || len(rules) == 0 {
+		return nil, err
+	}
+
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	var title, tags string
+	_ = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(data->>'title', ''), COALESCE(data->>'tags', '')
+		FROM %s.documents WHERE doctype = 'ProductContent' AND data->>'product_id' = $1 AND data->>'language' = $2 AND status = 'Approved'
+		ORDER BY updated_at DESC LIMIT 1`, schema), itemCode, locale).Scan(&title, &tags)
+	media, err := ListMediaForItem(tenantID, itemCode)
+	if err != nil {
+		return nil, err
+	}
+
+	var failures []string
+	for _, rule := range rules {
+		switch rule.RuleType {
+		case "Min Images":
+			minCount, _ := strconv.Atoi(rule.RuleValue)
+			if len(media) < minCount {
+				failures = append(failures, channelRuleFailureMessage(rule, fmt.Sprintf("requires at least %d image(s), item has %d", minCount, len(media))))
+			}
+		case "Max Title Length":
+			maxLen, _ := strconv.Atoi(rule.RuleValue)
+			if maxLen > 0 && len(title) > maxLen {
+				failures = append(failures, channelRuleFailureMessage(rule, fmt.Sprintf("title is %d characters, exceeds the %d limit", len(title), maxLen)))
+			}
+		case "Required Tag":
+			if !tagListContains(tags, rule.RuleValue) {
+				failures = append(failures, channelRuleFailureMessage(rule, fmt.Sprintf("missing required tag %q", rule.RuleValue)))
+			}
+		}
+	}
+	return failures, nil
 }
 
 // computePublishPayloadHash hashes what would actually be published (the
@@ -171,6 +282,7 @@ type PublishLogEntry struct {
 	Status       string `json:"status"`
 	ExternalID   string `json:"external_id"`
 	ErrorMessage string `json:"error_message"`
+	ErrorCode    string `json:"error_code,omitempty"`
 	CreatedAt    string `json:"created_at"`
 }
 
@@ -182,7 +294,7 @@ func ListPublishLogForItem(tenantID, itemCode string) ([]PublishLogEntry, error)
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT job_id, channel_code, status, COALESCE(external_id, ''), COALESCE(error_message, ''), created_at::text
+		SELECT job_id, channel_code, status, COALESCE(external_id, ''), COALESCE(error_message, ''), COALESCE(error_code, ''), created_at::text
 		FROM %s.pim_publish_log WHERE item_code = $1 ORDER BY created_at DESC LIMIT 20`, schema), itemCode)
 	if err != nil {
 		return nil, err
@@ -192,7 +304,7 @@ func ListPublishLogForItem(tenantID, itemCode string) ([]PublishLogEntry, error)
 	var out []PublishLogEntry
 	for rows.Next() {
 		var e PublishLogEntry
-		if err := rows.Scan(&e.JobID, &e.ChannelCode, &e.Status, &e.ExternalID, &e.ErrorMessage, &e.CreatedAt); err != nil {
+		if err := rows.Scan(&e.JobID, &e.ChannelCode, &e.Status, &e.ExternalID, &e.ErrorMessage, &e.ErrorCode, &e.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, e)
@@ -285,7 +397,7 @@ func processPublishQueue(schema string) {
 			continue
 		}
 
-		externalID, publishErr := publishOneJob(tenantID, schema, connector, j.itemCode, j.channelCode)
+		externalID, payload, publishErr := publishOneJob(tenantID, schema, connector, j.itemCode, j.channelCode)
 		// CONN-0225 (Stage 25.6): a circuit-breaker-open error is the same
 		// shape as the allowConnectorCall rate-limit check just above - a
 		// transient, this-platform-is-busy-right-now condition, not a real
@@ -297,17 +409,22 @@ func processPublishQueue(schema string) {
 		}
 		status := "Published"
 		errMsg := ""
+		errCode := ""
 		if publishErr != nil {
 			status = "Failed"
 			errMsg = publishErr.Error()
 			if verr, ok := publishErr.(*ValidationError); ok && verr.Code != "" {
-				// No dedicated code column on pim_publish_log - prefixed
-				// into the existing free-text error_message, same
-				// convention every engines-layer log-only tag in this
-				// stage already uses (e.g. "[NOTIFI-0171] ...").
+				// Stage 26.4.8: now also recorded in its own error_code
+				// column (not only ever embedded in the free-text message)
+				// so a caller can filter/classify without string-parsing.
+				errCode = verr.Code
 				errMsg = "[" + verr.Code + "] " + errMsg
 			}
 			externalID = ""
+		}
+		var payloadSnapshot []byte
+		if payload != nil {
+			payloadSnapshot, _ = json.Marshal(payload)
 		}
 
 		retryIncrement := 0
@@ -318,8 +435,8 @@ func processPublishQueue(schema string) {
 			log.Printf("[PIM-PUBLISH] failed to update queue row for job %d: %v", j.id, updErr)
 		}
 		_, _ = db.DB.Exec(fmt.Sprintf(`
-			INSERT INTO %s.pim_publish_log (job_id, item_code, channel_code, status, external_id, error_message) VALUES ($1, $2, $3, $4, $5, $6)`, schema),
-			j.id, j.itemCode, j.channelCode, status, externalID, errMsg)
+			INSERT INTO %s.pim_publish_log (job_id, item_code, channel_code, status, external_id, error_message, error_code, payload_snapshot) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`, schema),
+			j.id, j.itemCode, j.channelCode, status, externalID, errMsg, errCode, payloadSnapshot)
 
 		if tx, errTx := db.DB.Begin(); errTx == nil {
 			_ = db.SetSearchPath(tx, schema)
@@ -360,10 +477,10 @@ func fetchChannelPlatform(tenantID, channelCode string) (string, error) {
 // the resolved connector with a bounded context. Separated from
 // processPublishQueue so each attempt's panic/timeout safety (already
 // handled one level down inside doConnectorRequest) has a clean boundary.
-func publishOneJob(tenantID, schema string, connector ChannelConnector, itemCode, channelCode string) (externalID string, err error) {
-	payload, err := BuildChannelPayload(tenantID, itemCode, channelCode)
+func publishOneJob(tenantID, schema string, connector ChannelConnector, itemCode, channelCode string) (externalID string, payload *ChannelProductPayload, err error) {
+	payload, err = BuildChannelPayload(tenantID, itemCode, channelCode)
 	if err != nil {
-		return "", fmt.Errorf("failed to build channel payload: %v", err)
+		return "", nil, fmt.Errorf("failed to build channel payload: %v", err)
 	}
 
 	cred, credErr := getChannelCredential(tenantID, channelCode)
@@ -373,5 +490,79 @@ func publishOneJob(tenantID, schema string, connector ChannelConnector, itemCode
 
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
-	return connector.PublishProduct(ctx, cred, *payload)
+	externalID, err = connector.PublishProduct(ctx, cred, *payload)
+	return externalID, payload, err
+}
+
+// PreviewChannelDiff (Stage 26.4.7: "per-channel diff preview before
+// publish") shows exactly what would be sent to a channel right now,
+// field-by-field against the payload actually used in the last publish
+// attempt for this item+channel (pim_publish_log.payload_snapshot, Stage
+// 26.4.7) - not a live call to the platform to fetch its current state
+// (which would mean adding a per-platform "read back" API call this
+// framework doesn't otherwise need), a stated scope limit rather than a
+// faked diff. HasPriorSnapshot is false the very first time an item is
+// published to a channel, since no snapshot exists yet to diff against.
+type ChannelDiffField struct {
+	Field   string `json:"field"`
+	Old     string `json:"old"`
+	New     string `json:"new"`
+	Changed bool   `json:"changed"`
+}
+
+type ChannelDiffPreview struct {
+	ItemCode         string             `json:"item_code"`
+	ChannelCode      string             `json:"channel_code"`
+	HasPriorSnapshot bool               `json:"has_prior_snapshot"`
+	Fields           []ChannelDiffField `json:"fields"`
+}
+
+func PreviewChannelDiff(tenantID, itemCode, channelCode string) (*ChannelDiffPreview, error) {
+	current, err := BuildChannelPayload(tenantID, itemCode, channelCode)
+	if err != nil {
+		return nil, err
+	}
+
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	var snapshotStr string
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT payload_snapshot::text FROM %s.pim_publish_log
+		WHERE item_code = $1 AND channel_code = $2 AND payload_snapshot IS NOT NULL
+		ORDER BY created_at DESC LIMIT 1`, schema), itemCode, channelCode).Scan(&snapshotStr)
+
+	preview := &ChannelDiffPreview{ItemCode: itemCode, ChannelCode: channelCode}
+	var prior ChannelProductPayload
+	if err == nil {
+		if unmarshalErr := json.Unmarshal([]byte(snapshotStr), &prior); unmarshalErr == nil {
+			preview.HasPriorSnapshot = true
+		}
+	}
+
+	addField := func(name, oldVal, newVal string) {
+		preview.Fields = append(preview.Fields, ChannelDiffField{Field: name, Old: oldVal, New: newVal, Changed: oldVal != newVal})
+	}
+	addField("title", prior.Title, current.Title)
+	addField("description", prior.Description, current.Description)
+	addField("image_count", strconv.Itoa(len(prior.Images)), strconv.Itoa(len(current.Images)))
+
+	attrKeys := map[string]bool{}
+	for k := range prior.Attributes {
+		attrKeys[k] = true
+	}
+	for k := range current.Attributes {
+		attrKeys[k] = true
+	}
+	keys := make([]string, 0, len(attrKeys))
+	for k := range attrKeys {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		addField("attribute:"+k, prior.Attributes[k], current.Attributes[k])
+	}
+
+	return preview, nil
 }

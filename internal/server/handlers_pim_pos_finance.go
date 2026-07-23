@@ -830,6 +830,107 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "decided", "decision": req.Decision})
 }
 
+// handleBulkDecideApproval (Stage 26.4.6) applies one decision to a bounded
+// selection of Pending Approval documents - see engines.BulkDecideApproval.
+// Deliberately does not run the doctype-specific finalize-on-approve side
+// effects handleDecideApproval's single-document path runs above (POSCart
+// checkout completion, cycle-count posting, vendor-invoice payment) - this
+// endpoint is scoped to PIM content approval (bulk-approving ProductContent
+// from the Workbench), which has no such side effect, and adding those
+// unconditionally here would silently change behavior for any other
+// doctype a caller might select in bulk.
+func handleBulkDecideApproval(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
+	userID := r.Header.Get("Resolved-User-ID")
+	location := r.Header.Get("Resolved-Location")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	var req struct {
+		Doctype     string   `json:"doctype"`
+		DocumentIDs []string `json:"document_ids"`
+		Decision    string   `json:"decision"`
+		Comment     string   `json:"comment"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Doctype == "" || req.Decision == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'doctype', 'document_ids', and 'decision' are required")
+		return
+	}
+	succeeded, failed, err := engines.BulkDecideApproval(tenantID, req.Doctype, req.DocumentIDs, userID, role, location, req.Decision, req.Comment)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	engines.LogAuditEvent(tenantID, userID, "APPROVAL_BULK_DECISION", req.Decision, fmt.Sprintf("%s: %d succeeded, %d failed", req.Doctype, len(succeeded), len(failed)))
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"succeeded": succeeded, "failed": failed})
+}
+
+// handleApprovalLog (Stage 26.4.5) surfaces one document's existing
+// approval_log history, in particular a rejection's mandatory comment.
+func handleApprovalLog(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	doctype := r.URL.Query().Get("doctype")
+	documentID := r.URL.Query().Get("document_id")
+	if doctype == "" || documentID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameters 'doctype' and 'document_id' are required")
+		return
+	}
+	results, err := engines.ListApprovalLog(tenantID, doctype, documentID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+// handlePIMContentVersions (Stage 26.4.6) lists a ProductContent's approved
+// version history.
+func handlePIMContentVersions(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	contentID := r.PathValue("id")
+	results, err := engines.ListProductContentVersions(tenantID, contentID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+// handlePIMContentRollback (Stage 26.4.6) restores a prior approved
+// ProductContent snapshot as the current Draft content.
+func handlePIMContentRollback(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	contentID := r.PathValue("id")
+	var req struct {
+		VersionID int `json:"version_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.VersionID == 0 {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'version_id' is required")
+		return
+	}
+	if err := engines.RollbackProductContentVersion(tenantID, contentID, req.VersionID, userID, role); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "rolled_back"})
+}
+
 // handleListPendingApprovals returns the caller's approval inbox.
 func handleListPendingApprovals(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")

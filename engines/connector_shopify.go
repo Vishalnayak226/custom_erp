@@ -106,7 +106,8 @@ func callShopifyGraphQL(ctx context.Context, shopDomain, accessToken, query stri
 		return nil, &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("shopify request failed: %v", err)}
 	}
 	if status < 200 || status >= 300 {
-		return nil, &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("shopify returned HTTP %d: %s", status, string(respBody))}
+		msg := fmt.Sprintf("shopify returned HTTP %d: %s", status, string(respBody))
+		return nil, &ValidationError{Code: classifyConnectorError(msg), Message: msg}
 	}
 
 	var parsed shopifyGraphQLResponse
@@ -114,7 +115,11 @@ func callShopifyGraphQL(ctx context.Context, shopDomain, accessToken, query stri
 		return nil, fmt.Errorf("failed to parse shopify response: %v", err)
 	}
 	if len(parsed.Errors) > 0 {
-		return nil, &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("shopify GraphQL error: %s", parsed.Errors[0].Message)}
+		// 26.4.8: classified against parsed.Errors[0].Message alone (not the
+		// "shopify GraphQL error: " prefix below) so the dictionary matches
+		// on the platform's own wording, not this connector's added prefix.
+		code := classifyConnectorError(parsed.Errors[0].Message)
+		return nil, &ValidationError{Code: code, Message: fmt.Sprintf("shopify GraphQL error: %s", parsed.Errors[0].Message)}
 	}
 	ts := parsed.Extensions.Cost.ThrottleStatus
 	log.Printf("[SHOPIFY] query cost %d, throttle available %.0f/%.0f", parsed.Extensions.Cost.ActualQueryCost, ts.CurrentlyAvailable, ts.MaximumAvailable)
@@ -195,7 +200,8 @@ func (shopifyConnector) PublishProduct(ctx context.Context, cred map[string]stri
 		return "", fmt.Errorf("failed to parse productSet response: %v", err)
 	}
 	if len(result.ProductSet.UserErrors) > 0 {
-		return "", &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("shopify rejected the product: %s", result.ProductSet.UserErrors[0].Message)}
+		userErr := result.ProductSet.UserErrors[0].Message
+		return "", &ValidationError{Code: classifyConnectorError(userErr), Message: fmt.Sprintf("shopify rejected the product: %s", userErr)}
 	}
 	externalID := result.ProductSet.Product.ID
 	if externalID == "" {

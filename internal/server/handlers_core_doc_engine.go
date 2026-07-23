@@ -365,6 +365,28 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Duplicate-content detection (Stage 26.4.2): ProductContent's own
+		// "<item>::<language>" composite id (Stage 15) is always client-set in
+		// the payload on its upsert-style save, never present in the URL path -
+		// same effectiveID resolution the Item block above uses, needed here
+		// too so the duplicate-title query can exclude the document's own row.
+		if doctype == "ProductContent" {
+			effectiveID := id
+			if effectiveID == "" {
+				if payloadID, exists := payload["id"]; exists && payloadID != nil {
+					effectiveID = fmt.Sprintf("%v", payloadID)
+				}
+			}
+			if err := engines.ValidateMasterDataRules(tenantID, effectiveID, doctype, payload); err != nil {
+				if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
+					writeAPIError(w, r, verr.Code, verr.SubFor)
+				} else {
+					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+				}
+				return
+			}
+		}
+
 		// GST enforcement (Stage 17.5): every non-empty PO items line must
 		// resolve to an Item with hsn_code/gst_rate set; the computed
 		// breakdown is stored on the document itself (no GL posting here -

@@ -6,6 +6,30 @@ import (
 	"time"
 )
 
+// TestClassifyConnectorError (Stage 26.4.8) verifies the marketplace error
+// dictionary picks the nearest CONN-022x code for platform wording actually
+// observed in the connector tests below (Shopify's "can't be blank",
+// BigCommerce's "is a duplicate"), and still falls back to the old
+// unconditional CONN-0226 for anything unrecognized.
+func TestClassifyConnectorError(t *testing.T) {
+	cases := []struct {
+		message string
+		want    string
+	}{
+		{"Title can't be blank", "CONN-0227"},
+		{"Handle has already been taken", "CONN-0228"},
+		{"The product name is a duplicate", "CONN-0228"},
+		{"Vendor is required", "CONN-0227"},
+		{"Too Many Requests - please retry later", "CONN-0225"},
+		{"internal server error", "CONN-0226"},
+	}
+	for _, c := range cases {
+		if got := classifyConnectorError(c.message); got != c.want {
+			t.Errorf("classifyConnectorError(%q) = %q, want %q", c.message, got, c.want)
+		}
+	}
+}
+
 // TestChannelCredentialEncryptDecryptRoundTrip verifies the AES-256-GCM
 // round trip (Stage 16.1) without touching the database - pure crypto,
 // same spirit as the plan's "httptest.Server-backed unit test per

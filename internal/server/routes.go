@@ -153,6 +153,8 @@ func Run() {
 	// Approval / Workflow Engine (maker-checker)
 	http.HandleFunc("POST /api/v1/approval/submit", apiMiddleware(handleSubmitApproval))
 	http.HandleFunc("POST /api/v1/approval/decide", apiMiddleware(handleDecideApproval))
+	http.HandleFunc("POST /api/v1/approval/bulk-decide", apiMiddleware(handleBulkDecideApproval))
+	http.HandleFunc("GET /api/v1/approval/log", apiMiddleware(handleApprovalLog))
 	http.HandleFunc("GET /api/v1/approval/pending", apiMiddleware(handleListPendingApprovals))
 	http.HandleFunc("/api/v1/approval/rules", apiMiddleware(handleApprovalRules))
 
@@ -215,13 +217,16 @@ func Run() {
 	http.HandleFunc("GET /api/v1/pim/reports/{name}", apiMiddleware(moduleGate("pim", handlePIMReport)))
 	http.HandleFunc("GET /api/v1/pim/workbench", apiMiddleware(moduleGate("pim", handlePIMWorkbench)))
 	http.HandleFunc("GET /api/v1/pim/completeness/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMCompleteness)))
-	// Media Library (Stage 15.2)
+	// Media Library (Stage 15.2, versioning/alt-text/expiry/thumbnails Stage 26.4.4)
 	http.HandleFunc("POST /api/v1/pim/media/upload", apiMiddleware(moduleGate("pim", handlePIMMediaUpload)))
 	http.HandleFunc("GET /api/v1/pim/media/{id}/file", apiMiddleware(moduleGate("pim", handlePIMMediaFile)))
+	http.HandleFunc("GET /api/v1/pim/media/{id}/thumbnail", apiMiddleware(moduleGate("pim", handlePIMMediaThumbnail)))
+	http.HandleFunc("POST /api/v1/pim/media/{id}/metadata", apiMiddleware(moduleGate("pim", handlePIMMediaUpdateMetadata)))
 	http.HandleFunc("GET /api/v1/pim/media", apiMiddleware(moduleGate("pim", handlePIMMediaList)))
 	http.HandleFunc("POST /api/v1/pim/media/{id}/deactivate", apiMiddleware(moduleGate("pim", handlePIMMediaDeactivate)))
-	// Channel Publishing (Stage 15.2)
+	// Channel Publishing (Stage 15.2; validation packs + diff preview Stage 26.4.7)
 	http.HandleFunc("POST /api/v1/pim/publish", apiMiddleware(moduleGate("pim", handlePIMPublish)))
+	http.HandleFunc("GET /api/v1/pim/publish-preview", apiMiddleware(moduleGate("pim", handlePIMPublishPreview)))
 	http.HandleFunc("GET /api/v1/pim/publish/{jobID}", apiMiddleware(moduleGate("pim", handlePIMPublishJobStatus)))
 	http.HandleFunc("GET /api/v1/pim/publish-log", apiMiddleware(moduleGate("pim", handlePIMPublishLog)))
 	// Import/Export (Stage 15.2)
@@ -230,6 +235,13 @@ func Run() {
 	// Real Channel Connector Framework (Stage 16.1) - write-only credential
 	// endpoint, HR/Admin only; there is deliberately no matching GET.
 	http.HandleFunc("POST /api/v1/pim/channels/{code}/credentials", apiMiddleware(moduleGate("pim", handleSaveChannelCredential)))
+	// Taxonomy versioning (Stage 26.4.3) - reads the existing audit_logs trail.
+	http.HandleFunc("GET /api/v1/pim/taxonomy-history/{doctype}/{id}", apiMiddleware(moduleGate("pim", handlePIMTaxonomyHistory)))
+	// Search/discovery feed export (Stage 26.4.9)
+	http.HandleFunc("GET /api/v1/pim/search-feed.csv", apiMiddleware(moduleGate("pim", handlePIMSearchFeedExport)))
+	// Content workflow: version history + rollback (Stage 26.4.6)
+	http.HandleFunc("GET /api/v1/pim/content/{id}/versions", apiMiddleware(moduleGate("pim", handlePIMContentVersions)))
+	http.HandleFunc("POST /api/v1/pim/content/{id}/rollback", apiMiddleware(moduleGate("pim", handlePIMContentRollback)))
 	http.HandleFunc("POST /api/v1/integration/bigcommerce/webhook/{channelCode}", apiMiddleware(handleBigCommerceWebhook))
 
 	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)

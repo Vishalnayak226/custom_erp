@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -78,22 +79,50 @@ func init() {
 	registerConnector("", stubConnector{})
 }
 
-// fetchAttributeValueRaw returns a ProductAttributeValue's raw string value
-// (unlike attributeValueFilled in engines/pim.go, which only reports
-// whether it's non-empty) - needed here to actually populate a channel
-// payload field, not just check completeness.
-func fetchAttributeValueRaw(tenantID, itemCode, attributeCode string) (string, error) {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return "", err
+// connectorErrorPatterns (Stage 26.4.8: "marketplace error dictionary") maps
+// substrings every real connector's own error text has been observed to
+// contain - Shopify GraphQL userErrors messages, BigCommerce's error
+// "title", Magento's error "message" - onto the existing precisely-coded
+// CONN-022x scenarios (Stage 25.6), instead of every failure collapsing
+// into the generic CONN-0226 "Channel publish failed" the way it did before
+// this dictionary existed. Order matters: checked top to bottom, first
+// match wins, so a more specific pattern (duplicate/blank-field) must sit
+// above the generic throttle/rate-limit catch-all it could otherwise be
+// confused with. This is deliberately substring/case-insensitive matching,
+// not a per-platform error-code table - each platform's error shape is
+// different enough (Shopify field-level userErrors vs. BigCommerce/Magento
+// free-text messages) that a shared code-to-code table isn't possible; the
+// wording itself is the only thing they have in common.
+var connectorErrorPatterns = []struct {
+	substr string
+	code   string
+}{
+	{"already been taken", "CONN-0228"},
+	{"already exists", "CONN-0228"},
+	{"duplicate", "CONN-0228"},
+	{"can't be blank", "CONN-0227"},
+	{"cannot be blank", "CONN-0227"},
+	{"must not be blank", "CONN-0227"},
+	{"is required", "CONN-0227"},
+	{"rate limit", "CONN-0225"},
+	{"throttle", "CONN-0225"},
+	{"too many requests", "CONN-0225"},
+}
+
+// classifyConnectorError looks up the nearest CONN-022x code for a raw
+// connector error message, falling back to CONN-0226 ("Channel publish
+// failed") when nothing more specific matches - the same fallback every
+// connector already used unconditionally before this dictionary existed, so
+// nothing gets less precise than it was, only more precise where a known
+// pattern is recognized.
+func classifyConnectorError(rawMessage string) string {
+	lower := strings.ToLower(rawMessage)
+	for _, p := range connectorErrorPatterns {
+		if strings.Contains(lower, p.substr) {
+			return p.code
+		}
 	}
-	var value string
-	id := itemCode + "::" + attributeCode
-	err = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'value', '') FROM %s.documents WHERE doctype = 'ProductAttributeValue' AND id = $1`, schema), id).Scan(&value)
-	if err != nil {
-		return "", nil
-	}
-	return value, nil
+	return "CONN-0226"
 }
 
 // BuildChannelPayload assembles a ChannelProductPayload from existing PIM
@@ -165,7 +194,11 @@ func BuildChannelPayload(tenantID, itemCode, channelCode string) (*ChannelProduc
 		if v, exists := itemData[m.source]; exists {
 			val = fmt.Sprintf("%v", v)
 		} else {
-			val, _ = fetchAttributeValueRaw(tenantID, itemCode, m.source)
+			// 26.4.1: resolve through the same locale/channel override
+			// priority CalculateCompleteness's readiness check uses, so the
+			// outbound payload actually gets the channel-specific value
+			// (e.g. a French title override) instead of always the global one.
+			val, _ = ResolveAttributeValue(tenantID, itemCode, m.source, defaultLocale, channelCode)
 		}
 		if val != "" {
 			payload.Attributes[m.target] = val

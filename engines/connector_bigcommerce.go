@@ -100,8 +100,11 @@ func (bigCommerceConnector) PublishProduct(ctx context.Context, cred map[string]
 		return "", &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("bigcommerce request failed: %v", err)}
 	}
 	if status < 200 || status >= 300 {
-		// CONN-0226 (Stage 25.6): "Channel publish failed."
-		return "", &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("bigcommerce rejected the product (HTTP %d): %s", status, bigCommerceErrorMessage(respBody))}
+		// 26.4.8: classified against the platform's own error title, falling
+		// back to CONN-0226 ("Channel publish failed") same as before this
+		// dictionary existed.
+		platformMsg := bigCommerceErrorMessage(respBody)
+		return "", &ValidationError{Code: classifyConnectorError(platformMsg), Message: fmt.Sprintf("bigcommerce rejected the product (HTTP %d): %s", status, platformMsg)}
 	}
 
 	var result struct {

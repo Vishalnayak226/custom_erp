@@ -272,8 +272,10 @@ func handlePIMMediaUpload(w http.ResponseWriter, r *http.Request) {
 
 	itemCode := r.FormValue("item")
 	mediaRole := r.FormValue("media_role")
+	altText := r.FormValue("alt_text")
+	expiryDate := r.FormValue("expiry_date")
 
-	asset, err := engines.SaveMediaFile(tenantID, fileBytes, header.Filename, itemCode, mediaRole, userID)
+	asset, err := engines.SaveMediaFile(tenantID, fileBytes, header.Filename, itemCode, mediaRole, userID, altText, expiryDate)
 	if err != nil {
 		if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
 			writeAPIError(w, r, verr.Code, verr.SubFor)
@@ -283,6 +285,55 @@ func handlePIMMediaUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(asset)
+}
+
+// handlePIMMediaUpdateMetadata (Stage 26.4.4) corrects alt text/expiry date
+// after upload without re-uploading the file.
+func handlePIMMediaUpdateMetadata(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	var req struct {
+		AltText    string `json:"alt_text"`
+		ExpiryDate string `json:"expiry_date"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "invalid request body")
+		return
+	}
+	mediaID := r.PathValue("id")
+	if err := engines.UpdateMediaMetadata(tenantID, mediaID, req.AltText, req.ExpiryDate); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
+}
+
+// handlePIMMediaThumbnail (Stage 26.4.4) streams a generated thumbnail
+// rendition back - same authenticated-route shape as handlePIMMediaFile,
+// 404s if this asset has none (webp/gif/pdf, or a decode failure at
+// upload time - see engines.generateThumbnail's scope note).
+func handlePIMMediaThumbnail(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	mediaID := r.PathValue("id")
+	path, err := engines.GetMediaThumbnail(tenantID, mediaID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, err.Error())
+		return
+	}
+	fileBytes, err := os.ReadFile(path)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "stored thumbnail missing")
+		return
+	}
+	w.Header().Set("Content-Type", "image/jpeg")
+	_, _ = w.Write(fileBytes)
 }
 
 // handlePIMMediaFile streams a stored media file back - authenticated (this
@@ -345,6 +396,30 @@ func handlePIMMediaDeactivate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "deactivated"})
+}
+
+// handlePIMPublishPreview (Stage 26.4.7) shows what would be sent to a
+// channel right now, diffed against the last publish attempt's payload
+// snapshot - see engines.PreviewChannelDiff for the scope note on why this
+// isn't a live read-back from the platform itself.
+func handlePIMPublishPreview(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	itemCode := r.URL.Query().Get("item")
+	channelCode := r.URL.Query().Get("channel")
+	if itemCode == "" || channelCode == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameters 'item' and 'channel' are required")
+		return
+	}
+	preview, err := engines.PreviewChannelDiff(tenantID, itemCode, channelCode)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(preview)
 }
 
 // handlePIMPublish (Stage 15.2) queues a publish job after a readiness
@@ -424,6 +499,43 @@ func handlePIMPublishLog(w http.ResponseWriter, r *http.Request) {
 		results = []engines.PublishLogEntry{}
 	}
 	_ = json.NewEncoder(w).Encode(results)
+}
+
+// handlePIMTaxonomyHistory (Stage 26.4.3) surfaces the existing audit_logs
+// trail (db/migration.sql section 16) for one taxonomy document - see
+// engines.GetTaxonomyHistory for the allowlist/query.
+func handlePIMTaxonomyHistory(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	doctype := r.PathValue("doctype")
+	id := r.PathValue("id")
+	results, err := engines.GetTaxonomyHistory(tenantID, doctype, id)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(results)
+}
+
+// handlePIMSearchFeedExport (Stage 26.4.9) streams the search/discovery
+// feed CSV - see engines.GetSearchFeedExportCSV.
+func handlePIMSearchFeedExport(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	csvBytes, err := engines.GetSearchFeedExportCSV(tenantID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment; filename=pim_search_feed.csv")
+	_, _ = w.Write(csvBytes)
 }
 
 // Fixed Asset Management (Stage 13.13b). Asset creation/listing use the

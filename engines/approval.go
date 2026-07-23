@@ -311,7 +311,87 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		return err
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	// Stage 26.4.6: snapshot the just-approved ProductContent so a later bad
+	// edit can be rolled back to this known-good copy. Best-effort and
+	// outside the transaction above (the approval itself must never fail
+	// because a snapshot write failed) - same "skip rather than fail the
+	// whole operation" precedent ListWorkbench already sets.
+	if doctype == "ProductContent" && decision == "Approved" {
+		snapshotProductContentVersion(tenantID, docID, data, actorUserID)
+	}
+
+	return nil
+}
+
+// ApprovalLogEntry is one row of a document's approval history - submitted/
+// approved/rejected/modified, with whatever comment the actor gave (a
+// rejection's comment is mandatory, APPROV-0159).
+type ApprovalLogEntry struct {
+	Action    string `json:"action"`
+	ActorUser string `json:"actor_user_id"`
+	ActorRole string `json:"actor_role"`
+	Comment   string `json:"comment"`
+	CreatedAt string `json:"created_at"`
+}
+
+// ListApprovalLog (Stage 26.4.5) surfaces one document's approval_log
+// history - in particular, a rejection's mandatory comment, which until now
+// was only ever visible by querying the table directly. No new storage:
+// approval_log already captures this on every Submit/Approve/Reject/Modified
+// action (Stage 13.8).
+func ListApprovalLog(tenantID, doctype, docID string) ([]ApprovalLogEntry, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT action, actor_user_id, actor_role, COALESCE(comment, ''), created_at::text
+		FROM %s.approval_log WHERE doctype = $1 AND document_id = $2 ORDER BY created_at ASC`, schema), doctype, docID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []ApprovalLogEntry{}
+	for rows.Next() {
+		var e ApprovalLogEntry
+		if err := rows.Scan(&e.Action, &e.ActorUser, &e.ActorRole, &e.Comment, &e.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// BulkDecideApproval (Stage 26.4.6) applies one approve/reject decision to a
+// bounded selection of Pending Approval documents. Each DecideApproval call
+// is already its own atomic, row-locked transaction, so this is a tolerant
+// loop rather than one all-or-nothing transaction: one document failing a
+// check (e.g. a maker-checker violation) shouldn't block the other selected
+// documents from being decided, mirroring BulkUpdateDocuments' own
+// partial-failure reporting shape (PIM-0235) rather than introducing a
+// second one.
+func BulkDecideApproval(tenantID, doctype string, docIDs []string, actorUserID, actorRole, actorLocation, decision, comment string) (succeeded []string, failed map[string]string, err error) {
+	if len(docIDs) == 0 {
+		return nil, nil, fmt.Errorf("select at least one document")
+	}
+	if len(docIDs) > maxPIMBulkEditDocuments {
+		return nil, nil, fmt.Errorf("bulk approval supports at most %d documents at a time", maxPIMBulkEditDocuments)
+	}
+	succeeded = []string{}
+	failed = map[string]string{}
+	for _, docID := range docIDs {
+		if decErr := DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocation, decision, comment); decErr != nil {
+			failed[docID] = decErr.Error()
+		} else {
+			succeeded = append(succeeded, docID)
+		}
+	}
+	return succeeded, failed, nil
 }
 
 // ResetToPendingOnEdit implements "re-approval-on-edit": editing a document

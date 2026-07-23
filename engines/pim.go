@@ -136,19 +136,56 @@ func fetchMandatoryFamilyAttributes(tenantID, family string) ([]familyAttribute,
 	return out, nil
 }
 
-// attributeValueFilled checks the ProductAttributeValue at the composite id
-// "<itemCode>::<attributeCode>" (see migration.sql section 31's id
-// convention note) for a non-empty value.
-func attributeValueFilled(tenantID, itemCode, attributeCode string) (bool, error) {
+// attributeValueID mirrors ProductAttributeValue's Stage 15 base id
+// convention ("<item>::<attribute>") for the global/default row, and
+// extends it (Stage 26.4.1) with a locale/channel suffix for a scoped
+// override row - a distinct document per combination, never colliding with
+// the global row a blank locale+channel always resolves to.
+func attributeValueID(itemCode, attributeCode, locale, channelCode string) string {
+	id := itemCode + "::" + attributeCode
+	if locale == "" && channelCode == "" {
+		return id
+	}
+	return id + "::" + locale + "::" + channelCode
+}
+
+// ResolveAttributeValue (Stage 26.4.1) returns the most specific
+// ProductAttributeValue for an item+attribute: an override scoped to both
+// locale and channel wins, then locale-only, then channel-only, then the
+// global (blank locale, blank channel) row - one query rather than four
+// round-trips, using an ORDER BY "does this row match the request" trick
+// instead of a procedural fallback chain. Passing "" for locale and/or
+// channelCode (the pre-26.4.1 call shape) only ever matches the global row,
+// so every existing caller keeps its old behavior unchanged.
+func ResolveAttributeValue(tenantID, itemCode, attributeCode, locale, channelCode string) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return false, err
+		return "", err
 	}
 	var value string
-	id := itemCode + "::" + attributeCode
-	err = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'value', '') FROM %s.documents WHERE doctype = 'ProductAttributeValue' AND id = $1`, schema), id).Scan(&value)
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(data->>'value', '') FROM %s.documents
+		WHERE doctype = 'ProductAttributeValue' AND data->>'item' = $1 AND data->>'attribute' = $2
+			AND (COALESCE(data->>'locale', '') = $3 OR COALESCE(data->>'locale', '') = '')
+			AND (COALESCE(data->>'channel', '') = $4 OR COALESCE(data->>'channel', '') = '')
+		ORDER BY
+			(COALESCE(data->>'locale', '') = $3 AND $3 != '') DESC,
+			(COALESCE(data->>'channel', '') = $4 AND $4 != '') DESC
+		LIMIT 1`, schema), itemCode, attributeCode, locale, channelCode).Scan(&value)
 	if err != nil {
-		return false, nil // no row yet - not filled, not an error
+		return "", nil // no row yet - not filled, not an error
+	}
+	return value, nil
+}
+
+// attributeValueFilled checks whether ResolveAttributeValue finds a
+// non-empty value for this item+attribute, scoped to locale/channel if
+// given (blank for both checks only the global row, same as before Stage
+// 26.4.1's locale/channel overrides existed).
+func attributeValueFilled(tenantID, itemCode, attributeCode, locale, channelCode string) (bool, error) {
+	value, err := ResolveAttributeValue(tenantID, itemCode, attributeCode, locale, channelCode)
+	if err != nil {
+		return false, err
 	}
 	return strings.TrimSpace(value) != "", nil
 }
@@ -230,11 +267,11 @@ func fetchChannelMandatoryFields(tenantID, channelID string) ([]channelFieldRule
 // the Item's own data first (covers core fields like name/barcode), then
 // falls back to treating it as a ProductAttributeValue attribute code
 // (covers PIM-enriched fields like polish/warranty).
-func channelFieldFilled(tenantID, itemCode string, itemData map[string]interface{}, sourceField string) (bool, error) {
+func channelFieldFilled(tenantID, itemCode string, itemData map[string]interface{}, sourceField, locale, channelID string) (bool, error) {
 	if _, exists := itemData[sourceField]; exists {
 		return isFieldFilled(itemData, sourceField), nil
 	}
-	return attributeValueFilled(tenantID, itemCode, sourceField)
+	return attributeValueFilled(tenantID, itemCode, sourceField, locale, channelID)
 }
 
 // CalculateCompleteness scores an Item 0-100 against its core ERP fields,
@@ -274,7 +311,7 @@ func CalculateCompleteness(tenantID, itemCode, locale, channelID string) (*Compl
 	}
 	for _, a := range attrs {
 		result.TotalChecks++
-		filled, err := attributeValueFilled(tenantID, itemCode, a.AttributeCode)
+		filled, err := attributeValueFilled(tenantID, itemCode, a.AttributeCode, locale, channelID)
 		if err != nil {
 			return nil, err
 		}
@@ -304,7 +341,7 @@ func CalculateCompleteness(tenantID, itemCode, locale, channelID string) (*Compl
 		}
 		for _, cf := range channelFields {
 			result.TotalChecks++
-			filled, err := channelFieldFilled(tenantID, itemCode, data, cf.SourceField)
+			filled, err := channelFieldFilled(tenantID, itemCode, data, cf.SourceField, locale, channelID)
 			if err != nil {
 				return nil, err
 			}

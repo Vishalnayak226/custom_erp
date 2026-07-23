@@ -283,7 +283,13 @@ func securityHeaders(next http.Handler) http.Handler {
 		"script-src 'self' 'unsafe-inline'; " +
 		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
 		"font-src 'self' https://fonts.gstatic.com; " +
-		"img-src 'self' data:; " +
+		// blob: (not just data:) is required for the PIM media gallery
+		// (Stage 15.2/26.4.4): images/thumbnails are fetched as authenticated
+		// blobs and rendered via URL.createObjectURL, since a plain <img src>
+		// can't carry the Authorization header the media endpoints require -
+		// found via a live browser check (CSP was silently blocking every
+		// media thumbnail/preview in the gallery until this was added).
+		"img-src 'self' data: blob:; " +
 		"connect-src 'self'; " +
 		"object-src 'none'; " +
 		"base-uri 'self'; " +

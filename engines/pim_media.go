@@ -1,11 +1,15 @@
 package engines
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"custom_erp/db"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/jpeg"
+	_ "image/png" // registers the PNG decoder with image.Decode
 	"net/http"
 	"os"
 	"path/filepath"
@@ -37,13 +41,95 @@ var allowedMediaExtensions = map[string]string{
 }
 
 type ProductMediaAsset struct {
-	ID        string `json:"id"`
-	Item      string `json:"item"`
-	MediaRole string `json:"media_role"`
-	FileType  string `json:"file_type"`
-	Checksum  string `json:"checksum"`
-	VersionNo int    `json:"version_no"`
-	Status    string `json:"status"`
+	ID           string `json:"id"`
+	Item         string `json:"item"`
+	MediaRole    string `json:"media_role"`
+	FileType     string `json:"file_type"`
+	Checksum     string `json:"checksum"`
+	VersionNo    int    `json:"version_no"`
+	Status       string `json:"status"`
+	AltText      string `json:"alt_text,omitempty"`
+	ExpiryDate   string `json:"expiry_date,omitempty"`
+	HasThumbnail bool   `json:"has_thumbnail,omitempty"`
+}
+
+// thumbnailMaxDim (Stage 26.4.4) bounds the longest side of a generated
+// rendition/thumbnail - just large enough for a workbench gallery card or a
+// channel listing thumbnail, not a second full-size copy.
+const thumbnailMaxDim = 200
+
+// generateThumbnail decodes a jpg/png upload and produces a nearest-
+// neighbor-downsampled JPEG no larger than thumbnailMaxDim on its longest
+// side, always stdlib image/jpeg+image/png (no new dependency). webp/gif/pdf
+// are skipped (ok=false, not an error) - golang.org/x/image's webp decoder
+// and a GIF-frame-aware resize are both real scope beyond what a single
+// static thumbnail needs here, stated as a limitation rather than
+// approximated badly.
+func generateThumbnail(fileBytes []byte, fileType string) (thumbBytes []byte, ok bool) {
+	if fileType != "image/jpeg" && fileType != "image/png" {
+		return nil, false
+	}
+	src, _, err := image.Decode(bytes.NewReader(fileBytes))
+	if err != nil {
+		return nil, false
+	}
+	bounds := src.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+	if w <= 0 || h <= 0 {
+		return nil, false
+	}
+	scale := 1.0
+	if w >= h && w > thumbnailMaxDim {
+		scale = float64(thumbnailMaxDim) / float64(w)
+	} else if h > w && h > thumbnailMaxDim {
+		scale = float64(thumbnailMaxDim) / float64(h)
+	}
+	newW, newH := int(float64(w)*scale), int(float64(h)*scale)
+	if newW < 1 {
+		newW = 1
+	}
+	if newH < 1 {
+		newH = 1
+	}
+	dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
+	for y := 0; y < newH; y++ {
+		srcY := bounds.Min.Y + y*h/newH
+		for x := 0; x < newW; x++ {
+			srcX := bounds.Min.X + x*w/newW
+			dst.Set(x, y, src.At(srcX, srcY))
+		}
+	}
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 80}); err != nil {
+		return nil, false
+	}
+	return buf.Bytes(), true
+}
+
+// thumbnailStorePath is the deterministic on-disk location for a media
+// asset's thumbnail, derived from its checksum the same content-addressed
+// way the original file is - never a second row/id to keep in sync.
+func thumbnailStorePath(checksum string) string {
+	return filepath.Join(mediaStoreDir, checksum+"_thumb.jpg")
+}
+
+// nextMediaVersion (Stage 26.4.4) returns the next version number for an
+// item+role - real per-role incrementing version history (counting every
+// prior version, including ones since deactivated), replacing the old
+// hardcoded version_no=1 every upload used to get.
+func nextMediaVersion(tenantID, itemCode, mediaRole string) (int, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return 1, err
+	}
+	var maxVersion int
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(MAX(NULLIF(data->>'version_no', '')::int), 0) FROM %s.documents
+		WHERE doctype = 'ProductMedia' AND data->>'item' = $1 AND data->>'media_role' = $2`, schema), itemCode, mediaRole).Scan(&maxVersion)
+	if err != nil {
+		return 1, err
+	}
+	return maxVersion + 1, nil
 }
 
 // validateMediaFile checks the extension allowlist AND sniffs actual file
@@ -159,8 +245,9 @@ func generateMediaID(itemCode, mediaRole, checksum string) string {
 // SaveMediaFile validates, dedups, stores, and registers an uploaded file
 // as a ProductMedia document. Returns the existing asset (no new file
 // written, no new document) if this exact checksum is already Active for
-// this item+role.
-func SaveMediaFile(tenantID string, fileBytes []byte, filename, itemCode, mediaRole, uploadedBy string) (*ProductMediaAsset, error) {
+// this item+role. altText/expiryDate are optional (Stage 26.4.4); pass ""
+// for either to leave them unset.
+func SaveMediaFile(tenantID string, fileBytes []byte, filename, itemCode, mediaRole, uploadedBy, altText, expiryDate string) (*ProductMediaAsset, error) {
 	if itemCode == "" {
 		return nil, fmt.Errorf("item is required")
 	}
@@ -191,10 +278,27 @@ func SaveMediaFile(tenantID string, fileBytes []byte, filename, itemCode, mediaR
 		}
 	}
 
+	hasThumbnail := false
+	if thumbBytes, ok := generateThumbnail(fileBytes, fileType); ok {
+		thumbPath := thumbnailStorePath(checksum)
+		if _, statErr := os.Stat(thumbPath); os.IsNotExist(statErr) {
+			if err := os.WriteFile(thumbPath, thumbBytes, 0644); err == nil {
+				hasThumbnail = true
+			}
+		} else {
+			hasThumbnail = true
+		}
+	}
+
 	if mediaRole == "Main Image" {
 		if err := demoteExistingMainImage(tenantID, itemCode); err != nil {
 			return nil, fmt.Errorf("failed to demote prior main image: %v", err)
 		}
+	}
+
+	versionNo, err := nextMediaVersion(tenantID, itemCode, mediaRole)
+	if err != nil {
+		return nil, err
 	}
 
 	schema, err := db.GetTenantSchema(tenantID)
@@ -202,17 +306,24 @@ func SaveMediaFile(tenantID string, fileBytes []byte, filename, itemCode, mediaR
 		return nil, err
 	}
 	mediaID := generateMediaID(itemCode, mediaRole, checksum)
+	hasThumbFlag := "No"
+	if hasThumbnail {
+		hasThumbFlag = "Yes"
+	}
 	data := map[string]interface{}{
-		"id":         mediaID,
-		"code":       mediaID,
-		"item":       itemCode,
-		"media_role": mediaRole,
-		"file_path":  storedPath,
-		"file_type":  fileType,
-		"checksum":   checksum,
-		"version_no": 1,
-		"sort_order": 0,
-		"status":     "Active",
+		"id":            mediaID,
+		"code":          mediaID,
+		"item":          itemCode,
+		"media_role":    mediaRole,
+		"file_path":     storedPath,
+		"file_type":     fileType,
+		"checksum":      checksum,
+		"version_no":    versionNo,
+		"sort_order":    0,
+		"status":        "Active",
+		"alt_text":      altText,
+		"expiry_date":   expiryDate,
+		"has_thumbnail": hasThumbFlag,
 	}
 	marshaled, err := json.Marshal(data)
 	if err != nil {
@@ -229,8 +340,63 @@ func SaveMediaFile(tenantID string, fileBytes []byte, filename, itemCode, mediaR
 
 	return &ProductMediaAsset{
 		ID: mediaID, Item: itemCode, MediaRole: mediaRole,
-		FileType: fileType, Checksum: checksum, VersionNo: 1, Status: "Active",
+		FileType: fileType, Checksum: checksum, VersionNo: versionNo, Status: "Active",
+		AltText: altText, ExpiryDate: expiryDate, HasThumbnail: hasThumbnail,
 	}, nil
+}
+
+// UpdateMediaMetadata (Stage 26.4.4) corrects alt text/expiry date after
+// upload without re-uploading the file - both are metadata-only fields;
+// editing them never touches the stored bytes, checksum, or version.
+func UpdateMediaMetadata(tenantID, mediaID, altText, expiryDate string) error {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var dataStr string
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'ProductMedia' AND id = $1`, schema), mediaID).Scan(&dataStr); err != nil {
+		return fmt.Errorf("media not found: %v", err)
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return err
+	}
+	data["alt_text"] = altText
+	data["expiry_date"] = expiryDate
+	marshaled, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'ProductMedia' AND id = $2`, schema), marshaled, mediaID)
+	return err
+}
+
+// GetMediaThumbnail resolves a ProductMedia id to its generated thumbnail's
+// file path, if one exists (Stage 26.4.4) - same Active-only rule as
+// GetMediaFile.
+func GetMediaThumbnail(tenantID, mediaID string) (path string, err error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return "", err
+	}
+	var dataStr, status string
+	err = db.DB.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'ProductMedia' AND id = $1`, schema), mediaID).Scan(&dataStr, &status)
+	if err != nil {
+		return "", fmt.Errorf("media not found: %v", err)
+	}
+	if status != "Active" {
+		return "", fmt.Errorf("media is not active")
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return "", err
+	}
+	hasThumb, _ := data["has_thumbnail"].(string)
+	checksum, _ := data["checksum"].(string)
+	if hasThumb != "Yes" || checksum == "" {
+		return "", fmt.Errorf("no thumbnail available for this media")
+	}
+	return thumbnailStorePath(checksum), nil
 }
 
 // GetMediaFile resolves a ProductMedia id to its stored file path and MIME
@@ -270,7 +436,8 @@ func ListMediaForItem(tenantID, itemCode string) ([]ProductMediaAsset, error) {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, COALESCE(data->>'media_role', ''), COALESCE(data->>'file_type', ''), COALESCE(data->>'checksum', ''), status
+		SELECT id, COALESCE(data->>'media_role', ''), COALESCE(data->>'file_type', ''), COALESCE(data->>'checksum', ''), status,
+			COALESCE(NULLIF(data->>'version_no', '')::int, 1), COALESCE(data->>'alt_text', ''), COALESCE(data->>'expiry_date', ''), COALESCE(data->>'has_thumbnail', '') = 'Yes'
 		FROM %s.documents
 		WHERE doctype = 'ProductMedia' AND data->>'item' = $1 AND status = 'Active'
 		ORDER BY id`, schema), itemCode)
@@ -282,7 +449,7 @@ func ListMediaForItem(tenantID, itemCode string) ([]ProductMediaAsset, error) {
 	var out []ProductMediaAsset
 	for rows.Next() {
 		var m ProductMediaAsset
-		if err := rows.Scan(&m.ID, &m.MediaRole, &m.FileType, &m.Checksum, &m.Status); err != nil {
+		if err := rows.Scan(&m.ID, &m.MediaRole, &m.FileType, &m.Checksum, &m.Status, &m.VersionNo, &m.AltText, &m.ExpiryDate, &m.HasThumbnail); err != nil {
 			return nil, err
 		}
 		m.Item = itemCode
