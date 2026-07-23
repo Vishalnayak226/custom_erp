@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"time"
 )
@@ -258,13 +259,21 @@ func callHookWithRecovery(hook extensionHookRow, payload []byte) (status int, la
 
 	select {
 	case res := <-resultCh:
+		// EXT-0290 (Stage 25.7): "Extension hook timeout" - the common
+		// case (the http.Client's own Timeout firing, well before the
+		// select's own safety-margin branch below ever would) surfaces
+		// here as a net.Error satisfying Timeout().
+		if netErr, ok := res.err.(net.Error); ok && netErr.Timeout() {
+			return res.status, int(time.Since(start).Milliseconds()), &ValidationError{Code: "EXT-0290", Message: fmt.Sprintf("hook call timed out: %v", res.err)}
+		}
 		return res.status, int(time.Since(start).Milliseconds()), res.err
 	case <-time.After(time.Duration(hook.TimeoutMs+1000) * time.Millisecond):
 		// Safety margin over the HTTP client's own timeout - this branch
 		// should be unreachable in practice (the client should always time
 		// itself out first) but guarantees the caller is never blocked
 		// forever regardless of what a misbehaving hook does.
-		return 0, int(time.Since(start).Milliseconds()), fmt.Errorf("hook call exceeded safety timeout")
+		// EXT-0290 (Stage 25.7): "Extension hook timeout."
+		return 0, int(time.Since(start).Milliseconds()), &ValidationError{Code: "EXT-0290", Message: "hook call exceeded safety timeout"}
 	}
 }
 
@@ -303,10 +312,18 @@ func InvokeBeforeSaveHooks(tenantID, doctype, documentID string, data map[string
 		status, latencyMs, callErr := callHookWithRecovery(hook, payload)
 		logHookCall(tenantID, hook.ID, payloadHash, status, latencyMs, callErr)
 		if callErr != nil {
+			// Preserve a precise *ValidationError (EXT-0290) rather than
+			// flattening it into a new plain error - same reasoning
+			// engines/procurement.go's ConvertRequisitionToOrder already
+			// applies to GenerateSequence's errors.
+			if verr, ok := callErr.(*ValidationError); ok {
+				return verr
+			}
 			return fmt.Errorf("before_save hook failed: %v", callErr)
 		}
 		if status < 200 || status >= 300 {
-			return fmt.Errorf("before_save hook rejected the save (status %d)", status)
+			// EXT-0289 (Stage 25.7): "Extension hook rejected transaction."
+			return &ValidationError{Code: "EXT-0289", Message: fmt.Sprintf("before_save hook rejected the save (status %d)", status), SubFor: fmt.Sprintf("HTTP status %d", status)}
 		}
 	}
 	return nil

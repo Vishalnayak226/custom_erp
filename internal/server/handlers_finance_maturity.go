@@ -41,7 +41,7 @@ func handleBankReconcile(w http.ResponseWriter, r *http.Request) {
 	}
 	result, err := engines.ReconcileBankStatement(tenantID, req.BankAccount, userID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(result)

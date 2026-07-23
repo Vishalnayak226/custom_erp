@@ -118,24 +118,58 @@ func maskSensitiveColumns(columns []ReportColumn, rows []map[string]interface{},
 	return rows
 }
 
-// RunReport looks up a registered report, validates required params, runs
-// it, and applies column masking for the requesting role.
-func RunReport(tenantID, reportID, role string, params map[string]string) (*ReportDefinition, []map[string]interface{}, error) {
-	def, ok := reportRegistry[reportID]
-	if !ok {
-		return nil, nil, fmt.Errorf("unknown report %q", reportID)
+// maxSyncReportRows (REPORT-0161, Stage 25.5) caps how many rows a
+// synchronous report run (handleRunReport) will return inline - a report
+// this heavy should go through the existing async export job
+// (CreateReportExportJob) instead, which has no such cap since it doesn't
+// block a request. Chosen generously (an ordinary report screen render is
+// nowhere near this) rather than tuned to any real observed slowdown.
+const maxSyncReportRows = 5000
+
+// reportMasked reports whether maskSensitiveColumns would actually redact
+// anything for this role/column set - shared by RunReport (REPORT-0287
+// annotation) and RunReportDrillDown so both stay consistent.
+func reportMasked(columns []ReportColumn, role string) bool {
+	if reportFullVisibilityRoles[role] {
+		return false
 	}
-	for _, p := range def.Params {
-		if p.Required && params[p.Key] == "" {
-			return nil, nil, fmt.Errorf("param %q is required", p.Key)
+	for _, c := range columns {
+		if c.Sensitive {
+			return true
 		}
 	}
-	rows, err := def.Run(tenantID, params)
-	if err != nil {
-		return nil, nil, err
+	return false
+}
+
+// RunReport looks up a registered report, validates required params, runs
+// it, and applies column masking for the requesting role. masked reports
+// REPORT-0287 (Info, non-blocking) so the caller can annotate its response;
+// it is never itself a reason to fail the request.
+func RunReport(tenantID, reportID, role string, params map[string]string) (def *ReportDefinition, rows []map[string]interface{}, masked bool, err error) {
+	d, ok := reportRegistry[reportID]
+	if !ok {
+		return nil, nil, false, fmt.Errorf("unknown report %q", reportID)
 	}
-	rows = maskSensitiveColumns(def.Columns, rows, role)
-	return &def, rows, nil
+	for _, p := range d.Params {
+		if p.Required && params[p.Key] == "" {
+			return nil, nil, false, fmt.Errorf("param %q is required", p.Key)
+		}
+	}
+	rows, err = d.Run(tenantID, params)
+	if err != nil {
+		// REPORT-0162 (Stage 25.5): "Report generation failed" - distinct
+		// from the unknown-report-id/missing-param checks above (those are
+		// caller-input mistakes, GLOBAL-0002-shaped); this is the report's
+		// own execution failing (a query error, a bad join), matching the
+		// catalog scenario's wording exactly.
+		return nil, nil, false, &ValidationError{Code: "REPORT-0162", Message: err.Error()}
+	}
+	if len(rows) > maxSyncReportRows {
+		return nil, nil, false, &ValidationError{Code: "REPORT-0161", Message: fmt.Sprintf("this report matched %d rows, over the %d-row synchronous limit - narrow the filters or use Export instead", len(rows), maxSyncReportRows)}
+	}
+	masked = reportMasked(d.Columns, role)
+	rows = maskSensitiveColumns(d.Columns, rows, role)
+	return &d, rows, masked, nil
 }
 
 // RunReportDrillDown runs a registered report's drill-down function (Stage

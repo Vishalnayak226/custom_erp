@@ -38,7 +38,11 @@ type slackWebhookPayload struct {
 func SendOpsAlert(severity, source, message string) {
 	webhookURL := os.Getenv("OPS_ALERT_WEBHOOK_URL")
 	if webhookURL == "" {
-		log.Printf("[ALERT] (no OPS_ALERT_WEBHOOK_URL configured, not sent) [%s] %s: %s", severity, source, message)
+		// OBS-0215 (Stage 25.5): "Alert webhook missing" - exactly this
+		// no-op path. Log-only (there's no HTTP request/tenant context at
+		// the point most callers of SendOpsAlert fire from - background
+		// workers, panic recovery - to attach a coded API response to).
+		log.Printf("[OBS-0215] (no OPS_ALERT_WEBHOOK_URL configured, not sent) [%s] %s: %s", severity, source, message)
 		return
 	}
 	text := fmt.Sprintf(":rotating_light: [%s] %s: %s", severity, source, truncateForAlert(message))

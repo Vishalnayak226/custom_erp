@@ -67,6 +67,37 @@ func SaveLabel(tenantID, originalText, customText string) error {
 	return tx.Commit()
 }
 
+// CheckLabelReplacementConflict (META-0202, Stage 25.5) reports whether
+// some *other* original_text already resolves to the same custom_text a
+// caller just saved - e.g. renaming both "Vendor" and "Supplier" to
+// "Partner" would make the UI ambiguous about which underlying concept a
+// screen is referring to. Non-blocking (the catalog entry is a Warning,
+// Blocking:false) - same "report, don't reject" shape as
+// CheckAttendanceLocationMismatch (transactional_validation.go), called
+// after SaveLabel has already committed, not instead of it.
+func CheckLabelReplacementConflict(tenantID, originalText, customText string) (conflict bool, message string) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return false, ""
+	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return false, ""
+	}
+	defer tx.Rollback()
+	if err := db.SetSearchPath(tx, schema); err != nil {
+		return false, ""
+	}
+	var conflictingOriginal string
+	err = tx.QueryRow(
+		"SELECT original_text FROM dynamic_labels WHERE custom_text = $1 AND original_text != $2 LIMIT 1",
+		customText, originalText).Scan(&conflictingOriginal)
+	if err != nil {
+		return false, ""
+	}
+	return true, "Label \"" + customText + "\" is already used to replace \"" + conflictingOriginal + "\" - both \"" + conflictingOriginal + "\" and \"" + originalText + "\" now display identically"
+}
+
 // DeleteLabel removes a label translation mapping
 func DeleteLabel(tenantID, originalText string) error {
 	schema, err := db.GetTenantSchema(tenantID)

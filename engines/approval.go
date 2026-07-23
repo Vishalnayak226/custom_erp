@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // ErrApprovalRoleMismatch (Stage 25 Batch 3) wraps DecideApproval's
@@ -209,7 +210,10 @@ func SubmitForApproval(tenantID, doctype, docID, requesterUserID, requesterRole 
 		return err
 	}
 	if role == "" {
-		return fmt.Errorf("%s has no approval rule configured - nothing to route this to", doctype)
+		// ADMINC-0032 (Stage 25.5): "Approval workflow missing" - an exact
+		// scenario match for a doctype with no approval_rules row to route
+		// this submission to.
+		return &ValidationError{Code: "ADMINC-0032", Message: fmt.Sprintf("%s has no approval rule configured - nothing to route this to", doctype)}
 	}
 
 	if err := setDocumentStatus(tenantID, doctype, docID, "Pending Approval", data); err != nil {
@@ -240,6 +244,12 @@ func SubmitForApproval(tenantID, doctype, docID, requesterUserID, requesterRole 
 func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocation, decision, comment string) error {
 	if decision != "Approved" && decision != "Rejected" {
 		return fmt.Errorf("decision must be 'Approved' or 'Rejected'")
+	}
+	// APPROV-0159 (Stage 25.5): "Reject reason missing" - a brand new
+	// check, decision=Rejected previously accepted an empty comment with no
+	// enforcement at all.
+	if decision == "Rejected" && strings.TrimSpace(comment) == "" {
+		return &ValidationError{Code: "APPROV-0159", Message: "a comment is required to reject a document"}
 	}
 
 	schema, err := db.GetTenantSchema(tenantID)

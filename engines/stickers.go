@@ -39,6 +39,26 @@ func PrintStickers(tenantID string, skus []string, printerCode, printedBy, repri
 		copies = 1
 	}
 
+	// DEVICE-0298 (Stage 25.5): "Printer not configured." printerCode was
+	// previously never checked against the real Printer master at all - any
+	// string was accepted and just stored as-is on every sticker_print_log
+	// row, silently accepting a printer that doesn't exist or was
+	// deactivated. Matches on either the Printer's id or its own "code"
+	// field, since the frontend's printer picker sends whichever one it has.
+	var printerActive bool
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT EXISTS(
+			SELECT 1 FROM %s.documents
+			WHERE doctype = 'Printer' AND (id = $1 OR data->>'code' = $1)
+			AND status != 'Cancelled' AND COALESCE(data->>'status', 'Active') = 'Active'
+		)`, schema), printerCode).Scan(&printerActive)
+	if err != nil {
+		return nil, err
+	}
+	if !printerActive {
+		return nil, &ValidationError{Code: "DEVICE-0298", Message: fmt.Sprintf("printer %q is not configured or is inactive", printerCode)}
+	}
+
 	var labels []StickerLabel
 	for _, sku := range skus {
 		var dataStr string

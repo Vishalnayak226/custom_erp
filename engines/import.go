@@ -78,7 +78,11 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 	}
 
 	if len(records) < 2 {
-		return nil, fmt.Errorf("CSV is empty or missing data rows")
+		// DATAIM-0163 (Stage 25.5): "Excel template invalid" - a file with
+		// no header row or no data rows can't be the doctype's own
+		// generated template (GenerateCSVTemplate always emits at least a
+		// header row), so this is exactly that scenario.
+		return nil, &ValidationError{Code: "DATAIM-0163", Message: "CSV is empty or missing data rows"}
 	}
 
 	headers := records[0]
@@ -87,10 +91,25 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 		headers[i] = strings.TrimSpace(strings.ToLower(h))
 	}
 
+	// DATAIM-0164 (Stage 25.5): "Excel mandatory column missing" - checked
+	// once against the header row, before processing any data rows, rather
+	// than letting every single row fail individually with GLOBAL-0001
+	// once ValidateDocument notices the same missing column per-row.
+	if missing := missingMandatoryColumns(tenantID, doctype, headers); len(missing) > 0 {
+		return nil, &ValidationError{Code: "DATAIM-0164", Message: fmt.Sprintf("uploaded file is missing mandatory column(s): %s", strings.Join(missing, ", "))}
+	}
+
 	result := &ImportResult{
 		TotalRows: len(records) - 1,
 		DryRun:    dryRun,
 	}
+
+	// DATAIM-0166 (Stage 25.5): "Duplicate rows in upload" - tracked across
+	// the whole file (not reset per batch) so a duplicate straddling a
+	// batch boundary is still caught. Keyed on the row's own "id" column
+	// when supplied; rows with no id are never flagged (they'd each get a
+	// fresh generated code, so they can't collide with each other here).
+	seenIDs := map[string]bool{}
 
 	dataRows := records[1:]
 	for batchStart := 0; batchStart < len(dataRows); batchStart += importBatchRows {
@@ -98,7 +117,7 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 		if batchEnd > len(dataRows) {
 			batchEnd = len(dataRows)
 		}
-		if err := importBatch(tenantID, schema, doctype, userID, dryRun, headers, dataRows[batchStart:batchEnd], batchStart+2, result); err != nil {
+		if err := importBatch(tenantID, schema, doctype, userID, dryRun, headers, dataRows[batchStart:batchEnd], batchStart+2, result, seenIDs); err != nil {
 			return nil, err
 		}
 	}
@@ -106,12 +125,32 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 	return result, nil
 }
 
+// missingMandatoryColumns compares a doctype's mandatory fields against the
+// CSV's own header row.
+func missingMandatoryColumns(tenantID, doctype string, headers []string) []string {
+	fields, err := GetDocTypeMeta(tenantID, doctype)
+	if err != nil {
+		return nil
+	}
+	present := map[string]bool{}
+	for _, h := range headers {
+		present[h] = true
+	}
+	var missing []string
+	for _, f := range fields {
+		if f.Mandatory && !present[strings.ToLower(f.Fieldname)] {
+			missing = append(missing, f.Fieldname)
+		}
+	}
+	return missing
+}
+
 // importBatch runs one batch of rows inside its own transaction, committing
 // (non-dry-run, at least one success in the batch) or rolling back (dry
 // run, or a batch with zero successes) - the same per-transaction rule
 // BulkImportCSV used to apply once for the whole file, now applied once per
 // batch instead.
-func importBatch(tenantID, schema, doctype, userID string, dryRun bool, headers []string, rows [][]string, firstRowNumber int, result *ImportResult) error {
+func importBatch(tenantID, schema, doctype, userID string, dryRun bool, headers []string, rows [][]string, firstRowNumber int, result *ImportResult, seenIDs map[string]bool) error {
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return err
@@ -151,6 +190,19 @@ func importBatch(tenantID, schema, doctype, userID string, dryRun bool, headers 
 		var id string
 		if exists && fmt.Sprintf("%v", idVal) != "" {
 			id = fmt.Sprintf("%v", idVal)
+			// DATAIM-0166 (Stage 25.5): the same id appearing twice in this
+			// same uploaded file - distinct from an id that already exists
+			// in the database (that's a legitimate update, tracked via
+			// UpdatedIDs below), this is the file contradicting itself.
+			if seenIDs[id] {
+				result.FailedRows++
+				result.Errors = append(result.Errors, RowValidationError{
+					RowNumber: rowNumber,
+					Message:   fmt.Sprintf("duplicate id %q also appears earlier in this file", id),
+				})
+				continue
+			}
+			seenIDs[id] = true
 		} else {
 			// Generate dynamic sequence code or fallback uuid
 			seqCode, seqErr := GenerateSequence(tenantID, doctype, "HQ", time.Now().Format("2006"))

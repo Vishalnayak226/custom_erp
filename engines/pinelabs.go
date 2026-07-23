@@ -3,6 +3,7 @@ package engines
 import (
 	"context"
 	"custom_erp/db"
+	"database/sql"
 	"fmt"
 	"log"
 	"time"
@@ -70,6 +71,19 @@ func GetPineLabsCredentials(tenantID string) ([]map[string]interface{}, error) {
 func RecordPineLabsTransaction(tenantID, transactionID, terminalID, cartNumber string, amount float64, paymentMode string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
+		return err
+	}
+
+	// POSOFF-0243 (Stage 25.7): "Payment terminal not mapped" - previously
+	// any terminal_id string was accepted with zero validation; a terminal
+	// with no active pinelabs_credentials row is exactly "not mapped" (no
+	// admin has configured it via POST /api/v1/integrations/pinelabs/credentials).
+	var terminalActive bool
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT active FROM %s.pinelabs_credentials WHERE terminal_id = $1`, schema), terminalID).Scan(&terminalActive)
+	if err == sql.ErrNoRows || (err == nil && !terminalActive) {
+		return &ValidationError{Code: "POSOFF-0243", Message: fmt.Sprintf("payment terminal %q is not mapped or inactive - configure it before recording transactions", terminalID)}
+	} else if err != nil {
 		return err
 	}
 

@@ -81,6 +81,14 @@ $PgLog    = Join-Path $LogDir "postgres.log"
 $ErpOutLog = Join-Path $LogDir "erp-server.out.log"
 $ErpErrLog = Join-Path $LogDir "erp-server.err.log"
 $BackupRoot = Join-Path $RepoRoot "backups"
+# Stage 25.8: same control-plane database promote.ps1 already uses for
+# public.deployments/public.schema_migrations - dev's Postgres is the one
+# instance that's always up, regardless of which -Env this invocation
+# targets, so backup/restore/restore-drill history for every environment
+# lives in one place the Go server (running against dev) can read back via
+# GET /api/v1/ops/backup-status.
+$ControlPlaneDb = "custom_erp"
+$ControlPlanePort = 5435
 
 if (Test-Path $ErpDir) {
     if (-not (Test-Path $LogDir)) { New-Item -ItemType Directory -Path $LogDir | Out-Null }
@@ -248,6 +256,22 @@ function Send-OpsAlert($Message) {
     }
 }
 
+# Stage 25.8: records one backup/restore/restore-drill outcome into the
+# control-plane's public.ops_run_log (migrations_stage25_ops_status.sql) so
+# GET /api/v1/ops/backup-status has real data to report instead of nothing -
+# best-effort (a logging failure here must never fail the backup/restore
+# action itself, same posture as Send-OpsAlert above).
+function Log-OpsRun($RunType, $Environment, $Status, $Detail, $StartedAt) {
+    try {
+        $escapedDetail = ($Detail -replace "'", "''")
+        $startedIso = $StartedAt.ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+        $sql = "INSERT INTO public.ops_run_log (run_type, environment, status, detail, started_at) VALUES ('$RunType', '$Environment', '$Status', '$escapedDetail', '$startedIso')"
+        & "$PgBin\psql.exe" -h localhost -p $ControlPlanePort -U postgres -d $ControlPlaneDb -c $sql 2>$null | Out-Null
+    } catch {
+        Write-Host "  (ops status logging failed: $($_.Exception.Message))" -ForegroundColor DarkYellow
+    }
+}
+
 # Stage 12.2: backups-at-rest encryption via .NET's built-in AES (System.Security.Cryptography,
 # no new dependency - same "stdlib only" approach as engines/mfa.go's TOTP). Key resolution mirrors
 # the JWT_SECRET pattern already established in engines/auth.go: BACKUP_ENCRYPTION_KEY env var if
@@ -323,12 +347,15 @@ function Backup-Databases {
     # Send-OpsAlert) before propagating, so a failed scheduled backup (see
     # docs/operations/backup_restore.md's Task Scheduler recipe) is caught the same day
     # rather than silently discovered at the next restore drill.
+    $runStarted = Get-Date
+    $currentBackupEnv = ""
     try {
         if (-not (Test-PortOpen $PgPort)) { throw "PostgreSQL is not running on port $PgPort; start it before backing up." }
         if (-not (Test-Path "$PgBin\pg_dump.exe")) { throw "pg_dump.exe not found at $PgBin." }
         $timestamp = Get-Date -AsUTC -Format "yyyyMMddTHHmmssZ"
         $backupCount = 0
         foreach ($name in @("dev", "test", "live")) {
+            $currentBackupEnv = $name
             $cfg = Resolve-Env $name
             $exists = & "$PgBin\psql.exe" -h localhost -p $cfg.PgPort -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$($cfg.Database)'" 2>$null
             if (-not $exists -or $exists.Trim() -ne "1") {
@@ -345,10 +372,12 @@ function Backup-Databases {
             $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $encTarget).Hash
             Set-Content -LiteralPath "$encTarget.sha256" -Value "$hash  $(Split-Path $encTarget -Leaf)"
             Write-Host "  Saved $encTarget (AES-256 encrypted)" -ForegroundColor Green
+            Log-OpsRun "backup" $name "success" "Saved $(Split-Path $encTarget -Leaf)" $runStarted
             $backupCount++
         }
         if ($backupCount -eq 0) { throw "No configured ERP databases exist to back up." }
     } catch {
+        Log-OpsRun "backup" $currentBackupEnv "failed" "$($_.Exception.Message)" $runStarted
         Send-OpsAlert "Database backup FAILED: $($_.Exception.Message)"
         throw
     }
@@ -364,21 +393,43 @@ function Restore-Database {
     $confirmation = if ($ConfirmRestore) { $ConfirmRestore } else { Read-Host "Type RESTORE $Env to continue" }
     if ($confirmation -cne "RESTORE $Env") { Write-Host "Restore cancelled." -ForegroundColor Yellow; return }
 
-    # Backups produced since encryption was added end in .dump.enc; older plaintext .dump files
-    # from before this change still restore directly, no migration needed.
-    $tempPlain = $null
-    $restoreSource = $backupFile.Path
-    if ($restoreSource -like "*.enc") {
-        $tempPlain = Unprotect-BackupFile $restoreSource
-        $restoreSource = $tempPlain
-    }
+    $runStarted = Get-Date
     try {
-        & "$PgBin\pg_restore.exe" -h localhost -p $PgPort -U postgres -d $ErpDatabase --clean --if-exists --no-owner $restoreSource
-        if ($LASTEXITCODE -ne 0) { throw "Restore failed for '$ErpDatabase'. Review PostgreSQL output before starting ERP." }
-    } finally {
-        if ($tempPlain -and (Test-Path $tempPlain)) { Remove-Item -LiteralPath $tempPlain -Force }
+        # DR-0212 (Stage 25.8): Backup-Databases has always written a
+        # ".sha256" sidecar alongside every encrypted backup, but nothing
+        # ever checked it before this - a silently corrupted backup file
+        # would only be discovered mid-restore (or not at all). Verify it
+        # here, before touching the target database, whenever a sidecar
+        # exists (older pre-checksum backups have none - skip, not fail).
+        $sha256Path = "$($backupFile.Path).sha256"
+        if (Test-Path -LiteralPath $sha256Path) {
+            $expected = (Get-Content -LiteralPath $sha256Path -Raw).Split(' ')[0].Trim()
+            $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $backupFile.Path).Hash
+            if ($expected -and $actual -ne $expected) {
+                throw "Checksum verification failed for '$backupFile' - expected $expected, got $actual. The backup file may be corrupted."
+            }
+        }
+
+        # Backups produced since encryption was added end in .dump.enc; older plaintext .dump files
+        # from before this change still restore directly, no migration needed.
+        $tempPlain = $null
+        $restoreSource = $backupFile.Path
+        if ($restoreSource -like "*.enc") {
+            $tempPlain = Unprotect-BackupFile $restoreSource
+            $restoreSource = $tempPlain
+        }
+        try {
+            & "$PgBin\pg_restore.exe" -h localhost -p $PgPort -U postgres -d $ErpDatabase --clean --if-exists --no-owner $restoreSource
+            if ($LASTEXITCODE -ne 0) { throw "Restore failed for '$ErpDatabase'. Review PostgreSQL output before starting ERP." }
+        } finally {
+            if ($tempPlain -and (Test-Path $tempPlain)) { Remove-Item -LiteralPath $tempPlain -Force }
+        }
+        Write-Host "Restore complete for '$Env' database '$ErpDatabase'." -ForegroundColor Green
+        Log-OpsRun "restore" $Env "success" "Restored from $(Split-Path $backupFile.Path -Leaf)" $runStarted
+    } catch {
+        Log-OpsRun "restore" $Env "failed" "$($_.Exception.Message)" $runStarted
+        throw
     }
-    Write-Host "Restore complete for '$Env' database '$ErpDatabase'." -ForegroundColor Green
 }
 
 # Stage 12.2: makes "monthly recovery test drill" a real, scriptable, non-interactive action instead
@@ -428,10 +479,12 @@ function Invoke-RestoreDrill {
         $logLine = "- $(Get-Date -AsUTC -Format 'yyyy-MM-ddTHH:mm:ssZ') | backup=$($latest.Name) | target=test/$($testCfg.Database) | duration=${duration}s | tenants=$tenantCount doctype_meta=$doctypeCount | verifier=automated (manage.ps1 restore-drill) | result=PASS"
         Add-Content -LiteralPath (Join-Path $RepoRoot "docs\operations\restore_drill_log.md") -Value $logLine
         Write-Host "Restore drill PASSED in ${duration}s (tenants=$tenantCount, doctype_meta=$doctypeCount). Logged to docs/operations/restore_drill_log.md." -ForegroundColor Green
+        Log-OpsRun "restore_drill" "test" "success" "backup=$($latest.Name) tenants=$tenantCount doctype_meta=$doctypeCount duration=${duration}s" $started
     } catch {
         $duration = [math]::Round(((Get-Date) - $started).TotalSeconds, 1)
         $logLine = "- $(Get-Date -AsUTC -Format 'yyyy-MM-ddTHH:mm:ssZ') | duration=${duration}s | verifier=automated (manage.ps1 restore-drill) | result=FAIL | error=$($_.Exception.Message)"
         Add-Content -LiteralPath (Join-Path $RepoRoot "docs\operations\restore_drill_log.md") -Value $logLine
+        Log-OpsRun "restore_drill" "test" "failed" "$($_.Exception.Message)" $started
         Send-OpsAlert "Monthly restore drill FAILED: $($_.Exception.Message)"
         throw
     }

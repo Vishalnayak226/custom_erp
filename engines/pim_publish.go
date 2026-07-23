@@ -286,11 +286,27 @@ func processPublishQueue(schema string) {
 		}
 
 		externalID, publishErr := publishOneJob(tenantID, schema, connector, j.itemCode, j.channelCode)
+		// CONN-0225 (Stage 25.6): a circuit-breaker-open error is the same
+		// shape as the allowConnectorCall rate-limit check just above - a
+		// transient, this-platform-is-busy-right-now condition, not a real
+		// per-job failure - so it gets the identical "leave Queued, don't
+		// touch retry_count, try again next tick" treatment rather than
+		// falling into the generic Failed branch below.
+		if verr, ok := publishErr.(*ValidationError); ok && verr.Code == "CONN-0225" {
+			continue
+		}
 		status := "Published"
 		errMsg := ""
 		if publishErr != nil {
 			status = "Failed"
 			errMsg = publishErr.Error()
+			if verr, ok := publishErr.(*ValidationError); ok && verr.Code != "" {
+				// No dedicated code column on pim_publish_log - prefixed
+				// into the existing free-text error_message, same
+				// convention every engines-layer log-only tag in this
+				// stage already uses (e.g. "[NOTIFI-0171] ...").
+				errMsg = "[" + verr.Code + "] " + errMsg
+			}
 			externalID = ""
 		}
 

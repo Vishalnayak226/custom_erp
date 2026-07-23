@@ -130,4 +130,13 @@ func recordOfflineSyncVariance(tenantID, cartNumber string, events []NegativeSto
 			LogSystemError(tenantID, "", "ERROR", "recordOfflineSyncVariance", fmt.Sprintf("failed to record offline sync variance for cart %s sku %s: %v", cartNumber, ev.SKU, err), "")
 		}
 	}
+	// MOBILE-0176 (Stage 25.5): "Offline sync conflict" - an offline-queued
+	// sale replaying against stock the server has since sold elsewhere is
+	// exactly this scenario. The catalog marks it Blocking:true/409, but
+	// 20.13's own design deliberately never blocks here (the sale already
+	// physically happened before the server could be asked) - same
+	// "don't reverse an already-deliberate workflow decision" reasoning
+	// Stage 25 Batch 3 applied to SALESP-0123, so this is a log-only tag,
+	// not a rejection.
+	LogSystemError(tenantID, "", "Medium", "Mobile App / Device", fmt.Sprintf("[MOBILE-0176] offline-synced cart %s replayed with %d SKU(s) now short - recorded as POSOfflineSyncVariance for review", cartNumber, len(events)), "")
 }

@@ -206,9 +206,19 @@ try {
 }
 $appVersion = (Get-Content (Join-Path $toPath "internal\server\VERSION") -Raw).Trim()
 
-# 6. Restart the target environment on the new binary.
+# 6. Restart the target environment on the new binary. DEPLOY-0208 ("Health
+# check failed after deployment"): Start-Environment already polls the port
+# for 5s and throws if it never comes up - previously that throw just
+# crashed the script with nothing recorded in public.deployments at all, so
+# a failed promotion and a health-check failure were indistinguishable in
+# the deployment history. Record it as "failed" before re-throwing.
 Stop-Environment $To
-Start-Environment $To $toPath
+try {
+    Start-Environment $To $toPath
+} catch {
+    Add-Deployment -environment $To -commit $shortCommit -appVersion $appVersion -status "failed" -notes "Health check failed: $($_.Exception.Message)"
+    throw
+}
 
 # 7. Record the deployment.
 Add-Deployment -environment $To -commit $shortCommit -appVersion $appVersion -status "passed" -notes "Promoted from $From"

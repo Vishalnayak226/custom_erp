@@ -161,6 +161,20 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// SAAS-0193 (Stage 25.8): checked before creating, not after - a tenant
+	// with a configured max_users limit gets rejected instead of silently
+	// exceeding it. No tenant_limits row for this tenant = no cap (open),
+	// same as every other optional-config convention in this codebase.
+	var activeUserCount int
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.users WHERE status = 'Active'`, schema)).Scan(&activeUserCount); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := engines.CheckTenantLimit(tenantID, "max_users", activeUserCount+1); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+
 	hash, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to hash password")

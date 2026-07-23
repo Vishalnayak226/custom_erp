@@ -273,7 +273,13 @@ let state = {
   labels: {},
   auditLogs: [],
   systemLogs: [],
-  profile: null
+  profile: null,
+  // 22.6: defaults to "show everything" until the real grant set loads
+  // (fetchAndApplyPermissions) - a brief full-menu flash is a better
+  // failure mode than a brief empty-sidebar flash, and the server's own
+  // checkPermission() is the actual enforcement point regardless of what
+  // the sidebar shows.
+  permissions: { isAdmin: true, doctypes: new Set(), loaded: false }
 };
 
 let currentView = 'dashboard';
@@ -763,6 +769,7 @@ async function init() {
   setupOfflineSync();
   await fetchLabels();
   await fetchRegisteredDoctypes();
+  await fetchAndApplyPermissions();
   await restoreLastView();
   fetchAndApplyProfile();
 }
@@ -779,6 +786,119 @@ async function fetchLabels() {
   } catch (err) {
     console.error('Error fetching labels:', err);
   }
+}
+
+// 22.6: which doctype(s) gate each sidebar item's visibility, derived from
+// what the backend actually enforces today (grepped every handler's own
+// role check, not guessed) - not a hand-maintained per-role allowlist. An
+// item is visible if the caller's role has allow_read on ANY listed
+// doctype (`doctypes`), is HR/Admin (`adminOnly` - matches requireHRAdmin,
+// a literal role check with no role_permissions row to key off of, e.g.
+// Users/Roles/DocType Builder), or is explicitly `open` (the item's own
+// backing handler has no role_permissions gate at all server-side - e.g.
+// Reports, Finance/GL, POS billing, Approvals' per-transaction slab+role
+// routing, Fulfillment/Marketplace, Fixed Assets' bespoke
+// /api/v1/assets/register endpoint - showing these to every authenticated
+// role matches current server behavior exactly, not a new restriction).
+// Any menu id not listed here (Dashboard) defaults open the same way.
+const MENU_PERMISSION_MAP = {
+  'menu-pos': { open: true },
+  'menu-pos-profiles': { doctypes: ['POSProfile'] },
+  'menu-pos-offline-sync': { doctypes: ['POSOfflineSyncVariance'] },
+
+  'menu-finance': { open: true },
+  'menu-approvals': { open: true },
+  'menu-vendor-invoices': { doctypes: ['VendorInvoice'] },
+  'menu-payment-proposals': { doctypes: ['PaymentProposal', 'VendorInvoice'] },
+  'menu-bank-reconciliation': { doctypes: ['BankAccount', 'BankStatementLine'] },
+  'menu-finance-notes': { doctypes: ['DebitNote', 'CreditNote'] },
+  'menu-sales-invoices': { doctypes: ['SalesInvoice'] },
+
+  'menu-fulfillment': { open: true },
+  'menu-marketplace': { open: true },
+
+  'menu-reports': { open: true },
+
+  'menu-purchase-orders': { doctypes: ['PurchaseOrder'] },
+  'menu-vendors': { doctypes: ['Vendor'] },
+  'menu-rfq': { doctypes: ['RFQ'] },
+
+  'menu-inventory': { open: true },
+  'menu-transfers': { doctypes: ['TransferOrder'] },
+  'menu-bins': { doctypes: ['Bin'] },
+  'menu-stores': { doctypes: ['Stores'] },
+  'menu-stickers': { open: true },
+
+  'menu-hr': { doctypes: ['Employee'] },
+  'menu-assets': { open: true },
+  'menu-expenses': { doctypes: ['ExpenseClaim'] },
+
+  'menu-manufacturing': { doctypes: ['BOM', 'ProductionOrder'] },
+  'menu-pim': { open: true },
+
+  'menu-users': { adminOnly: true },
+  'menu-roles': { adminOnly: true },
+  'menu-prefix-configs': { adminOnly: true },
+  'menu-dynamic-labels': { adminOnly: true },
+  'menu-doctype-builder': { adminOnly: true },
+  'menu-audit-logs': { adminOnly: true }
+};
+
+function canReadDoctype(doctype) {
+  return state.permissions.isAdmin || state.permissions.doctypes.has(doctype);
+}
+
+function isMenuRuleVisible(rule) {
+  if (!rule || rule.open) return true;
+  if (rule.adminOnly) return state.permissions.isAdmin;
+  if (rule.doctypes) return state.permissions.isAdmin || rule.doctypes.some(canReadDoctype);
+  return true;
+}
+
+// applySidebarPermissions hides (rather than removes) menu items the
+// current role has no read access to, then hides a whole flyout module
+// once every one of its own flyout children is hidden - an empty arrow
+// with nothing behind it is worse than no entry at all. Re-run whenever
+// permissions or the dynamic Setup submenu (renderSidebarSubmenu) change.
+function applySidebarPermissions() {
+  Object.keys(MENU_PERMISSION_MAP).forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    // closest('li') (not '.menu-item-container') so a flyout child's own
+    // <li> is what gets hidden, not the whole module's outer
+    // '.menu-item-container.has-flyout' <li> it's nested inside.
+    const item = el.closest('li');
+    if (!item) return;
+    item.classList.toggle('perm-hidden', !isMenuRuleVisible(MENU_PERMISSION_MAP[id]));
+  });
+
+  // Hide a flyout module once it has no visible children left - including
+  // Setup, whose submenu is built dynamically (renderSidebarSubmenu) and
+  // may legitimately have zero <li> children for a role with no Master
+  // doctype read access at all; [].every(...) is vacuously true, which is
+  // exactly "hide" for that empty case too.
+  document.querySelectorAll('.has-flyout').forEach(container => {
+    const items = container.querySelectorAll('.menu-flyout > li');
+    const allHidden = Array.from(items).every(li => li.classList.contains('perm-hidden'));
+    container.classList.toggle('perm-hidden', allHidden);
+  });
+}
+
+async function fetchAndApplyPermissions() {
+  try {
+    const res = await apiFetch('/api/v1/me/permissions');
+    if (res && res.ok) {
+      const data = await res.json();
+      state.permissions = { isAdmin: !!data.is_admin, doctypes: new Set(data.doctypes || []), loaded: true };
+    }
+  } catch (err) {
+    console.error('Error fetching permissions:', err);
+  }
+  // renderSidebarSubmenu() re-filters the dynamic Setup submenu by the
+  // permissions just loaded, and itself calls applySidebarPermissions() at
+  // the end - covers both the static menu items and the dynamic ones in
+  // one pass.
+  renderSidebarSubmenu();
 }
 
 async function fetchRegisteredDoctypes() {
@@ -802,12 +922,16 @@ function renderSidebarSubmenu() {
   sub.innerHTML = '';
   
   state.activeDoctypes.forEach(d => {
-    if (d.document_type === 'Master') {
+    if (d.document_type === 'Master' && canReadDoctype(d.name)) {
       const li = document.createElement('li');
       li.innerHTML = `<a class="submenu-item" data-view="${d.name}">${getTranslatedLabel(d.name)}</a>`;
       sub.appendChild(li);
     }
   });
+  // Setup's own flyout trigger has no read access left once every Master
+  // doctype it lists is filtered out - re-evaluate the flyout-hiding pass
+  // now that the list this depends on just changed.
+  applySidebarPermissions();
 
   // Rebind event listeners to submenu items
   sub.querySelectorAll('.submenu-item').forEach(item => {

@@ -63,7 +63,8 @@ func (magentoConnector) PublishProduct(ctx context.Context, cred map[string]stri
 	baseURL := cred["base_url"]
 	accessToken := cred["access_token"]
 	if baseURL == "" || accessToken == "" {
-		return "", fmt.Errorf("magento credential missing base_url/access_token, configure it via POST /api/v1/pim/channels/{code}/credentials")
+		// CONN-0224 (Stage 25.6): "Live connector credentials missing."
+		return "", &ValidationError{Code: "CONN-0224", Message: "magento credential missing base_url/access_token, configure it via POST /api/v1/pim/channels/{code}/credentials"}
 	}
 
 	customAttributes := []map[string]interface{}{
@@ -100,10 +101,16 @@ func (magentoConnector) PublishProduct(ctx context.Context, cred map[string]stri
 	url := magentoBaseURL(cred) + "/products"
 	status, respBody, err := doConnectorRequest(ctx, 20*time.Second, http.MethodPost, url, headers, reqBody, "magento")
 	if err != nil {
-		return "", fmt.Errorf("magento request failed: %v", err)
+		// CONN-0226 below, except a circuit-breaker-open error (CONN-0225) -
+		// preserved as-is rather than flattened into a new plain error.
+		if verr, ok := err.(*ValidationError); ok {
+			return "", verr
+		}
+		return "", &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("magento request failed: %v", err)}
 	}
 	if status < 200 || status >= 300 {
-		return "", fmt.Errorf("magento rejected the product (HTTP %d): %s", status, magentoErrorMessage(respBody))
+		// CONN-0226 (Stage 25.6): "Channel publish failed."
+		return "", &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("magento rejected the product (HTTP %d): %s", status, magentoErrorMessage(respBody))}
 	}
 
 	var result struct {

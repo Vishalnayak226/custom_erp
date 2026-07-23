@@ -95,7 +95,10 @@ func RedeemLoyaltyPoints(tenantID, customerID string, points int, referenceID st
 		return 0, err
 	}
 	if points > balance {
-		return 0, fmt.Errorf("insufficient loyalty points: requested %d, balance %d", points, balance)
+		// CUSTOM-0134 (Stage 25.5): "Loyalty points insufficient" - an exact
+		// scenario match, already returned as a 422 at its one call site
+		// (handleRedeemLoyaltyPoints), matching the catalog's own status.
+		return 0, &ValidationError{Code: "CUSTOM-0134", Message: fmt.Sprintf("insufficient loyalty points: requested %d, balance %d", points, balance)}
 	}
 	if err := insertLoyaltyLedgerEntry(tenantID, customerID, "Burn", points, "POSCart", referenceID); err != nil {
 		return 0, err

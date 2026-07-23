@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"strings"
 	"time"
 )
 
@@ -131,11 +133,23 @@ func expectedCashForSession(tenantID, sessionID string, openingCash float64) (fl
 	return total, rows.Err()
 }
 
+// posDrawerVarianceTolerance (POSOFF-0240, Stage 25.7) is the flat rupee
+// threshold beyond which a counted-vs-expected cash variance needs a
+// reason on record before the session can close - same "hardcoded-constant
+// default" shape as vendor_invoice.go's defaultVendorInvoiceTolerancePercent.
+// A flat amount rather than a percentage, since a drawer variance is a cash
+// counting error, not proportional to the day's total sales the way a
+// vendor invoice mismatch is proportional to the PO amount.
+const posDrawerVarianceTolerance = 50.0
+
 // ClosePOSSession computes the expected-cash figure server-side (never
 // trusts a client-supplied expectation), stores the counted-vs-expected
 // variance, and closes the session. Refuses to close a session that isn't
-// this cashier's own Open session.
-func ClosePOSSession(tenantID, sessionID, cashier string, countedCash float64) (expected float64, variance float64, err error) {
+// this cashier's own Open session. varianceReason is required only when the
+// variance exceeds posDrawerVarianceTolerance (POSOFF-0240) - same
+// "silently record if small, require a reason if not" shape as
+// TRN-0259's short-receive check.
+func ClosePOSSession(tenantID, sessionID, cashier string, countedCash float64, varianceReason string) (expected float64, variance float64, err error) {
 	if countedCash < 0 {
 		return 0, 0, errors.New("counted cash cannot be negative")
 	}
@@ -172,10 +186,18 @@ func ClosePOSSession(tenantID, sessionID, cashier string, countedCash float64) (
 	}
 	variance = countedCash - expected
 
+	if math.Abs(variance) > posDrawerVarianceTolerance && strings.TrimSpace(varianceReason) == "" {
+		// POSOFF-0240 (Stage 25.7): "Drawer variance exceeds tolerance."
+		return expected, variance, &ValidationError{Code: "POSOFF-0240", Message: fmt.Sprintf("cash variance of %.2f exceeds the %.2f tolerance - a reason is required to close this session", variance, posDrawerVarianceTolerance)}
+	}
+
 	data["status"] = "Closed"
 	data["expected_cash"] = expected
 	data["closing_counted_cash"] = countedCash
 	data["variance"] = variance
+	if strings.TrimSpace(varianceReason) != "" {
+		data["variance_reason"] = varianceReason
+	}
 	marshaled, err := json.Marshal(data)
 	if err != nil {
 		return 0, 0, err

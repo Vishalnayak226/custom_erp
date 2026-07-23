@@ -31,8 +31,23 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return validateEmployeeRules(tenantID, docID, payload)
 	case "Leave":
 		return validateLeaveRules(tenantID, docID, payload)
+	case "PurchaseRequisition":
+		return validatePurchaseRequisitionEditRules(priorStatus, priorData)
 	}
 	return nil
+}
+
+// validatePurchaseRequisitionEditRules covers RFQ-0251: once
+// ConvertRequisitionToOrder (engines/procurement.go) has moved a
+// requisition to Converted, it must never change again - the downstream
+// RFQ/PO it spawned is now the live document. Before this check, the
+// generic doc-update path let a Converted requisition be edited like any
+// other document, silently diverging from what was actually converted.
+func validatePurchaseRequisitionEditRules(priorStatus string, priorData map[string]interface{}) error {
+	if priorData == nil || priorStatus != "Converted" {
+		return nil
+	}
+	return &ValidationError{Code: "RFQ-0251", Message: "this requisition is already converted to RFQ/PO - further changes are not allowed"}
 }
 
 // grnReceivedLine is GRN's received_items line shape, extended (optionally -

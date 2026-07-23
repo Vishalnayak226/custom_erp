@@ -70,7 +70,7 @@ func RequestPasswordReset(tenantID, usernameOrEmail, resetLinkBase string) error
 	}
 
 	resetLink := fmt.Sprintf("%s?token=%s", resetLinkBase, token)
-	sendPasswordResetEmail(email, username, resetLink)
+	sendPasswordResetEmail(tenantID, email, username, resetLink)
 	LogAuditEvent(tenantID, username, "AUTH", "PASSWORD_RESET_REQUESTED", "Password reset token issued")
 	return nil
 }
@@ -114,10 +114,24 @@ func CompletePasswordReset(tenantID, token, newPassword string) error {
 // link locally so dev/test environments (no SMTP server available) can
 // still exercise and verify the flow end-to-end, same posture as
 // OPS_ALERT_WEBHOOK_URL being unset.
-func sendPasswordResetEmail(toEmail, username, resetLink string) {
+func sendPasswordResetEmail(tenantID, toEmail, username, resetLink string) {
+	if toEmail == "" {
+		// NOTIFI-0171 (Stage 25.5): "Email recipient missing" - logged, not
+		// surfaced to the HTTP caller, since RequestPasswordReset's own
+		// contract (24.28) is to respond identically whether or not a
+		// matching user/email exists; a distinct error response here would
+		// reopen the exact enumeration vector that contract exists to close.
+		// The catalog entry itself lives in package server (errorCatalog),
+		// not reachable from here - same reasoning every other engines-
+		// package LogSystemError call already logs a plain code-prefixed
+		// string rather than importing the catalog.
+		LogSystemError(tenantID, "", "Medium", "Notifications", "[NOTIFI-0171] "+username+" has no email on file - password reset link not sent", "")
+		log.Printf("[PASSWORD-RESET] (user has no email on file - not sent) reset link for %s: %s", username, resetLink)
+		return
+	}
 	smtpHost := os.Getenv("SMTP_HOST")
-	if smtpHost == "" || toEmail == "" {
-		log.Printf("[PASSWORD-RESET] (no SMTP_HOST configured, or user has no email on file - not sent) reset link for %s: %s", username, resetLink)
+	if smtpHost == "" {
+		log.Printf("[PASSWORD-RESET] (no SMTP_HOST configured - not sent) reset link for %s: %s", username, resetLink)
 		return
 	}
 	smtpPort := os.Getenv("SMTP_PORT")
@@ -138,6 +152,10 @@ func sendPasswordResetEmail(toEmail, username, resetLink string) {
 	}
 	addr := fmt.Sprintf("%s:%s", smtpHost, smtpPort)
 	if err := smtp.SendMail(addr, auth, from, []string{toEmail}, msg); err != nil {
+		// NOTIFI-0170 (Stage 25.5): "Notification not sent" - the SMTP send
+		// itself failed (bad host/auth/network), distinct from NOTIFI-0171
+		// above (nothing to send to in the first place).
+		LogSystemError(tenantID, "", "Medium", "Notifications", fmt.Sprintf("[NOTIFI-0170] failed to send password reset email to %s: %v", toEmail, err), "")
 		log.Printf("[PASSWORD-RESET] failed to send reset email to %s: %v (link: %s)", toEmail, err, resetLink)
 	}
 }

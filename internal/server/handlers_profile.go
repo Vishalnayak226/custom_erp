@@ -71,6 +71,58 @@ func handleGetProfile(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleMyPermissions (Stage 22.6) is the self-service read the sidebar
+// needs to filter itself per-role: every authenticated user can call this
+// for their own role (unlike /api/v1/admin/role-permissions, which lists
+// every role's grants and stays HR/Admin-only). Deriving visibility from
+// the same role_permissions table checkPermission() already enforces
+// server-side (handlers_core_doc_engine.go:624) means an admin who creates
+// a new role and grants it doctypes via the existing Roles screen sees the
+// sidebar reflect that automatically - no code change needed per role.
+// HR/Admin bypasses role_permissions entirely in checkPermission, so it's
+// reported here as a flat is_admin flag rather than enumerating doctypes.
+func handleMyPermissions(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("Resolved-Role")
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+
+	if role == "HR/Admin" {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"role":     role,
+			"is_admin": true,
+			"doctypes": []string{},
+		})
+		return
+	}
+
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(
+		`SELECT doctype_name FROM %s.role_permissions WHERE role = $1 AND allow_read = true`, schema), role)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+
+	doctypes := []string{}
+	for rows.Next() {
+		var d string
+		if err := rows.Scan(&d); err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			return
+		}
+		doctypes = append(doctypes, d)
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"role":     role,
+		"is_admin": false,
+		"doctypes": doctypes,
+	})
+}
+
 func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email              *string `json:"email"`

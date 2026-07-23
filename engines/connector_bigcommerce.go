@@ -64,7 +64,8 @@ func (bigCommerceConnector) PublishProduct(ctx context.Context, cred map[string]
 	accessToken := cred["access_token"]
 	storeHash := cred["store_hash"]
 	if accessToken == "" || storeHash == "" {
-		return "", fmt.Errorf("bigcommerce credential missing access_token/store_hash, configure it via POST /api/v1/pim/channels/{code}/credentials")
+		// CONN-0224 (Stage 25.6): "Live connector credentials missing."
+		return "", &ValidationError{Code: "CONN-0224", Message: "bigcommerce credential missing access_token/store_hash, configure it via POST /api/v1/pim/channels/{code}/credentials"}
 	}
 
 	customFields := []map[string]string{}
@@ -91,10 +92,16 @@ func (bigCommerceConnector) PublishProduct(ctx context.Context, cred map[string]
 	url := bigCommerceBaseURL(storeHash) + "/catalog/products"
 	status, respBody, err := doConnectorRequest(ctx, 20*time.Second, http.MethodPost, url, bigCommerceHeaders(accessToken), reqBody, "bigcommerce")
 	if err != nil {
-		return "", fmt.Errorf("bigcommerce request failed: %v", err)
+		// CONN-0226 below, except a circuit-breaker-open error (CONN-0225) -
+		// preserved as-is rather than flattened into a new plain error.
+		if verr, ok := err.(*ValidationError); ok {
+			return "", verr
+		}
+		return "", &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("bigcommerce request failed: %v", err)}
 	}
 	if status < 200 || status >= 300 {
-		return "", fmt.Errorf("bigcommerce rejected the product (HTTP %d): %s", status, bigCommerceErrorMessage(respBody))
+		// CONN-0226 (Stage 25.6): "Channel publish failed."
+		return "", &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("bigcommerce rejected the product (HTTP %d): %s", status, bigCommerceErrorMessage(respBody))}
 	}
 
 	var result struct {

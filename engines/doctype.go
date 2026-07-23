@@ -61,11 +61,44 @@ func GetDocTypeMeta(tenantID string, doctype string) ([]FieldMeta, error) {
 	return fields, nil
 }
 
+// validFieldTypes is every fieldtype this codebase's own generic
+// doc-validation switch (ValidateDocument, below) and frontend renderer
+// actually understand - the exact set every doctype_fields migration in
+// this repo already uses (grepped db/*.sql). SaveFieldDefinition's own
+// caller (public/app.js's DocType Builder "Add Field" prompt) only ever
+// suggests these six but is a free-text prompt with no client-side
+// enforcement, so nothing before this stopped a typo (or "Currency"/
+// "Attachment", types this codebase has no rendering/validation for at
+// all) from being saved and then silently never format-checked.
+var validFieldTypes = map[string]bool{
+	"Data": true, "Number": true, "Date": true, "Select": true, "Link": true, "Check": true,
+}
+
 // SaveFieldDefinition adds or updates a field definition in a doctype metadata
 func SaveFieldDefinition(tenantID string, doctype string, f FieldMeta) error {
+	if !validFieldTypes[f.Fieldtype] {
+		// META-0197 (Stage 25.5): "Unsupported field type."
+		return &ValidationError{Code: "META-0197", Message: fmt.Sprintf("fieldtype %q is not supported", f.Fieldtype)}
+	}
+
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
+	}
+
+	// META-0201 (Stage 25.5): "Custom field name collision." The DocType
+	// Builder frontend only ever offers "Add Field" (create), never "Edit
+	// Field" - so from its own intended usage, re-submitting an existing
+	// fieldname is always an unintended collision, not a deliberate edit.
+	// Without this check the ON CONFLICT upsert below silently overwrites
+	// whatever field (including a system field like "status") already used
+	// that name.
+	var existingID string
+	err = db.DB.QueryRow(fmt.Sprintf(
+		`SELECT id FROM %s.doctype_fields WHERE doctype_name = $1 AND fieldname = $2`, schema),
+		doctype, f.Fieldname).Scan(&existingID)
+	if err == nil {
+		return &ValidationError{Code: "META-0201", Message: fmt.Sprintf("field %q already exists on %s", f.Fieldname, doctype)}
 	}
 
 	query := fmt.Sprintf(`
@@ -151,9 +184,10 @@ func SaveDocType(tenantID string, name string, module string, docType string) er
 // err != nil / err.Error() (import.go, pim_bulk.go, engines_test.go) see no
 // behavior change; handlers_core_doc_engine.go additionally type-asserts to
 // attach the precise code+field instead of falling back to a generic one.
-// Code is "" for the couple of internal-error paths below with no catalog
-// scenario (metadata lookup failure, missing doctype) - callers fall back to
-// their own generic handling for those, same as before this type existed.
+// Code is "" for the one internal-error path below with no catalog scenario
+// (metadata lookup failure) - callers fall back to their own generic
+// handling for that, same as before this type existed. The missing-doctype
+// case (zero doctype_fields rows) got a real code, META-0196, in Stage 25.5.
 type ValidationError struct {
 	Code    string
 	SubFor  string
@@ -170,7 +204,11 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 	}
 
 	if len(fields) == 0 {
-		return fmt.Errorf("doctype %s metadata fields not found", doctype)
+		// META-0196 (Stage 25.5): "DocType not registered" - a doctype with
+		// zero doctype_fields rows (a typo'd doctype name from a client, or
+		// a registered doctype_meta row with no matching fields ever
+		// seeded) can't be validated or rendered as a real form.
+		return &ValidationError{Code: "META-0196", Message: fmt.Sprintf("doctype %s metadata fields not found", doctype)}
 	}
 
 	for _, f := range fields {

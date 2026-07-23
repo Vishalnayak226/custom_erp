@@ -51,27 +51,29 @@ func CreateReportExportJob(tenantID, reportID, role string, params map[string]st
 	return jobID, nil
 }
 
-// GetReportExportJob returns a job's current status and (once Completed)
-// its generated CSV.
-func GetReportExportJob(tenantID, jobID string) (status string, csvBytes []byte, err error) {
+// GetReportExportJob returns a job's current status, (once Completed) its
+// generated CSV, and (once Failed) the REPORT-0285 code processReportExportJobs
+// tagged on it.
+func GetReportExportJob(tenantID, jobID string) (status string, csvBytes []byte, code string, err error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return "", nil, err
+		return "", nil, "", err
 	}
 	var dataStr string
 	if err := db.DB.QueryRow(fmt.Sprintf(
 		`SELECT data FROM %s.documents WHERE doctype = 'ReportExportJob' AND id = $1`, schema), jobID).Scan(&dataStr); err != nil {
-		return "", nil, fmt.Errorf("export job not found: %v", err)
+		return "", nil, "", fmt.Errorf("export job not found: %v", err)
 	}
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
-		return "", nil, err
+		return "", nil, "", err
 	}
 	status, _ = data["status"].(string)
+	code, _ = data["code"].(string)
 	if csvStr, ok := data["csv"].(string); ok {
 		csvBytes = []byte(csvStr)
 	}
-	return status, csvBytes, nil
+	return status, csvBytes, code, nil
 }
 
 // StartReportExportWorker polls every tenant schema for Pending
@@ -146,15 +148,23 @@ func processReportExportJobs(schema string) {
 
 		newStatus := "Completed"
 		csvText := ""
-		def, resultRows, err := RunReport(schema, reportID, role, params)
+		def, resultRows, _, err := RunReport(schema, reportID, role, params)
 		if err != nil {
+			// REPORT-0285 ("Export job failed") is this async path's own
+			// distinct catalog code, deliberately separate from REPORT-0162
+			// ("Report generation failed") which RunReport itself attaches
+			// for the *synchronous* handleRunReport caller - same
+			// underlying def.Run() error, different surfaced scenario
+			// depending on which path hit it.
 			newStatus = "Failed"
 			job.data["error"] = err.Error()
+			job.data["code"] = "REPORT-0285"
 		} else {
 			csvText, err = reportRowsToCSV(*def, resultRows)
 			if err != nil {
 				newStatus = "Failed"
 				job.data["error"] = err.Error()
+				job.data["code"] = "REPORT-0285"
 			} else {
 				job.data["csv"] = csvText
 			}

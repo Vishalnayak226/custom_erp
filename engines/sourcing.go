@@ -76,6 +76,14 @@ func FindBestFulfillmentNode(tenantID string, items []map[string]interface{}) (s
 	}
 
 	if bestLocation == "" {
+		// OMNI-0247 (Stage 25.6): "No fulfillment node available" - the
+		// catalog marks this Blocking:true, but this function's own
+		// existing design deliberately never rejects an order for lack of
+		// stock (same "don't reverse an already-deliberate workflow
+		// decision" reasoning as SALESP-0123/MOBILE-0176) - it always
+		// returns a usable node (HO) for the caller to route to and let a
+		// human decide backorder/split/cancel. Log-only, not a rejection.
+		LogSystemError(tenantID, "", "Medium", "Omnichannel / OMS", "[OMNI-0247] no store/warehouse had sufficient ATS for the requested items - falling back to HO", "")
 		// Fallback to HO default node if no specific store has enough stock
 		return "HO", nil
 	}

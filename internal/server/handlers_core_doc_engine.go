@@ -372,7 +372,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		if doctype == "PurchaseOrder" {
 			breakdown, errGST := engines.ComputePurchaseOrderGST(tenantID, payload)
 			if errGST != nil {
-				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, errGST.Error())
+				writeEngineError(w, r, errGST, http.StatusUnprocessableEntity)
 				return
 			}
 			payload["gst_breakdown"] = breakdown
@@ -468,7 +468,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// registered for this doctype, which is the overwhelmingly common
 		// case for every tenant that hasn't set one up.
 		if errHook := engines.InvokeBeforeSaveHooks(tenantID, doctype, docID, payload); errHook != nil {
-			writeAPIErrorGeneric(w, r, http.StatusBadGateway, errHook.Error())
+			writeEngineError(w, r, errHook, http.StatusBadGateway)
 			return
 		}
 
@@ -689,6 +689,13 @@ func handleLabels(w http.ResponseWriter, r *http.Request) {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
+		// META-0202 (Stage 25.5): non-blocking - the save above already
+		// committed, this only logs/audits a same-target-text collision so
+		// an admin renaming two different concepts to the same word finds
+		// out, without being stopped from doing it.
+		if conflict, msg := engines.CheckLabelReplacementConflict(tenantID, req.OriginalText, req.CustomText); conflict {
+			logForEntry(r, errorCatalog["META-0202"], msg)
+		}
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
 
@@ -744,7 +751,11 @@ func handleSequence(w http.ResponseWriter, r *http.Request) {
 
 	code, err := engines.GenerateSequence(tenantID, req.DocType, req.StoreCode, req.FinancialYear)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		// ADMINC-0030 (Stage 25.5): an inactive numbering config is a
+		// client-correctable config problem, not a server crash - this was
+		// a blanket 500 for every GenerateSequence error before the engine
+		// started returning a precise *ValidationError for that case.
+		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -968,7 +979,12 @@ func handleReactivateMasterDocument(w http.ResponseWriter, r *http.Request) {
 	}
 	var documentType string
 	if err := db.DB.QueryRow(fmt.Sprintf("SELECT document_type FROM %s.doctype_meta WHERE name = $1", schema), doctype).Scan(&documentType); err != nil {
-		writeAPIError(w, r, "GLOBAL-0004", "")
+		// META-0196 (Stage 25.5): "DocType not registered" - unlike the
+		// document-lookup-by-id sites elsewhere in this file (a real
+		// GLOBAL-0004 "record not found"), this query is keyed purely on
+		// the doctype name itself, so ErrNoRows here specifically means
+		// the doctype has no doctype_meta row at all.
+		writeAPIError(w, r, "META-0196", "")
 		return
 	}
 	if documentType != "Master" {
@@ -1051,7 +1067,11 @@ func handleSaveFieldDefinition(w http.ResponseWriter, r *http.Request) {
 
 	err := engines.SaveFieldDefinition(tenantID, doctype, req)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		// META-0197/META-0201 (Stage 25.5): SaveFieldDefinition now rejects
+		// an unsupported fieldtype or a fieldname collision as a precise
+		// *ValidationError instead of ever reaching the DB - any other
+		// failure (a genuine DB error) still falls back to 500 unchanged.
+		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved"})

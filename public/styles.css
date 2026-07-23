@@ -104,6 +104,14 @@ body {
   margin-bottom: 4px;
 }
 
+/* 22.6: role-filtered sidebar - hidden rather than removed so re-running
+   applySidebarPermissions() after a permission change doesn't need to
+   rebuild the DOM. */
+.menu-item-container.perm-hidden,
+.menu-flyout > li.perm-hidden {
+  display: none;
+}
+
 .menu-item {
   display: flex;
   align-items: center;

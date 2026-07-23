@@ -43,7 +43,12 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 	}
 
 	if !activeStatus {
-		return "", fmt.Errorf("numbering configuration for %s is inactive", docType)
+		// ADMINC-0030 (Stage 25.5): "Missing number series" - a
+		// prefix_configs row explicitly deactivated is functionally "no
+		// number series available for this doctype" (the no-row-at-all
+		// case deliberately falls back to defaults just above rather than
+		// erroring, so it isn't this scenario).
+		return "", &ValidationError{Code: "ADMINC-0030", Message: fmt.Sprintf("numbering configuration for %s is inactive", docType)}
 	}
 
 	// 2. Fetch or create counter for store and financial year with row lock

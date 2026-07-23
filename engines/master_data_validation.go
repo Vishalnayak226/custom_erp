@@ -34,7 +34,7 @@ func ValidateMasterDataRules(tenantID, docID, doctype string, payload map[string
 	case "Vendor":
 		return validateVendorMasterRules(payload)
 	case "Customer":
-		return validateCustomerMasterRules(payload)
+		return validateCustomerMasterRules(tenantID, docID, payload)
 	}
 	return nil
 }
@@ -101,9 +101,29 @@ func validateVendorMasterRules(payload map[string]interface{}) error {
 	return nil
 }
 
-func validateCustomerMasterRules(payload map[string]interface{}) error {
-	if phone := strField(payload, "phone"); phone != "" && !mobilePattern.MatchString(phone) {
+func validateCustomerMasterRules(tenantID, docID string, payload map[string]interface{}) error {
+	phone := strField(payload, "phone")
+	if phone == "" {
+		return nil
+	}
+	if !mobilePattern.MatchString(phone) {
 		return &ValidationError{Code: "MASTER-0051", Message: fmt.Sprintf("Mobile number %q is not a valid 10-digit number", phone)}
+	}
+
+	// CUSTOM-0133 (Stage 25.5): "Customer duplicate mobile" - same
+	// duplicate-field query shape as MASTER-0053's Item barcode check and
+	// HRPAYR-0149's Employee code check.
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var existingID string
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT id FROM %s.documents
+		WHERE doctype = 'Customer' AND data->>'phone' = $1 AND id != $2 AND status != 'Cancelled'
+		LIMIT 1`, schema), phone, docID).Scan(&existingID)
+	if err == nil {
+		return &ValidationError{Code: "CUSTOM-0133", Message: fmt.Sprintf("A customer with mobile number %q already exists (%s)", phone, existingID)}
 	}
 	return nil
 }

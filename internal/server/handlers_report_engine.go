@@ -32,15 +32,32 @@ func handleRunReport(w http.ResponseWriter, r *http.Request) {
 	}
 	reportID := r.PathValue("id")
 	params := flattenQueryParams(r)
-	def, rows, err := engines.RunReport(tenantID, reportID, role, params)
+	def, rows, masked, err := engines.RunReport(tenantID, reportID, role, params)
 	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+	resp := map[string]interface{}{
 		"id": def.ID, "label": def.Label, "columns": def.Columns, "has_drill_down": def.HasDrillDown, "rows": rows,
-	})
+	}
+	// REPORT-0160 (Stage 25.5): "Report no data" is a Warning/non-blocking
+	// scenario in the catalog (an empty result from a legitimate filter
+	// isn't an error), so it's an annotation on the normal 200 response,
+	// not a rejection - logged for the same reason HR-0268/POSOFF-0239 are.
+	if len(rows) == 0 {
+		entry := errorCatalog["REPORT-0160"]
+		logForEntry(r, entry, entry.UserMessage)
+		resp["code"] = "REPORT-0160"
+		resp["message"] = entry.UserMessage
+	} else if masked {
+		// REPORT-0287 (Stage 25.5): "Sensitive column masked" - Info,
+		// non-blocking, purely informational for the frontend to show a
+		// small "some fields are restricted" note if it wants to.
+		entry := errorCatalog["REPORT-0287"]
+		resp["code"] = "REPORT-0287"
+		resp["message"] = entry.UserMessage
+	}
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 func handleReportDrillDown(w http.ResponseWriter, r *http.Request) {
@@ -84,7 +101,11 @@ func handleCreateReportExport(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"id": jobID, "status": "Pending"})
+	// REPORT-0184 ("Export started", Info/non-blocking) - annotates the
+	// same 200 response every caller already gets, not a new status.
+	entry := errorCatalog["REPORT-0184"]
+	logForEntry(r, entry, entry.UserMessage)
+	_ = json.NewEncoder(w).Encode(map[string]string{"id": jobID, "status": "Pending", "code": "REPORT-0184", "message": entry.UserMessage})
 }
 
 func handleGetReportExport(w http.ResponseWriter, r *http.Request) {
@@ -94,7 +115,7 @@ func handleGetReportExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jobID := r.PathValue("id")
-	status, csvBytes, err := engines.GetReportExportJob(tenantID, jobID)
+	status, csvBytes, code, err := engines.GetReportExportJob(tenantID, jobID)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
@@ -106,7 +127,12 @@ func handleGetReportExport(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(csvBytes)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"id": jobID, "status": status})
+	resp := map[string]string{"id": jobID, "status": status}
+	if status == "Failed" && code != "" {
+		resp["code"] = code
+		resp["message"] = errorCatalog[code].UserMessage
+	}
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // flattenQueryParams turns ?a=1&b=2 into a plain map, ignoring the "id"

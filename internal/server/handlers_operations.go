@@ -173,7 +173,7 @@ func handleRedeemLoyaltyPoints(w http.ResponseWriter, r *http.Request) {
 	}
 	discountValue, err := engines.RedeemLoyaltyPoints(tenantID, req.CustomerID, req.Points, req.ReferenceID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"discount_value": discountValue})
@@ -549,7 +549,7 @@ func handleConvertRequisition(w http.ResponseWriter, r *http.Request) {
 	}
 	newID, err := engines.ConvertRequisitionToOrder(tenantID, req.RequisitionID, req.Target, req.StoreCode, req.FinancialYear, userID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "converted", "requisition_id": req.RequisitionID, "target": req.Target, "new_document_id": newID})

@@ -53,7 +53,10 @@ func ReconcileBankStatement(tenantID, bankAccountID, userID string) (*BankReconc
 	}
 	glAccountCode, _ := bankAcc["gl_account_code"].(string)
 	if glAccountCode == "" {
-		return nil, fmt.Errorf("bank account %s has no gl_account_code configured", bankAccountID)
+		// ADMINC-0035 (Stage 25.5): "GL mapping missing" - exact scenario
+		// match for a BankAccount with no gl_account_code to reconcile
+		// gl_postings against.
+		return nil, &ValidationError{Code: "ADMINC-0035", Message: fmt.Sprintf("bank account %s has no gl_account_code configured", bankAccountID)}
 	}
 
 	tx, err := db.DB.Begin()

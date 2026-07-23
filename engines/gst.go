@@ -85,12 +85,17 @@ func GetItemGSTInfo(tenantID, sku string) (hsnCode string, gstRate float64, err 
 	}
 	hsnCode, _ = data["hsn_code"].(string)
 	if hsnCode == "" {
-		return "", 0, fmt.Errorf("item '%s' is missing hsn_code - required before it can be sold or purchased", sku)
+		// ADMINC-0034 (Stage 25.5): "Tax configuration missing" - an Item
+		// reaching checkout/PO with no HSN classified is exactly this
+		// scenario, not a per-field format error (MASTER-0043 covers the
+		// format-is-wrong case at master-save time; this is the
+		// not-set-at-all case caught later, at transaction time).
+		return "", 0, &ValidationError{Code: "ADMINC-0034", Message: fmt.Sprintf("item '%s' is missing hsn_code - required before it can be sold or purchased", sku)}
 	}
 	if rate, ok := data["gst_rate"].(float64); ok && rate > 0 {
 		gstRate = rate
 	} else {
-		return "", 0, fmt.Errorf("item '%s' is missing a positive gst_rate - required before it can be sold or purchased", sku)
+		return "", 0, &ValidationError{Code: "ADMINC-0034", Message: fmt.Sprintf("item '%s' is missing a positive gst_rate - required before it can be sold or purchased", sku)}
 	}
 	return hsnCode, gstRate, nil
 }

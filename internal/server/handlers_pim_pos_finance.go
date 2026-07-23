@@ -45,7 +45,7 @@ func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 
 	res, err := engines.BulkImportCSV(tenantID, doctype, file, userID, false)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -73,7 +73,30 @@ func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 	if jobID != "" {
 		responseMap["import_job_id"] = jobID
 	}
+	annotateImportResult(r, res, responseMap)
 	_ = json.NewEncoder(w).Encode(responseMap)
+}
+
+// annotateImportResult (Stage 25.5) attaches DATAIM-0165 ("Excel row
+// validation failed", every row rejected) or DATAIM-0187 ("Partial
+// upload", some rows rejected) as an annotation on the normal 200 import
+// response - not a rejected request, since the existing per-row
+// Errors/error-CSV-download flow (RecordImportJob/GetImportJobErrorCSV)
+// this predates already IS the correct transport for a partially- or
+// fully-failed import; changing the response envelope for either scenario
+// would break that flow rather than improve it.
+func annotateImportResult(r *http.Request, res *engines.ImportResult, responseMap map[string]interface{}) {
+	if res.FailedRows == 0 {
+		return
+	}
+	code := "DATAIM-0187"
+	if res.SuccessRows == 0 {
+		code = "DATAIM-0165"
+	}
+	entry := errorCatalog[code]
+	logForEntry(r, entry, entry.UserMessage)
+	responseMap["code"] = code
+	responseMap["message"] = entry.UserMessage
 }
 
 // handlePIMImportPreview (Stage 15.2, V2 §6.2/§16 Phase 3): the same CSV
@@ -98,10 +121,16 @@ func handlePIMImportPreview(w http.ResponseWriter, r *http.Request) {
 
 	res, err := engines.BulkImportCSV(tenantID, doctype, file, userID, true)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(res)
+	responseBytes, marshalErr := json.Marshal(res)
+	responseMap := map[string]interface{}{}
+	if marshalErr == nil {
+		_ = json.Unmarshal(responseBytes, &responseMap)
+	}
+	annotateImportResult(r, res, responseMap)
+	_ = json.NewEncoder(w).Encode(responseMap)
 }
 
 // handlePIMImportJobErrors serves a completed ImportJob's row-level failures
@@ -340,7 +369,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 	gstBreakdown, gstErr := engines.ComputeGSTForLines(tenantID, gstLines, req.Interstate)
 	if gstErr != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("GST validation failed: %v", gstErr))
+		writeEngineError(w, r, gstErr, http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -467,6 +496,18 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
+		if req.OfflineSynced {
+			// POSOFF-0241 (Stage 25.7): "Offline invoice sync conflict" -
+			// an offline-queued cart replaying against a cart_number the
+			// server already has in a state that isn't a clean Paid/
+			// Pending-Approval replay (still Processing, or Failed from a
+			// prior partial attempt) is exactly this scenario; a live
+			// (non-offline) duplicate submission hitting this same branch
+			// is a different, unrelated race, so it keeps the existing
+			// generic 409 below.
+			writeAPIError(w, r, "POSOFF-0241", "")
+			return
+		}
 		writeAPIErrorGeneric(w, r, http.StatusConflict, "This cart is already being processed or was already completed")
 		return
 	} else if claimErr != nil {
@@ -477,7 +518,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	if requiredRole != "" {
 		if err := engines.SubmitForApproval(tenantID, "POSCart", req.CartNumber, claimant, role); err != nil {
 			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Failed', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'POSCart' AND id = $1`, schema), req.CartNumber)
-			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("Failed to route for approval: %v", err))
+			writeEngineError(w, r, err, http.StatusInternalServerError)
 			return
 		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -547,17 +588,18 @@ func handlePOSSessionClose(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		SessionID   string  `json:"session_id"`
-		CountedCash float64 `json:"counted_cash"`
+		SessionID      string  `json:"session_id"`
+		CountedCash    float64 `json:"counted_cash"`
+		VarianceReason string  `json:"variance_reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SessionID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'session_id' is required")
 		return
 	}
 
-	expected, variance, err := engines.ClosePOSSession(tenantID, req.SessionID, cashier, req.CountedCash)
+	expected, variance, err := engines.ClosePOSSession(tenantID, req.SessionID, cashier, req.CountedCash, req.VarianceReason)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	engines.LogAuditEvent(tenantID, cashier, "POS_SESSION", "CLOSED", fmt.Sprintf("Session %s closed, variance %.2f", req.SessionID, variance))
@@ -704,7 +746,7 @@ func handleSubmitApproval(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := engines.SubmitForApproval(tenantID, req.Doctype, req.DocumentID, userID, role); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "submitted"})
@@ -733,6 +775,14 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := engines.DecideApproval(tenantID, req.Doctype, req.DocumentID, userID, role, location, req.Decision, req.Comment); err != nil {
+		// APPROV-0159 (Stage 25.5): a precisely-coded *ValidationError (the
+		// reject-reason-missing check) takes priority over the doctype-
+		// specific PURCHA-0083 case below, which only ever fires for a
+		// different error (ErrApprovalRoleMismatch).
+		if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
+			writeAPIError(w, r, verr.Code, verr.SubFor)
+			return
+		}
 		// PURCHA-0083 (Stage 25 Batch 3): DecideApproval's role-mismatch
 		// failure is generic across every approval-gated doctype
 		// (POSCart/VendorInvoice/CycleCountLine/PurchaseOrder/...) - only

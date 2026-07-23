@@ -95,10 +95,18 @@ func callShopifyGraphQL(ctx context.Context, shopDomain, accessToken, query stri
 	}
 	status, respBody, err := doConnectorRequest(ctx, 20*time.Second, http.MethodPost, url, headers, reqBody, "shopify")
 	if err != nil {
-		return nil, fmt.Errorf("shopify request failed: %v", err)
+		// CONN-0226 ("Channel publish failed") below, except a circuit-
+		// breaker-open error (CONN-0225) - preserved as-is rather than
+		// flattened into a new plain error, same "don't discard a precise
+		// *ValidationError" reasoning engines/procurement.go's
+		// ConvertRequisitionToOrder already applies to GenerateSequence's.
+		if verr, ok := err.(*ValidationError); ok {
+			return nil, verr
+		}
+		return nil, &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("shopify request failed: %v", err)}
 	}
 	if status < 200 || status >= 300 {
-		return nil, fmt.Errorf("shopify returned HTTP %d: %s", status, string(respBody))
+		return nil, &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("shopify returned HTTP %d: %s", status, string(respBody))}
 	}
 
 	var parsed shopifyGraphQLResponse
@@ -106,7 +114,7 @@ func callShopifyGraphQL(ctx context.Context, shopDomain, accessToken, query stri
 		return nil, fmt.Errorf("failed to parse shopify response: %v", err)
 	}
 	if len(parsed.Errors) > 0 {
-		return nil, fmt.Errorf("shopify GraphQL error: %s", parsed.Errors[0].Message)
+		return nil, &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("shopify GraphQL error: %s", parsed.Errors[0].Message)}
 	}
 	ts := parsed.Extensions.Cost.ThrottleStatus
 	log.Printf("[SHOPIFY] query cost %d, throttle available %.0f/%.0f", parsed.Extensions.Cost.ActualQueryCost, ts.CurrentlyAvailable, ts.MaximumAvailable)
@@ -126,7 +134,8 @@ func (shopifyConnector) PublishProduct(ctx context.Context, cred map[string]stri
 	shopDomain := cred["shop_domain"]
 	accessToken := cred["access_token"]
 	if shopDomain == "" || accessToken == "" {
-		return "", fmt.Errorf("shopify credential missing shop_domain/access_token, configure it via POST /api/v1/pim/channels/{code}/credentials")
+		// CONN-0224 (Stage 25.6): "Live connector credentials missing."
+		return "", &ValidationError{Code: "CONN-0224", Message: "shopify credential missing shop_domain/access_token, configure it via POST /api/v1/pim/channels/{code}/credentials"}
 	}
 
 	metafields := []map[string]interface{}{}
@@ -186,7 +195,7 @@ func (shopifyConnector) PublishProduct(ctx context.Context, cred map[string]stri
 		return "", fmt.Errorf("failed to parse productSet response: %v", err)
 	}
 	if len(result.ProductSet.UserErrors) > 0 {
-		return "", fmt.Errorf("shopify rejected the product: %s", result.ProductSet.UserErrors[0].Message)
+		return "", &ValidationError{Code: "CONN-0226", Message: fmt.Sprintf("shopify rejected the product: %s", result.ProductSet.UserErrors[0].Message)}
 	}
 	externalID := result.ProductSet.Product.ID
 	if externalID == "" {

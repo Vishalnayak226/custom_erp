@@ -96,6 +96,7 @@ func Run() {
 	http.HandleFunc("GET /api/v1/me", apiMiddleware(handleGetProfile))
 	http.HandleFunc("PUT /api/v1/me", apiMiddleware(handleUpdateProfile))
 	http.HandleFunc("POST /api/v1/me/change-password", apiMiddleware(handleChangePassword))
+	http.HandleFunc("GET /api/v1/me/permissions", apiMiddleware(handleMyPermissions))
 
 	// Admin user/role management (Stage 21 QA fix) - the Users/Roles sidebar
 	// items had never had a backend at all. HR/Admin-only, enforced in each handler.
@@ -106,6 +107,8 @@ func Run() {
 	http.HandleFunc("GET /api/v1/admin/roles", apiMiddleware(handleListRoles))
 	http.HandleFunc("GET /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))
 	http.HandleFunc("POST /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))
+	http.HandleFunc("GET /api/v1/ops/deployment-status", apiMiddleware(handleDeploymentStatus))
+	http.HandleFunc("GET /api/v1/ops/backup-status", apiMiddleware(handleBackupStatus))
 
 	// Generic DocType CRUD APIs (Go 1.22 enhanced routing)
 	http.HandleFunc("/api/v1/doc/{doctype}", apiMiddleware(handleGenericDoc))

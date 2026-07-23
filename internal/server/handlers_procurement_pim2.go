@@ -86,7 +86,7 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 	}
 	labels, err := engines.PrintStickers(tenantID, req.Skus, req.PrinterCode, userID, req.ReprintReason, req.Copies)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "PRINT_STICKERS", "SUCCESS", fmt.Sprintf("Printed %d sticker(s) on %s", len(labels), req.PrinterCode))

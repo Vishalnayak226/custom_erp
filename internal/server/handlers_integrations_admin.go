@@ -225,7 +225,7 @@ func handlePineLabsTransaction(w http.ResponseWriter, r *http.Request) {
 			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ignored", "details": "Transaction already recorded"})
 			return
 		}
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "recorded", "transaction_id": req.TransactionID})

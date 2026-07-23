@@ -25,7 +25,14 @@ import (
 // dependency, matching this repo's lightweight-first principle.
 func doConnectorRequest(ctx context.Context, timeout time.Duration, method, url string, headers map[string]string, body []byte, breakerKey string) (status int, respBody []byte, err error) {
 	if !circuitBreakerAllow(breakerKey) {
-		return 0, nil, fmt.Errorf("circuit breaker open for %q - too many recent failures, not attempting this call", breakerKey)
+		// CONN-0225 (Stage 25.6): "Channel API rate limited" - the closest
+		// real match this codebase has (a genuine per-platform-response-code
+		// rate-limit signal isn't parsed/tracked separately from any other
+		// failure that trips the breaker), and the catalog's own framing -
+		// "Publishing will retry automatically" - matches this breaker's
+		// actual behavior exactly: the job stays Queued, not Failed, so the
+		// next worker tick retries once the cooldown elapses.
+		return 0, nil, &ValidationError{Code: "CONN-0225", Message: fmt.Sprintf("circuit breaker open for %q - too many recent failures, not attempting this call", breakerKey)}
 	}
 
 	type result struct {

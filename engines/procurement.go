@@ -33,6 +33,12 @@ func ConvertRequisitionToOrder(tenantID, requisitionID, target, storeCode, finan
 	}
 	newCode, err := GenerateSequence(tenantID, seqDocType, storeCode, financialYear)
 	if err != nil {
+		// Preserve a precise *ValidationError (e.g. ADMINC-0030) instead of
+		// flattening it into a new plain error - %v below would otherwise
+		// discard the type and silently fall the caller back to a generic code.
+		if verr, ok := err.(*ValidationError); ok {
+			return "", verr
+		}
 		return "", fmt.Errorf("could not generate %s number: %v", target, err)
 	}
 
@@ -50,6 +56,14 @@ func ConvertRequisitionToOrder(tenantID, requisitionID, target, storeCode, finan
 		`SELECT data, status FROM %s.documents WHERE doctype = 'PurchaseRequisition' AND id = $1 FOR UPDATE`, schema),
 		requisitionID).Scan(&dataStr, &status); err != nil {
 		return "", fmt.Errorf("requisition not found: %v", err)
+	}
+	if status == "Converted" {
+		// RFQ-0251 (Stage 25.5): "PR already converted" - the exact
+		// scenario this row lock/status gate exists to catch (a retry or
+		// double-click on an already-converted requisition), split out
+		// from the more general "not yet Approved" case below which has
+		// no equivalent precise catalog code.
+		return "", &ValidationError{Code: "RFQ-0251", Message: fmt.Sprintf("requisition %s was already converted - further changes are not allowed", requisitionID)}
 	}
 	if status != "Approved" {
 		return "", fmt.Errorf("requisition must be Approved to convert (current status: %s)", status)
