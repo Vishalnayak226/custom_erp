@@ -827,6 +827,13 @@ const MENU_PERMISSION_MAP = {
   'menu-inventory': { open: true },
   'menu-transfers': { doctypes: ['TransferOrder'] },
   'menu-bins': { doctypes: ['Bin'] },
+  // handlers_wms.go has no role_permissions check today (its own header
+  // comment: "All role-open... a warehouse operator role doesn't exist
+  // separately from Store Manager/Cashier/HR-Admin") - { open: true } here
+  // matches that actual server behavior rather than inventing a UI-only gate.
+  'menu-putaway': { open: true },
+  'menu-bin-conditions': { open: true },
+  'menu-cycle-count': { open: true },
   'menu-stores': { doctypes: ['Stores'] },
   'menu-stickers': { open: true },
 
@@ -1129,7 +1136,7 @@ function setupEventListeners() {
   // Offline Sync Review (Stage 20.13) - same generic doctype-table pattern as POS Profile/Bin above.
   document.getElementById('menu-pos-offline-sync').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-sync'); closeSubmenus(); currentDoctype = 'POSOfflineSyncVariance'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-transfers', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs'].forEach(id => {
+  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-bin-conditions', 'menu-cycle-count', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -1348,6 +1355,9 @@ const STATIC_VIEW_MENU_IDS = {
   'purchase-orders': 'menu-purchase-orders',
   inventory: 'menu-inventory',
   transfers: 'menu-transfers',
+  putaway: 'menu-putaway',
+  'bin-conditions': 'menu-bin-conditions',
+  'cycle-count': 'menu-cycle-count',
   users: 'menu-users',
   roles: 'menu-roles',
   'prefix-configs': 'menu-prefix-configs',
@@ -1445,6 +1455,12 @@ async function renderView(view) {
     await renderFinanceView(root);
   } else if (view === 'fulfillment') {
     await renderFulfillmentView(root);
+  } else if (view === 'putaway') {
+    await renderPutawayView(root);
+  } else if (view === 'bin-conditions') {
+    await renderBinConditionsView(root);
+  } else if (view === 'cycle-count') {
+    await renderCycleCountView(root);
   } else if (view === 'marketplace') {
     await renderMarketplaceView(root);
   } else if (view === 'approvals') {
@@ -3523,11 +3539,13 @@ function renderFulfillmentActions(task) {
       return `
         <button class="action-btn" onclick="transitionFulfillmentTask('${id}', 'Picking')">Start Picking</button>
         <button class="action-btn action-btn-danger" onclick="transitionFulfillmentTask('${id}', 'Rejected')">Reject</button>
+        <button class="action-btn" onclick="viewPickList('${id}')">View Pick List</button>
       `;
     case 'Picking':
       return `
         <button class="action-btn" onclick="transitionFulfillmentTask('${id}', 'Packed')">Mark Packed</button>
         <button class="action-btn action-btn-danger" onclick="transitionFulfillmentTask('${id}', 'Rejected')">Reject</button>
+        <button class="action-btn" onclick="viewPickList('${id}')">View Pick List</button>
       `;
     case 'Packed':
       return `<button class="action-btn" onclick="transitionFulfillmentTask('${id}', 'Dispatched')">Dispatch</button>`;
@@ -3547,6 +3565,287 @@ async function transitionFulfillmentTask(taskId, newStatus) {
     return;
   }
   renderView('fulfillment');
+}
+
+// viewPickList (Stage 26.3.4) shows GenerateBinPickList's bin-grouped,
+// walk-route-sorted result for one FulfillmentTask in a lightweight
+// read-only modal, reusing the same .modal-overlay/.modal-container
+// primitives as viewTaxonomyHistory instead of introducing a new one.
+window.viewPickList = async function(taskId) {
+  const res = await apiFetch(`/api/v1/wms/pick-list?task_id=${encodeURIComponent(taskId)}`);
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to load the pick list for this task.');
+    return;
+  }
+  const lines = await res.json();
+
+  document.getElementById('pick-list-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'pick-list-modal';
+  const rows = (!lines || lines.length === 0)
+    ? `<tr><td colspan="6" class="text-center text-muted">No bin-level pick lines for this task.</td></tr>`
+    : lines.map(l => {
+        const short = l.shortfall > 0
+          ? `<span class="badge badge-danger">Short ${l.shortfall}</span>`
+          : '';
+        return `<tr><td>${l.sku || ''}</td><td>${l.bin_code || ''}</td><td>${l.zone || ''}</td><td>${l.aisle || ''}</td><td>${l.rack || ''}</td><td>${l.pick_qty || 0} ${short}</td></tr>`;
+      }).join('');
+  overlay.innerHTML = `
+    <div class="modal-container">
+      <div class="modal-header"><h3 class="modal-title">Pick List: ${taskId}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <div class="modal-body"><div class="table-wrapper"><table><thead><tr><th>SKU</th><th>Bin</th><th>Zone</th><th>Aisle</th><th>Rack</th><th>Pick Qty</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary">Close</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('.btn-secondary').addEventListener('click', close);
+};
+
+// WMS operations screens (Stage 26.3.4) - engines/wms.go's putaway, bin
+// condition transitions, and cycle-count reconciliation (Stage 20 Track B.2)
+// have been real, routed, working backend endpoints since Stage 20 with zero
+// frontend anywhere. These three screens are pure UI on top of that existing
+// backend - no new engine code, doctype, or migration needed.
+
+async function renderPutawayView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Putaway</h1>
+      <p class="page-subtitle">Place accepted stock into a bin. Refuses more than the location's unassigned on-hand quantity.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="putaway-bin">Bin Code</label>
+        <input type="text" id="putaway-bin" class="form-input" style="width: 160px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="putaway-sku">SKU</label>
+        <input type="text" id="putaway-sku" class="form-input" style="width: 160px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="putaway-qty">Qty</label>
+        <input type="number" id="putaway-qty" class="form-input" style="width: 90px;" min="1" value="1">
+      </div>
+      <button class="btn btn-primary" id="putaway-submit-btn" type="button">Put Away</button>
+    </div>
+    <div id="putaway-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(panel);
+
+  document.getElementById('putaway-submit-btn').addEventListener('click', submitPutaway);
+  attachTypeahead(document.getElementById('putaway-bin'), 'Bin');
+  attachTypeahead(document.getElementById('putaway-sku'), 'Item');
+}
+
+async function submitPutaway() {
+  const errorEl = document.getElementById('putaway-form-error');
+  errorEl.classList.add('hidden');
+
+  const binCode = document.getElementById('putaway-bin').value.trim();
+  const sku = document.getElementById('putaway-sku').value.trim();
+  const qty = parseInt(document.getElementById('putaway-qty').value, 10);
+
+  if (!binCode || !sku || !qty || qty <= 0) {
+    errorEl.textContent = 'Bin Code, SKU, and a Qty greater than zero are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/wms/putaway', {
+    method: 'POST',
+    body: JSON.stringify({ bin_code: binCode, sku: sku, qty: qty })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to put away stock.', 'Putaway Failed');
+    return;
+  }
+  await showCustomAlert(`Put away ${qty} x ${sku} into bin ${binCode}.`, 'Putaway Complete');
+  document.getElementById('putaway-qty').value = 1;
+}
+
+const BIN_STOCK_CONDITIONS = ['Good', 'Damaged', 'QC-Hold', 'RTV'];
+
+async function renderBinConditionsView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Bin Conditions</h1>
+      <p class="page-subtitle">Move bin stock between Good, Damaged, QC-Hold, and RTV. Moving out of Good makes it unsellable; moving into Good makes it sellable again.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const options = BIN_STOCK_CONDITIONS.map(c => `<option value="${c}">${c}</option>`).join('');
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="bincond-bin">Bin Code</label>
+        <input type="text" id="bincond-bin" class="form-input" style="width: 160px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="bincond-sku">SKU</label>
+        <input type="text" id="bincond-sku" class="form-input" style="width: 160px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="bincond-qty">Qty</label>
+        <input type="number" id="bincond-qty" class="form-input" style="width: 90px;" min="1" value="1">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="bincond-from">From Condition</label>
+        <select id="bincond-from" class="form-input" style="width: 130px;">${options}</select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="bincond-to">To Condition</label>
+        <select id="bincond-to" class="form-input" style="width: 130px;">${options}</select>
+      </div>
+      <button class="btn btn-primary" id="bincond-submit-btn" type="button">Move</button>
+    </div>
+    <div id="bincond-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(panel);
+  document.getElementById('bincond-to').value = 'Damaged';
+
+  document.getElementById('bincond-submit-btn').addEventListener('click', submitBinConditionTransition);
+  attachTypeahead(document.getElementById('bincond-bin'), 'Bin');
+  attachTypeahead(document.getElementById('bincond-sku'), 'Item');
+}
+
+async function submitBinConditionTransition() {
+  const errorEl = document.getElementById('bincond-form-error');
+  errorEl.classList.add('hidden');
+
+  const binCode = document.getElementById('bincond-bin').value.trim();
+  const sku = document.getElementById('bincond-sku').value.trim();
+  const qty = parseInt(document.getElementById('bincond-qty').value, 10);
+  const fromCondition = document.getElementById('bincond-from').value;
+  const toCondition = document.getElementById('bincond-to').value;
+
+  if (!binCode || !sku || !qty || qty <= 0) {
+    errorEl.textContent = 'Bin Code, SKU, and a Qty greater than zero are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (fromCondition === toCondition) {
+    errorEl.textContent = 'From Condition and To Condition must differ.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/wms/condition-transition', {
+    method: 'POST',
+    body: JSON.stringify({ bin_code: binCode, sku: sku, qty: qty, from_condition: fromCondition, to_condition: toCondition })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to move bin stock condition.', 'Condition Move Failed');
+    return;
+  }
+  await showCustomAlert(`Moved ${qty} x ${sku} in bin ${binCode} from ${fromCondition} to ${toCondition}.`, 'Condition Move Complete');
+  document.getElementById('bincond-qty').value = 1;
+}
+
+// Cycle Count session lines are created the same way every other line-item
+// bulk load happens in this repo (Stage 20.21: reuses BulkImportCSV rather
+// than a bespoke entry form) - but CycleCountLine is a Transaction doctype,
+// and the Setup submenu's generic doctype browser only lists Master
+// doctypes (renderSidebarSubmenu's `document_type === 'Master'` filter), so
+// there was previously no way to reach CycleCountLine's generic table (and
+// therefore its Bulk Import button) from the UI at all. Fixed here by
+// linking directly into the existing generic doctype-table view instead of
+// building a second import mechanism.
+async function renderCycleCountView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Cycle Count</h1>
+      <p class="page-subtitle">Reconcile a count session: zero-variance lines post immediately, non-zero variance routes to approval.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const importPanel = document.createElement('div');
+  importPanel.className = 'table-panel';
+  importPanel.style.padding = '24px';
+  importPanel.style.marginBottom = '24px';
+  importPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">1. Enter counted quantities</h2>
+    <p style="color: var(--text-muted); margin-bottom: 12px;">Count lines are entered the same way as any other bulk line-item load, via Bulk Import.</p>
+    <button class="btn btn-outline" id="cyclecount-open-lines-btn" type="button">Manage Count Lines</button>
+  `;
+  container.appendChild(importPanel);
+
+  const reconcilePanel = document.createElement('div');
+  reconcilePanel.className = 'table-panel';
+  reconcilePanel.style.padding = '24px';
+  reconcilePanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">2. Reconcile a session</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="cyclecount-session">Count Session</label>
+        <input type="text" id="cyclecount-session" class="form-input" style="width: 220px;">
+      </div>
+      <button class="btn btn-primary" id="cyclecount-reconcile-btn" type="button">Reconcile Session</button>
+    </div>
+    <div id="cyclecount-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="cyclecount-result" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(reconcilePanel);
+
+  document.getElementById('cyclecount-open-lines-btn').addEventListener('click', () => {
+    currentDoctype = 'CycleCountLine';
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    renderView('doctype-table');
+  });
+  document.getElementById('cyclecount-reconcile-btn').addEventListener('click', submitCycleCountReconcile);
+}
+
+async function submitCycleCountReconcile() {
+  const errorEl = document.getElementById('cyclecount-form-error');
+  errorEl.classList.add('hidden');
+  const resultEl = document.getElementById('cyclecount-result');
+  resultEl.innerHTML = '';
+
+  const countSession = document.getElementById('cyclecount-session').value.trim();
+  if (!countSession) {
+    errorEl.textContent = 'Count Session is required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/wms/cycle-count/reconcile', {
+    method: 'POST',
+    body: JSON.stringify({ count_session: countSession })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to reconcile the count session.', 'Reconcile Failed');
+    return;
+  }
+  const data = await res.json();
+  resultEl.innerHTML = `
+    <span class="badge badge-success">${data.posted_no_variance || 0} posted (no variance)</span>
+    &nbsp;
+    <span class="badge badge-warning">${data.pending_approval || 0} pending approval</span>
+  `;
 }
 
 // Marketplace settlement + logistics booking screen (Stage 13.7) - both
