@@ -410,7 +410,20 @@ All 9 buildable items (`26.4.1`-`26.4.9`) built, migrated, and live-verified in 
 
 ---
 
-## 38. Stage 26.3.4 — WMS Operations Screens built (2026-07-24, code)
+## 38. Stage 26.12 effort plan (2026-07-24, no code)
+
+User asked, after §36's docs-only OMS retirement, whether any OMS code had actually been migrated/built (none had — §36 was documentation only) and for an effort estimate on actually building it. Sized all 10 `Stage 26.12` items in `micro_checklist.md` (still all `[ ]`) using "sessions" — one focused, live-verified build pass, this repo's own historical unit (Stage 20 Track B.2's WMS Maturity, comparable breadth, landed in one day; Stage 20 Track B.4 added 7 reports in a day).
+
+- **Total ≈ 7.5-9.5 sessions**, realistically 1-1.5 weeks at this repo's demonstrated cadence (Stage 13's much larger scope shipped in about a week) — not one sitting, not a quarter.
+- **Per-item sizes**: 26.12.1 Order Engine **L** (~1.5-2, biggest single item, everything else depends on it), 26.12.4 Courier/Shipment/Manifest **L** (~1.25-1.5, the largest orchestration gap per §36), 26.12.3 Pick/Pack **M** (~1), 26.12.5 Returns/QC/Refund **M/L** (~1), 26.12.2 Allocation strategies **M** (~0.75-1), 26.12.8 OMS reports **M** (~0.75-1, ×7 reports but a proven framework), 26.12.7 Exception dashboard **S/M** (~0.5-0.75), 26.12.6 Inventory buckets **S** (~0.5), 26.12.9 Config masters **S** (~0.25-0.5). 26.12.10 stays P2/deferred, not counted.
+- **Recommended build order** (dependency-aware, not numbering order): 26.12.9 + 26.12.6 (foundational, no dependencies) → 26.12.1 (Order Engine) → 26.12.2 → 26.12.3 → 26.12.5 → 26.12.4 (build the internal AWB/manifest engine before any real courier API — same code-complete/credentials-pending split already used for GST/Shopify/BigCommerce/Magento at 26.2.1-26.2.5) → 26.12.7 + 26.12.8 last, since reports/dashboards read off data the earlier items produce.
+- **Biggest swing factors**: 26.12.1's still-open doctype design decision (new `SalesOrder`/`SalesOrderLine` pair vs. extending `POSCart`), and how much of 26.12.4 ends up being real-courier-API integration vs. an internal-only AWB/manifest engine.
+- Effort tags + this build-order summary written directly into each `micro_checklist.md` Stage 26.12 item, not just here, so the estimate travels with the backlog item itself.
+- **No code changed this session** — docs/checklist only, same as §34-§37.
+
+---
+
+## 39. Stage 26.3.4 — WMS Operations Screens built (2026-07-24, code)
 
 Following §35's WMS retirement, user asked to actually build the remaining WMS work going forward in this repo's own stack (Go + vanilla JS), not a separate service. Picked **Stage 26.3.4** as the first slice: `engines/wms.go`'s putaway/pick-list/condition-transition/cycle-count-reconcile functions have been real, routed, working backend since Stage 20 Track B.2 with confirmed-via-grep zero frontend anywhere.
 
