@@ -350,4 +350,18 @@ Admin/Config, DocType/Metadata, Reports, Data Import, Procurement/RFQ, Notificat
 
 **Stage 25 is now fully closed** — all 6 batches plus 25.8/25.9/25.10.
 
+---
+
+## 34. Stage 26 Planning — Final Leg Maturity Completion Plan (2026-07-23, no code)
+
+User supplied `ERP_Final_Leg_Maturity_Completion_Master_Plan.pdf` — a deepened successor to the plan behind Stage 20, with a 12-phase (0-11) roadmap and per-module final-leg tables (PIM, WMS, POS, Finance, Procurement, CRM, HR, Manufacturing, Reports, SaaS Ops). Read in full, then cross-checked line-by-line against live repo state rather than transcribed as-is.
+
+- **Two stale/incorrect claims in the PDF, found and corrected:**
+  - Industry Packs: the PDF claims only 4 profiles exist and asks for 7 more (Pharma, Medical Device, Steel, Construction, Agriculture, Semiconductor, Logistics/Transportation). `public/profiles/` actually already has 10 real profile files (Stage 12.1, 2026-07-21) — 6 of the PDF's 7 requested packs already map onto existing ones. Only **Logistics/Transportation** is genuinely new.
+  - P0-1 finance regression: the PDF assumes `TestEngines/FinanceDoubleEntryAndPOS`'s 9000-vs-9500 mismatch is a broken double-entry posting bug needing a code fix. Re-ran `go test ./... -p 1` fresh (previously only confirmed via `git stash` across commits, never re-examined this closely) — the trial balance itself is `balanced:true` with debits==credits==9500 throughout; the *test's own fixture expectation* is 500 short, not the ledger. Combined with every prior session finding this reproduces identically regardless of what changed, root cause is almost certainly accumulated fixture debris in the one shared, persistent `custom_erp` dev DB every `go test` run writes to (no per-run isolation) — not broken finance code. Same root cause explains the `DocTypeValidationAndAuth` failure (`Brand.fefo_enabled` leftover from earlier industry-profile testing). Real fix identified: isolate/reset test fixtures before asserting exact totals, not patch `engines/finance.go`.
+- Broken into **Stage 26** (`micro_checklist.md`), ~85 items across `26.0`-`26.11` matching the PDF's own phase numbers, each item phrased to reuse an existing engine/pattern (approval engine, `BulkImportCSV`, `ReportDefinition`, master-data-validation choke point, audit engine) rather than proposing a parallel mechanism — consistent with every prior stage's own precedent.
+- Several PDF-requested capabilities flagged `[P2 — tier/scope decision]` rather than built or silently dropped: WMS slotting/RF-voice/robotics/3PL billing, full HR appraisal cycles, manufacturing finite scheduling/subcontracting, CRM CLV/churn analytics, a dedicated BI data mart — each genuinely useful but not justified without a real pilot-scale customer or a measured bottleneck first.
+- Full rationale/benchmark detail: `docs/specs/erp_maturity_master_plan.md` (rewritten in place for this PDF, old 2026-07-19 plan kept as its own §6 history rather than a separate file).
+- **No code changed this session** — `go build`/`go vet` clean, `go test ./... -p 1` reproduces exactly the two known pre-existing failures above, nothing new.
+
 For the current build tracker, see **[docs/micro_checklist.md](micro_checklist.md)**.

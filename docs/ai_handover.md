@@ -119,7 +119,8 @@ Design rules for scaling 1 store → 2,000 stores without locking the transactio
 ## 6. Version Control & Handover Status
 
 - **Remote**: `https://github.com/Vishalnayak226/custom_erp.git` (branch `main`)
-- **Latest commit**: `c45f934` — "Stage 25 fully closed (Batches 4-6, 25.8-25.10) + Stage 22.6 role-filtered sidebar" (2026-07-23)
+- **Latest commit**: `2184793` — "Add GitHub security checklist and developer contract template" (2026-07-23). Two commits landed after the `c45f934` Stage 25 close-out this section used to point to: `7c64343` (doc restructuring) and `66170e6` (closed the 3 buildable extension-hooks gaps — HTTPS enforcement, tests, admin UI). See `docs/extension_hooks_checklist.md`/`docs/github_checklist.md` for that work; it's tracked outside the Stage numbering (client-extension-layer ops + GitHub org settings, not feature build items).
+- **Stage 26 planning added (2026-07-23, no code)** — `ERP_Final_Leg_Maturity_Completion_Master_Plan.pdf` (successor to the plan behind Stage 20) reconciled against live repo and broken into `micro_checklist.md` Stage 26 (`26.0`-`26.11`, ~85 items). Two of the PDF's own claims were found stale/wrong and corrected rather than carried forward — see `docs/specs/erp_maturity_master_plan.md` §2 and `project_ledger.md` §34: (1) industry packs — only Logistics/Transportation is genuinely missing, not 7; (2) the finance trial-balance "regression" is very likely shared-DB test-fixture debris, not broken finance code (see "Test suite" note below, updated with a fresh 2026-07-23 re-run).
 - **Full chronological detail**: `docs/project_ledger.md`. **Full backlog/scope-per-item**: `docs/micro_checklist.md`. This section is a condensed index, not the source of truth.
 - **Standing verification practice** (true for nearly every entry below, not repeated each time): built on a throwaway port, `go build`/`go vet`/`go test ./... -p 1` run clean, live-verified against the real dev DB, test data cleaned up afterward. Only deviations (skipped verification, a failed test, left-over data) are called out per entry.
 
@@ -235,6 +236,8 @@ Design rules for scaling 1 store → 2,000 stores without locking the transactio
   - 2 bugs fixed: a config error mapped to a blanket 500 instead of 422; a field-name collision silently overwrote existing fields
   - Ref: `project_ledger.md` §32
 - **Doc sync pass #2** (2026-07-23, no code) — fixed a header/intro contradiction in Stage 25's status, and re-bumped commit pointers that had gone stale again.
+- **Extension-hooks gaps + GitHub/legal docs** (2026-07-23, commits `66170e6`/`7c64343`/`2184793`) — closed the 3 buildable extension-hooks gaps (HTTPS enforcement on `target_url`, `extensions_test.go` coverage, admin UI); restructured the 3 tracked docs into short bullets; added a GitHub org-security checklist + developer contract template. Tracked in `docs/extension_hooks_checklist.md`/`docs/github_checklist.md`/`docs/Contract/`, outside the Stage numbering.
+- **Stage 26 planning** (2026-07-23, no code) — reconciled `ERP_Final_Leg_Maturity_Completion_Master_Plan.pdf` against live repo state; corrected two stale PDF claims (industry-pack gap count, finance-regression root cause); broke the buildable work into `micro_checklist.md` Stage 26 (`26.0`-`26.11`, ~85 items) mirroring the PDF's own 12-phase roadmap. Rewrote `docs/specs/erp_maturity_master_plan.md` in place for the new PDF. Ref: `project_ledger.md` §34.
 
 ---
 
@@ -249,9 +252,9 @@ Design rules for scaling 1 store → 2,000 stores without locking the transactio
   3. If a build fails transiently mid-edit, it may be another session's in-flight change — wait and retry before debugging.
   - Past collisions (for pattern recognition, not action needed): a Stage-numbering clash (20 vs 21) caught via `git status` and renumbered before shipping; three sessions editing the same files in one window on 2026-07-20; two sessions independently picking the identical Stage 25 batch on 2026-07-23 and converging on the same fix.
 - **Known issues**: `docs/operations/hardening_roadmap.md` (security/correctness backlog) fully closed as of 2026-07-12, historical record only. `docs/specs/pdf_blueprint_gap_analysis.md` is a superseded 2026-07-12 snapshot. Active backlog lives in `docs/micro_checklist.md`.
-- **Test suite**: two known, pre-existing, unrelated failures reproduce on every run — not regressions, already root-caused as DB-state drift:
-  - `TestEngines/FinanceDoubleEntryAndPOS` — trial-balance mismatch
-  - `TestEngines/DocTypeValidationAndAuth` — `Brand` doctype has picked up extra mandatory fields from unrelated industry-profile testing
+- **Test suite**: two known, pre-existing, unrelated failures reproduce on every run — not regressions, root-caused as DB-state drift (re-confirmed 2026-07-23 via a fresh `go test ./... -p 1` run, not just `git stash`):
+  - `TestEngines/FinanceDoubleEntryAndPOS` — trial-balance mismatch (expects 9000, gets 9500). The GL itself reports `balanced:true` with debits==credits==9500 throughout — it's the test fixture's expectation that's stale by 500, not a broken posting path. Root cause: no per-run isolation for the shared `custom_erp` dev DB (see Stage 26.0.2 in `micro_checklist.md` for the fix plan — isolate/reset fixtures, don't patch `engines/finance.go`).
+  - `TestEngines/DocTypeValidationAndAuth` — `Brand` doctype has picked up extra mandatory fields (`fefo_enabled`) from unrelated industry-profile testing. Same shared-DB root cause as above.
 - Every test file's `db.InitDB` uses a hardcoded connection string to the real `custom_erp` DB on port 5435 — `DATABASE_URL` has no effect on `go test`. Apply new migrations to `custom_erp`, not just `custom_erp_test`.
 
 ---

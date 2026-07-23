@@ -405,4 +405,129 @@ Each batch is a real per-code audit (does the underlying field/hook exist?), not
 
 ---
 
+---
+
+## Stage 26 — Final Leg Maturity Completion Plan (external PDF, 2026-07-23)
+
+`ERP_Final_Leg_Maturity_Completion_Master_Plan.pdf` deepens Stage 20's source plan into a 12-phase (0-11) roadmap with per-module final-leg tables. Full rationale/benchmark detail: `docs/specs/erp_maturity_master_plan.md` (rewritten for this PDF — read it for *why*; this stage is *what*). Numbering `26.0`-`26.11` matches the PDF's own phase numbers 1:1. Same Track split as Stage 20: items marked **[needs user input]** can't be built by an AI session; everything else is buildable now. Items marked **[P2 — tier/scope decision]** are real capabilities from the PDF deliberately not started without an explicit go-ahead, per this repo's standing practice of surfacing scope decisions rather than guessing or silently over-building.
+
+### Phase 26.0 — Truth Freeze and Regression Fix
+- [x] **26.0.1** Reconcile the new PDF against live code/docs/git state. Corrections found and logged in `specs/erp_maturity_master_plan.md` §2: the PDF's finance-regression root cause assumption and its industry-pack gap count were both stale/wrong — see 26.0.2 and Phase 26.4's intro.
+- [ ] **26.0.2** Root-cause fix for `TestEngines/FinanceDoubleEntryAndPOS` and `TestEngines/DocTypeValidationAndAuth`: re-ran both fresh on 2026-07-23 with `go test ./... -p 1` — both still fail with identical numbers to prior sessions (finance: expects 9000, gets 9500, but `balanced:true` and debits==credits==9500 throughout — the ledger is internally consistent, the test fixture expectation is wrong/stale by 500; DocType: `Brand.fefo_enabled` still marked required from earlier Agriculture-profile testing). This is accumulated fixture debris in the one shared, persistent `custom_erp` dev DB every test run writes to — not a broken posting engine. **Real fix**: give the finance/DocType tests an isolated schema or an explicit truncate/reset of their fixture rows before asserting exact totals, instead of relying on hand-cleanup in a shared DB. Re-run `-p 1` after the isolation fix to confirm both pass clean — do not patch `engines/finance.go` itself without first confirming a real bug survives isolation.
+
+### Phase 26.1 — Production-Like Environment
+- [ ] **26.1.1** Production hosting decision (provider, domain, TLS, secrets store). **[needs user input]**
+- [ ] **26.1.2** SLO/status-page dashboard — buildable now, reuses Stage 25.8's deployment-status/backup-status endpoints + Stage 17.10's alerting; needs only a frontend screen.
+- [ ] **26.1.3** Edge WAF/rate-limiting — depends on 26.1.1's hosting choice (reverse proxy/cloud WAF); app-level rate limiting (Stage 13.14) already covers this in the meantime.
+- [ ] **26.1.4** Tenant plan/subscription/entitlement admin screen — module entitlements already exist server-side (Stage 14); needs a UI to set plan/quota per tenant.
+- [ ] **26.1.5** Tenant usage metering / tenant-health dashboard — reuses the per-tenant concurrent-request cap counters (Stage 24.30).
+- [ ] **26.1.6** Tenant-scoped export/restore (not just whole-DB) — extend Stage 17.3's backup engine to filter by tenant schema. **[needs scope decision: full per-tenant backup cadence vs. on-demand export only]**
+
+### Phase 26.2 — External Credentials and Regulatory Integrations
+All items code-complete already, blocked purely on real-world credentials (carried forward from Stage 20 Track A):
+- [ ] **26.2.1** (=20.3) Non-production Shopify/BigCommerce/Magento credentials, then run `scripts/verify_connector_live.ps1`. **[needs user input]**
+- [ ] **26.2.2** (=20.2) Real `OPS_ALERT_WEBHOOK_URL` + escalation contacts. **[needs user input]**
+- [ ] **26.2.3** (=20.30) GSP/e-invoice/IRN sandbox credentials, then close the IRN flow — `engines/gst.go`'s calc engine is ready to feed a real GSP call once credentials exist. **[needs user input]**
+- [ ] **26.2.4** (=20.31) e-way bill sandbox credentials, then close the e-way bill flow. **[needs user input]**
+- [ ] **26.2.5** Payment-terminal (Pine Labs or similar) sandbox credentials for a real settlement test — Stage 25.7 already enforces terminal-mapping checks; only live settlement testing is missing. **[needs user input]**
+
+### Phase 26.3 — Reachability and Usability Gaps (buildable now — highest value-per-effort, wires existing backend to a screen)
+Already flagged as real gaps in `project_ledger.md` §29 (Stage 21.9); formalized as build items here.
+- [ ] **26.3.1** GRN workbench screen — dedicated create/receive UI (barcode preview, excess/short/damage capture) against the existing GRN engine; today GRN has only a backend hook (Stage 1.4/5.1) and a report, no create screen.
+- [ ] **26.3.2** Purchase Requisition entry screen + sidebar entry — backend approval flow already built (Stage 17.7), no frontend exists.
+- [ ] **26.3.3** Approval Rules admin screen — expose the amount-slab→role routing config (`engines/approval.go`) for editing instead of a direct DB/API edit.
+- [ ] **26.3.4** WMS operations screens — audit which of putaway/bin-condition-transition/cycle-count still lack frontend (some may already be partially covered by Stage 20 Track B.2); build whichever is missing.
+- [ ] **26.3.5** Vendor invoice override — confirm Stage 24.11's approval-routed override has a real UI action, not just an API call; add one if missing.
+- [ ] **26.3.6** PO amendment screen — confirm whether an approved-but-not-yet-received PO can be amended through a real edit path or only cancel-and-recreate; build an amendment flow if missing.
+
+### Phase 26.4 — PIM/PXM Maturity Sprint
+Per PDF §6.1, each extends existing Stage 15/16 PIM infrastructure — no parallel PIM model.
+- [ ] **26.4.1** Attribute groups + locale/channel attribute overrides on the existing Family/Attribute framework (Stage 15.1).
+- [ ] **26.4.2** Duplicate-item/content detection — reuse the Stage 25 master-data-validation choke point pattern (`engines/master_data_validation.go`).
+- [ ] **26.4.3** Taxonomy versioning (family/attribute-set change history) — additive, audit-log-backed (reuse Stage 1.2's audit engine).
+- [ ] **26.4.4** Media versioning + renditions + alt text + expiry on the existing Media/DAM library (Stage 15.2).
+- [ ] **26.4.5** Content workflow: owner assignment + SLA + rejected-field comments on the existing approval-gated `ProductContent` (Stage 15.1) — additive fields, not a new engine.
+- [ ] **26.4.6** Bulk approval + rollback-to-prior-content-version for PIM content.
+- [ ] **26.4.7** Channel validation packs + per-channel diff preview before publish, on the existing Channel Publishing queue (Stage 16).
+- [ ] **26.4.8** Marketplace error dictionary — map real connector error codes to the Stage 23 message catalog instead of raw passthrough.
+- [ ] **26.4.9** Search/discovery feed export (synonyms, ranking attributes, merchandising flags) — a read-only export report off existing PIM data, not a search engine.
+- [ ] **26.4.10** Supplier portal (submission + QC-approval workflow for supplier-provided content). **[needs product decision: supplier auth model — separate portal vs. limited-role login]**
+- [ ] **26.4.11** AI content-assist scope. **[needs product decision — explicitly excluded until governance/audit/prompt-safety scope is defined, per the PDF's own §6.1 note]**
+
+### Phase 26.5 — WMS Enterprise Maturity Sprint
+Per PDF §6.2, extends Stage 20 Track B.2's Bin/putaway/pick/pack/cycle-count engines — `bin_stock` stays a breakdown of `inventory_availability`, never a second source of truth (Stage 20.17's own precedent).
+- [ ] **26.5.1** ASN (advance shipment notice) capture before GRN — feeds 26.3.1's GRN workbench.
+- [ ] **26.5.2** QC sampling on GRN — accept/reject/damage sub-quantities beyond today's whole-line accept.
+- [ ] **26.5.3** Cross-dock/flow-through putaway rule (skip bin placement when a transfer/sale is already waiting).
+- [ ] **26.5.4** LPN/carton/pallet grouping on top of `bin_stock` — additive.
+- [ ] **26.5.5** Bin-to-bin replenishment min/max triggers — reuse Stage 10's replenishment-suggestion pattern, scoped to bins instead of vendor reorder.
+- [ ] **26.5.6** Wave/batch pick-list grouping — extend Stage 20.18's computed pick list.
+- [ ] **26.5.7** Short-pick handling (partial pick → variance/backorder flag).
+- [ ] **26.5.8** Cartonization at pack step — extends Stage 20.19's pack/dispatch mapping.
+- [ ] **26.5.9** ABC cycle-count planner (auto-schedule high-velocity SKUs more often) on Stage 20.20's cycle-count engine.
+- [ ] **26.5.10** Blind-count + recount workflow + variance root-cause codes — additive fields on `CycleCountLine`.
+- [ ] **26.5.11** [P2 — tier/scope decision, don't build speculatively] Slotting/re-slotting optimizer, labor standards/productivity dashboard, RF/voice/mobile picking, 3PL multi-owner billing, robotics/conveyor/scale API integration — each needs a real warehouse-scale pilot to justify the investment.
+
+### Phase 26.6 — Finance/Tax Close Sprint
+- [ ] **26.6.1** P&L / Balance Sheet reports — new `ReportDefinition` entries off existing `gl_postings`, same pattern as Trial Balance/Ageing.
+- [ ] **26.6.2** Cash-flow statement report — same framework, off `BankStatementLine`/`gl_postings`.
+- [ ] **26.6.3** GL drill-down + vendor/customer ledger + tax-ledger reports — extends Stage 20.38's drill-down pattern.
+- [ ] **26.6.4** Journal voucher + reversal + recurring-journal entry — posts through the existing `PostDoubleEntry`.
+- [ ] **26.6.5** Payment-file (bank-file) generation for a payment-proposal batch + duplicate-UTR check — extends Stage 20.27.
+- [ ] **26.6.6** Backdated-posting approval — route through the approval engine instead of a blanket period-lock rejection (Stage 17.4/24.6 already validate transaction date; this adds a signed-off override path).
+- [ ] **26.6.7** Statutory audit export (structured full-GL export for a closed period) — reuses the async-export pattern (Stage 20.37).
+- [ ] **26.6.8** Intercompany/cost-center/profit-center postings and reports — extends Stage 17.9's Department/CostCenter masters into finance postings.
+- [ ] **26.6.9** e-invoice/IRN and e-way bill flows. **Blocked on 26.2.3/26.2.4** — the GST calc engine (Stage 17.5) is ready to feed a real GSP call once credentials exist.
+- [ ] **26.6.10** `FIN-0260` period-locked posting code — still not wired (Stage 25.9: `PostDoubleEntry` has 28 call sites across 12 files, no single choke point). Real fix is a genuine refactor — introduce one wrapper every call site routes through, matching the "one choke point" pattern used elsewhere in Stage 25 — not a quick per-site patch.
+
+### Phase 26.7 — CRM/Loyalty Sprint
+- [ ] **26.7.1** RFM (recency/frequency/monetary) segmentation — a report over existing `SalesInvoice`/`POSCart`/loyalty-ledger data, no new customer data model needed.
+- [ ] **26.7.2** Voucher/coupon issuance + redemption — new doctype, reuses the loyalty ledger's earn/burn pattern (Stage 13.13d).
+- [ ] **26.7.3** Loyalty tiering + accrual/expiry rules — additive fields on the existing loyalty ledger.
+- [ ] **26.7.4** Campaign definition (birthday/lapsed-customer triggers) + communication log — reuses the existing CleverTap outbound integration (Stage 9.1) for delivery.
+- [ ] **26.7.5** Fraud/staff-restriction rules + OTP redemption on loyalty burn.
+- [ ] **26.7.6** Points-liability report + campaign-ROI report — new `ReportDefinition` entries.
+- [ ] **26.7.7** Customer 360 profile — a read-model report over existing customer-linked documents, not a new customer master.
+- [ ] **26.7.8** [P2 — tier/scope decision] Customer householding/merge, CLV/cohort/churn analytics, two-way CleverTap segment sync — real, but meaningfully larger; scope after the above ship.
+
+### Phase 26.8 — HR/Payroll Sprint
+- [ ] **26.8.1** Shift roster / store schedule — extends the existing Attendance doctype (Stage 13.13a).
+- [ ] **26.8.2** Salary structure + statutory deduction calc (PF/ESI/PT/TDS-on-salary) as a real payroll *processing* engine, a deliberate sibling to the existing payroll *export* (Stage 13.13a) — same pattern Stage 20.28 used for vendor-TDS.
+- [ ] **26.8.3** Payslip generation + payroll-to-GL posting — reuses `PostDoubleEntry`, new payroll GL accounts.
+- [ ] **26.8.4** Loans/advances against salary — new doctype, deducted in the payroll run.
+- [ ] **26.8.5** Employee self-service: leave request + expense-claim submission from the employee's own login (the claims/approval flow already exists, Stage 13.13c — this is about self-initiated submission).
+- [ ] **26.8.6** Onboarding/offboarding checklist + document locker — extends the Employee master with a checklist doctype.
+- [ ] **26.8.7** [P2 — tier/scope decision] Full KRA/KPI appraisal cycles, training, grievance handling — needs HR-domain process design input before building.
+
+### Phase 26.9 — Manufacturing/MRP Sprint
+- [ ] **26.9.1** Multi-level BOM (a BOM referencing another BOM as a component) — extends Stage 13.13e's single-level BOM.
+- [ ] **26.9.2** Alternate BOM + effective-dating — additive fields.
+- [ ] **26.9.3** Work centers + routing (operations, setup/run time) — new doctype pair feeding the existing Production Order.
+- [ ] **26.9.4** Scrap/yield factors on BOM lines + co/by-product output.
+- [ ] **26.9.5** Basic MRP reorder suggestion for manufactured items — reuses Stage 10's replenishment-suggestion pattern rather than a new planning engine.
+- [ ] **26.9.6** WIP tracking + partial completion + rework on the Production Order state machine (today linear: Draft → Material Issued → Completed).
+- [ ] **26.9.7** QC gate before a Production Order can complete — reuses the approval engine.
+- [ ] **26.9.8** Standard/actual costing + variance report on completed Production Orders.
+- [ ] **26.9.9** [P2 — tier/scope decision] Finite/infinite capacity scheduling, subcontracting/outside-processing — needs a real manufacturing pilot customer before over-building.
+
+### Phase 26.10 — Reports and BI Sprint
+- [ ] **26.10.1** **Stock ledger wiring** (PDF Appendix A item 7) — `StockLedgerEntry`/`WriteStockLedgerEntry` exist but are dead code (confirmed 2026-07-20, still true 2026-07-23). Wire into GRN, checkout, transfer dispatch/receive, putaway, condition transitions, and cycle-count posting — everywhere `inventory_availability` already changes — then build the Stock Ledger report Stage 20.40 explicitly deferred for this reason.
+- [ ] **26.10.2** Attendance Summary report — deferred at Stage 20.40 for "no data model"; buildable once 26.8.1's roster/schedule doctype exists.
+- [ ] **26.10.3** Role-based executive dashboards (KPI cards + trend charts) — a frontend-only layer over existing reports, reusing the `ReportDefinition` framework's role/column masking (Stage 20.39).
+- [ ] **26.10.4** Scheduled report delivery (cron-style run + email/webhook drop) — extends Stage 20.37's async export with a schedule field, reuses the existing outbox-worker ticker.
+- [ ] **26.10.5** Exception queues (stale approvals, failed syncs, negative-stock flags) as a dashboard widget — reuses Stage 17.10's SLA-breach monitor pattern.
+- [ ] **26.10.6** [P2 — tier/scope decision] Dedicated data mart/read replica for heavy BI queries — only justified once real report-query load is measured against the live Postgres instance; don't build ahead of a measured bottleneck, per `CLAUDE.md`'s lightweight-first principle.
+
+### Phase 26.11 — Security, Scale, UAT and Go-Live
+- [ ] **26.11.1** External penetration test engagement. **[needs user input]**
+- [ ] **26.11.2** Load/soak/spike test at 1/100/1000/2000-store scale — **partially buildable now**: `engines/scale.go` (the original Phase 5 concurrency simulator) already exists; re-run it against the current, much larger schema and record fresh latency/queue-lag/DB-utilization numbers instead of the original baseline.
+- [ ] **26.11.3** DR/restore drill in a real production-like environment — needs 26.1.1's hosting decision first; the backup/restore mechanism itself is already proven (Stage 17.3 drill).
+- [ ] **26.11.4** Migration rehearsal (apply every migration file in order against a fresh DB, not the accumulated dev DB) — buildable now; would have caught the Stage 11 `field_permissions`-missing-from-provisioning bug even earlier had it existed then.
+- [ ] **26.11.5** Business UAT cycle with signed defect/closure log, using the existing `docs/guides/UAT_CHECKLIST.md`. **[needs real business users]**
+- [ ] **26.11.6** Hypercare window definition (on-call owner, duration, rollback trigger) for the first pilot. **[needs user/business decision]**
+
+**Verification note (2026-07-23):** `go build ./...` and `go vet ./...` clean; `go test ./... -p 1` reproduces exactly the two known pre-existing failures documented in 26.0.2 — nothing new, no code changed by this planning pass.
+
+---
+
 For the full chronological build narrative behind every item above, see **[docs/project_ledger.md](project_ledger.md)**. For environment setup, commit history, and known concurrent-session risk, see **[docs/ai_handover.md](ai_handover.md)**.
