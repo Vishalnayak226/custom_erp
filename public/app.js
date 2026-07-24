@@ -279,7 +279,12 @@ let state = {
   // failure mode than a brief empty-sidebar flash, and the server's own
   // checkPermission() is the actual enforcement point regardless of what
   // the sidebar shows.
-  permissions: { isAdmin: true, doctypes: new Set(), loaded: false }
+  permissions: { isAdmin: true, doctypes: new Set(), loaded: false },
+  // Stage 27: same "show everything until loaded" default as permissions
+  // above - enabled: null means "unknown yet," which isMenuModuleVisible
+  // treats as visible; moduleGate on the server is the real enforcement
+  // point regardless of what the sidebar shows.
+  modules: { enabled: null, solePackage: null, ownedPackages: [], loaded: false }
 };
 
 let currentView = 'dashboard';
@@ -771,6 +776,8 @@ async function init() {
   await fetchLabels();
   await fetchRegisteredDoctypes();
   await fetchAndApplyPermissions();
+  await fetchAndApplyModules();
+  applyProductPathRouting();
   await restoreLastView();
   fetchAndApplyProfile();
 }
@@ -850,7 +857,44 @@ const MENU_PERMISSION_MAP = {
   'menu-dynamic-labels': { adminOnly: true },
   'menu-doctype-builder': { adminOnly: true },
   'menu-extension-hooks': { adminOnly: true },
-  'menu-audit-logs': { adminOnly: true }
+  'menu-audit-logs': { adminOnly: true },
+  // System Status dashboard (Stage 26.1.2) - reuses the same HR/Admin-only
+  // gate as the ops-visibility endpoints it reads (requireHRAdmin on
+  // handleDeploymentStatus/handleBackupStatus, Stage 25.8).
+  'menu-system-status': { adminOnly: true }
+};
+
+// Stage 27 (Modular Product Packaging): which module_key gates each sidebar
+// item, mirroring MENU_PERMISSION_MAP's own shape and reasoning exactly -
+// only items with a genuine moduleGate(...) on their backing route are
+// listed (see internal/server/routes.go). Anything not listed here belongs
+// to an is_core module (master_data/inventory/sales/finance/core) that's
+// permanently enabled for every tenant, so it never needs hiding by this
+// mechanism - same "absence means always-visible" convention
+// MENU_PERMISSION_MAP already uses. menu-fulfillment/menu-marketplace map
+// to 'wms'/'oms' respectively because their backing routes
+// (handleFulfillmentTaskTransition / handleMarketplaceReconcile+
+// handleLogisticsBook) were re-gated with moduleGate("wms"/"oms", ...) in
+// Stage 27 alongside the older featureGate integration flags.
+const MENU_MODULE_MAP = {
+  'menu-putaway': 'wms',
+  'menu-bin-conditions': 'wms',
+  'menu-cycle-count': 'wms',
+  'menu-fulfillment': 'wms',
+  'menu-marketplace': 'oms',
+
+  'menu-purchase-orders': 'procurement',
+  'menu-vendors': 'procurement',
+  'menu-rfq': 'rfq',
+
+  'menu-stickers': 'stickers',
+
+  'menu-hr': 'hr',
+  'menu-assets': 'assets',
+  'menu-expenses': 'expenses',
+
+  'menu-manufacturing': 'manufacturing',
+  'menu-pim': 'pim'
 };
 
 function canReadDoctype(doctype) {
@@ -890,6 +934,113 @@ function applySidebarPermissions() {
     const items = container.querySelectorAll('.menu-flyout > li');
     const allHidden = Array.from(items).every(li => li.classList.contains('perm-hidden'));
     container.classList.toggle('perm-hidden', allHidden);
+  });
+}
+
+// isMenuModuleVisible mirrors isMenuRuleVisible: an item with no
+// MENU_MODULE_MAP entry (an is_core module, or no module gate at all) is
+// always visible; state.modules.enabled === null means the real entitlement
+// set hasn't loaded yet, so default to visible (see state's own comment on
+// why a brief full-menu flash beats a brief empty one).
+function isMenuModuleVisible(moduleKey) {
+  if (!moduleKey) return true;
+  if (state.modules.enabled === null) return true;
+  return state.modules.enabled.has(moduleKey);
+}
+
+// applyModuleEntitlements (Stage 27) is applySidebarPermissions()'s sibling:
+// same hide-rather-than-remove approach, same "collapse an empty flyout"
+// follow-up pass, but driven by which PRODUCTS this tenant licensed rather
+// than which doctypes this role can read - a WMS-only tenant and an
+// HR/Admin-role WMS-only tenant should see the same trimmed-down sidebar.
+// Uses its own 'module-hidden' class (not 'perm-hidden') so this pass can
+// never accidentally un-hide something applySidebarPermissions already
+// hid, or vice versa - an item needs both checks to pass to show at all.
+function applyModuleEntitlements() {
+  Object.keys(MENU_MODULE_MAP).forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const item = el.closest('li');
+    if (!item) return;
+    item.classList.toggle('module-hidden', !isMenuModuleVisible(MENU_MODULE_MAP[id]));
+  });
+
+  document.querySelectorAll('.has-flyout').forEach(container => {
+    const items = container.querySelectorAll('.menu-flyout > li');
+    const allHidden = items.length > 0 && Array.from(items).every(li => li.classList.contains('module-hidden'));
+    container.classList.toggle('module-hidden', allHidden);
+  });
+}
+
+async function fetchAndApplyModules() {
+  try {
+    const res = await apiFetch('/api/v1/me/modules');
+    if (res && res.ok) {
+      const data = await res.json();
+      state.modules = {
+        enabled: new Set(data.enabled_modules || []),
+        solePackage: data.sole_package || null,
+        ownedPackages: data.owned_packages || [],
+        loaded: true
+      };
+    }
+  } catch (err) {
+    console.error('Error fetching module entitlements:', err);
+  }
+  applyModuleEntitlements();
+  renderProductSwitcher();
+}
+
+// applyProductPathRouting (Stage 27) is a pure navigation convenience, run
+// once at boot right after module entitlements load and before
+// restoreLastView() picks a screen - it never affects access control (every
+// API route still enforces its own moduleGate regardless of the URL) and
+// it deliberately changes nothing about which screen renders, only the
+// address bar. A tenant whose enabled (non-core) modules resolve to
+// exactly one sellable product (state.modules.solePackage, set server-side
+// by engines.ResolveSoleProductPackage) gets bare "/" silently rewritten to
+// that product's own URL (e.g. "/" -> "/wms") via replaceState (no reload,
+// no history entry) - this is the concrete guarantee that a single-module
+// client always lands somewhere scoped to them, never a generic screen
+// that half-belongs to products they don't have. A multi-product or
+// full-suite tenant (solePackage === null) is untouched - exactly today's
+// behavior at "/".
+function applyProductPathRouting() {
+  if (location.pathname === '/' && state.modules.solePackage) {
+    history.replaceState(null, '', state.modules.solePackage.url_prefix);
+  }
+}
+
+// renderProductSwitcher (Stage 27) shows a small "Switch product" list in
+// the sidebar footer, but only when it's actually a meaningful choice: a
+// tenant with 2+ licensed products but not the full suite (a single-product
+// tenant has nowhere else to switch to; a full-suite tenant already gets
+// every module in one sidebar exactly as before, so a switcher would just
+// be noise). Plain links using pushState, not a page reload - reuses the
+// existing account-menu's dropdown styling rather than introducing a new
+// component.
+function renderProductSwitcher() {
+  const existing = document.getElementById('product-switcher');
+  if (existing) existing.remove();
+
+  const owned = state.modules.ownedPackages || [];
+  if (owned.length < 2) return;
+
+  const footer = document.querySelector('.sidebar-footer');
+  if (!footer) return;
+
+  const el = document.createElement('div');
+  el.id = 'product-switcher';
+  el.className = 'account-menu';
+  el.innerHTML = `
+    <select class="form-input" id="product-switcher-select" style="width:100%;">
+      <option value="">Switch product...</option>
+      ${owned.map(p => `<option value="${p.url_prefix}"${location.pathname === p.url_prefix ? ' selected' : ''}>${p.display_name}</option>`).join('')}
+    </select>
+  `;
+  footer.insertAdjacentElement('beforebegin', el);
+  document.getElementById('product-switcher-select').addEventListener('change', (e) => {
+    if (e.target.value) history.pushState(null, '', e.target.value);
   });
 }
 
@@ -1136,7 +1287,7 @@ function setupEventListeners() {
   // Offline Sync Review (Stage 20.13) - same generic doctype-table pattern as POS Profile/Bin above.
   document.getElementById('menu-pos-offline-sync').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-sync'); closeSubmenus(); currentDoctype = 'POSOfflineSyncVariance'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-bin-conditions', 'menu-cycle-count', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs'].forEach(id => {
+  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-bin-conditions', 'menu-cycle-count', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -1365,6 +1516,7 @@ const STATIC_VIEW_MENU_IDS = {
   'extension-hooks': 'menu-extension-hooks',
   'extension-hook-log': 'menu-extension-hooks',
   'audit-logs': 'menu-audit-logs',
+  'system-status': 'menu-system-status',
   'vendor-invoices': 'menu-vendor-invoices',
   'payment-proposals': 'menu-payment-proposals',
   'bank-reconciliation': 'menu-bank-reconciliation',
@@ -1497,6 +1649,8 @@ async function renderView(view) {
     await renderExtensionHookLogView(root);
   } else if (view === 'audit-logs') {
     await renderLogHubView(root);
+  } else if (view === 'system-status') {
+    await renderSystemStatusView(root);
   } else if (view === 'profile') {
     await renderProfileView(root);
   } else if (view === 'transfers') {
@@ -1995,7 +2149,8 @@ function renderDashboard(container) {
     { title: 'Dynamic Labels', desc: 'Configure customized nomenclature', action: () => { setActiveMenu('menu-dynamic-labels'); renderView('dynamic-labels'); } },
     { title: 'Prefix Configs', desc: 'Configure sequential transaction prefixes', action: () => { setActiveMenu('menu-prefix-configs'); renderView('prefix-configs'); } },
     { title: 'Extension Hooks', desc: 'Manage 3rd-party webhook hooks and scoped tokens', action: () => { setActiveMenu('menu-extension-hooks'); renderView('extension-hooks'); } },
-    { title: 'Activity Log', desc: 'Track audits, panics, and payloads', action: () => { setActiveMenu('menu-audit-logs'); renderView('audit-logs'); } }
+    { title: 'Activity Log', desc: 'Track audits, panics, and payloads', action: () => { setActiveMenu('menu-audit-logs'); renderView('audit-logs'); } },
+    { title: 'System Status', desc: 'Deployment, backup, and restore-drill health', action: () => { setActiveMenu('menu-system-status'); renderView('system-status'); } }
   ];
 
   modules.forEach(m => {
@@ -8750,6 +8905,159 @@ window.triggerPanicRecovery = async function() {
     renderView('audit-logs');
   }
 };
+
+// System Status dashboard (Stage 26.1.2, PDF "SLO/status-page dashboard").
+// Pure frontend: wires the existing Stage 25.8 deployment-status/
+// backup-status endpoints (which already compute the DR-0213/DR-0214
+// overdue warnings off the Stage 17.10 error catalog) into one HR/Admin
+// screen. No new backend route or table.
+async function renderSystemStatusView(container) {
+  const [deployRes, backupRes] = await Promise.all([
+    apiFetch('/api/v1/ops/deployment-status'),
+    apiFetch('/api/v1/ops/backup-status')
+  ]);
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">System Status</h1>
+      <p class="page-subtitle">Deployment health and backup/restore-drill cadence across every environment.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  if (!deployRes || !backupRes) return;
+
+  const deployFailed = !deployRes.ok;
+  const backupFailed = !backupRes.ok;
+  const deployData = deployFailed ? { latest_by_environment: {}, history: [] } : await deployRes.json();
+  const backupData = backupFailed ? { warnings: [], history: [] } : await backupRes.json();
+
+  if (deployFailed || backupFailed) {
+    const err = document.createElement('p');
+    err.style.cssText = 'color:#ef4444; font-size:13px; margin-bottom:16px;';
+    err.textContent = deployFailed && backupFailed
+      ? 'Failed to load deployment and backup status.'
+      : deployFailed ? 'Failed to load deployment status.' : 'Failed to load backup status.';
+    container.appendChild(err);
+  }
+
+  const warnings = backupData.warnings || [];
+  if (warnings.length > 0) {
+    const banner = document.createElement('div');
+    banner.style.cssText = 'display:flex; flex-direction:column; gap:8px; margin-bottom:20px;';
+    banner.innerHTML = warnings.map(w => `
+      <div class="badge ${w.code === 'DR-0214' ? 'badge-danger' : 'badge-warning'}" style="display:flex; padding:10px 14px; font-size:13px; font-weight:500; white-space:normal;">
+        <span style="font-weight:700; margin-right:8px;">${w.code}</span> ${w.message}
+      </div>
+    `).join('');
+    container.appendChild(banner);
+  }
+
+  const envCount = Object.keys(deployData.latest_by_environment || {}).length;
+  const backupOverdue = warnings.some(w => w.code === 'DR-0214');
+  const drillOverdue = warnings.some(w => w.code === 'DR-0213');
+  const statsRow = document.createElement('div');
+  statsRow.className = 'dashboard-stats-row';
+  statsRow.innerHTML = `
+    <div class="stat-card">
+      <span class="stat-label">Environments Tracked</span>
+      <span class="stat-val">${envCount}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Last Backup</span>
+      <div style="margin-top:4px;"><span class="badge ${backupOverdue ? 'badge-danger' : 'badge-success'}">${backupData.last_backup_at || 'Never'}</span></div>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Last Restore Drill</span>
+      <div style="margin-top:4px;"><span class="badge ${drillOverdue ? 'badge-warning' : 'badge-success'}">${backupData.last_restore_drill_at || 'Never'}</span></div>
+    </div>
+  `;
+  container.appendChild(statsRow);
+
+  const envRows = Object.values(deployData.latest_by_environment || {});
+  const envPanel = document.createElement('div');
+  envPanel.className = 'table-panel';
+  envPanel.style.marginTop = '20px';
+  envPanel.innerHTML = `
+    <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding:16px 16px 0;">Latest Deployment by Environment</h3>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Environment</th><th>Build Status</th><th>Git Commit</th><th>App Version</th><th>Promoted By</th><th>Promoted At</th></tr></thead>
+        <tbody>
+          ${envRows.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No deployments recorded yet.</td></tr>' : envRows.map(d => `
+            <tr>
+              <td style="font-weight:600; text-transform:capitalize;">${d.environment}</td>
+              <td>
+                <span class="badge ${d.build_status === 'passed' ? 'badge-success' : d.build_status === 'failed' ? 'badge-danger' : 'badge-secondary'}">${d.build_status}</span>
+                ${d.code ? `<div style="font-size:11px; color:#b91c1c; margin-top:2px;">${d.code}: ${d.message}</div>` : ''}
+              </td>
+              <td style="font-family:Consolas,Monaco,monospace; font-size:12px;">${(d.git_commit || '').slice(0, 10)}</td>
+              <td>${d.app_version || ''}</td>
+              <td>${d.promoted_by || ''}</td>
+              <td style="font-size:11px; white-space:nowrap;">${d.promoted_at || ''}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  container.appendChild(envPanel);
+
+  const historyPanel = document.createElement('div');
+  historyPanel.className = 'table-panel';
+  historyPanel.style.marginTop = '20px';
+  historyPanel.innerHTML = `
+    <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding:16px 16px 0;">Deployment History</h3>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Environment</th><th>Build Status</th><th>Git Commit</th><th>Promoted By</th><th>Promoted At</th><th>Notes</th></tr></thead>
+        <tbody>
+          ${(deployData.history || []).length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No deployment history.</td></tr>' : deployData.history.map(d => `
+            <tr>
+              <td style="text-transform:capitalize;">${d.environment}</td>
+              <td><span class="badge ${d.build_status === 'passed' ? 'badge-success' : d.build_status === 'failed' ? 'badge-danger' : 'badge-secondary'}">${d.build_status}</span></td>
+              <td style="font-family:Consolas,Monaco,monospace; font-size:12px;">${(d.git_commit || '').slice(0, 10)}</td>
+              <td>${d.promoted_by || ''}</td>
+              <td style="font-size:11px; white-space:nowrap;">${d.promoted_at || ''}</td>
+              <td style="font-size:12px; color:var(--text-muted);">${d.notes || ''}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  container.appendChild(historyPanel);
+
+  const backupPanel = document.createElement('div');
+  backupPanel.className = 'table-panel';
+  backupPanel.style.marginTop = '20px';
+  backupPanel.innerHTML = `
+    <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding:16px 16px 0;">Backup &amp; Restore Drill History</h3>
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Type</th><th>Environment</th><th>Status</th><th>Detail</th><th>Started</th><th>Finished</th></tr></thead>
+        <tbody>
+          ${(backupData.history || []).length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No backup/restore runs recorded yet.</td></tr>' : backupData.history.map(o => `
+            <tr>
+              <td style="text-transform:capitalize;">${(o.run_type || '').replace('_', ' ')}</td>
+              <td style="text-transform:capitalize;">${o.environment}</td>
+              <td>
+                <span class="badge ${o.status === 'success' ? 'badge-success' : o.status === 'failed' ? 'badge-danger' : 'badge-secondary'}">${o.status}</span>
+                ${o.code ? `<div style="font-size:11px; color:#b91c1c; margin-top:2px;">${o.code}: ${o.message}</div>` : ''}
+              </td>
+              <td style="font-size:12px; color:var(--text-muted);">${o.detail || ''}</td>
+              <td style="font-size:11px; white-space:nowrap;">${o.started_at || ''}</td>
+              <td style="font-size:11px; white-space:nowrap;">${o.finished_at || ''}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  container.appendChild(backupPanel);
+}
 
 function renderMockModuleView(container, view) {
   const header = document.createElement('div');
