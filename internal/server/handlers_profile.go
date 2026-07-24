@@ -123,6 +123,68 @@ func handleMyPermissions(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleMyModules (Stage 27: Modular Product Packaging) is the self-service
+// counterpart to GET /api/v1/admin/tenant/module-entitlements - that
+// existing endpoint is HR/Admin-only, but every logged-in user's own
+// frontend session needs to know which products/modules are enabled for
+// their tenant so it can filter its own nav/URLs by entitlement (see
+// public/app.js's applyModuleEntitlements()). Reuses
+// engines.ListModuleEntitlements - no new engine code, same read the admin
+// endpoint already uses, just exposed to any authenticated caller for their
+// own tenant.
+func handleMyModules(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	entitlements, err := engines.ListModuleEntitlements(tenantID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	enabled := []string{}
+	var enabledOptional []string // excludes is_core - see ResolveSoleProductPackage
+	for _, e := range entitlements {
+		if e.Enabled {
+			enabled = append(enabled, e.ModuleKey)
+			if !e.IsCore {
+				enabledOptional = append(enabledOptional, e.ModuleKey)
+			}
+		}
+	}
+
+	resp := map[string]interface{}{
+		"enabled_modules": enabled,
+	}
+	// sole_package (Stage 27): a navigation hint only - if this tenant's
+	// enabled optional modules resolve to exactly one sellable product, the
+	// frontend uses this to redirect bare "/" straight to that product's own
+	// URL. nil for a multi-product or full-suite tenant (today's full
+	// sidebar experience, unchanged).
+	if pkg := engines.ResolveSoleProductPackage(enabledOptional); pkg != nil {
+		resp["sole_package"] = map[string]string{
+			"package_key":  pkg.PackageKey,
+			"display_name": pkg.DisplayName,
+			"url_prefix":   pkg.URLPrefix,
+		}
+	}
+	// owned_packages: every product this tenant licenses (not just the sole
+	// one above) - drives the frontend's product switcher for a tenant with
+	// 2+ products but not the full suite. Deliberately left empty for a
+	// full-suite tenant (engines.IsFullSuite) - such a tenant technically
+	// satisfies every individual package's requirements too, but should see
+	// exactly today's one unified sidebar, not a "switch product" list.
+	owned := []map[string]string{}
+	if !engines.IsFullSuite(enabledOptional) {
+		for _, pkg := range engines.ResolveOwnedPackages(enabledOptional) {
+			owned = append(owned, map[string]string{
+				"package_key":  pkg.PackageKey,
+				"display_name": pkg.DisplayName,
+				"url_prefix":   pkg.URLPrefix,
+			})
+		}
+	}
+	resp["owned_packages"] = owned
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
 func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email              *string `json:"email"`

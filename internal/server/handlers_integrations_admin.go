@@ -403,6 +403,15 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		TenantID   string `json:"tenant_id"`
 		SchemaName string `json:"schema_name"`
+		// Packages (Stage 27, optional) - product keys from
+		// engines.ProductPackages, e.g. ["wms","pim"]. Omitted entirely:
+		// preserves today's exact behavior (every module stays enabled, as
+		// ProvisionTenantSchema's schema clone already leaves it) - fully
+		// backward compatible with any existing script/test that doesn't
+		// pass this field. Present: resolves to the underlying module_keys
+		// and sets entitlements to exactly that set (plus whatever is_core
+		// requires, which SetModuleEntitlement enforces regardless).
+		Packages []string `json:"packages"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -419,6 +428,58 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	if len(req.Packages) > 0 {
+		wanted := map[string]bool{}
+		for _, m := range engines.ExpandPackagesToModules(req.Packages) {
+			wanted[m] = true
+		}
+		allModules, err := engines.ListModules()
+		if err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			return
+		}
+		// Two phases, not one combined pass: enabling is order-independent
+		// (SetModuleEntitlement auto-pulls prerequisites atomically), but
+		// disabling is NOT - disabling a prerequisite (e.g. 'procurement')
+		// while a dependent (e.g. 'rfq') is still enabled is correctly
+		// refused by SetModuleEntitlement's own dependency check, and
+		// module_key iteration order (alphabetical, from ListModules) can
+		// easily reach the prerequisite before the dependent that's ALSO
+		// headed for disablement. So: enable everything wanted first, then
+		// disable the rest with a retry loop that re-attempts whatever
+		// failed on the previous pass - each pass disables at least the
+		// modules with no still-enabled dependent, so this converges in at
+		// most len(toDisable) passes for any dependency graph shaped like a
+		// DAG (which moduleDependencies always is, by construction).
+		var toDisable []string
+		for _, m := range allModules {
+			if m.IsCore {
+				continue // SetModuleEntitlement refuses to disable these anyway
+			}
+			if wanted[m.ModuleKey] {
+				_ = engines.SetModuleEntitlement(req.TenantID, m.ModuleKey, true, "system:provision")
+			} else {
+				toDisable = append(toDisable, m.ModuleKey)
+			}
+		}
+		// maxPasses is fixed up front - toDisable itself shrinks each pass,
+		// so bounding the loop by len(toDisable) directly would under-count
+		// after the first reassignment and exit early before converging.
+		maxPasses := len(toDisable)
+		for pass := 0; pass < maxPasses && len(toDisable) > 0; pass++ {
+			var stillFailing []string
+			for _, moduleKey := range toDisable {
+				if err := engines.SetModuleEntitlement(req.TenantID, moduleKey, false, "system:provision"); err != nil {
+					stillFailing = append(stillFailing, moduleKey)
+				}
+			}
+			if len(stillFailing) == len(toDisable) {
+				break // no progress this pass - nothing left to converge on
+			}
+			toDisable = stillFailing
+		}
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]string{

@@ -112,6 +112,16 @@ body {
   display: none;
 }
 
+/* Stage 27: module-entitlement-filtered sidebar - same hidden-not-removed
+   approach as .perm-hidden above, kept as a separate class (rather than
+   reusing .perm-hidden) so applySidebarPermissions() and
+   applyModuleEntitlements() can each toggle their own condition
+   independently without one overwriting the other's hide decision. */
+.menu-item-container.module-hidden,
+.menu-flyout > li.module-hidden {
+  display: none;
+}
+
 .menu-item {
   display: flex;
   align-items: center;

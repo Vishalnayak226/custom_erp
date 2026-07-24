@@ -97,6 +97,13 @@ func Run() {
 	http.HandleFunc("PUT /api/v1/me", apiMiddleware(handleUpdateProfile))
 	http.HandleFunc("POST /api/v1/me/change-password", apiMiddleware(handleChangePassword))
 	http.HandleFunc("GET /api/v1/me/permissions", apiMiddleware(handleMyPermissions))
+	// Self-service module entitlements (Stage 27) - any authenticated user
+	// can read which products/modules are enabled for their OWN tenant, the
+	// same way handleMyPermissions already does for role permissions. The
+	// existing GET /api/v1/admin/tenant/module-entitlements stays HR/Admin-
+	// only and untouched; this is the read a regular Cashier/Store-Manager
+	// session needs so the frontend can filter its own nav by entitlement.
+	http.HandleFunc("GET /api/v1/me/modules", apiMiddleware(handleMyModules))
 
 	// Admin user/role management (Stage 21 QA fix) - the Users/Roles sidebar
 	// items had never had a backend at all. HR/Admin-only, enforced in each handler.
@@ -120,12 +127,18 @@ func Run() {
 	http.HandleFunc("POST /api/v1/reserve", apiMiddleware(handleCreateReservation))
 
 	// WMS Maturity (Stage 20 Track B.2): putaway, bin-grouped pick lists,
-	// transfer-order pack/box-mapping, cycle-count reconciliation
-	http.HandleFunc("POST /api/v1/wms/putaway", apiMiddleware(handlePutaway))
-	http.HandleFunc("GET /api/v1/wms/pick-list", apiMiddleware(handlePickList))
-	http.HandleFunc("POST /api/v1/wms/condition-transition", apiMiddleware(handleBinConditionTransition))
-	http.HandleFunc("POST /api/v1/wms/transfer/pack", apiMiddleware(handlePackTransferOrder))
-	http.HandleFunc("POST /api/v1/wms/cycle-count/reconcile", apiMiddleware(handleReconcileCycleCount))
+	// transfer-order pack/box-mapping, cycle-count reconciliation.
+	// moduleGate("wms",...) added Stage 27 (Modular Product Packaging) - these
+	// were previously registered role-open with no module-entitlement check
+	// at all, which was fine while WMS was just a feature of one indivisible
+	// product but stopped being safe once WMS became its own sellable
+	// product (see engines/modules.go's ProductPackages) - a tenant that
+	// never bought WMS must not be able to reach these.
+	http.HandleFunc("POST /api/v1/wms/putaway", apiMiddleware(moduleGate("wms", handlePutaway)))
+	http.HandleFunc("GET /api/v1/wms/pick-list", apiMiddleware(moduleGate("wms", handlePickList)))
+	http.HandleFunc("POST /api/v1/wms/condition-transition", apiMiddleware(moduleGate("wms", handleBinConditionTransition)))
+	http.HandleFunc("POST /api/v1/wms/transfer/pack", apiMiddleware(moduleGate("wms", handlePackTransferOrder)))
+	http.HandleFunc("POST /api/v1/wms/cycle-count/reconcile", apiMiddleware(moduleGate("wms", handleReconcileCycleCount)))
 
 	// Checkout & Finance APIs
 	http.HandleFunc("POST /api/v1/checkout", apiMiddleware(handleCheckout))
@@ -242,15 +255,24 @@ func Run() {
 	// Content workflow: version history + rollback (Stage 26.4.6)
 	http.HandleFunc("GET /api/v1/pim/content/{id}/versions", apiMiddleware(moduleGate("pim", handlePIMContentVersions)))
 	http.HandleFunc("POST /api/v1/pim/content/{id}/rollback", apiMiddleware(moduleGate("pim", handlePIMContentRollback)))
-	http.HandleFunc("POST /api/v1/integration/bigcommerce/webhook/{channelCode}", apiMiddleware(handleBigCommerceWebhook))
+	// moduleGate("oms",...) added Stage 27 - this webhook had no gate of any
+	// kind before (not even the older feature-flag system).
+	http.HandleFunc("POST /api/v1/integration/bigcommerce/webhook/{channelCode}", apiMiddleware(moduleGate("oms", handleBigCommerceWebhook)))
 
-	// Shopify Integration Webhook APIs (gated by the "oms_integration" flag)
-	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(featureGate("oms_integration", handleShopifyProductMap)))
-	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(featureGate("oms_integration", handleShopifyOrderWebhook)))
+	// Shopify Integration Webhook APIs. moduleGate("oms",...) (Stage 27) now
+	// stacks alongside the pre-existing featureGate("oms_integration",...) -
+	// the module gate answers "did this tenant buy the OMS product," the
+	// feature flag keeps answering its own narrower "is this specific
+	// integration configured" question (see middleware.go's moduleGate/
+	// featureGate doc comments for why both stay).
+	http.HandleFunc("POST /api/v1/integration/shopify/product/map", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShopifyProductMap))))
+	http.HandleFunc("POST /api/v1/integration/shopify/order", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShopifyOrderWebhook))))
 
-	// Store Fulfillment & Returns APIs (gated by the "wms_integration" flag)
-	http.HandleFunc("POST /api/v1/fulfillment/task/transition", apiMiddleware(featureGate("wms_integration", handleFulfillmentTaskTransition)))
-	http.HandleFunc("POST /api/v1/fulfillment/return", apiMiddleware(featureGate("wms_integration", handleFulfillmentReturn)))
+	// Store Fulfillment & Returns APIs. moduleGate("wms",...) (Stage 27) now
+	// stacks alongside the pre-existing featureGate("wms_integration",...),
+	// same reasoning as the Shopify routes above.
+	http.HandleFunc("POST /api/v1/fulfillment/task/transition", apiMiddleware(moduleGate("wms", featureGate("wms_integration", handleFulfillmentTaskTransition))))
+	http.HandleFunc("POST /api/v1/fulfillment/return", apiMiddleware(moduleGate("wms", featureGate("wms_integration", handleFulfillmentReturn))))
 
 	// Transfer-order lifecycle (Stage 17.6)
 	http.HandleFunc("POST /api/v1/transfer/dispatch", apiMiddleware(moduleGate("inventory", handleDispatchTransferOrder)))
@@ -266,21 +288,23 @@ func Run() {
 	// Administration Scale Test APIs
 	http.HandleFunc("POST /api/v1/admin/scale-test", apiMiddleware(handleScaleTest))
 
-	// Marketplace & Logistics Integration APIs (gated by the "oms_integration" flag)
-	http.HandleFunc("POST /api/v1/marketplace/settlement/reconcile", apiMiddleware(featureGate("oms_integration", handleMarketplaceReconcile)))
-	http.HandleFunc("POST /api/v1/marketplace/logistics/book", apiMiddleware(featureGate("oms_integration", handleLogisticsBook)))
+	// Marketplace & Logistics Integration APIs. moduleGate("oms",...) (Stage
+	// 27) stacks alongside the pre-existing featureGate("oms_integration",...).
+	http.HandleFunc("POST /api/v1/marketplace/settlement/reconcile", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleMarketplaceReconcile))))
+	http.HandleFunc("POST /api/v1/marketplace/logistics/book", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleLogisticsBook))))
 
 	// Optimization & Advanced Forecasting APIs (gated by the "advanced_forecasting" flag)
 	http.HandleFunc("GET /api/v1/optimization/replenishment-suggestions", apiMiddleware(featureGate("advanced_forecasting", handleReplenishmentSuggestions)))
 	http.HandleFunc("GET /api/v1/optimization/sla-breaches", apiMiddleware(featureGate("advanced_forecasting", handleSLABreaches)))
 	http.HandleFunc("POST /api/v1/optimization/forecast", apiMiddleware(featureGate("advanced_forecasting", handleDemandForecast)))
 
-	// Stage 9.1: Unicommerce Integration APIs
-	http.HandleFunc("POST /api/v1/unicommerce/credentials", apiMiddleware(handleUnicommerceCredentials))
-	http.HandleFunc("GET /api/v1/unicommerce/credentials", apiMiddleware(handleGetUnicommerceCredentials))
-	http.HandleFunc("POST /api/v1/unicommerce/order", apiMiddleware(handleUnicommerceOrder))
-	http.HandleFunc("GET /api/v1/unicommerce/orders", apiMiddleware(handleListUnicommerceOrders))
-	http.HandleFunc("GET /api/v1/unicommerce/inventory-syncs", apiMiddleware(handleListUnicommerceInventorySyncs))
+	// Stage 9.1: Unicommerce Integration APIs. moduleGate("oms",...) added
+	// Stage 27 - this entire surface had no gate of any kind before.
+	http.HandleFunc("POST /api/v1/unicommerce/credentials", apiMiddleware(moduleGate("oms", handleUnicommerceCredentials)))
+	http.HandleFunc("GET /api/v1/unicommerce/credentials", apiMiddleware(moduleGate("oms", handleGetUnicommerceCredentials)))
+	http.HandleFunc("POST /api/v1/unicommerce/order", apiMiddleware(moduleGate("oms", handleUnicommerceOrder)))
+	http.HandleFunc("GET /api/v1/unicommerce/orders", apiMiddleware(moduleGate("oms", handleListUnicommerceOrders)))
+	http.HandleFunc("GET /api/v1/unicommerce/inventory-syncs", apiMiddleware(moduleGate("oms", handleListUnicommerceInventorySyncs)))
 
 	// Stage 9.1: Pine Labs Plutus Integration APIs
 	http.HandleFunc("POST /api/v1/pinelabs/credentials", apiMiddleware(handlePineLabsCredentials))
@@ -351,6 +375,26 @@ func Run() {
 	// environments.json/promote.ps1 (Stage 14) already established.
 	if os.Getenv("ENV") != "production" {
 		http.HandleFunc("/api/v1/debug/panic", apiMiddleware(handleDebugPanic))
+	}
+
+	// Product-namespace SPA fallback (Stage 27): the frontend is one static
+	// SPA with no server-rendered pages, so a direct request to a product
+	// URL like /wms or /pims would otherwise 404 against the plain
+	// http.FileServer below (no file by that name exists in public/). This
+	// serves the same index.html for every known product prefix so a client
+	// can be handed (or bookmark) a URL like xyzerp.com/wms directly - the
+	// frontend then reads location.pathname on boot to decide which
+	// product's nav to show (see public/app.js's boot sequence). Driven
+	// entirely by engines.ProductPackages, so a future product added there
+	// gets a working URL with no route-table edit needed here. This is
+	// purely a navigation convenience - actual access control is still
+	// enforced server-side by moduleGate on every API route, never by the
+	// URL itself.
+	for _, pkg := range engines.ProductPackages {
+		prefix := pkg.URLPrefix
+		spaShell := func(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, "./public/index.html") }
+		http.HandleFunc("GET "+prefix, spaShell)
+		http.HandleFunc("GET "+prefix+"/{rest...}", spaShell)
 	}
 
 	// Serve Static Files
