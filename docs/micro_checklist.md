@@ -307,7 +307,7 @@ External maturity-plan PDF broken into 40 build-sized items: Track A (blocked on
 
 ---
 
-## Stage 23 — Standardized Error/Message Catalog ✅ (2026-07-20)
+## Stage 23 — Standardized Error/Message Catalog ✅ (2026-07-20 — 1 item open: 23.11, no feature exists yet to attach it to)
 
 User supplied a 301-row message-standardization spreadsheet. Didn't exist yet — errors were ad hoc plain-text/hand-rolled JSON across 11 files, and a `Content-Type: application/json` header meant plain-text errors silently broke the frontend's JSON parsing.
 
@@ -554,7 +554,7 @@ Sourced from two PDFs (`Inhouse_OMS_Master_Blueprint.pdf`, `Inhouse_OMS_Module_B
 
 ---
 
-## Stage 27 — Modular Product Packaging ✅ (2026-07-24)
+## Stage 27 — Modular Product Packaging ✅ (2026-07-24 — 1 item open: 27.8, admin picker-UI fast-follow)
 
 User request: sell PIM/WMS/OMS/HR/etc. as fully independent products — any single module, any combination, or the full suite — each reachable at its own URL (`/wms`, `/pims`, `/oms`, `/hr`, ...), on the same single Go binary/single Postgres instance, with internal module clubbing/dependency handled automatically. Full design rationale in the session's plan; summary below. See `project_ledger.md` §41 for the narrative and the two real bugs found while verifying.
 
