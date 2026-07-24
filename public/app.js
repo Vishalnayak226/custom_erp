@@ -828,6 +828,7 @@ const MENU_PERMISSION_MAP = {
   'menu-reports': { open: true },
 
   'menu-purchase-orders': { doctypes: ['PurchaseOrder'] },
+  'menu-grn': { doctypes: ['GRN'] },
   'menu-vendors': { doctypes: ['Vendor'] },
   'menu-rfq': { doctypes: ['RFQ'] },
 
@@ -861,7 +862,14 @@ const MENU_PERMISSION_MAP = {
   // System Status dashboard (Stage 26.1.2) - reuses the same HR/Admin-only
   // gate as the ops-visibility endpoints it reads (requireHRAdmin on
   // handleDeploymentStatus/handleBackupStatus, Stage 25.8).
-  'menu-system-status': { adminOnly: true }
+  'menu-system-status': { adminOnly: true },
+  // Tenant Entitlements admin screen (Stage 26.1.4) - reads/writes
+  // cross-tenant module entitlements, HR/Admin-only same as every other
+  // admin/tenant-control endpoint it calls.
+  'menu-tenant-entitlements': { adminOnly: true },
+  // Tenant Usage/health dashboard (Stage 26.1.5) - same HR/Admin-only gate
+  // as handleTenantUsage.
+  'menu-tenant-usage': { adminOnly: true }
 };
 
 // Stage 27 (Modular Product Packaging): which module_key gates each sidebar
@@ -884,6 +892,7 @@ const MENU_MODULE_MAP = {
   'menu-marketplace': 'oms',
 
   'menu-purchase-orders': 'procurement',
+  'menu-grn': 'procurement',
   'menu-vendors': 'procurement',
   'menu-rfq': 'rfq',
 
@@ -1263,6 +1272,17 @@ function setupEventListeners() {
     renderView('purchase-orders');
   });
 
+  // GRN Workbench (Stage 26.3.1) - dedicated screen, same pattern as
+  // Purchase Orders above rather than the generic doctype-table view: GRN's
+  // one mandatory field (received_items) is a JSON blob no one could
+  // realistically hand-type, so this needs its own line-item form.
+  document.getElementById('menu-grn').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-grn');
+    closeSubmenus();
+    renderView('grn');
+  });
+
   // "Vendors" is a real doctype now (Stage 13.9) - point it at the same
   // generic doctype-table view the Master Definition submenu already uses,
   // rather than a bespoke screen.
@@ -1287,7 +1307,7 @@ function setupEventListeners() {
   // Offline Sync Review (Stage 20.13) - same generic doctype-table pattern as POS Profile/Bin above.
   document.getElementById('menu-pos-offline-sync').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-sync'); closeSubmenus(); currentDoctype = 'POSOfflineSyncVariance'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-bin-conditions', 'menu-cycle-count', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status'].forEach(id => {
+  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-bin-conditions', 'menu-cycle-count', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -1504,6 +1524,7 @@ const STATIC_VIEW_MENU_IDS = {
   vendors: 'menu-vendors',
   stores: 'menu-stores',
   'purchase-orders': 'menu-purchase-orders',
+  grn: 'menu-grn',
   inventory: 'menu-inventory',
   transfers: 'menu-transfers',
   putaway: 'menu-putaway',
@@ -1517,6 +1538,8 @@ const STATIC_VIEW_MENU_IDS = {
   'extension-hook-log': 'menu-extension-hooks',
   'audit-logs': 'menu-audit-logs',
   'system-status': 'menu-system-status',
+  'tenant-entitlements': 'menu-tenant-entitlements',
+  'tenant-usage': 'menu-tenant-usage',
   'vendor-invoices': 'menu-vendor-invoices',
   'payment-proposals': 'menu-payment-proposals',
   'bank-reconciliation': 'menu-bank-reconciliation',
@@ -1635,6 +1658,8 @@ async function renderView(view) {
     await renderPIMView(root);
   } else if (view === 'purchase-orders') {
     await renderPurchaseOrdersView(root);
+  } else if (view === 'grn') {
+    await renderGRNWorkbenchView(root);
   } else if (view === 'doctype-table') {
     await renderDocTableView(root);
   } else if (view === 'doctype-builder') {
@@ -1651,6 +1676,10 @@ async function renderView(view) {
     await renderLogHubView(root);
   } else if (view === 'system-status') {
     await renderSystemStatusView(root);
+  } else if (view === 'tenant-entitlements') {
+    await renderTenantEntitlementsView(root);
+  } else if (view === 'tenant-usage') {
+    await renderTenantUsageView(root);
   } else if (view === 'profile') {
     await renderProfileView(root);
   } else if (view === 'transfers') {
@@ -2150,7 +2179,9 @@ function renderDashboard(container) {
     { title: 'Prefix Configs', desc: 'Configure sequential transaction prefixes', action: () => { setActiveMenu('menu-prefix-configs'); renderView('prefix-configs'); } },
     { title: 'Extension Hooks', desc: 'Manage 3rd-party webhook hooks and scoped tokens', action: () => { setActiveMenu('menu-extension-hooks'); renderView('extension-hooks'); } },
     { title: 'Activity Log', desc: 'Track audits, panics, and payloads', action: () => { setActiveMenu('menu-audit-logs'); renderView('audit-logs'); } },
-    { title: 'System Status', desc: 'Deployment, backup, and restore-drill health', action: () => { setActiveMenu('menu-system-status'); renderView('system-status'); } }
+    { title: 'System Status', desc: 'Deployment, backup, and restore-drill health', action: () => { setActiveMenu('menu-system-status'); renderView('system-status'); } },
+    { title: 'Tenant Entitlements', desc: 'Set plan and module access per tenant', action: () => { setActiveMenu('menu-tenant-entitlements'); renderView('tenant-entitlements'); } },
+    { title: 'Tenant Usage', desc: 'Live concurrency and usage-limit health per tenant', action: () => { setActiveMenu('menu-tenant-usage'); renderView('tenant-usage'); } }
   ];
 
   modules.forEach(m => {
@@ -4535,6 +4566,335 @@ async function submitPOForApproval(documentId) {
     return;
   }
   renderView('purchase-orders');
+}
+
+// GRN Workbench (Stage 26.3.1). GRN's own registered schema
+// (db/migrations_phase3.sql) has always had a mandatory received_items JSON
+// field but no screen to fill it in - the only prior path was the generic
+// doctype form, and GRN is a Transaction (not Master) doctype so it was
+// never even reachable from the Setup submenu that path relies on. This
+// posts through the exact same /api/v1/doc/GRN endpoint the (nonexistent)
+// generic form would have, so it inherits every existing server-side rule
+// for free: the GOODSR-0089/0090 accepted/rejected-qty checks and the
+// PURCHA-0082/0084/0086/0087/0088 PO cross-checks (engines/
+// transactional_validation.go's validateGRNRules), and the inventory-ledger
+// posting hook (internal/server/handlers_core_doc_engine.go). Line shape
+// matches validateGRNRules' grnReceivedLine exactly: {sku, qty,
+// accepted_qty, rejected_qty, rejection_reason} - qty is the physical
+// quantity received (what's checked against the PO's open quantity and
+// what actually posts to stock), accepted_qty is auto-derived as qty minus
+// rejected_qty rather than asked as a separate input, so it can never
+// violate GOODSR-0089's accepted-qty-cannot-exceed-received-qty rule by
+// construction. ordered_qty/barcode are carried along for this screen's own
+// variance display and label preview - extra keys neither validator nor the
+// posting hook look at, so they're harmless to store alongside.
+let grnLineItems = [];
+
+async function renderGRNWorkbenchView(container) {
+  const res = await apiFetch('/api/v1/doc/GRN');
+  if (!res) return;
+  if (!res.ok) { renderErrorPanel(container, 'Failed to load goods receipts.', () => renderView('grn')); return; }
+  const grns = await res.json();
+  state.docData = grns;
+  grnLineItems = [];
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Goods Receipt (GRN)</h1>
+      <p class="page-subtitle">Receive against a PO: capture accepted, short, and damaged quantities per line, then post to stock.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Goods Receipt</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-number">GRN Number</label>
+        <input type="text" id="grn-number" class="form-input" style="width: 150px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-po">PO Reference</label>
+        <input type="text" id="grn-po" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-location">Receiving Location</label>
+        <input type="text" id="grn-location" class="form-input" style="width: 130px;" autocomplete="off">
+      </div>
+      <button class="btn btn-outline" id="grn-load-po-btn" type="button">Load Items from PO</button>
+    </div>
+    <div id="grn-po-note" style="margin-top: 8px; font-size: 12.5px; color: var(--text-muted);"></div>
+
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-sku">SKU</label>
+        <input type="text" id="grn-line-sku" class="form-input" style="width: 140px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-ordered">Ordered Qty</label>
+        <input type="number" id="grn-line-ordered" class="form-input" style="width: 85px;" min="0">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-received">Received Qty</label>
+        <input type="number" id="grn-line-received" class="form-input" style="width: 90px;" min="0">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-rejected">Damaged/Rejected Qty</label>
+        <input type="number" id="grn-line-rejected" class="form-input" style="width: 90px;" min="0" value="0">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-reject-reason">Rejection Reason</label>
+        <input type="text" id="grn-line-reject-reason" class="form-input" style="width: 160px;" placeholder="required if damaged/rejected > 0">
+      </div>
+      <button class="btn btn-outline" id="grn-add-line-btn" type="button">Add Line</button>
+    </div>
+    <div id="grn-lines-list" style="margin: 12px 0;"></div>
+    <div id="grn-form-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
+    <button class="btn btn-primary" id="grn-create-btn">Post Receipt</button>
+  `;
+  container.appendChild(formPanel);
+
+  attachTypeahead(document.getElementById('grn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
+  attachTypeahead(document.getElementById('grn-location'), 'Location');
+  attachTypeahead(document.getElementById('grn-line-sku'), 'Item');
+
+  document.getElementById('grn-po').addEventListener('change', loadGRNItemsFromPO);
+  document.getElementById('grn-load-po-btn').addEventListener('click', loadGRNItemsFromPO);
+  document.getElementById('grn-add-line-btn').addEventListener('click', addGRNLine);
+  document.getElementById('grn-create-btn').addEventListener('click', createGRN);
+
+  renderGRNLinesList();
+
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead>
+        <tr><th>GRN #</th><th>PO</th><th>Location</th><th>Lines</th><th>Received / Rejected</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+  `;
+  if (grns.length === 0) {
+    html += `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No goods receipts yet.</td></tr>`;
+  }
+  grns.forEach(g => {
+    let lines = [];
+    try { lines = JSON.parse(g.received_items || '[]'); } catch (e) { lines = []; }
+    const receivedTotal = lines.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+    const rejectedTotal = lines.reduce((s, l) => s + (Number(l.rejected_qty) || 0), 0);
+    const statusBadge = g.status === 'Approved' ? 'badge-success' : g.status === 'Cancelled' ? 'badge-danger' : 'badge-warning';
+    html += `
+      <tr>
+        <td style="font-family: monospace;">${g.code || g.id}</td>
+        <td>${g.po_id || ''}</td>
+        <td>${g.location || ''}</td>
+        <td>${lines.length}</td>
+        <td>${receivedTotal} / ${rejectedTotal}</td>
+        <td><span class="badge ${statusBadge}">${g.status}</span></td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table>`;
+  listPanel.innerHTML = html;
+  container.appendChild(listPanel);
+}
+
+function renderGRNLinesList() {
+  const el = document.getElementById('grn-lines-list');
+  if (!el) return;
+  if (grnLineItems.length === 0) {
+    el.innerHTML = `<p style="font-size: 13px; color: var(--text-muted);">No lines added yet.</p>`;
+    return;
+  }
+  el.innerHTML = `
+    <table style="margin-top: 4px;">
+      <thead><tr><th>SKU</th><th>Barcode</th><th>Ordered</th><th>Received</th><th>Rejected</th><th>Short</th><th></th></tr></thead>
+      <tbody>
+        ${grnLineItems.map((line, idx) => {
+          const ordered = line.ordered_qty;
+          const short = (ordered !== null && ordered !== undefined && ordered !== '') ? Math.max(0, ordered - line.qty) : null;
+          return `
+            <tr>
+              <td style="font-family: monospace;">${line.sku}</td>
+              <td><span class="badge badge-secondary" style="font-family: Consolas, Monaco, monospace; letter-spacing: 1px;">${line.barcode || line.sku}</span></td>
+              <td>${(ordered === null || ordered === undefined || ordered === '') ? '&mdash;' : ordered}</td>
+              <td>${line.qty}</td>
+              <td>${line.rejected_qty > 0 ? `<span class="badge badge-danger">${line.rejected_qty}</span>` : '0'}</td>
+              <td>${short === null ? '&mdash;' : short > 0 ? `<span class="badge badge-warning">${short}</span>` : '0'}</td>
+              <td><button class="action-btn action-btn-danger" type="button" onclick="removeGRNLine(${idx})">Remove</button></td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// Best-effort barcode lookup for the line-list preview badge - falls back
+// to the SKU itself on any miss, same degrade-gracefully behavior
+// engines.PrintStickers already uses server-side for an unregistered SKU.
+async function lookupGRNBarcode(sku) {
+  const itemRes = await apiFetch(`/api/v1/doc/Item/${encodeURIComponent(sku)}`);
+  if (itemRes && itemRes.ok) {
+    const item = await itemRes.json();
+    return item.barcode || sku;
+  }
+  return sku;
+}
+
+async function addGRNLine() {
+  const skuEl = document.getElementById('grn-line-sku');
+  const orderedEl = document.getElementById('grn-line-ordered');
+  const receivedEl = document.getElementById('grn-line-received');
+  const rejectedEl = document.getElementById('grn-line-rejected');
+  const reasonEl = document.getElementById('grn-line-reject-reason');
+  const errorEl = document.getElementById('grn-form-error');
+  errorEl.classList.add('hidden');
+
+  const sku = skuEl.value.trim();
+  const ordered = orderedEl.value === '' ? null : parseInt(orderedEl.value, 10);
+  const qty = parseInt(receivedEl.value, 10);
+  const rejectedQty = parseInt(rejectedEl.value, 10) || 0;
+  const rejectionReason = reasonEl.value.trim();
+
+  if (!sku || isNaN(qty) || qty < 0) return;
+  if (rejectedQty > qty) {
+    errorEl.textContent = 'Damaged/Rejected qty cannot exceed Received qty.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (rejectedQty > 0 && !rejectionReason) {
+    errorEl.textContent = 'A rejection reason is required when Damaged/Rejected qty is greater than 0.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const barcode = await lookupGRNBarcode(sku);
+  grnLineItems.push({
+    sku, ordered_qty: ordered, qty,
+    accepted_qty: qty - rejectedQty,
+    rejected_qty: rejectedQty,
+    rejection_reason: rejectionReason,
+    barcode
+  });
+  skuEl.value = '';
+  orderedEl.value = '';
+  receivedEl.value = '';
+  rejectedEl.value = '0';
+  reasonEl.value = '';
+  renderGRNLinesList();
+}
+
+window.removeGRNLine = function(idx) {
+  grnLineItems.splice(idx, 1);
+  renderGRNLinesList();
+};
+
+// loadGRNItemsFromPO pre-fills lines from the PO's own "items" JSON (Received
+// Qty defaulting to the ordered qty - the common case where everything
+// ordered showed up intact; the maker adjusts Received/Rejected per line for
+// any actual variance before posting). Most POs today still have no item
+// lines at all (Stage 26.3.1 audit: the PO create screen only ever saves
+// items: '[]', 26.3.6 is the open item to fix that) - that's not an error
+// here, just falls through to manual line entry below.
+// Reentrancy-guarded: this fires from both the PO field's own 'change'
+// event (typeahead pick, or tabbing off a typed value) and the explicit
+// "Load Items from PO" button, so a user picking a PO and immediately
+// clicking the button (or a script driving both in the same tick) can
+// launch two overlapping calls - each does `grnLineItems = []` then awaits
+// a barcode lookup per line, so an interleaved second call's reset/pushes
+// land on the same shared array the first call resumes into, duplicating
+// every line. Caught live while verifying this screen (Playwright triggered
+// exactly this sequence), not a theoretical case.
+let grnPOLoadInFlight = false;
+async function loadGRNItemsFromPO() {
+  if (grnPOLoadInFlight) return;
+  grnPOLoadInFlight = true;
+  try {
+    await loadGRNItemsFromPOInner();
+  } finally {
+    grnPOLoadInFlight = false;
+  }
+}
+
+async function loadGRNItemsFromPOInner() {
+  const poId = document.getElementById('grn-po').value.trim();
+  const noteEl = document.getElementById('grn-po-note');
+  if (!poId) { noteEl.textContent = ''; return; }
+
+  const res = await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(poId)}`);
+  if (!res) return;
+  if (!res.ok) {
+    noteEl.textContent = 'Could not find that PO - enter lines manually below.';
+    return;
+  }
+  const po = await res.json();
+
+  const locationEl = document.getElementById('grn-location');
+  if (!locationEl.value && (po.location || po.target_warehouse)) {
+    locationEl.value = po.location || po.target_warehouse;
+  }
+
+  let items = [];
+  try { items = JSON.parse(po.items || '[]'); } catch (e) { items = []; }
+  if (items.length === 0) {
+    noteEl.textContent = `PO ${poId} has no recorded item lines - add lines manually below.`;
+    return;
+  }
+
+  grnLineItems = [];
+  for (const it of items) {
+    const sku = it.sku || it.item_id || '';
+    const orderedQty = Number(it.qty) || 0;
+    if (!sku) continue;
+    const barcode = await lookupGRNBarcode(sku);
+    grnLineItems.push({ sku, ordered_qty: orderedQty, qty: orderedQty, accepted_qty: orderedQty, rejected_qty: 0, rejection_reason: '', barcode });
+  }
+  noteEl.textContent = `Loaded ${grnLineItems.length} line(s) from PO ${poId}. Adjust Received/Rejected qty for any variance, then Post Receipt.`;
+  renderGRNLinesList();
+}
+
+async function createGRN() {
+  const errorEl = document.getElementById('grn-form-error');
+  errorEl.classList.add('hidden');
+
+  const grnNumber = document.getElementById('grn-number').value.trim();
+  const poId = document.getElementById('grn-po').value.trim();
+  const location = document.getElementById('grn-location').value.trim();
+
+  if (!grnNumber || !poId || !location || grnLineItems.length === 0) {
+    errorEl.textContent = 'GRN Number, PO Reference, Receiving Location, and at least one line item are all required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const totalQty = grnLineItems.reduce((s, l) => s + l.qty, 0);
+  if (!(await showCustomConfirm(`Post GRN ${grnNumber}? ${totalQty} unit(s) will be added to stock at ${location}.`, 'Post Goods Receipt'))) return;
+
+  const res = await apiFetch('/api/v1/doc/GRN', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: grnNumber,
+      code: grnNumber,
+      po_id: poId,
+      location,
+      received_items: JSON.stringify(grnLineItems),
+      status: 'Approved'
+    })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    errorEl.textContent = await getErrorMessage(res, 'Failed to post goods receipt.');
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('grn');
 }
 
 // Report catalog (Stage 13.11) - Current Stock, Sales Register, Vendor
@@ -7667,11 +8027,29 @@ function renderDocTable() {
         }
       });
       const showHistory = TAXONOMY_HISTORY_DOCTYPES.has(currentDoctype);
+      // Stage 26.3.2: Purchase Requisition has no bespoke workbench (unlike
+      // GRN) - its schema is flat enough that the generic doctype-table
+      // form already covers create/edit. The two gaps a plain form/table
+      // can't cover on its own are submitting into the (already-existing,
+      // Stage 17.7) approval flow, and the post-approval conversion action -
+      // both added here as row actions, same extension point as
+      // showHistory above.
+      const prActions = currentDoctype === 'PurchaseRequisition'
+        ? (row.status === 'Draft'
+            ? `<button class="action-btn" title="Submit for Approval" style="margin-right:4px;" onclick="submitRequisitionForApproval('${row.id}')">
+                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+               </button>`
+            : row.status === 'Approved'
+              ? `<button class="action-btn" title="Convert to RFQ" style="margin-right:4px;" onclick="convertRequisition('${row.id}','RFQ')">RFQ</button>
+                 <button class="action-btn" title="Convert to Purchase Order" style="margin-right:4px;" onclick="convertRequisition('${row.id}','PurchaseOrder')">PO</button>`
+              : '')
+        : '';
       tableHTML += `
         <td style="text-align: right;">
           ${showHistory ? `<button class="action-btn" title="History" style="margin-right:4px;" onclick="viewTaxonomyHistory('${row.id}')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </button>` : ''}
+          ${prActions}
           <button class="action-btn" title="Edit" style="margin-right:4px;" onclick="editDocRecord('${row.id}')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
           </button>
@@ -9057,6 +9435,201 @@ async function renderSystemStatusView(container) {
     </div>
   `;
   container.appendChild(backupPanel);
+}
+
+// Tenant Entitlements admin screen (Stage 26.1.4). HR/Admin-only. Lets an
+// admin pick a tenant, apply a whole product plan in one action (reuses
+// Stage 27's engines.ProductPackages/ApplyPackageSelection via the new
+// GET /api/v1/admin/packages + POST /api/v1/admin/tenant/package endpoints),
+// or fine-tune individual module toggles (the pre-existing Stage 14
+// GET/POST .../tenant/module-entitlement(s) endpoints) - no new engine
+// mechanism, just a screen over what already existed server-side.
+async function renderTenantEntitlementsView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Tenant Entitlements</h1>
+      <p class="page-subtitle">Set which plan/modules each tenant has access to.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const [tenantsRes, packagesRes] = await Promise.all([
+    apiFetch('/api/v1/admin/tenants'),
+    apiFetch('/api/v1/admin/packages')
+  ]);
+  if (!tenantsRes || !packagesRes) return;
+  if (!tenantsRes.ok || !packagesRes.ok) {
+    renderErrorPanel(container, 'Failed to load tenants/plans.', () => renderView('tenant-entitlements'));
+    return;
+  }
+  const tenants = await tenantsRes.json();
+  const packages = await packagesRes.json();
+
+  const pickerPanel = document.createElement('div');
+  pickerPanel.className = 'table-panel';
+  pickerPanel.style.padding = '16px';
+  pickerPanel.innerHTML = `
+    <label class="stat-label" for="tenant-entitlements-select" style="display:block; margin-bottom:6px;">Tenant</label>
+    <select id="tenant-entitlements-select" class="form-select" style="width:320px; max-width:100%;">
+      <option value="">Select a tenant...</option>
+      ${tenants.map(t => `<option value="${t.tenant_id}">${t.name} (${t.tenant_id})</option>`).join('')}
+    </select>
+  `;
+  container.appendChild(pickerPanel);
+
+  const bodyContainer = document.createElement('div');
+  bodyContainer.id = 'tenant-entitlements-body';
+  container.appendChild(bodyContainer);
+
+  function renderBody(tenantId, modules) {
+    bodyContainer.innerHTML = `
+      <div class="table-panel" style="margin-top:20px;">
+        <h3 style="font-size:16px; font-weight:600; margin-bottom:4px; padding:16px 16px 0;">Apply a Plan</h3>
+        <p style="font-size:12px; color:var(--text-muted); margin:0; padding: 0 16px 12px;">Enables that plan's modules and disables every other optional module for this tenant.</p>
+        <div style="padding:0 16px 16px; display:flex; flex-wrap:wrap; gap:8px;">
+          ${packages.map(p => `<button class="btn btn-outline btn-sm" title="${(p.modules || []).join(', ')}" onclick="applyTenantPackage('${tenantId}','${p.package_key}')">${p.display_name}</button>`).join('')}
+        </div>
+      </div>
+      <div class="table-panel" style="margin-top:20px;">
+        <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding:16px 16px 0;">Module Entitlements</h3>
+        <div class="table-wrapper">
+          <table>
+            <thead><tr><th>Module</th><th style="width:100px;">Status</th></tr></thead>
+            <tbody>
+              ${modules.length === 0 ? '<tr><td colspan="2" style="text-align:center; color:var(--text-muted);">No modules registered.</td></tr>' : modules.map(m => `
+                <tr>
+                  <td>${m.display_name}${m.is_core ? '<span class="badge badge-secondary" style="margin-left:8px;">Always On</span>' : ''}</td>
+                  <td>
+                    ${m.is_core
+                      ? `<span class="badge badge-success">Enabled</span>`
+                      : `<label class="switch"><input type="checkbox" ${m.enabled ? 'checked' : ''} onchange="toggleTenantModule('${tenantId}','${m.module_key}', this.checked)"><span class="slider"></span></label>`
+                    }
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  async function loadTenant(tenantId) {
+    bodyContainer.innerHTML = '';
+    if (!tenantId) return;
+    const res = await apiFetch(`/api/v1/admin/tenant/module-entitlements?tenant_id=${encodeURIComponent(tenantId)}`);
+    if (!res) return;
+    if (!res.ok) {
+      renderErrorPanel(bodyContainer, 'Failed to load this tenant\'s module entitlements.', () => loadTenant(tenantId));
+      return;
+    }
+    renderBody(tenantId, await res.json());
+  }
+
+  document.getElementById('tenant-entitlements-select').addEventListener('change', (e) => loadTenant(e.target.value));
+
+  window.applyTenantPackage = async function(tenantId, packageKey) {
+    const pkg = packages.find(p => p.package_key === packageKey);
+    if (!await showCustomConfirm(`Apply the "${pkg ? pkg.display_name : packageKey}" plan to this tenant? Every other optional module will be disabled to match.`)) return;
+    const res = await apiFetch('/api/v1/admin/tenant/package', {
+      method: 'POST',
+      body: JSON.stringify({ tenant_id: tenantId, packages: [packageKey] })
+    });
+    if (!res) return;
+    if (res.ok) {
+      const data = await res.json();
+      renderBody(tenantId, data.modules);
+    } else {
+      await showApiError(res, 'Failed to apply plan.');
+    }
+  };
+
+  window.toggleTenantModule = async function(tenantId, moduleKey, enabled) {
+    const res = await apiFetch('/api/v1/admin/tenant/module-entitlement', {
+      method: 'POST',
+      body: JSON.stringify({ tenant_id: tenantId, module_key: moduleKey, enabled })
+    });
+    if (!res) return;
+    if (!res.ok) {
+      await showApiError(res, 'Failed to update module entitlement.');
+      await loadTenant(tenantId); // revert the checkbox to actual server state
+    }
+  };
+}
+
+// Tenant Usage/health dashboard (Stage 26.1.5). HR/Admin-only. Reads the
+// single GET /api/v1/admin/tenant-usage endpoint, which reuses Stage 24.30's
+// live per-tenant concurrency limiter and Stage 25.8's tenant_limits table -
+// no new metering mechanism, just a screen over what already existed.
+async function renderTenantUsageView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Tenant Usage</h1>
+      <p class="page-subtitle">Live request concurrency and configured usage limits, per tenant.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const res = await apiFetch('/api/v1/admin/tenant-usage');
+  if (!res) return;
+  if (!res.ok) {
+    renderErrorPanel(container, 'Failed to load tenant usage.', () => renderView('tenant-usage'));
+    return;
+  }
+  const rows = await res.json();
+
+  const totalInFlight = rows.reduce((sum, t) => sum + t.in_flight_requests, 0);
+  const atCapCount = rows.filter(t => t.concurrency_cap > 0 && t.in_flight_requests >= t.concurrency_cap).length;
+  const statsRow = document.createElement('div');
+  statsRow.className = 'dashboard-stats-row';
+  statsRow.innerHTML = `
+    <div class="stat-card">
+      <span class="stat-label">Tenants</span>
+      <span class="stat-val">${rows.length}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">In-Flight Requests (all tenants)</span>
+      <span class="stat-val">${totalInFlight}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Tenants At Concurrency Cap</span>
+      <div style="margin-top:4px;"><span class="badge ${atCapCount > 0 ? 'badge-danger' : 'badge-success'}">${atCapCount}</span></div>
+    </div>
+  `;
+  container.appendChild(statsRow);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.marginTop = '20px';
+  panel.innerHTML = `
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Tenant</th><th>Active Users</th><th>In-Flight Requests</th><th>Configured Limits</th></tr></thead>
+        <tbody>
+          ${rows.length === 0 ? '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No tenants found.</td></tr>' : rows.map(t => {
+            const pctOfCap = t.concurrency_cap > 0 ? t.in_flight_requests / t.concurrency_cap : 0;
+            const concurrencyBadge = pctOfCap >= 1 ? 'badge-danger' : pctOfCap >= 0.5 ? 'badge-warning' : 'badge-success';
+            const maxUsers = t.configured_limits && t.configured_limits.max_users;
+            const usersBadge = maxUsers != null && t.active_users >= maxUsers ? 'badge-danger' : 'badge-secondary';
+            const otherLimits = Object.entries(t.configured_limits || {}).filter(([k]) => k !== 'max_users');
+            return `
+              <tr>
+                <td style="font-weight:600;">${t.name} <span style="color:var(--text-muted); font-weight:400;">(${t.tenant_id})</span></td>
+                <td><span class="badge ${usersBadge}">${t.active_users}${maxUsers != null ? ' / ' + maxUsers : ''}</span></td>
+                <td><span class="badge ${concurrencyBadge}">${t.in_flight_requests} / ${t.concurrency_cap}</span></td>
+                <td>${otherLimits.length === 0 ? '<span style="color:var(--text-muted); font-size:12px;">-</span>' : otherLimits.map(([k, v]) => `<span class="badge badge-secondary" style="margin-right:4px;">${k}: ${v}</span>`).join('')}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  container.appendChild(panel);
 }
 
 function renderMockModuleView(container, view) {

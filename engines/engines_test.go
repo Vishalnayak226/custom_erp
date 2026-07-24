@@ -103,6 +103,16 @@ func TestEngines(t *testing.T) {
 
 	// 3. Test DocType metadata validations and JWT token signatures
 	t.Run("DocTypeValidationAndAuth", func(t *testing.T) {
+		// 26.0.2: earlier Agriculture industry-profile testing against this
+		// same shared dev DB left a stray Brand.fefo_enabled doctype_fields
+		// row behind (mandatory:true, per public/profiles/agriculture.json)
+		// that was never part of Brand's own baseline schema (absent from
+		// db/migration.sql). Reset it before asserting, same
+		// clear-fixture-before-asserting convention as GenerateSequence
+		// above, instead of leaving this subtest hostage to whatever
+		// industry-profile testing last touched the "default" tenant.
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".doctype_fields WHERE doctype_name = 'Brand' AND fieldname = 'fefo_enabled'")
+
 		// Valid brand payload
 		validDoc := map[string]interface{}{
 			"code":   "BRD99",
@@ -233,13 +243,22 @@ func TestEngines(t *testing.T) {
 			t.Fatalf("expected exactly 2 gl_postings rows (1 debit + 1 credit) from the FIRST call only, got %d", idemCount)
 		}
 
-		// 3. Test trial balance retrieval
+		// 3. Test trial balance retrieval. 26.0.2: expected totals are 1500,
+		// not 1000 - V-001 (1000/1000) plus V-003's idempotency-test posting
+		// just above (500/500, posted exactly once) both land in gl_postings
+		// before this check runs. V-003 was added in Stage 24.5 without
+		// updating this pre-existing assertion, which is the actual root
+		// cause of the "expects 9000, gets 9500" regression this repo kept
+		// re-discovering - a stale test assertion, not shared-DB fixture
+		// debris or a broken posting engine (confirmed: gl_postings is
+		// wiped unconditionally for this schema at the top of this subtest,
+		// so nothing external can be contaminating it by this point).
 		tb, err := GetTrialBalance(tenantID)
 		if err != nil {
 			t.Fatalf("Failed to fetch trial balance: %v", err)
 		}
 
-		if tb["balanced"].(bool) == false || tb["total_debits"].(int) != 1000 || tb["total_credits"].(int) != 1000 {
+		if tb["balanced"].(bool) == false || tb["total_debits"].(int) != 1500 || tb["total_credits"].(int) != 1500 {
 			t.Errorf("Trial balance mismatch: %+v", tb)
 		}
 
@@ -250,8 +269,8 @@ func TestEngines(t *testing.T) {
 		}
 
 		tbPost, _ := GetTrialBalance(tenantID)
-		if tbPost["total_debits"].(int) != 9000 || tbPost["total_credits"].(int) != 9000 {
-			t.Errorf("Expected total trial balance debits/credits of 9000 (1000 test + 5000 sale + 3000 COGS), got: %+v", tbPost)
+		if tbPost["total_debits"].(int) != 9500 || tbPost["total_credits"].(int) != 9500 {
+			t.Errorf("Expected total trial balance debits/credits of 9500 (1000 V-001 + 500 V-003 + 5000 sale + 3000 COGS), got: %+v", tbPost)
 		}
 	})
 

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -431,55 +432,16 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(req.Packages) > 0 {
-		wanted := map[string]bool{}
-		for _, m := range engines.ExpandPackagesToModules(req.Packages) {
-			wanted[m] = true
-		}
-		allModules, err := engines.ListModules()
-		if err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
-			return
-		}
-		// Two phases, not one combined pass: enabling is order-independent
-		// (SetModuleEntitlement auto-pulls prerequisites atomically), but
-		// disabling is NOT - disabling a prerequisite (e.g. 'procurement')
-		// while a dependent (e.g. 'rfq') is still enabled is correctly
-		// refused by SetModuleEntitlement's own dependency check, and
-		// module_key iteration order (alphabetical, from ListModules) can
-		// easily reach the prerequisite before the dependent that's ALSO
-		// headed for disablement. So: enable everything wanted first, then
-		// disable the rest with a retry loop that re-attempts whatever
-		// failed on the previous pass - each pass disables at least the
-		// modules with no still-enabled dependent, so this converges in at
-		// most len(toDisable) passes for any dependency graph shaped like a
-		// DAG (which moduleDependencies always is, by construction).
-		var toDisable []string
-		for _, m := range allModules {
-			if m.IsCore {
-				continue // SetModuleEntitlement refuses to disable these anyway
-			}
-			if wanted[m.ModuleKey] {
-				_ = engines.SetModuleEntitlement(req.TenantID, m.ModuleKey, true, "system:provision")
-			} else {
-				toDisable = append(toDisable, m.ModuleKey)
-			}
-		}
-		// maxPasses is fixed up front - toDisable itself shrinks each pass,
-		// so bounding the loop by len(toDisable) directly would under-count
-		// after the first reassignment and exit early before converging.
-		maxPasses := len(toDisable)
-		for pass := 0; pass < maxPasses && len(toDisable) > 0; pass++ {
-			var stillFailing []string
-			for _, moduleKey := range toDisable {
-				if err := engines.SetModuleEntitlement(req.TenantID, moduleKey, false, "system:provision"); err != nil {
-					stillFailing = append(stillFailing, moduleKey)
-				}
-			}
-			if len(stillFailing) == len(toDisable) {
-				break // no progress this pass - nothing left to converge on
-			}
-			toDisable = stillFailing
-		}
+		// Stage 26.1.4 extracted this into engines.ApplyPackageSelection - a
+		// shared choke point, since the entitlement admin screen's "apply a
+		// plan to an existing tenant" action needs the exact same enable-
+		// then-disable-with-retry convergence logic this provisioning path
+		// originally had inline. Best-effort here, same as before the
+		// extraction - the tenant schema itself is already provisioned by
+		// this point, so a package-application hiccup shouldn't fail the
+		// whole request; the new admin-screen caller (handleSetTenantPackage
+		// below) is the one that actually surfaces this function's errors.
+		_ = engines.ApplyPackageSelection(req.TenantID, req.Packages, "system:provision")
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]string{
@@ -553,6 +515,127 @@ func handleListModules(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(modules)
 }
 
+// handleListTenants (Stage 26.1.4) returns the public.tenants control-plane
+// registry - which tenants exist at all, not any one tenant's data. Only
+// consumer today is the module-entitlement admin screen's tenant picker;
+// HR/Admin-only, same gate as every other admin/tenant-control endpoint in
+// this file.
+func handleListTenants(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can list tenants")
+		return
+	}
+
+	rows, err := db.DB.Query(`SELECT tenant_id, name, created_at::text FROM public.tenants ORDER BY tenant_id`)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer rows.Close()
+
+	type tenantRow struct {
+		TenantID  string `json:"tenant_id"`
+		Name      string `json:"name"`
+		CreatedAt string `json:"created_at"`
+	}
+	out := []tenantRow{}
+	for rows.Next() {
+		var t tenantRow
+		if err := rows.Scan(&t.TenantID, &t.Name, &t.CreatedAt); err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			return
+		}
+		out = append(out, t)
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+// tenantUsageRow is one row of the Stage 26.1.5 tenant-usage/health
+// dashboard: a tenant's live concurrency usage against the 24.30 per-tenant
+// cap, its active-user count against any configured max_users limit, and
+// whatever other tenant_limits rows exist for it.
+type tenantUsageRow struct {
+	TenantID         string         `json:"tenant_id"`
+	Name             string         `json:"name"`
+	InFlightRequests int            `json:"in_flight_requests"`
+	ConcurrencyCap   int            `json:"concurrency_cap"`
+	ActiveUsers      int            `json:"active_users"`
+	ConfiguredLimits map[string]int `json:"configured_limits"`
+}
+
+// handleTenantUsage (Stage 26.1.5) is the tenant-usage/health dashboard's
+// data source. Reuses the existing Stage 24.30 per-tenant concurrency
+// limiter's live in-flight counts (in-process only, resets on restart -
+// there is no other live-load signal to show alongside it) and the Stage
+// 25.8 tenant_limits table (SAAS-0193) rather than introducing a new
+// metering mechanism. HR/Admin-only, same gate as every other admin/tenant-
+// control endpoint in this file.
+func handleTenantUsage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view tenant usage")
+		return
+	}
+
+	rows, err := db.DB.Query(`SELECT tenant_id, name, schema_name FROM public.tenants ORDER BY tenant_id`)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	type tenantRef struct{ tenantID, name, schema string }
+	var refs []tenantRef
+	for rows.Next() {
+		var t tenantRef
+		if err := rows.Scan(&t.tenantID, &t.name, &t.schema); err != nil {
+			rows.Close()
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			return
+		}
+		refs = append(refs, t)
+	}
+	rows.Close()
+
+	inFlight := tenantConcurrency.snapshot()
+
+	out := make([]tenantUsageRow, 0, len(refs))
+	for _, t := range refs {
+		row := tenantUsageRow{
+			TenantID:         t.tenantID,
+			Name:             t.name,
+			InFlightRequests: inFlight[t.tenantID],
+			ConcurrencyCap:   perTenantMaxConcurrentRequests,
+			ConfiguredLimits: map[string]int{},
+		}
+
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.users WHERE status = 'Active'`, t.schema)).Scan(&row.ActiveUsers)
+
+		limitRows, err := db.DB.Query(fmt.Sprintf(`SELECT limit_key, limit_value FROM %s.tenant_limits WHERE tenant_id = $1`, t.schema), t.tenantID)
+		if err == nil {
+			for limitRows.Next() {
+				var key string
+				var val int
+				if limitRows.Scan(&key, &val) == nil {
+					row.ConfiguredLimits[key] = val
+				}
+			}
+			limitRows.Close()
+		}
+
+		out = append(out, row)
+	}
+
+	_ = json.NewEncoder(w).Encode(out)
+}
+
 // handleGetModuleEntitlements returns the module catalog joined with the
 // resolved tenant's current enabled/disabled state for each module.
 func handleGetModuleEntitlements(w http.ResponseWriter, r *http.Request) {
@@ -623,6 +706,89 @@ func handleSetModuleEntitlement(w http.ResponseWriter, r *http.Request) {
 		"tenant_id":  tenantID,
 		"module_key": req.ModuleKey,
 		"enabled":    req.Enabled,
+	})
+}
+
+// handleListProductPackages (Stage 26.1.4) returns the engines.ProductPackages
+// catalog, so the entitlement admin screen can offer "apply this plan"
+// buttons instead of only raw per-module toggles. Tenant-independent, same
+// HR/Admin gate as handleListModules.
+func handleListProductPackages(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view the product package catalog")
+		return
+	}
+
+	// engines.ProductPackage has no json tags (its only other caller,
+	// handlers_profile.go's handleMyModules, builds its own snake_case
+	// map[string]interface{} rather than relying on struct tags) - matching
+	// that same shape here rather than letting this response fall back to
+	// Go's default capitalized field names.
+	pkgs := engines.ListProductPackages()
+	out := make([]map[string]interface{}, 0, len(pkgs))
+	for _, p := range pkgs {
+		out = append(out, map[string]interface{}{
+			"package_key":  p.PackageKey,
+			"display_name": p.DisplayName,
+			"url_prefix":   p.URLPrefix,
+			"modules":      p.Modules,
+		})
+	}
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+// handleSetTenantPackage (Stage 26.1.4) applies a plan (one or more product
+// packages) to a tenant in one call via engines.ApplyPackageSelection - the
+// same convergence logic handleProvisionTenant uses at provisioning time,
+// now reusable against an already-provisioned tenant from the admin screen.
+// Unlike handleProvisionTenant's best-effort use of it, errors here ARE
+// surfaced - there's no separate "provisioning succeeded" step to protect,
+// so a failed apply should be visible to the admin who requested it.
+func handleSetTenantPackage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	role := r.Header.Get("Resolved-Role")
+	if role != "HR/Admin" {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can change a tenant's plan")
+		return
+	}
+
+	var req struct {
+		TenantID string   `json:"tenant_id"`
+		Packages []string `json:"packages"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid tenant-package payload")
+		return
+	}
+	if req.TenantID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'tenant_id' is required")
+		return
+	}
+
+	grantedBy := r.Header.Get("Resolved-Username")
+	if err := engines.ApplyPackageSelection(req.TenantID, req.Packages, grantedBy); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	entitlements, err := engines.ListModuleEntitlements(req.TenantID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":    "updated",
+		"tenant_id": req.TenantID,
+		"packages":  req.Packages,
+		"modules":   entitlements,
 	})
 }
 

@@ -566,8 +566,17 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// GRN Callback Hook: Automatically post received items to inventory ledger
-		if doctype == "GRN" {
+		// GRN Callback Hook: Automatically post received items to inventory ledger.
+		// Stage 26.3.1: gated to id == "" (create-only), same convention as the
+		// Item/PIM-profile create-only check above - this previously ran on
+		// EVERY save including edits, so re-saving an existing GRN with its
+		// same received_items (e.g. a future Approve/Cancel status-transition
+		// action) would silently double-post the same qty into
+		// inventory_availability a second time. GRN had no UI at all before
+		// this stage's Workbench screen, so the bug was real but dormant
+		// (unreachable) until now - closing it here rather than shipping a
+		// screen that could newly trigger it.
+		if doctype == "GRN" && id == "" {
 			locationCode, _ := payload["location"].(string)
 			// GRN's own registered schema (db/migrations_phase3.sql) declares the mandatory
 			// field as "received_items", a JSON-encoded string (same convention as BOM's

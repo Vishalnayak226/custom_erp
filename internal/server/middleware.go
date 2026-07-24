@@ -130,6 +130,20 @@ func (l *tenantConcurrencyLimiter) release(tenantID string) {
 	}
 }
 
+// snapshot returns a copy of current in-flight request counts per tenant,
+// for the Stage 26.1.5 tenant-usage/health dashboard (handleTenantUsage).
+// Only tenants with at least one in-flight request have an entry - callers
+// must treat a missing tenant as 0, not as "unknown".
+func (l *tenantConcurrencyLimiter) snapshot() map[string]int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	out := make(map[string]int, len(l.inFlight))
+	for k, v := range l.inFlight {
+		out[k] = v
+	}
+	return out
+}
+
 // rateLimitCategory classifies a request into one of SEC-V2 5's API types
 // and returns that category's per-minute budget (Stage 13.14). Categories
 // SEC-V2 names that don't apply to this codebase are omitted rather than

@@ -213,6 +213,78 @@ func IsFullSuite(enabledModules []string) bool {
 	return true
 }
 
+// ListProductPackages returns the ProductPackages catalog as a stable,
+// sorted-by-key slice for API responses - the map itself has no defined
+// iteration order, and callers (the Stage 26.1.4 entitlement admin screen)
+// need a consistent one.
+func ListProductPackages() []ProductPackage {
+	keys := make([]string, 0, len(ProductPackages))
+	for k := range ProductPackages {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	out := make([]ProductPackage, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, ProductPackages[k])
+	}
+	return out
+}
+
+// ApplyPackageSelection (Stage 26.1.4) sets a tenant's module entitlements to
+// exactly match a set of product packages - the same enable-everything-
+// wanted-first-then-disable-the-rest-with-retry logic handleProvisionTenant
+// used inline at provisioning time (Stage 27), now a shared choke point so
+// the entitlement admin screen's "apply a plan" action reuses it instead of
+// re-implementing the same convergence loop. is_core modules are always
+// left alone (SetModuleEntitlement refuses to disable them regardless).
+// Unlike the original inline version, enable failures are also returned
+// rather than swallowed - safe for the always-fresh-tenant provisioning path
+// this logic was extracted from, but this function is now also called
+// against an existing tenant's already-mutated state, where an enable
+// failure is worth surfacing rather than silently proceeding.
+func ApplyPackageSelection(tenantID string, packageKeys []string, grantedBy string) error {
+	wanted := map[string]bool{}
+	for _, m := range ExpandPackagesToModules(packageKeys) {
+		wanted[m] = true
+	}
+	allModules, err := ListModules()
+	if err != nil {
+		return err
+	}
+
+	var toDisable []string
+	for _, m := range allModules {
+		if m.IsCore {
+			continue // SetModuleEntitlement refuses to disable these anyway
+		}
+		if wanted[m.ModuleKey] {
+			if err := SetModuleEntitlement(tenantID, m.ModuleKey, true, grantedBy); err != nil {
+				return err
+			}
+		} else {
+			toDisable = append(toDisable, m.ModuleKey)
+		}
+	}
+
+	// maxPasses is fixed up front - toDisable itself shrinks each pass, so
+	// bounding the loop by len(toDisable) directly would under-count after
+	// the first reassignment and exit early before converging.
+	maxPasses := len(toDisable)
+	for pass := 0; pass < maxPasses && len(toDisable) > 0; pass++ {
+		var stillFailing []string
+		for _, moduleKey := range toDisable {
+			if err := SetModuleEntitlement(tenantID, moduleKey, false, grantedBy); err != nil {
+				stillFailing = append(stillFailing, moduleKey)
+			}
+		}
+		if len(stillFailing) == len(toDisable) {
+			break // no progress this pass - nothing left to converge on
+		}
+		toDisable = stillFailing
+	}
+	return nil
+}
+
 // IsModuleEnabled checks whether a functional module is enabled for the
 // tenant. Fails closed - same shape as IsFeatureEnabled: any DB error or a
 // module never registered for this tenant resolves to false, not true.

@@ -325,11 +325,19 @@ func Run() {
 	// Tenant Provisioning and SaaS Control APIs
 	http.HandleFunc("POST /api/v1/admin/tenant/provision", apiMiddleware(handleProvisionTenant))
 	http.HandleFunc("POST /api/v1/admin/tenant/feature-flag", apiMiddleware(handleSetFeatureFlag))
+	// Stage 26.1.4: tenant registry list, for the entitlement admin screen's tenant picker.
+	http.HandleFunc("GET /api/v1/admin/tenants", apiMiddleware(handleListTenants))
+	// Stage 26.1.5: tenant usage/health dashboard (live concurrency usage + configured limits, per tenant).
+	http.HandleFunc("GET /api/v1/admin/tenant-usage", apiMiddleware(handleTenantUsage))
 
 	// Module Registry / Per-Tenant Module Entitlements (Stage 14.1)
 	http.HandleFunc("GET /api/v1/admin/modules", apiMiddleware(handleListModules))
 	http.HandleFunc("GET /api/v1/admin/tenant/module-entitlements", apiMiddleware(handleGetModuleEntitlements))
 	http.HandleFunc("POST /api/v1/admin/tenant/module-entitlement", apiMiddleware(handleSetModuleEntitlement))
+	// Product Package catalog + "apply a plan to a tenant" (Stage 26.1.4,
+	// reuses Stage 27's engines.ProductPackages/ApplyPackageSelection)
+	http.HandleFunc("GET /api/v1/admin/packages", apiMiddleware(handleListProductPackages))
+	http.HandleFunc("POST /api/v1/admin/tenant/package", apiMiddleware(handleSetTenantPackage))
 
 	// Per-Tenant Version Record (Stage 14.6)
 	http.HandleFunc("GET /api/v1/admin/tenant/version", apiMiddleware(handleGetTenantVersion))
