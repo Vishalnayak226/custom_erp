@@ -4081,11 +4081,12 @@ async function submitCycleCountReconcile() {
 // needed for reading), and reconciliation/booking already work via
 // POST /api/v1/marketplace/settlement/reconcile and .../logistics/book.
 async function renderMarketplaceView(container) {
-  const [settlementsRes, bookingsRes] = await Promise.all([
+  const [settlementsRes, bookingsRes, manifestsRes] = await Promise.all([
     apiFetch('/api/v1/doc/MarketplaceSettlement'),
-    apiFetch('/api/v1/doc/LogisticsBooking')
+    apiFetch('/api/v1/doc/LogisticsBooking'),
+    apiFetch('/api/v1/doc/Manifest')
   ]);
-  if (!settlementsRes || !bookingsRes) return;
+  if (!settlementsRes || !bookingsRes || !manifestsRes) return;
 
   const header = document.createElement('div');
   header.className = 'page-header';
@@ -4099,6 +4100,7 @@ async function renderMarketplaceView(container) {
 
   const settlements = settlementsRes.ok ? await settlementsRes.json() : [];
   const bookings = bookingsRes.ok ? await bookingsRes.json() : [];
+  const manifests = manifestsRes.ok ? await manifestsRes.json() : [];
 
   // --- Settlements panel ---
   const settlementPanel = document.createElement('div');
@@ -4167,7 +4169,10 @@ async function renderMarketplaceView(container) {
   `;
   container.appendChild(settlementPanel);
 
-  // --- Logistics bookings panel ---
+  // --- Logistics bookings panel (Stage 26.12.4: serviceability-driven AWB
+  // assignment - Carrier/Tracking Number are now optional, auto-resolved by
+  // engines.CreateLogisticsBooking off the CourierServiceArea master when a
+  // Destination Pincode is given) ---
   const bookingPanel = document.createElement('div');
   bookingPanel.className = 'table-panel';
   bookingPanel.style.padding = '24px';
@@ -4176,54 +4181,118 @@ async function renderMarketplaceView(container) {
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="mkt-order-id">Order ID</label>
-        <input type="text" id="mkt-order-id" class="form-input" style="width: 150px;">
+        <input type="text" id="mkt-order-id" class="form-input" style="width: 140px;">
       </div>
       <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="mkt-carrier">Carrier</label>
-        <input type="text" id="mkt-carrier" class="form-input" style="width: 140px;">
+        <label class="form-label" for="mkt-fulfillment-task-id">Fulfillment Task (optional)</label>
+        <input type="text" id="mkt-fulfillment-task-id" class="form-input" style="width: 140px;">
       </div>
       <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="mkt-tracking">Tracking Number</label>
-        <input type="text" id="mkt-tracking" class="form-input" style="width: 160px;">
+        <label class="form-label" for="mkt-pincode">Destination Pincode</label>
+        <input type="text" id="mkt-pincode" class="form-input" style="width: 120px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mkt-carrier">Carrier (blank = auto)</label>
+        <input type="text" id="mkt-carrier" class="form-input" style="width: 130px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mkt-tracking">Tracking Number (optional)</label>
+        <input type="text" id="mkt-tracking" class="form-input" style="width: 140px;">
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="mkt-shipping-charge">Shipping Charge</label>
-        <input type="number" id="mkt-shipping-charge" class="form-input" style="width: 130px;">
+        <input type="number" id="mkt-shipping-charge" class="form-input" style="width: 110px;">
       </div>
       <button class="btn btn-primary" id="mkt-book-btn">Book</button>
     </div>
     <div id="mkt-booking-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <div class="table-wrapper">
     <table>
       <thead>
         <tr>
           <th>Booking ID</th>
           <th>Order ID</th>
           <th>Carrier</th>
-          <th>Tracking Number</th>
-          <th>Shipping Charge</th>
+          <th>AWB Number</th>
+          <th>Pincode</th>
+          <th>Manifest</th>
           <th>Status</th>
+          <th>Actions</th>
         </tr>
       </thead>
       <tbody>
         ${bookings.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No logistics bookings yet.</td></tr>`
+          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No logistics bookings yet.</td></tr>`
           : bookings.map(b => `
             <tr>
               <td style="font-family: monospace;">${b.code || b.id}</td>
               <td>${b.order_id || ''}</td>
               <td>${b.carrier || ''}</td>
-              <td>${b.tracking_number || ''}</td>
-              <td>${(b.shipping_charge ?? 0).toLocaleString()}</td>
-              <td><span class="badge badge-secondary">${b.status}</span></td>
+              <td style="font-family: monospace;">${b.awb_number || ''}</td>
+              <td>${b.destination_pincode || ''}</td>
+              <td>${b.manifest_id || ''}</td>
+              <td><span class="badge ${b.status === 'RTO' ? 'badge-danger' : b.status === 'Delivered' ? 'badge-success' : 'badge-secondary'}">${b.status}</span></td>
+              <td>${renderLogisticsBookingActions(b)}</td>
+            </tr>
+          `).join('')}
+      </tbody>
+    </table>
+    </div>
+  `;
+  container.appendChild(bookingPanel);
+
+  // --- Manifests panel (Stage 26.12.4) ---
+  const manifestPanel = document.createElement('div');
+  manifestPanel.className = 'table-panel';
+  manifestPanel.style.padding = '24px';
+  manifestPanel.style.marginTop = '24px';
+  manifestPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Manifests</h2>
+    <p style="color: var(--text-muted); font-size: 13px; margin-top: -12px; margin-bottom: 16px;">Groups every AWB-assigned shipment for one courier at one location. Handing over a manifest dispatches its fulfillment tasks and, once every task on an order has shipped, flips the order to Shipped.</p>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mkt-manifest-courier">Courier</label>
+        <input type="text" id="mkt-manifest-courier" class="form-input" style="width: 150px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mkt-manifest-location">Location Code</label>
+        <input type="text" id="mkt-manifest-location" class="form-input" style="width: 150px;">
+      </div>
+      <button class="btn btn-primary" id="mkt-manifest-btn">Generate Manifest</button>
+    </div>
+    <div id="mkt-manifest-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Manifest ID</th>
+          <th>Courier</th>
+          <th>Location</th>
+          <th>Shipments</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${manifests.length === 0
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No manifests yet.</td></tr>`
+          : manifests.map(m => `
+            <tr>
+              <td style="font-family: monospace;">${m.code || m.id}</td>
+              <td>${m.courier || ''}</td>
+              <td>${m.location_code || ''}</td>
+              <td>${m.shipment_count ?? 0}</td>
+              <td><span class="badge ${m.status === 'Handed Over' ? 'badge-success' : 'badge-warning'}">${m.status}</span></td>
+              <td>${m.status === 'Open' ? `<button class="action-btn" onclick="handoverManifest('${m.code || m.id}')">Hand Over</button>` : ''}</td>
             </tr>
           `).join('')}
       </tbody>
     </table>
   `;
-  container.appendChild(bookingPanel);
+  container.appendChild(manifestPanel);
 
   document.getElementById('mkt-reconcile-btn').addEventListener('click', submitMarketplaceReconcile);
   document.getElementById('mkt-book-btn').addEventListener('click', submitLogisticsBooking);
+  document.getElementById('mkt-manifest-btn').addEventListener('click', submitGenerateManifest);
   populateMarketplaceChannelOptions();
 }
 
@@ -4287,17 +4356,25 @@ async function submitMarketplaceReconcile() {
   renderView('marketplace');
 }
 
+// Stage 26.12.4: Carrier and Tracking Number are now optional - a blank
+// Carrier auto-selects the top-priority courier serviceable for Destination
+// Pincode (engines.CheckCourierServiceability), and a blank Tracking Number
+// defaults to the generated AWB number. Only Order ID and Destination
+// Pincode are required (a pincode is needed either way, to validate an
+// explicit carrier or to auto-select one).
 async function submitLogisticsBooking() {
   const errorEl = document.getElementById('mkt-booking-error');
   errorEl.classList.add('hidden');
 
   const orderId = document.getElementById('mkt-order-id').value.trim();
+  const fulfillmentTaskId = document.getElementById('mkt-fulfillment-task-id').value.trim();
+  const pincode = document.getElementById('mkt-pincode').value.trim();
   const carrier = document.getElementById('mkt-carrier').value.trim();
   const trackingNumber = document.getElementById('mkt-tracking').value.trim();
   const shippingCharge = parseFloat(document.getElementById('mkt-shipping-charge').value) || 0;
 
-  if (!orderId || !carrier || !trackingNumber) {
-    errorEl.textContent = 'Order ID, Carrier, and Tracking Number are required.';
+  if (!orderId || !pincode) {
+    errorEl.textContent = 'Order ID and Destination Pincode are required.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -4306,6 +4383,8 @@ async function submitLogisticsBooking() {
     method: 'POST',
     body: JSON.stringify({
       order_id: orderId,
+      fulfillment_task_id: fulfillmentTaskId,
+      destination_pincode: pincode,
       carrier,
       tracking_number: trackingNumber,
       shipping_charge: shippingCharge
@@ -4319,6 +4398,122 @@ async function submitLogisticsBooking() {
   }
   renderView('marketplace');
 }
+
+// renderLogisticsBookingActions (Stage 26.12.4) shows the tracking-sync/RTO
+// actions valid from a booking's current Shipment-engine status - a label
+// is always viewable once AWB-assigned; In-Transit/Delivered/RTO only apply
+// once the shipment has actually been handed over to the courier (a
+// Manifested-but-not-yet-Handed-Over booking has nothing to track yet).
+function renderLogisticsBookingActions(b) {
+  const id = b.code || b.id;
+  const status = b.status;
+  const buttons = [`<button class="action-btn" onclick="viewShippingLabel('${id}')">Label</button>`];
+  if (status === 'Handed Over') {
+    buttons.push(`<button class="action-btn" onclick="recordShipmentTracking('${id}', 'In-Transit')">Mark In-Transit</button>`);
+  }
+  if (status === 'Handed Over' || status === 'In-Transit') {
+    buttons.push(`<button class="action-btn" onclick="recordShipmentTracking('${id}', 'Delivered')">Mark Delivered</button>`);
+    buttons.push(`<button class="action-btn action-btn-danger" onclick="reportShipmentRTO('${id}')">Report RTO</button>`);
+  }
+  return buttons.join(' ');
+}
+
+async function submitGenerateManifest() {
+  const errorEl = document.getElementById('mkt-manifest-error');
+  errorEl.classList.add('hidden');
+
+  const courier = document.getElementById('mkt-manifest-courier').value.trim();
+  const locationCode = document.getElementById('mkt-manifest-location').value.trim();
+  if (!courier || !locationCode) {
+    errorEl.textContent = 'Courier and Location Code are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/marketplace/logistics/manifest', {
+    method: 'POST',
+    body: JSON.stringify({ courier, location_code: locationCode })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    errorEl.textContent = await getErrorMessage(res, 'No AWB-assigned shipments found for that courier/location.');
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('marketplace');
+}
+
+window.handoverManifest = async function(manifestId) {
+  const confirmed = await showCustomConfirm(`Hand over manifest ${manifestId} to the courier? This dispatches every fulfillment task in it and may flip the parent order(s) to Shipped.`, 'Hand Over Manifest');
+  if (!confirmed) return;
+  const res = await apiFetch('/api/v1/marketplace/logistics/manifest/handover', {
+    method: 'POST',
+    body: JSON.stringify({ manifest_id: manifestId })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to hand over manifest.');
+    return;
+  }
+  renderView('marketplace');
+};
+
+window.recordShipmentTracking = async function(bookingId, status) {
+  const res = await apiFetch('/api/v1/marketplace/logistics/tracking', {
+    method: 'POST',
+    body: JSON.stringify({ booking_id: bookingId, status })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to update tracking status.');
+    return;
+  }
+  renderView('marketplace');
+};
+
+window.reportShipmentRTO = async function(bookingId) {
+  const reason = await showCustomPrompt(`Reason the courier is returning booking ${bookingId} undelivered:`, '', 'Report RTO');
+  if (!reason) return;
+  const res = await apiFetch('/api/v1/marketplace/logistics/rto', {
+    method: 'POST',
+    body: JSON.stringify({ booking_id: bookingId, reason })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to record RTO.');
+    return;
+  }
+  renderView('marketplace');
+};
+
+// viewShippingLabel (Stage 26.12.4) shows GenerateShippingLabel's plain-text
+// label in a lightweight read-only modal, the same .modal-overlay/
+// .modal-container primitives viewPickList already uses.
+window.viewShippingLabel = async function(bookingId) {
+  const res = await apiFetch(`/api/v1/marketplace/logistics/label?booking_id=${encodeURIComponent(bookingId)}`);
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to load the shipping label.');
+    return;
+  }
+  const label = await res.text();
+
+  document.getElementById('shipping-label-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'shipping-label-modal';
+  overlay.innerHTML = `
+    <div class="modal-container">
+      <div class="modal-header"><h3 class="modal-title">Shipping Label: ${bookingId}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <div class="modal-body"><pre style="white-space: pre-wrap; font-family: monospace; font-size: 13px;">${label}</pre></div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary">Close</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('.modal-footer .btn-secondary').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+};
 
 // Approvals inbox (Stage 13.8) - the checker side of the maker-checker
 // engine. Lists every Pending Approval document across all approval-gated

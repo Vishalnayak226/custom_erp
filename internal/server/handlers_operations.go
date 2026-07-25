@@ -701,10 +701,12 @@ func handleLogisticsBook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		OrderID        string `json:"order_id"`
-		Carrier        string `json:"carrier"`
-		TrackingNumber string `json:"tracking_number"`
-		ShippingCharge int    `json:"shipping_charge"`
+		OrderID            string `json:"order_id"`
+		FulfillmentTaskID  string `json:"fulfillment_task_id"`
+		Carrier            string `json:"carrier"`
+		TrackingNumber     string `json:"tracking_number"`
+		DestinationPincode string `json:"destination_pincode"`
+		ShippingCharge     int    `json:"shipping_charge"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -716,32 +718,184 @@ func handleLogisticsBook(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'order_id' is required")
 		return
 	}
-	// WMSLOG-0137: carried as its own precise scenario since the catalog
-	// specifically names a missing logistics partner, distinct from a
-	// missing tracking number (which has no catalog code of its own here -
-	// see docs/micro_checklist.md Stage 25 for why WMSLOG-0138/0139 aren't
-	// wired: no AWB-generation or delivery-status-update call exists to
-	// attach them to).
+	// Stage 26.12.4: a blank carrier with no destination pincode has nothing
+	// to auto-select against - WMSLOG-0137 ("logistics partner required"),
+	// same as before. A blank carrier WITH a pincode now attempts real
+	// auto-selection via engines.CheckCourierServiceability; finding no
+	// serviceable courier is the real WMSLOG-0138 ("AWB generation failed")
+	// case the catalog reserved for this before any AWB-generation call
+	// existed to attach it to.
 	if req.Carrier == "" {
-		writeAPIError(w, r, "WMSLOG-0137", "")
-		return
-	}
-	if req.TrackingNumber == "" {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'tracking_number' is required")
-		return
+		if req.DestinationPincode == "" {
+			writeAPIError(w, r, "WMSLOG-0137", "")
+			return
+		}
+		options, errS := engines.CheckCourierServiceability(tenantID, req.DestinationPincode)
+		if errS != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, errS.Error())
+			return
+		}
+		if len(options) == 0 {
+			writeAPIError(w, r, "WMSLOG-0138", "")
+			return
+		}
 	}
 
-	bookingID, err := engines.CreateLogisticsBooking(tenantID, req.OrderID, req.Carrier, req.TrackingNumber, req.ShippingCharge)
+	bookingID, err := engines.CreateLogisticsBooking(tenantID, req.OrderID, req.FulfillmentTaskID, req.Carrier, req.TrackingNumber, req.DestinationPincode, req.ShippingCharge)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]string{
-		"status":          "shipped",
-		"booking_id":      bookingID,
-		"tracking_number": req.TrackingNumber,
+		"status":     "booked",
+		"booking_id": bookingID,
 	})
+}
+
+// handleCourierServiceability (Stage 26.12.4) previews which couriers, if
+// any, service a destination pincode - lets the frontend booking form show
+// a live courier choice before submitting, off the same
+// engines.CheckCourierServiceability CreateLogisticsBooking uses internally.
+func handleCourierServiceability(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	pincode := r.URL.Query().Get("destination_pincode")
+	options, err := engines.CheckCourierServiceability(tenantID, pincode)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if options == nil {
+		options = []engines.CourierOption{}
+	}
+	_ = json.NewEncoder(w).Encode(options)
+}
+
+// handleGenerateManifest (Stage 26.12.4) groups every AWB-assigned shipment
+// for one courier+location pair into a new Manifest.
+func handleGenerateManifest(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	var req struct {
+		Courier      string `json:"courier"`
+		LocationCode string `json:"location_code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid manifest payload")
+		return
+	}
+	manifestID, count, err := engines.GenerateManifest(tenantID, req.Courier, req.LocationCode)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"manifest_id":    manifestID,
+		"shipment_count": count,
+	})
+}
+
+// handleHandoverManifest (Stage 26.12.4) is the handover cascade's HTTP
+// entry point - see engines.HandoverManifest for the shipment/task/order
+// three-way status cascade this triggers.
+func handleHandoverManifest(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	var req struct {
+		ManifestID string `json:"manifest_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ManifestID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'manifest_id' is required")
+		return
+	}
+	if err := engines.HandoverManifest(tenantID, req.ManifestID, userID); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "handed_over", "manifest_id": req.ManifestID})
+}
+
+// handleShipmentTracking (Stage 26.12.4) is the tracking-sync ingestion
+// point (engines.RecordDeliveryEvent) - WMSLOG-0139 ("delivery status
+// could not be updated") is the catalog code reserved for exactly this
+// call before it existed.
+func handleShipmentTracking(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	var req struct {
+		BookingID string `json:"booking_id"`
+		Status    string `json:"status"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BookingID == "" || req.Status == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'booking_id' and 'status' are required")
+		return
+	}
+	if err := engines.RecordDeliveryEvent(tenantID, req.BookingID, req.Status, userID); err != nil {
+		writeAPIError(w, r, "WMSLOG-0139", "")
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "updated", "booking_id": req.BookingID, "new_status": req.Status})
+}
+
+// handleShipmentRTO (Stage 26.12.4) captures a courier-reported RTO event
+// (engines.RecordRTO) - stock/refund handling is Stage 26.12.5's scope.
+func handleShipmentRTO(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	var req struct {
+		BookingID string `json:"booking_id"`
+		Reason    string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BookingID == "" || req.Reason == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'booking_id' and 'reason' are required")
+		return
+	}
+	if err := engines.RecordRTO(tenantID, req.BookingID, req.Reason, userID); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "rto", "booking_id": req.BookingID})
+}
+
+// handleShippingLabel (Stage 26.12.4) returns engines.GenerateShippingLabel's
+// plain-text label for one booking.
+func handleShippingLabel(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	bookingID := r.URL.Query().Get("booking_id")
+	if bookingID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameter 'booking_id' is required")
+		return
+	}
+	label, err := engines.GenerateShippingLabel(tenantID, bookingID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	_, _ = w.Write([]byte(label))
 }
 
 func handleReplenishmentSuggestions(w http.ResponseWriter, r *http.Request) {

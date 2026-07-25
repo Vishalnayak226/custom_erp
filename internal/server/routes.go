@@ -301,6 +301,16 @@ func Run() {
 	// 27) stacks alongside the pre-existing featureGate("oms_integration",...).
 	http.HandleFunc("POST /api/v1/marketplace/settlement/reconcile", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleMarketplaceReconcile))))
 	http.HandleFunc("POST /api/v1/marketplace/logistics/book", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleLogisticsBook))))
+	// Stage 26.12.4 (Courier/Shipment/Manifest): serviceability preview,
+	// manifest generation/handover, tracking sync, RTO, and label printing -
+	// same moduleGate/featureGate pair as the pre-existing logistics/book
+	// route above, since this is the same Shipment engine.
+	http.HandleFunc("GET /api/v1/marketplace/logistics/serviceability", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierServiceability))))
+	http.HandleFunc("POST /api/v1/marketplace/logistics/manifest", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleGenerateManifest))))
+	http.HandleFunc("POST /api/v1/marketplace/logistics/manifest/handover", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleHandoverManifest))))
+	http.HandleFunc("POST /api/v1/marketplace/logistics/tracking", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShipmentTracking))))
+	http.HandleFunc("POST /api/v1/marketplace/logistics/rto", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShipmentRTO))))
+	http.HandleFunc("GET /api/v1/marketplace/logistics/label", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShippingLabel))))
 
 	// Optimization & Advanced Forecasting APIs (gated by the "advanced_forecasting" flag)
 	http.HandleFunc("GET /api/v1/optimization/replenishment-suggestions", apiMiddleware(featureGate("advanced_forecasting", handleReplenishmentSuggestions)))

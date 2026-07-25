@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -771,7 +772,7 @@ func TestEngines(t *testing.T) {
 		_, _ = db.DB.Exec("DELETE FROM " + schema + ".gl_postings")
 
 		// 1. Test Logistics Booking creation
-		bookingID, err := CreateLogisticsBooking(tenantID, "ORD-WEB-111", "FedEx", "TRK123456", 250)
+		bookingID, err := CreateLogisticsBooking(tenantID, "ORD-WEB-111", "", "FedEx", "TRK123456", "", 250)
 		if err != nil {
 			t.Fatalf("Failed to create logistics booking: %v", err)
 		}
@@ -829,6 +830,201 @@ func TestEngines(t *testing.T) {
 
 		if !foundAR || !foundComm {
 			t.Errorf("Expected AR (1300) and Commission (5200) balances to be present, but weren't: %+v", testBal)
+		}
+	})
+
+	// 9b. Test the Shipment/Manifest Engine (Stage 26.12.4): courier
+	// serviceability, AWB-assignment booking, manifest grouping, and the
+	// handover cascade's split-shipment-aware SalesOrder closure rule.
+	t.Run("ShipmentManifestEngine", func(t *testing.T) {
+		sku := "SKU-SHIP-TEST-1"
+		locA, locB := "WH01", "WH02"
+
+		// Clean fixtures from any prior run.
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'Item' AND data->>'code' = $1", sku)
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'CourierServiceArea' AND id IN ('CSA-TEST-FEDEX','CSA-TEST-BLUEDART')")
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".inventory_availability WHERE sku = $1", sku)
+
+		itemData, _ := json.Marshal(map[string]interface{}{"code": sku, "name": "Shipment Engine Test Item", "barcode": sku})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')", "ITEM-"+sku, itemData); err != nil {
+			t.Fatalf("Failed to seed test Item: %v", err)
+		}
+		defer db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'Item' AND data->>'code' = $1", sku)
+
+		fedexData, _ := json.Marshal(map[string]interface{}{"code": "CSA-FEDEX", "courier": "FedEx", "pincode_prefix": "560", "priority": 1, "status": "Active"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'CourierServiceArea', $2, 'Active', 'system')", "CSA-TEST-FEDEX", fedexData); err != nil {
+			t.Fatalf("Failed to seed FedEx CourierServiceArea: %v", err)
+		}
+		blueDartData, _ := json.Marshal(map[string]interface{}{"code": "CSA-BLUEDART", "courier": "BlueDart", "pincode_prefix": "", "priority": 2, "status": "Active"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'CourierServiceArea', $2, 'Active', 'system')", "CSA-TEST-BLUEDART", blueDartData); err != nil {
+			t.Fatalf("Failed to seed BlueDart CourierServiceArea: %v", err)
+		}
+		defer db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'CourierServiceArea' AND id IN ('CSA-TEST-FEDEX','CSA-TEST-BLUEDART')")
+
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 50, 50)", sku, locA); err != nil {
+			t.Fatalf("Failed to seed inventory at %s: %v", locA, err)
+		}
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 50, 50)", sku, locB); err != nil {
+			t.Fatalf("Failed to seed inventory at %s: %v", locB, err)
+		}
+		defer db.DB.Exec("DELETE FROM "+schema+".inventory_availability WHERE sku = $1", sku)
+
+		// 1. Serviceability: a 560xxx pincode gets both couriers, FedEx
+		// first (lower priority number wins); a pincode FedEx doesn't cover
+		// falls back to BlueDart's blank-prefix "services everywhere" row.
+		options, err := CheckCourierServiceability(tenantID, "560001")
+		if err != nil {
+			t.Fatalf("CheckCourierServiceability failed: %v", err)
+		}
+		if len(options) != 2 || options[0].Courier != "FedEx" || options[1].Courier != "BlueDart" {
+			t.Errorf("Expected [FedEx, BlueDart] for a 560xxx pincode, got: %+v", options)
+		}
+		fallbackOptions, err := CheckCourierServiceability(tenantID, "999999")
+		if err != nil {
+			t.Fatalf("CheckCourierServiceability (fallback) failed: %v", err)
+		}
+		if len(fallbackOptions) != 1 || fallbackOptions[0].Courier != "BlueDart" {
+			t.Errorf("Expected only BlueDart to cover a non-560 pincode, got: %+v", fallbackOptions)
+		}
+
+		// 2. Auto-select: a blank carrier with a serviceable pincode picks
+		// the top-priority courier automatically.
+		autoBookingID, err := CreateLogisticsBooking(tenantID, "ORD-SHIP-AUTO", "", "", "", "560001", 100)
+		if err != nil {
+			t.Fatalf("CreateLogisticsBooking (auto-select) failed: %v", err)
+		}
+		defer db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", autoBookingID)
+		var autoCarrier, autoStatus string
+		if err := db.DB.QueryRow("SELECT data->>'carrier', status FROM "+schema+".documents WHERE id = $1", autoBookingID).Scan(&autoCarrier, &autoStatus); err != nil {
+			t.Fatalf("Failed to read auto-selected booking: %v", err)
+		}
+		if autoCarrier != "FedEx" || autoStatus != "AWB Assigned" {
+			t.Errorf("Expected auto-selected booking to be FedEx/AWB Assigned, got carrier=%q status=%q", autoCarrier, autoStatus)
+		}
+
+		// 3. An explicit carrier not serviceable for the given pincode is
+		// rejected.
+		if _, err := CreateLogisticsBooking(tenantID, "ORD-SHIP-BAD", "", "FedEx", "", "999999", 100); err == nil {
+			t.Errorf("Expected CreateLogisticsBooking to reject FedEx for a pincode it doesn't service")
+		}
+
+		// 4. Split-shipment order closure: one SalesOrder, two
+		// FulfillmentTasks at different locations. Handing over only the
+		// first location's manifest should leave the order Partially
+		// Fulfilled; handing over the second should flip it to Shipped.
+		orderID, err := CreateSalesOrder(tenantID, "TestChannel", "CHORD-SHIP-1", "Ship Test Customer", "ORDTEST 1 Ship St 560001", "Confirmed", []SalesOrderLineInput{{SKU: sku, Qty: 4, UnitPrice: 50}})
+		if err != nil {
+			t.Fatalf("CreateSalesOrder failed: %v", err)
+		}
+		defer func() {
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrderLine' AND data->>'order_id' = $1", orderID)
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrder' AND id = $1", orderID)
+		}()
+
+		taskAID, err := CreateFulfillmentTasks(tenantID, orderID, locA, []interface{}{map[string]interface{}{"sku": sku, "qty": 2}})
+		if err != nil {
+			t.Fatalf("Failed to create FulfillmentTask A: %v", err)
+		}
+		defer db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", taskAID)
+		taskBID, err := CreateFulfillmentTasks(tenantID, orderID, locB, []interface{}{map[string]interface{}{"sku": sku, "qty": 2}})
+		if err != nil {
+			t.Fatalf("Failed to create FulfillmentTask B: %v", err)
+		}
+		defer db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", taskBID)
+
+		bookingAID, err := CreateLogisticsBooking(tenantID, orderID, taskAID, "FedEx", "", "560001", 50)
+		if err != nil {
+			t.Fatalf("Failed to book shipment A: %v", err)
+		}
+		defer db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", bookingAID)
+		bookingBID, err := CreateLogisticsBooking(tenantID, orderID, taskBID, "FedEx", "", "560001", 50)
+		if err != nil {
+			t.Fatalf("Failed to book shipment B: %v", err)
+		}
+		defer db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", bookingBID)
+
+		manifestAID, countA, err := GenerateManifest(tenantID, "FedEx", locA)
+		if err != nil {
+			t.Fatalf("GenerateManifest(A) failed: %v", err)
+		}
+		if countA != 1 {
+			t.Errorf("Expected manifest A to group exactly 1 shipment, got %d", countA)
+		}
+		defer db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", manifestAID)
+
+		if err := HandoverManifest(tenantID, manifestAID, "test-user"); err != nil {
+			t.Fatalf("HandoverManifest(A) failed: %v", err)
+		}
+		var orderStatusAfterA string
+		if err := db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id = $1", orderID).Scan(&orderStatusAfterA); err != nil {
+			t.Fatalf("Failed to read order status after manifest A handover: %v", err)
+		}
+		if orderStatusAfterA != "Partially Fulfilled" {
+			t.Errorf("Expected order to be Partially Fulfilled after only location A shipped, got %q", orderStatusAfterA)
+		}
+		var taskAStatus string
+		if err := db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id = $1", taskAID).Scan(&taskAStatus); err != nil {
+			t.Fatalf("Failed to read task A status: %v", err)
+		}
+		if taskAStatus != "Dispatched" {
+			t.Errorf("Expected FulfillmentTask A to be Dispatched after handover, got %q", taskAStatus)
+		}
+
+		manifestBID, countB, err := GenerateManifest(tenantID, "FedEx", locB)
+		if err != nil {
+			t.Fatalf("GenerateManifest(B) failed: %v", err)
+		}
+		if countB != 1 {
+			t.Errorf("Expected manifest B to group exactly 1 shipment, got %d", countB)
+		}
+		defer db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", manifestBID)
+
+		if err := HandoverManifest(tenantID, manifestBID, "test-user"); err != nil {
+			t.Fatalf("HandoverManifest(B) failed: %v", err)
+		}
+		var orderStatusAfterB string
+		if err := db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id = $1", orderID).Scan(&orderStatusAfterB); err != nil {
+			t.Fatalf("Failed to read order status after manifest B handover: %v", err)
+		}
+		if orderStatusAfterB != "Shipped" {
+			t.Errorf("Expected order to flip to Shipped once every fulfillment task is dispatched, got %q", orderStatusAfterB)
+		}
+
+		// 5. Re-handing-over an already-handed-over manifest is refused.
+		if err := HandoverManifest(tenantID, manifestAID, "test-user"); err == nil {
+			t.Errorf("Expected HandoverManifest to refuse a manifest that's already Handed Over")
+		}
+
+		// 6. Tracking sync: Handed Over -> In-Transit -> Delivered; a
+		// booking that hasn't been handed over yet can't jump straight to
+		// In-Transit (there is none left un-handed-over here, so this
+		// exercises the same booking twice in sequence instead).
+		if err := RecordDeliveryEvent(tenantID, bookingAID, "In-Transit", "test-user"); err != nil {
+			t.Errorf("RecordDeliveryEvent(In-Transit) on a Handed-Over booking failed: %v", err)
+		}
+		if err := RecordDeliveryEvent(tenantID, bookingAID, "Delivered", "test-user"); err != nil {
+			t.Errorf("RecordDeliveryEvent(Delivered) failed: %v", err)
+		}
+		if err := RecordDeliveryEvent(tenantID, autoBookingID, "Delivered", "test-user"); err == nil {
+			t.Errorf("Expected RecordDeliveryEvent(Delivered) to refuse a booking that was never Handed Over")
+		}
+
+		// 7. RTO: a Handed-Over booking can be marked RTO with a reason; a
+		// Delivered booking cannot.
+		if err := RecordRTO(tenantID, bookingBID, "Customer refused delivery", "test-user"); err != nil {
+			t.Errorf("RecordRTO on a Handed-Over booking failed: %v", err)
+		}
+		if err := RecordRTO(tenantID, bookingAID, "too late", "test-user"); err == nil {
+			t.Errorf("Expected RecordRTO to refuse a Delivered booking")
+		}
+
+		// 8. Shipping label includes the AWB and carrier.
+		label, err := GenerateShippingLabel(tenantID, bookingBID)
+		if err != nil {
+			t.Fatalf("GenerateShippingLabel failed: %v", err)
+		}
+		if !strings.Contains(label, "FedEx") {
+			t.Errorf("Expected shipping label to mention the carrier, got: %s", label)
 		}
 	})
 
