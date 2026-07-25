@@ -126,6 +126,15 @@ func Run() {
 	http.HandleFunc("GET /api/v1/availability", apiMiddleware(handleGetAvailability))
 	http.HandleFunc("POST /api/v1/reserve", apiMiddleware(handleCreateReservation))
 
+	// Stage 26.12.1: Order Engine - create (validate/reserve chain), the
+	// Hold engine's manual place/release actions, and the stage-gated
+	// cancellation matrix. moduleGate("oms",...) since this is squarely OMS,
+	// same convention as the other oms-gated routes below.
+	http.HandleFunc("POST /api/v1/orders", apiMiddleware(moduleGate("oms", handleCreateSalesOrder)))
+	http.HandleFunc("POST /api/v1/orders/{id}/hold", apiMiddleware(moduleGate("oms", handlePlaceOrderHold)))
+	http.HandleFunc("POST /api/v1/orders/{id}/release-hold", apiMiddleware(moduleGate("oms", handleReleaseOrderHold)))
+	http.HandleFunc("POST /api/v1/orders/{id}/cancel", apiMiddleware(moduleGate("oms", handleCancelOrder)))
+
 	// WMS Maturity (Stage 20 Track B.2): putaway, bin-grouped pick lists,
 	// transfer-order pack/box-mapping, cycle-count reconciliation.
 	// moduleGate("wms",...) added Stage 27 (Modular Product Packaging) - these

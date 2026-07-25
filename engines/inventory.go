@@ -189,6 +189,17 @@ func PostInventoryLedger(tenantID string, locationCode string, items []interface
 	return negativeEvents, nil
 }
 
+// computeATS is the ATP formula's one shared choke point - Available minus
+// Reserved/Safety Stock plus the 26.12.6 held-back buckets (Blocked/QC
+// Hold/Damaged/Channel Buffer, the blueprint's 7-term ATP - see
+// docs/specs/oms_master_blueprint_reference.md §4). CreateReservation's
+// admission check, GetAvailableToSell's read, and FindBestFulfillmentNode's
+// sourcing comparison (engines/sourcing.go) all call this instead of each
+// repeating the formula, so they can't drift out of sync with each other.
+func computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer int) int {
+	return available - reserved - safetyStock - blocked - qcHold - damaged - channelBuffer
+}
+
 // CreateReservation reserves stock temporarily for cart holds or online orders
 func CreateReservation(tenantID string, sku string, locationCode string, qty int, resType string, expirySec int) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
@@ -211,18 +222,18 @@ func CreateReservation(tenantID string, sku string, locationCode string, qty int
 	// could both read sufficient ATS before either commits and over-reserve;
 	// the decrement path above (PostInventoryLedger) already locks this same
 	// way, this closes the inconsistency.
-	var onHand, available, committed, reserved, safetyStock int
+	var onHand, available, committed, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer int
 	err = tx.QueryRow(fmt.Sprintf(`
-		SELECT on_hand, available, committed, reserved, safety_stock
+		SELECT on_hand, available, committed, reserved, safety_stock, blocked, qc_hold, damaged, channel_buffer
 		FROM %s.inventory_availability
 		WHERE sku = $1 AND location_code = $2
-		FOR UPDATE`, schema), sku, locationCode).Scan(&onHand, &available, &committed, &reserved, &safetyStock)
+		FOR UPDATE`, schema), sku, locationCode).Scan(&onHand, &available, &committed, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer)
 	if err != nil {
 		// If no inventory availability record exists, we cannot reserve stock
 		return "", fmt.Errorf("insufficient stock for reservation of SKU: %s", sku)
 	}
 
-	ats := available - reserved - safetyStock
+	ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer)
 	if ats < qty {
 		return "", fmt.Errorf("insufficient stock available for reservation (ATS: %d, requested: %d)", ats, qty)
 	}
@@ -251,43 +262,52 @@ func CreateReservation(tenantID string, sku string, locationCode string, qty int
 	return resID, err
 }
 
-// GetAvailableToSell computes ATS (Available-to-Sell) = Available - Reserved - Safety
+// GetAvailableToSell computes ATS (Available-to-Sell) per the 7-term ATP
+// formula - see computeATS's own doc comment for the shared formula.
 func GetAvailableToSell(tenantID string, sku string, locationCode string) (map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
 	}
 
-	var onHand, available, committed, reserved, safetyStock int
+	var onHand, available, committed, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer int
 	err = db.DB.QueryRow(fmt.Sprintf(`
-		SELECT on_hand, available, committed, reserved, safety_stock 
-		FROM %s.inventory_availability 
-		WHERE sku = $1 AND location_code = $2`, schema), sku, locationCode).Scan(&onHand, &available, &committed, &reserved, &safetyStock)
+		SELECT on_hand, available, committed, reserved, safety_stock, blocked, qc_hold, damaged, channel_buffer
+		FROM %s.inventory_availability
+		WHERE sku = $1 AND location_code = $2`, schema), sku, locationCode).Scan(&onHand, &available, &committed, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer)
 	if err == sql.ErrNoRows {
 		// Fallback to zeros
 		return map[string]interface{}{
-			"sku":           sku,
-			"location_code": locationCode,
-			"on_hand":       0,
-			"available":     0,
-			"committed":     0,
-			"reserved":      0,
-			"safety_stock":  0,
-			"ats":           0,
+			"sku":            sku,
+			"location_code":  locationCode,
+			"on_hand":        0,
+			"available":      0,
+			"committed":      0,
+			"reserved":       0,
+			"safety_stock":   0,
+			"blocked":        0,
+			"qc_hold":        0,
+			"damaged":        0,
+			"channel_buffer": 0,
+			"ats":            0,
 		}, nil
 	} else if err != nil {
 		return nil, err
 	}
 
-	ats := available - reserved - safetyStock
+	ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer)
 	return map[string]interface{}{
-		"sku":           sku,
-		"location_code": locationCode,
-		"on_hand":       onHand,
-		"available":     available,
-		"committed":     committed,
-		"reserved":      reserved,
-		"safety_stock":  safetyStock,
-		"ats":           ats,
+		"sku":            sku,
+		"location_code":  locationCode,
+		"on_hand":        onHand,
+		"available":      available,
+		"committed":      committed,
+		"reserved":       reserved,
+		"safety_stock":   safetyStock,
+		"blocked":        blocked,
+		"qc_hold":        qcHold,
+		"damaged":        damaged,
+		"channel_buffer": channelBuffer,
+		"ats":            ats,
 	}, nil
 }
