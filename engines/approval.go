@@ -107,6 +107,31 @@ func UpsertApprovalRule(tenantID, doctype string, minAmount float64, maxAmount *
 	return newID, err
 }
 
+// DeleteApprovalRule (Stage 26.3.3) removes one amount-slab routing rule -
+// the admin screen's counterpart to UpsertApprovalRule, since a config
+// screen that can create/edit rules but never retire a mistaken one isn't
+// genuinely usable. Deleting the last rule for a doctype simply makes that
+// doctype ungated again, the same as it would be if a rule had never been
+// added (requiredApproverRole/IsApprovalGated already treat zero rows that way).
+func DeleteApprovalRule(tenantID string, ruleID int) error {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	res, err := db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.approval_rules WHERE id = $1`, schema), ruleID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return fmt.Errorf("approval rule %d not found", ruleID)
+	}
+	return nil
+}
+
 // requiredApproverRole finds the rule matching doctype+amount. Returns
 // ("", nil) if the doctype has no rules configured at all (not gated) -
 // callers must distinguish that from a real error.

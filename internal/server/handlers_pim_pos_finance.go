@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"custom_erp/db"
 	"custom_erp/engines"
@@ -952,9 +953,12 @@ func handleListPendingApprovals(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(results)
 }
 
-// handleApprovalRules lists the amount-slab/role routing configuration.
-// Read-only for now (edited directly via seed data / a future admin form,
-// same as this project's other configuration tables started out).
+// handleApprovalRules lists and manages the amount-slab/role routing
+// configuration. GET is open to any authenticated role (rules are read
+// during submit-time routing decisions by non-admin users too); POST
+// (create/edit, Stage 24.8) and DELETE (Stage 26.3.3, the admin screen's
+// "remove a mistaken rule" action) are HR/Admin-only, same as every other
+// global config screen (labels/sequence/prefix, Stage 24.2).
 func handleApprovalRules(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	switch r.Method {
@@ -996,6 +1000,23 @@ func handleApprovalRules(w http.ResponseWriter, r *http.Request) {
 		engines.LogAuditEvent(tenantID, r.Header.Get("Resolved-User-ID"), "SAVE_APPROVAL_RULE", "SUCCESS",
 			fmt.Sprintf("%s [%v, %v] -> %s", req.Doctype, req.MinAmount, req.MaxAmount, req.RequiredRole))
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "saved", "id": newID})
+
+	case http.MethodDelete:
+		if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+			return
+		}
+		idStr := r.URL.Query().Get("id")
+		ruleID, err := strconv.Atoi(idStr)
+		if err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query param 'id' must be a valid rule id")
+			return
+		}
+		if err := engines.DeleteApprovalRule(tenantID, ruleID); err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		engines.LogAuditEvent(tenantID, r.Header.Get("Resolved-User-ID"), "DELETE_APPROVAL_RULE", "SUCCESS", fmt.Sprintf("rule id %d", ruleID))
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "deleted", "id": ruleID})
 
 	default:
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")

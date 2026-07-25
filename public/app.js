@@ -270,6 +270,7 @@ let state = {
   activeDocFields: [],
   docData: [],
   prefixConfigs: [],
+  approvalRules: [],
   labels: {},
   auditLogs: [],
   systemLogs: [],
@@ -827,6 +828,7 @@ const MENU_PERMISSION_MAP = {
 
   'menu-reports': { open: true },
 
+  'menu-purchase-requisitions': { doctypes: ['PurchaseRequisition'] },
   'menu-purchase-orders': { doctypes: ['PurchaseOrder'] },
   'menu-grn': { doctypes: ['GRN'] },
   'menu-vendors': { doctypes: ['Vendor'] },
@@ -855,6 +857,7 @@ const MENU_PERMISSION_MAP = {
   'menu-users': { adminOnly: true },
   'menu-roles': { adminOnly: true },
   'menu-prefix-configs': { adminOnly: true },
+  'menu-approval-rules': { adminOnly: true },
   'menu-dynamic-labels': { adminOnly: true },
   'menu-doctype-builder': { adminOnly: true },
   'menu-extension-hooks': { adminOnly: true },
@@ -891,6 +894,7 @@ const MENU_MODULE_MAP = {
   'menu-fulfillment': 'wms',
   'menu-marketplace': 'oms',
 
+  'menu-purchase-requisitions': 'procurement',
   'menu-purchase-orders': 'procurement',
   'menu-grn': 'procurement',
   'menu-vendors': 'procurement',
@@ -1265,6 +1269,13 @@ function setupEventListeners() {
     renderView('pim');
   });
 
+  // Purchase Requisition (Stage 26.3.2) - same generic doctype-table pattern
+  // as Vendors/Stores/Bins below: its schema is flat (no line items), so
+  // unlike GRN/Purchase Orders it doesn't need a bespoke screen, just this
+  // sidebar entry plus the Submit-for-Approval/Convert row actions added to
+  // the generic table itself (renderDocTable).
+  document.getElementById('menu-purchase-requisitions').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-purchase-requisitions'); closeSubmenus(); currentDoctype = 'PurchaseRequisition'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+
   document.getElementById('menu-purchase-orders').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-purchase-orders');
@@ -1307,7 +1318,7 @@ function setupEventListeners() {
   // Offline Sync Review (Stage 20.13) - same generic doctype-table pattern as POS Profile/Bin above.
   document.getElementById('menu-pos-offline-sync').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-sync'); closeSubmenus(); currentDoctype = 'POSOfflineSyncVariance'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-bin-conditions', 'menu-cycle-count', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
+  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-bin-conditions', 'menu-cycle-count', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -1533,6 +1544,7 @@ const STATIC_VIEW_MENU_IDS = {
   users: 'menu-users',
   roles: 'menu-roles',
   'prefix-configs': 'menu-prefix-configs',
+  'approval-rules': 'menu-approval-rules',
   'dynamic-labels': 'menu-dynamic-labels',
   'extension-hooks': 'menu-extension-hooks',
   'extension-hook-log': 'menu-extension-hooks',
@@ -1666,6 +1678,8 @@ async function renderView(view) {
     await renderDocTypeBuilderView(root);
   } else if (view === 'prefix-configs') {
     await renderPrefixConfigsView(root);
+  } else if (view === 'approval-rules') {
+    await renderApprovalRulesView(root);
   } else if (view === 'dynamic-labels') {
     renderDynamicLabelsView(root);
   } else if (view === 'extension-hooks') {
@@ -3212,7 +3226,12 @@ async function renderVendorInvoicesView(container) {
 function renderVendorInvoiceActions(v) {
   const id = v.id;
   if (v.status === 'Draft' || v.status === 'MismatchHold') {
-    return `<button class="action-btn" onclick="matchVendorInvoice('${id}')">Match</button>`;
+    // Stage 26.3.5: engines.PayVendorInvoice's override path (Stage 24.11 -
+    // pay a MismatchHold invoice anyway with a business-justified reason,
+    // routed to approval) already existed server-side but had no UI action
+    // calling it - only Match did. Draft has nothing to override yet
+    // (3-way match hasn't run), so this only shows for MismatchHold.
+    return `<button class="action-btn" onclick="matchVendorInvoice('${id}')">Match</button>${v.status === 'MismatchHold' ? `<button class="action-btn" style="margin-left:4px;" onclick="overrideAndPayVendorInvoice('${id}')">Override &amp; Pay</button>` : ''}`;
   }
   if (v.status === 'Matched') {
     const sections = window.__tdsSections || [];
@@ -3257,6 +3276,28 @@ async function payVendorInvoicePlain(invoiceId) {
     await showApiError(res, 'Payment failed.');
     return;
   }
+  renderView('vendor-invoices');
+}
+
+// overrideAndPayVendorInvoice (Stage 26.3.5): the UI action for
+// engines.PayVendorInvoice's pre-existing override path - a MismatchHold
+// invoice can be paid anyway with a mandatory business reason, routed
+// through the approval engine (VendorInvoice's own approval_rules) rather
+// than paying immediately, same as VENDOR-0092's own message states.
+async function overrideAndPayVendorInvoice(invoiceId) {
+  const reason = await showCustomPrompt('This invoice failed 3-way match. Reason to pay anyway (routes to approval):', '', 'Override & Pay');
+  if (!reason || !reason.trim()) return;
+  const res = await apiFetch('/api/v1/procurement/vendor-invoice/pay', {
+    method: 'POST',
+    body: JSON.stringify({ invoice_id: invoiceId, override_reason: reason.trim() })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to submit payment override.');
+    return;
+  }
+  const data = await res.json();
+  await showCustomAlert(data.status === 'pending_approval' ? 'Override submitted - routed for approval.' : 'Invoice paid.', 'Override & Pay');
   renderView('vendor-invoices');
 }
 
@@ -4468,7 +4509,10 @@ async function renderPurchaseOrdersView(container) {
         <td>${po.location || ''}</td>
         <td>${(po.total_amount ?? 0).toLocaleString()}</td>
         <td><span class="badge ${statusBadge}">${po.status}</span></td>
-        <td>${po.status === 'Draft' ? `<button class="action-btn" onclick="submitPOForApproval('${po.id}')">Submit for Approval</button>` : ''}</td>
+        <td>
+          ${po.status === 'Draft' ? `<button class="action-btn" onclick="submitPOForApproval('${po.id}')">Submit for Approval</button>` : ''}
+          ${po.status !== 'Closed' ? `<button class="action-btn" style="margin-left:4px;" onclick="amendPurchaseOrder('${po.id}')">Amend</button>` : ''}
+        </td>
       </tr>
     `;
   });
@@ -4554,6 +4598,52 @@ async function createDraftPurchaseOrder() {
   }
   renderView('purchase-orders');
 }
+
+// amendPurchaseOrder (Stage 26.3.6). Confirmed first, not assumed: an
+// Approved-but-not-yet-received PO already has a real edit path at the API
+// level (the generic handleGenericDoc update route, which already resets an
+// Approved+approval-gated doctype to Pending Approval on edit via
+// ResetToPendingOnEdit) - it just had no UI action reaching it for
+// PurchaseOrder specifically (this screen is bespoke, not the generic
+// doctype-table view, so editDocRecord's generic form was never wired here).
+// Uses this screen's own simple field set (vendor/warehouse/location/amount)
+// rather than the generic dynamic-modal form, since that form would also
+// expose the raw JSON `items` string as a plain text field - worse than
+// this screen's own purpose-built create form already avoids by not
+// managing items either.
+window.amendPurchaseOrder = async function(poId) {
+  const res = await apiFetch(`/api/v1/doc/PurchaseOrder/${poId}`);
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to load purchase order for amendment.');
+    return;
+  }
+  const record = await res.json();
+
+  const vendor = await showCustomPrompt('Vendor:', record.vendor || '', 'Amend Purchase Order');
+  if (vendor === null) return;
+  const warehouse = await showCustomPrompt('Target Warehouse:', record.target_warehouse || '', 'Amend Purchase Order');
+  if (warehouse === null) return;
+  const location = await showCustomPrompt('Location:', record.location || '', 'Amend Purchase Order');
+  if (location === null) return;
+  const amountRaw = await showCustomPrompt('Total Amount (taxable value):', record.total_amount != null ? String(record.total_amount) : '0', 'Amend Purchase Order');
+  if (amountRaw === null) return;
+
+  const wasApproved = record.status === 'Approved';
+  if (wasApproved && !await showCustomConfirm('This PO is Approved. Amending it will reset it to Pending Approval for re-approval. Continue?', 'Amend Purchase Order')) return;
+
+  const payload = { ...record, vendor, target_warehouse: warehouse, location, total_amount: Number(amountRaw) };
+  if (typeof record.version === 'number') payload.expected_version = record.version;
+
+  const saveRes = await apiFetch(`/api/v1/doc/PurchaseOrder/${poId}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!saveRes) return;
+  if (!saveRes.ok) {
+    await showApiError(saveRes, 'Failed to save amendment - someone else may have edited this record, refresh and try again.');
+    return;
+  }
+  await showCustomAlert(`Purchase order amended.${wasApproved ? ' It now requires re-approval.' : ''}`, 'Amend Purchase Order');
+  renderView('purchase-orders');
+};
 
 async function submitPOForApproval(documentId) {
   const res = await apiFetch('/api/v1/approval/submit', {
@@ -8147,6 +8237,49 @@ window.togglePIMBulkPageSelection = function(selected) {
   renderDocTable();
 };
 
+// submitRequisitionForApproval (Stage 26.3.2) posts through the same
+// generic /api/v1/approval/submit endpoint submitPOForApproval/
+// submitExpenseForApproval already use for their own doctypes - Stage 17.7's
+// approval_rules for PurchaseRequisition were already configured, this was
+// only ever missing a caller.
+window.submitRequisitionForApproval = async function(documentId) {
+  const res = await apiFetch('/api/v1/approval/submit', {
+    method: 'POST',
+    body: JSON.stringify({ doctype: 'PurchaseRequisition', document_id: documentId })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to submit for approval.');
+    return;
+  }
+  renderView('doctype-table');
+};
+
+// convertRequisition (Stage 26.3.2) is the frontend for
+// engines.ConvertRequisitionToOrder (Stage 17.7), which already existed and
+// was already routed (POST /api/v1/procurement/convert-requisition) but had
+// no UI action calling it. store_code/financial_year aren't stored on the
+// requisition itself, so they're asked for here, same as GRN's own workbench
+// asks for what its source document doesn't carry.
+window.convertRequisition = async function(requisitionId, target) {
+  const storeCode = await showCustomPrompt('Store code for the new document:', 'HO', `Convert to ${target === 'RFQ' ? 'RFQ' : 'Purchase Order'}`);
+  if (!storeCode) return;
+  const financialYear = await showCustomPrompt('Financial year (e.g. 26-27):', '', `Convert to ${target === 'RFQ' ? 'RFQ' : 'Purchase Order'}`);
+  if (!financialYear) return;
+  const res = await apiFetch('/api/v1/procurement/convert-requisition', {
+    method: 'POST',
+    body: JSON.stringify({ requisition_id: requisitionId, target, store_code: storeCode, financial_year: financialYear })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to convert requisition.');
+    return;
+  }
+  const data = await res.json();
+  await showCustomAlert(`Converted to ${target === 'RFQ' ? 'RFQ' : 'Purchase Order'} ${data.new_document_id}.`, 'Requisition Converted');
+  renderView('doctype-table');
+};
+
 // viewTaxonomyHistory (Stage 26.4.3) shows one taxonomy document's existing
 // audit_logs trail in a lightweight read-only modal, reusing the same
 // .modal-overlay/.modal-container primitives the bulk-edit modal below
@@ -8720,6 +8853,139 @@ window.editPrefixConfig = async function(docType) {
   } else {
     await showApiError(res, 'Failed to save prefix configuration.');
   }
+};
+
+// Approval Rules admin screen (Stage 26.3.3). Exposes the amount-slab ->
+// required-role routing config (engines/approval.go) for editing - the
+// backend (GetApprovalRules/UpsertApprovalRule, Stage 24.8; DeleteApprovalRule,
+// added alongside this screen) already existed, this was only ever missing a UI.
+async function renderApprovalRulesView(container) {
+  const [rulesRes, rolesRes] = await Promise.all([
+    apiFetch('/api/v1/approval/rules'),
+    apiFetch('/api/v1/admin/roles')
+  ]);
+  if (!rulesRes) return;
+  if (!rulesRes.ok) {
+    const msg = await getErrorMessage(rulesRes, 'Failed to load approval rules.');
+    renderErrorPanel(container, msg, () => renderView('approval-rules'));
+    return;
+  }
+  state.approvalRules = await rulesRes.json();
+  state.approvalRuleRoles = (rolesRes && rolesRes.ok) ? await rolesRes.json() : [];
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Approval Rules</h1>
+      <p class="page-subtitle">Amount-slab to role routing for every approval-gated document type.</p>
+    </div>
+    <button class="btn btn-primary" onclick="openApprovalRuleModal()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      <span>New Rule</span>
+    </button>
+  `;
+  container.appendChild(header);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.innerHTML = `
+    <div class="table-wrapper">
+      <table>
+        <thead><tr><th>Doctype</th><th>Min Amount</th><th>Max Amount</th><th>Required Role</th><th style="text-align:right;">Actions</th></tr></thead>
+        <tbody>
+          ${state.approvalRules.length === 0 ? '<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No approval rules configured.</td></tr>' : state.approvalRules.map(r => `
+            <tr>
+              <td style="font-weight:600;">${r.doctype}</td>
+              <td>${r.min_amount}</td>
+              <td>${r.max_amount == null ? 'No limit' : r.max_amount}</td>
+              <td><span class="badge badge-secondary">${r.required_role}</span></td>
+              <td style="text-align:right;">
+                <button class="action-btn" title="Edit" style="margin-right:4px;" onclick="openApprovalRuleModal(${r.id})">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                </button>
+                <button class="action-btn action-btn-danger" title="Delete" onclick="deleteApprovalRuleRow(${r.id})">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                </button>
+              </td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+  container.appendChild(panel);
+}
+
+// openApprovalRuleModal: same real-form-modal pattern as the PIM bulk-edit
+// modal (.modal-overlay/.modal-container, a <form> with a submit handler) -
+// ruleId omitted opens it in create mode, otherwise pre-fills from
+// state.approvalRules (looked up by id rather than embedding the row's JSON
+// into an inline onclick attribute, which would need escaping doctype/role
+// values that could contain quotes).
+window.openApprovalRuleModal = function(ruleId) {
+  const rule = ruleId != null ? state.approvalRules.find(r => r.id === ruleId) : null;
+  const roleOptions = (state.approvalRuleRoles || []).length > 0
+    ? state.approvalRuleRoles.map(role => `<option value="${role}" ${rule && rule.required_role === role ? 'selected' : ''}>${role}</option>`).join('')
+    : `<option value="Store Manager">Store Manager</option><option value="HR/Admin">HR/Admin</option>`;
+
+  document.getElementById('approval-rule-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'approval-rule-modal';
+  overlay.innerHTML = `
+    <div class="modal-container">
+      <div class="modal-header"><h3 class="modal-title">${rule ? 'Edit' : 'New'} Approval Rule</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <form>
+        <div class="modal-body">
+          <div class="form-group"><label class="form-label">Doctype</label><input type="text" class="form-input" id="ar-doctype" value="${rule ? rule.doctype : ''}" placeholder="e.g. PurchaseOrder" required></div>
+          <div class="form-group"><label class="form-label">Min Amount</label><input type="number" step="0.01" class="form-input" id="ar-min" value="${rule ? rule.min_amount : '0'}" required></div>
+          <div class="form-group"><label class="form-label">Max Amount (blank = no upper bound)</label><input type="number" step="0.01" class="form-input" id="ar-max" value="${rule && rule.max_amount != null ? rule.max_amount : ''}"></div>
+          <div class="form-group"><label class="form-label">Required Role</label><select class="form-select" id="ar-role">${roleOptions}</select></div>
+        </div>
+        <div class="modal-footer"><button type="button" class="btn btn-secondary">Cancel</button><button type="submit" class="btn btn-primary">Save Rule</button></div>
+      </form>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('.btn-secondary').addEventListener('click', close);
+  overlay.querySelector('form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const doctype = document.getElementById('ar-doctype').value.trim();
+    const minAmount = Number(document.getElementById('ar-min').value);
+    const maxRaw = document.getElementById('ar-max').value.trim();
+    const requiredRole = document.getElementById('ar-role').value;
+    if (!doctype) return;
+    const res = await apiFetch('/api/v1/approval/rules', {
+      method: 'POST',
+      body: JSON.stringify({
+        id: rule ? rule.id : undefined,
+        doctype, min_amount: minAmount,
+        max_amount: maxRaw === '' ? null : Number(maxRaw),
+        required_role: requiredRole
+      })
+    });
+    if (!res) return;
+    if (!res.ok) {
+      await showApiError(res, 'Failed to save approval rule.');
+      return;
+    }
+    close();
+    renderView('approval-rules');
+  });
+};
+
+window.deleteApprovalRuleRow = async function(ruleId) {
+  if (!await showCustomConfirm('Delete this approval rule? Documents whose amount only matched this slab will no longer be approval-gated once it is removed.')) return;
+  const res = await apiFetch(`/api/v1/approval/rules?id=${encodeURIComponent(ruleId)}`, { method: 'DELETE' });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to delete approval rule.');
+    return;
+  }
+  renderView('approval-rules');
 };
 
 // Render Dynamic Labels view
