@@ -83,6 +83,97 @@ func handleBinConditionTransition(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
+// Stage 26.12.3: FulfillmentTask Pick/Pack scan endpoints - see
+// engines/fulfillment_pickpack.go's own package doc comment for how this
+// relates to (and deliberately doesn't duplicate) the bin-pick-list
+// endpoints above. Same role-open convention as the rest of this file.
+
+func handlePickScan(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	var req struct {
+		TaskID string `json:"task_id"`
+		Scan   string `json:"scan"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TaskID == "" || req.Scan == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'task_id' and 'scan' are required")
+		return
+	}
+	sku, pickedQty, err := engines.ScanPickItem(tenantID, req.TaskID, req.Scan)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"sku": sku, "picked_qty": pickedQty})
+}
+
+func handlePackScan(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	var req struct {
+		TaskID string `json:"task_id"`
+		Scan   string `json:"scan"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TaskID == "" || req.Scan == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'task_id' and 'scan' are required")
+		return
+	}
+	sku, packedQty, err := engines.ScanPackItem(tenantID, req.TaskID, req.Scan)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"sku": sku, "packed_qty": packedQty})
+}
+
+func handleShortPick(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	var req struct {
+		TaskID     string `json:"task_id"`
+		Sku        string `json:"sku"`
+		ReasonCode string `json:"reason_code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TaskID == "" || req.Sku == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'task_id' and 'sku' are required")
+		return
+	}
+	if err := engines.ShortPickLine(tenantID, req.TaskID, req.Sku, req.ReasonCode); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "short_picked"})
+}
+
+func handlePackComplete(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	var req struct {
+		TaskID string `json:"task_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TaskID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'task_id' is required")
+		return
+	}
+	if err := engines.CompletePackTask(tenantID, req.TaskID); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "packed"})
+}
+
 func handlePackTransferOrder(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")

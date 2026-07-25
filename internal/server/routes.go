@@ -135,6 +135,21 @@ func Run() {
 	http.HandleFunc("POST /api/v1/orders/{id}/release-hold", apiMiddleware(moduleGate("oms", handleReleaseOrderHold)))
 	http.HandleFunc("POST /api/v1/orders/{id}/cancel", apiMiddleware(moduleGate("oms", handleCancelOrder)))
 
+	// Stage 26.12.5: Returns/RTO/QC/Refund - a request/approval-gated
+	// workflow distinct from the pre-existing instant POST
+	// /api/v1/fulfillment/return (ProcessReturnAnywhere, the POS in-store
+	// path, unchanged). moduleGate("oms",...) since ReturnRequest/
+	// RefundRequest are OMS doctypes, same convention as the Order Engine
+	// routes above.
+	http.HandleFunc("POST /api/v1/returns", apiMiddleware(moduleGate("oms", handleCreateReturnRequest)))
+	http.HandleFunc("POST /api/v1/returns/{id}/approve", apiMiddleware(moduleGate("oms", handleApproveReturnRequest)))
+	http.HandleFunc("POST /api/v1/returns/{id}/reject", apiMiddleware(moduleGate("oms", handleRejectReturnRequest)))
+	http.HandleFunc("POST /api/v1/returns/{id}/receive", apiMiddleware(moduleGate("oms", handleReceiveReturnRequest)))
+	http.HandleFunc("POST /api/v1/returns/{id}/qc", apiMiddleware(moduleGate("oms", handleApplyReturnQC)))
+	http.HandleFunc("POST /api/v1/refunds/{id}/approve", apiMiddleware(moduleGate("oms", handleApproveRefundRequest)))
+	http.HandleFunc("POST /api/v1/refunds/{id}/reject", apiMiddleware(moduleGate("oms", handleRejectRefundRequest)))
+	http.HandleFunc("POST /api/v1/refunds/{id}/process", apiMiddleware(moduleGate("oms", handleProcessRefundRequest)))
+
 	// WMS Maturity (Stage 20 Track B.2): putaway, bin-grouped pick lists,
 	// transfer-order pack/box-mapping, cycle-count reconciliation.
 	// moduleGate("wms",...) added Stage 27 (Modular Product Packaging) - these
@@ -147,6 +162,12 @@ func Run() {
 	http.HandleFunc("GET /api/v1/wms/pick-list", apiMiddleware(moduleGate("wms", handlePickList)))
 	http.HandleFunc("POST /api/v1/wms/condition-transition", apiMiddleware(moduleGate("wms", handleBinConditionTransition)))
 	http.HandleFunc("POST /api/v1/wms/transfer/pack", apiMiddleware(moduleGate("wms", handlePackTransferOrder)))
+	// Stage 26.12.3: FulfillmentTask Pick/Pack scan endpoints - same module
+	// gate as the pick-list/putaway/condition-transition floor-ops routes above.
+	http.HandleFunc("POST /api/v1/wms/pick-scan", apiMiddleware(moduleGate("wms", handlePickScan)))
+	http.HandleFunc("POST /api/v1/wms/pack-scan", apiMiddleware(moduleGate("wms", handlePackScan)))
+	http.HandleFunc("POST /api/v1/wms/short-pick", apiMiddleware(moduleGate("wms", handleShortPick)))
+	http.HandleFunc("POST /api/v1/wms/pack-complete", apiMiddleware(moduleGate("wms", handlePackComplete)))
 	http.HandleFunc("POST /api/v1/wms/cycle-count/reconcile", apiMiddleware(moduleGate("wms", handleReconcileCycleCount)))
 
 	// Stage 26.5 (WMS Enterprise Maturity Sprint): cross-dock staging, LPN/

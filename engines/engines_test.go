@@ -738,6 +738,152 @@ func TestEngines(t *testing.T) {
 		}
 	})
 
+	// 7.5 (Stage 26.12.3). Fulfillment Pick/Pack: scan-first validation,
+	// short-pick reason capture, and blocked pack completion on any
+	// exact-qty mismatch.
+	t.Run("PickPack", func(t *testing.T) {
+		cleanupPP := func() {
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'FulfillmentTask' AND id LIKE 'TSK-PP-TEST%'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'Item' AND id LIKE 'ITEM-SKU-PP-%'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'ReasonCode' AND id = 'RC-PP-SHORT'")
+		}
+		cleanupPP()
+		defer cleanupPP()
+
+		skuA, skuB := "SKU-PP-A", "SKU-PP-B"
+		itemAData, _ := json.Marshal(map[string]interface{}{"code": skuA, "name": "Pick Pack Item A", "barcode": "BC-PP-A", "status": "Active"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')", "ITEM-"+skuA, itemAData); err != nil {
+			t.Fatalf("Failed to seed Item A: %v", err)
+		}
+		// Item B has no distinct barcode - scans against its own SKU/code
+		// exercise resolveScanToItem's code-fallback path.
+		itemBData, _ := json.Marshal(map[string]interface{}{"code": skuB, "name": "Pick Pack Item B", "status": "Active"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')", "ITEM-"+skuB, itemBData); err != nil {
+			t.Fatalf("Failed to seed Item B: %v", err)
+		}
+		reasonData, _ := json.Marshal(map[string]interface{}{"code": "RC-SHORT", "description": "Out of stock at bin", "category": "Short Pick", "status": "Active"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'ReasonCode', $2, 'Active', 'system')", "RC-PP-SHORT", reasonData); err != nil {
+			t.Fatalf("Failed to seed Short Pick ReasonCode: %v", err)
+		}
+
+		taskID, err := CreateFulfillmentTasks(tenantID, "ORD-PP-TEST", "WH01", []interface{}{
+			map[string]interface{}{"sku": skuA, "qty": 5},
+			map[string]interface{}{"sku": skuB, "qty": 3},
+		})
+		if err != nil {
+			t.Fatalf("Failed to create pick/pack test task: %v", err)
+		}
+		// CreateFulfillmentTasks mints its own TSK-<nanos> id, outside the
+		// TSK-PP-TEST% cleanup pattern - track and remove it explicitly too.
+		defer func() {
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'FulfillmentTask' AND id = $1", taskID)
+		}()
+
+		// 1. An unknown scan matches no item at all.
+		if _, _, err := ScanPickItem(tenantID, taskID, "NO-SUCH-BARCODE"); err == nil {
+			t.Errorf("Expected an unknown scan to be rejected")
+		}
+
+		// 2. A real product's barcode that isn't part of this task is
+		// rejected naming that product, not a bare "invalid scan".
+		otherData, _ := json.Marshal(map[string]interface{}{"code": "SKU-PP-OTHER", "name": "Unrelated Product", "barcode": "BC-PP-OTHER", "status": "Active"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')", "ITEM-SKU-PP-OTHER", otherData); err != nil {
+			t.Fatalf("Failed to seed unrelated Item: %v", err)
+		}
+		defer func() {
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE id = 'ITEM-SKU-PP-OTHER'")
+		}()
+		_, _, err = ScanPickItem(tenantID, taskID, "BC-PP-OTHER")
+		if err == nil || !strings.Contains(err.Error(), "Unrelated Product") {
+			t.Errorf("Expected a not-part-of-this-task scan to name the actual product, got: %v", err)
+		}
+
+		// 3. Pick 3 of A's 5 (by barcode).
+		for i := 0; i < 3; i++ {
+			sku, picked, err := ScanPickItem(tenantID, taskID, "BC-PP-A")
+			if err != nil {
+				t.Fatalf("ScanPickItem A (%d) failed: %v", i, err)
+			}
+			if sku != skuA || picked != i+1 {
+				t.Errorf("Expected picked_qty %d for %s, got sku=%s picked=%d", i+1, skuA, sku, picked)
+			}
+		}
+		var taskStatus string
+		if err := db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id = $1", taskID).Scan(&taskStatus); err != nil {
+			t.Fatalf("Failed to read task status: %v", err)
+		}
+		if taskStatus != "Picking" {
+			t.Errorf("Expected task to be Picking after the first pick scan, got %q", taskStatus)
+		}
+
+		// 4. Completing pack now must fail: A is short 2 unresolved units and
+		// B hasn't been picked at all - the "unresolved pick shortfall"
+		// invariant, not the packed-vs-picked one.
+		if err := CompletePackTask(tenantID, taskID); err == nil || !strings.Contains(err.Error(), "unresolved pick shortfall") {
+			t.Errorf("Expected CompletePackTask to block on an unresolved pick shortfall, got: %v", err)
+		}
+
+		// 5. Short-pick A's remaining 2 in one action - requires a mandatory,
+		// category-matched reason code.
+		if err := ShortPickLine(tenantID, taskID, skuA, ""); err == nil {
+			t.Errorf("Expected ShortPickLine to reject a missing reason code")
+		}
+		if err := ShortPickLine(tenantID, taskID, skuA, "RC-PP-SHORT"); err != nil {
+			t.Fatalf("ShortPickLine failed: %v", err)
+		}
+		// A duplicate scan against A is now rejected - it's fully
+		// picked-or-short-picked (3 picked + 2 short == 5).
+		if _, _, err := ScanPickItem(tenantID, taskID, "BC-PP-A"); err == nil || !strings.Contains(err.Error(), "duplicate scan") {
+			t.Errorf("Expected a scan against a fully picked+short-picked line to be rejected as a duplicate, got: %v", err)
+		}
+
+		// 6. Pick all 3 of B (by SKU/code, no distinct barcode).
+		for i := 0; i < 3; i++ {
+			if _, _, err := ScanPickItem(tenantID, taskID, skuB); err != nil {
+				t.Fatalf("ScanPickItem B (%d) failed: %v", i, err)
+			}
+		}
+
+		// 7. Completing pack now must still fail: picking is fully resolved
+		// for both lines, but nothing has been packed yet.
+		if err := CompletePackTask(tenantID, taskID); err == nil || !strings.Contains(err.Error(), "picked_qty=3 but packed_qty=0") {
+			t.Errorf("Expected CompletePackTask to block on packed_qty=0 for B (picked_qty=3), got: %v", err)
+		}
+
+		// 8. Pack A's 3 picked units and B's 3 picked units. Packing ahead of
+		// picking is structurally impossible - a 4th pack scan for A must
+		// fail since packed_qty would equal picked_qty after the 3rd.
+		for i := 0; i < 3; i++ {
+			if _, _, err := ScanPackItem(tenantID, taskID, "BC-PP-A"); err != nil {
+				t.Fatalf("ScanPackItem A (%d) failed: %v", i, err)
+			}
+		}
+		if _, _, err := ScanPackItem(tenantID, taskID, "BC-PP-A"); err == nil {
+			t.Errorf("Expected a 4th pack scan for A (picked_qty=3) to be rejected - packed can never exceed picked")
+		}
+		for i := 0; i < 3; i++ {
+			if _, _, err := ScanPackItem(tenantID, taskID, skuB); err != nil {
+				t.Fatalf("ScanPackItem B (%d) failed: %v", i, err)
+			}
+		}
+
+		// 9. Now pack completion succeeds.
+		if err := CompletePackTask(tenantID, taskID); err != nil {
+			t.Fatalf("CompletePackTask failed once every line matched exactly: %v", err)
+		}
+		if err := db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id = $1", taskID).Scan(&taskStatus); err != nil {
+			t.Fatalf("Failed to read task status after completion: %v", err)
+		}
+		if taskStatus != "Packed" {
+			t.Errorf("Expected task to be Packed, got %q", taskStatus)
+		}
+
+		// 10. A Packed task can no longer be scanned into.
+		if _, _, err := ScanPickItem(tenantID, taskID, "BC-PP-A"); err == nil {
+			t.Errorf("Expected a scan against a Packed task to be rejected")
+		}
+	})
+
 	// 8. Test Scale Simulation Concurrency (Phase 5)
 	t.Run("ScaleSimulationConcurrency", func(t *testing.T) {
 		// Seed 100 stores for fast test scale execution (running 50 transactions with 5 parallel workers)
@@ -1260,6 +1406,484 @@ func TestEngines(t *testing.T) {
 		}
 		if _, err := CalculateGST(1000, -5, false); err == nil {
 			t.Errorf("expected an error for negative gst_rate, got none")
+		}
+	})
+
+	// Stage 26.12.5 (Returns/RTO/QC/Refund), 26.12.7 (exception/
+	// reconciliation reports), 26.12.8 (OMS report catalog), 26.12.10
+	// (notification dispatch log-only fallback paths).
+	t.Run("ReturnsRTOQCRefund", func(t *testing.T) {
+		sku := "SKU-RET-TEST-1"
+		location := "WHRET01"
+		cartID := "POS-RET-TEST-1"
+		rtoSKU := "SKU-RTO-TEST-1"
+		rtoLocation := "WHRTO01"
+		mismatchSKU := "SKU-MISMATCH-TEST-1"
+
+		var returnIDs, refundIDs []string
+		cleanup := func() {
+			for _, id := range returnIDs {
+				_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'ReturnRequest' AND id = $1", id)
+			}
+			for _, id := range refundIDs {
+				_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'RefundRequest' AND id = $1", id)
+			}
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'POSCart' AND id = $1", cartID)
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'ReasonCode' AND id = 'RC-TEST-RETURN'")
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".inventory_availability WHERE sku IN ($1, $2, $3)", sku, rtoSKU, mismatchSKU)
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrderLine' AND data->>'sku' = $1", rtoSKU)
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrder' AND id LIKE 'SO-%' AND data->>'channel_order_id' = 'CHORD-RTO-TEST-1'")
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'LogisticsBooking' AND data->>'destination_pincode' = '560099'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'Item' AND id = 'ITEM-" + rtoSKU + "'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'SalesOrder' AND id = 'SO-ALLOC-TEST-1'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'FulfillmentTask' AND id = 'TSK-SLA-TEST-1'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".integration_event_outbox WHERE event_name = 'oms.test.exception'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'NotificationTemplate' AND id = 'NT-TEST-1'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'NotificationLog' AND data->>'template_id' = 'NT-TEST-1'")
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'NotificationLog' AND data->>'order_id' = $1", cartID)
+		}
+		cleanup()
+		defer cleanup()
+
+		reasonData, _ := json.Marshal(map[string]interface{}{"code": "RC-RETURN", "description": "Customer changed mind", "category": "Return", "status": "Active"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'ReasonCode', $2, 'Active', 'system')", "RC-TEST-RETURN", reasonData); err != nil {
+			t.Fatalf("Failed to seed Return ReasonCode: %v", err)
+		}
+		// Original sale: 6 units sold at 250 (cost 150) - enough headroom to
+		// exercise the happy path, a rejection, an over-limit attempt, and
+		// both the Missing and Damaged disposition buckets against the same
+		// SKU without exhausting the returnable-quantity pool prematurely.
+		cartData, _ := json.Marshal(map[string]interface{}{
+			"items": []map[string]interface{}{{"sku": sku, "qty": 6, "sale_price": 250.0, "cost_price": 150.0}},
+		})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'POSCart', $2, 'Paid', 'system')", cartID, cartData); err != nil {
+			t.Fatalf("Failed to seed POSCart: %v", err)
+		}
+
+		// 1. Happy path: request -> approve -> receive -> QC (Sellable) ->
+		// refund created from the ORIGINAL sale price (this API never even
+		// accepts a return-time price) -> approve -> process.
+		sellableID, err := CreateReturnRequest(tenantID, "Customer Return", location, cartID, "", "tester", []ReturnItemInput{{SKU: sku, Qty: 3}})
+		if err != nil {
+			t.Fatalf("CreateReturnRequest (happy path) failed: %v", err)
+		}
+		returnIDs = append(returnIDs, sellableID)
+
+		var noTemplateStatus string
+		if err := db.DB.QueryRow("SELECT data->>'dispatch_status' FROM "+schema+".documents WHERE doctype = 'NotificationLog' AND data->>'order_id' = $1 AND data->>'event' = 'Return Requested' ORDER BY created_at DESC LIMIT 1", cartID).Scan(&noTemplateStatus); err != nil {
+			t.Errorf("Expected a NotificationLog row for Return Requested with no template configured: %v", err)
+		} else if noTemplateStatus != "Skipped-NoTemplate" {
+			t.Errorf("Expected dispatch_status Skipped-NoTemplate, got %q", noTemplateStatus)
+		}
+
+		if err := ApproveReturnRequest(tenantID, sellableID, "approver1"); err != nil {
+			t.Fatalf("ApproveReturnRequest failed: %v", err)
+		}
+		if err := ReceiveReturnRequest(tenantID, sellableID, "warehouse1"); err != nil {
+			t.Fatalf("ReceiveReturnRequest failed: %v", err)
+		}
+		refundTotal, refundRequestID, err := ApplyReturnQC(tenantID, sellableID, map[string]string{sku: "Sellable"}, "qc1")
+		if err != nil {
+			t.Fatalf("ApplyReturnQC (Sellable) failed: %v", err)
+		}
+		if refundTotal != 750 {
+			t.Errorf("Expected refund total 750 (3 * original sale price 250), got %v", refundTotal)
+		}
+		if refundRequestID == "" {
+			t.Fatalf("Expected a RefundRequest to be created for a refund-eligible QC result")
+		}
+		refundIDs = append(refundIDs, refundRequestID)
+
+		ats, err := GetAvailableToSell(tenantID, sku, location)
+		if err != nil {
+			t.Fatalf("Failed to read ATS after Sellable QC: %v", err)
+		}
+		if ats["available"].(int) != 3 || ats["on_hand"].(int) != 3 {
+			t.Errorf("Expected 3 available/on_hand after a Sellable QC receipt, got: %v", ats)
+		}
+
+		if err := ApproveRefundRequest(tenantID, refundRequestID, "approver1"); err != nil {
+			t.Fatalf("ApproveRefundRequest failed: %v", err)
+		}
+		if err := ProcessRefundRequest(tenantID, refundRequestID, "finance1", "Original Payment Method"); err != nil {
+			t.Fatalf("ProcessRefundRequest failed: %v", err)
+		}
+		var finalReturnStatus, finalRefundStatus string
+		_ = db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id = $1", sellableID).Scan(&finalReturnStatus)
+		_ = db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id = $1", refundRequestID).Scan(&finalRefundStatus)
+		if finalReturnStatus != "Closed" || finalRefundStatus != "Processed" {
+			t.Errorf("Expected ReturnRequest Closed / RefundRequest Processed, got %q / %q", finalReturnStatus, finalRefundStatus)
+		}
+
+		// 2. Reject path: mandatory category-matched reason code; a rejected
+		// request does not count against the returnable-quantity pool.
+		rejectID, err := CreateReturnRequest(tenantID, "Customer Return", location, cartID, "", "tester", []ReturnItemInput{{SKU: sku, Qty: 1}})
+		if err != nil {
+			t.Fatalf("CreateReturnRequest (to be rejected) failed: %v", err)
+		}
+		returnIDs = append(returnIDs, rejectID)
+		if err := RejectReturnRequest(tenantID, rejectID, "", "rejector1"); err == nil {
+			t.Errorf("Expected RejectReturnRequest to reject a missing reason code")
+		}
+		if err := RejectReturnRequest(tenantID, rejectID, "RC-TEST-RETURN", "rejector1"); err != nil {
+			t.Fatalf("RejectReturnRequest failed: %v", err)
+		}
+
+		// 3. Over-quantity (SALESR-0130): 6 sold, 3 already returned, 1
+		// rejected (excluded) -> 3 remain returnable; requesting 4 must fail.
+		if _, err := CreateReturnRequest(tenantID, "Customer Return", location, cartID, "", "tester", []ReturnItemInput{{SKU: sku, Qty: 4}}); err == nil {
+			t.Errorf("Expected SALESR-0130 over-quantity rejection (only 3 of 6 remain returnable)")
+		}
+
+		// 4. Missing disposition: no stock received, no refund, and the
+		// request closes immediately since nothing is refund-eligible.
+		// Checked as an "open" (not Closed/Rejected) request just before QC,
+		// for the Return Aging report below.
+		missingID, err := CreateReturnRequest(tenantID, "Customer Return", location, cartID, "", "tester", []ReturnItemInput{{SKU: sku, Qty: 1}})
+		if err != nil {
+			t.Fatalf("CreateReturnRequest (Missing) failed: %v", err)
+		}
+		returnIDs = append(returnIDs, missingID)
+		if err := ApproveReturnRequest(tenantID, missingID, "approver1"); err != nil {
+			t.Fatalf("ApproveReturnRequest (Missing) failed: %v", err)
+		}
+		if err := ReceiveReturnRequest(tenantID, missingID, "warehouse1"); err != nil {
+			t.Fatalf("ReceiveReturnRequest (Missing) failed: %v", err)
+		}
+
+		_, returnAgingRows, _, err := RunReport(tenantID, "return-aging", "HR/Admin", nil)
+		if err != nil {
+			t.Fatalf("RunReport return-aging failed: %v", err)
+		}
+		openCount := 0.0
+		for _, row := range returnAgingRows {
+			// RunReport round-trips every report through structsToRows'
+			// JSON marshal/unmarshal, so numeric fields decode as float64,
+			// never int - PayablesAgeingBucket's Count int becomes a JSON
+			// number then an untyped float64 on the way back out.
+			if c, ok := row["count"].(float64); ok {
+				openCount += c
+			}
+		}
+		if openCount < 1 {
+			t.Errorf("Expected Return Aging to count at least 1 open request (Received, pre-QC), got total %v across buckets: %v", openCount, returnAgingRows)
+		}
+
+		missingRefund, missingRefundID, err := ApplyReturnQC(tenantID, missingID, map[string]string{sku: "Missing"}, "qc1")
+		if err != nil {
+			t.Fatalf("ApplyReturnQC (Missing) failed: %v", err)
+		}
+		if missingRefund != 0 || missingRefundID != "" {
+			t.Errorf("Expected a Missing-disposition line to be refund-ineligible (0, no RefundRequest), got refund=%v id=%q", missingRefund, missingRefundID)
+		}
+		var closedAfterMissing string
+		_ = db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id = $1", missingID).Scan(&closedAfterMissing)
+		if closedAfterMissing != "Closed" {
+			t.Errorf("Expected a return request with nothing refund-eligible to close immediately, got %q", closedAfterMissing)
+		}
+
+		// 5. Damaged disposition: stock received into the 'damaged' bucket
+		// (not 'available'), still refund-eligible in full.
+		damagedID, err := CreateReturnRequest(tenantID, "Customer Return", location, cartID, "", "tester", []ReturnItemInput{{SKU: sku, Qty: 2}})
+		if err != nil {
+			t.Fatalf("CreateReturnRequest (Damaged) failed: %v", err)
+		}
+		returnIDs = append(returnIDs, damagedID)
+		if err := ApproveReturnRequest(tenantID, damagedID, "approver1"); err != nil {
+			t.Fatalf("ApproveReturnRequest (Damaged) failed: %v", err)
+		}
+		if err := ReceiveReturnRequest(tenantID, damagedID, "warehouse1"); err != nil {
+			t.Fatalf("ReceiveReturnRequest (Damaged) failed: %v", err)
+		}
+		damagedRefund, damagedRefundID, err := ApplyReturnQC(tenantID, damagedID, map[string]string{sku: "Damaged"}, "qc1")
+		if err != nil {
+			t.Fatalf("ApplyReturnQC (Damaged) failed: %v", err)
+		}
+		if damagedRefund != 500 {
+			t.Errorf("Expected refund total 500 (2 * original sale price 250) for a Damaged-but-refund-eligible line, got %v", damagedRefund)
+		}
+		refundIDs = append(refundIDs, damagedRefundID)
+		atsAfterDamaged, err := GetAvailableToSell(tenantID, sku, location)
+		if err != nil {
+			t.Fatalf("Failed to read ATS after Damaged QC: %v", err)
+		}
+		if atsAfterDamaged["damaged"].(int) != 2 || atsAfterDamaged["available"].(int) != 3 || atsAfterDamaged["on_hand"].(int) != 5 {
+			t.Errorf("Expected damaged=2, available unchanged at 3, on_hand=5 (3 Sellable + 2 Damaged, Missing contributed 0), got: %v", atsAfterDamaged)
+		}
+
+		// 6. Stock Mismatch report: a SKU/location where reserved exceeds
+		// available (negative ATS) must be flagged.
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available, reserved) VALUES ($1, $2, 5, 5, 8)", mismatchSKU, location); err != nil {
+			t.Fatalf("Failed to seed stock-mismatch fixture: %v", err)
+		}
+		_, mismatchRows, _, err := RunReport(tenantID, "stock-mismatch", "HR/Admin", nil)
+		if err != nil {
+			t.Fatalf("RunReport stock-mismatch failed: %v", err)
+		}
+		foundMismatch := false
+		for _, row := range mismatchRows {
+			if row["sku"] == mismatchSKU {
+				foundMismatch = true
+				if ats, ok := row["ats"].(int); !ok || ats >= 0 {
+					t.Errorf("Expected a negative ats for the mismatch fixture, got: %v", row["ats"])
+				}
+			}
+		}
+		if !foundMismatch {
+			t.Errorf("Expected stock-mismatch report to flag SKU %s", mismatchSKU)
+		}
+
+		// 7. RTO path: a real SalesOrder + LogisticsBooking, RecordRTO'd
+		// (Stage 26.12.4), feeds a request_type='RTO' ReturnRequest priced
+		// from the SalesOrderLine's own unit_price.
+		itemData, _ := json.Marshal(map[string]interface{}{"code": rtoSKU, "name": "RTO Test Item", "barcode": rtoSKU})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')", "ITEM-"+rtoSKU, itemData); err != nil {
+			t.Fatalf("Failed to seed RTO test Item: %v", err)
+		}
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 50, 50)", rtoSKU, rtoLocation); err != nil {
+			t.Fatalf("Failed to seed RTO test inventory: %v", err)
+		}
+		rtoOrderID, err := CreateSalesOrder(tenantID, "TestChannel", "CHORD-RTO-TEST-1", "RTO Customer", "RTO ADDR 99 MG Road 560099", "Confirmed", []SalesOrderLineInput{{SKU: rtoSKU, Qty: 2, UnitPrice: 300}})
+		if err != nil {
+			t.Fatalf("CreateSalesOrder (RTO fixture) failed: %v", err)
+		}
+		defer func() {
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrderLine' AND data->>'order_id' = $1", rtoOrderID)
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrder' AND id = $1", rtoOrderID)
+		}()
+
+		bookingID, err := CreateLogisticsBooking(tenantID, rtoOrderID, "", "TestCourier", "", "560099", 40)
+		if err != nil {
+			t.Fatalf("CreateLogisticsBooking (RTO fixture) failed: %v", err)
+		}
+		defer func() {
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'LogisticsBooking' AND id = $1", bookingID)
+		}()
+
+		if _, err := CreateReturnRequest(tenantID, "RTO", rtoLocation, "", bookingID, "system", []ReturnItemInput{{SKU: rtoSKU, Qty: 2}}); err == nil {
+			t.Errorf("Expected an RTO return request to be rejected before the booking is actually marked RTO")
+		}
+		if err := RecordRTO(tenantID, bookingID, "Customer refused delivery", "system"); err != nil {
+			t.Fatalf("RecordRTO failed: %v", err)
+		}
+
+		rtoReturnID, err := CreateReturnRequest(tenantID, "RTO", rtoLocation, "", bookingID, "system", []ReturnItemInput{{SKU: rtoSKU, Qty: 2}})
+		if err != nil {
+			t.Fatalf("CreateReturnRequest (RTO) failed: %v", err)
+		}
+		returnIDs = append(returnIDs, rtoReturnID)
+
+		replayID, err := CreateReturnRequest(tenantID, "RTO", rtoLocation, "", bookingID, "system", []ReturnItemInput{{SKU: rtoSKU, Qty: 2}})
+		if err != nil {
+			t.Fatalf("CreateReturnRequest (RTO replay) failed: %v", err)
+		}
+		if replayID != rtoReturnID {
+			t.Errorf("Expected an RTO return request replay for the same booking to be idempotent, got a new id %q vs original %q", replayID, rtoReturnID)
+		}
+
+		var rtoOriginalOrderID string
+		var rtoOriginalPrice float64
+		if err := db.DB.QueryRow(
+			"SELECT data->>'original_order_id', (data->'items'->0->>'original_unit_price')::numeric FROM "+schema+".documents WHERE id = $1",
+			rtoReturnID).Scan(&rtoOriginalOrderID, &rtoOriginalPrice); err != nil {
+			t.Fatalf("Failed to read back RTO return request: %v", err)
+		}
+		if rtoOriginalOrderID != rtoOrderID {
+			t.Errorf("Expected the RTO return request's original_order_id to auto-resolve from the booking to %q, got %q", rtoOrderID, rtoOriginalOrderID)
+		}
+		if rtoOriginalPrice != 300 {
+			t.Errorf("Expected the RTO return line's original_unit_price to resolve from SalesOrderLine.unit_price (300), got %v", rtoOriginalPrice)
+		}
+
+		if err := ApproveReturnRequest(tenantID, rtoReturnID, "approver1"); err != nil {
+			t.Fatalf("ApproveReturnRequest (RTO) failed: %v", err)
+		}
+		if err := ReceiveReturnRequest(tenantID, rtoReturnID, "warehouse1"); err != nil {
+			t.Fatalf("ReceiveReturnRequest (RTO) failed: %v", err)
+		}
+		rtoRefund, rtoRefundID, err := ApplyReturnQC(tenantID, rtoReturnID, map[string]string{rtoSKU: "Sellable"}, "qc1")
+		if err != nil {
+			t.Fatalf("ApplyReturnQC (RTO) failed: %v", err)
+		}
+		if rtoRefund != 600 {
+			t.Errorf("Expected RTO refund total 600 (2 * SalesOrderLine unit_price 300), got %v", rtoRefund)
+		}
+		refundIDs = append(refundIDs, rtoRefundID)
+		if err := ApproveRefundRequest(tenantID, rtoRefundID, "approver1"); err != nil {
+			t.Fatalf("ApproveRefundRequest (RTO) failed: %v", err)
+		}
+		if err := ProcessRefundRequest(tenantID, rtoRefundID, "finance1", "Original Payment Method"); err != nil {
+			t.Fatalf("ProcessRefundRequest (RTO) failed: %v", err)
+		}
+
+		// 8. Allocation Pending report - directly seeded, since driving a
+		// real Manual AllocationRule end-to-end is exercised by the
+		// AllocationSourcing subtest already; this just proves the report
+		// query itself.
+		allocData, _ := json.Marshal(map[string]interface{}{
+			"code": "SO-ALLOC-TEST-1", "customer_name": "Alloc Test Customer", "channel": "TestChannel",
+			"order_status": "On Hold", "hold_reason": HoldAllocationFailed, "total_amount": 999.0,
+		})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'SalesOrder', $2, 'On Hold', 'system')", "SO-ALLOC-TEST-1", allocData); err != nil {
+			t.Fatalf("Failed to seed Allocation Pending fixture: %v", err)
+		}
+		_, allocRows, _, err := RunReport(tenantID, "allocation-pending", "HR/Admin", nil)
+		if err != nil {
+			t.Fatalf("RunReport allocation-pending failed: %v", err)
+		}
+		foundAlloc := false
+		for _, row := range allocRows {
+			if row["order_id"] == "SO-ALLOC-TEST-1" {
+				foundAlloc = true
+			}
+		}
+		if !foundAlloc {
+			t.Errorf("Expected allocation-pending report to include the seeded On-Hold/ALLOCATION_FAILED order")
+		}
+
+		// 9. Order Aging - the RTO SalesOrder is still Reserved (open,
+		// counts) regardless of the reconciliation-variance edit below.
+		_, orderAgingRows, _, err := RunReport(tenantID, "order-aging", "HR/Admin", nil)
+		if err != nil {
+			t.Fatalf("RunReport order-aging failed: %v", err)
+		}
+		orderAgingTotal := 0.0
+		for _, row := range orderAgingRows {
+			if c, ok := row["count"].(float64); ok {
+				orderAgingTotal += c
+			}
+		}
+		if orderAgingTotal < 1 {
+			t.Errorf("Expected Order Aging to count at least 1 open order, got total %v: %v", orderAgingTotal, orderAgingRows)
+		}
+
+		// 10. Reconciliation Variance: force the RTO order to 'Shipped' -
+		// its only booking is RTO, not Handed Over/Delivered, so this must
+		// surface as a variance.
+		if _, err := db.DB.Exec("UPDATE "+schema+".documents SET status = 'Shipped', data = jsonb_set(data, '{order_status}', '\"Shipped\"') WHERE id = $1", rtoOrderID); err != nil {
+			t.Fatalf("Failed to force RTO order to Shipped: %v", err)
+		}
+		_, varianceRows, _, err := RunReport(tenantID, "oms-reconciliation-variance", "HR/Admin", nil)
+		if err != nil {
+			t.Fatalf("RunReport oms-reconciliation-variance failed: %v", err)
+		}
+		foundVariance := false
+		for _, row := range varianceRows {
+			if row["order_id"] == rtoOrderID {
+				foundVariance = true
+			}
+		}
+		if !foundVariance {
+			t.Errorf("Expected oms-reconciliation-variance to flag order %s (Shipped with only an RTO booking)", rtoOrderID)
+		}
+
+		// 11. Reserved Stock report - the RTO order's reservation was never
+		// released (no fulfillment/dispatch step ran against it in this
+		// test), so it should still show up.
+		_, reservedRows, _, err := RunReport(tenantID, "reserved-stock", "HR/Admin", nil)
+		if err != nil {
+			t.Fatalf("RunReport reserved-stock failed: %v", err)
+		}
+		foundReserved := false
+		for _, row := range reservedRows {
+			if row["sku"] == rtoSKU && row["location_code"] == rtoLocation {
+				foundReserved = true
+			}
+		}
+		if !foundReserved {
+			t.Errorf("Expected reserved-stock report to include %s at %s", rtoSKU, rtoLocation)
+		}
+
+		// 12. Courier Performance report.
+		_, courierRows, _, err := RunReport(tenantID, "courier-performance", "HR/Admin", nil)
+		if err != nil {
+			t.Fatalf("RunReport courier-performance failed: %v", err)
+		}
+		foundCourier := false
+		for _, row := range courierRows {
+			if row["carrier"] == "TestCourier" {
+				foundCourier = true
+				if row["rto"].(int) < 1 {
+					t.Errorf("Expected TestCourier's rto count to be at least 1, got: %v", row["rto"])
+				}
+			}
+		}
+		if !foundCourier {
+			t.Errorf("Expected courier-performance report to include carrier TestCourier")
+		}
+
+		// 13. SLA Breach report - a backdated Pending FulfillmentTask.
+		slaTaskID, err := CreateFulfillmentTasks(tenantID, "ORD-SLA-TEST", rtoLocation, []interface{}{
+			map[string]interface{}{"sku": rtoSKU, "qty": 1},
+		})
+		if err != nil {
+			t.Fatalf("CreateFulfillmentTasks (SLA fixture) failed: %v", err)
+		}
+		defer func() {
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'FulfillmentTask' AND id = $1", slaTaskID)
+		}()
+		// Backdated by 25 hours, not just past the 60-minute threshold - this
+		// dev DB's Postgres session clock reads several hours off from Go's
+		// time.Now() (a pre-existing environment quirk in how naive
+		// `timestamp without time zone` columns round-trip through lib/pq,
+		// not something this change introduces), so a small backdate can
+		// get swallowed by that skew; 25 hours safely dominates it.
+		if _, err := db.DB.Exec("UPDATE "+schema+".documents SET created_at = CURRENT_TIMESTAMP - INTERVAL '25 hours' WHERE id = $1", slaTaskID); err != nil {
+			t.Fatalf("Failed to backdate SLA fixture task: %v", err)
+		}
+		_, slaRows, _, err := RunReport(tenantID, "sla-breach", "HR/Admin", map[string]string{"threshold_minutes": "60"})
+		if err != nil {
+			t.Fatalf("RunReport sla-breach failed: %v", err)
+		}
+		foundSLA := false
+		for _, row := range slaRows {
+			if row["task_id"] == slaTaskID {
+				foundSLA = true
+			}
+		}
+		if !foundSLA {
+			t.Errorf("Expected sla-breach report to flag the backdated task %s; got rows: %#v", slaTaskID, slaRows)
+		}
+
+		// 14. OMS Exception Queue report - a Failed outbox event.
+		var exceptionEventID string
+		payload, _ := json.Marshal(map[string]interface{}{"test": true})
+		if err := db.DB.QueryRow(
+			"INSERT INTO "+schema+".integration_event_outbox (event_name, payload, status, attempts) VALUES ($1, $2, 'Failed', 5) RETURNING id",
+			"oms.test.exception", payload).Scan(&exceptionEventID); err != nil {
+			t.Fatalf("Failed to seed exception-queue fixture: %v", err)
+		}
+		_, exceptionRows, _, err := RunReport(tenantID, "oms-exception-queue", "HR/Admin", nil)
+		if err != nil {
+			t.Fatalf("RunReport oms-exception-queue failed: %v", err)
+		}
+		foundException := false
+		for _, row := range exceptionRows {
+			if row["event_id"] == exceptionEventID {
+				foundException = true
+			}
+		}
+		if !foundException {
+			t.Errorf("Expected oms-exception-queue report to include the seeded Failed event %s", exceptionEventID)
+		}
+
+		// 15. Notification dispatch: Skipped-NoConfig path (an Active
+		// template exists for the event, but no NotificationChannelConfig
+		// is configured for its channel).
+		tmplData, _ := json.Marshal(map[string]interface{}{
+			"code": "NT-TEST-1", "event": "Order Cancelled", "channel": "Email",
+			"subject": "", "body_template": "Order {{order_id}} was cancelled", "status": "Active",
+		})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'NotificationTemplate', $2, 'Active', 'system')", "NT-TEST-1", tmplData); err != nil {
+			t.Fatalf("Failed to seed NotificationTemplate: %v", err)
+		}
+		DispatchNotification(tenantID, "Order Cancelled", "SO-NOTIFY-TEST-1", nil)
+		var noConfigStatus string
+		if err := db.DB.QueryRow("SELECT data->>'dispatch_status' FROM "+schema+".documents WHERE doctype = 'NotificationLog' AND data->>'template_id' = 'NT-TEST-1' ORDER BY created_at DESC LIMIT 1").Scan(&noConfigStatus); err != nil {
+			t.Fatalf("Expected a NotificationLog row for the Skipped-NoConfig path: %v", err)
+		}
+		if noConfigStatus != "Skipped-NoConfig" {
+			t.Errorf("Expected dispatch_status Skipped-NoConfig (template exists, channel unconfigured), got %q", noConfigStatus)
 		}
 	})
 }

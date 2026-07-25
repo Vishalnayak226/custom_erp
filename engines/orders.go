@@ -248,6 +248,13 @@ func CreateSalesOrder(tenantID, channel, channelOrderID, customerName, shippingA
 		}
 	}
 
+	// Stage 26.12.10: fire the order-placed notification either way, plus a
+	// distinct on-hold one when validation/allocation didn't clear.
+	DispatchNotification(tenantID, "Order Placed", orderID, map[string]string{"order_status": orderStatus})
+	if holdReason != "" {
+		DispatchNotification(tenantID, "Order On Hold", orderID, map[string]string{"hold_reason": holdReason})
+	}
+
 	return orderID, nil
 }
 
@@ -565,6 +572,9 @@ func CancelOrder(tenantID, orderID, reasonCode string) error {
 	_, err = db.DB.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = $1, status = 'Cancelled', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'SalesOrder' AND id = $2`, schema),
 		marshaled, orderID)
+	if err == nil {
+		DispatchNotification(tenantID, "Order Cancelled", orderID, map[string]string{"reason_code": reasonCode})
+	}
 	return err
 }
 
