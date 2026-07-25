@@ -844,6 +844,14 @@ const MENU_PERMISSION_MAP = {
   'menu-putaway': { open: true },
   'menu-bin-conditions': { open: true },
   'menu-cycle-count': { open: true },
+  // Stage 26.5: same role-open convention as the rest of the WMS floor-ops
+  // screens above (handlers_wms_enterprise.go has no role_permissions check
+  // either) - menu-asn is the exception, gated by the ASN doctype itself
+  // since it goes through the generic /api/v1/doc/ASN endpoint.
+  'menu-asn': { doctypes: ['ASN'] },
+  'menu-lpn': { open: true },
+  'menu-bin-replenishment': { open: true },
+  'menu-wave-picking': { open: true },
   'menu-stores': { doctypes: ['Stores'] },
   'menu-stickers': { open: true },
 
@@ -891,12 +899,16 @@ const MENU_MODULE_MAP = {
   'menu-putaway': 'wms',
   'menu-bin-conditions': 'wms',
   'menu-cycle-count': 'wms',
+  'menu-lpn': 'wms',
+  'menu-bin-replenishment': 'wms',
+  'menu-wave-picking': 'wms',
   'menu-fulfillment': 'wms',
   'menu-marketplace': 'oms',
 
   'menu-purchase-requisitions': 'procurement',
   'menu-purchase-orders': 'procurement',
   'menu-grn': 'procurement',
+  'menu-asn': 'procurement',
   'menu-vendors': 'procurement',
   'menu-rfq': 'rfq',
 
@@ -1318,7 +1330,7 @@ function setupEventListeners() {
   // Offline Sync Review (Stage 20.13) - same generic doctype-table pattern as POS Profile/Bin above.
   document.getElementById('menu-pos-offline-sync').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-sync'); closeSubmenus(); currentDoctype = 'POSOfflineSyncVariance'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-bin-conditions', 'menu-cycle-count', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
+  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -1541,6 +1553,10 @@ const STATIC_VIEW_MENU_IDS = {
   putaway: 'menu-putaway',
   'bin-conditions': 'menu-bin-conditions',
   'cycle-count': 'menu-cycle-count',
+  asn: 'menu-asn',
+  lpn: 'menu-lpn',
+  'bin-replenishment': 'menu-bin-replenishment',
+  'wave-picking': 'menu-wave-picking',
   users: 'menu-users',
   roles: 'menu-roles',
   'prefix-configs': 'menu-prefix-configs',
@@ -1648,6 +1664,14 @@ async function renderView(view) {
     await renderBinConditionsView(root);
   } else if (view === 'cycle-count') {
     await renderCycleCountView(root);
+  } else if (view === 'asn') {
+    await renderASNView(root);
+  } else if (view === 'lpn') {
+    await renderLPNView(root);
+  } else if (view === 'bin-replenishment') {
+    await renderBinReplenishmentView(root);
+  } else if (view === 'wave-picking') {
+    await renderWavePickingView(root);
   } else if (view === 'marketplace') {
     await renderMarketplaceView(root);
   } else if (view === 'approvals') {
@@ -3874,6 +3898,82 @@ async function renderPutawayView(container) {
   document.getElementById('putaway-submit-btn').addEventListener('click', submitPutaway);
   attachTypeahead(document.getElementById('putaway-bin'), 'Bin');
   attachTypeahead(document.getElementById('putaway-sku'), 'Item');
+
+  // Stage 26.5.3: cross-dock/flow-through putaway - an alternative to
+  // shelving when a transfer/sale is already waiting on this exact SKU at
+  // this location, skipping bin placement in favor of a staging bin.
+  const xdockPanel = document.createElement('div');
+  xdockPanel.className = 'table-panel';
+  xdockPanel.style.padding = '24px';
+  xdockPanel.style.marginTop = '24px';
+  xdockPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Cross-Dock Staging</h2>
+    <p style="color: var(--text-muted); margin-bottom: 12px;">Check whether an open transfer/sale is already waiting on a SKU before shelving it - if so, stage it for immediate outbound instead.</p>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="xdock-sku">SKU</label>
+        <input type="text" id="xdock-sku" class="form-input" style="width: 160px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="xdock-location">Location</label>
+        <input type="text" id="xdock-location" class="form-input" style="width: 140px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="xdock-qty">Qty on hand to place</label>
+        <input type="number" id="xdock-qty" class="form-input" style="width: 90px;" min="1" value="1">
+      </div>
+      <button class="btn btn-outline" id="xdock-check-btn" type="button">Check Opportunity</button>
+      <button class="btn btn-primary" id="xdock-stage-btn" type="button">Stage for Cross-Dock</button>
+    </div>
+    <div id="xdock-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
+    <div id="xdock-form-error" class="login-error hidden" style="margin-top: 12px;"></div>
+  `;
+  container.appendChild(xdockPanel);
+  document.getElementById('xdock-check-btn').addEventListener('click', checkCrossDockOpportunity);
+  document.getElementById('xdock-stage-btn').addEventListener('click', submitCrossDockPutaway);
+  attachTypeahead(document.getElementById('xdock-sku'), 'Item');
+  attachTypeahead(document.getElementById('xdock-location'), 'Location');
+}
+
+async function checkCrossDockOpportunity() {
+  const resultEl = document.getElementById('xdock-result');
+  const sku = document.getElementById('xdock-sku').value.trim();
+  const location = document.getElementById('xdock-location').value.trim();
+  if (!sku || !location) { resultEl.textContent = 'Enter a SKU and Location first.'; return; }
+  const res = await apiFetch('/api/v1/wms/cross-dock/check', {
+    method: 'POST',
+    body: JSON.stringify({ sku, location_code: location })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to check cross-dock opportunity.', 'Check Failed'); return; }
+  const data = await res.json();
+  if (data.matched_qty > 0) {
+    resultEl.innerHTML = `<span class="badge badge-success">Matched ${data.matched_qty} unit(s)</span> across ${data.opportunities.length} open order(s) - eligible for cross-dock.`;
+  } else {
+    resultEl.textContent = 'No open transfer/sale is waiting on this SKU here - use ordinary Putaway above instead.';
+  }
+}
+
+async function submitCrossDockPutaway() {
+  const errorEl = document.getElementById('xdock-form-error');
+  errorEl.classList.add('hidden');
+  const resultEl = document.getElementById('xdock-result');
+  const sku = document.getElementById('xdock-sku').value.trim();
+  const location = document.getElementById('xdock-location').value.trim();
+  const qty = parseInt(document.getElementById('xdock-qty').value, 10);
+  if (!sku || !location || !qty || qty <= 0) {
+    errorEl.textContent = 'SKU, Location, and a Qty greater than zero are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const res = await apiFetch('/api/v1/wms/cross-dock/putaway', {
+    method: 'POST',
+    body: JSON.stringify({ sku, location_code: location, qty })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to stage for cross-dock.', 'Cross-Dock Failed'); return; }
+  const data = await res.json();
+  resultEl.innerHTML = `<span class="badge badge-success">Staged ${data.staged} unit(s)</span> for cross-dock.`;
 }
 
 async function submitPutaway() {
@@ -3988,6 +4088,288 @@ async function submitBinConditionTransition() {
   document.getElementById('bincond-qty').value = 1;
 }
 
+// Stage 26.5.4: LPN/carton/pallet grouping on top of bin_stock - assign a
+// bin's sku/condition qty into a container, and look up what's inside one.
+async function renderLPNView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">LPN / Carton / Pallet Grouping</h1>
+      <p class="page-subtitle">Group bin stock into a carton or pallet container for tracking - a further breakdown of bin stock, never a second source of truth for a bin's total.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const assignPanel = document.createElement('div');
+  assignPanel.className = 'table-panel';
+  assignPanel.style.padding = '24px';
+  assignPanel.style.marginBottom = '24px';
+  assignPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">Assign Bin Stock to an LPN</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="lpn-code">LPN Code</label>
+        <input type="text" id="lpn-code" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="lpn-bin">Bin Code</label>
+        <input type="text" id="lpn-bin" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="lpn-sku">SKU</label>
+        <input type="text" id="lpn-sku" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="lpn-condition">Condition</label>
+        <select id="lpn-condition" class="form-input" style="width: 120px;">${BIN_STOCK_CONDITIONS.map(c => `<option value="${c}">${c}</option>`).join('')}</select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="lpn-qty">Qty</label>
+        <input type="number" id="lpn-qty" class="form-input" style="width: 90px;" min="1" value="1">
+      </div>
+      <button class="btn btn-primary" id="lpn-assign-btn" type="button">Assign</button>
+    </div>
+    <div id="lpn-assign-error" class="login-error hidden" style="margin-top: 12px;"></div>
+  `;
+  container.appendChild(assignPanel);
+
+  const lookupPanel = document.createElement('div');
+  lookupPanel.className = 'table-panel';
+  lookupPanel.style.padding = '24px';
+  lookupPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">Look Up an LPN's Contents</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="lpn-lookup-code">LPN Code</label>
+        <input type="text" id="lpn-lookup-code" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <button class="btn btn-outline" id="lpn-lookup-btn" type="button">Look Up</button>
+    </div>
+    <div id="lpn-contents-result" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(lookupPanel);
+
+  document.getElementById('lpn-assign-btn').addEventListener('click', submitLPNAssign);
+  document.getElementById('lpn-lookup-btn').addEventListener('click', lookupLPNContents);
+  attachTypeahead(document.getElementById('lpn-bin'), 'Bin');
+  attachTypeahead(document.getElementById('lpn-sku'), 'Item');
+}
+
+async function submitLPNAssign() {
+  const errorEl = document.getElementById('lpn-assign-error');
+  errorEl.classList.add('hidden');
+  const lpnCode = document.getElementById('lpn-code').value.trim();
+  const binCode = document.getElementById('lpn-bin').value.trim();
+  const sku = document.getElementById('lpn-sku').value.trim();
+  const condition = document.getElementById('lpn-condition').value;
+  const qty = parseInt(document.getElementById('lpn-qty').value, 10);
+  if (!lpnCode || !binCode || !sku || !qty || qty <= 0) {
+    errorEl.textContent = 'LPN Code, Bin Code, SKU, and a Qty greater than zero are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const res = await apiFetch('/api/v1/wms/lpn/assign', {
+    method: 'POST',
+    body: JSON.stringify({ lpn_code: lpnCode, bin_code: binCode, sku, condition, qty })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to assign to LPN.', 'LPN Assign Failed'); return; }
+  await showCustomAlert(`Assigned ${qty} x ${sku} (${condition}) from bin ${binCode} to LPN ${lpnCode}.`, 'LPN Assign Complete');
+}
+
+async function lookupLPNContents() {
+  const resultEl = document.getElementById('lpn-contents-result');
+  const lpnCode = document.getElementById('lpn-lookup-code').value.trim();
+  if (!lpnCode) return;
+  const res = await apiFetch(`/api/v1/wms/lpn/contents?lpn_code=${encodeURIComponent(lpnCode)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to look up LPN contents.', 'Lookup Failed'); return; }
+  const lines = await res.json();
+  if (lines.length === 0) {
+    resultEl.innerHTML = `<p style="color: var(--text-muted);">No contents found for LPN ${lpnCode}.</p>`;
+    return;
+  }
+  resultEl.innerHTML = `
+    <table>
+      <thead><tr><th>Bin</th><th>SKU</th><th>Condition</th><th>Qty</th></tr></thead>
+      <tbody>
+        ${lines.map(l => `<tr><td>${l.bin_code}</td><td>${l.sku}</td><td>${l.condition}</td><td>${l.qty}</td></tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// Stage 26.5.5: bin-to-bin replenishment min/max triggers - suggestions
+// (shortage = max_qty - current_qty, filled from reserve bins highest-qty-
+// first) plus the action that actually executes one.
+async function renderBinReplenishmentView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Bin Replenishment</h1>
+      <p class="page-subtitle">Pick-face bins below their min qty, with a suggested reserve bin to draw from - configure rules via the BinReplenishmentRule master.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="replen-location">Location</label>
+        <input type="text" id="replen-location" class="form-input" style="width: 160px;" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="replen-fetch-btn" type="button">Get Suggestions</button>
+    </div>
+    <div id="replen-result"></div>
+  `;
+  container.appendChild(panel);
+  document.getElementById('replen-fetch-btn').addEventListener('click', fetchBinReplenishmentSuggestions);
+  attachTypeahead(document.getElementById('replen-location'), 'Location');
+}
+
+async function fetchBinReplenishmentSuggestions() {
+  const resultEl = document.getElementById('replen-result');
+  const location = document.getElementById('replen-location').value.trim();
+  if (!location) return;
+  const res = await apiFetch(`/api/v1/wms/bin-replenishment/suggestions?location_code=${encodeURIComponent(location)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to fetch replenishment suggestions.', 'Fetch Failed'); return; }
+  const suggestions = await res.json();
+  if (suggestions.length === 0) {
+    resultEl.innerHTML = `<p style="color: var(--text-muted);">No bins are below their min qty at ${location}.</p>`;
+    return;
+  }
+  resultEl.innerHTML = `
+    <table>
+      <thead><tr><th>Bin</th><th>SKU</th><th>Current</th><th>Min</th><th>Max</th><th>Shortage</th><th>From Bin</th><th>Move Qty</th><th></th></tr></thead>
+      <tbody>
+        ${suggestions.map((s, idx) => `
+          <tr>
+            <td>${s.bin_code}</td><td>${s.sku}</td><td>${s.current_qty}</td><td>${s.min_qty}</td><td>${s.max_qty}</td>
+            <td><span class="badge badge-warning">${s.shortage}</span></td>
+            <td>${s.from_bin_code || '&mdash;'}</td>
+            <td>${s.move_qty || 0}</td>
+            <td>${s.from_bin_code ? `<button class="action-btn" onclick="executeBinReplenishmentRow(${idx})">Replenish</button>` : ''}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  window._replenSuggestions = suggestions;
+}
+
+window.executeBinReplenishmentRow = async function(idx) {
+  const s = (window._replenSuggestions || [])[idx];
+  if (!s || !s.from_bin_code) return;
+  const res = await apiFetch('/api/v1/wms/bin-replenishment/execute', {
+    method: 'POST',
+    body: JSON.stringify({ from_bin_code: s.from_bin_code, to_bin_code: s.bin_code, sku: s.sku, qty: s.move_qty })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to execute replenishment.', 'Replenishment Failed'); return; }
+  await showCustomAlert(`Moved ${s.move_qty} x ${s.sku} from ${s.from_bin_code} to ${s.bin_code}.`, 'Replenishment Complete');
+  fetchBinReplenishmentSuggestions();
+};
+
+// Stage 26.5.6: wave/batch pick-list grouping - tag a batch of open
+// FulfillmentTasks into a wave, then generate one consolidated,
+// zone-then-bin-sorted pick list covering every order in it.
+async function renderWavePickingView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Wave / Batch Picking</h1>
+      <p class="page-subtitle">Tag several open fulfillment tasks into a wave, then generate one consolidated pick list instead of walking the warehouse once per order.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const assignPanel = document.createElement('div');
+  assignPanel.className = 'table-panel';
+  assignPanel.style.padding = '24px';
+  assignPanel.style.marginBottom = '24px';
+  assignPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">1. Tag tasks into a wave</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="wave-id">Wave ID</label>
+        <input type="text" id="wave-id" class="form-input" style="width: 160px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 260px;">
+        <label class="form-label" for="wave-task-ids">Task IDs (comma-separated)</label>
+        <input type="text" id="wave-task-ids" class="form-input" style="width: 100%;" placeholder="FT-1001, FT-1002, FT-1003">
+      </div>
+      <button class="btn btn-outline" id="wave-assign-btn" type="button">Tag Tasks</button>
+    </div>
+    <div id="wave-assign-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
+  `;
+  container.appendChild(assignPanel);
+
+  const genPanel = document.createElement('div');
+  genPanel.className = 'table-panel';
+  genPanel.style.padding = '24px';
+  genPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">2. Generate the wave pick list</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="wave-gen-id">Wave ID</label>
+        <input type="text" id="wave-gen-id" class="form-input" style="width: 160px;" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="wave-gen-btn" type="button">Generate Pick List</button>
+    </div>
+    <div id="wave-pick-result" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(genPanel);
+
+  document.getElementById('wave-assign-btn').addEventListener('click', submitWaveAssign);
+  document.getElementById('wave-gen-btn').addEventListener('click', submitWavePickList);
+}
+
+async function submitWaveAssign() {
+  const resultEl = document.getElementById('wave-assign-result');
+  const waveId = document.getElementById('wave-id').value.trim();
+  const taskIds = document.getElementById('wave-task-ids').value.split(',').map(s => s.trim()).filter(Boolean);
+  if (!waveId || taskIds.length === 0) { resultEl.textContent = 'Wave ID and at least one Task ID are required.'; return; }
+  const res = await apiFetch('/api/v1/wms/wave/assign', {
+    method: 'POST',
+    body: JSON.stringify({ wave_id: waveId, task_ids: taskIds })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to tag tasks into wave.', 'Wave Assign Failed'); return; }
+  const data = await res.json();
+  resultEl.innerHTML = `<span class="badge badge-success">Tagged ${data.tagged} of ${taskIds.length} task(s)</span> into wave ${waveId}.`;
+  document.getElementById('wave-gen-id').value = waveId;
+}
+
+async function submitWavePickList() {
+  const resultEl = document.getElementById('wave-pick-result');
+  const waveId = document.getElementById('wave-gen-id').value.trim();
+  if (!waveId) return;
+  const res = await apiFetch(`/api/v1/wms/wave/pick-list?wave_id=${encodeURIComponent(waveId)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to generate wave pick list.', 'Wave Pick List Failed'); return; }
+  const data = await res.json();
+  let html = `<h3 style="font-size: 14px; font-weight: 700; margin: 16px 0 8px;">Consolidated Pick List (zone/aisle/rack walking order)</h3>`;
+  html += `<table><thead><tr><th>Zone</th><th>Aisle</th><th>Rack</th><th>Bin</th><th>SKU</th><th>Pick Qty</th></tr></thead><tbody>`;
+  html += data.pick_lines.length === 0
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No pick lines.</td></tr>`
+    : data.pick_lines.map(l => `<tr><td>${l.zone || ''}</td><td>${l.aisle || ''}</td><td>${l.rack || ''}</td><td>${l.bin_code}</td><td>${l.sku}</td><td>${l.pick_qty}</td></tr>`).join('');
+  html += `</tbody></table>`;
+  html += `<h3 style="font-size: 14px; font-weight: 700; margin: 20px 0 8px;">Per-Order Allocation</h3>`;
+  html += `<table><thead><tr><th>Task ID</th><th>SKU</th><th>Allocated Qty</th><th>Shortfall</th></tr></thead><tbody>`;
+  html += data.allocations.length === 0
+    ? `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No allocations.</td></tr>`
+    : data.allocations.map(a => `<tr><td>${a.task_id}</td><td>${a.sku}</td><td>${a.allocated_qty}</td><td>${a.shortfall ? `<span class="badge badge-warning">${a.shortfall}</span>` : '0'}</td></tr>`).join('');
+  html += `</tbody></table>`;
+  resultEl.innerHTML = html;
+}
+
 // Cycle Count session lines are created the same way every other line-item
 // bulk load happens in this repo (Stage 20.21: reuses BulkImportCSV rather
 // than a bespoke entry form) - but CycleCountLine is a Transaction doctype,
@@ -4036,6 +4418,80 @@ async function renderCycleCountView(container) {
   `;
   container.appendChild(reconcilePanel);
 
+  // Stage 26.5.10: a non-zero-variance line cannot post until it has a
+  // variance root-cause reason code - set one here, then (if the line was
+  // already Approved before the reason existed) retry the post directly.
+  const variancePanel = document.createElement('div');
+  variancePanel.className = 'table-panel';
+  variancePanel.style.padding = '24px';
+  variancePanel.style.marginTop = '24px';
+  variancePanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">3. Variance root-cause + posting</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="ccvariance-line-id">Line ID</label>
+        <input type="text" id="ccvariance-line-id" class="form-input" style="width: 180px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="ccvariance-reason">Reason Code (ReasonCode ID)</label>
+        <input type="text" id="ccvariance-reason" class="form-input" style="width: 180px;" autocomplete="off">
+      </div>
+      <button class="btn btn-outline" id="ccvariance-set-btn" type="button">Set Variance Reason</button>
+      <button class="btn btn-primary" id="ccvariance-post-btn" type="button">Retry Post</button>
+    </div>
+    <div id="ccvariance-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
+  `;
+  container.appendChild(variancePanel);
+
+  // Stage 26.5.10: blind recount - a second, blind count on a line whose
+  // first result looks wrong, before it's trusted enough to post.
+  const recountPanel = document.createElement('div');
+  recountPanel.className = 'table-panel';
+  recountPanel.style.padding = '24px';
+  recountPanel.style.marginTop = '24px';
+  recountPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">4. Blind recount</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="recount-orig-line-id">Original Line ID</label>
+        <input type="text" id="recount-orig-line-id" class="form-input" style="width: 180px;" autocomplete="off">
+      </div>
+      <button class="btn btn-outline" id="recount-request-btn" type="button">Request Recount</button>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="recount-new-line-id">Recount Line ID</label>
+        <input type="text" id="recount-new-line-id" class="form-input" style="width: 180px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="recount-value">Counted Qty (blind)</label>
+        <input type="number" id="recount-value" class="form-input" style="width: 110px;">
+      </div>
+      <button class="btn btn-outline" id="recount-submit-btn" type="button">Submit Recount Value</button>
+    </div>
+    <div id="recount-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
+  `;
+  container.appendChild(recountPanel);
+
+  // Stage 26.5.9: ABC cycle-count planner - which SKUs are due for their
+  // next count, ranked by velocity tier.
+  const abcPanel = document.createElement('div');
+  abcPanel.className = 'table-panel';
+  abcPanel.style.padding = '24px';
+  abcPanel.style.marginTop = '24px';
+  abcPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">5. ABC cycle-count planner</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="abc-location">Location</label>
+        <input type="text" id="abc-location" class="form-input" style="width: 160px;" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="abc-plan-btn" type="button">Get Plan</button>
+    </div>
+    <div id="abc-plan-result" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(abcPanel);
+
   document.getElementById('cyclecount-open-lines-btn').addEventListener('click', () => {
     currentDoctype = 'CycleCountLine';
     currentSearchQuery = '';
@@ -4043,6 +4499,12 @@ async function renderCycleCountView(container) {
     renderView('doctype-table');
   });
   document.getElementById('cyclecount-reconcile-btn').addEventListener('click', submitCycleCountReconcile);
+  document.getElementById('ccvariance-set-btn').addEventListener('click', submitCycleCountVarianceReason);
+  document.getElementById('ccvariance-post-btn').addEventListener('click', submitRetryCycleCountPost);
+  document.getElementById('recount-request-btn').addEventListener('click', submitRequestRecount);
+  document.getElementById('recount-submit-btn').addEventListener('click', submitRecountValue);
+  document.getElementById('abc-plan-btn').addEventListener('click', fetchABCCycleCountPlan);
+  attachTypeahead(document.getElementById('abc-location'), 'Location');
 }
 
 async function submitCycleCountReconcile() {
@@ -4072,6 +4534,93 @@ async function submitCycleCountReconcile() {
     <span class="badge badge-success">${data.posted_no_variance || 0} posted (no variance)</span>
     &nbsp;
     <span class="badge badge-warning">${data.pending_approval || 0} pending approval</span>
+  `;
+}
+
+async function submitCycleCountVarianceReason() {
+  const resultEl = document.getElementById('ccvariance-result');
+  const lineId = document.getElementById('ccvariance-line-id').value.trim();
+  const reasonCode = document.getElementById('ccvariance-reason').value.trim();
+  if (!lineId || !reasonCode) { resultEl.textContent = 'Line ID and Reason Code are both required.'; return; }
+  const res = await apiFetch('/api/v1/wms/cycle-count/variance-reason', {
+    method: 'POST',
+    body: JSON.stringify({ line_id: lineId, reason_code: reasonCode })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to set variance reason.', 'Set Reason Failed'); return; }
+  resultEl.innerHTML = `<span class="badge badge-success">Variance reason set</span> on line ${lineId}.`;
+}
+
+async function submitRetryCycleCountPost() {
+  const resultEl = document.getElementById('ccvariance-result');
+  const lineId = document.getElementById('ccvariance-line-id').value.trim();
+  if (!lineId) { resultEl.textContent = 'Line ID is required.'; return; }
+  const res = await apiFetch('/api/v1/wms/cycle-count/post-adjustment', {
+    method: 'POST',
+    body: JSON.stringify({ line_id: lineId })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to post the adjustment.', 'Post Failed'); return; }
+  resultEl.innerHTML = `<span class="badge badge-success">Posted</span> line ${lineId}.`;
+}
+
+async function submitRequestRecount() {
+  const resultEl = document.getElementById('recount-result');
+  const origLineId = document.getElementById('recount-orig-line-id').value.trim();
+  if (!origLineId) { resultEl.textContent = 'Original Line ID is required.'; return; }
+  const res = await apiFetch('/api/v1/wms/cycle-count/recount/request', {
+    method: 'POST',
+    body: JSON.stringify({ line_id: origLineId })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to request recount.', 'Recount Request Failed'); return; }
+  const data = await res.json();
+  resultEl.innerHTML = `<span class="badge badge-success">Recount line ${data.new_line_id} created</span> (blind - no counted/system qty carried over). Enter its value below.`;
+  document.getElementById('recount-new-line-id').value = data.new_line_id;
+}
+
+async function submitRecountValue() {
+  const resultEl = document.getElementById('recount-result');
+  const lineId = document.getElementById('recount-new-line-id').value.trim();
+  const countedQty = parseFloat(document.getElementById('recount-value').value);
+  if (!lineId || isNaN(countedQty)) { resultEl.textContent = 'Recount Line ID and a Counted Qty are both required.'; return; }
+  const res = await apiFetch('/api/v1/wms/cycle-count/recount/submit', {
+    method: 'POST',
+    body: JSON.stringify({ line_id: lineId, counted_qty: countedQty })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to submit recount value.', 'Recount Submit Failed'); return; }
+  resultEl.innerHTML = `<span class="badge badge-success">Recount value ${countedQty} recorded</span> on ${lineId}. Reconcile its count_session above to post it.`;
+}
+
+async function fetchABCCycleCountPlan() {
+  const resultEl = document.getElementById('abc-plan-result');
+  const location = document.getElementById('abc-location').value.trim();
+  if (!location) return;
+  const res = await apiFetch(`/api/v1/wms/cycle-count/abc-plan?location_code=${encodeURIComponent(location)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to fetch the ABC cycle-count plan.', 'Fetch Failed'); return; }
+  const plan = await res.json();
+  if (plan.length === 0) {
+    resultEl.innerHTML = `<p style="color: var(--text-muted);">No SKUs on hand at ${location}.</p>`;
+    return;
+  }
+  resultEl.innerHTML = `
+    <table>
+      <thead><tr><th>SKU</th><th>Tier</th><th>Daily Velocity</th><th>Days Since Last Count</th><th>Interval</th><th>Due</th></tr></thead>
+      <tbody>
+        ${plan.map(s => `
+          <tr>
+            <td style="font-family: monospace;">${s.sku}</td>
+            <td><span class="badge badge-secondary">${s.tier}</span></td>
+            <td>${s.daily_velocity.toFixed(2)}</td>
+            <td>${s.days_since_last_count < 0 ? 'never' : s.days_since_last_count}</td>
+            <td>${s.interval_days}d</td>
+            <td>${s.due ? '<span class="badge badge-warning">Due</span>' : ''}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
   `;
 }
 
@@ -4874,6 +5423,10 @@ async function submitPOForApproval(documentId) {
 // variance display and label preview - extra keys neither validator nor the
 // posting hook look at, so they're harmless to store alongside.
 let grnLineItems = [];
+// grnLoadedASNId (26.5.1) tracks which ASN, if any, a receipt's lines were
+// prefilled from, so createGRN can carry that reference through as GRN's
+// new optional asn_id field.
+let grnLoadedASNId = '';
 
 async function renderGRNWorkbenchView(container) {
   const res = await apiFetch('/api/v1/doc/GRN');
@@ -4882,6 +5435,7 @@ async function renderGRNWorkbenchView(container) {
   const grns = await res.json();
   state.docData = grns;
   grnLineItems = [];
+  grnLoadedASNId = '';
 
   const header = document.createElement('div');
   header.className = 'page-header';
@@ -4916,6 +5470,17 @@ async function renderGRNWorkbenchView(container) {
     </div>
     <div id="grn-po-note" style="margin-top: 8px; font-size: 12.5px; color: var(--text-muted);"></div>
 
+    <!-- Stage 26.5.1: ASN capture ahead of a GRN - an optional prefill
+         source alongside the PO one above, same "Load Items from X" pattern. -->
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-asn">ASN Reference (optional)</label>
+        <input type="text" id="grn-asn" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <button class="btn btn-outline" id="grn-load-asn-btn" type="button">Load Items from ASN</button>
+    </div>
+    <div id="grn-asn-note" style="margin-top: 8px; font-size: 12.5px; color: var(--text-muted);"></div>
+
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color);">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="grn-line-sku">SKU</label>
@@ -4930,12 +5495,24 @@ async function renderGRNWorkbenchView(container) {
         <input type="number" id="grn-line-received" class="form-input" style="width: 90px;" min="0">
       </div>
       <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="grn-line-rejected">Damaged/Rejected Qty</label>
-        <input type="number" id="grn-line-rejected" class="form-input" style="width: 90px;" min="0" value="0">
+        <label class="form-label" for="grn-line-rejected">Rejected Qty</label>
+        <input type="number" id="grn-line-rejected" class="form-input" style="width: 85px;" min="0" value="0">
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="grn-line-reject-reason">Rejection Reason</label>
-        <input type="text" id="grn-line-reject-reason" class="form-input" style="width: 160px;" placeholder="required if damaged/rejected > 0">
+        <input type="text" id="grn-line-reject-reason" class="form-input" style="width: 150px;" placeholder="required if rejected > 0">
+      </div>
+      <!-- Stage 26.5.2: QC sampling's third bucket - damaged is now tracked
+           separately from rejected instead of one combined field, each with
+           its own required reason, and each actually posts to a different
+           inventory_availability bucket server-side (PostGRNReceiptWithQC). -->
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-damaged">Damaged Qty</label>
+        <input type="number" id="grn-line-damaged" class="form-input" style="width: 85px;" min="0" value="0">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-damage-reason">Damage Reason</label>
+        <input type="text" id="grn-line-damage-reason" class="form-input" style="width: 150px;" placeholder="required if damaged > 0">
       </div>
       <button class="btn btn-outline" id="grn-add-line-btn" type="button">Add Line</button>
     </div>
@@ -4947,10 +5524,12 @@ async function renderGRNWorkbenchView(container) {
 
   attachTypeahead(document.getElementById('grn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
   attachTypeahead(document.getElementById('grn-location'), 'Location');
+  attachTypeahead(document.getElementById('grn-asn'), 'ASN');
   attachTypeahead(document.getElementById('grn-line-sku'), 'Item');
 
   document.getElementById('grn-po').addEventListener('change', loadGRNItemsFromPO);
   document.getElementById('grn-load-po-btn').addEventListener('click', loadGRNItemsFromPO);
+  document.getElementById('grn-load-asn-btn').addEventListener('click', loadGRNItemsFromASN);
   document.getElementById('grn-add-line-btn').addEventListener('click', addGRNLine);
   document.getElementById('grn-create-btn').addEventListener('click', createGRN);
 
@@ -4961,7 +5540,7 @@ async function renderGRNWorkbenchView(container) {
   let html = `
     <table>
       <thead>
-        <tr><th>GRN #</th><th>PO</th><th>Location</th><th>Lines</th><th>Received / Rejected</th><th>Status</th></tr>
+        <tr><th>GRN #</th><th>PO</th><th>Location</th><th>Lines</th><th>Received / Rejected / Damaged</th><th>Status</th></tr>
       </thead>
       <tbody>
   `;
@@ -4973,6 +5552,7 @@ async function renderGRNWorkbenchView(container) {
     try { lines = JSON.parse(g.received_items || '[]'); } catch (e) { lines = []; }
     const receivedTotal = lines.reduce((s, l) => s + (Number(l.qty) || 0), 0);
     const rejectedTotal = lines.reduce((s, l) => s + (Number(l.rejected_qty) || 0), 0);
+    const damagedTotal = lines.reduce((s, l) => s + (Number(l.damaged_qty) || 0), 0);
     const statusBadge = g.status === 'Approved' ? 'badge-success' : g.status === 'Cancelled' ? 'badge-danger' : 'badge-warning';
     html += `
       <tr>
@@ -4980,7 +5560,7 @@ async function renderGRNWorkbenchView(container) {
         <td>${g.po_id || ''}</td>
         <td>${g.location || ''}</td>
         <td>${lines.length}</td>
-        <td>${receivedTotal} / ${rejectedTotal}</td>
+        <td>${receivedTotal} / ${rejectedTotal} / ${damagedTotal}</td>
         <td><span class="badge ${statusBadge}">${g.status}</span></td>
       </tr>
     `;
@@ -4999,7 +5579,7 @@ function renderGRNLinesList() {
   }
   el.innerHTML = `
     <table style="margin-top: 4px;">
-      <thead><tr><th>SKU</th><th>Barcode</th><th>Ordered</th><th>Received</th><th>Rejected</th><th>Short</th><th></th></tr></thead>
+      <thead><tr><th>SKU</th><th>Barcode</th><th>Ordered</th><th>Received</th><th>Accepted</th><th>Rejected</th><th>Damaged</th><th>Short</th><th></th></tr></thead>
       <tbody>
         ${grnLineItems.map((line, idx) => {
           const ordered = line.ordered_qty;
@@ -5010,7 +5590,9 @@ function renderGRNLinesList() {
               <td><span class="badge badge-secondary" style="font-family: Consolas, Monaco, monospace; letter-spacing: 1px;">${line.barcode || line.sku}</span></td>
               <td>${(ordered === null || ordered === undefined || ordered === '') ? '&mdash;' : ordered}</td>
               <td>${line.qty}</td>
+              <td>${line.accepted_qty}</td>
               <td>${line.rejected_qty > 0 ? `<span class="badge badge-danger">${line.rejected_qty}</span>` : '0'}</td>
+              <td>${line.damaged_qty > 0 ? `<span class="badge badge-danger">${line.damaged_qty}</span>` : '0'}</td>
               <td>${short === null ? '&mdash;' : short > 0 ? `<span class="badge badge-warning">${short}</span>` : '0'}</td>
               <td><button class="action-btn action-btn-danger" type="button" onclick="removeGRNLine(${idx})">Remove</button></td>
             </tr>
@@ -5039,6 +5621,8 @@ async function addGRNLine() {
   const receivedEl = document.getElementById('grn-line-received');
   const rejectedEl = document.getElementById('grn-line-rejected');
   const reasonEl = document.getElementById('grn-line-reject-reason');
+  const damagedEl = document.getElementById('grn-line-damaged');
+  const damageReasonEl = document.getElementById('grn-line-damage-reason');
   const errorEl = document.getElementById('grn-form-error');
   errorEl.classList.add('hidden');
 
@@ -5047,15 +5631,22 @@ async function addGRNLine() {
   const qty = parseInt(receivedEl.value, 10);
   const rejectedQty = parseInt(rejectedEl.value, 10) || 0;
   const rejectionReason = reasonEl.value.trim();
+  const damagedQty = parseInt(damagedEl.value, 10) || 0;
+  const damageReason = damageReasonEl.value.trim();
 
   if (!sku || isNaN(qty) || qty < 0) return;
-  if (rejectedQty > qty) {
-    errorEl.textContent = 'Damaged/Rejected qty cannot exceed Received qty.';
+  if (rejectedQty + damagedQty > qty) {
+    errorEl.textContent = 'Rejected plus Damaged qty cannot exceed Received qty.';
     errorEl.classList.remove('hidden');
     return;
   }
   if (rejectedQty > 0 && !rejectionReason) {
-    errorEl.textContent = 'A rejection reason is required when Damaged/Rejected qty is greater than 0.';
+    errorEl.textContent = 'A rejection reason is required when Rejected qty is greater than 0.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (damagedQty > 0 && !damageReason) {
+    errorEl.textContent = 'A damage reason is required when Damaged qty is greater than 0.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -5063,9 +5654,11 @@ async function addGRNLine() {
   const barcode = await lookupGRNBarcode(sku);
   grnLineItems.push({
     sku, ordered_qty: ordered, qty,
-    accepted_qty: qty - rejectedQty,
+    accepted_qty: qty - rejectedQty - damagedQty,
     rejected_qty: rejectedQty,
     rejection_reason: rejectionReason,
+    damaged_qty: damagedQty,
+    damage_reason: damageReason,
     barcode
   });
   skuEl.value = '';
@@ -5073,6 +5666,8 @@ async function addGRNLine() {
   receivedEl.value = '';
   rejectedEl.value = '0';
   reasonEl.value = '';
+  damagedEl.value = '0';
+  damageReasonEl.value = '';
   renderGRNLinesList();
 }
 
@@ -5139,9 +5734,51 @@ async function loadGRNItemsFromPOInner() {
     const orderedQty = Number(it.qty) || 0;
     if (!sku) continue;
     const barcode = await lookupGRNBarcode(sku);
-    grnLineItems.push({ sku, ordered_qty: orderedQty, qty: orderedQty, accepted_qty: orderedQty, rejected_qty: 0, rejection_reason: '', barcode });
+    grnLineItems.push({ sku, ordered_qty: orderedQty, qty: orderedQty, accepted_qty: orderedQty, rejected_qty: 0, rejection_reason: '', damaged_qty: 0, damage_reason: '', barcode });
   }
-  noteEl.textContent = `Loaded ${grnLineItems.length} line(s) from PO ${poId}. Adjust Received/Rejected qty for any variance, then Post Receipt.`;
+  grnLoadedASNId = '';
+  noteEl.textContent = `Loaded ${grnLineItems.length} line(s) from PO ${poId}. Adjust Received/Rejected/Damaged qty for any variance, then Post Receipt.`;
+  renderGRNLinesList();
+}
+
+// loadGRNItemsFromASN (26.5.1) mirrors loadGRNItemsFromPOInner exactly, off
+// ASN's expected_items instead of a PO's items - the ASN's own po_id is
+// used to fill the PO Reference field too if it isn't already set, so the
+// GRN still cross-checks against the right PO (validateASNRules already
+// confirmed at ASN-creation time that these SKUs belong to that PO).
+async function loadGRNItemsFromASN() {
+  const asnId = document.getElementById('grn-asn').value.trim();
+  const noteEl = document.getElementById('grn-asn-note');
+  if (!asnId) { noteEl.textContent = ''; return; }
+
+  const res = await apiFetch(`/api/v1/doc/ASN/${encodeURIComponent(asnId)}`);
+  if (!res) return;
+  if (!res.ok) {
+    noteEl.textContent = 'Could not find that ASN - enter lines manually below.';
+    return;
+  }
+  const asn = await res.json();
+
+  const poEl = document.getElementById('grn-po');
+  if (!poEl.value && asn.po_id) poEl.value = asn.po_id;
+
+  let items = [];
+  try { items = JSON.parse(asn.expected_items || '[]'); } catch (e) { items = []; }
+  if (items.length === 0) {
+    noteEl.textContent = `ASN ${asnId} has no recorded expected items - add lines manually below.`;
+    return;
+  }
+
+  grnLineItems = [];
+  for (const it of items) {
+    const sku = it.sku || '';
+    const expectedQty = Number(it.qty) || 0;
+    if (!sku) continue;
+    const barcode = await lookupGRNBarcode(sku);
+    grnLineItems.push({ sku, ordered_qty: expectedQty, qty: expectedQty, accepted_qty: expectedQty, rejected_qty: 0, rejection_reason: '', damaged_qty: 0, damage_reason: '', barcode });
+  }
+  grnLoadedASNId = asnId;
+  noteEl.textContent = `Loaded ${grnLineItems.length} line(s) from ASN ${asnId}. Adjust Received/Rejected/Damaged qty for any variance, then Post Receipt.`;
   renderGRNLinesList();
 }
 
@@ -5168,6 +5805,7 @@ async function createGRN() {
       id: grnNumber,
       code: grnNumber,
       po_id: poId,
+      asn_id: grnLoadedASNId || undefined,
       location,
       received_items: JSON.stringify(grnLineItems),
       status: 'Approved'
@@ -5180,6 +5818,205 @@ async function createGRN() {
     return;
   }
   renderView('grn');
+}
+
+// Stage 26.5.1: ASN (Advance Shipment Notice) capture - a lightweight
+// counterpart to the GRN Workbench above (same line-list pattern, just
+// sku/expected_qty instead of a full accept/reject/damage split, since an
+// ASN is what the vendor SAID is coming, not what actually arrived).
+let asnLineItems = [];
+
+async function renderASNView(container) {
+  const res = await apiFetch('/api/v1/doc/ASN');
+  if (!res) return;
+  if (!res.ok) { renderErrorPanel(container, 'Failed to load ASNs.', () => renderView('asn')); return; }
+  const asns = await res.json();
+  asnLineItems = [];
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Advance Shipment Notices (ASN)</h1>
+      <p class="page-subtitle">Capture what a vendor says is coming, ahead of the actual GRN - the GRN Workbench can prefill its lines from an ASN.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  // ASN's asn_number/status/location fields (and the Expected/Received/
+  // Cancelled status vocabulary) are the doctype's original, pre-Stage-26.5
+  // fields (db/migration.sql) - reused here rather than duplicated, per
+  // this repo's "extend the existing doctype, don't build a parallel one"
+  // rule. po_id/vendor/carrier/tracking_number/expected_date/expected_items
+  // are this Stage's additive fields.
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New ASN</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="asn-number">ASN Number</label>
+        <input type="text" id="asn-number" class="form-input" style="width: 150px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="asn-po">PO Reference</label>
+        <input type="text" id="asn-po" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="asn-location">Location</label>
+        <input type="text" id="asn-location" class="form-input" style="width: 140px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="asn-vendor">Vendor</label>
+        <input type="text" id="asn-vendor" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="asn-carrier">Carrier</label>
+        <input type="text" id="asn-carrier" class="form-input" style="width: 130px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="asn-tracking">Tracking Number</label>
+        <input type="text" id="asn-tracking" class="form-input" style="width: 150px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="asn-expected-date">Expected Date</label>
+        <input type="date" id="asn-expected-date" class="form-input" style="width: 150px;">
+      </div>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="asn-line-sku">SKU</label>
+        <input type="text" id="asn-line-sku" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="asn-line-qty">Expected Qty</label>
+        <input type="number" id="asn-line-qty" class="form-input" style="width: 100px;" min="1">
+      </div>
+      <button class="btn btn-outline" id="asn-add-line-btn" type="button">Add Line</button>
+    </div>
+    <div id="asn-lines-list" style="margin: 12px 0;"></div>
+    <div id="asn-form-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
+    <button class="btn btn-primary" id="asn-create-btn">Save ASN</button>
+  `;
+  container.appendChild(formPanel);
+
+  attachTypeahead(document.getElementById('asn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
+  attachTypeahead(document.getElementById('asn-location'), 'Location');
+  attachTypeahead(document.getElementById('asn-vendor'), 'Vendor');
+  attachTypeahead(document.getElementById('asn-line-sku'), 'Item');
+  document.getElementById('asn-add-line-btn').addEventListener('click', addASNLine);
+  document.getElementById('asn-create-btn').addEventListener('click', createASN);
+  renderASNLinesList();
+
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead><tr><th>ASN #</th><th>PO</th><th>Location</th><th>Vendor</th><th>Carrier</th><th>Expected Date</th><th>Lines</th><th>Status</th></tr></thead>
+      <tbody>
+  `;
+  if (asns.length === 0) {
+    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No ASNs yet.</td></tr>`;
+  }
+  asns.forEach(a => {
+    let lines = [];
+    try { lines = JSON.parse(a.expected_items || '[]'); } catch (e) { lines = []; }
+    html += `
+      <tr>
+        <td style="font-family: monospace;">${a.asn_number || a.id}</td>
+        <td>${a.po_id || a.po_number || ''}</td>
+        <td>${a.location || ''}</td>
+        <td>${a.vendor || ''}</td>
+        <td>${a.carrier || ''}</td>
+        <td>${a.expected_date || ''}</td>
+        <td>${lines.length}</td>
+        <td><span class="badge badge-secondary">${a.status}</span></td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table>`;
+  listPanel.innerHTML = html;
+  container.appendChild(listPanel);
+}
+
+function renderASNLinesList() {
+  const el = document.getElementById('asn-lines-list');
+  if (!el) return;
+  if (asnLineItems.length === 0) {
+    el.innerHTML = `<p style="font-size: 13px; color: var(--text-muted);">No lines added yet.</p>`;
+    return;
+  }
+  el.innerHTML = `
+    <table style="margin-top: 4px;">
+      <thead><tr><th>SKU</th><th>Expected Qty</th><th></th></tr></thead>
+      <tbody>
+        ${asnLineItems.map((line, idx) => `
+          <tr>
+            <td style="font-family: monospace;">${line.sku}</td>
+            <td>${line.qty}</td>
+            <td><button class="action-btn action-btn-danger" type="button" onclick="removeASNLine(${idx})">Remove</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function addASNLine() {
+  const skuEl = document.getElementById('asn-line-sku');
+  const qtyEl = document.getElementById('asn-line-qty');
+  const sku = skuEl.value.trim();
+  const qty = parseInt(qtyEl.value, 10);
+  if (!sku || isNaN(qty) || qty <= 0) return;
+  asnLineItems.push({ sku, qty });
+  skuEl.value = '';
+  qtyEl.value = '';
+  renderASNLinesList();
+}
+
+window.removeASNLine = function(idx) {
+  asnLineItems.splice(idx, 1);
+  renderASNLinesList();
+};
+
+async function createASN() {
+  const errorEl = document.getElementById('asn-form-error');
+  errorEl.classList.add('hidden');
+
+  const asnNumber = document.getElementById('asn-number').value.trim();
+  const poId = document.getElementById('asn-po').value.trim();
+  const location = document.getElementById('asn-location').value.trim();
+  if (!asnNumber || !poId || !location || asnLineItems.length === 0) {
+    errorEl.textContent = 'ASN Number, PO Reference, Location, and at least one line item are all required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/doc/ASN', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: asnNumber,
+      asn_number: asnNumber,
+      po_number: poId,
+      po_id: poId,
+      location,
+      vendor: document.getElementById('asn-vendor').value.trim(),
+      carrier: document.getElementById('asn-carrier').value.trim(),
+      tracking_number: document.getElementById('asn-tracking').value.trim(),
+      expected_date: document.getElementById('asn-expected-date').value,
+      expected_items: JSON.stringify(asnLineItems),
+      status: 'Expected'
+    })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    errorEl.textContent = await getErrorMessage(res, 'Failed to save ASN.');
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('asn');
 }
 
 // Report catalog (Stage 13.11) - Current Stock, Sales Register, Vendor
@@ -6916,8 +7753,10 @@ function renderTransferActions(t) {
   }
   if (t.status === 'Approved') {
     // Pack (Stage 20.19) is an optional confirmation step, not a required
-    // gate - Dispatch stays available directly from Approved too.
-    return `<button class="action-btn" onclick="packTransferOrder('${t.id}')">Pack</button> <button class="action-btn" onclick="dispatchTransferOrder('${t.id}')">Dispatch</button>`;
+    // gate - Dispatch stays available directly from Approved too. Stage
+    // 26.5.8 adds a second pack path that suggests a carton split instead
+    // of prompting box-by-box.
+    return `<button class="action-btn" onclick="packTransferOrder('${t.id}')">Pack</button> <button class="action-btn" onclick="packTransferOrderWithCartonization('${t.id}')">Pack (Suggested Cartons)</button> <button class="action-btn" onclick="dispatchTransferOrder('${t.id}')">Dispatch</button>`;
   }
   if (t.status === 'Packed') {
     return `<button class="action-btn" onclick="dispatchTransferOrder('${t.id}')">Dispatch</button>`;
@@ -6958,6 +7797,47 @@ async function packTransferOrder(id) {
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Failed to pack transfer.', 'Pack Failed');
+    return;
+  }
+  renderView('transfers');
+}
+
+// Stage 26.5.8: cartonization - suggests a box split via SuggestCartonization
+// (first-fit-decreasing by qty capacity) instead of prompting a Box ID per
+// line, then confirms the suggestion before packing exactly like the manual
+// path above does with its own boxes array.
+async function packTransferOrderWithCartonization(id) {
+  const row = state.docData.find(t => t.id === id);
+  if (!row) return;
+  let lines = [];
+  try { lines = JSON.parse(row.items || '[]'); } catch (e) { lines = []; }
+  if (lines.length === 0) {
+    await showCustomAlert('No line items found on this transfer.', 'Error');
+    return;
+  }
+  const cartonType = await showCustomPrompt('Carton Type code to pack into:', 'BOX-S');
+  if (!cartonType) return;
+
+  const suggestRes = await apiFetch('/api/v1/wms/cartonization/suggest', {
+    method: 'POST',
+    body: JSON.stringify({ carton_type: cartonType, items: lines.map(l => ({ sku: l.sku, qty: l.qty })) })
+  });
+  if (!suggestRes) return;
+  if (!suggestRes.ok) {
+    await showApiError(suggestRes, 'Failed to suggest cartonization.', 'Cartonization Failed');
+    return;
+  }
+  const boxes = await suggestRes.json();
+  const summary = boxes.map(b => `${b.box_id}: ${b.items.map(it => `${it.sku} x${it.qty}`).join(', ')} (${b.used_capacity}/${b.max_capacity})`).join('\n');
+  if (!(await showCustomConfirm(`Pack into ${boxes.length} suggested box(es)?\n\n${summary}`, 'Confirm Suggested Cartonization'))) return;
+
+  const packRes = await apiFetch('/api/v1/wms/transfer/pack', {
+    method: 'POST',
+    body: JSON.stringify({ transfer_order_id: id, boxes: boxes.map(b => ({ box_id: b.box_id, items: b.items })) })
+  });
+  if (!packRes) return;
+  if (!packRes.ok) {
+    await showApiError(packRes, 'Failed to pack transfer.', 'Pack Failed');
     return;
   }
   renderView('transfers');

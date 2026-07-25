@@ -149,6 +149,26 @@ func Run() {
 	http.HandleFunc("POST /api/v1/wms/transfer/pack", apiMiddleware(moduleGate("wms", handlePackTransferOrder)))
 	http.HandleFunc("POST /api/v1/wms/cycle-count/reconcile", apiMiddleware(moduleGate("wms", handleReconcileCycleCount)))
 
+	// Stage 26.5 (WMS Enterprise Maturity Sprint): cross-dock staging, LPN/
+	// carton/pallet grouping, bin-to-bin replenishment, wave/batch picking,
+	// cartonization suggestions, the ABC cycle-count planner, and the
+	// blind-recount + variance-reason cycle-count workflow. Same
+	// moduleGate("wms",...) as every other floor-ops route above.
+	http.HandleFunc("POST /api/v1/wms/cross-dock/check", apiMiddleware(moduleGate("wms", handleCrossDockCheck)))
+	http.HandleFunc("POST /api/v1/wms/cross-dock/putaway", apiMiddleware(moduleGate("wms", handleCrossDockPutaway)))
+	http.HandleFunc("POST /api/v1/wms/lpn/assign", apiMiddleware(moduleGate("wms", handleLPNAssign)))
+	http.HandleFunc("GET /api/v1/wms/lpn/contents", apiMiddleware(moduleGate("wms", handleLPNContents)))
+	http.HandleFunc("GET /api/v1/wms/bin-replenishment/suggestions", apiMiddleware(moduleGate("wms", handleBinReplenishmentSuggestions)))
+	http.HandleFunc("POST /api/v1/wms/bin-replenishment/execute", apiMiddleware(moduleGate("wms", handleBinReplenishmentExecute)))
+	http.HandleFunc("POST /api/v1/wms/wave/assign", apiMiddleware(moduleGate("wms", handleWaveAssign)))
+	http.HandleFunc("GET /api/v1/wms/wave/pick-list", apiMiddleware(moduleGate("wms", handleWavePickList)))
+	http.HandleFunc("POST /api/v1/wms/cartonization/suggest", apiMiddleware(moduleGate("wms", handleCartonizationSuggest)))
+	http.HandleFunc("GET /api/v1/wms/cycle-count/abc-plan", apiMiddleware(moduleGate("wms", handleABCCycleCountPlan)))
+	http.HandleFunc("POST /api/v1/wms/cycle-count/recount/request", apiMiddleware(moduleGate("wms", handleRequestRecount)))
+	http.HandleFunc("POST /api/v1/wms/cycle-count/recount/submit", apiMiddleware(moduleGate("wms", handleSubmitRecountValue)))
+	http.HandleFunc("POST /api/v1/wms/cycle-count/variance-reason", apiMiddleware(moduleGate("wms", handleSetCycleCountVarianceReason)))
+	http.HandleFunc("POST /api/v1/wms/cycle-count/post-adjustment", apiMiddleware(moduleGate("wms", handleRetryCycleCountPost)))
+
 	// Checkout & Finance APIs
 	http.HandleFunc("POST /api/v1/checkout", apiMiddleware(handleCheckout))
 	http.HandleFunc("POST /api/v1/pos/session/open", apiMiddleware(handlePOSSessionOpen))

@@ -19,6 +19,8 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 	switch doctype {
 	case "GRN":
 		return validateGRNRules(tenantID, docID, payload)
+	case "ASN":
+		return validateASNRules(tenantID, payload)
 	case "VendorInvoice":
 		return validateVendorInvoiceCreateRules(tenantID, payload)
 	case "PurchaseOrder":
@@ -55,12 +57,17 @@ func validatePurchaseRequisitionEditRules(priorStatus string, priorData map[stri
 // populates it) beyond the plain {sku, qty} vendor_invoice.go's grnItemLine
 // already reads, to carry the accepted/rejected split GOODSR-0089/0090
 // describe. Existing GRNs that only ever set qty are unaffected.
+// DamagedQty/DamageReason (Stage 26.5.2) add a genuine third QC-sampling
+// bucket alongside accepted/rejected - engines/wms_receiving.go's
+// PostGRNReceiptWithQC is what actually acts on all three at posting time.
 type grnReceivedLine struct {
 	Sku             string   `json:"sku"`
 	Qty             float64  `json:"qty"`
 	AcceptedQty     *float64 `json:"accepted_qty,omitempty"`
 	RejectedQty     *float64 `json:"rejected_qty,omitempty"`
 	RejectionReason string   `json:"rejection_reason,omitempty"`
+	DamagedQty      *float64 `json:"damaged_qty,omitempty"`
+	DamageReason    string   `json:"damage_reason,omitempty"`
 }
 
 // fetchPOItemQuantities sums a PurchaseOrder's own ordered qty per SKU from
@@ -174,6 +181,27 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 		if line.RejectedQty != nil && *line.RejectedQty > 0 && strings.TrimSpace(line.RejectionReason) == "" {
 			return &ValidationError{Code: "GOODSR-0090", Message: fmt.Sprintf("rejection reason is required for SKU %q (rejected qty %v)", line.Sku, *line.RejectedQty)}
 		}
+		// 26.5.2: QC sampling's third bucket - a damaged qty needs its own
+		// reason, same GOODSR-0090 convention as rejected qty.
+		if line.DamagedQty != nil && *line.DamagedQty > 0 && strings.TrimSpace(line.DamageReason) == "" {
+			return &ValidationError{Code: "GOODSR-0096", Message: fmt.Sprintf("damage reason is required for SKU %q (damaged qty %v)", line.Sku, *line.DamagedQty)}
+		}
+		// 26.5.2: the three QC buckets are a partition of what was actually
+		// received - they can never sum past it, whether or not accepted_qty
+		// was explicitly supplied (an omitted accepted_qty is derived as
+		// qty-rejected-damaged by PostGRNReceiptWithQC, so this check has to
+		// hold before that derivation for the derived value to stay
+		// non-negative and meaningful).
+		var rejected, damaged float64
+		if line.RejectedQty != nil {
+			rejected = *line.RejectedQty
+		}
+		if line.DamagedQty != nil {
+			damaged = *line.DamagedQty
+		}
+		if rejected+damaged > line.Qty+1e-9 {
+			return &ValidationError{Code: "GOODSR-0097", Message: fmt.Sprintf("rejected (%v) plus damaged (%v) quantity for SKU %q cannot exceed received quantity (%v)", rejected, damaged, line.Sku, line.Qty)}
+		}
 	}
 
 	if strField(payload, "status") == "Cancelled" {
@@ -247,6 +275,42 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 	for _, line := range lines {
 		if receivedBefore[line.Sku]+line.Qty > ordered[line.Sku]+1e-9 {
 			return &ValidationError{Code: "PURCHA-0087", Message: fmt.Sprintf("received quantity for SKU %q (%v) would exceed open PO quantity (%v)", line.Sku, receivedBefore[line.Sku]+line.Qty, ordered[line.Sku])}
+		}
+	}
+	return nil
+}
+
+// asnExpectedLine is ASN's expected_items line shape - just sku/qty.
+type asnExpectedLine struct {
+	Sku string  `json:"sku"`
+	Qty float64 `json:"qty"`
+}
+
+// validateASNRules (26.5.1) cross-checks an ASN's expected items against
+// its referenced PO the same way validateGRNRules' PURCHA-0088 does for a
+// GRN - an ASN naming a SKU the PO never ordered is a data-entry mistake
+// worth catching before the GRN Workbench trusts it as a prefill source,
+// not after.
+func validateASNRules(tenantID string, payload map[string]interface{}) error {
+	expectedStr, _ := payload["expected_items"].(string)
+	if expectedStr == "" {
+		return nil
+	}
+	var lines []asnExpectedLine
+	if err := json.Unmarshal([]byte(expectedStr), &lines); err != nil {
+		return fmt.Errorf("expected_items is not valid JSON: %v", err)
+	}
+	poID := strField(payload, "po_id")
+	if poID == "" {
+		return nil
+	}
+	ordered, err := fetchPOItemQuantities(tenantID, poID)
+	if err != nil || len(ordered) == 0 {
+		return nil
+	}
+	for _, line := range lines {
+		if _, ok := ordered[line.Sku]; !ok {
+			return &ValidationError{Code: "ASN-0271", Message: fmt.Sprintf("SKU %q is not part of PO %s", line.Sku, poID)}
 		}
 	}
 	return nil

@@ -269,7 +269,7 @@ func ReconcileCycleCount(tenantID, countSession, actorUserID, actorRole string) 
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, data FROM %s.documents
 		WHERE doctype = 'CycleCountLine' AND data->>'count_session' = $1
-		  AND status NOT IN ('Pending Approval', 'Approved', 'Rejected', 'Posted')`, schema), countSession)
+		  AND status NOT IN ('Pending Approval', 'Approved', 'Rejected', 'Posted', 'Recount Requested')`, schema), countSession)
 	if err != nil {
 		return 0, 0, err
 	}
@@ -354,11 +354,17 @@ func PostCycleCountAdjustment(tenantID, lineID string) error {
 		return err
 	}
 
-	var dataStr string
+	var status, dataStr string
 	if err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT data FROM %s.documents WHERE doctype = 'CycleCountLine' AND id = $1`, schema), lineID).
-		Scan(&dataStr); err != nil {
+		`SELECT status, data FROM %s.documents WHERE doctype = 'CycleCountLine' AND id = $1`, schema), lineID).
+		Scan(&status, &dataStr); err != nil {
 		return fmt.Errorf("cycle count line not found: %v", err)
+	}
+	// 26.5.10: this function is now reachable a second time (a manual
+	// retry after SetCycleCountVarianceReason fixes what the check below
+	// rejected) - guard against double-posting the same adjustment twice.
+	if status == "Posted" {
+		return fmt.Errorf("cycle count line %s is already Posted", lineID)
 	}
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
@@ -367,6 +373,17 @@ func PostCycleCountAdjustment(tenantID, lineID string) error {
 	sku, _ := data["sku"].(string)
 	location, _ := data["location"].(string)
 	variance := int(numFromInterface(data["variance"]))
+
+	// 26.5.10: every line reaching this function came through
+	// ReconcileCycleCount's non-zero-variance branch (a zero-variance line
+	// posts immediately there and never reaches an approval decision at
+	// all), so a root-cause ReasonCode is always required here - not
+	// conditionally, unconditionally, since variance != 0 is already
+	// guaranteed by construction. Set via SetCycleCountVarianceReason
+	// (handler-only, same as system_qty/variance/status themselves).
+	if strVal, _ := data["variance_reason_code"].(string); strVal == "" {
+		return fmt.Errorf("cycle count line %s cannot post: a variance root-cause reason code is required first (see SetCycleCountVarianceReason)", lineID)
+	}
 
 	if _, err := db.DB.Exec(fmt.Sprintf(`
 		INSERT INTO %s.inventory_availability (sku, location_code, on_hand, available)

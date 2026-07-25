@@ -596,7 +596,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			if locationCode != "" && len(items) > 0 {
-				_, errLedger := engines.PostInventoryLedger(tenantID, locationCode, items, false)
+				// Stage 26.5.2: QC-aware posting - accepted qty still lands
+				// in `available` exactly as PostInventoryLedger always did;
+				// rejected/damaged qty now routes to the qc_hold/damaged
+				// buckets instead of being silently posted as available
+				// alongside it (see engines/wms_receiving.go).
+				_, errLedger := engines.PostGRNReceiptWithQC(tenantID, locationCode, items, userID)
 				if errLedger != nil {
 					log.Printf("Error posting GRN items to stock ledger: %v", errLedger)
 				}
