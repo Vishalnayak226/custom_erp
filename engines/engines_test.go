@@ -204,6 +204,347 @@ func TestEngines(t *testing.T) {
 		if atsResPost["reserved"].(int) != 5 || atsResPost["ats"].(int) != 10 {
 			t.Errorf("Expected ATS to reduce to 10 (reserved 5), got: %v", atsResPost)
 		}
+
+		// 26.12.6: the 7-term ATP formula's held-back buckets (Blocked/QC
+		// Hold/Damaged/Channel Buffer) must actually reduce ATS, not just
+		// exist as inert columns - set all four directly (no writer engine
+		// function exists yet, that's a later 26.12 item's job) and confirm
+		// both GetAvailableToSell and FindBestFulfillmentNode's sourcing
+		// comparison read them consistently via the shared computeATS helper.
+		_, err = db.DB.Exec("UPDATE "+schema+".inventory_availability SET blocked = 1, qc_hold = 1, damaged = 1, channel_buffer = 1 WHERE sku = $1 AND location_code = $2", sku, location)
+		if err != nil {
+			t.Fatalf("Failed to set inventory buckets: %v", err)
+		}
+
+		atsResBuckets, err := GetAvailableToSell(tenantID, sku, location)
+		if err != nil {
+			t.Fatalf("Failed to fetch available to sell stock post bucket update: %v", err)
+		}
+		if atsResBuckets["ats"].(int) != 6 {
+			t.Errorf("Expected ATS to reduce to 6 (10 - 1 - 1 - 1 - 1 across the 4 new buckets), got: %v", atsResBuckets)
+		}
+
+		bestNode, err := FindBestFulfillmentNode(tenantID, []map[string]interface{}{{"sku": sku, "qty": 7}})
+		if err != nil {
+			t.Fatalf("Failed to resolve fulfillment node: %v", err)
+		}
+		if bestNode != "HO" {
+			t.Errorf("Expected sourcing to fall back to HO once ATS (6) can't cover the requested qty (7) at %s, got node: %s", location, bestNode)
+		}
+	})
+
+	// 26.12.1: Order Engine - validate/reserve chain, Hold engine, and the
+	// stage-gated cancellation matrix.
+	t.Run("OrderEngine", func(t *testing.T) {
+		sku := "SKU-ORD-TEST-1"
+		location := "WH01"
+
+		// Clean fixtures from any prior run (order documents themselves are
+		// cleaned via each creation's own deferred cleanupOrder below).
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'Item' AND data->>'code' = $1", sku)
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'ReasonCode' AND id IN ('RC-TEST-CANCEL','RC-TEST-HOLD')")
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'StatusTransitionRule' AND id = 'STR-TEST-1'")
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".inventory_availability WHERE sku = $1", sku)
+
+		// Fixtures: an Active Item (SKU-mapping target), a Cancellation
+		// reason code, and a Hold reason code (Stage 26.12.9's ReasonCode
+		// master - mandatory-reason-code enforcement needs a real row).
+		itemData, _ := json.Marshal(map[string]interface{}{"code": sku, "name": "Order Engine Test Item", "barcode": sku})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')", "ITEM-"+sku, itemData); err != nil {
+			t.Fatalf("Failed to seed test Item: %v", err)
+		}
+		cancelReasonData, _ := json.Marshal(map[string]interface{}{"code": "RC-CANCEL", "description": "Customer requested cancellation", "category": "Cancellation", "status": "Active"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'ReasonCode', $2, 'Active', 'system')", "RC-TEST-CANCEL", cancelReasonData); err != nil {
+			t.Fatalf("Failed to seed test Cancellation ReasonCode: %v", err)
+		}
+		holdReasonData, _ := json.Marshal(map[string]interface{}{"code": "RC-HOLD", "description": "Risk review", "category": "Hold", "status": "Active"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'ReasonCode', $2, 'Active', 'system')", "RC-TEST-HOLD", holdReasonData); err != nil {
+			t.Fatalf("Failed to seed test Hold ReasonCode: %v", err)
+		}
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 100, 100)", sku, location); err != nil {
+			t.Fatalf("Failed to seed test inventory: %v", err)
+		}
+
+		cleanupOrder := func(orderID string) {
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrderLine' AND data->>'order_id' = $1", orderID)
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrder' AND id = $1", orderID)
+		}
+
+		// 1. Happy path: valid SKU + address-with-pincode + confirmed payment
+		// reserves immediately.
+		orderID, err := CreateSalesOrder(tenantID, "TestChannel", "CHORD-1", "Test Customer", "ORDTEST 12 MG Road, Bengaluru 560001", "Confirmed", []SalesOrderLineInput{{SKU: sku, Qty: 5, UnitPrice: 100}})
+		if err != nil {
+			t.Fatalf("CreateSalesOrder (happy path) failed: %v", err)
+		}
+		defer cleanupOrder(orderID)
+
+		var orderStatus string
+		if err := db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id = $1", orderID).Scan(&orderStatus); err != nil {
+			t.Fatalf("Failed to read created order status: %v", err)
+		}
+		if orderStatus != "Reserved" {
+			t.Errorf("Expected happy-path order to be Reserved, got %q", orderStatus)
+		}
+		ats, err := GetAvailableToSell(tenantID, sku, location)
+		if err != nil {
+			t.Fatalf("Failed to read ATS after order creation: %v", err)
+		}
+		if ats["reserved"].(int) != 5 {
+			t.Errorf("Expected 5 reserved after order creation, got: %v", ats["reserved"])
+		}
+
+		// 2. Idempotent replay: same channel+channel_order_id returns the
+		// same order instead of creating a duplicate.
+		replayID, err := CreateSalesOrder(tenantID, "TestChannel", "CHORD-1", "Test Customer", "ORDTEST 12 MG Road, Bengaluru 560001", "Confirmed", []SalesOrderLineInput{{SKU: sku, Qty: 5, UnitPrice: 100}})
+		if err != nil {
+			t.Fatalf("CreateSalesOrder (replay) failed: %v", err)
+		}
+		if replayID != orderID {
+			t.Errorf("Expected idempotent replay to return the same order id %q, got %q", orderID, replayID)
+		}
+
+		// 3. Address validation failure -> On Hold with ADDR_INVALID,
+		// reservation NOT created (stock still shows 0 additional reserved
+		// for this second order).
+		holdOrderID, err := CreateSalesOrder(tenantID, "TestChannel", "CHORD-2", "Test Customer", "no pincode here", "Confirmed", []SalesOrderLineInput{{SKU: sku, Qty: 3, UnitPrice: 100}})
+		if err != nil {
+			t.Fatalf("CreateSalesOrder (bad address) failed: %v", err)
+		}
+		defer cleanupOrder(holdOrderID)
+
+		var holdStatus, holdReason string
+		if err := db.DB.QueryRow("SELECT status, data->>'hold_reason' FROM "+schema+".documents WHERE id = $1", holdOrderID).Scan(&holdStatus, &holdReason); err != nil {
+			t.Fatalf("Failed to read held order: %v", err)
+		}
+		if holdStatus != "On Hold" || holdReason != HoldAddressInvalid {
+			t.Errorf("Expected On Hold / %s for a missing pincode, got status=%q reason=%q", HoldAddressInvalid, holdStatus, holdReason)
+		}
+
+		// 4. Release the hold after fixing the address directly (no amend-
+		// order function exists yet - out of this item's scope) - re-running
+		// the same validate chain should now pass and reserve stock.
+		fixedAddr, _ := json.Marshal("ORDTEST fixed address 560002")
+		if _, err := db.DB.Exec("UPDATE "+schema+".documents SET data = jsonb_set(data, '{shipping_address}', $1) WHERE id = $2", fixedAddr, holdOrderID); err != nil {
+			t.Fatalf("Failed to patch order address: %v", err)
+		}
+		if err := ReleaseOrderHold(tenantID, holdOrderID); err != nil {
+			t.Fatalf("ReleaseOrderHold failed after fixing the address: %v", err)
+		}
+		var releasedStatus string
+		if err := db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id = $1", holdOrderID).Scan(&releasedStatus); err != nil {
+			t.Fatalf("Failed to read released order: %v", err)
+		}
+		if releasedStatus != "Reserved" {
+			t.Errorf("Expected order to be Reserved after a successful hold release, got %q", releasedStatus)
+		}
+
+		// 5. Unconfirmed payment -> On Hold with PAYMENT_PENDING.
+		paymentHoldID, err := CreateSalesOrder(tenantID, "TestChannel", "CHORD-3", "Test Customer", "ORDTEST 5 Park St 560003", "Pending", []SalesOrderLineInput{{SKU: sku, Qty: 2, UnitPrice: 100}})
+		if err != nil {
+			t.Fatalf("CreateSalesOrder (unconfirmed payment) failed: %v", err)
+		}
+		defer cleanupOrder(paymentHoldID)
+		var paymentHoldReason string
+		if err := db.DB.QueryRow("SELECT data->>'hold_reason' FROM "+schema+".documents WHERE id = $1", paymentHoldID).Scan(&paymentHoldReason); err != nil {
+			t.Fatalf("Failed to read payment-hold order: %v", err)
+		}
+		if paymentHoldReason != HoldPaymentPending {
+			t.Errorf("Expected hold_reason %s for unconfirmed payment, got %q", HoldPaymentPending, paymentHoldReason)
+		}
+
+		// 6. Cancellation requires a mandatory, category-matched reason code.
+		if err := CancelOrder(tenantID, orderID, ""); err == nil {
+			t.Errorf("Expected CancelOrder to reject a missing reason code")
+		}
+		if err := CancelOrder(tenantID, orderID, "RC-TEST-HOLD"); err == nil {
+			t.Errorf("Expected CancelOrder to reject a Hold-category reason code")
+		}
+
+		// 7. Cancelling a Reserved order releases its reservation.
+		if err := CancelOrder(tenantID, orderID, "RC-TEST-CANCEL"); err != nil {
+			t.Fatalf("CancelOrder (valid) failed: %v", err)
+		}
+		var cancelledStatus string
+		if err := db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE id = $1", orderID).Scan(&cancelledStatus); err != nil {
+			t.Fatalf("Failed to read cancelled order: %v", err)
+		}
+		if cancelledStatus != "Cancelled" {
+			t.Errorf("Expected order to be Cancelled, got %q", cancelledStatus)
+		}
+		atsAfterCancel, err := GetAvailableToSell(tenantID, sku, location)
+		if err != nil {
+			t.Fatalf("Failed to read ATS after cancellation: %v", err)
+		}
+		// 5 (original order) released; the fixed-address order (holdOrderID)
+		// still holds its own 3 reserved.
+		if atsAfterCancel["reserved"].(int) != 3 {
+			t.Errorf("Expected reserved to drop back to 3 after cancelling the 5-qty order, got: %v", atsAfterCancel["reserved"])
+		}
+
+		// 8. Stage-gated cancellation matrix: blocked by the hardcoded
+		// default once Shipped, then explicitly allowed once a
+		// StatusTransitionRule (Stage 26.12.9) override exists.
+		if _, err := db.DB.Exec("UPDATE "+schema+".documents SET status = 'Shipped', data = jsonb_set(data, '{order_status}', '\"Shipped\"') WHERE id = $1", holdOrderID); err != nil {
+			t.Fatalf("Failed to force order to Shipped: %v", err)
+		}
+		if err := CancelOrder(tenantID, holdOrderID, "RC-TEST-CANCEL"); err == nil {
+			t.Errorf("Expected CancelOrder to be blocked for a Shipped order by the default matrix")
+		}
+
+		ruleData, _ := json.Marshal(map[string]interface{}{"code": "STR-TEST", "entity": "Order", "from_status": "Shipped", "to_status": "Cancelled", "allowed": "Yes", "requires_reason_code": "Yes", "status": "Active"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'StatusTransitionRule', $2, 'Active', 'system')", "STR-TEST-1", ruleData); err != nil {
+			t.Fatalf("Failed to seed StatusTransitionRule override: %v", err)
+		}
+		if err := CancelOrder(tenantID, holdOrderID, "RC-TEST-CANCEL"); err != nil {
+			t.Errorf("Expected CancelOrder to succeed once a StatusTransitionRule explicitly allows Shipped->Cancelled, got: %v", err)
+		}
+
+		// Cleanup
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'StatusTransitionRule' AND id = 'STR-TEST-1'")
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'ReasonCode' AND id IN ('RC-TEST-CANCEL','RC-TEST-HOLD')")
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'Item' AND id = 'ITEM-" + sku + "'")
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".inventory_availability WHERE sku = $1", sku)
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".inventory_reservation WHERE sku = $1", sku)
+	})
+
+	// 4.5 (Stage 26.12.2). Allocation/Sourcing Engine: configurable
+	// strategies over the AllocationRule master (Stage 26.12.9), tried in
+	// priority order, plus the allocation-exception hold path when nothing
+	// configured can produce a plan.
+	t.Run("AllocationSourcing", func(t *testing.T) {
+		cleanupAlloc := func() {
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'AllocationRule' AND id LIKE 'AR-TEST-%'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'Location' AND id LIKE 'ALC-TEST-%'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'FulfillmentTask' AND id LIKE 'TSK-ALLOC-TEST-%'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'Item' AND id LIKE 'ITEM-SKU-ALLOC-%'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".inventory_availability WHERE location_code LIKE 'ALC-TEST-%'")
+		}
+		cleanupAlloc()
+		defer cleanupAlloc()
+
+		seedLocation := func(id, pincode string) {
+			data, _ := json.Marshal(map[string]interface{}{"code": id, "name": id, "type": "Warehouse", "status": "Active", "pincode": pincode})
+			if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Location', $2, 'Active', 'system')", id, data); err != nil {
+				t.Fatalf("Failed to seed Location %s: %v", id, err)
+			}
+		}
+		seedRule := func(id, strategy string, priority int, channel string) {
+			data, _ := json.Marshal(map[string]interface{}{"code": id, "rule_name": id, "strategy": strategy, "priority": priority, "channel": channel, "status": "Active"})
+			if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'AllocationRule', $2, 'Active', 'system')", id, data); err != nil {
+				t.Fatalf("Failed to seed AllocationRule %s: %v", id, err)
+			}
+		}
+
+		// 1. Nearest Pincode: two qualifying locations, order address
+		// pincode closer to one of them.
+		seedLocation("ALC-TEST-NEAR-A", "560001")
+		seedLocation("ALC-TEST-NEAR-B", "560099")
+		skuNear := "SKU-ALLOC-NEAR"
+		_, _ = db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 50, 50)", skuNear, "ALC-TEST-NEAR-A")
+		_, _ = db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 50, 50)", skuNear, "ALC-TEST-NEAR-B")
+		seedRule("AR-TEST-NEAR", "Nearest Pincode", 1, "")
+		plan, err := ResolveAllocationPlan(tenantID, "", "12 Some Street 560005", []SalesOrderLineInput{{SKU: skuNear, Qty: 5, UnitPrice: 10}})
+		if err != nil {
+			t.Fatalf("ResolveAllocationPlan (nearest pincode) failed: %v", err)
+		}
+		if plan == nil || plan.LineLocations[0] != "ALC-TEST-NEAR-A" {
+			t.Errorf("Expected Nearest Pincode to pick ALC-TEST-NEAR-A (560001, closer to 560005 than 560099), got: %+v", plan)
+		}
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'AllocationRule' AND id = 'AR-TEST-NEAR'")
+
+		// 2. Lowest Workload: two qualifying locations, one busier with open
+		// FulfillmentTask rows.
+		seedLocation("ALC-TEST-WKLD-A", "")
+		seedLocation("ALC-TEST-WKLD-B", "")
+		skuWkld := "SKU-ALLOC-WKLD"
+		_, _ = db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 50, 50)", skuWkld, "ALC-TEST-WKLD-A")
+		_, _ = db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 50, 50)", skuWkld, "ALC-TEST-WKLD-B")
+		for _, taskID := range []string{"TSK-ALLOC-TEST-1", "TSK-ALLOC-TEST-2", "TSK-ALLOC-TEST-3"} {
+			taskData, _ := json.Marshal(map[string]interface{}{"code": taskID, "location_code": "ALC-TEST-WKLD-A", "status": "Pending"})
+			if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'FulfillmentTask', $2, 'Pending', 'system')", taskID, taskData); err != nil {
+				t.Fatalf("Failed to seed FulfillmentTask %s: %v", taskID, err)
+			}
+		}
+		seedRule("AR-TEST-WKLD", "Lowest Workload", 1, "")
+		plan, err = ResolveAllocationPlan(tenantID, "", "1 Road 560000", []SalesOrderLineInput{{SKU: skuWkld, Qty: 5, UnitPrice: 10}})
+		if err != nil {
+			t.Fatalf("ResolveAllocationPlan (lowest workload) failed: %v", err)
+		}
+		if plan == nil || plan.LineLocations[0] != "ALC-TEST-WKLD-B" {
+			t.Errorf("Expected Lowest Workload to pick ALC-TEST-WKLD-B (0 open tasks vs A's 3), got: %+v", plan)
+		}
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'AllocationRule' AND id = 'AR-TEST-WKLD'")
+
+		// 3. Oldest Stock: two qualifying locations, one touched longer ago
+		// (the updated_at proxy - see singleLocationOldestStock's own
+		// comment for why).
+		seedLocation("ALC-TEST-OLD-A", "")
+		seedLocation("ALC-TEST-OLD-B", "")
+		skuOld := "SKU-ALLOC-OLD"
+		_, _ = db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 50, 50)", skuOld, "ALC-TEST-OLD-A")
+		_, _ = db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 50, 50)", skuOld, "ALC-TEST-OLD-B")
+		_, _ = db.DB.Exec("UPDATE "+schema+".inventory_availability SET updated_at = CURRENT_TIMESTAMP - INTERVAL '30 days' WHERE sku = $1 AND location_code = $2", skuOld, "ALC-TEST-OLD-A")
+		seedRule("AR-TEST-OLD", "Oldest Stock", 1, "")
+		plan, err = ResolveAllocationPlan(tenantID, "", "1 Road 560000", []SalesOrderLineInput{{SKU: skuOld, Qty: 5, UnitPrice: 10}})
+		if err != nil {
+			t.Fatalf("ResolveAllocationPlan (oldest stock) failed: %v", err)
+		}
+		if plan == nil || plan.LineLocations[0] != "ALC-TEST-OLD-A" {
+			t.Errorf("Expected Oldest Stock to pick ALC-TEST-OLD-A (touched 30 days ago vs B's just now), got: %+v", plan)
+		}
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'AllocationRule' AND id = 'AR-TEST-OLD'")
+
+		// 4. Split Shipment, plus priority fallthrough in the same scenario:
+		// a higher-priority Highest ATS rule can't find one location
+		// stocking both SKUs, so ResolveAllocationPlan falls through to the
+		// lower-priority Split Shipment rule, which succeeds by putting each
+		// line at its own qualifying location.
+		seedLocation("ALC-TEST-SPLIT-X", "")
+		seedLocation("ALC-TEST-SPLIT-Y", "")
+		skuSplitA := "SKU-ALLOC-SPLIT-A"
+		skuSplitB := "SKU-ALLOC-SPLIT-B"
+		_, _ = db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 10, 10)", skuSplitA, "ALC-TEST-SPLIT-X")
+		_, _ = db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 10, 10)", skuSplitB, "ALC-TEST-SPLIT-Y")
+		seedRule("AR-TEST-SPLIT-1", "Highest ATS", 1, "")
+		seedRule("AR-TEST-SPLIT-2", "Split Shipment", 2, "")
+		plan, err = ResolveAllocationPlan(tenantID, "", "1 Road 560000", []SalesOrderLineInput{{SKU: skuSplitA, Qty: 5, UnitPrice: 10}, {SKU: skuSplitB, Qty: 5, UnitPrice: 10}})
+		if err != nil {
+			t.Fatalf("ResolveAllocationPlan (split shipment) failed: %v", err)
+		}
+		if plan == nil || !plan.Split || plan.LineLocations[0] != "ALC-TEST-SPLIT-X" || plan.LineLocations[1] != "ALC-TEST-SPLIT-Y" {
+			t.Errorf("Expected a split plan (X for line 0, Y for line 1), got: %+v", plan)
+		}
+		if plan != nil && plan.Strategy != "Split Shipment" {
+			t.Errorf("Expected the Split Shipment rule to be the one that produced the plan (Highest ATS should have failed to find one location stocking both SKUs), got strategy %q", plan.Strategy)
+		}
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'AllocationRule' AND id IN ('AR-TEST-SPLIT-1', 'AR-TEST-SPLIT-2')")
+
+		// 5. Allocation exception: a Manual rule always fails to produce a
+		// plan - CreateSalesOrder places the order On Hold with
+		// HoldAllocationFailed even though stock genuinely exists (proves
+		// this is a routing decision, not a disguised stock shortage).
+		skuManual := "SKU-ALLOC-MANUAL"
+		itemData, _ := json.Marshal(map[string]interface{}{"code": skuManual, "name": "Manual Alloc Test Item", "barcode": skuManual})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')", "ITEM-"+skuManual, itemData); err != nil {
+			t.Fatalf("Failed to seed Item %s: %v", skuManual, err)
+		}
+		_, _ = db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 50, 50)", skuManual, "ALC-TEST-NEAR-A")
+		seedRule("AR-TEST-MANUAL", "Manual", 1, "ManualTestChannel")
+		manualOrderID, err := CreateSalesOrder(tenantID, "ManualTestChannel", "CHORD-MANUAL-1", "Test Customer", "1 Road 560000", "Confirmed", []SalesOrderLineInput{{SKU: skuManual, Qty: 1, UnitPrice: 10}})
+		if err != nil {
+			t.Fatalf("CreateSalesOrder (manual allocation) failed: %v", err)
+		}
+		defer func() {
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrderLine' AND data->>'order_id' = $1", manualOrderID)
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrder' AND id = $1", manualOrderID)
+		}()
+		var manualStatus, manualHoldReason string
+		if err := db.DB.QueryRow("SELECT status, data->>'hold_reason' FROM "+schema+".documents WHERE id = $1", manualOrderID).Scan(&manualStatus, &manualHoldReason); err != nil {
+			t.Fatalf("Failed to read manual-allocation order: %v", err)
+		}
+		if manualStatus != "On Hold" || manualHoldReason != HoldAllocationFailed {
+			t.Errorf("Expected On Hold / %s for a Manual allocation rule, got status=%q reason=%q", HoldAllocationFailed, manualStatus, manualHoldReason)
+		}
 	})
 
 	// 5. Test Double-Entry journal booking and POS cart checkouts
