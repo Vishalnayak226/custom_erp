@@ -349,6 +349,20 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		snapshotProductContentVersion(tenantID, docID, data, actorUserID)
 	}
 
+	// Stage 26.6.4: an Approved JournalVoucher posts through PostDoubleEntry
+	// here rather than waiting for a separate explicit "post" action - the
+	// approval decision itself is the authorization to post.
+	if doctype == "JournalVoucher" && decision == "Approved" {
+		postApprovedJournalVoucher(tenantID, docID)
+	}
+
+	// Stage 26.7.5: an Approved LoyaltyRedemptionRequest (a staff-restricted
+	// large burn that VerifyAndRedeemLoyaltyOTP routed here instead of
+	// redeeming immediately) actually burns the points here.
+	if doctype == "LoyaltyRedemptionRequest" && decision == "Approved" {
+		executeApprovedLoyaltyRedemption(tenantID, docID, data)
+	}
+
 	return nil
 }
 
@@ -494,8 +508,13 @@ func ListPendingApprovals(tenantID, role, location string) ([]map[string]interfa
 // the real invoice_amount, which happens to still pick the right role
 // today only because this stage seeded a single flat 0..NULL rule for the
 // doctype - a tiered slab would route every override to the lowest tier.
+// "points_value" is LoyaltyRedemptionRequest-specific (Stage 26.7.5): routes
+// on the redemption's rupee value (points * redemptionValuePerPoint), not a
+// generic "amount"/"total_amount", to avoid colliding with those keys'
+// meaning on other doctypes the same way "discount_amount"/"variance_qty"
+// already don't.
 func extractAmount(data map[string]interface{}) float64 {
-	for _, key := range []string{"total_amount", "amount", "discount_amount", "variance_qty", "invoice_amount"} {
+	for _, key := range []string{"total_amount", "amount", "discount_amount", "variance_qty", "invoice_amount", "points_value"} {
 		if v, ok := data[key]; ok {
 			switch n := v.(type) {
 			case float64:

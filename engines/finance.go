@@ -6,6 +6,13 @@ import (
 	"fmt"
 )
 
+// PostingOptions carries optional per-posting metadata that doesn't affect
+// the debit/credit balance check itself (Stage 26.6.8).
+type PostingOptions struct {
+	CostCenter string
+	Department string
+}
+
 // PostDoubleEntry writes balanced debit/credit transactions to the GL
 // Ledger.
 //
@@ -24,10 +31,34 @@ import (
 // posting and would double-post; now a repeat call with the same key is a
 // silent no-op instead. Pass "" to opt out (e.g. test helpers that don't
 // care about this).
-func PostDoubleEntry(tenantID string, docType string, docID string, debits map[string]int, credits map[string]int, transactionDate string, postingKey string) error {
+//
+// opts (Stage 26.6.8, variadic so every one of this function's 28
+// pre-existing call sites needs zero changes) optionally tags every row
+// this call inserts with one cost_center/department - a whole-posting
+// dimension, not per-line (this function's debits/credits maps already
+// aggregate by account_code, so a per-line dimension isn't representable
+// without restructuring that aggregation). Only the first element is used.
+func PostDoubleEntry(tenantID string, docType string, docID string, debits map[string]int, credits map[string]int, transactionDate string, postingKey string, opts ...PostingOptions) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
+	}
+	var opt PostingOptions
+	if len(opts) > 0 {
+		opt = opts[0]
+	}
+	if err := validateCostCenterReference(tenantID, opt.CostCenter); err != nil {
+		return err
+	}
+	if err := validateDepartmentReference(tenantID, opt.Department); err != nil {
+		return err
+	}
+	var costCenterArg, departmentArg interface{}
+	if opt.CostCenter != "" {
+		costCenterArg = opt.CostCenter
+	}
+	if opt.Department != "" {
+		departmentArg = opt.Department
 	}
 
 	sumDebits := 0
@@ -54,7 +85,7 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 		return err
 	}
 
-	if err := rejectIfCurrentPeriodClosed(tx, schema, transactionDate); err != nil {
+	if err := rejectIfCurrentPeriodClosed(tx, schema, docType, docID, transactionDate); err != nil {
 		return err
 	}
 
@@ -80,9 +111,9 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 			continue
 		}
 		query := fmt.Sprintf(`
-			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key)
-			VALUES ($1, $2, 0, $3, $4, $5)`, schema)
-		_, err := tx.Exec(query, code, val, docType, docID, keyArg)
+			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department)
+			VALUES ($1, $2, 0, $3, $4, $5, $6, $7)`, schema)
+		_, err := tx.Exec(query, code, val, docType, docID, keyArg, costCenterArg, departmentArg)
 		if err != nil {
 			return fmt.Errorf("error posting debit for account %s: %v", code, err)
 		}
@@ -94,9 +125,9 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 			continue
 		}
 		query := fmt.Sprintf(`
-			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key)
-			VALUES ($1, 0, $2, $3, $4, $5)`, schema)
-		_, err := tx.Exec(query, code, val, docType, docID, keyArg)
+			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department)
+			VALUES ($1, 0, $2, $3, $4, $5, $6, $7)`, schema)
+		_, err := tx.Exec(query, code, val, docType, docID, keyArg, costCenterArg, departmentArg)
 		if err != nil {
 			return fmt.Errorf("error posting credit for account %s: %v", code, err)
 		}

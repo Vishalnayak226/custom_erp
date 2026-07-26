@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"database/sql"
 	"fmt"
+	"time"
 )
 
 type AccountingPeriod struct {
@@ -248,7 +249,7 @@ func GetPeriodCloseChecklist(tenantID, periodID string) (*PeriodCloseChecklist, 
 // the same lesson the Stage 14 lockout timezone bug taught: reckon time
 // windows against Postgres's clock end-to-end, not a mix of Go and SQL
 // clocks.
-func rejectIfCurrentPeriodClosed(tx *sql.Tx, schema string, transactionDate string) error {
+func rejectIfCurrentPeriodClosed(tx *sql.Tx, schema, docType, docID, transactionDate string) error {
 	var name string
 	var err error
 	if transactionDate == "" {
@@ -268,5 +269,42 @@ func rejectIfCurrentPeriodClosed(tx *sql.Tx, schema string, transactionDate stri
 	if err != nil {
 		return err
 	}
-	return fmt.Errorf("cannot post: transaction date falls within closed accounting period '%s'", name)
+
+	// Stage 26.6.6: a signed-off BackdatedPostingRequest lets this specific
+	// (docType, docID, transactionDate) posting through the closed period
+	// anyway, instead of a blanket rejection - the override path this
+	// function's own comment above (24.6) said a future backdated-entry
+	// flow would need once one existed (Stage 26.6.4's JournalVoucher is
+	// the first caller that actually passes a real, user-editable
+	// transactionDate here).
+	if approved, approvedErr := isBackdatedPostingApproved(tx, schema, docType, docID, transactionDate); approvedErr == nil && approved {
+		return nil
+	}
+
+	// FIN-0260 (Stage 26.6.10, revisited from Stage 25.9): this is the
+	// single choke point every PostDoubleEntry call site already routes
+	// through, so coding the error here propagates it to all of them at
+	// once - no per-call-site changes needed.
+	return &ValidationError{Code: "FIN-0260", Message: fmt.Sprintf("cannot post: transaction date falls within closed accounting period '%s'", name)}
+}
+
+// isBackdatedPostingApproved checks for an Approved BackdatedPostingRequest
+// matching this exact posting - docID may be "" for callers that don't yet
+// have a document id at posting time, in which case there's nothing to
+// match against and no override is possible (not an error, just no match).
+func isBackdatedPostingApproved(tx *sql.Tx, schema, docType, docID, transactionDate string) (bool, error) {
+	if docID == "" {
+		return false, nil
+	}
+	effectiveDate := transactionDate
+	if effectiveDate == "" {
+		effectiveDate = time.Now().Format("2006-01-02")
+	}
+	var count int
+	err := tx.QueryRow(fmt.Sprintf(`
+		SELECT COUNT(*) FROM %s.documents
+		WHERE doctype = 'BackdatedPostingRequest' AND status = 'Approved'
+		  AND data->>'target_doctype' = $1 AND data->>'target_document_id' = $2 AND data->>'transaction_date' = $3`, schema),
+		docType, docID, effectiveDate).Scan(&count)
+	return count > 0, err
 }

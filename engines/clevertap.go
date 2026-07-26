@@ -62,26 +62,30 @@ func GetCleverTapCredentials(tenantID string) ([]map[string]interface{}, error) 
 	return creds, nil
 }
 
-// LogCleverTapEvent records a customer event to be synced to CleverTap.
-// This uses the outbox pattern - the event is queued and the background
-// worker dispatches it asynchronously.
-func LogCleverTapEvent(tenantID, eventName, customerID string, eventData map[string]interface{}) error {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return err
-	}
-
+// logCleverTapEventInSchema is the schema-level primitive - needed
+// directly by StartCampaignWorker (engines/campaign.go, Stage 26.7.4),
+// which already has the schema from its own tenant-schema scan and no
+// tenantID to re-derive it from, the same split every other *InSchema
+// helper in this codebase uses. campaign_id (Stage 26.7.4, additive column)
+// is read out of eventData if present - NULL for every pre-existing caller
+// that doesn't set it, so this is the "extend the existing log" the
+// backlog called for rather than a new log table.
+func logCleverTapEventInSchema(schema, eventName, customerID string, eventData map[string]interface{}) error {
 	dataJSON, err := json.Marshal(eventData)
 	if err != nil {
 		return err
 	}
+	campaignID, _ := eventData["campaign_id"].(string)
+	var campaignIDArg interface{}
+	if campaignID != "" {
+		campaignIDArg = campaignID
+	}
 
 	// Record in the local event log
 	query := fmt.Sprintf(`
-		INSERT INTO %s.clevertap_event_log (event_name, customer_id, event_data, status)
-		VALUES ($1, $2, $3, 'Pending')`, schema)
-	_, err = db.DB.Exec(query, eventName, customerID, dataJSON)
-	if err != nil {
+		INSERT INTO %s.clevertap_event_log (event_name, customer_id, event_data, status, campaign_id)
+		VALUES ($1, $2, $3, 'Pending', $4)`, schema)
+	if _, err := db.DB.Exec(query, eventName, customerID, dataJSON, campaignIDArg); err != nil {
 		return err
 	}
 
@@ -105,6 +109,17 @@ func LogCleverTapEvent(tenantID, eventName, customerID string, eventData map[str
 		return err
 	}
 	return tx.Commit()
+}
+
+// LogCleverTapEvent records a customer event to be synced to CleverTap.
+// This uses the outbox pattern - the event is queued and the background
+// worker dispatches it asynchronously.
+func LogCleverTapEvent(tenantID, eventName, customerID string, eventData map[string]interface{}) error {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	return logCleverTapEventInSchema(schema, eventName, customerID, eventData)
 }
 
 // LogCheckoutToCleverTap logs a completed POS checkout as a CleverTap event.

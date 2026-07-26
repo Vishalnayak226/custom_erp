@@ -21,6 +21,12 @@ const (
 	redemptionValuePerPoint = 1
 )
 
+// loyaltyPointExpiryDays (Stage 26.7.3) is how long an Earn lot stays valid
+// before StartLoyaltyExpiryWorker sweeps it - a fixed window, the same kind
+// of deliberate simplification as rupeesPerPoint/redemptionValuePerPoint
+// above (a real program would make this tenant-configurable too).
+const loyaltyPointExpiryDays = 365
+
 // LoyaltyLedgerEntry is one earn/burn transaction.
 type LoyaltyLedgerEntry struct {
 	TransactionType string    `json:"transaction_type"`
@@ -29,15 +35,25 @@ type LoyaltyLedgerEntry struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
+// insertLoyaltyLedgerEntryInSchema is the schema-level primitive - needed
+// directly by StartLoyaltyExpiryWorker (engines/loyalty_tiering.go), which
+// already has the schema from its own tenant-schema scan and no tenantID to
+// re-derive it from, the same split CreateJournalVoucher/
+// createJournalVoucherInSchema uses. expiresAt is nil for Burn rows (and
+// for the expiry sweep's own Burn rows) - only an Earn row's points lapse.
+func insertLoyaltyLedgerEntryInSchema(schema, customerID, transactionType string, points int, referenceDoctype, referenceID string, expiresAt *time.Time) error {
+	_, err := db.DB.Exec(fmt.Sprintf(`
+		INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6)`, schema), customerID, transactionType, points, referenceDoctype, referenceID, expiresAt)
+	return err
+}
+
 func insertLoyaltyLedgerEntry(tenantID, customerID, transactionType string, points int, referenceDoctype, referenceID string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(`
-		INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id)
-		VALUES ($1, $2, $3, $4, $5)`, schema), customerID, transactionType, points, referenceDoctype, referenceID)
-	return err
+	return insertLoyaltyLedgerEntryInSchema(schema, customerID, transactionType, points, referenceDoctype, referenceID, nil)
 }
 
 // GetLoyaltyBalance computes a customer's current point balance as
@@ -109,10 +125,31 @@ func RedeemLoyaltyPoints(tenantID, customerID string, points int, referenceID st
 // EarnLoyaltyPoints credits points for a completed sale. netSaleAmount
 // should already exclude any redemption discount applied to the same
 // checkout (points aren't earned on the portion paid for with points).
+// Stage 26.7.3: the base points are scaled by the customer's current tier's
+// earn_multiplier (engines/loyalty_tiering.go), the earned lot is stamped
+// with an expiry (loyaltyPointExpiryDays out), and the customer's tier is
+// re-evaluated against their new lifetime spend - both best-effort
+// enhancements on top of the points already earned/inserted, so a failure
+// in either never undoes or blocks the earn itself.
 func EarnLoyaltyPoints(tenantID, customerID string, netSaleAmount int, referenceID string) error {
-	points := netSaleAmount / rupeesPerPoint
+	basePoints := netSaleAmount / rupeesPerPoint
+	if basePoints <= 0 {
+		return nil
+	}
+	points := int(float64(basePoints) * loyaltyEarnMultiplierForCustomer(tenantID, customerID))
 	if points <= 0 {
 		return nil
 	}
-	return insertLoyaltyLedgerEntry(tenantID, customerID, "Earn", points, "POSCart", referenceID)
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	expiresAt := time.Now().AddDate(0, 0, loyaltyPointExpiryDays)
+	if err := insertLoyaltyLedgerEntryInSchema(schema, customerID, "Earn", points, "POSCart", referenceID, &expiresAt); err != nil {
+		return err
+	}
+	if _, err := RecomputeLoyaltyTier(tenantID, customerID); err != nil {
+		LogSystemError(tenantID, "", "ERROR", "EarnLoyaltyPoints", fmt.Sprintf("tier recompute failed for customer %s: %v", customerID, err), "")
+	}
+	return nil
 }

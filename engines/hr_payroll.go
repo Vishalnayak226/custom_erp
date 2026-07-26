@@ -192,7 +192,7 @@ func PostPayslipToGL(tenantID, payslipID, actorUserID string) error {
 		return err
 	}
 	periodTo, _ := d["period_to"].(string)
-	if perr := rejectIfCurrentPeriodClosed(tx, schema, periodTo); perr != nil {
+	if perr := rejectIfCurrentPeriodClosed(tx, schema, "Payslip", payslipID, periodTo); perr != nil {
 		return &ValidationError{Code: "HRPAYR-0153", Message: "payroll period is locked - changes are not allowed"}
 	}
 
