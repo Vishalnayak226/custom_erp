@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -33,6 +34,8 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return validateEmployeeRules(tenantID, docID, payload)
 	case "Leave":
 		return validateLeaveRules(tenantID, docID, payload)
+	case "Attendance":
+		return validateAttendanceRules(tenantID, payload)
 	case "PurchaseRequisition":
 		return validatePurchaseRequisitionEditRules(priorStatus, priorData)
 	}
@@ -424,6 +427,96 @@ func validateEmployeeRules(tenantID, docID string, payload map[string]interface{
 	if err == nil {
 		return &ValidationError{Code: "HRPAYR-0149", Message: fmt.Sprintf("employee code %q is already used by %s", code, existingID)}
 	}
+
+	// Stage 26.8.6 (HRPAYR-0156): offboarding's exit-date field, additive on
+	// Employee - only checked when both dates are actually set, so an
+	// Employee with neither (every pre-26.8.6 record) is unaffected.
+	joinDate := strField(payload, "date_of_joining")
+	exitDate := strField(payload, "date_of_exit")
+	if joinDate != "" && exitDate != "" && exitDate < joinDate {
+		return &ValidationError{Code: "HRPAYR-0156", Message: "exit date cannot be earlier than the joining date"}
+	}
+	return nil
+}
+
+// leaveAnnualEntitlement (26.8.5) is a deliberately simple flat per-type
+// yearly day count, not a configurable leave-policy engine - matching this
+// codebase's lightweight principle for a first pass at self-service leave.
+// "Unpaid" has no entitlement ceiling (an employee can always go unpaid).
+var leaveAnnualEntitlement = map[string]float64{
+	"Casual": 12,
+	"Sick":   10,
+	"Earned": 15,
+}
+
+// validateLeaveBalance covers HRPAYR-0151: sums this employee's already
+// Applied/Approved days of the same leave_type within the same calendar
+// year as fromDate, and blocks a request that would push the total over
+// the flat annual entitlement above.
+func validateLeaveBalance(tenantID, docID, employeeID, leaveType, fromDate string, days float64) error {
+	entitlement, capped := leaveAnnualEntitlement[leaveType]
+	if !capped {
+		return nil
+	}
+	year := fromDate
+	if len(year) >= 4 {
+		year = fromDate[:4]
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var usedRaw sql.NullFloat64
+	if err := db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(SUM((data->>'days')::numeric), 0) FROM %s.documents
+		WHERE doctype = 'Leave' AND data->>'employee_id' = $1 AND data->>'leave_type' = $2
+		AND id != $3 AND status IN ('Applied', 'Approved') AND (data->>'from_date') LIKE $4`,
+		schema), employeeID, leaveType, docID, year+"%").Scan(&usedRaw); err != nil {
+		return err
+	}
+	used := usedRaw.Float64
+	if used+days > entitlement {
+		return &ValidationError{Code: "HRPAYR-0151", Message: fmt.Sprintf("insufficient %s leave balance: %v days already used/applied this year, %v requested, entitlement is %v days/year", leaveType, used, days, entitlement)}
+	}
+	return nil
+}
+
+// validateAttendanceRules covers HR-0269: an employee whose roster actually
+// uses ShiftAssignment (Stage 26.8.1) must have one for the exact date an
+// Attendance record marks - Holiday/WeeklyOff/Leave statuses are exempt,
+// they don't represent a worked shift. An employee with zero ShiftAssignment
+// rows ever (i.e. not using shift rostering at all) is completely unaffected
+// - this is opt-in by existing data, not a new mandatory field.
+func validateAttendanceRules(tenantID string, payload map[string]interface{}) error {
+	employeeID := strField(payload, "employee_id")
+	date := strField(payload, "date")
+	status := strField(payload, "status")
+	if employeeID == "" || date == "" || status == "Holiday" || status == "WeeklyOff" || status == "Leave" {
+		return nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var usesRoster bool
+	if err := db.DB.QueryRow(fmt.Sprintf(`
+		SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'ShiftAssignment' AND data->>'employee_id' = $1)`,
+		schema), employeeID).Scan(&usesRoster); err != nil {
+		return err
+	}
+	if !usesRoster {
+		return nil
+	}
+	var assignedToday bool
+	if err := db.DB.QueryRow(fmt.Sprintf(`
+		SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'ShiftAssignment'
+		AND data->>'employee_id' = $1 AND data->>'date' = $2 AND status != 'Cancelled')`,
+		schema), employeeID, date).Scan(&assignedToday); err != nil {
+		return err
+	}
+	if !assignedToday {
+		return &ValidationError{Code: "HR-0269", Message: "shift is not assigned for this employee/date - configure a shift assignment before marking attendance"}
+	}
 	return nil
 }
 
@@ -449,6 +542,14 @@ func validateLeaveRules(tenantID, docID string, payload map[string]interface{}) 
 		LIMIT 1`, schema), employeeID, docID, fromDate, toDate).Scan(&existingID)
 	if err == nil {
 		return &ValidationError{Code: "HRPAYR-0152", Message: fmt.Sprintf("overlaps existing leave record %s for this employee", existingID)}
+	}
+
+	leaveType := strField(payload, "leave_type")
+	days := numFromInterface(payload["days"])
+	if leaveType != "" && days > 0 {
+		if err := validateLeaveBalance(tenantID, docID, employeeID, leaveType, fromDate, days); err != nil {
+			return err
+		}
 	}
 	return nil
 }

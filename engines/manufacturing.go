@@ -13,10 +13,14 @@ import (
 // other manufacturing models (process/assembly/MTO/subcontracting/repair)
 // are explicitly out of scope.
 
-// bomComponent is one line of a BOM's components JSON array.
+// bomComponent is one line of a BOM's components JSON array. SubBom/
+// ScrapPercent (Stage 26.9.1/26.9.4) are additive - a component line with
+// neither set behaves exactly as it did before that Stage.
 type bomComponent struct {
-	Sku string  `json:"sku"`
-	Qty float64 `json:"qty"`
+	Sku          string  `json:"sku"`
+	Qty          float64 `json:"qty"`
+	SubBom       string  `json:"sub_bom,omitempty"`       // if set, this line is itself a manufactured sub-assembly (references another BOM's id) rather than a directly-issuable raw material
+	ScrapPercent float64 `json:"scrap_percent,omitempty"` // extra qty issued to account for expected wastage on this line, e.g. 5 = issue 5% more than the pure qty*order-qty requirement
 }
 
 func fetchProductionOrder(tenantID, orderID string) (data map[string]interface{}, status string, err error) {
@@ -103,7 +107,11 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 		return fmt.Errorf("production order quantity must be positive")
 	}
 
-	_, components, err := fetchBOM(tenantID, bomID)
+	// Stage 26.9.1: explodeBOMComponents recurses through any sub_bom
+	// references and folds each line's scrap_percent (26.9.4) into the
+	// returned per-unit quantity, so the loop below is unchanged from
+	// before that Stage - it always just sees a flat list of raw materials.
+	components, err := explodeBOMComponents(tenantID, bomID, 1.0, map[string]bool{}, 0)
 	if err != nil {
 		return err
 	}
@@ -145,42 +153,37 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 		return fmt.Errorf("material issue failed: %v", err)
 	}
 
+	// Stage 26.9.2: snapshot the exploded requirement as issued, so
+	// finishProductionQty can detect (MFG-0276) if the BOM document itself
+	// is edited after this point, before the order is completed.
+	if snapBytes, errM := json.Marshal(components); errM == nil {
+		data["bom_snapshot"] = string(snapBytes)
+	}
+
 	return saveProductionOrderStatus(tenantID, orderID, "Material Issued", data)
 }
 
 // CompleteProductionOrder implements "Finished Goods Receipt": posts the
-// produced quantity of the BOM's parent item into inventory at the order's
-// location.
+// produced quantity of the BOM's parent item (and Stage 26.9.4 by-products)
+// into inventory at the order's location. Kept as a one-shot "complete the
+// entire remaining balance" call for backward compatibility with the
+// existing frontend action and handler - Stage 26.9.6's finishProductionQty
+// (engines/manufacturing_mrp.go) is what actually does the work now, shared
+// with the new explicit ReportPartialCompletion.
 func CompleteProductionOrder(tenantID, orderID string) error {
 	data, status, err := fetchProductionOrder(tenantID, orderID)
 	if err != nil {
 		return fmt.Errorf("production order not found: %v", err)
 	}
-	if status != "Material Issued" {
+	if status != "Material Issued" && status != "In Process" {
 		return fmt.Errorf("only a production order with material already issued can be completed (current status: %s)", status)
 	}
 
-	bomID, _ := data["bom_id"].(string)
-	location, _ := data["location"].(string)
-	orderQty := 0.0
-	if v, ok := data["quantity"].(float64); ok {
-		orderQty = v
+	orderQty := numFromInterface(data["quantity"])
+	completedSoFar := numFromInterface(data["completed_qty"])
+	remaining := orderQty - completedSoFar
+	if remaining <= 0 {
+		return fmt.Errorf("production order has no remaining quantity to complete")
 	}
-
-	parentItem, _, err := fetchBOM(tenantID, bomID)
-	if err != nil {
-		return err
-	}
-	if parentItem == "" {
-		return fmt.Errorf("BOM %s has no parent_item configured", bomID)
-	}
-
-	items := []interface{}{
-		map[string]interface{}{"sku": parentItem, "qty": orderQty},
-	}
-	if _, err := PostInventoryLedger(tenantID, location, items, false); err != nil {
-		return fmt.Errorf("finished goods receipt failed: %v", err)
-	}
-
-	return saveProductionOrderStatus(tenantID, orderID, "Completed", data)
+	return finishProductionQty(tenantID, orderID, remaining)
 }
