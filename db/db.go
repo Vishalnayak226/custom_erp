@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"os"
 	"regexp"
 	"time"
 
@@ -41,6 +42,42 @@ func InitDB(connStr string) {
 	}
 
 	log.Println("Database connection established successfully")
+}
+
+// EnforceUTF8Encoding (20.6) checks the connected Postgres server's own
+// encoding - found for real via messy-data stress testing, 2026-07-25, not
+// a theoretical concern: this Windows dev instance's whole cluster
+// (including template0/template1, so every future CREATE DATABASE inherits
+// it too) was provisioned as WIN1252, not UTF8. Any Chinese/Japanese/
+// Korean/Arabic/Cyrillic-beyond-Latin1/emoji character in any text field -
+// a customer name, a vendor name, a product description - hard-fails the
+// INSERT with a raw Postgres encoding error the moment someone types one
+// in, anywhere in this application. Fixing the cluster's encoding itself
+// means dropping and recreating every database from template0 with
+// ENCODING 'UTF8', which is destructive to whatever's already stored and
+// out of proportion to do automatically against a shared dev database this
+// tree already has standing warnings about (concurrent sessions/edits) -
+// so this only surfaces the problem loudly instead of fixing it silently
+// wrong, same posture as EnforceNoDefaultAdminCredentialInProduction. In
+// production this should never trigger at all: essentially every managed
+// Postgres provider (RDS, Cloud SQL, etc.) defaults new databases to UTF8,
+// so this is a hard-stop precisely because a production instance failing
+// this check means something unusual happened during provisioning.
+func EnforceUTF8Encoding() error {
+	var encoding string
+	if err := DB.QueryRow(`SHOW server_encoding`).Scan(&encoding); err != nil {
+		// Can't determine encoding - don't block startup over a query that
+		// itself failed; a real connectivity problem surfaces elsewhere.
+		return nil
+	}
+	if encoding == "UTF8" {
+		return nil
+	}
+	if os.Getenv("ENV") == "production" {
+		return fmt.Errorf("database server_encoding is %q, not UTF8 - non-Latin1 text (CJK, Arabic, emoji, ...) in any field will hard-fail on save; recreate the database with ENCODING 'UTF8' TEMPLATE template0 before running with ENV=production", encoding)
+	}
+	log.Printf("[WARN] database server_encoding is %q, not UTF8 - non-Latin1 text (CJK, Arabic, emoji, ...) in any field will hard-fail on save with a raw Postgres error. Fine to keep developing, but this must be fixed (recreate the database with ENCODING 'UTF8' TEMPLATE template0) before any real deployment - ENV=production refuses to start with this condition.", encoding)
+	return nil
 }
 
 // validSchemaNameRe (24.17) allowlists what a schema name is allowed to look

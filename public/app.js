@@ -295,6 +295,57 @@ let posLocation = '';
 let posOpenSessionId = ''; // Stage 20.7: '' means no open cashier session at posLocation
 const OFFLINE_QUEUE_KEY = 'erp_pos_offline_queue'; // 20.13, see checkoutOnlineOrQueue below
 let offlineSyncInFlight = false;
+
+// 21.14: stale-while-revalidate cache, sessionStorage-backed (per-tab,
+// cleared on tab close - deliberately not localStorage, which would leak a
+// stale list across a login/tenant switch in the same browser profile).
+// Read-only GET data only (a doctype's record list, its field metadata) -
+// never used for anything that mutates, and every write path already goes
+// through apiFetch untouched, so a stale cache is a display lag at worst,
+// never a stale write.
+const SWR_PREFIX = 'erp_swr_';
+
+function swrCacheGet(key) {
+  try {
+    const raw = sessionStorage.getItem(SWR_PREFIX + key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function swrCacheSet(key, data) {
+  try {
+    sessionStorage.setItem(SWR_PREFIX + key, JSON.stringify(data));
+  } catch (e) {
+    // sessionStorage full/unavailable (private browsing, quota) - SWR just
+    // degrades to "always fetch fresh," no functional loss.
+  }
+}
+
+// swrFetch(key, fetchFn, onFresh): returns cached data synchronously (or
+// null if none cached yet) so the caller can render *something* instantly
+// with zero network wait - the "eliminate loading spinners" half of 21.14.
+// Always fires fetchFn() in the background regardless of whether cache
+// existed; when it resolves, onFresh(data) is called only if the result is
+// new/different, so a caller doesn't re-render pointlessly when nothing
+// changed. fetchFn returning undefined (a failed/non-ok response) is
+// treated as "couldn't revalidate this time" - the stale cache is left in
+// place rather than wiped, since showing slightly-stale data beats showing
+// nothing on a transient network blip.
+function swrFetch(key, fetchFn, onFresh) {
+  const cached = swrCacheGet(key);
+  (async () => {
+    const fresh = await fetchFn();
+    if (fresh === undefined) return;
+    const freshStr = JSON.stringify(fresh);
+    if (!cached || JSON.stringify(cached) !== freshStr) {
+      swrCacheSet(key, fresh);
+      onFresh(fresh);
+    }
+  })();
+  return cached;
+}
 let currentSearchQuery = '';
 let currentTablePage = 1;
 let currentExtensionHookLogId = ''; // which hook's log renderExtensionHookLogView shows
@@ -814,6 +865,7 @@ const MENU_PERMISSION_MAP = {
   'menu-pos': { open: true },
   'menu-pos-profiles': { doctypes: ['POSProfile'] },
   'menu-pos-offline-sync': { doctypes: ['POSOfflineSyncVariance'] },
+  'menu-pos-offline-gaps': { doctypes: ['POSOfflineQueueGap'] },
 
   'menu-finance': { open: true },
   'menu-approvals': { open: true },
@@ -1329,6 +1381,9 @@ function setupEventListeners() {
 
   // Offline Sync Review (Stage 20.13) - same generic doctype-table pattern as POS Profile/Bin above.
   document.getElementById('menu-pos-offline-sync').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-sync'); closeSubmenus(); currentDoctype = 'POSOfflineSyncVariance'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+
+  // Offline Queue Gaps (24.36) - same generic doctype-table pattern as Offline Sync Review above.
+  document.getElementById('menu-pos-offline-gaps').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-gaps'); closeSubmenus(); currentDoctype = 'POSOfflineQueueGap'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
   ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
     const btn = document.getElementById(id);
@@ -2579,7 +2634,17 @@ async function closePOSSessionFlow() {
   // ReferenceError on every successful close. Found while touching this
   // function for the offline-queue guard above.
   const data = await res.json();
-  await showCustomAlert(`Session closed. Expected: ${data.expected_cash.toFixed(2)}, Counted: ${data.counted_cash.toFixed(2)}, Variance: ${data.variance.toFixed(2)}`, 'Session Closed');
+  let msg = `Session closed. Expected: ${data.expected_cash.toFixed(2)}, Counted: ${data.counted_cash.toFixed(2)}, Variance: ${data.variance.toFixed(2)}`;
+  // 24.36: the server diffed this session's last offline-queue heartbeat
+  // against what actually synced - a non-empty list here means at least
+  // one sale was queued (and beaconed) but never arrived, logged to
+  // POSOfflineQueueGap for HR/Admin and Store Manager to review. Shown to
+  // the closing cashier too, not just the reviewers - deliberate, so
+  // there's no incentive to stay quiet about it.
+  if (data.offline_queue_gap && data.offline_queue_gap.length > 0) {
+    msg += `\n\nWarning: ${data.offline_queue_gap.length} offline sale(s) were queued but never synced (${data.offline_queue_gap.join(', ')}). This has been flagged for manager review.`;
+  }
+  await showCustomAlert(msg, 'Session Closed');
   await refreshPOSSessionStatus();
 }
 
@@ -2683,12 +2748,45 @@ function getOfflineQueue() {
 function saveOfflineQueue(queue) {
   localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
   renderOfflineQueueBadge();
+  // 24.36: beacon the queue's new state to the server on every mutation
+  // (push, or drained by a sync), not just on a timer - the single choke
+  // point every queue change already runs through, so this needs no
+  // separate call site of its own. Best-effort/fire-and-forget: see
+  // sendOfflineQueueHeartbeat's own header comment for why this can't be
+  // made fully reliable.
+  sendOfflineQueueHeartbeat();
 }
 
 function queueOfflinePOSCart(payload) {
   const queue = getOfflineQueue();
   queue.push({ cartNumber: payload.cart_number, location: payload.location, payload, queuedAt: new Date().toISOString() });
   saveOfflineQueue(queue);
+}
+
+// 24.36: best-effort beacon of the currently-queued offline cart_numbers
+// against the cashier's open session, so a gap between what was queued and
+// what actually synced (e.g. a cashier clears browser storage before
+// reconnecting) leaves a server-side trace instead of vanishing without
+// one - see engines.RecordOfflineHeartbeat/detectOfflineQueueGap. Can't use
+// navigator.sendBeacon (no way to attach the Authorization/X-Tenant-ID
+// headers this endpoint requires); fetch's keepalive flag is the
+// equivalent that still works during page unload for a payload this small.
+// A network failure here is expected and silent - it just means this
+// particular checkpoint never reaches the server, same as if a heartbeat
+// had never fired at all; it does not affect the cashier's ability to keep
+// selling or syncing.
+function sendOfflineQueueHeartbeat() {
+  if (!posOpenSessionId || !posLocation) return;
+  const token = localStorage.getItem('erp_token');
+  if (!token) return;
+  const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
+  const cartNumbers = getOfflineQueue().map(e => e.cartNumber);
+  fetch('/api/v1/pos/offline-heartbeat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}`, 'X-Tenant-ID': tenantID },
+    body: JSON.stringify({ session_id: posOpenSessionId, location: posLocation, cart_numbers: cartNumbers }),
+    keepalive: true
+  }).catch(() => {});
 }
 
 // Renders/updates the small badge in the POS session bar showing how many
@@ -2809,11 +2907,23 @@ async function trySyncOfflineQueue() {
 // the primary trigger; the 30s poll is a fallback for the cases that event
 // doesn't reliably fire (some OS/browser network-transition paths), and is
 // cheap to skip when the queue is already empty.
+//
+// 24.36: 'visibilitychange'/'pagehide' additionally re-beacon the queue's
+// current state whenever the tab is about to be hidden or closed - the
+// single highest-value moment to catch, since it's the last chance to get
+// a checkpoint out before a cashier could clear storage or walk away from
+// an unattended tab. The 30s poll already re-heartbeats implicitly via
+// saveOfflineQueue if it triggers a sync, but a page that's simply idle
+// (queue non-empty, nothing changing) wouldn't otherwise re-beacon between
+// the initial queue and whenever it's next touched.
 function setupOfflineSync() {
   window.addEventListener('online', trySyncOfflineQueue);
   setInterval(() => {
     if (getOfflineQueue().length > 0) trySyncOfflineQueue();
   }, 30000);
+  const reheartbeat = () => { if (getOfflineQueue().length > 0) sendOfflineQueueHeartbeat(); };
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') reheartbeat(); });
+  window.addEventListener('pagehide', reheartbeat);
 }
 
 async function submitPOSCheckout() {
@@ -5184,7 +5294,12 @@ async function renderPurchaseOrdersView(container) {
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="po-vendor">Vendor</label>
-        <input type="text" id="po-vendor" class="form-input" style="width: 160px;">
+        <!-- 21.14: first live call site for <erp-typeahead> (Web
+             Component) - same behavior as attachTypeahead(), just
+             encapsulated. .value getter/setter means every existing
+             call site reading po-vendor's value (below, and on submit)
+             needs zero changes. -->
+        <erp-typeahead id="po-vendor" doctype="Vendor" style="width: 160px;"></erp-typeahead>
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="po-warehouse">Target Warehouse</label>
@@ -5215,7 +5330,6 @@ async function renderPurchaseOrdersView(container) {
   container.appendChild(formPanel);
 
   document.getElementById('po-gst-calc-btn').addEventListener('click', calculatePOGst);
-  attachTypeahead(document.getElementById('po-vendor'), 'Vendor');
   attachTypeahead(document.getElementById('po-warehouse'), 'Location');
   attachTypeahead(document.getElementById('po-location'), 'Location');
 
@@ -9067,24 +9181,54 @@ async function submitPIMContent(itemCode) {
 }
 
 // Render dynamic DocType CRUD Table view
-async function renderDocTableView(container) {
-  const metaRes = await apiFetch(`/api/v1/doc/${currentDoctype}/meta`);
-  if (!metaRes) return;
-  if (!metaRes.ok) {
-    const msg = await getErrorMessage(metaRes, `Failed to load schema for ${getTranslatedLabel(currentDoctype)}.`);
-    renderErrorPanel(container, msg, () => renderView('doctype-table'));
-    return;
-  }
-  state.activeDocFields = await metaRes.json();
+// 21.14: SWR-backed - fetches this doctype's field metadata + record list
+// exactly like before, but wrapped so a cached copy (if any) renders
+// immediately with no network wait, then gets silently swapped for fresh
+// data in the background. Cold start (nothing cached yet - the common case
+// for a doctype no one's opened this tab session) falls back to the exact
+// original await-then-render behavior, so this changes nothing about
+// correctness, only repeat-visit perceived speed.
+async function fetchDocTableData(doctype) {
+  const metaRes = await apiFetch(`/api/v1/doc/${doctype}/meta`);
+  if (!metaRes || !metaRes.ok) return undefined;
+  const dataRes = await apiFetch(`/api/v1/doc/${doctype}`);
+  if (!dataRes || !dataRes.ok) return undefined;
+  return { fields: await metaRes.json(), records: await dataRes.json() };
+}
 
-  const dataRes = await apiFetch(`/api/v1/doc/${currentDoctype}`);
-  if (!dataRes) return;
-  if (!dataRes.ok) {
-    const msg = await getErrorMessage(dataRes, `Failed to load records for ${getTranslatedLabel(currentDoctype)}.`);
-    renderErrorPanel(container, msg, () => renderView('doctype-table'));
-    return;
+async function renderDocTableView(container) {
+  const doctypeAtRequestTime = currentDoctype;
+  const cached = swrFetch(`doctable:${doctypeAtRequestTime}`, () => fetchDocTableData(doctypeAtRequestTime), (fresh) => {
+    // Only apply if the user hasn't navigated to a different doctype/view
+    // by the time this background revalidation resolves.
+    if (currentDoctype !== doctypeAtRequestTime || currentView !== 'doctype-table') return;
+    state.activeDocFields = fresh.fields;
+    state.docData = fresh.records;
+    renderDocTable();
+  });
+
+  if (cached) {
+    state.activeDocFields = cached.fields;
+    state.docData = cached.records;
+  } else {
+    const metaRes = await apiFetch(`/api/v1/doc/${currentDoctype}/meta`);
+    if (!metaRes) return;
+    if (!metaRes.ok) {
+      const msg = await getErrorMessage(metaRes, `Failed to load schema for ${getTranslatedLabel(currentDoctype)}.`);
+      renderErrorPanel(container, msg, () => renderView('doctype-table'));
+      return;
+    }
+    state.activeDocFields = await metaRes.json();
+
+    const dataRes = await apiFetch(`/api/v1/doc/${currentDoctype}`);
+    if (!dataRes) return;
+    if (!dataRes.ok) {
+      const msg = await getErrorMessage(dataRes, `Failed to load records for ${getTranslatedLabel(currentDoctype)}.`);
+      renderErrorPanel(container, msg, () => renderView('doctype-table'));
+      return;
+    }
+    state.docData = await dataRes.json();
   }
-  state.docData = await dataRes.json();
   bulkSelectedDocIDs = new Set();
 
   // Stay inside the PIM shell (title + sub-tab bar) for doctypes reached via
@@ -9536,7 +9680,13 @@ window.openDynamicModal = async function(existingRecord) {
         return res.json().then(data => {
           select.innerHTML = '<option value="" disabled selected>— Select Reference —</option>';
           data.forEach(item => {
-            select.innerHTML += `<option value="${item.name || item.id}">${item.name || item.code || item.id}</option>`;
+            // Value must be item.id - that's what the backend's Link
+            // existence check (engines.ValidateDocument) actually verifies
+            // against. Using item.name here (pre-18.2 fix) stored the wrong
+            // value for any target doctype whose `name` differs from its
+            // `id`/`code` (Vendor, Customer, Location, Item all qualify),
+            // silently breaking the Link constraint it was meant to enforce.
+            select.innerHTML += `<option value="${item.id}">${item.name || item.code || item.id}</option>`;
           });
           if (existingVal !== undefined && existingVal !== null) select.value = existingVal;
         });

@@ -598,19 +598,61 @@ func handlePOSSessionClose(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	expected, variance, err := engines.ClosePOSSession(tenantID, req.SessionID, cashier, req.CountedCash, req.VarianceReason)
+	expected, variance, offlineGapCartNumbers, err := engines.ClosePOSSession(tenantID, req.SessionID, cashier, req.CountedCash, req.VarianceReason)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	engines.LogAuditEvent(tenantID, cashier, "POS_SESSION", "CLOSED", fmt.Sprintf("Session %s closed, variance %.2f", req.SessionID, variance))
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":        "Closed",
-		"session_id":    req.SessionID,
-		"expected_cash": expected,
-		"counted_cash":  req.CountedCash,
-		"variance":      variance,
+		"status":            "Closed",
+		"session_id":        req.SessionID,
+		"expected_cash":     expected,
+		"counted_cash":      req.CountedCash,
+		"variance":          variance,
+		"offline_queue_gap": offlineGapCartNumbers, // 24.36: non-empty if carts were heartbeated but never synced - see POSOfflineQueueGap
 	})
+}
+
+// handlePOSOfflineHeartbeat (24.36) records the calling cashier's currently-
+// queued offline cart_numbers for their own open session - a best-effort
+// beacon (see public/app.js's sendOfflineQueueHeartbeat) so a gap between
+// what was queued and what actually synced leaves a server-side trace
+// (checked at close time - see ClosePOSSession/detectOfflineQueueGap)
+// instead of vanishing the moment browser storage is cleared. Scoped to the
+// caller's own currently-open session, same as checkout/session-close, so
+// one cashier can't plant a heartbeat against another's session.
+func handlePOSOfflineHeartbeat(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	cashier := r.Header.Get("Resolved-Username")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+
+	var req struct {
+		SessionID   string   `json:"session_id"`
+		Location    string   `json:"location"`
+		CartNumbers []string `json:"cart_numbers"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SessionID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'session_id' is required")
+		return
+	}
+
+	// Only ever record against the caller's own genuinely-open session -
+	// never trust session_id alone to prove ownership.
+	openSessionID, err := engines.GetOpenSessionForCashier(tenantID, req.Location, cashier)
+	if err != nil || openSessionID == "" || openSessionID != req.SessionID {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "No matching open session for this cashier/location")
+		return
+	}
+
+	if err := engines.RecordOfflineHeartbeat(tenantID, req.SessionID, cashier, req.Location, req.CartNumbers); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to record heartbeat")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // handlePOSSessionCurrent tells the POS screen whether the caller already

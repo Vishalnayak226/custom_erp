@@ -27,6 +27,13 @@ func Run() {
 	}
 	db.InitDB(connStr)
 
+	// 20.6: warn (or, in production, refuse to start) if the connected
+	// database isn't UTF8-encoded - found via messy-data stress testing,
+	// see db.EnforceUTF8Encoding's own comment for why this matters.
+	if err := db.EnforceUTF8Encoding(); err != nil {
+		log.Fatalf("Refusing to start: %v", err)
+	}
+
 	// 24.27: refuse to start in production if the seed admin credential
 	// from db/migration.sql is still active - a fresh dev/test install is
 	// unaffected (this only fires the hard-stop when ENV=production).
@@ -195,6 +202,7 @@ func Run() {
 	http.HandleFunc("POST /api/v1/pos/session/open", apiMiddleware(handlePOSSessionOpen))
 	http.HandleFunc("POST /api/v1/pos/session/close", apiMiddleware(handlePOSSessionClose))
 	http.HandleFunc("GET /api/v1/pos/session/current", apiMiddleware(handlePOSSessionCurrent))
+	http.HandleFunc("POST /api/v1/pos/offline-heartbeat", apiMiddleware(handlePOSOfflineHeartbeat))
 	http.HandleFunc("GET /api/v1/finance/trial-balance", apiMiddleware(handleTrialBalance))
 	http.HandleFunc("GET /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))
 	http.HandleFunc("POST /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))

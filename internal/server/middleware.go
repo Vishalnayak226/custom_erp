@@ -212,25 +212,31 @@ const (
 // re-opened Stage 9.2 item tracked) - same override-via-env-var pattern as
 // JWT_SECRET/CORS_ALLOWED_ORIGINS. Unlike JWT_SECRET, this can't be
 // auto-generated and silently persisted: it has to match a value
-// configured on Shopify's side too, so an unset secret means "no real
-// Shopify integration is configured for this environment" and signature
-// verification is skipped rather than failing closed - the same posture
-// this app already has today (no verification at all), just now able to
-// actually enforce it once a real secret is set.
+// configured on Shopify's side too.
+//
+// 24.35 (2026-07-25): an unset secret used to mean "skip verification,
+// accept the request anyway" - that fails OPEN, so anyone who knows (or
+// guesses) this endpoint's URL could POST an unauthenticated forged
+// "Shopify" order/product payload and have it processed as genuine. Fails
+// CLOSED instead now, matching engines.VerifyWebhookHMAC's (BigCommerce)
+// posture: no secret configured means the integration isn't set up for
+// this environment, so inbound webhook traffic is rejected outright, not
+// silently trusted.
 var shopifyWebhookSecret = os.Getenv("SHOPIFY_WEBHOOK_SECRET")
 var shopifyWebhookSecretWarnOnce sync.Once
 
 // verifyShopifyWebhookSignature checks the X-Shopify-Hmac-Sha256 header
 // (base64 HMAC-SHA256 of the raw body) against shopifyWebhookSecret, using
-// a constant-time comparison. Returns true if verification passed OR no
+// a constant-time comparison. Returns false (rejects the request) if no
 // secret is configured (logging a one-time warning in that case so an
-// operator notices verification isn't actually active).
+// operator notices the endpoint is currently rejecting all traffic) or if
+// the signature doesn't match.
 func verifyShopifyWebhookSignature(r *http.Request, body []byte) bool {
 	if shopifyWebhookSecret == "" {
 		shopifyWebhookSecretWarnOnce.Do(func() {
-			log.Println("[SECURITY] SHOPIFY_WEBHOOK_SECRET is not set - inbound Shopify webhook signature verification is DISABLED. Set it before accepting real Shopify traffic.")
+			log.Println("[SECURITY] SHOPIFY_WEBHOOK_SECRET is not set - inbound Shopify webhooks are being REJECTED (fail-closed). Set it before wiring up real Shopify traffic.")
 		})
-		return true
+		return false
 	}
 	sig := r.Header.Get("X-Shopify-Hmac-Sha256")
 	if sig == "" {

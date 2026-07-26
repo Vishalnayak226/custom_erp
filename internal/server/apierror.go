@@ -149,7 +149,25 @@ func writeEngineError(w http.ResponseWriter, r *http.Request, err error, fallbac
 // writeAPIErrorGeneric writes a standardized error envelope for a call site
 // that has no precise catalog scenario match yet. It keeps the caller's own
 // message text verbatim and only attaches the nearest generic code (by HTTP
-// status) so every response is at least consistently shaped and coded.
+// status) so every response is at least consistently shaped and coded -
+// EXCEPT for 5xx, where the caller's message is almost always a raw
+// err.Error() from an internal failure (DB driver error, JSON marshal
+// failure, ...), not curated user-facing text (unlike a 4xx call site's own
+// message, e.g. "Field 'location' is required", which is deliberate and
+// safe to show as-is).
+//
+// 20.6 (found via messy-data stress testing, 2026-07-25): this surfaced for
+// real, not just in theory - a Unicode name (CJK/emoji) hits a Postgres
+// encoding-mismatch error whose raw message
+// ("character with byte sequence 0xe4 0xbd 0xa0 ... has no equivalent in
+// encoding WIN1252") was going straight to the client. Past the specific
+// info-leak/confusion risk, showing internal driver/schema detail to an end
+// user on every unexpected 500 was already a real gap this generic-message
+// fallback should have closed from the start. GLOBAL-0302's catalog message
+// is shown instead; the raw message is still captured (LogRequired=true on
+// that entry, via logForEntry below) so it's fully retrievable server-side
+// by the correlation_id shown to the user - nothing is lost, only what's
+// shown externally changes.
 func writeAPIErrorGeneric(w http.ResponseWriter, r *http.Request, status int, message string) {
 	code, ok := genericCodeForStatus[status]
 	if !ok {
@@ -167,9 +185,14 @@ func writeAPIErrorGeneric(w http.ResponseWriter, r *http.Request, status int, me
 
 	logForEntry(r, entry, message)
 
+	responseMessage := message
+	if status >= 500 && entry.UserMessage != "" {
+		responseMessage = entry.UserMessage
+	}
+
 	_, _, correlationID := resolvedContext(r)
 	writeResponse(w, status, apiErrorBody{
-		Error:         message,
+		Error:         responseMessage,
 		Code:          code,
 		CorrelationID: correlationID,
 		Retryable:     entry.Retryable,

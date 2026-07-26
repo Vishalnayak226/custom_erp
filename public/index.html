@@ -104,6 +104,7 @@
             <li><a class="menu-item" id="menu-pos"><span>POS / Billing</span></a></li>
             <li><a class="menu-item" id="menu-pos-profiles"><span>POS Profiles</span></a></li>
             <li><a class="menu-item" id="menu-pos-offline-sync"><span>Offline Sync Review</span></a></li>
+            <li><a class="menu-item" id="menu-pos-offline-gaps"><span>Offline Queue Gaps</span></a></li>
           </ul>
         </li>
 
@@ -549,6 +550,9 @@
   <div id="receipt-print-area"></div>
 
   <script src="db.js"></script>
-  <script src="app.js?v=16"></script>
+  <!-- 21.14: this app's first Web Component - plain <script>, no build
+       step, registers <erp-typeahead> globally before app.js runs. -->
+  <script src="components/erp-typeahead.js?v=1"></script>
+  <script src="app.js?v=17"></script>
 </body>
 </html>

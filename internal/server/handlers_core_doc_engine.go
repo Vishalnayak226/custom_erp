@@ -406,9 +406,19 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// session) - not a blanket retrofit of every doctype that happens to
 		// have a location-shaped field, which would be a much larger and
 		// riskier change than this stage's confirmed decision called for.
+		// Widened 24.37/18.2: Stage 18.1's Attendance/Asset/ExpenseClaim/
+		// ProductionOrder "Location" typeahead fields were never wired into
+		// this same choke point - every one of their existing live values
+		// already matches a real Location id (verified against the dev DB
+		// before enabling this), so no backfill was needed here, unlike the
+		// Vendor/Item Link conversions added alongside this.
 		locationFieldsByDoctype := map[string][]string{
-			"PurchaseOrder": {"location", "target_warehouse"},
-			"TransferOrder": {"from_warehouse", "to_warehouse"},
+			"PurchaseOrder":   {"location", "target_warehouse"},
+			"TransferOrder":   {"from_warehouse", "to_warehouse"},
+			"Attendance":      {"location"},
+			"Asset":           {"location"},
+			"ExpenseClaim":    {"location"},
+			"ProductionOrder": {"location"},
 		}
 		for _, field := range locationFieldsByDoctype[doctype] {
 			locCode, _ := payload[field].(string)
