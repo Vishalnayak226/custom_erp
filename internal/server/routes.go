@@ -81,6 +81,23 @@ func Run() {
 	// ReportExportJob documents and runs them in the background.
 	engines.StartReportExportWorker(workerCtx, 10*time.Second)
 
+	// Start Scheduled Report Worker (Stage 26.10.4) - daily-granularity scan
+	// for Active ScheduledReport documents whose next_run_date has arrived.
+	engines.StartScheduledReportWorker(workerCtx, 1*time.Hour)
+
+	// Start Recurring Journal Worker (Stage 26.6.4) - daily-granularity scan
+	// for Recurring Template JournalVouchers whose next_run_date has arrived.
+	engines.StartRecurringJournalWorker(workerCtx, 1*time.Hour)
+
+	// Start Loyalty Expiry Worker (Stage 26.7.3) - daily-granularity sweep
+	// of lapsed loyalty point lots.
+	engines.StartLoyaltyExpiryWorker(workerCtx, 1*time.Hour)
+
+	// Start Campaign Worker (Stage 26.7.4) - daily-granularity scan for
+	// Active campaigns whose birthday/lapsed-customer trigger newly
+	// matches a customer.
+	engines.StartCampaignWorker(workerCtx, 1*time.Hour)
+
 	// Authentication API
 	http.HandleFunc("POST /api/v1/login", apiMiddleware(handleLogin))
 
@@ -215,11 +232,25 @@ func Run() {
 	http.HandleFunc("POST /api/v1/finance/bank-reconcile", apiMiddleware(handleBankReconcile))
 	http.HandleFunc("POST /api/v1/finance/payment-proposal", apiMiddleware(handlePaymentProposal))
 	http.HandleFunc("POST /api/v1/finance/payment-proposal/{id}/execute", apiMiddleware(handleExecutePaymentProposal))
+	// Stage 26.6.5: bank-file generation + duplicate-UTR check for an
+	// Executed proposal.
+	http.HandleFunc("GET /api/v1/finance/payment-proposal/{id}/payment-file", apiMiddleware(handleGeneratePaymentFile))
+	http.HandleFunc("POST /api/v1/finance/payment-proposal/{id}/record-utr", apiMiddleware(handleRecordPaymentUTR))
+	http.HandleFunc("GET /api/v1/finance/payment-proposal/{id}/utrs", apiMiddleware(handleListPaymentUTRs))
 	http.HandleFunc("POST /api/v1/procurement/vendor-invoice/pay-with-tds", apiMiddleware(handlePayVendorInvoiceWithTDS))
 	http.HandleFunc("POST /api/v1/finance/debit-note/{id}/post", apiMiddleware(handlePostDebitNote))
 	http.HandleFunc("POST /api/v1/finance/credit-note/{id}/post", apiMiddleware(handlePostCreditNote))
 	http.HandleFunc("POST /api/v1/finance/sales-invoice/{id}/post", apiMiddleware(handlePostSalesInvoice))
 	http.HandleFunc("POST /api/v1/finance/sales-invoice/{id}/settle", apiMiddleware(handleSettleSalesInvoice))
+
+	// Journal Voucher (Stage 26.6.4) - manual GL entries, reversal,
+	// recurring templates. Submit-for-approval/approve/reject reuse the
+	// generic /api/v1/approval/submit|decide endpoints below (doctype
+	// "JournalVoucher") - no new endpoint needed for that part.
+	http.HandleFunc("POST /api/v1/finance/journal-voucher", apiMiddleware(handleCreateJournalVoucher))
+	http.HandleFunc("POST /api/v1/finance/journal-voucher/{id}/reverse", apiMiddleware(handleReverseJournalVoucher))
+	http.HandleFunc("POST /api/v1/finance/journal-voucher/{id}/retry-post", apiMiddleware(handleRetryPostJournalVoucher))
+	http.HandleFunc("POST /api/v1/finance/journal-voucher/recurring", apiMiddleware(handleCreateRecurringJournalTemplate))
 
 	// Approval / Workflow Engine (maker-checker)
 	http.HandleFunc("POST /api/v1/approval/submit", apiMiddleware(handleSubmitApproval))
@@ -260,6 +291,13 @@ func Run() {
 	// HR Foundation (Stage 14.1: module-gated - "hr")
 	http.HandleFunc("GET /api/v1/hr/payroll-export", apiMiddleware(moduleGate("hr", handlePayrollExport)))
 
+	// HR/Payroll Maturity Sprint (Stage 26.8, module-gated - "hr")
+	http.HandleFunc("GET /api/v1/hr/salary-components", apiMiddleware(moduleGate("hr", handleSalaryComponentsPreview)))
+	http.HandleFunc("POST /api/v1/hr/run-payroll", apiMiddleware(moduleGate("hr", handleRunPayroll)))
+	http.HandleFunc("POST /api/v1/hr/post-payslip", apiMiddleware(moduleGate("hr", handlePostPayslip)))
+	http.HandleFunc("POST /api/v1/hr/disburse-loan", apiMiddleware(moduleGate("hr", handleDisburseEmployeeLoan)))
+	http.HandleFunc("GET /api/v1/hr/my-employee", apiMiddleware(moduleGate("hr", handleMyEmployeeRecord)))
+
 	// Fixed Asset Management (Stage 14.1: module-gated - "assets")
 	http.HandleFunc("GET /api/v1/assets/register", apiMiddleware(moduleGate("assets", handleAssetRegister)))
 	http.HandleFunc("POST /api/v1/assets/capitalize", apiMiddleware(moduleGate("assets", handleCapitalizeAsset)))
@@ -273,10 +311,30 @@ func Run() {
 	// CRM / Loyalty (Stage 14.1: module-gated - "crm_loyalty")
 	http.HandleFunc("POST /api/v1/loyalty/redeem", apiMiddleware(moduleGate("crm_loyalty", handleRedeemLoyaltyPoints)))
 	http.HandleFunc("GET /api/v1/loyalty/ledger", apiMiddleware(moduleGate("crm_loyalty", handleLoyaltyLedger)))
+	// Stage 26.7.2/26.7.3: voucher redemption (create/list/bulk-issue reuse
+	// the generic doctype/CSV-import endpoints - Voucher is a flat-schema
+	// Master) and the loyalty tier rules admin config.
+	http.HandleFunc("POST /api/v1/crm/voucher/validate", apiMiddleware(moduleGate("crm_loyalty", handleValidateVoucher)))
+	http.HandleFunc("POST /api/v1/crm/voucher/redeem", apiMiddleware(moduleGate("crm_loyalty", handleRedeemVoucher)))
+	http.HandleFunc("/api/v1/crm/loyalty-tier-rules", apiMiddleware(moduleGate("crm_loyalty", handleLoyaltyTierRules)))
+	// Stage 26.7.5: OTP + fraud/staff-restriction gated redemption - an
+	// opt-in alternative to the immediate /loyalty/redeem above.
+	http.HandleFunc("POST /api/v1/crm/loyalty-redemption/initiate", apiMiddleware(moduleGate("crm_loyalty", handleInitiateSecureLoyaltyRedemption)))
+	http.HandleFunc("POST /api/v1/crm/loyalty-redemption/verify", apiMiddleware(moduleGate("crm_loyalty", handleVerifySecureLoyaltyRedemption)))
 
 	// Manufacturing (Stage 14.1: module-gated - "manufacturing")
 	http.HandleFunc("POST /api/v1/manufacturing/issue-material", apiMiddleware(moduleGate("manufacturing", handleIssueProductionMaterial)))
 	http.HandleFunc("POST /api/v1/manufacturing/complete", apiMiddleware(moduleGate("manufacturing", handleCompleteProductionOrder)))
+
+	// Manufacturing/MRP Maturity Sprint (Stage 26.9, module-gated - "manufacturing")
+	http.HandleFunc("POST /api/v1/manufacturing/partial-complete", apiMiddleware(moduleGate("manufacturing", handlePartialCompleteProductionOrder)))
+	http.HandleFunc("POST /api/v1/manufacturing/scrap", apiMiddleware(moduleGate("manufacturing", handlePostProductionScrap)))
+	http.HandleFunc("POST /api/v1/manufacturing/rework", apiMiddleware(moduleGate("manufacturing", handleSendProductionToRework)))
+	http.HandleFunc("POST /api/v1/manufacturing/confirm-operation", apiMiddleware(moduleGate("manufacturing", handleConfirmProductionOperation)))
+	http.HandleFunc("POST /api/v1/manufacturing/acknowledge-bom-variance", apiMiddleware(moduleGate("manufacturing", handleAcknowledgeBOMVariance)))
+	http.HandleFunc("POST /api/v1/manufacturing/record-actual-cost", apiMiddleware(moduleGate("manufacturing", handleRecordActualProductionCost)))
+	http.HandleFunc("GET /api/v1/manufacturing/mrp-suggestions", apiMiddleware(moduleGate("manufacturing", handleMRPSuggestions)))
+	http.HandleFunc("GET /api/v1/manufacturing/active-bom", apiMiddleware(moduleGate("manufacturing", handleActiveBOMForItem)))
 
 	// PIM Foundation MVP (Stage 15: module-gated - "pim")
 	// Dashboard (Stage 16.5a) reads the existing PIM snapshot/queue state;

@@ -28,7 +28,7 @@ func TestWMSEnterprise(t *testing.T) {
 		items := []interface{}{
 			map[string]interface{}{"sku": sku, "qty": 10.0, "accepted_qty": 7.0, "rejected_qty": 2.0, "damaged_qty": 1.0},
 		}
-		if _, err := PostGRNReceiptWithQC(tenantID, location, items, "system"); err != nil {
+		if _, err := PostGRNReceiptWithQC(tenantID, location, items, "system", "GRN-WMSENT-QC"); err != nil {
 			t.Fatalf("PostGRNReceiptWithQC failed: %v", err)
 		}
 
@@ -56,7 +56,7 @@ func TestWMSEnterprise(t *testing.T) {
 		sku2 := "SKU-WMSENT-QC-LEGACY"
 		_, _ = db.DB.Exec("DELETE FROM "+schema+".inventory_availability WHERE sku = $1", sku2)
 		legacyItems := []interface{}{map[string]interface{}{"sku": sku2, "qty": 5.0}}
-		if _, err := PostGRNReceiptWithQC(tenantID, location, legacyItems, "system"); err != nil {
+		if _, err := PostGRNReceiptWithQC(tenantID, location, legacyItems, "system", "GRN-WMSENT-QC-LEGACY"); err != nil {
 			t.Fatalf("PostGRNReceiptWithQC (legacy) failed: %v", err)
 		}
 		var legacyAvailable int
@@ -372,7 +372,7 @@ func TestWMSEnterprise(t *testing.T) {
 		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'CycleCountLine', $2, 'Approved', 'system')", "CCL-WMSENT-GATE", gateData); err != nil {
 			t.Fatalf("Failed to seed gate-test CycleCountLine: %v", err)
 		}
-		if err := PostCycleCountAdjustment(tenantID, "CCL-WMSENT-GATE"); err == nil {
+		if err := PostCycleCountAdjustment(tenantID, "CCL-WMSENT-GATE", "system"); err == nil {
 			t.Errorf("expected PostCycleCountAdjustment to reject a line with no variance_reason_code")
 		}
 		if err := SetCycleCountVarianceReason(tenantID, "CCL-WMSENT-GATE", "RC-WMSENT-CCVAR", "system"); err != nil {
@@ -380,7 +380,7 @@ func TestWMSEnterprise(t *testing.T) {
 		}
 		beforeAvailable := 0
 		_ = db.DB.QueryRow("SELECT available FROM "+schema+".inventory_availability WHERE sku = $1 AND location_code = $2", sku, location).Scan(&beforeAvailable)
-		if err := PostCycleCountAdjustment(tenantID, "CCL-WMSENT-GATE"); err != nil {
+		if err := PostCycleCountAdjustment(tenantID, "CCL-WMSENT-GATE", "system"); err != nil {
 			t.Fatalf("PostCycleCountAdjustment failed after setting variance reason: %v", err)
 		}
 		var afterAvailable int
@@ -388,7 +388,7 @@ func TestWMSEnterprise(t *testing.T) {
 		if afterAvailable != beforeAvailable-3 {
 			t.Errorf("expected available to drop by the -3 variance (from %d to %d), got %d", beforeAvailable, beforeAvailable-3, afterAvailable)
 		}
-		if err := PostCycleCountAdjustment(tenantID, "CCL-WMSENT-GATE"); err == nil {
+		if err := PostCycleCountAdjustment(tenantID, "CCL-WMSENT-GATE", "system"); err == nil {
 			t.Errorf("expected a second PostCycleCountAdjustment call to reject an already-Posted line")
 		}
 	})

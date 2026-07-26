@@ -21,8 +21,8 @@ func FinalizePOSCheckout(tenantID, cartNumber, correlationID string) (saleTotal 
 		return 0, 0, err
 	}
 
-	var dataStr string
-	if err = db.DB.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'POSCart' AND id = $1`, schema), cartNumber).Scan(&dataStr); err != nil {
+	var dataStr, cashier string
+	if err = db.DB.QueryRow(fmt.Sprintf(`SELECT data, created_by FROM %s.documents WHERE doctype = 'POSCart' AND id = $1`, schema), cartNumber).Scan(&dataStr, &cashier); err != nil {
 		return 0, 0, fmt.Errorf("cart not found: %v", err)
 	}
 
@@ -62,7 +62,7 @@ func FinalizePOSCheckout(tenantID, cartNumber, correlationID string) (saleTotal 
 		totalCost += int(item.CostPrice) * item.Qty
 	}
 
-	negativeEvents, err := PostInventoryLedger(tenantID, cart.Location, itemsInterface, cart.OfflineSynced)
+	negativeEvents, err := PostInventoryLedgerWithVoucher(tenantID, cart.Location, itemsInterface, cart.OfflineSynced, "POSInvoice", cartNumber, cashier)
 	if err != nil {
 		markFailed()
 		return 0, 0, fmt.Errorf("inventory decrement failed: %v", err)

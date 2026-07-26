@@ -611,7 +611,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				// rejected/damaged qty now routes to the qc_hold/damaged
 				// buckets instead of being silently posted as available
 				// alongside it (see engines/wms_receiving.go).
-				_, errLedger := engines.PostGRNReceiptWithQC(tenantID, locationCode, items, userID)
+				_, errLedger := engines.PostGRNReceiptWithQC(tenantID, locationCode, items, userID, docID)
 				if errLedger != nil {
 					log.Printf("Error posting GRN items to stock ledger: %v", errLedger)
 				}

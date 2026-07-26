@@ -182,6 +182,19 @@ func DispatchTransferOrder(tenantID, transferOrderID, userID string) error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
+	// 26.10.1: one stock ledger line per SKU dispatched, from fromWarehouse -
+	// available decreased there (a negative movement), heading to toWarehouse.
+	toWarehouse, _ := data["to_warehouse"].(string)
+	for _, line := range lines {
+		if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+			ItemID: line.Sku, WarehouseID: fromWarehouse, Qty: -float64(line.Qty),
+			VoucherType: "TransferOrder", VoucherID: transferOrderID, UserID: userID,
+			ToLocationID:   toWarehouse,
+			IdempotencyKey: fmt.Sprintf("TO-DISPATCH:%s:%s", transferOrderID, line.Sku),
+		}); lerr != nil {
+			LogSystemError(tenantID, "", "WARN", "DispatchTransferOrder", fmt.Sprintf("stock ledger write failed for %s: %v", line.Sku, lerr), "")
+		}
+	}
 	LogAuditEvent(tenantID, userID, "DISPATCH_TRANSFER_ORDER", "SUCCESS", fmt.Sprintf("Dispatched transfer order %s from %s", transferOrderID, fromWarehouse))
 	return nil
 }
@@ -320,6 +333,25 @@ func ReceiveTransferOrder(tenantID, transferOrderID, userID string, receivedItem
 
 	if err := tx.Commit(); err != nil {
 		return err
+	}
+
+	// 26.10.1: one stock ledger line per SKU actually received into
+	// toWarehouse's on_hand/available (a shortfall simply receives less, no
+	// separate write for the missing portion - that's what receive_variance
+	// above already records).
+	for _, line := range dispatchedLines {
+		receivedQty := receivedBySku[line.Sku]
+		if receivedQty <= 0 {
+			continue
+		}
+		if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+			ItemID: line.Sku, WarehouseID: toWarehouse, Qty: float64(receivedQty),
+			VoucherType: "TransferOrder", VoucherID: transferOrderID, UserID: userID,
+			FromLocationID: fromWarehouse,
+			IdempotencyKey: fmt.Sprintf("TO-RECEIVE:%s:%s", transferOrderID, line.Sku),
+		}); lerr != nil {
+			LogSystemError(tenantID, "", "WARN", "ReceiveTransferOrder", fmt.Sprintf("stock ledger write failed for %s: %v", line.Sku, lerr), "")
+		}
 	}
 
 	details := fmt.Sprintf("Received transfer order %s at %s", transferOrderID, toWarehouse)

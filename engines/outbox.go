@@ -112,6 +112,22 @@ func processOutbox(schema string) {
 		// Simulate event dispatching to integrations (Shopify, WMS, OMS)
 		log.Printf("[OUTBOX] Dispatching event %s (%s) - Attempt %d", ev.EventName, ev.ID, nextAttempts)
 
+		if ev.EventName == "report.scheduled_delivery" {
+			var payloadMap map[string]interface{}
+			if err := json.Unmarshal([]byte(ev.Payload), &payloadMap); err == nil {
+				reportID, _ := payloadMap["report_id"].(string)
+				recipientEmail, _ := payloadMap["recipient_email"].(string)
+				webhookURL, _ := payloadMap["webhook_url"].(string)
+				rowCount, _ := payloadMap["row_count"].(float64)
+				if recipientEmail != "" {
+					log.Printf("[OUTBOX] [SCHEDULED_REPORT] Emailed report %q (%.0f rows) to %s", reportID, rowCount, recipientEmail)
+				}
+				if webhookURL != "" {
+					log.Printf("[OUTBOX] [SCHEDULED_REPORT] Posted report %q (%.0f rows) to webhook %s", reportID, rowCount, webhookURL)
+				}
+			}
+		}
+
 		if ev.EventName == "inventory.stock_changed" {
 			var payloadMap map[string]interface{}
 			if err := json.Unmarshal([]byte(ev.Payload), &payloadMap); err == nil {

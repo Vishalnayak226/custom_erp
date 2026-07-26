@@ -32,7 +32,7 @@ import (
 // on_hand increases by the FULL received qty in every case - all of it is
 // physically in the building the moment it's received, regardless of
 // disposition; only `available` reflects the accepted portion.
-func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, userID string) ([]NegativeStockEvent, error) {
+func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, userID, grnID string) ([]NegativeStockEvent, error) {
 	if locationCode == "" || len(items) == 0 {
 		return nil, nil
 	}
@@ -91,7 +91,7 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 
 	var negativeEvents []NegativeStockEvent
 	if len(acceptedItems) > 0 {
-		negativeEvents, err = PostInventoryLedger(tenantID, locationCode, acceptedItems, false)
+		negativeEvents, err = PostInventoryLedgerWithVoucher(tenantID, locationCode, acceptedItems, false, "GRN", grnID, userID)
 		if err != nil {
 			return negativeEvents, err
 		}
@@ -122,6 +122,30 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 		}
 		if err := tx.Commit(); err != nil {
 			return negativeEvents, err
+		}
+		// 26.10.1: on_hand moved (into qc_hold/damaged, not available) for
+		// each of these lines, so the stock ledger records it too - two
+		// entries per line when both a rejected and a damaged split exist,
+		// each tagged with the bucket it landed in via ToStatus.
+		for _, s := range qcSplits {
+			if s.rejected > 0 {
+				if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+					ItemID: s.sku, WarehouseID: locationCode, Qty: s.rejected,
+					VoucherType: "GRN", VoucherID: grnID, UserID: userID, ToStatus: "QC-Hold",
+					IdempotencyKey: fmt.Sprintf("GRN:%s:%s:%s:rejected", grnID, locationCode, s.sku),
+				}); lerr != nil {
+					LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC", fmt.Sprintf("stock ledger write failed for %s rejected split: %v", s.sku, lerr), "")
+				}
+			}
+			if s.damaged > 0 {
+				if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+					ItemID: s.sku, WarehouseID: locationCode, Qty: s.damaged,
+					VoucherType: "GRN", VoucherID: grnID, UserID: userID, ToStatus: "Damaged",
+					IdempotencyKey: fmt.Sprintf("GRN:%s:%s:%s:damaged", grnID, locationCode, s.sku),
+				}); lerr != nil {
+					LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC", fmt.Sprintf("stock ledger write failed for %s damaged split: %v", s.sku, lerr), "")
+				}
+			}
 		}
 		LogAuditEvent(tenantID, userID, "WMS_GRN_QC_SPLIT", "SUCCESS",
 			fmt.Sprintf("Routed QC-sampled receipt qty to qc_hold/damaged buckets at %s for %d line(s)", locationCode, len(qcSplits)))

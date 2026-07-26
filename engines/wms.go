@@ -87,6 +87,15 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 	if err := tx.Commit(); err != nil {
 		return err
 	}
+	// 26.10.1: putaway never changes on_hand/available (the stock was already
+	// on-hand, unassigned, before this call) - a Qty 0 entry still records
+	// the physical move from unassigned stock into binCode.
+	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+		ItemID: sku, WarehouseID: location, Qty: 0,
+		VoucherType: "Putaway", VoucherID: binCode, UserID: userID, ToLocationID: binCode,
+	}); lerr != nil {
+		LogSystemError(tenantID, "", "WARN", "PutawayToBin", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+	}
 	LogAuditEvent(tenantID, userID, "WMS_PUTAWAY", "SUCCESS", fmt.Sprintf("Put away %d x %s into bin %s", qty, sku, binCode))
 	return nil
 }
@@ -248,6 +257,16 @@ func TransitionBinStockCondition(tenantID, binCode, sku string, qty int, fromCon
 	if err := tx.Commit(); err != nil {
 		return err
 	}
+	// 26.10.1: Qty carries whatever moved in/out of the `available` bucket
+	// (0 when neither side of the transition is Good, e.g. Damaged -> RTV) -
+	// FromStatus/ToStatus are what make this entry meaningful either way.
+	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+		ItemID: sku, WarehouseID: locationCode, Qty: float64(availabilityDelta),
+		VoucherType: "ConditionChange", VoucherID: binCode, UserID: userID,
+		ToLocationID: binCode, FromStatus: fromCondition, ToStatus: toCondition,
+	}); lerr != nil {
+		LogSystemError(tenantID, "", "WARN", "TransitionBinStockCondition", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+	}
 	LogAuditEvent(tenantID, userID, "WMS_CONDITION_CHANGE", "SUCCESS",
 		fmt.Sprintf("Moved %d x %s in bin %s from %s to %s", qty, sku, binCode, fromCondition, toCondition))
 	return nil
@@ -348,7 +367,7 @@ func ReconcileCycleCount(tenantID, countSession, actorUserID, actorRole string) 
 // then marks the line Posted. Called from handleDecideApproval on an
 // Approved decision, the same finalize-on-approve pattern Stage 20.10 uses
 // for POSCart.
-func PostCycleCountAdjustment(tenantID, lineID string) error {
+func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
@@ -398,10 +417,20 @@ func PostCycleCountAdjustment(tenantID, lineID string) error {
 
 	data["status"] = "Posted"
 	marshaled, _ := json.Marshal(data)
-	_, err = db.DB.Exec(fmt.Sprintf(
+	if _, err = db.DB.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = $1, status = 'Posted', updated_at = CURRENT_TIMESTAMP WHERE id = $2`, schema),
-		marshaled, lineID)
-	return err
+		marshaled, lineID); err != nil {
+		return err
+	}
+	// 26.10.1: the physical count correction itself, signed the same way as
+	// the inventory_availability update just above.
+	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+		ItemID: sku, WarehouseID: location, Qty: float64(variance),
+		VoucherType: "CycleCount", VoucherID: lineID, UserID: userID,
+	}); lerr != nil {
+		LogSystemError(tenantID, "", "WARN", "PostCycleCountAdjustment", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+	}
+	return nil
 }
 
 // numFromInterface reads a number that may have come from real JSON (a

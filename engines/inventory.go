@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"time"
 )
 
@@ -45,23 +46,86 @@ func GetStockBalance(tenantID string, itemID string, warehouseID string) (float6
 	return balance, nil
 }
 
-// WriteStockLedgerEntry writes an append-only inventory card record
-func WriteStockLedgerEntry(tenantID string, itemID string, warehouseID string, qty float64, voucherType string, voucherID string) error {
+// StockLedgerEntry is one append-only inventory-movement record (26.10.1).
+// ItemID/WarehouseID/Qty/VoucherType/VoucherID are the original Phase 3
+// fields; everything else is additive so a caller that only ever set those
+// five still gets identical behavior. FromLocationID/ToLocationID name the
+// finer bin/warehouse the stock moved between (distinct from WarehouseID,
+// which stays the store/warehouse-level location_code inventory_availability
+// itself is keyed on - see engines/wms.go's bin_stock, a separate finer
+// breakdown of the same on-hand total); FromStatus/ToStatus name a
+// Good/Damaged/QC-Hold/RTV condition change. A pure location or condition
+// move that doesn't change on_hand/available (e.g. putaway, a bin-to-bin
+// shelf move) is recorded with Qty 0 - GetStockBalance's SUM stays correct
+// since a zero contributes nothing, while the movement itself is still on
+// the card.
+type StockLedgerEntry struct {
+	ItemID         string
+	WarehouseID    string
+	Qty            float64
+	VoucherType    string
+	VoucherID      string
+	IdempotencyKey string // non-empty: a second write with the same key is a no-op, so a retried call (e.g. a replayed offline sale) can't double-count
+	FromLocationID string
+	ToLocationID   string
+	FromStatus     string
+	ToStatus       string
+	UserID         string
+	DeviceID       string
+}
+
+var stockLedgerSeq uint64
+
+// WriteStockLedgerEntry writes an append-only inventory card record.
+func WriteStockLedgerEntry(tenantID string, e StockLedgerEntry) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
 
-	id := fmt.Sprintf("SLE%d", time.Now().UnixNano())
+	if e.IdempotencyKey != "" {
+		var exists bool
+		if err := db.DB.QueryRow(fmt.Sprintf(
+			`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'StockLedgerEntry' AND data->>'idempotency_key' = $1)`, schema),
+			e.IdempotencyKey).Scan(&exists); err != nil {
+			return err
+		}
+		if exists {
+			return nil
+		}
+	}
+
+	id := fmt.Sprintf("SLE%d%d", time.Now().UnixNano(), atomic.AddUint64(&stockLedgerSeq, 1)%1000)
 	docData := map[string]interface{}{
 		"id":           id,
 		"code":         id,
-		"item_id":      itemID,
-		"warehouse_id": warehouseID,
-		"qty":          qty,
-		"voucher_type": voucherType,
-		"voucher_id":   voucherID,
+		"item_id":      e.ItemID,
+		"warehouse_id": e.WarehouseID,
+		"qty":          e.Qty,
+		"voucher_type": e.VoucherType,
+		"voucher_id":   e.VoucherID,
 		"status":       "Active",
+	}
+	if e.IdempotencyKey != "" {
+		docData["idempotency_key"] = e.IdempotencyKey
+	}
+	if e.FromLocationID != "" {
+		docData["from_location_id"] = e.FromLocationID
+	}
+	if e.ToLocationID != "" {
+		docData["to_location_id"] = e.ToLocationID
+	}
+	if e.FromStatus != "" {
+		docData["from_status"] = e.FromStatus
+	}
+	if e.ToStatus != "" {
+		docData["to_status"] = e.ToStatus
+	}
+	if e.UserID != "" {
+		docData["user_id"] = e.UserID
+	}
+	if e.DeviceID != "" {
+		docData["device_id"] = e.DeviceID
 	}
 
 	marshaled, err := json.Marshal(docData)
@@ -70,7 +134,7 @@ func WriteStockLedgerEntry(tenantID string, itemID string, warehouseID string, q
 	}
 
 	query := fmt.Sprintf(`
-		INSERT INTO %s.documents (id, doctype, data, status, created_by) 
+		INSERT INTO %s.documents (id, doctype, data, status, created_by)
 		VALUES ($1, $2, $3, $4, $5)`, schema)
 	_, err = db.DB.Exec(query, id, "StockLedgerEntry", marshaled, "Active", "system")
 	return err
@@ -91,7 +155,26 @@ type NegativeStockEvent struct {
 	ResultingAvailable int
 }
 
+// PostInventoryLedger keeps its original signature for existing callers
+// (engines/manufacturing*.go, engines/scale.go) that have no real voucher to
+// tag a movement with - it delegates to PostInventoryLedgerWithVoucher with a
+// generic "StockAdjustment" tag rather than every caller needing to change.
+// A caller that does have real voucher/actor context should call
+// PostInventoryLedgerWithVoucher directly instead (26.10.1 - see
+// wms_receiving.go/pos_checkout.go).
 func PostInventoryLedger(tenantID string, locationCode string, items []interface{}, allowNegative bool) ([]NegativeStockEvent, error) {
+	return PostInventoryLedgerWithVoucher(tenantID, locationCode, items, allowNegative, "StockAdjustment", "", "")
+}
+
+// PostInventoryLedgerWithVoucher is PostInventoryLedger plus a StockLedgerEntry
+// per line (26.10.1), tagged with a real voucher_type/voucher_id/user_id
+// instead of PostInventoryLedger's generic fallback. Ledger writes happen
+// after the availability update has already committed and are best-effort -
+// a write failure is logged, never allowed to undo or fail a movement that
+// already posted, the same "already physically happened" reasoning
+// pos_checkout.go's recordOfflineSyncVariance uses for its own post-commit
+// bookkeeping.
+func PostInventoryLedgerWithVoucher(tenantID string, locationCode string, items []interface{}, allowNegative bool, voucherType, voucherID, userID string) ([]NegativeStockEvent, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -113,6 +196,11 @@ func PostInventoryLedger(tenantID string, locationCode string, items []interface
 	}
 
 	var negativeEvents []NegativeStockEvent
+	type postedLine struct {
+		sku string
+		qty int
+	}
+	var postedLines []postedLine
 
 	for _, item := range items {
 		itemMap, ok := item.(map[string]interface{})
@@ -181,10 +269,24 @@ func PostInventoryLedger(tenantID string, locationCode string, items []interface
 		if err != nil {
 			return nil, err
 		}
+		postedLines = append(postedLines, postedLine{sku: sku, qty: qtyVal})
 	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
+	}
+
+	for _, p := range postedLines {
+		entry := StockLedgerEntry{
+			ItemID: p.sku, WarehouseID: locationCode, Qty: float64(p.qty),
+			VoucherType: voucherType, VoucherID: voucherID, UserID: userID,
+		}
+		if voucherID != "" {
+			entry.IdempotencyKey = fmt.Sprintf("%s:%s:%s:%s", voucherType, voucherID, locationCode, p.sku)
+		}
+		if lerr := WriteStockLedgerEntry(tenantID, entry); lerr != nil {
+			LogSystemError(tenantID, "", "WARN", "PostInventoryLedgerWithVoucher", fmt.Sprintf("stock ledger write failed for %s at %s: %v", p.sku, locationCode, lerr), "")
+		}
 	}
 	return negativeEvents, nil
 }

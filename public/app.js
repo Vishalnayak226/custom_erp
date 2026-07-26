@@ -5516,6 +5516,19 @@ async function submitPOForApproval(documentId) {
   renderView('purchase-orders');
 }
 
+async function submitQualityInspectionForApproval(documentId) {
+  const res = await apiFetch('/api/v1/approval/submit', {
+    method: 'POST',
+    body: JSON.stringify({ doctype: 'QualityInspection', document_id: documentId })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to submit for approval.');
+    return;
+  }
+  renderView('doctype-table');
+}
+
 // GRN Workbench (Stage 26.3.1). GRN's own registered schema
 // (db/migrations_phase3.sql) has always had a mandatory received_items JSON
 // field but no screen to fill it in - the only prior path was the generic
@@ -6135,9 +6148,10 @@ async function createASN() {
 
 // Report catalog (Stage 13.11) - Current Stock, Sales Register, Vendor
 // Ledger, Payables Ageing, the four reports the gap analysis prioritized.
-let currentReportTab = 'current-stock';
+let currentReportTab = 'exec-dashboard';
 
 const REPORT_TABS = [
+  { id: 'exec-dashboard', label: 'Dashboard' },
   { id: 'current-stock', label: 'Current Stock' },
   { id: 'sales-register', label: 'Sales Register' },
   { id: 'vendor-ledger', label: 'Vendor Ledger' },
@@ -6177,7 +6191,9 @@ async function renderReportsView(container) {
   panel.className = 'table-panel';
   container.appendChild(panel);
 
-  if (currentReportTab === 'current-stock') {
+  if (currentReportTab === 'exec-dashboard') {
+    await renderExecDashboard(panel);
+  } else if (currentReportTab === 'current-stock') {
     await renderCurrentStockReport(panel);
   } else if (currentReportTab === 'sales-register') {
     await renderSalesRegisterReport(panel);
@@ -6192,6 +6208,123 @@ async function renderReportsView(container) {
   } else if (currentReportTab === 'report-catalog') {
     await renderReportCatalogPanel(panel);
   }
+}
+
+// Stage 26.10.3: role-based executive dashboard - a frontend-only layer
+// over the existing ReportDefinition catalog, no new backend endpoint.
+// Every card/chart below just calls RunReport (via the same /reports/run/
+// path the Report Catalog tab already uses) against a report registered for
+// 26.10.1/26.10.5/17.10/26.12.7 - role-based column masking (Stage 20.39)
+// and the catalog's own REPORT-0287 "masked" annotation apply for free, so
+// a role without full visibility sees a "restricted" fallback on a
+// currency-bearing card/chart instead of silently summing a redacted value.
+async function fetchReportRows(reportId, params) {
+  const qs = params && Object.keys(params).length ? '?' + reportCatalogQueryString(params) : '';
+  const res = await apiFetch(`/api/v1/reports/run/${reportId}${qs}`);
+  if (!res || !res.ok) return { rows: [], masked: false };
+  const body = await res.json();
+  return { rows: body.rows || [], masked: body.code === 'REPORT-0287' };
+}
+
+function execDashboardOpenReport(reportId) {
+  reportCatalogSelectedId = reportId;
+  currentReportTab = 'report-catalog';
+  renderView('reports');
+}
+
+async function renderExecDashboard(panel) {
+  panel.innerHTML = `<p style="padding:16px; color:var(--text-muted);">Loading dashboard&hellip;</p>`;
+
+  const [stale, failedSyncs, negStock, sla, salesRows] = await Promise.all([
+    fetchReportRows('exception-stale-approvals', {}),
+    fetchReportRows('exception-failed-syncs', {}),
+    fetchReportRows('exception-negative-stock', {}),
+    fetchReportRows('sla-breach', {}),
+    fetchReportRows('sales-register', {})
+  ]);
+
+  // Sales trend: last 7 calendar days. sale_total is a Sensitive column
+  // (Stage 20.39) - if this role sees it redacted, fall back to an order
+  // COUNT trend instead of silently summing a masked "•••" string.
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push(d.toISOString().slice(0, 10));
+  }
+  const totalsByDay = Object.fromEntries(days.map(d => [d, 0]));
+  const countsByDay = Object.fromEntries(days.map(d => [d, 0]));
+  let amountsUsable = !salesRows.masked;
+  salesRows.rows.forEach(r => {
+    const day = String(r.created_at || '').slice(0, 10);
+    if (!(day in countsByDay)) return;
+    countsByDay[day]++;
+    const amt = Number(r.sale_total);
+    if (Number.isFinite(amt)) {
+      totalsByDay[day] += amt;
+    } else {
+      amountsUsable = false;
+    }
+  });
+  const trendValues = days.map(d => (amountsUsable ? totalsByDay[d] : countsByDay[d]));
+  const trendLabel = amountsUsable ? 'Sales Total (last 7 days)' : 'Orders (last 7 days) — amounts restricted for your role';
+
+  const slaBreached = sla.rows.filter(r => r.breached).length;
+  const cards = [
+    { label: 'Stale Approvals', value: stale.rows.length, reportId: 'exception-stale-approvals' },
+    { label: 'Failed Syncs', value: failedSyncs.rows.length, reportId: 'exception-failed-syncs' },
+    { label: 'Negative Stock Flags', value: negStock.rows.length, reportId: 'exception-negative-stock' },
+    { label: 'SLA Breaches', value: slaBreached, reportId: 'sla-breach' }
+  ];
+
+  panel.innerHTML = `
+    <div style="padding: 16px 16px 0;">
+      <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 12px;">Exception queues below (Stage 26.10.5) - click a card to drill into that report in the Report Catalog tab.</p>
+    </div>
+    <div class="dashboard-stats-row" id="exec-dashboard-cards"></div>
+    <div style="padding: 20px; border-top: 1px solid var(--border-color);">
+      <h3 style="margin: 0 0 12px; font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">${trendLabel}</h3>
+      <div id="exec-dashboard-trend"></div>
+    </div>
+  `;
+
+  const cardsRow = document.getElementById('exec-dashboard-cards');
+  cards.forEach(c => {
+    const card = document.createElement('div');
+    card.className = 'stat-card';
+    card.style.cursor = 'pointer';
+    card.title = 'Click to open in Report Catalog';
+    card.innerHTML = `
+      <span class="stat-label">${c.label}</span>
+      <span class="stat-val" style="color:${c.value > 0 ? '#dc2626' : '#10b981'};">${c.value}</span>
+    `;
+    card.addEventListener('click', () => execDashboardOpenReport(c.reportId));
+    cardsRow.appendChild(card);
+  });
+
+  renderExecDashboardTrendChart(document.getElementById('exec-dashboard-trend'), days, trendValues);
+}
+
+// A plain inline-SVG bar chart - no charting library (this codebase stays
+// vanilla JS/CSS, no new frontend dependency), just enough for a 7-day
+// at-a-glance trend.
+function renderExecDashboardTrendChart(container, labels, values) {
+  if (!container) return;
+  const width = 640, height = 180, padding = 28;
+  const maxVal = Math.max(1, ...values);
+  const slotWidth = (width - padding * 2) / values.length;
+  const barWidth = Math.max(4, slotWidth - 10);
+  const bars = values.map((v, i) => {
+    const barHeight = (v / maxVal) * (height - padding * 2);
+    const x = padding + i * slotWidth + (slotWidth - barWidth) / 2;
+    const y = height - padding - barHeight;
+    return `
+      <rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barWidth.toFixed(1)}" height="${barHeight.toFixed(1)}" fill="var(--primary-color)" rx="3"></rect>
+      <text x="${(x + barWidth / 2).toFixed(1)}" y="${height - padding + 16}" font-size="10" fill="var(--text-muted)" text-anchor="middle">${labels[i].slice(5)}</text>
+      <text x="${(x + barWidth / 2).toFixed(1)}" y="${(y - 4).toFixed(1)}" font-size="10" fill="var(--text-main)" text-anchor="middle">${Math.round(v)}</text>
+    `;
+  }).join('');
+  container.innerHTML = `<svg viewBox="0 0 ${width} ${height}" style="width:100%; max-width:${width}px; height:${height}px;">${bars}</svg>`;
 }
 
 // Inventory (Stage 21 QA fix): "Inventory" routed to a view name the router
@@ -7143,7 +7276,12 @@ let currentHRTab = 'attendance';
 const HR_TABS = [
   { id: 'attendance', label: 'Attendance' },
   { id: 'leave', label: 'Leave' },
-  { id: 'payroll-export', label: 'Payroll Export' }
+  { id: 'payroll-export', label: 'Payroll Export' },
+  { id: 'roster', label: 'Shift Roster' },
+  { id: 'payroll', label: 'Payroll' },
+  { id: 'loans', label: 'Loans/Advances' },
+  { id: 'onboarding', label: 'Onboarding/Offboarding' },
+  { id: 'my-requests', label: 'My Requests' }
 ];
 
 async function renderHRView(container) {
@@ -7181,6 +7319,22 @@ async function renderHRView(container) {
     await renderLeaveTab(container, employees);
   } else if (currentHRTab === 'payroll-export') {
     renderPayrollExportTab(container);
+  } else if (currentHRTab === 'roster') {
+    currentDoctype = 'ShiftAssignment';
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    await renderDocTableView(container);
+  } else if (currentHRTab === 'payroll') {
+    await renderPayrollTab(container, employees);
+  } else if (currentHRTab === 'loans') {
+    await renderEmployeeLoansTab(container, employees);
+  } else if (currentHRTab === 'onboarding') {
+    currentDoctype = 'OnboardingChecklist';
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    await renderDocTableView(container);
+  } else if (currentHRTab === 'my-requests') {
+    await renderMyRequestsTab(container);
   }
 }
 
@@ -7492,6 +7646,419 @@ async function runPayrollExport() {
       `).join('');
   html += `</tbody></table>`;
   resultsEl.innerHTML = html;
+}
+
+// Stage 26.8.2/26.8.3: Payroll - Run Payroll (attendance + SalaryStructure +
+// TDS + active loan deductions -> a Draft Payslip) and Post to GL (requires
+// employee bank details on file). SalaryStructure itself is a Master
+// doctype, managed under Setup like any other master - this tab is just the
+// payroll *run*, not salary-structure maintenance.
+async function renderPayrollTab(container, employees) {
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Run Payroll</h2>
+    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 12px;">Salary structures are configured under Setup &rarr; Salary Structure.</p>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="payroll-run-employee">Employee</label>
+        <select id="payroll-run-employee" class="form-input" style="width: 200px;">
+          <option value="">Select employee</option>
+          ${employeeOptions(employees)}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="payroll-run-from">Period From</label>
+        <input type="date" id="payroll-run-from" class="form-input">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="payroll-run-to">Period To</label>
+        <input type="date" id="payroll-run-to" class="form-input">
+      </div>
+      <button class="btn btn-primary" id="payroll-run-btn">Run Payroll</button>
+    </div>
+    <div id="payroll-run-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(formPanel);
+
+  const payslipsRes = await apiFetch('/api/v1/doc/Payslip');
+  const payslips = payslipsRes && payslipsRes.ok ? await payslipsRes.json() : [];
+
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead><tr><th>Payslip</th><th>Employee</th><th>Period</th><th>Gross</th><th>Net Pay</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+  `;
+  html += payslips.length === 0
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No payslips yet.</td></tr>`
+    : payslips.map(p => `
+        <tr>
+          <td style="font-family: monospace;">${p.code || p.id}</td>
+          <td>${p.employee_id || ''}</td>
+          <td>${p.period_from || ''} to ${p.period_to || ''}</td>
+          <td>${p.gross_pay ?? ''}</td>
+          <td>${p.net_pay ?? ''}</td>
+          <td><span class="badge ${p.status === 'Posted' ? 'badge-success' : 'badge-secondary'}">${p.status}</span></td>
+          <td>${p.status === 'Draft' ? `<button class="action-btn" onclick="postPayslipToGL('${p.id}')">Post to GL</button>` : ''}</td>
+        </tr>
+      `).join('');
+  html += `</tbody></table>`;
+  listPanel.innerHTML = html;
+  container.appendChild(listPanel);
+
+  document.getElementById('payroll-run-btn').addEventListener('click', runPayrollForEmployee);
+}
+
+async function runPayrollForEmployee() {
+  const errorEl = document.getElementById('payroll-run-error');
+  errorEl.classList.add('hidden');
+
+  const employeeId = document.getElementById('payroll-run-employee').value;
+  const periodFrom = document.getElementById('payroll-run-from').value;
+  const periodTo = document.getElementById('payroll-run-to').value;
+  if (!employeeId || !periodFrom || !periodTo) {
+    errorEl.textContent = 'Employee, Period From, and Period To are all required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/hr/run-payroll', {
+    method: 'POST',
+    body: JSON.stringify({ employee_id: employeeId, period_from: periodFrom, period_to: periodTo })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to run payroll.', 'Payroll Run Failed');
+    return;
+  }
+  renderView('hr');
+}
+
+async function postPayslipToGL(payslipId) {
+  const confirmed = await showCustomConfirm('This will post the payslip amounts to the GL and mark it Posted. Continue?', 'Post Payslip');
+  if (!confirmed) return;
+
+  const res = await apiFetch('/api/v1/hr/post-payslip', {
+    method: 'POST',
+    body: JSON.stringify({ payslip_id: payslipId })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to post payslip.', 'Posting Failed');
+    return;
+  }
+  renderView('hr');
+}
+
+// Stage 26.8.4: Loans/advances against salary. Custom create form + action
+// list (not the generic doctype table) since Disburse needs real logic
+// (GL posting + initializing outstanding_balance) beyond generic CRUD -
+// same reasoning the Manufacturing screen's BOM/Production Order panels
+// already established.
+async function renderEmployeeLoansTab(container, employees) {
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Loan/Advance</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="loan-code">Loan Code</label>
+        <input type="text" id="loan-code" class="form-input" style="width: 140px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="loan-employee">Employee</label>
+        <select id="loan-employee" class="form-input" style="width: 200px;">
+          <option value="">Select employee</option>
+          ${employeeOptions(employees)}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="loan-principal">Principal Amount</label>
+        <input type="number" id="loan-principal" class="form-input" style="width: 140px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="loan-monthly">Monthly Deduction</label>
+        <input type="number" id="loan-monthly" class="form-input" style="width: 140px;">
+      </div>
+      <button class="btn btn-primary" id="loan-create-btn">Create Loan</button>
+    </div>
+    <div id="loan-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(formPanel);
+
+  const loansRes = await apiFetch('/api/v1/doc/EmployeeLoan');
+  const loans = loansRes && loansRes.ok ? await loansRes.json() : [];
+
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead><tr><th>Loan</th><th>Employee</th><th>Principal</th><th>Monthly Deduction</th><th>Outstanding</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+  `;
+  html += loans.length === 0
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No loans yet.</td></tr>`
+    : loans.map(l => `
+        <tr>
+          <td style="font-family: monospace;">${l.code || l.id}</td>
+          <td>${l.employee_id || ''}</td>
+          <td>${l.principal_amount ?? ''}</td>
+          <td>${l.monthly_deduction ?? ''}</td>
+          <td>${l.outstanding_balance ?? ''}</td>
+          <td><span class="badge ${l.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${l.status}</span></td>
+          <td>${l.status === 'Draft' ? `<button class="action-btn" onclick="disburseEmployeeLoan('${l.id}')">Disburse</button>` : ''}</td>
+        </tr>
+      `).join('');
+  html += `</tbody></table>`;
+  listPanel.innerHTML = html;
+  container.appendChild(listPanel);
+
+  document.getElementById('loan-create-btn').addEventListener('click', createEmployeeLoan);
+}
+
+async function createEmployeeLoan() {
+  const errorEl = document.getElementById('loan-form-error');
+  errorEl.classList.add('hidden');
+
+  const code = document.getElementById('loan-code').value.trim();
+  const employeeId = document.getElementById('loan-employee').value;
+  const principal = parseFloat(document.getElementById('loan-principal').value);
+  const monthly = parseFloat(document.getElementById('loan-monthly').value);
+
+  if (!code || !employeeId || !principal || !monthly) {
+    errorEl.textContent = 'Loan Code, Employee, Principal Amount, and Monthly Deduction are all required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/doc/EmployeeLoan', {
+    method: 'POST',
+    body: JSON.stringify({ id: code, code, employee_id: employeeId, principal_amount: principal, monthly_deduction: monthly, status: 'Draft' })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to create loan.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('hr');
+}
+
+async function disburseEmployeeLoan(loanId) {
+  const confirmed = await showCustomConfirm('This will post the disbursement to the GL and activate the loan. Continue?', 'Disburse Loan');
+  if (!confirmed) return;
+
+  const res = await apiFetch('/api/v1/hr/disburse-loan', {
+    method: 'POST',
+    body: JSON.stringify({ loan_id: loanId })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to disburse loan.', 'Disbursement Failed');
+    return;
+  }
+  renderView('hr');
+}
+
+// Stage 26.8.5: Employee self-service - leave request + expense-claim
+// submission from the employee's own login. Resolves the current user's
+// own Employee record (GET /api/v1/hr/my-employee) so they don't need to
+// know their own employee code, then reuses the existing generic doc-create
+// endpoints for Leave/ExpenseClaim (the approval flow itself, Stage
+// 13.13c, is untouched - this is only about self-initiated submission).
+async function renderMyRequestsTab(container) {
+  const empRes = await apiFetch('/api/v1/hr/my-employee');
+  const empData = empRes && empRes.ok ? await empRes.json() : { employee: null };
+  const employee = empData.employee;
+
+  if (!employee) {
+    const panel = document.createElement('div');
+    panel.className = 'table-panel';
+    panel.style.padding = '24px';
+    panel.innerHTML = `<p style="color: var(--text-muted);">Your login is not linked to an Employee record, so there is nothing to self-service here. Ask HR/Admin to set the Employee master's "Linked ERP User ID" field.</p>`;
+    container.appendChild(panel);
+    return;
+  }
+
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Request Leave</h2>
+    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 12px;">Employee: ${employee.code || employee.id} - ${employee.name || ''}</p>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="myreq-leave-code">Leave Code</label>
+        <input type="text" id="myreq-leave-code" class="form-input" style="width: 140px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="myreq-leave-type">Leave Type</label>
+        <select id="myreq-leave-type" class="form-input" style="width: 130px;">
+          <option value="Casual">Casual</option>
+          <option value="Sick">Sick</option>
+          <option value="Earned">Earned</option>
+          <option value="Unpaid">Unpaid</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="myreq-leave-from">From Date</label>
+        <input type="date" id="myreq-leave-from" class="form-input">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="myreq-leave-to">To Date</label>
+        <input type="date" id="myreq-leave-to" class="form-input">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="myreq-leave-days">Days</label>
+        <input type="number" id="myreq-leave-days" class="form-input" style="width: 80px;">
+      </div>
+      <button class="btn btn-primary" id="myreq-leave-btn">Submit Leave Request</button>
+    </div>
+    <div id="myreq-leave-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(formPanel);
+
+  const expensePanel = document.createElement('div');
+  expensePanel.className = 'table-panel';
+  expensePanel.style.padding = '24px';
+  expensePanel.style.marginBottom = '24px';
+  expensePanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Submit Expense Claim</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="myreq-exp-code">Claim Number</label>
+        <input type="text" id="myreq-exp-code" class="form-input" style="width: 140px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="myreq-exp-date">Expense Date</label>
+        <input type="date" id="myreq-exp-date" class="form-input">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="myreq-exp-category">Category</label>
+        <select id="myreq-exp-category" class="form-input" style="width: 140px;">
+          <option value="Conveyance">Conveyance</option>
+          <option value="Travel">Travel</option>
+          <option value="Food">Food</option>
+          <option value="Hotel">Hotel</option>
+          <option value="Fuel">Fuel</option>
+          <option value="Repair">Repair</option>
+          <option value="Medical">Medical</option>
+          <option value="Marketing">Marketing</option>
+          <option value="StoreExpense">StoreExpense</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="myreq-exp-amount">Amount</label>
+        <input type="number" id="myreq-exp-amount" class="form-input" style="width: 110px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="myreq-exp-purpose">Purpose</label>
+        <input type="text" id="myreq-exp-purpose" class="form-input" style="width: 180px;">
+      </div>
+      <button class="btn btn-primary" id="myreq-exp-btn">Submit Expense Claim</button>
+    </div>
+    <div id="myreq-exp-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(expensePanel);
+
+  const [leavesRes, expensesRes] = await Promise.all([
+    apiFetch('/api/v1/doc/Leave'),
+    apiFetch('/api/v1/doc/ExpenseClaim')
+  ]);
+  const myLeaves = (leavesRes && leavesRes.ok ? await leavesRes.json() : []).filter(l => l.employee_id === (employee.code || employee.id));
+  const myExpenses = (expensesRes && expensesRes.ok ? await expensesRes.json() : []).filter(e => e.employee_id === (employee.code || employee.id));
+
+  const historyPanel = document.createElement('div');
+  historyPanel.className = 'table-panel';
+  historyPanel.innerHTML = `
+    <table>
+      <thead><tr><th>Type</th><th>Detail</th><th>Status</th></tr></thead>
+      <tbody>
+        ${myLeaves.map(l => `<tr><td>Leave</td><td>${l.leave_type || ''} ${l.from_date || ''} to ${l.to_date || ''}</td><td><span class="badge badge-secondary">${l.status}</span></td></tr>`).join('')}
+        ${myExpenses.map(e => `<tr><td>Expense</td><td>${e.category || ''} ${e.amount ?? ''}</td><td><span class="badge badge-secondary">${e.status}</span></td></tr>`).join('')}
+        ${myLeaves.length === 0 && myExpenses.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No requests submitted yet.</td></tr>` : ''}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(historyPanel);
+
+  document.getElementById('myreq-leave-btn').addEventListener('click', () => submitMyLeaveRequest(employee));
+  document.getElementById('myreq-exp-btn').addEventListener('click', () => submitMyExpenseClaim(employee));
+}
+
+async function submitMyLeaveRequest(employee) {
+  const errorEl = document.getElementById('myreq-leave-error');
+  errorEl.classList.add('hidden');
+
+  const code = document.getElementById('myreq-leave-code').value.trim();
+  const leaveType = document.getElementById('myreq-leave-type').value;
+  const fromDate = document.getElementById('myreq-leave-from').value;
+  const toDate = document.getElementById('myreq-leave-to').value;
+  const days = parseFloat(document.getElementById('myreq-leave-days').value);
+
+  if (!code || !fromDate || !toDate || !days) {
+    errorEl.textContent = 'Leave Code, From Date, To Date, and Days are all required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/doc/Leave', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: code, code, employee_id: employee.code || employee.id, leave_type: leaveType,
+      from_date: fromDate, to_date: toDate, days, status: 'Applied'
+    })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to submit leave request.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('hr');
+}
+
+async function submitMyExpenseClaim(employee) {
+  const errorEl = document.getElementById('myreq-exp-error');
+  errorEl.classList.add('hidden');
+
+  const code = document.getElementById('myreq-exp-code').value.trim();
+  const expenseDate = document.getElementById('myreq-exp-date').value;
+  const category = document.getElementById('myreq-exp-category').value;
+  const amount = parseFloat(document.getElementById('myreq-exp-amount').value);
+  const purpose = document.getElementById('myreq-exp-purpose').value.trim();
+
+  if (!code || !expenseDate || !amount) {
+    errorEl.textContent = 'Claim Number, Expense Date, and Amount are all required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/doc/ExpenseClaim', {
+    method: 'POST',
+    body: JSON.stringify({
+      id: code, code, employee_id: employee.code || employee.id, location: employee.location || '',
+      expense_date: expenseDate, category, amount, purpose, status: 'Draft'
+    })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to submit expense claim.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('hr');
 }
 
 // Fixed Asset Management (Stage 13.13b, MB 16.1) - lifecycle:
@@ -8250,22 +8817,63 @@ async function payExpenseClaim(claimId) {
 // "sku:qty, sku:qty" shorthand input instead of asking a user to hand-type
 // JSON (BOM can still be edited directly via Master Definition if needed -
 // it's a Master-type doctype, so it already has a generic CRUD screen there).
-async function renderManufacturingView(container) {
-  const [bomsRes, ordersRes] = await Promise.all([
-    apiFetch('/api/v1/doc/BOM'),
-    apiFetch('/api/v1/doc/ProductionOrder')
-  ]);
-  if (!bomsRes || !ordersRes) return;
+let currentMfgTab = 'orders';
+const MFG_TABS = [
+  { id: 'orders', label: 'Orders' },
+  { id: 'quality', label: 'Quality Inspections' },
+  { id: 'mrp', label: 'MRP Suggestions' }
+];
 
+// Stage 26.9: Manufacturing/MRP Maturity Sprint - Work Centers and Routing
+// are Master doctypes (managed under Setup, free generic form/table, same
+// as every other master this Stage adds); this view adds a tab bar around
+// the existing BOM/Production Order panels for Quality Inspections
+// (26.9.7's QC gate, submitted here then approved on the existing
+// Approvals inbox) and MRP Suggestions (26.9.5).
+async function renderManufacturingView(container) {
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Manufacturing</h1>
-      <p class="page-subtitle">Single-level BOM and production orders (Draft &rarr; Material Issued &rarr; Completed).</p>
+      <p class="page-subtitle">Multi-level BOM, WIP-tracked production orders, QC, and MRP. Work Centers/Routing are managed under Setup.</p>
     </div>
   `;
   container.appendChild(header);
+
+  const tabBar = document.createElement('div');
+  tabBar.style.display = 'flex';
+  tabBar.style.gap = '8px';
+  tabBar.style.marginBottom = '16px';
+  tabBar.innerHTML = MFG_TABS.map(t =>
+    `<button class="btn ${t.id === currentMfgTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-mfg-tab="${t.id}">${t.label}</button>`
+  ).join('');
+  container.appendChild(tabBar);
+  tabBar.querySelectorAll('[data-mfg-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentMfgTab = btn.getAttribute('data-mfg-tab');
+      renderView('manufacturing');
+    });
+  });
+
+  if (currentMfgTab === 'orders') {
+    await renderManufacturingOrdersTab(container);
+  } else if (currentMfgTab === 'quality') {
+    currentDoctype = 'QualityInspection';
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    await renderDocTableView(container);
+  } else if (currentMfgTab === 'mrp') {
+    await renderMRPSuggestionsTab(container);
+  }
+}
+
+async function renderManufacturingOrdersTab(container) {
+  const [bomsRes, ordersRes] = await Promise.all([
+    apiFetch('/api/v1/doc/BOM'),
+    apiFetch('/api/v1/doc/ProductionOrder')
+  ]);
+  if (!bomsRes || !ordersRes) return;
 
   const boms = bomsRes.ok ? await bomsRes.json() : [];
   const orders = ordersRes.ok ? await ordersRes.json() : [];
@@ -8275,7 +8883,8 @@ async function renderManufacturingView(container) {
   bomFormPanel.style.padding = '24px';
   bomFormPanel.style.marginBottom = '24px';
   bomFormPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New BOM</h2>
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">New BOM</h2>
+    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 12px;">For multi-level sub-assemblies, per-line scrap %, by-products, default/effective-dated alternates, QC requirement, or standard cost, edit the BOM under Setup &rarr; BOM after creating it here.</p>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="bom-code">BOM Code</label>
@@ -8360,10 +8969,212 @@ function renderProductionOrderActions(order) {
   if (order.status === 'Draft') {
     return `<button class="action-btn" onclick="issueProductionMaterial('${order.id}')">Issue Material</button>`;
   }
-  if (order.status === 'Material Issued') {
-    return `<button class="action-btn" onclick="completeProductionOrder('${order.id}')">Complete (Receive FG)</button>`;
+  if (order.status === 'Material Issued' || order.status === 'In Process') {
+    // Stage 26.9.3/26.9.4/26.9.6: WIP actions alongside the original
+    // one-shot Complete - Confirm Operation/Report Partial/Scrap/Rework are
+    // all additive, an order that never uses any of them behaves exactly
+    // as it did before this Stage.
+    return `
+      <button class="action-btn" onclick="completeProductionOrder('${order.id}')">Complete (Receive FG)</button>
+      <button class="action-btn" onclick="reportPartialProductionCompletion('${order.id}')">Report Partial</button>
+      <button class="action-btn" onclick="confirmProductionOperation('${order.id}')">Confirm Operation</button>
+      <button class="action-btn" onclick="postProductionScrap('${order.id}')">Scrap</button>
+      <button class="action-btn" onclick="sendProductionToRework('${order.id}')">Rework</button>
+    `;
+  }
+  if (order.status === 'Completed' && (order.actual_cost === undefined || order.actual_cost === null)) {
+    return `<button class="action-btn" onclick="recordProductionActualCost('${order.id}')">Record Actual Cost</button>`;
   }
   return '';
+}
+
+async function reportPartialProductionCompletion(orderId) {
+  const qtyStr = await showCustomPrompt('Quantity to report as completed in this batch:', '', 'Report Partial Completion');
+  if (qtyStr === null || qtyStr === '') return;
+  const qty = parseFloat(qtyStr);
+  if (!qty || qty <= 0) {
+    await showCustomAlert('Enter a positive quantity.', 'Invalid Quantity');
+    return;
+  }
+  const res = await apiFetch('/api/v1/manufacturing/partial-complete', {
+    method: 'POST',
+    body: JSON.stringify({ order_id: orderId, qty })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to report partial completion.', 'Partial Completion Failed');
+    return;
+  }
+  renderView('manufacturing');
+}
+
+async function confirmProductionOperation(orderId) {
+  const seqStr = await showCustomPrompt('Operation sequence number to confirm (from the order\'s Routing):', '1', 'Confirm Operation');
+  if (seqStr === null || seqStr === '') return;
+  const seq = parseInt(seqStr, 10);
+  const res = await apiFetch('/api/v1/manufacturing/confirm-operation', {
+    method: 'POST',
+    body: JSON.stringify({ order_id: orderId, seq })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    await showApiError(res, 'Failed to confirm operation.', 'Confirm Operation Failed');
+    return;
+  }
+  if (data.capacity_warning) {
+    await showCustomAlert(data.capacity_warning, 'Capacity Warning');
+  }
+  renderView('manufacturing');
+}
+
+async function postProductionScrap(orderId) {
+  const sku = await showCustomPrompt('SKU being scrapped:', '', 'Post Scrap');
+  if (sku === null || sku === '') return;
+  const qtyStr = await showCustomPrompt('Scrap quantity:', '', 'Post Scrap');
+  if (qtyStr === null || qtyStr === '') return;
+  const qty = parseFloat(qtyStr);
+  if (!qty || qty <= 0) {
+    await showCustomAlert('Enter a positive quantity.', 'Invalid Quantity');
+    return;
+  }
+  const reason = await showCustomPrompt('Reason for scrap (required):', '', 'Post Scrap');
+  if (!reason) return;
+
+  const res = await apiFetch('/api/v1/manufacturing/scrap', {
+    method: 'POST',
+    body: JSON.stringify({ order_id: orderId, sku, qty, reason })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to post scrap.', 'Scrap Failed');
+    return;
+  }
+  renderView('manufacturing');
+}
+
+async function sendProductionToRework(orderId) {
+  const qtyStr = await showCustomPrompt('Quantity to send to rework:', '', 'Send to Rework');
+  if (qtyStr === null || qtyStr === '') return;
+  const qty = parseFloat(qtyStr);
+  if (!qty || qty <= 0) {
+    await showCustomAlert('Enter a positive quantity.', 'Invalid Quantity');
+    return;
+  }
+  const reason = await showCustomPrompt('Reason (required):', '', 'Send to Rework');
+  if (!reason) return;
+
+  const res = await apiFetch('/api/v1/manufacturing/rework', {
+    method: 'POST',
+    body: JSON.stringify({ order_id: orderId, qty, reason })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to log rework.', 'Rework Failed');
+    return;
+  }
+  renderView('manufacturing');
+}
+
+async function recordProductionActualCost(orderId) {
+  const costStr = await showCustomPrompt('Actual total cost incurred for this production order:', '', 'Record Actual Cost');
+  if (costStr === null || costStr === '') return;
+  const cost = parseFloat(costStr);
+  if (cost < 0 || isNaN(cost)) {
+    await showCustomAlert('Enter a valid, non-negative cost.', 'Invalid Cost');
+    return;
+  }
+  const res = await apiFetch('/api/v1/manufacturing/record-actual-cost', {
+    method: 'POST',
+    body: JSON.stringify({ order_id: orderId, actual_cost: cost })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to record actual cost.', 'Record Cost Failed');
+    return;
+  }
+  renderView('manufacturing');
+}
+
+// Stage 26.9.5: MRP reorder suggestions for manufactured items - reuses the
+// existing replenishment-suggestion formula/query-param shape rather than a
+// new planning engine (same as the backend).
+async function renderMRPSuggestionsTab(container) {
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mrp-location">Location</label>
+        <input type="text" id="mrp-location" class="form-input" style="width: 140px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mrp-lead-time">Lead Time (Days)</label>
+        <input type="number" id="mrp-lead-time" class="form-input" style="width: 100px;" value="7">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="mrp-safety-stock">Safety Stock</label>
+        <input type="number" id="mrp-safety-stock" class="form-input" style="width: 100px;" value="0">
+      </div>
+      <button class="btn btn-primary" id="mrp-run-btn">Get Suggestions</button>
+    </div>
+  `;
+  container.appendChild(formPanel);
+  attachTypeahead(document.getElementById('mrp-location'), 'Location');
+
+  const resultsPanel = document.createElement('div');
+  resultsPanel.id = 'mrp-results';
+  container.appendChild(resultsPanel);
+
+  document.getElementById('mrp-run-btn').addEventListener('click', runMRPSuggestions);
+}
+
+async function runMRPSuggestions() {
+  const location = document.getElementById('mrp-location').value.trim();
+  const resultsEl = document.getElementById('mrp-results');
+  if (!location) {
+    resultsEl.innerHTML = `<div class="login-error" style="margin-top: 8px;">Location is required.</div>`;
+    return;
+  }
+  const leadTime = document.getElementById('mrp-lead-time').value || '7';
+  const safetyStock = document.getElementById('mrp-safety-stock').value || '0';
+
+  const res = await apiFetch(`/api/v1/manufacturing/mrp-suggestions?location=${encodeURIComponent(location)}&lead_time_days=${leadTime}&safety_stock=${safetyStock}`);
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to fetch MRP suggestions.');
+    return;
+  }
+  const suggestions = await res.json();
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  if (suggestions.length === 0) {
+    panel.innerHTML = `<div style="padding: 24px; text-align:center; color:var(--text-muted);">No manufactured items are below their reorder point at this location.</div>`;
+  } else {
+    let html = `
+      <table>
+        <thead><tr><th>Item</th><th>Available</th><th>Reorder Point</th><th>Suggested Production Qty</th><th>BOM</th><th>Raw Material Shortfalls</th></tr></thead>
+        <tbody>
+    `;
+    html += suggestions.map(s => `
+      <tr>
+        <td>${s.parent_item}</td>
+        <td>${s.available}</td>
+        <td>${s.reorder_point}</td>
+        <td>${s.suggested_production_qty}</td>
+        <td style="font-family: monospace;">${s.bom_id || '-'}</td>
+        <td>${(s.raw_material_shortfalls || []).length === 0 ? 'None' :
+          s.raw_material_shortfalls.map(r => `${r.sku}: need ${r.shortfall_qty.toFixed ? r.shortfall_qty.toFixed(2) : r.shortfall_qty} more`).join('<br>')}</td>
+      </tr>
+    `).join('');
+    html += `</tbody></table>`;
+    panel.innerHTML = html;
+  }
+  resultsEl.innerHTML = '';
+  resultsEl.appendChild(panel);
 }
 
 async function createBOM() {
@@ -8462,6 +9273,21 @@ async function completeProductionOrder(orderId) {
   });
   if (!res) return;
   if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    // Stage 26.9.2 (MFG-0276): the BOM changed after material was issued -
+    // offer to acknowledge the variance and retry, rather than a dead end.
+    if (data.code === 'MFG-0276') {
+      const ack = await showCustomConfirm(data.error + ' Acknowledge the variance and complete anyway?', 'BOM Changed Since Issue');
+      if (ack) {
+        const ackRes = await apiFetch('/api/v1/manufacturing/acknowledge-bom-variance', {
+          method: 'POST', body: JSON.stringify({ order_id: orderId })
+        });
+        if (ackRes && ackRes.ok) {
+          return completeProductionOrder(orderId);
+        }
+      }
+      return;
+    }
     await showApiError(res, 'Failed to complete production order.', 'Completion Failed');
     return;
   }
@@ -9352,6 +10178,16 @@ function renderDocTable() {
               ? `<button class="action-btn" title="Convert to RFQ" style="margin-right:4px;" onclick="convertRequisition('${row.id}','RFQ')">RFQ</button>
                  <button class="action-btn" title="Convert to Purchase Order" style="margin-right:4px;" onclick="convertRequisition('${row.id}','PurchaseOrder')">PO</button>`
               : '')
+        // Stage 26.9.7: QC gate - a QualityInspection is a plain flat-schema
+        // Transaction doctype (same "no bespoke workbench needed" shape as
+        // PurchaseRequisition above); the only gap the generic form/table
+        // can't cover is submitting into the already-existing approval flow.
+        // Approve/Reject itself happens on the existing Approvals inbox
+        // screen, not here.
+        : currentDoctype === 'QualityInspection' && row.status === 'Draft'
+        ? `<button class="action-btn" title="Submit for Approval" style="margin-right:4px;" onclick="submitQualityInspectionForApproval('${row.id}')">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+           </button>`
         : '';
       tableHTML += `
         <td style="text-align: right;">

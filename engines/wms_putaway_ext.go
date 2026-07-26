@@ -504,6 +504,16 @@ func ExecuteBinReplenishment(tenantID, fromBin, toBin, sku string, qty int, user
 	if err := tx.Commit(); err != nil {
 		return err
 	}
+	// 26.10.1: a pure bin-to-bin shelf move - on_hand/available are
+	// unaffected (see this function's own doc comment), so Qty is 0; the
+	// from/to bin codes are what make this entry meaningful.
+	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
+		ItemID: sku, WarehouseID: locationCode, Qty: 0,
+		VoucherType: "BinReplenishment", VoucherID: fmt.Sprintf("%s-%s", fromBin, toBin), UserID: userID,
+		FromLocationID: fromBin, ToLocationID: toBin,
+	}); lerr != nil {
+		LogSystemError(tenantID, "", "WARN", "ExecuteBinReplenishment", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
+	}
 	LogAuditEvent(tenantID, userID, "WMS_BIN_REPLENISH", "SUCCESS",
 		fmt.Sprintf("Moved %d x %s from bin %s to bin %s", qty, sku, fromBin, toBin))
 	return nil

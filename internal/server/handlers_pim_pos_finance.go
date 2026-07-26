@@ -856,7 +856,7 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 	// reconcile time - only an Approved decision actually posts it, same
 	// finalize-on-approve pattern as POSCart's discount gate just above.
 	if req.Doctype == "CycleCountLine" && req.Decision == "Approved" {
-		if finalizeErr := engines.PostCycleCountAdjustment(tenantID, req.DocumentID); finalizeErr != nil {
+		if finalizeErr := engines.PostCycleCountAdjustment(tenantID, req.DocumentID, userID); finalizeErr != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("Approved but failed to post the adjustment: %v", finalizeErr))
 			return
 		}

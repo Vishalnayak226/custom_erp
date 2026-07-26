@@ -344,6 +344,7 @@ func handleSetCycleCountVarianceReason(w http.ResponseWriter, r *http.Request) {
 // of direct DB surgery.
 func handleRetryCycleCountPost(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
 	if r.Method != http.MethodPost {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
@@ -355,7 +356,7 @@ func handleRetryCycleCountPost(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'line_id' is required")
 		return
 	}
-	if err := engines.PostCycleCountAdjustment(tenantID, req.LineID); err != nil {
+	if err := engines.PostCycleCountAdjustment(tenantID, req.LineID, userID); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
