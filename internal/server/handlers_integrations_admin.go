@@ -814,6 +814,12 @@ func handleVersion(w http.ResponseWriter, r *http.Request) {
 // a bearer token to ask "are you up". Pings the DB directly rather than
 // trusting the pool's idle state, so a lost DB connection is reflected here
 // even if no request has touched it recently.
+//
+// 24.34: also surfaces database/sql's own db_pool.Stats() (open/in-use/idle
+// connections, wait count) - 24.13 tuned the pool's bounds but exposed no
+// visibility into them, and this is the cheapest place to add it: no new
+// dependency, no new endpoint, and it's already the one thing ops points a
+// poller at.
 func handleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
@@ -821,10 +827,21 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := db.DB.Ping(); err != nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "unavailable", "error": err.Error()})
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "unavailable", "error": err.Error()})
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	stats := db.DB.Stats()
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "ok",
+		"db_pool": map[string]interface{}{
+			"max_open_connections": stats.MaxOpenConnections,
+			"open_connections":     stats.OpenConnections,
+			"in_use":               stats.InUse,
+			"idle":                 stats.Idle,
+			"wait_count":           stats.WaitCount,
+			"wait_duration_ms":     stats.WaitDuration.Milliseconds(),
+		},
+	})
 }
 
 // handleGetTenantVersion (Stage 14.6) surfaces what version was recorded

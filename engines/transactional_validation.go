@@ -92,7 +92,15 @@ func fetchPOItemQuantities(tenantID, poID string) (map[string]float64, error) {
 	itemsStr, _ := poData["items"].(string)
 	var items []poItemLine
 	if itemsStr != "" {
-		_ = json.Unmarshal([]byte(itemsStr), &items)
+		// 24.33: a malformed items JSON must surface as an error, not
+		// silently compute a zero ordered-qty map - callers that fold "PO
+		// not found" and "no parsed lines" into a skip (see validateGRNRules/
+		// validateASNRules below) must be able to tell that case apart from
+		// "the PO exists but its data is corrupt," which they now fail
+		// closed on instead of letting an over-receipt check pass.
+		if err := json.Unmarshal([]byte(itemsStr), &items); err != nil {
+			return nil, fmt.Errorf("PO %s has malformed items JSON: %w", poID, err)
+		}
 	}
 	ordered := map[string]float64{}
 	for _, it := range items {
@@ -224,7 +232,12 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 		return nil
 	}
 	ordered, err := fetchPOItemQuantities(tenantID, poID)
-	if err != nil || len(ordered) == 0 {
+	if err != nil && err != sql.ErrNoRows {
+		// 24.33: fail closed on a corrupt PO row instead of silently
+		// skipping the over-receipt checks below.
+		return fmt.Errorf("could not verify PO %s item quantities: %w", poID, err)
+	}
+	if err == sql.ErrNoRows || len(ordered) == 0 {
 		// PO not found or has no parsed item lines - the Link field's own
 		// existence is already enforced by ValidateDocument (META-0198);
 		// nothing further to cross-check here.
@@ -308,7 +321,12 @@ func validateASNRules(tenantID string, payload map[string]interface{}) error {
 		return nil
 	}
 	ordered, err := fetchPOItemQuantities(tenantID, poID)
-	if err != nil || len(ordered) == 0 {
+	if err != nil && err != sql.ErrNoRows {
+		// 24.33: fail closed on a corrupt PO row instead of silently
+		// skipping the SKU cross-check below.
+		return fmt.Errorf("could not verify PO %s item quantities: %w", poID, err)
+	}
+	if err == sql.ErrNoRows || len(ordered) == 0 {
 		return nil
 	}
 	for _, line := range lines {

@@ -24,7 +24,21 @@ import (
 // All handlers here are HR/Admin-only, matching every other admin screen's
 // existing role check (e.g. handlers_integrations_admin.go).
 
+// requireHRAdmin is the single shared admin gate every HR/Admin-only handler
+// in this codebase calls through (17 call sites as of Stage 24 loophole
+// review) - the one choke point to close loophole #1 (ERP_LOOPHOLES_ANALYSIS.md
+// Critical #1, "Extension Token Scope Not Enforced in All Handlers") for all
+// of them at once, rather than adding a Resolved-Purpose check to each
+// handler individually. A SignExtensionToken carries no "role" claim, so
+// role would already be "" here and fail the role check below - this
+// explicit check is defense-in-depth against a future role_permissions-style
+// misconfiguration ever granting "" a role, not a fix for a currently
+// reachable bypass.
 func requireHRAdmin(w http.ResponseWriter, r *http.Request, role string) bool {
+	if r.Header.Get("Resolved-Purpose") == "extension" {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Extension tokens cannot access admin/configuration endpoints")
+		return false
+	}
 	if role != "HR/Admin" {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can access this")
 		return false
@@ -181,9 +195,13 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// idle_timeout_minutes seeds from the tenant-configured default (Stage 28,
+	// security.default_idle_timeout_minutes); the user can change their own on
+	// the Profile screen afterwards. Falls back to the column DEFAULT behavior
+	// (30) via the setting's own registered default.
 	_, err = db.DB.Exec(fmt.Sprintf(
-		`INSERT INTO %s.users (id, username, password_hash, email, role, status, location_code) VALUES ($1, $1, $2, $3, $4, 'Active', $5)`, schema),
-		req.Username, string(hash), req.Email, req.Role, req.LocationCode)
+		`INSERT INTO %s.users (id, username, password_hash, email, role, status, location_code, idle_timeout_minutes) VALUES ($1, $1, $2, $3, $4, 'Active', $5, $6)`, schema),
+		req.Username, string(hash), req.Email, req.Role, req.LocationCode, engines.GetSettingInt(tenantID, "security.default_idle_timeout_minutes"))
 	if err != nil {
 		msg := "Failed to create user."
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {

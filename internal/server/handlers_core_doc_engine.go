@@ -456,7 +456,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			var priorDataStr string
 			if errPrior := db.DB.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = $1 AND id = $2`, schema), doctype, docID).Scan(&priorDataStr, &priorStatus); errPrior == nil {
 				wasApproved = priorStatus == "Approved"
-				_ = json.Unmarshal([]byte(priorDataStr), &priorData)
+				// 24.33: a failure here must not silently fall through with
+				// priorData == nil - every edit-gate check downstream
+				// (validatePurchaseOrderEditRules etc.) treats priorData ==
+				// nil as "this is a create, nothing to gate", so swallowing
+				// the error would let an invalid status transition through
+				// on a row whose stored JSON happens to be corrupted.
+				if err := json.Unmarshal([]byte(priorDataStr), &priorData); err != nil {
+					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("stored document %s data is corrupted: %v", docID, err))
+					return
+				}
 			}
 		}
 
@@ -491,6 +500,29 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		statusVal := "Active"
 		if s, exists := payload["status"]; exists && s != nil {
 			statusVal = fmt.Sprintf("%v", s)
+		}
+
+		// GLOBAL-0019 (ERP_LOOPHOLES_ANALYSIS.md Medium #9, "No Validation on
+		// Document Status Transitions"): a plain create/update on an
+		// approval-gated doctype must never be able to claim Approved/
+		// Rejected directly - those states may only be reached through
+		// SubmitForApproval/DecideApproval's own maker-checker/role/location
+		// checks. This does NOT need a per-doctype valid-transition map (the
+		// broader, genuinely open half of that finding, left for a future
+		// business-rules decision) - approval-gated doctypes already have a
+		// fully-defined state machine owned by the approval engine itself,
+		// so "don't let a bare doc write short-circuit it" is enforceable
+		// today with zero new business input. statusVal != priorStatus is
+		// the guard: an edit that merely round-trips an already-Approved
+		// document's unchanged status (the common "GET included status,
+		// PUT sent the whole object back" pattern) still falls through here
+		// exactly as before - the existing wasApproved/ResetToPendingOnEdit
+		// logic below still forces it back to Pending Approval regardless.
+		if (statusVal == "Approved" || statusVal == "Rejected") && statusVal != priorStatus {
+			if gated, errGate := engines.IsApprovalGated(tenantID, doctype); errGate == nil && gated {
+				writeAPIError(w, r, "GLOBAL-0019", "")
+				return
+			}
 		}
 
 		// Extension before_save hooks (Stage 14.17-14.20): synchronous, and
