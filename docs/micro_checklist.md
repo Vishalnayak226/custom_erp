@@ -615,4 +615,13 @@ User request: sell PIM/WMS/OMS/HR/etc. as fully independent products — any sin
 
 ---
 
+## Stage 29 — OMS Operations Follow-up ✅ (2026-07-27)
+
+- [x] **29.1 Unified OMS workbench** — new Order Management screen joins existing SalesOrder, FulfillmentTask, LogisticsBooking, and SalesInvoice documents into one operational table with hold/release/cancel/view actions. It uses the generic document API rather than a duplicate read backend.
+- [x] **29.2 Channel intake → SalesOrder** — Shopify and Unicommerce order intake now normalize payloads into `CreateSalesOrder`, so SKU mapping, validation, allocation, reservations, hold routing, and idempotency are shared with manual/API orders. Legacy mapping tables remain populated for connector compatibility.
+- [x] **29.3 Shipment/delivery notifications** — the existing notification dispatcher now receives `Order Shipped` at the all-fulfillment-tasks-dispatched closure point and `Order Delivered` from courier tracking ingestion.
+- [x] **29.4 SalesOrder-to-invoice automation** — full shipment creates one deterministic, idempotent Draft SalesInvoice (`INV-<SalesOrder>`); posting/settlement remain explicit finance actions, so shipping does not silently write GL entries.
+- [x] **29.5 Flyout hover navigation** — sidebar and Schema Designer module flyouts now open as soon as the pointer reaches the module row/arrow, with the same behavior on keyboard focus; click remains available for touch devices.
+- [x] **23.11 clarification** — remains intentionally parked. No paste-into-grid UI exists, so an “inline grid message” cannot be implemented correctly without separately designing that product surface.
+
 For the full chronological build narrative behind every item above, see **[docs/project_ledger.md](project_ledger.md)**. For environment setup, commit history, and known concurrent-session risk, see **[docs/ai_handover.md](ai_handover.md)**.

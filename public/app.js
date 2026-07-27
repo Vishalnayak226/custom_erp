@@ -1557,8 +1557,17 @@ function setupModuleFlyouts() {
     const show = () => { clearTimeout(hideTimer); openFlyout(container); };
     const scheduleHide = () => { hideTimer = setTimeout(closeSubmenus, 200); };
 
+    // Open immediately when the pointer reaches the left-hand module row or
+    // its arrow. Pointer events cover both the persistent sidebar and the
+    // dynamically-rendered Schema Designer module list; focus keeps the same
+    // behavior usable from a keyboard.
+    trigger.addEventListener('pointerenter', show);
     container.addEventListener('mouseenter', show);
     container.addEventListener('mouseleave', scheduleHide);
+    container.addEventListener('focusin', show);
+    container.addEventListener('focusout', (e) => {
+      if (!container.contains(e.relatedTarget)) scheduleHide();
+    });
     flyout.addEventListener('mouseenter', () => clearTimeout(hideTimer));
     flyout.addEventListener('mouseleave', scheduleHide);
 
