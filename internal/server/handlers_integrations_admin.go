@@ -76,8 +76,9 @@ func handleUnicommerceOrder(w http.ResponseWriter, r *http.Request) {
 		ChannelOrderID string `json:"channel_order_id"`
 		StoreCode      string `json:"store_code"`
 		Items          []struct {
-			Sku string `json:"sku"`
-			Qty int    `json:"qty"`
+			Sku       string  `json:"sku"`
+			Qty       int     `json:"qty"`
+			UnitPrice float64 `json:"unit_price"`
 		} `json:"items"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -88,20 +89,12 @@ func handleUnicommerceOrder(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'channel_order_id', 'store_code', and 'items' are required")
 		return
 	}
-	var items []map[string]interface{}
+	lines := make([]engines.SalesOrderLineInput, 0, len(req.Items))
 	for _, item := range req.Items {
-		items = append(items, map[string]interface{}{
-			"sku": item.Sku,
-			"qty": item.Qty,
-		})
+		lines = append(lines, engines.SalesOrderLineInput{SKU: item.Sku, Qty: item.Qty, UnitPrice: item.UnitPrice})
 	}
-	orderID, err := engines.ImportUnicommerceOrder(tenantID, req.ChannelOrderID, req.StoreCode, items)
+	orderID, err := engines.ImportUnicommerceSalesOrder(tenantID, req.ChannelOrderID, req.StoreCode, lines)
 	if err != nil {
-		if err.Error() == "ORDER_ALREADY_IMPORTED" {
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(map[string]string{"status": "ignored", "details": "Order already imported (idempotency check)"})
-			return
-		}
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}

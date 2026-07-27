@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"custom_erp/db"
 	"custom_erp/engines"
@@ -318,10 +319,22 @@ func handleShopifyOrderWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		ID        string `json:"id"`
-		LineItems []struct {
-			Sku string `json:"sku"`
-			Qty int    `json:"qty"`
+		ID       string `json:"id"`
+		Customer struct {
+			FirstName string `json:"first_name"`
+			LastName  string `json:"last_name"`
+		} `json:"customer"`
+		ShippingAddress struct {
+			Address1 string `json:"address1"`
+			Address2 string `json:"address2"`
+			City     string `json:"city"`
+			Zip      string `json:"zip"`
+		} `json:"shipping_address"`
+		FinancialStatus string `json:"financial_status"`
+		LineItems       []struct {
+			Sku   string  `json:"sku"`
+			Qty   int     `json:"qty"`
+			Price float64 `json:"price,string"`
 		} `json:"line_items"`
 	}
 
@@ -336,24 +349,17 @@ func handleShopifyOrderWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Convert structure to slice of maps
-	var items []map[string]interface{}
+	lines := make([]engines.SalesOrderLineInput, 0, len(req.LineItems))
 	for _, item := range req.LineItems {
-		items = append(items, map[string]interface{}{
-			"sku": item.Sku,
-			"qty": item.Qty,
-		})
+		lines = append(lines, engines.SalesOrderLineInput{SKU: item.Sku, Qty: item.Qty, UnitPrice: item.Price})
 	}
-
-	orderID, err := engines.ImportChannelOrder(tenantID, "Shopify", req.ID, items)
+	shippingAddress := strings.TrimSpace(strings.Join([]string{req.ShippingAddress.Address1, req.ShippingAddress.Address2, req.ShippingAddress.City, req.ShippingAddress.Zip}, " "))
+	paymentStatus := "Pending"
+	if req.FinancialStatus == "paid" || req.FinancialStatus == "partially_paid" {
+		paymentStatus = "Confirmed"
+	}
+	orderID, err := engines.ImportChannelSalesOrder(tenantID, engines.ChannelOrderInput{Channel: "Shopify", ChannelOrderID: req.ID, CustomerName: strings.TrimSpace(req.Customer.FirstName + " " + req.Customer.LastName), ShippingAddress: shippingAddress, PaymentStatus: paymentStatus, Lines: lines})
 	if err != nil {
-		if err.Error() == "ORDER_ALREADY_IMPORTED" {
-			w.WriteHeader(http.StatusOK)
-			_ = json.NewEncoder(w).Encode(map[string]string{
-				"status":  "ignored",
-				"details": "Order already processed (idempotency check)",
-			})
-			return
-		}
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
@@ -471,13 +477,12 @@ func handleFulfillmentReturn(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":             "refunded",
-		"original_order_id":  req.OriginalOrderID,
-		"returned_location":  req.ReturnLocation,
-		"amount_refunded":    totalRefund,
+		"status":            "refunded",
+		"original_order_id": req.OriginalOrderID,
+		"returned_location": req.ReturnLocation,
+		"amount_refunded":   totalRefund,
 	})
 }
-
 
 func handleDispatchTransferOrder(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")

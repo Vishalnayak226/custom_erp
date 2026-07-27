@@ -142,16 +142,16 @@ func CreateLogisticsBooking(tenantID, orderID, fulfillmentTaskID, carrier, track
 		trackingNumber = awb
 	}
 	docData := map[string]interface{}{
-		"code":                 bookingID,
-		"order_id":             orderID,
-		"fulfillment_task_id":  fulfillmentTaskID,
-		"carrier":              resolvedCarrier,
-		"tracking_number":      trackingNumber,
-		"destination_pincode":  destinationPincode,
-		"awb_number":           awb,
-		"manifest_id":          "",
-		"shipping_charge":      shippingCharge,
-		"status":               "AWB Assigned",
+		"code":                bookingID,
+		"order_id":            orderID,
+		"fulfillment_task_id": fulfillmentTaskID,
+		"carrier":             resolvedCarrier,
+		"tracking_number":     trackingNumber,
+		"destination_pincode": destinationPincode,
+		"awb_number":          awb,
+		"manifest_id":         "",
+		"shipping_charge":     shippingCharge,
+		"status":              "AWB Assigned",
 	}
 
 	marshaled, err := json.Marshal(docData)
@@ -367,7 +367,7 @@ func HandoverManifest(tenantID, manifestID, userID string) error {
 	}
 
 	for orderID := range affectedOrders {
-		if err := evaluateOrderShipmentClosure(schema, orderID); err != nil {
+		if err := evaluateOrderShipmentClosure(tenantID, schema, orderID, userID); err != nil {
 			return fmt.Errorf("order %s closure check: %v", orderID, err)
 		}
 	}
@@ -382,7 +382,7 @@ func HandoverManifest(tenantID, manifestID, userID string) error {
 // Fulfilled once at least one has. A no-op if no SalesOrder with that code
 // exists (a manual/legacy booking's order_id isn't necessarily a
 // SalesOrder) or if the order is already in a terminal-ish status.
-func evaluateOrderShipmentClosure(schema, orderID string) error {
+func evaluateOrderShipmentClosure(tenantID, schema, orderID, userID string) error {
 	var orderStatus string
 	err := db.DB.QueryRow(fmt.Sprintf(
 		`SELECT status FROM %s.documents WHERE doctype = 'SalesOrder' AND id = $1 AND deleted_at IS NULL`, schema), orderID).
@@ -431,7 +431,16 @@ func evaluateOrderShipmentClosure(schema, orderID string) error {
 	_, err = db.DB.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = jsonb_set(data, '{order_status}', to_jsonb($1::text)), status = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND doctype = 'SalesOrder'`, schema),
 		newStatus, orderID)
-	return err
+	if err != nil {
+		return err
+	}
+	if newStatus == "Shipped" {
+		if _, err := CreateSalesInvoiceFromOrder(tenantID, orderID, userID); err != nil {
+			return fmt.Errorf("create draft invoice: %v", err)
+		}
+		DispatchNotification(tenantID, "Order Shipped", orderID, map[string]string{"order_status": newStatus})
+	}
+	return nil
 }
 
 // validShipmentTrackingProgress lists which current statuses a tracking-sync
@@ -453,7 +462,7 @@ func RecordDeliveryEvent(tenantID, bookingID, newStatus, userID string) error {
 	if !ok {
 		return fmt.Errorf("status %q is not a valid tracking update (must be In-Transit or Delivered)", newStatus)
 	}
-	schema, _, currentStatus, err := fetchLogisticsBooking(tenantID, bookingID)
+	schema, bookingData, currentStatus, err := fetchLogisticsBooking(tenantID, bookingID)
 	if err != nil {
 		return err
 	}
@@ -473,6 +482,11 @@ func RecordDeliveryEvent(tenantID, bookingID, newStatus, userID string) error {
 		return err
 	}
 	LogAuditEvent(tenantID, userID, "SHIPMENT_TRACKING_UPDATE", "SUCCESS", fmt.Sprintf("Booking %s -> %s", bookingID, newStatus))
+	if newStatus == "Delivered" {
+		if orderID, _ := bookingData["order_id"].(string); orderID != "" {
+			DispatchNotification(tenantID, "Order Delivered", orderID, map[string]string{"booking_id": bookingID, "tracking_number": fmt.Sprint(bookingData["tracking_number"])})
+		}
+	}
 	return nil
 }
 
