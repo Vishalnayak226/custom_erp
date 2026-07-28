@@ -296,6 +296,19 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Purchase Requisitions are numbered by the server from Prefix Configs
+		// (the PR series), not by a value typed into the generic form. Saving a
+		// requirement also learns its description into the reusable master used
+		// by the form's next type-ahead search. This is deliberately before
+		// metadata validation because code is a mandatory field that is supplied
+		// here for a new record.
+		if doctype == "PurchaseRequisition" {
+			if err := engines.PreparePurchaseRequisition(tenantID, location, id == "", payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
+		}
+
 		// 2. Server-side metadata validation engine check
 		err = engines.ValidateDocument(tenantID, doctype, payload)
 		if err != nil {
@@ -310,6 +323,14 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		}
+		if doctype == "PurchaseRequisition" {
+			description, _ := payload["description"].(string)
+			if err := engines.EnsurePurchaseRequisitionDescription(tenantID, description); err != nil {
+				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+				return
+			}
+		}
+
 
 		// Expense claim controls (Stage 13.13c, MB 16.2): date window and
 		// duplicate-bill check, only on creation of a new claim - not on

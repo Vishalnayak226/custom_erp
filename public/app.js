@@ -10485,11 +10485,12 @@ window.openDynamicModal = async function(existingRecord) {
 
   const activeDoc = state.activeDoctypes.find(d => d.name === currentDoctype);
   const isMaster = activeDoc && activeDoc.document_type === 'Master';
+  const isPurchaseRequisition = currentDoctype === 'PurchaseRequisition';
 
   for (const f of state.activeDocFields) {
     if (f.fieldname === 'id') continue;
 
-    const isCodeField = isMaster && f.fieldname.toLowerCase() === 'code';
+    const isCodeField = (isMaster || isPurchaseRequisition) && f.fieldname.toLowerCase() === 'code';
     const existingVal = isEdit ? existingRecord[f.fieldname] : undefined;
 
     const fg = document.createElement('div');
@@ -10558,7 +10559,7 @@ window.openDynamicModal = async function(existingRecord) {
         if (isEdit) {
           input.value = existingVal ?? '';
         } else {
-          input.placeholder = 'Auto-generated upon save';
+          input.placeholder = isPurchaseRequisition ? 'Auto-generated from Prefix Configs (PR)' : 'Auto-generated upon save';
         }
       } else {
         input.required = f.mandatory;
@@ -10567,6 +10568,23 @@ window.openDynamicModal = async function(existingRecord) {
       fg.appendChild(input);
     }
     body.appendChild(fg);
+  }
+
+  // The requirement catalogue is deliberately a soft suggestion rather than
+  // a restrictive Link field: new wording is valid, and the server learns it
+  // into PurchaseRequisitionDescription on save. Department is an existing
+  // Core master and uses the same picker, returning its code for the stored
+  // requisition value.
+  if (isPurchaseRequisition) {
+    const descriptionInput = body.querySelector('[name="description"]');
+    const departmentInput = body.querySelector('[name="department"]');
+    if (descriptionInput) {
+      attachTypeahead(descriptionInput, 'PurchaseRequisitionDescription', {
+        valueFields: ['description'],
+        labelFn: doc => doc.description || doc.code || doc.id
+      });
+    }
+    if (departmentInput) attachTypeahead(departmentInput, 'Department');
   }
 
   modal.classList.add('open');
@@ -10608,15 +10626,20 @@ window.handleDynamicFormSubmit = async function(e) {
   
   const activeDoc = state.activeDoctypes.find(d => d.name === currentDoctype);
   const isMaster = activeDoc && activeDoc.document_type === 'Master';
+  const isPurchaseRequisition = currentDoctype === 'PurchaseRequisition';
   let codeFieldname = null;
 
   state.activeDocFields.forEach(f => {
     if (f.fieldname === 'id') return;
-    const isCodeField = isMaster && f.fieldname.toLowerCase() === 'code';
+    const isAutoPurchaseRequisitionCode = isPurchaseRequisition && f.fieldname.toLowerCase() === 'code';
+    const isCodeField = (isMaster || isAutoPurchaseRequisitionCode) && f.fieldname.toLowerCase() === 'code';
     const input = form.querySelector(`[name="${f.fieldname}"]`);
     if (input) {
       if (isCodeField && !input.value) {
-        codeFieldname = f.fieldname;
+        // Purchase requisitions obtain their code during the authenticated
+        // server-side save. Other Master records retain the existing admin
+        // sequence endpoint behavior.
+        if (!isAutoPurchaseRequisitionCode) codeFieldname = f.fieldname;
       } else {
         if (f.fieldtype === 'Number') {
           payload[f.fieldname] = parseFloat(input.value);
