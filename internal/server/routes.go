@@ -207,6 +207,8 @@ func Run() {
 	http.HandleFunc("POST /api/v1/wms/bin-replenishment/execute", apiMiddleware(moduleGate("wms", handleBinReplenishmentExecute)))
 	http.HandleFunc("POST /api/v1/wms/wave/assign", apiMiddleware(moduleGate("wms", handleWaveAssign)))
 	http.HandleFunc("GET /api/v1/wms/wave/pick-list", apiMiddleware(moduleGate("wms", handleWavePickList)))
+	// 26.5.16 (P2, go-ahead 2026-07-27): robotics/conveyor/scale inbound integration
+	http.HandleFunc("POST /api/v1/wms/robotics/event", apiMiddleware(moduleGate("wms", handleRoboticsEvent)))
 	http.HandleFunc("POST /api/v1/wms/cartonization/suggest", apiMiddleware(moduleGate("wms", handleCartonizationSuggest)))
 	http.HandleFunc("GET /api/v1/wms/cycle-count/abc-plan", apiMiddleware(moduleGate("wms", handleABCCycleCountPlan)))
 	http.HandleFunc("POST /api/v1/wms/cycle-count/recount/request", apiMiddleware(moduleGate("wms", handleRequestRecount)))
@@ -321,6 +323,9 @@ func Run() {
 	// opt-in alternative to the immediate /loyalty/redeem above.
 	http.HandleFunc("POST /api/v1/crm/loyalty-redemption/initiate", apiMiddleware(moduleGate("crm_loyalty", handleInitiateSecureLoyaltyRedemption)))
 	http.HandleFunc("POST /api/v1/crm/loyalty-redemption/verify", apiMiddleware(moduleGate("crm_loyalty", handleVerifySecureLoyaltyRedemption)))
+	// 26.7.9/26.7.11 (P2, go-ahead 2026-07-27): householding/merge + inbound CleverTap segment sync
+	http.HandleFunc("POST /api/v1/crm/customer/merge", apiMiddleware(moduleGate("crm_loyalty", handleMergeCustomers)))
+	http.HandleFunc("POST /api/v1/integrations/clevertap/segment-sync", apiMiddleware(moduleGate("crm_loyalty", handleCleverTapSegmentSync)))
 
 	// Manufacturing (Stage 14.1: module-gated - "manufacturing")
 	http.HandleFunc("POST /api/v1/manufacturing/issue-material", apiMiddleware(moduleGate("manufacturing", handleIssueProductionMaterial)))
@@ -335,6 +340,10 @@ func Run() {
 	http.HandleFunc("POST /api/v1/manufacturing/record-actual-cost", apiMiddleware(moduleGate("manufacturing", handleRecordActualProductionCost)))
 	http.HandleFunc("GET /api/v1/manufacturing/mrp-suggestions", apiMiddleware(moduleGate("manufacturing", handleMRPSuggestions)))
 	http.HandleFunc("GET /api/v1/manufacturing/active-bom", apiMiddleware(moduleGate("manufacturing", handleActiveBOMForItem)))
+	// 26.9.10/26.9.11 (P2, go-ahead 2026-07-27): capacity scheduling + subcontracting
+	http.HandleFunc("GET /api/v1/manufacturing/production-schedule", apiMiddleware(moduleGate("manufacturing", handleGetProductionSchedule)))
+	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/send", apiMiddleware(moduleGate("manufacturing", handleSendSubcontractOrder)))
+	http.HandleFunc("POST /api/v1/manufacturing/subcontract-order/receive", apiMiddleware(moduleGate("manufacturing", handleReceiveSubcontractOrder)))
 
 	// PIM Foundation MVP (Stage 15: module-gated - "pim")
 	// Dashboard (Stage 16.5a) reads the existing PIM snapshot/queue state;

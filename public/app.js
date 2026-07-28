@@ -237,6 +237,49 @@ function showToast(message, opts = {}) {
   setTimeout(dismiss, opts.ms || 5000);
 }
 
+// Copy-to-clipboard affordance (Stage 26 P2 UI pass, 2026-07-26) - wraps a
+// rendered cell value with a small icon button so a user can copy an
+// identifier (SKU, PO number, etc.) here and paste it into a search box
+// elsewhere, without adding a new UI framework/library. Kept as one shared
+// helper so every table that renders through it behaves identically.
+const COPY_ICON_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+const COPY_ICON_DONE_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+function copyableCell(displayValue, rawValue) {
+  const raw = rawValue === undefined || rawValue === null ? '' : String(rawValue);
+  if (raw === '') return displayValue === undefined || displayValue === null ? '' : String(displayValue);
+  return `<span class="copyable-cell"><span>${displayValue}</span><button type="button" class="copy-chip" title="Copy" data-copy-value="${encodeURIComponent(raw)}" onclick="event.stopPropagation(); copyValueToClipboard(this)">${COPY_ICON_SVG}</button></span>`;
+}
+
+window.copyValueToClipboard = async function(btn) {
+  const value = decodeURIComponent(btn.dataset.copyValue || '');
+  if (!value) return;
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(value);
+    } else {
+      throw new Error('clipboard API unavailable');
+    }
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = value;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e2) { /* best-effort fallback only */ }
+    document.body.removeChild(ta);
+  }
+  const original = btn.innerHTML;
+  btn.classList.add('copy-chip-done');
+  btn.innerHTML = COPY_ICON_DONE_SVG;
+  clearTimeout(btn._copyResetTimer);
+  btn._copyResetTimer = setTimeout(() => {
+    btn.innerHTML = original;
+    btn.classList.remove('copy-chip-done');
+  }, 900);
+};
+
 // Page banner (Stage 23) - dismissible bar at the top of a screen container,
 // for messages the catalog marks Display Style "Page banner" (its largest
 // single category - module/tenant-level blocks like "Financial period
@@ -877,6 +920,8 @@ const MENU_PERMISSION_MAP = {
 
   'menu-fulfillment': { open: true },
   'menu-marketplace': { open: true },
+	'menu-oms': { open: true },
+  'menu-customers': { doctypes: ['Customer'] },
 
   'menu-reports': { open: true },
 
@@ -904,6 +949,7 @@ const MENU_PERMISSION_MAP = {
   'menu-lpn': { open: true },
   'menu-bin-replenishment': { open: true },
   'menu-wave-picking': { open: true },
+  'menu-mobile-picking': { open: true },
   'menu-stores': { doctypes: ['Stores'] },
   'menu-stickers': { open: true },
 
@@ -1275,6 +1321,16 @@ function setupEventListeners() {
     renderView('sales-invoices');
   });
 
+  document.getElementById('menu-customers').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-customers');
+    closeSubmenus();
+    currentDoctype = 'Customer';
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    renderView('doctype-table');
+  });
+
   document.getElementById('menu-reports').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-reports');
@@ -1385,7 +1441,7 @@ function setupEventListeners() {
   // Offline Queue Gaps (24.36) - same generic doctype-table pattern as Offline Sync Review above.
   document.getElementById('menu-pos-offline-gaps').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-gaps'); closeSubmenus(); currentDoctype = 'POSOfflineQueueGap'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
+  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -1621,6 +1677,7 @@ const STATIC_VIEW_MENU_IDS = {
   lpn: 'menu-lpn',
   'bin-replenishment': 'menu-bin-replenishment',
   'wave-picking': 'menu-wave-picking',
+  'mobile-picking': 'menu-mobile-picking',
   users: 'menu-users',
   roles: 'menu-roles',
   'prefix-configs': 'menu-prefix-configs',
@@ -1713,6 +1770,7 @@ async function renderView(view) {
   saveNavState();
   const root = document.getElementById('view-root');
   root.innerHTML = '';
+  root.scrollTop = 0;
 
   if (view === 'dashboard') {
     renderDashboard(root);
@@ -1736,8 +1794,12 @@ async function renderView(view) {
     await renderBinReplenishmentView(root);
   } else if (view === 'wave-picking') {
     await renderWavePickingView(root);
+  } else if (view === 'mobile-picking') {
+    await renderMobilePickingView(root);
   } else if (view === 'marketplace') {
     await renderMarketplaceView(root);
+	} else if (view === 'oms') {
+		await renderOMSWorkbenchView(root);
   } else if (view === 'approvals') {
     await renderApprovalsView(root);
   } else if (view === 'reports') {
@@ -1806,6 +1868,14 @@ async function renderView(view) {
     renderMockModuleView(root, view);
   }
   setTimeout(translateDOM, 50);
+  // Chromium can cache a stale containing-block rect for `position: sticky`
+  // content (e.g. a table's frozen header row) when it's inserted into a
+  // scroll container in the very same reflow that establishes that
+  // container's own scrollable overflow - the sticky element then just
+  // scrolls away with the page instead of freezing. One forced layout read
+  // after paint fixes it; done once here so every view's tables get it for
+  // free instead of patching each table-rendering function individually.
+  requestAnimationFrame(() => { void root.offsetHeight; });
 }
 
 // Translate labels in DOM dynamically
@@ -4450,6 +4520,147 @@ async function renderWavePickingView(container) {
   document.getElementById('wave-gen-btn').addEventListener('click', submitWavePickList);
 }
 
+// Stage 26.5.14 (P2, go-ahead 2026-07-27): mobile/voice picking. Reuses
+// the exact same wave pick-list endpoint Wave/Batch Picking already calls
+// (GET /api/v1/wms/wave/pick-list) - no new picking logic, just a
+// narrow single-item-at-a-time layout suited to a phone screen instead of
+// a wide table, plus optional voice readout/confirm via the browser-native
+// Web Speech API (SpeechSynthesis/SpeechRecognition) - no new dependency,
+// and both are feature-detected so this degrades to silent button-tap
+// navigation wherever unsupported (notably: no SpeechRecognition in
+// Firefox as of this writing).
+let mobilePickLines = [];
+let mobilePickIndex = 0;
+let mobilePickRecognition = null;
+
+async function renderMobilePickingView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Mobile Picking</h1>
+      <p class="page-subtitle">A phone-friendly, one-item-at-a-time view of a wave's pick list, with optional voice readout and hands-free "next"/"confirm" control.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const loadPanel = document.createElement('div');
+  loadPanel.className = 'table-panel';
+  loadPanel.style.padding = '20px';
+  loadPanel.style.marginBottom = '16px';
+  loadPanel.style.maxWidth = '420px';
+  loadPanel.innerHTML = `
+    <div style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0; flex:1; min-width:140px;">
+        <label class="form-label" for="mobile-pick-wave-id">Wave ID</label>
+        <input type="text" id="mobile-pick-wave-id" class="form-input" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="mobile-pick-load-btn" type="button">Load</button>
+    </div>
+    <div id="mobile-pick-error" class="login-error hidden" style="margin-top:10px;"></div>
+  `;
+  container.appendChild(loadPanel);
+
+  const cardWrap = document.createElement('div');
+  cardWrap.id = 'mobile-pick-card-wrap';
+  cardWrap.style.maxWidth = '420px';
+  container.appendChild(cardWrap);
+
+  document.getElementById('mobile-pick-load-btn').addEventListener('click', loadMobilePickList);
+}
+
+async function loadMobilePickList() {
+  const errorEl = document.getElementById('mobile-pick-error');
+  errorEl.classList.add('hidden');
+  const waveId = document.getElementById('mobile-pick-wave-id').value.trim();
+  if (!waveId) { errorEl.textContent = 'Wave ID is required.'; errorEl.classList.remove('hidden'); return; }
+
+  const res = await apiFetch(`/api/v1/wms/wave/pick-list?wave_id=${encodeURIComponent(waveId)}`);
+  if (!res) return;
+  if (!res.ok) { errorEl.textContent = await getErrorMessage(res, 'Failed to load the wave pick list.'); errorEl.classList.remove('hidden'); return; }
+  const data = await res.json();
+  mobilePickLines = data.pick_lines || [];
+  mobilePickIndex = 0;
+  renderMobilePickCard();
+}
+
+function renderMobilePickCard() {
+  const wrap = document.getElementById('mobile-pick-card-wrap');
+  if (!wrap) return;
+  if (mobilePickLines.length === 0) {
+    wrap.innerHTML = `<div class="table-panel" style="padding:24px; text-align:center; color:var(--text-muted);">No pick lines for this wave.</div>`;
+    return;
+  }
+  const line = mobilePickLines[mobilePickIndex];
+  const speechSupported = 'speechSynthesis' in window;
+  const listenSupported = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+  wrap.innerHTML = `
+    <div class="table-panel" style="padding:24px; text-align:center;">
+      <div class="text-muted" style="font-size:13px; margin-bottom:12px;">Item ${mobilePickIndex + 1} of ${mobilePickLines.length}</div>
+      <div style="font-size:32px; font-weight:700; letter-spacing:-0.5px; margin-bottom:6px;">${line.sku}</div>
+      <div style="font-size:15px; color:var(--text-muted); margin-bottom:16px;">Zone ${line.zone || '-'} / Aisle ${line.aisle || '-'} / Rack ${line.rack || '-'} / Bin ${line.bin_code}</div>
+      <div style="font-size:48px; font-weight:800; color:var(--primary-color); margin-bottom:20px;">${line.pick_qty}${line.shortfall ? ` <span class="badge badge-warning" style="font-size:14px; vertical-align:middle;">short ${line.shortfall}</span>` : ''}</div>
+      <div style="display:flex; gap:10px; justify-content:center; margin-bottom:14px;">
+        <button class="btn btn-outline" id="mobile-pick-prev" type="button" ${mobilePickIndex === 0 ? 'disabled' : ''}>Previous</button>
+        <button class="btn btn-primary" id="mobile-pick-next" type="button" ${mobilePickIndex === mobilePickLines.length - 1 ? 'disabled' : ''}>Confirm &amp; Next</button>
+      </div>
+      ${speechSupported || listenSupported ? `
+      <div style="display:flex; gap:10px; justify-content:center; padding-top:14px; border-top:1px solid var(--border-color);">
+        ${speechSupported ? `<button class="btn btn-outline btn-sm" id="mobile-pick-speak" type="button">Speak Item</button>` : ''}
+        ${listenSupported ? `<button class="btn btn-outline btn-sm" id="mobile-pick-listen" type="button">${mobilePickRecognition ? 'Stop Listening' : 'Listen ("next"/"confirm")'}</button>` : ''}
+      </div>` : ''}
+    </div>
+  `;
+  const prevBtn = document.getElementById('mobile-pick-prev');
+  const nextBtn = document.getElementById('mobile-pick-next');
+  if (prevBtn) prevBtn.addEventListener('click', () => { mobilePickIndex = Math.max(0, mobilePickIndex - 1); renderMobilePickCard(); });
+  if (nextBtn) nextBtn.addEventListener('click', () => { mobilePickIndex = Math.min(mobilePickLines.length - 1, mobilePickIndex + 1); renderMobilePickCard(); });
+  const speakBtn = document.getElementById('mobile-pick-speak');
+  if (speakBtn) speakBtn.addEventListener('click', () => speakMobilePickLine(line));
+  const listenBtn = document.getElementById('mobile-pick-listen');
+  if (listenBtn) listenBtn.addEventListener('click', toggleMobilePickListening);
+}
+
+function speakMobilePickLine(line) {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(`Pick ${line.pick_qty} of ${line.sku}, bin ${line.bin_code}, zone ${line.zone || 'unspecified'}.`);
+  window.speechSynthesis.speak(utterance);
+}
+
+function toggleMobilePickListening() {
+  const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognitionCtor) return;
+  const btn = document.getElementById('mobile-pick-listen');
+  if (mobilePickRecognition) {
+    mobilePickRecognition.stop();
+    mobilePickRecognition = null;
+    if (btn) btn.textContent = 'Listen ("next"/"confirm")';
+    return;
+  }
+  mobilePickRecognition = new SpeechRecognitionCtor();
+  mobilePickRecognition.continuous = true;
+  mobilePickRecognition.interimResults = false;
+  mobilePickRecognition.onresult = (event) => {
+    // continuous:true keeps this instance running independent of DOM
+    // rebuilds - renderMobilePickCard() replaces the card markup (including
+    // the Listen button) but re-reads mobilePickRecognition's current state
+    // to relabel the new button, no stop/restart needed here.
+    const said = event.results[event.results.length - 1][0].transcript.trim().toLowerCase();
+    if (said.includes('next') || said.includes('confirm')) {
+      mobilePickIndex = Math.min(mobilePickLines.length - 1, mobilePickIndex + 1);
+      renderMobilePickCard();
+    } else if (said.includes('previous') || said.includes('back')) {
+      mobilePickIndex = Math.max(0, mobilePickIndex - 1);
+      renderMobilePickCard();
+    }
+  };
+  mobilePickRecognition.onerror = () => { mobilePickRecognition = null; };
+  mobilePickRecognition.onend = () => { mobilePickRecognition = null; };
+  mobilePickRecognition.start();
+  if (btn) btn.textContent = 'Stop Listening';
+}
+
 async function submitWaveAssign() {
   const resultEl = document.getElementById('wave-assign-result');
   const waveId = document.getElementById('wave-id').value.trim();
@@ -5525,6 +5736,22 @@ async function submitPOForApproval(documentId) {
   renderView('purchase-orders');
 }
 
+// Generic submit-for-approval (Stage 26.8.8/26.8.10) - Appraisal/Grievance
+// have no other doctype-specific behavior around this action, so one
+// shared function covers both instead of two near-identical copies.
+async function submitDocForApproval(doctype, documentId) {
+  const res = await apiFetch('/api/v1/approval/submit', {
+    method: 'POST',
+    body: JSON.stringify({ doctype, document_id: documentId })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to submit for approval.');
+    return;
+  }
+  renderView('doctype-table');
+}
+
 async function submitQualityInspectionForApproval(documentId) {
   const res = await apiFetch('/api/v1/approval/submit', {
     method: 'POST',
@@ -5535,6 +5762,66 @@ async function submitQualityInspectionForApproval(documentId) {
     await showApiError(res, 'Failed to submit for approval.');
     return;
   }
+  renderView('doctype-table');
+}
+
+// Stage 26.9.11: SubcontractOrder row actions (Send/Receive).
+async function sendSubcontractOrder(id) {
+  const res = await apiFetch('/api/v1/manufacturing/subcontract-order/send', {
+    method: 'POST',
+    body: JSON.stringify({ id })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to send the subcontract order.');
+    return;
+  }
+  showToast('Raw material sent to subcontractor.', { variant: 'success' });
+  renderView('doctype-table');
+}
+
+async function receiveSubcontractOrder(id, expectedQty) {
+  const qtyStr = await showCustomPrompt('Actual quantity received back from the subcontractor:', expectedQty || '', 'Receive Subcontract Order');
+  if (qtyStr === null) return;
+  const qty = Number(qtyStr);
+  if (!qty || qty <= 0) {
+    await showCustomAlert('Enter a positive quantity.', 'Invalid Quantity');
+    return;
+  }
+  const res = await apiFetch('/api/v1/manufacturing/subcontract-order/receive', {
+    method: 'POST',
+    body: JSON.stringify({ id, qty })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to receive the subcontract order.');
+    return;
+  }
+  showToast('Processed/finished goods received from subcontractor.', { variant: 'success' });
+  renderView('doctype-table');
+}
+
+// Stage 26.7.9: Customer merge row action - the clicked row is the
+// duplicate; the user supplies which customer id it should merge into.
+async function mergeCustomerRow(duplicateId) {
+  const primaryId = await showCustomPrompt(`Merge customer "${duplicateId}" into which surviving customer id? All their orders, invoices, vouchers, and loyalty points move to that customer.`, '', 'Merge Customer');
+  if (primaryId === null) return;
+  if (!primaryId.trim() || primaryId.trim() === duplicateId) {
+    await showCustomAlert('Enter a different, valid customer id to merge into.', 'Invalid Customer ID');
+    return;
+  }
+  const confirmed = await showCustomConfirm(`This cannot be undone. Merge "${duplicateId}" into "${primaryId.trim()}"?`, 'Confirm Merge');
+  if (!confirmed) return;
+  const res = await apiFetch('/api/v1/crm/customer/merge', {
+    method: 'POST',
+    body: JSON.stringify({ primary_customer_id: primaryId.trim(), duplicate_customer_id: duplicateId })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to merge customers.');
+    return;
+  }
+  showToast('Customers merged.', { variant: 'success' });
   renderView('doctype-table');
 }
 
@@ -6390,8 +6677,8 @@ async function renderInventoryView(container) {
       ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No inventory records.</td></tr>`
       : filtered.map(r => `
           <tr>
-            <td style="font-family: monospace;">${r.sku}</td>
-            <td>${r.location_code}</td>
+            <td style="font-family: monospace;">${copyableCell(r.sku, r.sku)}</td>
+            <td>${copyableCell(r.location_code, r.location_code)}</td>
             <td>${r.on_hand}</td>
             <td>${r.available}</td>
             <td>${r.committed}</td>
@@ -7290,6 +7577,9 @@ const HR_TABS = [
   { id: 'payroll', label: 'Payroll' },
   { id: 'loans', label: 'Loans/Advances' },
   { id: 'onboarding', label: 'Onboarding/Offboarding' },
+  { id: 'appraisals', label: 'Appraisals' },
+  { id: 'training', label: 'Training' },
+  { id: 'grievances', label: 'Grievances' },
   { id: 'my-requests', label: 'My Requests' }
 ];
 
@@ -7339,6 +7629,26 @@ async function renderHRView(container) {
     await renderEmployeeLoansTab(container, employees);
   } else if (currentHRTab === 'onboarding') {
     currentDoctype = 'OnboardingChecklist';
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    await renderDocTableView(container);
+  } else if (currentHRTab === 'appraisals') {
+    // 26.8.8 (P2, go-ahead 2026-07-27): AppraisalCycle (the KRA/KPI
+    // template) is a Master, managed under Setup like every other master -
+    // this tab is just the per-employee Appraisal transactions against it.
+    currentDoctype = 'Appraisal';
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    await renderDocTableView(container);
+  } else if (currentHRTab === 'training') {
+    // TrainingProgram is a Master (managed under Setup); this tab is the
+    // per-employee completion records against it.
+    currentDoctype = 'TrainingRecord';
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    await renderDocTableView(container);
+  } else if (currentHRTab === 'grievances') {
+    currentDoctype = 'Grievance';
     currentSearchQuery = '';
     currentTablePage = 1;
     await renderDocTableView(container);
@@ -7979,12 +8289,49 @@ async function renderMyRequestsTab(container) {
   `;
   container.appendChild(expensePanel);
 
-  const [leavesRes, expensesRes] = await Promise.all([
+  // Stage 26.8.10 (P2, go-ahead 2026-07-27): Grievance submission, same
+  // self-service shape as Leave/Expense above - create Draft then submit
+  // into the existing approval engine (HR/Admin per this doctype's
+  // approval_rules row) rather than a new case-management workflow.
+  const grievancePanel = document.createElement('div');
+  grievancePanel.className = 'table-panel';
+  grievancePanel.style.padding = '24px';
+  grievancePanel.style.marginBottom = '24px';
+  grievancePanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Submit Grievance</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="myreq-griev-code">Grievance Number</label>
+        <input type="text" id="myreq-griev-code" class="form-input" style="width: 140px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="myreq-griev-category">Category</label>
+        <select id="myreq-griev-category" class="form-input" style="width: 160px;">
+          <option value="Harassment">Harassment</option>
+          <option value="Compensation">Compensation</option>
+          <option value="Workplace Safety">Workplace Safety</option>
+          <option value="Discrimination">Discrimination</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0; flex:1; min-width:220px;">
+        <label class="form-label" for="myreq-griev-desc">Description</label>
+        <input type="text" id="myreq-griev-desc" class="form-input">
+      </div>
+      <button class="btn btn-primary" id="myreq-griev-btn">Submit Grievance</button>
+    </div>
+    <div id="myreq-griev-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(grievancePanel);
+
+  const [leavesRes, expensesRes, grievancesRes] = await Promise.all([
     apiFetch('/api/v1/doc/Leave'),
-    apiFetch('/api/v1/doc/ExpenseClaim')
+    apiFetch('/api/v1/doc/ExpenseClaim'),
+    apiFetch('/api/v1/doc/Grievance')
   ]);
   const myLeaves = (leavesRes && leavesRes.ok ? await leavesRes.json() : []).filter(l => l.employee_id === (employee.code || employee.id));
   const myExpenses = (expensesRes && expensesRes.ok ? await expensesRes.json() : []).filter(e => e.employee_id === (employee.code || employee.id));
+  const myGrievances = (grievancesRes && grievancesRes.ok ? await grievancesRes.json() : []).filter(g => g.employee_id === (employee.code || employee.id));
 
   const historyPanel = document.createElement('div');
   historyPanel.className = 'table-panel';
@@ -7994,7 +8341,8 @@ async function renderMyRequestsTab(container) {
       <tbody>
         ${myLeaves.map(l => `<tr><td>Leave</td><td>${l.leave_type || ''} ${l.from_date || ''} to ${l.to_date || ''}</td><td><span class="badge badge-secondary">${l.status}</span></td></tr>`).join('')}
         ${myExpenses.map(e => `<tr><td>Expense</td><td>${e.category || ''} ${e.amount ?? ''}</td><td><span class="badge badge-secondary">${e.status}</span></td></tr>`).join('')}
-        ${myLeaves.length === 0 && myExpenses.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No requests submitted yet.</td></tr>` : ''}
+        ${myGrievances.map(g => `<tr><td>Grievance</td><td>${g.category || ''} ${g.description || ''}</td><td><span class="badge badge-secondary">${g.status}</span></td></tr>`).join('')}
+        ${myLeaves.length === 0 && myExpenses.length === 0 && myGrievances.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No requests submitted yet.</td></tr>` : ''}
       </tbody>
     </table>
   `;
@@ -8002,6 +8350,45 @@ async function renderMyRequestsTab(container) {
 
   document.getElementById('myreq-leave-btn').addEventListener('click', () => submitMyLeaveRequest(employee));
   document.getElementById('myreq-exp-btn').addEventListener('click', () => submitMyExpenseClaim(employee));
+  document.getElementById('myreq-griev-btn').addEventListener('click', () => submitMyGrievance(employee));
+}
+
+async function submitMyGrievance(employee) {
+  const errorEl = document.getElementById('myreq-griev-error');
+  errorEl.classList.add('hidden');
+
+  const code = document.getElementById('myreq-griev-code').value.trim();
+  const category = document.getElementById('myreq-griev-category').value;
+  const description = document.getElementById('myreq-griev-desc').value.trim();
+
+  if (!code || !description) {
+    errorEl.textContent = 'Grievance Number and Description are both required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const createRes = await apiFetch('/api/v1/doc/Grievance', {
+    method: 'POST',
+    body: JSON.stringify({ id: code, code, employee_id: employee.code || employee.id, category, description, status: 'Draft' })
+  });
+  if (!createRes) return;
+  const createData = await createRes.json();
+  if (!createRes.ok) {
+    errorEl.textContent = createData.error || 'Failed to submit grievance.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const submitRes = await apiFetch('/api/v1/approval/submit', {
+    method: 'POST',
+    body: JSON.stringify({ doctype: 'Grievance', document_id: code })
+  });
+  if (!submitRes) return;
+  if (!submitRes.ok) {
+    errorEl.textContent = await getErrorMessage(submitRes, 'Grievance was saved but could not be routed for HR review.');
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderView('hr');
 }
 
 async function submitMyLeaveRequest(employee) {
@@ -8830,7 +9217,9 @@ let currentMfgTab = 'orders';
 const MFG_TABS = [
   { id: 'orders', label: 'Orders' },
   { id: 'quality', label: 'Quality Inspections' },
-  { id: 'mrp', label: 'MRP Suggestions' }
+  { id: 'mrp', label: 'MRP Suggestions' },
+  { id: 'schedule', label: 'Production Schedule' },
+  { id: 'subcontracting', label: 'Subcontracting' }
 ];
 
 // Stage 26.9: Manufacturing/MRP Maturity Sprint - Work Centers and Routing
@@ -8874,6 +9263,13 @@ async function renderManufacturingView(container) {
     await renderDocTableView(container);
   } else if (currentMfgTab === 'mrp') {
     await renderMRPSuggestionsTab(container);
+  } else if (currentMfgTab === 'schedule') {
+    await renderProductionScheduleTab(container);
+  } else if (currentMfgTab === 'subcontracting') {
+    currentDoctype = 'SubcontractOrder';
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    await renderDocTableView(container);
   }
 }
 
@@ -9184,6 +9580,60 @@ async function runMRPSuggestions() {
   }
   resultsEl.innerHTML = '';
   resultsEl.appendChild(panel);
+}
+
+// 26.9.10 (P2, go-ahead 2026-07-27): finite/infinite capacity scheduling -
+// a read-only suggestion, same "GET on render + Refresh button" shape as
+// the MRP Suggestions tab above, one table per page.
+async function renderProductionScheduleTab(container) {
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '16px';
+  panel.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <p class="text-muted" style="margin:0; font-size:13px;">Every open, routed production order's operations, sequenced earliest-due-first against each work center's daily capacity. Finite respects that capacity (pushing overflow to a later day); Infinite ignores it - the gap between the two columns is how much capacity is actually stretching the schedule out.</p>
+      <button class="btn btn-outline" id="mfg-schedule-refresh">Refresh</button>
+    </div>
+    <div id="mfg-schedule-results"></div>
+  `;
+  container.appendChild(panel);
+  document.getElementById('mfg-schedule-refresh').addEventListener('click', loadProductionSchedule);
+  await loadProductionSchedule();
+}
+
+async function loadProductionSchedule() {
+  const resultsEl = document.getElementById('mfg-schedule-results');
+  if (!resultsEl) return;
+  resultsEl.innerHTML = `<div class="text-muted" style="padding:16px;">Loading...</div>`;
+  const res = await apiFetch('/api/v1/manufacturing/production-schedule');
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to fetch the production schedule.');
+    return;
+  }
+  const entries = await res.json();
+  if (!entries || entries.length === 0) {
+    resultsEl.innerHTML = `<div style="padding:24px; text-align:center; color:var(--text-muted);">No open, routed production orders to schedule.</div>`;
+    return;
+  }
+  let html = `
+    <table>
+      <thead><tr><th>Order</th><th>Op #</th><th>Work Center</th><th>Needed (min)</th><th>Finite Date</th><th>Infinite Date</th><th>Past Due?</th></tr></thead>
+      <tbody>
+  `;
+  html += entries.map(e => `
+    <tr>
+      <td>${copyableCell(e.order_id, e.order_id)}</td>
+      <td>${e.seq}</td>
+      <td>${e.work_center_id || '-'}</td>
+      <td>${Math.round(e.needed_minutes)}</td>
+      <td>${e.finite_date}</td>
+      <td>${e.infinite_date}</td>
+      <td>${e.overflow ? '<span class="badge badge-warning">Yes</span>' : ''}</td>
+    </tr>
+  `).join('');
+  html += `</tbody></table>`;
+  resultsEl.innerHTML = html;
 }
 
 async function createBOM() {
@@ -10167,7 +10617,7 @@ function renderDocTable() {
           const cls = val === 'Active' ? 'badge-success' : 'badge-secondary';
           tableHTML += `<td><span class="badge ${cls}">${val}</span></td>`;
         } else {
-          tableHTML += `<td>${val}</td>`;
+          tableHTML += `<td>${copyableCell(val, val)}</td>`;
         }
       });
       const showHistory = TAXONOMY_HISTORY_DOCTYPES.has(currentDoctype);
@@ -10195,6 +10645,31 @@ function renderDocTable() {
         // screen, not here.
         : currentDoctype === 'QualityInspection' && row.status === 'Draft'
         ? `<button class="action-btn" title="Submit for Approval" style="margin-right:4px;" onclick="submitQualityInspectionForApproval('${row.id}')">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+           </button>`
+        // Stage 26.9.11: SubcontractOrder is the same "flat doctype, only
+        // its state-changing actions need a row button" shape - Send moves
+        // raw material out (Draft->Sent), Receive moves the processed/
+        // finished good back in (Sent->Received).
+        : currentDoctype === 'SubcontractOrder' && row.status === 'Draft'
+        ? `<button class="action-btn" title="Send to Subcontractor" style="margin-right:4px;" onclick="sendSubcontractOrder('${row.id}')">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+           </button>`
+        : currentDoctype === 'SubcontractOrder' && row.status === 'Sent'
+        ? `<button class="action-btn" title="Receive from Subcontractor" style="margin-right:4px;" onclick="receiveSubcontractOrder('${row.id}','${row.expected_received_qty || ''}')">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+           </button>`
+        // Stage 26.7.9: customer householding/merge - this row (the
+        // duplicate) merges INTO another customer id the user provides.
+        : currentDoctype === 'Customer' && row.status !== 'Merged'
+        ? `<button class="action-btn" title="Merge Into Another Customer" style="margin-right:4px;" onclick="mergeCustomerRow('${row.id}')">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M3 16v5h5"/><path d="M16 21h5v-5"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
+           </button>`
+        // Stage 26.8.8/26.8.10: Appraisal/Grievance are the same "flat
+        // doctype, only the submit-for-approval action is bespoke" shape
+        // QualityInspection already uses above.
+        : (currentDoctype === 'Appraisal' || currentDoctype === 'Grievance') && row.status === 'Draft'
+        ? `<button class="action-btn" title="Submit for Approval" style="margin-right:4px;" onclick="submitDocForApproval('${currentDoctype}','${row.id}')">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
            </button>`
         : '';
