@@ -1063,6 +1063,7 @@ func TestEngines(t *testing.T) {
 			t.Fatalf("CreateSalesOrder failed: %v", err)
 		}
 		defer func() {
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesInvoice' AND data->>'sales_order_id' = $1", orderID)
 			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrderLine' AND data->>'order_id' = $1", orderID)
 			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrder' AND id = $1", orderID)
 		}()
@@ -1134,6 +1135,10 @@ func TestEngines(t *testing.T) {
 		}
 		if orderStatusAfterB != "Shipped" {
 			t.Errorf("Expected order to flip to Shipped once every fulfillment task is dispatched, got %q", orderStatusAfterB)
+		}
+		var invoiceStatus string
+		if err := db.DB.QueryRow("SELECT status FROM "+schema+".documents WHERE doctype = 'SalesInvoice' AND data->>'sales_order_id' = $1", orderID).Scan(&invoiceStatus); err != nil || invoiceStatus != "Draft" {
+			t.Errorf("Expected one Draft invoice for shipped order, got status=%q err=%v", invoiceStatus, err)
 		}
 
 		// 5. Re-handing-over an already-handed-over manifest is refused.
@@ -1432,8 +1437,8 @@ func TestEngines(t *testing.T) {
 			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'ReasonCode' AND id = 'RC-TEST-RETURN'")
 			_, _ = db.DB.Exec("DELETE FROM "+schema+".inventory_availability WHERE sku IN ($1, $2, $3)", sku, rtoSKU, mismatchSKU)
 			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrderLine' AND data->>'sku' = $1", rtoSKU)
-			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'SalesOrder' AND id LIKE 'SO-%' AND data->>'channel_order_id' = 'CHORD-RTO-TEST-1'")
-			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'LogisticsBooking' AND data->>'destination_pincode' = '560099'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'SalesOrder' AND id LIKE 'SO-%' AND data->>'channel_order_id' = 'CHORD-RTO-TEST-1'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'LogisticsBooking' AND data->>'destination_pincode' = '560099'")
 			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'Item' AND id = 'ITEM-" + rtoSKU + "'")
 			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'SalesOrder' AND id = 'SO-ALLOC-TEST-1'")
 			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'FulfillmentTask' AND id = 'TSK-SLA-TEST-1'")
@@ -1551,7 +1556,7 @@ func TestEngines(t *testing.T) {
 			t.Fatalf("ReceiveReturnRequest (Missing) failed: %v", err)
 		}
 
-		_, returnAgingRows, _, err := RunReport(tenantID, "return-aging", "HR/Admin", nil)
+		_, returnAgingRows, _, err := RunReport(tenantID, "return-aging", "HR/Admin", "", nil)
 		if err != nil {
 			t.Fatalf("RunReport return-aging failed: %v", err)
 		}
@@ -1616,7 +1621,7 @@ func TestEngines(t *testing.T) {
 		if _, err := db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available, reserved) VALUES ($1, $2, 5, 5, 8)", mismatchSKU, location); err != nil {
 			t.Fatalf("Failed to seed stock-mismatch fixture: %v", err)
 		}
-		_, mismatchRows, _, err := RunReport(tenantID, "stock-mismatch", "HR/Admin", nil)
+		_, mismatchRows, _, err := RunReport(tenantID, "stock-mismatch", "HR/Admin", "", nil)
 		if err != nil {
 			t.Fatalf("RunReport stock-mismatch failed: %v", err)
 		}
@@ -1727,7 +1732,7 @@ func TestEngines(t *testing.T) {
 		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'SalesOrder', $2, 'On Hold', 'system')", "SO-ALLOC-TEST-1", allocData); err != nil {
 			t.Fatalf("Failed to seed Allocation Pending fixture: %v", err)
 		}
-		_, allocRows, _, err := RunReport(tenantID, "allocation-pending", "HR/Admin", nil)
+		_, allocRows, _, err := RunReport(tenantID, "allocation-pending", "HR/Admin", "", nil)
 		if err != nil {
 			t.Fatalf("RunReport allocation-pending failed: %v", err)
 		}
@@ -1743,7 +1748,7 @@ func TestEngines(t *testing.T) {
 
 		// 9. Order Aging - the RTO SalesOrder is still Reserved (open,
 		// counts) regardless of the reconciliation-variance edit below.
-		_, orderAgingRows, _, err := RunReport(tenantID, "order-aging", "HR/Admin", nil)
+		_, orderAgingRows, _, err := RunReport(tenantID, "order-aging", "HR/Admin", "", nil)
 		if err != nil {
 			t.Fatalf("RunReport order-aging failed: %v", err)
 		}
@@ -1763,7 +1768,7 @@ func TestEngines(t *testing.T) {
 		if _, err := db.DB.Exec("UPDATE "+schema+".documents SET status = 'Shipped', data = jsonb_set(data, '{order_status}', '\"Shipped\"') WHERE id = $1", rtoOrderID); err != nil {
 			t.Fatalf("Failed to force RTO order to Shipped: %v", err)
 		}
-		_, varianceRows, _, err := RunReport(tenantID, "oms-reconciliation-variance", "HR/Admin", nil)
+		_, varianceRows, _, err := RunReport(tenantID, "oms-reconciliation-variance", "HR/Admin", "", nil)
 		if err != nil {
 			t.Fatalf("RunReport oms-reconciliation-variance failed: %v", err)
 		}
@@ -1780,7 +1785,7 @@ func TestEngines(t *testing.T) {
 		// 11. Reserved Stock report - the RTO order's reservation was never
 		// released (no fulfillment/dispatch step ran against it in this
 		// test), so it should still show up.
-		_, reservedRows, _, err := RunReport(tenantID, "reserved-stock", "HR/Admin", nil)
+		_, reservedRows, _, err := RunReport(tenantID, "reserved-stock", "HR/Admin", "", nil)
 		if err != nil {
 			t.Fatalf("RunReport reserved-stock failed: %v", err)
 		}
@@ -1795,7 +1800,7 @@ func TestEngines(t *testing.T) {
 		}
 
 		// 12. Courier Performance report.
-		_, courierRows, _, err := RunReport(tenantID, "courier-performance", "HR/Admin", nil)
+		_, courierRows, _, err := RunReport(tenantID, "courier-performance", "HR/Admin", "", nil)
 		if err != nil {
 			t.Fatalf("RunReport courier-performance failed: %v", err)
 		}
@@ -1831,7 +1836,7 @@ func TestEngines(t *testing.T) {
 		if _, err := db.DB.Exec("UPDATE "+schema+".documents SET created_at = CURRENT_TIMESTAMP - INTERVAL '25 hours' WHERE id = $1", slaTaskID); err != nil {
 			t.Fatalf("Failed to backdate SLA fixture task: %v", err)
 		}
-		_, slaRows, _, err := RunReport(tenantID, "sla-breach", "HR/Admin", map[string]string{"threshold_minutes": "60"})
+		_, slaRows, _, err := RunReport(tenantID, "sla-breach", "HR/Admin", "", map[string]string{"threshold_minutes": "60"})
 		if err != nil {
 			t.Fatalf("RunReport sla-breach failed: %v", err)
 		}
@@ -1853,7 +1858,7 @@ func TestEngines(t *testing.T) {
 			"oms.test.exception", payload).Scan(&exceptionEventID); err != nil {
 			t.Fatalf("Failed to seed exception-queue fixture: %v", err)
 		}
-		_, exceptionRows, _, err := RunReport(tenantID, "oms-exception-queue", "HR/Admin", nil)
+		_, exceptionRows, _, err := RunReport(tenantID, "oms-exception-queue", "HR/Admin", "", nil)
 		if err != nil {
 			t.Fatalf("RunReport oms-exception-queue failed: %v", err)
 		}
@@ -1879,7 +1884,7 @@ func TestEngines(t *testing.T) {
 		}
 		DispatchNotification(tenantID, "Order Cancelled", "SO-NOTIFY-TEST-1", nil)
 		var noConfigStatus string
-		if err := db.DB.QueryRow("SELECT data->>'dispatch_status' FROM "+schema+".documents WHERE doctype = 'NotificationLog' AND data->>'template_id' = 'NT-TEST-1' ORDER BY created_at DESC LIMIT 1").Scan(&noConfigStatus); err != nil {
+		if err := db.DB.QueryRow("SELECT data->>'dispatch_status' FROM " + schema + ".documents WHERE doctype = 'NotificationLog' AND data->>'template_id' = 'NT-TEST-1' ORDER BY created_at DESC LIMIT 1").Scan(&noConfigStatus); err != nil {
 			t.Fatalf("Expected a NotificationLog row for the Skipped-NoConfig path: %v", err)
 		}
 		if noConfigStatus != "Skipped-NoConfig" {

@@ -102,6 +102,8 @@ func PackTransferOrder(tenantID, transferOrderID, userID string, boxes []map[str
 		return err
 	}
 	LogAuditEvent(tenantID, userID, "PACK_TRANSFER_ORDER", "SUCCESS", fmt.Sprintf("Packed transfer order %s into %d box(es)", transferOrderID, len(boxes)))
+	fromWarehouse, _ := data["from_warehouse"].(string)
+	logTaskCompletion(tenantID, "Pack", userID, fromWarehouse, transferOrderID, float64(len(boxes)))
 	return nil
 }
 

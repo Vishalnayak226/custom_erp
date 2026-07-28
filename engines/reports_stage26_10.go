@@ -2,7 +2,9 @@ package engines
 
 import (
 	"custom_erp/db"
+	"encoding/json"
 	"fmt"
+	"sync/atomic"
 	"time"
 )
 
@@ -24,6 +26,15 @@ import (
 // monitor pattern (query open/pending rows, flag ones past a threshold)
 // rather than a new engine - the checklist's own instruction. Each is also
 // what the 26.10.3 dashboard's exception-queue widget calls for its counts.
+//
+// 26.10.2: Attendance Summary - deferred at Stage 20.40 for "no data model";
+// Attendance (Stage 13.13a) already carried everything this needs
+// (employee_id/date/status), so the only thing actually missing was ever
+// building the query. 26.8.1's Shift/ShiftAssignment doctypes don't change
+// what this report counts (it still just tallies Attendance.status per
+// employee) - they're noted in the checklist purely as what "unblocked" this
+// getting picked up in the same sprint, not a data dependency of the query
+// itself.
 
 func init() {
 	RegisterReport(ReportDefinition{
@@ -85,6 +96,26 @@ func init() {
 	})
 
 	RegisterReport(ReportDefinition{
+		ID: "attendance-summary", Label: "Attendance Summary", Category: "HR",
+		Columns: []ReportColumn{
+			{Key: "employee_id", Label: "Employee ID"}, {Key: "employee_name", Label: "Employee"},
+			{Key: "department", Label: "Department"},
+			{Key: "present_days", Label: "Present"}, {Key: "absent_days", Label: "Absent"},
+			{Key: "late_days", Label: "Late"}, {Key: "leave_days", Label: "Leave"},
+			{Key: "holiday_days", Label: "Holiday"}, {Key: "weekly_off_days", Label: "Weekly Off"},
+			{Key: "total_marked_days", Label: "Total Marked Days"},
+			{Key: "attendance_pct", Label: "Attendance %"},
+		},
+		Params: []ReportParam{
+			{Key: "start", Label: "From (optional)", Type: "date"},
+			{Key: "end", Label: "To (optional)", Type: "date"},
+		},
+		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
+			return GetAttendanceSummaryReport(tenantID, params["start"], params["end"])
+		},
+	})
+
+	RegisterReport(ReportDefinition{
 		ID: "exception-negative-stock", Label: "Negative Stock Flags", Category: "Exceptions",
 		Columns: []ReportColumn{
 			{Key: "id", Label: "Flag ID"}, {Key: "sku", Label: "SKU"}, {Key: "location", Label: "Location"},
@@ -93,6 +124,26 @@ func init() {
 		},
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
 			rows, err := GetNegativeStockFlags(tenantID)
+			if err != nil {
+				return nil, err
+			}
+			return structsToRows(rows)
+		},
+	})
+
+	RegisterReport(ReportDefinition{
+		ID: "report-performance", Label: "Report Performance", Category: "BI",
+		Columns: []ReportColumn{
+			{Key: "report_id", Label: "Report"}, {Key: "run_count", Label: "Runs"},
+			{Key: "avg_duration_ms", Label: "Avg Duration (ms)"}, {Key: "max_duration_ms", Label: "Max Duration (ms)"},
+			{Key: "avg_row_count", Label: "Avg Rows"}, {Key: "last_run_at", Label: "Last Run"},
+		},
+		Params: []ReportParam{
+			{Key: "start", Label: "From (optional)", Type: "date"},
+			{Key: "end", Label: "To (optional)", Type: "date"},
+		},
+		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
+			rows, err := GetReportPerformance(tenantID, params["start"], params["end"])
 			if err != nil {
 				return nil, err
 			}
@@ -211,6 +262,66 @@ func GetStaleApprovals(tenantID string, thresholdHours float64) ([]StaleApproval
 	return out, nil
 }
 
+// GetAttendanceSummaryReport (26.10.2) tallies each employee's Attendance
+// records by status within the optional [start, end] date range (both
+// inclusive; either left blank spans all-time). Left-joined against
+// Employee so a record whose employee_id no longer resolves (a deleted
+// Employee row) still shows up under its raw employee_id rather than
+// silently vanishing from the summary. attendance_pct is present_days over
+// (total_marked_days - holiday_days - weekly_off_days) - i.e. present out
+// of days the employee was actually expected to work, Leave/Absent/Late all
+// counting against it same as they should; 0 when that denominator is 0
+// rather than dividing by zero.
+func GetAttendanceSummaryReport(tenantID, start, end string) ([]map[string]interface{}, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT a.data->>'employee_id' AS employee_id,
+		       COALESCE(e.data->>'name', a.data->>'employee_id') AS employee_name,
+		       COALESCE(e.data->>'department', '') AS department,
+		       COUNT(*) FILTER (WHERE a.data->>'status' = 'Present') AS present_days,
+		       COUNT(*) FILTER (WHERE a.data->>'status' = 'Absent') AS absent_days,
+		       COUNT(*) FILTER (WHERE a.data->>'status' = 'Late') AS late_days,
+		       COUNT(*) FILTER (WHERE a.data->>'status' = 'Leave') AS leave_days,
+		       COUNT(*) FILTER (WHERE a.data->>'status' = 'Holiday') AS holiday_days,
+		       COUNT(*) FILTER (WHERE a.data->>'status' = 'WeeklyOff') AS weekly_off_days,
+		       COUNT(*) AS total_marked_days
+		FROM %s.documents a
+		LEFT JOIN %s.documents e ON e.doctype = 'Employee' AND e.id = a.data->>'employee_id'
+		WHERE a.doctype = 'Attendance'
+		  AND ($1 = '' OR a.data->>'date' >= $1)
+		  AND ($2 = '' OR a.data->>'date' <= $2)
+		GROUP BY a.data->>'employee_id', e.data->>'name', e.data->>'department'
+		ORDER BY employee_name`, schema, schema), start, end)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []map[string]interface{}{}
+	for rows.Next() {
+		var employeeID, employeeName, department string
+		var present, absent, late, leave, holiday, weeklyOff, total int
+		if err := rows.Scan(&employeeID, &employeeName, &department, &present, &absent, &late, &leave, &holiday, &weeklyOff, &total); err != nil {
+			continue
+		}
+		expectedWorkDays := total - holiday - weeklyOff
+		attendancePct := 0.0
+		if expectedWorkDays > 0 {
+			attendancePct = roundTo2(float64(present) / float64(expectedWorkDays) * 100)
+		}
+		out = append(out, map[string]interface{}{
+			"employee_id": employeeID, "employee_name": employeeName, "department": department,
+			"present_days": present, "absent_days": absent, "late_days": late, "leave_days": leave,
+			"holiday_days": holiday, "weekly_off_days": weeklyOff, "total_marked_days": total,
+			"attendance_pct": attendancePct,
+		})
+	}
+	return out, rows.Err()
+}
+
 // FailedSync is one integration_event_outbox row that has exhausted or is
 // still exhausting its retry budget (engines/outbox.go's processOutbox caps
 // attempts at 5) - the "failed syncs" exception queue.
@@ -286,4 +397,88 @@ func GetNegativeStockFlags(tenantID string) ([]NegativeStockFlag, error) {
 
 func roundTo2(v float64) float64 {
 	return float64(int(v*100)) / 100
+}
+
+// 26.10.7: report query-load instrumentation - the measurement mechanism
+// 26.10.6 (dedicated BI data mart/read replica) is itself gated on. Writes
+// directly into documents the same way WriteStockLedgerEntry does (no
+// bespoke table, no clone-list entry needed - see that function's own
+// comment for the precedent); role_permissions grants no role create/
+// update/delete on ReportRunLog via the generic API, so this direct write
+// is the only way rows ever get in.
+var reportRunLogSeq uint64
+
+func writeReportRunLog(tenantID, reportID, userID string, durationMs int64, rowCount int) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return
+	}
+	id := fmt.Sprintf("RRL%d%d", time.Now().UnixNano(), atomic.AddUint64(&reportRunLogSeq, 1)%1000)
+	docData := map[string]interface{}{
+		"id": id, "code": id,
+		"report_id": reportID, "duration_ms": durationMs, "row_count": rowCount,
+	}
+	if userID != "" {
+		docData["user_id"] = userID
+	}
+	marshaled, err := json.Marshal(docData)
+	if err != nil {
+		return
+	}
+	createdBy := userID
+	if createdBy == "" {
+		createdBy = "system"
+	}
+	_, _ = db.DB.Exec(fmt.Sprintf(
+		`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'ReportRunLog', $2, 'Active', $3)`, schema),
+		id, marshaled, createdBy)
+}
+
+// ReportPerformance aggregates ReportRunLog rows per report id - what
+// actually lets 26.10.6's own "once real load is measured" condition be
+// checked, instead of staying permanently unevaluable.
+type ReportPerformance struct {
+	ReportID      string    `json:"report_id"`
+	RunCount      int       `json:"run_count"`
+	AvgDurationMs float64   `json:"avg_duration_ms"`
+	MaxDurationMs float64   `json:"max_duration_ms"`
+	AvgRowCount   float64   `json:"avg_row_count"`
+	LastRunAt     time.Time `json:"last_run_at"`
+}
+
+func GetReportPerformance(tenantID, start, end string) ([]ReportPerformance, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT data->>'report_id',
+		       COUNT(*),
+		       AVG((data->>'duration_ms')::numeric),
+		       MAX((data->>'duration_ms')::numeric),
+		       AVG((data->>'row_count')::numeric),
+		       MAX(created_at)
+		FROM %s.documents
+		WHERE doctype = 'ReportRunLog'
+		  AND ($1 = '' OR created_at >= $1::date)
+		  AND ($2 = '' OR created_at < ($2::date + interval '1 day'))
+		GROUP BY data->>'report_id'
+		ORDER BY AVG((data->>'duration_ms')::numeric) DESC`, schema),
+		start, end)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []ReportPerformance{}
+	for rows.Next() {
+		var p ReportPerformance
+		if err := rows.Scan(&p.ReportID, &p.RunCount, &p.AvgDurationMs, &p.MaxDurationMs, &p.AvgRowCount, &p.LastRunAt); err != nil {
+			continue
+		}
+		p.AvgDurationMs = roundTo2(p.AvgDurationMs)
+		p.AvgRowCount = roundTo2(p.AvgRowCount)
+		out = append(out, p)
+	}
+	return out, nil
 }

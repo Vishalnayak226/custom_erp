@@ -26,13 +26,14 @@ func handleReportCatalog(w http.ResponseWriter, r *http.Request) {
 func handleRunReport(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	role := r.Header.Get("Resolved-Role")
+	userID := r.Header.Get("Resolved-User-ID")
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 	reportID := r.PathValue("id")
 	params := flattenQueryParams(r)
-	def, rows, masked, err := engines.RunReport(tenantID, reportID, role, params)
+	def, rows, masked, err := engines.RunReport(tenantID, reportID, role, userID, params)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return

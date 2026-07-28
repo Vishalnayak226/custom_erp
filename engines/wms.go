@@ -97,6 +97,7 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 		LogSystemError(tenantID, "", "WARN", "PutawayToBin", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
 	}
 	LogAuditEvent(tenantID, userID, "WMS_PUTAWAY", "SUCCESS", fmt.Sprintf("Put away %d x %s into bin %s", qty, sku, binCode))
+	logTaskCompletion(tenantID, "Putaway", userID, location, binCode, float64(qty))
 	return nil
 }
 
@@ -430,6 +431,7 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 	}); lerr != nil {
 		LogSystemError(tenantID, "", "WARN", "PostCycleCountAdjustment", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
 	}
+	logTaskCompletion(tenantID, "CycleCount", userID, location, lineID, 1)
 	return nil
 }
 

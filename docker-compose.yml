@@ -1,0 +1,38 @@
+# Dormant — local smoke-test only, not a deployment mechanism.
+#
+# Lets you (or a future session) prove the Dockerfile above still actually
+# works — build + boot + talk to Postgres — without touching production or
+# spinning up any cloud resources. `docker compose up --build`, then apply
+# the schema once against the compose Postgres the same way CI does
+# (see .github/workflows/ci.yml's "Apply database schema" step for the exact
+# file list/order), then hit http://localhost:8080.
+#
+# Production hosting stays the plain-VPS/systemd path in
+# docs/operations/go_live_decisions.md §4 until that decision is deliberately
+# revisited.
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: custom_erp
+    ports:
+      - "5435:5432"
+    volumes:
+      - erp_pg_data:/var/lib/postgresql/data
+
+  app:
+    build: .
+    depends_on:
+      - postgres
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/custom_erp?sslmode=disable
+      PORT: 8080
+      ENV: development
+    ports:
+      - "8080:8080"
+
+volumes:
+  erp_pg_data:

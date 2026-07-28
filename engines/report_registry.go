@@ -3,6 +3,7 @@ package engines
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 )
 
 // Stage 20 Track B.4 (20.35): a generic, reusable report framework
@@ -145,7 +146,12 @@ func reportMasked(columns []ReportColumn, role string) bool {
 // it, and applies column masking for the requesting role. masked reports
 // REPORT-0287 (Info, non-blocking) so the caller can annotate its response;
 // it is never itself a reason to fail the request.
-func RunReport(tenantID, reportID, role string, params map[string]string) (def *ReportDefinition, rows []map[string]interface{}, masked bool, err error) {
+//
+// 26.10.7: also times the run and logs it via writeReportRunLog - the
+// prerequisite 26.10.6 (dedicated BI data mart/read replica) was itself
+// deferred pending, since that item's own gate is "only once real
+// report-query load is measured," not a decision that's already been made.
+func RunReport(tenantID, reportID, role, userID string, params map[string]string) (def *ReportDefinition, rows []map[string]interface{}, masked bool, err error) {
 	d, ok := reportRegistry[reportID]
 	if !ok {
 		return nil, nil, false, fmt.Errorf("unknown report %q", reportID)
@@ -155,6 +161,7 @@ func RunReport(tenantID, reportID, role string, params map[string]string) (def *
 			return nil, nil, false, fmt.Errorf("param %q is required", p.Key)
 		}
 	}
+	start := time.Now()
 	rows, err = d.Run(tenantID, params)
 	if err != nil {
 		// REPORT-0162 (Stage 25.5): "Report generation failed" - distinct
@@ -163,6 +170,9 @@ func RunReport(tenantID, reportID, role string, params map[string]string) (def *
 		// own execution failing (a query error, a bad join), matching the
 		// catalog scenario's wording exactly.
 		return nil, nil, false, &ValidationError{Code: "REPORT-0162", Message: err.Error()}
+	}
+	if reportID != "report-performance" {
+		writeReportRunLog(tenantID, reportID, userID, time.Since(start).Milliseconds(), len(rows))
 	}
 	if len(rows) > maxSyncReportRows {
 		return nil, nil, false, &ValidationError{Code: "REPORT-0161", Message: fmt.Sprintf("this report matched %d rows, over the %d-row synchronous limit - narrow the filters or use Export instead", len(rows), maxSyncReportRows)}

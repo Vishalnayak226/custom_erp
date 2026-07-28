@@ -239,4 +239,55 @@ func TestReportsStage26_10(t *testing.T) {
 			t.Errorf("expected still exactly 1 outbox event after a second tick before next_run_date, got %d", eventCount)
 		}
 	})
+
+	// 26.10.7: report query-load instrumentation - the measurement
+	// mechanism 26.10.6 (BI data mart) is gated on.
+	t.Run("ReportPerformanceInstrumentation", func(t *testing.T) {
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'ReportRunLog' AND data->>'report_id' = 'exception-negative-stock'")
+
+		if _, _, _, err := RunReport(tenantID, "exception-negative-stock", "HR/Admin", "manager1", nil); err != nil {
+			t.Fatalf("RunReport failed: %v", err)
+		}
+		if _, _, _, err := RunReport(tenantID, "exception-negative-stock", "HR/Admin", "manager1", nil); err != nil {
+			t.Fatalf("second RunReport failed: %v", err)
+		}
+
+		var directCount int
+		if err := db.DB.QueryRow("SELECT COUNT(*) FROM " + schema + ".documents WHERE doctype = 'ReportRunLog' AND data->>'report_id' = 'exception-negative-stock'").Scan(&directCount); err != nil {
+			t.Fatalf("direct count query failed: %v", err)
+		}
+		if directCount != 2 {
+			t.Fatalf("expected 2 ReportRunLog rows written directly, got %d", directCount)
+		}
+
+		perf, err := GetReportPerformance(tenantID, "", "")
+		if err != nil {
+			t.Fatalf("GetReportPerformance failed: %v", err)
+		}
+		var found *ReportPerformance
+		for i := range perf {
+			if perf[i].ReportID == "exception-negative-stock" {
+				found = &perf[i]
+			}
+		}
+		if found == nil {
+			t.Fatalf("expected a report-performance row for exception-negative-stock, got none in %+v", perf)
+		}
+		if found.RunCount != 2 {
+			t.Errorf("expected run_count=2, got %d", found.RunCount)
+		}
+
+		// The report-performance report itself must not log its own runs -
+		// otherwise every call would inflate its own next call's count.
+		if _, _, _, err := RunReport(tenantID, "report-performance", "HR/Admin", "manager1", nil); err != nil {
+			t.Fatalf("RunReport(report-performance) failed: %v", err)
+		}
+		var selfLogCount int
+		if err := db.DB.QueryRow("SELECT COUNT(*) FROM " + schema + ".documents WHERE doctype = 'ReportRunLog' AND data->>'report_id' = 'report-performance'").Scan(&selfLogCount); err != nil {
+			t.Fatalf("failed to count self-log rows: %v", err)
+		}
+		if selfLogCount != 0 {
+			t.Errorf("expected report-performance to never log its own runs, found %d", selfLogCount)
+		}
+	})
 }

@@ -70,3 +70,15 @@ jobs:
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  docker-build-check:
+    # The Dockerfile is dormant (docs/operations/go_live_decisions.md §4a.1) -
+    # dev/test/live all run the plain binary today, not a container. This job
+    # only proves the image still builds on every push, so it can't silently
+    # rot before the day it's actually needed. Deliberately does not push or
+    # deploy the image anywhere.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image (no push)
+        run: docker build -t erp-server:ci-check .

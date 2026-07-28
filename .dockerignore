@@ -1,0 +1,33 @@
+# Dormant image (see Dockerfile's own header) — keep the build context small
+# and avoid ever baking dev-machine artifacts/secrets into an image.
+
+.git/
+.github/
+.claude/
+.vscode/
+graphify-out/
+docs/
+backups/
+logs/
+extension-sdk/
+
+# Compiled binaries built on the host — the Dockerfile builds its own
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+bin/
+
+# Local credentials — never bake into an image
+*.local.txt
+*.local.json
+DEV_CREDENTIALS.local.txt
+CONNECTOR_CREDENTIALS.local.json
+
+# Node / frontend build tooling not needed to build the Go binary
+node_modules/
+public/dist/
+
+# Scratch/temp docs
+TEMP_menu_naming_comparison.md

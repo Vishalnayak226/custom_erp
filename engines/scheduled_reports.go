@@ -93,7 +93,7 @@ func processScheduledReports(schema string) {
 		}
 
 		runStatus := "Delivered"
-		def, resultRows, _, err := RunReport(schema, reportID, role, params)
+		def, resultRows, _, err := RunReport(schema, reportID, role, "", params)
 		if err != nil {
 			runStatus = "Failed: " + err.Error()
 		} else if csvText, cerr := reportRowsToCSV(*def, resultRows); cerr != nil {
@@ -140,13 +140,20 @@ func processScheduledReports(schema string) {
 // every period it missed (e.g. the server was down for a few days) in one
 // step, landing on the next date that's genuinely in the future - it never
 // re-delivers each individually-missed occurrence.
+//
+// Compares formatted calendar-date strings, not raw time.Time values: `t`
+// comes from time.Parse("2006-01-02", ...), which lands on UTC midnight,
+// while time.Now() carries the server's local time-of-day - t.After(today)
+// on those two can read today's own UTC-midnight as "not after" a
+// same-day local "now", making the loop stop one day short of a genuine
+// future date depending on the server's timezone offset and time of day.
 func advanceScheduleDate(from, frequency string) string {
 	t, err := time.Parse("2006-01-02", from)
 	if err != nil {
 		t = time.Now()
 	}
-	today := time.Now()
-	for !t.After(today) {
+	todayStr := time.Now().Format("2006-01-02")
+	for t.Format("2006-01-02") <= todayStr {
 		switch frequency {
 		case "Weekly":
 			t = t.AddDate(0, 0, 7)

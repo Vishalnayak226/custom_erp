@@ -174,6 +174,69 @@ func handleMRPSuggestions(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(suggestions)
 }
 
+// handleGetProductionSchedule (26.9.10) is a read-only GET, same shape as
+// handleMRPSuggestions above - a scheduling suggestion, not a document.
+func handleGetProductionSchedule(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	schedule, err := engines.GetProductionSchedule(tenantID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(schedule)
+}
+
+// handleSendSubcontractOrder/handleReceiveSubcontractOrder (26.9.11) are the
+// two state-changing actions a plain generic-doc SubcontractOrder can't
+// express on its own - same "flat doctype + bespoke action handlers" shape
+// as PurchaseRequisition's submit/convert actions.
+func handleSendSubcontractOrder(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	var req struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'id' is required")
+		return
+	}
+	if err := engines.SendToSubcontractor(tenantID, req.ID, userID); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "sent_to_subcontractor"})
+}
+
+func handleReceiveSubcontractOrder(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	var req struct {
+		ID  string  `json:"id"`
+		Qty float64 `json:"qty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" || req.Qty <= 0 {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'id' and a positive 'qty' are required")
+		return
+	}
+	if err := engines.ReceiveFromSubcontractor(tenantID, req.ID, userID, req.Qty); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "received_from_subcontractor"})
+}
+
 // handleActiveBOMForItem (26.9.2) is a frontend-driven advisory lookup - it
 // suggests which BOM a new Production Order for an item should default to
 // (is_default + effective-dating), without a server-side hook into the

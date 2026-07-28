@@ -148,7 +148,7 @@ func processReportExportJobs(schema string) {
 
 		newStatus := "Completed"
 		csvText := ""
-		def, resultRows, _, err := RunReport(schema, reportID, role, params)
+		def, resultRows, _, err := RunReport(schema, reportID, role, "", params)
 		if err != nil {
 			// REPORT-0285 ("Export job failed") is this async path's own
 			// distinct catalog code, deliberately separate from REPORT-0162
