@@ -641,7 +641,7 @@ User request: sell PIM/WMS/OMS/HR/etc. as fully independent products — any sin
 
 ---
 
-## Stage 28 — Configurability, Theming & Deployment ✅ (2026-07-27, all 4 items closed, UNCOMMITTED)
+## Stage 28 — Configurability, Theming & Deployment ✅ (2026-07-27, all 4 items closed, committed 2026-07-28 as `a3b4c16`)
 
 User request (one batch): all operational config in the admin UI, module by module ("nothing hardcoded"); a dark/light/system theme; user-controllable report columns saved as Universal/Personal profiles; Caddy reverse proxy for automatic TLS. Built + verified + checkpointed one at a time. See `project_ledger.md` §63.
 
