@@ -8,6 +8,18 @@
 -- module_key was also blank (every sibling Inventory & WMS doctype - Bin,
 -- Location's own 'core' aside - carries one); backfilled to 'inventory' to
 -- match Bin, its sidebar neighbor.
+--
+-- 26.11.4: the doctype_meta row itself ('Stores', module 'Store',
+-- document_type 'Master' - read back from the live dev DB, which already
+-- had it) turned out to not exist in ANY tracked migration file at all -
+-- it must have been inserted by hand outside the migration discipline at
+-- some point, so a from-scratch DB had no 'Stores' doctype whatsoever and
+-- the doctype_fields INSERT below (like the UPDATE above it) would violate
+-- its FK against doctype_meta. ON CONFLICT DO NOTHING so this is a no-op on
+-- every already-migrated environment where the row already exists.
+INSERT INTO tenant_default.doctype_meta (name, module, document_type, module_key) VALUES
+('Stores', 'Store', 'Master', 'inventory')
+ON CONFLICT (name) DO NOTHING;
 
 UPDATE tenant_default.doctype_meta
 SET module_key = 'inventory'

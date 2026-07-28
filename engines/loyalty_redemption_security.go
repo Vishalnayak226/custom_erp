@@ -19,15 +19,12 @@ import (
 // existing simple endpoint is untouched and still behaves exactly as
 // before for stores that don't need the extra control.
 
-// maxLoyaltyRedemptionsPerCustomerPerDay is a lightweight velocity/fraud
-// guard - not a rules engine or ML model, just a hard daily cap on
-// customer-initiated redemption attempts (LoyaltyExpiry's own automatic
-// Burn rows don't count, since those aren't customer-initiated).
-const maxLoyaltyRedemptionsPerCustomerPerDay = 5
-
-// loyaltyRedemptionOTPValidityMinutes is how long a generated OTP stays
-// valid before VerifyAndRedeemLoyaltyOTP rejects it as expired.
-const loyaltyRedemptionOTPValidityMinutes = 5
+// The redemption velocity cap and OTP validity window are tenant-configurable
+// via the Stage 28 settings registry (security.loyalty_max_redemptions_per_day
+// / security.loyalty_otp_validity_minutes, see settings_definitions.go), read
+// at their use sites below. Both are lightweight velocity/fraud guards, not a
+// rules engine or ML model; LoyaltyExpiry's own automatic Burn rows never count
+// against the daily cap, since those aren't customer-initiated.
 
 func checkLoyaltyRedemptionVelocity(tenantID, customerID string) error {
 	schema, err := db.GetTenantSchema(tenantID)
@@ -41,8 +38,9 @@ func checkLoyaltyRedemptionVelocity(tenantID, customerID string) error {
 		  AND created_at::date = CURRENT_DATE`, schema), customerID).Scan(&count); err != nil {
 		return err
 	}
-	if count >= maxLoyaltyRedemptionsPerCustomerPerDay {
-		return fmt.Errorf("customer %s has already redeemed points %d times today - the daily limit is %d", customerID, count, maxLoyaltyRedemptionsPerCustomerPerDay)
+	maxPerDay := GetSettingInt(tenantID, "security.loyalty_max_redemptions_per_day")
+	if count >= maxPerDay {
+		return fmt.Errorf("customer %s has already redeemed points %d times today - the daily limit is %d", customerID, count, maxPerDay)
 	}
 	return nil
 }
@@ -95,7 +93,7 @@ func InitiateSecureLoyaltyRedemption(tenantID, customerID string, points int, re
 		return "", err
 	}
 	challengeID = fmt.Sprintf("LROTP-%d", time.Now().UnixNano())
-	expiresAt := time.Now().Add(loyaltyRedemptionOTPValidityMinutes * time.Minute)
+	expiresAt := time.Now().Add(time.Duration(GetSettingInt(tenantID, "security.loyalty_otp_validity_minutes")) * time.Minute)
 	if _, err := db.DB.Exec(fmt.Sprintf(`
 		INSERT INTO %s.loyalty_redemption_otp_challenges (id, customer_id, points, reference_id, initiated_by, otp_hash, expires_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`, schema),

@@ -1,0 +1,251 @@
+package engines
+
+import (
+	"custom_erp/db"
+	"database/sql"
+	"fmt"
+	"strconv"
+	"strings"
+	"sync"
+)
+
+// Stage 28.1: a generic, module-by-module configuration framework. Every
+// operationally-meaningful value that used to be a hardcoded Go constant
+// (loyalty point expiry, reservation TTL, OTP validity, ...) is declared once
+// here as a SettingDefinition - its module, label, type and default - so ONE
+// admin Settings screen can render and edit any of them, and the engine that
+// consumes it reads the live value instead of a literal. Mirrors the report
+// registry (report_registry.go): register once, drive generically. Adding a
+// setting from here on is one RegisterSetting call (settings_definitions.go)
+// plus a GetSetting* read at the consuming site - no new endpoint or UI code.
+//
+// Storage is per-tenant (the system_settings table, one row per overridden
+// key). An unset key falls back to its registered Default, so an empty table
+// reproduces exactly the pre-Stage-28 hardcoded behavior - nothing changes
+// until an admin edits a value.
+
+// Setting value types - how a setting is validated and rendered.
+const (
+	SettingTypeInt    = "int"
+	SettingTypeBool   = "bool"
+	SettingTypeString = "string"
+	SettingTypeSelect = "select"
+)
+
+// SettingOption is one choice for a select-type setting.
+type SettingOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
+// SettingDefinition declares one configurable setting. Min/Max apply to int
+// settings only; Options to select settings only.
+type SettingDefinition struct {
+	Key         string          `json:"key"`
+	Module      string          `json:"module"`
+	Label       string          `json:"label"`
+	Description string          `json:"description"`
+	Type        string          `json:"type"`
+	Default     string          `json:"default"`
+	Unit        string          `json:"unit,omitempty"`
+	Options     []SettingOption `json:"options,omitempty"`
+	Min         *int            `json:"min,omitempty"`
+	Max         *int            `json:"max,omitempty"`
+}
+
+var settingsRegistry = map[string]SettingDefinition{}
+var settingsRegistryOrder []string
+
+// RegisterSetting adds one definition to the registry. Called only from
+// settings_definitions.go's init() - a duplicate key is a build-time
+// programmer error, so it panics rather than silently overwriting (same
+// posture as RegisterReport).
+func RegisterSetting(def SettingDefinition) {
+	if _, exists := settingsRegistry[def.Key]; exists {
+		panic(fmt.Sprintf("setting %q already registered", def.Key))
+	}
+	settingsRegistry[def.Key] = def
+	settingsRegistryOrder = append(settingsRegistryOrder, def.Key)
+}
+
+// ListSettingDefinitions returns every registered setting in registration
+// order (the admin UI groups them by Module).
+func ListSettingDefinitions() []SettingDefinition {
+	out := make([]SettingDefinition, 0, len(settingsRegistryOrder))
+	for _, k := range settingsRegistryOrder {
+		out = append(out, settingsRegistry[k])
+	}
+	return out
+}
+
+// --- value resolution (in-process cache -> DB override -> registered default) ---
+
+var settingsCache = map[string]string{}
+var settingsCacheMu sync.RWMutex
+
+func settingsCacheKey(schema, key string) string { return schema + "\x00" + key }
+
+// rawSettingForSchema is the schema-scoped primitive - some consumers (a
+// per-tenant background worker) hold a schema, not a tenantID, the same split
+// insertLoyaltyLedgerEntryInSchema uses. Returns the stored override, or the
+// registered default when unset. Cached in-process; SetSetting invalidates on
+// write.
+func rawSettingForSchema(schema, key string) string {
+	def := settingsRegistry[key] // zero value (Default "") if the key is unregistered
+	ck := settingsCacheKey(schema, key)
+	settingsCacheMu.RLock()
+	if v, hit := settingsCache[ck]; hit {
+		settingsCacheMu.RUnlock()
+		return v
+	}
+	settingsCacheMu.RUnlock()
+
+	var value string
+	err := db.DB.QueryRow(fmt.Sprintf("SELECT value FROM %s.system_settings WHERE key = $1", schema), key).Scan(&value)
+	if err == sql.ErrNoRows {
+		value = def.Default
+	} else if err != nil {
+		// Transient read failure (or the table absent in an older tenant
+		// schema): fall back to the default but do NOT cache, so a later
+		// healthy read still picks up a real override.
+		return def.Default
+	}
+	settingsCacheMu.Lock()
+	settingsCache[ck] = value
+	settingsCacheMu.Unlock()
+	return value
+}
+
+func rawSetting(tenantID, key string) string {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return settingsRegistry[key].Default
+	}
+	return rawSettingForSchema(schema, key)
+}
+
+// GetSettingString returns the effective string value for a setting.
+func GetSettingString(tenantID, key string) string { return rawSetting(tenantID, key) }
+
+// GetSettingInt returns the effective int value, falling back to the
+// registered default (then 0) if a stored value is somehow non-numeric. Never
+// panics - a config read must never crash a request path.
+func GetSettingInt(tenantID, key string) int {
+	return parseSettingInt(rawSetting(tenantID, key), key)
+}
+
+// GetSettingIntForSchema is the schema-scoped variant of GetSettingInt, for
+// schema-holding callers such as per-tenant background workers.
+func GetSettingIntForSchema(schema, key string) int {
+	return parseSettingInt(rawSettingForSchema(schema, key), key)
+}
+
+func parseSettingInt(raw, key string) int {
+	if n, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil {
+		return n
+	}
+	if n, err := strconv.Atoi(strings.TrimSpace(settingsRegistry[key].Default)); err == nil {
+		return n
+	}
+	return 0
+}
+
+// GetSettingBool returns the effective bool value ("true"/"false").
+func GetSettingBool(tenantID, key string) bool {
+	return strings.EqualFold(strings.TrimSpace(rawSetting(tenantID, key)), "true")
+}
+
+// SettingWithValue is a definition plus the tenant's current effective value -
+// the shape the admin Settings GET returns.
+type SettingWithValue struct {
+	SettingDefinition
+	Value string `json:"value"`
+}
+
+// ListSettingsWithValues returns every registered setting with the tenant's
+// current effective value, in registration order.
+func ListSettingsWithValues(tenantID string) []SettingWithValue {
+	schema, err := db.GetTenantSchema(tenantID)
+	defs := ListSettingDefinitions()
+	out := make([]SettingWithValue, 0, len(defs))
+	for _, d := range defs {
+		val := d.Default
+		if err == nil {
+			val = rawSettingForSchema(schema, d.Key)
+		}
+		out = append(out, SettingWithValue{SettingDefinition: d, Value: val})
+	}
+	return out
+}
+
+// SetSetting validates value against key's definition and persists it for the
+// tenant, invalidating the cache. Returns an error whose message is safe to
+// show the user (the handler surfaces it verbatim via writeAPIErrorGeneric).
+func SetSetting(tenantID, key, value, updatedBy string) error {
+	def, ok := settingsRegistry[key]
+	if !ok {
+		return fmt.Errorf("unknown setting %q", key)
+	}
+	if err := validateSettingValue(def, value); err != nil {
+		return err
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	if _, err := db.DB.Exec(fmt.Sprintf(`
+		INSERT INTO %s.system_settings (key, value, updated_at, updated_by)
+		VALUES ($1, $2, now(), $3)
+		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now(), updated_by = EXCLUDED.updated_by`, schema),
+		key, value, updatedBy); err != nil {
+		return err
+	}
+	settingsCacheMu.Lock()
+	delete(settingsCache, settingsCacheKey(schema, key))
+	settingsCacheMu.Unlock()
+	return nil
+}
+
+// ValidateSetting checks a value against a registered setting's definition
+// without persisting it - lets a batch update validate every key before
+// writing any, so one bad value never leaves a half-applied batch.
+func ValidateSetting(key, value string) error {
+	def, ok := settingsRegistry[key]
+	if !ok {
+		return fmt.Errorf("unknown setting %q", key)
+	}
+	return validateSettingValue(def, value)
+}
+
+func validateSettingValue(def SettingDefinition, value string) error {
+	switch def.Type {
+	case SettingTypeInt:
+		n, err := strconv.Atoi(strings.TrimSpace(value))
+		if err != nil {
+			return fmt.Errorf("%s must be a whole number", def.Label)
+		}
+		if def.Min != nil && n < *def.Min {
+			return fmt.Errorf("%s must be at least %d", def.Label, *def.Min)
+		}
+		if def.Max != nil && n > *def.Max {
+			return fmt.Errorf("%s must be at most %d", def.Label, *def.Max)
+		}
+	case SettingTypeBool:
+		v := strings.ToLower(strings.TrimSpace(value))
+		if v != "true" && v != "false" {
+			return fmt.Errorf("%s must be true or false", def.Label)
+		}
+	case SettingTypeSelect:
+		for _, o := range def.Options {
+			if o.Value == value {
+				return nil
+			}
+		}
+		return fmt.Errorf("%q is not a valid option for %s", value, def.Label)
+	case SettingTypeString:
+		// free text - no constraint beyond being present
+	default:
+		return fmt.Errorf("setting %q has an unknown type %q", def.Key, def.Type)
+	}
+	return nil
+}

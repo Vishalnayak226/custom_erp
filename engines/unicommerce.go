@@ -157,7 +157,7 @@ func ImportUnicommerceOrder(tenantID, channelOrderID, storeCode string, items []
 	for _, item := range mappedItems {
 		sku := item["sku"].(string)
 		qty := item["qty"].(int)
-		_, err = CreateReservation(tenantID, sku, storeCode, qty, "Online", 86400)
+		_, err = CreateReservation(tenantID, sku, storeCode, qty, "Online", 0) // 0 = tenant-configured reservation TTL (Stage 28)
 		if err != nil {
 			return "", fmt.Errorf("failed to reserve stock for SKU %s at %s: %v", sku, storeCode, err)
 		}

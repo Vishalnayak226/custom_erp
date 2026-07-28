@@ -52,13 +52,14 @@ func TestLoyaltyRedemptionSecurity(t *testing.T) {
 	t.Run("velocity guard blocks after daily redemption cap", func(t *testing.T) {
 		cleanup()
 		seedEarn(1000)
-		for i := 0; i < maxLoyaltyRedemptionsPerCustomerPerDay; i++ {
+		maxPerDay := GetSettingInt(tenantID, "security.loyalty_max_redemptions_per_day")
+		for i := 0; i < maxPerDay; i++ {
 			if err := insertLoyaltyLedgerEntryInSchema(schema, custID, "Burn", 1, "POSCart", fmt.Sprintf("TEST-LRS-BURN-%d", i), nil); err != nil {
 				t.Fatalf("seed burn %d: %v", i, err)
 			}
 		}
 		if _, err := InitiateSecureLoyaltyRedemption(tenantID, custID, 10, "TEST-LRS-REF", "manager1"); err == nil {
-			t.Fatalf("expected velocity guard to reject after %d redemptions today", maxLoyaltyRedemptionsPerCustomerPerDay)
+			t.Fatalf("expected velocity guard to reject after %d redemptions today", maxPerDay)
 		}
 	})
 

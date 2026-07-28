@@ -76,7 +76,28 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		return "", fmt.Errorf("failed to create tenant schema: %v", err)
 	}
 
-	// 3. Clone all table structures from tenant_default template
+	// 3. Clone all table structures from tenant_default template.
+	//
+	// 26.11.2: a from-scratch load-test run against a freshly provisioned
+	// tenant hit "relation tenant_scaletest0726.accounting_periods does not
+	// exist" on every single GL posting - this list had drifted badly out of
+	// sync with tenant_default's actual table set (confirmed via `SELECT
+	// tablename FROM pg_tables WHERE schemaname = 'tenant_default'`: 41
+	// tables exist, only 23 were ever cloned here). The 18 below were each
+	// added by a later migration that created the table only in
+	// tenant_default and never touched this list, so every tenant
+	// provisioned since has been silently missing them - breaking GL
+	// posting (accounting_periods), the entire maker-checker approval engine
+	// (approval_log/approval_rules), WMS bin tracking (bin_stock/
+	// bin_stock_lpn), marketplace/CRM integrations (channel_credentials/
+	// clevertap_credentials/clevertap_event_log), Loyalty
+	// (loyalty_point_ledger/loyalty_redemption_otp_challenges/
+	// loyalty_tier_rules), payment reconciliation (payment_utr_log), PIM
+	// publish (pim_publish_log/pim_publish_queue), POS offline sync
+	// (pos_offline_heartbeats), PIM content history
+	// (product_content_versions), label printing (sticker_print_log), and
+	// usage-limit enforcement (tenant_limits) for every one of those
+	// tenants from the moment they were created.
 	tables := []string{
 		"prefix_configs",
 		"sequence_counters",
@@ -97,10 +118,29 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		"channel_product_mapping",
 		"channel_order_mapping",
 		"feature_flags",
+		"system_settings",
 		"module_entitlements",
 		"extension_hooks",
 		"extension_hook_log",
 		"field_permissions",
+		"accounting_periods",
+		"approval_log",
+		"approval_rules",
+		"bin_stock",
+		"bin_stock_lpn",
+		"channel_credentials",
+		"clevertap_credentials",
+		"clevertap_event_log",
+		"loyalty_point_ledger",
+		"loyalty_redemption_otp_challenges",
+		"loyalty_tier_rules",
+		"payment_utr_log",
+		"pim_publish_log",
+		"pim_publish_queue",
+		"pos_offline_heartbeats",
+		"product_content_versions",
+		"sticker_print_log",
+		"tenant_limits",
 	}
 
 	tx, err := db.DB.Begin()
@@ -121,6 +161,20 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 	// Deliberately excludes "users" - cloning it would give every new tenant the exact
 	// same admin password hash as tenant_default. A fresh admin account with a unique,
 	// randomly generated password is created explicitly below instead (step 5).
+	//
+	// 26.11.2: approval_rules/loyalty_tier_rules added alongside the table-
+	// clone fix above - both are template/default config data (each has its
+	// own seed INSERT in the migration that created it, same shape as
+	// gl_accounts/role_permissions above), unlike the other 16 newly-cloned
+	// tables, which are per-tenant transactional data (approval_log,
+	// bin_stock*, loyalty_point_ledger, payment_utr_log, pim_publish_*,
+	// pos_offline_heartbeats, product_content_versions, sticker_print_log,
+	// clevertap_event_log - correctly empty for a new tenant) or per-tenant
+	// secrets (channel_credentials, clevertap_credentials - copying
+	// tenant_default's own live API credentials into every new tenant would
+	// be a real security bug) or genuinely-starts-unconfigured (
+	// accounting_periods, tenant_limits - an unset limit_key already means
+	// "no limit configured" by design, see migrations_stage25_ops_status.sql).
 	seeds := []string{
 		"doctype_meta",
 		"doctype_fields",
@@ -130,6 +184,8 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		"feature_flags",
 		"module_entitlements",
 		"field_permissions",
+		"approval_rules",
+		"loyalty_tier_rules",
 	}
 
 	for _, seedTable := range seeds {

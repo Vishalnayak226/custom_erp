@@ -8,6 +8,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"regexp"
@@ -379,6 +380,32 @@ func moduleGate(moduleKey string, next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// trustProxy (Stage 28.4) is set when the app runs behind a trusted reverse
+// proxy (Caddy - see deploy/Caddyfile). Off by default: without a proxy in
+// front, a direct client could forge X-Forwarded-For, so the socket's
+// RemoteAddr is the only trustworthy source of the client IP.
+var trustProxy = os.Getenv("TRUST_PROXY") == "1" || strings.EqualFold(os.Getenv("TRUST_PROXY"), "true")
+
+// clientIP returns the caller's source IP for rate-limiting. Behind a trusted
+// proxy the real client is the left-most X-Forwarded-For entry (the proxy sets
+// it, appending on the right); RemoteAddr would otherwise be the proxy's own
+// loopback address, collapsing every client into one shared rate-limit bucket
+// and defeating per-IP login throttling. net.SplitHostPort correctly strips the
+// port from both IPv4 (host:port) and IPv6 ([::1]:port) RemoteAddr forms.
+func clientIP(r *http.Request) string {
+	if trustProxy {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			if first := strings.TrimSpace(strings.Split(xff, ",")[0]); first != "" {
+				return first
+			}
+		}
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
+}
+
 func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		correlationID := generateUUID()
@@ -411,7 +438,7 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// Keyed by ip+category rather than ip alone, so heavy traffic on one
 		// API type (e.g. search) can't exhaust the budget for an unrelated
 		// one (e.g. login) - they're independent buckets, not a shared pool.
-		ip := strings.Split(r.RemoteAddr, ":")[0]
+		ip := clientIP(r)
 		category, limit := rateLimitCategory(r.URL.Path, r.Method)
 		if !globalLimiter.Allow(ip+":"+category, limit, time.Minute) {
 			// SEC-0280 "Rate limit exceeded" - exact scenario + status (429) match.

@@ -40,8 +40,20 @@ ON CONFLICT (role, doctype_name) DO NOTHING;
 -- unaffected either way, but a future edit would newly 422 with no way to
 -- fix it since the vendor it names doesn't exist as a record). Standard
 -- "normalize orphaned rows before adding the constraint" backfill.
-INSERT INTO tenant_default.documents (id, doctype, data, status, created_by, version)
-VALUES ('Nike Corp', 'Vendor', '{"code":"Nike Corp","name":"Nike Corp","status":"Active"}'::jsonb, 'Active', 'admin', 1)
+--
+-- 26.11.4: `version` is deliberately NOT listed here even though the
+-- already-migrated dev DB has had it since migrations_stage24_security.sql
+-- ran (months before this addendum file was added on 2026-07-25) - on a
+-- FRESH DB, every file applies once in filename-sorted order, and
+-- "...addendum_data_integrity.sql" sorts before "..._security.sql" that
+-- actually adds the column, so naming it here would fail with "column
+-- version does not exist" on first-ever provisioning (caught by an actual
+-- from-scratch migration rehearsal). Omitting it is correct either way:
+-- migrations_stage24_security.sql's ADD COLUMN ... NOT NULL DEFAULT 1
+-- backfills this row's version to 1 regardless of which order the two
+-- files ran in.
+INSERT INTO tenant_default.documents (id, doctype, data, status, created_by)
+VALUES ('Nike Corp', 'Vendor', '{"code":"Nike Corp","name":"Nike Corp","status":"Active"}'::jsonb, 'Active', 'admin')
 ON CONFLICT (id) DO NOTHING;
 
 UPDATE tenant_default.doctype_fields SET fieldtype = 'Link', options = 'Vendor'

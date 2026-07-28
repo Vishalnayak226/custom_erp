@@ -4,7 +4,18 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Custom ERP - Management Dashboard</title>
-  <link rel="stylesheet" href="styles.css?v=13">
+  <link rel="stylesheet" href="styles.css?v=14">
+  <script>
+    // Stage 28.2: apply the saved theme before first paint to avoid a light-mode
+    // flash. 'system' (or unset) lets the CSS media query follow the OS;
+    // 'light'/'dark' force a choice. Reconciled with the server-stored per-user
+    // preference once /api/v1/me loads (fetchAndApplyProfile in app.js).
+    (function () {
+      try {
+        document.documentElement.setAttribute('data-theme', localStorage.getItem('erp-theme') || 'system');
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
   <!-- Login Screen -->
@@ -136,6 +147,7 @@
             </svg>
           </a>
           <ul class="menu-flyout">
+			<li><a class="menu-item" id="menu-oms"><span>Order Management</span></a></li>
             <li><a class="menu-item" id="menu-fulfillment"><span>Fulfillment</span></a></li>
             <li><a class="menu-item" id="menu-marketplace"><span>Marketplace</span></a></li>
             <li><a class="menu-item" id="menu-customers"><span>Customers</span></a></li>
@@ -257,6 +269,7 @@
             <li><a class="menu-item" id="menu-doctype-builder"><span>Database Schema Design</span></a></li>
             <li><a class="menu-item" id="menu-extension-hooks"><span>Extension Hooks</span></a></li>
             <li><a class="menu-item" id="menu-audit-logs"><span>Activity Log</span></a></li>
+            <li><a class="menu-item" id="menu-configuration"><span>Configuration</span></a></li>
             <li><a class="menu-item" id="menu-system-status"><span>System Status</span></a></li>
             <li><a class="menu-item" id="menu-tenant-entitlements"><span>Tenant Entitlements</span></a></li>
             <li><a class="menu-item" id="menu-tenant-usage"><span>Tenant Usage</span></a></li>
@@ -281,6 +294,14 @@
               <span class="account-popover-name" id="account-popover-name">Admin User</span>
               <span class="account-popover-email" id="account-popover-email"></span>
               <span class="user-role" id="account-popover-role">Administrator</span>
+            </div>
+            <div class="account-popover-theme">
+              <span class="account-popover-theme-label">Theme</span>
+              <div class="theme-seg" role="group" aria-label="Theme">
+                <button type="button" class="theme-seg-btn" data-theme-choice="light">Light</button>
+                <button type="button" class="theme-seg-btn" data-theme-choice="dark">Dark</button>
+                <button type="button" class="theme-seg-btn" data-theme-choice="system">System</button>
+              </div>
             </div>
             <button class="account-popover-item" id="account-menu-profile-btn" type="button">My Profile</button>
             <button class="account-popover-item account-popover-item-danger" id="logout-btn" type="button">Sign Out</button>

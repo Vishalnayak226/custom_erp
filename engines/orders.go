@@ -242,7 +242,7 @@ func CreateSalesOrder(tenantID, channel, channelOrderID, customerName, shippingA
 		}
 
 		if holdReason == "" {
-			if _, err := CreateReservation(tenantID, l.SKU, lineLocation, l.Qty, "Online", 86400); err != nil {
+			if _, err := CreateReservation(tenantID, l.SKU, lineLocation, l.Qty, "Online", 0); err != nil {
 				return "", fmt.Errorf("failed to reserve stock for SKU %s: %v", l.SKU, err)
 			}
 		}
@@ -438,7 +438,7 @@ func ReleaseOrderHold(tenantID, orderID string) error {
 		for j, idx := range pendingIdx {
 			lr := lineRows[idx]
 			lineLocation := plan.LineLocations[j]
-			if _, err := CreateReservation(tenantID, pendingLines[j].SKU, lineLocation, pendingLines[j].Qty, "Online", 86400); err != nil {
+			if _, err := CreateReservation(tenantID, pendingLines[j].SKU, lineLocation, pendingLines[j].Qty, "Online", 0); err != nil {
 				return fmt.Errorf("failed to reserve stock for SKU %s: %v", pendingLines[j].SKU, err)
 			}
 			lr.data["line_status"] = "Reserved"

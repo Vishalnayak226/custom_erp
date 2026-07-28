@@ -1,0 +1,16 @@
+# Caddy reverse proxy in front of the ERP Go server. Caddy provisions and
+# renews Let's Encrypt TLS automatically -- no certbot, no cron, no config
+# beyond this. Install:
+#
+#   sudo cp /opt/erp/deploy/Caddyfile /etc/caddy/Caddyfile
+#   # edit the domain below to your real hostname first
+#   sudo systemctl reload caddy
+#
+# Prereq: your domain's DNS A record must already point at this Droplet's public
+# IP, and ports 80 + 443 must be open (ufw allow 80,443/tcp) so Caddy can
+# complete the ACME challenge.
+
+erp.yourdomain.com {
+	encode gzip
+	reverse_proxy localhost:8080
+}

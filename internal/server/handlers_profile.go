@@ -22,6 +22,10 @@ import (
 // in engines/auth.go's tokenTTL(), not a client-side inactivity timer).
 var allowedIdleTimeouts = map[int]bool{0: true, 15: true, 30: true, 60: true, 120: true}
 
+// allowedThemes (Stage 28.2) mirrors the frontend's theme selector. 'system'
+// defers to the OS via the CSS prefers-color-scheme media query.
+var allowedThemes = map[string]bool{"light": true, "dark": true, "system": true}
+
 func handleGetProfile(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")
@@ -31,13 +35,13 @@ func handleGetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var username, email, role, status, locationCode string
+	var username, email, role, status, locationCode, themePref string
 	var mfaEnabled bool
 	var idleTimeout int
 	err = db.DB.QueryRow(fmt.Sprintf(`
-		SELECT username, COALESCE(email, ''), role, status, mfa_enabled, idle_timeout_minutes, location_code
+		SELECT username, COALESCE(email, ''), role, status, mfa_enabled, idle_timeout_minutes, location_code, COALESCE(theme_preference, 'system')
 		FROM %s.users WHERE id = $1`, schema), userID).
-		Scan(&username, &email, &role, &status, &mfaEnabled, &idleTimeout, &locationCode)
+		Scan(&username, &email, &role, &status, &mfaEnabled, &idleTimeout, &locationCode, &themePref)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusNotFound, "User not found")
 		return
@@ -63,6 +67,7 @@ func handleGetProfile(w http.ResponseWriter, r *http.Request) {
 		"status":               status,
 		"mfa_enabled":          mfaEnabled,
 		"idle_timeout_minutes": idleTimeout,
+		"theme_preference":     themePref,
 		"employee_id":          employeeID,
 		"employee_name":        employeeName,
 		// 24.1: read-only here, same as role - admin-managed via the Users
@@ -189,6 +194,7 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email              *string `json:"email"`
 		IdleTimeoutMinutes *int    `json:"idle_timeout_minutes"`
+		ThemePreference    *string `json:"theme_preference"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -196,6 +202,10 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.IdleTimeoutMinutes != nil && !allowedIdleTimeouts[*req.IdleTimeoutMinutes] {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "idle_timeout_minutes must be one of 0 (never), 15, 30, 60, 120")
+		return
+	}
+	if req.ThemePreference != nil && !allowedThemes[*req.ThemePreference] {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "theme_preference must be one of light, dark, system")
 		return
 	}
 
@@ -220,8 +230,14 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if req.ThemePreference != nil {
+		if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET theme_preference = $1 WHERE id = $2`, schema), *req.ThemePreference, userID); err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to update theme preference")
+			return
+		}
+	}
 
-	engines.LogAuditEvent(tenantID, username, "PROFILE", "UPDATED", "Self-service profile update (email and/or idle-timeout preference)")
+	engines.LogAuditEvent(tenantID, username, "PROFILE", "UPDATED", "Self-service profile update (email, idle-timeout, and/or theme preference)")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 

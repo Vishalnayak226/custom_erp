@@ -1,0 +1,9 @@
+# Shell scripts and Linux config are consumed on the Droplet -- force LF so a
+# Windows checkout with core.autocrlf=true doesn't ship CRLF line endings that
+# break bash / systemd / Caddy.
+deploy/*.sh    text eol=lf
+deploy/migrate.sh text eol=lf
+deploy/backup.sh  text eol=lf
+deploy/erp.service   text eol=lf
+deploy/Caddyfile     text eol=lf
+deploy/erp.env.example text eol=lf

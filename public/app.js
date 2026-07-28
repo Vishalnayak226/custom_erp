@@ -679,6 +679,9 @@ async function fetchAndApplyProfile() {
   const emailEl = document.getElementById('account-popover-email');
   if (emailEl) emailEl.textContent = data.email || '';
   setupIdleTimeout(data.idle_timeout_minutes);
+  // Reconcile the theme with the server-stored per-user preference (the source
+  // of truth across devices) - applies + re-caches locally, no write-back.
+  if (data.theme_preference) setTheme(data.theme_preference, false);
 }
 
 function logout(message) {
@@ -972,6 +975,9 @@ const MENU_PERMISSION_MAP = {
   // gate as the ops-visibility endpoints it reads (requireHRAdmin on
   // handleDeploymentStatus/handleBackupStatus, Stage 25.8).
   'menu-system-status': { adminOnly: true },
+  // Configuration / system settings (Stage 28.1) - HR/Admin-only, same gate
+  // as GET/PUT /api/v1/admin/settings.
+  'menu-configuration': { adminOnly: true },
   // Tenant Entitlements admin screen (Stage 26.1.4) - reads/writes
   // cross-tenant module entitlements, HR/Admin-only same as every other
   // admin/tenant-control endpoint it calls.
@@ -1002,6 +1008,7 @@ const MENU_MODULE_MAP = {
   'menu-wave-picking': 'wms',
   'menu-fulfillment': 'wms',
   'menu-marketplace': 'oms',
+	'menu-oms': 'oms',
 
   'menu-purchase-requisitions': 'procurement',
   'menu-purchase-orders': 'procurement',
@@ -1279,6 +1286,13 @@ function setupEventListeners() {
     renderView('marketplace');
   });
 
+	document.getElementById('menu-oms').addEventListener('click', (e) => {
+		e.preventDefault();
+		setActiveMenu('menu-oms');
+		closeSubmenus();
+		renderView('oms');
+	});
+
   document.getElementById('menu-approvals').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-approvals');
@@ -1501,6 +1515,38 @@ function setupEventListeners() {
 
 // Account menu: a single clickable avatar/name trigger in the sidebar
 // footer that opens a small popover (My Profile / Sign Out), replacing the
+// Theme (Stage 28.2): light / dark / system. 'system' (and any unknown value)
+// lets the CSS media query follow the OS; 'light'/'dark' force a choice. The
+// choice is cached in localStorage (applied pre-paint by the inline script in
+// index.html <head>, so there's no light-mode flash) and persisted per-user
+// server-side via PUT /api/v1/me, so it follows the user across devices -
+// reconciled against the server value on load in fetchAndApplyProfile.
+const THEME_STORAGE_KEY = 'erp-theme';
+const VALID_THEMES = ['light', 'dark', 'system'];
+
+function getStoredTheme() {
+  const t = localStorage.getItem(THEME_STORAGE_KEY);
+  return VALID_THEMES.includes(t) ? t : 'system';
+}
+
+function applyTheme(pref) {
+  const t = VALID_THEMES.includes(pref) ? pref : 'system';
+  document.documentElement.setAttribute('data-theme', t);
+  document.querySelectorAll('.theme-seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.getAttribute('data-theme-choice') === t);
+  });
+}
+
+function setTheme(pref, persistToServer) {
+  applyTheme(pref);
+  try { localStorage.setItem(THEME_STORAGE_KEY, pref); } catch (e) {}
+  if (persistToServer && localStorage.getItem('erp_token')) {
+    // Fire-and-forget: a failed save just means the choice stays local this
+    // session; it's already applied and cached either way.
+    apiFetch('/api/v1/me', { method: 'PUT', body: JSON.stringify({ theme_preference: pref }) });
+  }
+}
+
 // old bare logout icon button. Closes on an outside click, Escape, or after
 // either action so it never lingers open behind a navigated-away view.
 function setupAccountMenu() {
@@ -1548,6 +1594,15 @@ function setupAccountMenu() {
     if (await showCustomConfirm('Are you sure you want to log out?')) {
       logout();
     }
+  });
+
+  // Theme selector: reflect the current choice and wire the three segments.
+  applyTheme(getStoredTheme());
+  document.querySelectorAll('.theme-seg-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setTheme(btn.getAttribute('data-theme-choice'), true);
+    });
   });
 }
 
@@ -1654,6 +1709,7 @@ const STATIC_VIEW_MENU_IDS = {
   finance: 'menu-finance',
   fulfillment: 'menu-fulfillment',
   marketplace: 'menu-marketplace',
+	oms: 'menu-oms',
   approvals: 'menu-approvals',
   reports: 'menu-reports',
   rfq: 'menu-rfq',
@@ -1687,6 +1743,7 @@ const STATIC_VIEW_MENU_IDS = {
   'extension-hook-log': 'menu-extension-hooks',
   'audit-logs': 'menu-audit-logs',
   'system-status': 'menu-system-status',
+  'configuration': 'menu-configuration',
   'tenant-entitlements': 'menu-tenant-entitlements',
   'tenant-usage': 'menu-tenant-usage',
   'vendor-invoices': 'menu-vendor-invoices',
@@ -1840,6 +1897,8 @@ async function renderView(view) {
     await renderLogHubView(root);
   } else if (view === 'system-status') {
     await renderSystemStatusView(root);
+  } else if (view === 'configuration') {
+    await renderConfigurationView(root);
   } else if (view === 'tenant-entitlements') {
     await renderTenantEntitlementsView(root);
   } else if (view === 'tenant-usage') {
@@ -2351,6 +2410,7 @@ function renderDashboard(container) {
     { title: 'Prefix Configs', desc: 'Configure sequential transaction prefixes', action: () => { setActiveMenu('menu-prefix-configs'); renderView('prefix-configs'); } },
     { title: 'Extension Hooks', desc: 'Manage 3rd-party webhook hooks and scoped tokens', action: () => { setActiveMenu('menu-extension-hooks'); renderView('extension-hooks'); } },
     { title: 'Activity Log', desc: 'Track audits, panics, and payloads', action: () => { setActiveMenu('menu-audit-logs'); renderView('audit-logs'); } },
+    { title: 'Configuration', desc: 'System settings by module - expiry days, thresholds, timeouts, and more', action: () => { setActiveMenu('menu-configuration'); renderView('configuration'); } },
     { title: 'System Status', desc: 'Deployment, backup, and restore-drill health', action: () => { setActiveMenu('menu-system-status'); renderView('system-status'); } },
     { title: 'Tenant Entitlements', desc: 'Set plan and module access per tenant', action: () => { setActiveMenu('menu-tenant-entitlements'); renderView('tenant-entitlements'); } },
     { title: 'Tenant Usage', desc: 'Live concurrency and usage-limit health per tenant', action: () => { setActiveMenu('menu-tenant-usage'); renderView('tenant-usage'); } }
@@ -4954,6 +5014,45 @@ async function fetchABCCycleCountPlan() {
   `;
 }
 
+// Unified OMS workbench: the order-to-cash operational view over the
+// existing SalesOrder, FulfillmentTask, LogisticsBooking, and SalesInvoice
+// doctypes. It deliberately reads through the generic document API rather
+// than creating a second read model/API for data already available there.
+async function renderOMSWorkbenchView(container) {
+  const [ordersRes, tasksRes, bookingsRes, invoicesRes] = await Promise.all([
+    apiFetch('/api/v1/doc/SalesOrder'), apiFetch('/api/v1/doc/FulfillmentTask'),
+    apiFetch('/api/v1/doc/LogisticsBooking'), apiFetch('/api/v1/doc/SalesInvoice')
+  ]);
+  if (!ordersRes || !tasksRes || !bookingsRes || !invoicesRes) return;
+  const orders = ordersRes.ok ? await ordersRes.json() : [];
+  const tasks = tasksRes.ok ? await tasksRes.json() : [];
+  const bookings = bookingsRes.ok ? await bookingsRes.json() : [];
+  const invoices = invoicesRes.ok ? await invoicesRes.json() : [];
+  const byOrder = (rows, key = 'order_id') => rows.reduce((out, row) => { (out[row[key]] ||= []).push(row); return out; }, {});
+  const tasksByOrder = byOrder(tasks), bookingsByOrder = byOrder(bookings);
+  const invoiceByOrder = invoices.reduce((out, invoice) => { if (invoice.sales_order_id) out[invoice.sales_order_id] = invoice; return out; }, {});
+  const held = orders.filter(o => o.status === 'On Hold').length;
+  const shipped = orders.filter(o => o.status === 'Shipped' || o.status === 'Delivered').length;
+  const inTransit = bookings.filter(b => b.status === 'Handed Over' || b.status === 'In-Transit').length;
+  container.innerHTML = `
+    <div class="page-header"><div class="page-title-section"><h1 class="page-title">Order Management</h1><p class="page-subtitle">One operational view from channel order through fulfillment, shipment, and invoice.</p></div></div>
+    <div class="stats-grid" style="margin-bottom:24px;"><div class="stat-card"><div class="stat-label">Orders on hold</div><div class="stat-value">${held}</div></div><div class="stat-card"><div class="stat-label">Shipped / delivered</div><div class="stat-value">${shipped}</div></div><div class="stat-card"><div class="stat-label">Shipments in transit</div><div class="stat-value">${inTransit}</div></div><div class="stat-card"><div class="stat-label">Draft invoices</div><div class="stat-value">${invoices.filter(i => i.status === 'Draft').length}</div></div></div>
+    <div class="table-panel" style="padding:24px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><h2 style="font-size:16px;margin:0;">Orders</h2><button class="btn btn-outline" id="oms-refresh">Refresh</button></div>
+    <div class="table-wrapper"><table><thead><tr><th>Order</th><th>Channel</th><th>Customer</th><th>Order status</th><th>Fulfillment</th><th>Shipment</th><th>Invoice</th><th>Actions</th></tr></thead><tbody>
+    ${orders.length === 0 ? '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No SalesOrders yet. Channel imports and the Order API appear here automatically.</td></tr>' : orders.map(order => {
+      const orderID = order.code || order.id;
+      const taskSummary = (tasksByOrder[orderID] || []).map(t => t.status).join(', ') || '—';
+      const shipmentSummary = (bookingsByOrder[orderID] || []).map(b => b.status).join(', ') || '—';
+      const invoice = invoiceByOrder[orderID];
+      return `<tr><td style="font-family:monospace;">${copyableCell(orderID, orderID)}</td><td>${order.channel || 'Manual'}</td><td>${order.customer_name || '—'}</td><td><span class="badge ${order.status === 'On Hold' ? 'badge-warning' : order.status === 'Delivered' ? 'badge-success' : 'badge-secondary'}">${order.status || '—'}</span>${order.hold_reason ? `<div style="font-size:11px;color:var(--text-muted);">${order.hold_reason}</div>` : ''}</td><td>${taskSummary}</td><td>${shipmentSummary}</td><td>${invoice ? `<button class="action-btn" onclick="openOMSDoctype('SalesInvoice','${invoice.code || invoice.id}')">${invoice.status}</button>` : '—'}</td><td>${order.status === 'On Hold' ? `<button class="action-btn" onclick="releaseOMSOrder('${orderID}')">Release</button>` : ''} ${!['Shipped','Delivered','Closed','Cancelled'].includes(order.status) ? `<button class="action-btn" onclick="cancelOMSOrder('${orderID}')">Cancel</button>` : ''} <button class="action-btn" onclick="openOMSDoctype('SalesOrder','${orderID}')">View</button></td></tr>`;
+    }).join('')}</tbody></table></div></div>`;
+  document.getElementById('oms-refresh').addEventListener('click', () => renderView('oms'));
+}
+
+function openOMSDoctype(doctype, id) { currentDoctype = doctype; currentSearchQuery = id; currentTablePage = 1; renderView('doctype-table'); }
+async function releaseOMSOrder(id) { const res = await apiFetch(`/api/v1/orders/${encodeURIComponent(id)}/release-hold`, { method: 'POST' }); if (!res) return; if (!res.ok) { await showApiError(res, 'Failed to release order hold.'); return; } renderView('oms'); }
+async function cancelOMSOrder(id) { const reasonCode = await showCustomPrompt('Active Cancellation reason-code:', '', 'Cancel Order'); if (reasonCode === null || !reasonCode.trim()) return; const res = await apiFetch(`/api/v1/orders/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: JSON.stringify({ reason_code: reasonCode.trim() }) }); if (!res) return; if (!res.ok) { await showApiError(res, 'Failed to cancel order.'); return; } renderView('oms'); }
+
 // Marketplace settlement + logistics booking screen (Stage 13.7) - both
 // MarketplaceSettlement and LogisticsBooking are already real doctypes
 // (listed via the generic GET /api/v1/doc/... endpoint, no new backend code
@@ -6914,10 +7013,16 @@ async function renderReportCatalogPanel(panel) {
         <label class="form-label" for="rc-saved-filter">Saved Filter</label>
         <select id="rc-saved-filter" class="form-select"><option value="">— none —</option></select>
       </div>
+      <div class="form-group" style="margin-bottom: 0; min-width: 180px;">
+        <label class="form-label" for="rc-column-profile">Column Profile</label>
+        <select id="rc-column-profile" class="form-select"><option value="">— Default columns —</option></select>
+      </div>
       <button class="btn btn-primary" id="rc-run-btn">Run</button>
+      <button class="btn btn-outline" id="rc-columns-btn">Columns</button>
       <button class="btn btn-outline" id="rc-save-filter-btn">Save Filter</button>
       <button class="btn btn-outline" id="rc-export-btn">Export in Background</button>
     </div>
+    <div id="rc-columns-panel" class="hidden" style="padding: 12px 16px 0;"></div>
     <div id="rc-export-status" style="padding: 0 16px;"></div>
     <div id="rc-results" style="padding: 16px;"></div>
   `;
@@ -6926,20 +7031,196 @@ async function renderReportCatalogPanel(panel) {
     reportCatalogSelectedId = e.target.value;
     renderReportCatalogParams();
     loadReportCatalogSavedFilters();
+    initReportCatalogColumns();
+    loadReportColumnProfiles();
+    document.getElementById('rc-columns-panel').classList.add('hidden');
   });
   document.getElementById('rc-run-btn').addEventListener('click', runReportCatalogReport);
+  document.getElementById('rc-columns-btn').addEventListener('click', toggleReportColumnsPanel);
   document.getElementById('rc-save-filter-btn').addEventListener('click', saveReportCatalogFilter);
   document.getElementById('rc-export-btn').addEventListener('click', exportReportCatalogReport);
   document.getElementById('rc-saved-filter').addEventListener('change', (e) => {
     applyReportCatalogSavedFilter(e.target.value);
   });
+  document.getElementById('rc-column-profile').addEventListener('change', (e) => {
+    applyReportColumnProfile(e.target.value);
+  });
 
   renderReportCatalogParams();
+  initReportCatalogColumns();
   await loadReportCatalogSavedFilters();
+  await loadReportColumnProfiles();
 }
 
 function currentReportCatalogDef() {
   return reportCatalogDefs.find(d => d.id === reportCatalogSelectedId);
+}
+
+// ---- Report column control + profiles (Stage 28.3) ----
+// A column chooser (show/hide + reorder) on the report catalog, plus saveable
+// column profiles in two scopes: Personal (only the owner sees it) and Universal
+// (shared with everyone; creatable only by privileged roles - also enforced
+// server-side in handlers_core_doc_engine.go). Reuses the generic
+// ReportColumnProfile doctype the same way saved filters reuse ReportFilterPreset.
+let reportCatalogColumnState = []; // [{key, label, visible}] in display order, current report
+let reportColumnProfiles = [];     // ReportColumnProfile docs for the current report
+let reportCatalogLastResult = null;
+let reportCatalogLastParams = {};
+
+function initReportCatalogColumns() {
+  const def = currentReportCatalogDef();
+  reportCatalogColumnState = (def && def.columns ? def.columns : []).map(c => ({ key: c.key, label: c.label, visible: true }));
+}
+
+// effectiveReportColumns maps the current show/hide/order state onto the
+// server-returned column set (which carries the authoritative label + any
+// sensitive masking). Falls back to the server set if state is empty or would
+// hide everything.
+function effectiveReportColumns(resultColumns) {
+  if (!reportCatalogColumnState.length) return resultColumns;
+  const byKey = {};
+  resultColumns.forEach(c => { byKey[c.key] = c; });
+  const ordered = reportCatalogColumnState.filter(s => s.visible && byKey[s.key]).map(s => byKey[s.key]);
+  return ordered.length ? ordered : resultColumns;
+}
+
+function toggleReportColumnsPanel() {
+  const panel = document.getElementById('rc-columns-panel');
+  if (!panel) return;
+  if (panel.classList.contains('hidden')) {
+    renderReportColumnsPanel();
+    panel.classList.remove('hidden');
+  } else {
+    panel.classList.add('hidden');
+  }
+}
+
+function renderReportColumnsPanel() {
+  const panel = document.getElementById('rc-columns-panel');
+  if (!panel) return;
+  const role = localStorage.getItem('erp_role') || '';
+  const canUniversal = role === 'HR/Admin' || role === 'Store Manager';
+  const smallBtn = 'padding:2px 8px; font-size:12px;';
+  const rows = reportCatalogColumnState.map((c, i) => `
+    <div style="display:flex; align-items:center; gap:8px; padding:4px 0;">
+      <input type="checkbox" data-col-key="${cfgEsc(c.key)}" ${c.visible ? 'checked' : ''}>
+      <span style="flex:1;">${cfgEsc(c.label)}</span>
+      <button class="btn btn-outline rc-col-up" data-idx="${i}" style="${smallBtn}" ${i === 0 ? 'disabled' : ''}>&uarr;</button>
+      <button class="btn btn-outline rc-col-down" data-idx="${i}" style="${smallBtn}" ${i === reportCatalogColumnState.length - 1 ? 'disabled' : ''}>&darr;</button>
+    </div>`).join('');
+  panel.innerHTML = `
+    <div style="padding:14px; border:1px solid var(--border-color); border-radius:8px; background:var(--panel-bg); max-width:460px;">
+      <div style="font-weight:600; margin-bottom:6px;">Show, hide, and reorder columns</div>
+      ${rows || '<p class="page-subtitle" style="margin:0;">This report has no columns.</p>'}
+      <div style="display:flex; gap:8px; margin-top:14px; flex-wrap:wrap;">
+        <button class="btn btn-primary" id="rc-col-apply" style="${smallBtn}">Apply</button>
+        <button class="btn btn-outline" id="rc-col-save" style="${smallBtn}">Save as Profile&hellip;</button>
+        <button class="btn btn-outline" id="rc-col-reset" style="${smallBtn}">Reset to default</button>
+      </div>
+    </div>`;
+  panel.querySelectorAll('[data-col-key]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const st = reportCatalogColumnState.find(s => s.key === cb.getAttribute('data-col-key'));
+      if (st) st.visible = cb.checked;
+    });
+  });
+  panel.querySelectorAll('.rc-col-up').forEach(b => b.addEventListener('click', () => moveReportColumn(parseInt(b.dataset.idx, 10), -1)));
+  panel.querySelectorAll('.rc-col-down').forEach(b => b.addEventListener('click', () => moveReportColumn(parseInt(b.dataset.idx, 10), 1)));
+  document.getElementById('rc-col-apply').addEventListener('click', applyReportColumnState);
+  document.getElementById('rc-col-reset').addEventListener('click', () => {
+    initReportCatalogColumns();
+    renderReportColumnsPanel();
+    const sel = document.getElementById('rc-column-profile'); if (sel) sel.value = '';
+    applyReportColumnState();
+  });
+  document.getElementById('rc-col-save').addEventListener('click', () => saveReportColumnProfile(canUniversal));
+}
+
+function moveReportColumn(idx, dir) {
+  const j = idx + dir;
+  if (j < 0 || j >= reportCatalogColumnState.length) return;
+  const arr = reportCatalogColumnState;
+  const tmp = arr[idx]; arr[idx] = arr[j]; arr[j] = tmp;
+  renderReportColumnsPanel();
+}
+
+// Re-render the already-fetched result with the current column state, without
+// re-running the report.
+function applyReportColumnState() {
+  const resultsEl = document.getElementById('rc-results');
+  if (resultsEl && reportCatalogLastResult) {
+    renderReportCatalogResultTable(resultsEl, reportCatalogLastResult, reportCatalogLastParams);
+  }
+}
+
+async function loadReportColumnProfiles() {
+  const select = document.getElementById('rc-column-profile');
+  if (!select) return;
+  select.innerHTML = `<option value="">— Default columns —</option>`;
+  const res = await apiFetch('/api/v1/doc/ReportColumnProfile');
+  reportColumnProfiles = (res && res.ok) ? await res.json() : [];
+  const username = localStorage.getItem('erp_username') || '';
+  reportColumnProfiles
+    .filter(p => p.report_id === reportCatalogSelectedId && (p.scope === 'Universal' || p.owner === username))
+    .forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = (p.scope === 'Universal' ? '🌐 ' : '') + p.name;
+      select.appendChild(opt);
+    });
+}
+
+function applyReportColumnProfile(profileId) {
+  const def = currentReportCatalogDef();
+  if (!def) return;
+  if (!profileId) { initReportCatalogColumns(); applyReportColumnState(); return; }
+  const p = reportColumnProfiles.find(x => x.id === profileId);
+  if (!p) return;
+  let saved = [];
+  try { saved = JSON.parse(p.columns || '[]'); } catch (e) { /* ignore */ }
+  const labelByKey = {};
+  (def.columns || []).forEach(c => { labelByKey[c.key] = c.label; });
+  // Honor the profile's saved order/visibility for columns that still exist,
+  // then append any columns added to the report since the profile was saved.
+  const seen = new Set();
+  const state = [];
+  saved.forEach(c => {
+    if (labelByKey[c.key] !== undefined && !seen.has(c.key)) {
+      state.push({ key: c.key, label: labelByKey[c.key], visible: c.visible !== false });
+      seen.add(c.key);
+    }
+  });
+  (def.columns || []).forEach(c => {
+    if (!seen.has(c.key)) state.push({ key: c.key, label: c.label, visible: true });
+  });
+  reportCatalogColumnState = state;
+  const panel = document.getElementById('rc-columns-panel');
+  if (panel && !panel.classList.contains('hidden')) renderReportColumnsPanel();
+  applyReportColumnState();
+}
+
+async function saveReportColumnProfile(canUniversal) {
+  const def = currentReportCatalogDef();
+  if (!def) return;
+  const name = await showCustomPrompt('Name this column profile:', '', 'Save Column Profile');
+  if (!name) return;
+  let scope = 'Personal';
+  if (canUniversal) {
+    scope = (await showCustomConfirm('Save as a Universal profile, shared with everyone? Choose Cancel to keep it Personal (visible only to you).'))
+      ? 'Universal' : 'Personal';
+  }
+  const username = localStorage.getItem('erp_username') || '';
+  const columns = reportCatalogColumnState.map(c => ({ key: c.key, visible: c.visible }));
+  const id = `RCP-${Date.now()}`;
+  const res = await apiFetch('/api/v1/doc/ReportColumnProfile', {
+    method: 'POST',
+    body: JSON.stringify({ id, report_id: def.id, name, owner: username, scope, columns: JSON.stringify(columns), status: 'Active' })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to save column profile.'); return; }
+  showToast(`Column profile saved (${scope}).`, { variant: 'success' });
+  await loadReportColumnProfiles();
+  const sel = document.getElementById('rc-column-profile'); if (sel) sel.value = id;
 }
 
 function renderReportCatalogParams() {
@@ -6989,7 +7270,9 @@ async function runReportCatalogReport() {
 }
 
 function renderReportCatalogResultTable(container, result, params) {
-  const columns = result.columns || [];
+  reportCatalogLastResult = result;
+  reportCatalogLastParams = params;
+  const columns = effectiveReportColumns(result.columns || []);
   const rows = result.rows || [];
   const drillKey = columns.length > 0 ? columns[0].key : null;
   let html = `<table><thead><tr>`;
@@ -12118,6 +12401,162 @@ window.triggerPanicRecovery = async function() {
   }
 };
 
+// Configuration (Stage 28.1): the module-by-module admin Settings screen.
+// Fully generic - it renders whatever engines/settings_registry.go declares,
+// one section per module, each setting drawn by its declared type (number/
+// toggle/text/select). Registering a setting on the backend makes it appear
+// here with no frontend change. HR/Admin only (GET/PUT /api/v1/admin/settings
+// enforce requireHRAdmin server-side).
+let configSettings = [];       // full definitions+values from the server
+let configDirty = {};          // key -> new value, only for changed keys
+let configSelectedModule = '';
+
+function cfgEsc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+async function renderConfigurationView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Configuration</h1>
+      <p class="page-subtitle">System settings, organized by module. Nothing here is hardcoded - the system reacts to whatever you set.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const res = await apiFetch('/api/v1/admin/settings');
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to load configuration.'); return; }
+  configSettings = await res.json();
+  configDirty = {};
+
+  if (!Array.isArray(configSettings) || configSettings.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'page-subtitle';
+    empty.textContent = 'No configurable settings are registered.';
+    container.appendChild(empty);
+    return;
+  }
+
+  const modules = [];
+  configSettings.forEach(s => { if (!modules.includes(s.module)) modules.push(s.module); });
+  if (!configSelectedModule || !modules.includes(configSelectedModule)) configSelectedModule = modules[0];
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.cssText = 'display:grid; grid-template-columns:220px 1fr; min-height:440px; overflow:hidden;';
+  panel.innerHTML = `
+    <div id="config-modules" style="border-right:1px solid var(--border-color); padding:12px 0; background:var(--bg-color);"></div>
+    <div style="display:flex; flex-direction:column; min-width:0;">
+      <div id="config-fields" style="padding:20px 24px; flex:1; overflow:auto;"></div>
+      <div style="padding:14px 24px; border-top:1px solid var(--border-color); display:flex; align-items:center; gap:14px;">
+        <button class="btn btn-primary" id="config-save-btn" disabled>Save Changes</button>
+        <span id="config-dirty-note" class="page-subtitle" style="margin:0; font-size:13px;"></span>
+      </div>
+    </div>
+  `;
+  container.appendChild(panel);
+
+  renderConfigModuleRail(modules);
+  renderConfigFields();
+  document.getElementById('config-save-btn').addEventListener('click', saveConfiguration);
+}
+
+function renderConfigModuleRail(modules) {
+  const rail = document.getElementById('config-modules');
+  if (!rail) return;
+  rail.innerHTML = modules.map(m => {
+    const active = m === configSelectedModule;
+    return `<a class="config-module-item" data-module="${cfgEsc(m)}"
+       style="display:block; padding:10px 20px; cursor:pointer; font-size:14px; font-weight:500;
+              border-left:3px solid ${active ? 'var(--primary-color)' : 'transparent'};
+              color:${active ? 'var(--text-main)' : 'var(--text-muted)'};
+              background:${active ? 'var(--panel-bg)' : 'transparent'};">${cfgEsc(m)}</a>`;
+  }).join('');
+  rail.querySelectorAll('.config-module-item').forEach(el => {
+    el.addEventListener('click', () => {
+      configSelectedModule = el.getAttribute('data-module');
+      renderConfigModuleRail(modules);
+      renderConfigFields();
+    });
+  });
+}
+
+function configInputId(key) { return 'config-input-' + key; }
+
+function renderConfigFields() {
+  const host = document.getElementById('config-fields');
+  if (!host) return;
+  const items = configSettings.filter(s => s.module === configSelectedModule);
+  host.innerHTML = items.map(configFieldHtml).join('');
+  items.forEach(s => {
+    const input = document.getElementById(configInputId(s.key));
+    if (!input) return;
+    const evt = (input.tagName === 'SELECT' || input.type === 'checkbox') ? 'change' : 'input';
+    input.addEventListener(evt, () => {
+      const val = input.type === 'checkbox' ? String(input.checked) : String(input.value);
+      if (val === String(s.value)) delete configDirty[s.key];
+      else configDirty[s.key] = val;
+      updateConfigDirtyState();
+    });
+  });
+  updateConfigDirtyState();
+}
+
+function configFieldHtml(s) {
+  const id = configInputId(s.key);
+  const unit = s.unit ? `<span style="color:var(--text-muted); font-size:13px; margin-left:8px;">${cfgEsc(s.unit)}</span>` : '';
+  let control = '';
+  if (s.type === 'bool') {
+    const checked = String(s.value) === 'true' ? 'checked' : '';
+    control = `<label style="display:inline-flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" id="${id}" ${checked} style="width:16px; height:16px;">
+        <span style="font-size:13px; color:var(--text-muted);">Enabled when checked</span>
+      </label>`;
+  } else if (s.type === 'select') {
+    const opts = (s.options || []).map(o => `<option value="${cfgEsc(o.value)}" ${String(o.value) === String(s.value) ? 'selected' : ''}>${cfgEsc(o.label)}</option>`).join('');
+    control = `<select id="${id}" class="form-select" style="max-width:280px;">${opts}</select>${unit}`;
+  } else if (s.type === 'int') {
+    const min = (s.min !== null && s.min !== undefined) ? `min="${s.min}"` : '';
+    const max = (s.max !== null && s.max !== undefined) ? `max="${s.max}"` : '';
+    control = `<input type="number" id="${id}" class="form-input" value="${cfgEsc(s.value)}" ${min} ${max} style="max-width:200px; display:inline-block;">${unit}`;
+  } else {
+    control = `<input type="text" id="${id}" class="form-input" value="${cfgEsc(s.value)}" style="max-width:360px; display:inline-block;">${unit}`;
+  }
+  return `
+    <div class="form-group" style="margin-bottom:22px; max-width:640px;">
+      <label class="form-label" for="${id}" style="font-weight:600;">${cfgEsc(s.label)}</label>
+      ${s.description ? `<p class="page-subtitle" style="margin:2px 0 8px; font-size:12.5px;">${cfgEsc(s.description)}</p>` : ''}
+      <div>${control}</div>
+    </div>
+  `;
+}
+
+function updateConfigDirtyState() {
+  const btn = document.getElementById('config-save-btn');
+  const note = document.getElementById('config-dirty-note');
+  const n = Object.keys(configDirty).length;
+  if (btn) btn.disabled = n === 0;
+  if (note) note.textContent = n === 0 ? 'No unsaved changes.' : `${n} unsaved change${n === 1 ? '' : 's'}.`;
+}
+
+async function saveConfiguration() {
+  if (Object.keys(configDirty).length === 0) return;
+  const btn = document.getElementById('config-save-btn');
+  if (btn) btn.disabled = true;
+  const res = await apiFetch('/api/v1/admin/settings', { method: 'PUT', body: JSON.stringify(configDirty) });
+  if (!res) { if (btn) btn.disabled = false; return; }
+  if (!res.ok) { await showApiError(res, 'Failed to save configuration.'); if (btn) btn.disabled = false; return; }
+  showToast('Configuration saved.', { variant: 'success' });
+  // Re-render fresh so persisted values show and dirty tracking resets.
+  setActiveMenu('menu-configuration');
+  renderView('configuration');
+}
+
 // System Status dashboard (Stage 26.1.2, PDF "SLO/status-page dashboard").
 // Pure frontend: wires the existing Stage 25.8 deployment-status/
 // backup-status endpoints (which already compute the DR-0213/DR-0214
@@ -12300,6 +12739,86 @@ async function renderTenantEntitlementsView(container) {
   }
   const tenants = await tenantsRes.json();
   const packages = await packagesRes.json();
+
+  // 27.8 fast-follow: a picker over engines.ProductPackages for
+  // handleProvisionTenant's `packages` field - the endpoint itself
+  // (POST /api/v1/admin/tenant/provision) has existed since Stage 27 but
+  // had no browser UI at all, only ever reachable via curl/scripts.
+  // Collapsed by default since provisioning a brand-new tenant is a rare
+  // action compared to adjusting an existing one below.
+  const provisionPanel = document.createElement('div');
+  provisionPanel.className = 'table-panel';
+  provisionPanel.style.padding = '16px';
+  provisionPanel.style.marginBottom = '20px';
+  provisionPanel.innerHTML = `
+    <div id="provision-tenant-toggle" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+      <h3 style="font-size:16px; font-weight:600; margin:0;">+ Provision New Tenant</h3>
+      <span id="provision-tenant-chevron" style="color:var(--text-muted);">&#9656;</span>
+    </div>
+    <div id="provision-tenant-form" class="hidden" style="margin-top:16px; display:flex; flex-direction:column; gap:12px;">
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="provision-tenant-id">Tenant ID</label>
+          <input type="text" id="provision-tenant-id" class="form-input" placeholder="e.g. acme_co" style="width:220px;">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="provision-schema-name">Schema Name</label>
+          <input type="text" id="provision-schema-name" class="form-input" placeholder="e.g. tenant_acme" style="width:220px;">
+        </div>
+      </div>
+      <div>
+        <label class="stat-label" style="display:block; margin-bottom:6px;">Packages (leave all unchecked to provision the full suite)</label>
+        <div style="display:flex; flex-wrap:wrap; gap:12px;">
+          ${packages.filter(p => p.package_key !== 'erp_full').map(p => `
+            <label style="display:flex; align-items:center; gap:6px; font-size:13px; font-weight:400;">
+              <input type="checkbox" class="provision-package-checkbox" value="${p.package_key}"> ${p.display_name}
+            </label>
+          `).join('')}
+        </div>
+      </div>
+      <div id="provision-tenant-error" class="login-error hidden" style="margin-bottom:0;"></div>
+      <div>
+        <button class="btn btn-primary" id="provision-tenant-btn">Provision Tenant</button>
+      </div>
+    </div>
+  `;
+  container.appendChild(provisionPanel);
+
+  document.getElementById('provision-tenant-toggle').addEventListener('click', () => {
+    document.getElementById('provision-tenant-form').classList.toggle('hidden');
+    const chevron = document.getElementById('provision-tenant-chevron');
+    chevron.innerHTML = document.getElementById('provision-tenant-form').classList.contains('hidden') ? '&#9656;' : '&#9662;';
+  });
+
+  document.getElementById('provision-tenant-btn').addEventListener('click', async () => {
+    const errorEl = document.getElementById('provision-tenant-error');
+    errorEl.classList.add('hidden');
+    const tenantId = document.getElementById('provision-tenant-id').value.trim();
+    const schemaName = document.getElementById('provision-schema-name').value.trim();
+    if (!tenantId || !schemaName) {
+      errorEl.textContent = 'Tenant ID and schema name are both required.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    const selectedPackages = Array.from(document.querySelectorAll('.provision-package-checkbox:checked')).map(cb => cb.value);
+    const res = await apiFetch('/api/v1/admin/tenant/provision', {
+      method: 'POST',
+      body: JSON.stringify({ tenant_id: tenantId, schema_name: schemaName, packages: selectedPackages })
+    });
+    if (!res) return;
+    if (!res.ok) {
+      errorEl.textContent = await getErrorMessage(res, 'Failed to provision tenant.');
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    const data = await res.json();
+    await showOneTimeSecretDialog(
+      'Tenant Provisioned',
+      `Tenant "${data.tenant_id}" is ready. Admin login is username "${data.admin_username}", password shown once below - store it now, it cannot be retrieved again:`,
+      data.admin_password
+    );
+    renderView('tenant-entitlements');
+  });
 
   const pickerPanel = document.createElement('div');
   pickerPanel.className = 'table-panel';

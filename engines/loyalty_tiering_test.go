@@ -127,7 +127,7 @@ func TestLoyaltyTieringAndExpiry(t *testing.T) {
 			t.Fatalf("expected the earned lot to have an expires_at set")
 		}
 		if daysOut := expiresAt.Sub(time.Now()).Hours() / 24; daysOut < 360 || daysOut > 370 {
-			t.Fatalf("expected expires_at ~%d days out, got %.1f days", loyaltyPointExpiryDays, daysOut)
+			t.Fatalf("expected expires_at ~%d days out, got %.1f days", 365, daysOut)
 		}
 	})
 

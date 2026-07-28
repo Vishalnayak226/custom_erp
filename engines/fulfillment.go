@@ -195,8 +195,10 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 			for _, item := range sourcingItems {
 				sku := item["sku"].(string)
 				qty := item["qty"].(int)
-				// Create new reservation
-				expiresAt := time.Now().Add(86400 * time.Second)
+				// Create new reservation (Stage 28: tenant-configured hold TTL;
+				// inline here rather than via CreateReservation because this runs
+				// inside the caller's existing transaction tx).
+				expiresAt := time.Now().Add(time.Duration(GetSettingInt(tenantID, "inventory.reservation_ttl_seconds")) * time.Second)
 				_, errRes := tx.Exec(fmt.Sprintf(`
 					INSERT INTO %s.inventory_reservation (sku, location_code, quantity, reservation_type, expires_at) 
 					VALUES ($1, $2, $3, 'Online', $4)`, schema), sku, nextLocation, qty, expiresAt)

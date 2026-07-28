@@ -1,0 +1,41 @@
+# Custom ERP systemd unit -- the Linux equivalent of manage.ps1's process
+# supervision (auto-restart, start-on-boot, graceful stop).
+#
+# Install:
+#   sudo cp /opt/erp/deploy/erp.service /etc/systemd/system/erp.service
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now erp
+#
+# Logs go to the journal:  journalctl -u erp -f
+
+[Unit]
+Description=Custom ERP server
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=erp
+Group=erp
+# The server reads ./public and ./public/profiles relative to its working dir
+# (routes.go: http.Dir("./public")), so WorkingDirectory must hold public/.
+WorkingDirectory=/opt/erp
+EnvironmentFile=/etc/erp/erp.env
+ExecStart=/opt/erp/erp-server
+Restart=on-failure
+RestartSec=3
+
+# routes.go traps SIGINT/SIGTERM to cancel background workers and shut down
+# gracefully, so let it finish in-flight work before systemd force-kills it.
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Baseline hardening. ProtectSystem=full leaves /opt (report exports, backups)
+# writable while making /usr, /boot, /etc read-only. Tighten later if desired.
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

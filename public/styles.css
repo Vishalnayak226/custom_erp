@@ -7,6 +7,7 @@
   --primary-light: #eef1f4;
   --bg-color: #f8fafc;
   --panel-bg: #ffffff;
+  --surface-subtle: #f1f5f9;
   --text-main: #0f172a;
   --text-muted: #64748b;
   --border-color: #e2e8f0;
@@ -17,6 +18,47 @@
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --sidebar-width: 270px;
   --transition-speed: 0.25s;
+}
+
+/* Dark theme tokens (Stage 28.2). The token block above is the single source
+   of color for the whole app, so re-theming is purely a matter of overriding
+   these variables - no component rule changes. Applied when the user explicitly
+   picks Dark (:root[data-theme="dark"]) OR leaves it on System and the OS
+   prefers dark. An explicit Light choice ([data-theme="light"]) always wins over
+   the OS preference. The two blocks below hold the same values (one for the
+   explicit choice, one for the System-follows-OS case) - kept in sync by hand. */
+:root[data-theme="dark"] {
+  --primary-color: #6b82a8;
+  --primary-hover: #7f96bd;
+  --primary-light: #26324a;
+  --bg-color: #0f172a;
+  --panel-bg: #1a2436;
+  --surface-subtle: #212d42;
+  --text-main: #e6ebf2;
+  --text-muted: #94a3b8;
+  --border-color: #334155;
+  --border-hover: #475569;
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.40), 0 2px 4px -1px rgba(0, 0, 0, 0.30);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.50), 0 4px 6px -2px rgba(0, 0, 0, 0.40);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --primary-color: #6b82a8;
+    --primary-hover: #7f96bd;
+    --primary-light: #26324a;
+    --bg-color: #0f172a;
+    --panel-bg: #1a2436;
+    --surface-subtle: #212d42;
+    --text-main: #e6ebf2;
+    --text-muted: #94a3b8;
+    --border-color: #334155;
+    --border-hover: #475569;
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.40), 0 2px 4px -1px rgba(0, 0, 0, 0.30);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.50), 0 4px 6px -2px rgba(0, 0, 0, 0.40);
+  }
 }
 
 * {
@@ -53,7 +95,10 @@ body {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  z-index: 10;
+  /* The flyouts are fixed-position descendants. Keep the sidebar's stacking
+     layer above sticky table headers so an open menu remains fully visible and
+     clickable over every table view. */
+  z-index: 40;
   transition: width var(--transition-speed) ease;
   position: sticky;
   top: 0;
@@ -171,7 +216,7 @@ body {
 
 .submenu-item:hover {
   color: var(--text-main);
-  background-color: #f1f5f9;
+  background-color: var(--surface-subtle);
 }
 
 .submenu-item.active {
@@ -350,6 +395,57 @@ body {
   background-color: #fef2f2;
 }
 
+/* Theme selector (Stage 28.2) - a light/dark/system segmented control in the
+   account popover. Built from the existing token vocabulary so it themes itself. */
+.account-popover-theme {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.account-popover-theme-label {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+}
+
+.theme-seg {
+  display: inline-flex;
+  border: 1px solid var(--border-color);
+  border-radius: 7px;
+  overflow: hidden;
+  background: var(--bg-color);
+}
+
+.theme-seg-btn {
+  border: none;
+  background: transparent;
+  font-family: var(--font-family);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 5px 9px;
+  cursor: pointer;
+  transition: background-color var(--transition-speed) ease, color var(--transition-speed) ease;
+}
+
+.theme-seg-btn + .theme-seg-btn {
+  border-left: 1px solid var(--border-color);
+}
+
+.theme-seg-btn:hover {
+  color: var(--text-main);
+}
+
+.theme-seg-btn.active {
+  background: var(--primary-color);
+  color: #ffffff;
+}
+
 .signout-overlay {
   position: fixed;
   inset: 0;
@@ -440,7 +536,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  background-color: #f1f5f9;
+  background-color: var(--surface-subtle);
   border: 1px solid transparent;
   padding: 8px 16px;
   border-radius: 6px;
@@ -536,13 +632,13 @@ body {
 }
 
 .btn-secondary {
-  background-color: #f1f5f9;
+  background-color: var(--surface-subtle);
   color: var(--text-main);
   border-color: var(--border-color);
 }
 
 .btn-secondary:hover {
-  background-color: #e2e8f0;
+  background-color: var(--border-color);
 }
 
 .btn-outline {
@@ -552,7 +648,7 @@ body {
 }
 
 .btn-outline:hover {
-  background-color: #f8fafc;
+  background-color: var(--bg-color);
   border-color: var(--border-hover);
 }
 
@@ -793,7 +889,7 @@ tr:last-child td {
 }
 
 tr:hover td {
-  background-color: #f8fafc;
+  background-color: var(--bg-color);
 }
 
 /* Badges */
@@ -812,7 +908,7 @@ tr:hover td {
 }
 
 .badge-secondary {
-  background-color: #f3f4f6;
+  background-color: var(--surface-subtle);
   color: #374151;
 }
 
@@ -831,7 +927,7 @@ tr:hover td {
 }
 
 .action-btn:hover {
-  background-color: #f1f5f9;
+  background-color: var(--surface-subtle);
   color: var(--text-main);
 }
 
@@ -946,7 +1042,7 @@ tr:hover td {
 }
 
 .modal-close:hover {
-  background-color: #f1f5f9;
+  background-color: var(--surface-subtle);
   color: var(--text-main);
 }
 
@@ -959,7 +1055,7 @@ tr:hover td {
 
 .modal-footer {
   padding: 16px 22px;
-  background-color: #f8fafc;
+  background-color: var(--bg-color);
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
@@ -1089,7 +1185,7 @@ tr:hover td {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: #cbd5e1;
+  background-color: var(--border-hover);
   transition: .3s;
   border-radius: 24px;
 }
@@ -1170,7 +1266,7 @@ input:checked + .slider:before {
 }
 
 .pagination-btn:hover {
-  background-color: #f8fafc;
+  background-color: var(--bg-color);
 }
 
 .pagination-btn:disabled {
@@ -1198,7 +1294,7 @@ input:checked + .slider:before {
 
 /* Preformatted Stack Traces style rules */
 pre {
-  background: #f1f5f9;
+  background: var(--surface-subtle);
   border: 1px solid #cbd5e1;
   border-radius: 6px;
   padding: 12px;
@@ -1260,7 +1356,7 @@ pre {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background-color: #f8fafc;
+  background-color: var(--bg-color);
 }
 
 .custom-dialog-header h3 {
@@ -1300,7 +1396,7 @@ pre {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
-  background-color: #f8fafc;
+  background-color: var(--bg-color);
 }
 
 /* Login Screen */

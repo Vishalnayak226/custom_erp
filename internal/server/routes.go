@@ -138,6 +138,10 @@ func Run() {
 	http.HandleFunc("GET /api/v1/admin/roles", apiMiddleware(handleListRoles))
 	http.HandleFunc("GET /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))
 	http.HandleFunc("POST /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))
+
+	// Stage 28.1: module-by-module admin configuration (system_settings).
+	http.HandleFunc("GET /api/v1/admin/settings", apiMiddleware(handleGetSettings))
+	http.HandleFunc("PUT /api/v1/admin/settings", apiMiddleware(handleUpdateSettings))
 	http.HandleFunc("GET /api/v1/ops/deployment-status", apiMiddleware(handleDeploymentStatus))
 	http.HandleFunc("GET /api/v1/ops/backup-status", apiMiddleware(handleBackupStatus))
 
@@ -553,6 +557,12 @@ func Run() {
 		port = "8080"
 	}
 
+	// Stage 28.4: HOST binds the listener to a specific interface. Empty (the
+	// default) keeps the historical all-interfaces bind (":"+port); behind Caddy
+	// (deploy/Caddyfile) set HOST=127.0.0.1 so only the local reverse proxy can
+	// reach the Go process and nothing hits it directly from the network.
+	host := os.Getenv("HOST")
+
 	// 24.13: explicit timeouts instead of the bare ListenAndServe's
 	// unbounded defaults - a slow/stalled client can no longer hold a
 	// connection (and the goroutine/DB-conn behind it) open indefinitely.
@@ -560,7 +570,7 @@ func Run() {
 	// report/export requests (Stage 20 Track B.4's async export exists
 	// precisely for the ones that would otherwise be too slow for this).
 	srv := &http.Server{
-		Addr:         ":" + port,
+		Addr:         host + ":" + port,
 		Handler:      securityHeaders(http.DefaultServeMux),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,

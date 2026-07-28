@@ -11,21 +11,13 @@ import (
 // Customer 360, Segmentation, Campaign Management, Voucher/Coupon Engine,
 // Customer Service, and Consent & Privacy are explicitly out of scope.
 
-// pointsPerRupee/redemptionValuePerPoint are the simplified earn/burn rates
-// for this MVP (1 point per Rs.100 spent; 1 point = Rs.1 on redemption) -
-// the blueprint's full Loyalty Engine makes these tenant-configurable
-// (program/tier/earn-rule/burn-rule tables); a fixed rate is the deliberate
-// simplification for this pass.
-const (
-	rupeesPerPoint          = 100
-	redemptionValuePerPoint = 1
-)
-
-// loyaltyPointExpiryDays (Stage 26.7.3) is how long an Earn lot stays valid
-// before StartLoyaltyExpiryWorker sweeps it - a fixed window, the same kind
-// of deliberate simplification as rupeesPerPoint/redemptionValuePerPoint
-// above (a real program would make this tenant-configurable too).
-const loyaltyPointExpiryDays = 365
+// redemptionValuePerPoint is the burn rate for this MVP (1 point = Rs.1 on
+// redemption). The earn rate (spend per point) and point expiry are now
+// tenant-configurable via the Stage 28 settings registry
+// (loyalty.rupees_per_point / loyalty.point_expiry_days, see
+// settings_definitions.go) and read at their use sites below, rather than the
+// fixed constants they used to be.
+const redemptionValuePerPoint = 1
 
 // LoyaltyLedgerEntry is one earn/burn transaction.
 type LoyaltyLedgerEntry struct {
@@ -132,6 +124,10 @@ func RedeemLoyaltyPoints(tenantID, customerID string, points int, referenceID st
 // enhancements on top of the points already earned/inserted, so a failure
 // in either never undoes or blocks the earn itself.
 func EarnLoyaltyPoints(tenantID, customerID string, netSaleAmount int, referenceID string) error {
+	rupeesPerPoint := GetSettingInt(tenantID, "loyalty.rupees_per_point")
+	if rupeesPerPoint <= 0 {
+		rupeesPerPoint = 100 // defensive: the setting is min-1 validated, never 0
+	}
 	basePoints := netSaleAmount / rupeesPerPoint
 	if basePoints <= 0 {
 		return nil
@@ -144,12 +140,14 @@ func EarnLoyaltyPoints(tenantID, customerID string, netSaleAmount int, reference
 	if err != nil {
 		return err
 	}
-	expiresAt := time.Now().AddDate(0, 0, loyaltyPointExpiryDays)
+	expiresAt := time.Now().AddDate(0, 0, GetSettingInt(tenantID, "loyalty.point_expiry_days"))
 	if err := insertLoyaltyLedgerEntryInSchema(schema, customerID, "Earn", points, "POSCart", referenceID, &expiresAt); err != nil {
 		return err
 	}
-	if _, err := RecomputeLoyaltyTier(tenantID, customerID); err != nil {
-		LogSystemError(tenantID, "", "ERROR", "EarnLoyaltyPoints", fmt.Sprintf("tier recompute failed for customer %s: %v", customerID, err), "")
+	if GetSettingBool(tenantID, "loyalty.recompute_tier_on_earn") {
+		if _, err := RecomputeLoyaltyTier(tenantID, customerID); err != nil {
+			LogSystemError(tenantID, "", "ERROR", "EarnLoyaltyPoints", fmt.Sprintf("tier recompute failed for customer %s: %v", customerID, err), "")
+		}
 	}
 	return nil
 }

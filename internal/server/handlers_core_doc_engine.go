@@ -331,6 +331,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// ReportColumnProfile (Stage 28.3): a Universal (shared) column profile
+		// can only be created or edited by privileged roles - Personal profiles
+		// are unrestricted. Enforced here at the generic-doc choke point so the
+		// client-side gate can't be bypassed by a hand-crafted request.
+		if doctype == "ReportColumnProfile" {
+			if scope, _ := payload["scope"].(string); scope == "Universal" && role != "HR/Admin" && role != "Store Manager" {
+				writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin or Store Manager can create or edit a Universal column profile")
+				return
+			}
+		}
 
 		// Expense claim controls (Stage 13.13c, MB 16.2): date window and
 		// duplicate-bill check, only on creation of a new claim - not on

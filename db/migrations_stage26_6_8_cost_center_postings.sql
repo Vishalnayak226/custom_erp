@@ -7,6 +7,21 @@
 ALTER TABLE tenant_default.gl_postings ADD COLUMN IF NOT EXISTS cost_center VARCHAR(50);
 ALTER TABLE tenant_default.gl_postings ADD COLUMN IF NOT EXISTS department VARCHAR(50);
 
+-- 26.11.4: doctype_fields.doctype_name has a hard FK to doctype_meta, and
+-- this file's own filename ("..._stage26_6_8_...") sorts alphabetically
+-- before migrations_stage26_6_finance_tax_close.sql (no numeric suffix -
+-- digits sort before letters) - the file that actually creates
+-- JournalVoucher's doctype_meta row. On the accumulated dev DB that row
+-- already existed (finance_tax_close.sql ran when Stage 26.6.4 first
+-- shipped, this file only added 2026-07 later), masking the dependency; a
+-- from-scratch rehearsal applying every file once in filename order hits
+-- the FK violation. Same idempotent bootstrap finance_tax_close.sql uses,
+-- so whichever of the two files actually runs first is the one that
+-- inserts it - order-independent either way.
+INSERT INTO tenant_default.doctype_meta (name, module, document_type, module_key) VALUES
+('JournalVoucher', 'Finance', 'Transaction', 'finance')
+ON CONFLICT (name) DO NOTHING;
+
 -- Additive: an optional whole-voucher cost center/department (not
 -- per-line - PostDoubleEntry aggregates debits/credits per account_code
 -- into one row per account, so a per-line dimension isn't representable

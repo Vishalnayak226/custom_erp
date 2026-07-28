@@ -340,7 +340,15 @@ func CreateReservation(tenantID string, sku string, locationCode string, qty int
 		return "", fmt.Errorf("insufficient stock available for reservation (ATS: %d, requested: %d)", ats, qty)
 	}
 
-	// 2. Insert reservation record
+	// 2. Insert reservation record. expirySec <= 0 means "use the tenant's
+	// configured online-reservation hold" (Stage 28) - CreateReservation is the
+	// single choke point every online/channel reservation routes its default
+	// TTL through, so editing inventory.reservation_ttl_seconds reaches all of
+	// them at once. Callers that pass an explicit value (short cart holds,
+	// tests) are unaffected.
+	if expirySec <= 0 {
+		expirySec = GetSettingInt(tenantID, "inventory.reservation_ttl_seconds")
+	}
 	expiresAt := time.Now().Add(time.Duration(expirySec) * time.Second)
 	var resID string
 	err = tx.QueryRow(fmt.Sprintf(`

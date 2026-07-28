@@ -497,7 +497,7 @@ func ImportChannelOrder(tenantID string, channel string, channelOrderID string, 
 	for _, item := range mappedItems {
 		sku := item["sku"].(string)
 		qty := item["qty"].(int)
-		_, err = CreateReservation(tenantID, sku, location, qty, "Online", 86400) // 24hr expiration
+		_, err = CreateReservation(tenantID, sku, location, qty, "Online", 0) // 0 = tenant-configured reservation TTL (Stage 28)
 		if err != nil {
 			return "", fmt.Errorf("failed to reserve stock for SKU %s at node %s: %v", sku, location, err)
 		}
