@@ -18,6 +18,26 @@
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --sidebar-width: 270px;
   --transition-speed: 0.25s;
+
+  /* Semantic status + on-surface colors (Stage 28.5). Every status color in
+     the sheet routes through these instead of a literal hex, so a theme only
+     ever has to override tokens - see the "no literal colors below the token
+     blocks" rule documented above the dark block. `-color` is foreground on a
+     normal panel, `-strong` is foreground on the matching `-soft-bg` tint. */
+  --on-primary: #ffffff;
+  --text-placeholder: #cbd5e1;
+  --danger-color: #ef4444;
+  --danger-hover: #dc2626;
+  --danger-strong: #b91c1c;
+  --danger-soft-bg: #fef2f2;
+  --danger-soft-border: #fecaca;
+  --warning-color: #d97706;
+  --warning-strong: #d97706;
+  --warning-soft-bg: #fef3c7;
+  --warning-soft-border: #fde68a;
+  --success-color: #059669;
+  --success-strong: #065f46;
+  --success-soft-bg: #d1fae5;
 }
 
 /* Dark theme tokens (Stage 28.2). The token block above is the single source
@@ -26,7 +46,14 @@
    picks Dark (:root[data-theme="dark"]) OR leaves it on System and the OS
    prefers dark. An explicit Light choice ([data-theme="light"]) always wins over
    the OS preference. The two blocks below hold the same values (one for the
-   explicit choice, one for the System-follows-OS case) - kept in sync by hand. */
+   explicit choice, one for the System-follows-OS case) - kept in sync by hand.
+
+   RULE (Stage 28.5, after a batch of unreadable-in-dark text was found in the
+   confirm dialog, badges and <pre> blocks): no rule below these blocks may use
+   a literal color for text, background or border. Always add/reuse a token
+   here and reference it with var(). The only sanctioned exceptions are the
+   print-only .receipt / .sticker-label rules (always ink-on-paper) and
+   translucent rgba() scrims/glows, which read correctly on either theme. */
 :root[data-theme="dark"] {
   --primary-color: #6b82a8;
   --primary-hover: #7f96bd;
@@ -41,6 +68,20 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.40), 0 2px 4px -1px rgba(0, 0, 0, 0.30);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.50), 0 4px 6px -2px rgba(0, 0, 0, 0.40);
+  --on-primary: #ffffff;
+  --text-placeholder: #64748b;
+  --danger-color: #f87171;
+  --danger-hover: #ef4444;
+  --danger-strong: #fca5a5;
+  --danger-soft-bg: #3b1f22;
+  --danger-soft-border: #7f2d2d;
+  --warning-color: #fbbf24;
+  --warning-strong: #fcd34d;
+  --warning-soft-bg: #3a2c12;
+  --warning-soft-border: #7c5c11;
+  --success-color: #34d399;
+  --success-strong: #6ee7b7;
+  --success-soft-bg: #12352c;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -58,6 +99,20 @@
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.30);
     --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.40), 0 2px 4px -1px rgba(0, 0, 0, 0.30);
     --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.50), 0 4px 6px -2px rgba(0, 0, 0, 0.40);
+    --on-primary: #ffffff;
+    --text-placeholder: #64748b;
+    --danger-color: #f87171;
+    --danger-hover: #ef4444;
+    --danger-strong: #fca5a5;
+    --danger-soft-bg: #3b1f22;
+    --danger-soft-border: #7f2d2d;
+    --warning-color: #fbbf24;
+    --warning-strong: #fcd34d;
+    --warning-soft-bg: #3a2c12;
+    --warning-soft-border: #7c5c11;
+    --success-color: #34d399;
+    --success-strong: #6ee7b7;
+    --success-soft-bg: #12352c;
   }
 }
 
@@ -129,7 +184,7 @@ body {
   height: 34px;
   border-radius: 8px;
   background-color: var(--primary-color);
-  color: #ffffff;
+  color: var(--on-primary);
   flex-shrink: 0;
 }
 
@@ -269,6 +324,17 @@ body {
   display: block;
 }
 
+/* Invisible hover bridge across the gap between a module row and its flyout
+   (Stage 28.5). Pure hit area - never painted; sized/positioned by
+   openFlyout() in app.js. Sits just under the flyout's own z-index so it can
+   never cover a menu item, and only exists while a flyout is open. */
+.menu-flyout-bridge {
+  position: fixed;
+  display: none;
+  background: transparent;
+  z-index: 99;
+}
+
 .menu-flyout .menu-item,
 .menu-flyout .submenu-item {
   border-left: none;
@@ -388,11 +454,11 @@ body {
 }
 
 .account-popover-item-danger {
-  color: #ef4444;
+  color: var(--danger-color);
 }
 
 .account-popover-item-danger:hover {
-  background-color: #fef2f2;
+  background-color: var(--danger-soft-bg);
 }
 
 /* Theme selector (Stage 28.2) - a light/dark/system segmented control in the
@@ -443,7 +509,7 @@ body {
 
 .theme-seg-btn.active {
   background: var(--primary-color);
-  color: #ffffff;
+  color: var(--on-primary);
 }
 
 .signout-overlay {
@@ -623,7 +689,7 @@ body {
 
 .btn-primary {
   background-color: var(--primary-color);
-  color: #ffffff;
+  color: var(--on-primary);
 }
 
 .btn-primary:hover {
@@ -653,12 +719,12 @@ body {
 }
 
 .btn-danger {
-  background-color: #ef4444;
-  color: #ffffff;
+  background-color: var(--danger-color);
+  color: var(--on-primary);
 }
 
 .btn-danger:hover {
-  background-color: #dc2626;
+  background-color: var(--danger-hover);
 }
 
 /* Dashboard Stats Row */
@@ -701,7 +767,7 @@ body {
 .pulse-dot {
   width: 10px;
   height: 10px;
-  background-color: #10b981;
+  background-color: var(--success-color);
   border-radius: 50%;
   display: inline-block;
   box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
@@ -903,13 +969,13 @@ tr:hover td {
 }
 
 .badge-success {
-  background-color: #d1fae5;
-  color: #065f46;
+  background-color: var(--success-soft-bg);
+  color: var(--success-strong);
 }
 
 .badge-secondary {
   background-color: var(--surface-subtle);
-  color: #374151;
+  color: var(--text-main);
 }
 
 /* Action buttons in tables */
@@ -932,8 +998,8 @@ tr:hover td {
 }
 
 .action-btn-danger:hover {
-  background-color: #fee2e2;
-  color: #ef4444;
+  background-color: var(--danger-soft-bg);
+  color: var(--danger-color);
 }
 
 /* Copy-to-clipboard affordance on values users commonly re-search elsewhere
@@ -973,7 +1039,7 @@ tr:hover td {
 
 .copy-chip.copy-chip-done {
   opacity: 1;
-  color: #059669;
+  color: var(--success-color);
 }
 
 /* Modals */
@@ -1076,7 +1142,7 @@ tr:hover td {
 }
 
 .form-label .required {
-  color: #ef4444;
+  color: var(--danger-color);
   margin-left: 2px;
 }
 
@@ -1094,7 +1160,7 @@ tr:hover td {
 }
 
 .form-input::placeholder, .form-textarea::placeholder {
-  color: #cbd5e1;
+  color: var(--text-placeholder);
 }
 
 .form-input:focus, .form-select:focus, .form-textarea:focus {
@@ -1136,7 +1202,46 @@ tr:hover td {
 .typeahead-item.active,
 .typeahead-item:hover {
   background-color: var(--primary-color);
-  color: #fff;
+  color: var(--on-primary);
+}
+
+/* Global search suggestions (Stage 28.5) - the same typeahead menu, with a
+   second muted line naming what the hit is ("Screen · Buying"). Built from
+   the same tokens, so it themes itself along with everything else. */
+.global-search-menu {
+  max-height: 340px;
+}
+
+.global-search-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: normal;
+  padding: 8px 12px;
+}
+
+.global-search-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.global-search-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Stays legible once the row is highlighted and the background flips to the
+   primary colour. */
+.global-search-item.active .global-search-meta,
+.global-search-item:hover .global-search-meta {
+  color: var(--on-primary);
+  opacity: 0.75;
+}
+
+.global-search-empty {
+  padding: 10px 12px;
+  font-size: 12.5px;
+  color: var(--text-muted);
 }
 
 /* Toggle Switch */
@@ -1197,7 +1302,7 @@ tr:hover td {
   width: 18px;
   left: 3px;
   bottom: 3px;
-  background-color: white;
+  background-color: var(--on-primary);
   transition: .3s;
   border-radius: 50%;
   box-shadow: 0 1px 3px rgba(0,0,0,0.15);
@@ -1277,31 +1382,31 @@ input:checked + .slider:before {
 /* Tab Active State for Activity Log */
 .btn-outline.active {
   background-color: var(--primary-color);
-  color: #ffffff;
+  color: var(--on-primary);
   border-color: var(--primary-color);
 }
 
 /* System Exception Logs Badge Custom Colors */
 .badge-danger {
-  background-color: #fecaca;
-  color: #b91c1c;
+  background-color: var(--danger-soft-bg);
+  color: var(--danger-strong);
 }
 
 .badge-warning {
-  background-color: #fef3c7;
-  color: #d97706;
+  background-color: var(--warning-soft-bg);
+  color: var(--warning-strong);
 }
 
 /* Preformatted Stack Traces style rules */
 pre {
   background: var(--surface-subtle);
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 12px;
   overflow-x: auto;
   font-family: Consolas, Monaco, "Andale Mono", monospace;
   white-space: pre-wrap;
-  color: #334155;
+  color: var(--text-main);
   text-align: left;
 }
 
@@ -1379,15 +1484,45 @@ pre {
 }
 
 .custom-dialog-close-x:hover {
-  color: #ef4444;
+  color: var(--danger-color);
 }
 
 .custom-dialog-body {
   padding: 24px;
   font-size: 14px;
-  color: #334155;
+  color: var(--text-main);
   line-height: 1.6;
   text-align: center;
+}
+
+/* Callers inject arbitrary markup into the dialog (showCustomAlert's extra
+   slot, showApiError's detail lists, showCustomPrompt's input). Everything
+   inherits .custom-dialog-body's readable foreground by default; these are
+   the elements the browser would otherwise paint with a UA default colour
+   that ignores the theme. Deliberately NOT a `*` rule - that would also
+   flatten intentional colours like a .badge-danger dropped into a dialog. */
+.custom-dialog-body p,
+.custom-dialog-body li,
+.custom-dialog-body td,
+.custom-dialog-body th,
+.custom-dialog-body h1,
+.custom-dialog-body h2,
+.custom-dialog-body h3,
+.custom-dialog-body h4,
+.custom-dialog-body label,
+.custom-dialog-body strong,
+.custom-dialog-body b,
+.custom-dialog-body code {
+  color: inherit;
+}
+
+.custom-dialog-body a {
+  color: var(--primary-color);
+}
+
+.custom-dialog-body small,
+.custom-dialog-body .text-muted {
+  color: var(--text-muted);
 }
 
 .custom-dialog-footer {
@@ -1534,9 +1669,9 @@ pre {
 
 .login-error {
   font-size: 13px;
-  color: #b91c1c;
-  background-color: #fef2f2;
-  border: 1px solid #fecaca;
+  color: var(--danger-strong);
+  background-color: var(--danger-soft-bg);
+  border: 1px solid var(--danger-soft-border);
   border-radius: 4px;
   padding: 8px 12px;
 }
@@ -1585,9 +1720,9 @@ pre {
   line-height: 1.5;
 }
 
-.toast-danger { border-left-color: #b91c1c; }
-.toast-warning { border-left-color: #d97706; }
-.toast-success { border-left-color: #15803d; }
+.toast-danger { border-left-color: var(--danger-color); }
+.toast-warning { border-left-color: var(--warning-color); }
+.toast-success { border-left-color: var(--success-color); }
 .toast-info { border-left-color: var(--primary-color); }
 
 /* Page banner (Stage 23) - dismissible bar at the top of a screen
@@ -1604,15 +1739,15 @@ pre {
 }
 
 .page-banner-danger {
-  color: #b91c1c;
-  background-color: #fef2f2;
-  border: 1px solid #fecaca;
+  color: var(--danger-strong);
+  background-color: var(--danger-soft-bg);
+  border: 1px solid var(--danger-soft-border);
 }
 
 .page-banner-warning {
-  color: #d97706;
-  background-color: #fef3c7;
-  border: 1px solid #fde68a;
+  color: var(--warning-strong);
+  background-color: var(--warning-soft-bg);
+  border: 1px solid var(--warning-soft-border);
 }
 
 .page-banner-close {

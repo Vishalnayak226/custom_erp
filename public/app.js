@@ -1477,6 +1477,7 @@ function setupEventListeners() {
       saveNavState();
     }
   });
+  setupGlobalSearchSuggest(globalSearch);
 
   // Sync / Reset Database
   document.getElementById('sync-btn').addEventListener('click', async () => {
@@ -1622,6 +1623,75 @@ function setActiveMenu(menuId) {
   }
 }
 
+// Visual gap between a module row and its flyout panel. The same value is
+// spanned by the invisible hover bridge below, so the gap is only a gap to
+// the eye - never to the pointer.
+const FLYOUT_GAP_PX = 8;
+// Grace period before a flyout closes once the pointer has genuinely left
+// both the module row and the flyout. Long enough to survive an overshoot,
+// short enough not to feel sticky.
+const FLYOUT_HIDE_DELAY_MS = 260;
+
+// One shared hide timer for the whole sidebar, deliberately not one per
+// container (Stage 28.5 fix): with per-container timers, sliding from module
+// A down to module B left A's already-scheduled timer running, and 200ms
+// later it fired the *global* closeSubmenus() and shut B's freshly-opened
+// flyout. The menu vanished from under the pointer and the click that
+// followed landed on the page behind it - which is what "I click the menu
+// and nothing opens" actually was. A single timer means opening anything
+// cancels the pending close, whichever module scheduled it.
+let flyoutHideTimer = null;
+// Dwell required before hovering a *different* module row takes the open menu
+// away from the current one. Moving from a module row to an item low in its
+// flyout is a diagonal that clips the rows underneath; without this, each row
+// clipped en route swapped the menu and the item being reached for was gone
+// by the time the pointer arrived. Short enough that a deliberate move
+// between modules still feels instant.
+const FLYOUT_SWITCH_DELAY_MS = 140;
+// Longer dwell required when the pointer is visibly travelling *towards* the
+// panel that is already open - i.e. cutting the corner diagonally across the
+// rows between the module and the item it is aiming at. Standing still on a
+// row for this long is unambiguous intent to switch; sweeping across it is
+// not.
+const FLYOUT_AIM_GRACE_MS = 500;
+let flyoutOpenTimer = null;
+
+// Last pointer position and direction of travel, used only by the aim test
+// above. Passive + capture so it never interferes with anything else.
+let flyoutPointerTrail = { x: 0, y: 0, dx: 0, dy: 0 };
+document.addEventListener('pointermove', (e) => {
+  flyoutPointerTrail = {
+    x: e.clientX,
+    y: e.clientY,
+    dx: e.clientX - flyoutPointerTrail.x,
+    dy: e.clientY - flyoutPointerTrail.y
+  };
+}, { passive: true, capture: true });
+
+// True when the pointer is heading rightwards at a flyout panel that is
+// already open and sits to its right.
+function pointerAimingAtOpenFlyout(exceptContainer) {
+  const openContainer = document.querySelector('.has-flyout.flyout-open');
+  if (!openContainer || openContainer === exceptContainer) return false;
+  const panel = openContainer.querySelector('.menu-flyout');
+  if (!panel) return false;
+  const r = panel.getBoundingClientRect();
+  return flyoutPointerTrail.dx > 0 && r.left >= flyoutPointerTrail.x;
+}
+
+function cancelFlyoutHide() {
+  if (flyoutHideTimer) { clearTimeout(flyoutHideTimer); flyoutHideTimer = null; }
+}
+
+function cancelFlyoutOpen() {
+  if (flyoutOpenTimer) { clearTimeout(flyoutOpenTimer); flyoutOpenTimer = null; }
+}
+
+function scheduleFlyoutHide() {
+  cancelFlyoutHide();
+  flyoutHideTimer = setTimeout(() => { flyoutHideTimer = null; closeSubmenus(); }, FLYOUT_HIDE_DELAY_MS);
+}
+
 // Positions a module's flyout beside its trigger (JS-computed, not CSS
 // position:absolute, so it's never clipped by .sidebar-menu's own
 // overflow-y:auto) and shows it.
@@ -1629,24 +1699,79 @@ function openFlyout(container) {
   const trigger = container.querySelector('.menu-item-group');
   const flyout = container.querySelector('.menu-flyout');
   if (!trigger || !flyout) return;
+
+  // Any pending close is for a menu the pointer has since come back to (or
+  // moved on from) - either way it must not fire against this one. Exactly
+  // one module flyout is open at a time.
+  cancelFlyoutHide();
+  closeSubmenus(container);
+
   const rect = trigger.getBoundingClientRect();
   const margin = 12;
-  // A long flyout (e.g. Master Definition's ~25 master doctypes) anchored
-  // near the bottom of the sidebar would otherwise run off the bottom of
-  // the viewport - cap its height to the space actually available below
-  // the trigger (it scrolls internally via its own overflow-y) rather than
-  // a flat viewport-height max-height that ignores where the trigger sits.
-  const availableBelow = window.innerHeight - rect.top - margin;
-  flyout.style.top = `${Math.round(rect.top)}px`;
-  flyout.style.left = `${Math.round(rect.right + 8)}px`;
-  flyout.style.maxHeight = `${Math.max(120, Math.round(availableBelow))}px`;
-  flyout.classList.add('open');
+  flyout.style.left = `${Math.round(rect.right + FLYOUT_GAP_PX)}px`;
+  flyout.classList.add('open');   // must be displayed before scrollHeight is meaningful
+
+  // A long flyout (Stock's 11 screens, Master Definition's ~25 master
+  // doctypes) anchored to a trigger low in the sidebar used to be capped at
+  // the space *below* that trigger, which pushed its last items off the
+  // bottom of the screen - reachable only by scrolling inside the menu, and
+  // in practice not reachable at all, because the pointer had to leave the
+  // menu to get there. Instead: give it its natural height where that fits,
+  // and slide the whole panel up so its bottom stays on screen. Only a menu
+  // taller than the entire viewport still scrolls internally.
+  const viewportMax = Math.max(120, window.innerHeight - margin * 2);
+  const naturalHeight = flyout.scrollHeight;
+  const height = Math.min(naturalHeight, viewportMax);
+  let top = Math.round(rect.top);
+  if (top + height > window.innerHeight - margin) {
+    top = Math.round(Math.max(margin, window.innerHeight - margin - height));
+  }
+  flyout.style.top = `${top}px`;
+  flyout.style.maxHeight = `${viewportMax}px`;
   container.classList.add('flyout-open');
+
+  // Invisible hover bridge over that gap. The gap is outside the container's
+  // own box, so a pointer crossing it - or pausing in it, which anyone
+  // reaching for a submenu item does - fired container's mouseleave and
+  // started the close. The bridge is a child of the container, so the
+  // mouseenter/mouseleave pair counts it as "still on the menu", and it is
+  // pure hit area: transparent, painted nothing, removed from the flow.
+  let bridge = container.querySelector('.menu-flyout-bridge');
+  if (!bridge) {
+    bridge = document.createElement('div');
+    bridge.className = 'menu-flyout-bridge';
+    bridge.setAttribute('aria-hidden', 'true');
+    container.appendChild(bridge);
+  }
+  // Spans the full vertical range of both the row and the panel, since the
+  // panel may now sit above the row as well as below it.
+  const bridgeTop = Math.min(top, Math.round(rect.top));
+  const bridgeBottom = Math.max(top + height, Math.round(rect.bottom));
+  bridge.style.top = `${bridgeTop}px`;
+  bridge.style.left = `${Math.round(rect.right)}px`;
+  bridge.style.width = `${FLYOUT_GAP_PX + 2}px`;
+  bridge.style.height = `${bridgeBottom - bridgeTop}px`;
+  bridge.style.display = 'block';
 }
 
-function closeSubmenus() {
-  document.querySelectorAll('.menu-flyout.open').forEach(f => f.classList.remove('open'));
-  document.querySelectorAll('.has-flyout.flyout-open').forEach(c => c.classList.remove('flyout-open'));
+// Closes every open module flyout. Pass a container to leave that one open
+// (used by openFlyout to swap which module is showing without a flicker).
+function closeSubmenus(except) {
+  if (!except) cancelFlyoutOpen();
+  document.querySelectorAll('.has-flyout.flyout-open').forEach(c => {
+    if (c === except) return;
+    c.classList.remove('flyout-open');
+    c.dataset.flyoutPinned = '';
+    const f = c.querySelector('.menu-flyout');
+    if (f) f.classList.remove('open');
+    const b = c.querySelector('.menu-flyout-bridge');
+    if (b) b.style.display = 'none';
+  });
+  // Defensive: catch any flyout left marked open without its container class.
+  document.querySelectorAll('.menu-flyout.open').forEach(f => {
+    if (except && except.contains(f)) return;
+    f.classList.remove('open');
+  });
 }
 
 // Module-grouped sidebar (Stage 20 nav redesign): the left sidebar shows
@@ -1658,35 +1783,81 @@ function closeSubmenus() {
 // it never double-binds the sidebar's own.
 let moduleFlyoutDocListenersBound = false;
 function setupModuleFlyouts() {
+  // Sibling entries with no flyout of their own (Dashboard, Reports,
+  // Manufacturing, PIM). Hovering one should put the open menu away - but on
+  // the same dwell rule as switching modules, because the diagonal from a
+  // module row down to an item near the bottom of its flyout sweeps straight
+  // across these too. Without this they were dead zones: the pointer sat on
+  // one with nothing listening, and the close scheduled on the way out of
+  // the module row went through unopposed.
+  document.querySelectorAll('.menu-item-container:not(.has-flyout)').forEach(item => {
+    if (item.dataset.flyoutBound) return;
+    item.dataset.flyoutBound = '1';
+    item.addEventListener('pointerenter', () => {
+      cancelFlyoutOpen();
+      cancelFlyoutHide();
+      const delay = pointerAimingAtOpenFlyout(null) ? FLYOUT_AIM_GRACE_MS : FLYOUT_SWITCH_DELAY_MS;
+      flyoutHideTimer = setTimeout(() => { flyoutHideTimer = null; closeSubmenus(); }, delay);
+    });
+  });
+
   document.querySelectorAll('.has-flyout').forEach(container => {
     if (container.dataset.flyoutBound) return;
     const trigger = container.querySelector('.menu-item-group');
     const flyout = container.querySelector('.menu-flyout');
     if (!trigger || !flyout) return;
     container.dataset.flyoutBound = '1';
-    let hideTimer = null;
-    const show = () => { clearTimeout(hideTimer); openFlyout(container); };
-    const scheduleHide = () => { hideTimer = setTimeout(closeSubmenus, 200); };
+    const show = () => { cancelFlyoutOpen(); openFlyout(container); };
 
-    // Open immediately when the pointer reaches the left-hand module row or
-    // its arrow. Pointer events cover both the persistent sidebar and the
-    // dynamically-rendered Schema Designer module list; focus keeps the same
-    // behavior usable from a keyboard.
-    trigger.addEventListener('pointerenter', show);
-    container.addEventListener('mouseenter', show);
-    container.addEventListener('mouseleave', scheduleHide);
+    // Hover-open. Instant when nothing is open yet; when another module's
+    // menu is already showing, this row has to be dwelt on briefly before it
+    // takes over, so a pointer merely travelling across it on the way to that
+    // other menu doesn't yank it away mid-reach.
+    const showOnHover = () => {
+      cancelFlyoutHide();
+      if (container.classList.contains('flyout-open')) return;
+      cancelFlyoutOpen();
+      if (!document.querySelector('.has-flyout.flyout-open')) { show(); return; }
+      const delay = pointerAimingAtOpenFlyout(container) ? FLYOUT_AIM_GRACE_MS : FLYOUT_SWITCH_DELAY_MS;
+      flyoutOpenTimer = setTimeout(() => { flyoutOpenTimer = null; show(); }, delay);
+    };
+
+    // Open as soon as the pointer reaches the module row or its arrow, and
+    // keep it open for as long as the pointer is anywhere in the container's
+    // subtree - the row, the bridge, or the flyout itself. Because the flyout
+    // and bridge are DOM children of the container (even though both are
+    // position:fixed), moving between them never leaves the container, so
+    // mouseleave only fires when the pointer has genuinely gone elsewhere.
+    // Pointer events cover both the persistent sidebar and the dynamically
+    // rendered Schema Designer module list; focus keeps it keyboard-usable.
+    container.addEventListener('pointerenter', showOnHover);
+    trigger.addEventListener('pointerenter', showOnHover);
+    container.addEventListener('pointermove', cancelFlyoutHide);
+    // pointerleave, NOT mouseleave: pointer events fire ahead of their
+    // compatibility mouse events, so a mouseleave here landed *after* the
+    // next row's pointerenter had already cancelled the pending close - it
+    // then scheduled a fresh close that nothing cancelled, and the menu shut
+    // 260ms later while the pointer was still on its way to it. Same family
+    // on both sides keeps the order leave-then-enter.
+    container.addEventListener('pointerleave', () => { cancelFlyoutOpen(); scheduleFlyoutHide(); });
     container.addEventListener('focusin', show);
     container.addEventListener('focusout', (e) => {
-      if (!container.contains(e.relatedTarget)) scheduleHide();
+      if (!container.contains(e.relatedTarget)) scheduleFlyoutHide();
     });
-    flyout.addEventListener('mouseenter', () => clearTimeout(hideTimer));
-    flyout.addEventListener('mouseleave', scheduleHide);
 
+    // Clicking the module row is a fallback for touch and for anyone who
+    // clicks out of habit - it must never close a menu the user just hovered
+    // open and is reaching into. Only a second, deliberate click on an
+    // already-clicked (pinned) row closes it again.
     trigger.addEventListener('click', (e) => {
       e.preventDefault();
-      const wasOpen = flyout.classList.contains('open');
-      closeSubmenus();
-      if (!wasOpen) show();
+      const pinned = container.dataset.flyoutPinned === '1';
+      if (pinned && flyout.classList.contains('open')) {
+        closeSubmenus();
+        return;
+      }
+      show();
+      container.dataset.flyoutPinned = '1';
     });
   });
 
@@ -1695,9 +1866,201 @@ function setupModuleFlyouts() {
   document.addEventListener('click', (e) => {
     if (!e.target.closest('.has-flyout')) closeSubmenus();
   });
-  window.addEventListener('resize', closeSubmenus);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeSubmenus();
+  });
+  window.addEventListener('resize', () => closeSubmenus());
   const sidebarMenu = document.querySelector('.sidebar-menu');
-  if (sidebarMenu) sidebarMenu.addEventListener('scroll', closeSubmenus);
+  // Scrolling the sidebar moves the trigger the flyout is anchored to, so
+  // reposition the open one instead of closing it - closing mid-scroll was
+  // another way the menu disappeared while the user was still using it.
+  if (sidebarMenu) {
+    sidebarMenu.addEventListener('scroll', () => {
+      const open = document.querySelector('.has-flyout.flyout-open');
+      if (open) openFlyout(open);
+    });
+  }
+}
+
+// Global search (top bar). It used to filter only the table you already had
+// open, so on the dashboard - or any screen that isn't a record table -
+// typing did nothing whatsoever, despite the placeholder offering to search
+// menus and record types. It now also suggests every destination the query
+// matches: each sidebar entry (including the ones tucked inside a module
+// flyout, which are otherwise only reachable by hovering the right module)
+// and each registered record type. The table filtering it already did is
+// untouched and still happens alongside.
+//
+// Picking a suggestion dispatches a click on the real sidebar element
+// wherever one exists, so routing, permission filtering and active-item
+// highlighting all keep living in exactly one place rather than being
+// duplicated here. The dropdown reuses .typeahead-menu/.typeahead-item, the
+// same vocabulary attachTypeahead() already renders.
+const GLOBAL_SEARCH_LIMIT = 12;
+
+function buildGlobalSearchIndex() {
+  const entries = [];
+  const seen = new Set();
+  const isHidden = el => el.classList.contains('perm-hidden') || el.classList.contains('module-hidden');
+
+  document.querySelectorAll('.sidebar-menu .menu-item-container').forEach(li => {
+    if (isHidden(li)) return;
+    const group = li.querySelector(':scope > .menu-item-group');
+    const moduleLabel = group ? group.textContent.trim() : '';
+    const anchors = group
+      ? [...li.querySelectorAll(':scope > .menu-flyout > li')]
+          .filter(row => !isHidden(row))
+          .map(row => row.querySelector('.menu-item, .submenu-item'))
+          .filter(Boolean)
+      : [li.querySelector(':scope > .menu-item')].filter(Boolean);
+    anchors.forEach(a => {
+      const label = a.textContent.trim();
+      if (!label) return;
+      const key = 'nav:' + (a.id || `${moduleLabel}/${label}`);
+      if (seen.has(key)) return;
+      seen.add(key);
+      seen.add('label:' + label.toLowerCase());
+      entries.push({ kind: 'Screen', label, context: moduleLabel, el: a });
+    });
+  });
+
+  (state.activeDoctypes || []).forEach(d => {
+    const key = 'doc:' + d.name;
+    // A record type the sidebar already lists as a screen (the Setup module's
+    // Master Definition submenu lists many) would otherwise appear twice
+    // under the same name - keep the screen, which navigates the same place.
+    if (seen.has('label:' + getTranslatedLabel(d.name).toLowerCase())) return;
+    if (seen.has(key)) return;
+    seen.add(key);
+    entries.push({
+      kind: 'Record type',
+      label: getTranslatedLabel(d.name),
+      context: d.module || '',
+      doctype: d.name,
+      raw: d.name
+    });
+  });
+
+  return entries;
+}
+
+function matchGlobalSearch(entries, query) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return [];
+  const scored = [];
+  entries.forEach(entry => {
+    const label = entry.label.toLowerCase();
+    const hay = `${label} ${entry.context} ${entry.raw || ''}`.toLowerCase();
+    const hayIdx = hay.indexOf(needle);
+    if (hayIdx < 0) return;
+    const labelIdx = label.indexOf(needle);
+    // A hit on the entry's own name beats one on its module; an earlier hit
+    // beats a later one. Keeps "buy" surfacing Buying's screens above a
+    // record type that merely mentions it.
+    const rank = labelIdx === 0 ? 0 : labelIdx > 0 ? 20 : 100;
+    scored.push({ entry, score: rank + Math.min(hayIdx, 19) });
+  });
+  scored.sort((a, b) => a.score - b.score || a.entry.label.localeCompare(b.entry.label));
+  return scored.slice(0, GLOBAL_SEARCH_LIMIT).map(s => s.entry);
+}
+
+function setupGlobalSearchSuggest(inputEl) {
+  if (!inputEl || inputEl.dataset.suggestBound) return;
+  inputEl.dataset.suggestBound = '1';
+  inputEl.setAttribute('autocomplete', 'off');
+
+  let menu = null;
+  let results = [];
+  let activeIndex = -1;
+
+  const onDocMouseDown = (e) => {
+    if (menu && !menu.contains(e.target) && e.target !== inputEl) close();
+  };
+
+  function close() {
+    if (menu) { menu.remove(); menu = null; }
+    document.removeEventListener('mousedown', onDocMouseDown, true);
+    results = [];
+    activeIndex = -1;
+  }
+
+  function highlight(idx) {
+    if (!menu) return;
+    const rows = menu.querySelectorAll('.typeahead-item');
+    rows.forEach(r => r.classList.remove('active'));
+    if (idx >= 0 && rows[idx]) {
+      rows[idx].classList.add('active');
+      rows[idx].scrollIntoView({ block: 'nearest' });
+    }
+    activeIndex = idx;
+  }
+
+  function pick(entry) {
+    close();
+    inputEl.value = '';
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    inputEl.blur();
+    if (entry.el) {
+      // The sidebar's own handler owns this destination - let it run.
+      entry.el.click();
+      return;
+    }
+    closeSubmenus();
+    currentDoctype = entry.doctype;
+    renderView('doctype-table');
+  }
+
+  function render(query) {
+    close();
+    results = matchGlobalSearch(buildGlobalSearchIndex(), query);
+    if (!query.trim()) return;
+
+    menu = document.createElement('div');
+    menu.className = 'typeahead-menu global-search-menu';
+    const rect = inputEl.getBoundingClientRect();
+    menu.style.left = `${Math.round(rect.left)}px`;
+    menu.style.top = `${Math.round(rect.bottom + 6)}px`;
+    menu.style.width = `${Math.round(Math.max(rect.width, 280))}px`;
+
+    if (results.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'global-search-empty';
+      empty.textContent = `No menu or record type matches "${query.trim()}"`;
+      menu.appendChild(empty);
+    } else {
+      results.forEach((entry) => {
+        const row = document.createElement('div');
+        row.className = 'typeahead-item global-search-item';
+        const label = document.createElement('span');
+        label.className = 'global-search-label';
+        label.textContent = entry.label;
+        const meta = document.createElement('span');
+        meta.className = 'global-search-meta';
+        meta.textContent = entry.context ? `${entry.kind} · ${entry.context}` : entry.kind;
+        row.appendChild(label);
+        row.appendChild(meta);
+        row.addEventListener('mousedown', (e) => { e.preventDefault(); pick(entry); });
+        menu.appendChild(row);
+      });
+    }
+    document.body.appendChild(menu);
+    document.addEventListener('mousedown', onDocMouseDown, true);
+  }
+
+  inputEl.addEventListener('input', () => render(inputEl.value));
+  inputEl.addEventListener('focus', () => { if (inputEl.value.trim()) render(inputEl.value); });
+  inputEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { close(); return; }
+    if (!menu || results.length === 0) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(activeIndex + 1, results.length - 1)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(Math.max(activeIndex - 1, 0)); }
+    else if (e.key === 'Enter') {
+      e.preventDefault();
+      pick(results[activeIndex >= 0 ? activeIndex : 0]);
+    }
+  });
+  window.addEventListener('resize', close);
 }
 
 // Maps a static view name to the sidebar menu item that represents it, for
@@ -2395,7 +2758,7 @@ function renderDashboard(container) {
       <span class="stat-label">Platform Core Health</span>
       <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
         <span class="pulse-dot"></span>
-        <span style="font-size: 16px; font-weight: 700; color: #10b981;">Operational</span>
+        <span style="font-size: 16px; font-weight: 700; color: var(--success-color);">Operational</span>
       </div>
     </div>
   `;
@@ -5655,7 +6018,7 @@ async function renderPurchaseOrdersView(container) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   let html = ordersLoadFailed
-    ? `<p style="padding: 16px; color: #ef4444; font-size: 13px;">Failed to load existing purchase orders.</p>`
+    ? `<p style="padding: 16px; color: var(--danger-color); font-size: 13px;">Failed to load existing purchase orders.</p>`
     : '';
   html += `
     <table>
@@ -12139,7 +12502,7 @@ async function renderExtensionHookLogView(container) {
               <td>${e.called_at ? new Date(e.called_at).toLocaleString() : ''}</td>
               <td>${e.response_status != null ? `<span class="badge ${e.response_status >= 200 && e.response_status < 300 ? 'badge-success' : 'badge-danger'}">${e.response_status}</span>` : '<span class="badge badge-secondary">-</span>'}</td>
               <td>${e.latency_ms}ms</td>
-              <td style="color:#ef4444;">${e.error || ''}</td>
+              <td style="color:var(--danger-color);">${e.error || ''}</td>
             </tr>
           `).join('')}
       </tbody>
@@ -12247,7 +12610,7 @@ async function renderLogHubView(container) {
     tabContent.innerHTML = `
       <div class="table-panel">
         <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">Audit Logs</h3>
-        ${auditLoadFailed ? `<p style="padding: 0 16px 12px; color: #ef4444; font-size: 13px;">Failed to load audit logs.</p>` : ''}
+        ${auditLoadFailed ? `<p style="padding: 0 16px 12px; color: var(--danger-color); font-size: 13px;">Failed to load audit logs.</p>` : ''}
         <div class="table-wrapper">
           <table>
             <thead>
@@ -12278,7 +12641,7 @@ async function renderLogHubView(container) {
     tabContent.innerHTML = `
       <div class="table-panel">
         <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">System Panic & Error Logs</h3>
-        ${sysLoadFailed ? `<p style="padding: 0 16px 12px; color: #ef4444; font-size: 13px;">Failed to load system logs.</p>` : ''}
+        ${sysLoadFailed ? `<p style="padding: 0 16px 12px; color: var(--danger-color); font-size: 13px;">Failed to load system logs.</p>` : ''}
         <div class="table-wrapper">
           <table>
             <thead>
@@ -12309,7 +12672,7 @@ async function renderLogHubView(container) {
     tabContent.innerHTML = `
       <div class="table-panel">
         <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">Integration Payloads</h3>
-        ${intLoadFailed ? `<p style="padding: 0 16px 12px; color: #ef4444; font-size: 13px;">Failed to load integration logs.</p>` : ''}
+        ${intLoadFailed ? `<p style="padding: 0 16px 12px; color: var(--danger-color); font-size: 13px;">Failed to load integration logs.</p>` : ''}
         <div class="table-wrapper">
           <table>
             <thead>
@@ -12587,7 +12950,7 @@ async function renderSystemStatusView(container) {
 
   if (deployFailed || backupFailed) {
     const err = document.createElement('p');
-    err.style.cssText = 'color:#ef4444; font-size:13px; margin-bottom:16px;';
+    err.style.cssText = 'color:var(--danger-color); font-size:13px; margin-bottom:16px;';
     err.textContent = deployFailed && backupFailed
       ? 'Failed to load deployment and backup status.'
       : deployFailed ? 'Failed to load deployment status.' : 'Failed to load backup status.';
@@ -12642,7 +13005,7 @@ async function renderSystemStatusView(container) {
               <td style="font-weight:600; text-transform:capitalize;">${d.environment}</td>
               <td>
                 <span class="badge ${d.build_status === 'passed' ? 'badge-success' : d.build_status === 'failed' ? 'badge-danger' : 'badge-secondary'}">${d.build_status}</span>
-                ${d.code ? `<div style="font-size:11px; color:#b91c1c; margin-top:2px;">${d.code}: ${d.message}</div>` : ''}
+                ${d.code ? `<div style="font-size:11px; color:var(--danger-strong); margin-top:2px;">${d.code}: ${d.message}</div>` : ''}
               </td>
               <td style="font-family:Consolas,Monaco,monospace; font-size:12px;">${(d.git_commit || '').slice(0, 10)}</td>
               <td>${d.app_version || ''}</td>
@@ -12696,7 +13059,7 @@ async function renderSystemStatusView(container) {
               <td style="text-transform:capitalize;">${o.environment}</td>
               <td>
                 <span class="badge ${o.status === 'success' ? 'badge-success' : o.status === 'failed' ? 'badge-danger' : 'badge-secondary'}">${o.status}</span>
-                ${o.code ? `<div style="font-size:11px; color:#b91c1c; margin-top:2px;">${o.code}: ${o.message}</div>` : ''}
+                ${o.code ? `<div style="font-size:11px; color:var(--danger-strong); margin-top:2px;">${o.code}: ${o.message}</div>` : ''}
               </td>
               <td style="font-size:12px; color:var(--text-muted);">${o.detail || ''}</td>
               <td style="font-size:11px; white-space:nowrap;">${o.started_at || ''}</td>
