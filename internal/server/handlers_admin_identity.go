@@ -251,6 +251,10 @@ func handleSetUserStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Stage 29.8: deactivating a user must end their live session now, not at
+	// the end of the auth-state cache window.
+	engines.InvalidateLiveUserState(tenantID, req.ID)
+
 	engines.LogAuditEvent(tenantID, actorUsername, "USER_MANAGEMENT", "USER_STATUS_CHANGED", fmt.Sprintf("Set user %s status to %s", req.ID, req.Status))
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
@@ -288,6 +292,11 @@ func handleSetUserLocation(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to update user location")
 		return
 	}
+
+	// Stage 29.8: location is now resolved live per request (it drives
+	// location-scoped object filtering), so a transfer must invalidate the
+	// cached state too or the user keeps seeing their old store's data.
+	engines.InvalidateLiveUserState(tenantID, req.ID)
 
 	engines.LogAuditEvent(tenantID, actorUsername, "USER_MANAGEMENT", "USER_LOCATION_CHANGED", fmt.Sprintf("Set user %s location to %s", req.ID, req.LocationCode))
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})

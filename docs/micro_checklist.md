@@ -667,4 +667,65 @@ Four defects reported by the user in one session, all in `public/app.js`/`public
 
 ---
 
+## Stage 29.7 — QC exhaustive-report follow-ups (O1 index, O2 sslmode) ✅ (2026-07-29)
+
+The two non-blocking observations from `QC_EXHAUSTIVE_REPORT.md` (§FINDINGS SUMMARY, O1/O2), closed on the user's instruction to fix them plus any other open items. See `project_ledger.md` §66.
+
+- [x] **29.7.1 O1 — gl_postings reporting index.** `db/migrations_stage29_gl_postings_reporting_index.sql` adds `idx_gl_postings_account_created` on `(account_code, created_at) INCLUDE (debit, credit, cost_center)`, backfilled into every existing `tenant_%` schema (new tenants inherit it via `ProvisionTenantSchema`'s `LIKE ... INCLUDING ALL`). **The QC report's literal recommendation — a bare `(account_code, created_at)` — was measured and does not work**: on a seeded 1M-row `gl_postings` the planner produced a byte-identical Seq Scan plan with the bare index present and absent, because the reports need `debit`/`credit` per row and a non-covering index means a heap visit per row, which costs more than the seq scan it would replace. The `INCLUDE` payload is what makes the plans flip to index-only scans (`Heap Fetches: 0`). Backfill guard matches on index *definition*, not name, because `LIKE ... INCLUDING ALL` does not preserve index names — a name-only `IF NOT EXISTS` would have built a second redundant copy on any tenant provisioned after the migration.
+- [x] **29.7.2 O1 (part 2) — sargable date predicates, without which the index is inert.** Nine gl_postings report queries spelled their range as `created_at::date BETWEEN $1 AND $2`; the cast wraps the indexed column in a function call so it can never be a range seek. Rewritten to the equivalent half-open `created_at >= $1::date AND created_at < ($2::date + 1)` in `finance_reports_stage26.go` (P&L, balance sheet, cash flow, tax ledger, statutory export), `gl_cost_center.go` (cost-centre P&L), `reports.go` (`glAccountNetBalance`, GST txn count) and `report_definitions.go` (`gstReturnDrillDown`). The convention is documented once at the top of `finance_reports_stage26.go` so new queries follow it. **The index and this rewrite only pay off together** — neither is worth shipping alone.
+- [x] **29.7.3 O2 — sslmode documented for production.** `deploy/erp.env.example` now explains why the shipped `sslmode=disable` is only valid for a same-box loopback DB, what to switch to for any off-box/managed Postgres (`require` minimum, `verify-full` + `sslrootcert=` preferred), and how to verify what was actually negotiated (`pg_stat_ssl`). Records the lib/pq-specific gotcha that omitting `sslmode` yields `require`, **not** psql/libpq's `prefer` (verified in `lib/pq@v1.12.3/ssl.go`, where `mode == ""` shares a branch with `SSLModeRequire`). `deploy/README.md` A2 gained a matching callout at the point where the reader chooses where Postgres lives.
+
+**Verification (2026-07-29):** `go build ./...` + `go vet ./engines/...` clean; `go test ./... -p 1` fully green (including the finance GL-totals test that has historically been flaky). Migration applied to two throwaway databases and to the dev DB (both `tenant_default` and `tenant_new_schema`): applies clean, re-runs are no-ops, a schema without `gl_postings` is skipped, a tenant provisioned post-migration inherits the index and a re-run does **not** duplicate it. Every rewritten predicate was proved equivalent to its original against 1M seeded rows — zero differing rows on P&L and balance sheet, matching totals on cash flow/GST/drill-down/statutory export, and an explicit boundary case confirming a posting at `23:59:59.999` on the last day is still included while `00:00:00` on the next day is excluded. Measured effect at 1M rows: P&L for one quarter 87ms/2,480 buffers → 5ms/162; cash flow 109ms/20,402 → 4ms/933; cost-centre P&L 95ms/20,359 → 9ms/158. Index cost 47MB against a 159MB heap.
+
+**Two GL reports are deliberately not helped, and are the honest residue of O1:**
+
+- [ ] **29.7.4 Trial balance is an unbounded full aggregate** — `GetTrialBalance` (`engines/finance.go`) sums the *entire* ledger with no date filter, so it must touch every row by definition; no index can fix that, and the QC report's "add an index" framing of O1 was wrong on this specific query. The real fix is to bound it to a period or as-of date — which is how a trial balance is conventionally scoped anyway — but that changes the report's parameters and its screen. **[needs design decision: should Trial Balance take a mandatory as-of date (matching Balance Sheet) or an optional period filter defaulting to the open accounting period? Either is a small change once the shape is chosen.]**
+- [ ] **29.7.5 Statutory GL export can't use an account-leading index** — `GetStatutoryGLExport` filters on date alone with no `account_code`, so `idx_gl_postings_account_created` cannot seek for it. Left to seq-scan on purpose: it is an async background CSV export (`CreateReportExportJob`), not an interactive screen, so a second index on `(created_at)` would tax every posting write to speed up a job nobody waits on. Revisit only if it becomes interactive or the export window starts timing out.
+
+---
+
+## Stage 29.8 — Both remaining loophole items closed (status-transition map, JWT session staleness) ✅ (2026-07-29)
+
+The last two open items in `ERP_LOOPHOLES_ANALYSIS.md` were both blocked on the user, not on work: one was `[needs design decision]`, the other deferred by standing policy. Asked, and the user decided (2026-07-29):
+
+| Question | Decision |
+|---|---|
+| Enforcement posture for the transition map | **Opt-in strict, per doctype** — fail-open unless a doctype is flagged |
+| Scope of the first pass | **Transactional lifecycles + Masters** |
+| Session invalidation mechanism | **Middleware re-checks live user state** (not a jti denylist) |
+| Signing-key rotation | **Build multi-key rotation** |
+
+See `project_ledger.md` §67.
+
+- [x] **29.8.1 Per-doctype status-transition map.** Extends the **existing** `StatusTransitionRule` master (Stage 26.12.9) rather than adding a parallel mechanism — it already had the right shape (`from_status`/`to_status`/`allowed`/`requires_reason_code`) and an admin screen; it was just limited to four OMS entities and only consulted for order cancellation. `entity` widened from a 4-value Select to Data (so a doctype added later needs no migration), validated in code against the live doctype list plus the four legacy OMS names. New `doctype_meta.strict_status_transitions` boolean, default FALSE. Enforcement attached at the one shared choke point every generic-doc write already passes through (`ValidateTransactionalRules`), so all current and future callers are covered by construction. Rejections reuse catalog code `GLOBAL-0019` ("Invalid status transition", 422) — the code that already existed for exactly this — and the message lists the legal destinations rather than just refusing.
+- [x] **29.8.2 Matrices seeded: 178 rules, 64 doctypes flagged strict.** Master `Active`↔`Inactive` pairs are **generated** from `doctype_fields` rather than hand-listed, so every current and future Active/Inactive master is covered without maintaining a list. Transactional lifecycles listed explicitly (VendorInvoice can't jump `Draft`→`Paid` and skip the 3-way match; a `Disposed` Asset can't be re-capitalised; an `Approved` GRN whose stock already posted can only be reason-coded to `Cancelled`). Approval-engine edges (`Draft`→`Pending Approval`→`Approved`/`Rejected`, and `Approved`→`Pending Approval` for `ResetToPendingOnEdit`) are also **generated**, gated on both endpoints being real options for that doctype. Deliberately NOT flagged strict: worker-driven types (`ImportJob`, `ReportExportJob`, `POSOfflineQueueGap`, `POSOfflineSyncVariance`) whose status is written by background code, and the four legacy OMS entities.
+- [x] **29.8.3 Live user-state re-check (session staleness).** `ParseToken` is pure HMAC and never touched the DB, so a deactivated user kept full access for the rest of `JWT_EXPIRY_HOURS` (24h default) and a demoted user's token kept asserting the old role. `apiMiddleware` now re-reads the user's row per request behind a 30s cache (`AUTH_STATE_CACHE_SECONDS`), with the DB authoritative for role **and** location. Chosen over a jti denylist because a denylist can't fix the role half at all. Invalidation hooked into all three mutation sites (admin set-status, admin set-location, `SyncEmployeeAccessLink`) so a deactivation bites on the next request, not at the end of the cache window. Extension tokens are skipped (no user row exists); MFA tokens are checked. A DB failure returns a retryable 503, explicitly **not** a 401 — a replica hiccup must not log everyone out.
+- [x] **29.8.4 JWT signing-key rotation.** `JWT_SECRET_<n>`: highest number signs, every configured key verifies, so a planned rotation is add-key → wait one token TTL → delete-old-key with nobody logged out. Plain `JWT_SECRET` still works unchanged as the legacy key, and with no numbered key set the emitted token is **byte-identical** to before — inert until opted into. Verification deliberately tries all keys instead of selecting by the token's `kid`: `kid` lives inside the payload and is attacker-controlled until the HMAC has already passed, so using it to pick the trust anchor would mean trusting unverified input. `kid` is still emitted for ops visibility, just never load-bearing.
+
+**Verification (2026-07-29):** `go build ./...`, `go vet ./...` clean. 19 new subtests in `engines/stage29_8_test.go` + 2 end-to-end wiring tests in `internal/server/stage29_8_test.go` (deactivated user's live token → 401 `GLOBAL-0009`; `RFQ` `Draft`→`Closed` → 422 `GLOBAL-0019` with the document provably unchanged, while `Draft`→`Sent` still succeeds). Full suite green across 5 consecutive runs with strict mode live on all 64 doctypes.
+
+**Live-verified against a real server** (throwaway instance on :8099, real HTTP, real dev DB; instance stopped and scratch helper deleted afterwards):
+
+| Check | Result |
+|---|---|
+| `RFQ` `Draft`→`Closed` (skips `Sent`) | 422 `GLOBAL-0019`, stored status still `Draft` |
+| `RFQ` `Draft`→`Sent` (listed) | 200, stored status `Sent` |
+| Active user, valid token | 200 |
+| Same token after deactivation in DB | 401 `GLOBAL-0009` |
+| Same token after demotion HR/Admin→Cashier, hitting an HR/Admin endpoint | 403 `GLOBAL-0011` — **the half a jti denylist could not have fixed** |
+| Rotation: token signed by key 1 and key 2, both keys configured | both 200 (`kid=1` / `kid=2` present) |
+| Rotation: after deleting `JWT_SECRET_1` and restarting | key-1 token 401, key-2 token 200 |
+
+The last two rows walk the exact rotation procedure documented in `deploy/erp.env.example` end to end, including the retirement step.
+
+**Two pre-existing tests were corrected, not worked around:** `TestPIMDashboardRouteRequiresAuthenticationAndHonorsModuleGate` and `TestCrossTenantIsolationAndTokenSecurity` minted tokens for user ids that had no row in `users`. That is now correctly a dead session. The cross-tenant test's own comment claimed its token was "indistinguishable from a real login" — no longer true, so both tests now seed the user row a real login would have required.
+
+**Bugs this pass found in its own work, by testing against a clone of the dev DB before touching it:**
+- The first matrices were written from `db/migration.sql`'s original option strings, but later migrations had extended four doctypes (`PurchaseOrder` gained `Pending Approval`/`Rejected`, `ProductionOrder` gained `In Process`, `TransferOrder` gained `Packed`, `CycleCountLine` gained `Recount Requested`). A real PurchaseOrder was sitting in `Pending Approval` that strict mode would have **frozen permanently**. Fixed by generating the approval edges from each doctype's live options instead of a static list.
+- A real `SalesInvoice` was sitting in status `Active`, which isn't in its own option set (legacy debris). No rule can name a `from_status` the schema doesn't declare, so strict mode would have trapped that row forever. Added an escape: a write leaving an **undeclared** status is always allowed — the destination is still constrained by `ValidateDocument`, so this can only move debris back into a legal state.
+
+- [ ] **29.8.5 Judgement calls worth a second look** — `Leave` treats `Approved`/`Rejected` as terminal, so revoking an approved leave is currently blocked; same for `VendorQuote` `Selected`. Both are one admin-editable `StatusTransitionRule` row away from being allowed if that turns out to be wrong in practice — flagged rather than guessed at.
+
+---
+
 For the full chronological build narrative behind every item above, see **[docs/project_ledger.md](project_ledger.md)**. For environment setup, commit history, and known concurrent-session risk, see **[docs/ai_handover.md](ai_handover.md)**.

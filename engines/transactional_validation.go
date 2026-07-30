@@ -17,7 +17,19 @@ import (
 // doctypes that need to compare against their own prior state
 // (PurchaseOrder, ProductionOrder) actually use them.
 func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, priorData, payload map[string]interface{}) error {
+	// Stage 29.8: the per-doctype status-transition map runs for EVERY
+	// doctype, ahead of the per-doctype switch below - it is the generic
+	// half of the same job those bespoke rules do case by case. Attaching it
+	// here rather than at each call site means every current and future
+	// caller of the generic doc API is covered by construction. Opt-in
+	// strict, so this is a no-op for any doctype that hasn't been flagged.
+	if err := ValidateStatusTransition(tenantID, doctype, priorStatus, resolveWrittenStatus(payload), payload); err != nil {
+		return err
+	}
+
 	switch doctype {
+	case "StatusTransitionRule":
+		return validateStatusTransitionRule(tenantID, payload)
 	case "GRN":
 		return validateGRNRules(tenantID, docID, payload)
 	case "ASN":

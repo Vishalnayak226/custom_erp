@@ -96,7 +96,7 @@ func GetCostCenterPL(tenantID, startDate, endDate string) ([]map[string]interfac
 		       CASE WHEN a.account_type = 'Revenue' THEN COALESCE(SUM(p.credit), 0) - COALESCE(SUM(p.debit), 0)
 		            ELSE COALESCE(SUM(p.debit), 0) - COALESCE(SUM(p.credit), 0) END AS amount
 		FROM %s.gl_postings p JOIN %s.gl_accounts a ON a.account_code = p.account_code
-		WHERE a.account_type IN ('Revenue', 'Expense') AND p.created_at::date BETWEEN $1 AND $2
+		WHERE a.account_type IN ('Revenue', 'Expense') AND p.created_at >= $1::date AND p.created_at < ($2::date + 1)
 		GROUP BY COALESCE(p.cost_center, 'Unassigned'), a.account_type
 		ORDER BY cost_center, a.account_type`, schema, schema), startDate, endDate)
 	if err != nil {

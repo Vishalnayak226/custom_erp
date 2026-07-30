@@ -288,7 +288,7 @@ type GSTReturnSummary struct {
 func glAccountNetBalance(schema, accountCode, startDate, endDate string) (net float64, err error) {
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(credit), 0) - COALESCE(SUM(debit), 0) FROM %s.gl_postings
-		WHERE account_code = $1 AND created_at::date BETWEEN $2 AND $3`, schema),
+		WHERE account_code = $1 AND created_at >= $2::date AND created_at < ($3::date + 1)`, schema),
 		accountCode, startDate, endDate).Scan(&net)
 	return net, err
 }
@@ -324,7 +324,7 @@ func GetGSTReturnSummary(tenantID, startDate, endDate string) (*GSTReturnSummary
 	var txnCount int
 	if err := db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COUNT(DISTINCT document_id) FROM %s.gl_postings
-		WHERE account_code = '4100' AND created_at::date BETWEEN $1 AND $2`, schema),
+		WHERE account_code = '4100' AND created_at >= $1::date AND created_at < ($2::date + 1)`, schema),
 		startDate, endDate).Scan(&txnCount); err != nil {
 		return nil, err
 	}

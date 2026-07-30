@@ -56,7 +56,7 @@ func doRequest(t *testing.T, handler http.HandlerFunc, method, path, token strin
 // the mismatch - this test cannot make that mistake, because it goes through the
 // actual handleCheckout handler and can only observe what it actually persists.
 func TestCheckoutToForecastIntegration(t *testing.T) {
-	connStr := "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+	connStr := testConnStr()
 	db.InitDB(connStr)
 
 	testUser := "__integrationtest_user__"
@@ -210,7 +210,7 @@ func TestCheckoutToForecastIntegration(t *testing.T) {
 // next to the existing checkPermission call) actually takes effect, not just
 // that engines.IsModuleEnabled/SetModuleEntitlement compile.
 func TestModuleGateBlocksAndRestoresDoctypeAccess(t *testing.T) {
-	connStr := "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+	connStr := testConnStr()
 	db.InitDB(connStr)
 
 	testUser := "__moduletest_user__"
@@ -308,7 +308,7 @@ func TestModuleGateBlocksAndRestoresDoctypeAccess(t *testing.T) {
 // engines.ProvisionTenantSchema must actually persist the version it was
 // called with, not silently drop it.
 func TestVersionEndpointIsPublicAndTenantStampingWorks(t *testing.T) {
-	connStr := "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+	connStr := testConnStr()
 	db.InitDB(connStr)
 
 	// 1. No Authorization header at all - must not 401.
@@ -362,7 +362,7 @@ func TestVersionEndpointIsPublicAndTenantStampingWorks(t *testing.T) {
 // solely from the verified JWT's own "tenant" claim (middleware.go's Token & Tenant
 // Resolution block) for any authenticated request, never from request-controlled input.
 func TestCrossTenantIsolationAndTokenSecurity(t *testing.T) {
-	connStr := "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+	connStr := testConnStr()
 	db.InitDB(connStr)
 
 	tenantA, schemaA := "__sectest_tenant_a__", "tenant___sectest_tenant_a__"
@@ -388,9 +388,21 @@ func TestCrossTenantIsolationAndTokenSecurity(t *testing.T) {
 		t.Fatalf("failed to seed tenant B item: %v", err)
 	}
 
+	// The user the token claims to be must actually exist and be Active:
+	// Stage 29.8's live user-state re-check reads it back on every request, so
+	// a token for a phantom user is now rejected as a dead session. Seeding it
+	// keeps this test about tenant scoping rather than accidentally testing
+	// that check.
+	if _, err := db.DB.Exec(`INSERT INTO ` + schemaA + `.users (id, username, password_hash, role, status, location_code)
+		VALUES ('sectest-user-a', 'sectest-user-a', 'x', 'HR/Admin', 'Active', 'HO')
+		ON CONFLICT (id) DO UPDATE SET status = 'Active'`); err != nil {
+		t.Fatalf("failed to seed tenant A user: %v", err)
+	}
+	engines.ResetLiveUserStateCache()
+
 	// Minted directly rather than via /login - tests token-level tenant scoping
-	// independent of the login/MFA flow, and is indistinguishable at the JWT layer
-	// from a token a real successful login would have issued.
+	// independent of the login/MFA flow. With the user row above in place this
+	// is equivalent to what a real successful login would have issued.
 	tokenA := engines.SignToken("sectest-user-a", "sectest-user-a", "HR/Admin", tenantA, "HO")
 
 	// 1. Active spoofing attempt: tenant A's token, but the request also claims

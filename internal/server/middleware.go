@@ -500,6 +500,42 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				locationCode = claims["loc"]
 				purpose = claims["purpose"]
 				scopeDoctype = claims["scope_doctype"]
+
+				// Live user-state re-check (Stage 29.8). A token's claims are
+				// frozen at issue time, so without this a deactivated user
+				// kept full access until their token expired (up to
+				// JWT_EXPIRY_HOURS, 24h by default) and a demoted user kept
+				// asserting their old role for just as long. Re-read the
+				// authoritative row and let it win over the claim.
+				//
+				// Extension tokens (Stage 14.17-14.20) carry no user at all -
+				// they're issued to a 3rd-party hook, not a person - so there
+				// is no row to check and they're skipped. MFA
+				// enrollment/challenge tokens ARE checked: they carry a real
+				// user id, and an account deactivated mid-enrollment should
+				// not be able to finish the flow.
+				if userID != "" && purpose != "extension" {
+					live, errLive := engines.ResolveLiveUserState(tenantID, userID)
+					if errLive != nil {
+						if engines.IsUserNotActiveError(errLive) {
+							// Same generic 401 as an expired token - a caller
+							// learns their session is dead, not why.
+							writeAPIError(w, r, "GLOBAL-0009", "")
+							return
+						}
+						// A database failure must not be mistaken for a
+						// deactivation: logging every user out because a
+						// replica hiccuped would turn a blip into an outage.
+						// Fail retryable instead.
+						writeAPIErrorGeneric(w, r, http.StatusServiceUnavailable, "Unable to verify session state - please retry shortly")
+						return
+					}
+					// The DB is authoritative for both, so a role change or a
+					// location reassignment takes effect on the live session
+					// rather than at next login.
+					role = live.Role
+					locationCode = live.LocationCode
+				}
 			} else {
 				// GLOBAL-0009 "Session expired" - closest catalog match for a
 				// rejected/expired bearer token (401).

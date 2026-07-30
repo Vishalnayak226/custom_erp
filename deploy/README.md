@@ -53,6 +53,14 @@ SQL
 The `erp` role owns the database so migrations can create schemas/tables. Default
 cluster listens on `localhost:5432` — no `pg_hba.conf` change needed (loopback).
 
+> **If you put Postgres anywhere other than this box** — a managed instance
+> (DO/RDS/Cloud SQL), a second droplet, a container on another host — the
+> `sslmode=disable` in the shipped `DATABASE_URL` is no longer safe: it sends the
+> DB password and every row of tenant data over that network in cleartext. Change
+> the host and the sslmode together (`sslmode=require` at minimum,
+> `verify-full` + `sslrootcert=` preferred). `deploy/erp.env.example` documents
+> each mode and how to verify what you actually negotiated.
+
 ### A3. Install Caddy (for TLS in Part C)
 
 ```bash

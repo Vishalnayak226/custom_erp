@@ -447,7 +447,7 @@ func gstReturnDrillDown(tenantID, startDate, endDate string) ([]map[string]inter
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT account_code, document_type, document_id, debit, credit, created_at FROM %s.gl_postings
-		WHERE account_code IN ('4100', '2200', '2201', '2202') AND created_at::date BETWEEN $1 AND $2
+		WHERE account_code IN ('4100', '2200', '2201', '2202') AND created_at >= $1::date AND created_at < ($2::date + 1)
 		ORDER BY created_at ASC`, schema), startDate, endDate)
 	if err != nil {
 		return nil, err

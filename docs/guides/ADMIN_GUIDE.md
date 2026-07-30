@@ -69,7 +69,7 @@ Add `-Env test` or `-Env live` to target an environment other than the default (
 ### B.2 User and Role Management
 
 - **Creating a user**: **Users** screen (HR/Admin only — every other role gets a 403 from the API even though the menu item itself is currently visible to everyone, see [User Guide](USER_GUIDE.md) §3). Fill in username, password (8+ characters), email, and role, then **Create User**. New accounts start **Active**.
-- **Deactivating/reactivating a user**: same **Users** screen, the **Deactivate**/**Reactivate** action on each row. You can't deactivate the account you're currently logged in as. A deactivated user's login is rejected the same as a wrong password.
+- **Deactivating/reactivating a user**: same **Users** screen, the **Deactivate**/**Reactivate** action on each row. You can't deactivate the account you're currently logged in as. A deactivated user's login is rejected the same as a wrong password, **and any session they already have open stops working on their next click** — you do not have to wait for their sign-in to time out. The same applies to changing someone's role or location: it takes effect on their live session, not at their next login. (If you make the change directly in the database rather than through this screen, allow up to 30 seconds — see `AUTH_STATE_CACHE_SECONDS` in `deploy/erp.env.example`.)
 - **Granting permissions**: **Roles** screen (also HR/Admin only) shows every currently-granted (role, record type) permission as a table, and a form above it to add or update one — pick the role and record type, check whichever of Read/Create/Update/Delete apply, **Save Grant**. A role with no row for a given record type gets **no access at all** to it (fails closed) — HR/Admin itself always has full access everywhere and never needs a row here. See the [User Guide](USER_GUIDE.md) §3 for what each role's sidebar looks like, and `../ERP_BLUEPRINT.md` §3 for how role checks are enforced (server-side, on every action — never trust a UI-only restriction).
 - **HR/Admin** and other privileged roles require MFA (Multi-Factor Authentication — a 6-digit code from an authenticator app). To reset a user's MFA if they lose their device: `cmd/reset_mfa` is a small standalone utility for exactly this — build and run it (`go run ./cmd/reset_mfa`, see its own `main.go` for exact usage), or ask a developer.
 - If a user's login is locked out after too many failed attempts, wait for the automatic lockout window to expire, or have an admin clear it directly.
@@ -82,6 +82,22 @@ Several things are configurable through the app's admin screens, not by editing 
 - **Renaming terms** to match your industry's vocabulary (e.g. "Design Number" instead of "SKU") — **Dynamic Labels** screen.
 - **Adding new record types or custom fields** — **Database Schema Design** screen (this is the same "metadata-driven" engine described in `../architecture/framework_architecture.md` — new master/transaction types don't need a code change). This is different from adding an actual *record* of an existing type (a new Vendor, a new Brand, etc.) — that's a business-user task, see [User Guide](USER_GUIDE.md) §8.
 - **Turning modules on/off per tenant** — module entitlements, admin-only.
+- **Which status changes a document is allowed to make** — **Status Transition Rules** screen (a normal master, HR/Admin to edit). Each row says: for this record type (**Entity / Doctype**), moving from **From Status** to **To Status** is **Allowed** yes/no, and optionally **Requires Reason Code**. See §B.3.1 below — this one has a rule about how it fails that's worth understanding before you edit it.
+
+#### B.3.1 Status Transition Rules — how "strict" works
+
+Out of the box, 64 record types are **strict**: for those, a status change is refused unless a rule explicitly permits it, and the error tells the user which statuses they *can* move to. Everything else is permissive — any status change is allowed unless a rule explicitly forbids it.
+
+This matters when you edit these rules:
+
+- **On a strict record type, deleting a rule takes the transition away.** If someone reports "I can't move this invoice to Paid any more", the first thing to check is whether its rule row still exists and is Active.
+- **Adding a record type to the strict set is not a checkbox in the UI** — it's the `strict_status_transitions` flag on the record type. Ask a developer; and seed its full matrix *first*, or you will freeze existing documents in whatever status they're already in.
+- **Nothing gets permanently stuck.** A document sitting in a status the record type doesn't even define (older data from before that type had a lifecycle) can always be moved back to a valid status.
+- **To turn enforcement off entirely in an emergency**, one database statement does it without deleting any of your rules: `UPDATE tenant_default.doctype_meta SET strict_status_transitions = FALSE;`
+
+Some deliberate examples of what the shipped rules block: a vendor invoice can't go straight from Draft to Paid (that would skip the 3-way match), a disposed asset can't be re-capitalised, and an approved goods receipt whose stock has already posted can only be cancelled with a reason code.
+
+Two shipped judgement calls you may want to change: an **approved Leave** and a **selected Vendor Quote** are both treated as final. If your process needs to reverse either, add the row — it's one entry on this screen, no code change.
 
 ### B.4 Where to Look When Something Seems Wrong
 
@@ -173,6 +189,11 @@ See `README.md`'s "Project Structure" section for the full current map. In short
 ### D.5 Security Posture
 
 JWT bearer auth with expiry, TOTP MFA for privileged roles, server-side RBAC on every document operation, parameterized SQL throughout (no string-built queries), a request body size cap, per-category rate limiting, a CORS allowlist, HMAC-verified inbound webhooks, AES-256-GCM encrypted-at-rest channel credentials. Historical hardening record: **[`../operations/hardening_roadmap.md`](../operations/hardening_roadmap.md)** (closed, historical reference — not an active backlog).
+
+Two additions worth knowing about (Stage 29.8):
+
+- **Sessions are re-validated per request, not just at login.** Token claims are frozen when issued, so the middleware re-reads the user's active-status/role/location on each request (30s cache, `AUTH_STATE_CACHE_SECONDS`). Deactivating or demoting someone takes effect on their open session. A database failure here returns a retryable 503, deliberately *not* a 401 — a replica hiccup must not sign everyone out.
+- **The signing key can be rotated without logging everyone out.** Set `JWT_SECRET_2` alongside `JWT_SECRET_1`; the highest number signs new tokens and every configured key still verifies. Wait one full token lifetime (`JWT_EXPIRY_HOURS`), then delete the old one. Full procedure in `deploy/erp.env.example`.
 
 ### D.6 Extending the System
 

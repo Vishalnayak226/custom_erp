@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -70,6 +71,115 @@ func loadOrGenerateJWTSecret() []byte {
 	return secret
 }
 
+// --- Signing-key rotation (Stage 29.8) ------------------------------------
+//
+// Before this, JWT_SECRET was a single static key: the only way to retire a
+// leaked key was to replace it, which invalidates every live session at once.
+// That is a usable break-glass but not a rotation story. Numbered keys give
+// one:
+//
+//	JWT_SECRET_1=<current key>    # keeps verifying tokens already issued
+//	JWT_SECRET_2=<new key>        # highest number signs every NEW token
+//
+// Deploy with both set, wait out one token TTL (JWT_EXPIRY_HOURS, default
+// 24h) so every live token has been reissued under the new key, then delete
+// JWT_SECRET_1. Nobody is logged out at any point. Plain JWT_SECRET stays
+// supported and unchanged as the legacy/default key - if no numbered key is
+// set, signing and verification behave exactly as they did before, byte for
+// byte, so this is inert until someone opts into it.
+type jwtKey struct {
+	kid    string // the token's "kid" claim; "" for the legacy JWT_SECRET
+	secret []byte
+}
+
+// jwtKeys is every key a token may legitimately be signed with (verification
+// set); jwtSigningKey is the one new tokens are signed with.
+var jwtKeys, jwtSigningKey = loadJWTKeyring()
+
+// loadJWTKeyring collects JWT_SECRET_<n> from the environment, newest (highest
+// n) first, and always keeps plain JWT_SECRET as a trailing verify key so
+// tokens issued before rotation was configured keep working.
+func loadJWTKeyring() ([]jwtKey, jwtKey) {
+	type numbered struct {
+		n   int
+		key jwtKey
+	}
+	var found []numbered
+	for _, kv := range os.Environ() {
+		eq := strings.IndexByte(kv, '=')
+		if eq < 0 {
+			continue
+		}
+		name, val := kv[:eq], kv[eq+1:]
+		if !strings.HasPrefix(name, "JWT_SECRET_") || val == "" {
+			continue
+		}
+		// Suffix must be a positive integer: this deliberately ignores
+		// unrelated JWT_SECRET_-prefixed names (and JWT_EXPIRY_HOURS, which
+		// doesn't match the prefix at all) rather than treating a typo as a
+		// signing key.
+		suffix := strings.TrimPrefix(name, "JWT_SECRET_")
+		n, err := strconv.Atoi(suffix)
+		if err != nil || n <= 0 {
+			continue
+		}
+		found = append(found, numbered{n: n, key: jwtKey{kid: suffix, secret: []byte(val)}})
+	}
+	sort.Slice(found, func(i, j int) bool { return found[i].n > found[j].n })
+
+	legacy := jwtKey{kid: "", secret: jwtSecret}
+	if len(found) == 0 {
+		return []jwtKey{legacy}, legacy
+	}
+	keys := make([]jwtKey, 0, len(found)+1)
+	for _, f := range found {
+		keys = append(keys, f.key)
+	}
+	keys = append(keys, legacy)
+	log.Printf("JWT signing-key rotation active: signing with JWT_SECRET_%s, %d key(s) accepted for verification", keys[0].kid, len(keys))
+	return keys, keys[0]
+}
+
+// signClaims base64s and HMACs a claims string with the active signing key -
+// the one place the signature is produced, shared by all three token issuers
+// so a rotation can never apply to some token kinds and not others.
+func signClaims(claims string) string {
+	encodedClaims := base64.URLEncoding.EncodeToString([]byte(claims))
+	h := hmac.New(sha256.New, jwtSigningKey.secret)
+	h.Write([]byte(encodedClaims))
+	return encodedClaims + "." + hex.EncodeToString(h.Sum(nil))
+}
+
+// kidSuffix returns the "&kid=<n>" claim fragment to append when a numbered
+// key is signing. Empty when running on the legacy single-key setup, which
+// keeps the emitted token byte-identical to the pre-rotation format.
+func kidSuffix() string {
+	if jwtSigningKey.kid == "" {
+		return ""
+	}
+	return "&kid=" + jwtSigningKey.kid
+}
+
+// verifyClaimSignature checks encodedClaims/signature against every key in the
+// ring, returning true on the first match.
+//
+// It deliberately tries all keys rather than selecting one by the token's own
+// kid claim: kid lives inside the payload, so it is attacker-controlled until
+// the HMAC has already been verified, and keying off it would mean trusting
+// unverified input to pick the trust anchor. With a handful of keys the extra
+// comparisons cost single-digit microseconds. kid is still emitted, so ops can
+// tell which key signed a given token; it is just never load-bearing.
+func verifyClaimSignature(encodedClaims, signature string) bool {
+	for _, k := range jwtKeys {
+		h := hmac.New(sha256.New, k.secret)
+		h.Write([]byte(encodedClaims))
+		if hmac.Equal([]byte(signature), []byte(hex.EncodeToString(h.Sum(nil)))) {
+			return true
+		}
+	}
+	return false
+}
+
 // newJTI (24.19) mints a random per-token identifier - cheap, stdlib-only
 // crypto/rand, giving each issued token a unique ID a future revocation-list
 // check could key off, without adopting a JWT library for it.
@@ -88,15 +198,8 @@ func newJTI() string {
 func SignToken(userID, username, role, tenantID, locationCode string) string {
 	now := time.Now()
 	exp := now.Add(tokenTTL()).Unix()
-	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&iat=%d&jti=%s&exp=%d", userID, username, role, tenantID, locationCode, now.Unix(), newJTI(), exp)
-	encodedClaims := base64.URLEncoding.EncodeToString([]byte(claims))
-
-	// Create HMAC signature
-	h := hmac.New(sha256.New, jwtSecret)
-	h.Write([]byte(encodedClaims))
-	signature := hex.EncodeToString(h.Sum(nil))
-
-	return encodedClaims + "." + signature
+	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&iat=%d&jti=%s%s&exp=%d", userID, username, role, tenantID, locationCode, now.Unix(), newJTI(), kidSuffix(), exp)
+	return signClaims(claims)
 }
 
 // SignPurposeToken issues a short-lived, narrowly-scoped token for a single
@@ -110,14 +213,8 @@ func SignToken(userID, username, role, tenantID, locationCode string) string {
 func SignPurposeToken(userID, username, tenantID, purpose string, ttl time.Duration) string {
 	now := time.Now()
 	exp := now.Add(ttl).Unix()
-	claims := fmt.Sprintf("id=%s&user=%s&tenant=%s&purpose=%s&iat=%d&jti=%s&exp=%d", userID, username, tenantID, purpose, now.Unix(), newJTI(), exp)
-	encodedClaims := base64.URLEncoding.EncodeToString([]byte(claims))
-
-	h := hmac.New(sha256.New, jwtSecret)
-	h.Write([]byte(encodedClaims))
-	signature := hex.EncodeToString(h.Sum(nil))
-
-	return encodedClaims + "." + signature
+	claims := fmt.Sprintf("id=%s&user=%s&tenant=%s&purpose=%s&iat=%d&jti=%s%s&exp=%d", userID, username, tenantID, purpose, now.Unix(), newJTI(), kidSuffix(), exp)
+	return signClaims(claims)
 }
 
 // SignExtensionToken (Stage 14.17-14.20) issues a short-lived token scoped to
@@ -131,14 +228,8 @@ func SignPurposeToken(userID, username, tenantID, purpose string, ttl time.Durat
 func SignExtensionToken(tenantID, scopeDoctype string, ttl time.Duration) string {
 	now := time.Now()
 	exp := now.Add(ttl).Unix()
-	claims := fmt.Sprintf("tenant=%s&purpose=extension&scope_doctype=%s&iat=%d&jti=%s&exp=%d", tenantID, scopeDoctype, now.Unix(), newJTI(), exp)
-	encodedClaims := base64.URLEncoding.EncodeToString([]byte(claims))
-
-	h := hmac.New(sha256.New, jwtSecret)
-	h.Write([]byte(encodedClaims))
-	signature := hex.EncodeToString(h.Sum(nil))
-
-	return encodedClaims + "." + signature
+	claims := fmt.Sprintf("tenant=%s&purpose=extension&scope_doctype=%s&iat=%d&jti=%s%s&exp=%d", tenantID, scopeDoctype, now.Unix(), newJTI(), kidSuffix(), exp)
+	return signClaims(claims)
 }
 
 // errInvalidToken (24.22) is the single generic error ParseToken returns for
@@ -160,12 +251,9 @@ func ParseToken(tokenStr string) (map[string]string, error) {
 	encodedClaims := parts[0]
 	signature := parts[1]
 
-	// Verify signature
-	h := hmac.New(sha256.New, jwtSecret)
-	h.Write([]byte(encodedClaims))
-	expectedSig := hex.EncodeToString(h.Sum(nil))
-
-	if !hmac.Equal([]byte(signature), []byte(expectedSig)) {
+	// Verify signature against every key in the rotation ring (see
+	// verifyClaimSignature on why kid is not used to pick one).
+	if !verifyClaimSignature(encodedClaims, signature) {
 		return nil, errInvalidToken
 	}
 
