@@ -1761,7 +1761,6 @@ function closeSubmenus(except) {
   document.querySelectorAll('.has-flyout.flyout-open').forEach(c => {
     if (c === except) return;
     c.classList.remove('flyout-open');
-    c.dataset.flyoutPinned = '';
     const f = c.querySelector('.menu-flyout');
     if (f) f.classList.remove('open');
     const b = c.querySelector('.menu-flyout-bridge');
@@ -1832,7 +1831,15 @@ function setupModuleFlyouts() {
     // rendered Schema Designer module list; focus keeps it keyboard-usable.
     container.addEventListener('pointerenter', showOnHover);
     trigger.addEventListener('pointerenter', showOnHover);
-    container.addEventListener('pointermove', cancelFlyoutHide);
+    // pointermove, not just pointerenter: while the pointer is resting on a
+    // module row, no enter event will ever fire again, so anything that shut
+    // the menu meanwhile (navigating from it, a click elsewhere, Escape) left
+    // it shut even though the cursor was still sitting right there. Any
+    // movement at all over the row brings it straight back.
+    container.addEventListener('pointermove', () => {
+      cancelFlyoutHide();
+      if (!container.classList.contains('flyout-open') && !flyoutOpenTimer) showOnHover();
+    });
     // pointerleave, NOT mouseleave: pointer events fire ahead of their
     // compatibility mouse events, so a mouseleave here landed *after* the
     // next row's pointerenter had already cancelled the pending close - it
@@ -1845,19 +1852,14 @@ function setupModuleFlyouts() {
       if (!container.contains(e.relatedTarget)) scheduleFlyoutHide();
     });
 
-    // Clicking the module row is a fallback for touch and for anyone who
-    // clicks out of habit - it must never close a menu the user just hovered
-    // open and is reaching into. Only a second, deliberate click on an
-    // already-clicked (pinned) row closes it again.
+    // Clicking the module row only ever OPENS - it is a fallback for touch
+    // and for anyone who clicks out of habit, never a toggle. A toggle here
+    // meant a row you had already hovered open closed on the click, so the
+    // menu appeared to need clicking two or three times to stick. Closing is
+    // moving away, clicking outside the nav, or Escape.
     trigger.addEventListener('click', (e) => {
       e.preventDefault();
-      const pinned = container.dataset.flyoutPinned === '1';
-      if (pinned && flyout.classList.contains('open')) {
-        closeSubmenus();
-        return;
-      }
       show();
-      container.dataset.flyoutPinned = '1';
     });
   });
 
