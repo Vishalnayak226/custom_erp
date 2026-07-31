@@ -28,7 +28,7 @@ A few things work the same way everywhere in this system. Learn them once here i
 
 ## 3. POS / Billing
 
-Reached via the **Point of Sale** flyout → **POS / Billing**.
+Reached via the **POS** flyout → **POS / Billing**.
 
 ### 3.1 Open a cashier session (required before any sale)
 
@@ -61,7 +61,7 @@ Below the sale cart is a separate **Process a Return** panel — kept deliberate
 
 ## 4. POS Profiles
 
-Reached via the **Point of Sale** flyout → **POS Profiles**. This is a plain record-list screen (§1) — one profile per till/location combination.
+Reached via the **POS** flyout → **POS Profiles**. This is a plain record-list screen (§1) — one profile per till/location combination.
 
 1. Click **New POSProfile** (top right).
 2. Fill in **Profile Name** (required), **Location** (required, a Location code), **Default Payment Mode** (required — Cash/Card/UPI), **Invoice Number Series** (optional), and **Default Opening Cash Float** (optional). **Status** defaults to Active/Inactive.
@@ -71,13 +71,17 @@ Reached via the **Point of Sale** flyout → **POS Profiles**. This is a plain r
 
 ## 5. Finance / GL
 
-Reached via the **Accounting** flyout → **Finance / GL**. Two tabs at the top: **Trial Balance** and **Accounting Periods**.
+Reached via the **Financial Accounting** flyout → **Finance / GL**. Three tabs at the top: **Trial Balance**, **Chart of Accounts**, and **Accounting Periods**.
 
 ### 5.1 Trial Balance tab (default)
 
 A read-only, live view — nothing to fill in. It shows Total Debits, Total Credits, and whether the ledger is balanced (a green or red status dot), then every GL account with its debit/credit totals. These numbers always come from actual posted transactions.
 
-### 5.2 Accounting Periods tab
+### 5.2 Chart of Accounts tab
+
+A read-only reference list of every GL account configured for your tenant — Account Code, Account Name, and Type (Asset/Liability/Equity/Revenue/Expense). No debit/credit totals here — that's what the Trial Balance tab is for; this tab is the master list of accounts themselves, not a balance report.
+
+### 5.3 Accounting Periods tab
 
 1. Click the **Accounting Periods** tab button.
 2. To create one: fill in **Period Name** (e.g. `FY2026-Q3`), **Start Date**, **End Date**, and click **Create Period**. It starts **Open**.
@@ -89,7 +93,7 @@ A read-only, live view — nothing to fill in. It shows Total Debits, Total Cred
 
 ## 6. Approvals
 
-Reached via the **Accounting** flyout → **Approvals**. This is a shared inbox — anything anywhere in the system that needs a second person's sign-off shows up here (Purchase Orders, Expense Claims, POS discounts, PIM content, and more), not just Finance items.
+Reached via the **Financial Accounting** flyout → **Approvals**. This is a shared inbox — anything anywhere in the system that needs a second person's sign-off shows up here (Purchase Orders, Expense Claims, POS discounts, PIM content, and more), not just Finance items.
 
 1. Each row shows the **Record Type**, its **Document ID**, an **Amount** (if applicable), and a **Location**.
 2. Click **Approve** to accept it, or **Reject** to decline it — you'll be asked to optionally type a reason for a rejection.
@@ -98,9 +102,9 @@ Reached via the **Accounting** flyout → **Approvals**. This is a shared inbox 
 
 ---
 
-## 7. Vendor Invoices
+## 7. Vendor Invoice
 
-Reached via the **Accounting** flyout → **Vendor Invoices**.
+Reached via the **Financial Accounting** flyout → **Vendor Invoice**.
 
 1. Click **+ New Vendor Invoice** to open the standard record-list New form (§1) — fill in Invoice Number, Vendor Code, PO Reference, GRN Reference, Invoice Amount, and Financial Year, then Save. It starts as **Draft**.
 
@@ -116,7 +120,7 @@ Reached via the **Accounting** flyout → **Vendor Invoices**.
 
 ## 8. Payment Proposals
 
-Reached via the **Accounting** flyout → **Payment Proposals**. This batches several **Matched** vendor invoices into one payment run.
+Reached via the **Financial Accounting** flyout → **Payment Proposals**. This batches several **Matched** vendor invoices into one payment run.
 
 1. The top panel lists every currently **Matched** invoice with a checkbox. Tick the ones you want to pay together.
 2. Click **Create Proposal from Selected**. It appears below as a new proposal, status **Draft**, with its total amount and invoice count.
@@ -127,7 +131,7 @@ Reached via the **Accounting** flyout → **Payment Proposals**. This batches se
 
 ## 9. Bank Reconciliation
 
-Reached via the **Accounting** flyout → **Bank Reconciliation**.
+Reached via the **Financial Accounting** flyout → **Bank Reconciliation**.
 
 1. If you have no bank accounts yet, click **Manage Bank Accounts** — this opens the standard record-list screen for BankAccount (Bank Name, Account Number, IFSC Code, Branch, GL Account Code, all required except Branch/IFSC). Create one, then come back to Bank Reconciliation.
 2. Click **Statement Lines / Import CSV** to open the BankStatementLine record-list screen, where you can add lines one at a time or use **Bulk Import** (§1) to bring in a whole bank statement.
@@ -138,7 +142,7 @@ Reached via the **Accounting** flyout → **Bank Reconciliation**.
 
 ## 10. Debit / Credit Notes
 
-Reached via the **Accounting** flyout → **Debit / Credit Notes**. Two independent panels on one screen.
+Reached via the **Financial Accounting** flyout → **Debit / Credit Notes**. Two independent panels on one screen.
 
 1. **Debit Notes** (adjustments to a vendor): click **+ New Debit Note**, fill in Note Number, Vendor, Reference PO (optional), Amount, Reason, then Save. It starts **Draft**.
 2. **Credit Notes** (adjustments to a customer): same pattern via **+ New Credit Note**, with Customer and Reference Cart instead.
@@ -146,9 +150,9 @@ Reached via the **Accounting** flyout → **Debit / Credit Notes**. Two independ
 
 ---
 
-## 11. Sales Invoices
+## 11. Sales Invoice
 
-Reached via the **Accounting** flyout → **Sales Invoices**. This is the credit-sale flow (bill a customer now, collect payment later — separate from a POS cash/card sale).
+Reached via the **Financial Accounting** flyout → **Sales Invoice**. This is the credit-sale flow (bill a customer now, collect payment later — separate from a POS cash/card sale).
 
 1. Click **+ New Sales Invoice**, fill in Invoice Number, Customer, Location, Total Amount, then Save. It starts **Draft**.
 2. Click **Post** on a Draft invoice to recognize the receivable in the ledger — it becomes **Approved**.
@@ -211,9 +215,9 @@ This is the newer, general-purpose reporting framework — every report register
 
 ---
 
-## 15. Purchase Orders
+## 15. Purchase Order
 
-Reached via the **Buying** flyout → **Purchase Orders**.
+Reached via the **Procurement** flyout → **Purchase Order**.
 
 1. Fill in **PO Number**, **Vendor**, **Target Warehouse**, **Location** (all required), **Total Amount** (the taxable value), and optionally a **GST Rate %** plus an **Interstate** checkbox.
 2. Click **Calculate GST** to preview the CGST/SGST or IGST breakdown for what you've entered so far — this is just a calculator, it doesn't change what gets saved.
@@ -226,7 +230,7 @@ Reached via the **Buying** flyout → **Purchase Orders**.
 
 ## 16. Vendors
 
-Reached via the **Buying** flyout → **Vendors**. A standard record-list screen (§1).
+Reached via the **Procurement** flyout → **Vendors**. A standard record-list screen (§1).
 
 1. Click **New Vendor** (top right). Fill in Vendor Name (required), GSTIN, Bank Account Number, Bank IFSC, Contact Phone, Contact Email (all optional), and Status. Vendor Code is auto-generated — leave it blank.
 2. Click **Save**.
@@ -235,7 +239,7 @@ Reached via the **Buying** flyout → **Vendors**. A standard record-list screen
 
 ## 17. RFQ / Quotes
 
-Reached via the **Buying** flyout → **RFQ / Quotes**. This lets you request quotes from several vendors for the same requirement and compare them before creating a Purchase Order.
+Reached via the **Procurement** flyout → **RFQ / Quotes**. This lets you request quotes from several vendors for the same requirement and compare them before creating a Purchase Order.
 
 1. Fill in **RFQ Number**, **Item / Requirement Description**, **Quantity**, and **Target Date**, then click **Create RFQ**. It starts **Draft**/open for quotes.
 2. Click **View Quotes** on an RFQ row to open its quote comparison panel below the list.
@@ -255,9 +259,9 @@ This screen is read-only — there's no way to adjust stock counts directly here
 
 ---
 
-## 19. Transfers
+## 19. Stock Transfer
 
-Reached via the **Stock** flyout → **Transfers**. Moves stock between two locations through a Draft → Approved → (optional Packed) → Dispatched → Received lifecycle.
+Reached via the **Stock** flyout → **Stock Transfer**. Moves stock between two locations through a Draft → Approved → (optional Packed) → Dispatched → Received lifecycle.
 
 1. Fill in **Transfer Number**, **From Warehouse**, **To Warehouse**.
 2. Add one or more lines: enter a **SKU** and **Qty**, click **Add Line**. Repeat for every item — a transfer needs at least one line.
@@ -270,9 +274,9 @@ Reached via the **Stock** flyout → **Transfers**. Moves stock between two loca
 
 ---
 
-## 20. Bin Master
+## 20. Bin
 
-Reached via the **Stock** flyout → **Bin Master**. A standard record-list screen (§1) defining physical storage locations within a warehouse.
+Reached via the **Stock** flyout → **Bin**. A standard record-list screen (§1) defining physical storage locations within a warehouse.
 
 1. Click **New Bin** (top right). Fill in **Bin Code** and **Location** (required), and optionally **Zone**, **Aisle**, **Rack**, **Capacity**.
 2. Click **Save**.
@@ -305,7 +309,7 @@ Reached via the **Stock** flyout → **Sticker Printing**.
 
 ## 23. HR
 
-Reached via the **HR & Assets** flyout → **HR**. Three tabs: **Attendance**, **Leave**, **Payroll Export**.
+Reached via the **HRM** flyout → **HR**. Three tabs: **Attendance**, **Leave**, **Payroll Export**.
 
 ### 23.1 Attendance tab
 
@@ -330,7 +334,7 @@ Employees themselves are a Master-type record, so they're created and edited und
 
 ## 24. Fixed Assets
 
-Reached via the **HR & Assets** flyout → **Fixed Assets**. Lifecycle: Draft → Capitalised → (any number of Transfers) → Disposed.
+Reached via the **HRM** flyout → **Fixed Assets**. Lifecycle: Draft → Capitalised → (any number of Transfers) → Disposed.
 
 1. Fill in **Asset Number**, **Category**, **Cost**, **Useful Life (yrs)**, **Location**, **Custodian**, and **Acquisition Date** — all required except Category/Custodian — then click **Create**. It starts **Draft**.
 2. Click **Capitalise** on a Draft asset to bring it onto the books — it becomes **Capitalised**, and depreciation starts being calculated automatically from here on (it's computed live on every view, not stored, so the numbers you see are always current as of today).
@@ -341,7 +345,7 @@ Reached via the **HR & Assets** flyout → **Fixed Assets**. Lifecycle: Draft �
 
 ## 25. Expenses
 
-Reached via the **HR & Assets** flyout → **Expenses**. Lifecycle: Claim → Manager Approval → Finance Verification → Payment.
+Reached via the **HRM** flyout → **Expenses**. Lifecycle: Claim → Manager Approval → Finance Verification → Payment.
 
 1. Fill in **Claim Number**, **Employee**, **Location**, **Expense Date**, **Category** (Conveyance/Travel/Food/Hotel/Fuel/Repair/Medical/Marketing/StoreExpense/Other), **Amount**, **GST Amount** (optional), **Advance Adjusted** (optional), and **Purpose**. Click **Create Draft**.
 2. Click **Submit for Approval** — this routes through the same Approvals screen (§6) as everything else; a manager approves or rejects it there.

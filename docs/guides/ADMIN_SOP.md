@@ -18,7 +18,7 @@ Sidebar: **Settings** → **Users**.
 2. Click **Create User**. It appears in the list below, status **Active**, immediately usable to log in.
 3. **Deactivating a user**: click **Deactivate** on their row, confirm. Their login is then rejected exactly like a wrong password — they are not deleted, just locked out. You cannot deactivate the account you're currently logged in as.
 4. **Reactivating**: click **Reactivate** on an Inactive user's row, confirm.
-5. **Changing a user's location**: click **Set Location** on their row, type the new location code when prompted. This matters because location-scoped authorization on several screens (POS, Transfers, Expenses) checks the acting user's own location — a user stuck on the wrong location code will see permission errors that look unrelated to location until you check this.
+5. **Changing a user's location**: click **Set Location** on their row, type the new location code when prompted. This matters because location-scoped authorization on several screens (POS, Stock Transfer, Expenses) checks the acting user's own location — a user stuck on the wrong location code will see permission errors that look unrelated to location until you check this.
 6. **MFA reset**: if an HR/Admin (or another MFA-required role) loses their authenticator device, there's no button for this on the Users screen — see ADMIN_GUIDE §B.2: run `cmd/reset_mfa` (`go run ./cmd/reset_mfa`) or ask a developer.
 7. **Lockouts**: if a user is locked out after repeated failed logins, wait for the automatic lockout window to expire, or clear it directly at the database level (there's no in-app "unlock" button as of this writing).
 
@@ -137,7 +137,7 @@ A `PurchaseRequisition` record type exists with the same default amount routing 
 
 - Normally a `VendorInvoice` is paid directly once **Matched** (USER_SOP.md §7) — no approval needed for that path.
 - The backend also supports an **override**: paying an invoice that is *not* Matched (e.g. stuck in `MismatchHold`) by supplying an `override_reason`, which claims it as Pending Approval instead of paying immediately, routed by the same engine (default: any amount → **HR/Admin**).
-- **Gap to know about**: the app's Vendor Invoices screen never sends an `override_reason` — its **Pay**/**Pay w/ TDS** buttons only appear once an invoice is already **Matched**, and a `MismatchHold` invoice's only available action is **Match** again. There is currently no UI path to actually trigger this override. If a MismatchHold invoice genuinely needs to be paid without a clean 3-way match, that requires direct API access today, not a button in the app.
+- **Gap to know about**: the app's Vendor Invoice screen never sends an `override_reason` — its **Pay**/**Pay w/ TDS** buttons only appear once an invoice is already **Matched**, and a `MismatchHold` invoice's only available action is **Match** again. There is currently no UI path to actually trigger this override. If a MismatchHold invoice genuinely needs to be paid without a clean 3-way match, that requires direct API access today, not a button in the app.
 
 ### B.9 Changing approval-rule thresholds/roles (no screen — API only)
 
@@ -168,7 +168,7 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8080/api/v1/approval/rules
 
 ### C.1 Accounting Periods — open and close
 
-Covered from the general-user angle in USER_SOP.md §5.2; the admin-relevant points:
+Covered from the general-user angle in USER_SOP.md §5.3; the admin-relevant points:
 
 1. Create periods (Period Name, Start/End Date) ahead of when they're needed — there's no requirement they be contiguous or non-overlapping enforced by the form itself, so be deliberate about your naming/date convention.
 2. Before closing, always click **Close Checklist** first and actually read it — it flags things like unposted documents that would otherwise be silently locked out of that period once closed.
@@ -186,7 +186,7 @@ Covered in USER_SOP.md §7 step 3. Admin-relevant setup: the TDS sections offere
 
 Covered in USER_SOP.md §9. Admin-relevant points: reconciliation only *matches* existing `BankStatementLine` records against GL postings — it does not create statement lines from a bank file automatically beyond what Bulk Import CSV brings in. If a reconciliation run reports many unmatched lines, the likely causes are: the statement CSV wasn't imported for the right account/date range, or GL postings for that period haven't happened yet (e.g. an unposted Sales Invoice or unpaid Vendor Invoice).
 
-### C.5 GST validation on Purchase Orders and POS checkout
+### C.5 GST validation on Purchase Order and POS checkout
 
 - On the **Purchase Orders** screen (USER_SOP.md §15), the **Calculate GST** button is a pure calculator against `POST /api/v1/gst/calculate` — it shows the CGST/SGST (intrastate) or IGST (interstate) breakdown for the amount/rate/interstate flag entered, but it does **not** change what gets saved to `total_amount` on the PO (which this system treats as the taxable value throughout its accounting). It's there so a maker can sanity-check the tax math before submitting, not to record a separate tax liability line.
 - On **POS checkout**, GST is calculated and posted automatically per line based on each item's HSN-classified rate — there's no separate admin step for this; it's already live for every sale.

@@ -3581,6 +3581,7 @@ async function redeemPOSLoyaltyPoints() {
 let currentFinanceTab = 'trial-balance';
 const FINANCE_TABS = [
   { id: 'trial-balance', label: 'Trial Balance' },
+  { id: 'chart-of-accounts', label: 'Chart of Accounts' },
   { id: 'periods', label: 'Accounting Periods' }
 ];
 
@@ -3612,6 +3613,11 @@ async function renderFinanceView(container) {
 
   if (currentFinanceTab === 'periods') {
     await renderAccountingPeriodsPanel(container);
+    return;
+  }
+
+  if (currentFinanceTab === 'chart-of-accounts') {
+    await renderChartOfAccountsPanel(container);
     return;
   }
 
@@ -3677,6 +3683,54 @@ async function renderFinanceView(container) {
         <td>${b.account_type}</td>
         <td>${b.debit.toLocaleString()}</td>
         <td>${b.credit.toLocaleString()}</td>
+      </tr>
+    `;
+  });
+  html += `</tbody></table>`;
+  panel.innerHTML = html;
+  container.appendChild(panel);
+}
+
+// Chart of Accounts (Stage 29.9): reference list of the master gl_accounts
+// records themselves (code/name/type) rather than a balance report - reuses
+// the trial-balance endpoint since that query already LEFT JOINs every
+// account row regardless of postings, so no new backend endpoint is needed.
+async function renderChartOfAccountsPanel(container) {
+  const res = await apiFetch('/api/v1/finance/trial-balance');
+  if (!res) return;
+  if (!res.ok) {
+    const errPanel = document.createElement('div');
+    errPanel.className = 'table-panel';
+    errPanel.style.padding = '24px';
+    errPanel.textContent = 'Failed to load chart of accounts.';
+    container.appendChild(errPanel);
+    return;
+  }
+  const data = await res.json();
+  const accounts = data.balances || [];
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  let html = `
+    <table>
+      <thead>
+        <tr>
+          <th>Account Code</th>
+          <th>Account Name</th>
+          <th>Type</th>
+        </tr>
+      </thead>
+      <tbody>
+  `;
+  if (accounts.length === 0) {
+    html += `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No GL accounts configured yet.</td></tr>`;
+  }
+  accounts.forEach(a => {
+    html += `
+      <tr>
+        <td style="font-family: monospace;">${a.account_code}</td>
+        <td style="font-weight:600;">${a.account_name}</td>
+        <td>${a.account_type}</td>
       </tr>
     `;
   });
@@ -3818,7 +3872,7 @@ async function renderVendorInvoicesView(container) {
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">Vendor Invoices</h1>
+      <h1 class="page-title">Vendor Invoice</h1>
       <p class="page-subtitle">3-way match against PO/GRN, then pay - plain or TDS-withheld.</p>
     </div>
     <button class="btn btn-primary" id="vi-new-btn">+ New Vendor Invoice</button>
@@ -4260,7 +4314,7 @@ async function renderSalesInvoicesView(container) {
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">Sales Invoices</h1>
+      <h1 class="page-title">Sales Invoice</h1>
       <p class="page-subtitle">Credit sales to customers - Post to recognize the receivable, Settle once paid.</p>
     </div>
     <button class="btn btn-primary" id="si-new-btn">+ New Sales Invoice</button>
@@ -5954,7 +6008,7 @@ async function renderPurchaseOrdersView(container) {
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">Purchase Orders</h1>
+      <h1 class="page-title">Purchase Order</h1>
       <p class="page-subtitle">Create a PO as Draft, then submit it for approval.</p>
     </div>
   `;
@@ -6326,7 +6380,7 @@ async function renderGRNWorkbenchView(container) {
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">Goods Receipt (GRN)</h1>
+      <h1 class="page-title">Goods Receipt</h1>
       <p class="page-subtitle">Receive against a PO: capture accepted, short, and damaged quantities per line, then post to stock.</p>
     </div>
   `;
@@ -7262,7 +7316,7 @@ async function renderReceivablesAgeingReport(panel) {
   const buckets = res.ok ? await res.json() : [];
   panel.innerHTML = `
     <p style="padding: 16px 16px 0; font-size: 13px; color: var(--text-muted);">
-      Buckets Approved-but-not-yet-Paid sales invoices (Finance &gt; Sales Invoices) by age since creation.
+      Buckets Approved-but-not-yet-Paid sales invoices (Finance &gt; Sales Invoice) by age since creation.
     </p>
     <table>
       <thead><tr><th>Age Bucket</th><th>Invoice Count</th><th>Outstanding Amount</th></tr></thead>
@@ -9328,7 +9382,7 @@ async function renderTransfersView(container) {
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">Transfers</h1>
+      <h1 class="page-title">Stock Transfer</h1>
       <p class="page-subtitle">Move stock between stores/warehouses: create a draft, get it approved, then dispatch and receive it.</p>
     </div>
   `;

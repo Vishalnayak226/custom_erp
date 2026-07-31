@@ -29,9 +29,9 @@ The left sidebar is your main menu. Depending on your role, you might see some o
 | **Dashboard** | A quick overview when you first log in. |
 | **POS / Billing** | Ring up a sale at the counter (see §4 below). |
 | **Finance / GL** | See the accounting side — money in, money out. |
-| **Purchase Orders** | Order stock from a supplier. |
+| **Purchase Order** | Order stock from a supplier. |
 | **Inventory** | Check how much stock you have. |
-| **Transfers** | Move stock between stores/warehouses. |
+| **Stock Transfer** | Move stock between stores/warehouses. |
 | **Reports** | Look up numbers — sales, stock, what's owed to vendors, etc. |
 | **Approvals** | Things waiting for someone (maybe you) to say yes or no to. |
 | **Vendors** | Your suppliers' details. |
@@ -64,17 +64,17 @@ This is the screen a cashier uses most.
 
 If you need to know how much stock is *actually free to sell* (not already reserved for another order), that number accounts for anything already promised elsewhere — it's not just a raw count sitting in the warehouse.
 
-## 6. Ordering More Stock (Purchase Orders)
+## 6. Ordering More Stock (Purchase Order)
 
-1. Click **Purchase Orders**.
+1. Click **Purchase Order**.
 2. Click to create a new one.
 3. Pick the vendor (supplier) you're ordering from, and add the items and quantities you need.
 4. Save it. Depending on the amount, it might need someone else's **approval** before it's official — that's a safety check, not a bug. You'll see it move to "pending approval," and once approved, it's ready to send to the vendor.
 5. When the stock physically arrives, someone records a **GRN** (Goods Receipt Note — basically "yes, this stock actually showed up") against that same Purchase Order. Only then does the stock count go up — an order by itself never adds stock, only a confirmed receipt does.
 
-## 7. Moving Stock Between Locations (Transfers)
+## 7. Moving Stock Between Locations (Stock Transfer)
 
-1. Click **Transfers** in the sidebar.
+1. Click **Stock Transfer** in the sidebar.
 2. Fill in a Transfer Number, the From and To warehouse/location, then add one or more line items (SKU + quantity) using the **Add Line** button — a transfer needs at least one line before it can be created.
 3. Click **Create Transfer**. It starts as a **Draft**.
 4. Once it's ready to go, click **Mark Approved**.

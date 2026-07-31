@@ -196,16 +196,16 @@ For **each** item in the submenu:
 
 ---
 
-## 17. Vendors / Stores / POS Profiles (in the Buying / Stock / Point of Sale module flyouts respectively)
+## 17. Vendors / Stores / POS Profiles (in the Procurement / Stock / POS module flyouts respectively)
 
 - [ ] **Vendors**: same generic table/create/delete behavior as any Setup entry (it points at the same underlying screen).
 - [ ] ⚠️ **Known limitation — Stores**: clicking this currently does **not** load correctly (a naming mismatch between the menu code and the registered doctype, plus the doctype has no fields configured yet). Expect either an empty/broken screen or a load error. This is a known gap, not something to spend time debugging — note it as "confirmed still broken" and move on.
 - [ ] **POS Profiles (Stage 20.6)**: same generic table/create/delete behavior as Vendors above. Creating one (profile name, Location, default payment mode, opening cash float, status) adds it to the table. This is metadata only right now — nothing else in the app reads it yet (POS session opening still asks for the cash float directly rather than defaulting from a profile).
-- [ ] **Bin Master (Stage 20.16)**: same generic table/create/delete behavior. Creating one (bin code, Location, zone/aisle/rack, capacity, status) adds it to the table. Also metadata only — actual putaway/pick-list/condition-transition operations are backend-only right now (§24).
+- [ ] **Bin (Stage 20.16)**: same generic table/create/delete behavior. Creating one (bin code, Location, zone/aisle/rack, capacity, status) adds it to the table. Also metadata only — actual putaway/pick-list/condition-transition operations are backend-only right now (§24).
 
 ---
 
-## 18. Purchase Orders
+## 18. Purchase Order
 
 - [ ] "New Purchase Order" form loads with PO Number, **Vendor (typeahead, Stage 18)**, **Target Warehouse (typeahead against Location, Stage 18)**, **Location (typeahead, Stage 18)**, Total Amount, GST Rate, Interstate checkbox.
 - [ ] "Calculate GST" with an amount and rate filled in shows a CGST/SGST or IGST breakdown.
@@ -215,18 +215,18 @@ For **each** item in the submenu:
 
 ---
 
-## 19. Inventory / Transfers / Users / Roles (Stock / Settings module flyouts)
+## 19. Inventory / Stock Transfer / Users / Roles (Stock / Settings module flyouts)
 
 All four of these used to be dead links falling through to a "Module Setup Pending" placeholder. As of this checklist's last update, none of them are placeholders anymore — if you land on "Module Setup Pending" for any of these, that's a regression, not expected behavior.
 
 - [ ] **Inventory**: a searchable table of current stock per SKU/location (same underlying data as Reports → Current Stock, §8, but with a client-side search box that tab doesn't have). Typing in the search box filters the table without a page reload.
-- [ ] **Transfers**: a form to create a `TransferOrder` (from/to warehouse, items) plus a list with status-appropriate action buttons. Full lifecycle: **Draft** → "Mark Approved" → **Approved** → "Dispatch" → **Dispatched** → "Receive" → **Received**. Confirm each button only appears at its correct status.
+- [ ] **Stock Transfer**: a form to create a `TransferOrder` (from/to warehouse, items) plus a list with status-appropriate action buttons. Full lifecycle: **Draft** → "Mark Approved" → **Approved** → "Dispatch" → **Dispatched** → "Receive" → **Received**. Confirm each button only appears at its correct status.
   - ⚠️ **Known limitation**: "Mark Approved" is a direct status edit, not routed through the maker-checker Approvals screen (§7) — `TransferOrder` has no `approval_rules` entry configured. This is a documented, deliberate scope decision, not a bug.
   - [ ] **Pack (Stage 20.19, optional step)**: from **Approved**, a "Pack" button prompts for a Box ID per line item, then moves the order to **Packed** — a new status between Approved and Dispatched. "Dispatch" still works directly from Approved too (packing is optional, not a required gate); from **Packed**, only "Dispatch" appears.
 - [ ] **Users**: a "New User" form (username, password, email, role) and a table of existing users with Deactivate/Reactivate buttons. Creating a user with a duplicate username shows a clear "already taken" error, not a generic failure. You cannot deactivate your own account (should show a clear error, not silently no-op).
 - [ ] **Roles**: an "Add or Update a Grant" form (Role, Record Type, Read/Create/Update/Delete checkboxes) and a table of every currently-configured `(role, doctype)` permission. Saving a grant for a role/doctype pair that already has one updates it in place rather than duplicating the row. This is a real, live way to close gaps like Stage 18's "Store Manager/Cashier can't read Vendor/Item" finding — try granting `Store Manager` read access to `Item` here and confirm the POS SKU typeahead (§3) then starts suggesting for that role.
 
-**Users** and **Roles** are HR/Admin-only on the backend (`requireHRAdmin` in every handler) — expect a clear 403, not a crash, if you reach either as a non-admin role. **Inventory** is gated only by the "reports" module being enabled for the tenant (any role can see it once that's on); **Transfers** goes through the ordinary `role_permissions` check for the `TransferOrder` doctype, same as any other generic-doc screen.
+**Users** and **Roles** are HR/Admin-only on the backend (`requireHRAdmin` in every handler) — expect a clear 403, not a crash, if you reach either as a non-admin role. **Inventory** is gated only by the "reports" module being enabled for the tenant (any role can see it once that's on); **Stock Transfer** goes through the ordinary `role_permissions` check for the `TransferOrder` doctype, same as any other generic-doc screen.
 
 ---
 
