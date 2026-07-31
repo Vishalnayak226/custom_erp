@@ -85,7 +85,15 @@ func GetProductionSchedule(tenantID string) ([]ScheduleEntry, error) {
 		return nil, err
 	}
 
-	today := time.Now().Truncate(24 * time.Hour)
+	// time.Truncate measures from the zero instant in absolute time, so it
+	// snaps to UTC midnight rather than local midnight: anywhere east of UTC
+	// it returns *yesterday's* date for the first hours of every local day
+	// (in IST, 00:00-05:30), scheduling a day's production one day early.
+	// Build the calendar date from the local clock instead, as UTC midnight
+	// so it stays comparable with the DueDate values parsed below - those
+	// come from time.Parse("2006-01-02", ...), which is UTC-based too.
+	now := time.Now()
+	today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC)
 	// finiteUsed tracks cumulative minutes already booked per work-center/day
 	// as orders are processed earliest-due-first - a simple greedy bin-pack,
 	// not an optimizer, matching this codebase's other suggestion engines
