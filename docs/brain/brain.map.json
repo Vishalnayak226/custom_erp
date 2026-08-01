@@ -1,0 +1,577 @@
+{
+  "schema_version": 1,
+  "title": "Custom ERP — Project Brain",
+  "subtitle": "Every part of this system, grouped into brain regions, wired by the call graph graphify actually extracted from the source.",
+  "_editing": "THIS is the file you edit. Everything else in docs/brain/ is generated. To add a region: append to `regions`. To re-file a source file: change a `match` pattern. To re-file one function out of a shared file: add a `symbols` pattern. Then run: graphify update . && go run ./cmd/brainmap",
+
+  "settings": {
+    "overview_min_weight": 12,
+    "max_region_links": 8,
+    "top_symbols": 6,
+    "inferred_dash_ratio": 1.0,
+    "hub_regions": ["persistence", "api-errors", "observability"],
+    "graph_path": "graphify-out/graph.json",
+    "out_dir": "docs/brain",
+    "ignore": [
+      ".git/*",
+      ".claude/*",
+      ".vscode/*",
+      ".idea/*",
+      "node_modules/*",
+      "graphify-out/*",
+      "backups/*",
+      "logs/*",
+      "media_store/*",
+      "public/dist/*",
+      "bin/*",
+      "*.exe",
+      "*.local.txt",
+      "*.local.md",
+      "*.local.json",
+      ".DS_Store",
+      "Thumbs.db"
+    ]
+  },
+
+  "lobes": [
+    {
+      "id": "cortex",
+      "name": "Cortex — Interface",
+      "metaphor": "What the user sees and touches. Every business intent enters here.",
+      "light": "#2a78d6",
+      "dark": "#3987e5"
+    },
+    {
+      "id": "brainstem",
+      "name": "Brainstem — Kernel",
+      "metaphor": "Involuntary and non-negotiable. Every single request passes through here, whatever it is asking for.",
+      "light": "#eb6834",
+      "dark": "#d95926"
+    },
+    {
+      "id": "business",
+      "name": "Functional Lobes — Business Operations",
+      "metaphor": "The specialised areas. Each one owns a domain and can be licensed on its own.",
+      "light": "#1baf7a",
+      "dark": "#199e70"
+    },
+    {
+      "id": "peripheral",
+      "name": "Peripheral Nerves — Integrations",
+      "metaphor": "Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions.",
+      "light": "#eda100",
+      "dark": "#c98500"
+    },
+    {
+      "id": "autonomic",
+      "name": "Autonomic — Background & Reflexes",
+      "metaphor": "Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps.",
+      "light": "#e87ba4",
+      "dark": "#d55181"
+    },
+    {
+      "id": "memory",
+      "name": "Hippocampus — Written Memory",
+      "metaphor": "What this project knows about itself: the backlog, the ledger, the guides, the handover note.",
+      "light": "#008300",
+      "dark": "#008300"
+    },
+    {
+      "id": "motor",
+      "name": "Motor Cortex — Build & Delivery",
+      "metaphor": "How the system actually moves: build, migrate, promote, back up, restore.",
+      "light": "#4a3aa7",
+      "dark": "#9085e9"
+    },
+    {
+      "id": "verification",
+      "name": "Cerebellum — Verification",
+      "metaphor": "Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge.",
+      "light": "#e34948",
+      "dark": "#e66767"
+    }
+  ],
+
+  "regions": [
+    {
+      "id": "ui-shell",
+      "lobe": "cortex",
+      "name": "SPA Shell",
+      "role": "The whole frontend: one hand-written vanilla-JS single-page app, no framework and no build step. Owns routing (renderView), every screen's markup, the two dialog systems, and the shared apiFetch/showApiError error path.",
+      "match": ["public/app.js", "public/index.html", "public/styles.css", "public/components/*"]
+    },
+    {
+      "id": "ui-offline",
+      "lobe": "cortex",
+      "name": "Offline Store & Device I/O",
+      "role": "Browser-side IndexedDB queue that lets POS keep selling when the network drops, plus on-device barcode/QR rendering.",
+      "match": ["public/db.js", "public/qrcode.min.js"]
+    },
+    {
+      "id": "industry-profiles",
+      "lobe": "cortex",
+      "name": "Industry Profiles",
+      "role": "Per-vertical master-data and field packs (jewellery, pharma, food & bev, auto, …) loaded by SwitchIndustryProfile to reshape the same kernel into a different industry.",
+      "match": ["public/profiles/*"]
+    },
+
+    {
+      "id": "http-edge",
+      "lobe": "brainstem",
+      "name": "HTTP Edge & Middleware",
+      "role": "The one door in. apiMiddleware does CORS allowlist, 2MB body cap, per-category rate limiting, panic recovery, JWT verification and tenant resolution, then publishes Resolved-* headers every handler downstream reads. routes.go is the full route table and the background-worker startup list.",
+      "match": ["internal/server/routes.go", "internal/server/middleware.go", "internal/server/VERSION", "cmd/server/main.go"]
+    },
+    {
+      "id": "api-errors",
+      "lobe": "brainstem",
+      "name": "Error & Message Catalog",
+      "role": "The 300+ code standard message catalog and the writeAPIError/writeAPIErrorGeneric envelope every handler returns through. Single choke point for what a user is actually told when something fails.",
+      "match": ["internal/server/apierror.go", "internal/server/error_catalog_generated.go"]
+    },
+    {
+      "id": "doc-kernel",
+      "lobe": "brainstem",
+      "name": "Document Kernel",
+      "role": "The metadata-driven Record Type engine — one generic documents table per tenant plus a doctype_meta/doctype_fields registry. ValidateDocument is the shared validation choke point; document numbering, edit windows and status transitions hang off the same spine.",
+      "match": [
+        "engines/doctype.go",
+        "engines/docid.go",
+        "engines/document_edit_window.go",
+        "engines/document_numbering.go",
+        "engines/numbering.go",
+        "engines/master_data_validation.go",
+        "engines/transactional_validation.go",
+        "engines/status_transition.go",
+        "internal/server/handlers_core_doc_engine.go"
+      ]
+    },
+    {
+      "id": "identity",
+      "lobe": "brainstem",
+      "name": "Identity, RBAC & MFA",
+      "role": "Login, JWT issue/verify, per-role permissions, TOTP MFA for privileged roles, account lockout, password reset, and field-level permissions.",
+      "match": [
+        "engines/auth.go",
+        "engines/auth_livestate.go",
+        "engines/mfa.go",
+        "engines/password_reset.go",
+        "engines/field_permissions.go",
+        "internal/server/handlers_auth.go",
+        "internal/server/handlers_admin_identity.go",
+        "internal/server/handlers_profile.go"
+      ]
+    },
+    {
+      "id": "tenancy",
+      "lobe": "brainstem",
+      "name": "Tenancy, Packaging & Settings",
+      "role": "Schema-per-tenant provisioning, the sellable product packages (PIM/WMS/OMS/HR/…) and their module entitlements, tenant limits, the settings registry, and per-tenant UI label overrides.",
+      "match": [
+        "engines/saas.go",
+        "engines/modules.go",
+        "engines/tenant_limits.go",
+        "engines/settings_registry.go",
+        "engines/settings_definitions.go",
+        "engines/labels.go",
+        "internal/server/handlers_settings.go"
+      ]
+    },
+    {
+      "id": "approval",
+      "lobe": "brainstem",
+      "name": "Approval Engine (maker-checker)",
+      "role": "Amount-banded approval rules, submit → decide → log, bulk decisions, and reset-to-pending when an approved document is edited. Every approval-gated flow in the system routes through this one engine rather than rolling its own.",
+      "match": ["engines/approval.go"]
+    },
+    {
+      "id": "persistence",
+      "lobe": "brainstem",
+      "name": "Persistence & Migrations",
+      "role": "The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enforced at the SQL layer), the migration runner, and every incremental migration file.",
+      "match": ["db/*.go", "db/*.sql"]
+    },
+    {
+      "id": "mixed-handlers",
+      "lobe": "brainstem",
+      "name": "Cross-module API Handlers",
+      "role": "Two historical grab-bag handler files whose contents span several modules (bulk import, availability/checkout, POS sessions, trial balance, approvals, GST, the four core reports, RFQ quotes, stickers, payroll export, the PIM workbench). Kept visible as its own region rather than force-filed under one module, because that is genuinely what they are.",
+      "match": ["internal/server/handlers_pim_pos_finance.go", "internal/server/handlers_procurement_pim2.go"]
+    },
+
+    {
+      "id": "finance",
+      "lobe": "business",
+      "name": "Finance & General Ledger",
+      "role": "Balanced double-entry posting (PostDoubleEntry), chart of accounts, journal vouchers and recurring templates, accounting-period close, cost centres, bank reconciliation, payment proposals and payment files, sales/vendor invoices, debit and credit notes.",
+      "match": [
+        "engines/finance.go",
+        "engines/finance_reports_stage26.go",
+        "engines/gl_cost_center.go",
+        "engines/journal_voucher.go",
+        "engines/accounting_periods.go",
+        "engines/voucher.go",
+        "engines/bank_reconciliation.go",
+        "engines/payment_proposal.go",
+        "engines/payment_file.go",
+        "engines/sales_invoice.go",
+        "engines/vendor_invoice.go",
+        "engines/order_invoice.go",
+        "engines/notes.go",
+        "internal/server/handlers_finance_maturity.go",
+        "internal/server/handlers_finance_stage26.go"
+      ]
+    },
+    {
+      "id": "tax",
+      "lobe": "business",
+      "name": "Tax & Statutory",
+      "role": "GST computation and enforcement (CGST/SGST/IGST, place-of-supply) and TDS. Called from PO creation, checkout and invoicing rather than living inside any one of them.",
+      "match": ["engines/gst.go", "engines/tds.go"]
+    },
+    {
+      "id": "procurement",
+      "lobe": "business",
+      "name": "Procurement & Vendors",
+      "role": "Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → GRN → three-way-matched Vendor Invoice → payment, with the requisition catalog and sourcing rules.",
+      "match": [
+        "engines/procurement.go",
+        "engines/rfq.go",
+        "engines/sourcing.go",
+        "engines/purchase_requisition_catalog.go"
+      ]
+    },
+    {
+      "id": "inventory",
+      "lobe": "business",
+      "name": "Inventory & Planning",
+      "role": "Stock ledger and Available-to-Sell read model (Available − Reserved − Safety Stock − Channel Holds), item lookup by SKU/barcode, location masters, transfer orders, and the replenishment/velocity/demand-forecast engines.",
+      "match": [
+        "engines/inventory.go",
+        "engines/item_lookup.go",
+        "engines/transfer_orders.go",
+        "engines/location_masters.go",
+        "engines/optimization.go"
+      ]
+    },
+    {
+      "id": "wms",
+      "lobe": "business",
+      "name": "Warehouse Management (WMS)",
+      "role": "Receiving, put-away, slotting, picking, pack counts, 3PL billing, productivity tracking and robotics hooks — the enterprise warehouse tier on top of plain inventory.",
+      "match": ["engines/wms*.go", "internal/server/handlers_wms*.go"]
+    },
+    {
+      "id": "oms",
+      "lobe": "business",
+      "name": "Orders & Fulfillment (OMS)",
+      "role": "The order lifecycle: capture, allocation and sourcing, reservation, store/warehouse pick-pack, shipment, and Return Anywhere with RTO/QC/refund.",
+      "match": [
+        "engines/orders.go",
+        "engines/fulfillment.go",
+        "engines/fulfillment_pickpack.go",
+        "engines/returns.go",
+        "engines/oms_reports.go",
+        "internal/server/handlers_orders.go",
+        "internal/server/handlers_returns.go"
+      ]
+    },
+    {
+      "id": "pos",
+      "lobe": "business",
+      "name": "Point of Sale",
+      "role": "Cart → offer evaluation → GST → tender → GL posting → loyalty accrual, plus cash-drawer sessions, offline heartbeat and session close.",
+      "match": [
+        "engines/pos_checkout.go",
+        "engines/pos_session.go",
+        "engines/pos_offers.go",
+        "internal/server/handlers_pos_offers.go"
+      ]
+    },
+    {
+      "id": "pim",
+      "lobe": "business",
+      "name": "Product Information (PIM)",
+      "role": "Family/attribute framework, taxonomy, approval-gated content with versions and rollback, completeness scoring, media library, bulk edit and CSV round-trip, channel publish queue, and barcode/label printing.",
+      "match": ["engines/pim*.go", "engines/stickers.go"]
+    },
+    {
+      "id": "crm",
+      "lobe": "business",
+      "name": "CRM & Loyalty",
+      "role": "Append-only loyalty points ledger with tiering and expiry, redemption security controls, birthday/lapsed-customer campaigns, and customer analytics/reports.",
+      "match": [
+        "engines/loyalty*.go",
+        "engines/campaign.go",
+        "engines/crm_analytics.go",
+        "engines/crm_reports_stage26.go",
+        "internal/server/handlers_crm_analytics.go",
+        "internal/server/handlers_crm_stage26.go"
+      ]
+    },
+    {
+      "id": "hr",
+      "lobe": "business",
+      "name": "HR & Payroll",
+      "role": "Employee records, attendance and leave, payroll runs and export, and the employee↔user access link.",
+      "match": ["engines/hr.go", "engines/hr_payroll.go", "internal/server/handlers_hr_payroll_stage26.go"]
+    },
+    {
+      "id": "manufacturing",
+      "lobe": "business",
+      "name": "Manufacturing & MRP",
+      "role": "BOM, production orders (issue → receive), MRP netting, and production scheduling / subcontracting.",
+      "match": ["engines/manufacturing*.go", "internal/server/handlers_manufacturing_stage26.go"]
+    },
+    {
+      "id": "assets",
+      "lobe": "business",
+      "name": "Fixed Assets",
+      "role": "Capitalize → straight-line depreciate → transfer → dispose, with the asset register and its GL postings.",
+      "match": ["engines/assets.go"]
+    },
+    {
+      "id": "expenses",
+      "lobe": "business",
+      "name": "Expense Management",
+      "role": "Claim → verify → pay, reusing the approval engine and posting to the GL at payment.",
+      "match": ["engines/expense.go"]
+    },
+    {
+      "id": "reports",
+      "lobe": "business",
+      "name": "Reporting Engine",
+      "role": "The ReportDefinition/RegisterReport framework, the report registry and column profiles, background exports, and scheduled report delivery. Any new report plugs in here rather than getting its own endpoint.",
+      "match": [
+        "engines/reports*.go",
+        "engines/report_*.go",
+        "engines/scheduled_reports.go",
+        "internal/server/handlers_report_engine.go"
+      ]
+    },
+    {
+      "id": "logistics",
+      "lobe": "business",
+      "name": "Shipping & Logistics",
+      "role": "Courier serviceability, logistics booking, shipping labels, manifest generation and handover, and delivery-event tracking.",
+      "match": ["engines/marketplace.go"]
+    },
+    {
+      "id": "data-io",
+      "lobe": "business",
+      "name": "Bulk Data I/O",
+      "role": "BulkImportCSV — the shared CSV import path (validation, error rows, formula-injection sanitisation) every line-item upload in the system is expected to reuse.",
+      "match": ["engines/import.go"]
+    },
+
+    {
+      "id": "connectors",
+      "lobe": "peripheral",
+      "name": "Channel Connectors",
+      "role": "Real Shopify / BigCommerce / Magento API clients, channel credentials encrypted at rest, channel order intake, inbound webhook HMAC verification, plus Unicommerce, Pine Labs and CleverTap integrations.",
+      "match": [
+        "engines/connector*.go",
+        "engines/channel_*.go",
+        "engines/unicommerce.go",
+        "engines/clevertap.go",
+        "engines/pinelabs.go",
+        "engines/webhook_verify.go",
+        "internal/server/handlers_integrations_admin.go"
+      ]
+    },
+    {
+      "id": "extensions",
+      "lobe": "peripheral",
+      "name": "Extension Platform",
+      "role": "Scoped, read-only, HMAC-signed extension tokens, the patch/bug intake worker (which never mutates tenant state by construction), and the standalone third-party SDK contract.",
+      "match": ["engines/extensions.go", "engines/patchintake.go", "extension-sdk/*"]
+    },
+
+    {
+      "id": "outbox",
+      "lobe": "autonomic",
+      "name": "Event Outbox",
+      "role": "The reason a slow third party can never hang a checkout: business writes publish an event into integration_event_outbox inside the same DB transaction, and a background poller drains it afterwards. Retry and integration logs live here too.",
+      "match": ["engines/outbox.go"]
+    },
+    {
+      "id": "observability",
+      "lobe": "autonomic",
+      "name": "Logging, Alerting & Notifications",
+      "role": "Audit log, system error log (a PANIC alerts immediately), the ops alert monitor that watches error rates per tenant schema, user/ops notifications, the ops status surface, and the concurrency scale simulator.",
+      "match": [
+        "engines/logs.go",
+        "engines/alerting.go",
+        "engines/notifications.go",
+        "engines/scale.go",
+        "internal/server/handlers_ops_status.go",
+        "internal/server/handlers_operations.go"
+      ]
+    },
+
+    {
+      "id": "docs-memory",
+      "lobe": "memory",
+      "name": "Project Documentation",
+      "role": "The big 3 (micro_checklist / project_ledger / ai_handover) plus the blueprint, guides, SOPs, specs, architecture notes and runbooks. This is where the project stores what it knows about itself between sessions.",
+      "match": ["docs/*", "README.md", "CLAUDE.md"]
+    },
+    {
+      "id": "brain",
+      "lobe": "memory",
+      "name": "The Brain Map (this)",
+      "role": "The map you are reading and the generator that draws it. brain.map.json is the only hand-edited part; BRAIN.md and brain.html are output. Filed as its own region so the brain contains a description of itself, and so a change to the generator shows up in the diagram like any other change.",
+      "priority": 50,
+      "match": ["docs/brain/*", "cmd/brainmap/*"]
+    },
+
+    {
+      "id": "ops-tooling",
+      "lobe": "motor",
+      "name": "Build, Deploy & Operate",
+      "role": "manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build → migrate → restart, with a red-build gate and rollback), the deploy scripts, CI, and one-shot maintenance commands.",
+      "match": [
+        "manage.ps1",
+        "promote.ps1",
+        "deploy/*",
+        "scripts/*",
+        "cmd/reset_mfa/*",
+        ".github/*",
+        "Dockerfile",
+        ".dockerignore",
+        "docker-compose.yml",
+        "package.json",
+        "package-lock.json",
+        "go.mod",
+        "go.sum",
+        "environments.json",
+        "Open-ERP.cmd",
+        ".gitignore",
+        ".gitattributes"
+      ]
+    },
+
+    {
+      "id": "tests",
+      "lobe": "verification",
+      "name": "Test Suite",
+      "role": "Every *_test.go in the tree plus the shared test-DB fixture. Deliberately excluded from the wiring diagrams (diagram: false) — tests call into every region, so including them would drown out the real structure.",
+      "priority": 100,
+      "diagram": false,
+      "match": ["*_test.go", "*_test"]
+    }
+  ],
+
+  "_declared_links": "Connections graphify structurally cannot extract, because they cross a language or process boundary rather than a function call. Asserted here by hand and drawn with a thick ==> arrow so they are never mistaken for measured ones. Add one whenever a real dependency exists that no call graph will ever show.",
+  "declared_links": [
+    {
+      "from": "ui-shell",
+      "to": "http-edge",
+      "label": "HTTP/JSON",
+      "note": "The SPA is JavaScript and the server is Go. apiFetch() calls the route table over the network; no extractor can link the two."
+    },
+    {
+      "from": "api-errors",
+      "to": "ui-shell",
+      "label": "error envelope",
+      "note": "showApiError() renders the exact code/message the catalog returns. Contract enforced by convention on both sides, invisible to either language's AST."
+    },
+    {
+      "from": "ui-offline",
+      "to": "http-edge",
+      "label": "queued replay",
+      "note": "Offline POS writes queue into IndexedDB and are replayed against the same endpoints when the network returns."
+    },
+    {
+      "from": "industry-profiles",
+      "to": "doc-kernel",
+      "label": "loaded at runtime",
+      "note": "SwitchIndustryProfile reads a JSON profile off disk by path; the profiles are data, not code, so nothing links to them statically."
+    },
+    {
+      "from": "connectors",
+      "to": "outbox",
+      "label": "drains the queue",
+      "note": "The outbox worker dispatches by event name through a registry rather than by direct call, so the edge is a table lookup, not a call site."
+    },
+    {
+      "from": "ops-tooling",
+      "to": "persistence",
+      "label": "applies migrations",
+      "note": "promote.ps1 and deploy/migrate.sh run the migration files; PowerShell and .sql are both outside the Go call graph."
+    },
+    {
+      "from": "ops-tooling",
+      "to": "http-edge",
+      "label": "builds & restarts",
+      "note": "manage.ps1/promote.ps1 build the binary and control its lifecycle from outside the process entirely."
+    },
+    {
+      "from": "brain",
+      "to": "docs-memory",
+      "label": "keeps in sync",
+      "note": "The brain is regenerated alongside the big 3 docs; the relationship is a convention in CLAUDE.md, not a code dependency."
+    }
+  ],
+
+  "pathways": [
+    {
+      "id": "request",
+      "name": "Request signal path",
+      "note": "What happens to one API call, in order. Everything downstream of apiMiddleware trusts the Resolved-* headers it sets and nothing the client claimed.",
+      "steps": [
+        { "label": "Browser: apiFetch()", "ref": "public/app.js" },
+        { "label": "Route table", "ref": "internal/server/routes.go" },
+        { "label": "apiMiddleware: CORS → 2MB cap → rate limit → panic recovery", "ref": "internal/server/middleware.go" },
+        { "label": "JWT verify → tenant resolve → Resolved-Tenant-ID / Resolved-User-ID headers", "ref": "internal/server/middleware.go" },
+        { "label": "handler", "ref": "internal/server/handlers_*.go" },
+        { "label": "engine", "ref": "engines/*.go" },
+        { "label": "GetTenantSchema + SetSearchPath", "ref": "db/db.go" },
+        { "label": "PostgreSQL tenant schema", "ref": "db/migration.sql" },
+        { "label": "writeAPIError / JSON envelope", "ref": "internal/server/apierror.go" },
+        { "label": "showApiError()", "ref": "public/app.js" }
+      ]
+    },
+    {
+      "id": "outbox",
+      "name": "Outbound integration path",
+      "note": "No user-facing transaction ever makes a synchronous outbound HTTP call. This is why a down Shopify cannot hang a checkout.",
+      "steps": [
+        { "label": "business write (same DB tx)", "ref": "engines/pos_checkout.go" },
+        { "label": "PublishEvent(tx, …)", "ref": "engines/outbox.go" },
+        { "label": "integration_event_outbox row", "ref": "db/migration.sql" },
+        { "label": "StartOutboxWorker poller", "ref": "engines/outbox.go" },
+        { "label": "connector client", "ref": "engines/connector_shopify.go" },
+        { "label": "external platform" }
+      ]
+    },
+    {
+      "id": "approval",
+      "name": "Maker-checker path",
+      "note": "Any approval-gated document follows this. Editing an already-approved document resets it to pending rather than silently keeping the approval.",
+      "steps": [
+        { "label": "document submitted", "ref": "internal/server/handlers_core_doc_engine.go" },
+        { "label": "ValidateDocument", "ref": "engines/doctype.go" },
+        { "label": "IsApprovalGated / RequiredApproverRoleForAmount", "ref": "engines/approval.go" },
+        { "label": "SubmitForApproval → Pending", "ref": "engines/approval.go" },
+        { "label": "DecideApproval (different user, required role)", "ref": "engines/approval.go" },
+        { "label": "status transition", "ref": "engines/status_transition.go" },
+        { "label": "GL posting", "ref": "engines/finance.go" },
+        { "label": "audit log", "ref": "engines/logs.go" }
+      ]
+    },
+    {
+      "id": "boot",
+      "name": "Boot & reflex startup",
+      "note": "What comes up when the binary starts, before it ever serves a request. One cancellable context is threaded into every worker so SIGTERM lets them finish a tick and exit.",
+      "steps": [
+        { "label": "cmd/server/main.go", "ref": "cmd/server/main.go" },
+        { "label": "server.Run()", "ref": "internal/server/routes.go" },
+        { "label": "InitDB + pending-migration warning", "ref": "db/migrate.go" },
+        { "label": "UTF8 + seed-admin refusal checks", "ref": "db/db.go" },
+        { "label": "background workers: outbox, PIM publish, Magento poll, patch intake, ops alerts, integrations, report export, scheduled reports, recurring journals, loyalty expiry, campaigns", "ref": "internal/server/routes.go" },
+        { "label": "route registration → ListenAndServe", "ref": "internal/server/routes.go" }
+      ]
+    }
+  ]
+}

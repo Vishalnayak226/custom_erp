@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --page:        #f9f9f7;
+    --surface:     #fcfcfb;
+    --surface-2:   #f2f1ed;
+    --ink:         #0b0b0b;
+    --ink-2:       #52514e;
+    --muted:       #898781;
+    --hairline:    #e1e0d9;
+    --edge:        #c3c2b7;
+    --ring:        rgba(11,11,11,0.10);
+    --shadow:      0 1px 2px rgba(11,11,11,0.06), 0 8px 24px rgba(11,11,11,0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      --page:      #0d0d0d;
+      --surface:   #1a1a19;
+      --surface-2: #232322;
+      --ink:       #ffffff;
+      --ink-2:     #c3c2b7;
+      --muted:     #898781;
+      --hairline:  #2c2c2a;
+      --edge:      #383835;
+      --ring:      rgba(255,255,255,0.10);
+      --shadow:    none;
+    }
+  }
+  :root[data-theme="dark"] {
+    --page:      #0d0d0d;
+    --surface:   #1a1a19;
+    --surface-2: #232322;
+    --ink:       #ffffff;
+    --ink-2:     #c3c2b7;
+    --muted:     #898781;
+    --hairline:  #2c2c2a;
+    --edge:      #383835;
+    --ring:      rgba(255,255,255,0.10);
+    --shadow:    none;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: inherit; }
+  header {
+    padding: 22px 24px 16px;
+    border-bottom: 1px solid var(--hairline);
+    background: var(--surface);
+  }
+  h1 { margin: 0 0 6px; font-size: 21px; letter-spacing: -0.01em; }
+  .sub { margin: 0; color: var(--ink-2); max-width: 78ch; font-size: 13.5px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .chip {
+    font-size: 11.5px; color: var(--ink-2); background: var(--surface-2);
+    border: 1px solid var(--hairline); border-radius: 999px; padding: 3px 9px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 14px;
+    padding: 12px 24px; border-bottom: 1px solid var(--hairline);
+    background: var(--surface); position: sticky; top: 0; z-index: 5;
+  }
+  .toolbar label { font-size: 12.5px; color: var(--ink-2); display: flex; align-items: center; gap: 7px; }
+  input[type="search"] {
+    font: inherit; font-size: 13px; padding: 6px 10px; min-width: 210px;
+    border: 1px solid var(--hairline); border-radius: 7px;
+    background: var(--page); color: var(--ink);
+  }
+  input[type="range"] { width: 130px; accent-color: var(--muted); }
+  .lobe-toggles { display: flex; flex-wrap: wrap; gap: 10px; }
+  .lobe-toggle {
+    display: inline-flex; align-items: center; gap: 6px; font-size: 12px;
+    color: var(--ink-2); cursor: pointer; user-select: none;
+  }
+  .lobe-toggle input { margin: 0; }
+  .swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .btn {
+    font: inherit; font-size: 12.5px; padding: 5px 11px; cursor: pointer;
+    border: 1px solid var(--hairline); border-radius: 7px;
+    background: var(--surface-2); color: var(--ink);
+  }
+  .btn[aria-pressed="true"] { background: var(--ink); color: var(--surface); border-color: var(--ink); }
+
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 0; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: minmax(0, 1fr); } }
+
+  .canvas-wrap { overflow-x: auto; padding: 18px 24px 28px; }
+  svg { display: block; }
+  .band-bg { fill: var(--surface); stroke: var(--hairline); }
+  .band-title { font-size: 12px; font-weight: 600; fill: var(--ink-2); }
+  .band-meta { font-size: 10.5px; fill: var(--muted); }
+
+  .node rect.body { fill: var(--surface-2); stroke: var(--ring); rx: 8; }
+  .node rect.accent { rx: 2; }
+  .node text.name { font-size: 12.5px; font-weight: 600; fill: var(--ink); }
+  .node text.meta { font-size: 10.5px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+  .node { cursor: pointer; }
+  .node:focus { outline: none; }
+  .node:focus rect.body, .node.sel rect.body { stroke: var(--ink); stroke-width: 2; }
+  .node.dim { opacity: 0.22; }
+  .node.off { display: none; }
+
+  path.link { fill: none; stroke: var(--edge); stroke-linecap: round; }
+  path.link.dim { opacity: 0.10; }
+  path.link.hot { stroke-opacity: 1; }
+  path.link.off { display: none; }
+  text.link-label { font-size: 9.5px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+
+  aside {
+    border-left: 1px solid var(--hairline); background: var(--surface);
+    padding: 18px 20px 40px; min-height: 60vh; position: sticky; top: 57px;
+    max-height: calc(100vh - 57px); overflow-y: auto;
+  }
+  @media (max-width: 900px) { aside { position: static; max-height: none; border-left: 0; border-top: 1px solid var(--hairline); } }
+  aside h2 { font-size: 15px; margin: 0 0 2px; }
+  aside .lobe-line { font-size: 11.5px; color: var(--muted); margin: 0 0 10px; }
+  aside h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 18px 0 7px; }
+  aside p.role { font-size: 13px; color: var(--ink-2); margin: 0; }
+  aside ul { margin: 0; padding-left: 16px; font-size: 12.5px; color: var(--ink-2); }
+  aside li { margin: 3px 0; }
+  aside code { font-size: 11.5px; background: var(--surface-2); padding: 1px 4px; border-radius: 4px; }
+  .conn { display: flex; align-items: baseline; gap: 6px; }
+  .conn .w { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 11px; }
+  .empty { color: var(--muted); font-size: 13px; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; padding: 0 24px 22px; font-size: 12px; color: var(--ink-2); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .legend svg { display: inline-block; }
+
+  section.table-view { padding: 0 24px 40px; }
+  section.table-view[hidden] { display: none; }
+  table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--hairline); }
+  th { color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  footer { padding: 16px 24px 40px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--hairline); }
+</style>
+</head>
+<body>
+<script>
+const BRAIN = {{.Data}};
+</script>
+
+<header>
+  <h1 id="title"></h1>
+  <p class="sub" id="subtitle"></p>
+  <div class="chips" id="chips"></div>
+</header>
+
+<div class="toolbar">
+  <label>Find
+    <input type="search" id="search" placeholder="region, file or symbol" autocomplete="off">
+  </label>
+  <label>Min connection strength
+    <input type="range" id="weight" min="1" max="60" step="1">
+    <output id="weight-out"></output>
+  </label>
+  <div class="lobe-toggles" id="lobe-toggles"></div>
+  <button class="btn" id="table-toggle" aria-pressed="false">Table view</button>
+  <button class="btn" id="reset">Reset</button>
+</div>
+
+<main>
+  <div class="canvas-wrap">
+    <svg id="map" role="img" aria-labelledby="title"></svg>
+  </div>
+  <aside id="panel" aria-live="polite"></aside>
+</main>
+
+<div class="legend">
+  <span><svg width="46" height="10"><path d="M2 5 H44" stroke="var(--edge)" stroke-width="2" fill="none"/></svg> graphify parsed at least one of these straight from the source</span>
+  <span><svg width="46" height="10"><path d="M2 5 H44" stroke="var(--edge)" stroke-width="2" stroke-dasharray="4 3" fill="none"/></svg> every one of these is inferred — confirm before relying on a single edge</span>
+  <span><svg width="46" height="10"><path d="M2 5 H44" stroke="var(--ink-2)" stroke-width="4" fill="none"/></svg> declared by hand: a boundary no call graph can cross</span>
+  <span><svg width="46" height="10"><path d="M2 5 H44" stroke="var(--edge)" stroke-width="5" fill="none"/></svg> thicker = more relationships crossing that boundary</span>
+</div>
+
+<section class="table-view" id="table-view" hidden>
+  <h2 style="font-size:15px;margin:0 0 10px">All cross-region connections</h2>
+  <table>
+    <thead><tr><th>From</th><th>To</th><th class="num">Relationships</th><th class="num">Inferred</th><th>Confidence</th></tr></thead>
+    <tbody id="table-body"></tbody>
+  </table>
+</section>
+
+<footer id="footer"></footer>
+
+<script>
+(function () {
+  "use strict";
+
+  const BOX_W = 238, BOX_H = 58, GAP_X = 30, GAP_Y = 14;
+  const BAND_PAD = 14, BAND_TOP = 62, BAND_GAP = 26, MAX_PER_COL = 9;
+  const SVG_NS = "http://www.w3.org/2000/svg";
+
+  const byId = new Map(BRAIN.regions.map(r => [r.id, r]));
+  const lobeById = new Map(BRAIN.lobes.map(l => [l.id, l]));
+  const hiddenLobes = new Set();
+  let selected = null, query = "", minWeight = BRAIN.min_weight || 1;
+
+  const dark = () => {
+    const stamped = document.documentElement.getAttribute("data-theme");
+    if (stamped) return stamped === "dark";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  };
+  const lobeColor = id => {
+    const l = lobeById.get(id);
+    if (!l) return "var(--muted)";
+    return dark() ? l.dark : l.light;
+  };
+
+  // Connections are only meaningful between regions the map says to draw.
+  const edges = BRAIN.edges.filter(e => {
+    const a = byId.get(e.from), b = byId.get(e.to);
+    return a && b && a.diagram && b.diagram;
+  });
+  const maxWeight = edges.reduce((m, e) => Math.max(m, e.weight), 1);
+
+  // ---------------------------------------------------------------- header
+  document.title = BRAIN.title;
+  document.getElementById("title").textContent = BRAIN.title;
+  document.getElementById("subtitle").textContent = BRAIN.subtitle;
+  const s = BRAIN.stats;
+  const chips = [
+    "commit " + BRAIN.commit,
+    "redrawn " + BRAIN.generated,
+    s.repo_files + " files (" + s.graph_files + " parsed)",
+    s.nodes.toLocaleString() + " symbols",
+    s.regions + " regions in " + s.lobes + " lobes",
+    s.cross_edges.toLocaleString() + " relationships (" + s.inferred_pct.toFixed(0) + "% inferred)",
+    s.declared + " declared by hand",
+    s.coverage_pct.toFixed(1) + "% of files claimed"
+  ];
+  document.getElementById("chips").innerHTML =
+    chips.map(c => '<span class="chip"></span>').join("");
+  document.querySelectorAll("#chips .chip").forEach((el, i) => { el.textContent = chips[i]; });
+
+  document.getElementById("footer").textContent =
+    "Generated by cmd/brainmap from docs/brain/brain.map.json + graphify-out/graph.json. " +
+    "Edit the map, then run: graphify update . && go run ./cmd/brainmap" +
+    (BRAIN.unmapped.length ? "  — " + BRAIN.unmapped.length + " file(s) not yet claimed by any region." : "");
+
+  // ------------------------------------------------------------- controls
+  const weightInput = document.getElementById("weight");
+  weightInput.max = String(Math.max(2, maxWeight));
+  weightInput.value = String(minWeight);
+  const weightOut = document.getElementById("weight-out");
+
+  const toggles = document.getElementById("lobe-toggles");
+  BRAIN.lobes.forEach(l => {
+    const label = document.createElement("label");
+    label.className = "lobe-toggle";
+    label.title = l.metaphor;
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = true;
+    cb.addEventListener("change", () => {
+      if (cb.checked) hiddenLobes.delete(l.id); else hiddenLobes.add(l.id);
+      draw();
+    });
+    const sw = document.createElement("span");
+    sw.className = "swatch";
+    sw.style.background = dark() ? l.dark : l.light;
+    const txt = document.createElement("span");
+    txt.textContent = l.name.split(" — ")[0];
+    label.append(cb, sw, txt);
+    toggles.append(label);
+  });
+
+  document.getElementById("search").addEventListener("input", e => {
+    query = e.target.value.trim().toLowerCase();
+    draw();
+  });
+  weightInput.addEventListener("input", e => {
+    minWeight = Number(e.target.value);
+    draw();
+  });
+  document.getElementById("reset").addEventListener("click", () => {
+    query = ""; minWeight = BRAIN.min_weight || 1; selected = null; hiddenLobes.clear();
+    document.getElementById("search").value = "";
+    weightInput.value = String(minWeight);
+    toggles.querySelectorAll("input").forEach(cb => { cb.checked = true; });
+    draw();
+  });
+  const tableToggle = document.getElementById("table-toggle");
+  tableToggle.addEventListener("click", () => {
+    const view = document.getElementById("table-view");
+    const show = view.hidden;
+    view.hidden = !show;
+    tableToggle.setAttribute("aria-pressed", String(show));
+  });
+
+  // ---------------------------------------------------------- table view
+  const tbody = document.getElementById("table-body");
+  edges.forEach(e => {
+    const tr = document.createElement("tr");
+    const cells = [
+      byId.get(e.from).name,
+      byId.get(e.to).name,
+      e.declared ? "—" : String(e.weight),
+      e.declared ? "—" : String(e.inferred),
+      e.declared ? "declared by hand: " + e.label
+        : (e.inferred >= e.weight ? "all inferred"
+          : e.inferred === 0 ? "all extracted"
+            : (e.weight - e.inferred) + " extracted, " + e.inferred + " inferred")
+    ];
+    cells.forEach((c, i) => {
+      const td = document.createElement("td");
+      if (i === 2 || i === 3) td.className = "num";
+      td.textContent = c;
+      tr.append(td);
+    });
+    tbody.append(tr);
+  });
+
+  // ------------------------------------------------------------- matching
+  function matches(r) {
+    if (!query) return true;
+    if (r.name.toLowerCase().includes(query)) return true;
+    if (r.id.includes(query)) return true;
+    if (r.files.some(f => f.toLowerCase().includes(query))) return true;
+    return (r.symbols || []).some(sym => sym.label.toLowerCase().includes(query));
+  }
+
+  // --------------------------------------------------------------- layout
+  function layout() {
+    const bands = [];
+    let x = 10, maxRows = 1;
+    BRAIN.lobes.forEach(l => {
+      if (hiddenLobes.has(l.id)) return;
+      const members = BRAIN.regions.filter(r => r.lobe === l.id);
+      if (!members.length) return;
+      const cols = Math.ceil(members.length / MAX_PER_COL);
+      const rows = Math.ceil(members.length / cols);
+      const w = cols * BOX_W + (cols - 1) * GAP_X + 2 * BAND_PAD;
+      const placed = members.map((r, i) => ({
+        region: r,
+        x: x + BAND_PAD + Math.floor(i / rows) * (BOX_W + GAP_X),
+        y: BAND_TOP + (i % rows) * (BOX_H + GAP_Y)
+      }));
+      bands.push({ lobe: l, x: x, w: w, rows: rows, nodes: placed });
+      maxRows = Math.max(maxRows, rows);
+      x += w + BAND_GAP;
+    });
+    return {
+      bands: bands,
+      width: Math.max(x, 320),
+      height: BAND_TOP + maxRows * (BOX_H + GAP_Y) + 16
+    };
+  }
+
+  // ----------------------------------------------------------------- draw
+  const svg = document.getElementById("map");
+
+  function el(name, attrs, text) {
+    const n = document.createElementNS(SVG_NS, name);
+    for (const k in attrs) n.setAttribute(k, attrs[k]);
+    if (text !== undefined) n.textContent = text;
+    return n;
+  }
+
+  function truncate(str, max) {
+    return str.length > max ? str.slice(0, max - 1) + "…" : str;
+  }
+
+  function draw() {
+    weightOut.textContent = minWeight;
+    svg.textContent = "";
+    const lay = layout();
+    svg.setAttribute("width", lay.width);
+    svg.setAttribute("height", lay.height);
+    svg.setAttribute("viewBox", "0 0 " + lay.width + " " + lay.height);
+
+    const pos = new Map();
+    lay.bands.forEach(band => band.nodes.forEach(n => pos.set(n.region.id, n)));
+
+    // Three layers, painted in this order: the lobe bands sit underneath, the
+    // connections cross over them, the region cards sit on top. Any other
+    // order and a band's own background wipes out the links running through it.
+    const gBands = el("g", {});
+    const gLinks = el("g", {});
+    const gNodes = el("g", {});
+    svg.append(gBands, gLinks, gNodes);
+
+    // Bands ------------------------------------------------------------
+    lay.bands.forEach(band => {
+      const g = el("g", {});
+      g.append(el("rect", {
+        class: "band-bg", x: band.x, y: 30, rx: 12,
+        width: band.w, height: lay.height - 40, "stroke-dasharray": "0"
+      }));
+      const accent = el("rect", {
+        x: band.x, y: 30, rx: 12, width: band.w, height: 3,
+        fill: lobeColor(band.lobe.id)
+      });
+      const parts = band.lobe.name.split(" — ");
+      g.append(accent);
+      g.append(el("text", { class: "band-title", x: band.x + BAND_PAD, y: 50 }, parts[0]));
+      g.append(el("text", { class: "band-meta", x: band.x + BAND_PAD, y: 50, dx: measure(parts[0]) + 8 },
+        parts[1] || ""));
+      gBands.append(g);
+    });
+
+    // Links ------------------------------------------------------------
+    const visibleLinks = [];
+    edges.forEach(e => {
+      const a = pos.get(e.from), b = pos.get(e.to);
+      if (!a || !b) return;
+      // Declared links have no measured weight, so the strength filter must
+      // never hide them - they are the only evidence of a cross-language edge.
+      // The filter is there to thin out the global picture, so it also steps
+      // aside for the region you actually asked about: selecting a region
+      // always shows all of its own connections, however weak.
+      const own = selected && (e.from === selected || e.to === selected);
+      if (!e.declared && !own && e.weight < minWeight) return;
+      const aMid = { x: a.x + BOX_W / 2, y: a.y + BOX_H / 2 };
+      const bMid = { x: b.x + BOX_W / 2, y: b.y + BOX_H / 2 };
+      let x1, x2, dir;
+      if (bMid.x >= aMid.x) { x1 = a.x + BOX_W; x2 = b.x; dir = 1; }
+      else { x1 = a.x; x2 = b.x + BOX_W; dir = -1; }
+      const y1 = aMid.y, y2 = bMid.y;
+      const c = Math.max(30, Math.abs(x2 - x1) * 0.45) * dir;
+      const d = "M" + x1 + " " + y1 + " C" + (x1 + c) + " " + y1 + " " + (x2 - c) + " " + y2 + " " + x2 + " " + y2;
+
+      const width = e.declared ? 3.5 : Math.min(6, 1 + Math.log2(e.weight));
+      const path = el("path", {
+        class: "link", d: d, "stroke-width": width.toFixed(2),
+        "stroke-opacity": e.declared ? 0.85 : 0.55
+      });
+      // Purely inferred edges are dashed; an edge with any extracted evidence
+      // stays solid. Declared edges are neither - they are asserted by hand.
+      if (!e.declared && e.inferred >= e.weight) path.setAttribute("stroke-dasharray", "5 4");
+      path.append(el("title", {}, e.declared
+        ? byId.get(e.from).name + " → " + byId.get(e.to).name +
+          " : declared — " + e.label + ". " + e.note
+        : byId.get(e.from).name + " → " + byId.get(e.to).name +
+          " : " + e.weight + " relationship(s), " + e.inferred + " inferred"));
+      gLinks.append(path);
+      visibleLinks.push({ edge: e, path: path });
+    });
+
+    // Nodes ------------------------------------------------------------
+    lay.bands.forEach(band => band.nodes.forEach(n => {
+      const r = n.region;
+      const g = el("g", { class: "node", tabindex: "0", role: "button",
+        "aria-label": r.name + ", " + band.lobe.name });
+      g.dataset.region = r.id;
+      g.append(el("rect", { class: "body", x: n.x, y: n.y, width: BOX_W, height: BOX_H }));
+      g.append(el("rect", { class: "accent", x: n.x, y: n.y + 8, width: 4, height: BOX_H - 16,
+        fill: lobeColor(r.lobe) }));
+      g.append(el("text", { class: "name", x: n.x + 16, y: n.y + 24 }, truncate(r.name, 31)));
+      const conn = edges.filter(e => e.from === r.id || e.to === r.id)
+        .reduce((t, e) => t + e.weight, 0);
+      g.append(el("text", { class: "meta", x: n.x + 16, y: n.y + 42 },
+        r.nodes + " symbols · " + r.files.length + " files" + (r.diagram ? " · " + conn + " links" : "")));
+      if (!matches(r)) g.classList.add("dim");
+      if (selected === r.id) g.classList.add("sel");
+
+      const focus = () => highlight(r.id, visibleLinks);
+      const blur = () => highlight(selected, visibleLinks);
+      g.addEventListener("mouseenter", focus);
+      g.addEventListener("mouseleave", blur);
+      g.addEventListener("focus", focus);
+      g.addEventListener("blur", blur);
+      g.addEventListener("click", () => select(r.id));
+      g.addEventListener("keydown", ev => {
+        if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); select(r.id); }
+      });
+      gNodes.append(g);
+    }));
+
+    highlight(selected, visibleLinks);
+    renderPanel();
+  }
+
+  // Rough text width, good enough to place the band subtitle after its title.
+  function measure(str) { return str.length * 6.6; }
+
+  function highlight(regionId, visibleLinks) {
+    const nodes = svg.querySelectorAll(".node");
+    if (!regionId) {
+      visibleLinks.forEach(l => {
+        l.path.classList.remove("dim", "hot");
+        l.path.setAttribute("stroke", l.edge.declared ? "var(--ink-2)" : "var(--edge)");
+      });
+      nodes.forEach(n => { if (matches(byId.get(n.dataset.region))) n.classList.remove("dim"); });
+      return;
+    }
+    const touching = new Set([regionId]);
+    visibleLinks.forEach(l => {
+      const hot = l.edge.from === regionId || l.edge.to === regionId;
+      l.path.classList.toggle("hot", hot);
+      l.path.classList.toggle("dim", !hot);
+      if (hot) {
+        l.path.setAttribute("stroke", l.edge.declared
+          ? "var(--ink-2)" : lobeColor(byId.get(l.edge.from).lobe));
+        touching.add(l.edge.from); touching.add(l.edge.to);
+      } else {
+        l.path.setAttribute("stroke", l.edge.declared ? "var(--ink-2)" : "var(--edge)");
+      }
+    });
+    nodes.forEach(n => {
+      const ok = touching.has(n.dataset.region) && matches(byId.get(n.dataset.region));
+      n.classList.toggle("dim", !ok);
+    });
+  }
+
+  function select(id) {
+    selected = (selected === id) ? null : id;
+    draw();
+  }
+
+  // ---------------------------------------------------------------- panel
+  const panel = document.getElementById("panel");
+
+  function renderPanel() {
+    panel.textContent = "";
+    if (!selected) {
+      const h = document.createElement("h2");
+      h.textContent = "Pick a region";
+      const p = document.createElement("p");
+      p.className = "empty";
+      p.textContent = "Click any box to see what it owns, which files are in it, and what it is wired to. " +
+        "Hover to light up just its connections.";
+      panel.append(h, p);
+      addPathways(panel);
+      return;
+    }
+    const r = byId.get(selected);
+    const lobe = lobeById.get(r.lobe);
+
+    const h = document.createElement("h2");
+    h.textContent = r.name;
+    const sub = document.createElement("p");
+    sub.className = "lobe-line";
+    sub.textContent = lobe.name + " · " + r.nodes + " symbols · " + r.files.length + " files";
+    const role = document.createElement("p");
+    role.className = "role";
+    role.textContent = r.role;
+    panel.append(h, sub, role);
+
+    const out = edges.filter(e => e.from === r.id);
+    const inc = edges.filter(e => e.to === r.id);
+    if (out.length || inc.length) {
+      panel.append(heading("Wired to"));
+      const ul = document.createElement("ul");
+      out.forEach(e => ul.append(connItem("→", byId.get(e.to), e)));
+      inc.forEach(e => ul.append(connItem("←", byId.get(e.from), e)));
+      panel.append(ul);
+    }
+
+    if (r.symbols && r.symbols.length) {
+      panel.append(heading("Most connected symbols"));
+      const ul = document.createElement("ul");
+      r.symbols.forEach(sym => {
+        const li = document.createElement("li");
+        const code = document.createElement("code");
+        code.textContent = sym.label;
+        const where = document.createElement("span");
+        where.className = "w";
+        where.textContent = " " + sym.file + (sym.loc ? " " + sym.loc : "") + " · degree " + sym.degree;
+        li.append(code, where);
+        ul.append(li);
+      });
+      panel.append(ul);
+    }
+
+    panel.append(heading("Files"));
+    const fl = document.createElement("ul");
+    r.files.forEach(f => {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = "../../" + f;
+      a.textContent = f;
+      li.append(a);
+      fl.append(li);
+    });
+    if (!r.files.length) {
+      const li = document.createElement("li");
+      li.className = "empty";
+      li.textContent = "No file in the graph matches this region's patterns yet.";
+      fl.append(li);
+    }
+    panel.append(fl);
+  }
+
+  function heading(text) {
+    const h = document.createElement("h3");
+    h.textContent = text;
+    return h;
+  }
+
+  function connItem(arrow, other, e) {
+    const li = document.createElement("li");
+    li.className = "conn";
+    const a = document.createElement("a");
+    a.href = "#";
+    a.textContent = arrow + " " + other.name;
+    a.addEventListener("click", ev => { ev.preventDefault(); select(other.id); });
+    const w = document.createElement("span");
+    w.className = "w";
+    w.textContent = e.declared ? e.label
+      : e.weight + (e.inferred >= e.weight ? " inferred" : "");
+    li.append(a, w);
+    return li;
+  }
+
+  function addPathways(host) {
+    (BRAIN.pathways || []).forEach(p => {
+      host.append(heading(p.name));
+      const ul = document.createElement("ul");
+      p.steps.forEach(step => {
+        const li = document.createElement("li");
+        li.textContent = step.label;
+        if (step.ref) {
+          const code = document.createElement("code");
+          code.textContent = step.ref;
+          li.append(" ", code);
+        }
+        ul.append(li);
+      });
+      host.append(ul);
+    });
+  }
+
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", draw);
+  draw();
+})();
+</script>
+</body>
+</html>

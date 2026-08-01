@@ -4,6 +4,7 @@ Where to look, by question.
 
 ## "What is this system, in full?"
 - **[ERP_BLUEPRINT.md](ERP_BLUEPRINT.md)** — a complete project snapshot for an outside reader (including an AI reviewer) with no other context: scope, architecture, build history, known gaps. Start here.
+- **[brain/](brain/)** — the same system as a *map* rather than prose: every file in the tree grouped into 35 regions across 8 lobes, wired by the call graph graphify extracts from the source. [BRAIN.md](brain/BRAIN.md) to read it in Markdown, [brain.html](brain/brain.html) to click around it. Regenerated from `brain.map.json` + the graph, so it does not drift — see [brain/README.md](brain/README.md) for how to redraw it and how to add a region.
 
 ## "What's being worked on / what's left to do?"
 - **[micro_checklist.md](micro_checklist.md)** — the live backlog, Stage by Stage, `[ ]`/`[x]` per item. Current source of truth for what's built.
