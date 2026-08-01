@@ -78,8 +78,17 @@ func VerifyAuditLogChain(tenantID string) (intact bool, brokenAt *AuditChainBrea
 	if err != nil {
 		return false, nil, err
 	}
-	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, user_id, action, status, details, checksum, created_at FROM %s.audit_logs ORDER BY created_at ASC, id ASC`, schema))
+	// Stage 30.2.3: every text column is COALESCE'd. Found live - this
+	// endpoint 500'd on a row with a NULL checksum (only `checksum` has a
+	// pre-migration NULL case today, but user_id/details are equally nullable
+	// in the schema, and the whole point of a tamper-evidence check is that it
+	// still runs when the data is unusual). An empty string is also exactly
+	// how the loop below already treats a pre-checksum row, so nothing about
+	// the verification semantics changes.
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT id, COALESCE(user_id, ''), COALESCE(action, ''), COALESCE(status, ''),
+		       COALESCE(details, ''), COALESCE(checksum, ''), created_at
+		FROM %s.audit_logs ORDER BY created_at ASC, id ASC`, schema))
 	if err != nil {
 		return false, nil, err
 	}

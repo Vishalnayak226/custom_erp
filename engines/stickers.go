@@ -2,7 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
-	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -61,18 +61,21 @@ func PrintStickers(tenantID string, skus []string, printerCode, printedBy, repri
 
 	var labels []StickerLabel
 	for _, sku := range skus {
-		var dataStr string
-		err := db.DB.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'Item' AND id = $1`, schema), sku).Scan(&dataStr)
+		// Stage 30.1.1: resolved through the shared ResolveItemBySKU (code ->
+		// barcode -> id) rather than the internal id alone - a sticker run
+		// keyed off item Codes used to print every label with a blank
+		// name/HSN, which is exactly the label content that matters.
+		resolved, err := ResolveItemBySKU(tenantID, sku)
 		label := StickerLabel{SKU: sku}
-		if err == nil {
-			var item map[string]interface{}
+		if err != nil && !errors.Is(err, ErrItemNotFound) {
 			// 24.18: read-only below (nil-map-safe), so this degrades the
 			// same way an unregistered SKU already does by design (blank
 			// name/HSN, barcode falls back to the SKU itself) - just logged
 			// so a corrupt Item record doesn't go unnoticed.
-			if err := json.Unmarshal([]byte(dataStr), &item); err != nil {
-				log.Printf("[STICKERS] corrupt Item %s: %v", sku, err)
-			}
+			log.Printf("[STICKERS] could not resolve Item %s: %v", sku, err)
+		}
+		if err == nil {
+			item := resolved.Data
 			if v, ok := item["name"].(string); ok {
 				label.Name = v
 			}

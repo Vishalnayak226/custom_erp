@@ -64,26 +64,23 @@ function Initialize-Database($dbName) {
     }
 }
 
-function Invoke-PendingMigrations($dbName) {
-    # public.schema_migrations may not exist yet on a brand-new database -
-    # migration.sql itself doesn't create it (that's Stage 14.6's own
-    # migration file), so bootstrap-order matters: run everything in
-    # filename order regardless, and only start consulting the ledger once
-    # migrations_stage14b_versioning.sql (which creates the table) has run.
-    $files = Get-ChildItem (Join-Path $RepoRoot "db") -Filter "*.sql" | Sort-Object Name
-    foreach ($f in $files) {
-        $already = & "$PgBin\psql.exe" -h localhost -p $PgPort -U postgres -d $dbName -tAc "SELECT 1 FROM public.schema_migrations WHERE migration_file = '$($f.Name)'" 2>$null
-        if ($already -eq "1") {
-            Write-Host "  [skip] $($f.Name) (already applied)" -ForegroundColor DarkGray
-            continue
-        }
-        Write-Host "  [apply] $($f.Name)" -ForegroundColor Cyan
-        Invoke-Psql -Database $dbName -File $f.FullName
-        # migrations_stage14b_versioning.sql already inserts its own ledger
-        # row (and the other 3 filenames it knows about) via its bootstrap
-        # INSERT - this ON CONFLICT DO NOTHING catches any file applied
-        # individually outside that bootstrap list without double-recording.
-        & "$PgBin\psql.exe" -h localhost -p $PgPort -U postgres -d $dbName -c "INSERT INTO public.schema_migrations (migration_file, description) VALUES ('$($f.Name)', 'applied by promote.ps1') ON CONFLICT (migration_file) DO NOTHING" 2>$null | Out-Null
+function Invoke-PendingMigrations($dbName, $sourcePath) {
+    # Stage 30.2.2: this used to be a second, independent implementation of
+    # "apply pending migrations" - a psql loop over db/*.sql in plain
+    # lexicographic order, recording each in public.schema_migrations. It now
+    # delegates to the runner in the application itself (db/migrate.go), so
+    # there is exactly one implementation of the ordering rules, the ledger
+    # bookkeeping, and the per-file transaction. `erp-server -migrate` is also
+    # what an operator runs by hand against a live database, so promotion and
+    # manual maintenance can no longer drift apart.
+    Push-Location $sourcePath
+    try {
+        $env:DATABASE_URL = "postgres://postgres@localhost:$PgPort/$dbName?sslmode=disable"
+        & "$GoBin\go.exe" run ./cmd/server -migrate
+        if ($LASTEXITCODE -ne 0) { throw "migrations failed against '$dbName'" }
+    } finally {
+        Remove-Item Env:\DATABASE_URL -ErrorAction SilentlyContinue
+        Pop-Location
     }
 }
 
@@ -193,7 +190,10 @@ if (-not (Test-Path $toPath)) {
 $toCfg = $envConfig.$To
 Initialize-Database $toCfg.database
 Write-Host "Applying migrations to '$($toCfg.database)'..." -ForegroundColor Cyan
-Invoke-PendingMigrations $toCfg.database
+# Run from the target worktree (checked out at the promoted commit above), so
+# the migrations applied are exactly the ones that commit ships - not whatever
+# happens to be in the dev tree right now.
+Invoke-PendingMigrations $toCfg.database $toPath
 
 # 5. Build the stripped release binary in the target worktree.
 Push-Location $toPath

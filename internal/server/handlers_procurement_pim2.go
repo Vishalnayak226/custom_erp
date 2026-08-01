@@ -278,7 +278,7 @@ func handlePIMMediaUpload(w http.ResponseWriter, r *http.Request) {
 	asset, err := engines.SaveMediaFile(tenantID, fileBytes, header.Filename, itemCode, mediaRole, userID, altText, expiryDate)
 	if err != nil {
 		if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
-			writeAPIError(w, r, verr.Code, verr.SubFor)
+			writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
 		} else {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		}

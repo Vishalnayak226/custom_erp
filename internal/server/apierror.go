@@ -49,8 +49,21 @@ var placeholderRe = regexp.MustCompile(`\{[^}]+\}`)
 // are generic enough to render with no per-call-site field context; every
 // other style (Inline field message, Modal popup, ...) keeps the modal
 // fallback since only the call site knows which field it belongs to.
+//
+// Detail and UserAction (Stage 30.2.4) are the two halves of the answer that
+// the envelope used to throw away. The catalog's UserMessage is intentionally
+// generic ("Tax configuration is missing for this transaction. Please contact
+// administrator.") because one row covers many call sites; the engine that
+// actually rejected the request knows the specific reason ("item
+// 'QA-TSHIRT-01' is missing hsn_code"), and the catalog itself carries a
+// populated UserAction on all 302 rows telling the user what to do next.
+// Neither ever reached the client, so an admin was told to contact an
+// administrator about an unnamed item. Both are optional and additive: any
+// existing client that reads only `error` is unaffected.
 type apiErrorBody struct {
 	Error         string `json:"error"`
+	Detail        string `json:"detail,omitempty"`
+	UserAction    string `json:"user_action,omitempty"`
 	Code          string `json:"code,omitempty"`
 	CorrelationID string `json:"correlation_id,omitempty"`
 	Retryable     bool   `json:"retryable,omitempty"`
@@ -102,6 +115,20 @@ func writeResponse(w http.ResponseWriter, status int, body apiErrorBody) {
 // pass "" when the message has no placeholder or the generic wording is
 // fine as-is.
 func writeAPIError(w http.ResponseWriter, r *http.Request, code string, subFor string) {
+	writeAPIErrorDetail(w, r, code, subFor, "")
+}
+
+// writeAPIErrorDetail is writeAPIError plus the specific reason the request
+// was rejected (Stage 30.2.4). The catalog's UserMessage stays the headline -
+// it is the curated, translatable, one-row-covers-many-call-sites text - and
+// detail is the engine's own precise explanation shown underneath it, e.g.
+// "item 'QA-TSHIRT-01' is missing hsn_code - required before it can be sold or
+// purchased" under "Tax configuration is missing for this transaction."
+//
+// Pass a detail only for text that is safe to show a user: a business-rule
+// explanation, never a raw driver/SQL error (see writeAPIErrorGeneric's own
+// note on why 5xx internals stay server-side).
+func writeAPIErrorDetail(w http.ResponseWriter, r *http.Request, code string, subFor string, detail string) {
 	entry, ok := errorCatalog[code]
 	if !ok {
 		// Programmer error (typo'd code) - fail loudly in a way that's still
@@ -118,11 +145,25 @@ func writeAPIError(w http.ResponseWriter, r *http.Request, code string, subFor s
 		message = placeholderRe.ReplaceAllString(message, subFor)
 	}
 
-	logForEntry(r, entry, message)
+	// Log the detail when there is one - it is strictly more informative than
+	// the generic headline the log used to record.
+	logged := message
+	if detail != "" {
+		logged = message + " | " + detail
+	}
+	logForEntry(r, entry, logged)
+
+	// A detail identical to the headline adds a duplicated line to every
+	// dialog and no information.
+	if detail == message {
+		detail = ""
+	}
 
 	_, _, correlationID := resolvedContext(r)
 	writeResponse(w, entry.HTTPStatus, apiErrorBody{
 		Error:         message,
+		Detail:        detail,
+		UserAction:    entry.UserAction,
 		Code:          entry.Code,
 		CorrelationID: correlationID,
 		Retryable:     entry.Retryable,
@@ -140,7 +181,12 @@ func writeAPIError(w http.ResponseWriter, r *http.Request, code string, subFor s
 // precisely-coded *engines.ValidationError.
 func writeEngineError(w http.ResponseWriter, r *http.Request, err error, fallbackStatus int) {
 	if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
-		writeAPIError(w, r, verr.Code, verr.SubFor)
+		// Stage 30.2.4: verr.Message - the engine's own specific reason - used
+		// to be discarded here in favour of the catalog's generic wording. It
+		// now rides along as `detail`. These messages are written by this
+		// codebase's own validators for a user to read, so they are safe to
+		// show (unlike a raw 5xx internal error).
+		writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
 		return
 	}
 	writeAPIErrorGeneric(w, r, fallbackStatus, err.Error())
@@ -192,7 +238,12 @@ func writeAPIErrorGeneric(w http.ResponseWriter, r *http.Request, status int, me
 
 	_, _, correlationID := resolvedContext(r)
 	writeResponse(w, status, apiErrorBody{
-		Error:         responseMessage,
+		Error: responseMessage,
+		// Stage 30.2.4: the catalog's UserAction is populated on all 302 rows
+		// and had never been sent to a client. No `detail` here on purpose -
+		// on a 4xx the caller's own specific message is already the headline,
+		// and on a 5xx the raw internal message is deliberately withheld.
+		UserAction:    entry.UserAction,
 		Code:          code,
 		CorrelationID: correlationID,
 		Retryable:     entry.Retryable,

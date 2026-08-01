@@ -55,8 +55,11 @@ func GetPayrollExport(tenantID, from, to string) ([]PayrollExportEntry, error) {
 		return nil, err
 	}
 
+	// Stage 30.2.3: COALESCE'd - one Attendance row missing employee_id or
+	// status would otherwise fail the scan and take the entire payroll export
+	// down with it.
 	attRows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT data->>'employee_id', data->>'status' FROM %s.documents
+		SELECT COALESCE(data->>'employee_id', ''), COALESCE(data->>'status', '') FROM %s.documents
 		WHERE doctype = 'Attendance' AND (data->>'date') BETWEEN $1 AND $2`, schema), from, to)
 	if err != nil {
 		return nil, err

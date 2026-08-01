@@ -31,6 +31,9 @@ func init() {
 			{Key: "cart_number", Label: "Cart Number"}, {Key: "location", Label: "Location"},
 			{Key: "payment_mode", Label: "Payment Mode"}, {Key: "status", Label: "Status"},
 			{Key: "sale_total", Label: "Sale Total", Sensitive: true}, {Key: "created_at", Label: "Date"},
+			// Stage 30.2.3: normally blank; a corrupt cart is now listed with
+			// this filled in instead of being dropped from the register.
+			{Key: "data_issue", Label: "Data Issue"},
 		},
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
 			entries, err := GetSalesRegisterReport(tenantID)

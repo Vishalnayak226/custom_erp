@@ -39,7 +39,10 @@ func GetCurrentStockReport(tenantID string) ([]map[string]interface{}, error) {
 	return results, nil
 }
 
-// SalesRegisterEntry is one completed sale.
+// SalesRegisterEntry is one completed sale. DataIssue (Stage 30.2.3) is
+// normally empty and names the problem when a row could not be read properly -
+// see GetSalesRegisterReport for why a bad row is reported rather than
+// dropped.
 type SalesRegisterEntry struct {
 	CartNumber  string    `json:"cart_number"`
 	Location    string    `json:"location"`
@@ -47,6 +50,7 @@ type SalesRegisterEntry struct {
 	Status      string    `json:"status"`
 	SaleTotal   float64   `json:"sale_total"`
 	CreatedAt   time.Time `json:"created_at"`
+	DataIssue   string    `json:"data_issue"`
 }
 
 // GetSalesRegisterReport lists completed sales (Paid or Settled POSCarts).
@@ -88,10 +92,19 @@ func GetSalesRegisterReport(tenantID string) ([]SalesRegisterEntry, error) {
 			// with no items field" case (valid JSON, just a different
 			// shape, which unmarshals with err == nil and cart.Items empty
 			// - that's the report's existing, verified "degrades to 0, not
-			// a crash" behavior). This branch is genuinely malformed JSON -
-			// skip the row rather than silently reporting it as a 0-value
-			// sale.
+			// a crash" behavior). This branch is genuinely malformed JSON.
+			//
+			// Stage 30.2.3: it used to `continue`, dropping the row entirely.
+			// In a financial register that is the worst of the three options -
+			// the sale silently vanishes from the report and from its total,
+			// and only a server log nobody reads says why. It is now listed
+			// with a zero total and an explicit data_issue, so a corrupt sale
+			// is visible to the person who can go fix it.
 			log.Printf("[REPORTS] corrupt POSCart %s: %v", id, err)
+			results = append(results, SalesRegisterEntry{
+				CartNumber: id, Status: status, CreatedAt: createdAt,
+				DataIssue: "cart data is unreadable - this sale's total could not be computed",
+			})
 			continue
 		}
 
@@ -115,9 +128,14 @@ func GetVendorLedgerReport(tenantID, vendorFilter string) ([]map[string]interfac
 	if err != nil {
 		return nil, err
 	}
+	// Stage 30.2.3: COALESCE'd for the same reason GetCustomerLedgerReport is
+	// (engines/finance_reports_stage26.go) - a PurchaseOrder missing either
+	// text field would 503 the whole report on a NULL-into-string scan.
 	query := fmt.Sprintf(`
-		SELECT id, data->>'vendor' AS vendor, data->>'po_number' AS po_number,
-		       COALESCE((data->>'total_amount')::numeric, 0) AS total_amount, status, created_at
+		SELECT id, COALESCE(data->>'vendor', '') AS vendor,
+		       COALESCE(data->>'po_number', '') AS po_number,
+		       COALESCE((data->>'total_amount')::numeric, 0) AS total_amount,
+		       COALESCE(status, '') AS status, created_at
 		FROM %s.documents WHERE doctype = 'PurchaseOrder'`, schema)
 	var args []interface{}
 	if vendorFilter != "" {

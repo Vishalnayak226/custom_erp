@@ -55,10 +55,16 @@ if ($LASTEXITCODE -ne 0) { throw "scp of public/ failed" }
 if ($LASTEXITCODE -ne 0) { throw "scp of db/ failed" }
 
 Write-Host "Migrating + swapping binary + restarting on the box..." -ForegroundColor Cyan
+# Migrations are run with the NEWLY uploaded binary, not the running one:
+# since Stage 30.2.2 the migration files are embedded in the binary
+# (db/migrate.go), so the old binary would apply the old set - exactly the
+# migrations that are already applied. Still before the swap, so the new
+# binary never serves a request against a schema it hasn't migrated.
 $remote = @"
 set -e
 source /etc/erp/erp.env
-bash $RemoteDir/deploy/migrate.sh
+chmod +x $RemoteDir/erp-server.new
+ERP_BINARY=$RemoteDir/erp-server.new bash $RemoteDir/deploy/migrate.sh
 mv $RemoteDir/erp-server.new $RemoteDir/erp-server
 chmod +x $RemoteDir/erp-server
 sudo systemctl restart erp

@@ -1,8 +1,8 @@
 package engines
 
 import (
-	"custom_erp/db"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 )
@@ -68,21 +68,20 @@ func CalculateGST(taxableAmount, gstRate float64, interstate bool) (GSTBreakdown
 // (Stage 13.10 fields). Returns an error if either is unset - the gate
 // Stage 17.5 uses to block a PurchaseOrder/checkout line from posting with
 // incomplete tax classification, rather than silently defaulting to 0%.
+//
+// Stage 30.1.1: the SKU is resolved through the shared ResolveItemBySKU
+// (code -> barcode -> id) rather than the internal id alone, so a scanned
+// barcode or a typed item Code reaches the same record the POS typeahead
+// offered.
 func GetItemGSTInfo(tenantID, sku string) (hsnCode string, gstRate float64, err error) {
-	schema, err := db.GetTenantSchema(tenantID)
+	item, err := ResolveItemBySKU(tenantID, sku)
 	if err != nil {
+		if errors.Is(err, ErrItemNotFound) {
+			return "", 0, fmt.Errorf("item '%s' not found", sku)
+		}
 		return "", 0, err
 	}
-	var dataStr string
-	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT data FROM %s.documents WHERE doctype = 'Item' AND id = $1 AND deleted_at IS NULL`, schema), sku).Scan(&dataStr)
-	if err != nil {
-		return "", 0, fmt.Errorf("item '%s' not found", sku)
-	}
-	var data map[string]interface{}
-	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
-		return "", 0, err
-	}
+	data := item.Data
 	hsnCode, _ = data["hsn_code"].(string)
 	if hsnCode == "" {
 		// ADMINC-0034 (Stage 25.5): "Tax configuration missing" - an Item
@@ -136,6 +135,15 @@ func ComputeGSTForLines(tenantID string, lines []GSTLineInput, interstate bool) 
 		total.IGST += lineBreakdown.IGST
 		total.TotalTax += lineBreakdown.TotalTax
 		total.TotalAmount += lineBreakdown.TotalAmount
+	}
+	// Stage 30.5.10: the aggregate used to report gst_rate: 0 while charging
+	// the correct tax, because GSTRate is a per-line input that nothing ever
+	// set on the rolled-up total - so a checkout response said "0%" on a sale
+	// that had just been charged 5%. A cart can legitimately mix rates, so the
+	// figure reported is the blended effective rate actually applied, which is
+	// exactly the line rate when every line shares one.
+	if total.TaxableAmount > 0 {
+		total.GSTRate = round2(total.TotalTax / total.TaxableAmount * 100)
 	}
 	return total, nil
 }

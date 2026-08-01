@@ -24,6 +24,18 @@ const (
 	dbConnMaxIdleTime = 5 * time.Minute
 )
 
+// ConnStringFromEnv resolves the Postgres connection string the same way for
+// every entrypoint that needs one - the server itself (internal/server's Run)
+// and the migration runner (`erp-server -migrate`). The fallback is the
+// documented dev instance: the portable Postgres on port 5435 that
+// environments.json and manage.ps1 both assume.
+func ConnStringFromEnv() string {
+	if connStr := os.Getenv("DATABASE_URL"); connStr != "" {
+		return connStr
+	}
+	return "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+}
+
 // InitDB initializes the global connection pool
 func InitDB(connStr string) {
 	var err error

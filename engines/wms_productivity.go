@@ -4,7 +4,6 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
-	"sync/atomic"
 	"time"
 )
 
@@ -20,7 +19,6 @@ import (
 // changing that function's signature across every caller. Errors are
 // swallowed the same way WriteStockLedgerEntry's own callers already treat
 // it - this is instrumentation, never a reason to fail the real action.
-var taskCompletionLogSeq uint64
 
 func logTaskCompletion(tenantID, taskType, userID, locationCode, referenceID string, qty float64) {
 	if userID == "" {
@@ -30,7 +28,7 @@ func logTaskCompletion(tenantID, taskType, userID, locationCode, referenceID str
 	if err != nil {
 		return
 	}
-	id := fmt.Sprintf("TCL%d%d", time.Now().UnixNano(), atomic.AddUint64(&taskCompletionLogSeq, 1)%1000)
+	id := NewDocIDCompact("TCL")
 	docData := map[string]interface{}{
 		"id": id, "code": id,
 		"task_type": taskType, "user_id": userID, "qty": qty,
@@ -71,7 +69,7 @@ func GetLaborProductivity(tenantID, start, end string) ([]LaborProductivity, err
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT data->>'user_id', data->>'task_type', COUNT(*), MIN(created_at), MAX(created_at)
+		SELECT COALESCE(data->>'user_id', ''), COALESCE(data->>'task_type', ''), COUNT(*), MIN(created_at), MAX(created_at)
 		FROM %s.documents
 		WHERE doctype = 'TaskCompletionLog'
 		  AND ($1 = '' OR created_at >= $1::date)

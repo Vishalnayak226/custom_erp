@@ -51,7 +51,7 @@ func GetStorageBillingReport(tenantID, ownerID, start, end string) ([]StorageBil
 	days := int(endT.Sub(startT).Hours()/24) + 1
 
 	rateRows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, data->>'owner_id', data->>'location_code',
+		SELECT id, COALESCE(data->>'owner_id', ''), COALESCE(data->>'location_code', ''),
 		       COALESCE((data->>'storage_rate_per_unit_per_day')::numeric, 0),
 		       COALESCE((data->>'handling_rate_per_task')::numeric, 0)
 		FROM %s.documents WHERE doctype = 'StorageBillingRate' AND status = 'Active'

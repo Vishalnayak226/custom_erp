@@ -264,11 +264,22 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Postgres has no CREATE TRIGGER IF NOT EXISTS, so these two are dropped first.
+-- Without the drops, re-running this file against a database that already has
+-- the schema fails hard at "trigger ... already exists" - which breaks the
+-- idempotency invariant every other statement here honours (CREATE TABLE IF NOT
+-- EXISTS / ADD COLUMN IF NOT EXISTS), and which db/migrate.go explicitly relies
+-- on as its justification for not shipping down-migrations. The ledger normally
+-- means this file is applied once and never revisited, so this only bites when
+-- the ledger is not authoritative: a DR rebuild onto an existing database, a
+-- dropped/reset schema_migrations table, or any manual re-run.
+DROP TRIGGER IF EXISTS trg_log_document_changes ON tenant_default.documents;
 CREATE TRIGGER trg_log_document_changes
 AFTER UPDATE ON tenant_default.documents
 FOR EACH ROW
 EXECUTE FUNCTION tenant_default.log_document_changes();
 
+DROP TRIGGER IF EXISTS trg_log_document_insert_delete ON tenant_default.documents;
 CREATE TRIGGER trg_log_document_insert_delete
 AFTER INSERT OR DELETE ON tenant_default.documents
 FOR EACH ROW
@@ -332,8 +343,11 @@ INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, field
 ('Item', 'weight', 'Weight', 'Number', FALSE, NULL, 4),
 ('Item', 'volume', 'Volume', 'Number', FALSE, NULL, 5),
 ('Item', 'category', 'Category', 'Data', FALSE, NULL, 6),
-('Item', 'hsn_code', 'HSN Code', 'Data', FALSE, NULL, 7),
-('Item', 'gst_rate', 'GST Rate (%)', 'Number', FALSE, NULL, 8)
+-- Stage 30.1.2: mandatory, because POS checkout and PurchaseOrder creation
+-- both hard-reject an Item without them (engines/gst.go's GetItemGSTInfo).
+-- See db/migrations_stage30_1_2_item_tax_mandatory.sql for existing databases.
+('Item', 'hsn_code', 'HSN Code', 'Data', TRUE, NULL, 7),
+('Item', 'gst_rate', 'GST Rate (%)', 'Number', TRUE, NULL, 8)
 ON CONFLICT (doctype_name, fieldname) DO NOTHING;
 
 -- Seed fields for PurchaseOrder
@@ -401,7 +415,10 @@ INSERT INTO tenant_default.gl_accounts (account_code, account_name, account_type
 ('1200', 'Inventory Control Account', 'Asset'),
 ('2100', 'GRN Suspense Account', 'Liability'),
 ('4100', 'Sales Revenue Account', 'Revenue'),
-('5100', 'Cost of Goods Sold (COGS) Account', 'Expense')
+('5100', 'Cost of Goods Sold (COGS) Account', 'Expense'),
+-- Stage 30.2.5: the points half of a sale paid for partly with loyalty
+-- points. See db/migrations_stage30_2_5_loyalty_redemption_account.sql.
+('5250', 'Loyalty Points Redeemed', 'Expense')
 ON CONFLICT (account_code) DO NOTHING;
 
 -- Seed POSCart and SalesReturn doctype metadata

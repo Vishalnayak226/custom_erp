@@ -48,10 +48,13 @@ func strField(payload map[string]interface{}, key string) string {
 
 func validateItemMasterRules(tenantID, docID string, payload map[string]interface{}) error {
 	hsn := strField(payload, "hsn_code")
-	gstRateSet := false
+	gstRatePositive := false
 	if v, exists := payload["gst_rate"]; exists && v != nil {
-		if s := strings.TrimSpace(fmt.Sprintf("%v", v)); s != "" && s != "0" {
-			gstRateSet = true
+		if s := strings.TrimSpace(fmt.Sprintf("%v", v)); s != "" {
+			var rate float64
+			if _, err := fmt.Sscanf(s, "%f", &rate); err == nil && rate > 0 {
+				gstRatePositive = true
+			}
 		}
 	}
 
@@ -65,13 +68,25 @@ func validateItemMasterRules(tenantID, docID string, payload map[string]interfac
 			}
 			return &ValidationError{Code: "MASTER-0043", Message: fmt.Sprintf("HSN code %q must be 4, 6, or 8 digits", hsn)}
 		}
-	} else if gstRateSet {
-		// MASTER-0042: HSN isn't mandatory on every Item (many are non-taxable
-		// or services), but an Item with a GST rate configured is a taxable
-		// good and needs one - same rule GetItemGSTInfo (engines/gst.go)
-		// already enforces at sale time; this just catches it earlier, at
-		// master-creation time.
-		return &ValidationError{Code: "MASTER-0042", Message: "HSN Code is required when a GST rate is set on the item"}
+	} else {
+		// MASTER-0042. Until Stage 30.1.2 this only fired when a GST rate was
+		// also set, on the reasoning that some items are non-taxable - but
+		// GetItemGSTInfo (engines/gst.go) rejects an HSN-less item at BOTH
+		// checkout and PO creation regardless, so "HSN optional" only ever
+		// meant "saveable now, unusable later". The two layers now agree:
+		// what the master accepts is exactly what a transaction accepts.
+		return &ValidationError{Code: "MASTER-0042", Message: "HSN Code is required on every item - both POS checkout and Purchase Order creation reject an item without one"}
+	}
+
+	if !gstRatePositive {
+		// The mirror of the HSN rule above, and of GetItemGSTInfo's own
+		// "missing a positive gst_rate" check. Note this makes a 0% (exempt/
+		// nil-rated) item unsaveable, which matches - deliberately, not as an
+		// oversight - the fact that checkout has always refused to sell one;
+		// supporting exempt goods properly is a product change (an explicit
+		// tax-exempt flag), tracked in docs/micro_checklist.md Stage 30, not
+		// something to slip in by silently letting a 0 rate through here.
+		return &ValidationError{Code: "MASTER-0042", Message: "GST Rate (%) is required on every item and must be greater than zero - both POS checkout and Purchase Order creation reject an item without one"}
 	}
 
 	barcode := strField(payload, "barcode")

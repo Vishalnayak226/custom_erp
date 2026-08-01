@@ -215,9 +215,16 @@ func GetCustomerLedgerReport(tenantID, customerFilter string) ([]map[string]inte
 	if err != nil {
 		return nil, err
 	}
+	// Stage 30.2.3: every text projection is COALESCE'd. Found live - this
+	// report 503'd outright because one real SalesInvoice had no
+	// invoice_number, and a JSONB `->>` on an absent key returns NULL, which
+	// cannot scan into a plain Go string. A report must not disappear because
+	// one row is incomplete; the incomplete value renders as blank instead.
 	query := fmt.Sprintf(`
-		SELECT id, data->>'customer' AS customer, data->>'invoice_number' AS invoice_number,
-		       COALESCE((data->>'total_amount')::numeric, 0) AS total_amount, status, created_at
+		SELECT id, COALESCE(data->>'customer', '') AS customer,
+		       COALESCE(data->>'invoice_number', '') AS invoice_number,
+		       COALESCE((data->>'total_amount')::numeric, 0) AS total_amount,
+		       COALESCE(status, '') AS status, created_at
 		FROM %s.documents WHERE doctype = 'SalesInvoice'`, schema)
 	var args []interface{}
 	if customerFilter != "" {

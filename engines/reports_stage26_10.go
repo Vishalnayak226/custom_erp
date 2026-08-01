@@ -4,7 +4,6 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
-	"sync/atomic"
 	"time"
 )
 
@@ -278,8 +277,8 @@ func GetAttendanceSummaryReport(tenantID, start, end string) ([]map[string]inter
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT a.data->>'employee_id' AS employee_id,
-		       COALESCE(e.data->>'name', a.data->>'employee_id') AS employee_name,
+		SELECT COALESCE(a.data->>'employee_id', '') AS employee_id,
+		       COALESCE(e.data->>'name', a.data->>'employee_id', '') AS employee_name,
 		       COALESCE(e.data->>'department', '') AS department,
 		       COUNT(*) FILTER (WHERE a.data->>'status' = 'Present') AS present_days,
 		       COUNT(*) FILTER (WHERE a.data->>'status' = 'Absent') AS absent_days,
@@ -406,14 +405,13 @@ func roundTo2(v float64) float64 {
 // comment for the precedent); role_permissions grants no role create/
 // update/delete on ReportRunLog via the generic API, so this direct write
 // is the only way rows ever get in.
-var reportRunLogSeq uint64
 
 func writeReportRunLog(tenantID, reportID, userID string, durationMs int64, rowCount int) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return
 	}
-	id := fmt.Sprintf("RRL%d%d", time.Now().UnixNano(), atomic.AddUint64(&reportRunLogSeq, 1)%1000)
+	id := NewDocIDCompact("RRL")
 	docData := map[string]interface{}{
 		"id": id, "code": id,
 		"report_id": reportID, "duration_ms": durationMs, "row_count": rowCount,
@@ -452,7 +450,7 @@ func GetReportPerformance(tenantID, start, end string) ([]ReportPerformance, err
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT data->>'report_id',
+		SELECT COALESCE(data->>'report_id', '') AS report_id,
 		       COUNT(*),
 		       AVG((data->>'duration_ms')::numeric),
 		       MAX((data->>'duration_ms')::numeric),

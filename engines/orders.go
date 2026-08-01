@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"time"
 )
 
 // SalesOrderLineInput is one requested line for CreateSalesOrder - qty/price
@@ -65,18 +64,13 @@ var pincodeShapeRe = regexp.MustCompile(`\d{4,10}`)
 // never diverge from the create-time checks (the design note's own "re-run
 // the same validation chain rather than a bespoke resume path").
 func validateOrderChain(tenantID string, shippingAddress, paymentStatus string, lines []SalesOrderLineInput) (string, error) {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return "", err
-	}
-
 	// 1. SKU-mapping: each line's SKU must resolve to an active, non-deleted Item.
+	// Stage 30.1.1: resolved through the shared ResolveItemBySKU (code ->
+	// barcode -> id) instead of matching only `code`, so a channel that sends
+	// a barcode or the internal id isn't held as an unmapped SKU.
 	for _, l := range lines {
-		var status string
-		err := db.DB.QueryRow(fmt.Sprintf(
-			`SELECT status FROM %s.documents WHERE doctype = 'Item' AND data->>'code' = $1 AND deleted_at IS NULL`, schema),
-			l.SKU).Scan(&status)
-		if err == sql.ErrNoRows || (err == nil && status != "Active") {
+		item, err := ResolveItemBySKU(tenantID, l.SKU)
+		if errors.Is(err, ErrItemNotFound) || (err == nil && item.Status != "Active") {
 			return HoldSKUMappingFailed, nil
 		} else if err != nil {
 			return "", err
@@ -184,7 +178,7 @@ func CreateSalesOrder(tenantID, channel, channelOrderID, customerName, shippingA
 		lineStatus = "Pending"
 	}
 
-	orderID := fmt.Sprintf("SO-%d", time.Now().UnixNano())
+	orderID := NewDocID("SO")
 	var totalAmount float64
 	for _, l := range lines {
 		totalAmount += l.UnitPrice * float64(l.Qty)
