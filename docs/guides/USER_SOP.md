@@ -11,7 +11,8 @@ This document assumes you've already read USER_GUIDE.md §2 (Logging In) and §3
 A few things work the same way everywhere in this system. Learn them once here instead of re-reading them on every screen below.
 
 - **The header search box** (top of the screen, "Search menu, category, type or HSN..."). Despite the placeholder text, it does **not** search across the whole app — it only filters the table you're currently looking at, and only on screens that show a plain record list (what this SOP calls a "record-list screen" — Vendors, Stores, Brands, Colors, and everything else reached from **Setup** or a similar list). On any other screen (POS, Reports, PIM, etc.) it does nothing.
-- **Creating a new record on a record-list screen**: click the plus-icon **New [Record Type]** button (top right), fill in the fields — anything with a red **\*** is required — and click **Save**. A field showing greyed-out placeholder text like *"Auto-generated upon save"* is a Code field: leave it blank, the system numbers it for you when you save.
+- **Creating a new record on a record-list screen**: click the plus-icon **New [Record Type]** button (top right), fill in the fields — anything with a red **\*** is required — and click **Save**. A field showing greyed-out placeholder text like *"Auto-generated upon save"* is numbered for you: leave it alone, you can't type in it.
+- **Document numbers are never typed.** Every transaction — Purchase Order, Goods Receipt, ASN, RFQ, Vendor Quote, Stock Transfer, Expense Claim, Leave, Employee Loan, Grievance, Production Order, Attendance — gets its number from a series when you save, shown as *"Auto (PO series)"* until then. Administrators control the format on the **Prefix Configurations** screen; see [ADMIN_GUIDE](ADMIN_GUIDE.md) §B.3.2. Gaps in a series are normal (a failed save doesn't reuse its number) and are not missing documents.
 - **There is currently no "Edit" action on a plain record-list screen** — only a trash-can **Delete** icon at the end of each row. If you need to correct a mistake in a record like a Vendor, Brand, or Color, the only way today is to delete it and create it again with the right values (deleting is permanent and asks you to confirm first). The one exception is **PIM record types** (Product Families, Attribute Definitions, etc. — see §27), which support a multi-select **Bulk Edit** that changes one field across several records at once.
 - **Bulk Import**: most record-list screens also have a **Bulk Import** button (top right, next to New). It opens a dialog where you can download a template CSV, fill it in, and upload it. Before committing, click **Preview (no changes written)** to see exactly what would be created/updated/rejected without actually saving anything — always do this first on a large file. Then click **Process Import** to actually save it.
 - **Errors**: a red banner across the top of a form, a small pop-up ("toast") in the corner, or a centered dialog box will tell you what went wrong in plain language — read it, it's specific (e.g. "not enough stock" rather than just "error"). If you see a **correlation ID**, pass it to your admin if you need help.
@@ -219,7 +220,7 @@ This is the newer, general-purpose reporting framework — every report register
 
 Reached via the **Procurement** flyout → **Purchase Order**.
 
-1. Fill in **PO Number**, **Vendor**, **Target Warehouse**, **Location** (all required), **Total Amount** (the taxable value), and optionally a **GST Rate %** plus an **Interstate** checkbox.
+1. Fill in **Vendor**, **Target Warehouse**, **Location** (all required), **Total Amount** (the taxable value), and optionally a **GST Rate %** plus an **Interstate** checkbox. **PO Number** is greyed out and reads "Auto (PO series)" — it is issued when you save (see §1).
 2. Click **Calculate GST** to preview the CGST/SGST or IGST breakdown for what you've entered so far — this is just a calculator, it doesn't change what gets saved.
 3. Click **Create Draft**. It appears in the list below as **Draft**.
 4. Click **Submit for Approval** on a Draft PO. Depending on the amount, it routes to a Store Manager (under a configured threshold) or HR/Admin (at or above it) — you'll see it move to **Pending Approval**, then **Approved** or **Rejected** once decided (§6).
@@ -241,9 +242,9 @@ Reached via the **Procurement** flyout → **Vendors**. A standard record-list s
 
 Reached via the **Procurement** flyout → **RFQ / Quotes**. This lets you request quotes from several vendors for the same requirement and compare them before creating a Purchase Order.
 
-1. Fill in **RFQ Number**, **Item / Requirement Description**, **Quantity**, and **Target Date**, then click **Create RFQ**. It starts **Draft**/open for quotes.
+1. Fill in **Item / Requirement Description**, **Quantity**, and **Target Date**, then click **Create RFQ**. It starts **Draft**/open for quotes. **RFQ Number** is issued on save (see §1).
 2. Click **View Quotes** on an RFQ row to open its quote comparison panel below the list.
-3. To record a vendor's quote: fill in **Quote Number**, **Vendor**, **Quoted Price**, **Lead Time (days)**, and click **Submit Quote**. Repeat for each vendor quoting.
+3. To record a vendor's quote: fill in **Vendor**, **Quoted Price**, **Lead Time (days)**, and click **Submit Quote**. Repeat for each vendor quoting. **Quote Number** is issued on save (see §1).
 4. Once you have quotes to compare, click **Select as Winner** next to the one you're accepting. Confirm — this marks that quote as the winner, **rejects every other quote automatically**, and closes the RFQ. This can't be undone, so make sure you've compared everything first.
 
 ---
@@ -263,7 +264,7 @@ This screen is read-only — there's no way to adjust stock counts directly here
 
 Reached via the **Stock** flyout → **Stock Transfer**. Moves stock between two locations through a Draft → Approved → (optional Packed) → Dispatched → Received lifecycle.
 
-1. Fill in **Transfer Number**, **From Warehouse**, **To Warehouse**.
+1. Fill in **From Warehouse** and **To Warehouse**. **Transfer Number** is issued on save (see §1).
 2. Add one or more lines: enter a **SKU** and **Qty**, click **Add Line**. Repeat for every item — a transfer needs at least one line.
 3. Click **Create Transfer**. It starts as **Draft**.
 4. Click **Mark Approved** when it's ready to go.
@@ -313,12 +314,12 @@ Reached via the **HRM** flyout → **HR**. Three tabs: **Attendance**, **Leave**
 
 ### 23.1 Attendance tab
 
-1. Fill in **Attendance Code**, pick an **Employee**, a **Date**, a **Location**, and a **Status** (Present/Absent/Late/Leave/Holiday/WeeklyOff).
+1. Pick an **Employee**, a **Date**, a **Location**, and a **Status** (Present/Absent/Late/Leave/Holiday/WeeklyOff). **Attendance Code** is issued on save (see §1).
 2. Click **Save**. It appears immediately in the list below.
 
 ### 23.2 Leave tab
 
-1. Fill in **Leave Code**, **Employee**, **Leave Type** (Casual/Sick/Earned/Unpaid), **From**/**To Date**, and **Days**, then click **Apply**. It starts **Applied**.
+1. Fill in **Employee**, **Leave Type** (Casual/Sick/Earned/Unpaid), **From**/**To Date**, and **Days**, then click **Apply**. It starts **Applied**. **Leave Code** is issued on save (see §1).
 2. If you have approval rights, an **Applied** leave request shows **Approve** and **Reject** buttons right in the list — click one to decide it directly (no separate Approvals-screen trip needed for this particular doctype).
 
 ### 23.3 Payroll Export tab
@@ -347,7 +348,7 @@ Reached via the **HRM** flyout → **Fixed Assets**. Lifecycle: Draft → Capita
 
 Reached via the **HRM** flyout → **Expenses**. Lifecycle: Claim → Manager Approval → Finance Verification → Payment.
 
-1. Fill in **Claim Number**, **Employee**, **Location**, **Expense Date**, **Category** (Conveyance/Travel/Food/Hotel/Fuel/Repair/Medical/Marketing/StoreExpense/Other), **Amount**, **GST Amount** (optional), **Advance Adjusted** (optional), and **Purpose**. Click **Create Draft**.
+1. Fill in **Employee**, **Location**, **Expense Date**, **Category** (Conveyance/Travel/Food/Hotel/Fuel/Repair/Medical/Marketing/StoreExpense/Other), **Amount**, **GST Amount** (optional), **Advance Adjusted** (optional), and **Purpose**. Click **Create Draft**. **Claim Number** is issued on save (see §1).
 2. Click **Submit for Approval** — this routes through the same Approvals screen (§6) as everything else; a manager approves or rejects it there.
 3. Once **Approved**, click **Finance Verify** on the claim (this is a separate step from the manager approval — Finance checks the claim independently).
 4. Once **Verified**, click **Mark Paid**, confirm — this posts the payment to the ledger and closes the claim out.
@@ -366,7 +367,7 @@ Reached via **Manufacturing** in the sidebar. Single-level Bill of Materials (BO
 
 ### 26.2 Run a Production Order
 
-1. Fill in **Order Number**, pick a **BOM** from the dropdown, set **Quantity** and **Location**, click **Create Order**. It starts **Draft**.
+1. Pick a **BOM** from the dropdown, set **Quantity** and **Location**, click **Create Order**. It starts **Draft**. **Order Number** is issued on save (see §1).
 2. Click **Issue Material** — this consumes the BOM's raw-material components from stock at that location; the order becomes **Material Issued**.
 3. Click **Complete (Receive FG)**, confirm — this receives the finished good quantity into inventory and closes the order out as **Completed**.
 

@@ -78,11 +78,73 @@ Add `-Env test` or `-Env live` to target an environment other than the default (
 
 Several things are configurable through the app's admin screens, not by editing code:
 
-- **Document number formats** (invoice numbers, PO numbers, etc.) — **Prefix Configs** screen.
+- **Operational settings, module by module** (return windows, tolerances, timeouts, limits, offer-free thresholds) — the **Configuration** screen. This is the main one; see §B.3.0. If you are looking for "where do I change *that number*", start here.
+- **Document number formats** (invoice numbers, PO numbers, etc.) — **Prefix Configurations** screen. This is where every transaction number comes from; see §B.3.2, it has more to it than the name suggests.
 - **Renaming terms** to match your industry's vocabulary (e.g. "Design Number" instead of "SKU") — **Dynamic Labels** screen.
 - **Adding new record types or custom fields** — **Database Schema Design** screen (this is the same "metadata-driven" engine described in `../architecture/framework_architecture.md` — new master/transaction types don't need a code change). This is different from adding an actual *record* of an existing type (a new Vendor, a new Brand, etc.) — that's a business-user task, see [User Guide](USER_GUIDE.md) §8.
 - **Turning modules on/off per tenant** — module entitlements, admin-only.
 - **Which status changes a document is allowed to make** — **Status Transition Rules** screen (a normal master, HR/Admin to edit). Each row says: for this record type (**Entity / Doctype**), moving from **From Status** to **To Status** is **Allowed** yes/no, and optionally **Requires Reason Code**. See §B.3.1 below — this one has a rule about how it fails that's worth understanding before you edit it.
+
+#### B.3.0 Configuration — every operational setting, in one place
+
+**Settings → Configuration** (HR/Admin only). The left rail lists modules; pick one and you get that module's settings, each with a plain-English description of what it actually controls. Change what you need, then **Save Changes**.
+
+Two things worth knowing:
+
+- **A change takes effect immediately, everywhere, with no restart.** Every setting is read at the moment it is used, not cached when the server starts. Lower the sales return window and the very next return attempt is judged by the new value.
+- **Out-of-range values are refused, not clamped.** Settings that could destabilise the server if set absurdly (page sizes, concurrency, batch sizes) carry a permitted range; a value outside it is rejected at save time with a message naming the limit. Nothing is silently "corrected" behind your back.
+
+What lives where (36 settings across 12 modules):
+
+| Module | Examples of what you can change |
+|---|---|
+| Sales & Returns | How many days after a sale a return is still accepted (0 = no returns at all) |
+| Procurement | Vendor-invoice 3-way match tolerance %; **how many days a PO or a GRN stays editable** (0 = no time limit) |
+| Point of Sale | Cash-drawer variance a cashier may close a shift with before a written reason is required |
+| Loyalty | Point expiry, spend-per-point earned, rupee value per point redeemed, tier-recompute toggle |
+| Inventory | How long an online stock reservation is held before it releases |
+| Manufacturing | Max BOM nesting depth, production cost-variance tolerance, default MRP lead time |
+| HR & Payroll | ESI wage ceiling (change it here when the statutory figure changes — no code release needed) |
+| CRM | Churn threshold, default lapsed-customer period |
+| Warehouse | Cycle-count intervals for A/B/C items, task productivity alert threshold |
+| PIM | Max documents per bulk edit, product thumbnail size |
+| Security | Session length, password-reset link validity, failed-logins-before-lockout and lockout duration, two-factor clock tolerance |
+| Platform | API page-size default and cap, per-tenant concurrency, CSV import batch size, max rows for an on-screen report, default field length cap |
+
+**Integrations** is the last entry in the rail. It holds the endpoint and credentials for the two external systems this ERP talks to — **Pine Labs** card terminals (one entry per terminal ID) and **Unicommerce**, the OMS middleware (one entry per store code). Fill in the fields and save; saving an entry whose terminal ID / store code already exists updates it in place. Existing entries are listed above the form with secrets masked. The background workers pick up a changed Base URL on their next call.
+
+> **On the session-length setting**: if your deployment sets the `JWT_EXPIRY_HOURS` environment variable, that value applies until you explicitly change the setting on this screen — an edit here always wins from then on. So the control is never a dead knob, whatever the server is configured with.
+
+#### B.3.0.1 Setting up POS offers
+
+Offers are ordinary records, not a code change: create an **Offer** (HR/Admin or Store Manager) and it applies at every till on the next sale — there is nothing to deploy, restart, or push to the POS.
+
+Fill in the name, pick the **Offer Type**, set **Applies To**, and set **Status** to Active. Only the fields belonging to your chosen type matter; leave the rest blank.
+
+| Offer Type | Fill in | Means |
+|---|---|---|
+| Percentage Off | Discount % | Takes that % off whatever the offer applies to |
+| Flat Off | Discount Amount | Takes a fixed rupee amount off (never more than the thing is worth) |
+| Buy X Get Y | Buy Qty, Free Qty | "Buy 2 get 1 free". The **cheapest** qualifying units are the free ones |
+| Bundle Price | Bundle Qty, Bundle Price | "Any 3 for ₹999". The **most expensive** qualifying units are bundled first |
+
+**Applies To** is *Bill* (the whole sale), *Item* (put the SKU in **Scope Value**), or *Category* (put the category name in **Scope Value**).
+
+Everything else is an optional condition, and they all have to be true at once:
+
+- **Minimum Bill Amount / Minimum Qty** — the "spend ₹2000 and get…" family.
+- **Coupon Code** — leave blank and the offer applies automatically; fill it in and it only applies when the cashier types that code.
+- **Customer Tier** — restricts the offer to one loyalty tier. Note a walk-in with no customer on the sale has no tier, so these never apply to anonymous sales.
+- **Valid From / Valid To** — leave either blank for open-ended.
+- **Maximum Discount Cap** — the safety net on a percentage offer ("20% off, up to ₹500").
+- **Priority** — lower numbers are considered first.
+- **Stackable** — *Yes* lets later offers apply on top; *No* means once this one applies, nothing after it does. Use **No** for a headline offer you don't want combined with anything else.
+
+Three behaviours worth knowing before you design a promotion:
+
+- **A non-stackable offer stops the stack.** Combined with Priority, that's how you say "this offer instead of the others, not as well as."
+- **A sale can never go below zero.** If offers add up to more than the bill, the discount is capped at the bill.
+- **To switch an offer off, set Status to Inactive** — it stops applying immediately, and you keep the record and its history. Don't delete it.
 
 #### B.3.1 Status Transition Rules — how "strict" works
 
@@ -98,6 +160,29 @@ This matters when you edit these rules:
 Some deliberate examples of what the shipped rules block: a vendor invoice can't go straight from Draft to Paid (that would skip the 3-way match), a disposed asset can't be re-capitalised, and an approved goods receipt whose stock has already posted can only be cancelled with a reason code.
 
 Two shipped judgement calls you may want to change: an **approved Leave** and a **selected Vendor Quote** are both treated as final. If your process needs to reverse either, add the row — it's one entry on this screen, no code change.
+
+#### B.3.2 Prefix Configurations — the number series behind every transaction
+
+Nobody types a document number in this system. Purchase Orders, Goods Receipts, ASNs, RFQs, Vendor Quotes, Stock Transfers, Expense Claims, Leave, Employee Loans, Grievances, Production Orders and Attendance all draw their number from a **series** defined on this screen, at the moment the document is saved. The user sees a greyed-out box reading "Auto (PO series)" until then.
+
+Each row is one series. The table shows a **Next Number Looks Like** column so you can see the effect of a change before anyone lives with it. **Edit** walks you through the settings:
+
+| Setting | What it does |
+|---|---|
+| **Prefix** | The leading text. `PO`, `GRN`, `TRF` — whatever your business calls it. |
+| **Separator** | What goes between the parts. `/` by default; `-` is common. |
+| **Padding Width** | How many digits the counter is padded to. `6` gives `000042`. |
+| **Reset Interval** | `ANNUAL` → `PO/HO/26-27/000001`, restarting each financial year. `MONTHLY` → `PO/HO/26-27-07/000001`, restarting monthly. `NEVER` → `PO/HO/000001`, one continuous series forever. |
+| **Store Segment** | `Yes` puts the location in the number and numbers each location separately. `No` removes it and runs one shared series across all locations. |
+
+Things to understand before you change one:
+
+- **Reset Interval decides two things at once, on purpose.** It sets how often the counter restarts *and* whether the number shows the period. There's no way to reset annually while hiding the year, because that would re-issue last year's numbers — and since the number is also the document's identifier, the second document would be refused. `NEVER` is the only way to get a number with no year in it.
+- **Store Segment works the same way.** Turning it off doesn't just hide the location; it merges the per-location counters into one. Otherwise two locations would both be handed `PO/000001`.
+- **Changes apply to the next document only.** Existing documents keep the numbers they were issued. Renaming a prefix does not renumber history, which is what you want for an audit trail.
+- **Gaps in a series are normal.** A number is drawn before the document is fully validated, so a rejected save leaves a gap. That is standard behaviour for a sequence counter and is not data loss.
+- **Deactivating a series stops the documents that use it.** Anyone creating that record type gets "numbering configuration is inactive" (`ADMINC-0030`) and cannot save. Deactivate only when you intend to block the record type.
+- **Don't give two series the same prefix.** Document numbers are unique across *every* record type, not just within one, so overlapping prefixes will eventually collide and cause failed saves.
 
 ### B.4 Where to Look When Something Seems Wrong
 

@@ -50,11 +50,22 @@ This is the screen a cashier uses most.
 2. Type or scan the item's **barcode/SKU** into the box and click **Add to Cart** (or press Enter). The item appears in the cart with its price.
 3. Repeat for every item the customer is buying.
 4. If the customer is a returning/loyalty customer, look them up so any points they've earned can be used or added.
-5. Check the total — tax is calculated automatically, you don't need to work it out.
-6. Choose how they're paying and click the **checkout/pay** button.
-7. The sale is now recorded — stock goes down automatically, and the accounting entries are made automatically too. You don't need to tell any other screen about this sale; the system does it for you.
+5. **Any offers that apply appear on their own, above the total** — see §4.1. If the customer has a coupon, type it into the **Coupon code** box.
+6. Check the total — tax is calculated automatically, you don't need to work it out.
+7. Choose how they're paying and click the **checkout/pay** button.
+8. The sale is now recorded — stock goes down automatically, and the accounting entries are made automatically too. You don't need to tell any other screen about this sale; the system does it for you.
 
 **If something goes wrong mid-sale** (a barcode doesn't scan, the system shows an error), read the message on screen — it tells you exactly what's wrong (e.g. "this item is already sold" or "not enough stock") rather than just "error."
+
+### 4.1 Offers and coupons at the till
+
+You do not apply offers by hand. Whatever your head office has set up in the ERP is worked out automatically as you build the cart, and shown in a panel just above the total — each offer by name, what it did ("10% off the bill", "buy 2 get 1 free — 1 free unit"), and how much it took off.
+
+- **Automatic offers just appear.** Add the qualifying items and the offer shows up. Remove an item and it disappears again if the cart no longer qualifies. If an offer needs a minimum spend, it appears once the cart crosses it.
+- **Coupon offers need the code.** Type it into the **Coupon code** box. Case doesn't matter, and you can enter more than one separated by a space or comma. If a code doesn't apply to this cart, the panel says so in plain words rather than silently ignoring it — check the spelling, and whether the cart actually meets the offer's conditions.
+- **Some offers only apply to certain customers** (a loyalty tier, for instance). Look the customer up *before* expecting those to show — with no customer on the sale, a tier-restricted offer will not appear.
+- **The final say is the server's, not this screen's.** The panel is a preview; the discount is recalculated for real when you take payment. In normal use the two agree. If they ever don't, the amount charged is the correct one.
+- **The discount box is separate.** The **Discount %** field is still there for a manual, cashier-applied discount, and large manual discounts may still need a manager's approval. Offers are not manual discounts and don't need approval — they're the rules head office already signed off.
 
 ## 5. Checking Stock
 
@@ -68,14 +79,25 @@ If you need to know how much stock is *actually free to sell* (not already reser
 
 1. Click **Purchase Order**.
 2. Click to create a new one.
-3. Pick the vendor (supplier) you're ordering from, and add the items and quantities you need.
+3. Pick the vendor (supplier) you're ordering from, and add the items and quantities you need. **You don't type a PO number** — the box shows "Auto (PO series)" and is greyed out on purpose. The number is issued when you save; see §6.1.
 4. Save it. Depending on the amount, it might need someone else's **approval** before it's official — that's a safety check, not a bug. You'll see it move to "pending approval," and once approved, it's ready to send to the vendor.
 5. When the stock physically arrives, someone records a **GRN** (Goods Receipt Note — basically "yes, this stock actually showed up") against that same Purchase Order. Only then does the stock count go up — an order by itself never adds stock, only a confirmed receipt does.
+
+### 6.1 Where document numbers come from
+
+You never type the number on a Purchase Order, Goods Receipt, Stock Transfer, Expense Claim, Leave request, or any other transaction. The field is greyed out and reads something like **"Auto (PO series)"**, and the real number appears once you save — for example `PO/HO/26-27/000042`.
+
+That number is issued by the system, in order, from a numbering series your administrator controls (see the Admin Guide, §B.3.2). Reading the example above left to right: the **PO** part is the document type, **HO** is the location it was raised at, **26-27** is the financial year, and **000042** is the running count. Your administrator can change any of that — including removing the location or the year entirely — so yours may look different, and that's fine.
+
+Two things worth knowing:
+
+- **Numbers can have gaps, and that's normal.** If a save fails validation after a number was drawn, that number isn't reused. A gap means "something was started and not completed", never "a document went missing".
+- **You can't reuse or choose a number.** This is deliberate. When people typed their own numbers, two colleagues creating a PO at the same time could pick the same one — and the second save would quietly overwrite the first, with no warning to either of them. Now that can't happen.
 
 ## 7. Moving Stock Between Locations (Stock Transfer)
 
 1. Click **Stock Transfer** in the sidebar.
-2. Fill in a Transfer Number, the From and To warehouse/location, then add one or more line items (SKU + quantity) using the **Add Line** button — a transfer needs at least one line before it can be created.
+2. Fill in the From and To warehouse/location, then add one or more line items (SKU + quantity) using the **Add Line** button — a transfer needs at least one line before it can be created. The Transfer Number is filled in for you when you save (§6.1).
 3. Click **Create Transfer**. It starts as a **Draft**.
 4. Once it's ready to go, click **Mark Approved**.
 5. Click **Dispatch** to move the stock out of the source location (it sits "in transit" until received).
