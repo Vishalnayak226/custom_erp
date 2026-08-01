@@ -92,7 +92,7 @@ func InitiateSecureLoyaltyRedemption(tenantID, customerID string, points int, re
 	if err != nil {
 		return "", err
 	}
-	challengeID = fmt.Sprintf("LROTP-%d", time.Now().UnixNano())
+	challengeID = NewDocID("LROTP")
 	expiresAt := time.Now().Add(time.Duration(GetSettingInt(tenantID, "security.loyalty_otp_validity_minutes")) * time.Minute)
 	if _, err := db.DB.Exec(fmt.Sprintf(`
 		INSERT INTO %s.loyalty_redemption_otp_challenges (id, customer_id, points, reference_id, initiated_by, otp_hash, expires_at)
@@ -148,7 +148,7 @@ func VerifyAndRedeemLoyaltyOTP(tenantID, challengeID, otpCode string) (result st
 		return "", 0, "", err
 	}
 
-	value := points * redemptionValuePerPoint
+	value := points * redemptionValuePerPointFor(tenantID)
 	role, err := RequiredApproverRoleForAmount(tenantID, "LoyaltyRedemptionRequest", float64(value))
 	if err != nil {
 		return "", 0, "", err
@@ -161,7 +161,7 @@ func VerifyAndRedeemLoyaltyOTP(tenantID, challengeID, otpCode string) (result st
 		return "Redeemed", discountValue, "", nil
 	}
 
-	requestID = fmt.Sprintf("LRR-%d", time.Now().UnixNano())
+	requestID = NewDocID("LRR")
 	data := map[string]interface{}{
 		"id": requestID, "code": requestID, "customer_id": customerID, "points": points,
 		"points_value": value, "reference_id": referenceID, "status": "Draft",

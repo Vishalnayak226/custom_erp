@@ -27,6 +27,14 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return err
 	}
 
+	// Stage 30.7: the configurable per-doctype edit window, attached at this
+	// same shared choke point for the same reason - every current and future
+	// caller of the generic doc API is covered by construction, and adding a
+	// window for another doctype is one map entry plus one RegisterSetting.
+	if err := validateDocumentEditWindow(tenantID, doctype, docID, priorData); err != nil {
+		return err
+	}
+
 	switch doctype {
 	case "StatusTransitionRule":
 		return validateStatusTransitionRule(tenantID, payload)
@@ -83,6 +91,64 @@ type grnReceivedLine struct {
 	RejectionReason string   `json:"rejection_reason,omitempty"`
 	DamagedQty      *float64 `json:"damaged_qty,omitempty"`
 	DamageReason    string   `json:"damage_reason,omitempty"`
+}
+
+// PrepareGRNReceipt fills in a GRN's receiving `location` from its referenced
+// PurchaseOrder when the caller didn't supply one, and is Stage 30.2.1's half
+// of that fix (the other half is db/migrations_stage30_2_1_grn_location.sql,
+// which declares `location` as a real mandatory GRN field).
+//
+// The defect: the stock-posting hook in handlers_core_doc_engine.go reads
+// payload["location"], but `location` was never a declared GRN field - only
+// the bespoke GRN Workbench screen happened to send it. A GRN created through
+// the generic record-list form, the API, or bulk import therefore could not
+// supply it at all, so it saved with HTTP 200, counted toward the PO's
+// received quantity (closing it to further receipts, PURCHA-0084), and posted
+// exactly zero stock, silently.
+//
+// Called before ValidateDocument for the same reason PreparePurchaseRequisition
+// is: the field it populates is mandatory, so the default has to exist by the
+// time the metadata check runs. A GRN with no po_id, or a PO with no warehouse
+// of its own, falls through and is rejected by that mandatory check with a
+// message naming the field - which is the correct outcome, since there is no
+// location this receipt could post to.
+func PrepareGRNReceipt(tenantID string, payload map[string]interface{}) error {
+	if strings.TrimSpace(strField(payload, "location")) != "" {
+		return nil
+	}
+	poID := strField(payload, "po_id")
+	if poID == "" {
+		return nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var poDataStr string
+	if err := db.DB.QueryRow(fmt.Sprintf(
+		`SELECT data FROM %s.documents WHERE doctype = 'PurchaseOrder' AND id = $1 AND deleted_at IS NULL`, schema),
+		poID).Scan(&poDataStr); err != nil {
+		if err == sql.ErrNoRows {
+			// The Link field's own existence check (META-0198) reports this
+			// far better than a bespoke message here would.
+			return nil
+		}
+		return err
+	}
+	var poData map[string]interface{}
+	if err := json.Unmarshal([]byte(poDataStr), &poData); err != nil {
+		return nil
+	}
+	// target_warehouse is PurchaseOrder's own mandatory "where is this going"
+	// field (db/migration.sql); `location` is its store/site sibling, used as
+	// the fallback for POs that carry one but no warehouse.
+	for _, key := range []string{"target_warehouse", "location"} {
+		if v := strings.TrimSpace(fmt.Sprintf("%v", poData[key])); v != "" && v != "<nil>" {
+			payload["location"] = v
+			return nil
+		}
+	}
+	return nil
 }
 
 // fetchPOItemQuantities sums a PurchaseOrder's own ordered qty per SKU from

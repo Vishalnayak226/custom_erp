@@ -17,7 +17,8 @@ import (
 const (
 	totpDigits    = 6
 	totpPeriod    = 30 * time.Second
-	totpSkewSteps = 1 // tolerate +/-1 step (+/-30s) of client/server clock drift
+	// Clock-drift tolerance is no longer a constant - see VerifyTOTPCode's
+	// "security.totp_skew_steps" read (Stage 30.7).
 )
 
 // mfaRequiredRoles lists the roles SEC-V2 Sec.12 marks MFA-mandatory for
@@ -79,13 +80,18 @@ func GenerateTOTPCode(secretBase32 string) (string, error) {
 }
 
 // VerifyTOTPCode checks code against secretBase32 at the current time step,
-// tolerating up to totpSkewSteps of clock drift in either direction.
-func VerifyTOTPCode(secretBase32, code string) bool {
+// tolerating the tenant's configured clock drift in either direction
+// ("security.totp_skew_steps", Stage 30.7 - default 1, i.e. +/-30s).
+func VerifyTOTPCode(tenantID, secretBase32, code string) bool {
 	if len(code) != totpDigits {
 		return false
 	}
+	skewSteps := GetSettingInt(tenantID, "security.totp_skew_steps")
+	if skewSteps < 0 {
+		skewSteps = 0
+	}
 	now := uint64(time.Now().Unix()) / uint64(totpPeriod.Seconds())
-	for skew := -totpSkewSteps; skew <= totpSkewSteps; skew++ {
+	for skew := -skewSteps; skew <= skewSteps; skew++ {
 		counter := now
 		if skew < 0 {
 			shift := uint64(-skew)

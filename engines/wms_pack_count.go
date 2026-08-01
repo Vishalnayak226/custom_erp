@@ -149,13 +149,13 @@ func GetABCCycleCountPlan(tenantID, locationCode string, tierAIntervalDays, tier
 		return nil, err
 	}
 	if tierAIntervalDays <= 0 {
-		tierAIntervalDays = 30
+		tierAIntervalDays = GetSettingInt(tenantID, "wms.cycle_count_tier_a_interval_days")
 	}
 	if tierBIntervalDays <= 0 {
-		tierBIntervalDays = 60
+		tierBIntervalDays = GetSettingInt(tenantID, "wms.cycle_count_tier_b_interval_days")
 	}
 	if tierCIntervalDays <= 0 {
-		tierCIntervalDays = 90
+		tierCIntervalDays = GetSettingInt(tenantID, "wms.cycle_count_tier_c_interval_days")
 	}
 
 	rows, err := db.DB.Query(fmt.Sprintf(
@@ -288,7 +288,7 @@ func RequestRecount(tenantID, lineID, userID string) (newLineID string, err erro
 		return "", err
 	}
 
-	newLineID = fmt.Sprintf("CCL%d", time.Now().UnixNano())
+	newLineID = NewDocIDCompact("CCL")
 	newData := map[string]interface{}{
 		"id":            newLineID,
 		"code":          newLineID,

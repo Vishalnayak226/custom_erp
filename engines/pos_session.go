@@ -9,7 +9,6 @@ import (
 	"log"
 	"math"
 	"strings"
-	"time"
 )
 
 // Stage 20 Track B.1 (20.7/20.8): cashier session lifecycle with cash
@@ -68,7 +67,7 @@ func OpenPOSSession(tenantID, posProfile, location, cashier, userID string, open
 		return "", err
 	}
 
-	id := fmt.Sprintf("POSSESS-%d", time.Now().UnixNano())
+	id := NewDocID("POSSESS")
 	data := map[string]interface{}{
 		"pos_profile":  posProfile,
 		"location":     location,
@@ -204,7 +203,7 @@ func detectOfflineQueueGap(tenantID, schema, sessionID string) (missing []string
 	}
 
 	missingJSON, _ := json.Marshal(missing)
-	gapID := fmt.Sprintf("POSGAP-%d", time.Now().UnixNano())
+	gapID := NewDocID("POSGAP")
 	gapData := map[string]interface{}{
 		"session_id":            sessionID,
 		"cashier":               cashier,
@@ -236,7 +235,11 @@ func detectOfflineQueueGap(tenantID, schema, sessionID string) (missing []string
 // A flat amount rather than a percentage, since a drawer variance is a cash
 // counting error, not proportional to the day's total sales the way a
 // vendor invoice mismatch is proportional to the PO amount.
-const posDrawerVarianceTolerance = 50.0
+// Stage 30.7 made it the "pos.drawer_variance_tolerance" setting (default
+// still 50), read per close so a change applies to the next session close.
+func posDrawerVarianceToleranceFor(tenantID string) float64 {
+	return GetSettingFloat(tenantID, "pos.drawer_variance_tolerance")
+}
 
 // ClosePOSSession computes the expected-cash figure server-side (never
 // trusts a client-supplied expectation), stores the counted-vs-expected
@@ -289,9 +292,10 @@ func ClosePOSSession(tenantID, sessionID, cashier string, countedCash float64, v
 	}
 	variance = countedCash - expected
 
-	if math.Abs(variance) > posDrawerVarianceTolerance && strings.TrimSpace(varianceReason) == "" {
+	drawerTolerance := posDrawerVarianceToleranceFor(tenantID)
+	if math.Abs(variance) > drawerTolerance && strings.TrimSpace(varianceReason) == "" {
 		// POSOFF-0240 (Stage 25.7): "Drawer variance exceeds tolerance."
-		return expected, variance, nil, &ValidationError{Code: "POSOFF-0240", Message: fmt.Sprintf("cash variance of %.2f exceeds the %.2f tolerance - a reason is required to close this session", variance, posDrawerVarianceTolerance)}
+		return expected, variance, nil, &ValidationError{Code: "POSOFF-0240", Message: fmt.Sprintf("cash variance of %.2f exceeds the %.2f tolerance - a reason is required to close this session", variance, drawerTolerance)}
 	}
 
 	data["status"] = "Closed"

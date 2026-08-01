@@ -33,10 +33,14 @@ type SalaryComponents struct {
 	PT              float64 `json:"pt"`
 }
 
-// esiWageCeiling mirrors India's statutory ESI applicability ceiling - an
+// esiWageCeilingFor mirrors India's statutory ESI applicability ceiling - an
 // employee whose gross exceeds it owes no ESI contribution, same threshold-
-// gated shape as CalculateTDS's own section threshold.
-const esiWageCeiling = 21000.0
+// gated shape as CalculateTDS's own section threshold. Stage 30.7 moved it to
+// the "hr.esi_wage_ceiling" setting (default still 21000) so a statutory
+// revision is an admin edit rather than a code change and redeploy.
+func esiWageCeilingFor(tenantID string) float64 {
+	return GetSettingFloat(tenantID, "hr.esi_wage_ceiling")
+}
 
 // CalculateSalaryComponents reads the employee's latest Active
 // SalaryStructure (HRPAYR-0154 if none is configured) and computes gross
@@ -70,7 +74,7 @@ func CalculateSalaryComponents(tenantID, employeeID string) (*SalaryComponents, 
 	sc.Gross = sc.Basic + sc.HRA + sc.OtherAllowances
 	pfPercent := numFromInterface(d["pf_percent"])
 	sc.PF = round2(sc.Basic * pfPercent / 100)
-	if sc.Gross <= esiWageCeiling {
+	if sc.Gross <= esiWageCeilingFor(tenantID) {
 		esiPercent := numFromInterface(d["esi_percent"])
 		sc.ESI = round2(sc.Gross * esiPercent / 100)
 	}

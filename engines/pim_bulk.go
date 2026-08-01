@@ -8,7 +8,11 @@ import (
 	"strings"
 )
 
-const maxPIMBulkEditDocuments = 100
+// Stage 30.7: the "pim.max_bulk_edit_documents" setting (default still 100),
+// shared by bulk edit here and BulkDecideApproval in approval.go.
+func maxPIMBulkEditDocumentsFor(tenantID string) int {
+	return GetSettingInt(tenantID, "pim.max_bulk_edit_documents")
+}
 
 // IsPIMBulkEditableDoctype keeps the PIM bulk-edit endpoint from becoming a
 // back door to every generic doctype. Item is included because it is the PIM
@@ -40,8 +44,9 @@ func BulkUpdateDocuments(tenantID, doctype string, ids []string, field string, v
 	if len(ids) == 0 {
 		return nil, fmt.Errorf("select at least one document")
 	}
-	if len(ids) > maxPIMBulkEditDocuments {
-		return nil, fmt.Errorf("bulk edit supports at most %d documents at a time", maxPIMBulkEditDocuments)
+	maxBulkDocs := maxPIMBulkEditDocumentsFor(tenantID)
+	if len(ids) > maxBulkDocs {
+		return nil, fmt.Errorf("bulk edit supports at most %d documents at a time", maxBulkDocs)
 	}
 
 	eligible, err := IsPIMBulkEditableDoctype(tenantID, doctype)

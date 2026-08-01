@@ -162,7 +162,7 @@ func handleMRPSuggestions(w http.ResponseWriter, r *http.Request) {
 	}
 	leadTimeDays, _ := strconv.Atoi(r.URL.Query().Get("lead_time_days"))
 	if leadTimeDays <= 0 {
-		leadTimeDays = 7
+		leadTimeDays = engines.GetSettingInt(tenantID, "manufacturing.default_lead_time_days")
 	}
 	safetyStock, _ := strconv.Atoi(r.URL.Query().Get("safety_stock"))
 

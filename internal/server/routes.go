@@ -21,11 +21,16 @@ import (
 
 func Run() {
 	// Initialize database connection
-	connStr := os.Getenv("DATABASE_URL")
-	if connStr == "" {
-		connStr = "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+	db.InitDB(db.ConnStringFromEnv())
+
+	// Stage 30.2.2: say so when the binary carries migrations this database
+	// has never had applied. Deliberately a warning and not an automatic
+	// apply - schema changes against a live database are an operator
+	// decision, and two instances starting at once must not both try. Run
+	// `erp-server -migrate` to close the gap.
+	if pending, err := db.PendingMigrations(); err == nil && len(pending) > 0 {
+		log.Printf("WARNING: %d database migration(s) have not been applied to this database (oldest: %s). Run `erp-server -migrate` to apply them.", len(pending), pending[0])
 	}
-	db.InitDB(connStr)
 
 	// 20.6: warn (or, in production, refuse to start) if the connected
 	// database isn't UTF8-encoded - found via messy-data stress testing,
@@ -226,6 +231,9 @@ func Run() {
 	http.HandleFunc("POST /api/v1/pos/session/close", apiMiddleware(handlePOSSessionClose))
 	http.HandleFunc("GET /api/v1/pos/session/current", apiMiddleware(handlePOSSessionCurrent))
 	http.HandleFunc("POST /api/v1/pos/offline-heartbeat", apiMiddleware(handlePOSOfflineHeartbeat))
+	// Stage 30.7: read-only offer preview for the POS cart. Checkout
+	// re-evaluates server-side regardless, so this never sets the price.
+	http.HandleFunc("POST /api/v1/pos/offers/preview", apiMiddleware(handlePOSOffersPreview))
 	http.HandleFunc("GET /api/v1/finance/trial-balance", apiMiddleware(handleTrialBalance))
 	http.HandleFunc("GET /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))
 	http.HandleFunc("POST /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))

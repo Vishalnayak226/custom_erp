@@ -1168,6 +1168,21 @@ tr:hover td {
   box-shadow: 0 0 0 3px rgba(68, 84, 106, 0.15);
 }
 
+/* Server-issued values (Stage 30.6): document numbers come from the tenant's
+   Prefix Configs series on save, so their fields read as informational rather
+   than as an input someone is expected to fill in. Also covers the code field
+   the generic record form already rendered read-only. */
+.form-input[readonly] {
+  background-color: var(--bg-color);
+  color: var(--text-muted);
+  cursor: default;
+}
+
+.form-input[readonly]:focus {
+  border-color: var(--border-color);
+  box-shadow: none;
+}
+
 .form-textarea {
   resize: vertical;
   min-height: 80px;

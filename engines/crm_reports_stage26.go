@@ -164,7 +164,7 @@ func GetPointsLiabilityReport(tenantID string) (*PointsLiabilitySummary, error) 
 	}
 	return &PointsLiabilitySummary{
 		TotalOutstandingPoints: totalPoints,
-		TotalLiabilityValue:    float64(totalPoints) * float64(redemptionValuePerPoint),
+		TotalLiabilityValue:    float64(totalPoints) * float64(redemptionValuePerPointFor(tenantID)),
 		CustomerCount:          customerCount,
 	}, nil
 }

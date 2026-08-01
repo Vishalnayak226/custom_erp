@@ -138,7 +138,7 @@ type CustomerLifetimeValue struct {
 
 func GetCustomerLifetimeValue(tenantID string, churnDays int) ([]CustomerLifetimeValue, error) {
 	if churnDays <= 0 {
-		churnDays = 90
+		churnDays = GetSettingInt(tenantID, "crm.churn_days")
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {

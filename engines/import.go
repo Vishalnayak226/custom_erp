@@ -112,8 +112,15 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 	seenIDs := map[string]bool{}
 
 	dataRows := records[1:]
-	for batchStart := 0; batchStart < len(dataRows); batchStart += importBatchRows {
-		batchEnd := batchStart + importBatchRows
+	// Resolved once per import (not per batch): the batch size must stay
+	// constant for the whole file, or a mid-import config edit would leave
+	// the row-number arithmetic below inconsistent.
+	batchRows := GetSettingInt(tenantID, "platform.import_batch_rows")
+	if batchRows < 1 {
+		batchRows = 1
+	}
+	for batchStart := 0; batchStart < len(dataRows); batchStart += batchRows {
+		batchEnd := batchStart + batchRows
 		if batchEnd > len(dataRows) {
 			batchEnd = len(dataRows)
 		}
@@ -204,11 +211,25 @@ func importBatch(tenantID, schema, doctype, userID string, dryRun bool, headers 
 			}
 			seenIDs[id] = true
 		} else {
-			// Generate dynamic sequence code or fallback uuid
-			seqCode, seqErr := GenerateSequence(tenantID, doctype, "HQ", time.Now().Format("2006"))
+			// Generate dynamic sequence code or fallback uuid.
+			//
+			// Stage 30.6: prefer the doctype's registered series so an
+			// imported row lands in the same series as one created on screen.
+			// Without this an imported PO was numbered from a "PurchaseOrder"
+			// series that has no prefix_configs row at all, so it fell through
+			// to GenerateSequence's defaults and produced
+			// "PurchaseOrder/HQ/2026/000001" alongside the UI's "PO/HQ/26-27/000001".
+			// Doctypes with no registered series keep the old behavior exactly.
+			seriesKey := doctype
+			seriesYear := time.Now().Format("2006")
+			if key, ok := DocumentNumberSeriesKey(doctype); ok {
+				seriesKey = key
+				seriesYear = documentFinancialYear(time.Now())
+			}
+			seqCode, seqErr := GenerateSequence(tenantID, seriesKey, "HQ", seriesYear)
 			if seqErr != nil {
 				// Fallback to random generator if prefix counter doesn't exist
-				id = "REC" + fmt.Sprintf("%d", time.Now().UnixNano())
+				id = NewDocIDCompact("REC")
 			} else {
 				id = seqCode
 			}
@@ -292,7 +313,7 @@ func RecordImportJob(tenantID, doctype string, res *ImportResult, createdBy stri
 		status = "Failed"
 	}
 
-	jobID := fmt.Sprintf("IMPJOB%d", time.Now().UnixNano())
+	jobID := NewDocIDCompact("IMPJOB")
 	data := map[string]interface{}{
 		"id":           jobID,
 		"code":         jobID,

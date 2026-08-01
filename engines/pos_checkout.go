@@ -4,7 +4,6 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
-	"time"
 )
 
 // FinalizePOSCheckout runs the side effects of a completed sale - inventory
@@ -37,6 +36,16 @@ func FinalizePOSCheckout(tenantID, cartNumber, correlationID string) (saleTotal 
 			CostPrice float64 `json:"cost_price"`
 		} `json:"items"`
 		GSTBreakdown GSTBreakdown `json:"gst_breakdown"`
+		// RedeemPoints (Stage 30.2.5) is the loyalty redemption the cashier
+		// applied to this cart. It is an INTENT recorded on the cart, not an
+		// already-burned balance: the burn happens here, once the sale is
+		// actually going through. Before this, "Redeem Points" burned the
+		// points the instant it was clicked and left the cashier to type the
+		// discount into a line's price by hand - so abandoning the cart lost
+		// the customer's points outright, and forgetting to type the discount
+		// charged them full price for a sale they had already paid for in
+		// points.
+		RedeemPoints int `json:"redeem_points"`
 		// 20.13: stamped by handleCheckout from the client's own
 		// "offline_synced" request field - true only when this cart is being
 		// replayed from a cashier's offline queue after reconnecting, never
@@ -67,6 +76,44 @@ func FinalizePOSCheckout(tenantID, cartNumber, correlationID string) (saleTotal 
 		markFailed()
 		return 0, 0, fmt.Errorf("inventory decrement failed: %v", err)
 	}
+
+	// Loyalty redemption (Stage 30.2.5). Burned here, at the point the sale is
+	// really happening, rather than when the cashier clicked "Redeem Points".
+	// RedeemLoyaltyPoints re-checks the balance against the ledger, so a
+	// balance that changed between adding the points to the cart and
+	// completing the sale is caught rather than overdrawn.
+	//
+	// Everything after this point that can fail reverses the burn first (see
+	// failAndRefundPoints) - the ledger is append-only, so the reversal is a
+	// compensating entry, not a delete.
+	loyaltyDiscount := 0
+	if cart.RedeemPoints > 0 && cart.CustomerID != "" {
+		loyaltyDiscount, err = RedeemLoyaltyPoints(tenantID, cart.CustomerID, cart.RedeemPoints, cartNumber)
+		if err != nil {
+			markFailed()
+			return 0, 0, err
+		}
+		if loyaltyDiscount > totalSale {
+			// Cap rather than reject: the points were already accepted, and a
+			// customer covering more than the bill simply pays nothing. The
+			// unused remainder goes straight back.
+			if errBack := ReverseLoyaltyRedemption(tenantID, cart.CustomerID, loyaltyDiscount-totalSale, cartNumber); errBack != nil {
+				LogSystemError(tenantID, correlationID, "ERROR", "/api/v1/checkout",
+					fmt.Sprintf("cart %s: could not return %d over-redeemed loyalty point(s): %v", cartNumber, loyaltyDiscount-totalSale, errBack), "")
+			}
+			loyaltyDiscount = totalSale
+		}
+	}
+	failAndRefundPoints := func(wrapped error) (float64, float64, error) {
+		if loyaltyDiscount > 0 {
+			if errBack := ReverseLoyaltyRedemption(tenantID, cart.CustomerID, cart.RedeemPoints, cartNumber); errBack != nil {
+				LogSystemError(tenantID, correlationID, "CRITICAL", "/api/v1/checkout",
+					fmt.Sprintf("cart %s failed AND its %d redeemed loyalty point(s) could not be returned: %v", cartNumber, cart.RedeemPoints, errBack), "")
+			}
+		}
+		markFailed()
+		return 0, 0, wrapped
+	}
 	if len(negativeEvents) > 0 {
 		// 20.13 decision: an offline-synced sale already physically happened
 		// (goods left the store, payment was taken) before the server could
@@ -75,21 +122,22 @@ func FinalizePOSCheckout(tenantID, cartNumber, correlationID string) (saleTotal 
 		// review/reconcile (e.g. against the next GRN), never silently lost.
 		recordOfflineSyncVariance(tenantID, cartNumber, negativeEvents)
 	}
-	if err = PostSalesFinanceBooking(tenantID, cartNumber, totalSale, totalCost, cart.PaymentMode); err != nil {
-		markFailed()
-		return 0, 0, fmt.Errorf("GL booking failed: %v", err)
+	if err = PostSalesFinanceBooking(tenantID, cartNumber, totalSale, totalCost, cart.PaymentMode, loyaltyDiscount); err != nil {
+		return failAndRefundPoints(fmt.Errorf("GL booking failed: %v", err))
 	}
 	if err = PostSalesGSTBooking(tenantID, cartNumber, cart.GSTBreakdown); err != nil {
-		markFailed()
-		return 0, 0, fmt.Errorf("GST booking failed: %v", err)
+		return failAndRefundPoints(fmt.Errorf("GST booking failed: %v", err))
 	}
 
 	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Paid', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'POSCart' AND id = $1`, schema), cartNumber)
 
 	// Loyalty earn stays outside the failure path above, same as before this
-	// refactor: it's purely additive and must never undo an already-completed sale.
+	// refactor: it's purely additive and must never undo an already-completed
+	// sale. The earn base nets off anything paid for with points, which is
+	// what EarnLoyaltyPoints' own contract already asked its callers for -
+	// there was simply no redemption on a cart to net off until Stage 30.2.5.
 	if cart.CustomerID != "" {
-		if errEarn := EarnLoyaltyPoints(tenantID, cart.CustomerID, totalSale, cartNumber); errEarn != nil {
+		if errEarn := EarnLoyaltyPoints(tenantID, cart.CustomerID, totalSale-loyaltyDiscount, cartNumber); errEarn != nil {
 			LogSystemError(tenantID, correlationID, "LOYALTY_EARN_FAILED", "/api/v1/checkout", errEarn.Error(), "")
 		}
 	}
@@ -110,8 +158,8 @@ func recordOfflineSyncVariance(tenantID, cartNumber string, events []NegativeSto
 	if err != nil {
 		return
 	}
-	for i, ev := range events {
-		id := fmt.Sprintf("POSSYNCVAR-%d-%d", time.Now().UnixNano(), i)
+	for _, ev := range events {
+		id := NewDocID("POSSYNCVAR")
 		data := map[string]interface{}{
 			"cart_number":         cartNumber,
 			"sku":                 ev.SKU,

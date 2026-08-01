@@ -8,7 +8,12 @@ import (
 	"math"
 )
 
-const defaultVendorInvoiceTolerancePercent = 2.0
+// defaultVendorInvoiceTolerancePercentFor resolves the tenant's configured
+// 3-way-match tolerance (Stage 30.7 - was a hardcoded 2.0). Still only the
+// fallback for an explicit caller-supplied tolerance, exactly as before.
+func defaultVendorInvoiceTolerancePercentFor(tenantID string) float64 {
+	return GetSettingFloat(tenantID, "procurement.vendor_invoice_tolerance_percent")
+}
 
 type poItemLine struct {
 	Sku  string  `json:"sku"`
@@ -29,7 +34,7 @@ type grnItemLine struct {
 // tolerancePercent <= 0 falls back to a 2% system default.
 func Match3Way(tenantID, poID, grnID, invoiceID string, tolerancePercent float64) (matched bool, err error) {
 	if tolerancePercent <= 0 {
-		tolerancePercent = defaultVendorInvoiceTolerancePercent
+		tolerancePercent = defaultVendorInvoiceTolerancePercentFor(tenantID)
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {

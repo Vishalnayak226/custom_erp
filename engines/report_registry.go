@@ -174,8 +174,8 @@ func RunReport(tenantID, reportID, role, userID string, params map[string]string
 	if reportID != "report-performance" {
 		writeReportRunLog(tenantID, reportID, userID, time.Since(start).Milliseconds(), len(rows))
 	}
-	if len(rows) > maxSyncReportRows {
-		return nil, nil, false, &ValidationError{Code: "REPORT-0161", Message: fmt.Sprintf("this report matched %d rows, over the %d-row synchronous limit - narrow the filters or use Export instead", len(rows), maxSyncReportRows)}
+	if maxRows := GetSettingInt(tenantID, "platform.max_sync_report_rows"); len(rows) > maxRows {
+		return nil, nil, false, &ValidationError{Code: "REPORT-0161", Message: fmt.Sprintf("this report matched %d rows, over the %d-row synchronous limit - narrow the filters or use Export instead", len(rows), maxRows)}
 	}
 	masked = reportMasked(d.Columns, role)
 	rows = maskSensitiveColumns(d.Columns, rows, role)

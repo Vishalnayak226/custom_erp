@@ -942,7 +942,9 @@ func handleSLABreaches(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	threshold := 120.0 // Default to 2 hours
+	// Default comes from the tenant's configured productivity threshold
+	// (Stage 30.7 - was a hardcoded 120.0); an explicit query param still wins.
+	threshold := engines.GetSettingFloat(tenantID, "wms.productivity_threshold_minutes")
 	if threshStr := r.URL.Query().Get("threshold"); threshStr != "" {
 		_, _ = fmt.Sscanf(threshStr, "%f", &threshold)
 	}

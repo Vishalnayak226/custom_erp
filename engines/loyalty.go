@@ -11,13 +11,14 @@ import (
 // Customer 360, Segmentation, Campaign Management, Voucher/Coupon Engine,
 // Customer Service, and Consent & Privacy are explicitly out of scope.
 
-// redemptionValuePerPoint is the burn rate for this MVP (1 point = Rs.1 on
-// redemption). The earn rate (spend per point) and point expiry are now
-// tenant-configurable via the Stage 28 settings registry
-// (loyalty.rupees_per_point / loyalty.point_expiry_days, see
-// settings_definitions.go) and read at their use sites below, rather than the
-// fixed constants they used to be.
-const redemptionValuePerPoint = 1
+// redemptionValuePerPointFor is the burn rate (default 1 point = Rs.1 on
+// redemption). Stage 30.7 made it the last of the three loyalty rates to
+// become tenant-configurable - the earn rate (loyalty.rupees_per_point) and
+// point expiry (loyalty.point_expiry_days) already were. All three are read
+// at their use sites on each call, so an admin edit applies immediately.
+func redemptionValuePerPointFor(tenantID string) int {
+	return GetSettingInt(tenantID, "loyalty.redemption_value_per_point")
+}
 
 // LoyaltyLedgerEntry is one earn/burn transaction.
 type LoyaltyLedgerEntry struct {
@@ -111,7 +112,34 @@ func RedeemLoyaltyPoints(tenantID, customerID string, points int, referenceID st
 	if err := insertLoyaltyLedgerEntry(tenantID, customerID, "Burn", points, "POSCart", referenceID); err != nil {
 		return 0, err
 	}
-	return points * redemptionValuePerPoint, nil
+	return points * redemptionValuePerPointFor(tenantID), nil
+}
+
+// LoyaltyRedemptionValue is what `points` are worth in rupees, without
+// touching the ledger - so a caller can show the customer the discount and
+// check it against the balance before anything is burned. Stage 30.2.5's POS
+// flow uses this at "Redeem Points" time and only burns at checkout.
+func LoyaltyRedemptionValue(tenantID string, points int) int {
+	if points <= 0 {
+		return 0
+	}
+	return points * redemptionValuePerPointFor(tenantID)
+}
+
+// ReverseLoyaltyRedemption gives back points burned for a sale that then
+// failed to complete (Stage 30.2.5). The ledger is append-only by design -
+// the blueprint's "never edit a point balance" rule - so the reversal is a
+// compensating Earn row referencing the same cart, which restores the balance
+// while leaving the original Burn visible in the customer's history.
+//
+// The restored points deliberately carry no expiry: they are a correction of
+// something that never happened, not a fresh accrual, so re-dating their
+// lifetime would quietly shorten or extend it.
+func ReverseLoyaltyRedemption(tenantID, customerID string, points int, referenceID string) error {
+	if points <= 0 || customerID == "" {
+		return nil
+	}
+	return insertLoyaltyLedgerEntry(tenantID, customerID, "Earn", points, "POSCart", referenceID+":REDEMPTION-REVERSAL")
 }
 
 // EarnLoyaltyPoints credits points for a completed sale. netSaleAmount

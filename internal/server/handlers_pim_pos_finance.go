@@ -318,6 +318,16 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		CustomerID  string  `json:"customer_id"`
 		Interstate  bool    `json:"interstate"`
 		DiscountPct float64 `json:"discount_pct"`
+		// RedeemPoints (Stage 30.2.5): loyalty points to pay part of this
+		// sale with. Validated below and burned by FinalizePOSCheckout only
+		// once the sale actually goes through - never at "Redeem Points"
+		// click time, which is how a cashier used to be able to destroy a
+		// customer's points on a cart that was then abandoned.
+		RedeemPoints int `json:"redeem_points"`
+		// CouponCodes (Stage 30.7): coupon-gated offers the cashier keyed in.
+		// A code that matches no live offer is reported back rather than
+		// silently ignored, so the cashier learns it didn't apply.
+		CouponCodes []string `json:"coupon_codes"`
 		// OfflineSynced (20.13): set only by the POS screen's own offline
 		// queue when replaying a sale that was rung up while disconnected -
 		// never set by a normal live checkout. Stamped onto the stored cart
@@ -371,6 +381,48 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	gstBreakdown, gstErr := engines.ComputeGSTForLines(tenantID, gstLines, req.Interstate)
 	if gstErr != nil {
 		writeEngineError(w, r, gstErr, http.StatusUnprocessableEntity)
+		return
+	}
+
+	// Loyalty redemption pre-checks (Stage 30.2.5). The authoritative balance
+	// check is RedeemLoyaltyPoints' own, inside FinalizePOSCheckout - this one
+	// exists so the ordinary "not enough points" case is rejected here, before
+	// the cart is claimed and before any side effect runs, instead of failing
+	// half-way through a sale.
+	loyaltyDiscount := 0
+	if req.RedeemPoints > 0 {
+		if req.CustomerID == "" {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "A customer is required to redeem loyalty points")
+			return
+		}
+		balance, balErr := engines.GetLoyaltyBalance(tenantID, req.CustomerID)
+		if balErr != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to check the loyalty balance")
+			return
+		}
+		if req.RedeemPoints > balance {
+			writeAPIErrorDetail(w, r, "CUSTOM-0134", "", fmt.Sprintf("%s has %d loyalty point(s); this sale is trying to redeem %d.", req.CustomerID, balance, req.RedeemPoints))
+			return
+		}
+		loyaltyDiscount = engines.LoyaltyRedemptionValue(tenantID, req.RedeemPoints)
+	}
+
+	// Offer evaluation (Stage 30.7). Recomputed here from the tenant's own
+	// Offer documents rather than trusting anything the client sent - the POS
+	// screen's /pos/offers/preview call is display only. That also means an
+	// offline cart replayed later is priced against the rules as they stand
+	// when it lands, and a tampered client can't invent a discount.
+	offerLines := make([]engines.OfferCartLine, len(req.Items))
+	for i, item := range req.Items {
+		offerLines[i] = engines.OfferCartLine{Sku: item.Sku, Qty: item.Qty, SalePrice: item.SalePrice}
+	}
+	offerEval, offerErr := engines.EvaluatePOSOffers(tenantID, engines.OfferEvaluationInput{
+		Lines:       offerLines,
+		CustomerID:  req.CustomerID,
+		CouponCodes: req.CouponCodes,
+	})
+	if offerErr != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to evaluate offers for this sale")
 		return
 	}
 
@@ -439,6 +491,12 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	storedPayload["gst_breakdown"] = gstBreakdown
 	storedPayload["pos_session"] = sessionID
 	storedPayload["offline_synced"] = req.OfflineSynced
+	// Stage 30.7: persist which offers were applied and what each took off, so
+	// the receipt, the audit trail and any later dispute can all reconstruct
+	// how this bill's price was reached - the same reason gst_breakdown is
+	// stored rather than recomputed on demand.
+	storedPayload["applied_offers"] = offerEval.Applied
+	storedPayload["offer_discount"] = offerEval.TotalDiscount
 	if requiredRole != "" {
 		// Percentage, not rupees - see extractAmount's comment in engines/approval.go.
 		storedPayload["discount_amount"] = req.DiscountPct
@@ -533,8 +591,15 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 
 	saleTotal, costTotal, finalizeErr := engines.FinalizePOSCheckout(tenantID, req.CartNumber, r.Header.Get("Resolved-Correlation-ID"))
 	if finalizeErr != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, finalizeErr.Error())
+		writeEngineError(w, r, finalizeErr, http.StatusInternalServerError)
 		return
+	}
+
+	// FinalizePOSCheckout caps the redemption at the sale value and returns
+	// the unusable remainder to the customer's balance, so mirror that here
+	// rather than reporting a negative amount due.
+	if float64(loyaltyDiscount) > saleTotal {
+		loyaltyDiscount = int(saleTotal)
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
@@ -543,6 +608,18 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		"sale_total":    saleTotal,
 		"cost_total":    costTotal,
 		"gst_breakdown": gstBreakdown,
+		// Stage 30.2.5: what the customer actually pays, after any loyalty
+		// points they spent on this sale - so the receipt and the cash drawer
+		// agree without the cashier doing the subtraction in their head.
+		"loyalty_points_redeemed": req.RedeemPoints,
+		"loyalty_discount":        loyaltyDiscount,
+		// Stage 30.7: offers applied to this sale, recomputed server-side.
+		// unmatched_coupon_codes lets the POS tell the cashier a code didn't
+		// apply instead of silently dropping it.
+		"applied_offers":          offerEval.Applied,
+		"offer_discount":          offerEval.TotalDiscount,
+		"unmatched_coupon_codes":  offerEval.UnmatchedCodes,
+		"amount_due":              saleTotal - float64(loyaltyDiscount) - offerEval.TotalDiscount,
 	})
 }
 
@@ -726,7 +803,7 @@ func handleAccountingPeriods(w http.ResponseWriter, r *http.Request) {
 		id, err := engines.CreateAccountingPeriod(tenantID, req.PeriodName, req.StartDate, req.EndDate, userID)
 		if err != nil {
 			if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
-				writeAPIError(w, r, verr.Code, verr.SubFor)
+				writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
 			} else {
 				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 			}
@@ -823,7 +900,7 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 		// specific PURCHA-0083 case below, which only ever fires for a
 		// different error (ErrApprovalRoleMismatch).
 		if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
-			writeAPIError(w, r, verr.Code, verr.SubFor)
+			writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
 			return
 		}
 		// PURCHA-0083 (Stage 25 Batch 3): DecideApproval's role-mismatch

@@ -27,6 +27,7 @@ import (
 // Setting value types - how a setting is validated and rendered.
 const (
 	SettingTypeInt    = "int"
+	SettingTypeFloat  = "float"
 	SettingTypeBool   = "bool"
 	SettingTypeString = "string"
 	SettingTypeSelect = "select"
@@ -38,8 +39,14 @@ type SettingOption struct {
 	Label string `json:"label"`
 }
 
-// SettingDefinition declares one configurable setting. Min/Max apply to int
-// settings only; Options to select settings only.
+// SettingDefinition declares one configurable setting. Min/Max apply to the
+// numeric types (int and float) only; Options to select settings only.
+//
+// Min/Max are float64 so one pair serves both numeric types - an int setting
+// simply carries whole-number bounds. Stage 30.7 uses them as the guardrail
+// on platform-safety settings (API page-size cap, per-tenant concurrency,
+// batch sizes): those are configurable rather than hardcoded, but bounded so
+// a mistyped value can't destabilize the server.
 type SettingDefinition struct {
 	Key         string          `json:"key"`
 	Module      string          `json:"module"`
@@ -49,8 +56,8 @@ type SettingDefinition struct {
 	Default     string          `json:"default"`
 	Unit        string          `json:"unit,omitempty"`
 	Options     []SettingOption `json:"options,omitempty"`
-	Min         *int            `json:"min,omitempty"`
-	Max         *int            `json:"max,omitempty"`
+	Min         *float64        `json:"min,omitempty"`
+	Max         *float64        `json:"max,omitempty"`
 }
 
 var settingsRegistry = map[string]SettingDefinition{}
@@ -150,9 +157,64 @@ func parseSettingInt(raw, key string) int {
 	return 0
 }
 
+// GetSettingFloat returns the effective float value, falling back to the
+// registered default (then 0) if a stored value is somehow non-numeric. Same
+// never-panic posture as GetSettingInt - a config read must never crash a
+// request path.
+func GetSettingFloat(tenantID, key string) float64 {
+	return parseSettingFloat(rawSetting(tenantID, key), key)
+}
+
+// GetSettingFloatForSchema is the schema-scoped variant of GetSettingFloat.
+func GetSettingFloatForSchema(schema, key string) float64 {
+	return parseSettingFloat(rawSettingForSchema(schema, key), key)
+}
+
+func parseSettingFloat(raw, key string) float64 {
+	if f, err := strconv.ParseFloat(strings.TrimSpace(raw), 64); err == nil {
+		return f
+	}
+	if f, err := strconv.ParseFloat(strings.TrimSpace(settingsRegistry[key].Default), 64); err == nil {
+		return f
+	}
+	return 0
+}
+
 // GetSettingBool returns the effective bool value ("true"/"false").
 func GetSettingBool(tenantID, key string) bool {
 	return strings.EqualFold(strings.TrimSpace(rawSetting(tenantID, key)), "true")
+}
+
+// GetSettingBoolForSchema is the schema-scoped variant of GetSettingBool.
+func GetSettingBoolForSchema(schema, key string) bool {
+	return strings.EqualFold(strings.TrimSpace(rawSettingForSchema(schema, key)), "true")
+}
+
+// GetSettingStringForSchema is the schema-scoped variant of GetSettingString.
+func GetSettingStringForSchema(schema, key string) string {
+	return rawSettingForSchema(schema, key)
+}
+
+// SettingIsOverridden reports whether an admin has explicitly set this key
+// for the tenant, as opposed to it still sitting at its registered default.
+//
+// This exists for the handful of settings that also have a deployment-level
+// environment-variable override (session token TTL / JWT_EXPIRY_HOURS). The
+// precedence has to be: an explicit admin edit wins, otherwise the env var,
+// otherwise the registered default. Without this check the env var would
+// silently beat whatever the admin typed on the Configuration screen - a
+// control that looks wired but does nothing, which is worse than a constant.
+func SettingIsOverridden(tenantID, key string) bool {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return false
+	}
+	var exists bool
+	if err := db.DB.QueryRow(fmt.Sprintf(
+		"SELECT EXISTS(SELECT 1 FROM %s.system_settings WHERE key = $1)", schema), key).Scan(&exists); err != nil {
+		return false
+	}
+	return exists
 }
 
 // SettingWithValue is a definition plus the tenant's current effective value -
@@ -224,12 +286,13 @@ func validateSettingValue(def SettingDefinition, value string) error {
 		if err != nil {
 			return fmt.Errorf("%s must be a whole number", def.Label)
 		}
-		if def.Min != nil && n < *def.Min {
-			return fmt.Errorf("%s must be at least %d", def.Label, *def.Min)
+		return checkSettingBounds(def, float64(n))
+	case SettingTypeFloat:
+		f, err := strconv.ParseFloat(strings.TrimSpace(value), 64)
+		if err != nil {
+			return fmt.Errorf("%s must be a number", def.Label)
 		}
-		if def.Max != nil && n > *def.Max {
-			return fmt.Errorf("%s must be at most %d", def.Label, *def.Max)
-		}
+		return checkSettingBounds(def, f)
 	case SettingTypeBool:
 		v := strings.ToLower(strings.TrimSpace(value))
 		if v != "true" && v != "false" {
@@ -248,4 +311,24 @@ func validateSettingValue(def SettingDefinition, value string) error {
 		return fmt.Errorf("setting %q has an unknown type %q", def.Key, def.Type)
 	}
 	return nil
+}
+
+// checkSettingBounds enforces a numeric setting's registered Min/Max. This is
+// the guardrail that makes platform-safety settings safe to expose: the value
+// is admin-editable rather than hardcoded, but can't be set somewhere that
+// would destabilize the server.
+func checkSettingBounds(def SettingDefinition, n float64) error {
+	if def.Min != nil && n < *def.Min {
+		return fmt.Errorf("%s must be at least %s", def.Label, formatSettingNumber(*def.Min))
+	}
+	if def.Max != nil && n > *def.Max {
+		return fmt.Errorf("%s must be at most %s", def.Label, formatSettingNumber(*def.Max))
+	}
+	return nil
+}
+
+// formatSettingNumber renders a bound the way an admin wrote it - "10" not
+// "10.000000", "2.5" stays "2.5".
+func formatSettingNumber(f float64) string {
+	return strconv.FormatFloat(f, 'f', -1, 64)
 }

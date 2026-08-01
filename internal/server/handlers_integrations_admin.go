@@ -605,7 +605,7 @@ func handleTenantUsage(w http.ResponseWriter, r *http.Request) {
 			TenantID:         t.tenantID,
 			Name:             t.name,
 			InFlightRequests: inFlight[t.tenantID],
-			ConcurrencyCap:   perTenantMaxConcurrentRequests,
+			ConcurrencyCap:   perTenantMaxConcurrentRequestsFor(t.tenantID),
 			ConfiguredLimits: map[string]int{},
 		}
 

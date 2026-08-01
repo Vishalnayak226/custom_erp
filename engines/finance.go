@@ -227,14 +227,37 @@ func paymentModeClearingAccount(paymentMode string) string {
 // PostSalesFinanceBooking creates dynamic financial postings for sales cart checkout.
 // paymentMode selects which GL clearing account the sale settles into
 // (Stage 20.9) - previously every mode posted to 1100 regardless.
-func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int, costPrice int, paymentMode string) error {
+// loyaltyDiscount (Stage 30.2.5) is the rupee value of loyalty points the
+// customer paid with. Revenue is still credited at the full sale value - the
+// goods were sold for that price, and the GST posting on top of this one is
+// computed on that same value - but the debit side splits: only the cash
+// actually collected hits the payment clearing account, and the points portion
+// hits 5250 (Loyalty Points Redeemed), where the cost of the loyalty programme
+// belongs. Pass 0 for a sale with no redemption and the postings are
+// byte-for-byte what they always were.
+func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int, costPrice int, paymentMode string, loyaltyDiscount int) error {
 	if salePrice <= 0 || costPrice <= 0 {
 		return errors.New("sales and cost prices must be positive")
 	}
+	if loyaltyDiscount < 0 {
+		return errors.New("loyalty discount cannot be negative")
+	}
+	if loyaltyDiscount > salePrice {
+		// Points can cover a whole sale, never more than one - otherwise the
+		// clearing-account debit below would go negative and the customer
+		// would in effect be paid to shop.
+		return fmt.Errorf("loyalty discount (%d) cannot exceed the sale value (%d)", loyaltyDiscount, salePrice)
+	}
 
 	// 1. Post Revenue Bookings
-	revenueDebits := map[string]int{paymentModeClearingAccount(paymentMode): salePrice} // Debit: Cash/Card/UPI clearing account
-	revenueCredits := map[string]int{"4100": salePrice}                                 // Credit: Sales Revenue Account
+	revenueDebits := map[string]int{}
+	if cash := salePrice - loyaltyDiscount; cash > 0 {
+		revenueDebits[paymentModeClearingAccount(paymentMode)] = cash // Debit: Cash/Card/UPI clearing account
+	}
+	if loyaltyDiscount > 0 {
+		revenueDebits["5250"] = loyaltyDiscount // Debit: Loyalty Points Redeemed (5250)
+	}
+	revenueCredits := map[string]int{"4100": salePrice} // Credit: Sales Revenue Account
 	err := PostDoubleEntry(tenantID, "POSCart", checkoutID, revenueDebits, revenueCredits, "", fmt.Sprintf("POSCart:%s:SALE_REVENUE", checkoutID))
 	if err != nil {
 		return err

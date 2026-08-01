@@ -5,7 +5,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -216,14 +215,14 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// a search could miss a match sitting past the current page's window. Moving
 			// search into SQL would remove that edge case but is a larger change than this
 			// item calls for.
-			limit := defaultListLimit
+			limit := defaultListLimitFor(tenantID)
 			if v := r.URL.Query().Get("limit"); v != "" {
 				if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
 					limit = parsed
 				}
 			}
-			if limit > maxListLimit {
-				limit = maxListLimit
+			if maxLimit := maxListLimitFor(tenantID); limit > maxLimit {
+				limit = maxLimit
 			}
 			offset := 0
 			if v := r.URL.Query().Get("offset"); v != "" {
@@ -309,6 +308,33 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Server-generated document numbers (Stage 30.6). Same contract as
+		// PreparePurchaseRequisition just above, for the rest of the doctypes
+		// whose create screens used to ask a human to type the number: the
+		// number is drawn from the tenant's Prefix Configs series under a row
+		// lock, never from the request. A no-op for any doctype without a
+		// registered series, and for every update (id != "").
+		//
+		// Ordered before ValidateDocument for the same reason PR's is - the
+		// fields it fills are mandatory, so they must be populated before the
+		// mandatory-field check runs.
+		if err := engines.PrepareDocumentNumber(tenantID, location, doctype, id == "", payload); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+
+		// A GRN's receiving location defaults from its PO's target warehouse
+		// when the caller didn't supply one (Stage 30.2.1). Before metadata
+		// validation for the same reason PreparePurchaseRequisition is: the
+		// field it fills in is mandatory, so the default has to be in place
+		// before the mandatory check runs.
+		if doctype == "GRN" {
+			if err := engines.PrepareGRNReceipt(tenantID, payload); err != nil {
+				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve the receiving location from the purchase order")
+				return
+			}
+		}
+
 		// 2. Server-side metadata validation engine check
 		err = engines.ValidateDocument(tenantID, doctype, payload)
 		if err != nil {
@@ -317,7 +343,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// across every doctype); anything else (metadata lookup
 			// failure, etc.) falls back to generic, same as before.
 			if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
-				writeAPIError(w, r, verr.Code, verr.SubFor)
+				writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
 			} else {
 				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 			}
@@ -373,7 +399,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 			if err := engines.ValidateMasterDataRules(tenantID, effectiveID, doctype, payload); err != nil {
 				if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
-					writeAPIError(w, r, verr.Code, verr.SubFor)
+					writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
 				} else {
 					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 				}
@@ -388,7 +414,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		if doctype == "Vendor" || doctype == "Customer" {
 			if err := engines.ValidateMasterDataRules(tenantID, id, doctype, payload); err != nil {
 				if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
-					writeAPIError(w, r, verr.Code, verr.SubFor)
+					writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
 				} else {
 					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 				}
@@ -410,7 +436,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 			if err := engines.ValidateMasterDataRules(tenantID, effectiveID, doctype, payload); err != nil {
 				if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
-					writeAPIError(w, r, verr.Code, verr.SubFor)
+					writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
 				} else {
 					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 				}
@@ -505,7 +531,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// 2's ValidateMasterDataRules above, just for this stage's modules.
 		if err := engines.ValidateTransactionalRules(tenantID, doctype, docID, priorStatus, priorData, payload); err != nil {
 			if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
-				writeAPIError(w, r, verr.Code, verr.SubFor)
+				writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
 			} else {
 				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 			}
@@ -676,7 +702,34 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				// alongside it (see engines/wms_receiving.go).
 				_, errLedger := engines.PostGRNReceiptWithQC(tenantID, locationCode, items, userID, docID)
 				if errLedger != nil {
-					log.Printf("Error posting GRN items to stock ledger: %v", errLedger)
+					// Stage 30.2.1: this used to be a bare log.Printf, so a
+					// failed stock post returned HTTP 200 "saved" - the
+					// receipt counted against the PO (closing it to further
+					// GRNs, PURCHA-0084) while no stock ever moved, and the
+					// only trace was a line in the server log nobody reads.
+					//
+					// The document row is already committed by this point and
+					// can't be rolled back into the same transaction, so the
+					// receipt is reversed the way the domain already expresses
+					// it - status Cancelled, which is a declared GRN status
+					// and is exactly what fetchGRNReceivedQuantities excludes,
+					// so the PO stays open for a real receipt. Then the caller
+					// is told, instead of being congratulated.
+					engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "ERROR", r.URL.Path,
+						fmt.Sprintf("GRN %s: stock posting failed, receipt cancelled: %v", docID, errLedger), "")
+					if _, errCancel := db.DB.Exec(fmt.Sprintf(
+						`UPDATE %s.documents SET status = 'Cancelled', data = jsonb_set(data::jsonb, '{posting_error}', to_jsonb($1::text), true), updated_at = CURRENT_TIMESTAMP WHERE doctype = 'GRN' AND id = $2`, schema),
+						errLedger.Error(), docID); errCancel != nil {
+						// Reversal itself failed - now the row really is
+						// inconsistent, so say so loudly rather than reporting
+						// the friendlier "nothing was posted" message below.
+						engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "CRITICAL", r.URL.Path,
+							fmt.Sprintf("GRN %s: could not cancel after a failed stock post - the receipt counts against its PO but no stock moved: %v", docID, errCancel), "")
+						writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("Goods receipt %s could not post to stock and could not be reversed automatically - cancel it manually before receiving again.", docID))
+						return
+					}
+					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("Goods receipt %s could not be posted to stock at %s, so it was cancelled and no stock was added. Check the location is active, then post the receipt again.", docID, locationCode))
+					return
 				}
 			}
 
@@ -884,7 +937,7 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		rows, err := db.DB.Query(fmt.Sprintf(`
-			SELECT id, doc_type, prefix, separator, padding_width, reset_frequency, active_status
+			SELECT id, doc_type, prefix, separator, padding_width, reset_frequency, active_status, COALESCE(include_store, TRUE)
 			FROM %s.prefix_configs ORDER BY doc_type`, schema))
 		if err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
@@ -900,12 +953,13 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 			PaddingWidth   int    `json:"padding_width"`
 			ResetFrequency string `json:"reset_frequency"`
 			ActiveStatus   bool   `json:"active_status"`
+			IncludeStore   bool   `json:"include_store"`
 		}
 
 		configs := []PrefixConfig{}
 		for rows.Next() {
 			var c PrefixConfig
-			err := rows.Scan(&c.ID, &c.DocType, &c.Prefix, &c.Separator, &c.PaddingWidth, &c.ResetFrequency, &c.ActiveStatus)
+			err := rows.Scan(&c.ID, &c.DocType, &c.Prefix, &c.Separator, &c.PaddingWidth, &c.ResetFrequency, &c.ActiveStatus, &c.IncludeStore)
 			if err != nil {
 				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 				return
@@ -918,6 +972,10 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 		if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
 			return
 		}
+		// IncludeStore is a pointer so an omitted field keeps the stored value
+		// rather than silently reading as Go's false - this endpoint is a full
+		// upsert, and a caller that predates the field would otherwise turn
+		// the store segment off on every save it makes.
 		var req struct {
 			DocType        string `json:"doc_type"`
 			Prefix         string `json:"prefix"`
@@ -925,6 +983,7 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 			PaddingWidth   int    `json:"padding_width"`
 			ResetFrequency string `json:"reset_frequency"`
 			ActiveStatus   bool   `json:"active_status"`
+			IncludeStore   *bool  `json:"include_store"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
@@ -934,17 +993,22 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "reset_frequency must be one of ANNUAL, MONTHLY, NEVER")
 			return
 		}
+		includeStore := true
+		if req.IncludeStore != nil {
+			includeStore = *req.IncludeStore
+		}
 
 		query := fmt.Sprintf(`
-			INSERT INTO %s.prefix_configs (doc_type, prefix, separator, padding_width, reset_frequency, active_status) 
-			VALUES ($1, $2, $3, $4, $5, $6) 
-			ON CONFLICT (doc_type) DO UPDATE SET 
-				prefix = EXCLUDED.prefix, 
-				separator = EXCLUDED.separator, 
-				padding_width = EXCLUDED.padding_width, 
-				reset_frequency = EXCLUDED.reset_frequency, 
-				active_status = EXCLUDED.active_status`, schema)
-		_, err = db.DB.Exec(query, req.DocType, req.Prefix, req.Separator, req.PaddingWidth, req.ResetFrequency, req.ActiveStatus)
+			INSERT INTO %s.prefix_configs (doc_type, prefix, separator, padding_width, reset_frequency, active_status, include_store)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)
+			ON CONFLICT (doc_type) DO UPDATE SET
+				prefix = EXCLUDED.prefix,
+				separator = EXCLUDED.separator,
+				padding_width = EXCLUDED.padding_width,
+				reset_frequency = EXCLUDED.reset_frequency,
+				active_status = EXCLUDED.active_status,
+				include_store = COALESCE($8, %s.prefix_configs.include_store)`, schema, schema)
+		_, err = db.DB.Exec(query, req.DocType, req.Prefix, req.Separator, req.PaddingWidth, req.ResetFrequency, req.ActiveStatus, includeStore, req.IncludeStore)
 		if err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
@@ -980,8 +1044,8 @@ func handleAuditLogs(w http.ResponseWriter, r *http.Request) {
 			limit = parsed
 		}
 	}
-	if limit > maxListLimit {
-		limit = maxListLimit
+	if maxLimit := maxListLimitFor(tenantID); limit > maxLimit {
+		limit = maxLimit
 	}
 	offset := 0
 	if v := r.URL.Query().Get("offset"); v != "" {

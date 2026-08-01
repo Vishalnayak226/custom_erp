@@ -220,8 +220,9 @@ func CreateReturnRequest(tenantID, requestType, returnLocation, originalOrderID,
 		if !found {
 			return "", &ValidationError{Code: "SALESR-0131", Message: fmt.Sprintf("no original bill found for %q - a return requires a valid original bill reference", originalOrderID)}
 		}
-		if !saleDate.IsZero() && time.Since(saleDate) > salesReturnWindowDays*24*time.Hour {
-			return "", &ValidationError{Code: "SALESR-0129", Message: fmt.Sprintf("return is not allowed more than %d days after the original sale (%s)", salesReturnWindowDays, saleDate.Format("2006-01-02"))}
+		returnWindowDays := salesReturnWindowDaysFor(tenantID)
+		if !saleDate.IsZero() && time.Since(saleDate) > time.Duration(returnWindowDays)*24*time.Hour {
+			return "", &ValidationError{Code: "SALESR-0129", Message: fmt.Sprintf("return is not allowed more than %d days after the original sale (%s)", returnWindowDays, saleDate.Format("2006-01-02"))}
 		}
 		if len(soldLines) > 0 {
 			soldBySku := map[string]int{}
@@ -286,7 +287,7 @@ func CreateReturnRequest(tenantID, requestType, returnLocation, originalOrderID,
 		records[i] = returnItemRecord{SKU: it.SKU, Qty: it.Qty, OriginalUnitPrice: p.SalePrice, OriginalCostPrice: p.CostPrice}
 	}
 
-	returnID := fmt.Sprintf("RR-%d", time.Now().UnixNano())
+	returnID := NewDocID("RR")
 	doc := map[string]interface{}{
 		"code": returnID, "request_type": requestType, "original_order_id": originalOrderID,
 		"booking_id": bookingID, "return_location": returnLocation, "status": "Requested",
@@ -513,7 +514,7 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	}
 
 	if refundTotal > 0 {
-		refundRequestID = fmt.Sprintf("RF-%d", time.Now().UnixNano())
+		refundRequestID = NewDocID("RF")
 		refundDoc := map[string]interface{}{
 			"code": refundRequestID, "return_request_id": returnRequestID, "amount": refundTotal,
 			"status": "Pending", "refund_method": "", "approved_by": "", "processed_by": "", "rejection_reason": "",

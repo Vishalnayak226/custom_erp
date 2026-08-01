@@ -418,8 +418,9 @@ func BulkDecideApproval(tenantID, doctype string, docIDs []string, actorUserID, 
 	if len(docIDs) == 0 {
 		return nil, nil, fmt.Errorf("select at least one document")
 	}
-	if len(docIDs) > maxPIMBulkEditDocuments {
-		return nil, nil, fmt.Errorf("bulk approval supports at most %d documents at a time", maxPIMBulkEditDocuments)
+	maxBulkDocs := maxPIMBulkEditDocumentsFor(tenantID)
+	if len(docIDs) > maxBulkDocs {
+		return nil, nil, fmt.Errorf("bulk approval supports at most %d documents at a time", maxBulkDocs)
 	}
 	succeeded = []string{}
 	failed = map[string]string{}

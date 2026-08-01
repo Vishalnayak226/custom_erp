@@ -53,19 +53,21 @@ type ProductMediaAsset struct {
 	HasThumbnail bool   `json:"has_thumbnail,omitempty"`
 }
 
-// thumbnailMaxDim (Stage 26.4.4) bounds the longest side of a generated
-// rendition/thumbnail - just large enough for a workbench gallery card or a
-// channel listing thumbnail, not a second full-size copy.
-const thumbnailMaxDim = 200
-
 // generateThumbnail decodes a jpg/png upload and produces a nearest-
-// neighbor-downsampled JPEG no larger than thumbnailMaxDim on its longest
-// side, always stdlib image/jpeg+image/png (no new dependency). webp/gif/pdf
+// neighbor-downsampled JPEG no larger than maxDim on its longest side,
+// always stdlib image/jpeg+image/png (no new dependency). webp/gif/pdf
 // are skipped (ok=false, not an error) - golang.org/x/image's webp decoder
 // and a GIF-frame-aware resize are both real scope beyond what a single
 // static thumbnail needs here, stated as a limitation rather than
 // approximated badly.
-func generateThumbnail(fileBytes []byte, fileType string) (thumbBytes []byte, ok bool) {
+//
+// maxDim is passed in rather than read from config here (Stage 30.7, the
+// "pim.thumbnail_max_dim" setting, default still 200) so this stays a pure
+// image helper with no tenant/DB dependency - the caller resolves it.
+func generateThumbnail(fileBytes []byte, fileType string, maxDim int) (thumbBytes []byte, ok bool) {
+	if maxDim < 1 {
+		maxDim = 1
+	}
 	if fileType != "image/jpeg" && fileType != "image/png" {
 		return nil, false
 	}
@@ -79,10 +81,10 @@ func generateThumbnail(fileBytes []byte, fileType string) (thumbBytes []byte, ok
 		return nil, false
 	}
 	scale := 1.0
-	if w >= h && w > thumbnailMaxDim {
-		scale = float64(thumbnailMaxDim) / float64(w)
-	} else if h > w && h > thumbnailMaxDim {
-		scale = float64(thumbnailMaxDim) / float64(h)
+	if w >= h && w > maxDim {
+		scale = float64(maxDim) / float64(w)
+	} else if h > w && h > maxDim {
+		scale = float64(maxDim) / float64(h)
 	}
 	newW, newH := int(float64(w)*scale), int(float64(h)*scale)
 	if newW < 1 {
@@ -279,7 +281,7 @@ func SaveMediaFile(tenantID string, fileBytes []byte, filename, itemCode, mediaR
 	}
 
 	hasThumbnail := false
-	if thumbBytes, ok := generateThumbnail(fileBytes, fileType); ok {
+	if thumbBytes, ok := generateThumbnail(fileBytes, fileType, GetSettingInt(tenantID, "pim.thumbnail_max_dim")); ok {
 		thumbPath := thumbnailStorePath(checksum)
 		if _, statErr := os.Stat(thumbPath); os.IsNotExist(statErr) {
 			if err := os.WriteFile(thumbPath, thumbBytes, 0644); err == nil {

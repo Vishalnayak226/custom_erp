@@ -9,8 +9,17 @@ function showCustomAlert(message, title = 'Notification') {
     const closeBtn = document.getElementById('custom-dialog-close-btn');
 
     titleEl.textContent = title;
-    msgEl.textContent = message;
-    
+    // Stage 30.2.4: accepts a DOM node as well as a string, so an error can be
+    // shown as headline + specific reason + what-to-do-next on separate lines
+    // (see composeErrorLines). Deliberately appendChild and textContent, never
+    // innerHTML - nothing here is ever parsed as markup.
+    msgEl.textContent = '';
+    if (message instanceof Node) {
+      msgEl.appendChild(message);
+    } else {
+      msgEl.textContent = message;
+    }
+
     cancelBtn.style.display = 'none';
     backdrop.classList.remove('hidden');
 
@@ -134,19 +143,38 @@ function showCustomPrompt(message, defaultValue = '', title = 'Input Required') 
 // (internal/server/apierror.go), so this also surfaces the catalog `code`
 // for console traceability. getErrorMessage/showApiError keep their
 // original signatures for their ~20 existing callers.
+// Stage 30.2.4 adds `detail` (the engine's own specific reason - which item,
+// which field) and `user_action` (the catalog's "what do I do now", populated
+// on all 302 rows and never previously sent). Both are optional; a response
+// without them behaves exactly as before.
 async function getErrorDetails(res, fallback) {
   try {
     const data = await res.clone().json();
-    if (data && data.error) return { message: data.error, code: data.code || '', displayStyle: data.display_style || '' };
+    if (data && data.error) {
+      return {
+        message: data.error,
+        detail: data.detail || '',
+        userAction: data.user_action || '',
+        code: data.code || '',
+        displayStyle: data.display_style || '',
+      };
+    }
   } catch (e) {
     // Body wasn't JSON (a call site not yet migrated to the standardized
     // envelope) - fall through to the fallback message.
   }
-  return { message: fallback, code: '', displayStyle: '' };
+  return { message: fallback, detail: '', userAction: '', code: '', displayStyle: '' };
+}
+
+// Joins the headline with whichever of detail/user_action came back, for the
+// inline error strips and single-line toasts that can only show one string.
+// The full three-part layout is showApiError's modal.
+function composeErrorText({ message, detail, userAction }) {
+  return [message, detail, userAction].filter(Boolean).join(' ');
 }
 
 async function getErrorMessage(res, fallback) {
-  return (await getErrorDetails(res, fallback)).message;
+  return composeErrorText(await getErrorDetails(res, fallback));
 }
 
 // Stage 23.8: dispatches by the catalog's own display_style instead of
@@ -157,20 +185,58 @@ async function getErrorMessage(res, fallback) {
 // used by the modal fallback, so existing callers passing just (res,
 // fallback) are unaffected.
 async function showApiError(res, fallback, title = 'Error') {
-  const { message, code, displayStyle } = await getErrorDetails(res, fallback);
+  const details = await getErrorDetails(res, fallback);
+  const { message, detail, userAction, code, displayStyle } = details;
   if (code) console.debug(`[API error] ${code}`);
   if (displayStyle === 'Toast') {
-    showToast(message, { variant: 'warning' });
+    showToast(composeErrorText(details), { variant: 'warning' });
     return;
   }
   if (displayStyle === 'Page banner') {
     const container = document.getElementById('view-root');
     if (container) {
-      renderPageBanner(container, message);
+      renderPageBanner(container, composeErrorText(details));
       return;
     }
   }
-  await showCustomAlert(message, title);
+  // Stage 30.2.4: the modal shows all three parts as their own lines - the
+  // catalog headline, then the specific reason, then what to do about it.
+  // Before this, a missing HSN code read only "Tax configuration is missing
+  // for this transaction. Please contact administrator." with no indication
+  // of which item or which field, to an administrator.
+  await showCustomAlert(composeErrorLines(message, detail, userAction), title);
+}
+
+// Builds the modal body for showApiError. Returns a DOM node when there is
+// more than the headline to show, and a plain string otherwise, so the
+// single-line case renders byte-for-byte as it always has.
+function composeErrorLines(message, detail, userAction) {
+  if (!detail && !userAction) return message;
+  const wrap = document.createElement('div');
+  wrap.style.display = 'flex';
+  wrap.style.flexDirection = 'column';
+  wrap.style.gap = '10px';
+  wrap.style.textAlign = 'left';
+
+  const head = document.createElement('div');
+  head.textContent = message;
+  wrap.appendChild(head);
+
+  if (detail) {
+    const d = document.createElement('div');
+    d.textContent = detail;
+    d.style.fontSize = '13px';
+    d.style.color = 'var(--text-muted)';
+    wrap.appendChild(d);
+  }
+  if (userAction) {
+    const a = document.createElement('div');
+    a.textContent = userAction;
+    a.style.fontSize = '13px';
+    a.style.fontWeight = '600';
+    wrap.appendChild(a);
+  }
+  return wrap;
 }
 
 // Inline centered retry panel for full-page load failures, so a failed GET
@@ -491,6 +557,28 @@ async function apiUpload(url, formData) {
     return null;
   }
   return response;
+}
+
+// Server-issued document number placeholder (Stage 30.6). Every transaction
+// create screen used to ask the maker to type the document number, which was
+// then sent as the document id - so two makers picking the same number meant
+// the second save silently overwrote the first, and nothing stopped a typo or
+// an out-of-order number entering the books. The number now comes from the
+// tenant's Prefix Configs series, under a row lock, on save.
+//
+// The field is kept (rather than removed) so the form still reads the same and
+// the maker can see which series the number will come from before committing.
+// It renders read-only with a placeholder, matching the convention the generic
+// record form already used for PurchaseRequisition's code field.
+function autoNumberField(label, seriesKey, width = '180px') {
+  return `
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label">${label}</label>
+      <input type="text" class="form-input" style="width: ${width};" readonly tabindex="-1"
+             placeholder="Auto (${seriesKey} series)"
+             title="Issued automatically from the ${seriesKey} series when you save. Administrators set the format under Prefix Configurations.">
+    </div>
+  `;
 }
 
 // Reusable master-data autosuggest (Stage 18.2, docs/micro_checklist.md
@@ -2858,7 +2946,15 @@ function renderPOSView(container) {
       </thead>
       <tbody id="pos-cart-body"></tbody>
     </table>
+    <!-- Stage 30.7: offers configured in the ERP (Offer master) are evaluated
+         server-side and shown here. This block is display-only - the discount
+         that reaches the sale is always recomputed at checkout. -->
+    <div id="pos-offers-row" class="hidden" style="margin-top: 16px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-color);"></div>
     <div style="display: flex; justify-content: flex-end; align-items: center; gap: 24px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color);">
+      <div class="form-group" style="max-width: 160px; margin-bottom: 0;">
+        <label class="form-label" for="pos-coupon-code">Coupon code</label>
+        <input type="text" id="pos-coupon-code" class="form-input" placeholder="Optional" autocomplete="off">
+      </div>
       <div class="form-group" style="max-width: 120px; margin-bottom: 0;">
         <label class="form-label" for="pos-discount-pct">Discount %</label>
         <input type="number" min="0" max="100" step="0.1" value="0" id="pos-discount-pct" class="form-input">
@@ -2871,6 +2967,7 @@ function renderPOSView(container) {
           <option value="UPI">UPI</option>
         </select>
       </div>
+      <div id="pos-loyalty-discount-row" class="hidden" style="font-size: 13px; font-weight: 600; color: var(--text-muted);"></div>
       <div style="font-size: 20px; font-weight: 700;">Total: <span id="pos-cart-total">0.00</span></div>
       <button class="btn btn-primary" id="pos-checkout-btn">Complete Sale</button>
     </div>
@@ -2885,6 +2982,11 @@ function renderPOSView(container) {
     posLocation = e.target.value.trim();
     refreshPOSSessionStatus();
   });
+  // Stage 30.7: re-evaluate offers when the coupon code or the customer
+  // changes - a tier-restricted or coupon-gated offer depends on both.
+  const couponEl = document.getElementById('pos-coupon-code');
+  if (couponEl) couponEl.addEventListener('change', () => refreshPOSOffers());
+  document.getElementById('pos-customer').addEventListener('change', () => refreshPOSOffers());
   document.getElementById('pos-add-btn').addEventListener('click', addSKUToPOSCart);
   document.getElementById('pos-sku-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -3220,7 +3322,119 @@ function renderPOSCartTable() {
     body.appendChild(tr);
   });
 
-  document.getElementById('pos-cart-total').textContent = total.toFixed(2);
+  // Stage 30.2.5: a redemption on this cart is shown as its own line and
+  // subtracted from the total the cashier reads out, instead of being a number
+  // the cashier was told to type into a line's Sale Price by hand.
+  const redeemRow = document.getElementById('pos-loyalty-discount-row');
+  if (redeemRow) {
+    if (posRedeemPoints > 0) {
+      redeemRow.textContent = `Loyalty: -${posRedeemPoints.toFixed(2)} (${posRedeemPoints} pt)`;
+      redeemRow.classList.remove('hidden');
+    } else {
+      redeemRow.textContent = '';
+      redeemRow.classList.add('hidden');
+    }
+  }
+  if (posRedeemPoints > total) {
+    // The cart shrank below what was pledged - keep the two consistent
+    // rather than showing a negative total.
+    posRedeemPoints = Math.floor(total);
+  }
+
+  document.getElementById('pos-cart-total').textContent = Math.max(0, total - posRedeemPoints - posOfferDiscount).toFixed(2);
+  refreshPOSOffers();
+}
+
+// --- POS offers (Stage 30.7) ---------------------------------------------
+// Offers are configured in the ERP as Offer documents and evaluated by the
+// server (POST /api/v1/pos/offers/preview). Nothing about which offers exist
+// or how they price lives in this file - the cashier sees whatever the ERP
+// currently says, so an offer switched on in the back office applies at the
+// till immediately, with no POS reload.
+//
+// This preview is display-only. Checkout re-evaluates the same rules
+// server-side, so what the customer is charged never depends on this call
+// having run, or on anything the browser could tamper with.
+let posOfferDiscount = 0;
+let posAppliedOffers = [];
+let posOfferPreviewSeq = 0;
+
+function currentPOSCouponCodes() {
+  const el = document.getElementById('pos-coupon-code');
+  if (!el) return [];
+  // Accept several codes separated by comma/space, so a cashier can key in
+  // more than one without a second field.
+  return el.value.split(/[,\s]+/).map(c => c.trim()).filter(Boolean);
+}
+
+async function refreshPOSOffers() {
+  const row = document.getElementById('pos-offers-row');
+  if (!row) return;
+  if (!posCart.length) {
+    posOfferDiscount = 0;
+    posAppliedOffers = [];
+    row.classList.add('hidden');
+    return;
+  }
+
+  // Guard against out-of-order responses: only the newest request may write
+  // back, so a slow earlier preview can't overwrite a newer cart's result.
+  const seq = ++posOfferPreviewSeq;
+  const customerId = (document.getElementById('pos-customer') || {}).value || '';
+  let res;
+  try {
+    res = await apiFetch('/api/v1/pos/offers/preview', {
+      method: 'POST',
+      body: JSON.stringify({
+        customer_id: customerId.trim(),
+        coupon_codes: currentPOSCouponCodes(),
+        items: posCart.map(l => ({ sku: l.sku, qty: l.qty, sale_price: l.salePrice }))
+      })
+    });
+  } catch (e) {
+    return; // offline or unreachable - the cart simply shows no offers
+  }
+  if (seq !== posOfferPreviewSeq) return;
+  if (!res || !res.ok) return;
+
+  const data = await res.json();
+  if (seq !== posOfferPreviewSeq) return;
+
+  posAppliedOffers = Array.isArray(data.applied) ? data.applied : [];
+  const newDiscount = Number(data.total_discount) || 0;
+  const unmatched = Array.isArray(data.unmatched_codes) ? data.unmatched_codes : [];
+
+  if (!posAppliedOffers.length && !unmatched.length) {
+    posOfferDiscount = 0;
+    row.classList.add('hidden');
+    updatePOSTotalForOffers();
+    return;
+  }
+
+  row.classList.remove('hidden');
+  row.innerHTML = `
+    ${posAppliedOffers.length ? `
+      <div style="font-size:13px; font-weight:600; margin-bottom:6px;">Offers applied</div>
+      <ul style="margin:0 0 4px; padding-left:18px; font-size:13px;">
+        ${posAppliedOffers.map(o => `<li>${cfgEsc(o.name)} <span style="color:var(--text-muted);">- ${cfgEsc(o.description || '')}</span> <strong>-${Number(o.discount).toFixed(2)}</strong></li>`).join('')}
+      </ul>
+      <div style="font-size:13px; font-weight:600;">Total offer discount: -${newDiscount.toFixed(2)}</div>` : ''}
+    ${unmatched.length ? `<div style="font-size:12.5px; color:var(--warning-color, #b26a00); margin-top:${posAppliedOffers.length ? '6px' : '0'};">
+        Coupon code${unmatched.length > 1 ? 's' : ''} ${unmatched.map(cfgEsc).join(', ')} did not match any live offer for this cart.
+      </div>` : ''}
+  `;
+
+  posOfferDiscount = newDiscount;
+  updatePOSTotalForOffers();
+}
+
+// Rewrites just the total after an async offer preview lands, without
+// re-entering renderPOSCartTable (which would trigger another preview).
+function updatePOSTotalForOffers() {
+  const totalEl = document.getElementById('pos-cart-total');
+  if (!totalEl) return;
+  const gross = posCart.reduce((sum, l) => sum + l.salePrice * l.qty, 0);
+  totalEl.textContent = Math.max(0, gross - posRedeemPoints - posOfferDiscount).toFixed(2);
 }
 
 // 20.13 Offline-first POS queue.
@@ -3462,16 +3676,23 @@ async function submitPOSCheckout() {
       sale_price: line.salePrice,
       cost_price: line.costPrice
     }));
+    const customerId = document.getElementById('pos-customer').value.trim();
+    // Stage 30.2.5: the redemption travels with the sale and is burned
+    // server-side only if the sale completes.
+    const redeemPoints = customerId ? posRedeemPoints : 0;
     const res = await checkoutOnlineOrQueue({
       cart_number: cartNumber,
       location: posLocation,
       payment_mode: paymentMode,
-      customer_id: document.getElementById('pos-customer').value.trim(),
+      customer_id: customerId,
       discount_pct: discountPct,
+      redeem_points: redeemPoints,
+      coupon_codes: currentPOSCouponCodes(),
       items: cartItems
     });
     if (res === 'queued') {
       posCart = [];
+      clearPOSRedemption();
       renderPOSCartTable();
       showToast(`No connection - sale ${cartNumber} queued offline and will sync automatically once reconnected.`, { variant: 'warning', title: 'Offline' });
       return;
@@ -3489,16 +3710,23 @@ async function submitPOSCheckout() {
     // (inventory/GL) once a manager decides it Approved from the Approvals screen.
     if (data.status === 'pending_approval') {
       posCart = [];
+      clearPOSRedemption();
       renderPOSCartTable();
       await showCustomAlert(data.message || 'This sale requires manager approval before it completes.', 'Approval Required');
       return;
     }
 
     posCart = [];
+    clearPOSRedemption();
     renderPOSCartTable();
-    const printReceipt = await showCustomConfirm(`Sale ${data.cart_number} completed. Total: ${data.sale_total}. Print receipt?`, 'Sale Complete');
+    // amount_due is the sale total less any loyalty points spent on it
+    // (Stage 30.2.5); it equals sale_total when no points were redeemed.
+    const amountDue = data.amount_due !== undefined ? data.amount_due : data.sale_total;
+    const loyaltyNote = data.loyalty_discount ? ` (${data.loyalty_points_redeemed} loyalty point(s) applied, -${data.loyalty_discount})` : '';
+    const printReceipt = await showCustomConfirm(
+      `Sale ${data.cart_number} completed. Collect: ${amountDue}${loyaltyNote}. Print receipt?`, 'Sale Complete');
     if (printReceipt) {
-      printPOSReceipt(data.cart_number, posLocation, paymentMode, cartItems, data.sale_total);
+      printPOSReceipt(data.cart_number, posLocation, paymentMode, cartItems, data.sale_total, data.loyalty_discount || 0);
     }
   } finally {
     checkoutBtn.disabled = false;
@@ -3507,12 +3735,20 @@ async function submitPOSCheckout() {
 
 // Stage 20.14: reuses the sticker-print-area's hidden-until-printing @media
 // print pattern (styles.css) rather than a new PDF/print dependency.
-function printPOSReceipt(cartNumber, location, paymentMode, items, saleTotal) {
+function printPOSReceipt(cartNumber, location, paymentMode, items, saleTotal, loyaltyDiscount = 0) {
   const area = document.getElementById('receipt-print-area');
   if (!area) return;
   const lines = items.map(it => `
     <div class="receipt-line"><span>${it.sku} x${it.qty}</span><span>${(it.qty * it.sale_price).toFixed(2)}</span></div>
   `).join('');
+  // Stage 30.2.5: points spent on the sale are shown on the receipt as their
+  // own line, so the customer can see what their points paid for and the
+  // printed total matches what was actually collected.
+  const loyaltyLine = loyaltyDiscount > 0 ? `
+      <div class="receipt-line"><span>Subtotal</span><span>${Number(saleTotal).toFixed(2)}</span></div>
+      <div class="receipt-line"><span>Loyalty points applied</span><span>-${Number(loyaltyDiscount).toFixed(2)}</span></div>
+  ` : '';
+  const amountDue = Number(saleTotal) - Number(loyaltyDiscount);
   area.innerHTML = `
     <div class="receipt">
       <div class="receipt-header">
@@ -3523,7 +3759,8 @@ function printPOSReceipt(cartNumber, location, paymentMode, items, saleTotal) {
       <hr>
       ${lines}
       <hr>
-      <div class="receipt-line receipt-total"><span>Total (${paymentMode})</span><span>${Number(saleTotal).toFixed(2)}</span></div>
+      ${loyaltyLine}
+      <div class="receipt-line receipt-total"><span>Total (${paymentMode})</span><span>${amountDue.toFixed(2)}</span></div>
     </div>
   `;
   area.classList.add('printing');
@@ -3552,6 +3789,24 @@ async function checkPOSLoyaltyBalance() {
   infoEl.textContent = `${customerId} has ${data.balance} loyalty point(s).`;
 }
 
+// Stage 30.2.5: the points a cashier has added to THIS cart, not yet burned.
+// The burn happens server-side when the sale completes. Cleared whenever the
+// cart is (completed, queued offline, or abandoned by leaving the screen), so
+// points can never be spent on a sale that didn't happen.
+let posRedeemPoints = 0;
+
+function clearPOSRedemption() {
+  posRedeemPoints = 0;
+  // Stage 30.7: a completed/queued sale must not leave its offers or coupon
+  // sitting on the next customer's cart.
+  posOfferDiscount = 0;
+  posAppliedOffers = [];
+  const couponEl = document.getElementById('pos-coupon-code');
+  if (couponEl) couponEl.value = '';
+  const offersRow = document.getElementById('pos-offers-row');
+  if (offersRow) { offersRow.classList.add('hidden'); offersRow.innerHTML = ''; }
+}
+
 async function redeemPOSLoyaltyPoints() {
   const infoEl = document.getElementById('pos-loyalty-info');
   const customerId = document.getElementById('pos-customer').value.trim();
@@ -3559,21 +3814,43 @@ async function redeemPOSLoyaltyPoints() {
     infoEl.textContent = 'Enter a customer code first.';
     return;
   }
-  const pointsStr = await showCustomPrompt('How many points to redeem?');
-  const points = parseInt(pointsStr, 10);
-  if (!points || points <= 0) return;
-
-  const res = await apiFetch('/api/v1/loyalty/redeem', {
-    method: 'POST',
-    body: JSON.stringify({ customer_id: customerId, points })
-  });
-  if (!res) return;
-  const data = await res.json();
-  if (!res.ok) {
-    infoEl.textContent = data.error || 'Redemption failed.';
+  if (posCart.length === 0) {
+    infoEl.textContent = 'Add items to the cart before redeeming points - the discount is applied to this sale.';
     return;
   }
-  infoEl.textContent = `Redeemed ${points} point(s) for a discount of ${data.discount_value}. Apply this manually to a cart line's Sale Price before completing the sale.`;
+
+  // Check the balance first so the cashier is told "you have N" rather than
+  // finding out at the till.
+  const balRes = await apiFetch(`/api/v1/loyalty/ledger?customer_id=${encodeURIComponent(customerId)}`);
+  if (!balRes) return;
+  if (!balRes.ok) {
+    infoEl.textContent = 'Failed to look up loyalty balance.';
+    return;
+  }
+  const balance = (await balRes.json()).balance || 0;
+  if (balance <= 0) {
+    infoEl.textContent = `${customerId} has no loyalty points to redeem.`;
+    return;
+  }
+
+  const cartTotal = posCart.reduce((sum, line) => sum + line.qty * line.salePrice, 0);
+  const pointsStr = await showCustomPrompt(`How many points to redeem? ${customerId} has ${balance}. 1 point = 1 off this sale.`);
+  const points = parseInt(pointsStr, 10);
+  if (!points || points <= 0) return;
+  if (points > balance) {
+    infoEl.textContent = `${customerId} only has ${balance} point(s).`;
+    return;
+  }
+  if (points > cartTotal) {
+    infoEl.textContent = `This sale is only ${cartTotal.toFixed(2)} - redeem at most ${Math.floor(cartTotal)} point(s).`;
+    return;
+  }
+
+  // Nothing is burned here. The points ride on the cart and are spent by the
+  // server only if the sale completes.
+  posRedeemPoints = points;
+  renderPOSCartTable();
+  infoEl.textContent = `${points} point(s) will be applied to this sale. They are only deducted once the sale completes.`;
 }
 
 // Finance / GL screen - read-only trial balance view against the already-
@@ -6026,10 +6303,7 @@ async function renderPurchaseOrdersView(container) {
   formPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Purchase Order</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="po-number">PO Number</label>
-        <input type="text" id="po-number" class="form-input" style="width: 160px;">
-      </div>
+      ${autoNumberField('PO Number', 'PO', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="po-vendor">Vendor</label>
         <!-- 21.14: first live call site for <erp-typeahead> (Web
@@ -6155,28 +6429,26 @@ async function createDraftPurchaseOrder() {
   const errorEl = document.getElementById('po-form-error');
   errorEl.classList.add('hidden');
 
-  const poNumber = document.getElementById('po-number').value.trim();
   const vendor = document.getElementById('po-vendor').value.trim();
   const warehouse = document.getElementById('po-warehouse').value.trim();
   const location = document.getElementById('po-location').value.trim();
   const amount = parseFloat(document.getElementById('po-amount').value) || 0;
 
-  if (!poNumber || !vendor || !warehouse || !location) {
-    errorEl.textContent = 'PO Number, Vendor, Target Warehouse, and Location are all required.';
+  if (!vendor || !warehouse || !location) {
+    errorEl.textContent = 'Vendor, Target Warehouse, and Location are all required.';
     errorEl.classList.remove('hidden');
     return;
   }
 
-  // PurchaseOrder has two overlapping field registrations from this
-  // project's history (po_number/code, vendor/vendor_id both mandatory) -
-  // sending both pairs the same value matches what the one real seeded PO
-  // document already does, rather than trying to untangle that mismatch here.
+  // The PO number is issued server-side from the PO series (Stage 30.6) - it
+  // is deliberately not sent, and PurchaseOrder's two overlapping mandatory
+  // number fields from this project's history (po_number and code, declared by
+  // db/migration.sql and db/migrations_phase3.sql respectively) are both
+  // filled there. vendor/vendor_id is the same kind of historical pair and is
+  // still sent as one value from here.
   const res = await apiFetch(`/api/v1/doc/PurchaseOrder`, {
     method: 'POST',
     body: JSON.stringify({
-      id: poNumber,
-      po_number: poNumber,
-      code: poNumber,
       vendor,
       vendor_id: vendor,
       target_warehouse: warehouse,
@@ -6395,10 +6667,7 @@ async function renderGRNWorkbenchView(container) {
   formPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Goods Receipt</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="grn-number">GRN Number</label>
-        <input type="text" id="grn-number" class="form-input" style="width: 150px;">
-      </div>
+      ${autoNumberField('GRN Number', 'GRN', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="grn-po">PO Reference</label>
         <input type="text" id="grn-po" class="form-input" style="width: 150px;" autocomplete="off">
@@ -6727,24 +6996,25 @@ async function createGRN() {
   const errorEl = document.getElementById('grn-form-error');
   errorEl.classList.add('hidden');
 
-  const grnNumber = document.getElementById('grn-number').value.trim();
   const poId = document.getElementById('grn-po').value.trim();
   const location = document.getElementById('grn-location').value.trim();
 
-  if (!grnNumber || !poId || !location || grnLineItems.length === 0) {
-    errorEl.textContent = 'GRN Number, PO Reference, Receiving Location, and at least one line item are all required.';
+  if (!poId || !location || grnLineItems.length === 0) {
+    errorEl.textContent = 'PO Reference, Receiving Location, and at least one line item are all required.';
     errorEl.classList.remove('hidden');
     return;
   }
 
+  // The GRN number does not exist yet at confirm time - it is issued by the
+  // server on save (Stage 30.6) - so this asks about the receipt's effect,
+  // which is what actually needs confirming, rather than naming a number the
+  // maker typed.
   const totalQty = grnLineItems.reduce((s, l) => s + l.qty, 0);
-  if (!(await showCustomConfirm(`Post GRN ${grnNumber}? ${totalQty} unit(s) will be added to stock at ${location}.`, 'Post Goods Receipt'))) return;
+  if (!(await showCustomConfirm(`Post this goods receipt against ${poId}? ${totalQty} unit(s) will be added to stock at ${location}.`, 'Post Goods Receipt'))) return;
 
   const res = await apiFetch('/api/v1/doc/GRN', {
     method: 'POST',
     body: JSON.stringify({
-      id: grnNumber,
-      code: grnNumber,
       po_id: poId,
       asn_id: grnLoadedASNId || undefined,
       location,
@@ -6797,10 +7067,7 @@ async function renderASNView(container) {
   formPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New ASN</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="asn-number">ASN Number</label>
-        <input type="text" id="asn-number" class="form-input" style="width: 150px;">
-      </div>
+      ${autoNumberField('ASN Number', 'ASN', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="asn-po">PO Reference</label>
         <input type="text" id="asn-po" class="form-input" style="width: 150px;" autocomplete="off">
@@ -6926,20 +7193,20 @@ async function createASN() {
   const errorEl = document.getElementById('asn-form-error');
   errorEl.classList.add('hidden');
 
-  const asnNumber = document.getElementById('asn-number').value.trim();
   const poId = document.getElementById('asn-po').value.trim();
   const location = document.getElementById('asn-location').value.trim();
-  if (!asnNumber || !poId || !location || asnLineItems.length === 0) {
-    errorEl.textContent = 'ASN Number, PO Reference, Location, and at least one line item are all required.';
+  if (!poId || !location || asnLineItems.length === 0) {
+    errorEl.textContent = 'PO Reference, Location, and at least one line item are all required.';
     errorEl.classList.remove('hidden');
     return;
   }
 
+  // asn_number is issued server-side from the ASN series (Stage 30.6).
+  // po_number stays the referenced PO's number - despite the name it is this
+  // ASN's link to its purchase order, not its own identifier.
   const res = await apiFetch('/api/v1/doc/ASN', {
     method: 'POST',
     body: JSON.stringify({
-      id: asnNumber,
-      asn_number: asnNumber,
       po_number: poId,
       po_id: poId,
       location,
@@ -7887,10 +8154,7 @@ async function renderRFQView(container) {
   formPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New RFQ</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="rfq-code">RFQ Number</label>
-        <input type="text" id="rfq-code" class="form-input" style="width: 150px;">
-      </div>
+      ${autoNumberField('RFQ Number', 'RFQ', '160px')}
       <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
         <label class="form-label" for="rfq-description">Item / Requirement Description</label>
         <input type="text" id="rfq-description" class="form-input">
@@ -7947,20 +8211,19 @@ async function createRFQ() {
   const errorEl = document.getElementById('rfq-form-error');
   errorEl.classList.add('hidden');
 
-  const code = document.getElementById('rfq-code').value.trim();
   const description = document.getElementById('rfq-description').value.trim();
   const quantity = parseFloat(document.getElementById('rfq-quantity').value) || 0;
   const targetDate = document.getElementById('rfq-target-date').value;
 
-  if (!code || !description || !quantity) {
-    errorEl.textContent = 'RFQ Number, Description, and Quantity are required.';
+  if (!description || !quantity) {
+    errorEl.textContent = 'Description and Quantity are required.';
     errorEl.classList.remove('hidden');
     return;
   }
 
   const res = await apiFetch('/api/v1/doc/RFQ', {
     method: 'POST',
-    body: JSON.stringify({ id: code, code, description, quantity, target_date: targetDate, status: 'Draft' })
+    body: JSON.stringify({ description, quantity, target_date: targetDate, status: 'Draft' })
   });
   if (!res) return;
   const data = await res.json();
@@ -7990,10 +8253,7 @@ async function renderRFQQuotesPanel(container, rfqId, rfq) {
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Quotes for ${rfqId}</h2>
     ${isClosed ? '' : `
       <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px;">
-        <div class="form-group" style="margin-bottom: 0;">
-          <label class="form-label" for="quote-code">Quote Number</label>
-          <input type="text" id="quote-code" class="form-input" style="width: 150px;">
-        </div>
+        ${autoNumberField('Quote Number', 'QTN', '160px')}
         <div class="form-group" style="margin-bottom: 0;">
           <label class="form-label" for="quote-vendor">Vendor</label>
           <input type="text" id="quote-vendor" class="form-input" style="width: 160px;">
@@ -8040,13 +8300,12 @@ async function submitVendorQuote(rfqId) {
   const errorEl = document.getElementById('quote-form-error');
   errorEl.classList.add('hidden');
 
-  const code = document.getElementById('quote-code').value.trim();
   const vendor = document.getElementById('quote-vendor').value.trim();
   const quotedPrice = parseFloat(document.getElementById('quote-price').value);
   const leadTime = parseFloat(document.getElementById('quote-lead-time').value) || 0;
 
-  if (!code || !vendor || !quotedPrice) {
-    errorEl.textContent = 'Quote Number, Vendor, and Quoted Price are required.';
+  if (!vendor || !quotedPrice) {
+    errorEl.textContent = 'Vendor and Quoted Price are required.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -8054,7 +8313,7 @@ async function submitVendorQuote(rfqId) {
   const res = await apiFetch('/api/v1/doc/VendorQuote', {
     method: 'POST',
     body: JSON.stringify({
-      id: code, code, rfq_id: rfqId, vendor,
+      rfq_id: rfqId, vendor,
       quoted_price: quotedPrice, lead_time_days: leadTime, status: 'Submitted'
     })
   });
@@ -8374,10 +8633,7 @@ async function renderAttendanceTab(container, employees) {
   formPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Mark Attendance</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="att-code">Attendance Code</label>
-        <input type="text" id="att-code" class="form-input" style="width: 150px;">
-      </div>
+      ${autoNumberField('Attendance Code', 'ATT', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="att-employee">Employee</label>
         <select id="att-employee" class="form-input" style="width: 200px;">
@@ -8440,21 +8696,20 @@ async function saveAttendance() {
   const errorEl = document.getElementById('att-form-error');
   errorEl.classList.add('hidden');
 
-  const code = document.getElementById('att-code').value.trim();
   const employeeId = document.getElementById('att-employee').value;
   const date = document.getElementById('att-date').value;
   const location = document.getElementById('att-location').value.trim();
   const status = document.getElementById('att-status').value;
 
-  if (!code || !employeeId || !date) {
-    errorEl.textContent = 'Attendance Code, Employee, and Date are required.';
+  if (!employeeId || !date) {
+    errorEl.textContent = 'Employee and Date are required.';
     errorEl.classList.remove('hidden');
     return;
   }
 
   const res = await apiFetch('/api/v1/doc/Attendance', {
     method: 'POST',
-    body: JSON.stringify({ id: code, code, employee_id: employeeId, date, location, status })
+    body: JSON.stringify({ employee_id: employeeId, date, location, status })
   });
   if (!res) return;
   const data = await res.json();
@@ -8477,10 +8732,7 @@ async function renderLeaveTab(container, employees) {
   formPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Apply Leave</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="leave-code">Leave Code</label>
-        <input type="text" id="leave-code" class="form-input" style="width: 150px;">
-      </div>
+      ${autoNumberField('Leave Code', 'LV', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="leave-employee">Employee</label>
         <select id="leave-employee" class="form-input" style="width: 200px;">
@@ -8550,22 +8802,21 @@ async function saveLeave() {
   const errorEl = document.getElementById('leave-form-error');
   errorEl.classList.add('hidden');
 
-  const code = document.getElementById('leave-code').value.trim();
   const employeeId = document.getElementById('leave-employee').value;
   const leaveType = document.getElementById('leave-type').value;
   const fromDate = document.getElementById('leave-from').value;
   const toDate = document.getElementById('leave-to').value;
   const days = parseFloat(document.getElementById('leave-days').value);
 
-  if (!code || !employeeId || !fromDate || !toDate || !days) {
-    errorEl.textContent = 'Leave Code, Employee, From/To Date, and Days are required.';
+  if (!employeeId || !fromDate || !toDate || !days) {
+    errorEl.textContent = 'Employee, From/To Date, and Days are required.';
     errorEl.classList.remove('hidden');
     return;
   }
 
   const res = await apiFetch('/api/v1/doc/Leave', {
     method: 'POST',
-    body: JSON.stringify({ id: code, code, employee_id: employeeId, leave_type: leaveType, from_date: fromDate, to_date: toDate, days, status: 'Applied' })
+    body: JSON.stringify({ employee_id: employeeId, leave_type: leaveType, from_date: fromDate, to_date: toDate, days, status: 'Applied' })
   });
   if (!res) return;
   const data = await res.json();
@@ -8788,10 +9039,7 @@ async function renderEmployeeLoansTab(container, employees) {
   formPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Loan/Advance</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="loan-code">Loan Code</label>
-        <input type="text" id="loan-code" class="form-input" style="width: 140px;">
-      </div>
+      ${autoNumberField('Loan Code', 'LOAN', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="loan-employee">Employee</label>
         <select id="loan-employee" class="form-input" style="width: 200px;">
@@ -8847,20 +9095,19 @@ async function createEmployeeLoan() {
   const errorEl = document.getElementById('loan-form-error');
   errorEl.classList.add('hidden');
 
-  const code = document.getElementById('loan-code').value.trim();
   const employeeId = document.getElementById('loan-employee').value;
   const principal = parseFloat(document.getElementById('loan-principal').value);
   const monthly = parseFloat(document.getElementById('loan-monthly').value);
 
-  if (!code || !employeeId || !principal || !monthly) {
-    errorEl.textContent = 'Loan Code, Employee, Principal Amount, and Monthly Deduction are all required.';
+  if (!employeeId || !principal || !monthly) {
+    errorEl.textContent = 'Employee, Principal Amount, and Monthly Deduction are all required.';
     errorEl.classList.remove('hidden');
     return;
   }
 
   const res = await apiFetch('/api/v1/doc/EmployeeLoan', {
     method: 'POST',
-    body: JSON.stringify({ id: code, code, employee_id: employeeId, principal_amount: principal, monthly_deduction: monthly, status: 'Draft' })
+    body: JSON.stringify({ employee_id: employeeId, principal_amount: principal, monthly_deduction: monthly, status: 'Draft' })
   });
   if (!res) return;
   const data = await res.json();
@@ -8916,10 +9163,7 @@ async function renderMyRequestsTab(container) {
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Request Leave</h2>
     <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 12px;">Employee: ${employee.code || employee.id} - ${employee.name || ''}</p>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="myreq-leave-code">Leave Code</label>
-        <input type="text" id="myreq-leave-code" class="form-input" style="width: 140px;">
-      </div>
+      ${autoNumberField('Leave Code', 'LV', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="myreq-leave-type">Leave Type</label>
         <select id="myreq-leave-type" class="form-input" style="width: 130px;">
@@ -8954,10 +9198,7 @@ async function renderMyRequestsTab(container) {
   expensePanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Submit Expense Claim</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="myreq-exp-code">Claim Number</label>
-        <input type="text" id="myreq-exp-code" class="form-input" style="width: 140px;">
-      </div>
+      ${autoNumberField('Claim Number', 'EXP', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="myreq-exp-date">Expense Date</label>
         <input type="date" id="myreq-exp-date" class="form-input">
@@ -9002,10 +9243,7 @@ async function renderMyRequestsTab(container) {
   grievancePanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Submit Grievance</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="myreq-griev-code">Grievance Number</label>
-        <input type="text" id="myreq-griev-code" class="form-input" style="width: 140px;">
-      </div>
+      ${autoNumberField('Grievance Number', 'GRV', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="myreq-griev-category">Category</label>
         <select id="myreq-griev-category" class="form-input" style="width: 160px;">
@@ -9059,19 +9297,18 @@ async function submitMyGrievance(employee) {
   const errorEl = document.getElementById('myreq-griev-error');
   errorEl.classList.add('hidden');
 
-  const code = document.getElementById('myreq-griev-code').value.trim();
   const category = document.getElementById('myreq-griev-category').value;
   const description = document.getElementById('myreq-griev-desc').value.trim();
 
-  if (!code || !description) {
-    errorEl.textContent = 'Grievance Number and Description are both required.';
+  if (!description) {
+    errorEl.textContent = 'Description is required.';
     errorEl.classList.remove('hidden');
     return;
   }
 
   const createRes = await apiFetch('/api/v1/doc/Grievance', {
     method: 'POST',
-    body: JSON.stringify({ id: code, code, employee_id: employee.code || employee.id, category, description, status: 'Draft' })
+    body: JSON.stringify({ employee_id: employee.code || employee.id, category, description, status: 'Draft' })
   });
   if (!createRes) return;
   const createData = await createRes.json();
@@ -9080,9 +9317,12 @@ async function submitMyGrievance(employee) {
     errorEl.classList.remove('hidden');
     return;
   }
+  // The grievance number is issued by the server (Stage 30.6), so the routing
+  // step below has to use the id it came back with - there is no longer a
+  // client-side value that is guaranteed to match the saved document.
   const submitRes = await apiFetch('/api/v1/approval/submit', {
     method: 'POST',
-    body: JSON.stringify({ doctype: 'Grievance', document_id: code })
+    body: JSON.stringify({ doctype: 'Grievance', document_id: createData.id })
   });
   if (!submitRes) return;
   if (!submitRes.ok) {
@@ -9097,14 +9337,13 @@ async function submitMyLeaveRequest(employee) {
   const errorEl = document.getElementById('myreq-leave-error');
   errorEl.classList.add('hidden');
 
-  const code = document.getElementById('myreq-leave-code').value.trim();
   const leaveType = document.getElementById('myreq-leave-type').value;
   const fromDate = document.getElementById('myreq-leave-from').value;
   const toDate = document.getElementById('myreq-leave-to').value;
   const days = parseFloat(document.getElementById('myreq-leave-days').value);
 
-  if (!code || !fromDate || !toDate || !days) {
-    errorEl.textContent = 'Leave Code, From Date, To Date, and Days are all required.';
+  if (!fromDate || !toDate || !days) {
+    errorEl.textContent = 'From Date, To Date, and Days are all required.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -9112,7 +9351,7 @@ async function submitMyLeaveRequest(employee) {
   const res = await apiFetch('/api/v1/doc/Leave', {
     method: 'POST',
     body: JSON.stringify({
-      id: code, code, employee_id: employee.code || employee.id, leave_type: leaveType,
+      employee_id: employee.code || employee.id, leave_type: leaveType,
       from_date: fromDate, to_date: toDate, days, status: 'Applied'
     })
   });
@@ -9130,14 +9369,13 @@ async function submitMyExpenseClaim(employee) {
   const errorEl = document.getElementById('myreq-exp-error');
   errorEl.classList.add('hidden');
 
-  const code = document.getElementById('myreq-exp-code').value.trim();
   const expenseDate = document.getElementById('myreq-exp-date').value;
   const category = document.getElementById('myreq-exp-category').value;
   const amount = parseFloat(document.getElementById('myreq-exp-amount').value);
   const purpose = document.getElementById('myreq-exp-purpose').value.trim();
 
-  if (!code || !expenseDate || !amount) {
-    errorEl.textContent = 'Claim Number, Expense Date, and Amount are all required.';
+  if (!expenseDate || !amount) {
+    errorEl.textContent = 'Expense Date and Amount are both required.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -9145,7 +9383,7 @@ async function submitMyExpenseClaim(employee) {
   const res = await apiFetch('/api/v1/doc/ExpenseClaim', {
     method: 'POST',
     body: JSON.stringify({
-      id: code, code, employee_id: employee.code || employee.id, location: employee.location || '',
+      employee_id: employee.code || employee.id, location: employee.location || '',
       expense_date: expenseDate, category, amount, purpose, status: 'Draft'
     })
   });
@@ -9397,10 +9635,7 @@ async function renderTransfersView(container) {
   formPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Transfer (Draft)</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="transfer-number">Transfer Number</label>
-        <input type="text" id="transfer-number" class="form-input" style="width: 160px;">
-      </div>
+      ${autoNumberField('Transfer Number', 'TO', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="transfer-from">From Warehouse</label>
         <input type="text" id="transfer-from" class="form-input" style="width: 150px;" autocomplete="off">
@@ -9498,12 +9733,11 @@ async function createTransferOrder() {
   const errorEl = document.getElementById('transfer-form-error');
   errorEl.classList.add('hidden');
 
-  const transferNumber = document.getElementById('transfer-number').value.trim();
   const fromWarehouse = document.getElementById('transfer-from').value.trim();
   const toWarehouse = document.getElementById('transfer-to').value.trim();
 
-  if (!transferNumber || !fromWarehouse || !toWarehouse || transferLineItems.length === 0) {
-    errorEl.textContent = 'Transfer Number, From/To Warehouse, and at least one line item are required.';
+  if (!fromWarehouse || !toWarehouse || transferLineItems.length === 0) {
+    errorEl.textContent = 'From/To Warehouse and at least one line item are required.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -9511,7 +9745,6 @@ async function createTransferOrder() {
   const res = await apiFetch('/api/v1/doc/TransferOrder', {
     method: 'POST',
     body: JSON.stringify({
-      id: transferNumber, transfer_number: transferNumber,
       from_warehouse: fromWarehouse, to_warehouse: toWarehouse,
       items: JSON.stringify(transferLineItems), status: 'Draft'
     })
@@ -9723,10 +9956,7 @@ async function renderExpensesView(container) {
   formPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Expense Claim</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="exp-code">Claim Number</label>
-        <input type="text" id="exp-code" class="form-input" style="width: 140px;">
-      </div>
+      ${autoNumberField('Claim Number', 'EXP', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="exp-employee">Employee</label>
         <select id="exp-employee" class="form-input" style="width: 180px;">
@@ -9833,7 +10063,6 @@ async function createExpenseClaim() {
   const errorEl = document.getElementById('exp-form-error');
   errorEl.classList.add('hidden');
 
-  const code = document.getElementById('exp-code').value.trim();
   const employeeId = document.getElementById('exp-employee').value;
   const location = document.getElementById('exp-location').value.trim();
   const expenseDate = document.getElementById('exp-date').value;
@@ -9843,8 +10072,8 @@ async function createExpenseClaim() {
   const advanceAdjusted = parseFloat(document.getElementById('exp-advance').value) || 0;
   const purpose = document.getElementById('exp-purpose').value.trim();
 
-  if (!code || !employeeId || !location || !expenseDate || !amount) {
-    errorEl.textContent = 'Claim Number, Employee, Location, Expense Date, and Amount are required.';
+  if (!employeeId || !location || !expenseDate || !amount) {
+    errorEl.textContent = 'Employee, Location, Expense Date, and Amount are required.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -9852,7 +10081,7 @@ async function createExpenseClaim() {
   const res = await apiFetch('/api/v1/doc/ExpenseClaim', {
     method: 'POST',
     body: JSON.stringify({
-      id: code, code, employee_id: employeeId, location, expense_date: expenseDate,
+      employee_id: employeeId, location, expense_date: expenseDate,
       category, amount, gst_amount: gstAmount, advance_adjusted: advanceAdjusted,
       purpose, status: 'Draft'
     })
@@ -10018,10 +10247,7 @@ async function renderManufacturingOrdersTab(container) {
   orderFormPanel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Production Order</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="po-mfg-code">Order Number</label>
-        <input type="text" id="po-mfg-code" class="form-input" style="width: 150px;">
-      </div>
+      ${autoNumberField('Order Number', 'PRO', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="po-mfg-bom">BOM</label>
         <select id="po-mfg-bom" class="form-input" style="width: 200px;">
@@ -10386,20 +10612,19 @@ async function createProductionOrder() {
   const errorEl = document.getElementById('po-mfg-form-error');
   errorEl.classList.add('hidden');
 
-  const code = document.getElementById('po-mfg-code').value.trim();
   const bomId = document.getElementById('po-mfg-bom').value;
   const quantity = parseFloat(document.getElementById('po-mfg-qty').value);
   const location = document.getElementById('po-mfg-location').value.trim();
 
-  if (!code || !bomId || !quantity || !location) {
-    errorEl.textContent = 'Order Number, BOM, Quantity, and Location are all required.';
+  if (!bomId || !quantity || !location) {
+    errorEl.textContent = 'BOM, Quantity, and Location are all required.';
     errorEl.classList.remove('hidden');
     return;
   }
 
   const res = await apiFetch('/api/v1/doc/ProductionOrder', {
     method: 'POST',
-    body: JSON.stringify({ id: code, code, bom_id: bomId, quantity, location, status: 'Draft' })
+    body: JSON.stringify({ bom_id: bomId, quantity, location, status: 'Draft' })
   });
   if (!res) return;
   const data = await res.json();
@@ -11667,7 +11892,12 @@ window.openDynamicModal = async function(existingRecord) {
   for (const f of state.activeDocFields) {
     if (f.fieldname === 'id') continue;
 
-    const isCodeField = (isMaster || isPurchaseRequisition) && f.fieldname.toLowerCase() === 'code';
+    // f.auto_generated (Stage 30.6) is stamped on by the server for the
+    // document-number fields it issues itself, so this form stops asking for
+    // a value it would discard. It comes from the same registry that assigns
+    // the number (engines/document_numbering.go), rather than a copy of the
+    // doctype list kept here.
+    const isCodeField = f.auto_generated || ((isMaster || isPurchaseRequisition) && f.fieldname.toLowerCase() === 'code');
     const existingVal = isEdit ? existingRecord[f.fieldname] : undefined;
 
     const fg = document.createElement('div');
@@ -11735,8 +11965,10 @@ window.openDynamicModal = async function(existingRecord) {
         input.required = false;
         if (isEdit) {
           input.value = existingVal ?? '';
+        } else if (f.auto_generated || isPurchaseRequisition) {
+          input.placeholder = 'Auto-generated from Prefix Configs on save';
         } else {
-          input.placeholder = isPurchaseRequisition ? 'Auto-generated from Prefix Configs (PR)' : 'Auto-generated upon save';
+          input.placeholder = 'Auto-generated upon save';
         }
       } else {
         input.required = f.mandatory;
@@ -11808,15 +12040,18 @@ window.handleDynamicFormSubmit = async function(e) {
 
   state.activeDocFields.forEach(f => {
     if (f.fieldname === 'id') return;
-    const isAutoPurchaseRequisitionCode = isPurchaseRequisition && f.fieldname.toLowerCase() === 'code';
-    const isCodeField = (isMaster || isAutoPurchaseRequisitionCode) && f.fieldname.toLowerCase() === 'code';
+    // Stage 30.6: f.auto_generated joins PurchaseRequisition as a field the
+    // server numbers during the save itself, so it must not be routed to the
+    // admin-only /api/v1/sequence endpoint below (a Store Manager creating a
+    // PO would get a 403 from it) and must not be sent at all - a supplied id
+    // is treated as an upsert, which would turn a create into an overwrite.
+    const isServerNumbered = f.auto_generated || (isPurchaseRequisition && f.fieldname.toLowerCase() === 'code');
+    const isCodeField = isServerNumbered || (isMaster && f.fieldname.toLowerCase() === 'code');
     const input = form.querySelector(`[name="${f.fieldname}"]`);
     if (input) {
       if (isCodeField && !input.value) {
-        // Purchase requisitions obtain their code during the authenticated
-        // server-side save. Other Master records retain the existing admin
-        // sequence endpoint behavior.
-        if (!isAutoPurchaseRequisitionCode) codeFieldname = f.fieldname;
+        // Master records retain the existing admin sequence endpoint behavior.
+        if (!isServerNumbered) codeFieldname = f.fieldname;
       } else {
         if (f.fieldtype === 'Number') {
           payload[f.fieldname] = parseFloat(input.value);
@@ -12037,6 +12272,23 @@ window.deleteFieldConfig = async function(doctypeName, fieldID) {
   }
 };
 
+// prefixConfigSample renders what the next number of a series will look like,
+// mirroring engines/numbering.go's own assembly order:
+//   <Prefix><Sep>[<Store><Sep>][<Period><Sep>]<Padded>
+// Shown on the admin screen so the effect of a prefix/separator/padding/reset
+// change is visible before it is applied to real documents.
+function prefixConfigSample(c) {
+  const parts = [c.prefix];
+  if (c.include_store !== false) parts.push('HQ');
+  const reset = (c.reset_frequency || 'ANNUAL').toUpperCase();
+  // NEVER is the only setting with no period segment - it never resets, so
+  // there is no period to name.
+  if (reset === 'MONTHLY') parts.push('26-27-04');
+  else if (reset !== 'NEVER') parts.push('26-27');
+  parts.push(String(1).padStart(c.padding_width || 1, '0'));
+  return parts.join(c.separator);
+}
+
 // Render Prefix configurations view
 async function renderPrefixConfigsView(container) {
   const res = await apiFetch('/api/v1/prefix');
@@ -12053,7 +12305,7 @@ async function renderPrefixConfigsView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Prefix Configurations</h1>
-      <p class="page-subtitle">Configure Numbering Sequences for dynamic documents.</p>
+      <p class="page-subtitle">Number series for every transaction document. Purchase orders, goods receipts, transfers, claims and the rest draw their number from here when they are saved - nobody types one in.</p>
     </div>
   `;
   container.appendChild(header);
@@ -12069,6 +12321,8 @@ async function renderPrefixConfigsView(container) {
           <th>Separator</th>
           <th>Padding</th>
           <th>Reset Interval</th>
+          <th>Store Segment</th>
+          <th>Next Number Looks Like</th>
           <th>Status</th>
           <th>Action</th>
         </tr>
@@ -12083,6 +12337,8 @@ async function renderPrefixConfigsView(container) {
         <td>${c.separator}</td>
         <td>${c.padding_width}</td>
         <td>${c.reset_frequency}</td>
+        <td>${c.include_store === false ? 'No' : 'Yes'}</td>
+        <td style="font-family: monospace;">${prefixConfigSample(c)}</td>
         <td>${c.active_status ? 'Active' : 'Inactive'}</td>
         <td><button class="btn btn-outline btn-sm" onclick="editPrefixConfig('${c.doc_type}')">Edit</button></td>
       </tr>
@@ -12104,7 +12360,16 @@ window.editPrefixConfig = async function(docType) {
   const paddingRaw = await showCustomPrompt('Enter Padding Width:', c.padding_width);
   const padding = parseInt(paddingRaw);
   if (!padding) return;
-  const reset = await showCustomPrompt('Enter Reset Frequency (ANNUAL/MONTHLY/NEVER):', c.reset_frequency);
+  // Reset interval decides both how often the counter restarts and whether the
+  // number carries a period segment at all: a series that restarts every year
+  // without showing the year would re-issue last year's numbers, and since the
+  // number is also the document id that is a rejected save, not a cosmetic
+  // problem. NEVER is therefore the only way to get a number with no period.
+  const reset = await showCustomPrompt('Reset Interval - ANNUAL (PO/HQ/26-27/000001), MONTHLY (PO/HQ/26-27-04/000001), or NEVER (PO/HQ/000001, one continuous series):', c.reset_frequency);
+  if (!reset) return;
+  const storeRaw = await showCustomPrompt('Include the store code in the number? Yes keeps each location numbering separately (PO/HQ/...); No gives one shared series across all locations (PO/...):', c.include_store === false ? 'No' : 'Yes');
+  if (storeRaw === null) return;
+  const includeStore = !/^n/i.test(String(storeRaw).trim());
 
   const res = await apiFetch('/api/v1/prefix', {
     method: 'POST',
@@ -12113,8 +12378,9 @@ window.editPrefixConfig = async function(docType) {
       prefix,
       separator,
       padding_width: padding,
-      reset_frequency: reset,
-      active_status: true
+      reset_frequency: String(reset).trim().toUpperCase(),
+      active_status: true,
+      include_store: includeStore
     })
   });
   if (!res) return;
@@ -12863,6 +13129,13 @@ async function renderConfigurationView(container) {
 
   const modules = [];
   configSettings.forEach(s => { if (!modules.includes(s.module)) modules.push(s.module); });
+  // Stage 30.7: Integrations is a synthetic module appended to the registry-
+  // driven rail. Its values (Pine Labs terminals, Unicommerce middleware
+  // stores) are multi-row credential records rather than single scalars, so
+  // they can't live in the key/value settings registry - but the endpoint
+  // URLs belong on this screen with everything else, not on a separate page
+  // the admin has to know exists. Rendered by renderConfigIntegrations().
+  modules.push(CONFIG_INTEGRATIONS_MODULE);
   if (!configSelectedModule || !modules.includes(configSelectedModule)) configSelectedModule = modules[0];
 
   const panel = document.createElement('div');
@@ -12907,9 +13180,129 @@ function renderConfigModuleRail(modules) {
 
 function configInputId(key) { return 'config-input-' + key; }
 
+// --- Integrations (Stage 30.7) -------------------------------------------
+// Endpoint/credential config for the two external systems this ERP talks to:
+// Pine Labs (card terminals, keyed by terminal_id) and Unicommerce (the OMS
+// middleware, keyed by store_code). Both already had save/list endpoints and a
+// DB table but no screen at all, so a base URL could only be changed with a
+// hand-rolled API call. Each save POSTs to the existing endpoint, which
+// upserts - so re-saving the same terminal/store updates it in place, and the
+// running workers pick the new URL up on their next call (they read the
+// credential row per call, never cache it at startup).
+const CONFIG_INTEGRATIONS_MODULE = 'Integrations';
+
+const CONFIG_INTEGRATION_DEFS = [
+  {
+    id: 'pinelabs',
+    title: 'Pine Labs payment terminals',
+    blurb: 'Plutus terminal credentials used by POS card payments and the reconciliation worker. One entry per terminal.',
+    listUrl: '/api/v1/pinelabs/credentials',
+    saveUrl: '/api/v1/pinelabs/credentials',
+    keyField: 'terminal_id',
+    fields: [
+      { name: 'terminal_id', label: 'Terminal ID' },
+      { name: 'merchant_id', label: 'Merchant ID' },
+      { name: 'api_key', label: 'API key', secret: true },
+      { name: 'base_url', label: 'Base URL', wide: true }
+    ]
+  },
+  {
+    id: 'unicommerce',
+    title: 'Unicommerce (OMS middleware)',
+    blurb: 'Middleware endpoint and API credentials used for order push and inventory sync. One entry per store code.',
+    listUrl: '/api/v1/unicommerce/credentials',
+    saveUrl: '/api/v1/unicommerce/credentials',
+    keyField: 'store_code',
+    fields: [
+      { name: 'store_code', label: 'Store code' },
+      { name: 'api_key', label: 'API key', secret: true },
+      { name: 'api_secret', label: 'API secret', secret: true },
+      { name: 'base_url', label: 'Base URL', wide: true }
+    ]
+  }
+];
+
+async function renderConfigIntegrations(host) {
+  host.innerHTML = '<p class="page-subtitle">Loading integrations…</p>';
+  const results = await Promise.all(CONFIG_INTEGRATION_DEFS.map(async def => {
+    try {
+      const res = await apiFetch(def.listUrl);
+      if (!res || !res.ok) return { def, rows: [], unavailable: true };
+      const body = await res.json();
+      return { def, rows: Array.isArray(body) ? body : (body && Array.isArray(body.data) ? body.data : []) };
+    } catch (e) {
+      return { def, rows: [], unavailable: true };
+    }
+  }));
+
+  host.innerHTML = results.map(r => configIntegrationSectionHtml(r.def, r.rows, r.unavailable)).join('');
+  results.forEach(r => wireConfigIntegrationSection(r.def));
+}
+
+function configIntegrationSectionHtml(def, rows, unavailable) {
+  const existing = rows.length
+    ? `<table class="data-table" style="margin:10px 0 14px; width:100%;">
+         <thead><tr>${def.fields.map(f => `<th>${cfgEsc(f.label)}</th>`).join('')}<th>Active</th></tr></thead>
+         <tbody>${rows.map(row => `<tr>${def.fields.map(f => {
+           const v = row[f.name] == null ? '' : String(row[f.name]);
+           return `<td>${f.secret && v ? '••••••' : cfgEsc(v)}</td>`;
+         }).join('')}<td>${row.active === false ? 'No' : 'Yes'}</td></tr>`).join('')}</tbody>
+       </table>`
+    : `<p class="page-subtitle" style="margin:8px 0 14px; font-size:13px;">${unavailable
+        ? 'This integration is not enabled for your account, or its credentials could not be read.'
+        : 'No entries configured yet.'}</p>`;
+
+  const inputs = def.fields.map(f => `
+    <div class="form-group" style="margin:0 0 12px; ${f.wide ? 'grid-column:1/-1;' : ''}">
+      <label class="form-label" for="cfgint-${def.id}-${f.name}">${cfgEsc(f.label)}</label>
+      <input type="${f.secret ? 'password' : 'text'}" class="form-input"
+             id="cfgint-${def.id}-${f.name}" autocomplete="off"
+             ${f.name === 'base_url' ? 'placeholder="https://…"' : ''}>
+    </div>`).join('');
+
+  return `
+    <section style="margin-bottom:30px; max-width:760px;">
+      <h3 style="margin:0 0 4px; font-size:15px; font-weight:600;">${cfgEsc(def.title)}</h3>
+      <p class="page-subtitle" style="margin:0 0 4px; font-size:12.5px;">${cfgEsc(def.blurb)}</p>
+      ${existing}
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px;">${inputs}</div>
+      <button class="btn btn-secondary" id="cfgint-save-${def.id}">Save ${cfgEsc(def.title.split(' ')[0])} entry</button>
+      <span class="page-subtitle" style="margin-left:10px; font-size:12.5px;">Saving an existing ${cfgEsc(def.keyField.replace('_', ' '))} updates it in place.</span>
+    </section>`;
+}
+
+function wireConfigIntegrationSection(def) {
+  const btn = document.getElementById(`cfgint-save-${def.id}`);
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    const payload = {};
+    for (const f of def.fields) {
+      const el = document.getElementById(`cfgint-${def.id}-${f.name}`);
+      payload[f.name] = el ? el.value.trim() : '';
+      if (!payload[f.name]) {
+        showToast(`${f.label} is required.`, { variant: 'error' });
+        if (el) el.focus();
+        return;
+      }
+    }
+    btn.disabled = true;
+    const res = await apiFetch(def.saveUrl, { method: 'POST', body: JSON.stringify(payload) });
+    btn.disabled = false;
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, `Failed to save ${def.title}.`); return; }
+    showToast(`${def.title} saved.`, { variant: 'success' });
+    renderConfigFields();
+  });
+}
+
 function renderConfigFields() {
   const host = document.getElementById('config-fields');
   if (!host) return;
+  if (configSelectedModule === CONFIG_INTEGRATIONS_MODULE) {
+    renderConfigIntegrations(host);
+    updateConfigDirtyState();
+    return;
+  }
   const items = configSettings.filter(s => s.module === configSelectedModule);
   host.innerHTML = items.map(configFieldHtml).join('');
   items.forEach(s => {
@@ -12939,10 +13332,12 @@ function configFieldHtml(s) {
   } else if (s.type === 'select') {
     const opts = (s.options || []).map(o => `<option value="${cfgEsc(o.value)}" ${String(o.value) === String(s.value) ? 'selected' : ''}>${cfgEsc(o.label)}</option>`).join('');
     control = `<select id="${id}" class="form-select" style="max-width:280px;">${opts}</select>${unit}`;
-  } else if (s.type === 'int') {
+  } else if (s.type === 'int' || s.type === 'float') {
     const min = (s.min !== null && s.min !== undefined) ? `min="${s.min}"` : '';
     const max = (s.max !== null && s.max !== undefined) ? `max="${s.max}"` : '';
-    control = `<input type="number" id="${id}" class="form-input" value="${cfgEsc(s.value)}" ${min} ${max} style="max-width:200px; display:inline-block;">${unit}`;
+    // float settings (tolerances, rupee thresholds) accept decimals; int stays whole-number.
+    const step = s.type === 'float' ? 'step="any"' : 'step="1"';
+    control = `<input type="number" id="${id}" class="form-input" value="${cfgEsc(s.value)}" ${min} ${max} ${step} style="max-width:200px; display:inline-block;">${unit}`;
   } else {
     control = `<input type="text" id="${id}" class="form-input" value="${cfgEsc(s.value)}" style="max-width:360px; display:inline-block;">${unit}`;
   }

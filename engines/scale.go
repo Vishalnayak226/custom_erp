@@ -91,8 +91,8 @@ func RunScaleSimulation(tenantID string, numWorkers int, numTransactions int, te
 					_, err = PostInventoryLedger(tenantID, locationCode, checkoutItems, false)
 					if err == nil {
 						// Post double-entry accounting records
-						cartID := fmt.Sprintf("W-%d-CRT-%d", workerID, time.Now().UnixNano())
-						err = PostSalesFinanceBooking(tenantID, cartID, 500, 300, "Cash")
+						cartID := NewDocID(fmt.Sprintf("W-%d-CRT", workerID))
+						err = PostSalesFinanceBooking(tenantID, cartID, 500, 300, "Cash", 0)
 					}
 				} else {
 					// 2. Simulate Webhook reservation (reserves stock)

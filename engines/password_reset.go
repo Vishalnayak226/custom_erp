@@ -24,7 +24,11 @@ import (
 // isn't configured - the exact pattern engines/alerting.go's SendOpsAlert
 // already established for OPS_ALERT_WEBHOOK_URL.
 
-const passwordResetTokenTTL = 30 * time.Minute
+// Stage 30.7: the "security.password_reset_ttl_minutes" setting (default
+// still 30 minutes).
+func passwordResetTokenTTLFor(tenantID string) time.Duration {
+	return time.Duration(GetSettingInt(tenantID, "security.password_reset_ttl_minutes")) * time.Minute
+}
 
 // hashResetToken never stores the raw token - only its SHA-256 hash, so a
 // database leak alone can't be replayed into a password reset (mirrors why
@@ -61,7 +65,7 @@ func RequestPasswordReset(tenantID, usernameOrEmail, resetLinkBase string) error
 		return err
 	}
 	token := hex.EncodeToString(raw)
-	expiresAt := time.Now().Add(passwordResetTokenTTL)
+	expiresAt := time.Now().Add(passwordResetTokenTTLFor(tenantID))
 
 	if _, err := db.DB.Exec(fmt.Sprintf(
 		`UPDATE %s.users SET reset_token_hash = $1, reset_token_expires_at = $2 WHERE id = $3`, schema),

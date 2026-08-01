@@ -20,19 +20,27 @@ import (
 
 var jwtSecret = loadOrGenerateJWTSecret()
 
-const defaultTokenTTL = 24 * time.Hour
-
-// tokenTTL returns the session lifetime: JWT_EXPIRY_HOURS overrides the
-// default if set to a valid positive integer, otherwise 24h - long enough
-// to cover a normal shift/session without a refresh-token mechanism, short
-// enough that a leaked token doesn't stay valid indefinitely.
-func tokenTTL() time.Duration {
+// tokenTTL returns the session lifetime - long enough to cover a normal
+// shift/session without a refresh-token mechanism, short enough that a leaked
+// token doesn't stay valid indefinitely.
+//
+// Precedence (Stage 30.7): an explicit admin edit of
+// "security.session_token_ttl_hours" wins, then the JWT_EXPIRY_HOURS
+// deployment env var, then the registered 24h default. The admin edit has to
+// come first, otherwise a deployment that sets the env var would leave the
+// Configuration screen's control visibly editable but inert.
+func tokenTTL(tenantID string) time.Duration {
+	if SettingIsOverridden(tenantID, "security.session_token_ttl_hours") {
+		if hours := GetSettingInt(tenantID, "security.session_token_ttl_hours"); hours > 0 {
+			return time.Duration(hours) * time.Hour
+		}
+	}
 	if v := os.Getenv("JWT_EXPIRY_HOURS"); v != "" {
 		if hours, err := strconv.Atoi(v); err == nil && hours > 0 {
 			return time.Duration(hours) * time.Hour
 		}
 	}
-	return defaultTokenTTL
+	return time.Duration(GetSettingInt(tenantID, "security.session_token_ttl_hours")) * time.Hour
 }
 
 // loadOrGenerateJWTSecret resolves the HMAC signing key: an explicit JWT_SECRET
@@ -197,7 +205,7 @@ func newJTI() string {
 // revocation hook could check, without full RFC 7519 header compliance.
 func SignToken(userID, username, role, tenantID, locationCode string) string {
 	now := time.Now()
-	exp := now.Add(tokenTTL()).Unix()
+	exp := now.Add(tokenTTL(tenantID)).Unix()
 	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&iat=%d&jti=%s%s&exp=%d", userID, username, role, tenantID, locationCode, now.Unix(), newJTI(), kidSuffix(), exp)
 	return signClaims(claims)
 }

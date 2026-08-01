@@ -128,7 +128,9 @@ func runCampaignsForSchema(schema string) {
 		case "Lapsed Customer":
 			lapsedDays := int(numFromInterface(data["lapsed_days"]))
 			if lapsedDays <= 0 {
-				lapsedDays = 90
+				// Schema-scoped read: the campaign worker walks tenant schemas
+				// directly and never holds a tenantID (Stage 30.7).
+				lapsedDays = GetSettingIntForSchema(schema, "crm.default_lapsed_days")
 			}
 			sendLapsedCustomerCampaign(schema, c.id, name, messageTemplate, lapsedDays)
 		default:

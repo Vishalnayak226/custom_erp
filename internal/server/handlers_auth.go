@@ -79,13 +79,13 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	err = bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(req.Password))
 	if err != nil && u.PasswordHash != req.Password {
 		newCount := u.FailedLoginCount + 1
-		if newCount >= accountLockoutThreshold {
+		if newCount >= accountLockoutThresholdFor(tenantID) {
 			// NOW() + make_interval(...) is also computed in Postgres for the
 			// same reason as the is_locked check above - the lockout window's
 			// end time must be reckoned against the same clock it's later
 			// compared to.
 			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET failed_login_count = $1, locked_until = NOW() + make_interval(mins => $2) WHERE id = $3`, schema),
-				newCount, int(accountLockoutDuration.Minutes()), u.ID)
+				newCount, accountLockoutDurationMinutesFor(tenantID), u.ID)
 		} else {
 			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET failed_login_count = $1 WHERE id = $2`, schema), newCount, u.ID)
 		}
@@ -194,7 +194,7 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "No pending MFA enrollment found - call /api/v1/auth/mfa/enroll first")
 		return
 	}
-	if !engines.VerifyTOTPCode(secret, req.Code) {
+	if !engines.VerifyTOTPCode(tenantID, secret, req.Code) {
 		writeAPIError(w, r, "USERAC-0025", "")
 		return
 	}
@@ -287,7 +287,7 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "MFA is not enrolled for this account")
 		return
 	}
-	if !engines.VerifyTOTPCode(secret, req.Code) {
+	if !engines.VerifyTOTPCode(tenantID, secret, req.Code) {
 		writeAPIError(w, r, "USERAC-0025", "")
 		return
 	}

@@ -102,7 +102,11 @@ var globalLimiter = NewRateLimiter()
 // of that one shared pool instead: capping how many of a tenant's requests
 // can be in-flight at once (each holding a connection) so one noisy tenant
 // can't starve every other tenant of the shared pool.
-const perTenantMaxConcurrentRequests = 15
+// Stage 30.7: the "platform.per_tenant_max_concurrent_requests" setting
+// (default still 15), bounded 1..500 in the registry.
+func perTenantMaxConcurrentRequestsFor(tenantID string) int {
+	return engines.GetSettingInt(tenantID, "platform.per_tenant_max_concurrent_requests")
+}
 
 type tenantConcurrencyLimiter struct {
 	mu      sync.Mutex
@@ -116,7 +120,7 @@ var tenantConcurrency = &tenantConcurrencyLimiter{inFlight: make(map[string]int)
 func (l *tenantConcurrencyLimiter) acquire(tenantID string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.inFlight[tenantID] >= perTenantMaxConcurrentRequests {
+	if l.inFlight[tenantID] >= perTenantMaxConcurrentRequestsFor(tenantID) {
 		return false
 	}
 	l.inFlight[tenantID]++
@@ -168,7 +172,16 @@ func rateLimitCategory(path, method string) (category string, limit int) {
 		return "bulk-upload", 10
 	case strings.HasPrefix(path, "/api/v1/reports/") || strings.HasSuffix(path, "/finance/trial-balance"):
 		// Report API: SEC-V2 asks these be restricted/queued as "heavy".
-		return "report", 20
+		//
+		// Stage 30.5.9: raised from 20 to 60. The catalog has grown to 46
+		// reports across 12 categories, and simply clicking through them to
+		// see what they do tripped the limit part-way with a bare "Too many
+		// requests" - the budget was sized when browsing the catalog wasn't
+		// something a user could do. 60/min is still a real ceiling on
+		// scripted abuse (these are the heaviest queries here) while leaving
+		// interactive browsing alone. Combined with the per-session keying
+		// below, one user can no longer consume a shared site's whole budget.
+		return "report", 60
 	case strings.HasPrefix(path, "/api/v1/integration/shopify/"):
 		// Webhook API: bursts from the external platform are expected and
 		// legitimate, so this gets a higher budget than login/reports.
@@ -190,8 +203,16 @@ var safeFilterKeyRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]{0,63}$`)
 // Pagination bounds for the generic document list endpoint. defaultListLimit applies
 // even when the caller passes no limit/offset at all, so the endpoint can never return
 // a truly unbounded result set; maxListLimit caps what a caller can explicitly request.
-const defaultListLimit = 500
-const maxListLimit = 1000
+// Stage 30.7: both are now settings ("platform.default_list_limit" /
+// "platform.max_list_limit", defaults still 500 and 1000) with registry
+// bounds, so they can be retuned per tenant without a redeploy.
+func defaultListLimitFor(tenantID string) int {
+	return engines.GetSettingInt(tenantID, "platform.default_list_limit")
+}
+
+func maxListLimitFor(tenantID string) int {
+	return engines.GetSettingInt(tenantID, "platform.max_list_limit")
+}
 
 // corsAllowedOrigins is the explicit CORS allowlist. Local dev origins are always
 // included; CORS_ALLOWED_ORIGINS (comma-separated) adds more for real deployments.
@@ -204,10 +225,16 @@ var corsAllowedOrigins = loadCORSAllowlist()
 // limiter's 5/min (Stage 13.14) - that one already stops a single-source
 // burst; this one exists for the distributed case, so it shouldn't also
 // punish a legitimate user who mistypes a password a few times.
-const (
-	accountLockoutThreshold = 10
-	accountLockoutDuration  = 15 * time.Minute
-)
+// Stage 30.7 moved both to the settings registry
+// ("security.account_lockout_threshold" / "...\_duration_minutes", defaults
+// still 10 and 15m) so an admin can retune them without a redeploy.
+func accountLockoutThresholdFor(tenantID string) int {
+	return engines.GetSettingInt(tenantID, "security.account_lockout_threshold")
+}
+
+func accountLockoutDurationMinutesFor(tenantID string) int {
+	return engines.GetSettingInt(tenantID, "security.account_lockout_duration_minutes")
+}
 
 // shopifyWebhookSecret (Stage 14.21-14.24, closes the same gap the
 // re-opened Stage 9.2 item tracked) - same override-via-env-var pattern as
@@ -406,6 +433,25 @@ func clientIP(r *http.Request) string {
 	return r.RemoteAddr
 }
 
+// sessionFingerprint (Stage 30.5.9) is a short, stable, non-reversible tag for
+// whoever is making this request, used only to give each session its own
+// rate-limit bucket instead of sharing one per IP.
+//
+// It hashes the bearer token rather than using the resolved user id because
+// the rate limiter runs before authentication - on purpose, so a flood of
+// unauthenticated or invalid-token requests is limited too. A request with no
+// token returns "", which keeps the original IP-only bucket. The value never
+// leaves the process (it is a map key, never logged or returned), and the
+// truncated SHA-256 means a leaked limiter key can't reconstruct a token.
+func sessionFingerprint(r *http.Request) string {
+	auth := r.Header.Get("Authorization")
+	if auth == "" {
+		return ""
+	}
+	sum := sha256.Sum256([]byte(auth))
+	return base64.RawURLEncoding.EncodeToString(sum[:8])
+}
+
 func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		correlationID := generateUUID()
@@ -440,9 +486,25 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// one (e.g. login) - they're independent buckets, not a shared pool.
 		ip := clientIP(r)
 		category, limit := rateLimitCategory(r.URL.Path, r.Method)
-		if !globalLimiter.Allow(ip+":"+category, limit, time.Minute) {
+		// Stage 30.5.9: the bucket is also keyed by the caller's own session,
+		// not by IP alone. Every user of a site that reaches the internet
+		// through one address - an office, a store's router, anything behind
+		// NAT - used to draw down a single shared budget, so one person
+		// browsing the report catalog could rate-limit their colleagues. The
+		// key is a fingerprint of the bearer token rather than the resolved
+		// user id because this runs before authentication (deliberately: an
+		// unauthenticated flood must be limited too). An unauthenticated
+		// request has no fingerprint and falls back to the IP-only bucket,
+		// exactly as before.
+		limiterKey := ip + ":" + category
+		if fp := sessionFingerprint(r); fp != "" {
+			limiterKey += ":" + fp
+		}
+		if !globalLimiter.Allow(limiterKey, limit, time.Minute) {
 			// SEC-0280 "Rate limit exceeded" - exact scenario + status (429) match.
-			writeAPIError(w, r, "SEC-0280", "")
+			// The detail says how long the wait is; the bare catalog message
+			// left a user with no idea whether to retry in a second or an hour.
+			writeAPIErrorDetail(w, r, "SEC-0280", "", fmt.Sprintf("This is the %s limit of %d requests per minute. Please wait up to a minute and try again.", category, limit))
 			return
 		}
 

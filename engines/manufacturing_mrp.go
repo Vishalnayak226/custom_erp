@@ -20,7 +20,12 @@ import (
 // 26.9.1: Multi-level BOM
 // ============================================================
 
-const maxBOMExplosionDepth = 10
+// Stage 30.7: the "manufacturing.max_bom_explosion_depth" setting (default
+// still 10). Bounded 1..50 in the registry - it doubles as the circular-
+// reference guard, so it must stay small enough to terminate quickly.
+func maxBOMExplosionDepthFor(tenantID string) int {
+	return GetSettingInt(tenantID, "manufacturing.max_bom_explosion_depth")
+}
 
 // explodeBOMComponents recursively resolves a BOM's components into a flat
 // list of pure raw-material (leaf) requirements per one unit of the BOM's
@@ -32,8 +37,9 @@ const maxBOMExplosionDepth = 10
 // components list already worked before this Stage. depth/visited guard
 // against a BOM referencing itself directly or through a cycle.
 func explodeBOMComponents(tenantID, bomID string, multiplier float64, visited map[string]bool, depth int) ([]bomComponent, error) {
-	if depth > maxBOMExplosionDepth {
-		return nil, &ValidationError{Message: fmt.Sprintf("BOM %s nests more than %d levels deep or contains a circular reference", bomID, maxBOMExplosionDepth)}
+	maxDepth := maxBOMExplosionDepthFor(tenantID)
+	if depth > maxDepth {
+		return nil, &ValidationError{Message: fmt.Sprintf("BOM %s nests more than %d levels deep or contains a circular reference", bomID, maxDepth)}
 	}
 	if visited[bomID] {
 		return nil, &ValidationError{Message: fmt.Sprintf("BOM %s references itself, directly or through a sub-BOM - circular BOM structure", bomID)}
@@ -627,7 +633,11 @@ func RecordActualProductionCost(tenantID, orderID string, actualCost float64, ac
 	return nil
 }
 
-const productionCostVarianceTolerancePercent = 10.0
+// Stage 30.7: the "manufacturing.production_cost_variance_tolerance_percent"
+// setting (default still 10).
+func productionCostVarianceTolerancePercentFor(tenantID string) float64 {
+	return GetSettingFloat(tenantID, "manufacturing.production_cost_variance_tolerance_percent")
+}
 
 func init() {
 	RegisterReport(ReportDefinition{
@@ -687,7 +697,7 @@ func runProductionCostVarianceReport(tenantID string, params map[string]string) 
 			variancePct = variance / standardTotal * 100
 		}
 		flag := ""
-		if math.Abs(variancePct) > productionCostVarianceTolerancePercent {
+		if math.Abs(variancePct) > productionCostVarianceTolerancePercentFor(tenantID) {
 			flag = "MFG-0279: variance exceeds tolerance - review required"
 		}
 		out = append(out, map[string]interface{}{

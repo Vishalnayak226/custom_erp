@@ -70,10 +70,9 @@ func EnsurePurchaseRequisitionDescription(tenantID, description string) error {
 	return err
 }
 
+// purchaseRequisitionFinancialYear is the same April-March year every other
+// generated number uses; kept as a named wrapper because PR's own tests pin
+// this behavior by this name.
 func purchaseRequisitionFinancialYear(now time.Time) string {
-	startYear := now.Year()
-	if now.Month() < time.April {
-		startYear--
-	}
-	return fmt.Sprintf("%02d-%02d", startYear%100, (startYear+1)%100)
+	return documentFinancialYear(now)
 }

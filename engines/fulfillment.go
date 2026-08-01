@@ -7,11 +7,15 @@ import (
 	"time"
 )
 
-// salesReturnWindowDays (SALESR-0129) is a hardcoded default, same shape as
-// vendor_invoice.go's defaultVendorInvoiceTolerancePercent and
-// expense.go's 90-day claim window - no return-policy configuration table
-// exists yet to make this tenant-configurable.
-const salesReturnWindowDays = 30
+// salesReturnWindowDaysFor (SALESR-0129) resolves the tenant's configured
+// sales-return window. Stage 30.7 replaced the former hardcoded 30-day
+// constant with the "sales.return_window_days" setting; the registered
+// default is still 30, so an untouched tenant is unchanged. Read per call
+// (not cached in a package var) so an admin edit applies to the very next
+// return with no restart.
+func salesReturnWindowDaysFor(tenantID string) int {
+	return GetSettingInt(tenantID, "sales.return_window_days")
+}
 
 // resolveOriginalSale (SALESR-0129/0130/0131) looks up the sale a return
 // claims against. POSCart is checked first (this app's actual retail sale
@@ -85,7 +89,7 @@ func CreateFulfillmentTasks(tenantID string, orderID string, locationCode string
 		return "", err
 	}
 
-	taskID := fmt.Sprintf("TSK-%d", time.Now().UnixNano())
+	taskID := NewDocID("TSK")
 	docData := map[string]interface{}{
 		"code":          taskID,
 		"order_id":      orderID,
@@ -219,7 +223,7 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 			}
 
 			// Spawn a new pick task for the target store node
-			newTaskID := fmt.Sprintf("TSK-%d", time.Now().UnixNano())
+			newTaskID := NewDocID("TSK")
 			newDocData := map[string]interface{}{
 				"code":          newTaskID,
 				"order_id":      orderID,
@@ -301,8 +305,9 @@ func ProcessReturnAnywhere(tenantID string, returnLocation string, originalOrder
 	if !found {
 		return 0, &ValidationError{Code: "SALESR-0131", Message: fmt.Sprintf("no original bill found for %q - a sales return requires a valid original bill reference", originalOrderID)}
 	}
-	if !saleDate.IsZero() && time.Since(saleDate) > salesReturnWindowDays*24*time.Hour {
-		return 0, &ValidationError{Code: "SALESR-0129", Message: fmt.Sprintf("sales return is not allowed more than %d days after the original sale (%s)", salesReturnWindowDays, saleDate.Format("2006-01-02"))}
+	returnWindowDays := salesReturnWindowDaysFor(tenantID)
+	if !saleDate.IsZero() && time.Since(saleDate) > time.Duration(returnWindowDays)*24*time.Hour {
+		return 0, &ValidationError{Code: "SALESR-0129", Message: fmt.Sprintf("sales return is not allowed more than %d days after the original sale (%s)", returnWindowDays, saleDate.Format("2006-01-02"))}
 	}
 	if len(soldLines) > 0 {
 		soldBySku := map[string]int{}

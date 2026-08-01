@@ -10,7 +10,7 @@ import (
 
 func TestEngines(t *testing.T) {
 	// Initialize connection for testing
-	connStr := "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+	connStr := testConnStr()
 	db.InitDB(connStr)
 
 	tenantID := "default"
@@ -605,7 +605,7 @@ func TestEngines(t *testing.T) {
 		}
 
 		// 4. Test automated sales booking
-		err = PostSalesFinanceBooking(tenantID, "CRT-TEST-99", 5000, 3000, "Cash")
+		err = PostSalesFinanceBooking(tenantID, "CRT-TEST-99", 5000, 3000, "Cash", 0)
 		if err != nil {
 			t.Fatalf("Failed to post automated sales bookings: %v", err)
 		}
