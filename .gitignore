@@ -46,6 +46,9 @@ DEV_CREDENTIALS.local.txt
 *.local.json
 CONNECTOR_CREDENTIALS.local.json
 *.local.md
+# End-user launcher: hardcodes the staging host and opens a root SSH tunnel to
+# it, the same details STAGING_ACCESS.local.md is kept out of the repo for.
+Open-ERP.cmd
 
 # Editor configs
 .claude/
