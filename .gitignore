@@ -45,6 +45,7 @@ backups/
 DEV_CREDENTIALS.local.txt
 *.local.json
 CONNECTOR_CREDENTIALS.local.json
+*.local.md
 
 # Editor configs
 .claude/

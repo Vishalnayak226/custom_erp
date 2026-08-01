@@ -34,7 +34,7 @@ func CreateReportExportJob(tenantID, reportID, role string, params map[string]st
 	if err != nil {
 		return "", err
 	}
-	jobID := fmt.Sprintf("RPTEXP-%d", time.Now().UnixNano())
+	jobID := NewDocID("RPTEXP")
 	data := map[string]interface{}{
 		"id": jobID, "code": jobID, "report_id": reportID, "requested_role": role,
 		"params": string(paramsJSON), "status": "Pending",

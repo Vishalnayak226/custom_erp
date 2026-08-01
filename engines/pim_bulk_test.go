@@ -7,7 +7,7 @@ import (
 )
 
 func TestBulkUpdateDocumentsIsAtomicAndResetsApproval(t *testing.T) {
-	db.InitDB("postgres://postgres@localhost:5435/custom_erp?sslmode=disable")
+	db.InitDB(testConnStr())
 	schema, err := db.GetTenantSchema("default")
 	if err != nil {
 		t.Fatalf("resolve default tenant schema: %v", err)

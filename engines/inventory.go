@@ -7,7 +7,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"sync/atomic"
 	"time"
 )
 
@@ -74,7 +73,6 @@ type StockLedgerEntry struct {
 	DeviceID       string
 }
 
-var stockLedgerSeq uint64
 
 // WriteStockLedgerEntry writes an append-only inventory card record.
 func WriteStockLedgerEntry(tenantID string, e StockLedgerEntry) error {
@@ -95,7 +93,7 @@ func WriteStockLedgerEntry(tenantID string, e StockLedgerEntry) error {
 		}
 	}
 
-	id := fmt.Sprintf("SLE%d%d", time.Now().UnixNano(), atomic.AddUint64(&stockLedgerSeq, 1)%1000)
+	id := NewDocIDCompact("SLE")
 	docData := map[string]interface{}{
 		"id":           id,
 		"code":         id,

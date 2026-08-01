@@ -11,7 +11,7 @@ import (
 // write. Cleans the shared dev DB before and after (the documented shared-DB
 // test-pollution gotcha) so it's idempotent across reruns.
 func TestSettingsRegistry(t *testing.T) {
-	connStr := "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+	connStr := testConnStr()
 	db.InitDB(connStr)
 
 	tenantID := "default"

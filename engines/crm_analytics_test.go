@@ -11,7 +11,7 @@ import (
 // reports_stage26_10_test.go already established for staying out of
 // engines_test.go while other concurrent work is mid-editing it.
 func TestCRMAnalytics(t *testing.T) {
-	connStr := "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+	connStr := testConnStr()
 	db.InitDB(connStr)
 
 	tenantID := "default"

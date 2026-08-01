@@ -86,7 +86,7 @@ func createJournalVoucherInSchema(schema, voucherDate, narration string, lines [
 	if err != nil {
 		return "", err
 	}
-	voucherID := fmt.Sprintf("JV-%d", time.Now().UnixNano())
+	voucherID := NewDocID("JV")
 	docData := map[string]interface{}{
 		"id": voucherID, "code": voucherID, "voucher_number": voucherID,
 		"voucher_date": voucherDate, "narration": narration,

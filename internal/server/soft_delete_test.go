@@ -9,7 +9,7 @@ import (
 )
 
 func TestGenericSoftDeleteAndMasterReactivation(t *testing.T) {
-	db.InitDB("postgres://postgres@localhost:5435/custom_erp?sslmode=disable")
+	db.InitDB(testConnStr())
 	const brandID = "SOFT-DELETE-BRAND"
 	const contentID = "SOFT-DELETE-CONTENT"
 	_, _ = db.DB.Exec("DELETE FROM tenant_default.documents WHERE id IN ($1, $2)", brandID, contentID)

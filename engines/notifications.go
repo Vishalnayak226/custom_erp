@@ -153,7 +153,7 @@ func postNotificationWebhook(webhookURL string, payload notificationWebhookPaylo
 }
 
 func writeNotificationLog(schema, event, channel, orderID, templateID, dispatchStatus, detail string) {
-	logID := fmt.Sprintf("NL-%d", time.Now().UnixNano())
+	logID := NewDocID("NL")
 	doc := map[string]interface{}{
 		"code": logID, "event": event, "channel": channel, "order_id": orderID,
 		"template_id": templateID, "dispatch_status": dispatchStatus, "response_detail": detail,

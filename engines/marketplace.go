@@ -136,8 +136,8 @@ func CreateLogisticsBooking(tenantID, orderID, fulfillmentTaskID, carrier, track
 		}
 	}
 
-	bookingID := fmt.Sprintf("LOG-%d", time.Now().UnixNano())
-	awb := fmt.Sprintf("AWB%d", time.Now().UnixNano())
+	bookingID := NewDocID("LOG")
+	awb := NewDocIDCompact("AWB")
 	if trackingNumber == "" {
 		trackingNumber = awb
 	}
@@ -249,7 +249,7 @@ func GenerateManifest(tenantID, courier, locationCode string) (manifestID string
 		return "", 0, fmt.Errorf("no AWB-assigned shipments found for courier %q at location %q", courier, locationCode)
 	}
 
-	manifestID = fmt.Sprintf("MAN-%d", time.Now().UnixNano())
+	manifestID = NewDocID("MAN")
 	manifestDoc := map[string]interface{}{
 		"code":           manifestID,
 		"courier":        courier,

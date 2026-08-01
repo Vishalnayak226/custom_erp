@@ -77,7 +77,7 @@ func cleanupExtensionHooks(schema, doctype string) {
 // documents and what would silently break for every existing client
 // extension if a future change to handleGenericDoc's save path altered it.
 func TestInvokeBeforeSaveHooksSignatureAndPayloadShape(t *testing.T) {
-	db.InitDB("postgres://postgres@localhost:5435/custom_erp?sslmode=disable")
+	db.InitDB(testConnStr())
 	tenantID := "default"
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -141,7 +141,7 @@ func TestInvokeBeforeSaveHooksSignatureAndPayloadShape(t *testing.T) {
 // endpoint must block the save (return a non-nil error), not let it proceed
 // with an unreviewed value.
 func TestInvokeBeforeSaveHooksBlocksOnNon2xx(t *testing.T) {
-	db.InitDB("postgres://postgres@localhost:5435/custom_erp?sslmode=disable")
+	db.InitDB(testConnStr())
 	tenantID := "default"
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -173,7 +173,7 @@ func TestInvokeBeforeSaveHooksBlocksOnNon2xx(t *testing.T) {
 // that the caller gets control back promptly - the panic/hang isolation
 // callHookWithRecovery's own doc comment describes.
 func TestInvokeBeforeSaveHooksBlocksOnTimeout(t *testing.T) {
-	db.InitDB("postgres://postgres@localhost:5435/custom_erp?sslmode=disable")
+	db.InitDB(testConnStr())
 	tenantID := "default"
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -211,7 +211,7 @@ func TestInvokeBeforeSaveHooksBlocksOnTimeout(t *testing.T) {
 // fast path: no hooks registered for a doctype returns immediately with no
 // error and no network call.
 func TestInvokeBeforeSaveHooksNoMatchIsNoop(t *testing.T) {
-	db.InitDB("postgres://postgres@localhost:5435/custom_erp?sslmode=disable")
+	db.InitDB(testConnStr())
 	if err := InvokeBeforeSaveHooks("default", "TEST_EXT_DOC_NEVER_REGISTERED", "DOC-005", map[string]interface{}{}); err != nil {
 		t.Fatalf("expected no matching hooks to be a no-op, got error: %v", err)
 	}
@@ -222,7 +222,7 @@ func TestInvokeBeforeSaveHooksNoMatchIsNoop(t *testing.T) {
 // hook, even a slow/hung one - it fires in the background and the caller
 // gets control back immediately.
 func TestInvokeAfterSaveHooksAsyncDoesNotBlockCaller(t *testing.T) {
-	db.InitDB("postgres://postgres@localhost:5435/custom_erp?sslmode=disable")
+	db.InitDB(testConnStr())
 	tenantID := "default"
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {

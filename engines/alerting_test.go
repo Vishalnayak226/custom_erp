@@ -93,7 +93,7 @@ func TestSendOpsAlertTruncatesLongMessages(t *testing.T) {
 // per-schema cooldown suppresses a second alert for the same schema within
 // the same window (rows cleaned up after).
 func TestCheckErrorRateThresholdAndCooldown(t *testing.T) {
-	db.InitDB("postgres://postgres@localhost:5435/custom_erp?sslmode=disable")
+	db.InitDB(testConnStr())
 	schema := "tenant_default"
 
 	received := make(chan string, 5)

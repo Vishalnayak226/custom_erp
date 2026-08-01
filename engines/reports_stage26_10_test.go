@@ -11,7 +11,7 @@ import (
 // same convention wms_enterprise_test.go established for staying out of
 // engines_test.go while other concurrent work is mid-editing it.
 func TestReportsStage26_10(t *testing.T) {
-	connStr := "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+	connStr := testConnStr()
 	db.InitDB(connStr)
 
 	tenantID := "default"

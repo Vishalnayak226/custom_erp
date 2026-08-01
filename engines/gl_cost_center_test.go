@@ -8,7 +8,7 @@ import (
 )
 
 func TestCostCenterPostings(t *testing.T) {
-	db.InitDB("postgres://postgres@localhost:5435/custom_erp?sslmode=disable")
+	db.InitDB(testConnStr())
 	tenantID := "default"
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {

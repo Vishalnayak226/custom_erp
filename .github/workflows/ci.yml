@@ -35,15 +35,52 @@ jobs:
           go-version: '1.22'
 
       - name: Apply database schema
-        # Stage 14.21-14.24: this list was missing every Stage 14 migration
-        # file (14a-14e) - CI was silently only ever testing against
-        # pre-Stage-14 schema, which would have made any test touching
-        # those tables fail here despite passing locally. Applied in
-        # filename order, same as promote.ps1's Apply-PendingMigrations.
+        # Applies EVERY db/*.sql in filename order - deliberately a glob, not a
+        # hardcoded list. This step used to enumerate files by hand, and drifted
+        # twice: first at Stage 14 (missing 14a-14e), then again by Stage 29, at
+        # which point CI was applying 10 of 65 migrations and had been testing
+        # against a ~50-migration-stale schema. A hand-maintained list has to be
+        # updated by every future migration author to stay correct, so it will
+        # drift again; a glob cannot. Same ordering rule as deploy/migrate.sh and
+        # promote.ps1's Apply-PendingMigrations.
+        #
+        # ON_ERROR_STOP=1 + `set -e` make a failed migration fail the build. Without
+        # it psql exits 0 on SQL errors and CI goes green against a broken schema.
         run: |
-          for f in db/migration.sql db/migrations_phase3.sql db/migrations_stage14a_modules.sql db/migrations_stage14b_versioning.sql db/migrations_stage14c_pipeline.sql db/migrations_stage14d_patchintake.sql db/migrations_stage14e_extensions.sql db/migrations_stage14f_security.sql db/migrations_stage16_field_permissions.sql db/migrations_stage17_soft_delete.sql; do
-            psql -h localhost -p 5435 -U postgres -d custom_erp -f "$f"
+          set -euo pipefail
+          for f in $(ls db/*.sql | sort); do
+            echo "--- applying $f"
+            psql -v ON_ERROR_STOP=1 -h localhost -p 5435 -U postgres -d custom_erp -f "$f"
           done
+        env:
+          PGPASSWORD: ''
+
+      - name: Verify schema is complete
+        # Guards the step above: proves the migrations actually landed rather than
+        # trusting psql's exit code. Each sentinel below is created by a LATE
+        # migration, so their presence is evidence the whole ordered run completed
+        # - not just the early files. These are exactly the tables that were
+        # missing when CI applied only the first 10 migrations: GL period close,
+        # WMS bin stock, the duplicate-payment UTR guard, and the settings registry.
+        run: |
+          set -euo pipefail
+          missing=0
+          for t in \
+            public.ops_run_log \
+            tenant_default.accounting_periods \
+            tenant_default.bin_stock \
+            tenant_default.payment_utr_log \
+            tenant_default.loyalty_tier_rules \
+            tenant_default.system_settings; do
+            schema="${t%%.*}"; name="${t##*.}"
+            found=$(psql -tAc "SELECT count(*) FROM information_schema.tables WHERE table_schema='$schema' AND table_name='$name'" \
+              -h localhost -p 5435 -U postgres -d custom_erp)
+            if [ "$found" != "1" ]; then
+              echo "::error::missing table $t - migrations did not fully apply"
+              missing=1
+            fi
+          done
+          exit $missing
         env:
           PGPASSWORD: ''
 
@@ -54,12 +91,22 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test ./... -p 1 -v
+        # -race: this codebase serves concurrent HTTP requests over a shared
+        # *sql.DB plus several package-level caches (auth livestate, settings
+        # registry, rate-limit buckets), and the race detector had never been run
+        # against it - it needs cgo, which is unavailable on the Windows dev box
+        # this project is built on, so Linux CI is the only place it can run.
+        # Roughly 2x slower; worth it, because a data race reproduces as silent
+        # corruption in production rather than as a test failure.
+        #
         # -p 1 (Stage 14 testing note, docs/micro_checklist.md): the main
         # and engines packages' tests both write to the same Postgres
         # service container, and Go's default cross-package parallelism can
         # produce a false-failing trial-balance assertion with no relation
         # to whatever change is actually being tested.
+        run: go test ./... -p 1 -race -v
+        env:
+          CGO_ENABLED: '1'
 
       - name: Vulnerability scan (govulncheck)
         run: |

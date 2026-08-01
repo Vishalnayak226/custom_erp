@@ -7,7 +7,7 @@ import (
 )
 
 func TestImportChannelSalesOrderUsesOrderEngine(t *testing.T) {
-	db.InitDB("postgres://postgres@localhost:5435/custom_erp?sslmode=disable")
+	db.InitDB(testConnStr())
 	const tenantID = "default"
 	const sku = "CHANNEL-SO-TEST-SKU"
 	const channel = "ChannelOrderTest"

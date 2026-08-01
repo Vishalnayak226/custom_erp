@@ -11,7 +11,7 @@ import (
 )
 
 func TestPurchaseRequisitionAutoNumberAndDescriptionCatalogue(t *testing.T) {
-	db.InitDB("postgres://postgres@localhost:5435/custom_erp?sslmode=disable")
+	db.InitDB(testConnStr())
 	const description = "__test_pr_handler_catalogue__ toner cartridge"
 	const location = "__TEST_PR_HANDLER_LOCATION__"
 	cleanup := func() {

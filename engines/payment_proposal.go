@@ -4,7 +4,6 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
-	"time"
 )
 
 // PaymentProposalResultLine reports what happened to one invoice inside a
@@ -56,7 +55,7 @@ func CreatePaymentProposal(tenantID string, invoiceIDs []string, userID string) 
 	if err != nil {
 		return "", 0, err
 	}
-	proposalID = fmt.Sprintf("PROP-%d", time.Now().UnixNano())
+	proposalID = NewDocID("PROP")
 	docData := map[string]interface{}{
 		"id":              proposalID,
 		"code":            proposalID,

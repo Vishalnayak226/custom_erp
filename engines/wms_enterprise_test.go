@@ -11,7 +11,7 @@ import (
 // Stage 26.12 work was mid-editing) - same db.InitDB/tenantID="default"
 // setup convention as TestEngines.
 func TestWMSEnterprise(t *testing.T) {
-	connStr := "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
+	connStr := testConnStr()
 	db.InitDB(connStr)
 
 	tenantID := "default"
