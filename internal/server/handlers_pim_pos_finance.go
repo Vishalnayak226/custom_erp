@@ -763,9 +763,17 @@ func handleTrialBalance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	res, err := engines.GetTrialBalance(tenantID)
+	// as_of is mandatory (Stage 29.7.4) - a trial balance is an as-at-a-date
+	// statement, and the unbounded version had to aggregate the whole ledger.
+	// Reported through writeEngineError so the caller gets the engine's own
+	// message naming the missing parameter rather than a bare 400.
+	asOf := r.URL.Query().Get("as_of")
+
+	res, err := engines.GetTrialBalance(tenantID, asOf)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		// writeEngineError already routes a coded *ValidationError through the
+		// catalog and everything else to the fallback status.
+		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
 	}
 

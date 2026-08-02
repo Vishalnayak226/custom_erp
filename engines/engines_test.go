@@ -595,7 +595,7 @@ func TestEngines(t *testing.T) {
 		// debris or a broken posting engine (confirmed: gl_postings is
 		// wiped unconditionally for this schema at the top of this subtest,
 		// so nothing external can be contaminating it by this point).
-		tb, err := GetTrialBalance(tenantID)
+		tb, err := GetTrialBalance(tenantID, allPostingsAsOf())
 		if err != nil {
 			t.Fatalf("Failed to fetch trial balance: %v", err)
 		}
@@ -610,7 +610,7 @@ func TestEngines(t *testing.T) {
 			t.Fatalf("Failed to post automated sales bookings: %v", err)
 		}
 
-		tbPost, _ := GetTrialBalance(tenantID)
+		tbPost, _ := GetTrialBalance(tenantID, allPostingsAsOf())
 		if tbPost["total_debits"].(int) != 9500 || tbPost["total_credits"].(int) != 9500 {
 			t.Errorf("Expected total trial balance debits/credits of 9500 (1000 V-001 + 500 V-003 + 5000 sale + 3000 COGS), got: %+v", tbPost)
 		}
@@ -902,7 +902,7 @@ func TestEngines(t *testing.T) {
 		}
 
 		// Verify GL Trial Balance remains balanced post simulation
-		tb, err := GetTrialBalance(tenantID)
+		tb, err := GetTrialBalance(tenantID, allPostingsAsOf())
 		if err != nil {
 			t.Fatalf("Failed to query trial balance post-simulation: %v", err)
 		}
@@ -939,7 +939,7 @@ func TestEngines(t *testing.T) {
 		}
 
 		// 4. Assert GL Balances
-		tb, err := GetTrialBalance(tenantID)
+		tb, err := GetTrialBalance(tenantID, allPostingsAsOf())
 		if err != nil {
 			t.Fatalf("Failed to fetch trial balance: %v", err)
 		}

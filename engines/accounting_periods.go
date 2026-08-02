@@ -192,7 +192,11 @@ func GetPeriodCloseChecklist(tenantID, periodID string) (*PeriodCloseChecklist, 
 
 	addCheck("Period is Open", status == "Open", fmt.Sprintf("current status: %s", status))
 
-	tb, err := GetTrialBalance(tenantID)
+	// Scoped to the period's own end date (Stage 29.7.4 made as-of mandatory).
+	// That is also the more correct check: closing a period asks whether the
+	// ledger balances *as at* that close, not whether it happens to balance
+	// once later periods' postings are counted in too.
+	tb, err := GetTrialBalance(tenantID, endDate)
 	if err != nil {
 		return nil, err
 	}

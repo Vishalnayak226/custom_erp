@@ -13,7 +13,23 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 3. **Some screens are known to be unfinished placeholders, not bugs** — they're marked ⚠️ **Known limitation** below. Seeing "Module Setup Pending" on those specific screens is a *pass*, not a fail. If you see that message anywhere *not* marked with ⚠️ below, that's worth reporting.
 4. **Some actions will correctly refuse you** depending on which user you're logged in as — that's the security/role system working, not a bug. See "Role Access Notes" under each section, and the master notes in [Prerequisites](#0-prerequisites).
 5. Re-run this checklist after any significant change to `public/app.js`, `public/index.html`, or the database schema — it's meant to be reusable, not one-time.
-6. **Sidebar navigation was regrouped by module.** The left sidebar now shows only ~12 top-level entries; most of the screens named throughout this checklist live inside a module's **hover flyout** (hover the module name, or click it for keyboard/touch), not as their own top-level sidebar link anymore. Every section below still tells you which screen to open — just expect to hover/click a module group first. Current grouping (**21.11**: module labels renamed toward ERPNext/Odoo terminology; internal ids/behavior unchanged, so use the *new* name shown here even if an older screenshot/doc still shows the old one): **Point of Sale** (POS/Billing, POS Profiles) · **Accounting** (Finance/GL, Approvals) · **Sales & Marketplace** (Fulfillment, Marketplace) · **Reports** (own top-level entry) · **Buying** (Purchase Orders, Vendors, RFQ/Quotes) · **Stock** (Inventory, Transfers, Bin Master, Stores, Sticker Printing) · **HR & Assets** (HR, Fixed Assets, Expenses — left unchanged, no single ERPNext/Odoo app name covers this combined grouping) · **Manufacturing** and **PIM** (own top-level entries, unchanged) · **Setup** (unchanged dynamic flyout of ~25 master doctypes, formerly "Master Definition") · **Settings** (Users, Roles, Prefix Configs, Dynamic Labels, Database Schema Design, Activity Log — formerly "Admin & Settings"). Dashboard stays a direct top-level link.
+6. **The sidebar has twelve top-level entries**, most of them module groups with hover flyouts rather than direct links. Hover a module name (or click it, for keyboard/touch) to reveal its screens. Every section below names the module and the screen. The groups, as they read in the app today — use these exact names, older docs and screenshots show earlier ones:
+
+   | Module group | Screens inside |
+   |---|---|
+   | **POS** | POS / Billing · POS Profiles · Offline Sync Review · Offline Queue Gaps |
+   | **Financial Accounting** | Finance / GL · Approvals · Vendor Invoice · Payment Proposals · Bank Reconciliation · Debit / Credit Notes · Sales Invoice |
+   | **Sales & Marketplace** | Order Management · Fulfillment · Marketplace · Customer |
+   | **Reports** | Opens directly - no flyout |
+   | **Procurement** | Purchase Requisitions · Purchase Order · ASN · Goods Receipt · Vendors · RFQ / Quotes |
+   | **Stock** | Inventory · Stock Transfer · Bin · Putaway · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · Cycle Count · Stores · Sticker Printing |
+   | **HRM** | HR · Fixed Assets · Expenses |
+   | **Manufacturing** | Opens directly - no flyout |
+   | **PIM** | Opens directly - no flyout |
+   | **Setup** | A dynamic flyout of every Master record type in your tenant — 53 in a default install, grouped by module, with a filter box and an **Advanced** divider holding 15 system-internal lists |
+   | **Settings** | Users · Roles · Prefix Configs · Approval Rules · Dynamic Labels · Database Schema Design · Extension Hooks · Activity Log · Configuration · System Status · Tenant Entitlements · Tenant Usage |
+
+   **Dashboard**, **Reports**, **Manufacturing** and **PIM** are direct links with no flyout.
 
 ---
 
@@ -28,7 +44,9 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
   | `manager1` | Store Manager | Can view most masters/transactions; cannot create Purchase Orders, cannot read Vendor/Item/Customer (see note below). |
   | `cashier1` | Cashier | Scoped to POS-related screens; cannot read Vendor/Item/Customer/Location (see note below). |
 
-- [ ] **Role Access Notes (read once, applies everywhere below)**: the sidebar shows the same menu to every role — it does **not** hide items you're not allowed to use. If a screen shows a red "You do not have permission to..." message instead of data, and you're logged in as `manager1` or `cashier1`, that is very likely expected — re-test that specific step as `admin` before reporting it as a bug. Known gap as of 2026-07-19 (tracked in `docs/micro_checklist.md` Stage 18): `manager1` and `cashier1` cannot read Vendor, Item, or Customer records at all, which limits how much of Purchase Orders/POS/RFQ/Manufacturing they can meaningfully test — use `admin` for full coverage of those screens. As of the **Roles** screen shipping (§19), this is now something you can fix yourself mid-testing (log in as `admin`, grant the read, log back in as the other role) rather than a hard blocker requiring direct database access.
+- [ ] **Two accounts are mandatory, not a convenience.** Maker-checker refuses self-approval, so a single account can never complete an approval-gated document (Purchase Order, Purchase Requisition, Expense Claim, GRN, PIM content). Have a maker and a checker logged in on separate browsers/profiles before you start §11 Approvals, or you will get stuck and think it is a bug. See ADMIN_SOP.md §B.10.
+- [ ] **A cashier session must be open before any sale.** POS checkout hard-blocks with *"Cash opening is required before billing"* until you open one. §3 covers it — do not skip it.
+- [ ] **Role Access Notes (read once, applies everywhere below)**: the sidebar is trimmed per role — a role with no read access to a screen does not see it, and a module flyout disappears once all of its entries are hidden. So a screen missing from `manager1`s or `cashier1`s menu is expected, not a broken link; log in as `admin` to see everything. Inside a screen, a role that can read but not create sees a **"Read-only for your role"** label instead of the New/Bulk Import buttons, and no row Edit/Delete icons (this is §24.12). The server enforces all of it regardless of what the menu shows. `manager1` and `cashier1` cannot read Vendor, Item, or Customer records by default, which limits how much of Purchase Orders/POS/RFQ/Manufacturing they can meaningfully test — either use `admin`, or grant the reads yourself mid-testing on the **Roles** screen (§19).
 
 ---
 
@@ -267,18 +285,113 @@ Three tabs: **Audit Logs**, **System Errors**, **Integration Payloads**.
 
 ---
 
-## 24. Modules with no page to test (backend/API-only — don't go looking)
+## 24. Screens this checklist used to tell you not to test — test them
 
-Every module and doctype in the system is accounted for somewhere in this checklist — either as a section above, or explicitly listed here because it has **no UI screen at all** as of this checklist's last update. These are real, working backend features (unit/integration-tested, some live-verified — see `docs/project_ledger.md`), just not reachable by clicking around the app yet. If you're trying to test one of these and can't find it, that's expected — it's not a broken link, there's genuinely nothing to click:
+> **This section was a release-process defect, not just a documentation one.** It previously listed nine capabilities as having "no UI screen at all" and told testers *"there's genuinely nothing to click."* Eight of them are shipped, working screens — two of which (Vendor Invoice and Sales Invoice) were even fully documented in USER_SOP §7 and §11 at the same time. A tester following this checklist could sign off a release without opening any of them. **Corrected 2026-08-01 by re-driving every row against the live sidebar.**
 
-- **GRN (Goods Receipt Note)** — vendor invoice 3-way match's receiving side (Stage 17.8). No screen.
-- **Vendor Invoice** — the 3-way match + payment feature itself (Stage 17.8). No screen (Expenses §13's "Mark Paid" is a *different* payment flow — ExpenseClaim, not VendorInvoice).
-- **Purchase Requisition** — the pre-PO requisition workflow (Stage 17.7). No screen.
-- **ASN (Advance Shipment Notice)** — inbound shipment tracking. No screen.
-- **Chart of Accounts / manual GL journal entries** — GL accounts are a fixed backend table, not an editable master; Finance (§4) is view-only. No create/edit screen for either.
-- **POS Invoice, Sales Invoice, Stock Ledger Entry, GL Post** — these are records generated *by* other actions (completing a POS sale, GL postings from GST/checkout, etc.), not things you create directly through a form. Nothing to test here beyond confirming the actions that generate them work (POS §3, Finance §4).
-- **PIM: Import Job, Product Attribute Value (as its own list), PIM Product Profile** — internal/supporting records for the PIM flows already covered in §15; no separate screen of their own.
-- **Putaway, bin-grouped pick lists, bin condition transitions (Damaged/QC-Hold/RTV), cycle counts** — Stage 20 Track B.2 WMS backend (`/api/v1/wms/*`). Bin *master data* has a screen (§17); actually assigning stock to a bin, generating a pick list, moving stock between conditions, or reconciling a cycle count are all backend/API-only right now. `CycleCountLine` rows are created via the same "Bulk Import" flow any master/transaction table supports (§16) - just no dedicated WMS screen wraps the putaway/pick-list/condition/reconcile actions yet.
+Each of the following now has its own section in this checklist. Work through them like any other:
+
+- [ ] **Goods Receipt (GRN)** — **Procurement → Goods Receipt** — see §24.1
+- [ ] **Vendor Invoice** — **Financial Accounting → Vendor Invoice** — see §24.2
+- [ ] **Purchase Requisition** — **Procurement → Purchase Requisitions** — see §24.3
+- [ ] **ASN (Advance Shipment Notice)** — **Procurement → ASN** — see §24.4
+- [ ] **Sales Invoice** — **Financial Accounting → Sales Invoice** — see §24.5
+- [ ] **Putaway** — **Stock → Putaway** — see §24.6
+- [ ] **Bin-grouped pick lists** — **Stock → Wave / Batch Picking** and **Mobile Picking** — see §24.7
+- [ ] **Bin condition transitions** — **Stock → Bin Conditions** — see §24.8
+- [ ] **Cycle counts** — **Stock → Cycle Count** — see §24.9
+- [ ] **Chart of Accounts** — **Financial Accounting → Finance / GL → Chart of Accounts tab** — see §24.10
+
+### 24.1 Goods Receipt
+
+- [ ] **Procurement → Goods Receipt** loads and lists existing receipts (or an empty state that names the next step).
+- [ ] **Load Items from PO** against an Approved PO populates the line table with that PO's items.
+- [ ] **Load Items from ASN** does the same from an ASN.
+- [ ] **Add Line** adds a manual line; each line takes an SKU and a received quantity.
+- [ ] The **GRN number is greyed out** and reads "Auto (GRN series)" — you cannot type one.
+- [ ] **Post Receipt** succeeds, and **Inventory (§9) shows the stock actually went up** at the receiving location. This is the single most important row in this section: a GRN that closes a PO without moving stock is the defect Stage 30.2.1 fixed, and it returned HTTP 200 while doing nothing.
+- [ ] Posting with no **Location** still works — it defaults from the PO's target warehouse — and the stock lands at that warehouse.
+- [ ] If the ledger post fails, the receipt shows as **Cancelled** and the PO stays open; you are told, not given a false success.
+
+### 24.2 Vendor Invoice
+
+- [ ] **Financial Accounting → Vendor Invoice** loads and lists invoices.
+- [ ] **+ New Vendor Invoice** opens the create form; it starts as **Draft**.
+- [ ] **Match** on a Draft invoice, given the PO and GRN it should match, moves it to **Matched** when the amounts agree.
+- [ ] Deliberately mismatched amounts move it to **MismatchHold** instead, with the reason shown.
+- [ ] A **Matched** invoice shows **Pay** and **Pay w/ TDS**; paying posts to the GL.
+- [ ] A **MismatchHold** invoice shows **Override & Pay**. It **demands a written reason** (cancelling or submitting a blank reason does nothing) and reports *"Override submitted - routed for approval"* — it must **not** pay immediately.
+- [ ] The override then appears on the **Approvals** screen for HR/Admin.
+- [ ] A `Draft` invoice cannot jump straight to `Paid` (this would skip the 3-way match; it is refused with GLOBAL-0019).
+
+### 24.3 Purchase Requisition
+
+- [ ] **Procurement → Purchase Requisitions** loads.
+- [ ] Creating one auto-numbers it and starts it as **Draft**.
+- [ ] The **Description** field suggests previously-used wordings as you type, and accepts a new one.
+- [ ] Submitting routes it by amount to the same bands as a PO, and it appears in **Approvals**.
+
+### 24.4 ASN
+
+- [ ] **Procurement → ASN** loads and lists ASNs.
+- [ ] **Add Line** then **Save ASN** creates one; the **ASN number is auto-issued**.
+- [ ] The ASN's **PO Number** field holds the *referenced PO's* number and is **not** overwritten with the ASN's own number.
+- [ ] A saved ASN can be loaded from the Goods Receipt screen (§24.1).
+
+### 24.5 Sales Invoice
+
+- [ ] **Financial Accounting → Sales Invoice** loads and lists invoices.
+- [ ] **+ New Sales Invoice** creates a Draft.
+- [ ] **Post** recognises the receivable (check the GL and the Receivables Ageing report).
+- [ ] **Settle** marks it Paid.
+- [ ] A POS sale does **not** appear here — POS sales settle immediately and are a different flow.
+
+### 24.6 Putaway
+
+- [ ] **Stock → Putaway** loads.
+- [ ] The **Bin** and **SKU** fields both auto-suggest as you type.
+- [ ] Putting received stock away moves it into the named bin, and **Bin (§17)** reflects it.
+
+### 24.7 Wave / Batch Picking and Mobile Picking
+
+- [ ] **Stock → Wave / Batch Picking** generates a consolidated pick list in zone/aisle/rack walking order.
+- [ ] The per-order allocation table shows any shortfall as a badge rather than hiding it.
+- [ ] **Stock → Mobile Picking** shows one pick line at a time with **Previous** / **Confirm & Next**.
+- [ ] A wave with nothing binned reports that in words rather than showing an empty table.
+
+### 24.8 Bin Conditions
+
+- [ ] **Stock → Bin Conditions** loads.
+- [ ] Moving stock Good → Damaged (and QC-Hold, RTV) is accepted and reflected in the bin's contents.
+- [ ] An illegal transition is refused with a message naming the legal destinations.
+
+### 24.9 Cycle Count
+
+- [ ] **Stock → Cycle Count** loads and can **start a count** — this is the step the old checklist claimed did not exist.
+- [ ] Counted quantities can be entered and reconciled from the same screen.
+- [ ] A non-zero variance routes a `CycleCountLine` to **Approvals** for a Store Manager.
+
+### 24.10 Chart of Accounts and the Trial Balance
+
+- [ ] **Finance / GL → Chart of Accounts** lists the seeded GL accounts (code, name, type) — it is a real screen, not "a fixed backend table with no view".
+- [ ] **Finance / GL → Trial Balance** requires an **As Of Date** and defaults it to today.
+- [ ] Changing the As Of date to a date before any posting shows zero debits/credits **but still lists every account** — proving the date genuinely bounds the figures rather than emptying the report.
+- [ ] Clearing the As Of date does not silently show an all-time total.
+- [ ] **Journal vouchers**: a `JournalVoucher` record type exists with its own approval rule — create one from Setup and confirm it routes to Approvals. (The old checklist's claim that there is "no create/edit screen for manual GL journal entries" was wrong.)
+
+### 24.11 Genuinely generated records — nothing to create directly
+
+These are still produced *by* other actions rather than through a form of their own, so there is no create screen to test. Confirm the action that generates them instead:
+
+- **POS Invoice, Stock Ledger Entry, GL Post** — generated by completing a POS sale and by GL posting (test via POS §3 and Finance §4).
+- **PIM: Import Job, Product Attribute Value (as its own list), PIM Product Profile** — supporting records for the PIM flows in §15.
+
+### 24.12 Permission-gated affordances (Stage 30.5.7)
+
+- [ ] Log in as a **non-admin** role and open a record type that role can read but not create (e.g. **Item** as a Store Manager). The **New** and **Bulk Import** buttons must be **absent**, replaced by a **"Read-only for your role"** label.
+- [ ] Row **Edit** and **Delete** icons are likewise absent without update/delete grants.
+- [ ] A record type the role *can* create still shows its **New** button — confirm the gating is reading real grants and not just hiding everything.
+- [ ] Granting create access on **Settings → Roles** and reloading makes the buttons appear.
 
 ---
 

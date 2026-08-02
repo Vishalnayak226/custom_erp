@@ -389,7 +389,9 @@ let state = {
   // failure mode than a brief empty-sidebar flash, and the server's own
   // checkPermission() is the actual enforcement point regardless of what
   // the sidebar shows.
-  permissions: { isAdmin: true, doctypes: new Set(), loaded: false },
+  // create/update/delete (30.5.7) mirror `doctypes`, which holds read grants.
+  // Same "show everything until loaded" default as the rest of this block.
+  permissions: { isAdmin: true, doctypes: new Set(), create: new Set(), update: new Set(), delete: new Set(), loaded: false },
   // Stage 27: same "show everything until loaded" default as permissions
   // above - enabled: null means "unknown yet," which isMenuModuleVisible
   // treats as visible; moduleGate on the server is the real enforcement
@@ -646,13 +648,35 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
   function openMenu() {
     removeMenuElement();
     activeIndex = -1;
-    if (items.length === 0) return;
+    // Stage 30.5.1: zero matches used to close the menu silently, which is
+    // indistinguishable from "the search hasn't run yet". Show a dead-end
+    // row that names the record type and links to where one is created -
+    // the same affordance an empty <select> now gets, for the other picker
+    // control. Deliberately not selectable: it isn't a value.
+    const isEmpty = items.length === 0;
     menu = document.createElement('div');
     menu.className = 'typeahead-menu';
     const rect = inputEl.getBoundingClientRect();
     menu.style.left = `${rect.left}px`;
     menu.style.top = `${rect.bottom + 4}px`;
     menu.style.width = `${Math.max(rect.width, 180)}px`;
+    if (isEmpty) {
+      const row = document.createElement('div');
+      row.className = 'typeahead-item typeahead-item-empty';
+      row.innerHTML = `No matching ${getTranslatedLabel(doctype)} &mdash; <a href="#" class="empty-state-link">create one</a>`;
+      // The menu is a child of <body>, not of the input's container, so it
+      // has to be torn down explicitly before navigating away or it is left
+      // floating over the next screen.
+      row.querySelector('a').addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        closeMenu();
+        openSetupDoctype(doctype);
+      });
+      menu.appendChild(row);
+      document.body.appendChild(menu);
+      document.addEventListener('mousedown', onDocMouseDown, true);
+      return;
+    }
     items.forEach((doc) => {
       const row = document.createElement('div');
       row.className = 'typeahead-item';
@@ -699,6 +723,229 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     }
     else if (e.key === 'Escape') { closeMenu(); }
   });
+}
+
+// ---------------------------------------------------------------------------
+// Empty-state guidance (Stage 30.5.1 / 30.5.2)
+//
+// The 2026-07-30 layman audit found 61 empty-state messages of which only two
+// told the user what to do next, and 10 of 18 core master pickers rendering as
+// a dropdown containing nothing but "Select employee". A screen that says
+// "No employees yet" and stops is a dead end: the user has no way to know that
+// the fix is a Setup list two flyouts away.
+//
+// These three helpers are the whole vocabulary. They are string-returning
+// rather than node-returning on purpose - almost every existing empty state is
+// built inside a template literal for a <td>, so a string drops straight in
+// with no restructuring of the call site.
+// ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// JSON line editor (Stage 30.5.3)
+//
+// Renders a JSONTable (array of row objects) or JSONMap (key/value object)
+// field as an add-line table instead of a text box demanding hand-typed JSON.
+// The whole thing is driven by the column spec the server puts in the field's
+// `options`, so adding a line editor to a new field is one migration row and
+// no JavaScript - the same reasoning as 30.6.4's auto_generated flag and
+// 30.5.4's setup_advanced.
+//
+// Deliberately kept as a UI layer over a hidden input rather than a new save
+// path: the form's submit handler reads `[name=<fieldname>]`.value, so
+// keeping the serialised JSON there means nothing downstream changes.
+// ---------------------------------------------------------------------------
+function renderJSONLineEditor(fg, f, existingVal) {
+  const isMap = f.fieldtype === 'JSONMap';
+  let cols = [];
+  if (isMap) {
+    cols = [
+      { key: '__key', label: 'Parameter', type: 'text', required: true },
+      { key: '__value', label: 'Value', type: 'text' }
+    ];
+  } else {
+    try { cols = JSON.parse(f.options || '[]'); } catch (e) { cols = []; }
+  }
+
+  const hidden = document.createElement('input');
+  hidden.type = 'hidden';
+  hidden.name = f.fieldname;
+  fg.appendChild(hidden);
+
+  // Parse whatever is already stored. A value that isn't valid JSON is not
+  // discarded - it is handed to the raw-JSON escape hatch below, so a record
+  // saved before this Stage (or edited through the API) can still be opened
+  // and repaired rather than silently emptied.
+  let rows = [];
+  let unparseable = '';
+  const raw = (existingVal === undefined || existingVal === null) ? '' : String(existingVal);
+  if (raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (isMap && parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        rows = Object.entries(parsed).map(([k, v]) => ({ __key: k, __value: v }));
+      } else if (!isMap && Array.isArray(parsed)) {
+        rows = parsed;
+      } else {
+        unparseable = raw;
+      }
+    } catch (e) {
+      unparseable = raw;
+    }
+  }
+
+  const wrap = document.createElement('div');
+  wrap.className = 'json-line-editor';
+  fg.appendChild(wrap);
+
+  // Empty string rather than "[]"/"{}" for an untouched optional field, so an
+  // optional list that was never filled in stays absent instead of being
+  // stored as an empty array - which is what it was before this Stage.
+  const serialise = () => {
+    const live = collect();
+    if (live.length === 0) {
+      hidden.value = raw.trim() && !unparseable ? (isMap ? '{}' : '[]') : '';
+      return;
+    }
+    if (isMap) {
+      const obj = {};
+      live.forEach(r => { if (String(r.__key || '').trim()) obj[r.__key] = r.__value; });
+      hidden.value = JSON.stringify(obj);
+    } else {
+      hidden.value = JSON.stringify(live);
+    }
+  };
+
+  const collect = () => Array.from(wrap.querySelectorAll('[data-line-row]')).map(tr => {
+    const row = {};
+    cols.forEach(c => {
+      const input = tr.querySelector(`[data-line-key="${c.key}"]`);
+      if (!input) return;
+      const v = input.value;
+      if (v === '') return;
+      row[c.key] = (c.type === 'number') ? Number(v) : v;
+    });
+    return row;
+  }).filter(r => Object.keys(r).length > 0);
+
+  const draw = () => {
+    wrap.innerHTML = `
+      <table class="json-line-table">
+        <thead>
+          <tr>${cols.map(c => `<th>${escapeHTMLText(c.label || c.key)}${c.required ? '<span class="required">*</span>' : ''}</th>`).join('')}<th></th></tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <button type="button" class="btn btn-outline btn-sm json-line-add">+ Add Line</button>
+      ${unparseable ? `<div class="empty-state-hint">This field holds a value the editor could not read. It is shown below as raw JSON so it can be repaired; the lines above are ignored while it is set.</div>
+        <textarea class="form-textarea json-line-raw" rows="3">${escapeHTMLText(unparseable)}</textarea>` : ''}
+    `;
+    const tbody = wrap.querySelector('tbody');
+    if (rows.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="${cols.length + 1}" class="json-line-empty">No lines yet. Use <b>+ Add Line</b> below.</td></tr>`;
+    }
+    rows.forEach((r, idx) => tbody.appendChild(buildRow(r, idx)));
+
+    wrap.querySelector('.json-line-add').addEventListener('click', () => {
+      rows = collect();
+      rows.push({});
+      draw();
+      serialise();
+    });
+
+    const rawEl = wrap.querySelector('.json-line-raw');
+    if (rawEl) {
+      rawEl.addEventListener('input', () => { hidden.value = rawEl.value; });
+      hidden.value = unparseable;
+    }
+  };
+
+  const buildRow = (r, idx) => {
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-line-row', String(idx));
+    cols.forEach(c => {
+      const td = document.createElement('td');
+      const input = document.createElement('input');
+      input.className = 'form-input';
+      input.setAttribute('data-line-key', c.key);
+      input.type = c.type === 'number' ? 'number' : 'text';
+      input.value = (r[c.key] === undefined || r[c.key] === null) ? '' : r[c.key];
+      input.addEventListener('input', serialise);
+      input.addEventListener('change', serialise);
+      td.appendChild(input);
+      // A link column is a live typeahead against the target doctype, which
+      // is also what gives it 30.5.1's "none exist yet" affordance for free.
+      if (c.type === 'link' && c.link) attachTypeahead(input, c.link);
+      tr.appendChild(td);
+    });
+    const actions = document.createElement('td');
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn btn-outline btn-sm';
+    del.textContent = 'Remove';
+    del.addEventListener('click', () => {
+      rows = collect();
+      rows.splice(idx, 1);
+      draw();
+      serialise();
+    });
+    actions.appendChild(del);
+    tr.appendChild(actions);
+    return tr;
+  };
+
+  draw();
+  serialise();
+}
+
+// escapeHTMLText makes an arbitrary user-supplied string safe to interpolate
+// into a template literal that becomes innerHTML. Used where an empty state
+// echoes back what the user typed.
+function escapeHTMLText(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// openSetupDoctype navigates to a Master doctype's list, exactly as clicking
+// it in the Setup flyout does. Kept in sync with renderSidebarSubmenu()'s own
+// click handler (it sets the same active classes) so arriving here from a hint
+// leaves the sidebar looking the way arriving here from the menu does.
+window.openSetupDoctype = function (doctype) {
+  document.querySelectorAll('.submenu-item').forEach(i => i.classList.remove('active'));
+  document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
+  const setupMenu = document.getElementById('menu-master-definition');
+  if (setupMenu) setupMenu.classList.add('active');
+  closeSubmenus();
+  currentDoctype = doctype;
+  currentSearchQuery = '';
+  currentTablePage = 1;
+  renderView('doctype-table');
+};
+
+// setupLink renders "Setup » Brand" as a real link into that list. Uses an
+// inline onclick like the DocType Builder's own module flyout does, rather
+// than introducing a second delegation scheme for one link.
+function setupLink(doctype, label) {
+  const text = label || `Setup &raquo; ${getTranslatedLabel(doctype)}`;
+  return `<a href="#" class="empty-state-link" onclick="event.preventDefault(); openSetupDoctype('${doctype}')">${text}</a>`;
+}
+
+// emptyHint is the next-step line under an empty state or an empty picker.
+// `next` is either a plain string (guidance that points at a control already
+// on this screen) or a doctype name to link to.
+function emptyHint(next, { asLink = false } = {}) {
+  const body = asLink ? setupLink(next) : next;
+  return `<div class="empty-state-hint">${body}</div>`;
+}
+
+// emptyPickerHint is 30.5.1's affordance: the line that appears under a
+// <select> or typeahead whose target list is empty. Rendered by the caller
+// right after the control, so it inherits the form-group's own spacing.
+function emptyPickerHint(doctype, label) {
+  return `<div class="empty-state-hint">No ${getTranslatedLabel(label || doctype)} records exist yet &mdash; ${setupLink(doctype, 'create one first')}.</div>`;
 }
 
 // Auth: login screen, logout, and app-shell visibility
@@ -1119,6 +1366,22 @@ function canReadDoctype(doctype) {
   return state.permissions.isAdmin || state.permissions.doctypes.has(doctype);
 }
 
+// Stage 30.5.7: the same shape as canReadDoctype, for the other three verbs.
+// These hide an affordance the role cannot use; the server's own check is
+// still the enforcement point, exactly as with the sidebar trimming - this
+// only stops a user filling in a whole form to be refused at Save.
+function canCreateDoctype(doctype) {
+  return state.permissions.isAdmin || state.permissions.create.has(doctype);
+}
+
+function canUpdateDoctype(doctype) {
+  return state.permissions.isAdmin || state.permissions.update.has(doctype);
+}
+
+function canDeleteDoctype(doctype) {
+  return state.permissions.isAdmin || state.permissions.delete.has(doctype);
+}
+
 function isMenuRuleVisible(rule) {
   if (!rule || rule.open) return true;
   if (rule.adminOnly) return state.permissions.isAdmin;
@@ -1149,8 +1412,16 @@ function applySidebarPermissions() {
   // doctype read access at all; [].every(...) is vacuously true, which is
   // exactly "hide" for that empty case too.
   document.querySelectorAll('.has-flyout').forEach(container => {
-    const items = container.querySelectorAll('.menu-flyout > li');
-    const allHidden = Array.from(items).every(li => li.classList.contains('perm-hidden'));
+    // Only <li>s that actually carry a navigable entry count. Since 30.5.4
+    // the Setup flyout also contains a filter row, module group headings and
+    // an Advanced divider; none of those are ever perm-hidden, so counting
+    // them would make the "every child is hidden" test permanently false and
+    // the flyout would stay visible for a role with no Master read access at
+    // all. The vacuous-true case is preserved deliberately: zero real entries
+    // still means hide (see the comment above).
+    const items = Array.from(container.querySelectorAll('.menu-flyout > li'))
+      .filter(li => li.querySelector('.submenu-item[data-view], .menu-item'));
+    const allHidden = items.every(li => li.classList.contains('perm-hidden'));
     container.classList.toggle('perm-hidden', allHidden);
   });
 }
@@ -1267,7 +1538,14 @@ async function fetchAndApplyPermissions() {
     const res = await apiFetch('/api/v1/me/permissions');
     if (res && res.ok) {
       const data = await res.json();
-      state.permissions = { isAdmin: !!data.is_admin, doctypes: new Set(data.doctypes || []), loaded: true };
+      state.permissions = {
+        isAdmin: !!data.is_admin,
+        doctypes: new Set(data.doctypes || []),
+        create: new Set(data.create || []),
+        update: new Set(data.update || []),
+        delete: new Set(data.delete || []),
+        loaded: true
+      };
     }
   } catch (err) {
     console.error('Error fetching permissions:', err);
@@ -1294,25 +1572,119 @@ async function fetchRegisteredDoctypes() {
   }
 }
 
+// Stage 30.5.4: the Setup flyout used to be a flat alphabetical dump of every
+// Master doctype - 50+ entries with RoboticsIntegrationCredential and
+// ChannelValidationRule sitting between Brand and Color. It is now grouped by
+// each doctype's own `module`, filterable, and the system-internal ones are
+// filed behind an "Advanced" divider (the setup_advanced flag comes from
+// doctype_meta, so there is no doctype list duplicated here in JavaScript).
+//
+// Persisted per tab, not per session: someone who opened Advanced to reach
+// StatusTransitionRule almost always has more than one to change.
+let setupMenuFilter = '';
+let setupAdvancedOpen = sessionStorage.getItem('erp_setup_advanced_open') === '1';
+
 function renderSidebarSubmenu() {
   const sub = document.getElementById('submenu-master');
   if (!sub) return;
   sub.innerHTML = '';
-  
-  state.activeDoctypes.forEach(d => {
-    if (d.document_type === 'Master' && canReadDoctype(d.name)) {
-      const li = document.createElement('li');
-      li.innerHTML = `<a class="submenu-item" data-view="${d.name}">${getTranslatedLabel(d.name)}</a>`;
-      sub.appendChild(li);
+
+  const visible = state.activeDoctypes.filter(d => d.document_type === 'Master' && canReadDoctype(d.name));
+  const needle = setupMenuFilter.trim().toLowerCase();
+  const matches = d =>
+    !needle ||
+    d.name.toLowerCase().includes(needle) ||
+    String(getTranslatedLabel(d.name)).toLowerCase().includes(needle) ||
+    String(d.module || '').toLowerCase().includes(needle);
+
+  // The filter row is a <li> so it is a legal child of the <ul>, but it holds
+  // no .submenu-item - which is exactly how applySidebarPermissions() tells
+  // it apart from a real entry when deciding whether the whole flyout is empty.
+  const tools = document.createElement('li');
+  tools.className = 'submenu-tools';
+  tools.innerHTML = `<input type="text" class="submenu-filter" id="setup-menu-filter" placeholder="Filter setup lists..." value="${escapeHTMLText(setupMenuFilter)}" autocomplete="off">`;
+  sub.appendChild(tools);
+  const filterInput = tools.querySelector('#setup-menu-filter');
+  filterInput.addEventListener('input', (e) => {
+    setupMenuFilter = e.target.value;
+    renderSidebarSubmenu();
+    // Re-rendering replaced the node the user is typing into, so focus and
+    // caret have to be restored or every keystroke after the first is lost.
+    const fresh = document.getElementById('setup-menu-filter');
+    if (fresh) { fresh.focus(); fresh.setSelectionRange(fresh.value.length, fresh.value.length); }
+  });
+  // Escape inside the filter clears it rather than closing the whole menu,
+  // which is what the document-level Escape handler would otherwise do.
+  filterInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && setupMenuFilter) {
+      e.stopPropagation();
+      setupMenuFilter = '';
+      renderSidebarSubmenu();
+      document.getElementById('setup-menu-filter')?.focus();
     }
   });
+
+  const appendEntries = (list) => {
+    const byModule = {};
+    list.forEach(d => { (byModule[d.module || 'Other'] = byModule[d.module || 'Other'] || []).push(d); });
+    Object.keys(byModule).sort().forEach(mod => {
+      const heading = document.createElement('li');
+      heading.className = 'submenu-group-label';
+      heading.textContent = mod;
+      sub.appendChild(heading);
+      byModule[mod]
+        .sort((a, b) => String(getTranslatedLabel(a.name)).localeCompare(String(getTranslatedLabel(b.name))))
+        .forEach(d => {
+          const li = document.createElement('li');
+          li.innerHTML = `<a class="submenu-item" data-view="${d.name}">${getTranslatedLabel(d.name)}</a>`;
+          sub.appendChild(li);
+        });
+    });
+  };
+
+  const everyday = visible.filter(d => !d.setup_advanced && matches(d));
+  const advanced = visible.filter(d => d.setup_advanced && matches(d));
+
+  appendEntries(everyday);
+
+  if (needle && everyday.length === 0 && advanced.length === 0) {
+    const none = document.createElement('li');
+    none.className = 'submenu-group-label';
+    none.textContent = 'No setup list matches that.';
+    sub.appendChild(none);
+  }
+
+  if (advanced.length > 0) {
+    // A filter hit inside Advanced expands it on its own - otherwise
+    // searching for "channel" would report nothing while the match sat
+    // hidden behind a collapsed divider.
+    const expanded = setupAdvancedOpen || !!needle;
+    const divider = document.createElement('li');
+    divider.className = 'submenu-advanced-toggle';
+    divider.innerHTML = `<a class="submenu-item" href="#" role="button" aria-expanded="${expanded}">
+      <span>Advanced (${advanced.length})</span><span class="submenu-advanced-caret">${expanded ? '▾' : '▸'}</span>
+    </a>`;
+    divider.querySelector('a').addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setupAdvancedOpen = !expanded;
+      sessionStorage.setItem('erp_setup_advanced_open', setupAdvancedOpen ? '1' : '0');
+      renderSidebarSubmenu();
+    });
+    sub.appendChild(divider);
+    if (expanded) appendEntries(advanced);
+  }
   // Setup's own flyout trigger has no read access left once every Master
   // doctype it lists is filtered out - re-evaluate the flyout-hiding pass
   // now that the list this depends on just changed.
   applySidebarPermissions();
 
-  // Rebind event listeners to submenu items
-  sub.querySelectorAll('.submenu-item').forEach(item => {
+  // Rebind event listeners to submenu items. [data-view] matters: the
+  // Advanced divider (30.5.4) is also a .submenu-item so it inherits the
+  // menu's styling, but it carries no doctype and has its own handler -
+  // without this qualifier the generic handler below would also fire on it
+  // and navigate to a doctype named "null".
+  sub.querySelectorAll('.submenu-item[data-view]').forEach(item => {
     item.addEventListener('click', (e) => {
       e.preventDefault();
       document.querySelectorAll('.submenu-item').forEach(i => i.classList.remove('active'));
@@ -2629,7 +3001,7 @@ async function renderUsersView(container) {
       <tbody>
   `;
   html += users.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No users found.</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No users yet. Use <b>Create User</b> above to add the first one.</td></tr>`
     : users.map(u => `
         <tr>
           <td style="font-weight:600;">${u.username}</td>
@@ -2777,7 +3149,7 @@ async function renderRolesView(container) {
       <tbody>
   `;
   html += grants.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No grants configured yet.</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No grants configured yet. Pick a role and a record type above, then <b>Save Grant</b> &mdash; roles other than HR/Admin see only what a grant allows.</td></tr>`
     : grants.map(g => `
         <tr>
           <td style="font-weight:600;">${g.role}</td>
@@ -3864,6 +4236,21 @@ const FINANCE_TABS = [
   { id: 'periods', label: 'Accounting Periods' }
 ];
 
+// Local (not UTC) yyyy-mm-dd. Deliberately not toISOString().slice(0,10):
+// that converts to UTC first, so for an IST user everything before 05:30
+// local would default a date picker to *yesterday*.
+function todayISO() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// Stage 29.7.4: the trial balance is now an as-at-a-date statement (the API
+// requires as_of), so the screen owns a date and defaults it to today. Kept
+// at module scope so switching tabs and back doesn't silently reset a date
+// the user deliberately chose.
+let financeTrialBalanceAsOf = todayISO();
+
 async function renderFinanceView(container) {
   const header = document.createElement('div');
   header.className = 'page-header';
@@ -3900,15 +4287,32 @@ async function renderFinanceView(container) {
     return;
   }
 
-  const res = await apiFetch('/api/v1/finance/trial-balance');
+  // As-of picker (29.7.4). Re-renders the whole view on change rather than
+  // patching the table in place - same approach the tab bar above uses.
+  const controls = document.createElement('div');
+  controls.className = 'form-group';
+  controls.style.cssText = 'display:flex; align-items:flex-end; gap:12px; margin-bottom:16px;';
+  controls.innerHTML = `
+    <div>
+      <label class="form-label" for="tb-as-of">As Of Date<span class="required">*</span></label>
+      <input type="date" id="tb-as-of" class="form-input" style="width:180px;" value="${financeTrialBalanceAsOf}">
+    </div>
+    <span style="color:var(--text-muted); font-size:12px; padding-bottom:10px;">
+      Includes every GL posting up to and including this date.
+    </span>
+  `;
+  container.appendChild(controls);
+  document.getElementById('tb-as-of').addEventListener('change', (e) => {
+    if (!e.target.value) return; // an emptied picker would 400; keep the last good date
+    financeTrialBalanceAsOf = e.target.value;
+    renderView('finance');
+  });
+
+  const res = await apiFetch(`/api/v1/finance/trial-balance?as_of=${encodeURIComponent(financeTrialBalanceAsOf)}`);
   if (!res) return;
 
   if (!res.ok) {
-    const panel = document.createElement('div');
-    panel.className = 'table-panel';
-    panel.style.padding = '24px';
-    panel.textContent = 'Failed to load trial balance.';
-    container.appendChild(panel);
+    await showApiError(res, 'Failed to load trial balance.');
     return;
   }
 
@@ -3933,6 +4337,10 @@ async function renderFinanceView(container) {
         <span style="font-size: 16px; font-weight: 700; color: ${data.balanced ? '#10b981' : '#ef4444'};">${data.status || ''}</span>
       </div>
     </div>
+    <div class="stat-card">
+      <span class="stat-label">As Of</span>
+      <span class="stat-val">${data.as_of || financeTrialBalanceAsOf}</span>
+    </div>
   `;
   container.appendChild(summaryRow);
 
@@ -3952,7 +4360,7 @@ async function renderFinanceView(container) {
       <tbody>
   `;
   if (balances.length === 0) {
-    html += `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No GL postings yet.</td></tr>`;
+    html += `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No GL postings on or before this date. Postings are created automatically when a sale, receipt or invoice is posted &mdash; try a later As Of date.</td></tr>`;
   }
   balances.forEach(b => {
     html += `
@@ -3975,7 +4383,10 @@ async function renderFinanceView(container) {
 // the trial-balance endpoint since that query already LEFT JOINs every
 // account row regardless of postings, so no new backend endpoint is needed.
 async function renderChartOfAccountsPanel(container) {
-  const res = await apiFetch('/api/v1/finance/trial-balance');
+  // Only the account rows (code/name/type) are used here, never the balances,
+  // so the as_of the endpoint now requires (29.7.4) is just "today" - the
+  // gl_accounts side of that LEFT JOIN is unaffected by it either way.
+  const res = await apiFetch(`/api/v1/finance/trial-balance?as_of=${encodeURIComponent(todayISO())}`);
   if (!res) return;
   if (!res.ok) {
     const errPanel = document.createElement('div');
@@ -4002,7 +4413,7 @@ async function renderChartOfAccountsPanel(container) {
       <tbody>
   `;
   if (accounts.length === 0) {
-    html += `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No GL accounts configured yet.</td></tr>`;
+    html += `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No GL accounts configured yet. The chart of accounts is seeded during installation &mdash; ask your administrator to apply any pending database migrations.</td></tr>`;
   }
   accounts.forEach(a => {
     html += `
@@ -4061,7 +4472,7 @@ async function renderAccountingPeriodsPanel(container) {
       <thead><tr><th>Period Name</th><th>Start</th><th>End</th><th>Status</th><th>Closed By</th><th>Actions</th></tr></thead>
       <tbody>
         ${periods.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No accounting periods yet.</td></tr>`
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No accounting periods yet. Use <b>Create Period</b> above to open your first one; the close checklist needs a period to run against.</td></tr>`
           : periods.map(p => `
             <tr>
               <td style="font-weight:600;">${p.period_name}</td>
@@ -4174,7 +4585,7 @@ async function renderVendorInvoicesView(container) {
       <thead><tr><th>Invoice #</th><th>Vendor</th><th>PO</th><th>GRN</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${invoices.length === 0
-          ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No vendor invoices yet.</td></tr>`
+          ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No vendor invoices yet. Use <b>+ New Vendor Invoice</b> above &mdash; have the Purchase Order and Goods Receipt it should 3-way match against to hand.</td></tr>`
           : invoices.map(v => `
             <tr>
               <td style="font-family: monospace;">${v.invoice_number || v.id}</td>
@@ -4343,7 +4754,7 @@ async function renderPaymentProposalsView(container) {
       <thead><tr><th>Proposal #</th><th>Invoices</th><th>Total Amount</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${proposals.length === 0
-          ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No payment proposals yet.</td></tr>`
+          ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No payment proposals yet. Tick one or more Matched vendor invoices above, then <b>Create Proposal from Selected</b>.</td></tr>`
           : proposals.map(p => {
             let ids = [];
             try { ids = JSON.parse(p.invoice_ids || '[]'); } catch (e) { /* leave empty */ }
@@ -4514,7 +4925,7 @@ async function renderFinanceNotesView(container) {
       <thead><tr><th>Note #</th><th>Vendor</th><th>Amount</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${debitNotes.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No debit notes yet.</td></tr>`
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No debit notes yet. Fill in the form above and <b>Post</b> to raise one against a vendor.</td></tr>`
           : debitNotes.map(n => `
             <tr>
               <td style="font-family: monospace;">${n.note_number || n.id}</td>
@@ -4542,7 +4953,7 @@ async function renderFinanceNotesView(container) {
       <thead><tr><th>Note #</th><th>Customer</th><th>Amount</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${creditNotes.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No credit notes yet.</td></tr>`
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No credit notes yet. Fill in the form above and <b>Post</b> to raise one against a customer.</td></tr>`
           : creditNotes.map(n => `
             <tr>
               <td style="font-family: monospace;">${n.note_number || n.id}</td>
@@ -4613,7 +5024,7 @@ async function renderSalesInvoicesView(container) {
       <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${invoices.length === 0
-          ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No sales invoices yet.</td></tr>`
+          ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No sales invoices yet. Use <b>+ New Sales Invoice</b> above to bill a customer on credit; POS sales are settled immediately and do not appear here.</td></tr>`
           : invoices.map(v => `
             <tr>
               <td style="font-family: monospace;">${v.invoice_number || v.id}</td>
@@ -4709,7 +5120,7 @@ async function renderFulfillmentView(container) {
       <tbody>
   `;
   if (!tasks || tasks.length === 0) {
-    html += `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No fulfillment tasks.</td></tr>`;
+    html += `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No fulfillment tasks routed to your location. Tasks appear automatically when a Sales Order is released under <b>Order Management</b>.</td></tr>`;
   }
   (tasks || []).forEach(t => {
     const badgeClass = FULFILLMENT_STATUS_BADGE[t.status] || 'badge-secondary';
@@ -4781,7 +5192,7 @@ window.viewPickList = async function(taskId) {
   overlay.className = 'modal-overlay open';
   overlay.id = 'pick-list-modal';
   const rows = (!lines || lines.length === 0)
-    ? `<tr><td colspan="6" class="text-center text-muted">No bin-level pick lines for this task.</td></tr>`
+    ? `<tr><td colspan="6" class="text-center text-muted">No bin-level pick lines for this task &mdash; it will be picked from general stock instead. Continue as normal.</td></tr>`
     : lines.map(l => {
         const short = l.shortfall > 0
           ? `<span class="badge badge-danger">Short ${l.shortfall}</span>`
@@ -5344,7 +5755,7 @@ function renderMobilePickCard() {
   const wrap = document.getElementById('mobile-pick-card-wrap');
   if (!wrap) return;
   if (mobilePickLines.length === 0) {
-    wrap.innerHTML = `<div class="table-panel" style="padding:24px; text-align:center; color:var(--text-muted);">No pick lines for this wave.</div>`;
+    wrap.innerHTML = `<div class="table-panel" style="padding:24px; text-align:center; color:var(--text-muted);">No pick lines for this wave. Generate a wave under <b>Wave Picking</b> first.</div>`;
     return;
   }
   const line = mobilePickLines[mobilePickIndex];
@@ -5444,13 +5855,13 @@ async function submitWavePickList() {
   let html = `<h3 style="font-size: 14px; font-weight: 700; margin: 16px 0 8px;">Consolidated Pick List (zone/aisle/rack walking order)</h3>`;
   html += `<table><thead><tr><th>Zone</th><th>Aisle</th><th>Rack</th><th>Bin</th><th>SKU</th><th>Pick Qty</th></tr></thead><tbody>`;
   html += data.pick_lines.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No pick lines.</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No pick lines &mdash; nothing in this wave is currently stored in a bin.</td></tr>`
     : data.pick_lines.map(l => `<tr><td>${l.zone || ''}</td><td>${l.aisle || ''}</td><td>${l.rack || ''}</td><td>${l.bin_code}</td><td>${l.sku}</td><td>${l.pick_qty}</td></tr>`).join('');
   html += `</tbody></table>`;
   html += `<h3 style="font-size: 14px; font-weight: 700; margin: 20px 0 8px;">Per-Order Allocation</h3>`;
   html += `<table><thead><tr><th>Task ID</th><th>SKU</th><th>Allocated Qty</th><th>Shortfall</th></tr></thead><tbody>`;
   html += data.allocations.length === 0
-    ? `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No allocations.</td></tr>`
+    ? `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No allocations &mdash; no stock could be reserved for these orders. Check on-hand quantities under <b>Inventory</b>.</td></tr>`
     : data.allocations.map(a => `<tr><td>${a.task_id}</td><td>${a.sku}</td><td>${a.allocated_qty}</td><td>${a.shortfall ? `<span class="badge badge-warning">${a.shortfall}</span>` : '0'}</td></tr>`).join('');
   html += `</tbody></table>`;
   resultEl.innerHTML = html;
@@ -5827,7 +6238,7 @@ async function renderMarketplaceView(container) {
       </thead>
       <tbody>
         ${settlements.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No settlements yet.</td></tr>`
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No settlements yet. Use <b>Reconcile</b> above once a marketplace payout file is available.</td></tr>`
           : settlements.map(s => `
             <tr>
               <td style="font-family: monospace;">${s.code || s.id}</td>
@@ -5896,7 +6307,7 @@ async function renderMarketplaceView(container) {
       </thead>
       <tbody>
         ${bookings.length === 0
-          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No logistics bookings yet.</td></tr>`
+          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No logistics bookings yet. Use <b>Book</b> above to book a shipment with a courier.</td></tr>`
           : bookings.map(b => `
             <tr>
               <td style="font-family: monospace;">${b.code || b.id}</td>
@@ -5948,7 +6359,7 @@ async function renderMarketplaceView(container) {
       </thead>
       <tbody>
         ${manifests.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No manifests yet.</td></tr>`
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No manifests yet. Use <b>Generate Manifest</b> above once shipments have been booked.</td></tr>`
           : manifests.map(m => `
             <tr>
               <td style="font-family: monospace;">${m.code || m.id}</td>
@@ -6365,7 +6776,7 @@ async function renderPurchaseOrdersView(container) {
       <tbody>
   `;
   if (orders.length === 0) {
-    html += `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No purchase orders yet.</td></tr>`;
+    html += `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No purchase orders yet. Fill in the form above and use <b>Create Draft</b> &mdash; you will need a Vendor and at least one Item.</td></tr>`;
   }
   orders.forEach(po => {
     const statusBadge = po.status === 'Approved' ? 'badge-success'
@@ -6755,7 +7166,7 @@ async function renderGRNWorkbenchView(container) {
       <tbody>
   `;
   if (grns.length === 0) {
-    html += `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No goods receipts yet.</td></tr>`;
+    html += `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No goods receipts yet. Use <b>Load Items from PO</b> above to receive against an approved Purchase Order, then <b>Post Receipt</b>.</td></tr>`;
   }
   grns.forEach(g => {
     let lines = [];
@@ -7126,7 +7537,7 @@ async function renderASNView(container) {
       <tbody>
   `;
   if (asns.length === 0) {
-    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No ASNs yet.</td></tr>`;
+    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No ASNs yet. Use <b>Add Line</b> then <b>Save ASN</b> above to record a shipment your vendor has despatched.</td></tr>`;
   }
   asns.forEach(a => {
     let lines = [];
@@ -7459,7 +7870,7 @@ async function renderInventoryView(container) {
         <tbody>
     `;
     html += filtered.length === 0
-      ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No inventory records.</td></tr>`
+      ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No stock on hand anywhere yet. Stock appears once a Goods Receipt is posted against a Purchase Order &mdash; see <b>Procurement &raquo; Goods Receipt</b>.</td></tr>`
       : filtered.map(r => `
           <tr>
             <td style="font-family: monospace;">${copyableCell(r.sku, r.sku)}</td>
@@ -7491,7 +7902,7 @@ async function renderCurrentStockReport(panel) {
       <tbody>
   `;
   html += rows.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No inventory records.</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No stock on hand yet. Stock appears once a Goods Receipt is posted against a Purchase Order.</td></tr>`
     : rows.map(r => `
         <tr>
           <td style="font-family: monospace;">${r.sku}</td>
@@ -7517,7 +7928,7 @@ async function renderSalesRegisterReport(panel) {
       <tbody>
   `;
   html += rows.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No completed sales yet.</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No completed sales yet. Sales appear here as soon as a cart is checked out at <b>Point of Sale</b>.</td></tr>`
     : rows.map(r => `
         <tr>
           <td style="font-family: monospace;">${r.cart_number}</td>
@@ -7542,7 +7953,7 @@ async function renderVendorLedgerReport(panel) {
       <tbody>
   `;
   html += rows.length === 0
-    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No purchase orders yet.</td></tr>`
+    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No purchase orders yet. Raise one under <b>Procurement &raquo; Purchase Order</b>; this ledger follows each one through receipt and payment.</td></tr>`
     : rows.map(r => `
         <tr>
           <td>${r.vendor || ''}</td>
@@ -7966,7 +8377,7 @@ function renderReportCatalogResultTable(container, result, params) {
   if (result.has_drill_down) html += `<th>Details</th>`;
   html += `</tr></thead><tbody>`;
   if (rows.length === 0) {
-    html += `<tr><td colspan="${columns.length + (result.has_drill_down ? 1 : 0)}" style="text-align:center; color:var(--text-muted);">No rows.</td></tr>`;
+    html += `<tr><td colspan="${columns.length + (result.has_drill_down ? 1 : 0)}" style="text-align:center; color:var(--text-muted);">No rows matched. Widen the date range or clear a filter above, then run the report again.</td></tr>`;
   }
   rows.forEach((row, idx) => {
     html += `<tr>`;
@@ -8001,7 +8412,7 @@ async function runReportCatalogDrillDown(reportId, rowKey, rowIdx) {
   const keys = drillRows.length > 0 ? Object.keys(drillRows[0]) : [];
   let inner = `<div style="padding:8px 0;"><table style="width:100%;"><thead><tr>${keys.map(k => `<th>${k}</th>`).join('')}</tr></thead><tbody>`;
   inner += drillRows.length === 0
-    ? `<tr><td colspan="${keys.length || 1}" style="text-align:center; color:var(--text-muted);">No underlying rows.</td></tr>`
+    ? `<tr><td colspan="${keys.length || 1}" style="text-align:center; color:var(--text-muted);">No underlying rows for this figure &mdash; it is a computed total with no individual transactions behind it in the selected period.</td></tr>`
     : drillRows.map(r => `<tr>${keys.map(k => `<td>${r[k] === null || r[k] === undefined ? '' : r[k]}</td>`).join('')}</tr>`).join('');
   inner += `</tbody></table></div>`;
   targetRow.classList.remove('hidden');
@@ -8182,7 +8593,7 @@ async function renderRFQView(container) {
       <tbody>
   `;
   listHtml += rfqs.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No RFQs yet.</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No RFQs yet. Use <b>Create RFQ</b> above to invite quotes from your vendors.</td></tr>`
     : rfqs.map(r => `
         <tr>
           <td style="font-family: monospace;">${r.code || r.id}</td>
@@ -8274,7 +8685,7 @@ async function renderRFQQuotesPanel(container, rfqId, rfq) {
       <thead><tr><th>Quote Number</th><th>Vendor</th><th>Quoted Price</th><th>Lead Time (days)</th><th>Status</th><th></th></tr></thead>
       <tbody>
         ${quotes.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No quotes submitted yet.</td></tr>`
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No quotes submitted yet. Use <b>Submit Quote</b> above to record a vendor's response, then <b>Select as Winner</b>.</td></tr>`
           : quotes.map(q => `
             <tr>
               <td style="font-family: monospace;">${q.code || q.id}</td>
@@ -8418,7 +8829,7 @@ async function renderStickersView(container) {
       <tbody>
   `;
   historyHtml += history.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No print history yet.</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No print history yet. Add SKUs above and use <b>Print Stickers</b>.</td></tr>`
     : history.map(h => `
         <tr>
           <td style="font-family: monospace;">${h.sku}</td>
@@ -8622,6 +9033,16 @@ function employeeOptions(employees) {
   return employees.map(e => `<option value="${e.code || e.id}">${e.code || e.id} - ${e.name || ''}</option>`).join('');
 }
 
+// Stage 30.5.1: Employee is the most damaging of the empty master lists -
+// it strands all four HR screens at once, because Attendance, Leave, Payroll
+// and Loans each start with "pick an employee" and none of them said where
+// employees come from. Every HR employee <select> renders this underneath
+// when the list is empty; returns '' otherwise, so it costs nothing in the
+// normal case.
+function employeePickerHint(employees) {
+  return (employees && employees.length) ? '' : emptyPickerHint('Employee');
+}
+
 async function renderAttendanceTab(container, employees) {
   const res = await apiFetch('/api/v1/doc/Attendance');
   const records = res && res.ok ? await res.json() : [];
@@ -8640,6 +9061,7 @@ async function renderAttendanceTab(container, employees) {
           <option value="">Select employee</option>
           ${employeeOptions(employees)}
         </select>
+        ${employeePickerHint(employees)}
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="att-date">Date</label>
@@ -8674,7 +9096,7 @@ async function renderAttendanceTab(container, employees) {
       <tbody>
   `;
   html += records.length === 0
-    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No attendance records yet.</td></tr>`
+    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No attendance records yet. Pick an employee and a date above, then <b>Save</b>.</td></tr>`
     : records.map(r => `
         <tr>
           <td style="font-family: monospace;">${r.code || r.id}</td>
@@ -8739,6 +9161,7 @@ async function renderLeaveTab(container, employees) {
           <option value="">Select employee</option>
           ${employeeOptions(employees)}
         </select>
+        ${employeePickerHint(employees)}
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="leave-type">Leave Type</label>
@@ -8775,7 +9198,7 @@ async function renderLeaveTab(container, employees) {
       <tbody>
   `;
   html += records.length === 0
-    ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No leave applications yet.</td></tr>`
+    ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No leave applications yet. Use <b>Apply</b> above to record one on an employee's behalf.</td></tr>`
     : records.map(r => `
         <tr>
           <td style="font-family: monospace;">${r.code || r.id}</td>
@@ -8906,7 +9329,7 @@ async function runPayrollExport() {
       <tbody>
   `;
   html += data.length === 0
-    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No records in this period.</td></tr>`
+    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No records in this period. Mark attendance for the month under the <b>Attendance</b> tab, then run the export again.</td></tr>`
     : data.map(e => `
         <tr>
           <td>${e.employee_id}</td>
@@ -8940,6 +9363,7 @@ async function renderPayrollTab(container, employees) {
           <option value="">Select employee</option>
           ${employeeOptions(employees)}
         </select>
+        ${employeePickerHint(employees)}
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="payroll-run-from">Period From</label>
@@ -8966,7 +9390,7 @@ async function renderPayrollTab(container, employees) {
       <tbody>
   `;
   html += payslips.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No payslips yet.</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No payslips yet. Use <b>Run Payroll</b> above &mdash; each employee needs a Salary Structure first.</td></tr>`
     : payslips.map(p => `
         <tr>
           <td style="font-family: monospace;">${p.code || p.id}</td>
@@ -9046,6 +9470,7 @@ async function renderEmployeeLoansTab(container, employees) {
           <option value="">Select employee</option>
           ${employeeOptions(employees)}
         </select>
+        ${employeePickerHint(employees)}
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="loan-principal">Principal Amount</label>
@@ -9072,7 +9497,7 @@ async function renderEmployeeLoansTab(container, employees) {
       <tbody>
   `;
   html += loans.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No loans yet.</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No loans yet. Use <b>Create Loan</b> above, then <b>Disburse</b> to post it to the ledger.</td></tr>`
     : loans.map(l => `
         <tr>
           <td style="font-family: monospace;">${l.code || l.id}</td>
@@ -9282,7 +9707,7 @@ async function renderMyRequestsTab(container) {
         ${myLeaves.map(l => `<tr><td>Leave</td><td>${l.leave_type || ''} ${l.from_date || ''} to ${l.to_date || ''}</td><td><span class="badge badge-secondary">${l.status}</span></td></tr>`).join('')}
         ${myExpenses.map(e => `<tr><td>Expense</td><td>${e.category || ''} ${e.amount ?? ''}</td><td><span class="badge badge-secondary">${e.status}</span></td></tr>`).join('')}
         ${myGrievances.map(g => `<tr><td>Grievance</td><td>${g.category || ''} ${g.description || ''}</td><td><span class="badge badge-secondary">${g.status}</span></td></tr>`).join('')}
-        ${myLeaves.length === 0 && myExpenses.length === 0 && myGrievances.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No requests submitted yet.</td></tr>` : ''}
+        ${myLeaves.length === 0 && myExpenses.length === 0 && myGrievances.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No requests submitted yet. Use <b>Submit Leave Request</b>, <b>Submit Expense Claim</b> or <b>Submit Grievance</b> above.</td></tr>` : ''}
       </tbody>
     </table>
   `;
@@ -9471,7 +9896,7 @@ async function renderAssetsView(container) {
       <tbody>
   `;
   html += assets.length === 0
-    ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No assets yet.</td></tr>`
+    ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No assets yet. Use <b>Create</b> above to capitalise your first fixed asset.</td></tr>`
     : assets.map(a => `
         <tr>
           <td style="font-family: monospace;">${a.code || a.id}</td>
@@ -9674,7 +10099,7 @@ async function renderTransfersView(container) {
       <tbody>
   `;
   html += transfers.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No transfers yet.</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No transfers yet. Use <b>Add Line</b> then <b>Create Transfer</b> above to move stock between locations.</td></tr>`
     : transfers.map(t => `
         <tr>
           <td style="font-family: monospace;">${t.transfer_number || t.id}</td>
@@ -9963,6 +10388,7 @@ async function renderExpensesView(container) {
           <option value="">Select employee</option>
           ${employeeOptions(employees)}
         </select>
+        ${employeePickerHint(employees)}
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="exp-location">Location</label>
@@ -10019,7 +10445,7 @@ async function renderExpensesView(container) {
       <tbody>
   `;
   html += claims.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No expense claims yet.</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No expense claims yet. Use <b>Create Draft</b> above to raise one.</td></tr>`
     : claims.map(c => `
         <tr>
           <td style="font-family: monospace;">${c.code || c.id}</td>
@@ -10277,7 +10703,7 @@ async function renderManufacturingOrdersTab(container) {
       <tbody>
   `;
   html += orders.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No production orders yet.</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No production orders yet. Use <b>Create BOM</b> first if you have none, then <b>Create Order</b>.</td></tr>`
     : orders.map(o => `
         <tr>
           <td style="font-family: monospace;">${o.code || o.id}</td>
@@ -10485,7 +10911,7 @@ async function runMRPSuggestions() {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   if (suggestions.length === 0) {
-    panel.innerHTML = `<div style="padding: 24px; text-align:center; color:var(--text-muted);">No manufactured items are below their reorder point at this location.</div>`;
+    panel.innerHTML = `<div style="padding: 24px; text-align:center; color:var(--text-muted);">No manufactured items are below their reorder point at this location. Set a reorder point on a manufactured Item, or pick a different location above.</div>`;
   } else {
     let html = `
       <table>
@@ -10541,7 +10967,7 @@ async function loadProductionSchedule() {
   }
   const entries = await res.json();
   if (!entries || entries.length === 0) {
-    resultsEl.innerHTML = `<div style="padding:24px; text-align:center; color:var(--text-muted);">No open, routed production orders to schedule.</div>`;
+    resultsEl.innerHTML = `<div style="padding:24px; text-align:center; color:var(--text-muted);">No open, routed production orders to schedule. Create one under the <b>Orders</b> tab; its BOM needs a Routing before it can be scheduled.</div>`;
     return;
   }
   let html = `
@@ -10802,7 +11228,7 @@ async function renderPIMReportsTab(container) {
     const res = await apiFetch(`/api/v1/pim/reports/${encodeURIComponent(name)}`);
     if (!res || !res.ok) { results.innerHTML = '<div class="text-muted">Unable to load this report.</div>'; return; }
     const rows = await res.json();
-    if (!rows.length) { results.innerHTML = '<div class="text-muted">No issues found.</div>'; return; }
+    if (!rows.length) { results.innerHTML = '<div class="text-muted">No issues found &mdash; every item passed this check.</div>'; return; }
     const columns = Object.keys(rows[0]);
     results.innerHTML = `<table><thead><tr>${columns.map(column => `<th>${column.replaceAll('_', ' ')}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${columns.map(column => `<td>${row[column] ?? ''}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
   };
@@ -11054,7 +11480,7 @@ async function renderPIMMediaGallery(itemCode) {
   const media = res && res.ok ? await res.json() : [];
 
   if (media.length === 0) {
-    gallery.innerHTML = `<div style="color: var(--text-muted); font-size: 13px;">No media uploaded yet.</div>`;
+    gallery.innerHTML = `<div style="color: var(--text-muted); font-size: 13px;">No media uploaded yet. Use the upload control above to attach product images to this item.</div>`;
     return;
   }
 
@@ -11155,7 +11581,7 @@ async function renderPIMPublishSection(itemCode) {
   const logRes = await apiFetch(`/api/v1/pim/publish-log?item=${encodeURIComponent(itemCode)}`);
   const log = logRes && logRes.ok ? await logRes.json() : [];
   logEl.innerHTML = log.length === 0
-    ? `<div style="color: var(--text-muted); font-size: 13px;">No publish attempts yet.</div>`
+    ? `<div style="color: var(--text-muted); font-size: 13px;">No publish attempts yet. Publish this item to a sales channel from the Channels section above.</div>`
     // error_code (Stage 26.4.8: marketplace error dictionary) lets a failed
     // attempt be triaged at a glance (missing credential vs. duplicate SKU
     // vs. a blank required field) instead of only reading the raw message.
@@ -11215,13 +11641,13 @@ async function renderPIMContentHistory(itemCode) {
   const versions = versionsRes && versionsRes.ok ? await versionsRes.json() : [];
 
   const logHTML = log.length === 0
-    ? `<div class="text-muted" style="font-size:13px;">No approval history yet.</div>`
+    ? `<div class="text-muted" style="font-size:13px;">No approval history yet. Entries appear here once a content change is submitted for approval.</div>`
     : `<table><thead><tr><th>Action</th><th>By</th><th>Comment</th><th>When</th></tr></thead><tbody>${
         log.map(l => `<tr><td>${l.action}</td><td>${l.actor_user_id}</td><td>${l.comment || ''}</td><td>${l.created_at || ''}</td></tr>`).join('')
       }</tbody></table>`;
 
   const versionsHTML = versions.length === 0
-    ? `<div class="text-muted" style="font-size:13px;">No approved versions yet.</div>`
+    ? `<div class="text-muted" style="font-size:13px;">No approved versions yet. Once a content version is approved you can <b>Restore</b> it from here.</div>`
     : `<table><thead><tr><th>Version</th><th>Title</th><th>Approved At</th><th></th></tr></thead><tbody>${
         versions.map(v => `<tr><td>${v.version_no}</td><td>${(v.data && v.data.title) || ''}</td><td>${v.created_at || ''}</td><td><button class="btn btn-outline btn-sm" data-rollback-version="${v.id}">Restore</button></td></tr>`).join('')
       }</tbody></table>`;
@@ -11459,6 +11885,7 @@ async function renderDocTableView(container) {
       <p class="page-subtitle">Pluggable module metadata records database</p>
     </div>
     <div style="display:flex; gap: 8px;">
+      ${canCreateDoctype(currentDoctype) ? `
       <button class="btn btn-outline" onclick="openImportModal()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
         <span>Bulk Import</span>
@@ -11466,7 +11893,8 @@ async function renderDocTableView(container) {
       <button class="btn btn-primary" onclick="openDynamicModal()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
         <span>New ${getTranslatedLabel(currentDoctype)}</span>
-      </button>
+      </button>` : `
+      <span class="page-header-note" title="Your role has read access to this record type but not create access. Ask an administrator to grant it under Admin &raquo; Roles.">Read-only for your role</span>`}
     </div>
   `;
   container.appendChild(header);
@@ -11531,7 +11959,16 @@ function renderDocTable() {
   `;
 
   if (items.length === 0) {
-    tableHTML += `<tr><td colspan="${state.activeDocFields.length + 1 + (bulkEditingEnabled ? 1 : 0)}" class="text-center py-8 text-muted">No records found.</td></tr>`;
+    // Stage 30.5.2: this one placeholder serves every one of the 50+ generic
+    // record lists, so it is the highest-leverage empty state in the app -
+    // and "No records found." was equally uninformative whether the list was
+    // genuinely empty or the user had simply typed a search that matched
+    // nothing. Those are different problems with different next steps.
+    const label = getTranslatedLabel(currentDoctype);
+    const emptyMsg = currentSearchQuery
+      ? `No ${label} records match &ldquo;${escapeHTMLText(currentSearchQuery)}&rdquo;. Clear the search box above to see all of them.`
+      : `No ${label} records yet. Use <b>New ${label}</b> above to create the first one, or <b>Bulk Import</b> to load a CSV.`;
+    tableHTML += `<tr><td colspan="${state.activeDocFields.length + 1 + (bulkEditingEnabled ? 1 : 0)}" class="text-center py-8 text-muted">${emptyMsg}</td></tr>`;
   } else {
     items.forEach(row => {
       tableHTML += `<tr>`;
@@ -11606,12 +12043,14 @@ function renderDocTable() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </button>` : ''}
           ${prActions}
-          <button class="action-btn" title="Edit" style="margin-right:4px;" onclick="editDocRecord('${row.id}')">
+          ${canUpdateDoctype(currentDoctype) ? `
+          <button class="action-btn" title="Edit" aria-label="Edit ${escapeHTMLText(row.id)}" style="margin-right:4px;" onclick="editDocRecord('${row.id}')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="action-btn action-btn-danger" title="Delete" onclick="deleteDocRecord('${row.id}')">
+          </button>` : ''}
+          ${canDeleteDoctype(currentDoctype) ? `
+          <button class="action-btn action-btn-danger" title="Delete" aria-label="Delete ${escapeHTMLText(row.id)}" onclick="deleteDocRecord('${row.id}')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
-          </button>
+          </button>` : ''}
         </td>
       </tr>`;
     });
@@ -11764,7 +12203,7 @@ window.viewTaxonomyHistory = async function(id) {
   overlay.className = 'modal-overlay open';
   overlay.id = 'pim-history-modal';
   const rows = entries.length === 0
-    ? `<tr><td colspan="3" class="text-center text-muted">No history recorded yet.</td></tr>`
+    ? `<tr><td colspan="3" class="text-center text-muted">No history recorded yet. Entries appear here the first time this record is edited.</td></tr>`
     : entries.map(e => `<tr><td>${e.created_at || ''}</td><td>${e.user_id || ''}</td><td>${e.details || ''}</td></tr>`).join('');
   overlay.innerHTML = `
     <div class="modal-container">
@@ -11891,6 +12330,13 @@ window.openDynamicModal = async function(existingRecord) {
 
   for (const f of state.activeDocFields) {
     if (f.fieldname === 'id') continue;
+    // Stage 30.5.6: f.mirrored marks the derived half of a duplicate
+    // mandatory pair (PurchaseOrder's vendor_id against vendor). The server
+    // copies it across at the same choke point that numbers the document, so
+    // asking for it here would be asking the user to type the same value into
+    // a second identically-named required box. The flag is computed from the
+    // registry that does the copying, not from a doctype list kept here.
+    if (f.mirrored) continue;
 
     // f.auto_generated (Stage 30.6) is stamped on by the server for the
     // document-number fields it issues itself, so this form stops asking for
@@ -11931,6 +12377,17 @@ window.openDynamicModal = async function(existingRecord) {
           return;
         }
         return res.json().then(data => {
+          // Stage 30.5.1: an empty target list used to render as a dropdown
+          // containing only "— Select Reference —" with no indication that
+          // anything was wrong, let alone what to do about it. This is the
+          // single choke point for every Link field on every generic form,
+          // so attaching the affordance here covers all of them at once
+          // (10 of the 18 core master lists were empty at audit time).
+          if (!data || data.length === 0) {
+            select.innerHTML = `<option value="" disabled selected>— No ${getTranslatedLabel(f.options)} records yet —</option>`;
+            fg.insertAdjacentHTML('beforeend', emptyPickerHint(f.options));
+            return;
+          }
           select.innerHTML = '<option value="" disabled selected>— Select Reference —</option>';
           data.forEach(item => {
             // Value must be item.id - that's what the backend's Link
@@ -11944,6 +12401,13 @@ window.openDynamicModal = async function(existingRecord) {
           if (existingVal !== undefined && existingVal !== null) select.value = existingVal;
         });
       });
+    } else if (f.fieldtype === 'JSONTable' || f.fieldtype === 'JSONMap') {
+      // Stage 30.5.3. The editor writes its serialised value into a hidden
+      // input carrying the field's own name, so handleDynamicFormSubmit -
+      // which reads `[name="<fieldname>"]`.value - needed no change at all,
+      // and the stored representation is byte-identical to what a user used
+      // to hand-type. Every Go consumer keeps reading exactly what it read.
+      renderJSONLineEditor(fg, f, existingVal);
     } else if (f.fieldtype === 'Number') {
       const input = document.createElement('input');
       input.className = 'form-input';
@@ -12040,6 +12504,10 @@ window.handleDynamicFormSubmit = async function(e) {
 
   state.activeDocFields.forEach(f => {
     if (f.fieldname === 'id') return;
+    // Mirrored fields (30.5.6) have no input on the form - the server fills
+    // them from their primary. Sending an empty string would overwrite the
+    // copy it just made.
+    if (f.mirrored) return;
     // Stage 30.6: f.auto_generated joins PurchaseRequisition as a field the
     // server numbers during the save itself, so it must not be routed to the
     // admin-only /api/v1/sequence endpoint below (a Store Manager creating a
@@ -12430,7 +12898,7 @@ async function renderApprovalRulesView(container) {
       <table>
         <thead><tr><th>Doctype</th><th>Min Amount</th><th>Max Amount</th><th>Required Role</th><th style="text-align:right;">Actions</th></tr></thead>
         <tbody>
-          ${state.approvalRules.length === 0 ? '<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No approval rules configured.</td></tr>' : state.approvalRules.map(r => `
+          ${state.approvalRules.length === 0 ? '<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No approval rules configured. Use <b>Save Rule</b> above to require approval for a record type &mdash; without a rule, documents skip maker-checker entirely.</td></tr>' : state.approvalRules.map(r => `
             <tr>
               <td style="font-weight:600;">${r.doctype}</td>
               <td>${r.min_amount}</td>
@@ -12670,7 +13138,7 @@ async function renderExtensionHooksView(container) {
       <thead><tr><th>Hook Point</th><th>Doctype</th><th>Target URL</th><th>Enabled</th><th>Timeout</th><th>Created By</th><th>Created</th><th>Actions</th></tr></thead>
       <tbody>
         ${hooks.length === 0
-          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No extension hooks registered yet.</td></tr>`
+          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No extension hooks registered yet. Use <b>Register Hook</b> above to let an external system subscribe to an event.</td></tr>`
           : hooks.map(h => `
             <tr>
               <td>${h.hook_point}</td>
@@ -12818,7 +13286,7 @@ async function renderExtensionHookLogView(container) {
       <thead><tr><th>Called At</th><th>Response Status</th><th>Latency</th><th>Error</th></tr></thead>
       <tbody>
         ${entries.length === 0
-          ? `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No calls logged yet for this hook.</td></tr>`
+          ? `<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No calls logged yet for this hook. Entries appear here the first time its event fires.</td></tr>`
           : entries.map(e => `
             <tr>
               <td>${e.called_at ? new Date(e.called_at).toLocaleString() : ''}</td>
@@ -12944,7 +13412,7 @@ async function renderLogHubView(container) {
               </tr>
             </thead>
             <tbody>
-              ${auditLogs.length === 0 ? '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No audit logs found.</td></tr>' : auditLogs.map(l => `
+              ${auditLogs.length === 0 ? '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No audit logs found for the current filter. Widen the date range or clear the filter above.</td></tr>' : auditLogs.map(l => `
                 <tr>
                   <td>${l.user_id}</td>
                   <td>${l.action}</td>
@@ -12975,7 +13443,7 @@ async function renderLogHubView(container) {
               </tr>
             </thead>
             <tbody>
-              ${systemLogs.length === 0 ? '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No system logs found.</td></tr>' : systemLogs.map(l => `
+              ${systemLogs.length === 0 ? '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No system logs found for the current filter. Widen the date range or clear the filter above.</td></tr>' : systemLogs.map(l => `
                 <tr style="cursor:pointer;" onclick="viewStackTrace('${l.log_id}')">
                   <td><span class="badge badge-secondary">${l.severity}</span></td>
                   <td>${l.module_source}</td>
@@ -13008,7 +13476,7 @@ async function renderLogHubView(container) {
               </tr>
             </thead>
             <tbody>
-              ${intLogs.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No integration payloads found.</td></tr>' : intLogs.map(l => `
+              ${intLogs.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No integration payloads found for the current filter. Widen the date range or clear the filter above.</td></tr>' : intLogs.map(l => `
                 <tr>
                   <td style="font-weight:600;">${l.event_name}</td>
                   <td><span class="badge ${l.status === 'Dispatched' || l.status === 'Success' ? 'badge-success' : l.status === 'Failed' ? 'badge-danger' : 'badge-secondary'}">${l.status}</span></td>
@@ -13451,7 +13919,7 @@ async function renderSystemStatusView(container) {
       <table>
         <thead><tr><th>Environment</th><th>Build Status</th><th>Git Commit</th><th>App Version</th><th>Promoted By</th><th>Promoted At</th></tr></thead>
         <tbody>
-          ${envRows.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No deployments recorded yet.</td></tr>' : envRows.map(d => `
+          ${envRows.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No deployments recorded yet. Rows appear here after a promote or deploy run records its result.</td></tr>' : envRows.map(d => `
             <tr>
               <td style="font-weight:600; text-transform:capitalize;">${d.environment}</td>
               <td>
@@ -13479,7 +13947,7 @@ async function renderSystemStatusView(container) {
       <table>
         <thead><tr><th>Environment</th><th>Build Status</th><th>Git Commit</th><th>Promoted By</th><th>Promoted At</th><th>Notes</th></tr></thead>
         <tbody>
-          ${(deployData.history || []).length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No deployment history.</td></tr>' : deployData.history.map(d => `
+          ${(deployData.history || []).length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No deployment history yet. Rows appear here after a promote or deploy run records its result.</td></tr>' : deployData.history.map(d => `
             <tr>
               <td style="text-transform:capitalize;">${d.environment}</td>
               <td><span class="badge ${d.build_status === 'passed' ? 'badge-success' : d.build_status === 'failed' ? 'badge-danger' : 'badge-secondary'}">${d.build_status}</span></td>
@@ -13504,7 +13972,7 @@ async function renderSystemStatusView(container) {
       <table>
         <thead><tr><th>Type</th><th>Environment</th><th>Status</th><th>Detail</th><th>Started</th><th>Finished</th></tr></thead>
         <tbody>
-          ${(backupData.history || []).length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No backup/restore runs recorded yet.</td></tr>' : backupData.history.map(o => `
+          ${(backupData.history || []).length === 0 ? '<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No backup/restore runs recorded yet. Backups are driven by the deployment scripts &mdash; see the Admin Guide.</td></tr>' : backupData.history.map(o => `
             <tr>
               <td style="text-transform:capitalize;">${(o.run_type || '').replace('_', ' ')}</td>
               <td style="text-transform:capitalize;">${o.environment}</td>
@@ -13665,7 +14133,7 @@ async function renderTenantEntitlementsView(container) {
           <table>
             <thead><tr><th>Module</th><th style="width:100px;">Status</th></tr></thead>
             <tbody>
-              ${modules.length === 0 ? '<tr><td colspan="2" style="text-align:center; color:var(--text-muted);">No modules registered.</td></tr>' : modules.map(m => `
+              ${modules.length === 0 ? '<tr><td colspan="2" style="text-align:center; color:var(--text-muted);">No modules registered. Use <b>Provision Tenant</b> above to grant this tenant its product modules.</td></tr>' : modules.map(m => `
                 <tr>
                   <td>${m.display_name}${m.is_core ? '<span class="badge badge-secondary" style="margin-left:8px;">Always On</span>' : ''}</td>
                   <td>
@@ -13777,7 +14245,7 @@ async function renderTenantUsageView(container) {
       <table>
         <thead><tr><th>Tenant</th><th>Active Users</th><th>In-Flight Requests</th><th>Configured Limits</th></tr></thead>
         <tbody>
-          ${rows.length === 0 ? '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No tenants found.</td></tr>' : rows.map(t => {
+          ${rows.length === 0 ? '<tr><td colspan="4" style="text-align:center; color:var(--text-muted);">No tenants found. Tenants are created by the control-plane provisioning flow &mdash; see the Admin Guide.</td></tr>' : rows.map(t => {
             const pctOfCap = t.concurrency_cap > 0 ? t.in_flight_requests / t.concurrency_cap : 0;
             const concurrencyBadge = pctOfCap >= 1 ? 'badge-danger' : pctOfCap >= 0.5 ? 'badge-warning' : 'badge-success';
             const maxUsers = t.configured_limits && t.configured_limits.max_users;

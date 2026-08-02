@@ -237,19 +237,15 @@
               <polyline points="9 6 15 12 9 18"></polyline>
             </svg>
           </a>
-          <ul class="menu-flyout" id="submenu-master">
-            <li><a class="submenu-item" data-view="brands">Brands</a></li>
-            <li><a class="submenu-item" data-view="subBrands">Sub Brands</a></li>
-            <li><a class="submenu-item" data-view="styles">Styles</a></li>
-            <li><a class="submenu-item" data-view="subStyles">Sub Styles</a></li>
-            <li><a class="submenu-item" data-view="productCategories">Product Categories</a></li>
-            <li><a class="submenu-item" data-view="productTypes">Product Types</a></li>
-            <li><a class="submenu-item" data-view="itemNames">Item Names</a></li>
-            <li><a class="submenu-item" data-view="colors">Colors</a></li>
-            <li><a class="submenu-item" data-view="secondaryColors">Secondary Colors</a></li>
-            <li><a class="submenu-item" data-view="fabricColors">Fabric Colors</a></li>
-            <li><a class="submenu-item" data-view="polishes">Polishes</a></li>
-          </ul>
+          <!-- Populated entirely at runtime by renderSidebarSubmenu() from the
+               tenant's own Master doctypes. This used to hold eleven hardcoded
+               placeholder entries (Sub Brands, Product Categories, Item Names,
+               Secondary Colors, Fabric Colors, Polishes...) that were wiped on
+               first render and corresponded to no doctype that has ever
+               existed - they were dead markup, but USER_SOP §28 had been
+               written from them, which is where 30.3.4's false claim came
+               from. Removed in Stage 30.5.4 so the file can't mislead again. -->
+          <ul class="menu-flyout" id="submenu-master"></ul>
         </li>
 
         <!-- Module: Admin & Settings (21.11: renamed to ERPNext's own term - "Settings" already implies admin-only there; internal id left as module-admin) -->
@@ -318,7 +314,11 @@
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-          <input type="text" id="global-search" placeholder="Search menu, category, type or HSN...">
+          <!-- Stage 30.3.5: was "Search menu, category, type or HSN...", which
+               promised record search this box has never done - it navigates to
+               screens and setup lists (see buildSearchIndex/searchEntries).
+               Use each screen's own search box to find records. -->
+          <input type="text" id="global-search" placeholder="Search screens and setup lists...">
         </div>
         <div class="header-actions">
           <select id="industry-selector" class="form-select" style="width: auto; max-width: 180px; padding: 4px 8px; font-size: 13px; height: 36px; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--panel-bg); color: var(--text-main); margin-right: 8px;">

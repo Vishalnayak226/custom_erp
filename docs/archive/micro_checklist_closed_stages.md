@@ -439,8 +439,8 @@ The two non-blocking observations from `QC_EXHAUSTIVE_REPORT.md` (§FINDINGS SUM
 
 **Two GL reports are deliberately not helped, and are the honest residue of O1:**
 
-- [ ] **29.7.4 Trial balance is an unbounded full aggregate** — `GetTrialBalance` (`engines/finance.go`) sums the *entire* ledger with no date filter, so it must touch every row by definition; no index can fix that, and the QC report's "add an index" framing of O1 was wrong on this specific query. The real fix is to bound it to a period or as-of date — which is how a trial balance is conventionally scoped anyway — but that changes the report's parameters and its screen. **[needs design decision: should Trial Balance take a mandatory as-of date (matching Balance Sheet) or an optional period filter defaulting to the open accounting period? Either is a small change once the shape is chosen.]**
-- [ ] **29.7.5 Statutory GL export can't use an account-leading index** — `GetStatutoryGLExport` filters on date alone with no `account_code`, so `idx_gl_postings_account_created` cannot seek for it. Left to seq-scan on purpose: it is an async background CSV export (`CreateReportExportJob`), not an interactive screen, so a second index on `(created_at)` would tax every posting write to speed up a job nobody waits on. Revisit only if it becomes interactive or the export window starts timing out.
+- [x] **29.7.4 Trial balance is an unbounded full aggregate — closed 2026-08-01.** See `micro_checklist.md` §29.7/29.8 follow-ups for the full entry. Trial Balance now takes a mandatory as-of date.
+- [x] **29.7.5 Statutory GL export can not use an account-leading index — closed 2026-08-01 as a deliberate no-change.** See `micro_checklist.md` §29.7/29.8 follow-ups for the reasoning.
 
 ---
 
@@ -484,7 +484,7 @@ The last two rows walk the exact rotation procedure documented in `deploy/erp.en
 - The first matrices were written from `db/migration.sql`'s original option strings, but later migrations had extended four doctypes (`PurchaseOrder` gained `Pending Approval`/`Rejected`, `ProductionOrder` gained `In Process`, `TransferOrder` gained `Packed`, `CycleCountLine` gained `Recount Requested`). A real PurchaseOrder was sitting in `Pending Approval` that strict mode would have **frozen permanently**. Fixed by generating the approval edges from each doctype's live options instead of a static list.
 - A real `SalesInvoice` was sitting in status `Active`, which isn't in its own option set (legacy debris). No rule can name a `from_status` the schema doesn't declare, so strict mode would have trapped that row forever. Added an escape: a write leaving an **undeclared** status is always allowed — the destination is still constrained by `ValidateDocument`, so this can only move debris back into a legal state.
 
-- [ ] **29.8.5 Judgement calls worth a second look** — `Leave` treats `Approved`/`Rejected` as terminal, so revoking an approved leave is currently blocked; same for `VendorQuote` `Selected`. Both are one admin-editable `StatusTransitionRule` row away from being allowed if that turns out to be wrong in practice — flagged rather than guessed at.
+- [x] **29.8.5 Judgement calls worth a second look — closed 2026-08-01.** Both reversals allowed, reason-code required. See `micro_checklist.md` §29.7/29.8 follow-ups.
 
 ---
 

@@ -250,3 +250,18 @@ func writeAPIErrorGeneric(w http.ResponseWriter, r *http.Request, status int, me
 		DisplayStyle:  entry.DisplayStyle,
 	})
 }
+
+// CatalogEntries exposes the standardized message catalog as a slice, for
+// cmd/gendocs to generate docs/guides/ERROR_CODES.md from. Exported purely so
+// that reference page is produced from this exact map rather than transcribed
+// by hand - a hand-copied list of 300 codes is stale the day someone adds one,
+// which is precisely the class of drift Stage 30.3 had to spend a pass
+// correcting. Returns copies; the catalog itself stays unexported and
+// read-only.
+func CatalogEntries() []CatalogEntry {
+	out := make([]CatalogEntry, 0, len(errorCatalog))
+	for _, e := range errorCatalog {
+		out = append(out, e)
+	}
+	return out
+}

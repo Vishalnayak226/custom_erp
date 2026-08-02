@@ -95,6 +95,9 @@ func handleMyPermissions(w http.ResponseWriter, r *http.Request) {
 			"role":     role,
 			"is_admin": true,
 			"doctypes": []string{},
+			"create":   []string{},
+			"update":   []string{},
+			"delete":   []string{},
 		})
 		return
 	}
@@ -104,8 +107,17 @@ func handleMyPermissions(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
+	// Stage 30.5.7: this used to return read grants only, so the frontend had
+	// no way to know a role could see a record type but not create one - which
+	// is why a Store Manager could fill in the whole New Item form and only
+	// discover the refusal at Save. The other three verbs already exist on
+	// role_permissions and are already enforced server-side; they were simply
+	// never told to the client. Returned as separate lists rather than one
+	// list of objects so the existing `doctypes` key keeps its exact shape and
+	// any older client reading only that is unaffected.
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT doctype_name FROM %s.role_permissions WHERE role = $1 AND allow_read = true`, schema), role)
+		`SELECT doctype_name, allow_read, allow_create, allow_update, allow_delete
+		   FROM %s.role_permissions WHERE role = $1`, schema), role)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
@@ -113,18 +125,36 @@ func handleMyPermissions(w http.ResponseWriter, r *http.Request) {
 	defer rows.Close()
 
 	doctypes := []string{}
+	createable := []string{}
+	updatable := []string{}
+	deletable := []string{}
 	for rows.Next() {
 		var d string
-		if err := rows.Scan(&d); err != nil {
+		var canRead, canCreate, canUpdate, canDelete bool
+		if err := rows.Scan(&d, &canRead, &canCreate, &canUpdate, &canDelete); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
-		doctypes = append(doctypes, d)
+		if canRead {
+			doctypes = append(doctypes, d)
+		}
+		if canCreate {
+			createable = append(createable, d)
+		}
+		if canUpdate {
+			updatable = append(updatable, d)
+		}
+		if canDelete {
+			deletable = append(deletable, d)
+		}
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"role":     role,
 		"is_admin": false,
 		"doctypes": doctypes,
+		"create":   createable,
+		"update":   updatable,
+		"delete":   deletable,
 	})
 }
 

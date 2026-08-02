@@ -8,7 +8,7 @@ This document assumes you're already logged in as an **HR/Admin** role (ADMIN_GU
 
 ## Part A — Settings Screens
 
-All five of these live under the **Settings** flyout in the sidebar, plus the **Activity Log** already covered here too. Every action on every one of these screens is enforced **server-side** as HR/Admin-only — a non-admin role gets a 403 even though the menu items themselves are currently visible to everyone (see USER_GUIDE.md §3's note on this).
+These live under the **Settings** flyout in the sidebar. Every action on every one of them is enforced **server-side** as HR/Admin-only — that is the real gate, and it holds regardless of what the menu shows. The menu is *also* trimmed per role: a role with no read access to a screen does not see it, and a whole module flyout disappears once every entry inside it is hidden. Since Stage 30.5.7 the same applies within a screen — a role that can read a record type but not create one sees no **New** or **Bulk Import** button, and no row **Edit**/**Delete** icons, rather than discovering the refusal at Save.
 
 ### A.1 Users — creating and managing accounts
 
@@ -25,6 +25,9 @@ Sidebar: **Settings** → **Users**.
 ### A.2 Roles — the permission grant matrix
 
 Sidebar: **Settings** → **Roles**. This controls what each non-admin role can Read/Create/Update/Delete, per record type. **HR/Admin itself always has full access everywhere and never needs a row here.**
+
+
+![The Roles screen: the grant matrix above, the add-grant form below](img/roles.png)
 
 1. Pick a **Role** and a **Record Type** from the two dropdowns.
 2. Tick whichever of **Read / Create / Update / Delete** should apply (Read is ticked by default).
@@ -63,9 +66,18 @@ Sidebar: **Settings** → **Database Schema Design** (internally still called "D
 3. Click **Add Field**. You'll be prompted in sequence for:
    - **Field name** (technical identifier, e.g. `material_weight`)
    - **Label** (display text, e.g. `Material Weight`)
-   - **Fieldtype** — type exactly one of `Data` (short text), `Number`, `Select` (dropdown), `Check` (boolean), `Date`, or `Link` (foreign key to another record type)
+   - **Fieldtype** — type exactly one of `Data` (short text), `Number`, `Select` (dropdown), `Check` (boolean), `Date`, `Link` (foreign key to another record type), `JSONTable` (a repeating line table — see below) or `JSONMap` (a key/value list)
    - Whether it's **mandatory** (confirm/cancel)
-   - **Options** — for `Select`, a comma-separated choice list; for `Link`, the target record type's name; otherwise leave blank
+   - **Options** — for `Select`, a comma-separated choice list; for `Link`, the target record type's name; for `JSONTable`, the column spec (below); otherwise leave blank
+
+   A `JSONTable` field renders as an add-line table on the create form instead of a text box. Its **Options** is a JSON array describing the columns, e.g.
+
+   ```json
+   [{"key":"sku","label":"Component SKU","type":"link","link":"Item","required":true},
+    {"key":"qty","label":"Qty per Unit","type":"number","required":true}]
+   ```
+
+   `type` is `text`, `number` or `link` (with `link` naming the target record type, which makes that cell a live typeahead). A `required` column is enforced on every line at save time, with the error naming the offending line number. `JSONMap` needs no spec — it always renders a two-column Key/Value table.
 4. Confirming the last prompt saves the field immediately — it appears in the table and is live on that record type's create form right away.
 5. **Deleting a field**: click **Delete** on its row in the field table, confirm. This removes the field definition (existing saved data in that field on old records is not retroactively stripped, it just stops showing).
 6. This is different from adding an actual *record* of an existing type (a new Vendor, a new Brand) — that's a normal business-user task done from that record type's own screen (USER_SOP.md §1).
@@ -90,13 +102,101 @@ Not under Settings — it's the dropdown in the header bar next to the Sync butt
 
 ---
 
+### A.7 Approval Rules — which role signs off what, and above what amount
+
+Sidebar: **Settings** → **Approval Rules**. The routing table behind every approval-gated document. Full detail on using it is in §B.9; this is the screen itself.
+
+1. The table lists every configured rule: **Record Type**, **Min Amount**, **Max Amount**, **Required Role**.
+2. To add or change one, fill in the form and click **Save Rule**. Re-saving the same record type and amount band replaces that rule rather than adding a second.
+3. **Leave no gap between bands.** A document whose amount falls in no band is not gated at all — it saves without any approval. If one band ends at 49,999 the next must start at 50,000.
+4. Overlapping bands are rejected at save time with a message naming the conflict.
+5. Every change is written to the Activity Log's Audit Logs tab as `SAVE_APPROVAL_RULE`.
+
+### A.8 Configuration — every operational setting, per module
+
+Sidebar: **Settings** → **Configuration**. **Nothing operational in this system is hardcoded.** 36 settings across 12 modules live here, and every one is read at the point it is used, on every use — so a change takes effect immediately, everywhere, with no restart.
+
+
+![The Configuration screen, one module at a time](img/configuration.png)
+
+1. Pick a module from the rail on the left (Sales & Returns, Procurement, Point of Sale, Manufacturing, HR & Payroll, CRM, Warehouse, PIM, Security, Platform, Finance, Integrations).
+2. Change the values you need and click **Save Changes**.
+3. **Numeric settings carry enforced Min/Max guardrails.** A value outside the allowed range is refused at save time with a message naming the bound — deliberately, so a mistyped platform limit cannot take the server down.
+4. A setting you have never touched shows its **default**, which is byte-for-byte the constant it replaced. An untouched tenant behaves exactly as it always did.
+
+What lives here, in brief:
+
+| Module | Examples |
+|---|---|
+| **Sales & Returns** | Sales return window (days) |
+| **Procurement** | Vendor-invoice 3-way match tolerance; **PO and GRN edit windows** (0 = no time limit, the default) |
+| **Point of Sale** | Cash-drawer variance tolerance; loyalty value per point |
+| **Manufacturing** | BOM nesting depth; production cost variance; MRP default lead time |
+| **HR & Payroll** | ESI wage ceiling — a statutory figure that should never have needed a redeploy |
+| **CRM** | Churn and lapsed-customer thresholds |
+| **Warehouse** | The three cycle-count tier intervals; productivity threshold |
+| **PIM** | Bulk-edit cap; thumbnail size |
+| **Security** | Session token TTL; password-reset TTL; lockout threshold and duration; TOTP drift tolerance |
+| **Platform** | Default and maximum list page size; per-tenant concurrency; CSV import batch size; max synchronous report rows; blanket field length cap |
+
+> **One precedence rule worth knowing.** For settings that also have an environment variable (`JWT_EXPIRY_HOURS` is the only one today), the order is **explicit admin edit → environment variable → registered default**. So a deployment that sets the env var still shows the control, and an admin edit still wins over it — the control is never a lie.
+
+#### A.8.1 Integrations
+
+The same screen has an **Integrations** section for the multi-row credential records that aren't simple key/value settings:
+
+- **Pine Labs terminals**, keyed by `terminal_id` — base URL and credentials per terminal.
+- **Unicommerce / middleware stores**, keyed by `store_code` — base URL and credentials per store.
+
+Secrets are masked in the list. Saving upserts, and the running workers pick a changed URL up on their next call — no restart. These deliberately exist **only** here; they are not duplicated into the settings list above, because two sources of truth for one URL is exactly the drift this screen exists to remove.
+
+### A.9 Extension Hooks — letting an outside developer subscribe to events
+
+Sidebar: **Settings** → **Extension Hooks**. For a client's own hired developer to react to events in this system without being given database access. See `extension-sdk/README.md` for the developer-facing side.
+
+1. **To register a hook**: fill in the **Hook Point** (which event), the **Doctype** it applies to, the **Target URL** (must be `https://`), and a **Timeout (ms)**. Click **Register Hook**.
+2. The table lists every registered hook with whether it's **Enabled**, its timeout, and who created it when.
+3. **View Log** opens that hook's **Hook Call Log** — the most recent 100 calls, with what was sent and what came back. This is the first place to look when a developer says "the webhook isn't firing".
+4. **Delete** removes a hook after confirmation.
+5. **Issue Token** mints a scoped token for an external caller: pick the **Scope Doctype** and a **TTL** in minutes (maximum 1440, i.e. one day). **The token is shown once.** Copy it then; it cannot be retrieved afterwards.
+
+> Keep TTLs short and scopes narrow. A scoped token is not a user account — it has no user row behind it, so the live user-state re-check that protects normal sessions does not apply to it. Revoking one means deleting its hook.
+
+### A.10 System Status — deployment and backup health
+
+Sidebar: **Settings** → **System Status**. Read-only.
+
+1. **Latest Deployment by Environment** — one row per environment with build status, git commit, app version, who promoted it and when. Use it to answer "what is actually running on staging right now?" without SSH.
+2. **Deployment history** — the same, over time.
+3. **Backup / restore runs** — including the **last restore drill** date, badged as a warning once it goes stale. A backup nobody has ever restored is not a backup; this row is there to make that visible.
+
+Rows appear here because a promote/deploy script recorded them. An empty table means the scripts haven't run against this database, not that nothing is deployed.
+
+### A.11 Tenant Entitlements — which products a tenant has
+
+Sidebar: **Settings** → **Tenant Entitlements**. Controls which modules a tenant can see and use.
+
+1. Pick a **Tenant**. The table shows each module and whether it is enabled for them.
+2. Toggle modules and save. The effect is immediate: the tenant's sidebar hides what they're not entitled to, and — the part that matters — the **server refuses requests for a doctype whose module is not granted**, with a `SAAS-0191`. The menu trimming is convenience; this is the enforcement.
+3. **Provision Tenant** creates a new tenant schema: enter the **Tenant ID** and **Schema Name**. The new schema is cloned from `tenant_default`, so it inherits every doctype, field, seeded rule and permission grant.
+
+> A module gate applies to *every* doctype mapped to that module. If a tenant reports that one screen 403s while its neighbours work, check this screen before looking at role permissions.
+
+### A.12 Tenant Usage — live load per tenant
+
+Sidebar: **Settings** → **Tenant Usage**. Read-only.
+
+Shows, per tenant: **Active Users**, **In-Flight Requests**, and the **Configured Limits** they're being measured against. The per-tenant concurrency limit itself is a setting (§A.8, Platform). Use this when one tenant reports slowness — if their in-flight count is pinned at the limit, they are being throttled, not failing.
+
+---
+
 ## Part B — The Maker-Checker Engine and Every Approval-Gated Workflow
 
 ### B.1 How it works, generically
 
 Every approval-gated document follows the same shape: a maker creates it as **Draft**, submits it (an explicit "Submit for Approval" action, or automatically as part of another action like POS checkout), it becomes **Pending Approval**, and it shows up for a checker on the **Approvals** screen (USER_SOP.md §6) — filtered to whichever role is required for that specific document's amount. The checker clicks **Approve** or **Reject** (optionally with a note on rejection). Once decided, it's permanent and logged (`approval_log`) — there's no silent re-open.
 
-Which role is required, and above what amount, is controlled by rows in an internal `approval_rules` table (per-tenant, per-doctype, banded by a min/max amount). As of this writing there is a read/write API for this (`GET`/`POST /api/v1/approval/rules`, HR/Admin-only for writes) but **no screen in the app to view or edit these rules** — see §B.9 below for how to change a threshold today.
+Which role is required, and above what amount, is controlled by rows in an internal `approval_rules` table (per-tenant, per-doctype, banded by a min/max amount). Edit these on **Settings → Approval Rules** — see §B.9. (An earlier version of this SOP said there was no screen for this and gave a curl recipe instead. There is a screen; use it.)
 
 ### B.2 Purchase Order approval
 
@@ -108,7 +208,7 @@ Which role is required, and above what amount, is controlled by rows in an inter
 
 A `PurchaseRequisition` record type exists with the same default amount routing as Purchase Orders (0–49,999 → Store Manager, 50,000+ → HR/Admin), and it's already wired into the approval engine at the data layer.
 
-**However, there is currently no screen anywhere in the app to create, view, or submit a Purchase Requisition** — no sidebar entry, no bespoke view, and it isn't a Master-type record so it never appears under Setup either. If your process depends on requisitions preceding a PO, this step is not yet usable from the UI; flag it to a developer if you need it working end-to-end.
+Maker flow: **Procurement → Purchase Requisitions** (USER_SOP.md §15A). Create it, submit it, and it routes exactly like a PO. Checker flow: Approvals screen, as §B.1. (An earlier version of this SOP said there was no screen for this at all. There is one, in the Procurement flyout.)
 
 ### B.4 Expense Claim approval
 
@@ -125,7 +225,7 @@ A `PurchaseRequisition` record type exists with the same default amount routing 
 ### B.6 Cycle-count variance approval
 
 - A `CycleCountLine` record with any non-zero quantity variance routes to **Store Manager** for approval — this is the "cycle-count variance approval" gate.
-- **Gap to know about**: the count itself (physically counting a bin and recording the variance) and its reconciliation (`POST /api/v1/wms/cycle-count/reconcile`) are backend-only — there is no screen to *start* a cycle count or enter counted quantities. If a `CycleCountLine` record does exist (created via direct API/database work), it will correctly show up on the Approvals screen and can be decided normally — it's only the *initiation* step that has no UI today.
+- Starting a count and entering counted quantities is done on **Stock → Cycle Count** (USER_SOP.md §20G); reconciliation runs from the same screen. Variance lines then appear on Approvals and are decided normally. (An earlier version of this SOP said initiation was API-only. It is not.)
 
 ### B.7 PIM Content approval (ProductContent)
 
@@ -137,11 +237,18 @@ A `PurchaseRequisition` record type exists with the same default amount routing 
 
 - Normally a `VendorInvoice` is paid directly once **Matched** (USER_SOP.md §7) — no approval needed for that path.
 - The backend also supports an **override**: paying an invoice that is *not* Matched (e.g. stuck in `MismatchHold`) by supplying an `override_reason`, which claims it as Pending Approval instead of paying immediately, routed by the same engine (default: any amount → **HR/Admin**).
-- **Gap to know about**: the app's Vendor Invoice screen never sends an `override_reason` — its **Pay**/**Pay w/ TDS** buttons only appear once an invoice is already **Matched**, and a `MismatchHold` invoice's only available action is **Match** again. There is currently no UI path to actually trigger this override. If a MismatchHold invoice genuinely needs to be paid without a clean 3-way match, that requires direct API access today, not a button in the app.
+- **How to trigger it**: on **Financial Accounting → Vendor Invoice**, a `MismatchHold` invoice shows an **Override & Pay** button alongside **Match**. It prompts for a written reason, refuses to proceed without one, and submits the payment for approval rather than paying immediately — the response says *"Override submitted - routed for approval"*. The reason is stored on the invoice (`payment_override_reason`) and in the approval log. (An earlier version of this SOP said no UI path existed. It does.)
 
-### B.9 Changing approval-rule thresholds/roles (no screen — API only)
+### B.9 Changing approval-rule thresholds/roles
 
-Since there is no admin screen for `approval_rules` yet, changing a threshold or required role (e.g. raising the PO auto-approval-required amount, or changing who approves POS discounts) means calling the API directly. Any logged-in HR/Admin can do this from PowerShell:
+Use **Settings → Approval Rules**. The screen lists every configured rule (record type, amount band, required role) and lets you add or edit one in place: pick the **Record Type**, set **Min Amount** / **Max Amount**, choose the **Required Role**, and click **Save Rule**. Saving the same record type and band again replaces that rule rather than adding a duplicate.
+
+Two things to get right:
+
+- **Leave no gap between bands.** A document whose amount falls in no band is not gated at all. If Store Manager covers 0–49,999, the next band must start at 50,000, not 50,001.
+- **A rule needs two people to be useful.** Maker-checker refuses self-approval, so whoever creates the document cannot approve it — see §B.10.
+
+The underlying API (`GET`/`POST /api/v1/approval/rules`, HR/Admin-only for writes) is still there if you need to script a bulk change:
 
 ```powershell
 # 1. Log in and capture the bearer token (replace credentials)
@@ -160,7 +267,26 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8080/api/v1/approval/rules
   -Body '{"doctype":"PurchaseOrder","min_amount":0,"max_amount":49999,"required_role":"Store Manager"}'
 ```
 
-`max_amount` can be omitted/`null` for an open-ended top band. The save endpoint runs an overlap check against existing bands for that doctype and rejects a conflicting range with an error message explaining the conflict. Every change here is written to the Activity Log's Audit Logs tab (`SAVE_APPROVAL_RULE`) automatically, same as everything else in this system — so even though it's API-only, it's not untracked.
+`max_amount` can be omitted/`null` for an open-ended top band. The save endpoint runs an overlap check against existing bands for that doctype and rejects a conflicting range with an error message explaining the conflict. Every change here is written to the Activity Log's Audit Logs tab (`SAVE_APPROVAL_RULE`) automatically, same as everything else in this system.
+
+### B.10 You need at least two user accounts — this is a hard prerequisite
+
+**Maker-checker refuses self-approval.** Whoever submits a document cannot be the person who approves it, at any role, for any amount, with no override. That is the entire point of the mechanism, and it is enforced server-side.
+
+The practical consequence catches out almost every new installation:
+
+> **A single-user install can never complete an approval-gated document.** If you set the system up with one admin account and try to walk the purchasing flow yourself, your Purchase Order will submit, appear in Approvals — and refuse your own Approve click. Nothing is broken. You need a second account.
+
+So, before your first end-to-end run, create at least two users (§A.1):
+
+| Account | Role | Does |
+|---|---|---|
+| The maker | e.g. **Store Manager** | Creates and submits the PO, GRN, requisition, expense claim |
+| The checker | **HR/Admin**, or a second Store Manager | Approves or rejects it |
+
+Which role has to approve depends on the amount band (§B.9), so make sure the checker's role is the one your bands actually name. The commonest version of this problem is a two-person setup where both people happen to be Store Managers and the amount lands in the HR/Admin band — the document then sits in Approvals with nobody able to decide it.
+
+To confirm your setup works, do the smoke test in USER_GUIDE §14 (the end-to-end worked example) with both accounts before rolling the system out to anyone.
 
 ---
 
@@ -197,23 +323,30 @@ Covered from the user's perspective in USER_SOP.md §14.2. The admin-relevant me
 
 ---
 
-## Part D — Known Gaps: Backend Capability With No Screen Yet
+## Part D — Corrections: the "no screen yet" gaps are closed
 
-For completeness (and so you don't spend time hunting for a button that doesn't exist), here's everything found, while writing this SOP, that has real backend/API support but **no UI entry point** as of this session:
+**This section used to list nine capabilities as backend-only with no UI. All nine now have screens.** The list was written early and never re-driven against the app, and by the 2026-07-30 usability audit every row of it was false. Leaving it in place cost real time — it sent administrators to hand-rolled API calls for things that were a click away, and it fed the same wrong claims into USER_SOP and the UAT checklist, where a tester could sign a release off without testing eight shipped screens.
 
-| Capability | Backend evidence | What to do today |
-|---|---|---|
-| **GRN (Goods Receipt Note)** creation | `GRN` doctype registered (Transaction type), referenced by Vendor Invoice matching | No screen anywhere creates one. If your process needs GRN numbers, they must be created via direct API/database access. |
-| **Purchase Requisition** | `PurchaseRequisition` doctype + approval-rule band already seeded | No sidebar item, no view, not Master-type (so not in Setup either). API/database only. |
-| **Putaway** (assigning received stock to a bin) | `POST /api/v1/wms/putaway` | API only. |
-| **Pick List** (bin-driven picking) | `GET /api/v1/wms/pick-list` | API only. (Fulfillment's Pending → Picking → Packed → Dispatched screen, USER_SOP.md §12, covers order-level pick/pack/dispatch status but not bin-level pick-list generation.) |
-| **Bin condition transition** (e.g. Good → Damaged) | `POST /api/v1/wms/condition-transition` | API only. |
-| **Cycle count initiation/counting** | `POST /api/v1/wms/cycle-count/reconcile` | API only — see §B.6 above; the resulting variance line's *approval* does work from the Approvals screen once it exists. |
-| **Approval Rules configuration screen** | `GET`/`POST /api/v1/approval/rules` | API only — see §B.9 above for the exact calls. |
-| **Vendor Invoice override-pay** (paying a non-Matched invoice) | `PayVendorInvoice`'s `overrideReason` parameter | No UI trigger sends this — see §B.8 above. |
-| **Per-record Edit on a generic record-list screen** | n/a — verified absent in the UI code itself | Only Delete-and-recreate, or (for Item/PIM record types only) multi-select Bulk Edit — see USER_SOP.md §1 and §27.4. |
+It is kept here as a correction rather than deleted, because anyone working from a printed or cached copy of the old table needs to know it was wrong.
 
-None of these are things a user is doing wrong — they're genuine gaps between what the engines already support and what's wired into the frontend. If any of them become priorities, they're each a frontend-only addition (the backend logic and validation already exist and are already tested), not new engine work.
+| Was listed as "no screen" | Where it actually is |
+|---|---|
+| **GRN (Goods Receipt Note)** creation | **Procurement → Goods Receipt**. Loads lines from a PO or ASN, posts the receipt, raises stock. USER_SOP §15B. |
+| **Purchase Requisition** | **Procurement → Purchase Requisitions**. USER_SOP §15A. |
+| **Putaway** (assigning received stock to a bin) | **Stock → Putaway**. USER_SOP §20A. |
+| **Pick List** (bin-driven picking) | **Stock → Wave / Batch Picking** (generate and release) and **Stock → Mobile Picking** (the handheld walk order). USER_SOP §20E/§20F. |
+| **Bin condition transition** (Good → Damaged etc.) | **Stock → Bin Conditions**. USER_SOP §20B. |
+| **Cycle count initiation/counting** | **Stock → Cycle Count**. USER_SOP §20G. Variance approval still lands in Approvals as before. |
+| **Approval Rules configuration** | **Settings → Approval Rules**. Full read/write screen — see §B.9, which now documents the screen instead of curl. |
+| **Vendor Invoice override-pay** | **Financial Accounting → Vendor Invoice**: a `MismatchHold` invoice shows **Override & Pay**, which demands a written reason and routes it to approval (it does not pay immediately). See §B.8. |
+| **Per-record Edit on a record-list screen** | Every row has a pencil **Edit** icon beside its Delete icon. The old claim that it was "verified absent in the UI code itself" was simply wrong, and the delete-and-recreate workaround it recommended destroyed data for no reason. |
+
+**Genuinely still API-only**, verified while rewriting this section — a short list, and none of it is a routine administrative task:
+
+- **Tenant provisioning and module entitlement changes** beyond what **Settings → Tenant Entitlements** exposes (creating a tenant itself is a control-plane operation — ADMIN_GUIDE §A).
+- **Direct `documents` upserts by explicit id.** The generic API still honours a caller-supplied `id` as an upsert; no screen does this, deliberately (see the numbering note in §B.3.2).
+
+If you find something else in this SOP that doesn't match the app, the doc is what's wrong. Re-drive it and fix it here.
 
 ---
 

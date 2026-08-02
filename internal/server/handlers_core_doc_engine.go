@@ -323,6 +323,14 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Fill the derived half of any duplicate mandatory field pair
+		// (Stage 30.5.6 - PurchaseOrder's vendor/vendor_id). Same position and
+		// same reason as the numbering call above: both halves are mandatory,
+		// so the copy has to happen before ValidateDocument runs. Applies to
+		// updates as well as creates, since an edit that changes the vendor
+		// must move both keys together or the two would drift apart.
+		engines.PrepareMirroredFields(doctype, payload)
+
 		// A GRN's receiving location defaults from its PO's target warehouse
 		// when the caller didn't supply one (Stage 30.2.1). Before metadata
 		// validation for the same reason PreparePurchaseRequisition is: the

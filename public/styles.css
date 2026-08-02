@@ -1779,3 +1779,164 @@ pre {
 .page-banner-close:hover {
   opacity: 1;
 }
+
+/* Empty-state guidance (Stage 30.5.1 / 30.5.2).
+   One vocabulary for "there is nothing here yet, and here is the next step",
+   used both under an empty picker and inside an empty table's placeholder
+   row. Uses the existing colour tokens so it inherits light/dark for free. */
+.empty-state-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.empty-state-link {
+  color: var(--primary-color);
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.empty-state-link:hover,
+.empty-state-link:focus-visible {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+/* An empty typeahead menu's dead-end row is informational, not selectable -
+   it must not pick up .typeahead-item's hover/active affordances. */
+.typeahead-item-empty,
+.typeahead-item-empty:hover,
+.typeahead-item-empty.active {
+  cursor: default;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Setup menu grouping / filter / Advanced divider (Stage 30.5.4).
+   The flyout is built at runtime from every Master doctype; these are the
+   three non-navigable row types that structure it. */
+.submenu-tools {
+  padding: 8px 10px;
+  position: sticky;
+  top: 0;
+  background-color: var(--panel-bg);
+  border-bottom: 1px solid var(--border-color);
+  z-index: 1;
+}
+
+.submenu-filter {
+  width: 100%;
+  padding: 6px 8px;
+  font-size: 13px;
+  font-family: var(--font-family);
+  color: var(--text-main);
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.submenu-filter:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.submenu-group-label {
+  padding: 10px 12px 4px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.submenu-advanced-toggle {
+  margin-top: 6px;
+  border-top: 1px solid var(--border-color);
+}
+
+.submenu-advanced-toggle .submenu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.submenu-advanced-caret {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+/* JSON line editor (Stage 30.5.3) - the add-line table that replaced
+   hand-typed JSON on BOM, Routing, AppraisalCycle and the two report
+   profile masters. Reuses the existing .btn/.form-input vocabulary; only
+   the table's own density is new. */
+.json-line-editor {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 10px;
+  background-color: var(--surface-subtle);
+}
+
+.json-line-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 8px;
+}
+
+.json-line-table th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 4px 6px 6px;
+}
+
+.json-line-table td {
+  padding: 3px 6px 3px 0;
+  vertical-align: middle;
+}
+
+.json-line-table td:last-child {
+  width: 1%;
+  white-space: nowrap;
+  padding-right: 0;
+}
+
+.json-line-table .form-input {
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+.json-line-empty {
+  padding: 10px 6px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.json-line-raw {
+  width: 100%;
+  margin-top: 8px;
+  font-family: Consolas, Monaco, monospace;
+  font-size: 12px;
+}
+
+/* Stage 30.5.7: what stands in for the create buttons when the current role
+   has read access to a record type but not create access. */
+.page-header-note {
+  align-self: center;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  cursor: help;
+}

@@ -136,23 +136,39 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 	return tx.Commit()
 }
 
-// GetTrialBalance fetches summary trial balances for the current tenant accounts
-func GetTrialBalance(tenantID string) (map[string]interface{}, error) {
+// GetTrialBalance fetches summary trial balances for the current tenant
+// accounts as of a single date - every gl_posting up to and including
+// asOfDate, which is how a trial balance is conventionally scoped and matches
+// GetBalanceSheet's own parameter shape.
+//
+// asOfDate is mandatory (Stage 29.7.4). Before that this summed the *entire*
+// ledger with no date filter, so it had to touch every posting by definition
+// and no index could help it - the QC report's "add an index" framing of O1
+// was wrong on this specific query, because the query itself was the problem.
+// The predicate is spelled as the half-open `created_at < ($1::date + 1)`
+// rather than `created_at::date <= $1`, per the convention documented at the
+// top of finance_reports_stage26.go: a cast wraps the indexed column in a
+// function call, which can never be a range seek, so the sargable spelling is
+// what actually lets idx_gl_postings_account_created serve this.
+func GetTrialBalance(tenantID, asOfDate string) (map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
 	}
+	if asOfDate == "" {
+		return nil, &ValidationError{Code: "GLOBAL-0001", SubFor: "As Of Date", Message: "as_of date is required for a trial balance"}
+	}
 
 	query := fmt.Sprintf(`
-		SELECT a.account_code, a.account_name, a.account_type, 
-		       COALESCE(SUM(p.debit), 0) as total_debit, 
+		SELECT a.account_code, a.account_name, a.account_type,
+		       COALESCE(SUM(p.debit), 0) as total_debit,
 		       COALESCE(SUM(p.credit), 0) as total_credit
 		FROM %s.gl_accounts a
-		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code
+		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at < ($1::date + 1)
 		GROUP BY a.account_code, a.account_name, a.account_type
 		ORDER BY a.account_code`, schema, schema)
 
-	rows, err := db.DB.Query(query)
+	rows, err := db.DB.Query(query, asOfDate)
 	if err != nil {
 		return nil, err
 	}
@@ -195,6 +211,7 @@ func GetTrialBalance(tenantID string) (map[string]interface{}, error) {
 		"total_credits": totalCredits,
 		"status":        statusMsg,
 		"balanced":      balanced,
+		"as_of":         asOfDate,
 	}, nil
 }
 

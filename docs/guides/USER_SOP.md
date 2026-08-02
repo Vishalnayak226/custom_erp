@@ -10,10 +10,17 @@ This document assumes you've already read USER_GUIDE.md §2 (Logging In) and §3
 
 A few things work the same way everywhere in this system. Learn them once here instead of re-reading them on every screen below.
 
-- **The header search box** (top of the screen, "Search menu, category, type or HSN..."). Despite the placeholder text, it does **not** search across the whole app — it only filters the table you're currently looking at, and only on screens that show a plain record list (what this SOP calls a "record-list screen" — Vendors, Stores, Brands, Colors, and everything else reached from **Setup** or a similar list). On any other screen (POS, Reports, PIM, etc.) it does nothing.
+- **The header search box** (top of the screen, "Search screens and setup lists...") is a **navigator, not a record search**. Type a few letters and it suggests screens and setup lists by name — "purch" offers Purchase Order, Purchase Requisitions and so on — and picking one takes you there. It does **not** look inside your records: it will not find a particular vendor, item or invoice. To find a *record*, go to its screen first and use that screen's own **Search table...** box.
+- **Each record-list screen has its own search box**, just above the table. It filters the list you're looking at. If it finds nothing, the table says so and tells you to clear the box — that means "no match", not "empty list".
 - **Creating a new record on a record-list screen**: click the plus-icon **New [Record Type]** button (top right), fill in the fields — anything with a red **\*** is required — and click **Save**. A field showing greyed-out placeholder text like *"Auto-generated upon save"* is numbered for you: leave it alone, you can't type in it.
+- **If you don't see New or Bulk Import**, your role has read access to that record type but not create access. Instead of the buttons you'll see a small **"Read-only for your role"** label — hover it for the explanation. Ask an administrator to grant your role create access on the **Roles** screen (see [ADMIN_SOP.md](ADMIN_SOP.md) §A.2). The same applies to the row **Edit** and **Delete** icons: they only appear if your role can actually use them.
 - **Document numbers are never typed.** Every transaction — Purchase Order, Goods Receipt, ASN, RFQ, Vendor Quote, Stock Transfer, Expense Claim, Leave, Employee Loan, Grievance, Production Order, Attendance — gets its number from a series when you save, shown as *"Auto (PO series)"* until then. Administrators control the format on the **Prefix Configurations** screen; see [ADMIN_GUIDE](ADMIN_GUIDE.md) §B.3.2. Gaps in a series are normal (a failed save doesn't reuse its number) and are not missing documents.
-- **There is currently no "Edit" action on a plain record-list screen** — only a trash-can **Delete** icon at the end of each row. If you need to correct a mistake in a record like a Vendor, Brand, or Color, the only way today is to delete it and create it again with the right values (deleting is permanent and asks you to confirm first). The one exception is **PIM record types** (Product Families, Attribute Definitions, etc. — see §27), which support a multi-select **Bulk Edit** that changes one field across several records at once.
+- **Editing an existing record**: every row on a record-list screen has a pencil **Edit** icon next to its trash-can **Delete** icon. Click Edit, change what you need, and Save — you do **not** need to delete and recreate a record to correct it. (Earlier versions of this SOP said Edit didn't exist and told you to delete and recreate. That was wrong, and following it destroyed data unnecessarily. **PIM record types** additionally support a multi-select **Bulk Edit** that changes one field across several records at once — see §27.)
+
+![A line editor: add and remove rows instead of typing JSON](img/json-line-editor.png)
+
+- **Some fields are lists, not text.** Where a record needs several lines — a BOM's components, a Routing's operations, an appraisal cycle's KRAs — you get a small table with an **+ Add Line** button and a **Remove** button per row, not a box asking for JSON. Fill the columns in; required columns are marked with a **\***.
+- **An empty dropdown tells you where to go.** If a picker has nothing in it, it says *"No [Record Type] records exist yet"* and offers a **create one first** link that takes you straight to the right setup list. That's the normal way to discover a prerequisite you haven't set up yet.
 - **Bulk Import**: most record-list screens also have a **Bulk Import** button (top right, next to New). It opens a dialog where you can download a template CSV, fill it in, and upload it. Before committing, click **Preview (no changes written)** to see exactly what would be created/updated/rejected without actually saving anything — always do this first on a large file. Then click **Process Import** to actually save it.
 - **Errors**: a red banner across the top of a form, a small pop-up ("toast") in the corner, or a centered dialog box will tell you what went wrong in plain language — read it, it's specific (e.g. "not enough stock" rather than just "error"). If you see a **correlation ID**, pass it to your admin if you need help.
 - **Fields that auto-suggest as you type** (Vendor, Location, Item/SKU, Employee, Customer) are a convenience only — you can still type a value that isn't in the list; picking a suggestion just fills the field in faster.
@@ -43,7 +50,7 @@ Reached via the **POS** flyout → **POS / Billing**.
 1. With a location entered and a session open, click into **Scan or Enter SKU**, scan or type the item's barcode/SKU, and press **Enter** (or click **Add to Cart**). The item appears in the cart table with its **Available** stock count.
 2. Repeat for every item. If the same SKU is scanned again, its quantity just increases by one instead of adding a duplicate row.
 3. For each cart line you can edit **Qty**, **Sale Price**, and **Cost Price** directly in the table cells — the **Line Total** updates automatically. A line with a **Remove** button lets you take it back out.
-4. **Optional — loyalty customer**: type the customer's code into **Customer Code**, then click **Check Points** to see their balance, or **Redeem Points** to convert points into a discount value (enter how many points to redeem when prompted; the system tells you the resulting discount value — apply that manually by lowering a line's Sale Price, it isn't applied automatically).
+4. **Optional — loyalty customer**: type the customer's code into **Customer Code**, then click **Check Points** to see their balance, or **Redeem Points** to spend points on this sale (enter how many points when prompted). The redemption appears as its own line in the totals and comes off the amount to collect **automatically** — you do not adjust any Sale Price by hand. The points are only actually deducted when the sale completes, so abandoning the cart costs the customer nothing.
 5. Set **Discount %** and **Payment Mode** (Cash/Card/UPI) at the bottom. The **Total** updates live.
 6. Click **Complete Sale**.
    - **Normal case**: the sale is recorded, a dialog shows the completed sale number and total, and asks if you want to **print a receipt** — click Yes/No. Stock and accounting entries update automatically; you don't need to do anything else.
@@ -57,6 +64,38 @@ Below the sale cart is a separate **Process a Return** panel — kept deliberate
 1. Enter the **Original Order / Cart Number** the return is against (e.g. the `POS-...` number from the original sale's receipt) and the **Return Location**.
 2. Scan or type each SKU being returned into **SKU to Return** and press Enter, or click **Add Line**. Edit **Qty**, **Sale Price**, and **Cost Price** per line the same way as the sale cart.
 3. Click **Submit Return**. On success, the returned stock is put back into inventory immediately and the cart clears.
+
+---
+
+## 3A. Offline Sync Review
+
+Reached via the **POS** flyout → **Offline Sync Review**. A record-list screen (§1) over `POSOfflineSyncVariance`.
+
+When the till loses its connection, sales are queued in the browser and replayed when it comes back (§3.2). Occasionally a replayed sale can't be priced exactly as it was when it was rung up — stock has moved, or an offer has expired since. Each of those differences is recorded here rather than silently accepted.
+
+1. Open the screen. Each row is one replayed sale whose result differed from what the till showed at the time.
+2. Read the variance description on the row: it names the cart, what the till expected, and what the server actually posted.
+3. Decide what to do about it in the real world (refund the difference, absorb it, chase the customer). **The record is a report, not an action queue** — nothing here needs approving to close it.
+
+Review this at least once a day at any store that goes offline regularly. An empty list means every offline sale replayed exactly as rung up.
+
+---
+
+---
+
+## 3B. Offline Queue Gaps
+
+Reached via the **POS** flyout → **Offline Queue Gaps**. A record-list screen (§1) over `POSOfflineQueueGap`.
+
+This is the more serious sibling of §3A. The server tracks each till's offline queue by heartbeat; if a till reports a queue and then comes back with fewer sales in it than it said it had, the missing ones are recorded here.
+
+1. Each row names the cashier session, the location, and how many sales are unaccounted for.
+2. **Treat a row here as a real event, not noise.** The commonest cause is a browser cache being cleared, or a device being replaced, while sales were still queued — that stock left the shop and no sale was ever recorded for it.
+3. Reconcile against the physical till and the day's cash, and raise the sales manually if you can establish what they were.
+
+Only HR/Admin and Store Manager can see this screen.
+
+---
 
 ---
 
@@ -109,7 +148,7 @@ Reached via the **Financial Accounting** flyout → **Vendor Invoice**.
 
 1. Click **+ New Vendor Invoice** to open the standard record-list New form (§1) — fill in Invoice Number, Vendor Code, PO Reference, GRN Reference, Invoice Amount, and Financial Year, then Save. It starts as **Draft**.
 
-> **Note**: this form asks for a **GRN Reference**, but as of this writing there is no screen anywhere in the app to create a GRN (Goods Receipt Note) record — if your business needs one, ask your admin how GRN numbers are being tracked in your setup.
+> **Prerequisite**: the **GRN Reference** this form asks for is the number of a posted Goods Receipt. Record the receipt first on **Procurement → Goods Receipt** (§15B) — the invoice cannot pass its 3-way match without one.
 
 2. On the list, a **Draft** or **MismatchHold** invoice shows a **Match** button. Click it, then enter the **PO ID/number** and **GRN ID/number** it should match against when prompted. If the amounts line up, the invoice becomes **Matched**; if they don't, it goes to (or stays in) **MismatchHold** and needs to be matched again with corrected references.
 3. Once **Matched**, two buttons appear:
@@ -172,6 +211,22 @@ Reached via the **Sales & Marketplace** flyout → **Fulfillment**. This is the 
 
 ---
 
+## 12A. Order Management
+
+Reached via the **Sales & Marketplace** flyout → **Order Management**. One operational view from channel order through fulfillment, shipment and invoice.
+
+1. The table lists every **SalesOrder** — from a marketplace/channel import or the Order API — with its current stage.
+2. **Refresh** re-reads the list; use it after releasing several orders in a row.
+3. **Release** on an unreleased order allocates stock and creates the fulfillment task, which then appears on the **Fulfillment** screen (§12).
+4. **Cancel** stops an order that has not yet shipped. It asks for confirmation.
+5. **View** opens the order's full detail — its lines, its allocation, its shipment and its invoice, in one place.
+
+> Orders **appear here on their own**. Nothing on this screen creates one: channel imports and the Order API do. An empty list means no channel has sent you an order yet, not that something is broken.
+
+---
+
+---
+
 ## 13. Marketplace
 
 Reached via the **Sales & Marketplace** flyout → **Marketplace**. Two independent panels.
@@ -225,7 +280,64 @@ Reached via the **Procurement** flyout → **Purchase Order**.
 3. Click **Create Draft**. It appears in the list below as **Draft**.
 4. Click **Submit for Approval** on a Draft PO. Depending on the amount, it routes to a Store Manager (under a configured threshold) or HR/Admin (at or above it) — you'll see it move to **Pending Approval**, then **Approved** or **Rejected** once decided (§6).
 
-> **Note**: as of this writing there is no screen to record a GRN (goods receipt) against an Approved PO, so a PO's own status here won't show stock as physically received — see the note under §7.
+5. **When the stock arrives**, record it on **Procurement → Goods Receipt** (§15B) against this PO. That is what actually raises your stock count — an approved PO on its own never does. The PO's own status stays **Approved** until the receipt closes it; look at the Goods Receipt screen, not this one, to see what has physically arrived.
+
+---
+
+## 15A. Purchase Requisitions
+
+Reached via the **Procurement** flyout → **Purchase Requisitions**. A record-list screen (§1). This is the "someone has asked for something" step that precedes a Purchase Order.
+
+1. Click **New Purchase Requisition**.
+2. **Requisition number is auto-issued** — the field is greyed out (§1).
+3. Fill in the **Description** of what's needed. This field suggests wordings that have been used before as you type; you can also type something new, and the system remembers it for next time.
+4. Fill in the **Department** (also a suggest field) and the quantity/amount.
+5. Save. It starts as **Draft**.
+6. Submit it for approval. It routes by amount exactly like a Purchase Order (0–49,999 → Store Manager; 50,000 and above → HR/Admin by default), and appears in the approver's **Approvals** screen (§6).
+7. Once approved, raise the actual Purchase Order (§15) against it.
+
+---
+
+---
+
+## 15B. Goods Receipt
+
+Reached via the **Procurement** flyout → **Goods Receipt**. **This is the screen that actually raises your stock count.** An approved Purchase Order on its own never does.
+
+
+![The Goods Receipt screen, with lines loaded from a purchase order](img/goods-receipt.png)
+
+1. Enter the **PO Reference** for the order the stock has arrived against.
+2. Click **Load Items from PO**. Every line on that order appears in the table with its **Ordered Qty**.
+   - If the vendor sent an ASN ahead of the delivery (§15C), enter the **ASN Reference** and click **Load Items from ASN** instead — same result, prefilled from what the vendor said was coming.
+   - **Add Line** adds a line by hand for anything that arrived but wasn't ordered.
+3. For each line, enter what actually turned up:
+   - **Received Qty** — what you accepted into stock.
+   - **Rejected Qty** and **Rejection Reason** — what you refused (wrong item, wrong spec).
+   - **Damaged Qty** and **Damage Reason** — what arrived broken.
+   Record short and damaged quantities honestly. Entering the ordered quantity when less arrived is how stock records and reality drift apart, and it is very hard to unpick later.
+4. **Receiving Location** is where the accepted stock lands. If you leave it blank it defaults to the PO's own target warehouse — that's deliberate, not a bug.
+5. Click **Post Receipt**.
+6. **Check that it worked.** Go to **Inventory** (§18) and confirm the quantity went up by what you accepted. If the receipt could not post to the ledger, it is marked **Cancelled** and the PO stays open for a real receipt — you are told, rather than being shown a false success.
+
+The GRN number is auto-issued; you never type one.
+
+---
+
+---
+
+## 15C. Advance Shipment Notices (ASN)
+
+Reached via the **Procurement** flyout → **ASN**. Captures what a vendor says is coming, before it arrives.
+
+1. Enter the **PO Reference** this shipment is against, the **Location** it is coming to, the **Vendor**, and — if you have them — the **Carrier**, **Tracking Number** and **Expected Date**.
+2. For each item on the shipment, enter the **SKU** and **Expected Qty**, then click **Add Line**.
+3. Click **Save ASN**. The ASN number is auto-issued.
+4. When the delivery physically lands, go to **Goods Receipt** (§15B) and use **Load Items from ASN** to prefill the receipt.
+
+> **The ASN's own "PO Number" field holds the referenced order's number, not the ASN's.** That is intentional — it's how the ASN is tied to its order.
+
+---
 
 ---
 
@@ -282,13 +394,116 @@ Reached via the **Stock** flyout → **Bin**. A standard record-list screen (§1
 1. Click **New Bin** (top right). Fill in **Bin Code** and **Location** (required), and optionally **Zone**, **Aisle**, **Rack**, **Capacity**.
 2. Click **Save**.
 
-> **Note**: this screen only manages the bin *records themselves*. Putaway (assigning received stock to a bin), pick-lists driven by bin location, and bin condition transitions (e.g. Good → Damaged) all exist as backend capability but have no screen in the app yet — see [ADMIN_SOP.md](ADMIN_SOP.md) for what's API-only today.
+> **Note**: this screen manages the bin *records themselves*. The things you do *with* bins each have their own screen in the **Stock** flyout: **Putaway** (assigning received stock to a bin), **Bin Conditions** (moving stock between Good / Damaged / QC-Hold / RTV), **Bin Replenishment** (topping up pick faces), **LPN / Cartons / Pallets**, **Wave / Batch Picking** and **Mobile Picking** (bin-ordered pick lists), and **Cycle Count**. See §20A–§20G.
+
+---
+
+## 20A. Putaway
+
+Reached via the **Stock** flyout → **Putaway**. Places stock you have accepted into a specific bin.
+
+1. Enter the **Location**, the **SKU**, the **Bin Code** it is going into, and the **Qty**.
+2. The screen shows **Qty on hand to place** — the quantity at that location not yet assigned to any bin. **You cannot put away more than this**; the attempt is refused rather than inventing stock.
+3. Click **Put Away**.
+4. **Check Opportunity** asks whether this stock is already needed elsewhere — an open transfer or a sale waiting on this SKU at this location. If it is, **Stage for Cross-Dock** sends it straight on instead of putting it away and picking it again.
+
+Both the Bin and SKU fields suggest as you type.
+
+---
+
+---
+
+## 20B. Bin Conditions
+
+Reached via the **Stock** flyout → **Bin Conditions**. Moves stock between **Good**, **Damaged**, **QC-Hold** and **RTV** (return to vendor) within a bin.
+
+1. Enter the **Bin Code**, the **SKU**, the **Qty**, the **From Condition** and the **To Condition**.
+2. Click **Move**.
+
+**What this actually changes:** moving stock *out of* Good makes it unsellable — it stops counting toward what the POS can sell. Moving it back *into* Good makes it sellable again. This is the correct way to quarantine damaged stock; deleting or adjusting the quantity is not.
+
+---
+
+---
+
+## 20C. LPN / Cartons / Pallets
+
+Reached via the **Stock** flyout → **LPN / Cartons / Pallets**. Groups bin stock into a physical container so it can be tracked and moved as one unit.
+
+1. **To assign**: enter the **LPN Code** (the carton or pallet's own label), the **Bin Code**, the **SKU**, the **Condition** and the **Qty**, then click **Assign**.
+2. **To look up**: enter an LPN code and click **Look Up** to see everything in that container.
+
+> An LPN is a *breakdown* of what is already in a bin, never a second count of it. The bin's own total is the source of truth; assigning stock to an LPN does not change it.
+
+---
+
+---
+
+## 20D. Bin Replenishment
+
+Reached via the **Stock** flyout → **Bin Replenishment**. Finds pick-face bins that have run low.
+
+1. Enter the **Location** and click **Get Suggestions**.
+2. The table lists every bin below its configured minimum quantity, with a suggested reserve bin to draw from.
+3. Move the stock with **Stock Transfer** (§19) or **Putaway** (§20A) as appropriate.
+
+The minimums come from the **BinReplenishmentRule** list (Setup → Advanced). With no rules configured, this screen correctly reports nothing to do.
+
+---
+
+---
+
+## 20E. Wave / Batch Picking
+
+Reached via the **Stock** flyout → **Wave / Batch Picking**. Picks several orders in one walk of the warehouse instead of one walk per order.
+
+1. Enter a **Wave ID** — any label you choose for this batch, e.g. `WAVE-MORNING`.
+2. Enter the **Task IDs** to include, comma-separated (they come from the **Fulfillment** screen, §12).
+3. Click **Tag Tasks**.
+4. Click **Generate Pick List**. You get:
+   - a **consolidated pick list** in zone → aisle → rack → bin walking order, so you cross the warehouse once; and
+   - a **per-order allocation** table showing which picked units belong to which task, with any **shortfall** flagged rather than hidden.
+5. Hand the wave to a picker, who works it on **Mobile Picking** (§20F).
+
+---
+
+---
+
+## 20F. Mobile Picking
+
+Reached via the **Stock** flyout → **Mobile Picking**. The phone-friendly view of a wave, one item at a time.
+
+1. Enter the **Wave ID** and click **Load**.
+2. The screen shows a single pick line: bin, SKU, quantity.
+3. Pick it, then click **Confirm & Next**. **Previous** goes back.
+4. **Speak Item** reads the line aloud for hands-free picking.
+
+Designed for a phone or handheld held one-handed in an aisle; it works on a desktop too.
+
+---
+
+---
+
+## 20G. Cycle Count
+
+Reached via the **Stock** flyout → **Cycle Count**. Counts stock in place, without shutting the warehouse.
+
+1. **Get Plan** (with a **Location**) suggests which bins are due a count. How often a bin comes round depends on its ABC tier, and the intervals are configurable (ADMIN_SOP Part A → Configuration).
+2. **Manage Count Lines** opens the lines for a **Count Session**. Enter the **Counted Qty (blind)** for each — *blind* means the counter is not shown the expected figure, so the count is not anchored by it.
+3. Click **Reconcile Session**:
+   - Lines that match the system exactly **post immediately**.
+   - Lines with a variance route to **Approvals** for a Store Manager, and do not adjust stock until decided.
+4. **Set Variance Reason** attaches a Reason Code to a variance line — do this before it is reviewed, so the approver knows what happened.
+5. **Request Recount** sends a line back to be counted again; **Submit Recount Value** records the second count.
+6. **Retry Post** re-attempts a line whose posting failed.
 
 ---
 
 ## 21. Stores
 
 Reached via the **Stock** flyout → **Stores**. A standard record-list screen (§1).
+
+> **Read this first — do not use Stores to set up the place you actually trade from.** Despite the name, nothing else in the system points at a Stores record: no transaction, report or picker will offer it. The record type every transaction actually uses is **Location** (Setup → Core → Location), which has a **Type** of Store, Warehouse or HO. **Create your shop as a Location with Type = Store.** Stores exists as an address book only, and whether it is folded into Location or retired is an open decision (tracked as Stage 30.5.5).
 
 1. Click **New Stores** (top right). Fill in **Store Code**, **Store Name** (required), Address, City, Contact Phone, Store Manager (all optional), and Status.
 2. Click **Save**.
@@ -404,9 +619,40 @@ A grid of clickable stat cards (Products, Incomplete, Pending approval, Ready to
 
 ## 28. Setup
 
-The **Setup** dropdown in the sidebar groups every other reference-list record type the system knows about, alphabetically — the base set is **Brands, Sub Brands, Styles, Sub Styles, Product Categories, Product Types, Item Names, Colors, Secondary Colors, Fabric Colors, Polishes**, plus **Location, Legal Entity, Department, Cost Center**, and **Employee** (also reachable this way — see §23.4). Exactly which entries you see depends on what's registered in your tenant (an admin can register more via Database Schema Design — see ADMIN_SOP.md).
+The **Setup** flyout holds every reference list ("master") the system knows about. It is **built from your own tenant's registered record types**, so what you see is what you actually have — a default tenant has 53 of them. It is not a fixed list, and an administrator can add more (Database Schema Design — see [ADMIN_SOP.md](ADMIN_SOP.md)).
 
-Every entry works exactly like §1 describes: **New [Type]**, fill in required fields, Save; no per-row Edit, only Delete; Bulk Import available for CSV loading. Item (used throughout POS/PIM/Inventory) also lives here if it isn't reachable more directly elsewhere in your setup.
+**How it's laid out**
+
+- **Grouped by module**, not one long alphabetical run. In a default tenant that's 14 groups — Core, CRM, Finance, HR, Inventory, Manufacturing, Master Data, OMS, PIM, POS, Procurement, Reports, Sales, Store.
+- **A filter box at the top.** Type any part of a name or module — "vend", "channel", "report" — and the menu narrows as you type. This is the fastest way in once you know roughly what you want.
+- **An "Advanced" divider at the bottom**, collapsed by default, holding the 15 system-internal lists (channel field maps, allocation and status-transition rules, notification templates, robotics credentials, saved report profiles and so on). Click it to expand. **If you filter, matches inside Advanced are shown automatically** — you never have to know something was filed there to find it.
+- You only see lists your role can read, and only the modules your business has licensed.
+
+**The everyday groups, in a default tenant**
+
+| Group | Lists |
+|---|---|
+| **Master Data** | Brand, Color, Model, Size, Style, Batch |
+| **Core** | Location, Department, Cost Center, Legal Entity |
+| **Sales** | Customer, POS Profile |
+| **POS** | Offer (the discounts and coupons the till applies — see §3.2) |
+| **Procurement** | Vendor |
+| **Inventory** | Item, Bin, Printer, Carton Type |
+| **HR** | Employee, Shift, Salary Structure, Training Program, Appraisal Cycle |
+| **Finance** | Bank Account, TDS Section |
+| **Manufacturing** | BOM, Routing, Work Center |
+| **PIM** | Channel, Product Family, Product Attribute Def, Product Attribute Group |
+| **OMS** | Reason Code, Courier Service Area |
+| **CRM** | Campaign, Voucher |
+| **Reports** | Scheduled Report |
+| **Store** | Stores (see §21 — and read the note there before using it) |
+
+> **Note**: earlier versions of this SOP listed **Sub Brands, Sub Styles, Product Categories, Product Types, Item Names, Secondary Colors, Fabric Colors** and **Polishes** here. None of those has ever existed as a record type — they were placeholder entries in the page's HTML that the real menu overwrote on load. They have been removed from the code as well as from this document.
+
+
+![The Setup flyout: filter box at the top, entries grouped by module](img/setup-menu.png)
+
+Every entry works exactly like §1 describes: **New [Type]**, fill in required fields, Save; per-row **Edit** and **Delete**; **Bulk Import** for CSV loading. Buttons you don't have permission to use aren't shown.
 
 ---
 
@@ -439,4 +685,4 @@ Terms used in this SOP not already in USER_GUIDE.md's glossary (§13):
 
 ---
 
-*This system is under active development. Two things worth knowing if you hit them: there is currently no screen to record a GRN (goods receipt) against a Purchase Order, and Bin-level putaway/pick-list/condition-change actions exist only as backend capability, not as screens yet. Neither is something you're doing wrong — ask your administrator.*
+*This system is under active development, so the occasional rough edge is expected — but if a step here doesn't match what you see on screen, that is a bug in this document and worth reporting. Earlier versions of this SOP claimed that Goods Receipt, Putaway, bin-level pick lists and bin condition changes had no screens. All of them do, and all of them are documented above.*
