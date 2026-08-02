@@ -27,10 +27,10 @@ A few things work the same way everywhere in this system. Learn them once here i
 
 ---
 
-## 2. Dashboard
+## 2. Where you land after signing in
 
-1. Click **Dashboard** in the sidebar (or it's what you see right after logging in).
-2. You'll see four summary tiles (registered record types, audit history count, active tenant, platform health) and four shortcut cards: **Database Schema Design**, **Dynamic Labels**, **Prefix Configs**, and **Activity Log**. These four are admin/config tools — see **[ADMIN_SOP.md](ADMIN_SOP.md)** for what to do with them. Clicking a card takes you straight to that screen.
+1. Signing in takes you to **Reports** (§14), whose first tab is a dashboard of live figures — stale approvals, failed syncs, negative stock and a sales trend. From the second visit onward you land back on whichever screen you were last using instead, so you can pick up where you left off.
+2. There is no separate Dashboard screen. The one that used to sit at the top of the sidebar only held derived counts and shortcuts to admin/config tools (**Database Schema Design**, **Dynamic Labels**, **Prefix Configs**, **Activity Log**), all of which are in the **Settings** module — see **[ADMIN_SOP.md](ADMIN_SOP.md)**. It was removed in August 2026 rather than kept as a second front door to the same screens.
 
 ---
 

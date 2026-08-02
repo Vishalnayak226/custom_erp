@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Custom ERP - Management Dashboard</title>
+  <title>Custom ERP</title>
   <link rel="stylesheet" href="styles.css?v=14">
   <script>
     // Stage 28.2: apply the saved theme before first paint to avoid a light-mode
@@ -97,11 +97,12 @@
       </div>
       
       <ul class="sidebar-menu">
-        <li class="menu-item-container">
-          <a class="menu-item active" id="menu-dashboard">
-            <span>Dashboard</span>
-          </a>
-        </li>
+        <!-- The Dashboard landing screen was removed on the user's call
+             (2026-08-01): everything it showed was either derived counts or
+             shortcut tiles into screens the Settings module already lists, so
+             it was a second front door to configuration rather than a screen
+             of its own. Reports is the landing view now - see DEFAULT_VIEW in
+             app.js. -->
 
         <!-- Module: POS (2026-07-26: renamed to "POS" per final SaaS naming decision; internal id left as module-pos) -->
         <li class="menu-item-container has-flyout">

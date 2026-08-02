@@ -97,7 +97,7 @@ Not under Settings — it's the dropdown in the header bar next to the Sync butt
 
 1. Pick an industry from the dropdown (Jewelry, Food & Beverage, Automobile, Clothing, Pharmaceuticals & Biotechnology, Metal & Steel Fabrication, Construction & Contracting, Medical Devices, Semiconductors, Agriculture & Perishable Goods).
 2. Confirm the dialog warning that this reloads preset table field configurations.
-3. The app re-fetches labels and registered record types and lands you back on the Dashboard with the new profile's preset fields active.
+3. The app re-fetches labels and registered record types and re-renders the screen you are on with the new profile's preset fields active.
 4. There's no "current industry" indicator to read back later — this is a one-time overlay action, not a persistent setting you can review afterward from within the app (the browser just remembers your last selection locally).
 
 ---

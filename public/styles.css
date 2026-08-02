@@ -789,36 +789,10 @@ body {
   }
 }
 
-/* Dashboard Grid */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
-}
-
-.dashboard-card {
-  background-color: var(--panel-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  cursor: pointer;
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s;
-}
-
-.dashboard-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 20px -8px rgba(68, 84, 106, 0.08);
-  border-color: var(--primary-color);
-}
-
-.card-content {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+/* .dashboard-grid / .dashboard-card / .card-content were the retired Dashboard
+   landing screen's tile grid and were removed with it (2026-08-01).
+   .dashboard-stats-row below is unrelated and still in use by Finance, the
+   Reports exec dashboard, System Status and Tenant Usage. */
 
 .card-title {
   font-size: 16px;

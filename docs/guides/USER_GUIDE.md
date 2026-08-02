@@ -53,15 +53,14 @@ Once you're in, you'll see a **sidebar** on the left. **It only shows what your 
 
 ## 3. Finding Your Way Around
 
-The sidebar has **twelve top-level entries**. Most are module groups: hover one and its screens slide out to the right (click it instead if you are on a touchscreen or using a keyboard). Four — **Dashboard**, **Reports**, **Manufacturing** and **PIM** — have no flyout and open straight away.
+The sidebar has **eleven top-level entries**. Most are module groups: hover one and its screens slide out to the right (click it instead if you are on a touchscreen or using a keyboard). Three — **Reports**, **Manufacturing** and **PIM** — have no flyout and open straight away.
 
 | Sidebar entry | What lives inside |
 |---|---|
-| **Dashboard** | A quick overview. No flyout — it opens directly. |
 | **POS** | POS / Billing (§4) · POS Profiles · Offline Sync Review · Offline Queue Gaps |
 | **Financial Accounting** | Finance / GL · Approvals (§10) · Vendor Invoice · Payment Proposals · Bank Reconciliation · Debit / Credit Notes · Sales Invoice |
 | **Sales & Marketplace** | Order Management · Fulfillment · Marketplace · Customer |
-| **Reports** | Opens directly (§9). |
+| **Reports** | Opens directly (§9). This is also where you land when you first sign in — its first tab is a dashboard of live figures. |
 | **Procurement** | Purchase Requisitions · Purchase Order (§6) · ASN · **Goods Receipt** · Vendors · RFQ / Quotes |
 | **Stock** | Inventory (§5) · Stock Transfer (§7) · Bin · Putaway · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · Cycle Count · Stores · Sticker Printing |
 | **HRM** | HR · Fixed Assets · Expenses |

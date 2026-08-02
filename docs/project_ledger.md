@@ -44,6 +44,20 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 74. Stage 30.5.11 — Retiring the Dashboard landing screen (2026-08-01, code + docs)
+
+User's call, made looking at the screen: *"Dashboard not required. Everything it is showing from config."* It was accurate — the screen held four derived stat cards (registered record types, audit-log count, active tenant, a hardcoded "Operational" pill) over nine shortcut tiles into **Database Schema Design, Dynamic Labels, Prefix Configs, Extension Hooks, Activity Log, Configuration, System Status, Tenant Entitlements** and **Tenant Usage**, every one of which the Settings module already lists. It owned no business data; it was a second front door to configuration.
+
+Removed whole: the sidebar entry, `renderDashboard()`, its router branch and click handler, its `STATIC_VIEW_MENU_IDS` row, and the `.dashboard-grid`/`.dashboard-card`/`.card-content` rules. `.dashboard-stats-row` is a different class that Finance, the Reports exec dashboard, System Status and Tenant Usage all still use, and stays.
+
+**The landing view is one new `DEFAULT_VIEW` constant, set to `reports`** rather than a literal repeated at each fallback. Reports is the only defensible universal choice: it is the single destination with neither a role gate (`MENU_PERMISSION_MAP` marks it `open`) nor an entitlement gate (no `MENU_MODULE_MAP` entry), so it renders for every role in every tenant — and its first tab is Stage 26.10.3's executive dashboard, which answers the same "what is going on" question with live figures instead of configuration links.
+
+**The one way this could have shipped broken** was invisible to any fresh-profile test: `restoreLastView()` replays a saved view name, and every browser that had ever used the app carries `{"view":"dashboard"}` in `erp_nav_state`. Without a guard, existing users — and *only* existing users — would have restored into a router branch that no longer exists, i.e. a permanently blank screen. A saved `dashboard` now falls through to `DEFAULT_VIEW`.
+
+Docs corrected in the same pass, including §73's own screenshot-derived count: the sidebar has **eleven** top-level entries now, three of them flyout-less. `USER_SOP.md` §2 was rewritten from "Dashboard" to "Where you land after signing in"; `UAT_CHECKLIST.md` §2 now asserts the screen's *absence*, so an older build fails the check rather than quietly passing.
+
+**Verified**: `node --check` clean; live in a real headless browser as `cashier1` (the most restricted role) against a throwaway server on :8231 — 6/6 checks, covering the fresh-profile landing, the stale-`dashboard` reload, the absence of the menu entry, and a clean console in both. The exec dashboard rendered correctly for that role, falling back to an order-count trend under column masking. Screenshotted. Server stopped and port released afterwards.
+
 ## 73. Stage 30.3/30.4/30.5 + the 29.7/29.8 strays — the manual overhaul and the UX sweep (2026-08-01, code + docs)
 
 User request: finish the whole remaining Stage 30 manual/UX backlog in one pass, plus three items the previous session had flagged as *open but mis-filed inside the closed-stage archive*. Three genuine product decisions were taken with the user up front so the rest could run end to end without stopping: Trial Balance scoping (**mandatory as-of date**), the screenshot workflow (**scripted Playwright captures**), and the two flagged status transitions (**allow both, reason-code required**). Full item-by-item detail in **[micro_checklist.md](micro_checklist.md)** Stage 29.7/29.8 follow-ups and Stage 30.

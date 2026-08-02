@@ -399,7 +399,16 @@ let state = {
   modules: { enabled: null, solePackage: null, ownedPackages: [], loaded: false }
 };
 
-let currentView = 'dashboard';
+// The screen the app opens on when there is nothing saved to restore. It was
+// the Dashboard until the user retired that screen (2026-08-01) - everything
+// it showed was derived counts and shortcut tiles into Settings screens.
+// Reports is the replacement because it is the one destination every role and
+// every tenant can reach (MENU_PERMISSION_MAP marks it `open`, and it carries
+// no MENU_MODULE_MAP entitlement gate), and its first tab is the executive
+// dashboard, which shows real figures rather than configuration links.
+const DEFAULT_VIEW = 'reports';
+
+let currentView = DEFAULT_VIEW;
 let currentDoctype = '';
 let posCart = []; // { sku, available, qty, salePrice, costPrice }
 let posLocation = '';
@@ -468,7 +477,7 @@ let editingDocID = null;
 let editingDocVersion = null;
 
 // Selection persistence - so refreshing the browser lands the user back on
-// the same view/doctype/search/page instead of always bouncing to Dashboard.
+// the same view/doctype/search/page instead of always bouncing to DEFAULT_VIEW.
 const NAV_STATE_KEY = 'erp_nav_state';
 
 function saveNavState() {
@@ -1241,7 +1250,7 @@ async function fetchLabels() {
 // routing, Fulfillment/Marketplace, Fixed Assets' bespoke
 // /api/v1/assets/register endpoint - showing these to every authenticated
 // role matches current server behavior exactly, not a new restriction).
-// Any menu id not listed here (Dashboard) defaults open the same way.
+// Any menu id not listed here defaults open the same way.
 const MENU_PERMISSION_MAP = {
   'menu-pos': { open: true },
   'menu-pos-profiles': { doctypes: ['POSProfile'] },
@@ -1704,13 +1713,6 @@ function renderSidebarSubmenu() {
 
 function setupEventListeners() {
   // Main Navigation links
-  document.getElementById('menu-dashboard').addEventListener('click', (e) => {
-    e.preventDefault();
-    setActiveMenu('menu-dashboard');
-    closeSubmenus();
-    renderView('dashboard');
-  });
-
   document.getElementById('menu-doctype-builder').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-doctype-builder');
@@ -1963,7 +1965,7 @@ function setupEventListeners() {
           await showCustomAlert('Industry configuration updated successfully!', 'Success');
           await fetchLabels();
           await fetchRegisteredDoctypes();
-          renderView('dashboard');
+          renderView(currentView);
         } else if (res) {
           await showApiError(res, 'Failed to switch industry profile.');
         }
@@ -2242,8 +2244,7 @@ function closeSubmenus(except) {
 // it never double-binds the sidebar's own.
 let moduleFlyoutDocListenersBound = false;
 function setupModuleFlyouts() {
-  // Sibling entries with no flyout of their own (Dashboard, Reports,
-  // Manufacturing, PIM). Hovering one should put the open menu away - but on
+  // Sibling entries with no flyout of their own (Reports, Manufacturing, PIM). Hovering one should put the open menu away - but on
   // the same dwell rule as switching modules, because the diagonal from a
   // module row down to an item near the bottom of its flyout sweeps straight
   // across these too. Without this they were dead zones: the pointer sat on
@@ -2345,7 +2346,7 @@ function setupModuleFlyouts() {
 }
 
 // Global search (top bar). It used to filter only the table you already had
-// open, so on the dashboard - or any screen that isn't a record table -
+// open, so on any screen that isn't a record table
 // typing did nothing whatsoever, despite the placeholder offering to search
 // menus and record types. It now also suggests every destination the query
 // matches: each sidebar entry (including the ones tucked inside a module
@@ -2529,7 +2530,6 @@ function setupGlobalSearchSuggest(inputEl) {
 // restoring the correct highlighted item after a refresh. doctype-table is
 // handled separately below since it points at a submenu item, not a top-level one.
 const STATIC_VIEW_MENU_IDS = {
-  dashboard: 'menu-dashboard',
   pos: 'menu-pos',
   finance: 'menu-finance',
   fulfillment: 'menu-fulfillment',
@@ -2614,11 +2614,14 @@ function restoreActiveMenuState(view, doctype) {
 }
 
 // Restores whatever view/doctype/search/page the user was last on instead of
-// always bouncing back to Dashboard after a refresh. Falls back to Dashboard
-// if the saved doctype no longer exists (e.g. it was deleted elsewhere).
+// always bouncing back to DEFAULT_VIEW after a refresh. Falls back to
+// DEFAULT_VIEW if the saved doctype no longer exists (e.g. it was deleted
+// elsewhere), or if the saved view itself no longer exists - which every
+// browser that was last on the retired Dashboard has in localStorage, and
+// which would otherwise restore to a permanently blank screen.
 async function restoreLastView() {
   const saved = loadNavState();
-  let view = 'dashboard';
+  let view = DEFAULT_VIEW;
   let doctype = '';
   let searchQuery = '';
   let page = 1;
@@ -2631,7 +2634,7 @@ async function restoreLastView() {
         searchQuery = saved.searchQuery || '';
         page = saved.page || 1;
       }
-    } else {
+    } else if (saved.view !== 'dashboard') {
       view = saved.view;
     }
   }
@@ -2654,9 +2657,7 @@ async function renderView(view) {
   root.innerHTML = '';
   root.scrollTop = 0;
 
-  if (view === 'dashboard') {
-    renderDashboard(root);
-  } else if (view === 'pos') {
+  if (view === 'pos') {
     renderPOSView(root);
   } else if (view === 'finance') {
     await renderFinanceView(root);
@@ -3186,75 +3187,6 @@ async function saveRoleGrant() {
     return;
   }
   renderView('roles');
-}
-
-// Dashboard Page
-function renderDashboard(container) {
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Dashboard</h1>
-      <p class="page-subtitle">Welcome to Custom ERP. Choose a module to get started.</p>
-    </div>
-  `;
-  container.appendChild(header);
-
-  // Quick Stats Summary Row
-  const statsRow = document.createElement('div');
-  statsRow.className = 'dashboard-stats-row';
-  statsRow.innerHTML = `
-    <div class="stat-card">
-      <span class="stat-label">Record Types Registered</span>
-      <span class="stat-val">${state.activeDoctypes.length || 0}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Audit History Count</span>
-      <span class="stat-val">${state.auditLogs.length || 0}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Active Schema Tenant</span>
-      <span class="stat-val" style="text-transform: uppercase;">${localStorage.getItem('erp_tenant_id') || 'default'}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Platform Core Health</span>
-      <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
-        <span class="pulse-dot"></span>
-        <span style="font-size: 16px; font-weight: 700; color: var(--success-color);">Operational</span>
-      </div>
-    </div>
-  `;
-  container.appendChild(statsRow);
-
-  const grid = document.createElement('div');
-  grid.className = 'dashboard-grid';
-
-  const modules = [
-    { title: 'Database Schema Design', desc: 'Build schemas and customize properties', action: () => { setActiveMenu('menu-doctype-builder'); renderView('doctype-builder'); } },
-    { title: 'Dynamic Labels', desc: 'Configure customized nomenclature', action: () => { setActiveMenu('menu-dynamic-labels'); renderView('dynamic-labels'); } },
-    { title: 'Prefix Configs', desc: 'Configure sequential transaction prefixes', action: () => { setActiveMenu('menu-prefix-configs'); renderView('prefix-configs'); } },
-    { title: 'Extension Hooks', desc: 'Manage 3rd-party webhook hooks and scoped tokens', action: () => { setActiveMenu('menu-extension-hooks'); renderView('extension-hooks'); } },
-    { title: 'Activity Log', desc: 'Track audits, panics, and payloads', action: () => { setActiveMenu('menu-audit-logs'); renderView('audit-logs'); } },
-    { title: 'Configuration', desc: 'System settings by module - expiry days, thresholds, timeouts, and more', action: () => { setActiveMenu('menu-configuration'); renderView('configuration'); } },
-    { title: 'System Status', desc: 'Deployment, backup, and restore-drill health', action: () => { setActiveMenu('menu-system-status'); renderView('system-status'); } },
-    { title: 'Tenant Entitlements', desc: 'Set plan and module access per tenant', action: () => { setActiveMenu('menu-tenant-entitlements'); renderView('tenant-entitlements'); } },
-    { title: 'Tenant Usage', desc: 'Live concurrency and usage-limit health per tenant', action: () => { setActiveMenu('menu-tenant-usage'); renderView('tenant-usage'); } }
-  ];
-
-  modules.forEach(m => {
-    const card = document.createElement('div');
-    card.className = 'dashboard-card';
-    card.innerHTML = `
-      <div class="card-content">
-        <h3 class="card-title">${m.title}</h3>
-        <p class="card-desc">${m.desc}</p>
-      </div>
-    `;
-    card.addEventListener('click', m.action);
-    grid.appendChild(card);
-  });
-
-  container.appendChild(grid);
 }
 
 // POS / Billing screen - cashier/barcode-scan-to-sell UI against the
@@ -14291,7 +14223,7 @@ function renderMockModuleView(container, view) {
       <p class="text-muted" style="font-size: 14px; line-height: 1.6;">
         This transaction screen (Stage 4+) is configured. Switch to dynamic **Setup** or customize attributes using **Database Schema Design**.
       </p>
-      <button class="btn btn-secondary" onclick="setActiveMenu('menu-dashboard'); renderView('dashboard');">Back to Dashboard</button>
+      <button class="btn btn-secondary" onclick="setActiveMenu(STATIC_VIEW_MENU_IDS[DEFAULT_VIEW]); renderView(DEFAULT_VIEW);">Back to Reports</button>
     </div>
   `;
   container.appendChild(panel);
