@@ -9,13 +9,13 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `f3b88aa9` |
-| Brain redrawn | 2026-08-01 |
+| Graph built from commit | `3295ab39` |
+| Brain redrawn | 2026-08-02 |
 | Regions / lobes | 35 / 8 |
-| Files in the working tree | 377 (261 of them parsed into the graph) |
+| Files in the working tree | 378 (261 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
-| Symbols in the graph | 3236 |
-| Cross-region relationships | 1335 extracted (95% inferred) + 8 declared by hand |
+| Symbols in the graph | 3241 |
+| Cross-region relationships | 1336 extracted (95% inferred) + 8 declared by hand |
 
 **Interactive version: [brain.html](brain.html)** — open it in a browser and click any region.
 
@@ -34,12 +34,12 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 ```mermaid
 flowchart LR
-  n_cortex["Cortex — Interface<br/><small>16 files · 420 symbols</small>"]
-  n_brainstem["Brainstem — Kernel<br/><small>109 files · 353 symbols</small>"]
+  n_cortex["Cortex — Interface<br/><small>16 files · 423 symbols</small>"]
+  n_brainstem["Brainstem — Kernel<br/><small>110 files · 353 symbols</small>"]
   n_business["Functional Lobes — Business Operations<br/><small>83 files · 703 symbols</small>"]
   n_peripheral["Peripheral Nerves — Integrations<br/><small>16 files · 202 symbols</small>"]
   n_autonomic["Autonomic — Background & Reflexes<br/><small>7 files · 68 symbols</small>"]
-  n_memory["Hippocampus — Written Memory<br/><small>66 files · 1080 symbols</small>"]
+  n_memory["Hippocampus — Written Memory<br/><small>66 files · 1082 symbols</small>"]
   n_motor["Motor Cortex — Build & Delivery<br/><small>28 files · 88 symbols</small>"]
   n_verification["Cerebellum — Verification<br/><small>52 files · 147 symbols</small>"]
   n_business -.->|442| n_brainstem
@@ -55,10 +55,10 @@ flowchart LR
   n_peripheral -->|8| n_business
   n_motor -.->|2| n_brainstem
   n_memory -->|2| n_motor
-  n_motor -.->|1| n_business
-  n_memory -->|1| n_peripheral
-  n_motor -->|1| n_memory
   n_autonomic -.->|1| n_peripheral
+  n_motor -->|1| n_memory
+  n_memory -->|1| n_peripheral
+  n_motor -.->|1| n_business
   n_brainstem ==>|error envelope| n_cortex
   n_cortex ==>|HTTP/JSON| n_brainstem
   n_motor ==>|applies migrations| n_brainstem
@@ -83,12 +83,12 @@ flowchart LR
 
 | Lobe | What it is | Regions | Files | Symbols | Wiring inside the lobe |
 |---|---|---:|---:|---:|---:|
-| **Cortex — Interface** | What the user sees and touches. Every business intent enters here. | 3 | 16 | 420 | 14 |
-| **Brainstem — Kernel** | Involuntary and non-negotiable. Every single request passes through here, whatever it is asking for. | 8 | 109 | 353 | 276 |
+| **Cortex — Interface** | What the user sees and touches. Every business intent enters here. | 3 | 16 | 423 | 15 |
+| **Brainstem — Kernel** | Involuntary and non-negotiable. Every single request passes through here, whatever it is asking for. | 8 | 110 | 353 | 276 |
 | **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 83 | 703 | 126 |
 | **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 2 | 16 | 202 | 7 |
 | **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 7 | 68 | 1 |
-| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 66 | 1080 | 44 |
+| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 66 | 1082 | 44 |
 | **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 28 | 88 | 0 |
 | **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 52 | 147 | 0 |
 
@@ -100,7 +100,7 @@ Every region, grouped by lobe, with the connections of weight **12 or more**. Th
 flowchart LR
   subgraph n_g_cortex ["Cortex — Interface"]
     direction TB
-    n_ui_shell["SPA Shell<br/><small>4 files · 405 symbols</small>"]
+    n_ui_shell["SPA Shell<br/><small>4 files · 408 symbols</small>"]
     n_ui_offline["Offline Store & Device I/O<br/><small>2 files · 15 symbols</small>"]
     n_industry_profiles["Industry Profiles<br/><small>10 files · 0 symbols</small>"]
   end
@@ -112,7 +112,7 @@ flowchart LR
     n_identity["Identity, RBAC & MFA<br/><small>8 files · 68 symbols</small>"]
     n_tenancy["Tenancy, Packaging & Settings<br/><small>7 files · 62 symbols</small>"]
     n_approval["Approval Engine (maker-checker)<br/><small>1 file · 19 symbols</small>"]
-    n_persistence["Persistence & Migrations<br/><small>75 files · 15 symbols</small>"]
+    n_persistence["Persistence & Migrations<br/><small>76 files · 15 symbols</small>"]
     n_mixed_handlers["Cross-module API Handlers<br/><small>2 files · 54 symbols</small>"]
   end
   subgraph n_g_business ["Functional Lobes — Business Operations"]
@@ -146,7 +146,7 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>59 files · 963 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>59 files · 965 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 117 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
@@ -176,8 +176,8 @@ flowchart LR
   n_inventory -.->|18| n_persistence
   n_wms -.->|17| n_observability
   n_finance -.->|15| n_observability
+  n_ui_shell -.->|15| n_ui_offline
   n_manufacturing -.->|14| n_persistence
-  n_ui_shell -.->|14| n_ui_offline
   n_identity -.->|13| n_observability
   n_oms -.->|12| n_api_errors
   n_ui_shell ==>|HTTP/JSON| n_http_edge
@@ -212,7 +212,7 @@ flowchart LR
 flowchart LR
   subgraph n_g_cortex ["Cortex — Interface"]
     direction TB
-    n_ui_shell["SPA Shell<br/><small>4 files · 405 symbols</small>"]
+    n_ui_shell["SPA Shell<br/><small>4 files · 408 symbols</small>"]
     n_ui_offline["Offline Store & Device I/O<br/><small>2 files · 15 symbols</small>"]
     n_industry_profiles["Industry Profiles<br/><small>10 files · 0 symbols</small>"]
   end
@@ -255,7 +255,7 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>59 files · 963 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>59 files · 965 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 117 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
@@ -264,7 +264,7 @@ flowchart LR
   end
   n_brain -->|44| n_docs_memory
   n_mixed_handlers -.->|22| n_pim
-  n_ui_shell -.->|14| n_ui_offline
+  n_ui_shell -.->|15| n_ui_offline
   n_identity -.->|10| n_tenancy
   n_mixed_handlers -.->|10| n_approval
   n_wms -->|10| n_inventory
@@ -452,8 +452,8 @@ flowchart LR
 
 | Region | Lobe | Files | Symbols | Busiest connection |
 |---|---|---:|---:|---|
-| [SPA Shell](#spa-shell) | Cortex — Interface | 4 | 405 | → Offline Store & Device I/O (14) |
-| [Offline Store & Device I/O](#offline-store--device-io) | Cortex — Interface | 2 | 15 | ← SPA Shell (14) |
+| [SPA Shell](#spa-shell) | Cortex — Interface | 4 | 408 | → Offline Store & Device I/O (15) |
+| [Offline Store & Device I/O](#offline-store--device-io) | Cortex — Interface | 2 | 15 | ← SPA Shell (15) |
 | [Industry Profiles](#industry-profiles) | Cortex — Interface | 10 | 0 | — |
 | [HTTP Edge & Middleware](#http-edge--middleware) | Brainstem — Kernel | 4 | 29 | → Persistence & Migrations (9) |
 | [Error & Message Catalog](#error--message-catalog) | Brainstem — Kernel | 2 | 12 | ← Cross-module API Handlers (72) |
@@ -461,7 +461,7 @@ flowchart LR
 | [Identity, RBAC & MFA](#identity-rbac--mfa) | Brainstem — Kernel | 8 | 68 | → Error & Message Catalog (23) |
 | [Tenancy, Packaging & Settings](#tenancy-packaging--settings) | Brainstem — Kernel | 7 | 62 | → Persistence & Migrations (19) |
 | [Approval Engine (maker-checker)](#approval-engine-maker-checker) | Brainstem — Kernel | 1 | 19 | → Persistence & Migrations (11) |
-| [Persistence & Migrations](#persistence--migrations) | Brainstem — Kernel | 75 | 15 | ← Finance & General Ledger (45) |
+| [Persistence & Migrations](#persistence--migrations) | Brainstem — Kernel | 76 | 15 | ← Finance & General Ledger (45) |
 | [Cross-module API Handlers](#cross-module-api-handlers) | Brainstem — Kernel | 2 | 54 | → Error & Message Catalog (72) |
 | [Finance & General Ledger](#finance--general-ledger) | Functional Lobes — Business Operations | 15 | 106 | → Persistence & Migrations (45) |
 | [Tax & Statutory](#tax--statutory) | Functional Lobes — Business Operations | 2 | 11 | → Persistence & Migrations (3) |
@@ -483,7 +483,7 @@ flowchart LR
 | [Extension Platform](#extension-platform) | Peripheral Nerves — Integrations | 4 | 70 | ← Channel Connectors (7) |
 | [Event Outbox](#event-outbox) | Autonomic — Background & Reflexes | 1 | 7 | ← Channel Connectors (9) |
 | [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 6 | 61 | → Error & Message Catalog (46) |
-| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 59 | 963 | ← The Brain Map (this) (44) |
+| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 59 | 965 | ← The Brain Map (this) (44) |
 | [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 117 | → Project Documentation (44) |
 | [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 28 | 88 | ← The Brain Map (this) (2) |
 | [Test Suite](#test-suite) | Cerebellum — Verification | 52 | 147 | — |
@@ -500,16 +500,16 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 
 **Most connected symbols**
 
-- `apiFetch()` — [public/app.js](../../public/app.js#L498) · degree 183
-- `renderView()` — [public/app.js](../../public/app.js#L2650) · degree 132
+- `apiFetch()` — [public/app.js](../../public/app.js#L514) · degree 182
+- `renderView()` — [public/app.js](../../public/app.js#L2778) · degree 131
 - `showApiError()` — [public/app.js](../../public/app.js#L187) · degree 84
 - `getErrorMessage()` — [public/app.js](../../public/app.js#L176) · degree 28
 - `showCustomAlert()` — [public/app.js](../../public/app.js#L2) · degree 27
-- `showCustomConfirm()` — [public/app.js](../../public/app.js#L45) · degree 22
+- `attachLinkTypeahead()` — [public/app.js](../../public/app.js#L853) · degree 22
 
 **Wired to**
 
-- → **Offline Store & Device I/O** — 14 relationships, 14 inferred
+- → **Offline Store & Device I/O** — 15 relationships, 15 inferred
 - → **HTTP Edge & Middleware** — declared: HTTP/JSON
 - ← **Error & Message Catalog** — declared: error envelope
 
@@ -530,15 +530,15 @@ Browser-side IndexedDB queue that lets POS keep selling when the network drops, 
 
 - `d()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 7
 - `a()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 5
+- `k()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 3
 - `b()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 2
-- `k()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 2
 - `r()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 2
 - `g()` — [public/qrcode.min.js](../../public/qrcode.min.js#L1) · degree 1
 
 **Wired to**
 
 - → **HTTP Edge & Middleware** — declared: queued replay
-- ← **SPA Shell** — 14 relationships, 14 inferred
+- ← **SPA Shell** — 15 relationships, 15 inferred
 
 <details><summary>2 files</summary>
 
@@ -833,7 +833,7 @@ The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enf
 - ← **Reporting Engine** — 23 relationships, 23 inferred
 - ← **CRM & Loyalty** — 22 relationships, 22 inferred
 
-<details><summary>75 files</summary>
+<details><summary>76 files</summary>
 
 - [db/db.go](../../db/db.go)
 - [db/migrate.go](../../db/migrate.go)
@@ -906,6 +906,7 @@ The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enf
 - [db/migrations_stage30_2_5_loyalty_redemption_account.sql](../../db/migrations_stage30_2_5_loyalty_redemption_account.sql)
 - [db/migrations_stage30_5_3_json_line_editors.sql](../../db/migrations_stage30_5_3_json_line_editors.sql)
 - [db/migrations_stage30_5_4_setup_menu_advanced.sql](../../db/migrations_stage30_5_4_setup_menu_advanced.sql)
+- [db/migrations_stage30_5_5_retire_stores.sql](../../db/migrations_stage30_5_5_retire_stores.sql)
 - [db/migrations_stage30_5_6_po_duplicate_field_labels.sql](../../db/migrations_stage30_5_6_po_duplicate_field_labels.sql)
 - [db/migrations_stage30_6_auto_document_numbering.sql](../../db/migrations_stage30_6_auto_document_numbering.sql)
 - [db/migrations_stage30_7_pos_offers.sql](../../db/migrations_stage30_7_pos_offers.sql)
@@ -1948,10 +1949,10 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 
 ## 6. What the brain does not know yet
 
-Nothing — every one of the 377 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
+Nothing — every one of the 378 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
 
 Two other things the brain is honest about not seeing:
 
-- **261 of 377 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
+- **261 of 378 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
 - **175 graph nodes are external type references** (`sql.Tx`, `context.Context` and friends) with no source file of their own. They belong to no region by design.
 

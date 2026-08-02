@@ -4,11 +4,11 @@
      Source: the tenant's own `role_permissions` table
      Regenerate: `go run ./cmd/gendocs -db "postgres://..."` -->
 
-> **Generated 2026-08-01.** This page is produced from the tenant's own `role_permissions` table, so it cannot drift from
+> **Generated 2026-08-02.** This page is produced from the tenant's own `role_permissions` table, so it cannot drift from
 > the running system. Hand edits are lost on the next run - change the source instead.
 
 What each role may do with each record type, read from the default tenant's
-grants: **106 record types across 3 roles.**
+grants: **105 record types across 3 roles.**
 
 **HR/Admin is not listed** - it always has full access to everything and needs no
 grant rows. A role with **no row at all** for a record type has **no access to
@@ -117,7 +117,6 @@ update/delete - so this table also predicts what each role actually sees.
 | **StatusTransitionRule** | - | R C U D | R |
 | **StockLedgerEntry** | R | R C | - |
 | **StorageBillingRate** | - | R C U D | R |
-| **Stores** | - | R C U D | R |
 | **Style** | R | R C U D | - |
 | **SubcontractOrder** | - | R C U D | R C U |
 | **TDSSection** | - | R C U D | R |

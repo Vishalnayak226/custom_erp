@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Custom ERP - Management Dashboard</title>
+  <title>Custom ERP</title>
   <link rel="stylesheet" href="styles.css?v=14">
   <script>
     // Stage 28.2: apply the saved theme before first paint to avoid a light-mode
@@ -97,11 +97,12 @@
       </div>
       
       <ul class="sidebar-menu">
-        <li class="menu-item-container">
-          <a class="menu-item active" id="menu-dashboard">
-            <span>Dashboard</span>
-          </a>
-        </li>
+        <!-- The Dashboard landing screen was removed on the user's call
+             (2026-08-01): everything it showed was either derived counts or
+             shortcut tiles into screens the Settings module already lists, so
+             it was a second front door to configuration rather than a screen
+             of its own. Reports is the landing view now - see DEFAULT_VIEW in
+             app.js. -->
 
         <!-- Module: POS (2026-07-26: renamed to "POS" per final SaaS naming decision; internal id left as module-pos) -->
         <li class="menu-item-container has-flyout">
@@ -197,7 +198,10 @@
             <li><a class="menu-item" id="menu-wave-picking"><span>Wave / Batch Picking</span></a></li>
             <li><a class="menu-item" id="menu-mobile-picking"><span>Mobile Picking</span></a></li>
             <li><a class="menu-item" id="menu-cycle-count"><span>Cycle Count</span></a></li>
-            <li><a class="menu-item" id="menu-stores"><span>Stores</span></a></li>
+            <!-- Stage 30.5.5: the "Stores" entry was removed here. It opened a
+                 master that nothing in the system could select - a shop is a
+                 Location with Type = Store, and always was. Its four unique
+                 fields now live on Location. Do not restore this entry. -->
             <li><a class="menu-item" id="menu-stickers"><span>Sticker Printing</span></a></li>
           </ul>
         </li>
@@ -353,7 +357,7 @@
     <div class="modal-container">
       <div class="modal-header">
         <h3 class="modal-title" id="dynamic-modal-title">New Document</h3>
-        <button class="modal-close" onclick="closeDynamicModal()">
+        <button type="button" class="modal-close" aria-label="Close dialog" onclick="closeDynamicModal()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
@@ -374,7 +378,7 @@
     <div class="modal-container">
       <div class="modal-header">
         <h3 class="modal-title">Add Field to Schema</h3>
-        <button class="modal-close" onclick="closeAddFieldModal()">
+        <button type="button" class="modal-close" aria-label="Close dialog" onclick="closeAddFieldModal()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
@@ -428,7 +432,7 @@
     <div class="modal-container">
       <div class="modal-header">
         <h3 class="modal-title">Edit Prefix Configuration</h3>
-        <button class="modal-close" onclick="closeEditPrefixModal()">
+        <button type="button" class="modal-close" aria-label="Close dialog" onclick="closeEditPrefixModal()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
@@ -469,7 +473,7 @@
     <div class="modal-container">
       <div class="modal-header">
         <h3 class="modal-title">Add Label Translation</h3>
-        <button class="modal-close" onclick="closeAddLabelModal()">
+        <button type="button" class="modal-close" aria-label="Close dialog" onclick="closeAddLabelModal()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
@@ -497,7 +501,7 @@
     <div class="modal-container">
       <div class="modal-header">
         <h3 class="modal-title">Bulk CSV Import</h3>
-        <button class="modal-close" onclick="closeImportModal()">
+        <button type="button" class="modal-close" aria-label="Close dialog" onclick="closeImportModal()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>

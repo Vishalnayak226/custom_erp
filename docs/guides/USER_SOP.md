@@ -27,10 +27,10 @@ A few things work the same way everywhere in this system. Learn them once here i
 
 ---
 
-## 2. Dashboard
+## 2. Where you land after signing in
 
-1. Click **Dashboard** in the sidebar (or it's what you see right after logging in).
-2. You'll see four summary tiles (registered record types, audit history count, active tenant, platform health) and four shortcut cards: **Database Schema Design**, **Dynamic Labels**, **Prefix Configs**, and **Activity Log**. These four are admin/config tools — see **[ADMIN_SOP.md](ADMIN_SOP.md)** for what to do with them. Clicking a card takes you straight to that screen.
+1. Signing in takes you to **Reports** (§14), whose first tab is a dashboard of live figures — stale approvals, failed syncs, negative stock and a sales trend. From the second visit onward you land back on whichever screen you were last using instead, so you can pick up where you left off.
+2. There is no separate Dashboard screen. The one that used to sit at the top of the sidebar only held derived counts and shortcuts to admin/config tools (**Database Schema Design**, **Dynamic Labels**, **Prefix Configs**, **Activity Log**), all of which are in the **Settings** module — see **[ADMIN_SOP.md](ADMIN_SOP.md)**. It was removed in August 2026 rather than kept as a second front door to the same screens.
 
 ---
 
@@ -499,14 +499,20 @@ Reached via the **Stock** flyout → **Cycle Count**. Counts stock in place, wit
 
 ---
 
-## 21. Stores
+## 21. Locations — your shops, warehouses and head office
 
-Reached via the **Stock** flyout → **Stores**. A standard record-list screen (§1).
+Reached via **Setup** → **Core** → **Location** (§28). A standard record-list screen (§1).
 
-> **Read this first — do not use Stores to set up the place you actually trade from.** Despite the name, nothing else in the system points at a Stores record: no transaction, report or picker will offer it. The record type every transaction actually uses is **Location** (Setup → Core → Location), which has a **Type** of Store, Warehouse or HO. **Create your shop as a Location with Type = Store.** Stores exists as an address book only, and whether it is folded into Location or retired is an open decision (tracked as Stage 30.5.5).
+**This is the record that makes a place real to the rest of the system.** Every transaction that has to happen *somewhere* — a sale, a purchase order, a goods receipt, a transfer, a stock count, an expense claim — points at a Location. Create one before you try to trade.
 
-1. Click **New Stores** (top right). Fill in **Store Code**, **Store Name** (required), Address, City, Contact Phone, Store Manager (all optional), and Status.
-2. Click **Save**.
+1. Click **New Location** (top right).
+2. Fill in **Location Code** and **Location Name** (both required). The code is what you will type or pick on every transaction screen, so keep it short — `MAIN`, `HO`, `WH1`.
+3. Set **Type** (required) to **Store**, **Warehouse** or **HO**. This is what tells the system what kind of place it is; the pickers on transaction screens group locations by it.
+4. Optionally fill in **Legal Entity**, **Address**, **City**, **Contact Phone** and **Manager**.
+5. **Status** (required) is Active or Inactive.
+6. Click **Save**.
+
+> **If you are following an older printout**: there used to be a separate **Stores** entry in the **Stock** flyout, described here as "an address book that nothing reads". That was accurate — no transaction, report or picker could ever select one. It has been **removed**, and its Address / City / Contact Phone / Manager fields are now Location fields, as listed above. Any shop record you created there was moved to Location with **Type = Store** automatically. There is nothing you need to re-enter.
 
 ---
 
@@ -633,7 +639,7 @@ The **Setup** flyout holds every reference list ("master") the system knows abou
 | Group | Lists |
 |---|---|
 | **Master Data** | Brand, Color, Model, Size, Style, Batch |
-| **Core** | Location, Department, Cost Center, Legal Entity |
+| **Core** | Location (see §21), Department, Cost Center, Legal Entity |
 | **Sales** | Customer, POS Profile |
 | **POS** | Offer (the discounts and coupons the till applies — see §3.2) |
 | **Procurement** | Vendor |
@@ -645,7 +651,6 @@ The **Setup** flyout holds every reference list ("master") the system knows abou
 | **OMS** | Reason Code, Courier Service Area |
 | **CRM** | Campaign, Voucher |
 | **Reports** | Scheduled Report |
-| **Store** | Stores (see §21 — and read the note there before using it) |
 
 > **Note**: earlier versions of this SOP listed **Sub Brands, Sub Styles, Product Categories, Product Types, Item Names, Secondary Colors, Fabric Colors** and **Polishes** here. None of those has ever existed as a record type — they were placeholder entries in the page's HTML that the real menu overwrote on load. They have been removed from the code as well as from this document.
 

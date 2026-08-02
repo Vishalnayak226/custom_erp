@@ -314,7 +314,14 @@ const COPY_ICON_DONE_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill
 function copyableCell(displayValue, rawValue) {
   const raw = rawValue === undefined || rawValue === null ? '' : String(rawValue);
   if (raw === '') return displayValue === undefined || displayValue === null ? '' : String(displayValue);
-  return `<span class="copyable-cell"><span>${displayValue}</span><button type="button" class="copy-chip" title="Copy" data-copy-value="${encodeURIComponent(raw)}" onclick="event.stopPropagation(); copyValueToClipboard(this)">${COPY_ICON_SVG}</button></span>`;
+  // 30.5.8: this one helper renders every copy chip in the app - roughly 30
+  // per record list - so the accessible name is attached here rather than at
+  // any call site. It names the value, not the action: a screen reader
+  // announcing "Copy, button" thirty times down a column says nothing about
+  // which row it is on. `title` alone is only a last-resort accessible name
+  // and several screen readers skip it, so aria-label is what makes these
+  // reachable rather than merely hoverable.
+  return `<span class="copyable-cell"><span>${displayValue}</span><button type="button" class="copy-chip" title="Copy" aria-label="Copy ${escapeHTMLText(raw)}" data-copy-value="${encodeURIComponent(raw)}" onclick="event.stopPropagation(); copyValueToClipboard(this)">${COPY_ICON_SVG}</button></span>`;
 }
 
 window.copyValueToClipboard = async function(btn) {
@@ -399,7 +406,16 @@ let state = {
   modules: { enabled: null, solePackage: null, ownedPackages: [], loaded: false }
 };
 
-let currentView = 'dashboard';
+// The screen the app opens on when there is nothing saved to restore. It was
+// the Dashboard until the user retired that screen (2026-08-01) - everything
+// it showed was derived counts and shortcut tiles into Settings screens.
+// Reports is the replacement because it is the one destination every role and
+// every tenant can reach (MENU_PERMISSION_MAP marks it `open`, and it carries
+// no MENU_MODULE_MAP entitlement gate), and its first tab is the executive
+// dashboard, which shows real figures rather than configuration links.
+const DEFAULT_VIEW = 'reports';
+
+let currentView = DEFAULT_VIEW;
 let currentDoctype = '';
 let posCart = []; // { sku, available, qty, salePrice, costPrice }
 let posLocation = '';
@@ -468,7 +484,7 @@ let editingDocID = null;
 let editingDocVersion = null;
 
 // Selection persistence - so refreshing the browser lands the user back on
-// the same view/doctype/search/page instead of always bouncing to Dashboard.
+// the same view/doctype/search/page instead of always bouncing to DEFAULT_VIEW.
 const NAV_STATE_KEY = 'erp_nav_state';
 
 function saveNavState() {
@@ -601,12 +617,32 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     return name && name !== code ? `${code} — ${name}` : (code || name);
   });
   const limit = opts.limit || 8;
+  // Stage 30.5.8. Two opt-in behaviours, both added for the consistency
+  // sweep and both deliberately off by default so the other 40-odd call
+  // sites are untouched:
+  //
+  //   groupBy         - render the results under a heading per distinct
+  //                     value of this field. Location's 103 records are a
+  //                     mix of shops, warehouses and the head office, and a
+  //                     flat list of eight codes gave no way to tell which
+  //                     was which. Group order is first-appearance, not a
+  //                     hardcoded list, so a tenant that adds a fourth
+  //                     Location type gets it grouped without a code change.
+  //   showAllOnFocus  - open the menu on focus with an empty query, so the
+  //                     control can be browsed and not only searched. This
+  //                     is what lets an employee <select> become a typeahead
+  //                     without losing the "just show me the list" affordance
+  //                     a dropdown had.
+  const groupBy = opts.groupBy || null;
+  const showAllOnFocus = !!opts.showAllOnFocus;
+  const browseLimit = opts.browseLimit || 50;
 
   let menu = null;
   let items = [];
   let activeIndex = -1;
   let debounceTimer = null;
   let requestSeq = 0;
+  let resultsCapped = false;
 
   function onDocMouseDown(e) {
     if (menu && !menu.contains(e.target) && e.target !== inputEl) closeMenu();
@@ -621,6 +657,7 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     removeMenuElement();
     items = [];
     activeIndex = -1;
+    resultsCapped = false;
   }
 
   function pick(doc) {
@@ -677,25 +714,54 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
       document.addEventListener('mousedown', onDocMouseDown, true);
       return;
     }
+    // Grouping reorders `items` itself rather than only reordering the DOM,
+    // because highlight()/pick() address rows by index into `items` - the two
+    // orders have to stay identical or the arrow keys select the wrong record.
+    if (groupBy) items = groupItemsBy(items, groupBy);
+    let lastGroup = null;
     items.forEach((doc) => {
+      if (groupBy) {
+        const g = groupValue(doc, groupBy);
+        if (g !== lastGroup) {
+          lastGroup = g;
+          if (g) {
+            const heading = document.createElement('div');
+            heading.className = 'typeahead-group';
+            heading.textContent = g;
+            menu.appendChild(heading);
+          }
+        }
+      }
       const row = document.createElement('div');
       row.className = 'typeahead-item';
       row.textContent = labelFn(doc);
       row.addEventListener('mousedown', (e) => { e.preventDefault(); pick(doc); });
       menu.appendChild(row);
     });
+    // A browse that filled its page looks identical to a browse that returned
+    // everything, so a user replacing a <select> with this could reasonably
+    // conclude the tenant has 50 employees. Say so instead. Not a
+    // .typeahead-item, so it stays outside the keyboard-navigable index.
+    if (resultsCapped) {
+      const note = document.createElement('div');
+      note.className = 'typeahead-note';
+      note.textContent = `Showing the first ${items.length} — type to search the rest.`;
+      menu.appendChild(note);
+    }
     document.body.appendChild(menu);
     document.addEventListener('mousedown', onDocMouseDown, true);
   }
 
-  async function search(q) {
+  async function search(q, { browse = false } = {}) {
     const seq = ++requestSeq;
-    if (!q) { closeMenu(); return; }
-    const res = await apiFetch(`/api/v1/doc/${doctype}?q=${encodeURIComponent(q)}&limit=${limit}`);
+    if (!q && !browse) { closeMenu(); return; }
+    const pageSize = browse ? browseLimit : limit;
+    const res = await apiFetch(`/api/v1/doc/${doctype}?q=${encodeURIComponent(q)}&limit=${pageSize}`);
     if (seq !== requestSeq) return; // a newer keystroke's request already superseded this one
     if (!res || !res.ok) { closeMenu(); return; }
     items = await res.json();
     if (seq !== requestSeq) return;
+    resultsCapped = browse && items.length >= pageSize;
     openMenu();
   }
 
@@ -705,6 +771,17 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     const q = inputEl.value.trim();
     debounceTimer = setTimeout(() => search(q), 250);
   });
+  if (showAllOnFocus) {
+    inputEl.addEventListener('focus', () => {
+      // Only the empty case browses. Focusing a field that already holds a
+      // value (tabbing back through a half-filled form, or the focus()
+      // pick() itself performs) must not blow the picked value's menu open
+      // again over the top of the next field.
+      if (inputEl.value.trim()) return;
+      clearTimeout(debounceTimer);
+      search('', { browse: true });
+    });
+  }
   inputEl.addEventListener('keydown', (e) => {
     if (!menu || items.length === 0) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); highlight(Math.min(activeIndex + 1, items.length - 1)); }
@@ -715,7 +792,7 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
         // A screen-specific Enter handler (e.g. POS's scan-to-add) may also
         // be registered on this same input - stop it from also firing when
         // a suggestion is being picked instead. Only works if this listener
-        // was attached before that one, so attachTypeahead() call sites
+        // was attached before that one, so attachLinkTypeahead() call sites
         // that share Enter with another handler must run first.
         e.stopImmediatePropagation();
         pick(items[activeIndex]);
@@ -723,6 +800,59 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     }
     else if (e.key === 'Escape') { closeMenu(); }
   });
+}
+
+// Grouping support for attachTypeahead's `groupBy` (Stage 30.5.8).
+// Kept out of the closure so both halves - the bucketing and the
+// "has the heading changed?" test - read the field the same way; a doc
+// whose group field is missing, null or "" is one ungrouped bucket that
+// sorts last and renders with no heading, rather than a heading reading
+// "undefined".
+function groupValue(doc, field) {
+  const v = doc ? doc[field] : undefined;
+  return (v === undefined || v === null || v === '') ? '' : String(v);
+}
+
+function groupItemsBy(docs, field) {
+  const order = [];
+  const buckets = new Map();
+  docs.forEach(doc => {
+    const key = groupValue(doc, field);
+    if (!buckets.has(key)) { buckets.set(key, []); order.push(key); }
+    buckets.get(key).push(doc);
+  });
+  const named = order.filter(k => k !== '');
+  const unnamed = order.filter(k => k === '');
+  return named.concat(unnamed).reduce((acc, k) => acc.concat(buckets.get(k)), []);
+}
+
+// Per-doctype picker defaults (Stage 30.5.8).
+//
+// Location is this app's most-reused master - 15 screens pick one - and
+// Employee is picked by six. Before this, "how a location is chosen" was
+// decided 15 times over, once per call site, which is exactly how the
+// inconsistencies this sweep is closing got in. The defaults live here once;
+// attachLinkTypeahead() is the single door every screen goes through, so the
+// generic record form's Link field and a JSONTable's link column get the same
+// picker as a bespoke screen's hand-built input, for free and forever.
+//
+// Deliberately only presentation. Nothing here declares schema - the field
+// list, the link targets and the validation all stay server-side, which is
+// why a doctype missing from this table is not a bug: it just takes the
+// unadorned default.
+const TYPEAHEAD_DOCTYPE_OPTS = {
+  // 103 records across Store / Warehouse / HO. A flat list of eight codes
+  // gave no way to tell a shop from a warehouse.
+  Location: { groupBy: 'type', showAllOnFocus: true },
+  // Browsable because this control replaced a <select> that listed everyone
+  // (30.5.8) - without it, the conversion would have been a net loss for a
+  // user who does not know the employee codes.
+  Employee: { showAllOnFocus: true },
+};
+
+function attachLinkTypeahead(inputEl, doctype, opts = {}) {
+  if (!inputEl) return;
+  attachTypeahead(inputEl, doctype, { ...(TYPEAHEAD_DOCTYPE_OPTS[doctype] || {}), ...opts });
 }
 
 // ---------------------------------------------------------------------------
@@ -874,7 +1004,7 @@ function renderJSONLineEditor(fg, f, existingVal) {
       td.appendChild(input);
       // A link column is a live typeahead against the target doctype, which
       // is also what gives it 30.5.1's "none exist yet" affordance for free.
-      if (c.type === 'link' && c.link) attachTypeahead(input, c.link);
+      if (c.type === 'link' && c.link) attachLinkTypeahead(input, c.link);
       tr.appendChild(td);
     });
     const actions = document.createElement('td');
@@ -1241,7 +1371,7 @@ async function fetchLabels() {
 // routing, Fulfillment/Marketplace, Fixed Assets' bespoke
 // /api/v1/assets/register endpoint - showing these to every authenticated
 // role matches current server behavior exactly, not a new restriction).
-// Any menu id not listed here (Dashboard) defaults open the same way.
+// Any menu id not listed here defaults open the same way.
 const MENU_PERMISSION_MAP = {
   'menu-pos': { open: true },
   'menu-pos-profiles': { doctypes: ['POSProfile'] },
@@ -1288,7 +1418,6 @@ const MENU_PERMISSION_MAP = {
   'menu-bin-replenishment': { open: true },
   'menu-wave-picking': { open: true },
   'menu-mobile-picking': { open: true },
-  'menu-stores': { doctypes: ['Stores'] },
   'menu-stickers': { open: true },
 
   'menu-hr': { doctypes: ['Employee'] },
@@ -1704,13 +1833,6 @@ function renderSidebarSubmenu() {
 
 function setupEventListeners() {
   // Main Navigation links
-  document.getElementById('menu-dashboard').addEventListener('click', (e) => {
-    e.preventDefault();
-    setActiveMenu('menu-dashboard');
-    closeSubmenus();
-    renderView('dashboard');
-  });
-
   document.getElementById('menu-doctype-builder').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-doctype-builder');
@@ -1864,7 +1986,7 @@ function setupEventListeners() {
   });
 
   // Purchase Requisition (Stage 26.3.2) - same generic doctype-table pattern
-  // as Vendors/Stores/Bins below: its schema is flat (no line items), so
+  // as Vendors/Bins below: its schema is flat (no line items), so
   // unlike GRN/Purchase Orders it doesn't need a bespoke screen, just this
   // sidebar entry plus the Submit-for-Approval/Convert row actions added to
   // the generic table itself (renderDocTable).
@@ -1901,12 +2023,17 @@ function setupEventListeners() {
     renderView('doctype-table');
   });
 
-  document.getElementById('menu-stores').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-stores'); closeSubmenus(); currentDoctype = 'Stores'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+  // Stage 30.5.5: the `menu-stores` handler was removed here along with its
+  // sidebar entry. `Stores` had zero Link references and zero Go references -
+  // nothing could ever select one - while `Location` (Type = Store) is what
+  // every transaction uses. Its four unique fields (address, city,
+  // contact_phone, manager) are Location fields now; see
+  // db/migrations_stage30_5_5_retire_stores.sql.
 
-  // POS Profile (Stage 20.6) - same generic doctype-table pattern as Vendors/Stores above.
+  // POS Profile (Stage 20.6) - same generic doctype-table pattern as Vendors above.
   document.getElementById('menu-pos-profiles').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-profiles'); closeSubmenus(); currentDoctype = 'POSProfile'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  // Bin (Stage 20.16) - same generic doctype-table pattern as POS Profile/Vendors/Stores above.
+  // Bin (Stage 20.16) - same generic doctype-table pattern as POS Profile/Vendors above.
   document.getElementById('menu-bins').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-bins'); closeSubmenus(); currentDoctype = 'Bin'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
   // Offline Sync Review (Stage 20.13) - same generic doctype-table pattern as POS Profile/Bin above.
@@ -1963,7 +2090,7 @@ function setupEventListeners() {
           await showCustomAlert('Industry configuration updated successfully!', 'Success');
           await fetchLabels();
           await fetchRegisteredDoctypes();
-          renderView('dashboard');
+          renderView(currentView);
         } else if (res) {
           await showApiError(res, 'Failed to switch industry profile.');
         }
@@ -2242,8 +2369,7 @@ function closeSubmenus(except) {
 // it never double-binds the sidebar's own.
 let moduleFlyoutDocListenersBound = false;
 function setupModuleFlyouts() {
-  // Sibling entries with no flyout of their own (Dashboard, Reports,
-  // Manufacturing, PIM). Hovering one should put the open menu away - but on
+  // Sibling entries with no flyout of their own (Reports, Manufacturing, PIM). Hovering one should put the open menu away - but on
   // the same dwell rule as switching modules, because the diagonal from a
   // module row down to an item near the bottom of its flyout sweeps straight
   // across these too. Without this they were dead zones: the pointer sat on
@@ -2345,7 +2471,7 @@ function setupModuleFlyouts() {
 }
 
 // Global search (top bar). It used to filter only the table you already had
-// open, so on the dashboard - or any screen that isn't a record table -
+// open, so on any screen that isn't a record table
 // typing did nothing whatsoever, despite the placeholder offering to search
 // menus and record types. It now also suggests every destination the query
 // matches: each sidebar entry (including the ones tucked inside a module
@@ -2529,7 +2655,6 @@ function setupGlobalSearchSuggest(inputEl) {
 // restoring the correct highlighted item after a refresh. doctype-table is
 // handled separately below since it points at a submenu item, not a top-level one.
 const STATIC_VIEW_MENU_IDS = {
-  dashboard: 'menu-dashboard',
   pos: 'menu-pos',
   finance: 'menu-finance',
   fulfillment: 'menu-fulfillment',
@@ -2614,11 +2739,14 @@ function restoreActiveMenuState(view, doctype) {
 }
 
 // Restores whatever view/doctype/search/page the user was last on instead of
-// always bouncing back to Dashboard after a refresh. Falls back to Dashboard
-// if the saved doctype no longer exists (e.g. it was deleted elsewhere).
+// always bouncing back to DEFAULT_VIEW after a refresh. Falls back to
+// DEFAULT_VIEW if the saved doctype no longer exists (e.g. it was deleted
+// elsewhere), or if the saved view itself no longer exists - which every
+// browser that was last on the retired Dashboard has in localStorage, and
+// which would otherwise restore to a permanently blank screen.
 async function restoreLastView() {
   const saved = loadNavState();
-  let view = 'dashboard';
+  let view = DEFAULT_VIEW;
   let doctype = '';
   let searchQuery = '';
   let page = 1;
@@ -2631,7 +2759,7 @@ async function restoreLastView() {
         searchQuery = saved.searchQuery || '';
         page = saved.page || 1;
       }
-    } else {
+    } else if (saved.view !== 'dashboard') {
       view = saved.view;
     }
   }
@@ -2654,9 +2782,7 @@ async function renderView(view) {
   root.innerHTML = '';
   root.scrollTop = 0;
 
-  if (view === 'dashboard') {
-    renderDashboard(root);
-  } else if (view === 'pos') {
+  if (view === 'pos') {
     renderPOSView(root);
   } else if (view === 'finance') {
     await renderFinanceView(root);
@@ -3022,6 +3148,7 @@ async function renderUsersView(container) {
   container.appendChild(listPanel);
 
   document.getElementById('user-create-btn').addEventListener('click', createUser);
+  attachLinkTypeahead(document.getElementById('user-location'), 'Location');
 }
 
 async function createUser() {
@@ -3188,75 +3315,6 @@ async function saveRoleGrant() {
   renderView('roles');
 }
 
-// Dashboard Page
-function renderDashboard(container) {
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Dashboard</h1>
-      <p class="page-subtitle">Welcome to Custom ERP. Choose a module to get started.</p>
-    </div>
-  `;
-  container.appendChild(header);
-
-  // Quick Stats Summary Row
-  const statsRow = document.createElement('div');
-  statsRow.className = 'dashboard-stats-row';
-  statsRow.innerHTML = `
-    <div class="stat-card">
-      <span class="stat-label">Record Types Registered</span>
-      <span class="stat-val">${state.activeDoctypes.length || 0}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Audit History Count</span>
-      <span class="stat-val">${state.auditLogs.length || 0}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Active Schema Tenant</span>
-      <span class="stat-val" style="text-transform: uppercase;">${localStorage.getItem('erp_tenant_id') || 'default'}</span>
-    </div>
-    <div class="stat-card">
-      <span class="stat-label">Platform Core Health</span>
-      <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
-        <span class="pulse-dot"></span>
-        <span style="font-size: 16px; font-weight: 700; color: var(--success-color);">Operational</span>
-      </div>
-    </div>
-  `;
-  container.appendChild(statsRow);
-
-  const grid = document.createElement('div');
-  grid.className = 'dashboard-grid';
-
-  const modules = [
-    { title: 'Database Schema Design', desc: 'Build schemas and customize properties', action: () => { setActiveMenu('menu-doctype-builder'); renderView('doctype-builder'); } },
-    { title: 'Dynamic Labels', desc: 'Configure customized nomenclature', action: () => { setActiveMenu('menu-dynamic-labels'); renderView('dynamic-labels'); } },
-    { title: 'Prefix Configs', desc: 'Configure sequential transaction prefixes', action: () => { setActiveMenu('menu-prefix-configs'); renderView('prefix-configs'); } },
-    { title: 'Extension Hooks', desc: 'Manage 3rd-party webhook hooks and scoped tokens', action: () => { setActiveMenu('menu-extension-hooks'); renderView('extension-hooks'); } },
-    { title: 'Activity Log', desc: 'Track audits, panics, and payloads', action: () => { setActiveMenu('menu-audit-logs'); renderView('audit-logs'); } },
-    { title: 'Configuration', desc: 'System settings by module - expiry days, thresholds, timeouts, and more', action: () => { setActiveMenu('menu-configuration'); renderView('configuration'); } },
-    { title: 'System Status', desc: 'Deployment, backup, and restore-drill health', action: () => { setActiveMenu('menu-system-status'); renderView('system-status'); } },
-    { title: 'Tenant Entitlements', desc: 'Set plan and module access per tenant', action: () => { setActiveMenu('menu-tenant-entitlements'); renderView('tenant-entitlements'); } },
-    { title: 'Tenant Usage', desc: 'Live concurrency and usage-limit health per tenant', action: () => { setActiveMenu('menu-tenant-usage'); renderView('tenant-usage'); } }
-  ];
-
-  modules.forEach(m => {
-    const card = document.createElement('div');
-    card.className = 'dashboard-card';
-    card.innerHTML = `
-      <div class="card-content">
-        <h3 class="card-title">${m.title}</h3>
-        <p class="card-desc">${m.desc}</p>
-      </div>
-    `;
-    card.addEventListener('click', m.action);
-    grid.appendChild(card);
-  });
-
-  container.appendChild(grid);
-}
-
 // POS / Billing screen - cashier/barcode-scan-to-sell UI against the
 // already-working checkout/availability APIs (Stage 13.4). Kept independent
 // of the generic DocType table view since a checkout cart isn't a plain
@@ -3346,9 +3404,9 @@ function renderPOSView(container) {
   `;
   container.appendChild(panel);
 
-  attachTypeahead(document.getElementById('pos-location'), 'Location');
-  attachTypeahead(document.getElementById('pos-customer'), 'Customer');
-  attachTypeahead(document.getElementById('pos-sku-input'), 'Item');
+  attachLinkTypeahead(document.getElementById('pos-location'), 'Location');
+  attachLinkTypeahead(document.getElementById('pos-customer'), 'Customer');
+  attachLinkTypeahead(document.getElementById('pos-sku-input'), 'Item');
 
   document.getElementById('pos-location').addEventListener('change', (e) => {
     posLocation = e.target.value.trim();
@@ -3422,7 +3480,8 @@ function renderPOSReturnPanel(container) {
   `;
   container.appendChild(panel);
 
-  attachTypeahead(document.getElementById('pos-return-sku-input'), 'Item');
+  attachLinkTypeahead(document.getElementById('pos-return-sku-input'), 'Item');
+  attachLinkTypeahead(document.getElementById('pos-return-location'), 'Location');
   document.getElementById('pos-return-add-btn').addEventListener('click', addSKUToPOSReturn);
   document.getElementById('pos-return-sku-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -5252,8 +5311,8 @@ async function renderPutawayView(container) {
   container.appendChild(panel);
 
   document.getElementById('putaway-submit-btn').addEventListener('click', submitPutaway);
-  attachTypeahead(document.getElementById('putaway-bin'), 'Bin');
-  attachTypeahead(document.getElementById('putaway-sku'), 'Item');
+  attachLinkTypeahead(document.getElementById('putaway-bin'), 'Bin');
+  attachLinkTypeahead(document.getElementById('putaway-sku'), 'Item');
 
   // Stage 26.5.3: cross-dock/flow-through putaway - an alternative to
   // shelving when a transfer/sale is already waiting on this exact SKU at
@@ -5287,8 +5346,8 @@ async function renderPutawayView(container) {
   container.appendChild(xdockPanel);
   document.getElementById('xdock-check-btn').addEventListener('click', checkCrossDockOpportunity);
   document.getElementById('xdock-stage-btn').addEventListener('click', submitCrossDockPutaway);
-  attachTypeahead(document.getElementById('xdock-sku'), 'Item');
-  attachTypeahead(document.getElementById('xdock-location'), 'Location');
+  attachLinkTypeahead(document.getElementById('xdock-sku'), 'Item');
+  attachLinkTypeahead(document.getElementById('xdock-location'), 'Location');
 }
 
 async function checkCrossDockOpportunity() {
@@ -5406,8 +5465,8 @@ async function renderBinConditionsView(container) {
   document.getElementById('bincond-to').value = 'Damaged';
 
   document.getElementById('bincond-submit-btn').addEventListener('click', submitBinConditionTransition);
-  attachTypeahead(document.getElementById('bincond-bin'), 'Bin');
-  attachTypeahead(document.getElementById('bincond-sku'), 'Item');
+  attachLinkTypeahead(document.getElementById('bincond-bin'), 'Bin');
+  attachLinkTypeahead(document.getElementById('bincond-sku'), 'Item');
 }
 
 async function submitBinConditionTransition() {
@@ -5508,8 +5567,8 @@ async function renderLPNView(container) {
 
   document.getElementById('lpn-assign-btn').addEventListener('click', submitLPNAssign);
   document.getElementById('lpn-lookup-btn').addEventListener('click', lookupLPNContents);
-  attachTypeahead(document.getElementById('lpn-bin'), 'Bin');
-  attachTypeahead(document.getElementById('lpn-sku'), 'Item');
+  attachLinkTypeahead(document.getElementById('lpn-bin'), 'Bin');
+  attachLinkTypeahead(document.getElementById('lpn-sku'), 'Item');
 }
 
 async function submitLPNAssign() {
@@ -5585,7 +5644,7 @@ async function renderBinReplenishmentView(container) {
   `;
   container.appendChild(panel);
   document.getElementById('replen-fetch-btn').addEventListener('click', fetchBinReplenishmentSuggestions);
-  attachTypeahead(document.getElementById('replen-location'), 'Location');
+  attachLinkTypeahead(document.getElementById('replen-location'), 'Location');
 }
 
 async function fetchBinReplenishmentSuggestions() {
@@ -6001,7 +6060,7 @@ async function renderCycleCountView(container) {
   document.getElementById('recount-request-btn').addEventListener('click', submitRequestRecount);
   document.getElementById('recount-submit-btn').addEventListener('click', submitRecountValue);
   document.getElementById('abc-plan-btn').addEventListener('click', fetchABCCycleCountPlan);
-  attachTypeahead(document.getElementById('abc-location'), 'Location');
+  attachLinkTypeahead(document.getElementById('abc-location'), 'Location');
 }
 
 async function submitCycleCountReconcile() {
@@ -6378,6 +6437,7 @@ async function renderMarketplaceView(container) {
   document.getElementById('mkt-reconcile-btn').addEventListener('click', submitMarketplaceReconcile);
   document.getElementById('mkt-book-btn').addEventListener('click', submitLogisticsBooking);
   document.getElementById('mkt-manifest-btn').addEventListener('click', submitGenerateManifest);
+  attachLinkTypeahead(document.getElementById('mkt-manifest-location'), 'Location');
   populateMarketplaceChannelOptions();
 }
 
@@ -6753,8 +6813,8 @@ async function renderPurchaseOrdersView(container) {
   container.appendChild(formPanel);
 
   document.getElementById('po-gst-calc-btn').addEventListener('click', calculatePOGst);
-  attachTypeahead(document.getElementById('po-warehouse'), 'Location');
-  attachTypeahead(document.getElementById('po-location'), 'Location');
+  attachLinkTypeahead(document.getElementById('po-warehouse'), 'Location');
+  attachLinkTypeahead(document.getElementById('po-location'), 'Location');
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -7143,10 +7203,10 @@ async function renderGRNWorkbenchView(container) {
   `;
   container.appendChild(formPanel);
 
-  attachTypeahead(document.getElementById('grn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
-  attachTypeahead(document.getElementById('grn-location'), 'Location');
-  attachTypeahead(document.getElementById('grn-asn'), 'ASN');
-  attachTypeahead(document.getElementById('grn-line-sku'), 'Item');
+  attachLinkTypeahead(document.getElementById('grn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
+  attachLinkTypeahead(document.getElementById('grn-location'), 'Location');
+  attachLinkTypeahead(document.getElementById('grn-asn'), 'ASN');
+  attachLinkTypeahead(document.getElementById('grn-line-sku'), 'Item');
 
   document.getElementById('grn-po').addEventListener('change', loadGRNItemsFromPO);
   document.getElementById('grn-load-po-btn').addEventListener('click', loadGRNItemsFromPO);
@@ -7521,10 +7581,10 @@ async function renderASNView(container) {
   `;
   container.appendChild(formPanel);
 
-  attachTypeahead(document.getElementById('asn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
-  attachTypeahead(document.getElementById('asn-location'), 'Location');
-  attachTypeahead(document.getElementById('asn-vendor'), 'Vendor');
-  attachTypeahead(document.getElementById('asn-line-sku'), 'Item');
+  attachLinkTypeahead(document.getElementById('asn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
+  attachLinkTypeahead(document.getElementById('asn-location'), 'Location');
+  attachLinkTypeahead(document.getElementById('asn-vendor'), 'Vendor');
+  attachLinkTypeahead(document.getElementById('asn-line-sku'), 'Item');
   document.getElementById('asn-add-line-btn').addEventListener('click', addASNLine);
   document.getElementById('asn-create-btn').addEventListener('click', createASN);
   renderASNLinesList();
@@ -7780,7 +7840,13 @@ async function renderExecDashboard(panel) {
     </div>
   `;
 
+  // Found while live-verifying 30.5.8: Reports is DEFAULT_VIEW, so this runs
+  // on every login, and navigating away before its fetches land leaves this
+  // container detached - the forEach below then threw an uncaught TypeError
+  // on a null appendChild. Guarded the same way renderExecDashboardTrendChart
+  // below already guards its own container.
   const cardsRow = document.getElementById('exec-dashboard-cards');
+  if (!cardsRow) return;
   cards.forEach(c => {
     const card = document.createElement('div');
     card.className = 'stat-card';
@@ -8704,7 +8770,7 @@ async function renderRFQQuotesPanel(container, rfqId, rfq) {
   const submitBtn = document.getElementById('quote-submit-btn');
   if (submitBtn) submitBtn.addEventListener('click', () => submitVendorQuote(rfqId));
   const quoteVendorInput = document.getElementById('quote-vendor');
-  if (quoteVendorInput) attachTypeahead(quoteVendorInput, 'Vendor');
+  if (quoteVendorInput) attachLinkTypeahead(quoteVendorInput, 'Vendor');
 }
 
 async function submitVendorQuote(rfqId) {
@@ -8981,13 +9047,14 @@ async function renderHRView(container) {
     });
   });
 
-  const employeesRes = await apiFetch('/api/v1/doc/Employee');
-  const employees = employeesRes && employeesRes.ok ? await employeesRes.json() : [];
-
+  // Stage 30.5.8: the whole Employee list used to be fetched here, on every
+  // HR tab render, purely to build <option>s - including for the eight tabs
+  // that never showed an employee picker at all. The pickers are typeaheads
+  // now and fetch what they need on demand, so the eager list is gone.
   if (currentHRTab === 'attendance') {
-    await renderAttendanceTab(container, employees);
+    await renderAttendanceTab(container);
   } else if (currentHRTab === 'leave') {
-    await renderLeaveTab(container, employees);
+    await renderLeaveTab(container);
   } else if (currentHRTab === 'payroll-export') {
     renderPayrollExportTab(container);
   } else if (currentHRTab === 'roster') {
@@ -8996,9 +9063,9 @@ async function renderHRView(container) {
     currentTablePage = 1;
     await renderDocTableView(container);
   } else if (currentHRTab === 'payroll') {
-    await renderPayrollTab(container, employees);
+    await renderPayrollTab(container);
   } else if (currentHRTab === 'loans') {
-    await renderEmployeeLoansTab(container, employees);
+    await renderEmployeeLoansTab(container);
   } else if (currentHRTab === 'onboarding') {
     currentDoctype = 'OnboardingChecklist';
     currentSearchQuery = '';
@@ -9029,21 +9096,40 @@ async function renderHRView(container) {
   }
 }
 
-function employeeOptions(employees) {
-  return employees.map(e => `<option value="${e.code || e.id}">${e.code || e.id} - ${e.name || ''}</option>`).join('');
+// The employee picker, in one place (Stage 30.5.8).
+//
+// Six screens ask for an employee. Five hand-built a <select> listing every
+// employee up front; Asset's custodian used the typeahead that every other
+// master picker in this app uses. That split cost more than tidiness - the
+// <select> made each of those five screens fetch the entire Employee list on
+// load just to build <option>s, and gave no way to search it once a tenant
+// has more staff than fit on a screen.
+//
+// Settled on the typeahead, being the control ~35 other pickers already use,
+// with showAllOnFocus (see TYPEAHEAD_DOCTYPE_OPTS) so the one thing the
+// <select> genuinely did better - "show me everyone without typing" - is
+// still there. Two things this does not lose:
+//   - 30.5.1's empty-state guidance. It gets better, in fact: an empty list
+//     used to render a static hint underneath, and now focusing the field
+//     opens the typeahead's dead-end row, which names the doctype and links
+//     straight to where an Employee is created.
+//   - validation. employee_id is a Link field, so an id that names no real
+//     record is refused server-side with META-0198 whichever control typed
+//     it (engines/doctype.go) - the free-text input is not a new hole.
+function employeePickerField(id, width = '200px') {
+  return `
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="${id}">Employee</label>
+        <input type="text" id="${id}" class="form-input" style="width: ${width};"
+               placeholder="Search, or click to browse" autocomplete="off">
+      </div>`;
 }
 
-// Stage 30.5.1: Employee is the most damaging of the empty master lists -
-// it strands all four HR screens at once, because Attendance, Leave, Payroll
-// and Loans each start with "pick an employee" and none of them said where
-// employees come from. Every HR employee <select> renders this underneath
-// when the list is empty; returns '' otherwise, so it costs nothing in the
-// normal case.
-function employeePickerHint(employees) {
-  return (employees && employees.length) ? '' : emptyPickerHint('Employee');
+function attachEmployeePicker(id) {
+  attachLinkTypeahead(document.getElementById(id), 'Employee');
 }
 
-async function renderAttendanceTab(container, employees) {
+async function renderAttendanceTab(container) {
   const res = await apiFetch('/api/v1/doc/Attendance');
   const records = res && res.ok ? await res.json() : [];
 
@@ -9055,14 +9141,7 @@ async function renderAttendanceTab(container, employees) {
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Mark Attendance</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       ${autoNumberField('Attendance Code', 'ATT', '160px')}
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="att-employee">Employee</label>
-        <select id="att-employee" class="form-input" style="width: 200px;">
-          <option value="">Select employee</option>
-          ${employeeOptions(employees)}
-        </select>
-        ${employeePickerHint(employees)}
-      </div>
+${employeePickerField('att-employee', '200px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="att-date">Date</label>
         <input type="date" id="att-date" class="form-input">
@@ -9111,7 +9190,8 @@ async function renderAttendanceTab(container, employees) {
   container.appendChild(listPanel);
 
   document.getElementById('att-save-btn').addEventListener('click', saveAttendance);
-  attachTypeahead(document.getElementById('att-location'), 'Location');
+  attachEmployeePicker('att-employee');
+  attachLinkTypeahead(document.getElementById('att-location'), 'Location');
 }
 
 async function saveAttendance() {
@@ -9143,7 +9223,7 @@ async function saveAttendance() {
   renderView('hr');
 }
 
-async function renderLeaveTab(container, employees) {
+async function renderLeaveTab(container) {
   const res = await apiFetch('/api/v1/doc/Leave');
   const records = res && res.ok ? await res.json() : [];
 
@@ -9155,14 +9235,7 @@ async function renderLeaveTab(container, employees) {
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Apply Leave</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       ${autoNumberField('Leave Code', 'LV', '160px')}
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="leave-employee">Employee</label>
-        <select id="leave-employee" class="form-input" style="width: 200px;">
-          <option value="">Select employee</option>
-          ${employeeOptions(employees)}
-        </select>
-        ${employeePickerHint(employees)}
-      </div>
+${employeePickerField('leave-employee', '200px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="leave-type">Leave Type</label>
         <select id="leave-type" class="form-input" style="width: 130px;">
@@ -9219,6 +9292,7 @@ async function renderLeaveTab(container, employees) {
   container.appendChild(listPanel);
 
   document.getElementById('leave-save-btn').addEventListener('click', saveLeave);
+  attachEmployeePicker('leave-employee');
 }
 
 async function saveLeave() {
@@ -9348,7 +9422,7 @@ async function runPayrollExport() {
 // employee bank details on file). SalaryStructure itself is a Master
 // doctype, managed under Setup like any other master - this tab is just the
 // payroll *run*, not salary-structure maintenance.
-async function renderPayrollTab(container, employees) {
+async function renderPayrollTab(container) {
   const formPanel = document.createElement('div');
   formPanel.className = 'table-panel';
   formPanel.style.padding = '24px';
@@ -9357,14 +9431,7 @@ async function renderPayrollTab(container, employees) {
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Run Payroll</h2>
     <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 12px;">Salary structures are configured under Setup &rarr; Salary Structure.</p>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="payroll-run-employee">Employee</label>
-        <select id="payroll-run-employee" class="form-input" style="width: 200px;">
-          <option value="">Select employee</option>
-          ${employeeOptions(employees)}
-        </select>
-        ${employeePickerHint(employees)}
-      </div>
+${employeePickerField('payroll-run-employee', '200px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="payroll-run-from">Period From</label>
         <input type="date" id="payroll-run-from" class="form-input">
@@ -9407,6 +9474,7 @@ async function renderPayrollTab(container, employees) {
   container.appendChild(listPanel);
 
   document.getElementById('payroll-run-btn').addEventListener('click', runPayrollForEmployee);
+  attachEmployeePicker('payroll-run-employee');
 }
 
 async function runPayrollForEmployee() {
@@ -9455,7 +9523,7 @@ async function postPayslipToGL(payslipId) {
 // (GL posting + initializing outstanding_balance) beyond generic CRUD -
 // same reasoning the Manufacturing screen's BOM/Production Order panels
 // already established.
-async function renderEmployeeLoansTab(container, employees) {
+async function renderEmployeeLoansTab(container) {
   const formPanel = document.createElement('div');
   formPanel.className = 'table-panel';
   formPanel.style.padding = '24px';
@@ -9464,14 +9532,7 @@ async function renderEmployeeLoansTab(container, employees) {
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Loan/Advance</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       ${autoNumberField('Loan Code', 'LOAN', '160px')}
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="loan-employee">Employee</label>
-        <select id="loan-employee" class="form-input" style="width: 200px;">
-          <option value="">Select employee</option>
-          ${employeeOptions(employees)}
-        </select>
-        ${employeePickerHint(employees)}
-      </div>
+${employeePickerField('loan-employee', '200px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="loan-principal">Principal Amount</label>
         <input type="number" id="loan-principal" class="form-input" style="width: 140px;">
@@ -9514,6 +9575,7 @@ async function renderEmployeeLoansTab(container, employees) {
   container.appendChild(listPanel);
 
   document.getElementById('loan-create-btn').addEventListener('click', createEmployeeLoan);
+  attachEmployeePicker('loan-employee');
 }
 
 async function createEmployeeLoan() {
@@ -9915,8 +9977,8 @@ async function renderAssetsView(container) {
   container.appendChild(listPanel);
 
   document.getElementById('asset-create-btn').addEventListener('click', createAsset);
-  attachTypeahead(document.getElementById('asset-location'), 'Location');
-  attachTypeahead(document.getElementById('asset-custodian'), 'Employee');
+  attachLinkTypeahead(document.getElementById('asset-location'), 'Location');
+  attachLinkTypeahead(document.getElementById('asset-custodian'), 'Employee');
 }
 
 function renderAssetActions(asset) {
@@ -10022,7 +10084,7 @@ async function promptDisposeAsset(assetId) {
 // receive lifecycle. TransferOrder is already a registered generic doctype
 // (Draft/Approved/Dispatched/Received), but its dispatch/receive engine
 // functions need a JSON-encoded `items` line array that has no field/UI
-// anywhere yet, so - unlike Vendors/Stores/POSProfile - this needed a small
+// anywhere yet, so - unlike Vendors/POSProfile - this needed a small
 // bespoke view (mirroring renderAssetsView's form+list+action-button shape)
 // rather than just pointing at the generic doctype-table.
 //
@@ -10117,8 +10179,8 @@ async function renderTransfersView(container) {
   renderTransferLinesList();
   document.getElementById('transfer-add-line-btn').addEventListener('click', addTransferLine);
   document.getElementById('transfer-create-btn').addEventListener('click', createTransferOrder);
-  attachTypeahead(document.getElementById('transfer-from'), 'Location');
-  attachTypeahead(document.getElementById('transfer-to'), 'Location');
+  attachLinkTypeahead(document.getElementById('transfer-from'), 'Location');
+  attachLinkTypeahead(document.getElementById('transfer-to'), 'Location');
 }
 
 function renderTransferLinesList() {
@@ -10355,11 +10417,11 @@ async function receiveTransferOrder(id) {
 // queries every approval-gated doctype), so this screen only needs to
 // handle claim creation/submission plus the two stages after approval.
 async function renderExpensesView(container) {
-  const [claimsRes, employeesRes] = await Promise.all([
-    apiFetch('/api/v1/doc/ExpenseClaim'),
-    apiFetch('/api/v1/doc/Employee')
-  ]);
-  if (!claimsRes || !employeesRes) return;
+  // 30.5.8: the parallel Employee fetch that used to sit alongside this one
+  // only existed to build the picker's <option>s; the picker is a typeahead
+  // now and fetches on demand.
+  const claimsRes = await apiFetch('/api/v1/doc/ExpenseClaim');
+  if (!claimsRes) return;
 
   const header = document.createElement('div');
   header.className = 'page-header';
@@ -10372,7 +10434,6 @@ async function renderExpensesView(container) {
   container.appendChild(header);
 
   const claims = claimsRes.ok ? await claimsRes.json() : [];
-  const employees = employeesRes.ok ? await employeesRes.json() : [];
 
   const formPanel = document.createElement('div');
   formPanel.className = 'table-panel';
@@ -10382,14 +10443,7 @@ async function renderExpensesView(container) {
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Expense Claim</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       ${autoNumberField('Claim Number', 'EXP', '160px')}
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="exp-employee">Employee</label>
-        <select id="exp-employee" class="form-input" style="width: 180px;">
-          <option value="">Select employee</option>
-          ${employeeOptions(employees)}
-        </select>
-        ${employeePickerHint(employees)}
-      </div>
+${employeePickerField('exp-employee', '180px')}
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="exp-location">Location</label>
         <input type="text" id="exp-location" class="form-input" style="width: 100px;">
@@ -10462,7 +10516,8 @@ async function renderExpensesView(container) {
   container.appendChild(listPanel);
 
   document.getElementById('exp-create-btn').addEventListener('click', createExpenseClaim);
-  attachTypeahead(document.getElementById('exp-location'), 'Location');
+  attachEmployeePicker('exp-employee');
+  attachLinkTypeahead(document.getElementById('exp-location'), 'Location');
 }
 
 function expenseStatusBadge(status) {
@@ -10720,8 +10775,8 @@ async function renderManufacturingOrdersTab(container) {
 
   document.getElementById('bom-create-btn').addEventListener('click', createBOM);
   document.getElementById('po-mfg-create-btn').addEventListener('click', createProductionOrder);
-  attachTypeahead(document.getElementById('bom-parent-item'), 'Item');
-  attachTypeahead(document.getElementById('po-mfg-location'), 'Location');
+  attachLinkTypeahead(document.getElementById('bom-parent-item'), 'Item');
+  attachLinkTypeahead(document.getElementById('po-mfg-location'), 'Location');
 }
 
 function renderProductionOrderActions(order) {
@@ -10881,7 +10936,7 @@ async function renderMRPSuggestionsTab(container) {
     </div>
   `;
   container.appendChild(formPanel);
-  attachTypeahead(document.getElementById('mrp-location'), 'Location');
+  attachLinkTypeahead(document.getElementById('mrp-location'), 'Location');
 
   const resultsPanel = document.createElement('div');
   resultsPanel.id = 'mrp-results';
@@ -11994,7 +12049,7 @@ function renderDocTable() {
       // showHistory above.
       const prActions = currentDoctype === 'PurchaseRequisition'
         ? (row.status === 'Draft'
-            ? `<button class="action-btn" title="Submit for Approval" style="margin-right:4px;" onclick="submitRequisitionForApproval('${row.id}')">
+            ? `<button class="action-btn" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" style="margin-right:4px;" onclick="submitRequisitionForApproval('${row.id}')">
                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
                </button>`
             : row.status === 'Approved'
@@ -12008,7 +12063,7 @@ function renderDocTable() {
         // Approve/Reject itself happens on the existing Approvals inbox
         // screen, not here.
         : currentDoctype === 'QualityInspection' && row.status === 'Draft'
-        ? `<button class="action-btn" title="Submit for Approval" style="margin-right:4px;" onclick="submitQualityInspectionForApproval('${row.id}')">
+        ? `<button class="action-btn" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" style="margin-right:4px;" onclick="submitQualityInspectionForApproval('${row.id}')">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
            </button>`
         // Stage 26.9.11: SubcontractOrder is the same "flat doctype, only
@@ -12016,30 +12071,30 @@ function renderDocTable() {
         // raw material out (Draft->Sent), Receive moves the processed/
         // finished good back in (Sent->Received).
         : currentDoctype === 'SubcontractOrder' && row.status === 'Draft'
-        ? `<button class="action-btn" title="Send to Subcontractor" style="margin-right:4px;" onclick="sendSubcontractOrder('${row.id}')">
+        ? `<button class="action-btn" title="Send to Subcontractor" aria-label="Send ${escapeHTMLText(row.id)} to subcontractor" style="margin-right:4px;" onclick="sendSubcontractOrder('${row.id}')">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
            </button>`
         : currentDoctype === 'SubcontractOrder' && row.status === 'Sent'
-        ? `<button class="action-btn" title="Receive from Subcontractor" style="margin-right:4px;" onclick="receiveSubcontractOrder('${row.id}','${row.expected_received_qty || ''}')">
+        ? `<button class="action-btn" title="Receive from Subcontractor" aria-label="Receive ${escapeHTMLText(row.id)} from subcontractor" style="margin-right:4px;" onclick="receiveSubcontractOrder('${row.id}','${row.expected_received_qty || ''}')">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
            </button>`
         // Stage 26.7.9: customer householding/merge - this row (the
         // duplicate) merges INTO another customer id the user provides.
         : currentDoctype === 'Customer' && row.status !== 'Merged'
-        ? `<button class="action-btn" title="Merge Into Another Customer" style="margin-right:4px;" onclick="mergeCustomerRow('${row.id}')">
+        ? `<button class="action-btn" title="Merge Into Another Customer" aria-label="Merge ${escapeHTMLText(row.id)} into another customer" style="margin-right:4px;" onclick="mergeCustomerRow('${row.id}')">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M3 16v5h5"/><path d="M16 21h5v-5"/><line x1="3" y1="3" x2="21" y2="21"/></svg>
            </button>`
         // Stage 26.8.8/26.8.10: Appraisal/Grievance are the same "flat
         // doctype, only the submit-for-approval action is bespoke" shape
         // QualityInspection already uses above.
         : (currentDoctype === 'Appraisal' || currentDoctype === 'Grievance') && row.status === 'Draft'
-        ? `<button class="action-btn" title="Submit for Approval" style="margin-right:4px;" onclick="submitDocForApproval('${currentDoctype}','${row.id}')">
+        ? `<button class="action-btn" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" style="margin-right:4px;" onclick="submitDocForApproval('${currentDoctype}','${row.id}')">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
            </button>`
         : '';
       tableHTML += `
         <td style="text-align: right;">
-          ${showHistory ? `<button class="action-btn" title="History" style="margin-right:4px;" onclick="viewTaxonomyHistory('${row.id}')">
+          ${showHistory ? `<button class="action-btn" title="History" aria-label="History for ${escapeHTMLText(row.id)}" style="margin-right:4px;" onclick="viewTaxonomyHistory('${row.id}')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </button>` : ''}
           ${prActions}
@@ -12452,18 +12507,18 @@ window.openDynamicModal = async function(existingRecord) {
     const descriptionInput = body.querySelector('[name="description"]');
     const departmentInput = body.querySelector('[name="department"]');
     if (descriptionInput) {
-      attachTypeahead(descriptionInput, 'PurchaseRequisitionDescription', {
+      attachLinkTypeahead(descriptionInput, 'PurchaseRequisitionDescription', {
         valueFields: ['description'],
         labelFn: doc => doc.description || doc.code || doc.id
       });
     }
-    if (departmentInput) attachTypeahead(departmentInput, 'Department');
+    if (departmentInput) attachLinkTypeahead(departmentInput, 'Department');
   }
 
   modal.classList.add('open');
 };
 
-// 21.9 QA-follow-up: the generic record-list screens (Vendors, Stores,
+// 21.9 QA-follow-up: the generic record-list screens (Vendors,
 // Bin Master, everything under Master Definition, etc.) had a Delete
 // action but no way to correct a mistake short of delete-and-recreate -
 // a real gap USER_GUIDE.md's own §8 claimed didn't exist. Reuses the
@@ -12905,10 +12960,10 @@ async function renderApprovalRulesView(container) {
               <td>${r.max_amount == null ? 'No limit' : r.max_amount}</td>
               <td><span class="badge badge-secondary">${r.required_role}</span></td>
               <td style="text-align:right;">
-                <button class="action-btn" title="Edit" style="margin-right:4px;" onclick="openApprovalRuleModal(${r.id})">
+                <button class="action-btn" title="Edit" aria-label="Edit the ${escapeHTMLText(r.doctype)} approval rule" style="margin-right:4px;" onclick="openApprovalRuleModal(${r.id})">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 </button>
-                <button class="action-btn action-btn-danger" title="Delete" onclick="deleteApprovalRuleRow(${r.id})">
+                <button class="action-btn action-btn-danger" title="Delete" aria-label="Delete the ${escapeHTMLText(r.doctype)} approval rule" onclick="deleteApprovalRuleRow(${r.id})">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
                 </button>
               </td>
@@ -14291,7 +14346,7 @@ function renderMockModuleView(container, view) {
       <p class="text-muted" style="font-size: 14px; line-height: 1.6;">
         This transaction screen (Stage 4+) is configured. Switch to dynamic **Setup** or customize attributes using **Database Schema Design**.
       </p>
-      <button class="btn btn-secondary" onclick="setActiveMenu('menu-dashboard'); renderView('dashboard');">Back to Dashboard</button>
+      <button class="btn btn-secondary" onclick="setActiveMenu(STATIC_VIEW_MENU_IDS[DEFAULT_VIEW]); renderView(DEFAULT_VIEW);">Back to Reports</button>
     </div>
   `;
   container.appendChild(panel);

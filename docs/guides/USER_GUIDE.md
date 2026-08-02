@@ -53,17 +53,16 @@ Once you're in, you'll see a **sidebar** on the left. **It only shows what your 
 
 ## 3. Finding Your Way Around
 
-The sidebar has **twelve top-level entries**. Most are module groups: hover one and its screens slide out to the right (click it instead if you are on a touchscreen or using a keyboard). Four — **Dashboard**, **Reports**, **Manufacturing** and **PIM** — have no flyout and open straight away.
+The sidebar has **eleven top-level entries**. Most are module groups: hover one and its screens slide out to the right (click it instead if you are on a touchscreen or using a keyboard). Three — **Reports**, **Manufacturing** and **PIM** — have no flyout and open straight away.
 
 | Sidebar entry | What lives inside |
 |---|---|
-| **Dashboard** | A quick overview. No flyout — it opens directly. |
 | **POS** | POS / Billing (§4) · POS Profiles · Offline Sync Review · Offline Queue Gaps |
 | **Financial Accounting** | Finance / GL · Approvals (§10) · Vendor Invoice · Payment Proposals · Bank Reconciliation · Debit / Credit Notes · Sales Invoice |
 | **Sales & Marketplace** | Order Management · Fulfillment · Marketplace · Customer |
-| **Reports** | Opens directly (§9). |
+| **Reports** | Opens directly (§9). This is also where you land when you first sign in — its first tab is a dashboard of live figures. |
 | **Procurement** | Purchase Requisitions · Purchase Order (§6) · ASN · **Goods Receipt** · Vendors · RFQ / Quotes |
-| **Stock** | Inventory (§5) · Stock Transfer (§7) · Bin · Putaway · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · Cycle Count · Stores · Sticker Printing |
+| **Stock** | Inventory (§5) · Stock Transfer (§7) · Bin · Putaway · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · Cycle Count · Sticker Printing |
 | **HRM** | HR · Fixed Assets · Expenses |
 | **Manufacturing** | Opens directly. |
 | **PIM** | Opens directly. |
@@ -88,7 +87,7 @@ This is the screen a cashier uses most.
 
 > **Before your first sale — three things must already exist.** Skip any of them and the sale will be refused, with an error that only makes sense once you know this list.
 >
-> 1. **A Location to sell from.** Setup → Core → **Location**, with **Type = Store**. (Not "Stores" — see §8.)
+> 1. **A Location to sell from.** Setup → Core → **Location**, with **Type = Store**.
 > 2. **At least one Item, with its HSN Code and GST Rate filled in.** Setup → Inventory → **Item**. Both tax fields are required and the system will not let you save without them, because it cannot price a sale it can't tax. Stock also has to exist: an Item on its own has a quantity of zero until a **Goods Receipt** brings some in (§6).
 > 3. **An open cashier session at that location.** This is the one people miss. Checkout refuses with *"Cash opening is required before billing"* until a session is open. Opening one is step 2 below.
 
@@ -167,13 +166,13 @@ Two things worth knowing:
 5. Click **Dispatch** to move the stock out of the source location (it sits "in transit" until received).
 6. When it physically arrives, click **Receive** and confirm the quantity that actually showed up for each line — if less arrived than was dispatched, entering the lower number records that shortage rather than hiding it.
 
-## 8. Managing Master Data (Vendors, Stores, Brands, and Similar Lists)
+## 8. Managing Master Data (Vendors, Locations, Brands, and Similar Lists)
 
 "Master data" just means the reference lists everything else points to — your vendors, your locations, your items, and things like brands, colors or sizes. A few of the most-used ones also appear directly in a module (**Vendors** under Procurement, **Customer** under Sales & Marketplace), but **Setup** holds all of them.
 
 The **Setup** flyout is **grouped by module** (Core, Master Data, Inventory, HR, Finance, Procurement, Sales and so on) with a **filter box** at the top — type a few letters of what you want and the list narrows. At the bottom is an **Advanced** section, collapsed by default, holding the technical lists most businesses never touch. If you filter, matches inside Advanced are shown too, so nothing is ever hidden from a search.
 
-> **"Stores" is not where you set up your shop.** The record type every transaction actually uses is **Location** (Setup → Core), with its **Type** set to Store, Warehouse or HO. Create your shop as a **Location**. The separate **Stores** list is an address book that nothing else reads.
+> **Your shop is a Location.** Setup → Core → **Location**, with its **Type** set to Store, Warehouse or HO — this is the record every transaction points at. A Location also holds the shop's **Address, City, Contact Phone** and **Manager**. (Earlier versions had a separate "Stores" list under the Stock menu that nothing else read; it was retired and its fields folded into Location.)
 
 Adding a new one always works the same way, no matter which list you're in:
 
@@ -250,7 +249,7 @@ Everything above is per-screen. This section is the opposite: one continuous pat
 
 **Setup → Core → Location → New Location.** Give it a code (`MAIN`), a name, and set **Type = Store**. Save.
 
-> Do **not** use the "Stores" list for this. Nothing else in the system reads it. §8.
+> This is the one record that makes a shop real to the rest of the system — every transaction points at a Location. §8.
 
 ### Step 2 — Create the supplier you buy from
 

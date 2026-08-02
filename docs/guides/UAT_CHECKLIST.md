@@ -13,7 +13,7 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 3. **Some screens are known to be unfinished placeholders, not bugs** — they're marked ⚠️ **Known limitation** below. Seeing "Module Setup Pending" on those specific screens is a *pass*, not a fail. If you see that message anywhere *not* marked with ⚠️ below, that's worth reporting.
 4. **Some actions will correctly refuse you** depending on which user you're logged in as — that's the security/role system working, not a bug. See "Role Access Notes" under each section, and the master notes in [Prerequisites](#0-prerequisites).
 5. Re-run this checklist after any significant change to `public/app.js`, `public/index.html`, or the database schema — it's meant to be reusable, not one-time.
-6. **The sidebar has twelve top-level entries**, most of them module groups with hover flyouts rather than direct links. Hover a module name (or click it, for keyboard/touch) to reveal its screens. Every section below names the module and the screen. The groups, as they read in the app today — use these exact names, older docs and screenshots show earlier ones:
+6. **The sidebar has eleven top-level entries**, most of them module groups with hover flyouts rather than direct links. Hover a module name (or click it, for keyboard/touch) to reveal its screens. Every section below names the module and the screen. The groups, as they read in the app today — use these exact names, older docs and screenshots show earlier ones:
 
    | Module group | Screens inside |
    |---|---|
@@ -22,14 +22,14 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
    | **Sales & Marketplace** | Order Management · Fulfillment · Marketplace · Customer |
    | **Reports** | Opens directly - no flyout |
    | **Procurement** | Purchase Requisitions · Purchase Order · ASN · Goods Receipt · Vendors · RFQ / Quotes |
-   | **Stock** | Inventory · Stock Transfer · Bin · Putaway · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · Cycle Count · Stores · Sticker Printing |
+   | **Stock** | Inventory · Stock Transfer · Bin · Putaway · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · Cycle Count · Sticker Printing |
    | **HRM** | HR · Fixed Assets · Expenses |
    | **Manufacturing** | Opens directly - no flyout |
    | **PIM** | Opens directly - no flyout |
    | **Setup** | A dynamic flyout of every Master record type in your tenant — 53 in a default install, grouped by module, with a filter box and an **Advanced** divider holding 15 system-internal lists |
    | **Settings** | Users · Roles · Prefix Configs · Approval Rules · Dynamic Labels · Database Schema Design · Extension Hooks · Activity Log · Configuration · System Status · Tenant Entitlements · Tenant Usage |
 
-   **Dashboard**, **Reports**, **Manufacturing** and **PIM** are direct links with no flyout.
+   **Reports**, **Manufacturing** and **PIM** are direct links with no flyout.
 
 ---
 
@@ -54,7 +54,7 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 
 - [ ] **1.1 Login screen loads** with Username/Password fields and a "Sign In" button.
 - [ ] **1.2 Wrong password** shows an error message and does not let you in.
-- [ ] **1.3 Correct login (non-MFA user, e.g. `manager1` or `cashier1`)** takes you straight to the Dashboard.
+- [ ] **1.3 Correct login (non-MFA user, e.g. `manager1` or `cashier1`)** takes you straight to **Reports**, the default landing screen (or back to whichever screen that browser was last on).
 - [ ] **1.4 Correct login (MFA user, `admin`/`system`)** prompts for a 6-digit authenticator code after the password, and only lets you in with the correct one.
 - [ ] **1.5 Sidebar shows your name/role** in the bottom-left account area once logged in.
 - [ ] **1.6 Sign out** (account menu, bottom-left → Sign Out) returns you to the login screen and you can't get back in by pressing the browser Back button.
@@ -62,10 +62,11 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 
 ---
 
-## 2. Dashboard
+## 2. Landing screen
 
-- [ ] Loads with no error, shows summary stat tiles (Record Types Registered, Audit History Count, Active Schema Tenant, Platform Core Health).
-- [ ] Quick-launch cards (Database Schema Design, Dynamic Labels, Prefix Configs, Activity Log) navigate to the right screen when clicked.
+- [ ] **No Dashboard entry in the sidebar.** The Dashboard screen was retired in August 2026 (everything on it was derived counts and shortcuts into Settings screens). Seeing one means you are testing an older build.
+- [ ] **Reports loads as the landing screen** with no error on a fresh browser profile (clear `localStorage` first, or use a private window), showing its **Dashboard** tab — four KPI cards plus a 7-day trend chart.
+- [ ] **Last screen is remembered**: navigate to another screen, refresh (F5), and you return to that screen rather than to Reports.
 
 ---
 
@@ -214,10 +215,10 @@ For **each** item in the submenu:
 
 ---
 
-## 17. Vendors / Stores / POS Profiles (in the Procurement / Stock / POS module flyouts respectively)
+## 17. Vendors / POS Profiles (in the Procurement / POS module flyouts respectively)
 
 - [ ] **Vendors**: same generic table/create/delete behavior as any Setup entry (it points at the same underlying screen).
-- [ ] ⚠️ **Known limitation — Stores**: clicking this currently does **not** load correctly (a naming mismatch between the menu code and the registered doctype, plus the doctype has no fields configured yet). Expect either an empty/broken screen or a load error. This is a known gap, not something to spend time debugging — note it as "confirmed still broken" and move on.
+- [ ] **Stores is gone, and its absence is the check.** There must be **no "Stores" entry** in the Stock flyout and none in the Setup master list. It was retired in Stage 30.5.5 because nothing in the system could select one; a shop is a **Location with Type = Store**. If you see a Stores entry, you are on an older build. Confirm instead that **Setup → Core → Location → New Location** offers **Address, City, Contact Phone** and **Manager** — the four fields folded in from the old Stores list.
 - [ ] **POS Profiles (Stage 20.6)**: same generic table/create/delete behavior as Vendors above. Creating one (profile name, Location, default payment mode, opening cash float, status) adds it to the table. This is metadata only right now — nothing else in the app reads it yet (POS session opening still asks for the cash float directly rather than defaulting from a profile).
 - [ ] **Bin (Stage 20.16)**: same generic table/create/delete behavior. Creating one (bin code, Location, zone/aisle/rack, capacity, status) adds it to the table. Also metadata only — actual putaway/pick-list/condition-transition operations are backend-only right now (§24).
 

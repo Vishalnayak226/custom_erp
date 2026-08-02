@@ -4,7 +4,7 @@
      Source: `internal/server`'s error catalog (`error_catalog_generated.go`)
      Regenerate: `go run ./cmd/gendocs` -->
 
-> **Generated 2026-08-01.** This page is produced from `internal/server`'s error catalog (`error_catalog_generated.go`), so it cannot drift from
+> **Generated 2026-08-02.** This page is produced from `internal/server`'s error catalog (`error_catalog_generated.go`), so it cannot drift from
 > the running system. Hand edits are lost on the next run - change the source instead.
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.

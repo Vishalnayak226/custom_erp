@@ -789,36 +789,10 @@ body {
   }
 }
 
-/* Dashboard Grid */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 20px;
-}
-
-.dashboard-card {
-  background-color: var(--panel-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  cursor: pointer;
-  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s;
-}
-
-.dashboard-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 20px -8px rgba(68, 84, 106, 0.08);
-  border-color: var(--primary-color);
-}
-
-.card-content {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+/* .dashboard-grid / .dashboard-card / .card-content were the retired Dashboard
+   landing screen's tile grid and were removed with it (2026-08-01).
+   .dashboard-stats-row below is unrelated and still in use by Finance, the
+   Reports exec dashboard, System Status and Tenant Usage. */
 
 .card-title {
   font-size: 16px;
@@ -1813,6 +1787,35 @@ pre {
   background: transparent;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+/* Grouped typeahead results (Stage 30.5.8) - the heading a Location picker
+   renders above each run of Stores / Warehouses / HO, and the footer note a
+   browse-on-focus menu renders when it hit its page size. Neither is a
+   .typeahead-item, deliberately: they are outside the arrow-key index, so
+   keyboard navigation still maps 1:1 onto the result list. */
+.typeahead-group {
+  padding: 6px 12px 2px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  cursor: default;
+  white-space: nowrap;
+}
+
+.typeahead-group + .typeahead-item {
+  padding-top: 4px;
+}
+
+.typeahead-note {
+  padding: 6px 12px 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: default;
+  border-top: 1px solid var(--border-color);
+  margin-top: 4px;
 }
 
 /* Setup menu grouping / filter / Advanced divider (Stage 30.5.4).
