@@ -18,6 +18,14 @@
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --sidebar-width: 270px;
   --transition-speed: 0.25s;
+  /* Interaction feedback (hover, press) has to land inside the ~100ms a human
+     reads as instant. --transition-speed is the *layout* duration - sidebar
+     width, panel slides, overlays - where 250ms reads as deliberate. Driving
+     hover states off the layout duration is why the UI felt like it was
+     lagging a beat behind the cursor, so the hot paths below use these. */
+  --transition-fast: 0.11s;
+  --transition-med: 0.16s;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* Semantic status + on-surface colors (Stage 28.5). Every status color in
      the sheet routes through these instead of a literal hex, so a theme only
@@ -233,13 +241,27 @@ body {
   font-size: 14px;
   border-radius: 7px;
   cursor: pointer;
-  transition: all var(--transition-speed) ease;
+  /* Named properties, not `all`: `all` also transitions padding, border-width
+     and font-weight, so the .active rule below animated the row's geometry on
+     every navigation instead of just its colour. */
+  transition: background-color var(--transition-fast) ease,
+              color var(--transition-fast) ease,
+              border-left-color var(--transition-fast) ease;
   border-left: 3px solid transparent;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .menu-item:hover {
   background-color: var(--bg-color);
   color: var(--text-main);
+}
+
+/* Press feedback. Without it a click on a row that navigates somewhere slow
+   looks identical to a click that missed, which is what makes people click
+   again - and a second click on a nav row is never what they wanted. */
+.menu-item:active {
+  background-color: var(--surface-subtle);
 }
 
 .menu-item.active {
@@ -266,12 +288,19 @@ body {
   font-size: 13.5px;
   border-radius: 6px;
   cursor: pointer;
-  transition: all var(--transition-speed) ease;
+  transition: background-color var(--transition-fast) ease,
+              color var(--transition-fast) ease;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .submenu-item:hover {
   color: var(--text-main);
   background-color: var(--surface-subtle);
+}
+
+.submenu-item:active {
+  background-color: var(--border-color);
 }
 
 .submenu-item.active {
@@ -281,7 +310,7 @@ body {
 
 .menu-item-arrow {
   margin-left: auto;
-  transition: transform var(--transition-speed) ease;
+  transition: transform var(--transition-med) var(--ease-out);
 }
 
 /* Module hover/flyout menu (Stage 20 nav redesign): the left sidebar shows
@@ -296,7 +325,7 @@ body {
 
 .flyout-arrow {
   transform: rotate(0deg);
-  transition: transform var(--transition-speed) ease;
+  transition: transform var(--transition-med) var(--ease-out);
 }
 
 .has-flyout.flyout-open .flyout-arrow {
@@ -320,8 +349,21 @@ body {
   z-index: 100;
 }
 
+/* The panel used to appear by flipping display:none -> block with no motion at
+   all, while everything around it moved at 250ms. A short slide in the
+   direction it comes from reads as the menu belonging to the row you're on;
+   closing stays instant, because animating a menu out while the pointer is
+   already reaching for the next one is exactly the kind of lag being fixed
+   here. transform/opacity only, so it never affects the scrollHeight
+   openFlyout() measures right after adding this class. */
 .menu-flyout.open {
   display: block;
+  animation: flyout-in var(--transition-med) var(--ease-out);
+}
+
+@keyframes flyout-in {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 /* Invisible hover bridge across the gap between a module row and its flyout
@@ -683,8 +725,22 @@ body {
   font-size: 14px;
   font-weight: 550;
   cursor: pointer;
-  transition: all var(--transition-speed) ease;
+  transition: background-color var(--transition-fast) ease,
+              border-color var(--transition-fast) ease,
+              box-shadow var(--transition-fast) ease,
+              color var(--transition-fast) ease,
+              transform var(--transition-fast) var(--ease-out);
   border: 1px solid transparent;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Press feedback on every button variant at once. A button that looks the
+   same the instant it is pressed as it did before reads as "didn't register",
+   and the user clicks again - which on a submit is a duplicate request, not a
+   cosmetic problem. */
+.btn:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .btn-primary {
@@ -963,12 +1019,19 @@ tr:hover td {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-speed) ease;
+  transition: background-color var(--transition-fast) ease,
+              color var(--transition-fast) ease,
+              transform var(--transition-fast) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .action-btn:hover {
   background-color: var(--surface-subtle);
   color: var(--text-main);
+}
+
+.action-btn:active:not(:disabled) {
+  transform: scale(0.9);
 }
 
 .action-btn-danger:hover {
@@ -1028,6 +1091,9 @@ tr:hover td {
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Keeps the dialog off the viewport edges at any zoom level, and gives the
+     max-height below something to subtract from. */
+  padding: 20px 16px;
   z-index: 100;
   opacity: 0;
   pointer-events: none;
@@ -1039,12 +1105,25 @@ tr:hover td {
   pointer-events: auto;
 }
 
+/* Stage 33: the container used to have no height limit at all. `body` is
+   `overflow: hidden`, so a form taller than the viewport was centred by the
+   overlay's flexbox and then clipped off BOTH ends - the first fields and the
+   Save/Cancel footer were simply unreachable, with nothing to scroll. Now the
+   container is a flex column that can never exceed the viewport, the header and
+   footer stay pinned, and .modal-body takes the overflow (below). Sized in
+   viewport units rather than at fixed breakpoints so browser zoom - 40%, 100%,
+   120%, anything - is handled by the same rule: zoom changes the CSS-pixel
+   viewport, and these bounds are recomputed from it. */
 .modal-container {
   background-color: var(--panel-bg);
   border-radius: 8px;
   box-shadow: var(--shadow-lg);
   width: 100%;
-  max-width: 520px;
+  max-width: min(520px, 100%);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px); /* dvh where supported: mobile URL bars */
   transform: translateY(20px);
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
@@ -1052,6 +1131,19 @@ tr:hover td {
 
 .modal-overlay.open .modal-container {
   transform: translateY(0);
+}
+
+/* Most dialogs wrap body+footer in a <form> (see index.html), so the form -
+   not .modal-body - is the container's flex child. Without this the form stays
+   a plain block sized to its content, the body never gets the leftover height
+   to scroll in, and the footer with the Save button is clipped away exactly as
+   before. Written as `> form` so the handful of JS-built modals that put
+   .modal-body directly in the container keep working unchanged. */
+.modal-container > form {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .modal-header {
@@ -1091,6 +1183,13 @@ tr:hover td {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  /* The one part of the dialog that scrolls. min-height:0 is what actually
+     lets a flex child shrink below its content height - without it the body
+     refuses to shrink and the container overflows again. */
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .modal-footer {
@@ -1100,6 +1199,44 @@ tr:hover td {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+}
+
+.modal-header {
+  flex: 0 0 auto;
+}
+
+/* The generic document form (openDynamicModal in app.js - every master and
+   document create/edit screen) is the one dialog with an unbounded field
+   count: Item alone renders ~20. A single column made it taller than any
+   screen. This lays it out on an intrinsic grid instead - one column when
+   there's room for one, two or three when there's room for more - so the
+   number of columns follows the available width rather than a breakpoint
+   list. minmax(min(240px,100%),1fr) is the whole responsive story: 100%
+   keeps a single column from overflowing a very narrow/heavily-zoomed
+   viewport, 240px is the narrowest a labelled input stays usable at.
+
+   The widening is opt-in per form (openDynamicModal sets .modal-container-wide
+   above 4 fields): a 3-field master in a 920px dialog would be two-thirds empty
+   row, and at 520px the 240px minimum yields one column on its own, so small
+   masters keep exactly the dialog they have today. */
+#dynamic-modal .modal-container.modal-container-wide {
+  max-width: min(920px, 100%);
+}
+
+#dynamic-modal-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: 16px 20px;
+  align-items: start;
+}
+
+/* Fields that are a composite editor rather than one input (the JSONTable /
+   JSONMap line editors) get the full row - squeezing a multi-column table
+   into a 240px grid track would defeat the point. */
+#dynamic-modal-body .form-group-wide {
+  grid-column: 1 / -1;
 }
 
 /* Form Controls */
@@ -1411,6 +1548,7 @@ pre {
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: 20px 16px;
   z-index: 999999;
   opacity: 1;
   transition: opacity 0.25s ease;
@@ -1421,12 +1559,18 @@ pre {
   opacity: 0;
 }
 
-/* Custom Dialog Box */
+/* Custom Dialog Box - same viewport-bounded structure as .modal-container
+   above: a long showApiError() detail list clipped off-screen for the same
+   reason a long form did. */
 .custom-dialog-box {
   background-color: var(--panel-bg);
   border-radius: 8px;
   width: 100%;
-  max-width: 480px;
+  max-width: min(480px, 100%);
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 40px);
+  max-height: calc(100dvh - 40px);
   box-shadow: var(--shadow-lg), 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   border: 1px solid var(--border-color);
   animation: dialogFadeIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -1451,6 +1595,7 @@ pre {
   justify-content: space-between;
   align-items: center;
   background-color: var(--bg-color);
+  flex: 0 0 auto;
 }
 
 .custom-dialog-header h3 {
@@ -1482,6 +1627,10 @@ pre {
   color: var(--text-main);
   line-height: 1.6;
   text-align: center;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* Callers inject arbitrary markup into the dialog (showCustomAlert's extra
@@ -1521,6 +1670,8 @@ pre {
   justify-content: flex-end;
   gap: 12px;
   background-color: var(--bg-color);
+  flex: 0 0 auto;
+  flex-wrap: wrap;
 }
 
 /* Login Screen */
@@ -1942,4 +2093,18 @@ pre {
   border: 1px solid var(--border-color);
   border-radius: 6px;
   cursor: help;
+}
+
+/* Respect the OS "reduce motion" setting. Everything above is short enough to
+   be comfortable, but motion sensitivity is an accessibility need, not a taste
+   - and the flyout slide is the one piece here that moves rather than just
+   fades. Durations are near-zero rather than `none` so transitionend/
+   animationend listeners still fire. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

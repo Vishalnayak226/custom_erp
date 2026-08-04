@@ -62,7 +62,12 @@ Write-Host "Migrating + swapping binary + restarting on the box..." -ForegroundC
 # binary never serves a request against a schema it hasn't migrated.
 $remote = @"
 set -e
-source /etc/erp/erp.env
+# `set -a` around the source is load-bearing: /etc/erp/erp.env is a systemd
+# EnvironmentFile, so its lines are bare KEY=value with no `export`. A plain
+# `source` therefore makes DATABASE_URL a shell variable that is NOT inherited
+# by migrate.sh (a child process), and migrate.sh dies on its own
+# `\${DATABASE_URL:?}` guard. Verified the hard way during the 2026-08-04 deploy.
+set -a; source /etc/erp/erp.env; set +a
 chmod +x $RemoteDir/erp-server.new
 ERP_BINARY=$RemoteDir/erp-server.new bash $RemoteDir/deploy/migrate.sh
 mv $RemoteDir/erp-server.new $RemoteDir/erp-server

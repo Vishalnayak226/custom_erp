@@ -381,6 +381,18 @@
       ]
     },
     {
+      "id": "printing",
+      "lobe": "peripheral",
+      "name": "Device Printing (QZ Tray)",
+      "role": "Silent one-click printing to named OS printers via a QZ Tray bridge on each packing PC. RSA request signing (the tray verifies SHA512withRSA over a SHA-256 hex string), the Printer Master's OS-name/role/language mapping, ZPL/TSPL/ESC-POS command generation, and byte-for-byte pass-through of marketplace-issued label PDFs.",
+      "match": [
+        "engines/qz_*.go",
+        "internal/server/handlers_qz_*.go",
+        "public/qz-print.js",
+        "cmd/qzcert/**"
+      ]
+    },
+    {
       "id": "extensions",
       "lobe": "peripheral",
       "name": "Extension Platform",

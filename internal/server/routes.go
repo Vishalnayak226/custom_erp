@@ -302,6 +302,17 @@ func Run() {
 	http.HandleFunc("POST /api/v1/stickers/print", apiMiddleware(moduleGate("stickers", handlePrintStickers)))
 	http.HandleFunc("GET /api/v1/stickers/history", apiMiddleware(moduleGate("stickers", handlePrintHistory)))
 
+	// QZ Tray silent printing (Stage 31.1). Shares the "stickers" module key
+	// with the routes above because the Printer Master these all resolve
+	// against is already mapped to it - a new key would 403 every existing
+	// tenant until their plan was edited.
+	http.HandleFunc("GET /api/v1/print/qz/certificate", apiMiddleware(moduleGate("stickers", handleQZCertificate)))
+	http.HandleFunc("POST /api/v1/print/qz/sign", apiMiddleware(moduleGate("stickers", handleQZSign)))
+	http.HandleFunc("GET /api/v1/print/qz/printers", apiMiddleware(moduleGate("stickers", handleQZPrinters)))
+	http.HandleFunc("POST /api/v1/print/qz/payload", apiMiddleware(moduleGate("stickers", handleQZPrintPayload)))
+	http.HandleFunc("GET /api/v1/print/qz/log", apiMiddleware(moduleGate("stickers", handleQZPrintLog)))
+	http.HandleFunc("POST /api/v1/print/qz/log", apiMiddleware(moduleGate("stickers", handleQZPrintLog)))
+
 	// HR Foundation (Stage 14.1: module-gated - "hr")
 	http.HandleFunc("GET /api/v1/hr/payroll-export", apiMiddleware(moduleGate("hr", handlePayrollExport)))
 

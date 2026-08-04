@@ -2217,7 +2217,7 @@ const FLYOUT_GAP_PX = 8;
 // Grace period before a flyout closes once the pointer has genuinely left
 // both the module row and the flyout. Long enough to survive an overshoot,
 // short enough not to feel sticky.
-const FLYOUT_HIDE_DELAY_MS = 260;
+const FLYOUT_HIDE_DELAY_MS = 200;
 
 // One shared hide timer for the whole sidebar, deliberately not one per
 // container (Stage 28.5 fix): with per-container timers, sliding from module
@@ -2228,50 +2228,93 @@ const FLYOUT_HIDE_DELAY_MS = 260;
 // and nothing opens" actually was. A single timer means opening anything
 // cancels the pending close, whichever module scheduled it.
 let flyoutHideTimer = null;
-// Dwell required before hovering a *different* module row takes the open menu
-// away from the current one. Moving from a module row to an item low in its
-// flyout is a diagonal that clips the rows underneath; without this, each row
-// clipped en route swapped the menu and the item being reached for was gone
-// by the time the pointer arrived. Short enough that a deliberate move
-// between modules still feels instant.
-const FLYOUT_SWITCH_DELAY_MS = 140;
-// Longer dwell required when the pointer is visibly travelling *towards* the
-// panel that is already open - i.e. cutting the corner diagonally across the
-// rows between the module and the item it is aiming at. Standing still on a
-// row for this long is unambiguous intent to switch; sweeping across it is
-// not.
-const FLYOUT_AIM_GRACE_MS = 500;
+// Dwell before hovering a *different* module row takes the open menu away
+// from the current one. Its only job is to stop a fast sweep down the sidebar
+// strobing every module's menu on the way past; it sits well under the ~100ms
+// a human reads as instant, so a row you actually stop on opens with no
+// perceptible wait.
+const FLYOUT_SWITCH_DELAY_MS = 60;
+// Longer dwell, applied ONLY while the pointer is genuinely still travelling
+// into the panel that is already open - i.e. cutting the corner diagonally
+// across the rows between that module and the item it is aiming at. It is
+// re-evaluated on every move, so the moment the pointer stops aiming the wait
+// collapses back to FLYOUT_SWITCH_DELAY_MS instead of running to term.
+const FLYOUT_AIM_GRACE_MS = 220;
 let flyoutOpenTimer = null;
+// Which container a pending open belongs to, so leaving row B can never cancel
+// an open that row C has already scheduled.
+let flyoutOpenTarget = null;
 
-// Last pointer position and direction of travel, used only by the aim test
-// above. Passive + capture so it never interferes with anything else.
-let flyoutPointerTrail = { x: 0, y: 0, dx: 0, dy: 0 };
+// Pointer trail for the aim test, sampled over a short window rather than
+// frame to frame: at 120Hz a single frame's delta is sub-pixel and mostly
+// noise, which is why the previous test came out true on idle jitter.
+const AIM_WINDOW_MS = 90;
+// Minimum horizontal travel across that window to count as a deliberate reach
+// for the panel rather than drift.
+const AIM_MIN_DX_PX = 12;
+// Vertical tolerance on where the trajectory is projected to cross the panel.
+const AIM_SLOP_PX = 24;
+
+let flyoutPointerSamples = [];
 document.addEventListener('pointermove', (e) => {
-  flyoutPointerTrail = {
-    x: e.clientX,
-    y: e.clientY,
-    dx: e.clientX - flyoutPointerTrail.x,
-    dy: e.clientY - flyoutPointerTrail.y
-  };
+  const now = performance.now();
+  flyoutPointerSamples.push({ x: e.clientX, y: e.clientY, t: now });
+  // Keep just enough history to span AIM_WINDOW_MS. The length cap is a
+  // belt-and-braces bound: at a real pointer's 8-16ms sample rate the time
+  // test alone holds this at ~12 entries, but it never prunes at all for
+  // samples that share a timestamp, so the cap keeps a synthetic or coalesced
+  // burst from growing the array without limit.
+  while (flyoutPointerSamples.length > 2 &&
+         (now - flyoutPointerSamples[1].t > AIM_WINDOW_MS || flyoutPointerSamples.length > 32)) {
+    flyoutPointerSamples.shift();
+  }
 }, { passive: true, capture: true });
 
-// True when the pointer is heading rightwards at a flyout panel that is
-// already open and sits to its right.
+// True only when the pointer is on a trajectory that actually lands inside the
+// open flyout panel: moving right, fast enough to be deliberate, and aimed at
+// the panel's vertical span.
+//
+// The previous test asked only "is the pointer moving right, and is the panel
+// to its right". The panel always sits to the right of the sidebar, so the
+// second half was true for essentially every pointer position in the nav, and
+// the first half was a single noisy sample. Every module switch therefore paid
+// the full 500ms aim grace roughly half the time, at random - and if the user
+// moved rightwards to where they expected the menu during that wait, they left
+// the row, the pending open was cancelled and the hide fired instead, so no
+// menu ever appeared. Clicking the arrow bypassed the whole ladder, which is
+// why clicking was the only thing that reliably worked.
 function pointerAimingAtOpenFlyout(exceptContainer) {
   const openContainer = document.querySelector('.has-flyout.flyout-open');
   if (!openContainer || openContainer === exceptContainer) return false;
   const panel = openContainer.querySelector('.menu-flyout');
   if (!panel) return false;
+
+  const first = flyoutPointerSamples[0];
+  const last = flyoutPointerSamples[flyoutPointerSamples.length - 1];
+  if (!first || !last || first === last) return false;
+  // Pointer has come to rest - resting is intent to switch, not to travel.
+  if (performance.now() - last.t > AIM_WINDOW_MS * 2) return false;
+
+  const dx = last.x - first.x;
+  const dy = last.y - first.y;
+  if (dx < AIM_MIN_DX_PX) return false;
+
   const r = panel.getBoundingClientRect();
-  return flyoutPointerTrail.dx > 0 && r.left >= flyoutPointerTrail.x;
+  const runway = r.left - last.x;
+  if (runway <= 0) return false;   // already level with or past the panel
+  const projectedY = last.y + (dy / dx) * runway;
+  return projectedY >= r.top - AIM_SLOP_PX && projectedY <= r.bottom + AIM_SLOP_PX;
 }
 
 function cancelFlyoutHide() {
   if (flyoutHideTimer) { clearTimeout(flyoutHideTimer); flyoutHideTimer = null; }
 }
 
-function cancelFlyoutOpen() {
+// Pass a container to cancel only an open that container itself scheduled.
+function cancelFlyoutOpen(onlyFor) {
+  if (onlyFor && flyoutOpenTarget && flyoutOpenTarget !== onlyFor) return;
   if (flyoutOpenTimer) { clearTimeout(flyoutOpenTimer); flyoutOpenTimer = null; }
+  flyoutOpenTarget = null;
 }
 
 function scheduleFlyoutHide() {
@@ -2394,6 +2437,11 @@ function setupModuleFlyouts() {
     container.dataset.flyoutBound = '1';
     const show = () => { cancelFlyoutOpen(); openFlyout(container); };
 
+    // When the pointer arrived on this row. The dwell is measured from here
+    // rather than restarted per move, so the required wait only ever counts
+    // down - a re-evaluated aim test can shorten it but never extend it.
+    let hoverStart = 0;
+
     // Hover-open. Instant when nothing is open yet; when another module's
     // menu is already showing, this row has to be dwelt on briefly before it
     // takes over, so a pointer merely travelling across it on the way to that
@@ -2401,11 +2449,21 @@ function setupModuleFlyouts() {
     const showOnHover = () => {
       cancelFlyoutHide();
       if (container.classList.contains('flyout-open')) return;
+      if (!document.querySelector('.has-flyout.flyout-open')) { cancelFlyoutOpen(); show(); return; }
+      if (!hoverStart) hoverStart = performance.now();
+      const needed = pointerAimingAtOpenFlyout(container) ? FLYOUT_AIM_GRACE_MS : FLYOUT_SWITCH_DELAY_MS;
+      const remaining = Math.max(0, needed - (performance.now() - hoverStart));
+      if (remaining === 0) { cancelFlyoutOpen(); show(); return; }
       cancelFlyoutOpen();
-      if (!document.querySelector('.has-flyout.flyout-open')) { show(); return; }
-      const delay = pointerAimingAtOpenFlyout(container) ? FLYOUT_AIM_GRACE_MS : FLYOUT_SWITCH_DELAY_MS;
-      flyoutOpenTimer = setTimeout(() => { flyoutOpenTimer = null; show(); }, delay);
+      flyoutOpenTarget = container;
+      flyoutOpenTimer = setTimeout(() => {
+        flyoutOpenTimer = null;
+        flyoutOpenTarget = null;
+        show();
+      }, remaining);
     };
+
+    const onPointerEnter = () => { hoverStart = performance.now(); showOnHover(); };
 
     // Open as soon as the pointer reaches the module row or its arrow, and
     // keep it open for as long as the pointer is anywhere in the container's
@@ -2415,24 +2473,31 @@ function setupModuleFlyouts() {
     // mouseleave only fires when the pointer has genuinely gone elsewhere.
     // Pointer events cover both the persistent sidebar and the dynamically
     // rendered Schema Designer module list; focus keeps it keyboard-usable.
-    container.addEventListener('pointerenter', showOnHover);
-    trigger.addEventListener('pointerenter', showOnHover);
+    container.addEventListener('pointerenter', onPointerEnter);
+    trigger.addEventListener('pointerenter', onPointerEnter);
     // pointermove, not just pointerenter: while the pointer is resting on a
     // module row, no enter event will ever fire again, so anything that shut
     // the menu meanwhile (navigating from it, a click elsewhere, Escape) left
     // it shut even though the cursor was still sitting right there. Any
     // movement at all over the row brings it straight back.
-    container.addEventListener('pointermove', () => {
-      cancelFlyoutHide();
-      if (!container.classList.contains('flyout-open') && !flyoutOpenTimer) showOnHover();
-    });
+    //
+    // It also re-runs the aim test on a pending open, which is what stops the
+    // aim grace from outliving the reach it was granted for: sweep towards the
+    // open panel and this row waits, stop sweeping and it opens on the next
+    // move. Previously a pending timer made this handler a no-op, so whichever
+    // delay was picked on entry ran to term no matter what the pointer did.
+    container.addEventListener('pointermove', showOnHover);
     // pointerleave, NOT mouseleave: pointer events fire ahead of their
     // compatibility mouse events, so a mouseleave here landed *after* the
     // next row's pointerenter had already cancelled the pending close - it
     // then scheduled a fresh close that nothing cancelled, and the menu shut
     // 260ms later while the pointer was still on its way to it. Same family
     // on both sides keeps the order leave-then-enter.
-    container.addEventListener('pointerleave', () => { cancelFlyoutOpen(); scheduleFlyoutHide(); });
+    container.addEventListener('pointerleave', () => {
+      hoverStart = 0;
+      cancelFlyoutOpen(container);
+      scheduleFlyoutHide();
+    });
     container.addEventListener('focusin', show);
     container.addEventListener('focusout', (e) => {
       if (!container.contains(e.relatedTarget)) scheduleFlyoutHide();
@@ -5900,7 +5965,13 @@ async function submitWaveAssign() {
   if (!res.ok) { await showApiError(res, 'Failed to tag tasks into wave.', 'Wave Assign Failed'); return; }
   const data = await res.json();
   resultEl.innerHTML = `<span class="badge badge-success">Tagged ${data.tagged} of ${taskIds.length} task(s)</span> into wave ${waveId}.`;
-  document.getElementById('wave-gen-id').value = waveId;
+  // Same class as the renderExecDashboard null-deref: this runs after an
+  // await, so the user may have navigated away and taken the form with them.
+  // Writing to a detached `resultEl` above is harmless; a null getElementById
+  // here is not. The request itself already succeeded either way - only the
+  // convenience refill of the form is skipped.
+  const waveIdInput = document.getElementById('wave-gen-id');
+  if (waveIdInput) waveIdInput.value = waveId;
 }
 
 async function submitWavePickList() {
@@ -6132,7 +6203,8 @@ async function submitRequestRecount() {
   if (!res.ok) { await showApiError(res, 'Failed to request recount.', 'Recount Request Failed'); return; }
   const data = await res.json();
   resultEl.innerHTML = `<span class="badge badge-success">Recount line ${data.new_line_id} created</span> (blind - no counted/system qty carried over). Enter its value below.`;
-  document.getElementById('recount-new-line-id').value = data.new_line_id;
+  const recountInput = document.getElementById('recount-new-line-id');
+  if (recountInput) recountInput.value = data.new_line_id;
 }
 
 async function submitRecountValue() {
@@ -8538,7 +8610,8 @@ async function saveReportCatalogFilter() {
     return;
   }
   await loadReportCatalogSavedFilters();
-  document.getElementById('rc-saved-filter').value = presetId;
+  const savedFilterSelect = document.getElementById('rc-saved-filter');
+  if (savedFilterSelect) savedFilterSelect.value = presetId;
 }
 
 async function exportReportCatalogReport() {
@@ -8820,6 +8893,256 @@ async function selectWinningQuote(rfqId, quoteId) {
   renderView('rfq');
 }
 
+// QZ Tray silent printing (Stage 31.1).
+//
+// Every print path in this app used to be window.print() into a hidden
+// @media print area, which pops the browser dialog and cannot choose a
+// printer. These helpers route a job to a *named* OS printer instead, so a
+// packing bench with a thermal label printer and an A4 invoice printer sends
+// each document to the right one with a single click.
+//
+// Degrades rather than breaks: if QZ Tray is not installed or not running,
+// qzTryPrint returns false and the caller falls back to the existing print
+// sheet. Nobody is blocked from printing because the bridge is down.
+
+let qzLastError = '';
+
+async function qzTryConnect(silent = true) {
+  if (!window.QZPrint) return false;
+  try {
+    await window.QZPrint.connect();
+    qzLastError = '';
+    return true;
+  } catch (err) {
+    qzLastError = err.message || String(err);
+    if (!silent) await showCustomAlert(qzLastError, 'QZ Tray Not Available');
+    return false;
+  }
+}
+
+// Records what actually reached the printer. Best-effort: a failed log write
+// must never surface as a failed print, because the label is already out.
+async function qzLogJob(entry) {
+  try {
+    await apiFetch('/api/v1/print/qz/log', { method: 'POST', body: JSON.stringify(entry) });
+  } catch (err) {
+    console.debug('[QZ] print log write failed', err);
+  }
+}
+
+/**
+ * One-click print. Asks the server what to print (and on which printer),
+ * hands it to QZ Tray, and records the outcome.
+ *
+ * @param jobType 'Shipping Label' | 'Sticker' | 'Document'
+ * @param opts    { documentRef, printerCode, copies, skus, reprintReason,
+ *                  dataBase64, docFormat }
+ * @returns true if it printed, false if the caller should fall back.
+ */
+async function qzTryPrint(jobType, opts = {}) {
+  if (!await qzTryConnect()) return false;
+
+  const res = await apiFetch('/api/v1/print/qz/payload', {
+    method: 'POST',
+    body: JSON.stringify({
+      job_type: jobType,
+      document_ref: opts.documentRef || '',
+      printer_code: opts.printerCode || '',
+      copies: opts.copies || 1,
+      skus: opts.skus || [],
+      reprint_reason: opts.reprintReason || '',
+      data_base64: opts.dataBase64 || '',
+      doc_format: opts.docFormat || ''
+    })
+  });
+  if (!res) return false;
+  if (!res.ok) {
+    await showApiError(res, 'Could not prepare the print job.', 'Print Failed');
+    return false;
+  }
+
+  const payload = await res.json();
+
+  // A non-thermal sticker printer has no raw command form; the server says
+  // so and the existing browser sheet renders it instead.
+  if (payload.fallback === 'browser') {
+    renderPrintSheet(payload.labels, opts.copies || 1);
+    return true;
+  }
+
+  const printerName = (payload.printer && payload.printer.qz_printer_name) || '';
+  if (!printerName) {
+    await showCustomAlert(
+      `Printer "${(payload.printer && payload.printer.name) || opts.printerCode}" has no OS printer name set. ` +
+      'Open Sticker Printing → Print Setup, copy the exact name from the detected list, ' +
+      'and paste it into that Printer record\'s "OS Printer Name" field.',
+      'Printer Not Mapped');
+    return false;
+  }
+
+  try {
+    await window.QZPrint.printItems(printerName, payload.items, payload.copies);
+  } catch (err) {
+    await qzLogJob({
+      job_type: jobType, document_ref: opts.documentRef || '', printer_code: payload.printer.code,
+      qz_printer_name: printerName, print_format: payload.format, copies: payload.copies,
+      status: 'Failed', error_detail: err.message || String(err)
+    });
+    await showCustomAlert(err.message || String(err), 'Print Failed');
+    return false;
+  }
+
+  await qzLogJob({
+    job_type: jobType, document_ref: opts.documentRef || '', printer_code: payload.printer.code,
+    qz_printer_name: printerName, print_format: payload.format, copies: payload.copies,
+    status: 'Submitted', error_detail: ''
+  });
+  showToast(`Sent to ${printerName}.`, { variant: 'success' });
+  return true;
+}
+
+/**
+ * Prints a marketplace-issued label or invoice exactly as the channel
+ * produced it. Myntra, and every other channel that hands back a finished
+ * PDF, goes through here - the file is passed to the printer untouched,
+ * because re-rendering a courier's label risks altering a barcode they scan.
+ */
+async function qzPrintMarketplaceDocument(file, opts = {}) {
+  if (!file) return false;
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+    reader.onerror = () => reject(new Error('Could not read the file.'));
+    reader.readAsDataURL(file);
+  });
+  const isPDF = /\.pdf$/i.test(file.name) || file.type === 'application/pdf';
+  return qzTryPrint('Document', {
+    documentRef: opts.documentRef || file.name,
+    printerCode: opts.printerCode || '',
+    copies: opts.copies || 1,
+    dataBase64: base64,
+    docFormat: opts.docFormat || (isPDF ? 'pdf' : 'command')
+  });
+}
+
+// Print Setup panel. Lives on the Sticker Printing screen because that is
+// already where Printer records are managed. Its job is the one thing the
+// generic Master form cannot do: ask the local machine what its printers are
+// actually called, since "OS Printer Name" has to match verbatim (a Zebra
+// commonly reports as e.g. "ZDesigner ZD220-203dpi ZPL").
+function renderQZSetupPanel(container) {
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '20px';
+  panel.style.marginBottom = '24px';
+  panel.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+      <div>
+        <h2 style="margin: 0 0 4px; font-size: 16px;">Print Setup (QZ Tray)</h2>
+        <p id="qz-status" class="page-subtitle" style="margin: 0;">Checking for QZ Tray on this PC&hellip;</p>
+      </div>
+      <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-outline" onclick="qzDetectPrinters()">Detect Printers</button>
+        <button class="btn btn-outline" onclick="qzTestPrint()">Test Print</button>
+      </div>
+    </div>
+    <div id="qz-detected" style="margin-top: 12px;"></div>
+    <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color, #e5e7eb);">
+      <label class="form-label" for="qz-doc-file">Print a marketplace label or invoice (PDF from Myntra, or any channel)</label>
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <input type="file" id="qz-doc-file" class="form-input" accept=".pdf,.zpl,.txt,.prn" style="max-width: 340px;">
+        <button class="btn btn-primary" onclick="qzPrintPickedDocument()">Print</button>
+      </div>
+      <p class="page-subtitle" style="margin: 6px 0 0;">
+        Goes to whichever Printer has <strong>Default For = Shipping Label</strong>, exactly as the channel issued it.
+      </p>
+    </div>
+  `;
+  container.appendChild(panel);
+  qzRefreshStatus();
+}
+
+async function qzRefreshStatus() {
+  const el = document.getElementById('qz-status');
+  if (!el) return;
+  const ok = await qzTryConnect();
+  if (ok) {
+    const v = window.QZPrint.version();
+    el.textContent = `Connected to QZ Tray${v ? ' ' + v : ''} - printing is silent on this PC.`;
+    el.style.color = 'var(--color-success, #15803d)';
+  } else {
+    el.textContent = qzLastError + ' Printing falls back to the browser dialog until it is running.';
+    el.style.color = 'var(--color-warning, #b45309)';
+  }
+}
+
+// Lists the OS printer names QZ can see. This is the value the operator
+// copies into a Printer record's "OS Printer Name" field.
+async function qzDetectPrinters() {
+  const out = document.getElementById('qz-detected');
+  if (!out) return;
+  if (!await qzTryConnect(false)) return;
+  out.textContent = 'Detecting...';
+  try {
+    const names = await window.QZPrint.listOSPrinters();
+    const list = Array.isArray(names) ? names : [names];
+    if (list.length === 0) {
+      out.textContent = 'QZ Tray reports no printers installed on this PC.';
+      return;
+    }
+    let def = '';
+    try { def = await window.QZPrint.getDefaultPrinter(); } catch (e) { /* optional */ }
+    out.innerHTML = `
+      <p class="page-subtitle" style="margin: 0 0 6px;">Copy the exact name into the matching Printer record:</p>
+      <ul style="margin: 0; padding-left: 18px; line-height: 1.7;">
+        ${list.map(n => `<li><code>${escapeHTMLText(n)}</code>${n === def ? ' <em>(system default)</em>' : ''}</li>`).join('')}
+      </ul>`;
+  } catch (err) {
+    out.textContent = 'Could not list printers: ' + (err.message || err);
+  }
+}
+
+// Proves the whole chain - certificate, signature, socket, driver - before an
+// operator depends on it during a packing run.
+async function qzTestPrint() {
+  if (!await qzTryConnect(false)) return;
+  const printers = await apiFetch('/api/v1/print/qz/printers');
+  if (!printers || !printers.ok) {
+    await showApiError(printers, 'Could not load configured printers.', 'Test Print');
+    return;
+  }
+  const list = await printers.json();
+  const target = list.find(p => p.qz_printer_name);
+  if (!target) {
+    await showCustomAlert(
+      'No Printer record has an OS Printer Name yet. Click "Detect Printers", then edit a Printer ' +
+      'under Masters and paste the exact name into "OS Printer Name".', 'Test Print');
+    return;
+  }
+  const raw = ['ZPL', 'TSPL', 'ESC-POS'].includes((target.printer_language || '').toUpperCase());
+  const items = raw
+    ? [{ type: 'raw', format: 'command', flavor: 'plain',
+         data: '^XA^CI28^FO30,30^A0N,40,40^FDERP test label^FS^FO30,90^A0N,28,28^FD' + new Date().toLocaleString() + '^FS^XZ' }]
+    : [{ type: 'pixel', format: 'html', flavor: 'plain',
+         data: '<h2>ERP test print</h2><p>' + escapeHTMLText(new Date().toLocaleString()) + '</p>' }];
+  try {
+    await window.QZPrint.printItems(target.qz_printer_name, items, 1);
+    showToast(`Test page sent to ${target.qz_printer_name}.`, { variant: 'success' });
+  } catch (err) {
+    await showCustomAlert(err.message || String(err), 'Test Print Failed');
+  }
+}
+
+async function qzPrintPickedDocument() {
+  const input = document.getElementById('qz-doc-file');
+  if (!input || !input.files || input.files.length === 0) {
+    await showCustomAlert('Choose a label or invoice file first.', 'Nothing Selected');
+    return;
+  }
+  const printed = await qzPrintMarketplaceDocument(input.files[0]);
+  if (printed) input.value = '';
+}
+
 // Sticker / Barcode Printing (Stage 13.15) - Printer master creation/listing
 // use the same generic doc API as Vendor/Customer/RFQ; this screen adds the
 // print action (logs history, then renders a printable label sheet) and
@@ -8848,6 +9171,7 @@ async function renderStickersView(container) {
     </div>
   `;
   container.appendChild(header);
+  renderQZSetupPanel(container);
 
   const printers = printersRes.ok ? await printersRes.json() : [];
   const history = historyRes.ok ? await historyRes.json() : [];
@@ -8962,6 +9286,16 @@ async function printStickers() {
   if (stickerSKUs.length === 0) {
     errorEl.textContent = 'Add at least one SKU first.';
     errorEl.classList.remove('hidden');
+    return;
+  }
+
+  // 31.1: prefer the silent path. The server-side payload builder calls the
+  // same engines.PrintStickers this endpoint does, so SKU validation, the
+  // DEVICE-0298 printer check and the sticker_print_log audit trail run
+  // identically either way - only the delivery to the printer differs.
+  if (await qzTryPrint('Sticker', { printerCode, copies, skus: stickerSKUs, reprintReason })) {
+    stickerSKUs = [];
+    renderView('stickers');
     return;
   }
 
@@ -12462,6 +12796,9 @@ window.openDynamicModal = async function(existingRecord) {
       // which reads `[name="<fieldname>"]`.value - needed no change at all,
       // and the stored representation is byte-identical to what a user used
       // to hand-type. Every Go consumer keeps reading exactly what it read.
+      // Stage 33: the form is a multi-column grid now, and this editor is a
+      // table - it takes the whole row rather than a 240px column.
+      fg.classList.add('form-group-wide');
       renderJSONLineEditor(fg, f, existingVal);
     } else if (f.fieldtype === 'Number') {
       const input = document.createElement('input');
@@ -12513,6 +12850,16 @@ window.openDynamicModal = async function(existingRecord) {
       });
     }
     if (departmentInput) attachLinkTypeahead(departmentInput, 'Department');
+  }
+
+  // Stage 33: only the long forms get the wide, multi-column dialog. Item
+  // renders ~20 fields and was taller than any screen in one column; a
+  // 3-field master in the same 920px box would just be empty space. The
+  // column count itself is the stylesheet's job (an intrinsic grid), so
+  // this is the one thing that genuinely needs the field count.
+  const container = modal.querySelector('.modal-container');
+  if (container) {
+    container.classList.toggle('modal-container-wide', body.querySelectorAll('.form-group').length > 4);
   }
 
   modal.classList.add('open');
