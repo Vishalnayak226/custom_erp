@@ -153,15 +153,37 @@ should come out with no dialog.
 
 ## Day-to-day use
 
-| To print | Do this |
-|---|---|
-| **Barcode stickers** | Sticker Printing → add SKUs → **Print Stickers** |
-| **A marketplace label or invoice** (Myntra, or any channel PDF) | Sticker Printing → Print Setup → choose the file → **Print** |
-| **An ERP shipping label** | Print from the logistics booking |
+| To print | Do this | Uses the printer that is Default For |
+|---|---|---|
+| **Barcode stickers** | Sticker Printing → add SKUs → **Print Stickers** | `Sticker` |
+| **A marketplace label or invoice** (Myntra, or any channel PDF) | Sticker Printing → Print Setup → choose the file → **Print** | `Shipping Label` |
+| **An ERP shipping label** | Marketplace → Logistics Bookings → **Print Label** on the row | `Shipping Label` |
+| **A POS receipt** | Point of Sale → complete the sale → answer **Yes** to "Print receipt?" | `Receipt` |
+| **A sales invoice** | Sales Invoice → **Print** on the row | `Invoice` |
 
 Marketplace PDFs are printed **exactly as the channel issued them** — the file
 is passed to the printer untouched, so carrier barcodes are never re-rendered
 or resized in a way that could stop them scanning.
+
+An ERP shipping label sent to a `ZPL`/`TSPL` printer carries a **real scannable
+Code 128 barcode** of the AWB, not just the digits. On a `PDF` printer the same
+label is laid out as a page and printed through the Windows driver.
+
+**Nothing here stops working if QZ Tray is not running.** Each of these falls
+back to what it did before: the shipping label opens on screen, the receipt and
+the invoice go to the normal browser print dialog. You lose the one-click part,
+not the ability to print.
+
+**A note on receipts.** A receipt prints only once the sale is **complete**. A
+sale still waiting on a manager's discount approval will not print one — the
+money has not been collected yet. Reprinting later is safe: the receipt is
+rebuilt from the recorded sale, so it always shows what was actually rung up.
+If you use a narrow **58mm** till roll, set **Label Width (mm)** to `58` on
+that Printer record, or lines will be laid out for an 80mm roll and wrap.
+
+**A note on invoices.** A **Draft** invoice will print, so you can hand a
+customer a proforma — but it comes out marked `DRAFT` so it cannot be mistaken
+for a posted tax invoice. Post the invoice first if you need the real thing.
 
 Every job is recorded, so a disputed reprint can be traced to an operator and a
 time.

@@ -177,9 +177,35 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 		}
 		payload = engines.BuildPassThroughPayload(data, req.DocFormat, printer)
 
+	case "Receipt":
+		// Stage 31.1.9. document_ref is the cart number; the sale itself is
+		// re-read from its POSCart document, so a reprint prints what was
+		// actually rung up rather than whatever the browser still has in
+		// memory.
+		if req.DocumentRef == "" {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'document_ref' is required for a receipt")
+			return
+		}
+		payload, err = engines.BuildReceiptPayload(tenantID, req.DocumentRef, printer)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+
+	case "Invoice":
+		if req.DocumentRef == "" {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'document_ref' is required for an invoice")
+			return
+		}
+		payload, err = engines.BuildInvoicePayload(tenantID, req.DocumentRef, printer)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+
 	default:
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity,
-			"Unknown job_type - expected 'Shipping Label', 'Sticker' or 'Document'")
+			"Unknown job_type - expected 'Shipping Label', 'Sticker', 'Receipt', 'Invoice' or 'Document'")
 		return
 	}
 

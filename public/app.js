@@ -4222,7 +4222,15 @@ async function submitPOSCheckout() {
     const printReceipt = await showCustomConfirm(
       `Sale ${data.cart_number} completed. Collect: ${amountDue}${loyaltyNote}. Print receipt?`, 'Sale Complete');
     if (printReceipt) {
-      printPOSReceipt(data.cart_number, posLocation, paymentMode, cartItems, data.sale_total, data.loyalty_discount || 0);
+      // 31.1.9: silent path first - the server rebuilds the receipt from the
+      // Paid POSCart, so a thermal till printer gets ESC-POS with no browser
+      // dialog in the cashier's way. quiet: true because a shop with no
+      // Receipt printer configured is the normal case, not an error, and
+      // must simply fall through to the print sheet below.
+      if (!await qzTryPrint('Receipt', { documentRef: data.cart_number, quiet: true })) {
+        printPOSReceipt(data.cart_number, posLocation, paymentMode, cartItems,
+          data.sale_total, data.loyalty_discount || 0, data.offer_discount || 0);
+      }
     }
   } finally {
     checkoutBtn.disabled = false;
@@ -4230,8 +4238,16 @@ async function submitPOSCheckout() {
 }
 
 // Stage 20.14: reuses the sticker-print-area's hidden-until-printing @media
-// print pattern (styles.css) rather than a new PDF/print dependency.
-function printPOSReceipt(cartNumber, location, paymentMode, items, saleTotal, loyaltyDiscount = 0) {
+// print pattern (styles.css) rather than a new PDF/print dependency. This is
+// the fallback behind the 31.1.9 QZ path - what prints when QZ Tray is not
+// running, or when no printer is set as Default For Receipt.
+//
+// 31.1.9 fix: offerDiscount was missing here. Checkout returns amount_due as
+// sale_total - loyalty_discount - offer_discount, so a sale with a Stage 30.7
+// offer applied printed a receipt whose total was higher than the cash
+// actually collected. Kept as a defaulted parameter so the shape of the call
+// is unchanged for anything that does not pass it.
+function printPOSReceipt(cartNumber, location, paymentMode, items, saleTotal, loyaltyDiscount = 0, offerDiscount = 0) {
   const area = document.getElementById('receipt-print-area');
   if (!area) return;
   const lines = items.map(it => `
@@ -4240,11 +4256,16 @@ function printPOSReceipt(cartNumber, location, paymentMode, items, saleTotal, lo
   // Stage 30.2.5: points spent on the sale are shown on the receipt as their
   // own line, so the customer can see what their points paid for and the
   // printed total matches what was actually collected.
-  const loyaltyLine = loyaltyDiscount > 0 ? `
+  const subtotalLine = (loyaltyDiscount > 0 || offerDiscount > 0) ? `
       <div class="receipt-line"><span>Subtotal</span><span>${Number(saleTotal).toFixed(2)}</span></div>
+  ` : '';
+  const offerLine = offerDiscount > 0 ? `
+      <div class="receipt-line"><span>Offer discount</span><span>-${Number(offerDiscount).toFixed(2)}</span></div>
+  ` : '';
+  const loyaltyLine = loyaltyDiscount > 0 ? `
       <div class="receipt-line"><span>Loyalty points applied</span><span>-${Number(loyaltyDiscount).toFixed(2)}</span></div>
   ` : '';
-  const amountDue = Number(saleTotal) - Number(loyaltyDiscount);
+  const amountDue = Number(saleTotal) - Number(loyaltyDiscount) - Number(offerDiscount);
   area.innerHTML = `
     <div class="receipt">
       <div class="receipt-header">
@@ -4255,6 +4276,8 @@ function printPOSReceipt(cartNumber, location, paymentMode, items, saleTotal, lo
       <hr>
       ${lines}
       <hr>
+      ${subtotalLine}
+      ${offerLine}
       ${loyaltyLine}
       <div class="receipt-line receipt-total"><span>Total (${paymentMode})</span><span>${amountDue.toFixed(2)}</span></div>
     </div>
@@ -5158,6 +5181,7 @@ async function renderSalesInvoicesView(container) {
               <td>
                 ${v.status === 'Draft' ? `<button class="action-btn" onclick="postSalesInvoiceAction('${v.id}')">Post</button>` : ''}
                 ${v.status === 'Approved' ? `<button class="action-btn" onclick="settleSalesInvoiceAction('${v.id}')">Settle</button>` : ''}
+                <button class="action-btn" onclick="printSalesInvoice('${v.id}')">Print</button>
               </td>
             </tr>
           `).join('')}
@@ -5175,6 +5199,51 @@ async function postSalesInvoiceAction(id) {
     return;
   }
   renderView('sales-invoices');
+}
+
+// printSalesInvoice (Stage 31.1.9). Every status prints, deliberately - a
+// Draft invoice is a legitimate proforma to hand a customer. What it must not
+// do is look like a posted one, so both this sheet and the server-built
+// payload stamp the status on the page; a Draft comes out marked DRAFT.
+window.printSalesInvoice = async function(id) {
+  if (await qzTryPrint('Invoice', { documentRef: id, quiet: true })) return;
+
+  const res = await apiFetch(`/api/v1/doc/SalesInvoice/${encodeURIComponent(id)}`);
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to load the invoice.');
+    return;
+  }
+  renderInvoicePrintSheet(await res.json());
+};
+
+function renderInvoicePrintSheet(invoice) {
+  const area = document.getElementById('invoice-print-area');
+  if (!area) return;
+  const status = invoice.status || '';
+  const row = (label, value) => value
+    ? `<tr><td class="invoice-key">${label}</td><td>${value}</td></tr>`
+    : '';
+  const draft = (status !== 'Approved' && status !== 'Paid')
+    ? `<div class="invoice-draft">${status.toUpperCase()}</div>`
+    : '';
+  area.innerHTML = `
+    <div class="invoice-sheet">
+      <div class="invoice-title">Tax Invoice</div>
+      ${draft}
+      <hr>
+      <table>
+        ${row('Invoice', invoice.invoice_number || invoice.id)}
+        ${row('Customer', invoice.customer)}
+        ${row('Location', invoice.location)}
+        ${row('Status', status)}
+      </table>
+      <div class="invoice-total">Total: ${Number(invoice.total_amount || 0).toFixed(2)}</div>
+    </div>
+  `;
+  area.classList.add('printing');
+  window.print();
+  setTimeout(() => area.classList.remove('printing'), 500);
 }
 
 async function settleSalesInvoiceAction(id) {
@@ -6624,7 +6693,14 @@ async function submitLogisticsBooking() {
 function renderLogisticsBookingActions(b) {
   const id = b.code || b.id;
   const status = b.status;
-  const buttons = [`<button class="action-btn" onclick="viewShippingLabel('${id}')">Label</button>`];
+  // 31.1.9: "Print Label" is the one-click path (server picks the printer
+  // whose Default For is Shipping Label, and a thermal unit gets a real
+  // Code 128 AWB rather than digits); "Label" stays as the on-screen read,
+  // and is also what Print falls back to when QZ Tray is not running.
+  const buttons = [
+    `<button class="action-btn" onclick="printShippingLabel('${id}')">Print Label</button>`,
+    `<button class="action-btn" onclick="viewShippingLabel('${id}')">Label</button>`
+  ];
   if (status === 'Handed Over') {
     buttons.push(`<button class="action-btn" onclick="recordShipmentTracking('${id}', 'In-Transit')">Mark In-Transit</button>`);
   }
@@ -6701,6 +6777,19 @@ window.reportShipmentRTO = async function(bookingId) {
     return;
   }
   renderView('marketplace');
+};
+
+// printShippingLabel (Stage 31.1.9) sends a booking's label straight to the
+// bench's label printer. The payload is built server-side from the booking
+// itself (engines.BuildShippingLabelPayload), so no label data passes
+// through the browser and a thermal printer gets ZPL with a scannable AWB.
+//
+// Falls back to the on-screen label rather than to window.print(): the
+// plain-text label is not a printable sheet, and someone whose QZ Tray is
+// down still needs to read the AWB off the screen to write the docket.
+window.printShippingLabel = async function(bookingId) {
+  if (await qzTryPrint('Shipping Label', { documentRef: bookingId, quiet: true })) return;
+  await viewShippingLabel(bookingId);
 };
 
 // viewShippingLabel (Stage 26.12.4) shows GenerateShippingLabel's plain-text
@@ -8934,9 +9023,18 @@ async function qzLogJob(entry) {
  * One-click print. Asks the server what to print (and on which printer),
  * hands it to QZ Tray, and records the outcome.
  *
- * @param jobType 'Shipping Label' | 'Sticker' | 'Document'
+ * @param jobType 'Shipping Label' | 'Sticker' | 'Receipt' | 'Invoice' | 'Document'
  * @param opts    { documentRef, printerCode, copies, skus, reprintReason,
- *                  dataBase64, docFormat }
+ *                  dataBase64, docFormat, quiet }
+ *
+ * `quiet` (31.1.9) suppresses the dialog when the server cannot prepare the
+ * job, for the call sites that resolve a printer by *role* rather than by an
+ * explicit pick. "No Printer record is Default For Receipt" is the normal
+ * state of a tenant that has not set QZ up at all - it must fall through to
+ * the browser print sheet silently, not put an error in front of the cashier
+ * on every sale. A failure at the tray itself is still shown either way:
+ * that one means printing was really attempted and really failed.
+ *
  * @returns true if it printed, false if the caller should fall back.
  */
 async function qzTryPrint(jobType, opts = {}) {
@@ -8957,6 +9055,10 @@ async function qzTryPrint(jobType, opts = {}) {
   });
   if (!res) return false;
   if (!res.ok) {
+    if (opts.quiet) {
+      console.debug('[QZ] falling back to the browser sheet:', await getErrorMessage(res, 'no print payload'));
+      return false;
+    }
     await showApiError(res, 'Could not prepare the print job.', 'Print Failed');
     return false;
   }
@@ -8972,6 +9074,10 @@ async function qzTryPrint(jobType, opts = {}) {
 
   const printerName = (payload.printer && payload.printer.qz_printer_name) || '';
   if (!printerName) {
+    if (opts.quiet) {
+      console.debug('[QZ] printer has no OS printer name set; falling back to the browser sheet');
+      return false;
+    }
     await showCustomAlert(
       `Printer "${(payload.printer && payload.printer.name) || opts.printerCode}" has no OS printer name set. ` +
       'Open Sticker Printing → Print Setup, copy the exact name from the detected list, ' +

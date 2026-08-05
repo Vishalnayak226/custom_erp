@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Custom ERP</title>
-  <link rel="stylesheet" href="styles.css?v=15">
+  <link rel="stylesheet" href="styles.css?v=16">
   <script>
     // Stage 28.2: apply the saved theme before first paint to avoid a light-mode
     // flash. 'system' (or unset) lets the CSS media query follow the OS;
@@ -576,11 +576,16 @@
        sticker-print-area above, just a second print target. -->
   <div id="receipt-print-area"></div>
 
+  <!-- Sales invoice (Stage 31.1.9) - the browser fallback behind the Sales
+       Invoice "Print" button, for when QZ Tray is not running. Same pattern
+       again; only the sheet inside it is laid out for A4. -->
+  <div id="invoice-print-area"></div>
+
   <script src="db.js"></script>
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="components/erp-typeahead.js?v=1"></script>
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="qz-print.js?v=1"></script>

@@ -20,6 +20,8 @@ Jump straight to the thing you're trying to do.
 | **Ring up a sale** | §4 — read the prerequisites box first |
 | Open or close the till for a shift | §4.0 |
 | Apply a coupon, or understand why an offer didn't appear | §4.2 |
+| Print a receipt, or make it print without a dialog | §4.3 |
+| Print a shipping label, a sales invoice, or barcode stickers | **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)** — "Day-to-day use" |
 | Take a return | [USER_SOP §3.3](USER_SOP.md) |
 | Check how much stock I have | §5 |
 | **Order stock from a supplier** | §6 |
@@ -112,6 +114,20 @@ You open a session once per shift, not once per sale.
 5. Check the total — tax is calculated automatically, you don't need to work it out.
 6. Choose how they're paying and click **Complete Sale**.
 7. The sale is now recorded — stock goes down automatically, and the accounting entries are made automatically too. You don't need to tell any other screen about this sale; the system does it for you.
+8. A box asks **"Print receipt?"**. Say yes and the receipt prints. If your till has a receipt printer set up for silent printing it goes straight there with no dialog (see §4.3); otherwise your browser's normal print dialog opens.
+
+### 4.3 Printing the receipt
+
+Nothing extra is needed to print — answering **Yes** to "Print receipt?" always works. What the setup below adds is the *one-click* part: the receipt goes straight to the till printer instead of opening a print dialog you have to click through on every sale.
+
+To get that, your administrator installs **QZ Tray** on the till PC and creates a **Printer** record whose **Default For** is `Receipt` — the full steps are in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**. If any of that isn't set up, the browser print dialog appears as before; nothing breaks and nothing is lost.
+
+A few things worth knowing:
+
+- **The receipt shows what was actually collected.** Offers and loyalty points spent both appear as their own lines, so the printed total matches the cash in the drawer.
+- **A sale waiting on manager approval will not print a receipt.** The money hasn't been collected yet. Once the manager approves it from the **Approvals** screen the sale completes and can be printed.
+- **Reprinting later is safe.** The receipt is rebuilt from the recorded sale, not from whatever is on screen, so it always shows what was originally rung up.
+- **If a 58mm till roll prints text too wide**, tell your administrator to set **Label Width (mm)** to `58` on that Printer record.
 
 **If something goes wrong mid-sale** (a barcode doesn't scan, the system shows an error), read the message on screen — it tells you exactly what's wrong (e.g. "this item is already sold" or "not enough stock") rather than just "error."
 
@@ -285,7 +301,7 @@ Back as the first user: **Procurement → Goods Receipt**. Click **Load Items fr
 
 ### Step 8 — Sell something
 
-Scan or type your item's code, press Enter, choose a payment mode, and click **Complete Sale**. Say yes to the receipt if you want to see it.
+Scan or type your item's code, press Enter, choose a payment mode, and click **Complete Sale**. Say yes to the receipt if you want to see it — it prints straight to the till printer if one has been set up for that (§4.3), otherwise through the browser's print dialog.
 
 ### Step 9 — Check that everything moved on its own
 

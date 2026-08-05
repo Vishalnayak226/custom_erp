@@ -1725,8 +1725,16 @@ pre {
 
 /* Sticker Printing (Stage 13.15) - #sticker-print-area is hidden on screen
    and only shown during window.print(), while everything else is hidden,
-   so the printed page contains just the labels. */
-#sticker-print-area {
+   so the printed page contains just the labels.
+
+   31.1.9: the receipt and invoice sheets are listed here too. They were only
+   ever shown/hidden by the @media print block below, so once a POS receipt
+   had been printed its markup stayed rendered at the bottom of the live page
+   until the next navigation - the areas are direct children of <body>, and
+   nothing else was hiding them on screen. */
+#sticker-print-area,
+#receipt-print-area,
+#invoice-print-area {
   display: none;
 }
 
@@ -1763,11 +1771,12 @@ pre {
 }
 
 @media print {
-  body > *:not(#sticker-print-area):not(#receipt-print-area) {
+  body > *:not(#sticker-print-area):not(#receipt-print-area):not(#invoice-print-area) {
     display: none !important;
   }
   #sticker-print-area.printing,
-  #receipt-print-area.printing {
+  #receipt-print-area.printing,
+  #invoice-print-area.printing {
     display: block !important;
   }
 }
@@ -1805,6 +1814,52 @@ pre {
 .receipt .receipt-total {
   font-weight: 700;
   font-size: 13px;
+}
+
+/* Invoice print sheet (Stage 31.1.9) - the browser fallback for the Sales
+   Invoice "Print" button when QZ Tray is not available. Laid out for A4
+   rather than a receipt roll, which is the one thing that differs from
+   .receipt above. */
+.invoice-sheet {
+  width: 100%;
+  max-width: 700px;
+  margin: 0 auto;
+  font-family: var(--font-family);
+  font-size: 14px;
+  color: #000;
+}
+
+.invoice-sheet .invoice-title {
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.invoice-sheet .invoice-draft {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: #b91c1c;
+}
+
+.invoice-sheet hr {
+  border: none;
+  border-top: 2px solid #000;
+  margin: 14px 0;
+}
+
+.invoice-sheet td {
+  padding: 4px 0;
+}
+
+.invoice-sheet td.invoice-key {
+  font-weight: 700;
+  padding-right: 20px;
+}
+
+.invoice-sheet .invoice-total {
+  margin-top: 24px;
+  font-size: 22px;
+  font-weight: 700;
 }
 
 .login-error {
