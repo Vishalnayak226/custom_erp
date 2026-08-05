@@ -9,10 +9,20 @@ Tracks implementation at item level. `[ ]` = not started/open, `[x]` = completed
 
 
 > **Closed stages are archived.** Stages 1-19, 21, 22, 24, 25, 27, 28, 28.5, 29,
-> 29.7, 29.8 and 29.9 are fully closed and live verbatim in
+> 29.7, 29.8, 29.9 and **30** are fully closed and live verbatim in
 > **[docs/archive/micro_checklist_closed_stages.md](archive/micro_checklist_closed_stages.md)**.
-> This file now carries only Stages with open items (20, 23, 26, 30).
+> This file carries Stages **20, 23, 26, 31, 32, 33, 34**.
 > Read the archive only when you actually need the history of a closed stage.
+>
+> **Archive reconciliation, 2026-08-06.** All 234 archived items are `[x]`; nothing
+> was archived while still open. Two archived entries were re-verified against live
+> source because their own text reads as unfinished:
+> - Archived **25.9** (`FIN-0260` "still not wired") is **stale** — 26.6.10/26.6.6 wired
+>   it into `rejectIfCurrentPeriodClosed` (`engines/accounting_periods.go:288`, covered by
+>   `TestBackdatedPostingApproval`). No action; the archive is history and is left as written.
+> - Archived **30.1.2**'s deferred follow-up (tax-exempt goods) was a **genuine orphan** —
+>   `engines/master_data_validation.go:87` still points at "docs/micro_checklist.md Stage 30",
+>   which no longer lives in this file. Brought forward as **26.6.11** below.
 
 ## Stage 20 — ERP Maturity Master Plan Execution ⏳ (mostly — 7 items open: Track A (20.1-20.5) + 20.30/20.31; 20.6 partially closed 2026-07-25, see its own entry)
 
@@ -185,6 +195,8 @@ Per PDF §6.2, extends Stage 20 Track B.2's Bin/putaway/pick/pack/cycle-count en
 - [ ] **26.6.9** e-invoice/IRN and e-way bill flows. **Blocked on 26.2.3/26.2.4** — the GST calc engine (Stage 17.5) is ready to feed a real GSP call once credentials exist.
 - [x] **26.6.10** `FIN-0260` period-locked posting code — still not wired (Stage 25.9: `PostDoubleEntry` has 28 call sites across 12 files, no single choke point). **Folded into 26.6.6 above (2026-07-25)** rather than done as a separate later pass: 26.6.6 already needed to edit `rejectIfCurrentPeriodClosed` (the confirmed single choke point) to add the backdated-approval override check, so its plain `fmt.Errorf` was swapped for `&ValidationError{Code:"FIN-0260"}` in the same edit — touching that function twice in two different batches would have been pure waste. Propagates to all 28 `PostDoubleEntry` call sites for free; confirmed via `TestBackdatedPostingApproval`'s direct `PostDoubleEntry` assertion (`err.(*ValidationError).Code == "FIN-0260"`) and every pre-existing period-lock test still passing unchanged.
 
+- [ ] **26.6.11** Tax-exempt / nil-rated goods cannot be sold at all. **Brought forward 2026-08-06 from archived Stage 30.1.2's deferred follow-up** — it was flagged there but never given a live item, and `engines/master_data_validation.go:87` still points readers at "docs/micro_checklist.md Stage 30", which is now in the archive. The gap is real, not cosmetic: 30.1.2 made `hsn_code` + a **positive** `gst_rate` mandatory on Item, so a 0% item is unsaveable — and checkout has always refused to price one, which is why nothing regressed and why it went unnoticed. But exempt/nil-rated goods are ordinary in Indian retail (unbranded food grain, fresh produce, books, certain apparel below threshold), so any tenant selling them currently cannot create the Item at all. **Doing it properly needs an explicit tax-exempt flag on Item** (`tax_treatment`: Taxable / Exempt / Nil-rated / Zero-rated, additive nullable column) rather than letting a bare `0` through, because `0` is indistinguishable from "not filled in yet" — which is exactly the hole 30.1.2 closed and must not be re-opened. Touch points: `validateItemMasterRules` (relax the positive-rate rule only when the flag says exempt), `GetItemGSTInfo`/checkout pricing, and the GSTR-1/GSTR-3B reports, which must report exempt and nil-rated supplies in their own buckets rather than as taxable-at-0. **[needs product decision: confirm the four-value treatment list and whether exempt items should still require an HSN — GST law generally wants one]**
+
 ### Phase 26.7 — CRM/Loyalty Sprint
 - [x] **26.7.1** RFM (recency/frequency/monetary) segmentation — a report over existing `SalesInvoice`/`POSCart`/loyalty-ledger data, no new customer data model needed. Built `engines/crm_reports_stage26.go` (`GetRFMSegmentation`, rank-based quintile scoring off POSCart's `customer_id`, standard 5-segment labels); registered as `rfm-segmentation`. Live-verified (correctly returns "no data" on this fresh dev DB, which has no Paid POSCart carrying a customer_id yet).
 - [x] **26.7.2** Voucher/coupon issuance + redemption — new doctype, reuses the loyalty ledger's earn/burn pattern (Stage 13.13d). Built `engines/voucher.go`: `Voucher` is a flat-schema Master doctype (`db/migrations_stage26_7_crm_loyalty.sql`) — create/list/edit/bulk-CSV-issuance come free from the existing generic doctype/`BulkImportCSV` machinery, zero bespoke code for those. `RedeemVoucher` is the one bespoke action: row-locked (`SELECT...FOR UPDATE`, same pattern as `DecideApproval`) so two concurrent redemptions of a `max_uses=1` voucher can't both succeed; validates expiry/max-uses/customer-restriction and computes Percentage/Flat discount capped at the cart amount. New endpoints `POST /crm/voucher/validate`(preview)/`redeem` — deliberately standalone, not deep POS-checkout integration, mirroring the existing `handleRedeemLoyaltyPoints`'s own shallow-integration shape. Verified: new `TestVoucherRedemption` (discount math both types, expiry, customer-restriction, max-uses exhaustion) plus live HTTP create→validate→redeem; `go build`/`go vet`/`go test ./... -p 1` clean.
@@ -351,6 +363,31 @@ User report, with a screenshot of the New Location dialog: *"Nothing is visible 
 - **Verified 2026-08-04 in Chromium, two harnesses, all cases passing.** (1) The real `styles.css` against the DOM `openDynamicModal` builds, at 8 viewport sizes standing in for zoom **40% → 300%** plus a deliberately short 1400x380 window: 3 columns down to 1097px, 2 at 768px, 1 at 520px; container inside the viewport and the **Save button reachable in every case**; body scrolls precisely when it needs to. Before the fix, the 120%/140%/200%/300%/short cases put Save *below* the viewport bottom (e.g. `save=[720,757]` in a 720px-tall window) with `scrolls=false`. (2) A regression pass on the **real `index.html`+`app.js`** served over HTTP at 3 sizes: `add-field`, `edit-prefix`, `add-label` and `bulk-import` all still measure `cols=1 display=flex w=520` — the grid rule leaked into nothing — and the long custom dialog scrolls with its footer on screen. No page errors.
 - [x] **33.1.6 Cache-buster versions bumped — closed 2026-08-04.** `index.html` referenced `styles.css?v=14` / `app.js?v=20`; both files changed, so a browser holding the old query string would have served the **cached pre-fix files and shown no change at all** — including on production behind the tunnel. Now `?v=15` / `?v=20`. Note this also covers Stage 32.1's `app.js` edits, which never bumped it. **Any future change to either file must bump its `?v=`** or the fix ships invisibly.
 - [ ] **33.2 Not on production yet — OPEN.** Per 32.1.8, `localhost:8080` is the droplet, so the user will not see any of this until the tree is deployed (`deploy/deploy.ps1`, now that 32.1.11 fixed its env-export bug). Frontend-only change: `public/styles.css` + `public/app.js`, no migration, no binary rebuild needed. [needs user go-ahead to deploy]
+
+---
+
+## Stage 34 — Market intelligence / competitor pricing ⏳ (opened 2026-08-06; planning only, nothing built)
+
+**Source:** [docs/specs/market_intelligence_reference.md](specs/market_intelligence_reference.md), the knowledge kept from the retired OmniCore/"Buying Catalog" Python project (see `project_ledger.md` §81). **Nothing in this Stage is approved work** — it is the buildable shape of the one genuinely net-new concept that project held, written down so the analysis isn't repeated. `engines/marketplace.go` covers courier serviceability, labels/manifests, delivery/RTO and settlement reconciliation; it does **not** do competitor-price or catalog harvesting.
+
+**The constraint that shapes the whole Stage.** `go.mod` carries exactly two dependencies (`lib/pq`, `x/crypto`) and there is no vendor directory, so **there is no HTML parser available**. Anything needing DOM traversal means a new dependency, and a headless browser (the retired project used Playwright) means a new *runtime*, not just a library — both against `CLAUDE.md`'s first principle. That single fact is what splits 34.1-34.3 (buildable now, stdlib only) from 34.4-34.5 (gated).
+
+**Sequencing:** 34.6 is the real gate. Do not start 34.4 before it is answered, and 34.1-34.3 are worth doing regardless of how it lands, because they are how the data gets *used* no matter where it comes from.
+
+### 34.1-34.3 — buildable now, zero new dependencies
+
+- [ ] **34.1** `CompetitorPrice` doctype + CSV ingestion. A flat doctype (`sku` or free-text `competitor_product`, `our_item` Link, `platform`, `competitor_price`, `mrp`, `rating`, `review_count`, `observed_at`, `source_url`) fed by the existing **`BulkImportCSV`** (`engines/import.go:68`) — the repo's standing rule for any new line-item CSV upload, so this costs a migration and a doctype registration and no bespoke upload code. **This is the item worth building first even if scraping is never approved**: buyers already export competitor prices from marketplace seller panels by hand, and a spreadsheet paste is a legitimate data source with no ToS question attached. `ValidateDocument` is the choke point for field validation as usual.
+- [ ] **34.2** Price-gap report via `RegisterReport` (`engines/report_registry.go:68`), not a bespoke screen. Joins `CompetitorPrice` to our `Item`/price list and columns out: our price, best competitor price, gap in ₹ and %, and whether we are above/at/below. Same `ReportDefinition` pattern as every other report, so it inherits filters, CSV export and the async export worker for free. **Depends on 34.1.**
+- [ ] **34.3** Undercut alert as a `Start…Worker(ctx, interval)` — the shape 10 existing workers already use (`StartRecurringJournalWorker`, `StartLoyaltyExpiryWorker`, `StartPublishQueueWorker`, …). Fires through the **existing** notification/outbox path when a tracked SKU is undercut by more than a configurable threshold. No new scheduling infrastructure; `PatchIntakeWorker`'s config-driven interval is the closest precedent. **Depends on 34.1/34.2.**
+
+### 34.4-34.5 — gated, do not start before 34.6
+
+- [ ] **34.4** JSON-endpoint harvester, **stdlib only**. This is feasible precisely because of the reference doc's headline finding: **Myntra ships its whole search result set as an embedded `window.__myx` JSON blob** (fallback `window.__m_initial_state`), so `net/http` + `regexp` + `encoding/json` are sufficient — **no browser and no HTML parser**. Adopt the retired project's two-phase shape: harvest raw responses to disk under a bounded worker pool, skip any file already present and non-trivial (free resumability *and* cache), then parse offline in a second pass so a parser bug costs no re-fetch and no re-ban. **[needs user decision — gated on 34.6]**
+- [ ] **34.5** DOM-based extraction for Amazon/Flipkart/Meesho/eBay. **Recommend NOT building.** It needs an HTML parser dependency at minimum and realistically a headless browser (all four sites are JS-rendered and actively anti-bot), which is a new runtime on a 454MB droplet. It is also the part that rots fastest — the retired project's own final commit was "Fix: Myntra scrapping logic", and its Flipkart parser was already dead code by the time it was abandoned. If competitor coverage beyond a JSON-endpoint source is genuinely needed, a **paid pricing-data API** is the lighter answer than owning scrapers. **[needs design decision: buy vs build vs skip]**
+
+### 34.6 — the gate
+
+- [ ] **34.6** Legal/ToS position on automated collection. Marketplace terms generally prohibit scraping, and this is a **multi-tenant SaaS** — harvesting on tenants' behalf carries a different risk profile than a single merchant scraping for their own buying decisions, which is what the retired project was. Needs an explicit answer on: which sources are acceptable, whether `robots.txt` is to be honoured, request-rate ceilings, and whether harvested competitor data may be retained per-tenant or only shown transiently. **[needs user input — this is a business/legal decision, not an engineering one, and 34.4/34.5 stay blocked until it lands]**
 
 ---
 

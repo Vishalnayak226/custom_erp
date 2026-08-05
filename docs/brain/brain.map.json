@@ -151,14 +151,16 @@
       "id": "identity",
       "lobe": "brainstem",
       "name": "Identity, RBAC & MFA",
-      "role": "Login, JWT issue/verify, per-role permissions, TOTP MFA for privileged roles, account lockout, password reset, and field-level permissions.",
+      "role": "Login, JWT issue/verify, per-role permissions, TOTP MFA for privileged roles, MFA recovery codes and authenticator re-enrollment, account lockout, password reset, and field-level permissions.",
       "match": [
         "engines/auth.go",
         "engines/auth_livestate.go",
         "engines/mfa.go",
+        "engines/mfa_recovery.go",
         "engines/password_reset.go",
         "engines/field_permissions.go",
         "internal/server/handlers_auth.go",
+        "internal/server/handlers_mfa_recovery.go",
         "internal/server/handlers_admin_identity.go",
         "internal/server/handlers_profile.go"
       ]
