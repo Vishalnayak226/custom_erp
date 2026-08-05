@@ -81,7 +81,11 @@ function showCustomConfirm(message, title = 'Confirm Action') {
   });
 }
 
-function showCustomPrompt(message, defaultValue = '', title = 'Input Required') {
+// inputType (32.5) lets a caller ask for a password without a second dialog
+// system - the MFA recovery screens need to re-authenticate, and typing a
+// password into a plain text input in front of a colleague is not acceptable.
+// Defaults to 'text', so every existing caller is unaffected.
+function showCustomPrompt(message, defaultValue = '', title = 'Input Required', inputType = 'text') {
   return new Promise((resolve) => {
     const backdrop = document.getElementById('custom-dialog-container');
     const titleEl = document.getElementById('custom-dialog-title');
@@ -95,7 +99,7 @@ function showCustomPrompt(message, defaultValue = '', title = 'Input Required') 
     msgEl.textContent = message;
     
     // Create an input field dynamically
-    extraEl.innerHTML = `<input type="text" id="custom-dialog-prompt-input" class="form-input" style="width: 100%; margin-top: 12px;" value="${defaultValue}">`;
+    extraEl.innerHTML = `<input type="${inputType}" id="custom-dialog-prompt-input" class="form-input" style="width: 100%; margin-top: 12px;" value="${defaultValue}">`;
     extraEl.classList.remove('hidden');
     cancelBtn.style.display = '';
 
@@ -1092,10 +1096,20 @@ function showLoginScreen() {
   // Always land back on the username/password step, not a stale MFA screen
   // left over from a previous, unfinished login attempt.
   pendingMFAToken = null;
+  pendingSessionData = null;
   document.getElementById('login-form').classList.remove('hidden');
   document.getElementById('mfa-enroll-screen').classList.add('hidden');
   document.getElementById('mfa-challenge-screen').classList.add('hidden');
+  document.getElementById('mfa-recovery-screen').classList.add('hidden');
+  setRecoveryCodeMode(false);
 }
+
+// 32.5: the session earned by an MFA step, parked while the display-once
+// recovery codes are on screen. Held in memory only - the token must not
+// reach localStorage until the user has actually acknowledged the codes,
+// otherwise a refresh mid-screen would enter the app and the codes would be
+// lost for good (the server keeps only their hashes).
+let pendingSessionData = null;
 
 function showApp() {
   document.getElementById('login-screen').classList.add('hidden');
@@ -1252,8 +1266,20 @@ function completeLogin(data) {
   document.getElementById('login-form').reset();
   document.getElementById('mfa-enroll-form').reset();
   document.getElementById('mfa-challenge-form').reset();
+  setRecoveryCodeMode(false);
   showApp();
   init();
+
+  // 32.5: signing in with a recovery code means the authenticator is
+  // presumably gone. Say so, and say what to do about it - otherwise the user
+  // burns codes one login at a time and is back to a hard lockout once the
+  // last one is spent.
+  if (data.used_recovery_code) {
+    const left = Number(data.recovery_codes_remaining || 0);
+    showToast(
+      `Signed in with a recovery code - ${left} left. Open Profile to set up a new authenticator device.`,
+      { variant: left <= 2 ? 'danger' : 'warning', title: 'Two-factor recovery', ms: 12000 });
+  }
 }
 
 // startMFAEnrollment fetches a fresh TOTP secret for a first-time MFA login
@@ -1299,6 +1325,14 @@ async function submitMFACode(url, codeInputId, errorElId, submitBtnId) {
       errorEl.classList.remove('hidden');
       return;
     }
+    // 32.5: enrollment hands back a set of recovery codes that exist in
+    // plaintext exactly once. Park the session and show them first; the app
+    // is only entered after the user ticks the acknowledgement.
+    if (Array.isArray(data.recovery_codes) && data.recovery_codes.length) {
+      pendingSessionData = data;
+      showRecoveryCodesScreen(data.recovery_codes);
+      return;
+    }
     completeLogin(data);
   } catch (err) {
     errorEl.textContent = 'Unable to reach the server. Please try again.';
@@ -1318,10 +1352,109 @@ async function handleMFAChallengeSubmit(event) {
   await submitMFACode('/api/v1/auth/mfa/verify', 'mfa-challenge-code', 'mfa-challenge-error', 'mfa-challenge-submit-btn');
 }
 
+// --- 32.5: MFA recovery codes -------------------------------------------
+//
+// Before this, a lost phone meant SSH-ing to the server and clearing
+// mfa_enabled by hand. These three pieces are the in-app path: entering a
+// recovery code instead of a TOTP code, saving the codes at enrollment, and
+// (on the profile screen) moving the authenticator to a new device.
+
+// setRecoveryCodeMode retargets the single challenge input between a 6-digit
+// TOTP code and a recovery code. The numeric pattern/maxlength have to be
+// lifted or the browser's own validation rejects a recovery code before it is
+// ever submitted.
+function setRecoveryCodeMode(on) {
+  const input = document.getElementById('mfa-challenge-code');
+  const label = document.querySelector('label[for="mfa-challenge-code"]');
+  const hint = document.getElementById('mfa-challenge-hint');
+  if (!input || !label || !hint) return;
+  if (on) {
+    input.setAttribute('pattern', '[A-Za-z0-9 -]{10,14}');
+    input.setAttribute('maxlength', '14');
+    input.setAttribute('inputmode', 'text');
+    input.setAttribute('autocomplete', 'off');
+    input.setAttribute('placeholder', 'XXXXX-XXXXX');
+    label.textContent = 'Recovery code';
+    hint.innerHTML = 'Have your phone? <a href="#" id="mfa-use-totp-link">Use an authenticator code</a>';
+    document.getElementById('mfa-use-totp-link').addEventListener('click', (e) => { e.preventDefault(); setRecoveryCodeMode(false); });
+  } else {
+    input.setAttribute('pattern', '[0-9]{6}');
+    input.setAttribute('maxlength', '6');
+    input.setAttribute('inputmode', 'numeric');
+    input.setAttribute('autocomplete', 'one-time-code');
+    input.removeAttribute('placeholder');
+    label.textContent = '6-digit code';
+    hint.innerHTML = 'Lost your phone? <a href="#" id="mfa-use-recovery-link">Use a recovery code</a>';
+    document.getElementById('mfa-use-recovery-link').addEventListener('click', (e) => { e.preventDefault(); setRecoveryCodeMode(true); });
+  }
+  input.value = '';
+}
+
+// showRecoveryCodesScreen renders the display-once list and gates the
+// Continue button on the acknowledgement checkbox - the one moment these
+// codes are recoverable, since the server stores only their hashes.
+function showRecoveryCodesScreen(codes) {
+  document.getElementById('mfa-recovery-codes').textContent = codes.join('\n');
+  document.getElementById('login-form').classList.add('hidden');
+  document.getElementById('mfa-enroll-screen').classList.add('hidden');
+  document.getElementById('mfa-challenge-screen').classList.add('hidden');
+  const ack = document.getElementById('mfa-recovery-ack');
+  const cont = document.getElementById('mfa-recovery-continue-btn');
+  ack.checked = false;
+  cont.disabled = true;
+  document.getElementById('mfa-recovery-screen').classList.remove('hidden');
+}
+
+function recoveryCodesText() {
+  return document.getElementById('mfa-recovery-codes').textContent;
+}
+
+// downloadRecoveryCodes writes the codes to a local .txt via an object URL -
+// no server round-trip and no new dependency, the same approach the report
+// exports already take.
+function downloadRecoveryCodes() {
+  const blob = new Blob(
+    ['CustomERP two-factor recovery codes\n' +
+     'Each code can be used once, in place of your authenticator code.\n\n' +
+     recoveryCodesText() + '\n'],
+    { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'custom-erp-recovery-codes.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function bindRecoveryCodeScreen() {
+  const ack = document.getElementById('mfa-recovery-ack');
+  const cont = document.getElementById('mfa-recovery-continue-btn');
+  ack.addEventListener('change', () => { cont.disabled = !ack.checked; });
+  cont.addEventListener('click', () => {
+    const data = pendingSessionData;
+    pendingSessionData = null;
+    document.getElementById('mfa-recovery-screen').classList.add('hidden');
+    if (data) completeLogin(data);
+  });
+  document.getElementById('mfa-recovery-copy-btn').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(recoveryCodesText());
+      showToast('Recovery codes copied to the clipboard', { variant: 'success' });
+    } catch (err) {
+      showToast('Could not copy - please select the codes and copy them manually', { variant: 'warning' });
+    }
+  });
+  document.getElementById('mfa-recovery-download-btn').addEventListener('click', downloadRecoveryCodes);
+  document.getElementById('mfa-use-recovery-link').addEventListener('click', (e) => { e.preventDefault(); setRecoveryCodeMode(true); });
+}
+
 function bootstrap() {
   document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
   document.getElementById('mfa-enroll-form').addEventListener('submit', handleMFAEnrollSubmit);
   document.getElementById('mfa-challenge-form').addEventListener('submit', handleMFAChallengeSubmit);
+  bindRecoveryCodeScreen();
 
   if (localStorage.getItem('erp_token')) {
     showApp();
@@ -2840,12 +2973,40 @@ async function restoreLastView() {
 }
 
 // Router
+// renderView (32.2) is a thin wrapper that owns the *feedback*: it clears the
+// old screen, shows a loading placeholder, and only then hands off to
+// renderViewContent's dispatch.
+//
+// The reason it exists: renderViewContent blanks #view-root and then awaits a
+// fetch, so on anything slower than localhost the user got an empty white
+// panel with no indication that a click had registered - and clicked again.
+// That is the most likely remaining cause of the "I have to click many times"
+// report behind Stage 32, and no amount of transition tuning would have fixed
+// it, because nothing was being rendered to transition.
 async function renderView(view) {
-  currentView = view;
-  saveNavState();
   const root = document.getElementById('view-root');
   root.innerHTML = '';
   root.scrollTop = 0;
+
+  const placeholder = document.createElement('div');
+  placeholder.className = 'view-loading';
+  placeholder.innerHTML = '<div class="view-loading-bar"></div><span>Loading&hellip;</span>';
+  root.appendChild(placeholder);
+
+  try {
+    await renderViewContent(view);
+  } finally {
+    // finally, not after the await: a renderer that throws must not leave a
+    // permanent "Loading..." on screen, which would be a worse lie than the
+    // blank panel this replaces.
+    placeholder.remove();
+  }
+}
+
+async function renderViewContent(view) {
+  currentView = view;
+  saveNavState();
+  const root = document.getElementById('view-root');
 
   if (view === 'pos') {
     renderPOSView(root);
@@ -3076,6 +3237,19 @@ async function renderProfileView(container) {
   `;
   container.appendChild(passwordPanel);
 
+  // 32.5: two-factor recovery. Only rendered for accounts that actually have
+  // MFA enrolled - for everyone else there is nothing here to manage, and an
+  // empty panel would just be noise on a screen most users open to change a
+  // password.
+  if (data.mfa_enabled) {
+    const mfaPanel = document.createElement('div');
+    mfaPanel.className = 'table-panel';
+    mfaPanel.style.padding = '24px';
+    mfaPanel.id = 'profile-mfa-panel';
+    container.appendChild(mfaPanel);
+    await renderMFARecoveryPanel(mfaPanel);
+  }
+
   document.getElementById('profile-settings-form').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('profile-email').value.trim();
@@ -3120,6 +3294,223 @@ async function renderProfileView(container) {
     document.getElementById('profile-password-form').reset();
     await showCustomAlert('Your password has been updated.', 'Saved');
   });
+}
+
+// --- 32.5: profile-side two-factor recovery ------------------------------
+//
+// The counterpart to the login-screen recovery flow. Between them these close
+// the lockout hole: a recovery code gets you in without your phone, and this
+// panel is where you get a fresh set and move the authenticator to a new
+// device. Before Stage 32.5 neither existed, and a replaced phone meant SSH
+// to the server plus a hand-written UPDATE against the users table.
+
+// buildRecoveryCodesNode renders codes for showCustomAlert, which already
+// accepts a DOM node - so this reuses the existing dialog rather than adding
+// a third dialog system. Copy/Download match the login screen's buttons so
+// the two places these codes appear behave identically.
+function buildRecoveryCodesNode(codes) {
+  const wrap = document.createElement('div');
+
+  const warning = document.createElement('p');
+  warning.style.cssText = 'font-size: 13px; margin: 0 0 10px;';
+  warning.textContent = 'These are shown only once. Store them somewhere safe and away from your phone. Any codes you had before have stopped working.';
+  wrap.appendChild(warning);
+
+  const list = document.createElement('pre');
+  list.className = 'recovery-code-list';
+  list.textContent = codes.join('\n');
+  wrap.appendChild(list);
+
+  const row = document.createElement('div');
+  row.style.cssText = 'display: flex; gap: 8px;';
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'btn btn-secondary';
+  copyBtn.style.flex = '1';
+  copyBtn.textContent = 'Copy';
+  copyBtn.addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(codes.join('\n'));
+      showToast('Recovery codes copied to the clipboard', { variant: 'success' });
+    } catch (err) {
+      showToast('Could not copy - please select the codes and copy them manually', { variant: 'warning' });
+    }
+  });
+  const dlBtn = document.createElement('button');
+  dlBtn.type = 'button';
+  dlBtn.className = 'btn btn-secondary';
+  dlBtn.style.flex = '1';
+  dlBtn.textContent = 'Download';
+  dlBtn.addEventListener('click', () => {
+    const blob = new Blob(
+      ['CustomERP two-factor recovery codes\n' +
+       'Each code can be used once, in place of your authenticator code.\n\n' +
+       codes.join('\n') + '\n'],
+      { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'custom-erp-recovery-codes.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+  row.appendChild(copyBtn);
+  row.appendChild(dlBtn);
+  wrap.appendChild(row);
+  return wrap;
+}
+
+// buildAuthenticatorSecretNode shows the manual-entry secret for a new
+// device, laid out the same way the login screen's enrollment step does it.
+function buildAuthenticatorSecretNode(secret) {
+  const wrap = document.createElement('div');
+
+  const intro = document.createElement('p');
+  intro.style.cssText = 'font-size: 13px; margin: 0 0 10px;';
+  intro.textContent = 'Add a new account in your authenticator app (Google Authenticator, Authy, etc) using this manual-entry code. Your current device keeps working until you confirm the new one.';
+  wrap.appendChild(intro);
+
+  const code = document.createElement('code');
+  code.style.cssText = 'display: block; word-break: break-all; padding: 10px; background: var(--bg-color); border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; user-select: all;';
+  code.textContent = secret;
+  wrap.appendChild(code);
+
+  return wrap;
+}
+
+async function renderMFARecoveryPanel(panel) {
+  const res = await apiFetch('/api/v1/me/mfa/recovery-codes');
+  if (!res || !res.ok) {
+    panel.innerHTML = `
+      <h3 class="card-title" style="margin-bottom: 8px;">Two-Factor Recovery</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin: 0;">Could not load your recovery-code status.</p>`;
+    return;
+  }
+  const info = await res.json();
+  const remaining = Number(info.remaining || 0);
+  const perSet = Number(info.issued_per_set || 10);
+
+  // The status line is the whole point of the panel: "you have N ways back in
+  // if your phone dies". Zero is called out in danger colours because that is
+  // the state the Stage 32.5 lockout report was actually written about.
+  let statusBadge, statusNote;
+  if (remaining === 0) {
+    statusBadge = '<span class="badge badge-danger">No recovery codes</span>';
+    statusNote = 'If you lose your phone you will be locked out and an administrator will have to reset your two-factor setup. Generate a set now.';
+  } else if (remaining <= 2) {
+    statusBadge = `<span class="badge badge-warning">${remaining} of ${perSet} left</span>`;
+    statusNote = 'You are nearly out. Generate a fresh set before the last one is used.';
+  } else {
+    statusBadge = `<span class="badge badge-success">${remaining} of ${perSet} left</span>`;
+    statusNote = 'Each code signs you in once if your authenticator is unavailable.';
+  }
+
+  const pendingNote = info.reenroll_in_progress
+    ? `<p style="font-size: 13px; color: var(--warning-strong); margin: 0 0 12px;">
+         A device change is part-finished. Your current authenticator still works &mdash; start it again to pick up where you left off, or cancel it.</p>`
+    : '';
+
+  panel.innerHTML = `
+    <h3 class="card-title" style="margin-bottom: 12px;">Two-Factor Recovery</h3>
+    <div style="margin-bottom: 8px;">${statusBadge}</div>
+    <p style="font-size: 13px; color: var(--text-muted); margin: 0 0 12px;">${statusNote}</p>
+    ${pendingNote}
+    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+      <button type="button" class="btn btn-secondary" id="mfa-regen-btn">Generate new recovery codes</button>
+      <button type="button" class="btn btn-secondary" id="mfa-newdevice-btn">Set up a new authenticator device</button>
+      ${info.reenroll_in_progress ? '<button type="button" class="btn btn-secondary" id="mfa-cancel-reenroll-btn">Cancel device change</button>' : ''}
+    </div>
+  `;
+
+  document.getElementById('mfa-regen-btn').addEventListener('click', async () => {
+    const password = await showCustomPrompt(
+      'Confirm your password to generate a new set. This immediately invalidates any codes you already hold.',
+      '', 'Generate Recovery Codes', 'password');
+    if (password === null) return;
+    const genRes = await apiFetch('/api/v1/me/mfa/recovery-codes/regenerate', {
+      method: 'POST',
+      body: JSON.stringify({ password })
+    });
+    if (!genRes) return;
+    if (!genRes.ok) {
+      await showApiError(genRes, 'Failed to generate recovery codes.');
+      return;
+    }
+    const out = await genRes.json();
+    await showCustomAlert(buildRecoveryCodesNode(out.recovery_codes || []), 'Your New Recovery Codes');
+    await renderMFARecoveryPanel(panel);
+  });
+
+  document.getElementById('mfa-newdevice-btn').addEventListener('click', () => startMFADeviceChange(panel));
+
+  const cancelBtn = document.getElementById('mfa-cancel-reenroll-btn');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', async () => {
+      const cancelRes = await apiFetch('/api/v1/me/mfa/reenroll/cancel', { method: 'POST' });
+      if (!cancelRes) return;
+      if (!cancelRes.ok) {
+        await showApiError(cancelRes, 'Failed to cancel the device change.');
+        return;
+      }
+      await renderMFARecoveryPanel(panel);
+    });
+  }
+}
+
+// startMFADeviceChange walks the "my phone was replaced" flow. The new secret
+// is parked server-side and the existing authenticator keeps working until a
+// code from the new device is accepted - so abandoning this halfway cannot
+// itself cause a lockout.
+async function startMFADeviceChange(panel) {
+  const password = await showCustomPrompt(
+    'Confirm your password to set up a new authenticator device. Your current device keeps working until the new one is confirmed.',
+    '', 'New Authenticator Device', 'password');
+  if (password === null) return;
+
+  const startRes = await apiFetch('/api/v1/me/mfa/reenroll', {
+    method: 'POST',
+    body: JSON.stringify({ password })
+  });
+  if (!startRes) return;
+  if (!startRes.ok) {
+    await showApiError(startRes, 'Failed to start the device change.');
+    return;
+  }
+  const { secret } = await startRes.json();
+
+  // The secret goes in its own dialog rather than inline in the prompt text:
+  // showCustomPrompt sets its message with textContent, so a newline there
+  // would collapse and leave a 32-character base32 string running into the
+  // sentence around it - unreadable for something that gets typed by hand.
+  await showCustomAlert(buildAuthenticatorSecretNode(secret), 'New Authenticator Device');
+
+  const code = await showCustomPrompt(
+    'Enter the 6-digit code your authenticator app now shows for this account.',
+    '', 'New Authenticator Device');
+  if (code === null) {
+    await renderMFARecoveryPanel(panel);
+    return;
+  }
+
+  const confirmRes = await apiFetch('/api/v1/me/mfa/reenroll/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ code: (code || '').trim() })
+  });
+  if (!confirmRes) return;
+  if (!confirmRes.ok) {
+    await showApiError(confirmRes, 'That code did not match. Your previous device is still active.');
+    await renderMFARecoveryPanel(panel);
+    return;
+  }
+  const out = await confirmRes.json();
+  if (Array.isArray(out.recovery_codes) && out.recovery_codes.length) {
+    await showCustomAlert(buildRecoveryCodesNode(out.recovery_codes), 'New Device Active - Save These Codes');
+  } else {
+    await showCustomAlert('Your new authenticator device is active.', 'Done');
+  }
+  await renderMFARecoveryPanel(panel);
 }
 
 // Users (Stage 21 QA fix): "Users" routed to a view name the router had no
@@ -3202,6 +3593,8 @@ async function renderUsersView(container) {
           <td><span class="badge ${u.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${u.status}</span></td>
           <td>
             <button class="action-btn" onclick="setUserLocation('${u.id}', '${u.location_code || 'HO'}')">Set Location</button>
+            <button class="action-btn" onclick="resetUserMFA('${u.id}', '${u.username}')">Reset 2FA</button>
+            ${u.role === 'Supplier' ? `<button class="action-btn" onclick="setUserSupplier('${u.id}', '${u.supplier_code || ''}')">Link Vendor</button>` : ''}
             ${u.status === 'Active'
               ? `<button class="action-btn action-btn-danger" onclick="setUserStatus('${u.id}', 'Inactive')">Deactivate</button>`
               : `<button class="action-btn" onclick="setUserStatus('${u.id}', 'Active')">Reactivate</button>`}
@@ -3273,6 +3666,49 @@ window.setUserLocation = async function(id, currentLocation) {
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Failed to update user location.');
+    return;
+  }
+  renderView('users');
+};
+
+// 32.5: the admin-side escape hatch for a colleague who lost both their phone
+// and their recovery codes. Clears the enrollment rather than disabling MFA,
+// so their next login is forced through setup on a new device - previously
+// the only route was SSH to the server plus a hand-written UPDATE.
+window.resetUserMFA = async function(id, username) {
+  const ok = await showCustomConfirm(
+    `Reset two-factor authentication for ${username}? Their authenticator and any recovery codes stop working immediately, and they will be asked to set up a new device at their next login.`,
+    'Reset Two-Factor');
+  if (!ok) return;
+  const res = await apiFetch('/api/v1/admin/users/reset-mfa', {
+    method: 'POST',
+    body: JSON.stringify({ id })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to reset two-factor authentication.');
+    return;
+  }
+  const data = await res.json();
+  await showCustomAlert(data.detail || 'Two-factor authentication has been reset.', 'Done');
+};
+
+// 26.4.10: links a Supplier login to the Vendor it speaks for. Until this is
+// set the account can sign in but every screen refuses it - deliberately, an
+// unscoped supplier session is the one thing the row-level scoping exists to
+// prevent - so this is the step that finishes creating a supplier account.
+window.setUserSupplier = async function(id, currentCode) {
+  const supplier_code = await showCustomPrompt(
+    'Vendor code this supplier login speaks for. Leave blank to unlink the account.',
+    currentCode || '', 'Link Vendor');
+  if (supplier_code === null) return;
+  const res = await apiFetch('/api/v1/admin/users/supplier', {
+    method: 'POST',
+    body: JSON.stringify({ id, supplier_code: supplier_code.trim() })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to update the supplier link.');
     return;
   }
   renderView('users');
@@ -11622,7 +12058,12 @@ const PIM_TABS = [
   { id: 'channels', label: 'Channels', doctype: 'Channel' },
   { id: 'channel-category-map', label: 'Category Mapping', doctype: 'ChannelCategoryMap' },
   { id: 'channel-field-map', label: 'Field Mapping', doctype: 'ChannelFieldMap' },
-  { id: 'channel-validation-rules', label: 'Validation Rules', doctype: 'ChannelValidationRule' }
+  { id: 'channel-validation-rules', label: 'Validation Rules', doctype: 'ChannelValidationRule' },
+  // 26.4.10: the internal reviewer's side of the supplier portal. Suppliers
+  // themselves sign in with the limited 'Supplier' role and reach the same
+  // doctype through the generic table screen - there is no second app, and no
+  // second list/table implementation here either.
+  { id: 'supplier-submissions', label: 'Supplier Submissions', doctype: 'SupplierSubmission' }
 ];
 
 // Stage 26.4.3: taxonomy doctypes whose audit_logs trail (already captured

@@ -51,6 +51,31 @@ Think of this system as one big digital notebook that your whole business shares
 4. If you have a role that needs extra security (like an Admin), you may be asked for a **6-digit code** from an authenticator app on your phone. This is called **MFA** (Multi-Factor Authentication) — it's an extra lock on the door, on top of your password.
 5. If you type your password wrong too many times in a row, the system will temporarily lock your account to keep it safe. Wait a bit and try again, or ask an admin for help.
 
+### If your role uses MFA: your recovery codes
+
+The very first time you set up MFA, the app shows you **ten recovery codes** and asks you to tick a box confirming you have saved them. Take that seriously — **this is the only time they are ever shown.** The system stores only a scrambled fingerprint of each one, so nobody, including your administrator, can look them up for you later.
+
+- **Save them somewhere that is not your phone.** A printed copy in a locked drawer, or your password manager. Saving them on the phone that holds your authenticator app defeats the point: if you lose the phone, you lose both.
+- Use **Copy** or **Download** on that screen if it helps — Download saves a small text file.
+- **Each code works once.** On the login screen, if you don't have your phone, click **"Lost your phone? Use a recovery code"** and type one in instead of the 6-digit code. Dashes, spaces and capitals don't matter.
+- After you sign in with a recovery code, you'll see a message telling you how many you have left. **That message is a prompt to act, not just information** — see below.
+
+### Moving your authenticator to a new phone
+
+Do this *before* you get rid of an old phone if you can, but it also works afterwards as long as you can still sign in (with a recovery code, if need be).
+
+1. Sign in and open **My Profile** from the account menu.
+2. In the **Two-Factor Recovery** panel, click **Set up a new authenticator device**.
+3. Confirm your **password** (not a code — the whole point is that your old device may be gone).
+4. Add the code shown to the authenticator app on your **new** phone, then enter the 6-digit code it displays.
+5. Your old device stops working at that moment, and you are given a **fresh set of recovery codes** — save these too; the old set no longer works.
+
+Your old authenticator keeps working the whole time until step 4 succeeds, so it is safe to start this and change your mind.
+
+The same panel shows **how many recovery codes you have left** and lets you generate a new set at any time (which immediately cancels the old set). If it says you have none, generate some now — with no codes and no phone, only an administrator can get you back in.
+
+**If you have lost both your phone and your codes**, ask an administrator to reset your two-factor setup for you (ADMIN_GUIDE §Users & Roles). You'll be asked to set it up again from scratch at your next login.
+
 Once you're in, you'll see a **sidebar** on the left. **It only shows what your role can actually use** — if a colleague has menu entries you don't, that's your role, not a fault. A whole module disappears if you have no access to anything inside it, and your business only sees the modules it has licensed. Within a screen, buttons you can't use aren't shown either: if you can view a list but not add to it, you'll see a small **"Read-only for your role"** label where the **New** button would be. Ask your administrator if you need more access.
 
 ## 3. Finding Your Way Around

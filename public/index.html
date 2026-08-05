@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Custom ERP</title>
-  <link rel="stylesheet" href="styles.css?v=16">
+  <link rel="stylesheet" href="styles.css?v=17">
   <script>
     // Stage 28.2: apply the saved theme before first paint to avoid a light-mode
     // flash. 'system' (or unset) lets the CSS media query follow the OS;
@@ -73,10 +73,35 @@
           <div class="form-group">
             <label class="form-label" for="mfa-challenge-code">6-digit code</label>
             <input type="text" id="mfa-challenge-code" class="form-input" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required>
+            <!-- 32.5: the same field takes a recovery code; toggleRecoveryCodeMode()
+                 relaxes the numeric pattern/maxlength rather than adding a second
+                 form, so there is only ever one input to submit. -->
+            <p id="mfa-challenge-hint" style="margin-top: 6px; font-size: 12px; color: var(--text-muted);">
+              Lost your phone? <a href="#" id="mfa-use-recovery-link">Use a recovery code</a>
+            </p>
           </div>
           <div id="mfa-challenge-error" class="login-error hidden"></div>
           <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="mfa-challenge-submit-btn">Verify</button>
         </form>
+      </div>
+
+      <!-- 32.5: display-once recovery codes. Shown after enrollment (and after
+           a device change) - this is the only time the raw codes exist, since
+           the server stores only their hashes. -->
+      <div id="mfa-recovery-screen" class="hidden">
+        <p class="login-subtitle">Save your recovery codes</p>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+          Each code signs you in once if you lose your phone. <strong>They are shown only now</strong> &mdash; store them somewhere safe and away from your phone.
+        </p>
+        <pre id="mfa-recovery-codes" class="recovery-code-list"></pre>
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <button type="button" class="btn btn-secondary" id="mfa-recovery-copy-btn" style="flex: 1; justify-content: center;">Copy</button>
+          <button type="button" class="btn btn-secondary" id="mfa-recovery-download-btn" style="flex: 1; justify-content: center;">Download</button>
+        </div>
+        <label style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 13px; cursor: pointer;">
+          <input type="checkbox" id="mfa-recovery-ack"> I have saved these codes somewhere safe
+        </label>
+        <button type="button" class="btn btn-primary" style="width: 100%; justify-content: center;" id="mfa-recovery-continue-btn" disabled>Continue</button>
       </div>
     </div>
   </div>
@@ -585,7 +610,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="components/erp-typeahead.js?v=1"></script>
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=22"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="qz-print.js?v=1"></script>

@@ -15,6 +15,10 @@ Usage:
                                      for how a commit actually gets there). -Env live works the same way.
   .\manage.ps1 backup               create timestamped, AES-256 encrypted custom-format dumps of
                                      dev, test, and live (see docs/operations/backup_restore.md)
+  .\manage.ps1 export-tenant -TenantSchema tenant_acme
+                                     export ONE tenant's schema (26.1.6), encrypted and checksummed
+                                     the same way a full backup is. On-demand only - the nightly
+                                     whole-database backup already covers every tenant.
   .\manage.ps1 restore -Env dev -File .\backups\dev\custom_erp_....dump.enc
                                      restore one environment after an explicit confirmation; its ERP
                                      server must be stopped first. Also accepts legacy unencrypted
@@ -33,13 +37,16 @@ start/stop that environment's erp-server.exe, never a second Postgres instance.
 
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("start", "stop", "restart", "status", "logs", "release", "backup", "restore", "restore-drill", "register-schedule", "fleet-status")]
+    [ValidateSet("start", "stop", "restart", "status", "logs", "release", "backup", "export-tenant", "restore", "restore-drill", "register-schedule", "fleet-status")]
     [string]$Action,
 
     [ValidateSet("dev", "test", "live")]
     [string]$Env = "dev",
 
     [string]$File,
+
+    # 26.1.6: which tenant schema 'export-tenant' should dump, e.g. tenant_acme.
+    [string]$TenantSchema,
 
     # Enables an attended or automated restore only when it exactly matches
     # "RESTORE <environment>". Omit it to be prompted interactively.
@@ -383,6 +390,61 @@ function Backup-Databases {
     }
 }
 
+# Export-Tenant (26.1.6): a single tenant's schema, not the whole database.
+#
+# Every tenant's data lives in its own `tenant_*` schema, so pg_dump --schema
+# gives a clean per-tenant extract with no cross-tenant rows in it. Reuses
+# Backup-Databases' own encryption, checksum sidecar and ops_run_log logging
+# rather than introducing a second backup path - the two must not drift.
+#
+# On-demand only, by design: there is no per-tenant schedule, because the
+# nightly whole-database backup already contains every tenant, so a nightly
+# per-tenant run would just duplicate it. This is for offboarding a tenant,
+# handing a customer their data, or taking a scoped copy before a risky fix.
+#
+#   .\manage.ps1 export-tenant -TenantSchema tenant_acme
+#   .\manage.ps1 export-tenant -TenantSchema tenant_acme -Env live
+function Export-Tenant {
+    if (-not $TenantSchema) { throw "export-tenant requires -TenantSchema <schema>, e.g. tenant_acme." }
+    # Guard the name before it reaches pg_dump: a typo would otherwise produce
+    # a silently EMPTY dump, since pg_dump does not fail on a --schema that
+    # matches nothing.
+    if ($TenantSchema -notmatch '^tenant_[A-Za-z0-9_]+$') {
+        throw "'$TenantSchema' is not a tenant schema name (expected tenant_<something>)."
+    }
+    if (-not (Test-PortOpen $PgPort)) { throw "PostgreSQL is not running on port $PgPort." }
+    if (-not (Test-Path "$PgBin\pg_dump.exe")) { throw "pg_dump.exe not found at $PgBin." }
+
+    $runStarted = Get-Date
+    try {
+        $exists = & "$PgBin\psql.exe" -h localhost -p $PgPort -U postgres -d $ErpDatabase -tAc "SELECT 1 FROM information_schema.schemata WHERE schema_name = '$TenantSchema'" 2>$null
+        if (-not $exists -or $exists.Trim() -ne "1") {
+            throw "Schema '$TenantSchema' does not exist in database '$ErpDatabase'."
+        }
+
+        $timestamp = Get-Date -AsUTC -Format "yyyyMMddTHHmmssZ"
+        $targetDir = Join-Path $BackupRoot "$Env\tenants"
+        if (-not (Test-Path $targetDir)) { New-Item -ItemType Directory -Path $targetDir -Force | Out-Null }
+        $target = Join-Path $targetDir ("{0}_{1}.dump" -f $TenantSchema, $timestamp)
+
+        Write-Host "Exporting schema '$TenantSchema' from '$ErpDatabase'..." -ForegroundColor Cyan
+        & "$PgBin\pg_dump.exe" -h localhost -p $PgPort -U postgres -F c "--schema=$TenantSchema" "--file=$target" $ErpDatabase
+        if ($LASTEXITCODE -ne 0) { throw "pg_dump failed for schema '$TenantSchema'." }
+
+        $encTarget = Protect-BackupFile $target
+        $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $encTarget).Hash
+        Set-Content -LiteralPath "$encTarget.sha256" -Value "$hash  $(Split-Path $encTarget -Leaf)"
+        Write-Host "  Saved $encTarget (AES-256 encrypted)" -ForegroundColor Green
+        Write-Host "  Restore into a SCRATCH database, never over a live schema:" -ForegroundColor Yellow
+        Write-Host "    .\manage.ps1 restore -Env test -File `"$encTarget`"" -ForegroundColor Yellow
+        Log-OpsRun "tenant_export" $Env "success" "Exported $TenantSchema to $(Split-Path $encTarget -Leaf)" $runStarted
+    } catch {
+        Log-OpsRun "tenant_export" $Env "failed" "$($_.Exception.Message)" $runStarted
+        Send-OpsAlert "Tenant export FAILED for '$TenantSchema': $($_.Exception.Message)"
+        throw
+    }
+}
+
 function Restore-Database {
     if (-not $File) { throw "restore requires -File <backup.dump.enc | backup.dump>." }
     $backupFile = Resolve-Path -LiteralPath $File -ErrorAction Stop
@@ -559,6 +621,7 @@ function Invoke-Action($a) {
         "release" { Build-Release }
         "backup" { Backup-Databases }
         "restore" { Restore-Database }
+        "export-tenant" { Export-Tenant }
         "restore-drill" { Invoke-RestoreDrill }
         "register-schedule" { Register-BackupSchedule }
         "fleet-status" { Show-FleetStatus }

@@ -81,7 +81,9 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, username, COALESCE(email, ''), role, status, location_code FROM %s.users ORDER BY username`, schema))
+	// supplier_code (26.4.10) is COALESCEd because it is null for every
+	// non-supplier account, which is almost all of them.
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, username, COALESCE(email, ''), role, status, location_code, COALESCE(supplier_code, '') FROM %s.users ORDER BY username`, schema))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
@@ -90,13 +92,14 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 	users := []map[string]interface{}{}
 	for rows.Next() {
-		var id, username, email, userRole, status, locationCode string
-		if err := rows.Scan(&id, &username, &email, &userRole, &status, &locationCode); err != nil {
+		var id, username, email, userRole, status, locationCode, supplierCode string
+		if err := rows.Scan(&id, &username, &email, &userRole, &status, &locationCode, &supplierCode); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 		users = append(users, map[string]interface{}{
 			"id": id, "username": username, "email": email, "role": userRole, "status": status, "location_code": locationCode,
+			"supplier_code": supplierCode,
 		})
 	}
 	_ = json.NewEncoder(w).Encode(users)

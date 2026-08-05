@@ -111,7 +111,7 @@ func handleBackupStatus(w http.ResponseWriter, r *http.Request) {
 	rows, err := db.DB.Query(`
 		SELECT run_type, environment, status, detail, started_at::text, finished_at::text
 		FROM public.ops_run_log
-		WHERE run_type IN ('backup', 'restore', 'restore_drill')
+		WHERE run_type IN ('backup', 'restore', 'restore_drill', 'tenant_export')
 		ORDER BY finished_at DESC LIMIT 100`)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())

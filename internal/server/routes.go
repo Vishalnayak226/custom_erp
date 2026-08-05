@@ -134,12 +134,34 @@ func Run() {
 	// session needs so the frontend can filter its own nav by entitlement.
 	http.HandleFunc("GET /api/v1/me/modules", apiMiddleware(handleMyModules))
 
+	// MFA recovery and device migration (Stage 32.5). Unlike the three
+	// /auth/mfa/* endpoints above - which run on short-lived purpose tokens
+	// mid-login - these take a normal session token, because they are things a
+	// signed-in user does about their own account. Between them they close the
+	// lockout hole: recovery codes to get in without the authenticator, and a
+	// re-enroll pair to move the authenticator to a new phone (which the
+	// login-time /auth/mfa/enroll cannot do, being reachable only by accounts
+	// that are not yet enrolled).
+	http.HandleFunc("GET /api/v1/me/mfa/recovery-codes", apiMiddleware(handleMFARecoveryStatus))
+	http.HandleFunc("POST /api/v1/me/mfa/recovery-codes/regenerate", apiMiddleware(handleMFARegenerateRecoveryCodes))
+	http.HandleFunc("POST /api/v1/me/mfa/reenroll", apiMiddleware(handleMFAReenrollStart))
+	http.HandleFunc("POST /api/v1/me/mfa/reenroll/confirm", apiMiddleware(handleMFAReenrollConfirm))
+	http.HandleFunc("POST /api/v1/me/mfa/reenroll/cancel", apiMiddleware(handleMFAReenrollCancel))
+
 	// Admin user/role management (Stage 21 QA fix) - the Users/Roles sidebar
 	// items had never had a backend at all. HR/Admin-only, enforced in each handler.
 	http.HandleFunc("GET /api/v1/admin/users", apiMiddleware(handleListUsers))
 	http.HandleFunc("POST /api/v1/admin/users", apiMiddleware(handleCreateUser))
 	http.HandleFunc("POST /api/v1/admin/users/status", apiMiddleware(handleSetUserStatus))
 	http.HandleFunc("POST /api/v1/admin/users/location", apiMiddleware(handleSetUserLocation))
+	// 32.5: an admin-side escape hatch for a colleague who lost both their
+	// phone and their recovery codes. Puts the account back into the
+	// enrollment state rather than disabling MFA, so the next login still has
+	// to set up an authenticator.
+	http.HandleFunc("POST /api/v1/admin/users/reset-mfa", apiMiddleware(handleAdminResetUserMFA))
+	// 26.4.10: links a Supplier login to the Vendor it speaks for. Without
+	// it a supplier account cannot be finished from inside the app.
+	http.HandleFunc("POST /api/v1/admin/users/supplier", apiMiddleware(handleSetUserSupplier))
 	http.HandleFunc("GET /api/v1/admin/roles", apiMiddleware(handleListRoles))
 	http.HandleFunc("GET /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))
 	http.HandleFunc("POST /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))

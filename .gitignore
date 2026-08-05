@@ -54,3 +54,8 @@ Open-ERP.cmd
 .claude/
 CLAUDE.md
 graphify-out/
+
+# task-observer skill scratch (agent-local, same rationale as .claude/).
+# Its log uses strict sequential numbering and warns about parallel-session
+# collisions - exactly the wrong shape for a tree that sees concurrent edits.
+skill-observations/

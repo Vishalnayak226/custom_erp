@@ -139,11 +139,14 @@ func TestCheckoutToForecastIntegration(t *testing.T) {
 	if activateRec.Code != http.StatusOK {
 		t.Fatalf("MFA activate failed: status=%d body=%s", activateRec.Code, activateRec.Body.String())
 	}
-	var activateResp map[string]string
+	// map[string]interface{}, not map[string]string: since Stage 32.5 this
+	// response also carries a recovery_codes array alongside the string
+	// fields.
+	var activateResp map[string]interface{}
 	if err := json.Unmarshal(activateRec.Body.Bytes(), &activateResp); err != nil {
 		t.Fatalf("failed to decode MFA activate response: %v", err)
 	}
-	token := activateResp["token"]
+	token, _ := activateResp["token"].(string)
 	if token == "" {
 		t.Fatalf("MFA activation succeeded but returned no session token")
 	}
@@ -256,11 +259,11 @@ func TestModuleGateBlocksAndRestoresDoctypeAccess(t *testing.T) {
 		t.Fatalf("failed to compute TOTP code: %v", err)
 	}
 	activateRec := doRequest(t, apiMiddleware(handleMFAActivate), "POST", "/api/v1/auth/mfa/activate", enrollmentToken, map[string]string{"code": code})
-	var activateResp map[string]string
+	var activateResp map[string]interface{}
 	if err := json.Unmarshal(activateRec.Body.Bytes(), &activateResp); err != nil {
 		t.Fatalf("failed to decode MFA activate response: %v", err)
 	}
-	token := activateResp["token"]
+	token, _ := activateResp["token"].(string)
 	if token == "" {
 		t.Fatalf("MFA activation succeeded but returned no session token: %s", activateRec.Body.String())
 	}

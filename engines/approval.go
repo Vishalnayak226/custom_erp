@@ -349,6 +349,13 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		snapshotProductContentVersion(tenantID, docID, data, actorUserID)
 	}
 
+	// Stage 26.4.10: a QC-approved supplier submission becomes ProductContent
+	// - as a Draft, so it still has to clear ProductContent's own approval
+	// gate before anything a supplier wrote can reach a live channel.
+	if doctype == "SupplierSubmission" && decision == "Approved" {
+		ApplyApprovedSupplierSubmission(tenantID, docID, data, actorUserID)
+	}
+
 	// Stage 26.6.4: an Approved JournalVoucher posts through PostDoubleEntry
 	// here rather than waiting for a separate explicit "post" action - the
 	// approval decision itself is the authorization to post.

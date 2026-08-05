@@ -44,6 +44,16 @@ var validIndustryCodes = map[string]bool{
 	"AGRICULTURE":   true,
 }
 
+// supplierRole is the limited-role login an outside supplier signs in as
+// (Stage 26.4.10). Named here rather than repeated as a string literal
+// because every one of the row-scoping checks below keys off it, and a typo
+// in any one of them would silently disable that check.
+const supplierRole = "Supplier"
+
+// supplierScopeField is the field a scoped row is matched on - the Vendor
+// code the submission belongs to.
+const supplierScopeField = "supplier_code"
+
 func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	role := r.Header.Get("Resolved-Role")
@@ -53,6 +63,31 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	// Resolve parameters using Go 1.22 enhanced routing Value methods
 	doctype := r.PathValue("doctype")
 	id := r.PathValue("id")
+
+	// 26.4.10: a Supplier login is an OUTSIDE party. Doctype-level RBAC alone
+	// would let every supplier read every other supplier's submissions, so
+	// this role additionally gets row-level scoping to its own Vendor,
+	// enforced at this one choke point every document read and write already
+	// passes through rather than in each branch below. Resolved once here;
+	// supplierCode stays "" for every internal role, which is what makes all
+	// three checks below no-ops for everyone else.
+	supplierCode := ""
+	if role == supplierRole {
+		var supErr error
+		supplierCode, supErr = engines.SupplierCodeForUser(tenantID, userID)
+		if supErr != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve the supplier for this account")
+			return
+		}
+		// A Supplier account with no Vendor linked can reach nothing at all.
+		// Failing closed matters more here than a helpful error: an unscoped
+		// supplier session is precisely the cross-tenant-style leak this
+		// scoping exists to prevent.
+		if supplierCode == "" {
+			writeAPIErrorGeneric(w, r, http.StatusForbidden, "This supplier account is not linked to a vendor yet. Ask your contact at the company to finish setting it up.")
+			return
+		}
+	}
 
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -169,6 +204,18 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
+			// 26.4.10: the object-level half of supplier scoping. A row that
+			// carries a supplier_code must match this session's; a row with
+			// none (an Item, say) is not supplier-scoped and stays readable,
+			// mirroring exactly how the location check above treats a doctype
+			// with no location field.
+			if supplierCode != "" {
+				if docSup, ok := dataMap[supplierScopeField]; ok && fmt.Sprintf("%v", docSup) != supplierCode {
+					writeAPIError(w, r, "GLOBAL-0011", "")
+					return
+				}
+			}
+
 			_ = json.NewEncoder(w).Encode(dataMap)
 		} else {
 			// Retrieve multiple documents (support search, location filtering, and custom query filters)
@@ -191,6 +238,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			if role != "HR/Admin" {
 				query += fmt.Sprintf(" AND (COALESCE(data->>'location', data->>'location_code') = $%d OR COALESCE(data->>'location', data->>'location_code') IS NULL)", argIndex)
 				args = append(args, location)
+				argIndex++
+			}
+
+			// 26.4.10: the list half of supplier scoping, same shape and same
+			// IS NULL reasoning as the location filter directly above - a
+			// doctype with no supplier_code (Item) stays fully listable, a
+			// doctype that has one is narrowed to this supplier's own rows.
+			if supplierCode != "" {
+				query += fmt.Sprintf(" AND (data->>'%s' = $%d OR data->>'%s' IS NULL)", supplierScopeField, argIndex, supplierScopeField)
+				args = append(args, supplierCode)
 				argIndex++
 			}
 
@@ -293,6 +350,30 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		if err := engines.RejectRestrictedFieldWrites(tenantID, role, doctype, payload); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusForbidden, err.Error())
 			return
+		}
+
+		// 26.4.10: the write half of supplier scoping.
+		//
+		// On create, supplier_code is OVERWRITTEN from the session rather than
+		// validated against it - a supplier never gets to choose whose name a
+		// submission is filed under, even by accident. On update, the row's
+		// stored supplier_code is what is checked: the payload's copy is
+		// attacker-controlled, so trusting it would let a supplier re-target
+		// someone else's record simply by posting the right id.
+		if supplierCode != "" {
+			if id == "" {
+				payload[supplierScopeField] = supplierCode
+			} else {
+				var ownerCode string
+				ownErr := db.DB.QueryRow(fmt.Sprintf(
+					`SELECT COALESCE(data->>'%s', '') FROM %s.documents WHERE id = $1 AND doctype = $2 AND deleted_at IS NULL`,
+					supplierScopeField, schema), id, doctype).Scan(&ownerCode)
+				if ownErr != nil || (ownerCode != "" && ownerCode != supplierCode) {
+					writeAPIError(w, r, "GLOBAL-0011", "")
+					return
+				}
+				payload[supplierScopeField] = supplierCode
+			}
 		}
 
 		// Purchase Requisitions are numbered by the server from Prefix Configs

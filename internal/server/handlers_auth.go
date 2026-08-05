@@ -208,9 +208,35 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "MFA activated but failed to issue session")
 		return
 	}
+
+	// 32.5: recovery codes are minted here, at the one moment the user is
+	// guaranteed to be looking at a setup screen. A failure to generate or
+	// store them is NOT fatal to the login - MFA is already active and the
+	// session is already earned, so refusing the token here would lock out an
+	// account that just successfully enrolled. The user is told instead, and
+	// can mint a set from their profile.
+	recoveryCodes, recErr := engines.GenerateRecoveryCodes()
+	if recErr == nil {
+		recErr = engines.ReplaceRecoveryCodes(tenantID, userID, recoveryCodes)
+	}
+	if recErr != nil {
+		recoveryCodes = nil
+		engines.LogSystemError(tenantID, username, "Medium", "User Access & Security",
+			fmt.Sprintf("failed to issue MFA recovery codes for %s: %v", username, recErr), "")
+	}
+
 	token := engines.SignToken(userID, username, role, tenantID, locationCode)
 	engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_ENROLLED_AND_VERIFIED", "TOTP enrollment completed and verified")
-	_ = json.NewEncoder(w).Encode(map[string]string{"token": token, "role": role, "user": username})
+	if len(recoveryCodes) > 0 {
+		engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_RECOVERY_CODES_ISSUED",
+			fmt.Sprintf("%d single-use recovery codes issued at enrollment", len(recoveryCodes)))
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"token":          token,
+		"role":           role,
+		"user":           username,
+		"recovery_codes": recoveryCodes,
+	})
 }
 
 // handleForgotPassword (24.28) is deliberately identical-response
@@ -287,9 +313,24 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "MFA is not enrolled for this account")
 		return
 	}
+
+	// 32.5: a recovery code is accepted in place of a TOTP code, which is the
+	// entire point of issuing them - the authenticator is assumed gone. TOTP
+	// is tried first so the normal path costs nothing extra; only a 6-digit
+	// code can ever match VerifyTOTPCode, so a recovery code never burns a
+	// TOTP comparison and vice versa.
+	usedRecoveryCode := false
 	if !engines.VerifyTOTPCode(tenantID, secret, req.Code) {
-		writeAPIError(w, r, "USERAC-0025", "")
-		return
+		ok, recErr := engines.ConsumeRecoveryCode(tenantID, userID, req.Code)
+		if recErr != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to verify recovery code")
+			return
+		}
+		if !ok {
+			writeAPIError(w, r, "USERAC-0025", "")
+			return
+		}
+		usedRecoveryCode = true
 	}
 
 	role, username, locationCode, err := engines.LookupUserRoleAndUsername(tenantID, userID)
@@ -298,8 +339,27 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := engines.SignToken(userID, username, role, tenantID, locationCode)
-	engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_VERIFIED", "TOTP code verified, session issued")
-	_ = json.NewEncoder(w).Encode(map[string]string{"token": token, "role": role, "user": username})
+
+	remaining := 0
+	if usedRecoveryCode {
+		remaining, _ = engines.CountUnusedRecoveryCodes(tenantID, userID)
+		engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_RECOVERY_CODE_USED",
+			fmt.Sprintf("Signed in with a single-use recovery code; %d remaining", remaining))
+	} else {
+		engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_VERIFIED", "TOTP code verified, session issued")
+	}
+
+	// used_recovery_code drives the frontend's "your authenticator is
+	// probably gone - set up a new device" prompt. Without it the user gets a
+	// session but is still one lost code away from the lockout this stage
+	// exists to prevent.
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"token":                    token,
+		"role":                     role,
+		"user":                     username,
+		"used_recovery_code":       usedRecoveryCode,
+		"recovery_codes_remaining": remaining,
+	})
 }
 
 // Generic CRUD handler wrapping security RBAC authorization and validation rules
