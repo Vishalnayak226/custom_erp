@@ -1,16 +1,93 @@
-# Caddy reverse proxy in front of the ERP Go server. Caddy provisions and
-# renews Let's Encrypt TLS automatically -- no certbot, no cron, no config
-# beyond this. Install:
+# Caddy reverse proxy in front of the ERP Go server (Stage 26.1.1 / 26.1.3).
 #
-#   sudo cp /opt/erp/deploy/Caddyfile /etc/caddy/Caddyfile
-#   # edit the domain below to your real hostname first
-#   sudo systemctl reload caddy
+# DO NOT copy this file to /etc/caddy/Caddyfile by hand -- the domain below is a
+# placeholder token, not a hostname. Run the activation script instead, which
+# substitutes the real domain, checks DNS actually points here, validates the
+# generated config, and only then installs and reloads:
 #
-# Prereq: your domain's DNS A record must already point at this Droplet's public
-# IP, and ports 80 + 443 must be open (ufw allow 80,443/tcp) so Caddy can
-# complete the ACME challenge.
+#   sudo bash /opt/erp/deploy/enable_tls.sh erp.yourdomain.com you@yourdomain.com
+#
+# Until a domain exists the box runs deploy/Caddyfile.holding instead, which
+# deliberately does NOT expose the app -- see that file for why.
+#
+# Prereqs the script verifies for you:
+#   - the domain's DNS A record resolves to this box's public IP
+#   - ports 80 and 443 are open (ufw allow 80,443/tcp)
+# Caddy then provisions and renews Let's Encrypt TLS automatically. No certbot,
+# no cron, no renewal to remember.
 
-erp.yourdomain.com {
-	encode gzip
-	reverse_proxy localhost:8080
+{
+	# ACME registration address -- Let's Encrypt mails expiry/problem notices
+	# here. Substituted by enable_tls.sh.
+	email ERP_ACME_EMAIL_PLACEHOLDER
+
+	servers {
+		# Makes Caddy's own X-Forwarded-For authoritative: a header arriving
+		# from anywhere but a private range is replaced, not appended to, so a
+		# client cannot forge a source IP past the proxy. This is what makes
+		# TRUST_PROXY=1 safe for the app's per-IP rate limiting.
+		trusted_proxies static private_ranges
+	}
 }
+
+ERP_DOMAIN_PLACEHOLDER {
+	encode gzip
+
+	# --- Defence in depth -------------------------------------------------
+	# The app already sets HSTS, CSP, X-Frame-Options, X-Content-Type-Options,
+	# Referrer-Policy and Permissions-Policy itself (internal/server/middleware.go,
+	# securityHeaders) so those hold on the SSH-tunnel path too, which never
+	# touches Caddy. They are deliberately NOT repeated here -- one owner per
+	# header, no drift. Caddy only strips what it would otherwise add:
+	header {
+		-Server
+		-X-Powered-By
+	}
+
+	# Cap request bodies at the edge. The app enforces 2MB globally and 10MB on
+	# the PIM upload route (middleware.go / handlers_procurement_pim2.go); this
+	# is the outer bound, so an oversized body is dropped before it reaches Go.
+	request_body {
+		max_size 12MB
+	}
+
+	reverse_proxy localhost:8080 {
+		# The Go server binds 127.0.0.1 (HOST in erp.env), so this is the only
+		# way in from outside.
+		health_uri /api/v1/health
+		health_interval 30s
+		health_timeout 5s
+
+		# Slightly above the app's own WriteTimeout (60s, routes.go) so the
+		# proxy never cuts off a long report export the server would finish.
+		transport http {
+			read_timeout 90s
+			write_timeout 90s
+		}
+	}
+
+	log {
+		output file /var/log/caddy/erp-access.log {
+			roll_size 50MB
+			roll_keep 10
+		}
+	}
+}
+
+# --- On rate limiting at the edge (26.1.3) --------------------------------
+# Caddy has NO built-in rate limiter. The community `caddy-ratelimit` module
+# would mean rebuilding Caddy with xcaddy and maintaining a custom binary on the
+# box -- a new build toolchain and a new thing to keep patched, for a benefit
+# the app already provides. Against this repo's lightweight-first principle.
+#
+# Rate limiting today is enforced in-app (Stage 13.14, internal/server/
+# middleware.go, rateLimitCategory): 5 requests/min/IP on the auth category
+# (/login, /mfa/verify, /mfa/activate) and a general per-IP budget elsewhere.
+# That stays per-IP-correct behind this proxy because TRUST_PROXY=1 plus
+# `trusted_proxies` above make X-Forwarded-For both present and unforgeable.
+#
+# For a genuine edge WAF -- L7 DDoS absorption, managed rule sets, bot scoring,
+# country blocking -- put Cloudflare (free tier is sufficient) in front of this
+# box once the domain exists. That is a DNS-level change needing no config here
+# beyond restricting ufw to Cloudflare's published IP ranges so the origin can't
+# be reached directly. See docs/operations/go_live_decisions.md section 5.

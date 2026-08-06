@@ -222,6 +222,28 @@ func handlePIMWorkbench(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(results)
 }
 
+// handlePIMContentAssist (Stage 26.4.11) returns a suggested content draft for
+// one item. GET, not POST, and deliberately so: the call is idempotent and
+// creates no ProductContent - the only write it causes is the ContentAssistLog
+// audit row. Whoever accepts the draft saves it themselves as an ordinary
+// Draft, which still passes the existing approval gate before publishing.
+func handlePIMContentAssist(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	itemCode := r.PathValue("itemCode")
+	language := r.URL.Query().Get("language")
+	userID := r.Header.Get("Resolved-User-ID")
+	sug, err := engines.GenerateContentSuggestion(tenantID, itemCode, language, userID)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(sug)
+}
+
 func handlePIMCompleteness(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {

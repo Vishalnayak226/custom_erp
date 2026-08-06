@@ -351,6 +351,18 @@ func securityHeaders(next http.Handler) http.Handler {
 		// only takes effect once served over TLS - safe to set unconditionally.
 		w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 		w.Header().Set("Content-Security-Policy", csp)
+		// Set here rather than on the reverse proxy (Stage 26.1.3) so the
+		// guarantee holds whether or not Caddy is in front - the tunnel-only
+		// access path today bypasses the proxy entirely.
+		//
+		// no-referrer: this app's URLs carry document ids and report filters,
+		// and nothing here needs a Referer. The only outbound requests the CSP
+		// permits are Google Fonts, which don't.
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		// Deny the ambient-capability APIs outright. The app uses none of them;
+		// stating so stops a future dependency or an injected script from
+		// silently reaching for one.
+		w.Header().Set("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=(), usb=(), interest-cohort=()")
 		next.ServeHTTP(w, r)
 	})
 }

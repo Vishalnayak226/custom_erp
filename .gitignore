@@ -59,3 +59,7 @@ graphify-out/
 # Its log uses strict sequential numbering and warns about parallel-session
 # collisions - exactly the wrong shape for a tree that sees concurrent edits.
 skill-observations/
+
+# deploy.ps1 cross-compiles the Linux binary here before scp'ing it (~11MB).
+# Build output, never source.
+deploy/build/

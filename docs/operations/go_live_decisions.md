@@ -16,24 +16,26 @@ Every item below is a real checklist item (`docs/micro_checklist.md`) that is co
 
 ## Summary table
 
-| # | Decision | Checklist IDs | Depends on | Type |
-|---|---|---|---|---|
-| 1 | Escalation contacts | 20.1 | — | Internal, no portal |
-| 2 | Ops alert webhook | 20.2 / 26.2.2 | — | Portal (Slack/Teams) |
-| 3 | Connector sandbox credentials | 20.3 / 26.2.1 | — | Portal (Shopify/BigCommerce/Magento) |
-| 4 | Production hosting | 20.4 / 26.1.1 | — | Portal (VPS/cloud provider) |
-| 5 | Edge WAF / rate-limiting | 26.1.3 | #4 | Portal (Cloudflare/cloud WAF) |
-| 6 | Tenant backup scope | 26.1.6 | — | Internal scope decision |
-| 7 | External security/perf reviewer | 20.5 | — | Portal/vendor engagement |
-| 8 | GSP sandbox (e-invoice/e-way bill) | 20.30/20.31, 26.2.3/26.2.4, 26.6.9 | — | Portal (NIC or GSP) |
-| 9 | Payment-terminal sandbox | 26.2.5 | — | Portal (Pine Labs) |
-| 10 | Supplier portal auth model | 26.4.10 | — | Internal product decision |
-| 11 | AI content-assist scope | 26.4.11 | — | Internal governance decision |
-| 12 | P2 bundles go/no-go | 26.5.11, 26.7.8, 26.8.7, 26.9.9, 26.10.6 | — | Internal go-ahead per bundle |
-| 13 | External pen-test engagement | 26.11.1 | #4 (ideally) | Portal/vendor engagement |
-| 14 | DR/restore drill in real prod | 26.11.3 | #4 | Internal, once #4 exists |
-| 15 | Business UAT cycle | 26.11.5 | — | Internal, needs real users |
-| 16 | Hypercare window | 26.11.6 | #15 | Internal decision |
+Status column current as of **2026-08-06**.
+
+| # | Decision | Checklist IDs | Depends on | Type | Status |
+|---|---|---|---|---|---|
+| 1 | Escalation contacts | 20.1 | — | Internal, no portal | ⛔ Open — parked by user 2026-08-06 |
+| 2 | Ops alert webhook | 20.2 / 26.2.2 | — | Portal (Slack/Teams) | ⛔ Open — parked by user 2026-08-06 |
+| 3 | Connector sandbox credentials | 20.3 / 26.2.1 | — | Portal (Shopify/BigCommerce/Magento) | ⛔ Open — parked by user 2026-08-06 |
+| 4 | Production hosting | 20.4 / 26.1.1 | — | Portal (VPS/cloud provider) | ✅ **Decided 2026-08-06** — droplet formalised, `ENV=production` set. Domain/TLS still open |
+| 5 | Edge WAF / rate-limiting | 26.1.3 | #4 | Portal (Cloudflare/cloud WAF) | 🟡 **Partial** — proxy hardening done; WAF needs a domain |
+| 6 | Tenant backup scope | 26.1.6 | — | Internal scope decision | ✅ Decided + built 2026-08-05 |
+| 7 | External security/perf reviewer | 20.5 | — | Portal/vendor engagement | ⛔ Open — scope doc drafted (see #13) |
+| 8 | GSP sandbox (e-invoice/e-way bill) | 20.30/20.31, 26.2.3/26.2.4, 26.6.9 | — | Portal (NIC or GSP) | ⛔ Open — parked by user 2026-08-06 |
+| 9 | Payment-terminal sandbox | 26.2.5 | — | Portal (Pine Labs) | ⛔ Open — parked by user 2026-08-06 |
+| 10 | Supplier portal auth model | 26.4.10 | — | Internal product decision | ✅ Decided + built 2026-08-05 |
+| 11 | AI content-assist scope | 26.4.11 | — | Internal governance decision | ✅ **Decided + built 2026-08-06** — local/offline only |
+| 12 | P2 bundles go/no-go | 26.5.11, 26.7.8, 26.8.7, 26.9.9, 26.10.6 | — | Internal go-ahead per bundle | ✅ 4 of 5 built 2026-07-27; 26.10.6 measured 2026-08-06 → not justified |
+| 13 | External pen-test engagement | 26.11.1 | #4 (ideally) | Portal/vendor engagement | 🟡 **Scope doc drafted** — [`pentest_scope.md`](pentest_scope.md); needs a vendor |
+| 14 | DR/restore drill in real prod | 26.11.3 | #4 | Internal, once #4 exists | 🟡 **Unblocked** by #4 — not yet run |
+| 15 | Business UAT cycle | 26.11.5 | — | Internal, needs real users | 🟡 **Run sheet drafted** — [`uat_run_sheet.md`](uat_run_sheet.md); needs real users |
+| 16 | Hypercare window | 26.11.6 | #15 | Internal decision | 🟡 **Plan drafted** — [`hypercare_plan.md`](hypercare_plan.md); needs your sign-off + #1/#2 |
 
 ---
 
@@ -103,7 +105,37 @@ Hand me whichever credentials you get and I'll drop them into the connector conf
 
 ## 4. Production hosting decision (20.4 / 26.1.1)
 
-The biggest one — several other items key off this. Today "dev/test/live" (`environments.json`) are three databases and three ports on one Windows dev machine, not real hosting. This app is one Go binary (`erp-server.exe`) + PostgreSQL — **no Docker** (standing policy — Stage 14: "Docker built on request, then reverted on request"), no Kubernetes in practice today, no bundler/build step on the frontend. The hosting choice should match that shape: lightweight infra, not a container platform, unless you deliberately want to revisit the no-Docker policy.
+> **DECIDED 2026-08-06 — the droplet is production.** The provider question was
+> already settled in practice: a DigitalOcean droplet has been serving the real
+> build for some time, with `systemd` supervision, the Go binary bound to
+> `127.0.0.1`, Caddy installed, `ufw` active, and nightly encrypted backups.
+> Formalised on 2026-08-06:
+>
+> - **`ENV=production` is now set** in `/etc/erp/erp.env`. It had never been set.
+>   That gate does three things, and all three were off: the seed-admin
+>   credential hard-stop (`engines/auth.go`), the non-UTF8 database hard-stop
+>   (`db/db.go`), and removal of the `/api/v1/debug/panic` route
+>   (`internal/server/routes.go`). Both hard-stop preconditions were verified
+>   *before* flipping it — the database is UTF8 and the seed admin password was
+>   already rotated — because either would have refused to boot. `debug/panic`
+>   now returns 404.
+> - **Caddy was serving the stock Debian welcome page.** The repo's own Caddyfile
+>   had never been installed, and the `reverse_proxy` line was commented out, so
+>   Caddy was doing nothing while the app was reached solely through an SSH
+>   tunnel. Replaced with `deploy/Caddyfile.holding`, which returns a blank 404.
+> - **Still open: domain and TLS.** Deliberately *not* worked around. Pointing
+>   Caddy at the app over plain HTTP would publish the whole ERP — passwords,
+>   tokens, tenant data — in cleartext, which is strictly worse than the current
+>   tunnel-only posture. `deploy/enable_tls.sh <domain> <email>` does the whole
+>   switch in one command (validates DNS points at the box before touching
+>   anything, so a premature run can't burn Let's Encrypt failure quota;
+>   validates the generated config; backs up and auto-rolls-back on a failed
+>   reload). Supply a domain and this closes.
+>
+> The rest of this section is kept as the reasoning behind the choice, and stays
+> accurate for a future re-evaluation.
+
+Today "dev/test/live" (`environments.json`) are three databases and three ports on one Windows dev machine, not real hosting. This app is one Go binary (`erp-server.exe`) + PostgreSQL — **no Docker** (standing policy — Stage 14: "Docker built on request, then reverted on request"), no Kubernetes in practice today, no bundler/build step on the frontend. The hosting choice should match that shape: lightweight infra, not a container platform, unless you deliberately want to revisit the no-Docker policy.
 
 ### 4a. Provider
 
@@ -193,6 +225,32 @@ Given the lightweight-first principle, don't reach for Vault/AWS Secrets Manager
 ---
 
 ## 5. Edge WAF / rate-limiting (26.1.3) — depends on §4
+
+> **Partially closed 2026-08-06.** §4 is settled (the droplet), so the parts that
+> don't need a domain are done:
+>
+> - `deploy/Caddyfile` now carries the real production proxy config — strips
+>   `Server`/`X-Powered-By`, caps request bodies at 12MB before they reach Go,
+>   health-checks the upstream, sets proxy timeouts above the app's own so long
+>   report exports aren't cut off, and rolls access logs.
+> - `trusted_proxies static private_ranges` makes Caddy's `X-Forwarded-For`
+>   authoritative. This is load-bearing: `TRUST_PROXY=1` is set on the box, and
+>   without it a client could forge the header and defeat per-IP rate limiting
+>   entirely.
+> - Two missing security headers — `Referrer-Policy` and `Permissions-Policy` —
+>   were added in the **app** (`internal/server/middleware.go`, alongside the
+>   existing HSTS/CSP/X-Frame-Options/nosniff), not on the proxy, so they hold on
+>   the SSH-tunnel path too. One owner per header, no drift.
+>
+> **Deliberately not done: rate limiting at the Caddy layer.** Caddy has no
+> built-in rate limiter; the community module needs an `xcaddy` rebuild and a
+> custom binary to keep patched — a new build toolchain on the box for something
+> the app already does (Stage 13.14: 5/min/IP on the auth category). Rejected as
+> a poor trade under the lightweight-first principle.
+>
+> **Still open, and genuinely blocked on a domain:** the actual edge WAF.
+> Cloudflare needs DNS to point at it, so there is nothing to configure until §4's
+> domain exists.
 
 App-level rate limiting (Stage 13.14) already covers you in the meantime, so this isn't urgent — it's defense-in-depth on top.
 
@@ -296,6 +354,41 @@ Needed before building the supplier submission/QC-approval workflow at all.
 
 ## 11. AI content-assist scope (26.4.11)
 
+> **DECIDED AND BUILT 2026-08-06 — local/offline only.** You chose the
+> no-third-party-API option, and it answers most of the questions below by
+> construction rather than by policy:
+>
+> - **Q1 (provider / what leaves the server):** no provider, and nothing. The
+>   generator (`engines/pim_content_assist.go`) composes a draft from the
+>   product's own Item fields and resolved family attribute values using
+>   deterministic templates. No network call, no API key.
+> - **Q2 (human-in-the-loop):** guaranteed *structurally*, not by convention.
+>   `GenerateContentSuggestion` returns a suggestion and has no code path that
+>   writes `ProductContent`. Whoever accepts it saves it as an ordinary Draft,
+>   which still passes the existing Stage 15.1/26.4.5 approval gate. There is a
+>   test asserting no `ProductContent` row is created, so a future refactor that
+>   "helpfully" persists the draft fails the build.
+> - **Q3 (audit trail):** every generation writes a `ContentAssistLog` row
+>   recording the generated text, the source fields it rested on, the user, and
+>   the generator id (`local-template-v1` — names the generator, not a model, so
+>   rows stay unambiguous if a real model is ever introduced).
+> - **Q4 (prompt injection):** no model, so no prompt to inject — but the related
+>   risk is real, because supplier-submitted attribute values (§10) can reach
+>   published copy. `sanitizeAssistInput` strips angle brackets and control
+>   characters from every value before composition, with a test asserting no
+>   angle bracket can survive.
+> - **Q5 (cost controls):** not applicable, nothing metered.
+>
+> **The honest limitation:** deterministic templates restate known attributes.
+> They cannot write persuasive marketing copy — but they also cannot hallucinate
+> a product feature, which is exactly why this shape is defensible without a
+> review model behind it. Treat the output as a starting point that saves
+> retyping, not as finished copy. If genuinely generative copy is wanted later,
+> that is a new decision on Q1, and the audit/human-in-the-loop machinery built
+> here already covers it.
+>
+> The original decision checklist is kept below for that future re-evaluation.
+
 Explicitly excluded until governance/audit/prompt-safety scope is defined (per the source PDF's own §6.1 note) — this section is the checklist of things to actually decide, not a menu of vendors.
 
 Decisions needed before this can be scoped for building:
@@ -313,19 +406,53 @@ Decisions needed before this can be scoped for building:
 
 ## 12. P2 bundles — go/no-go per bundle (26.5.11, 26.7.8, 26.8.7, 26.9.9, 26.10.6)
 
-These were deliberately not started without an explicit go-ahead — each is a real, larger scope that this project's own stated rationale says shouldn't be built speculatively. Below is what's actually in each bundle and the signal that would justify greenlighting it.
+> **Corrected 2026-08-06 — this section was stale and had been driving wrong decisions.**
+> It described all five bundles as un-started. **Four of the five were greenlit and
+> built on 2026-07-27** and have been `[x]` in `micro_checklist.md` since. The table
+> below is now the real state. Read `micro_checklist.md` as the authority; this
+> section is a decision worksheet, and a worksheet that lags the tracker is worse
+> than none — it invites re-deciding settled questions.
 
-| Bundle | What's in it | Greenlight signal |
+| Bundle | What's in it | Status |
 |---|---|---|
-| **26.5.11** WMS enterprise tier 2 | Slotting/re-slotting optimizer, labor standards/productivity dashboard, RF/voice/mobile picking, 3PL multi-owner billing, robotics/conveyor/scale API integration | A real warehouse-scale pilot customer to justify the investment |
-| **26.7.8** CRM/loyalty analytics | Customer householding/merge, CLV/cohort/churn analytics, two-way CleverTap segment sync | Meaningfully larger scope — worth scoping once the rest of Stage 26.7 is live and in real use |
-| **26.8.7** HR/people process | Full KRA/KPI appraisal cycles, training, grievance handling | Needs HR-domain process design input before it can even be scoped, let alone built |
-| **26.9.9** Manufacturing scheduling | Finite/infinite capacity scheduling, subcontracting/outside-processing | A real manufacturing pilot customer, to avoid over-building against guessed requirements |
-| **26.10.6** BI data mart / read replica | Dedicated data mart or read replica for heavy BI query load | Only justified once real report-query load is measured against the live Postgres instance and shows an actual bottleneck |
+| **26.5.11** WMS enterprise tier 2 | Slotting/re-slotting optimizer, labor standards/productivity dashboard, RF/voice/mobile picking, 3PL multi-owner billing, robotics/conveyor/scale API integration | ✅ **Built 2026-07-27** (scoped into 26.5.12+) |
+| **26.7.8** CRM/loyalty analytics | Customer householding/merge, CLV/cohort/churn analytics, two-way CleverTap segment sync | ✅ **Built 2026-07-27** — `engines/crm_analytics.go` (`MergeCustomers`, `GetCustomerLifetimeValue`, `GetCohortRetention`, CleverTap segment sync), scoped into 26.7.9-26.7.11 |
+| **26.8.7** HR/people process | Full KRA/KPI appraisal cycles, training, grievance handling | ✅ **Built 2026-07-27** |
+| **26.9.9** Manufacturing scheduling | Finite/infinite capacity scheduling, subcontracting/outside-processing | ✅ **Built 2026-07-27** |
+| **26.10.6** BI data mart / read replica | Dedicated data mart or read replica for heavy BI query load | ⛔ **Open — deliberately not built.** See below. |
 
-**Your call, per bundle:** go now / not yet / explicitly never (drop from the roadmap). "Not yet" is the default already in place for all five — no action needed unless you want to change one.
+### 26.10.6 — measured 2026-08-06, and the answer is "not yet"
 
-**Once decided (any "go now"):** no portal step — tell me which bundle and I'll scope it into its own build-sized checklist entries the same way the rest of Stage 26 was broken down, rather than building blind against the bundle description above.
+This is the one bundle still open, and it is open on evidence rather than on
+inertia. Its greenlight condition was *"only justified once real report-query
+load is measured against the live Postgres instance and shows an actual
+bottleneck."* That condition is now **checkable**, because 26.10.7 built the
+measurement mechanism (a `ReportRunLog` row per report run, aggregated by the
+`report-performance` BI report).
+
+Measured against the live droplet on 2026-08-06: the production database holds
+**no transactional data at all** — the largest tenant table is `doctype_fields`
+(722 rows, metadata), `documents` has 210 rows, and `gl_postings`, `POSCart` and
+`SalesInvoice` are empty. Four user accounts.
+
+There is therefore no query load, no bottleneck, and nothing a read replica
+would relieve. Building one now would add a replication topology, a second
+connection path and a staleness window to a system whose reports currently
+return instantly — cost with no benefit, and precisely the speculative
+over-building this bundle's own rationale warns against.
+
+**Revisit when any of these becomes true** (check via Reports → Report Performance):
+
+- any report's p95 duration exceeds ~5 seconds, or
+- total report time exceeds ~10% of database busy time, or
+- report queries begin measurably slowing transactional work (watch
+  `db_pool.wait_duration_ms` on `/api/v1/health`).
+
+Until then the honest status is "measured, not justified" — not "not yet
+considered".
+
+**For the four built bundles:** no action. **For 26.10.6:** no action needed
+unless you want to override the measurement and build it anyway.
 
 ---
 

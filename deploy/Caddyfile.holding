@@ -1,0 +1,32 @@
+# Caddy holding config -- what runs on the box while there is NO domain yet.
+#
+# Install:
+#   sudo cp /opt/erp/deploy/Caddyfile.holding /etc/caddy/Caddyfile
+#   sudo systemctl reload caddy
+#
+# Replaced by the real config once a domain exists:
+#   sudo bash /opt/erp/deploy/enable_tls.sh erp.yourdomain.com you@yourdomain.com
+#
+# --- Why this does NOT reverse_proxy to the app ---------------------------
+#
+# It would be one line to put `reverse_proxy localhost:8080` here and make the
+# ERP reachable at http://<public-ip>/ today. That is deliberately not done.
+#
+# Without a domain there is no TLS certificate, so that line would publish the
+# entire ERP over plaintext HTTP: login passwords, MFA codes, bearer tokens and
+# every row of tenant data readable by anyone on the path. That is strictly
+# worse than the current posture, in which the app binds 127.0.0.1 only
+# (HOST=127.0.0.1 in /etc/erp/erp.env) and is reached exclusively through an
+# authenticated SSH tunnel:
+#
+#   ssh -N -L 8080:127.0.0.1:8080 root@<box>     # then browse localhost:8080
+#
+# So port 80 stays open -- Caddy needs it for the ACME HTTP-01 challenge the
+# moment a domain is pointed here -- but serves nothing. The stock Debian
+# Caddyfile that shipped with the package served a "Caddy works!" welcome page
+# from /usr/share/caddy, which advertised the box for no benefit; this replaces
+# it with a blank 404.
+
+:80 {
+	respond 404
+}

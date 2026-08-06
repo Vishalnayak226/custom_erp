@@ -400,6 +400,9 @@ func Run() {
 	http.HandleFunc("GET /api/v1/pim/reports/{name}", apiMiddleware(moduleGate("pim", handlePIMReport)))
 	http.HandleFunc("GET /api/v1/pim/workbench", apiMiddleware(moduleGate("pim", handlePIMWorkbench)))
 	http.HandleFunc("GET /api/v1/pim/completeness/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMCompleteness)))
+	// Content assist (Stage 26.4.11) - local/offline draft generation from the
+	// item's own data. Suggest-only: writes no ProductContent.
+	http.HandleFunc("GET /api/v1/pim/content-assist/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMContentAssist)))
 	// Media Library (Stage 15.2, versioning/alt-text/expiry/thumbnails Stage 26.4.4)
 	http.HandleFunc("POST /api/v1/pim/media/upload", apiMiddleware(moduleGate("pim", handlePIMMediaUpload)))
 	http.HandleFunc("GET /api/v1/pim/media/{id}/file", apiMiddleware(moduleGate("pim", handlePIMMediaFile)))
