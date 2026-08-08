@@ -145,6 +145,21 @@ func missingMandatoryColumns(tenantID, doctype string, headers []string) []strin
 	}
 	var missing []string
 	for _, f := range fields {
+		// "id" and "status" are system-managed: GenerateCSVTemplate above
+		// deliberately omits both from the header row it emits, and
+		// ValidateDocument's own mandatory check skips them for the same
+		// reason (the backend generates an id and defaults status to
+		// 'Active'). This check was the odd one out and demanded them
+		// anyway, so **any** doctype declaring a mandatory `status` field
+		// rejected its own generated template with DATAIM-0164 - 89 of them
+		// as of Stage 34.1, including Brand, Color, Customer, Vendor,
+		// Location and CycleCountLine, whose bulk import is the only way it
+		// is meant to be filled at all (app.js:6505). Found while verifying
+		// 34.1's CompetitorPrice import by literally following the
+		// documented download-template-then-upload path.
+		if f.Fieldname == "id" || f.Fieldname == "status" {
+			continue
+		}
 		if f.Mandatory && !present[strings.ToLower(f.Fieldname)] {
 			missing = append(missing, f.Fieldname)
 		}

@@ -279,4 +279,14 @@ func registerStage282Settings() {
 		Min: settingBound(100), Max: settingBound(1000000),
 		Description: "Blanket per-field character cap applied to any document field that does not declare its own stricter limit.",
 	})
+	// Stage 34.3. Default 0 = the undercut worker does nothing, so a tenant
+	// that never loads competitor prices is never alerted about them; a buyer
+	// opts in by setting a threshold. Bounded at 90 because "a competitor is
+	// 95% cheaper" is a data-entry error, not a pricing signal.
+	RegisterSetting(SettingDefinition{
+		Key: "market.undercut_threshold_pct", Module: "Platform",
+		Label: "Competitor undercut alert threshold", Type: SettingTypeFloat, Default: "0", Unit: "%",
+		Min: settingBound(0), Max: settingBound(90),
+		Description: "Alert when the cheapest competitor observation is at least this far below our last transacted price. 0 disables competitor undercut alerts.",
+	})
 }

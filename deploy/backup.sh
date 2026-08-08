@@ -8,10 +8,19 @@
 # That's fine -- prod backups are restored on prod.
 #
 # Cron (as the erp user):
-#   0 2 * * *  /bin/bash -c 'source /etc/erp/erp.env && /opt/erp/deploy/backup.sh'
+#   0 2 * * *  /bin/bash -c 'set -a; . /etc/erp/erp.env; set +a; /opt/erp/deploy/backup.sh'
 #
 # Install that cron line with deploy/install_backup_cron.sh rather than by
 # hand -- it also verifies the environment file and does a first run.
+#
+# `set -a` is not optional and this comment used to get it wrong. /etc/erp/erp.env
+# holds bare KEY=value lines with no `export` (it has to -- systemd reads the same
+# file via EnvironmentFile=, which rejects an `export ` prefix), so a plain
+# `source erp.env && backup.sh` leaves DATABASE_URL as a *shell* variable that this
+# script -- a child process -- never sees, and the job dies on the `: "${DATABASE_URL:?...}"`
+# check below. The old form sat in this header for months and would have failed
+# every night had anyone pasted it into a crontab; see docs/operations/restore_drill_log.md
+# (2026-08-07).
 #
 # Restore a whole-database backup:
 #   openssl enc -d -aes-256-cbc -pbkdf2 -in FILE.dump.enc -pass pass:"$BACKUP_ENCRYPTION_KEY" \

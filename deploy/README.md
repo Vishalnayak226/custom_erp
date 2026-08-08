@@ -169,18 +169,33 @@ Now the staging box mirrors real production behavior.
 
 ## Part E — nightly backups
 
-With `BACKUP_ENCRYPTION_KEY` set in `/etc/erp/erp.env`, register a cron for the
-`erp` user:
+With `BACKUP_ENCRYPTION_KEY` set in `/etc/erp/erp.env`, run the installer — do
+**not** hand-edit the crontab:
 
 ```bash
-sudo crontab -u erp -e
-# add:
-0 2 * * *  /bin/bash -c 'source /etc/erp/erp.env && /opt/erp/deploy/backup.sh' >> /opt/erp/backups/backup.log 2>&1
+sudo bash /opt/erp/deploy/install_backup_cron.sh
 ```
 
-Test it once by hand, then do a **restore drill** (go-live doc section 14) into a
-scratch database to prove the mechanism — the restore one-liner is documented at
-the top of `backup.sh`.
+It preflights the env file, installs a marker-tagged `0 2 * * *` line for the
+`erp` user (idempotent — re-running replaces its own line and touches no other
+job), and **runs one backup immediately**, because a crontab entry existing is
+not evidence that a backup works.
+
+> **This section used to tell you to paste in
+> `0 2 * * * /bin/bash -c 'source /etc/erp/erp.env && backup.sh'` by hand. That
+> line can never work.** `/etc/erp/erp.env` holds bare `KEY=value` lines with no
+> `export` — and must, since systemd reads the same file via `EnvironmentFile=`,
+> which rejects an `export ` prefix. `source` therefore sets `DATABASE_URL` as a
+> *shell* variable, `backup.sh` runs as a **child process**, never inherits it,
+> and dies on `set DATABASE_URL (source /etc/erp/erp.env)` — silently, at 02:00,
+> into a log nobody reads. Anything that sources this env file for a child
+> process must use `set -a; . /etc/erp/erp.env; set +a` instead. Found on
+> 2026-08-07 when the cron was first genuinely installed on the droplet.
+
+Then do a **restore drill** into a scratch database to prove the mechanism —
+`docs/operations/backup_restore.md` has the invocation that actually works on
+production (the `erp` role is deliberately not allowed to create databases, so
+the drill needs `DRILL_ADMIN_URL`).
 
 ---
 
@@ -211,7 +226,9 @@ Build → ship → migrate → restart, same as `promote.ps1` does for the Windo
 |---|---|
 | Status / logs | `systemctl status erp` · `journalctl -u erp -f` |
 | Restart | `sudo systemctl restart erp` |
-| Apply migrations manually | `source /etc/erp/erp.env && bash /opt/erp/deploy/migrate.sh` |
-| Backup now | `source /etc/erp/erp.env && /opt/erp/deploy/backup.sh` |
+| Apply migrations manually | `set -a; . /etc/erp/erp.env; set +a; bash /opt/erp/deploy/migrate.sh` |
+| Backup now | `set -a; . /etc/erp/erp.env; set +a; /opt/erp/deploy/backup.sh` |
+| Install nightly backup cron | `sudo bash /opt/erp/deploy/install_backup_cron.sh` |
+| Check the nightly backup ran | `ls -lt /opt/erp/backups/custom_erp_*.dump.enc \| head -3; tail -20 /var/log/erp-backup.log` |
 | Redeploy | `.\deploy\deploy.ps1 -Target deploy@<host>` |
 | Version running | `curl -s https://erp.yourdomain.com/api/v1/version` |

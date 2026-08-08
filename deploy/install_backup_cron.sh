@@ -16,6 +16,17 @@
 # changing RETAIN_DAYS.
 set -euo pipefail
 
+# Run from a directory every user can traverse. This script is invoked with
+# sudo, so its cwd is typically /root (0700) -- and the step-5 verification
+# drops to the unprivileged erp user while inheriting that cwd, where pg_dump
+# warns "could not change directory to /root" and backup.sh's retention `find`
+# exits non-zero with "Failed to restore initial working directory", failing
+# the whole run under `set -e` even though the dump itself succeeded. Cron is
+# unaffected (it starts jobs in the user's home), so this is purely an
+# artifact of how the installer is run -- but it made a working install look
+# broken on 2026-08-07, which is worth one line to prevent.
+cd /
+
 ERP_USER="${ERP_USER:-erp}"
 ERP_ENV_FILE="${ERP_ENV_FILE:-/etc/erp/erp.env}"
 BACKUP_SCRIPT="${BACKUP_SCRIPT:-/opt/erp/deploy/backup.sh}"
@@ -30,7 +41,19 @@ CRON_SCHEDULE="${CRON_SCHEDULE:-0 2 * * *}"
 # a crontab that may also hold entries this script knows nothing about, so
 # re-running never clobbers someone else's job.
 CRON_MARKER="# erp-nightly-backup (managed by deploy/install_backup_cron.sh)"
-CRON_LINE="$CRON_SCHEDULE /bin/bash -c 'source $ERP_ENV_FILE && RETAIN_DAYS=$RETAIN_DAYS BACKUP_DIR=$BACKUP_DIR $BACKUP_SCRIPT' >> /var/log/erp-backup.log 2>&1 $CRON_MARKER"
+
+# `set -a` is load-bearing, not style. /etc/erp/erp.env holds bare KEY=value
+# lines with no `export` -- it has to, because systemd reads it via
+# EnvironmentFile=, which rejects an `export ` prefix. So a plain
+# `source erp.env && ... backup.sh` sets DATABASE_URL as a *shell* variable
+# only, and backup.sh -- a child process -- never sees it, dying on
+# "set DATABASE_URL (source /etc/erp/erp.env)". That is exactly what happened
+# when this script was first run on the production droplet on 2026-08-07:
+# the cron line installed fine and would have failed silently at 02:00 every
+# night. `set -a` marks everything sourced for export, which fixes it without
+# touching the env file that systemd depends on.
+ENV_LOAD="set -a; . $ERP_ENV_FILE; set +a"
+CRON_LINE="$CRON_SCHEDULE /bin/bash -c '$ENV_LOAD; RETAIN_DAYS=$RETAIN_DAYS BACKUP_DIR=$BACKUP_DIR $BACKUP_SCRIPT' >> /var/log/erp-backup.log 2>&1 $CRON_MARKER"
 
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
@@ -68,10 +91,12 @@ crontab -u "$ERP_USER" -l | grep -F "$CRON_MARKER"
 
 # 5. Prove it works NOW rather than discovering at 02:00 that it does not.
 # This is the step whose absence let the droplet run with zero backups: the
-# cron line existing is not evidence that the backup succeeds.
+# cron line existing is not evidence that the backup succeeds. It must run the
+# byte-identical command the cron line runs (same ENV_LOAD, same user), or it
+# proves something other than what cron will actually do.
 echo
 echo "Running one backup immediately to verify..."
-sudo -u "$ERP_USER" /bin/bash -c "source $ERP_ENV_FILE && RETAIN_DAYS=$RETAIN_DAYS BACKUP_DIR=$BACKUP_DIR $BACKUP_SCRIPT"
+sudo -u "$ERP_USER" /bin/bash -c "$ENV_LOAD; RETAIN_DAYS=$RETAIN_DAYS BACKUP_DIR=$BACKUP_DIR $BACKUP_SCRIPT"
 
 echo
 echo "Backups now present in $BACKUP_DIR:"

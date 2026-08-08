@@ -4,10 +4,10 @@
      Source: `engines`' report registry (`report_definitions.go`)
      Regenerate: `go run ./cmd/gendocs` -->
 
-> **Generated 2026-08-02.** This page is produced from `engines`' report registry (`report_definitions.go`), so it cannot drift from
+> **Generated 2026-08-07.** This page is produced from `engines`' report registry (`report_definitions.go`), so it cannot drift from
 > the running system. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **46**
+Every report reachable from **Sales & Marketplace -> Reports**. There are **47**
 across **12** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -31,7 +31,7 @@ table has the same shape whoever runs it.
 - [Manufacturing](#manufacturing) - 2 reports
 - [OMS](#oms) - 9 reports
 - [Procurement](#procurement) - 3 reports
-- [Sales](#sales) - 2 reports
+- [Sales](#sales) - 3 reports
 - [WMS](#wms) - 3 reports
 
 ---
@@ -525,6 +525,21 @@ table has the same shape whoever runs it.
 
 
 ## Sales
+
+### Competitor Price Gap
+
+**Report id:** `competitor-price-gap`
+
+**Parameters:**
+
+- **Platform (optional)** (`platform`) - select, optional, one of: Amazon,Flipkart,Myntra,Meesho,Ajio,Nykaa,Tata Cliq,JioMart,eBay,Own Website,Other
+- **Our SKU (optional)** (`sku`) - text, optional
+- **Observed on or after (optional)** (`since`) - date, optional
+- **We are (optional)** (`position`) - select, optional, one of: Above,At,Below,No price on file
+
+**Columns:** Our SKU · Item · Our Price · Our Price From · Best Competitor Price · Platform · Gap (₹) · Gap (%) · We Are · Observed On · Observations · Source
+
+**Drill-down:** no.
 
 ### Customer Ledger
 

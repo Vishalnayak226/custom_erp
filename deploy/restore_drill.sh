@@ -39,10 +39,31 @@ else
   echo "WARNING: no .sha256 sidecar for this backup; skipping checksum verification."
 fi
 
-# Server-level connection string (same host/credentials, 'postgres' database)
-# so the scratch database can be created and dropped.
-admin_url="$(printf '%s' "$DATABASE_URL" | sed -E 's#(://[^/]+)/[^?]*#\1/postgres#')"
-drill_url="$(printf '%s' "$DATABASE_URL" | sed -E "s#(://[^/]+)/[^?]*#\1/$DRILL_DB#")"
+# Server-level connection able to CREATE/DROP the scratch database.
+#
+# This used to be derived from DATABASE_URL by swapping the database name,
+# which assumes the application's own role may create databases. On a
+# correctly hardened box it may not: production's `erp` role has
+# rolcreatedb=false and rolsuper=false (verified 2026-08-07, Stage 26.11.3),
+# so the drill died on "permission denied to create database" before it ever
+# reached a restore. Granting the app role CREATEDB to make the drill work
+# would weaken the running system to test a backup, which is backwards.
+#
+# So: point DRILL_ADMIN_URL at a connection that may create databases -
+# typically the local superuser over the unix socket, which needs no password
+# because pg_hba maps it by peer:
+#
+#   DRILL_ADMIN_URL='postgresql://postgres@/postgres?host=/var/run/postgresql'
+#
+# Unset, it falls back to the previous derive-from-DATABASE_URL behaviour,
+# which is still correct anywhere the app role does hold CREATEDB.
+#
+# `[^/]*` rather than `[^/]+` so socket-style URIs, which have an empty host
+# section, are rewritten correctly too.
+admin_url="${DRILL_ADMIN_URL:-$(printf '%s' "$DATABASE_URL" | sed -E 's#(://[^/]*)/[^?]*#\1/postgres#')}"
+# Derived from admin_url, not DATABASE_URL: whoever creates the scratch
+# database is also who must restore into it.
+drill_url="$(printf '%s' "$admin_url" | sed -E "s#(://[^/]*)/[^?]*#\1/$DRILL_DB#")"
 
 cleanup() {
   echo "Dropping scratch database $DRILL_DB..."

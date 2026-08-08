@@ -30,6 +30,7 @@ Jump straight to the thing you're trying to do.
 | Move stock between locations | §7 |
 | Add a vendor, item, brand, location… | §8 |
 | Correct a record I got wrong | §8 — use the row's **Edit** icon |
+| **Record what competitors charge, and see where I sit against them** | §8a, then the Competitor Price Gap report in §9 |
 | Run a report / find the right report | §9 and **[REPORT_CATALOG.md](REPORT_CATALOG.md)** |
 | Approve or reject something | §10 |
 | Change my own password or auto-logout | §11 |
@@ -230,6 +231,34 @@ To change an existing one later, find it in the list (use the search box above t
 
 
 ![The Inventory screen: on hand against what is actually free to sell](img/inventory.png)
+
+### 8a. Tracking What Competitors Charge
+
+If you want to know how your prices compare to what the same product sells for elsewhere, record what you find in **Setup → PIM → Competitor Price**. It behaves like any other list above — **New Competitor Price** for one row at a time, or **Bulk Import** to paste in a whole spreadsheet, which is the usual way. Most marketplace seller panels will export competitor pricing to CSV, and that file can go straight in.
+
+The reliable route for a bulk load is:
+
+1. Open **Setup → PIM → Competitor Price**.
+2. Click **Bulk Import**, then **Download Template**. The template already has the right column headers.
+3. Fill it in — one row per price you observed. Then upload it with **Bulk Import** again.
+
+What each column means:
+
+| Column | Required | What to put in it |
+|---|---|---|
+| `our_item` | no | The code of *your* item this competitor product competes with. Leave it blank if you have not matched it to one of your SKUs yet — the row is still saved, it just won't appear in the price-gap report until you fill this in. |
+| `platform` | **yes** | Where you saw it. Must be one of the listed marketplaces, or `Other`. |
+| `competitor_price` | **yes** | What they are actually charging. |
+| `observed_at` | **yes** | The date you saw that price. A competitor price with no date isn't evidence of anything, so this can't be skipped. |
+| `competitor_product`, `competitor_sku` | no | Their product title and their SKU/ASIN, so you can find the listing again. |
+| `mrp`, `rating`, `review_count` | no | Useful context if the export gives it to you. |
+| `source_url` | no | A link back to the listing. Nothing is ever fetched from it — it's there for you to click. |
+
+If a row is rejected, the message names the row number and the exact problem (for example, a `platform` that isn't in the allowed list). Valid rows in the same file still import — you only need to fix and re-upload the failures.
+
+Then run the **Competitor Price Gap** report (Section 9) to see where you stand.
+
+> **"Our Price" comes from what you actually sold at, not from a price list.** This system has no separate price-list master — the price is set on the sale itself. So the report shows the most recent price you actually transacted at for that item, and tells you which it came from (a POS sale or a sales order). **An item you have never sold shows "No price on file"** rather than a made-up figure — that is correct, not a fault. Ring one through, and the comparison appears.
 
 ## 9. Running a Report
 

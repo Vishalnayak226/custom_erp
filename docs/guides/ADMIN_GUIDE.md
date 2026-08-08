@@ -193,6 +193,22 @@ Things to understand before you change one:
 - **Deactivating a series stops the documents that use it.** Anyone creating that record type gets "numbering configuration is inactive" (`ADMINC-0030`) and cannot save. Deactivate only when you intend to block the record type.
 - **Don't give two series the same prefix.** Document numbers are unique across *every* record type, not just within one, so overlapping prefixes will eventually collide and cause failed saves.
 
+#### Competitor undercut alerts
+
+If your buyers record competitor prices (User Guide §8a), the system can tell them when one of your SKUs is being materially undercut, instead of waiting for someone to run the report.
+
+It is **off by default** and takes two pieces of setup:
+
+1. **Set the threshold.** Admin → Settings → Platform → **Competitor undercut alert threshold** (`market.undercut_threshold_pct`). It is `0` on a fresh system, which means "never alert" — a business that doesn't track competitor prices is never bothered by this. Set it to the percentage gap you actually care about; `10` means "tell me when someone is 10% or more below what we last sold it for". The maximum accepted is `90`, because a competitor apparently selling at 95% off is a typo in the imported data, not a pricing signal.
+2. **Author the message.** Setup → Advanced → **Notification Template**, with **Event** set to `Competitor Undercut`. This uses the same templating as every other notification — `{{sku}}`, `{{our_price}}`, `{{competitor_price}}`, `{{undercut_pct}}`, `{{platform}}` and `{{source_url}}` are substituted into the body. Delivery goes through the matching **Notification Channel Config** webhook, exactly like order and return notifications.
+
+Points worth knowing:
+
+- **A given observation alerts at most once.** The check runs hourly but only looks at competitor prices *recorded since the previous run*, so a competitor who stays cheap for a month produces one alert, not seven hundred. Re-import the same SKU at a new price and you'll get a fresh alert, which is the intent.
+- **It never changes a price.** The worker only reads and notifies. Repricing stays a human decision — there is no code path in it that writes to a document or a setting.
+- **No template configured means no alert is sent, but the attempt is still logged.** Look in **Notification Log** for `Skipped-NoTemplate` rows if you expected an alert and got nothing — that is the usual cause.
+- **A SKU with no sales history is never alerted on.** The comparison needs a price of ours to compare against, and this system takes that from what you actually sold at (see the note in User Guide §8a). Items never sold appear in the report as "No price on file" and are skipped by the alert.
+
 ### B.4 Where to Look When Something Seems Wrong
 
 1. **`.\manage.ps1 logs`** — the fastest first check. Shows the server's own output and error logs, plus the database log.
@@ -226,7 +242,10 @@ Full procedure and the latest verified restore-drill record: **[`../operations/b
 - `.\manage.ps1 backup` creates a timestamped, SHA-256-verified backup of every environment's database that currently exists. Do this on a schedule (a Windows Task Scheduler recipe is in the linked doc) — not just before risky changes.
 - Restoring is deliberately hard to do by accident: `.\manage.ps1 restore -Env <env> -File <backup>` requires the target server to be stopped and an exact typed confirmation (`RESTORE <environment>`).
 - **Perform an actual restore drill monthly**, not just backups — a backup you've never restored from is unverified. Record the date, file, duration, and result (the linked doc shows the format).
-- **On a self-hosted Linux server the above does not apply** — that box has its own scripts. Install the nightly job once with `sudo bash /opt/erp/deploy/install_backup_cron.sh` (14-day on-box retention; it also runs one backup straight away to prove it works), and prove restores with `deploy/restore_drill.sh`. **Do not assume this has been done**: a server with no scheduled backup looks exactly like one that has them, right up until you need one.
+- **On a self-hosted Linux server the above does not apply** — that box has its own scripts. Install the nightly job once with `sudo bash /opt/erp/deploy/install_backup_cron.sh` (14-day on-box retention; it also runs one backup straight away to prove it works), and prove restores with `deploy/restore_drill.sh`. **Do not assume this has been done**: a server with no scheduled backup looks exactly like one that has them, right up until you need one. *(This is not hypothetical — a 2026-08-07 inspection of the production droplet found exactly that: an empty crontab, no timer, and two hand-taken dumps that looked at a glance like a working backup history.)*
+  - **`deploy.ps1` ships the binary and `public/`, not `deploy/`.** So a script existing in the repo does **not** mean it exists on the server. Check with `ls /opt/erp/deploy/` before assuming you can run one, and `scp` it up if it's missing.
+  - **`restore_drill.sh` needs a connection that may create databases, which the application's own role deliberately is not.** A correctly hardened box gives the app role no `CREATEDB`, so the script's default "derive the admin connection from `DATABASE_URL`" fails with `permission denied to create database`. Pass **`DRILL_ADMIN_URL`** instead — typically the local superuser over the unix socket, e.g. `DRILL_ADMIN_URL='postgresql://postgres@/postgres?host=/var/run/postgresql'`. **Do not grant the app role `CREATEDB` to make the drill pass** — that weakens the running system in order to test a backup.
+  - **The superuser usually cannot read `/opt/erp/backups`** (`/opt/erp` is `drwxr-x--- erp:erp`), so stage a copy of the newest backup somewhere it can, point `BACKUP_DIR` at it, and **rewrite the `.sha256` sidecar's absolute path to a bare filename** — `sha256sum -c` resolves the path recorded inside the file, so a staged copy otherwise fails its own checksum and reports a perfectly good backup as corrupted. The full working invocation is in **[`../operations/restore_drill_log.md`](../operations/restore_drill_log.md)**.
 - **To export a single tenant** rather than the whole database — offboarding, handing a customer their data, or a scoped copy before a risky fix — use `.\manage.ps1 export-tenant -TenantSchema tenant_<name>` (or `deploy/backup.sh --tenant tenant_<name>` on Linux). Same encryption and checksum as a full backup; restore it into a scratch database, never over a live one.
 
 ### C.4 Incident Response and Alerting

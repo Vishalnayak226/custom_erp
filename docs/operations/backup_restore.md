@@ -37,7 +37,7 @@ Review the task result and the newest `.dump.enc`/`.sha256` sidecars after every
 
 ## The self-hosted Linux box (production)
 
-Everything above is the Windows dev/test/live stack. The production droplet is a different machine with different tooling, and until 2026-08-05 it had **no scheduled backup at all** — `deploy/backup.sh` documented its own cron line in a header comment that nobody ever ran, which is exactly how `/opt/erp/backups` was found empty on 2026-08-04.
+Everything above is the Windows dev/test/live stack. The production droplet is a different machine with different tooling, and until **2026-08-07** it had **no scheduled backup at all** — `deploy/backup.sh` documented its own cron line in a header comment that nobody ever ran, which is exactly how `/opt/erp/backups` was found empty on 2026-08-04. Writing `install_backup_cron.sh` on 2026-08-05 did not change that; the script existed in the repo but was never run on the box, and was not even shipped to it (`deploy.ps1` sends the binary and `public/`, not `deploy/`). **The nightly cron was finally installed and verified on 2026-08-07** — see the run notes below.
 
 Install it with the script, not by hand:
 
@@ -49,13 +49,51 @@ It is idempotent (a marker comment identifies its own crontab line, so re-runnin
 
 **Retention is 14 days, on-box only** (decision taken 2026-08-05). Override with `RETAIN_DAYS=` if that changes. There is deliberately no off-box copy: it would need storage credentials that do not exist yet. Note what that means — losing the droplet loses the backups with it.
 
-Prove a backup actually restores:
+### Why the cron line sources the env file with `set -a`
 
-```bash
-sudo -u erp /bin/bash -c 'source /etc/erp/erp.env && /opt/erp/deploy/restore_drill.sh'
+The installed line is:
+
+```
+0 2 * * * /bin/bash -c 'set -a; . /etc/erp/erp.env; set +a; RETAIN_DAYS=14 BACKUP_DIR=/opt/erp/backups /opt/erp/deploy/backup.sh' >> /var/log/erp-backup.log 2>&1
 ```
 
+`set -a` is load-bearing. `/etc/erp/erp.env` holds bare `KEY=value` lines with no `export`, and it **must** stay that way because systemd reads the same file via `EnvironmentFile=`, which rejects an `export ` prefix — so "just add `export`" would fix cron by breaking `erp.service`. Without `set -a`, `source`ing the file sets `DATABASE_URL` as a *shell* variable, `backup.sh` runs as a **child process** and never inherits it, and the job dies on `set DATABASE_URL (source /etc/erp/erp.env)`. The original cron line in `backup.sh`'s header comment had exactly this bug; it was caught on 2026-08-07 only because the installer runs a real backup instead of trusting the crontab entry. Had the header comment been pasted in by hand as originally intended, the job would have failed silently at 02:00 every night, into a log nobody reads.
+
+### Checking that the nightly backup is actually running
+
+`hypercare_plan.md`'s "two consecutive failed nightly backups" rollback trigger depends on someone looking. Nothing alerts on failure yet (that needs 20.2's webhook), so this is a manual check:
+
+```bash
+ssh root@<box> 'ls -lt /opt/erp/backups/custom_erp_*.dump.enc | head -3; tail -20 /var/log/erp-backup.log'
+```
+
+A healthy box shows a `custom_erp_<yesterday>T02*.dump.enc` at the top and a matching `backup complete:` line in the log. **An empty or stale log is itself the alarm** — a successful run appends one line per night, so no new line means the job did not run at all, which is a different failure from a run that errored.
+
+Prove a backup actually restores:
+
 This is the Linux counterpart of `manage.ps1 restore-drill`, which only ever existed on the Windows dev machine. It verifies the sha256 sidecar, restores the newest whole-database backup into a **throwaway** database, compares row counts against live, and drops the scratch database. It never writes to the live database.
+
+The invocation this file used to give — `sudo -u erp /bin/bash -c 'source /etc/erp/erp.env && restore_drill.sh'` — **cannot work on production and never could.** The `erp` role is correctly least-privileged (`rolcreatedb=false`, `rolsuper=false`), so it cannot create the scratch database, and the drill dies on `permission denied to create database` before restoring anything. Granting `erp` CREATEDB would weaken the running system in order to test a backup. Use the `DRILL_ADMIN_URL` override instead, with the newest backup staged where the `postgres` user can read it (`/opt/erp` is `drwxr-x--- erp:erp`, which `postgres` cannot traverse):
+
+```bash
+STAGE=/var/lib/postgresql/drill_stage
+rm -rf "$STAGE"; mkdir -p "$STAGE"
+cp /opt/erp/backups/$(ls -t /opt/erp/backups/custom_erp_*.dump.enc | head -1 | xargs basename)* "$STAGE"/
+sed -i -E 's#[^ ]*/([^/ ]+\.dump\.enc)$#\1#' "$STAGE"/*.sha256   # absolute -> bare filename
+chown -R postgres:postgres "$STAGE"
+
+set -a; . /etc/erp/erp.env; set +a
+sudo -u postgres env \
+  DATABASE_URL="$DATABASE_URL" \
+  BACKUP_ENCRYPTION_KEY="$BACKUP_ENCRYPTION_KEY" \
+  BACKUP_DIR="$STAGE" \
+  DRILL_ADMIN_URL='postgresql://postgres@/postgres?host=/var/run/postgresql' \
+  bash /opt/erp/deploy/restore_drill.sh
+
+rm -rf "$STAGE"
+```
+
+The sidecar rewrite matters: `sha256sum -c` resolves the path recorded *inside* the file, not the one it is handed, so a staged copy fails its own checksum with a misleading "the backup file is corrupted". The staging dance is a workaround, not a design — the proper fix is for the script to run as `root` and shell out to `sudo -u postgres psql` for the create/drop/restore. See `restore_drill_log.md` (2026-08-07) for the full account.
 
 ## Exporting a single tenant
 

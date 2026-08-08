@@ -57,8 +57,17 @@ Tighter than the runbook's steady-state targets; they revert on exit.
    ```
 3. **Overnight errors** — Activity Log / `system_error_logs`, anything `PANIC` or
    `ERROR` since yesterday. `journalctl -u erp --since yesterday | grep -iE "panic|error"`.
-4. **Backup actually ran** — not just that it was scheduled. `backup_restore.md`
-   covers verifying the sha256 sidecar.
+4. **Backup actually ran** — not just that it was scheduled. The nightly cron
+   went live 2026-08-07 (`0 2 * * *` as `erp`); before that there was nothing to
+   check, which is why this step existed on paper for weeks without failing.
+   ```
+   ssh root@<box> 'ls -lt /opt/erp/backups/custom_erp_*.dump.enc | head -3; tail -20 /var/log/erp-backup.log'
+   ```
+   Expect a `custom_erp_<yesterday>T02*.dump.enc` at the top and a matching
+   `backup complete:` line. **An empty or unchanged log is itself the alarm** —
+   a successful run appends one line per night, so no new line means the job did
+   not run at all, which is a different failure from one that errored.
+   `backup_restore.md` covers verifying the sha256 sidecar.
 
 **Every Friday (30 min):** review the defect log (§5), decide whether the exit
 criteria in §6 are trending toward being met, and confirm or revise the exit date.
@@ -79,7 +88,11 @@ Roll back (per `incident_runbook.md` §5) if **any** of these is true:
   investigate from the backup — a corrupted ledger gets worse with every
   transaction written on top of it.
 - **A failed nightly backup two nights running.** Operating without a recovery
-  point is itself the incident.
+  point is itself the incident. This trigger only became capable of firing on
+  2026-08-07, when the nightly cron was actually installed — until then there was
+  no nightly backup to fail, and the trigger was unfalsifiable. Note it still
+  depends on the §3 morning check: nothing alerts on backup failure until 20.2's
+  webhook is wired up.
 
 **Not** a rollback trigger: cosmetic defects, a single slow report, one user's
 browser cache serving a stale `app.js` (bump `?v=` instead — see 33.1.6).

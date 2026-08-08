@@ -103,6 +103,13 @@ func Run() {
 	// matches a customer.
 	engines.StartCampaignWorker(workerCtx, 1*time.Hour)
 
+	// Start Competitor Undercut Worker (Stage 34.3) - hourly scan for SKUs
+	// where a newly-recorded CompetitorPrice observation sits more than
+	// market.undercut_threshold_pct below our last transacted price. Reads
+	// only; alerts through the existing DispatchNotification path. No-ops for
+	// any tenant that leaves the threshold at its 0 default.
+	engines.StartCompetitorUndercutWorker(workerCtx, 1*time.Hour)
+
 	// Authentication API
 	http.HandleFunc("POST /api/v1/login", apiMiddleware(handleLogin))
 

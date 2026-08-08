@@ -344,11 +344,12 @@
       "id": "reports",
       "lobe": "business",
       "name": "Reporting Engine",
-      "role": "The ReportDefinition/RegisterReport framework, the report registry and column profiles, background exports, and scheduled report delivery. Any new report plugs in here rather than getting its own endpoint.",
+      "role": "The ReportDefinition/RegisterReport framework, the report registry and column profiles, background exports, and scheduled report delivery. Any new report plugs in here rather than getting its own endpoint. Also holds market intelligence (Stage 34): competitor price observations, the price-gap report and the undercut alert worker, which live here because the report is the whole point of the data.",
       "match": [
         "engines/reports*.go",
         "engines/report_*.go",
         "engines/scheduled_reports.go",
+        "engines/market_intelligence*.go",
         "internal/server/handlers_report_engine.go"
       ]
     },
