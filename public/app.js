@@ -407,7 +407,19 @@ let state = {
   // above - enabled: null means "unknown yet," which isMenuModuleVisible
   // treats as visible; moduleGate on the server is the real enforcement
   // point regardless of what the sidebar shows.
-  modules: { enabled: null, solePackage: null, ownedPackages: [], loaded: false }
+  modules: { enabled: null, solePackage: null, ownedPackages: [], loaded: false },
+  // Stage 41. setupStatus is "how many records exist per Master record
+  // type", loaded once per session from GET /api/v1/setup/status and refreshed
+  // whenever a master is created, so any screen can answer "is X set up?"
+  // without its own query. byDoctype is empty until loaded; every reader
+  // treats "unknown" as "assume it is set up", so a failed/slow load produces
+  // no hint rather than a wrong one telling the user to go create records
+  // that already exist.
+  setupStatus: { byDoctype: {}, loaded: false },
+  // The tenant's home country and its phone rule (GET /api/v1/localization).
+  // Null until loaded - phone inputs simply stay unrestricted until it lands,
+  // which is the safe direction since the server validates regardless.
+  localization: null
 };
 
 // The screen the app opens on when there is nothing saved to restore. It was
@@ -492,6 +504,26 @@ let editingDocVersion = null;
 const NAV_STATE_KEY = 'erp_nav_state';
 
 function saveNavState() {
+  // Stage 41: mirror the current screen into the address bar, so the URL
+  // always describes what is on it - copy it, duplicate the tab, or reload,
+  // and you land back on the same screen. This is the other half of the deep
+  // links the setup hints hand out: without it the hash would be left stale
+  // pointing at whichever hinted screen was opened last.
+  //
+  // replaceState rather than assigning location.hash, for two reasons: it does
+  // not fire the hashchange listener (which would bounce straight back into a
+  // second render of the view being rendered right now), and it does not push
+  // a history entry per navigation, which would make Back require as many
+  // presses as the user made clicks.
+  try {
+    const target = currentView === 'doctype-table' && currentDoctype
+      ? deepLinkForDoctype(currentDoctype)
+      : deepLinkForView(currentView);
+    if (window.location.hash !== target) history.replaceState(null, '', target);
+  } catch (e) {
+    // file:// or a sandboxed frame - navigation still works, it just isn't
+    // addressable. Not worth failing the render over.
+  }
   try {
     localStorage.setItem(NAV_STATE_KEY, JSON.stringify({
       view: currentView,
@@ -668,6 +700,18 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     let val = '';
     for (const f of valueFields) {
       if (doc[f] !== undefined && doc[f] !== null && doc[f] !== '') { val = doc[f]; break; }
+    }
+    // Stage 41: opts.onPick lets a caller take over what a selection means,
+    // for the one case the valueFields list cannot express - a control whose
+    // VISIBLE value and whose STORED value are different fields of the same
+    // record (the POS location box shows "Bandra Flagship", the request sends
+    // "BKC01"). Everything else is unaffected: with no onPick this behaves
+    // exactly as before.
+    if (typeof opts.onPick === 'function') {
+      closeMenu();
+      opts.onPick(doc, val);
+      inputEl.focus();
+      return;
     }
     inputEl.value = val;
     closeMenu();
@@ -847,7 +891,28 @@ function groupItemsBy(docs, field) {
 const TYPEAHEAD_DOCTYPE_OPTS = {
   // 103 records across Store / Warehouse / HO. A flat list of eight codes
   // gave no way to tell a shop from a warehouse.
-  Location: { groupBy: 'type', showAllOnFocus: true },
+  //
+  // Stage 41 flips the label to lead with the NAME. `code` is the system
+  // identifier - "HO", "BKC01" - and leading with it meant the picker read as
+  // a list of codes with a name appended, which is backwards for a human
+  // choosing a place. The code stays visible (staff do use it, and it is what
+  // gets stored), just second. short_code, the new optional shorthand, is
+  // shown alongside it when a location has one.
+  Location: {
+    groupBy: 'type',
+    showAllOnFocus: true,
+    labelFn: doc => {
+      const name = doc.name || '';
+      const code = doc.code || doc.id || '';
+      // A location whose name was never filled in stores its code in both
+      // fields, and "HO — HO" is not a label. Show the identifiers alone in
+      // that case - the same de-duplication the default labelFn does, just
+      // with the two sides swapped.
+      const ids = [code, doc.short_code].filter(Boolean).filter(v => v !== name).join(' / ');
+      if (!name) return ids;
+      return ids ? `${name} — ${ids}` : name;
+    }
+  },
   // Browsable because this control replaced a <select> that listed everyone
   // (30.5.8) - without it, the conversion would have been a net loss for a
   // user who does not know the employee codes.
@@ -857,6 +922,88 @@ const TYPEAHEAD_DOCTYPE_OPTS = {
 function attachLinkTypeahead(inputEl, doctype, opts = {}) {
   if (!inputEl) return;
   attachTypeahead(inputEl, doctype, { ...(TYPEAHEAD_DOCTYPE_OPTS[doctype] || {}), ...opts });
+  // Stage 41: the setup hint rides along here rather than at each of the
+  // ~45 call sites. This function was already the single door every picker
+  // goes through (30.5.8), which is exactly what makes attaching the guidance
+  // once cover every screen - including ones written after this.
+  // opts.noSetupHint opts a picker out; used where the target is not a master
+  // a user "sets up" (a free-text suggestion catalogue, a transaction lookup).
+  if (!opts.noSetupHint) attachSetupHint(inputEl, doctype);
+}
+
+// ---------------------------------------------------------------------------
+// attachCodeNamePicker (Stage 41)
+//
+// A picker whose visible value and stored value are different fields of the
+// same record: the user sees and searches the NAME, the form submits the
+// CODE.
+//
+// Built for the POS location box, which showed a raw location code ("HO",
+// "BKC01") in a field labelled "Location Code" - correct, and useless to a
+// cashier who knows their shop by its name. It could not simply be changed to
+// display the name, because the code is what every downstream call needs:
+// session open/close, availability lookup, the cart number, the receipt. So
+// the two are split - a visible search box and a hidden input carrying the
+// code - and every existing reader of the hidden input is untouched.
+//
+// Deliberately generic rather than POS-specific, because the same mismatch
+// exists on 15 other screens that pick a location; this is the mechanism they
+// can adopt one at a time without a new pattern being invented each time.
+//
+// Free typing still works. A user who types a code and tabs away gets it
+// resolved on blur (exact code, short code, or name), so muscle memory built
+// on the old field is not punished. Text that resolves to nothing clears the
+// hidden value rather than submitting something that does not exist - the
+// failure the old free-text field had, where a typo'd code reached the server.
+function attachCodeNamePicker(displayEl, hiddenEl, doctype, opts = {}) {
+  if (!displayEl || !hiddenEl) return;
+  const codeOf = doc => doc.code || doc.id || '';
+  const nameOf = doc => doc.name || codeOf(doc);
+
+  const commit = (doc) => {
+    hiddenEl.value = doc ? codeOf(doc) : '';
+    displayEl.value = doc ? nameOf(doc) : displayEl.value;
+    displayEl.dataset.resolved = doc ? '1' : '';
+    // The change event fires on the HIDDEN input, because that is the element
+    // holding the value callers care about and the one they already listen to.
+    hiddenEl.dispatchEvent(new Event('change', { bubbles: true }));
+  };
+
+  attachLinkTypeahead(displayEl, doctype, { ...opts, onPick: commit });
+
+  // Resolve free-typed text on blur. Deferred so a click on a typeahead row
+  // (which blurs the input) is handled by onPick first and this sees the
+  // already-resolved state instead of racing it.
+  displayEl.addEventListener('blur', () => setTimeout(async () => {
+    const text = displayEl.value.trim();
+    if (!text) { hiddenEl.value = ''; displayEl.dataset.resolved = ''; hiddenEl.dispatchEvent(new Event('change', { bubbles: true })); return; }
+    if (displayEl.dataset.resolved === '1' && nameOf({ name: displayEl.value }) === displayEl.value && hiddenEl.value) return;
+    const res = await apiFetch(`/api/v1/doc/${doctype}?q=${encodeURIComponent(text)}&limit=10`);
+    if (!res || !res.ok) return;
+    const rows = await res.json();
+    const lower = text.toLowerCase();
+    const exact = (rows || []).find(d =>
+      String(codeOf(d)).toLowerCase() === lower ||
+      String(d.short_code || '').toLowerCase() === lower ||
+      String(d.name || '').toLowerCase() === lower);
+    if (exact) commit(exact);
+    else { hiddenEl.value = ''; displayEl.dataset.resolved = ''; hiddenEl.dispatchEvent(new Event('change', { bubbles: true })); }
+  }, 200));
+
+  // Show the name for a code the screen already had (a re-render restoring a
+  // previously chosen location), so the box doesn't come back showing the raw
+  // code this control exists to hide.
+  const seed = hiddenEl.value.trim();
+  if (seed && !displayEl.value.trim()) {
+    apiFetch(`/api/v1/doc/${doctype}?q=${encodeURIComponent(seed)}&limit=10`).then(res => {
+      if (!res || !res.ok) return;
+      return res.json().then(rows => {
+        const match = (rows || []).find(d => String(codeOf(d)).toLowerCase() === seed.toLowerCase());
+        if (match) { displayEl.value = nameOf(match); displayEl.dataset.resolved = '1'; }
+        else displayEl.value = seed;
+      });
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1043,6 +1190,193 @@ function escapeHTMLText(s) {
     .replace(/'/g, '&#39;');
 }
 
+// ---------------------------------------------------------------------------
+// Field formats (Stage 40.2)
+//
+// Every input that holds a GSTIN, an email, a phone number, a PAN, an IFSC
+// code, a PIN code or a URL gets, for free:
+//
+//   - a placeholder showing what a real one looks like ("it should suggest it
+//     should be like this");
+//   - keystroke filtering, so a phone field takes digits, + - ( ) and spaces
+//     but refuses letters outright;
+//   - upper-casing as you type where the format is stored upper-case, so a
+//     GSTIN can never fail purely on case;
+//   - an inline message on blur that states the rule and shows an example.
+//
+// None of it makes a field mandatory. Leave it blank and nothing complains -
+// the checks only fire once there is something to check.
+//
+// The specs come from the server (GET /api/v1/meta/field-formats), which is
+// the same declaration list ValidateDocument enforces against. That is the
+// whole point: a second copy of these regexes in JavaScript would drift, and
+// the form would start promising a format the server does not accept.
+//
+// Applied by delegation on document, plus one sweep per view render, so it
+// covers bespoke screens and modals as well as the generic record form -
+// without a call site per screen.
+// ---------------------------------------------------------------------------
+
+let FIELD_FORMATS = [];
+// Stage 41: the suffixes that mark a field as a DERIVED companion of a
+// formatted one rather than one itself - "phone_country" holds "US", not a
+// phone number. Served by the same endpoint as the tokens, for the same
+// reason: a second copy here would drift, and the drift shows up as a
+// keystroke filter on a field the user cannot type a valid value into.
+let FIELD_FORMAT_EXCLUDED_SUFFIXES = [];
+
+async function loadFieldFormats() {
+  try {
+    const res = await apiFetch('/api/v1/meta/field-formats');
+    if (!res || !res.ok) return;
+    const data = await res.json();
+    FIELD_FORMATS = (data && data.formats) || [];
+    FIELD_FORMAT_EXCLUDED_SUFFIXES = (data && data.excluded_suffixes) || [];
+  } catch (e) {
+    // A missing spec list degrades to "no hints, no filtering" - the server
+    // still validates on save, so nothing becomes unsafe, just less helpful.
+    console.debug('[field-formats] not available', e);
+  }
+}
+
+// isDerivedCompanionField mirrors the server's function of the same name.
+function isDerivedCompanionField(name) {
+  const n = String(name || '').toLowerCase().trim();
+  return FIELD_FORMAT_EXCLUDED_SUFFIXES.some(suf => n.endsWith(suf));
+}
+
+// detectFieldFormat mirrors the server's DetectFieldFormat: first token match
+// wins, and the list arrives already in the server's own priority order.
+function detectFieldFormat(name) {
+  const n = String(name || '').toLowerCase().trim();
+  if (!n || isDerivedCompanionField(n)) return null;
+  for (const spec of FIELD_FORMATS) {
+    for (const tok of (spec.tokens || [])) {
+      if (n.includes(tok)) return spec;
+    }
+  }
+  return null;
+}
+
+// fieldFormatFor resolves an element's format from whichever identifier the
+// screen happened to use. Bespoke screens name inputs by id ("po-vendor"),
+// the generic form uses name (the fieldname) - both are checked, plus an
+// explicit data-field-format escape hatch for anything neither covers.
+function fieldFormatFor(el) {
+  if (!el || el.tagName !== 'INPUT') return null;
+  const explicit = el.getAttribute('data-field-format');
+  if (explicit) return FIELD_FORMATS.find(f => f.key === explicit) || null;
+  const type = (el.getAttribute('type') || 'text').toLowerCase();
+  if (type === 'number' || type === 'checkbox' || type === 'radio' || type === 'hidden' || type === 'date') return null;
+  return detectFieldFormat(el.getAttribute('name') || el.id || '');
+}
+
+// Escapes a server-supplied character class for safe use inside a RegExp
+// character set. The server sends e.g. "0-9+\\-() " - ranges are intentional,
+// so this only guards the bracket characters that would break the class.
+function fieldFormatCharRegex(allowed) {
+  if (!allowed) return null;
+  try {
+    return new RegExp('[^' + allowed.replace(/\]/g, '\\]').replace(/\^/g, '\\^') + ']', 'g');
+  } catch (e) {
+    return null;
+  }
+}
+
+function applyFieldFormatInput(el, spec) {
+  const before = el.value;
+  let v = before;
+  if (spec.uppercase) v = v.toUpperCase();
+  const strip = fieldFormatCharRegex(spec.allowed_chars);
+  if (strip) v = v.replace(strip, '');
+  if (spec.max_len && v.length > spec.max_len) v = v.slice(0, spec.max_len);
+  if (v !== before) {
+    // Preserve the caret: rewriting .value otherwise jumps it to the end on
+    // every keystroke, which makes editing the middle of a GSTIN impossible.
+    const pos = el.selectionStart;
+    const removed = before.length - v.length;
+    el.value = v;
+    if (pos !== null && el.setSelectionRange) {
+      const next = Math.max(0, pos - removed);
+      try { el.setSelectionRange(next, next); } catch (e) { /* not a text input */ }
+    }
+  }
+}
+
+// showFieldFormatMessage puts the rule and an example directly under the
+// input. Deliberately not a modal or a toast: this is guidance while typing,
+// and DisplayStyle for these codes in the message catalog is already
+// "Inline field message".
+function showFieldFormatMessage(el, message) {
+  let note = el.nextElementSibling;
+  if (!note || !note.classList || !note.classList.contains('field-format-note')) {
+    note = document.createElement('div');
+    note.className = 'field-format-note';
+    el.insertAdjacentElement('afterend', note);
+  }
+  note.textContent = message || '';
+  note.classList.toggle('field-format-bad', !!message);
+  el.classList.toggle('field-format-invalid', !!message);
+}
+
+function validateFieldFormatInput(el, spec) {
+  const v = (el.value || '').trim();
+  // Empty is always fine. This is the "not mandatory" guarantee, and it has
+  // to hold here too or the form would contradict the server.
+  if (!v) { showFieldFormatMessage(el, ''); return; }
+  showFieldFormatMessage(el, fieldFormatValueIsValid(spec, v) ? '' : spec.hint);
+}
+
+// Client-side shape checks, kept deliberately loose - the server's regexes are
+// authoritative and run on save. These exist to catch the obvious mistake
+// while the cursor is still in the box.
+function fieldFormatValueIsValid(spec, v) {
+  switch (spec.key) {
+    case 'email':   return /^[^\s@,;]+@[^\s@,;]+\.[A-Za-z]{2,}$/.test(v);
+    case 'gstin':   return v.length === 15;
+    case 'pan':     return v.length === 10;
+    case 'ifsc':    return v.length === 11 && v[4] === '0';
+    case 'pincode': return /^[1-9][0-9]{5}$/.test(v);
+    case 'url':     return /^https?:\/\/[^\s]+\.[^\s]+$/.test(v);
+    case 'phone':   return !/[A-Za-z]/.test(v);
+    default:        return true;
+  }
+}
+
+// decorateFieldFormats stamps placeholders and hints onto every recognised
+// input inside a container. Idempotent - a re-render decorates the new nodes
+// and leaves an already-decorated one alone.
+function decorateFieldFormats(root) {
+  if (!FIELD_FORMATS.length || !root) return;
+  root.querySelectorAll('input').forEach(el => {
+    if (el.dataset.fieldFormatDone === '1') return;
+    const spec = fieldFormatFor(el);
+    if (!spec) return;
+    el.dataset.fieldFormatDone = '1';
+    el.dataset.fieldFormatKey = spec.key;
+    if (!el.getAttribute('placeholder') && spec.placeholder) el.setAttribute('placeholder', spec.placeholder);
+    if (spec.max_len && !el.getAttribute('maxlength')) el.setAttribute('maxlength', String(spec.max_len));
+    if (spec.key === 'email' && !el.getAttribute('inputmode')) el.setAttribute('inputmode', 'email');
+    if (spec.key === 'phone' && !el.getAttribute('inputmode')) el.setAttribute('inputmode', 'tel');
+    if (spec.key === 'pincode' && !el.getAttribute('inputmode')) el.setAttribute('inputmode', 'numeric');
+    if (!el.getAttribute('title')) el.setAttribute('title', spec.hint);
+  });
+}
+
+// One delegated pair of listeners for the whole app, so an input added by a
+// modal or a line editor after this ran is covered without re-binding.
+function initFieldFormatListeners() {
+  document.addEventListener('input', (e) => {
+    const spec = fieldFormatFor(e.target);
+    if (spec) applyFieldFormatInput(e.target, spec);
+  }, true);
+
+  document.addEventListener('blur', (e) => {
+    const spec = fieldFormatFor(e.target);
+    if (spec) validateFieldFormatInput(e.target, spec);
+  }, true);
+}
+
 // openSetupDoctype navigates to a Master doctype's list, exactly as clicking
 // it in the Setup flyout does. Kept in sync with renderSidebarSubmenu()'s own
 // click handler (it sets the same active classes) so arriving here from a hint
@@ -1080,6 +1414,390 @@ function emptyHint(next, { asLink = false } = {}) {
 // right after the control, so it inherits the form-group's own spacing.
 function emptyPickerHint(doctype, label) {
   return `<div class="empty-state-hint">No ${getTranslatedLabel(label || doctype)} records exist yet &mdash; ${setupLink(doctype, 'create one first')}.</div>`;
+}
+
+// ===========================================================================
+// Setup guidance (Stage 41)
+//
+// The brief: when something the user needs has not been set up, the ERP
+// should say so where they are, link straight to it, let that link open in a
+// new tab, respect what the user is actually allowed to do, and say all of it
+// the same way every time - without turning into a nag.
+//
+// Four decisions shape everything below.
+//
+// 1. ONE VOCABULARY. Every hint in the product is one of three sentences
+//    (SETUP_MSG). A user learns the phrasing once and then recognises it
+//    instantly anywhere, and there is exactly one place to change the wording.
+//
+// 2. ONE ATTACHMENT POINT. attachLinkTypeahead() is the single door all ~45
+//    pickers in this app already go through, and renderView() is the single
+//    door every screen goes through. Hooking those two means a screen written
+//    next year gets this for free, and no screen can be forgotten.
+//
+// 3. LOUD WHEN BLOCKING, QUIET OTHERWISE. If the target list is EMPTY the user
+//    genuinely cannot proceed, so the hint is always visible. If it has
+//    records, the "can't find it? add one" line appears only while the field
+//    is focused. That is the difference between guidance and noise - and it is
+//    why this is a hint rather than a dialog: nothing here ever interrupts,
+//    steals focus, or has to be dismissed before work continues.
+//
+// 4. PERMISSION-AWARE, ALWAYS. A user who cannot create the record is never
+//    shown a link that would refuse them. They get the standard "ask your
+//    administrator" sentence instead. state.permissions is already populated
+//    for exactly this kind of pre-emptive check (30.5.7).
+// ===========================================================================
+
+// The whole vocabulary. Three sentences, one place.
+const SETUP_MSG = {
+  // Nothing exists yet and the user can fix it themselves.
+  missing: (label) => `No ${label} has been set up yet.`,
+  // Nothing exists yet and the user is not allowed to fix it. Deliberately
+  // says who to ask and what to ask for - "contact your administrator" with
+  // no object is the message people ignore.
+  missingNoAccess: (label) => `No ${label} has been set up yet. You do not have access to add one &mdash; ask your administrator to set up ${label}.`,
+  // Records exist; this is the quiet nudge for when none of them is the one
+  // the user wants.
+  addMore: (label) => `Can't find the ${label} you need?`
+};
+
+// --- deep links -----------------------------------------------------------
+//
+// Until now this app had no addressable views at all: every screen was
+// reached by mutating module state and calling renderView(), so "open this in
+// a new tab" was not expressible - a new tab would just reopen whatever was
+// in localStorage. A hash route fixes that without a router, a build step or
+// a server-side change, because the fragment never reaches the server.
+//
+//   #/setup/<Doctype>  - a Master record type's list
+//   #/view/<view>      - a named view, the same strings renderViewContent takes
+function deepLinkForDoctype(doctype) { return `#/setup/${encodeURIComponent(doctype)}`; }
+function deepLinkForView(view) { return `#/view/${encodeURIComponent(view)}`; }
+
+// parseDeepLink reads the current fragment, or returns null when there isn't
+// one. Tolerant of a stale/hand-edited hash: an unrecognised shape is null,
+// which falls through to the normal restore-last-view path.
+function parseDeepLink() {
+  const raw = (window.location.hash || '').replace(/^#/, '');
+  if (!raw.startsWith('/')) return null;
+  const parts = raw.slice(1).split('/');
+  if (parts.length < 2 || !parts[1]) return null;
+  const value = decodeURIComponent(parts[1]);
+  if (parts[0] === 'setup') return { kind: 'setup', doctype: value };
+  if (parts[0] === 'view') return { kind: 'view', view: value };
+  return null;
+}
+
+// navigateToDeepLink applies a parsed link. Returns false when it could not
+// (an unknown doctype, or one this role cannot read) so the caller can fall
+// back rather than render an empty screen with no explanation.
+async function navigateToDeepLink(link) {
+  if (!link) return false;
+  if (link.kind === 'setup') {
+    const known = state.activeDoctypes.some(d => d.name === link.doctype);
+    if (!known || !canReadDoctype(link.doctype)) return false;
+    openSetupDoctype(link.doctype);
+    return true;
+  }
+  if (link.kind === 'view') {
+    await renderView(link.view);
+    return true;
+  }
+  return false;
+}
+
+// One listener, so a hash typed/pasted into the address bar of an already-open
+// tab navigates too - not only a fresh tab. Guarded on being signed in.
+window.addEventListener('hashchange', () => {
+  if (!localStorage.getItem('erp_token')) return;
+  const link = parseDeepLink();
+  if (link) navigateToDeepLink(link);
+});
+
+// --- setup status ---------------------------------------------------------
+
+async function fetchSetupStatus() {
+  try {
+    const res = await apiFetch('/api/v1/setup/status');
+    if (!res || !res.ok) return;
+    const data = await res.json();
+    const byDoctype = {};
+    (data.masters || []).forEach(m => { byDoctype[m.doctype] = m; });
+    state.setupStatus = { byDoctype, loaded: true };
+  } catch (e) {
+    // Guidance is an enhancement; failing to load it must never break a
+    // screen. Everything downstream treats "not loaded" as "no hint".
+    console.error('Error fetching setup status:', e);
+  }
+}
+
+// refreshSetupStatus is called after a master record is created so a hint that
+// said "no Vendors" stops saying it the moment one exists.
+async function refreshSetupStatus() {
+  if (!state.setupStatus.loaded) return;
+  await fetchSetupStatus();
+}
+
+// isDoctypeSetUp answers the question every hint asks. `undefined` (not
+// loaded, or a doctype the status query didn't return) counts as set up, so an
+// unknown never produces a false alarm.
+function isDoctypeSetUp(doctype) {
+  const entry = state.setupStatus.byDoctype[doctype];
+  if (!entry) return true;
+  return (entry.active || 0) > 0;
+}
+
+// --- the standard hint ----------------------------------------------------
+
+// setupOpenLinks renders the pair of affordances every hint ends with: an
+// inline link that navigates in place, and an explicit open-in-new-tab button.
+//
+// Both are real <a href> elements pointing at the deep link, which is what
+// makes ctrl-click, middle-click and the browser's own "Open link in new tab"
+// work on the inline one too. The in-place link cancels the default so a
+// normal click doesn't also push a fragment onto the history stack.
+function setupOpenLinks(doctype, inlineLabel) {
+  const href = deepLinkForDoctype(doctype);
+  const label = getTranslatedLabel(doctype);
+  return `<a href="${href}" class="empty-state-link" onclick="event.preventDefault(); openSetupDoctype('${doctype}')">${inlineLabel}</a>` +
+    `<a href="${href}" target="_blank" rel="noopener" class="setup-hint-newtab" title="Open ${label} setup in a new tab" aria-label="Open ${label} setup in a new tab">` +
+    `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">` +
+    `<path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>` +
+    `</svg></a>`;
+}
+
+// setupHintHTML is the standard hint, in whichever of the three forms applies.
+// `mode` is 'missing' (nothing exists) or 'addMore' (records exist, this is
+// the quiet nudge).
+function setupHintHTML(doctype, mode) {
+  const label = getTranslatedLabel(doctype);
+  if (!canCreateDoctype(doctype)) {
+    // The no-access sentence is shown for a missing master (the user needs to
+    // know why they are stuck) but not for addMore - telling someone who
+    // cannot create records that they could create one is pure noise.
+    return mode === 'missing'
+      ? `<span class="setup-hint-text setup-hint-blocked">${SETUP_MSG.missingNoAccess(label)}</span>`
+      : '';
+  }
+  if (mode === 'missing') {
+    return `<span class="setup-hint-text">${SETUP_MSG.missing(label)}</span> ${setupOpenLinks(doctype, `Set up ${label}`)}`;
+  }
+  return `<span class="setup-hint-text">${SETUP_MSG.addMore(label)}</span> ${setupOpenLinks(doctype, `Add a ${label}`)}`;
+}
+
+// attachSetupHint puts the standard hint under one picker and keeps it right.
+//
+// Called from attachLinkTypeahead, which is why every picker in the app gets
+// it without a single call site changing. Idempotent - re-attaching to the
+// same input (a screen that re-renders) replaces the hint rather than
+// stacking a second one.
+function attachSetupHint(inputEl, doctype) {
+  if (!inputEl || !doctype || !inputEl.parentElement) return;
+
+  let hint = inputEl.parentElement.querySelector(`[data-setup-hint="${doctype}"]`);
+  if (!hint) {
+    hint = document.createElement('div');
+    hint.className = 'setup-hint';
+    hint.setAttribute('data-setup-hint', doctype);
+    inputEl.insertAdjacentElement('afterend', hint);
+  }
+
+  const paint = (focused) => {
+    // Only Master record types are in setupStatus. A picker whose target is a
+    // transaction (a GRN picking its Purchase Order) gets no hint at all -
+    // "set up Purchase Orders" is not advice, and inventing a hint for a
+    // doctype we know nothing about is exactly the noise this avoids.
+    if (!state.setupStatus.byDoctype[doctype]) { hint.innerHTML = ''; hint.classList.remove('visible'); return; }
+    const missing = !isDoctypeSetUp(doctype);
+    // Missing is always shown - the user cannot proceed and needs to know.
+    // Present is shown only on focus, so a form with eight pickers isn't
+    // eight permanent lines of advice nobody asked for.
+    if (!missing && !focused) { hint.innerHTML = ''; hint.classList.remove('visible'); return; }
+    const html = setupHintHTML(doctype, missing ? 'missing' : 'addMore');
+    hint.innerHTML = html;
+    hint.classList.toggle('visible', !!html);
+    hint.classList.toggle('setup-hint-missing', missing);
+  };
+
+  paint(false);
+  inputEl.addEventListener('focus', () => paint(true));
+  // A click inside the hint (the link) must not tear it down before the click
+  // lands, so the blur repaint is deferred a tick.
+  inputEl.addEventListener('blur', () => setTimeout(() => paint(false), 150));
+}
+
+// --- module-level banner --------------------------------------------------
+//
+// The per-field hint answers "this one picker is empty". It cannot answer
+// "this whole screen will not work until you set two other things up first",
+// because the user meets that wall before touching any field. VIEW_SETUP_PREREQS
+// is that second answer: the masters each screen genuinely needs.
+//
+// Kept deliberately short per view - only what the screen truly cannot work
+// without. A banner listing eight things is the nag this is trying not to be.
+const VIEW_SETUP_PREREQS = {
+  'pos': ['Location', 'Item'],
+  'purchase-orders': ['Vendor', 'Item'],
+  'purchase-requisitions': ['Item'],
+  'grn': ['Vendor', 'Location'],
+  'asn': ['Vendor', 'Location'],
+  'rfq': ['Vendor', 'Item'],
+  'fulfillment': ['Location'],
+  'putaway': ['Location', 'Bin'],
+  'bin-conditions': ['Bin'],
+  'cycle-count': ['Location', 'Bin'],
+  'lpn': ['Bin'],
+  'bin-replenishment': ['Location', 'Bin'],
+  'wave-picking': ['Location'],
+  'marketplace': ['Item'],
+  'oms': ['Item', 'Location'],
+  'manufacturing': ['Item', 'Location'],
+  'hr': ['Employee'],
+  'assets': ['Location'],
+  'expenses': ['Employee'],
+  'pim': ['Item'],
+  'stickers': ['Item']
+};
+
+// A dismissal lasts for the browser session only. Deliberate: sessionStorage,
+// not localStorage. "Not always" was the ask - but a permanent dismissal would
+// mean a user who clicks x once never learns the module is unconfigured again,
+// which is how a half-set-up ERP stays half set up.
+const SETUP_BANNER_DISMISS_KEY = 'erp_setup_banner_dismissed';
+
+function setupBannerDismissed(view) {
+  try {
+    return (JSON.parse(sessionStorage.getItem(SETUP_BANNER_DISMISS_KEY) || '[]')).includes(view);
+  } catch (e) { return false; }
+}
+
+window.dismissSetupBanner = function (view) {
+  try {
+    const list = JSON.parse(sessionStorage.getItem(SETUP_BANNER_DISMISS_KEY) || '[]');
+    if (!list.includes(view)) list.push(view);
+    sessionStorage.setItem(SETUP_BANNER_DISMISS_KEY, JSON.stringify(list));
+  } catch (e) { /* storage unavailable - the banner just won't stay dismissed */ }
+  const el = document.getElementById('setup-banner');
+  if (el) el.remove();
+};
+
+// renderSetupBanner prepends the banner to a rendered view when that view's
+// prerequisites are not met. Called from renderView, so no screen has to
+// remember to do it.
+function renderSetupBanner(view) {
+  const root = document.getElementById('view-root');
+  if (!root || !state.setupStatus.loaded) return;
+  const existing = document.getElementById('setup-banner');
+  if (existing) existing.remove();
+  if (setupBannerDismissed(view)) return;
+
+  const prereqs = (VIEW_SETUP_PREREQS[view] || [])
+    .filter(dt => state.setupStatus.byDoctype[dt])
+    .filter(dt => !isDoctypeSetUp(dt));
+  if (prereqs.length === 0) return;
+
+  const canFixAny = prereqs.some(canCreateDoctype);
+  const banner = document.createElement('div');
+  banner.id = 'setup-banner';
+  banner.className = 'setup-banner' + (canFixAny ? '' : ' setup-banner-blocked');
+  banner.innerHTML = `
+    <div class="setup-banner-body">
+      <strong>This screen needs some setup first.</strong>
+      <ul class="setup-banner-list">
+        ${prereqs.map(dt => `<li>${setupHintHTML(dt, 'missing')}</li>`).join('')}
+      </ul>
+    </div>
+    <button type="button" class="setup-banner-close" aria-label="Dismiss" onclick="dismissSetupBanner('${view}')">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
+  `;
+  root.insertBefore(banner, root.firstChild);
+}
+
+// ===========================================================================
+// Country-driven phone input rules (Stage 41)
+//
+// The server cleans and validates every phone number regardless (see
+// engines/phone.go). This makes the browser agree with it *while typing*, so
+// "phone numbers are 10 digits here" is something the field enforces rather
+// than something a rejection message explains afterwards.
+// ===========================================================================
+
+// phoneRule returns the tenant's rule, or null before /api/v1/localization has
+// landed - in which case nothing is restricted, which is the safe direction.
+function phoneRule() {
+  return (state.localization && state.localization.rule) || null;
+}
+
+// isPhoneFieldName mirrors engines.IsPhoneField. The token list comes from the
+// server rather than being retyped here, so the two cannot drift.
+function isPhoneFieldName(name) {
+  const n = String(name || '').toLowerCase();
+  if (!n || isDerivedCompanionField(n)) return false;
+  const tokens = (state.localization && state.localization.phone_field_tokens) || [];
+  return tokens.some(t => n.includes(t));
+}
+
+// applyPhoneInputRule turns one text input into a phone input: numeric
+// keyboard on mobile, a live filter that drops anything that isn't a digit
+// (or a single leading +), a hard digit cap, and an inline hint naming the
+// expected length.
+//
+// The cap is the country's own maximum - 10 for India. A number typed with a
+// leading '+' is an explicit international number, so it is capped at E.164's
+// 15 digits instead and left for the server to resolve: refusing to let
+// someone type a foreign number would defeat the point of accepting foreign
+// orders at all.
+function applyPhoneInputRule(input) {
+  const rule = phoneRule();
+  if (!input || !rule || input.dataset.phoneRuleApplied === '1') return;
+  input.dataset.phoneRuleApplied = '1';
+  input.setAttribute('inputmode', 'tel');
+  input.setAttribute('autocomplete', 'tel');
+  if (!input.placeholder) input.placeholder = `e.g. ${rule.example}`;
+
+  const clean = () => {
+    const raw = input.value;
+    const plus = raw.trim().startsWith('+') ? '+' : '';
+    let digits = raw.replace(/[^0-9]/g, '');
+    const limit = plus ? 15 : rule.max_length;
+    if (digits.length > limit) digits = digits.slice(0, limit);
+    const next = plus + digits;
+    if (next !== raw) {
+      // Preserve the caret when the edit was a pure strip at the end, which
+      // is the overwhelmingly common case (typing, or pasting a formatted
+      // number). Anything else just goes to the end - acceptable, and far
+      // less annoying than the caret jumping on every keystroke.
+      const atEnd = input.selectionStart === raw.length;
+      input.value = next;
+      if (!atEnd) {
+        const pos = Math.min(input.selectionStart || next.length, next.length);
+        try { input.setSelectionRange(pos, pos); } catch (e) { /* not a text input */ }
+      }
+    }
+  };
+
+  input.addEventListener('input', clean);
+  input.addEventListener('blur', clean);
+  clean();
+
+  // The hint sits under the field so the rule is visible before the first
+  // keystroke, not only after a rejection.
+  if (!input.parentElement || input.parentElement.querySelector('.phone-rule-hint')) return;
+  const hint = document.createElement('div');
+  hint.className = 'empty-state-hint phone-rule-hint';
+  hint.innerHTML = `${rule.name} numbers are ${rule.length_label}. ` +
+    `For another country, start with <code>+</code> and its dialling code.`;
+  input.insertAdjacentElement('afterend', hint);
+}
+
+// applyPhoneRulesIn sweeps a container and wires every phone-shaped field in
+// it. One call per rendered form beats remembering to wire each field.
+function applyPhoneRulesIn(container) {
+  if (!container || !phoneRule()) return;
+  container.querySelectorAll('input[type="text"], input[type="tel"], input:not([type])').forEach(input => {
+    if (isPhoneFieldName(input.name) || isPhoneFieldName(input.id)) applyPhoneInputRule(input);
+  });
 }
 
 // Auth: login screen, logout, and app-shell visibility
@@ -1469,13 +2187,48 @@ async function init() {
   setupEventListeners();
   setupModuleFlyouts();
   setupOfflineSync();
-  await fetchLabels();
-  await fetchRegisteredDoctypes();
-  await fetchAndApplyPermissions();
-  await fetchAndApplyModules();
+  // Stage 40.2: the delegated listeners are bound before anything renders, so
+  // an input created by the very first view is already covered.
+  initFieldFormatListeners();
+
+  // Stage 40.3: these four were four sequential round trips, each waiting on
+  // the one before it for no reason - none of them reads the others' results.
+  // On a 120ms link that was ~half a second of blank screen before the first
+  // view could even start. Issued together, the boot pays for the slowest one
+  // instead of the sum. loadFieldFormats joins them because it is needed by
+  // the first decorate sweep, which runs after restoreLastView.
+  // Stage 41 adds two more to the same batch for the same reason: the setup
+  // status and the country/phone rule are needed by the first rendered view
+  // (its banner, its pickers, its phone fields) and neither depends on the
+  // others, so they cost nothing extra here and would cost a visible pop-in
+  // if fetched later.
+  await Promise.all([
+    fetchLabels(),
+    fetchRegisteredDoctypes(),
+    fetchAndApplyPermissions(),
+    fetchAndApplyModules(),
+    loadFieldFormats(),
+    fetchSetupStatus(),
+    fetchLocalization()
+  ]);
   applyProductPathRouting();
   await restoreLastView();
   fetchAndApplyProfile();
+}
+
+// fetchLocalization loads the tenant's home country and its phone rule, so the
+// browser can enforce the same digit rule the server will.
+async function fetchLocalization() {
+  try {
+    const res = await apiFetch('/api/v1/localization');
+    if (!res || !res.ok) return;
+    state.localization = await res.json();
+  } catch (err) {
+    // Same posture as fetchSetupStatus: this is an enhancement over
+    // server-side validation, never a substitute for it, so a failure here
+    // just means fields stay unrestricted rather than wrongly restricted.
+    console.error('Error fetching localization:', err);
+  }
 }
 
 async function fetchLabels() {
@@ -2943,6 +3696,15 @@ function restoreActiveMenuState(view, doctype) {
 // browser that was last on the retired Dashboard has in localStorage, and
 // which would otherwise restore to a permanently blank screen.
 async function restoreLastView() {
+  // Stage 41: a deep link beats the saved view. This is what makes the
+  // hints' "open in a new tab" affordance real - the new tab arrives carrying
+  // #/setup/Vendor and must land on Vendors, not on whatever screen the
+  // original tab happened to leave in localStorage. A link that can't be
+  // resolved (unknown record type, or one this role can't read) falls through
+  // to the normal restore rather than showing an empty screen.
+  const link = parseDeepLink();
+  if (link && await navigateToDeepLink(link)) return;
+
   const saved = loadNavState();
   let view = DEFAULT_VIEW;
   let doctype = '';
@@ -3000,6 +3762,16 @@ async function renderView(view) {
     // permanent "Loading..." on screen, which would be a worse lie than the
     // blank panel this replaces.
     placeholder.remove();
+    // Stage 40.2: one sweep per render decorates every recognised input the
+    // view just built with its placeholder and hint. Done here rather than in
+    // each renderer so bespoke screens get it without a call site each.
+    decorateFieldFormats(root);
+    // Stage 41, same reasoning, same door. The banner is attached in
+    // `finally` deliberately: a screen that failed to render still tells the
+    // user WHY when the reason is missing setup, which is the case where the
+    // explanation matters most.
+    renderSetupBanner(view);
+    applyPhoneRulesIn(root);
   }
 }
 
@@ -3736,7 +4508,7 @@ async function renderRolesView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Roles</h1>
-      <p class="page-subtitle">What each role can see and do, per record type. HR/Admin can always do everything; this only governs the other roles.</p>
+      <p class="page-subtitle">What each role can see and do, per record type. Super Admin can always do everything; this only governs the other roles.</p>
     </div>
   `;
   container.appendChild(header);
@@ -3777,7 +4549,7 @@ async function renderRolesView(container) {
       <tbody>
   `;
   html += grants.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No grants configured yet. Pick a role and a record type above, then <b>Save Grant</b> &mdash; roles other than HR/Admin see only what a grant allows.</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No grants configured yet. Pick a role and a record type above, then <b>Save Grant</b> &mdash; roles other than Super Admin see only what a grant allows.</td></tr>`
     : grants.map(g => `
         <tr>
           <td style="font-weight:600;">${g.role}</td>
@@ -3844,8 +4616,12 @@ function renderPOSView(container) {
     </div>
     <div style="display: flex; gap: 12px; align-items: flex-end;">
       <div class="form-group" style="max-width: 280px; margin-bottom: 0;">
-        <label class="form-label" for="pos-location">Location Code</label>
-        <input type="text" id="pos-location" class="form-input" placeholder="e.g. HO" value="${posLocation}">
+        <!-- Stage 41: the cashier searches and sees the location's NAME;
+             #pos-location stays the code, because every downstream call
+             (session, availability, cart number, receipt) keys off it. -->
+        <label class="form-label" for="pos-location-display">Location</label>
+        <input type="text" id="pos-location-display" class="form-input" placeholder="Search by store name or code" autocomplete="off">
+        <input type="hidden" id="pos-location" value="${posLocation}">
       </div>
       <div class="form-group" style="max-width: 220px; margin-bottom: 0;">
         <label class="form-label" for="pos-customer">Customer Code (optional)</label>
@@ -3905,10 +4681,16 @@ function renderPOSView(container) {
   `;
   container.appendChild(panel);
 
-  attachLinkTypeahead(document.getElementById('pos-location'), 'Location');
+  attachCodeNamePicker(
+    document.getElementById('pos-location-display'),
+    document.getElementById('pos-location'),
+    'Location');
   attachLinkTypeahead(document.getElementById('pos-customer'), 'Customer');
   attachLinkTypeahead(document.getElementById('pos-sku-input'), 'Item');
 
+  // Still the hidden input's change event: attachCodeNamePicker dispatches it
+  // there precisely so this listener (and every other reader of
+  // #pos-location) needed no change.
   document.getElementById('pos-location').addEventListener('change', (e) => {
     posLocation = e.target.value.trim();
     refreshPOSSessionStatus();
@@ -3959,8 +4741,9 @@ function renderPOSReturnPanel(container) {
         <input type="text" id="pos-return-order-id" class="form-input" placeholder="e.g. POS-HO-171...">
       </div>
       <div class="form-group" style="max-width: 200px; margin-bottom: 0;">
-        <label class="form-label" for="pos-return-location">Return Location</label>
-        <input type="text" id="pos-return-location" class="form-input" placeholder="e.g. HO" value="${posLocation}">
+        <label class="form-label" for="pos-return-location-display">Return Location</label>
+        <input type="text" id="pos-return-location-display" class="form-input" placeholder="Search by store name or code" autocomplete="off">
+        <input type="hidden" id="pos-return-location" value="${posLocation}">
       </div>
       <div class="form-group" style="flex: 1; margin-bottom: 0;">
         <label class="form-label" for="pos-return-sku-input">SKU to Return</label>
@@ -3982,7 +4765,10 @@ function renderPOSReturnPanel(container) {
   container.appendChild(panel);
 
   attachLinkTypeahead(document.getElementById('pos-return-sku-input'), 'Item');
-  attachLinkTypeahead(document.getElementById('pos-return-location'), 'Location');
+  attachCodeNamePicker(
+    document.getElementById('pos-return-location-display'),
+    document.getElementById('pos-return-location'),
+    'Location');
   document.getElementById('pos-return-add-btn').addEventListener('click', addSKUToPOSReturn);
   document.getElementById('pos-return-sku-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -4098,7 +4884,7 @@ async function refreshPOSSessionStatus() {
 
   if (!posLocation) {
     posOpenSessionId = '';
-    statusEl.textContent = 'Enter a location to check for an open cashier session.';
+    statusEl.textContent = 'Choose a location to check for an open cashier session.';
     openBtn.classList.add('hidden');
     closeBtn.classList.add('hidden');
     return;
@@ -4111,12 +4897,16 @@ async function refreshPOSSessionStatus() {
   }
   const data = await res.json();
   posOpenSessionId = data.open ? data.session_id : '';
+  // Stage 41: name the location the way the cashier does. The display box
+  // already holds the resolved name; the code is the fallback for the moment
+  // before it resolves, and for a code typed but not yet matched.
+  const shown = (document.getElementById('pos-location-display') || {}).value || posLocation;
   if (posOpenSessionId) {
-    statusEl.textContent = `Session open at ${posLocation}.`;
+    statusEl.textContent = `Session open at ${shown}.`;
     openBtn.classList.add('hidden');
     closeBtn.classList.remove('hidden');
   } else {
-    statusEl.textContent = `No open session at ${posLocation} - open one before selling.`;
+    statusEl.textContent = `No open session at ${shown} - open one before selling.`;
     openBtn.classList.remove('hidden');
     closeBtn.classList.add('hidden');
   }
@@ -4124,7 +4914,7 @@ async function refreshPOSSessionStatus() {
 
 async function openPOSSessionFlow() {
   if (!posLocation) {
-    await showCustomAlert('Enter a location code first.', 'Location Required');
+    await showCustomAlert('Choose a location first.', 'Location Required');
     return;
   }
   const openingStr = await showCustomPrompt('Opening cash float for this session?');
@@ -4193,7 +4983,7 @@ async function addSKUToPOSCart() {
   errorEl.classList.add('hidden');
 
   if (!posLocation) {
-    errorEl.textContent = 'Enter a location code before adding items.';
+    errorEl.textContent = 'Choose a location before adding items.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -4581,7 +5371,7 @@ async function submitPOSCheckout() {
   errorEl.classList.add('hidden');
 
   if (!posLocation) {
-    errorEl.textContent = 'Enter a location code before completing the sale.';
+    errorEl.textContent = 'Choose a location before completing the sale.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -6761,35 +7551,744 @@ async function fetchABCCycleCountPlan() {
 // existing SalesOrder, FulfillmentTask, LogisticsBooking, and SalesInvoice
 // doctypes. It deliberately reads through the generic document API rather
 // than creating a second read model/API for data already available there.
+// ---------------------------------------------------------------------------
+// The OMS Console (Stage 35.2)
+//
+// What this replaces, and why: the previous version of this screen fetched
+// GET /api/v1/doc/SalesOrder, /FulfillmentTask, /LogisticsBooking and
+// /SalesInvoice in full and joined them in the browser. That has no filter, no
+// pagination and no ordering - it transfers every order the tenant has ever
+// taken on every page view, and faceting is impossible on a page that only
+// holds one page of rows. All of that moved to SQL behind /api/v1/oms/*
+// (engines/oms_console.go); this file now renders one page plus its facets.
+//
+// Everything here is built from the existing vocabulary: .table-panel,
+// .stat-card, .btn/.action-btn, .badge, .bulk-edit-bar and the
+// .modal-overlay/.modal-container primitives. No new table implementation, no
+// new dialog mechanism, no framework.
+// ---------------------------------------------------------------------------
+
+// omsConsoleState is the whole screen's state: the active filter, the current
+// selection, and the last result. Module-level rather than re-derived from the
+// DOM so a re-render after an action keeps the operator where they were -
+// losing your filter every time you release a hold is what makes a queue
+// screen unusable at 200 orders.
+let omsConsoleState = {
+  filter: { channel: '', status: '', hold_reason: '', location: '', from_date: '', to_date: '', sla_minutes: 0 },
+  limit: 50,
+  offset: 0,
+  selected: new Set(),
+  lastResult: null
+};
+
+function omsFilterQuery(extra = {}) {
+  const params = new URLSearchParams();
+  const merged = { ...omsConsoleState.filter, limit: omsConsoleState.limit, offset: omsConsoleState.offset, ...extra };
+  Object.entries(merged).forEach(([key, value]) => {
+    if (value !== '' && value !== 0 && value !== null && value !== undefined) params.set(key, value);
+  });
+  return params.toString();
+}
+
 async function renderOMSWorkbenchView(container) {
-  const [ordersRes, tasksRes, bookingsRes, invoicesRes] = await Promise.all([
-    apiFetch('/api/v1/doc/SalesOrder'), apiFetch('/api/v1/doc/FulfillmentTask'),
-    apiFetch('/api/v1/doc/LogisticsBooking'), apiFetch('/api/v1/doc/SalesInvoice')
-  ]);
-  if (!ordersRes || !tasksRes || !bookingsRes || !invoicesRes) return;
-  const orders = ordersRes.ok ? await ordersRes.json() : [];
-  const tasks = tasksRes.ok ? await tasksRes.json() : [];
-  const bookings = bookingsRes.ok ? await bookingsRes.json() : [];
-  const invoices = invoicesRes.ok ? await invoicesRes.json() : [];
-  const byOrder = (rows, key = 'order_id') => rows.reduce((out, row) => { (out[row[key]] ||= []).push(row); return out; }, {});
-  const tasksByOrder = byOrder(tasks), bookingsByOrder = byOrder(bookings);
-  const invoiceByOrder = invoices.reduce((out, invoice) => { if (invoice.sales_order_id) out[invoice.sales_order_id] = invoice; return out; }, {});
-  const held = orders.filter(o => o.status === 'On Hold').length;
-  const shipped = orders.filter(o => o.status === 'Shipped' || o.status === 'Delivered').length;
-  const inTransit = bookings.filter(b => b.status === 'Handed Over' || b.status === 'In-Transit').length;
   container.innerHTML = `
-    <div class="page-header"><div class="page-title-section"><h1 class="page-title">Order Management</h1><p class="page-subtitle">One operational view from channel order through fulfillment, shipment, and invoice.</p></div></div>
-    <div class="stats-grid" style="margin-bottom:24px;"><div class="stat-card"><div class="stat-label">Orders on hold</div><div class="stat-value">${held}</div></div><div class="stat-card"><div class="stat-label">Shipped / delivered</div><div class="stat-value">${shipped}</div></div><div class="stat-card"><div class="stat-label">Shipments in transit</div><div class="stat-value">${inTransit}</div></div><div class="stat-card"><div class="stat-label">Draft invoices</div><div class="stat-value">${invoices.filter(i => i.status === 'Draft').length}</div></div></div>
-    <div class="table-panel" style="padding:24px;"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;"><h2 style="font-size:16px;margin:0;">Orders</h2><button class="btn btn-outline" id="oms-refresh">Refresh</button></div>
-    <div class="table-wrapper"><table><thead><tr><th>Order</th><th>Channel</th><th>Customer</th><th>Order status</th><th>Fulfillment</th><th>Shipment</th><th>Invoice</th><th>Actions</th></tr></thead><tbody>
-    ${orders.length === 0 ? '<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No SalesOrders yet. Channel imports and the Order API appear here automatically.</td></tr>' : orders.map(order => {
-      const orderID = order.code || order.id;
-      const taskSummary = (tasksByOrder[orderID] || []).map(t => t.status).join(', ') || '—';
-      const shipmentSummary = (bookingsByOrder[orderID] || []).map(b => b.status).join(', ') || '—';
-      const invoice = invoiceByOrder[orderID];
-      return `<tr><td style="font-family:monospace;">${copyableCell(orderID, orderID)}</td><td>${order.channel || 'Manual'}</td><td>${order.customer_name || '—'}</td><td><span class="badge ${order.status === 'On Hold' ? 'badge-warning' : order.status === 'Delivered' ? 'badge-success' : 'badge-secondary'}">${order.status || '—'}</span>${order.hold_reason ? `<div style="font-size:11px;color:var(--text-muted);">${order.hold_reason}</div>` : ''}</td><td>${taskSummary}</td><td>${shipmentSummary}</td><td>${invoice ? `<button class="action-btn" onclick="openOMSDoctype('SalesInvoice','${invoice.code || invoice.id}')">${invoice.status}</button>` : '—'}</td><td>${order.status === 'On Hold' ? `<button class="action-btn" onclick="releaseOMSOrder('${orderID}')">Release</button>` : ''} ${!['Shipped','Delivered','Closed','Cancelled'].includes(order.status) ? `<button class="action-btn" onclick="cancelOMSOrder('${orderID}')">Cancel</button>` : ''} <button class="action-btn" onclick="openOMSDoctype('SalesOrder','${orderID}')">View</button></td></tr>`;
-    }).join('')}</tbody></table></div></div>`;
+    <div class="page-header">
+      <div class="page-title-section">
+        <h1 class="page-title">Order Management</h1>
+        <p class="page-subtitle">Every channel's orders in one queue &mdash; filter, act in bulk, and open any order end to end.</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-outline" id="oms-refresh">Refresh</button>
+      </div>
+    </div>
+    <!-- dashboard-stats-row / stat-val, not stats-grid / stat-value: the two
+         class names the previous version of this screen used do not exist in
+         styles.css at all, which is why its four tiles rendered as full-width
+         stacked bars with an unstyled number. -->
+    <div class="dashboard-stats-row" id="oms-tiles"></div>
+    <div class="table-panel oms-compact-panel" style="padding:16px 24px;margin-bottom:24px;">
+      <div class="oms-search-row">
+        <input type="search" id="oms-global-search" class="form-input" placeholder="Search any order: order id, channel order id, AWB, phone, customer or SKU">
+        <button class="btn btn-outline" id="oms-search-btn">Search</button>
+        <button class="btn btn-outline" id="oms-search-clear">Clear</button>
+      </div>
+      <div id="oms-search-results"></div>
+    </div>
+    <div class="table-panel" id="oms-manual-panel" style="padding:24px;margin-bottom:24px;"></div>
+    <div class="table-panel" style="padding:24px;">
+      <div class="oms-console-head">
+        <h2 style="font-size:16px;margin:0;">Orders</h2>
+        <div class="oms-view-actions">
+          <select id="oms-saved-views" class="form-input" style="max-width:220px;"><option value="">Saved views…</option></select>
+          <button class="btn btn-outline btn-sm" id="oms-save-view">Save this view</button>
+          <button class="btn btn-outline btn-sm" id="oms-delete-view">Delete view</button>
+        </div>
+      </div>
+      <div id="oms-facets" class="oms-facets"></div>
+      <div class="bulk-edit-bar hidden" id="oms-bulk-bar">
+        <span id="oms-selection-count">0 selected</span>
+        <button class="btn btn-outline" id="oms-bulk-release">Release Hold</button>
+        <button class="btn btn-outline" id="oms-bulk-hold">Hold</button>
+        <button class="btn btn-outline" id="oms-bulk-cancel">Cancel</button>
+      </div>
+      <div id="oms-order-table"></div>
+    </div>`;
+
   document.getElementById('oms-refresh').addEventListener('click', () => renderView('oms'));
+  document.getElementById('oms-search-btn').addEventListener('click', runOMSGlobalSearch);
+  document.getElementById('oms-global-search').addEventListener('keydown', e => { if (e.key === 'Enter') runOMSGlobalSearch(); });
+  document.getElementById('oms-search-clear').addEventListener('click', () => {
+    document.getElementById('oms-global-search').value = '';
+    document.getElementById('oms-search-results').innerHTML = '';
+  });
+  document.getElementById('oms-bulk-release').addEventListener('click', () => runOMSBulkAction('release'));
+  document.getElementById('oms-bulk-hold').addEventListener('click', () => runOMSBulkAction('hold'));
+  document.getElementById('oms-bulk-cancel').addEventListener('click', () => runOMSBulkAction('cancel'));
+  document.getElementById('oms-save-view').addEventListener('click', saveCurrentOMSView);
+  document.getElementById('oms-delete-view').addEventListener('click', deleteSelectedOMSView);
+  document.getElementById('oms-saved-views').addEventListener('change', applySelectedOMSView);
+
+  renderManualOrderPanel(document.getElementById('oms-manual-panel'));
+  // The tiles, the saved views and the order list are independent reads, so
+  // they go out together rather than in sequence.
+  await Promise.all([loadOMSTiles(), loadOMSSavedViews(), loadOMSOrders()]);
+}
+
+// 35.2.4 - four tiles, each the row count of an already-registered report.
+async function loadOMSTiles() {
+  const host = document.getElementById('oms-tiles');
+  if (!host) return;
+  const res = await apiFetch('/api/v1/oms/tiles');
+  if (!res || !res.ok) { host.innerHTML = ''; return; }
+  const { tiles = [] } = await res.json();
+  host.innerHTML = tiles.map(t => `
+    <div class="stat-card oms-tile" data-report="${escapeHTMLText(t.report_id)}" title="Open the ${escapeHTMLText(t.label)} report">
+      <span class="stat-label">${escapeHTMLText(t.label)}</span>
+      <span class="stat-val">${t.error ? '—' : escapeHTMLText(String(t.count))}</span>
+      ${t.error ? `<div class="oms-tile-error" title="${escapeHTMLText(t.error)}">unavailable</div>` : ''}
+    </div>`).join('');
+  // A tile is a shortcut into its own report, not a dead number.
+  host.querySelectorAll('.oms-tile').forEach(tile => {
+    tile.addEventListener('click', () => execDashboardOpenReport(tile.getAttribute('data-report')));
+  });
+}
+
+// 35.2.1 - the faceted, paginated list.
+async function loadOMSOrders() {
+  const host = document.getElementById('oms-order-table');
+  if (!host) return;
+  host.innerHTML = '<div class="text-muted" style="padding:16px;">Loading orders…</div>';
+  const res = await apiFetch(`/api/v1/oms/orders?${omsFilterQuery()}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to load orders.'); host.innerHTML = ''; return; }
+  const result = await res.json();
+  omsConsoleState.lastResult = result;
+  renderOMSFacets(result.facets || {});
+  renderOMSOrderTable(result);
+}
+
+function renderOMSFacets(facets) {
+  const host = document.getElementById('oms-facets');
+  if (!host) return;
+  const group = (key, label, values) => {
+    const options = (values || []).map(v =>
+      `<option value="${escapeHTMLText(v.value)}"${omsConsoleState.filter[key] === v.value ? ' selected' : ''}>${escapeHTMLText(v.value)} (${v.count})</option>`).join('');
+    return `<label class="oms-facet"><span>${escapeHTMLText(label)}</span>
+      <select class="form-input" data-facet="${key}"><option value="">All</option>${options}</select></label>`;
+  };
+  host.innerHTML = `
+    ${group('channel', 'Channel', facets.channel)}
+    ${group('status', 'Status', facets.status)}
+    ${group('hold_reason', 'Hold reason', facets.hold_reason)}
+    ${group('location', 'Location', facets.location)}
+    <label class="oms-facet"><span>From</span><input type="date" class="form-input" data-facet="from_date" value="${escapeHTMLText(omsConsoleState.filter.from_date || '')}"></label>
+    <label class="oms-facet"><span>To</span><input type="date" class="form-input" data-facet="to_date" value="${escapeHTMLText(omsConsoleState.filter.to_date || '')}"></label>
+    <label class="oms-facet"><span>SLA breach over</span>
+      <select class="form-input" data-facet="sla_minutes">
+        <option value="0">Any age</option>
+        <option value="60"${omsConsoleState.filter.sla_minutes == 60 ? ' selected' : ''}>1 hour</option>
+        <option value="240"${omsConsoleState.filter.sla_minutes == 240 ? ' selected' : ''}>4 hours</option>
+        <option value="1440"${omsConsoleState.filter.sla_minutes == 1440 ? ' selected' : ''}>24 hours</option>
+      </select></label>
+    <button class="btn btn-outline btn-sm" id="oms-clear-filters">Clear filters</button>`;
+
+  host.querySelectorAll('[data-facet]').forEach(control => {
+    control.addEventListener('change', () => {
+      const key = control.getAttribute('data-facet');
+      omsConsoleState.filter[key] = key === 'sla_minutes' ? Number(control.value) : control.value;
+      // Changing a filter invalidates both the page and the selection - acting
+      // in bulk on rows that scrolled out of the filter is exactly the kind of
+      // surprise a queue screen must not spring on anyone.
+      omsConsoleState.offset = 0;
+      omsConsoleState.selected.clear();
+      loadOMSOrders();
+    });
+  });
+  document.getElementById('oms-clear-filters').addEventListener('click', () => {
+    omsConsoleState.filter = { channel: '', status: '', hold_reason: '', location: '', from_date: '', to_date: '', sla_minutes: 0 };
+    omsConsoleState.offset = 0;
+    omsConsoleState.selected.clear();
+    loadOMSOrders();
+  });
+}
+
+function omsStatusBadge(status, holdReason) {
+  const cls = status === 'On Hold' ? 'badge-warning' : (status === 'Delivered' || status === 'Shipped') ? 'badge-success' : status === 'Cancelled' ? 'badge-danger' : 'badge-secondary';
+  return `<span class="badge ${cls}">${escapeHTMLText(status || '—')}</span>` +
+    (holdReason ? `<div class="oms-hold-reason">${escapeHTMLText(holdReason)}</div>` : '');
+}
+
+function renderOMSOrderTable(result) {
+  const host = document.getElementById('oms-order-table');
+  const rows = result.rows || [];
+  const from = result.total === 0 ? 0 : result.offset + 1;
+  const to = result.offset + rows.length;
+  host.innerHTML = `
+    <div class="table-wrapper">
+      <table>
+        <thead><tr>
+          <th style="width:32px;"><input type="checkbox" id="oms-select-all" aria-label="Select all orders on this page"></th>
+          <th>Order</th><th>Source</th><th>Customer</th><th>Status</th><th>Lines</th><th>Location</th><th>Age</th><th class="num">Value</th><th>Actions</th>
+        </tr></thead>
+        <tbody>
+        ${rows.length === 0
+          ? `<tr><td colspan="10" style="text-align:center;color:var(--text-muted);padding:24px;">No orders match this filter. Clear the filters above, use <b>New manual order</b>, or let a channel import create one &mdash; all of them land here.</td></tr>`
+          : rows.map(o => {
+            const channel = o.channel || 'Manual';
+            const source = `${escapeHTMLText(channel)}${o.channel_order_id ? `<div class="oms-channel-ref" title="The order id in ${escapeHTMLText(channel)}">${escapeHTMLText(o.channel_order_id)}</div>` : ''}`;
+            const age = o.age_minutes < 60 ? `${o.age_minutes}m` : o.age_minutes < 1440 ? `${Math.floor(o.age_minutes / 60)}h` : `${Math.floor(o.age_minutes / 1440)}d`;
+            return `<tr>
+              <td><input type="checkbox" class="oms-row-select" data-order="${escapeHTMLText(o.order_id)}"${omsConsoleState.selected.has(o.order_id) ? ' checked' : ''}></td>
+              <td style="font-family:monospace;">${copyableCell(escapeHTMLText(o.order_id), o.order_id)}${o.priority === 'Expedite' ? '<div class="badge badge-warning oms-expedite">Expedite</div>' : ''}</td>
+              <td>${source}</td>
+              <td>${escapeHTMLText(o.customer_name || '—')}${o.customer_phone ? `<div class="oms-channel-ref">${escapeHTMLText(o.customer_phone)}</div>` : ''}</td>
+              <td>${omsStatusBadge(o.status, o.hold_reason)}</td>
+              <td>${escapeHTMLText(String(o.line_count))}</td>
+              <td>${escapeHTMLText(o.locations || '—')}</td>
+              <td title="${escapeHTMLText(String(o.created_at))}">${escapeHTMLText(age)}</td>
+              <td class="num">${formatMoney(o.total_amount)}</td>
+              <td><button class="action-btn" data-open-order="${escapeHTMLText(o.order_id)}">Open</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div class="oms-pager">
+      <span class="text-muted">${result.total === 0 ? 'No orders' : `Showing ${from}–${to} of ${result.total}`}</span>
+      <span>
+        <button class="btn btn-outline btn-sm" id="oms-prev"${result.offset === 0 ? ' disabled' : ''}>Previous</button>
+        <button class="btn btn-outline btn-sm" id="oms-next"${to >= result.total ? ' disabled' : ''}>Next</button>
+      </span>
+    </div>`;
+
+  host.querySelectorAll('[data-open-order]').forEach(btn => {
+    btn.addEventListener('click', () => openOMSOrderDetail(btn.getAttribute('data-open-order')));
+  });
+  host.querySelectorAll('.oms-row-select').forEach(box => {
+    box.addEventListener('change', () => {
+      const id = box.getAttribute('data-order');
+      if (box.checked) omsConsoleState.selected.add(id); else omsConsoleState.selected.delete(id);
+      updateOMSBulkBar();
+    });
+  });
+  document.getElementById('oms-select-all').addEventListener('change', e => {
+    host.querySelectorAll('.oms-row-select').forEach(box => {
+      box.checked = e.target.checked;
+      const id = box.getAttribute('data-order');
+      if (e.target.checked) omsConsoleState.selected.add(id); else omsConsoleState.selected.delete(id);
+    });
+    updateOMSBulkBar();
+  });
+  document.getElementById('oms-prev').addEventListener('click', () => {
+    omsConsoleState.offset = Math.max(0, omsConsoleState.offset - omsConsoleState.limit);
+    loadOMSOrders();
+  });
+  document.getElementById('oms-next').addEventListener('click', () => {
+    omsConsoleState.offset += omsConsoleState.limit;
+    loadOMSOrders();
+  });
+  updateOMSBulkBar();
+}
+
+function updateOMSBulkBar() {
+  const bar = document.getElementById('oms-bulk-bar');
+  const count = omsConsoleState.selected.size;
+  if (!bar) return;
+  bar.classList.toggle('hidden', count === 0);
+  document.getElementById('oms-selection-count').textContent = `${count} selected`;
+}
+
+// 35.2.5 - bulk hold/release/cancel. The endpoint reports per-order outcomes,
+// so a partially-applicable selection tells the operator exactly which orders
+// refused and why instead of a single "some failed".
+async function runOMSBulkAction(action) {
+  const orderIDs = Array.from(omsConsoleState.selected);
+  if (orderIDs.length === 0) return;
+  let reasonCode = '';
+  if (action === 'hold' || action === 'cancel') {
+    const label = action === 'hold' ? 'Active Hold reason-code:' : 'Active Cancellation reason-code:';
+    reasonCode = await showCustomPrompt(label, '', `Bulk ${action} ${orderIDs.length} order(s)`);
+    if (reasonCode === null || !reasonCode.trim()) return;
+    reasonCode = reasonCode.trim();
+  }
+  const res = await apiFetch('/api/v1/oms/orders/bulk', {
+    method: 'POST',
+    body: JSON.stringify({ action, order_ids: orderIDs, reason_code: reasonCode })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, `Failed to ${action} the selected orders.`); return; }
+  const result = await res.json();
+  const failed = Object.entries(result.failed || {});
+  if (failed.length === 0) {
+    showToast(`${result.succeeded.length} order(s) ${action === 'release' ? 'released' : action + 'ed'}.`);
+  } else {
+    showToast(`${result.succeeded.length} succeeded, ${failed.length} refused. First: ${failed[0][0]} — ${failed[0][1]}`, { duration: 9000 });
+  }
+  omsConsoleState.selected.clear();
+  await Promise.all([loadOMSOrders(), loadOMSTiles()]);
+}
+
+// 35.2.6 - global search.
+async function runOMSGlobalSearch() {
+  const query = document.getElementById('oms-global-search').value.trim();
+  const host = document.getElementById('oms-search-results');
+  if (!query) { host.innerHTML = ''; return; }
+  const res = await apiFetch(`/api/v1/oms/orders/search?q=${encodeURIComponent(query)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Search failed.'); return; }
+  const { results = [] } = await res.json();
+  if (results.length === 0) {
+    host.innerHTML = `<div class="text-muted" style="padding:12px 0;">Nothing matched “${escapeHTMLText(query)}”. Order id, channel order id, AWB, phone, customer name and SKU are all searchable.</div>`;
+    return;
+  }
+  host.innerHTML = `
+    <div class="table-wrapper" style="margin-top:12px;">
+      <table><thead><tr><th>Order</th><th>Matched on</th><th>Source</th><th>Customer</th><th>Status</th><th></th></tr></thead>
+      <tbody>${results.map(r => `
+        <tr>
+          <td style="font-family:monospace;">${escapeHTMLText(r.order_id)}</td>
+          <td>${escapeHTMLText(r.matched_on)}</td>
+          <td>${escapeHTMLText(r.channel)}${r.channel_order_id ? `<div class="oms-channel-ref">${escapeHTMLText(r.channel_order_id)}</div>` : ''}</td>
+          <td>${escapeHTMLText(r.customer_name || '—')}</td>
+          <td>${omsStatusBadge(r.status, '')}</td>
+          <td><button class="action-btn" data-open-search="${escapeHTMLText(r.order_id)}">Open</button></td>
+        </tr>`).join('')}</tbody></table>
+    </div>`;
+  host.querySelectorAll('[data-open-search]').forEach(btn => {
+    btn.addEventListener('click', () => openOMSOrderDetail(btn.getAttribute('data-open-search')));
+  });
+}
+
+// 35.2.1's saved views.
+async function loadOMSSavedViews() {
+  const select = document.getElementById('oms-saved-views');
+  if (!select) return;
+  const res = await apiFetch('/api/v1/oms/views');
+  if (!res || !res.ok) return;
+  const { views = [] } = await res.json();
+  select.innerHTML = '<option value="">Saved views…</option>' +
+    views.map(v => `<option value="${escapeHTMLText(v.id)}">${escapeHTMLText(v.name)}</option>`).join('');
+  select._views = views;
+}
+
+async function saveCurrentOMSView() {
+  const name = await showCustomPrompt('Name this view:', '', 'Save View');
+  if (name === null || !name.trim()) return;
+  // The saved filter uses the Go struct's field names, which is what
+  // OrderConsoleFilter unmarshals - the query-string names are a separate,
+  // lowercase vocabulary and would silently save an empty filter.
+  const f = omsConsoleState.filter;
+  const res = await apiFetch('/api/v1/oms/views', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: name.trim(),
+      filter: {
+        Channel: f.channel, Status: f.status, HoldReason: f.hold_reason, Location: f.location,
+        FromDate: f.from_date, ToDate: f.to_date, SLAMinutes: Number(f.sla_minutes) || 0
+      }
+    })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to save this view.'); return; }
+  showToast('View saved.');
+  loadOMSSavedViews();
+}
+
+function applySelectedOMSView() {
+  const select = document.getElementById('oms-saved-views');
+  const view = (select._views || []).find(v => v.id === select.value);
+  if (!view) return;
+  const f = view.filter || {};
+  omsConsoleState.filter = {
+    channel: f.Channel || '', status: f.Status || '', hold_reason: f.HoldReason || '',
+    location: f.Location || '', from_date: f.FromDate || '', to_date: f.ToDate || '',
+    sla_minutes: f.SLAMinutes || 0
+  };
+  omsConsoleState.offset = 0;
+  omsConsoleState.selected.clear();
+  loadOMSOrders();
+}
+
+async function deleteSelectedOMSView() {
+  const select = document.getElementById('oms-saved-views');
+  if (!select.value) { showToast('Pick a saved view to delete first.'); return; }
+  const res = await apiFetch(`/api/v1/oms/views/${encodeURIComponent(select.value)}`, { method: 'DELETE' });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to delete this view.'); return; }
+  showToast('View deleted.');
+  loadOMSSavedViews();
+}
+
+// 35.2.2 / 35.2.3 - the order detail, with the action bar on it.
+//
+// One modal built on the existing .modal-overlay/.modal-container primitives
+// rather than a third dialog mechanism, and one fetch rather than nine: the
+// detail endpoint assembles lines, reservations, tasks, shipments, invoices,
+// returns, refunds, notifications and the audit trail server-side.
+window.openOMSOrderDetail = async function(orderID) {
+  const res = await apiFetch(`/api/v1/oms/orders/${encodeURIComponent(orderID)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to load this order.'); return; }
+  const d = await res.json();
+  const order = d.order || {};
+  const status = order.order_status || '';
+  const terminal = ['Shipped', 'Delivered', 'Closed', 'Cancelled'].includes(status);
+
+  const section = (title, rows, columns) => `
+    <h4 class="oms-detail-heading">${escapeHTMLText(title)} <span class="text-muted">(${rows.length})</span></h4>
+    ${rows.length === 0
+      ? `<p class="text-muted oms-detail-empty">None.</p>`
+      : `<div class="table-wrapper"><table><thead><tr>${columns.map(c => `<th>${escapeHTMLText(c.label)}</th>`).join('')}</tr></thead>
+         <tbody>${rows.map(r => `<tr>${columns.map(c => `<td>${escapeHTMLText(String(r[c.key] ?? '—'))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}`;
+
+  const lineRows = (d.lines || []).map(l => `
+    <tr>
+      <td style="font-family:monospace;">${escapeHTMLText(l.line_id)}</td>
+      <td>${escapeHTMLText(l.sku)}</td>
+      <td class="num">${escapeHTMLText(String(l.qty))}</td>
+      <td class="num">${formatMoney(l.unit_price)}</td>
+      <td>${escapeHTMLText(l.location_code || '—')}</td>
+      <td>${omsStatusBadge(l.line_status, l.hold_reason)}</td>
+      <td>${l.line_status === 'On Hold'
+            ? `<button class="action-btn" data-line-release="${escapeHTMLText(l.line_id)}">Release line</button>`
+            : (['Dispatched', 'Cancelled', 'Returned'].includes(l.line_status) ? '' : `<button class="action-btn" data-line-hold="${escapeHTMLText(l.line_id)}">Hold line</button>`)}
+          <label class="oms-split-pick"><input type="checkbox" class="oms-split-line" data-line="${escapeHTMLText(l.line_id)}"> split</label></td>
+    </tr>`).join('');
+
+  document.getElementById('oms-order-detail-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'oms-order-detail-modal';
+  overlay.innerHTML = `
+    <div class="modal-container oms-detail-container">
+      <div class="modal-header">
+        <h3 class="modal-title">Order ${escapeHTMLText(orderID)}</h3>
+        <button type="button" class="modal-close" aria-label="Close">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="oms-detail-summary">
+          <div><span class="stat-label">Status</span><div>${omsStatusBadge(status, order.hold_reason)}</div></div>
+          <div><span class="stat-label">Source</span><div>${escapeHTMLText(order.channel || 'Manual')}${order.channel_order_id ? `<div class="oms-channel-ref">${escapeHTMLText(order.channel_order_id)}</div>` : ''}</div></div>
+          <div><span class="stat-label">Customer</span><div>${escapeHTMLText(order.customer_name || '—')}${order.customer_phone ? `<div class="oms-channel-ref">${escapeHTMLText(order.customer_phone)}</div>` : ''}</div></div>
+          <div><span class="stat-label">Payment</span><div>${escapeHTMLText(order.payment_status || '—')}</div></div>
+          <div><span class="stat-label">Priority</span><div>${escapeHTMLText(order.priority || 'Normal')}</div></div>
+          <div><span class="stat-label">Value</span><div>${formatMoney(order.total_amount)}</div></div>
+        </div>
+        <div class="oms-detail-address"><span class="stat-label">Ship to</span><div>${escapeHTMLText(order.shipping_address || '—')}</div></div>
+
+        <div class="oms-action-bar">
+          ${status === 'On Hold' ? `<button class="btn btn-primary btn-sm" data-action="release">Release hold</button>` : `<button class="btn btn-outline btn-sm" data-action="hold"${terminal ? ' disabled' : ''}>Hold</button>`}
+          <button class="btn btn-outline btn-sm" data-action="edit"${terminal ? ' disabled' : ''}>Edit</button>
+          <button class="btn btn-outline btn-sm" data-action="reallocate"${terminal ? ' disabled' : ''}>Reallocate</button>
+          <button class="btn btn-outline btn-sm" data-action="switch"${terminal ? ' disabled' : ''}>Switch facility</button>
+          <button class="btn btn-outline btn-sm" data-action="priority"${terminal ? ' disabled' : ''}>${order.priority === 'Expedite' ? 'Set Normal' : 'Expedite'}</button>
+          <button class="btn btn-outline btn-sm" data-action="split"${terminal ? ' disabled' : ''}>Split selected lines</button>
+          <button class="btn btn-outline btn-sm" data-action="cancel"${terminal ? ' disabled' : ''}>Cancel order</button>
+        </div>
+        ${terminal ? `<p class="text-muted oms-detail-empty">This order is ${escapeHTMLText(status)}, so its actions are closed. A tenant can reopen any of them by configuring a StatusTransitionRule.</p>` : ''}
+
+        <h4 class="oms-detail-heading">Lines <span class="text-muted">(${(d.lines || []).length})</span></h4>
+        <div class="table-wrapper"><table>
+          <thead><tr><th>Line</th><th>SKU</th><th class="num">Qty</th><th class="num">Unit price</th><th>Allocated to</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>${lineRows || `<tr><td colspan="7" class="text-center text-muted">No lines.</td></tr>`}</tbody>
+        </table></div>
+
+        ${section('Reservations', d.reservations || [], [{ key: 'sku', label: 'SKU' }, { key: 'location_code', label: 'Location' }, { key: 'quantity', label: 'Qty' }, { key: 'reservation_type', label: 'Type' }, { key: 'expires_at', label: 'Expires' }])}
+        ${section('Fulfillment tasks', d.fulfillment_tasks || [], [{ key: 'id', label: 'Task' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Location' }, { key: 'created_at', label: 'Created' }])}
+        ${section('Shipments', d.shipments || [], [{ key: 'id', label: 'Booking' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'AWB' }, { key: 'created_at', label: 'Created' }])}
+        ${section('Invoices', d.invoices || [], [{ key: 'id', label: 'Invoice' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Amount' }, { key: 'created_at', label: 'Created' }])}
+        ${section('Returns', d.returns || [], [{ key: 'id', label: 'Return' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Type' }, { key: 'created_at', label: 'Created' }])}
+        ${section('Refunds', d.refunds || [], [{ key: 'id', label: 'Refund' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Mode' }, { key: 'created_at', label: 'Created' }])}
+        ${section('Notifications', d.notifications || [], [{ key: 'id', label: 'Log' }, { key: 'status', label: 'Dispatch' }, { key: 'detail', label: 'Event' }, { key: 'created_at', label: 'At' }])}
+        ${section('Audit trail', d.audit_trail || [], [{ key: 'created_at', label: 'At' }, { key: 'user_id', label: 'User' }, { key: 'action', label: 'Action' }, { key: 'status', label: 'Result' }, { key: 'details', label: 'Detail' }])}
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary">Close</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('.modal-footer .btn-secondary').addEventListener('click', close);
+
+  const after = async () => {
+    close();
+    await Promise.all([loadOMSOrders(), loadOMSTiles()]);
+  };
+
+  overlay.querySelectorAll('[data-line-hold]').forEach(btn => btn.addEventListener('click', async () => {
+    const reasonCode = await showCustomPrompt('Active Hold reason-code:', '', 'Hold Line');
+    if (reasonCode === null || !reasonCode.trim()) return;
+    await omsPost(`/api/v1/order-lines/${encodeURIComponent(btn.getAttribute('data-line-hold'))}/hold`, { reason_code: reasonCode.trim() }, 'Failed to hold this line.', () => openOMSOrderDetail(orderID));
+  }));
+  overlay.querySelectorAll('[data-line-release]').forEach(btn => btn.addEventListener('click', async () => {
+    await omsPost(`/api/v1/order-lines/${encodeURIComponent(btn.getAttribute('data-line-release'))}/release-hold`, {}, 'Failed to release this line.', () => openOMSOrderDetail(orderID));
+  }));
+
+  overlay.querySelectorAll('[data-action]').forEach(btn => btn.addEventListener('click', async () => {
+    const action = btn.getAttribute('data-action');
+    const path = `/api/v1/orders/${encodeURIComponent(orderID)}`;
+    if (action === 'release') return omsPost(`${path}/release-hold`, {}, 'Failed to release the hold.', after);
+    if (action === 'hold') {
+      const reasonCode = await showCustomPrompt('Active Hold reason-code:', '', 'Hold Order');
+      if (reasonCode === null || !reasonCode.trim()) return;
+      return omsPost(`${path}/hold`, { reason_code: reasonCode.trim() }, 'Failed to hold this order.', after);
+    }
+    if (action === 'cancel') {
+      const reasonCode = await showCustomPrompt('Active Cancellation reason-code:', '', 'Cancel Order');
+      if (reasonCode === null || !reasonCode.trim()) return;
+      return omsPost(`${path}/cancel`, { reason_code: reasonCode.trim() }, 'Failed to cancel this order.', after);
+    }
+    if (action === 'reallocate') {
+      // An empty location asks the allocation engine to re-plan rather than
+      // forcing a node - that is the difference between Reallocate and Switch.
+      return omsPost(`${path}/switch-facility`, { location_code: '' }, 'Failed to reallocate this order.', after);
+    }
+    if (action === 'switch') {
+      const location = await showCustomPrompt('Move unpicked lines to which location code?', '', 'Switch Facility');
+      if (location === null || !location.trim()) return;
+      return omsPost(`${path}/switch-facility`, { location_code: location.trim() }, 'Failed to switch facility.', after);
+    }
+    if (action === 'priority') {
+      const next = order.priority === 'Expedite' ? 'Normal' : 'Expedite';
+      return omsPost(`${path}/priority`, { priority: next }, 'Failed to change priority.', after);
+    }
+    if (action === 'split') {
+      const lineIDs = Array.from(overlay.querySelectorAll('.oms-split-line:checked')).map(b => b.getAttribute('data-line'));
+      if (lineIDs.length === 0) { showToast('Tick the lines to split out first.'); return; }
+      return omsPost(`${path}/split`, { line_ids: lineIDs }, 'Failed to split this order.', after);
+    }
+    if (action === 'edit') return openOMSOrderEdit(orderID, order, after);
+  }));
+};
+
+// omsPost is the one place the console's actions POST from, so the
+// error-surfacing and refresh behaviour cannot drift between eight buttons.
+async function omsPost(url, body, failureMessage, onSuccess) {
+  const res = await apiFetch(url, { method: 'POST', body: JSON.stringify(body) });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, failureMessage); return; }
+  showToast('Done.');
+  if (onSuccess) await onSuccess();
+}
+
+// 35.3.2 - the order edit form.
+function openOMSOrderEdit(orderID, order, onSaved) {
+  document.getElementById('oms-order-edit-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'oms-order-edit-modal';
+  overlay.innerHTML = `
+    <div class="modal-container">
+      <div class="modal-header"><h3 class="modal-title">Edit order ${escapeHTMLText(orderID)}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <form class="modal-body" id="oms-edit-form">
+        <div class="form-group"><label class="form-label" for="oms-edit-customer">Customer name</label>
+          <input type="text" id="oms-edit-customer" class="form-input" value="${escapeHTMLText(order.customer_name || '')}"></div>
+        <div class="form-group"><label class="form-label" for="oms-edit-phone">Customer phone</label>
+          <input type="text" id="oms-edit-phone" name="customer_phone" class="form-input" value="${escapeHTMLText(order.customer_phone || '')}"></div>
+        <div class="form-group"><label class="form-label" for="oms-edit-ship">Shipping address</label>
+          <textarea id="oms-edit-ship" class="form-textarea" rows="2">${escapeHTMLText(order.shipping_address || '')}</textarea></div>
+        <div class="form-group"><label class="form-label" for="oms-edit-bill">Billing address</label>
+          <textarea id="oms-edit-bill" class="form-textarea" rows="2">${escapeHTMLText(order.billing_address || '')}</textarea></div>
+        <div class="form-group"><label class="form-label" for="oms-edit-payment">Payment status</label>
+          <select id="oms-edit-payment" class="form-input">
+            ${['Pending', 'Confirmed', 'COD'].map(v => `<option value="${v}"${order.payment_status === v ? ' selected' : ''}>${v}</option>`).join('')}
+          </select></div>
+        <p class="text-muted">Saving re-runs the same address and payment checks a new order goes through. If the edit leaves the order unfulfillable it is placed On Hold with a reason rather than saved silently broken.</p>
+      </form>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-edit-cancel>Cancel</button>
+        <button type="button" class="btn btn-primary" data-edit-save>Save changes</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('[data-edit-cancel]').addEventListener('click', close);
+  decorateFieldFormats(overlay);
+  overlay.querySelector('[data-edit-save]').addEventListener('click', async () => {
+    const payload = {
+      customer_name: document.getElementById('oms-edit-customer').value,
+      customer_phone: document.getElementById('oms-edit-phone').value,
+      shipping_address: document.getElementById('oms-edit-ship').value,
+      billing_address: document.getElementById('oms-edit-bill').value,
+      payment_status: document.getElementById('oms-edit-payment').value
+    };
+    const res = await apiFetch(`/api/v1/orders/${encodeURIComponent(orderID)}/edit`, { method: 'POST', body: JSON.stringify(payload) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Failed to save this edit.'); return; }
+    close();
+    showToast('Order updated.');
+    if (onSaved) await onSaved();
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Manual order entry (Stage 40.6)
+//
+// POST /api/v1/orders has existed since the Order Engine was built and is the
+// same entry point every channel import ends up at (engines/channel_orders.go's
+// ImportChannelSalesOrder maps a payload and then calls CreateSalesOrder, and
+// ImportUnicommerceSalesOrder goes through that). What was missing was any way
+// to reach it by hand - so a phone order, a walk-in wholesale order or a
+// replacement order had no path in the UI at all.
+//
+// Deliberately posts to that same endpoint rather than creating a SalesOrder
+// through the generic doc API: allocation, reservation, hold evaluation and
+// idempotency all live behind CreateSalesOrder, and a hand-made document
+// would skip every one of them. A manual order is a real order and has to go
+// down the same road as a Myntra one.
+// ---------------------------------------------------------------------------
+let manualOrderLines = [{ sku: '', qty: '', unit_price: '' }];
+
+function renderManualOrderPanel(panel) {
+  if (!panel) return;
+  panel.innerHTML = `
+    <div class="po-composer-head">
+      <h2>New manual order</h2>
+      <span style="font-size:12px;color:var(--text-muted);">Goes through the same Order Engine as a channel import &mdash; allocation, reservations and holds all apply.</span>
+    </div>
+    <div class="po-header-grid">
+      <div class="form-group">
+        <label class="form-label" for="mo-customer">Customer name</label>
+        <input type="text" id="mo-customer" class="form-input" placeholder="Who the order is for">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mo-phone">Customer phone</label>
+        <input type="text" id="mo-phone" name="customer_phone" class="form-input">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mo-channel">Source</label>
+        <input type="text" id="mo-channel" class="form-input" value="Manual" title="Recorded on the order so this screen can show where it came from.">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mo-ref">Reference <span class="po-optional">optional</span></label>
+        <input type="text" id="mo-ref" class="form-input" placeholder="Your own order/PO reference" title="Stored as the channel order id. Re-sending the same reference returns the existing order instead of creating a duplicate.">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="mo-payment">Payment</label>
+        <select id="mo-payment" class="form-input">
+          <option value="Confirmed">Confirmed (paid)</option>
+          <option value="Pending">Pending</option>
+          <option value="COD">Cash on delivery</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="mo-address">Shipping address</label>
+      <textarea id="mo-address" class="form-textarea" rows="2" placeholder="Full delivery address including PIN code"></textarea>
+    </div>
+
+    <div class="po-lines-head">
+      <h3>Items</h3>
+      <button class="btn btn-outline btn-sm" id="mo-add-line" type="button">+ Add item</button>
+    </div>
+    <div class="table-wrapper">
+      <table class="po-lines">
+        <thead><tr><th style="min-width:200px;">Item</th><th class="num" style="width:90px;">Qty</th><th class="num" style="width:130px;">Unit price</th><th style="width:36px;"></th></tr></thead>
+        <tbody id="mo-lines-body"></tbody>
+      </table>
+    </div>
+    <div class="po-footer">
+      <div class="po-total-hint" id="mo-hint">The order appears in the table below the moment it is created, with its source and reference shown.</div>
+      <div class="po-actions">
+        <div id="mo-error" class="login-error hidden"></div>
+        <button class="btn btn-primary" id="mo-create">Create Order</button>
+      </div>
+    </div>
+  `;
+  renderManualOrderLines();
+  document.getElementById('mo-add-line').addEventListener('click', () => {
+    manualOrderLines.push({ sku: '', qty: '', unit_price: '' });
+    renderManualOrderLines();
+  });
+  document.getElementById('mo-create').addEventListener('click', createManualOrder);
+  decorateFieldFormats(panel);
+}
+
+function renderManualOrderLines() {
+  const body = document.getElementById('mo-lines-body');
+  if (!body) return;
+  body.innerHTML = manualOrderLines.map((l, i) => `
+    <tr data-mo-line="${i}">
+      <td><input type="text" class="form-input" data-mo-field="sku" value="${escapeHTMLText(l.sku)}" placeholder="Search item..."></td>
+      <td><input type="number" class="form-input num" data-mo-field="qty" min="1" step="1" value="${escapeHTMLText(l.qty)}"></td>
+      <td><input type="number" class="form-input num" data-mo-field="unit_price" min="0" step="0.01" value="${escapeHTMLText(l.unit_price)}"></td>
+      <td><button type="button" class="po-line-remove" data-mo-remove="${i}" aria-label="Remove line ${i + 1}">&times;</button></td>
+    </tr>`).join('');
+
+  body.querySelectorAll('[data-mo-line]').forEach(tr => {
+    const i = Number(tr.getAttribute('data-mo-line'));
+    attachLinkTypeahead(tr.querySelector('[data-mo-field="sku"]'), 'Item');
+    tr.querySelectorAll('[data-mo-field]').forEach(input => {
+      const field = input.getAttribute('data-mo-field');
+      const commit = () => { manualOrderLines[i][field] = input.value.trim(); };
+      input.addEventListener('change', commit);
+      input.addEventListener('blur', commit);
+    });
+  });
+  body.querySelectorAll('[data-mo-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      manualOrderLines.splice(Number(btn.getAttribute('data-mo-remove')), 1);
+      if (manualOrderLines.length === 0) manualOrderLines.push({ sku: '', qty: '', unit_price: '' });
+      renderManualOrderLines();
+    });
+  });
+}
+
+async function createManualOrder() {
+  const errorEl = document.getElementById('mo-error');
+  errorEl.classList.add('hidden');
+  const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
+
+  const address = document.getElementById('mo-address').value.trim();
+  if (!address) { fail('A shipping address is required - the Order Engine needs somewhere to ship to.'); return; }
+
+  const lines = manualOrderLines
+    .filter(l => l.sku || l.qty)
+    .map(l => ({ sku: l.sku, qty: Number(l.qty) || 0, unit_price: Number(l.unit_price) || 0 }));
+  if (lines.length === 0) { fail('Add at least one item.'); return; }
+  const bad = lines.findIndex(l => !l.sku || l.qty <= 0);
+  if (bad !== -1) { fail(`Line ${bad + 1} needs an item and a quantity of at least 1.`); return; }
+
+  const res = await apiFetch('/api/v1/orders', {
+    method: 'POST',
+    body: JSON.stringify({
+      channel: document.getElementById('mo-channel').value.trim() || 'Manual',
+      channel_order_id: document.getElementById('mo-ref').value.trim(),
+      customer_name: document.getElementById('mo-customer').value.trim(),
+      customer_phone: document.getElementById('mo-phone').value.trim(),
+      shipping_address: address,
+      payment_status: document.getElementById('mo-payment').value,
+      lines
+    })
+  });
+  if (!res) return;
+  if (!res.ok) { fail(await getErrorMessage(res, 'Failed to create the order.')); return; }
+
+  const data = await res.json();
+  manualOrderLines = [{ sku: '', qty: '', unit_price: '' }];
+  await showCustomAlert(`Order ${data.order_id} created. It is now in the Orders table below with its fulfillment, shipment and invoice state, exactly like a channel order.`, 'Order Created');
+  renderView('oms');
 }
 
 function openOMSDoctype(doctype, id) { currentDoctype = doctype; currentSearchQuery = id; currentTablePage = 1; renderView('doctype-table'); }
@@ -7342,21 +8841,55 @@ async function decideApproval(doctype, documentId, decision) {
   renderView('approvals');
 }
 
-// Purchase Orders screen (Stage 13.8's maker side) - this sidebar item was
-// previously a placeholder ("Module Setup Pending"); it's the pilot doctype
-// for the approval engine, so a maker needs somewhere to actually create
-// and submit one. Deliberately minimal (no line items/RFQ) - full PO
-// functional breadth is a separate, larger gap (Stage 13.12).
+// ---------------------------------------------------------------------------
+// Purchase Orders screen (Stage 13.8's maker side, rebuilt in Stage 40.1).
+//
+// This screen used to ask for a vendor, a warehouse and one hand-typed
+// "Total Amount", and posted items: '[]'. A PO therefore recorded what it
+// cost but never what was being bought - so GRN receipt had nothing to match,
+// the GST engine had nothing to classify, and there was nothing to send a
+// vendor. It now edits real lines.
+//
+// Everything derived is derived server-side, by design: HSN, GST rate,
+// per-line tax and the inter-state decision all come back from
+// /api/v1/procurement/purchase-order/preview, which runs the same engine
+// functions the save path runs. Nothing here recomputes tax in JavaScript,
+// because a second implementation is exactly how a screen ends up showing a
+// total the saved document disagrees with.
+// ---------------------------------------------------------------------------
+
+// The PO being composed or amended. Module-level rather than passed around so
+// the line editor, the preview debounce and the save handler all read one
+// object - the same shape the API takes, so saving is a POST of this plus the
+// serialised lines and no field-by-field assembly.
+let poDraft = null;
+let poPreview = null;
+let poPreviewTimer = null;
+
+function newPODraft() {
+  return {
+    id: '', vendor: '', target_warehouse: '', location: '',
+    // '' means "inherit the tenant default", which the first preview response
+    // resolves and displays - the screen never hardcodes Exclusive itself.
+    gst_mode: '',
+    interstate: false, interstate_override: false,
+    lines: [{ sku: '', qty: '', rate: '', mrp: '' }],
+    wasApproved: false, version: null
+  };
+}
+
 async function renderPurchaseOrdersView(container) {
   const res = await apiFetch('/api/v1/doc/PurchaseOrder');
   if (!res) return;
+
+  if (!poDraft) poDraft = newPODraft();
 
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Purchase Order</h1>
-      <p class="page-subtitle">Create a PO as Draft, then submit it for approval.</p>
+      <p class="page-subtitle">Pick items, set purchase prices, then submit for approval. GST and the supply type are worked out for you.</p>
     </div>
   `;
   container.appendChild(header);
@@ -7365,53 +8898,10 @@ async function renderPurchaseOrdersView(container) {
   const orders = res.ok ? await res.json() : [];
 
   const formPanel = document.createElement('div');
-  formPanel.className = 'table-panel';
-  formPanel.style.padding = '24px';
-  formPanel.style.marginBottom = '24px';
-  formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Purchase Order</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      ${autoNumberField('PO Number', 'PO', '160px')}
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="po-vendor">Vendor</label>
-        <!-- 21.14: first live call site for <erp-typeahead> (Web
-             Component) - same behavior as attachTypeahead(), just
-             encapsulated. .value getter/setter means every existing
-             call site reading po-vendor's value (below, and on submit)
-             needs zero changes. -->
-        <erp-typeahead id="po-vendor" doctype="Vendor" style="width: 160px;"></erp-typeahead>
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="po-warehouse">Target Warehouse</label>
-        <input type="text" id="po-warehouse" class="form-input" style="width: 140px;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="po-location">Location</label>
-        <input type="text" id="po-location" class="form-input" style="width: 100px;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="po-amount">Total Amount (taxable value)</label>
-        <input type="number" id="po-amount" class="form-input" style="width: 150px;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="po-gst-rate">GST Rate (%)</label>
-        <input type="number" id="po-gst-rate" class="form-input" style="width: 90px;" placeholder="e.g. 18">
-      </div>
-      <div class="form-group" style="margin-bottom: 0; display: flex; align-items: center; gap: 6px; padding-bottom: 8px;">
-        <input type="checkbox" id="po-gst-interstate" style="width: auto;">
-        <label class="form-label" for="po-gst-interstate" style="margin-bottom: 0;">Interstate</label>
-      </div>
-      <button class="btn btn-outline" id="po-gst-calc-btn" type="button">Calculate GST</button>
-      <button class="btn btn-primary" id="po-create-btn">Create Draft</button>
-    </div>
-    <div id="po-gst-breakdown" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
-    <div id="po-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
-  `;
+  formPanel.className = 'table-panel po-composer';
+  formPanel.id = 'po-composer';
   container.appendChild(formPanel);
-
-  document.getElementById('po-gst-calc-btn').addEventListener('click', calculatePOGst);
-  attachLinkTypeahead(document.getElementById('po-warehouse'), 'Location');
-  attachLinkTypeahead(document.getElementById('po-location'), 'Location');
+  renderPOComposer(formPanel);
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -7419,13 +8909,16 @@ async function renderPurchaseOrdersView(container) {
     ? `<p style="padding: 16px; color: var(--danger-color); font-size: 13px;">Failed to load existing purchase orders.</p>`
     : '';
   html += `
+    <div class="table-wrapper">
     <table>
       <thead>
         <tr>
           <th>PO Number</th>
           <th>Vendor</th>
           <th>Location</th>
-          <th>Total Amount</th>
+          <th>Items</th>
+          <th class="num">Taxable</th>
+          <th class="num">Grand Total</th>
           <th>Status</th>
           <th>Actions</th>
         </tr>
@@ -7433,151 +8926,553 @@ async function renderPurchaseOrdersView(container) {
       <tbody>
   `;
   if (orders.length === 0) {
-    html += `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No purchase orders yet. Fill in the form above and use <b>Create Draft</b> &mdash; you will need a Vendor and at least one Item.</td></tr>`;
+    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No purchase orders yet. Add a vendor and at least one item above, then <b>Create Draft</b>.</td></tr>`;
   }
   orders.forEach(po => {
     const statusBadge = po.status === 'Approved' ? 'badge-success'
       : po.status === 'Rejected' ? 'badge-danger'
       : po.status === 'Pending Approval' ? 'badge-warning'
       : 'badge-secondary';
+    let lineCount = 0;
+    try { lineCount = (JSON.parse(po.items || '[]') || []).length; } catch (e) { lineCount = 0; }
+    const poNumber = po.po_number || po.code || po.id;
+    // Sent-to-vendor is shown next to the status rather than as its own
+    // column: it is the answer to "did this actually go out?", which is only
+    // ever asked about a PO that is already approved.
+    const sent = po.sent_to_vendor_at
+      ? `<div class="po-sent-stamp" title="Sent ${escapeHTMLText(po.sent_to_vendor_at)}">Sent to vendor</div>` : '';
     html += `
       <tr>
-        <td style="font-family: monospace;">${po.po_number || po.code || po.id}</td>
-        <td>${po.vendor || ''}</td>
-        <td>${po.location || ''}</td>
-        <td>${(po.total_amount ?? 0).toLocaleString()}</td>
-        <td><span class="badge ${statusBadge}">${po.status}</span></td>
-        <td>
-          ${po.status === 'Draft' ? `<button class="action-btn" onclick="submitPOForApproval('${po.id}')">Submit for Approval</button>` : ''}
-          ${po.status !== 'Closed' ? `<button class="action-btn" style="margin-left:4px;" onclick="amendPurchaseOrder('${po.id}')">Amend</button>` : ''}
+        <td style="font-family: monospace;">${copyableCell(escapeHTMLText(poNumber), poNumber)}</td>
+        <td>${escapeHTMLText(po.vendor || '')}</td>
+        <td>${escapeHTMLText(po.location || '')}</td>
+        <td>${lineCount === 0 ? '<span class="po-no-lines" title="This PO was raised before line items existed, or was created through the API without them.">No lines</span>' : `${lineCount} item${lineCount === 1 ? '' : 's'}`}</td>
+        <td class="num">${formatMoney(po.total_amount)}</td>
+        <td class="num">${po.grand_total != null ? formatMoney(po.grand_total) : '<span class="text-muted">&mdash;</span>'}</td>
+        <td><span class="badge ${statusBadge}">${escapeHTMLText(po.status || '')}</span>${sent}</td>
+        <td class="po-row-actions">
+          ${po.status === 'Draft' ? `<button class="action-btn" onclick="submitPOForApproval('${escapeHTMLText(po.id)}')">Submit for Approval</button>` : ''}
+          ${po.status !== 'Closed' ? `<button class="action-btn" onclick="amendPurchaseOrder('${escapeHTMLText(po.id)}')">Amend</button>` : ''}
+          <button class="action-btn" onclick="printPurchaseOrder('${escapeHTMLText(po.id)}')">Print</button>
+          ${po.status !== 'Draft' ? `<button class="action-btn" onclick="sendPurchaseOrderToVendor('${escapeHTMLText(po.id)}')">Send to Vendor</button>` : ''}
         </td>
       </tr>
     `;
   });
-  html += `</tbody></table>`;
+  html += `</tbody></table></div>`;
   panel.innerHTML = html;
   container.appendChild(panel);
-
-  document.getElementById('po-create-btn').addEventListener('click', createDraftPurchaseOrder);
 }
 
-// calculatePOGst calls the real GST engine (Stage 13.10) against whatever
-// amount/rate/interstate the maker has entered so far, purely as a helper -
-// it doesn't change what total_amount gets saved as (this codebase treats
-// total_amount as the taxable value throughout, matching engines.PostDoubleEntry's
-// existing accounting; adding a separate tax-liability GL posting is future
-// integration work, not part of this item).
-async function calculatePOGst() {
-  const breakdownEl = document.getElementById('po-gst-breakdown');
-  const amount = parseFloat(document.getElementById('po-amount').value);
-  const rate = parseFloat(document.getElementById('po-gst-rate').value);
-  const interstate = document.getElementById('po-gst-interstate').checked;
+// formatMoney groups the Indian way (12,34,567.89), matching the printed PO
+// and engines/amount_words.go's FormatIndianCurrency. en-IN is a built-in
+// locale, so this needs no table of its own.
+function formatMoney(v) {
+  const n = Number(v);
+  if (!isFinite(n)) return '0.00';
+  return n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
-  if (isNaN(amount) || isNaN(rate)) {
-    breakdownEl.textContent = 'Enter a Total Amount and GST Rate first.';
-    return;
-  }
+function renderPOComposer(panel) {
+  const d = poDraft;
+  const editing = !!d.id;
+  panel.innerHTML = `
+    <div class="po-composer-head">
+      <h2>${editing ? `Amend ${escapeHTMLText(d.po_number || d.id)}` : 'New Purchase Order'}</h2>
+      ${editing ? `<button class="btn btn-ghost btn-sm" id="po-cancel-edit">Cancel</button>` : ''}
+    </div>
 
-  const res = await apiFetch('/api/v1/gst/calculate', {
+    <div class="po-header-grid">
+      ${editing ? '' : autoNumberField('PO Number', 'PO', '100%')}
+      <div class="form-group">
+        <label class="form-label" for="po-vendor">Vendor</label>
+        <erp-typeahead id="po-vendor" doctype="Vendor"></erp-typeahead>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="po-location">Location (billing entity)</label>
+        <input type="text" id="po-location" class="form-input" value="${escapeHTMLText(d.location)}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="po-warehouse">Target Warehouse (ship to)</label>
+        <input type="text" id="po-warehouse" class="form-input" value="${escapeHTMLText(d.target_warehouse)}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="po-gst-mode">GST treatment of purchase price</label>
+        <select id="po-gst-mode" class="form-input">
+          <option value="">Tenant default</option>
+          <option value="Exclusive"${d.gst_mode === 'Exclusive' ? ' selected' : ''}>Exclusive &mdash; GST added on top</option>
+          <option value="Inclusive"${d.gst_mode === 'Inclusive' ? ' selected' : ''}>Inclusive &mdash; price already has GST</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="po-supply-banner" class="po-supply-banner"></div>
+
+    <div class="po-lines-head">
+      <h3>Items</h3>
+      <button class="btn btn-outline btn-sm" id="po-add-line" type="button">+ Add item</button>
+    </div>
+    <div class="table-wrapper">
+      <table class="po-lines">
+        <thead>
+          <tr>
+            <th style="min-width:190px;">Item</th>
+            <th class="num" style="width:80px;">Qty</th>
+            <th class="num" style="width:120px;">Purchase Price</th>
+            <th class="num" style="width:110px;">MRP <span class="po-optional">optional</span></th>
+            <th style="width:90px;">HSN</th>
+            <th class="num" style="width:70px;">GST %</th>
+            <th class="num" style="width:110px;">Taxable</th>
+            <th class="num" style="width:100px;">Tax</th>
+            <th class="num" style="width:120px;">Line Total</th>
+            <th style="width:36px;"></th>
+          </tr>
+        </thead>
+        <tbody id="po-lines-body"></tbody>
+      </table>
+    </div>
+
+    <div class="po-footer">
+      <div id="po-totals" class="po-totals"></div>
+      <div class="po-actions">
+        <div id="po-form-error" class="login-error hidden"></div>
+        <button class="btn btn-primary" id="po-create-btn">${editing ? 'Save Amendment' : 'Create Draft'}</button>
+      </div>
+    </div>
+  `;
+
+  const vendorEl = document.getElementById('po-vendor');
+  vendorEl.value = d.vendor || '';
+  vendorEl.addEventListener('change', () => { d.vendor = vendorEl.value.trim(); schedulePOPreview(); });
+  // <erp-typeahead> fires `change` on pick, but a typed-and-blurred value has
+  // to be caught too, or a vendor typed by hand never reaches the preview and
+  // the supply type silently stays underived.
+  vendorEl.addEventListener('blur', () => { if (vendorEl.value.trim() !== d.vendor) { d.vendor = vendorEl.value.trim(); schedulePOPreview(); } });
+
+  const locEl = document.getElementById('po-location');
+  const whEl = document.getElementById('po-warehouse');
+  attachLinkTypeahead(locEl, 'Location');
+  attachLinkTypeahead(whEl, 'Location');
+  locEl.addEventListener('change', () => { d.location = locEl.value.trim(); schedulePOPreview(); });
+  locEl.addEventListener('blur', () => { d.location = locEl.value.trim(); schedulePOPreview(); });
+  whEl.addEventListener('change', () => { d.target_warehouse = whEl.value.trim(); });
+  whEl.addEventListener('blur', () => { d.target_warehouse = whEl.value.trim(); });
+
+  document.getElementById('po-gst-mode').addEventListener('change', (e) => {
+    d.gst_mode = e.target.value;
+    schedulePOPreview();
+  });
+
+  document.getElementById('po-add-line').addEventListener('click', () => {
+    d.lines.push({ sku: '', qty: '', rate: '', mrp: '' });
+    renderPOLines();
+  });
+  document.getElementById('po-create-btn').addEventListener('click', savePurchaseOrder);
+  const cancelBtn = document.getElementById('po-cancel-edit');
+  if (cancelBtn) cancelBtn.addEventListener('click', () => { poDraft = newPODraft(); poPreview = null; renderView('purchase-orders'); });
+
+  renderPOLines();
+}
+
+// renderPOLines redraws the line rows and reattaches their handlers.
+//
+// Full redraw rather than surgical row patching because a line's derived
+// columns (HSN, GST %, tax) all change together when the preview comes back,
+// and the row count is small enough - a PO with hundreds of lines is a CSV
+// import, not something typed here.
+function renderPOLines() {
+  const body = document.getElementById('po-lines-body');
+  if (!body) return;
+  const d = poDraft;
+  const previewLines = (poPreview && poPreview.lines) || [];
+
+  body.innerHTML = d.lines.map((line, i) => {
+    const p = previewLines[i] || {};
+    const err = p.error ? `<div class="po-line-error">${escapeHTMLText(p.error)}</div>` : '';
+    const derived = (v, suffix = '') => (v === undefined || v === null || v === '' ? '<span class="text-muted">&mdash;</span>' : escapeHTMLText(String(v)) + suffix);
+    return `
+      <tr data-po-line="${i}"${p.error ? ' class="po-line-flagged"' : ''}>
+        <td>
+          <input type="text" class="form-input" data-po-field="sku" value="${escapeHTMLText(line.sku)}" placeholder="Search item...">
+          ${p.item_name ? `<div class="po-line-name">${escapeHTMLText(p.item_name)}</div>` : ''}
+          ${err}
+        </td>
+        <td><input type="number" class="form-input num" data-po-field="qty" min="1" step="1" value="${escapeHTMLText(line.qty)}"></td>
+        <td><input type="number" class="form-input num" data-po-field="rate" min="0" step="0.01" value="${escapeHTMLText(line.rate)}"></td>
+        <td><input type="number" class="form-input num" data-po-field="mrp" min="0" step="0.01" value="${escapeHTMLText(line.mrp)}" placeholder="&mdash;"></td>
+        <td class="po-derived">${derived(p.hsn_code)}</td>
+        <td class="po-derived num">${p.gst_rate ? escapeHTMLText(String(p.gst_rate)) + '%' : (p.tax_treatment && p.tax_treatment !== 'Taxable' ? escapeHTMLText(p.tax_treatment) : '<span class="text-muted">&mdash;</span>')}</td>
+        <td class="po-derived num">${p.taxable ? formatMoney(p.taxable) : '<span class="text-muted">&mdash;</span>'}</td>
+        <td class="po-derived num">${p.tax_amount ? formatMoney(p.tax_amount) : '<span class="text-muted">&mdash;</span>'}</td>
+        <td class="po-derived num po-line-total">${p.line_total ? formatMoney(p.line_total) : '<span class="text-muted">&mdash;</span>'}</td>
+        <td><button type="button" class="po-line-remove" data-po-remove="${i}" title="Remove this line" aria-label="Remove line ${i + 1}">&times;</button></td>
+      </tr>
+    `;
+  }).join('');
+
+  body.querySelectorAll('[data-po-line]').forEach(tr => {
+    const i = Number(tr.getAttribute('data-po-line'));
+    const skuInput = tr.querySelector('[data-po-field="sku"]');
+    attachLinkTypeahead(skuInput, 'Item');
+    tr.querySelectorAll('[data-po-field]').forEach(input => {
+      const field = input.getAttribute('data-po-field');
+      const commit = () => {
+        const v = input.value.trim();
+        if (poDraft.lines[i][field] === v) return;
+        poDraft.lines[i][field] = v;
+        schedulePOPreview();
+      };
+      input.addEventListener('change', commit);
+      input.addEventListener('blur', commit);
+    });
+  });
+
+  body.querySelectorAll('[data-po-remove]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = Number(btn.getAttribute('data-po-remove'));
+      poDraft.lines.splice(i, 1);
+      if (poDraft.lines.length === 0) poDraft.lines.push({ sku: '', qty: '', rate: '', mrp: '' });
+      renderPOLines();
+      schedulePOPreview();
+    });
+  });
+
+  renderPOTotals();
+}
+
+// schedulePOPreview debounces the pricing call. 250ms is long enough that
+// typing a 6-digit price is one request rather than six, and short enough
+// that the totals land before the eye moves to them.
+function schedulePOPreview() {
+  clearTimeout(poPreviewTimer);
+  poPreviewTimer = setTimeout(runPOPreview, 250);
+}
+
+async function runPOPreview() {
+  const d = poDraft;
+  if (!d) return;
+  const res = await apiFetch('/api/v1/procurement/purchase-order/preview', {
     method: 'POST',
-    body: JSON.stringify({ taxable_amount: amount, gst_rate: rate, interstate })
+    body: JSON.stringify(poDraftPayload(d))
   });
   if (!res) return;
-  const data = await res.json();
   if (!res.ok) {
-    breakdownEl.textContent = data.error || 'GST calculation failed.';
+    // A preview failure is never fatal - the maker can still save and get the
+    // authoritative error from the save path. Showing the derived columns as
+    // blank is the honest outcome.
+    poPreview = null;
+    renderPOLines();
     return;
   }
-  breakdownEl.innerHTML = interstate
-    ? `IGST: <strong>${data.igst.toLocaleString()}</strong> &nbsp;|&nbsp; Total tax: <strong>${data.total_tax.toLocaleString()}</strong> &nbsp;|&nbsp; Total with GST: <strong>${data.total_amount.toLocaleString()}</strong>`
-    : `CGST: <strong>${data.cgst.toLocaleString()}</strong> &nbsp;|&nbsp; SGST: <strong>${data.sgst.toLocaleString()}</strong> &nbsp;|&nbsp; Total tax: <strong>${data.total_tax.toLocaleString()}</strong> &nbsp;|&nbsp; Total with GST: <strong>${data.total_amount.toLocaleString()}</strong>`;
+  poPreview = await res.json();
+  // The server resolves '' to the tenant default; reflect what it actually
+  // chose so the select stops saying "Tenant default" without saying which.
+  const modeSel = document.getElementById('po-gst-mode');
+  if (modeSel && !d.gst_mode && poPreview.gst_mode) {
+    const opt = modeSel.querySelector('option[value=""]');
+    if (opt) opt.textContent = `Tenant default (${poPreview.gst_mode})`;
+  }
+  renderPOLines();
+  renderPOSupplyBanner();
 }
 
-async function createDraftPurchaseOrder() {
+// poDraftPayload is the one place the draft becomes an API body, so the
+// preview call and the save call cannot drift into sending different shapes.
+function poDraftPayload(d) {
+  const lines = d.lines
+    .filter(l => l.sku || l.qty || l.rate)
+    .map(l => ({
+      sku: l.sku || '',
+      qty: Number(l.qty) || 0,
+      rate: Number(l.rate) || 0,
+      ...(l.mrp !== '' && l.mrp != null ? { mrp: Number(l.mrp) || 0 } : {})
+    }));
+  return {
+    vendor: d.vendor,
+    vendor_id: d.vendor,
+    target_warehouse: d.target_warehouse,
+    location: d.location,
+    items: JSON.stringify(lines),
+    gst_mode: d.gst_mode,
+    interstate: d.interstate,
+    interstate_override: d.interstate_override
+  };
+}
+
+// renderPOSupplyBanner shows what the two addresses decided, and offers the
+// override. This is the visible half of "interstate is worked out from the
+// addresses": if it cannot be worked out, the banner says exactly which
+// master is missing a GSTIN rather than silently defaulting to intra-state.
+function renderPOSupplyBanner() {
+  const el = document.getElementById('po-supply-banner');
+  if (!el) return;
+  const pos = poPreview && poPreview.place_of_supply;
+  const d = poDraft;
+
+  if (!pos || (!pos.derived && !d.vendor && !d.location)) {
+    el.className = 'po-supply-banner po-supply-idle';
+    el.innerHTML = `<span>Pick a vendor and a location &mdash; the supply type is worked out from their states.</span>`;
+    return;
+  }
+
+  if (!pos.derived) {
+    el.className = 'po-supply-banner po-supply-warn';
+    el.innerHTML = `
+      <span><strong>Supply type could not be derived</strong> &mdash; ${escapeHTMLText(pos.reason || 'a state is missing')}.
+      Set it manually below, or add the missing GSTIN/state on the master.</span>
+      <label class="po-override"><input type="checkbox" id="po-interstate" ${d.interstate ? 'checked' : ''}> Inter-state (IGST)</label>`;
+  } else {
+    const kind = pos.interstate ? 'Inter-state' : 'Intra-state';
+    const tax = pos.interstate ? 'IGST' : 'CGST + SGST';
+    el.className = `po-supply-banner ${d.interstate_override ? 'po-supply-warn' : 'po-supply-ok'}`;
+    el.innerHTML = `
+      <span><strong>${kind} (${tax})</strong> &mdash; vendor in ${escapeHTMLText(pos.vendor_state_label || '?')}, billing entity in ${escapeHTMLText(pos.buyer_state_label || '?')}.</span>
+      <label class="po-override"><input type="checkbox" id="po-interstate-override" ${d.interstate_override ? 'checked' : ''}> Override</label>
+      ${d.interstate_override ? `<label class="po-override"><input type="checkbox" id="po-interstate" ${d.interstate ? 'checked' : ''}> Inter-state (IGST)</label>` : ''}`;
+  }
+
+  const overrideBox = document.getElementById('po-interstate-override');
+  if (overrideBox) overrideBox.addEventListener('change', (e) => {
+    d.interstate_override = e.target.checked;
+    // Seed the manual flag from what was derived, so ticking Override does
+    // not flip the tax treatment as a side effect of opening the control.
+    if (d.interstate_override && pos.derived) d.interstate = pos.interstate;
+    runPOPreview();
+  });
+  const interBox = document.getElementById('po-interstate');
+  if (interBox) interBox.addEventListener('change', (e) => {
+    d.interstate = e.target.checked;
+    if (pos && pos.derived) d.interstate_override = true;
+    runPOPreview();
+  });
+}
+
+function renderPOTotals() {
+  const el = document.getElementById('po-totals');
+  if (!el) return;
+  const p = poPreview;
+  if (!p || !p.breakdown || (!p.breakdown.taxable_amount && !p.grand_total)) {
+    el.innerHTML = `<div class="po-total-hint">Add an item to see the tax breakdown.</div>`;
+    return;
+  }
+  const b = p.breakdown;
+  const row = (label, value, cls = '') => `<div class="po-total-row ${cls}"><span>${label}</span><span>${formatMoney(value)}</span></div>`;
+  const nonTaxable = (b.exempt_amount || 0) + (b.nil_rated_amount || 0) + (b.zero_rated_amount || 0);
+  el.innerHTML = `
+    ${row('Taxable value', b.taxable_amount)}
+    ${nonTaxable ? row('Exempt / nil / zero-rated', nonTaxable) : ''}
+    ${b.interstate ? row(`IGST`, b.igst) : row(`CGST`, b.cgst) + row(`SGST`, b.sgst)}
+    ${row('Grand total', p.grand_total, 'po-total-grand')}
+    <div class="po-total-mode">Prices entered are <strong>${escapeHTMLText(p.gst_mode || '')}</strong> of GST.</div>
+  `;
+}
+
+async function savePurchaseOrder() {
   const errorEl = document.getElementById('po-form-error');
   errorEl.classList.add('hidden');
+  const d = poDraft;
+  const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
 
-  const vendor = document.getElementById('po-vendor').value.trim();
-  const warehouse = document.getElementById('po-warehouse').value.trim();
-  const location = document.getElementById('po-location').value.trim();
-  const amount = parseFloat(document.getElementById('po-amount').value) || 0;
-
-  if (!vendor || !warehouse || !location) {
-    errorEl.textContent = 'Vendor, Target Warehouse, and Location are all required.';
-    errorEl.classList.remove('hidden');
+  if (!d.vendor || !d.target_warehouse || !d.location) {
+    fail('Vendor, Location and Target Warehouse are all required.');
+    return;
+  }
+  const payload = poDraftPayload(d);
+  const lines = JSON.parse(payload.items);
+  if (lines.length === 0) {
+    fail('Add at least one item - a purchase order with no lines cannot be received against.');
+    return;
+  }
+  const bad = lines.findIndex(l => !l.sku || l.qty <= 0);
+  if (bad !== -1) {
+    fail(`Line ${bad + 1} needs an item and a quantity of at least 1.`);
+    return;
+  }
+  if (poPreview && poPreview.blocking) {
+    fail('One or more lines could not be priced - see the red rows above. Usually the Item is missing its HSN code or GST rate.');
     return;
   }
 
-  // The PO number is issued server-side from the PO series (Stage 30.6) - it
-  // is deliberately not sent, and PurchaseOrder's two overlapping mandatory
-  // number fields from this project's history (po_number and code, declared by
-  // db/migration.sql and db/migrations_phase3.sql respectively) are both
-  // filled there. vendor/vendor_id is the same kind of historical pair and is
-  // still sent as one value from here.
-  const res = await apiFetch(`/api/v1/doc/PurchaseOrder`, {
-    method: 'POST',
-    body: JSON.stringify({
-      vendor,
-      vendor_id: vendor,
-      target_warehouse: warehouse,
-      location,
-      total_amount: amount,
-      items: '[]',
-      status: 'Draft'
-    })
-  });
+  if (d.id) {
+    if (d.wasApproved && !await showCustomConfirm('This PO is Approved. Amending it will reset it to Pending Approval for re-approval. Continue?', 'Amend Purchase Order')) return;
+    if (typeof d.version === 'number') payload.expected_version = d.version;
+    payload.status = d.status || 'Draft';
+  } else {
+    // The PO number is issued server-side from the PO series (Stage 30.6) and
+    // is deliberately not sent.
+    payload.status = 'Draft';
+  }
+
+  const url = d.id ? `/api/v1/doc/PurchaseOrder/${encodeURIComponent(d.id)}` : '/api/v1/doc/PurchaseOrder';
+  const res = await apiFetch(url, { method: 'POST', body: JSON.stringify(payload) });
   if (!res) return;
   if (!res.ok) {
-    errorEl.textContent = await getErrorMessage(res, 'Failed to create purchase order.');
-    errorEl.classList.remove('hidden');
+    fail(await getErrorMessage(res, d.id ? 'Failed to save amendment - someone else may have edited this record, refresh and try again.' : 'Failed to create purchase order.'));
     return;
   }
+  if (d.id && d.wasApproved) await showCustomAlert('Purchase order amended. It now requires re-approval.', 'Amend Purchase Order');
+  poDraft = newPODraft();
+  poPreview = null;
   renderView('purchase-orders');
 }
 
-// amendPurchaseOrder (Stage 26.3.6). Confirmed first, not assumed: an
-// Approved-but-not-yet-received PO already has a real edit path at the API
-// level (the generic handleGenericDoc update route, which already resets an
-// Approved+approval-gated doctype to Pending Approval on edit via
-// ResetToPendingOnEdit) - it just had no UI action reaching it for
-// PurchaseOrder specifically (this screen is bespoke, not the generic
-// doctype-table view, so editDocRecord's generic form was never wired here).
-// Uses this screen's own simple field set (vendor/warehouse/location/amount)
-// rather than the generic dynamic-modal form, since that form would also
-// expose the raw JSON `items` string as a plain text field - worse than
-// this screen's own purpose-built create form already avoids by not
-// managing items either.
+// amendPurchaseOrder loads an existing PO back into the same composer.
+//
+// Stage 26.3.6 built this as a chain of four showCustomPrompt() dialogs,
+// because the screen had no form worth reusing. It does now - and a prompt
+// chain could never have edited the lines, which is the thing an amendment is
+// usually about.
 window.amendPurchaseOrder = async function(poId) {
-  const res = await apiFetch(`/api/v1/doc/PurchaseOrder/${poId}`);
+  const res = await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(poId)}`);
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Failed to load purchase order for amendment.');
     return;
   }
   const record = await res.json();
+  let lines = [];
+  try { lines = JSON.parse(record.items || '[]') || []; } catch (e) { lines = []; }
 
-  const vendor = await showCustomPrompt('Vendor:', record.vendor || '', 'Amend Purchase Order');
-  if (vendor === null) return;
-  const warehouse = await showCustomPrompt('Target Warehouse:', record.target_warehouse || '', 'Amend Purchase Order');
-  if (warehouse === null) return;
-  const location = await showCustomPrompt('Location:', record.location || '', 'Amend Purchase Order');
-  if (location === null) return;
-  const amountRaw = await showCustomPrompt('Total Amount (taxable value):', record.total_amount != null ? String(record.total_amount) : '0', 'Amend Purchase Order');
-  if (amountRaw === null) return;
+  poDraft = {
+    id: poId,
+    po_number: record.po_number || record.code || poId,
+    vendor: record.vendor || record.vendor_id || '',
+    target_warehouse: record.target_warehouse || '',
+    location: record.location || '',
+    gst_mode: record.gst_mode || '',
+    interstate: !!record.interstate,
+    interstate_override: !!record.interstate_override,
+    lines: lines.length ? lines.map(l => ({
+      sku: l.sku || '', qty: l.qty ?? '', rate: l.rate ?? '', mrp: l.mrp ?? ''
+    })) : [{ sku: '', qty: '', rate: '', mrp: '' }],
+    wasApproved: record.status === 'Approved',
+    status: record.status,
+    version: typeof record.version === 'number' ? record.version : null
+  };
+  poPreview = null;
+  renderView('purchase-orders');
+  runPOPreview();
+  const composer = document.getElementById('po-composer');
+  if (composer) composer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
 
-  const wasApproved = record.status === 'Approved';
-  if (wasApproved && !await showCustomConfirm('This PO is Approved. Amending it will reset it to Pending Approval for re-approval. Continue?', 'Amend Purchase Order')) return;
-
-  const payload = { ...record, vendor, target_warehouse: warehouse, location, total_amount: Number(amountRaw) };
-  if (typeof record.version === 'number') payload.expected_version = record.version;
-
-  const saveRes = await apiFetch(`/api/v1/doc/PurchaseOrder/${poId}`, { method: 'POST', body: JSON.stringify(payload) });
-  if (!saveRes) return;
-  if (!saveRes.ok) {
-    await showApiError(saveRes, 'Failed to save amendment - someone else may have edited this record, refresh and try again.');
+// ---------------------------------------------------------------------------
+// Printed PO and vendor dispatch (Stage 40.1)
+//
+// The payload is assembled server-side (GET .../print) so the sheet does not
+// have to fetch the vendor, the legal entity and every item and stitch them
+// together itself - and so MRP is stripped before it ever reaches the page.
+// ---------------------------------------------------------------------------
+// Deliberately no qzTryPrint() attempt first, unlike printSalesInvoice:
+// handlers_qz_print.go has no builder for a PO (its job_type switch covers
+// Shipping Label / Sticker / Receipt / Invoice), so asking would be a request
+// we already know 422s. The browser sheet is the path; a QZ builder is a
+// separate piece of work if silent A4 PO printing is ever wanted.
+window.printPurchaseOrder = async function(poId) {
+  const res = await apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(poId)}/print`);
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to prepare the purchase order for printing.');
     return;
   }
-  await showCustomAlert(`Purchase order amended.${wasApproved ? ' It now requires re-approval.' : ''}`, 'Amend Purchase Order');
+  renderPOPrintSheet(await res.json());
+};
+
+function renderPOPrintSheet(po) {
+  const area = document.getElementById('invoice-print-area');
+  if (!area) return;
+  const party = (title, p) => `
+    <div class="po-print-party">
+      <div class="po-print-party-title">${title}</div>
+      <div class="po-print-party-name">${escapeHTMLText(p.name || '—')}</div>
+      ${p.address ? `<div>${escapeHTMLText(p.address)}</div>` : ''}
+      ${p.gstin ? `<div>GSTIN: ${escapeHTMLText(p.gstin)}</div>` : ''}
+      ${p.state && p.state !== 'Not set' ? `<div>State: ${escapeHTMLText(p.state)}</div>` : ''}
+      ${p.email ? `<div>${escapeHTMLText(p.email)}</div>` : ''}
+      ${p.phone ? `<div>${escapeHTMLText(p.phone)}</div>` : ''}
+    </div>`;
+
+  const b = po.breakdown || {};
+  // No MRP column: the server already zeroes it, and the buying side's
+  // expected retail price is not the vendor's business.
+  area.innerHTML = `
+    <div class="invoice-sheet po-print">
+      <div class="invoice-title">Purchase Order</div>
+      ${po.status !== 'Approved' ? `<div class="invoice-draft">${escapeHTMLText((po.status || '').toUpperCase())}</div>` : ''}
+      <div class="po-print-meta">
+        <div><strong>PO No:</strong> ${escapeHTMLText(po.po_number || '')}</div>
+        ${po.order_date ? `<div><strong>Date:</strong> ${escapeHTMLText(po.order_date)}</div>` : ''}
+        ${po.ship_to ? `<div><strong>Ship to:</strong> ${escapeHTMLText(po.ship_to)}</div>` : ''}
+      </div>
+      <div class="po-print-parties">
+        ${party('Buyer', po.buyer || {})}
+        ${party('Vendor', po.vendor || {})}
+      </div>
+      <table class="po-print-lines">
+        <thead><tr><th>#</th><th>Item</th><th>HSN</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">GST %</th><th class="num">Taxable</th><th class="num">Amount</th></tr></thead>
+        <tbody>
+          ${(po.lines || []).map((l, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td>${escapeHTMLText(l.sku || '')}${l.item_name ? `<div class="po-print-itemname">${escapeHTMLText(l.item_name)}</div>` : ''}</td>
+              <td>${escapeHTMLText(l.hsn_code || '')}</td>
+              <td class="num">${escapeHTMLText(String(l.qty ?? ''))}</td>
+              <td class="num">${formatMoney(l.rate)}</td>
+              <td class="num">${l.gst_rate ? l.gst_rate + '%' : (l.tax_treatment && l.tax_treatment !== 'Taxable' ? escapeHTMLText(l.tax_treatment) : '—')}</td>
+              <td class="num">${formatMoney(l.taxable)}</td>
+              <td class="num">${formatMoney(l.line_total)}</td>
+            </tr>`).join('')}
+        </tbody>
+      </table>
+      <table class="po-print-totals">
+        <tr><td>Taxable value</td><td class="num">${formatMoney(b.taxable_amount)}</td></tr>
+        ${b.interstate
+          ? `<tr><td>IGST</td><td class="num">${formatMoney(b.igst)}</td></tr>`
+          : `<tr><td>CGST</td><td class="num">${formatMoney(b.cgst)}</td></tr><tr><td>SGST</td><td class="num">${formatMoney(b.sgst)}</td></tr>`}
+        <tr class="po-print-grand"><td>Grand Total</td><td class="num">${formatMoney(po.grand_total)}</td></tr>
+      </table>
+      ${po.amount_in_words ? `<div class="po-print-words">${escapeHTMLText(po.amount_in_words)}</div>` : ''}
+      ${po.place_of_supply && po.place_of_supply.derived ? `<div class="po-print-pos">Place of supply: ${escapeHTMLText(po.place_of_supply.buyer_state_label || '')}</div>` : ''}
+      <div class="po-print-foot">
+        <div>Prices are <strong>${escapeHTMLText(po.gst_mode || '')}</strong> of GST.</div>
+        <div class="po-print-sign">Authorised Signatory</div>
+      </div>
+    </div>
+  `;
+  area.classList.add('printing');
+  window.print();
+  setTimeout(() => area.classList.remove('printing'), 500);
+}
+
+// sendPurchaseOrderToVendor records the dispatch and fires the notification
+// engine's PurchaseOrderIssued event. When no notification channel is
+// configured - the normal state of a tenant that has not set one up - it falls
+// back to the user's own mail client rather than dead-ending.
+window.sendPurchaseOrderToVendor = async function(poId) {
+  const res = await apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(poId)}/send`, { method: 'POST' });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to send this purchase order.');
+    return;
+  }
+  const data = await res.json();
+  const po = data.purchase_order || {};
+  if (data.vendor_email) {
+    const subject = `Purchase Order ${po.po_number || poId}`;
+    const body = [
+      `Please find our purchase order ${po.po_number || poId}.`,
+      '',
+      ...(po.lines || []).map((l, i) => `${i + 1}. ${l.sku}  x${l.qty}  @ ${formatMoney(l.rate)}`),
+      '',
+      `Grand total: ${formatMoney(po.grand_total)}`,
+      po.amount_in_words || ''
+    ].join('\n');
+    // Opened only after the server has already recorded the dispatch, so the
+    // audit trail is written whether or not a mail client actually opens.
+    window.location.href = `mailto:${encodeURIComponent(data.vendor_email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  } else {
+    await showCustomAlert('Recorded as sent. This vendor has no contact email on their master record, so nothing could be mailed automatically - add one under Setup > Vendors, or configure a notification channel.', 'Sent to Vendor');
+  }
   renderView('purchase-orders');
 };
 
@@ -8711,6 +10606,19 @@ async function renderGSTReturnSummaryReport(panel) {
       return;
     }
     const s = await res.json();
+    // Stage 26.6.11: the non-taxable row only renders when there is something
+    // in it. Most tenants sell nothing exempt, and three permanent zeroes
+    // would be noise on the one report where every figure is meant to be a
+    // number someone files.
+    const nonTaxable = s.non_taxable_value || 0;
+    const nonTaxableRow = nonTaxable === 0 ? '' : `
+      <div class="dashboard-stats-row">
+        <div class="stat-card"><span class="stat-label">Exempt Value</span><span class="stat-val">${(s.exempt_value || 0).toLocaleString()}</span></div>
+        <div class="stat-card"><span class="stat-label">Nil-Rated Value</span><span class="stat-val">${(s.nil_rated_value || 0).toLocaleString()}</span></div>
+        <div class="stat-card"><span class="stat-label">Zero-Rated Value</span><span class="stat-val">${(s.zero_rated_value || 0).toLocaleString()}</span></div>
+        <div class="stat-card"><span class="stat-label">Total Non-Taxable</span><span class="stat-val">${nonTaxable.toLocaleString()}</span></div>
+      </div>
+    `;
     resultEl.innerHTML = `
       <div class="dashboard-stats-row">
         <div class="stat-card"><span class="stat-label">Taxable Value</span><span class="stat-val">${s.taxable_value.toLocaleString()}</span></div>
@@ -8720,6 +10628,7 @@ async function renderGSTReturnSummaryReport(panel) {
         <div class="stat-card"><span class="stat-label">Total Tax Liability</span><span class="stat-val">${s.total_tax_liability.toLocaleString()}</span></div>
         <div class="stat-card"><span class="stat-label">Transactions</span><span class="stat-val">${s.transaction_count}</span></div>
       </div>
+      ${nonTaxableRow}
     `;
   };
   document.getElementById('gst-summary-btn').addEventListener('click', runReport);
@@ -8859,7 +10768,7 @@ function renderReportColumnsPanel() {
   const panel = document.getElementById('rc-columns-panel');
   if (!panel) return;
   const role = localStorage.getItem('erp_role') || '';
-  const canUniversal = role === 'HR/Admin' || role === 'Store Manager';
+  const canUniversal = role === 'Super Admin' || role === 'HR/Admin' || role === 'Store Manager';
   const smallBtn = 'padding:2px 8px; font-size:12px;';
   const rows = reportCatalogColumnState.map((c, i) => `
     <div style="display:flex; align-items:center; gap:8px; padding:4px 0;">
@@ -10513,7 +12422,7 @@ async function renderMyRequestsTab(container) {
     const panel = document.createElement('div');
     panel.className = 'table-panel';
     panel.style.padding = '24px';
-    panel.innerHTML = `<p style="color: var(--text-muted);">Your login is not linked to an Employee record, so there is nothing to self-service here. Ask HR/Admin to set the Employee master's "Linked ERP User ID" field.</p>`;
+    panel.innerHTML = `<p style="color: var(--text-muted);">Your login is not linked to an Employee record, so there is nothing to self-service here. Ask a Super Admin to set the Employee master's "Linked ERP User ID" field.</p>`;
     container.appendChild(panel);
     return;
   }
@@ -13373,6 +15282,17 @@ window.openDynamicModal = async function(existingRecord) {
         } else {
           input.placeholder = 'Auto-generated upon save';
         }
+      } else if (isDerivedCompanionField(f.fieldname)) {
+        // Stage 41: a derived companion ("phone_country") is written by the
+        // server from another field's value - the phone engine resolves it
+        // from the number itself. Showing it as an empty box invites a user to
+        // type something that will be overwritten on the very next save, so it
+        // is presented the same way an auto-generated code is: visible,
+        // read-only, and labelled with where its value comes from.
+        input.readOnly = true;
+        input.required = false;
+        input.value = existingVal ?? '';
+        if (!input.value) input.placeholder = 'Set automatically on save';
       } else {
         input.required = f.mandatory;
         if (existingVal !== undefined && existingVal !== null) input.value = existingVal;
@@ -13393,7 +15313,11 @@ window.openDynamicModal = async function(existingRecord) {
     if (descriptionInput) {
       attachLinkTypeahead(descriptionInput, 'PurchaseRequisitionDescription', {
         valueFields: ['description'],
-        labelFn: doc => doc.description || doc.code || doc.id
+        labelFn: doc => doc.description || doc.code || doc.id,
+        // Not something a user "sets up": the server learns each new wording
+        // into this catalogue on save, so a hint telling them to go create one
+        // would be advising them to do by hand what already happens by itself.
+        noSetupHint: true
       });
     }
     if (departmentInput) attachLinkTypeahead(departmentInput, 'Department');
@@ -13408,6 +15332,12 @@ window.openDynamicModal = async function(existingRecord) {
   if (container) {
     container.classList.toggle('modal-container-wide', body.querySelectorAll('.form-group').length > 4);
   }
+
+  // Stage 41: this form is built into the modal, not into #view-root, so
+  // renderView's sweep never sees it. One call here covers every generic
+  // record form in the product - which is where most phone fields actually
+  // live (Customer, Vendor, Employee, Location).
+  applyPhoneRulesIn(body);
 
   modal.classList.add('open');
 };
@@ -13509,6 +15439,12 @@ window.handleDynamicFormSubmit = async function(e) {
 
   if (res && res.ok) {
     closeDynamicModal();
+    // Stage 41: the record that was just created may be the first of its
+    // record type, which means every "No Vendors have been set up yet" hint
+    // in the app is now wrong. Refreshed before the re-render so the screen
+    // the user lands on is already correct. Awaited rather than fired off,
+    // because the render below reads the result.
+    await refreshSetupStatus();
     renderView('doctype-table');
   } else if (res) {
     await showApiError(res, isEdit ? 'Failed to save changes - someone else may have edited this record, refresh and try again.' : 'Failed to save record.');
@@ -13626,53 +15562,118 @@ window.loadDoctypeConfig = async function(doctypeName) {
       <tbody>
   `;
 
-  fields.forEach(f => {
-    html += `
+  // Stage 41: the row's fields are stashed on the element rather than
+  // re-fetched or serialised into the onclick attribute - `options` is free
+  // text that can contain quotes, which an inline attribute would break on.
+  const rowsHTML = fields.map((f, i) => `
       <tr>
-        <td style="font-family: monospace;">${f.fieldname}</td>
-        <td>${f.label}</td>
-        <td>${f.fieldtype}</td>
+        <td style="font-family: monospace;">${escapeHTMLText(f.fieldname)}</td>
+        <td>${escapeHTMLText(f.label)}</td>
+        <td>${escapeHTMLText(f.fieldtype)}</td>
         <td>${f.mandatory ? 'Yes' : 'No'}</td>
-        <td>${f.options || '—'}</td>
+        <td>${escapeHTMLText(f.options || '—')}</td>
         <td>${f.display_order}</td>
         <td>
+          <button class="action-btn" onclick="editFieldConfig('${doctypeName}', ${i})">Edit</button>
           <button class="action-btn action-btn-danger" onclick="deleteFieldConfig('${doctypeName}', '${f.id}')">Delete</button>
         </td>
       </tr>
-    `;
-  });
+    `).join('');
 
+  html += rowsHTML || `<tr><td colspan="7">No fields defined on this record type yet &mdash; use <b>Add Field</b> above.</td></tr>`;
   html += `</tbody></table>`;
   container.innerHTML = html;
+  container.__fields = fields;
 };
 
-window.addNewFieldConfig = async function(doctypeName) {
-  const fieldname = await showCustomPrompt('Enter Field name (technical identifier, e.g. material_weight):');
-  if (!fieldname) return;
-  const label = await showCustomPrompt('Enter Label (Display text, e.g. Material Weight):');
-  if (!label) return;
-  const fieldtype = await showCustomPrompt('Enter Fieldtype (Data/Number/Select/Check/Date/Link):');
-  if (!fieldtype) return;
-  const mandatory = await showCustomConfirm('Is this field mandatory?');
-  const options = await showCustomPrompt('Enter Options (Choice list for Select, Target Record Type for Link, else leave blank):');
+// --- Schema field add/edit (Stage 41) ---------------------------------
+//
+// Both verbs go through one modal (#add-field-modal in index.html, which had
+// been sitting there unreferenced since it was written). Before this the
+// screen had no edit at all and created fields through a chain of six
+// prompt() dialogs - each one losing everything typed so far if cancelled,
+// with fieldtype typed free-hand against a list the server would then reject.
+//
+// openFieldModal(doctype, existing) is the single entry point: `existing`
+// null = create (POST), a field row = edit (PUT to that field's id).
+function openFieldModal(doctypeName, existing) {
+  const modal = document.getElementById('add-field-modal');
+  if (!modal) return;
+  document.getElementById('add-field-doctype').value = doctypeName;
+  document.getElementById('add-field-id').value = existing ? existing.id : '';
+  document.getElementById('add-field-name').value = existing ? existing.fieldname : '';
+  document.getElementById('add-field-label').value = existing ? existing.label : '';
+  document.getElementById('add-field-type').value = existing ? existing.fieldtype : 'Data';
+  document.getElementById('add-field-mandatory').checked = existing ? !!existing.mandatory : false;
+  document.getElementById('add-field-options').value = existing ? (existing.options || '') : '';
+  // A new field lands after everything already defined rather than at a fixed
+  // 10, which is what the old prompt flow hardcoded - so several added fields
+  // no longer all collide on the same order.
+  const fields = (document.getElementById('doctype-fields-config') || {}).__fields || [];
+  const nextOrder = fields.reduce((m, f) => Math.max(m, Number(f.display_order) || 0), 0) + 1;
+  document.getElementById('add-field-order').value = existing ? existing.display_order : nextOrder;
 
-  const res = await apiFetch(`/api/v1/meta/${doctypeName}/fields`, {
-    method: 'POST',
-    body: JSON.stringify({
-      fieldname,
-      label,
-      fieldtype,
-      mandatory,
-      options: options || '',
-      display_order: 10
-    })
+  document.getElementById('add-field-modal-title').textContent =
+    existing ? `Edit Field on ${doctypeName}` : `Add Field to ${doctypeName}`;
+  document.getElementById('add-field-submit').textContent = existing ? 'Save Changes' : 'Add Field';
+  document.getElementById('add-field-rename-warning').classList.toggle('hidden', !existing);
+  const err = document.getElementById('add-field-error');
+  err.classList.add('hidden');
+  err.textContent = '';
+  modal.classList.add('open');
+  document.getElementById('add-field-name').focus();
+}
+
+window.addNewFieldConfig = function(doctypeName) {
+  openFieldModal(doctypeName, null);
+};
+
+window.editFieldConfig = function(doctypeName, index) {
+  const fields = (document.getElementById('doctype-fields-config') || {}).__fields || [];
+  const f = fields[index];
+  if (!f) return;
+  openFieldModal(doctypeName, f);
+};
+
+window.closeAddFieldModal = function() {
+  const modal = document.getElementById('add-field-modal');
+  if (!modal) return;
+  modal.classList.remove('open');
+  document.getElementById('add-field-form').reset();
+  document.getElementById('add-field-id').value = '';
+};
+
+window.submitAddField = async function(event) {
+  event.preventDefault();
+  const doctypeName = document.getElementById('add-field-doctype').value;
+  const fieldID = document.getElementById('add-field-id').value;
+  const errEl = document.getElementById('add-field-error');
+
+  const body = JSON.stringify({
+    fieldname: document.getElementById('add-field-name').value.trim(),
+    label: document.getElementById('add-field-label').value.trim(),
+    fieldtype: document.getElementById('add-field-type').value,
+    mandatory: document.getElementById('add-field-mandatory').checked,
+    options: document.getElementById('add-field-options').value.trim(),
+    display_order: Number(document.getElementById('add-field-order').value) || 0
   });
+
+  const res = fieldID
+    ? await apiFetch(`/api/v1/meta/${doctypeName}/fields/${fieldID}`, { method: 'PUT', body })
+    : await apiFetch(`/api/v1/meta/${doctypeName}/fields`, { method: 'POST', body });
   if (!res) return;
-  if (res.ok) {
-    loadDoctypeConfig(doctypeName);
-  } else {
-    await showApiError(res, 'Failed to add field.');
+  if (!res.ok) {
+    // Shown inline in the modal, not as a separate dialog over it - the user
+    // keeps everything they typed and can correct the one bad value.
+    errEl.textContent = await getErrorMessage(res, fieldID ? 'Failed to update field.' : 'Failed to add field.');
+    errEl.classList.remove('hidden');
+    return;
   }
+  closeAddFieldModal();
+  // The schema just changed, so the cached doctype/field metadata the record
+  // forms render from is now stale.
+  await fetchRegisteredDoctypes();
+  loadDoctypeConfig(doctypeName);
 };
 
 window.deleteFieldConfig = async function(doctypeName, fieldID) {
@@ -13880,7 +15881,7 @@ window.openApprovalRuleModal = function(ruleId) {
   const rule = ruleId != null ? state.approvalRules.find(r => r.id === ruleId) : null;
   const roleOptions = (state.approvalRuleRoles || []).length > 0
     ? state.approvalRuleRoles.map(role => `<option value="${role}" ${rule && rule.required_role === role ? 'selected' : ''}>${role}</option>`).join('')
-    : `<option value="Store Manager">Store Manager</option><option value="HR/Admin">HR/Admin</option>`;
+    : `<option value="Store Manager">Store Manager</option><option value="Super Admin">Super Admin</option>`;
 
   document.getElementById('approval-rule-modal')?.remove();
   const overlay = document.createElement('div');

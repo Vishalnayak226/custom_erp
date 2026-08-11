@@ -324,13 +324,16 @@ func generateUUID() string {
 // part of this header change. frame-ancestors 'none' (plus X-Frame-Options
 // for older browsers) still gives real clickjacking protection regardless.
 func securityHeaders(next http.Handler) http.Handler {
-	// style-src/font-src allow Google Fonts specifically (public/styles.css
-	// @imports fonts.googleapis.com, which serves @font-face rules pointing at
-	// fonts.gstatic.com) - the only external resource this app actually loads.
+	// Stage 40.4: style-src/font-src used to carve out Google Fonts, because
+	// public/styles.css @imported fonts.googleapis.com. That import is gone -
+	// the app now uses the platform UI font and loads no third-party resource
+	// of any kind - so the two exceptions came out with it. 'self' everywhere
+	// is both faster (no third-party round trip on the critical path) and
+	// strictly tighter: nothing outside this origin can be fetched at all.
 	const csp = "default-src 'self'; " +
 		"script-src 'self' 'unsafe-inline'; " +
-		"style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-		"font-src 'self' https://fonts.gstatic.com; " +
+		"style-src 'self' 'unsafe-inline'; " +
+		"font-src 'self'; " +
 		// blob: (not just data:) is required for the PIM media gallery
 		// (Stage 15.2/26.4.4): images/thumbnails are fetched as authenticated
 		// blobs and rendered via URL.createObjectURL, since a plain <img src>
@@ -627,7 +630,14 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		r.Header.Set("Resolved-Tenant-ID", tenantID)
 		r.Header.Set("Resolved-User-ID", userID)
 		r.Header.Set("Resolved-Username", username)
-		r.Header.Set("Resolved-Role", role)
+		// Stage 40.3: canonicalise the role once, here, so a token minted
+		// before the HR/Admin -> Super Admin rename (or a tenant schema
+		// restored from an older snapshot) presents the current name to every
+		// handler and to the profile chip. Authorisation never depends on this
+		// normalisation - engines.IsSuperAdmin accepts both names either way -
+		// so a stale session keeps working; this only stops the UI showing two
+		// spellings for one role.
+		r.Header.Set("Resolved-Role", engines.CanonicalRole(role))
 		r.Header.Set("Resolved-Location", locationCode)
 		// Resolved-Purpose is only non-empty for narrowly-scoped MFA
 		// enrollment/challenge tokens (see engines.SignPurposeToken) - a full

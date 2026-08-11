@@ -191,11 +191,14 @@ func uploadMagentoMedia(ctx context.Context, cred map[string]string, sku string,
 // real webhooks instead, see Part A.7's note) for orders modified since
 // the last poll - the substitute for native webhooks Magento Open Source
 // does not have. Mirrors the same ticker shape as
-// engines.StartOutboxWorker/StartPublishQueueWorker. Scope note, stated
-// explicitly, same as the BigCommerce webhook handler: this detects and
-// logs changed orders; it does not drive a full order-import pipeline the
-// way the existing Shopify order webhook does - that is deferred, not
-// silently skipped.
+// engines.StartOutboxWorker/StartPublishQueueWorker.
+//
+// As of Stage 35.1.2 this imports what it finds rather than only counting it:
+// each changed order goes through ImportChannelSalesOrder like every other
+// channel. Magento's order search returns whole order objects, so no per-order
+// round trip is needed, and intake is idempotent on (channel, increment_id) -
+// which matters here because an updated_at-filtered poll re-reports the same
+// order on every subsequent status change.
 func StartMagentoPollWorker(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	lastPoll := time.Now().Add(-interval)
@@ -249,11 +252,11 @@ func pollMagentoChannels(schema string, since time.Time) {
 		if err != nil || cred["auth_mode"] != "OpenSource" {
 			continue // AdobeCommerce channels use real webhooks, not polling
 		}
-		checkMagentoOrdersSince(cred, channelCode, since)
+		checkMagentoOrdersSince(tenantID, cred, channelCode, since)
 	}
 }
 
-func checkMagentoOrdersSince(cred map[string]string, channelCode string, since time.Time) {
+func checkMagentoOrdersSince(tenantID string, cred map[string]string, channelCode string, since time.Time) {
 	if cred["base_url"] == "" || cred["access_token"] == "" {
 		return
 	}
@@ -274,15 +277,90 @@ func checkMagentoOrdersSince(cred map[string]string, channelCode string, since t
 		return
 	}
 
+	// Magento's order search returns the full order objects, not just ids, so
+	// the poll result is directly importable - no second round trip per order.
+	// Before Stage 35.1.2 this decoded increment_id alone and logged a count,
+	// which meant a Magento Open Source store's orders never entered the ERP
+	// at all.
 	var result struct {
 		Items []struct {
-			IncrementID string `json:"increment_id"`
+			IncrementID    string  `json:"increment_id"`
+			Status         string  `json:"status"`
+			State          string  `json:"state"`
+			TotalPaid      float64 `json:"total_paid"`
+			CustomerName   string  `json:"customer_firstname"`
+			CustomerLast   string  `json:"customer_lastname"`
+			ExtensionAttrs struct {
+				ShippingAssignments []struct {
+					Shipping struct {
+						Address struct {
+							Street    []string `json:"street"`
+							City      string   `json:"city"`
+							Postcode  string   `json:"postcode"`
+							Telephone string   `json:"telephone"`
+						} `json:"address"`
+					} `json:"shipping"`
+				} `json:"shipping_assignments"`
+			} `json:"extension_attributes"`
+			Items []struct {
+				SKU        string  `json:"sku"`
+				QtyOrdered float64 `json:"qty_ordered"`
+				Price      float64 `json:"price"`
+			} `json:"items"`
 		} `json:"items"`
 	}
 	if err := json.Unmarshal(respBody, &result); err != nil {
 		return
 	}
-	if len(result.Items) > 0 {
-		log.Printf("[MAGENTO-POLL] channel %s: %d order(s) changed since last poll", channelCode, len(result.Items))
+	if len(result.Items) == 0 {
+		return
+	}
+	log.Printf("[MAGENTO-POLL] channel %s: %d order(s) changed since last poll", channelCode, len(result.Items))
+
+	for _, o := range result.Items {
+		if o.IncrementID == "" || len(o.Items) == 0 {
+			continue
+		}
+		// "canceled"/"closed" orders that changed since the last poll are
+		// status transitions on orders we either already hold or never want -
+		// importing them would create a live SalesOrder for a dead order.
+		if o.State == "canceled" || o.State == "closed" {
+			continue
+		}
+		lines := make([]SalesOrderLineInput, 0, len(o.Items))
+		for _, li := range o.Items {
+			if strings.TrimSpace(li.SKU) == "" {
+				continue
+			}
+			lines = append(lines, SalesOrderLineInput{SKU: li.SKU, Qty: int(li.QtyOrdered), UnitPrice: li.Price})
+		}
+		if len(lines) == 0 {
+			continue
+		}
+		var addressParts []string
+		var phone string
+		if sa := o.ExtensionAttrs.ShippingAssignments; len(sa) > 0 {
+			addr := sa[0].Shipping.Address
+			addressParts = append(append([]string{}, addr.Street...), addr.City, addr.Postcode)
+			phone = addr.Telephone
+		}
+		paymentStatus := "Pending"
+		if o.TotalPaid > 0 {
+			paymentStatus = "Confirmed"
+		}
+		// ImportChannelSalesOrder is idempotent on (channel, increment_id), so
+		// re-seeing an order on a later poll - which the updated_at filter
+		// makes routine - returns the existing order rather than duplicating.
+		if _, err := ImportChannelSalesOrder(tenantID, ChannelOrderInput{
+			Channel:         channelCode,
+			ChannelOrderID:  o.IncrementID,
+			CustomerName:    strings.TrimSpace(o.CustomerName + " " + o.CustomerLast),
+			ShippingAddress: strings.TrimSpace(strings.Join(addressParts, " ")),
+			PaymentStatus:   paymentStatus,
+			CustomerPhone:   phone,
+			Lines:           lines,
+		}); err != nil {
+			log.Printf("[MAGENTO-POLL] channel %s: order %s import failed: %v", channelCode, o.IncrementID, err)
+		}
 	}
 }

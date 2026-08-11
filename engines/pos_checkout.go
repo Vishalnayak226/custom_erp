@@ -128,6 +128,15 @@ func FinalizePOSCheckout(tenantID, cartNumber, correlationID string) (saleTotal 
 	if err = PostSalesGSTBooking(tenantID, cartNumber, cart.GSTBreakdown); err != nil {
 		return failAndRefundPoints(fmt.Errorf("GST booking failed: %v", err))
 	}
+	// Stage 26.6.11: move any exempt/nil-rated/zero-rated turnover out of 4100
+	// so it is not later reported as taxable value. In the same failure path as
+	// the two postings above rather than the best-effort tail below, because a
+	// sale whose revenue is misclassified in the GL produces a wrong GST
+	// return - a filing problem, not a cosmetic one. A wholly taxable cart
+	// no-ops here.
+	if err = PostExemptSalesReclass(tenantID, cartNumber, cart.GSTBreakdown); err != nil {
+		return failAndRefundPoints(fmt.Errorf("exempt-sales reclass failed: %v", err))
+	}
 
 	_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET status = 'Paid', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'POSCart' AND id = $1`, schema), cartNumber)
 

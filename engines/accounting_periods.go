@@ -204,7 +204,7 @@ func GetPeriodCloseChecklist(tenantID, periodID string) (*PeriodCloseChecklist, 
 	statusMsg, _ := tb["status"].(string)
 	addCheck("Trial balance is balanced", balanced, statusMsg)
 
-	pending, err := ListPendingApprovals(tenantID, "HR/Admin", "")
+	pending, err := ListPendingApprovals(tenantID, RoleSuperAdmin, "")
 	if err != nil {
 		return nil, err
 	}

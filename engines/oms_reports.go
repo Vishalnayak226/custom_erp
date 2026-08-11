@@ -118,6 +118,82 @@ func init() {
 		},
 		Run: getCourierPerformanceReport,
 	})
+
+	// Stage 35.1.3. The plan anticipated a POSCart backfill decision for
+	// legacy channel orders. The real finding was that there is nothing to
+	// backfill: the retired importers never created the POSCart their own
+	// comments promised. What they did leave is channel_order_mapping /
+	// unicommerce_order_mapping rows pointing at a synthetic
+	// "ORD-<channel>-<id>" / "UC-<store>-<id>" identifier with no document
+	// behind it at all.
+	//
+	// The decision, per the plan's own preference for a read-only view over a
+	// data migration: do not invent SalesOrders for them. List them, so a human
+	// who can check the channel decides which are still live and re-imports
+	// those. POSCart stays the in-store cart; SalesOrder is the only
+	// channel-order truth.
+	//
+	// Reservations are deliberately NOT a column here: inventory_reservation
+	// has no order_id (db/migration.sql §301), so the stock those imports
+	// reserved cannot be attributed back to a mapping row by any query. See
+	// the note in micro_checklist.md 35.1.3 - that is a separate finding, not
+	// something this report can honestly show.
+	RegisterReport(ReportDefinition{
+		ID: "orphaned-channel-orders", Label: "Orphaned Channel Orders (pre-35.1 intake)", Category: "OMS",
+		Columns: []ReportColumn{
+			{Key: "source", Label: "Mapping Table"}, {Key: "channel", Label: "Channel"},
+			{Key: "channel_order_id", Label: "Channel Order ID"}, {Key: "legacy_order_id", Label: "Legacy Order ID"},
+			// channel_order_mapping tracks updated_at, unicommerce_order_mapping
+			// created_at; both mean "when intake last wrote this row", hence the
+			// neutral label rather than pretending they are the same column.
+			{Key: "imported_at", Label: "Last Written"},
+		},
+		Run: getOrphanedChannelOrdersReport,
+	})
+}
+
+// getOrphanedChannelOrdersReport lists channel intake rows written by the
+// pre-Stage-35.1 importers whose order_id resolves to no document at all.
+// A tenant that only ever ran the post-35.1 intake returns zero rows.
+//
+// Re-importing any row listed here now works: ImportChannelSalesOrder treats a
+// mapping row whose target document is missing as absent rather than as a
+// completed import, so replaying the channel order creates the SalesOrder the
+// old path never did.
+func getOrphanedChannelOrdersReport(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT 'channel_order_mapping', m.channel, m.channel_order_id, m.order_id, m.updated_at
+		FROM %s.channel_order_mapping m
+		WHERE NOT EXISTS (SELECT 1 FROM %s.documents d WHERE d.id = m.order_id AND d.deleted_at IS NULL)
+		UNION ALL
+		SELECT 'unicommerce_order_mapping', 'Unicommerce', u.channel_order_id, u.order_id, u.created_at
+		FROM %s.unicommerce_order_mapping u
+		WHERE NOT EXISTS (SELECT 1 FROM %s.documents d WHERE d.id = u.order_id AND d.deleted_at IS NULL)
+		ORDER BY 5 DESC`, schema, schema, schema, schema))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var results []map[string]interface{}
+	for rows.Next() {
+		var source, channel, channelOrderID, legacyOrderID string
+		var importedAt time.Time
+		if err := rows.Scan(&source, &channel, &channelOrderID, &legacyOrderID, &importedAt); err != nil {
+			return nil, err
+		}
+		results = append(results, map[string]interface{}{
+			"source": source, "channel": channel, "channel_order_id": channelOrderID,
+			"legacy_order_id": legacyOrderID, "imported_at": importedAt,
+		})
+	}
+	if results == nil {
+		results = []map[string]interface{}{}
+	}
+	return results, rows.Err()
 }
 
 // getOMSExceptionQueueReport surfaces stuck outbox events (Failed outright,

@@ -273,7 +273,7 @@ func TestEngines(t *testing.T) {
 
 		// 1. Happy path: valid SKU + address-with-pincode + confirmed payment
 		// reserves immediately.
-		orderID, err := CreateSalesOrder(tenantID, "TestChannel", "CHORD-1", "Test Customer", "ORDTEST 12 MG Road, Bengaluru 560001", "Confirmed", []SalesOrderLineInput{{SKU: sku, Qty: 5, UnitPrice: 100}})
+		orderID, err := CreateSalesOrder(tenantID, SalesOrderInput{Channel: "TestChannel", ChannelOrderID: "CHORD-1", CustomerName: "Test Customer", ShippingAddress: "ORDTEST 12 MG Road, Bengaluru 560001", PaymentStatus: "Confirmed", Lines: []SalesOrderLineInput{{SKU: sku, Qty: 5, UnitPrice: 100}}})
 		if err != nil {
 			t.Fatalf("CreateSalesOrder (happy path) failed: %v", err)
 		}
@@ -296,7 +296,7 @@ func TestEngines(t *testing.T) {
 
 		// 2. Idempotent replay: same channel+channel_order_id returns the
 		// same order instead of creating a duplicate.
-		replayID, err := CreateSalesOrder(tenantID, "TestChannel", "CHORD-1", "Test Customer", "ORDTEST 12 MG Road, Bengaluru 560001", "Confirmed", []SalesOrderLineInput{{SKU: sku, Qty: 5, UnitPrice: 100}})
+		replayID, err := CreateSalesOrder(tenantID, SalesOrderInput{Channel: "TestChannel", ChannelOrderID: "CHORD-1", CustomerName: "Test Customer", ShippingAddress: "ORDTEST 12 MG Road, Bengaluru 560001", PaymentStatus: "Confirmed", Lines: []SalesOrderLineInput{{SKU: sku, Qty: 5, UnitPrice: 100}}})
 		if err != nil {
 			t.Fatalf("CreateSalesOrder (replay) failed: %v", err)
 		}
@@ -307,7 +307,7 @@ func TestEngines(t *testing.T) {
 		// 3. Address validation failure -> On Hold with ADDR_INVALID,
 		// reservation NOT created (stock still shows 0 additional reserved
 		// for this second order).
-		holdOrderID, err := CreateSalesOrder(tenantID, "TestChannel", "CHORD-2", "Test Customer", "no pincode here", "Confirmed", []SalesOrderLineInput{{SKU: sku, Qty: 3, UnitPrice: 100}})
+		holdOrderID, err := CreateSalesOrder(tenantID, SalesOrderInput{Channel: "TestChannel", ChannelOrderID: "CHORD-2", CustomerName: "Test Customer", ShippingAddress: "no pincode here", PaymentStatus: "Confirmed", Lines: []SalesOrderLineInput{{SKU: sku, Qty: 3, UnitPrice: 100}}})
 		if err != nil {
 			t.Fatalf("CreateSalesOrder (bad address) failed: %v", err)
 		}
@@ -340,7 +340,7 @@ func TestEngines(t *testing.T) {
 		}
 
 		// 5. Unconfirmed payment -> On Hold with PAYMENT_PENDING.
-		paymentHoldID, err := CreateSalesOrder(tenantID, "TestChannel", "CHORD-3", "Test Customer", "ORDTEST 5 Park St 560003", "Pending", []SalesOrderLineInput{{SKU: sku, Qty: 2, UnitPrice: 100}})
+		paymentHoldID, err := CreateSalesOrder(tenantID, SalesOrderInput{Channel: "TestChannel", ChannelOrderID: "CHORD-3", CustomerName: "Test Customer", ShippingAddress: "ORDTEST 5 Park St 560003", PaymentStatus: "Pending", Lines: []SalesOrderLineInput{{SKU: sku, Qty: 2, UnitPrice: 100}}})
 		if err != nil {
 			t.Fatalf("CreateSalesOrder (unconfirmed payment) failed: %v", err)
 		}
@@ -531,7 +531,7 @@ func TestEngines(t *testing.T) {
 		}
 		_, _ = db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 50, 50)", skuManual, "ALC-TEST-NEAR-A")
 		seedRule("AR-TEST-MANUAL", "Manual", 1, "ManualTestChannel")
-		manualOrderID, err := CreateSalesOrder(tenantID, "ManualTestChannel", "CHORD-MANUAL-1", "Test Customer", "1 Road 560000", "Confirmed", []SalesOrderLineInput{{SKU: skuManual, Qty: 1, UnitPrice: 10}})
+		manualOrderID, err := CreateSalesOrder(tenantID, SalesOrderInput{Channel: "ManualTestChannel", ChannelOrderID: "CHORD-MANUAL-1", CustomerName: "Test Customer", ShippingAddress: "1 Road 560000", PaymentStatus: "Confirmed", Lines: []SalesOrderLineInput{{SKU: skuManual, Qty: 1, UnitPrice: 10}}})
 		if err != nil {
 			t.Fatalf("CreateSalesOrder (manual allocation) failed: %v", err)
 		}
@@ -618,9 +618,14 @@ func TestEngines(t *testing.T) {
 
 	// 6. Test Shopify Channel Sync and Sourcing Routing
 	t.Run("ShopifySyncAndSourcingRouting", func(t *testing.T) {
-		// Clean mappings
+		// Clean mappings. The SalesOrder rows go too (Stage 35.1.1): channel
+		// intake now creates real SalesOrders, and CreateSalesOrder is
+		// idempotent on (channel, channel_order_id), so a leftover order from
+		// a previous run would short-circuit the import under test.
 		_, _ = db.DB.Exec("DELETE FROM " + schema + ".channel_product_mapping")
 		_, _ = db.DB.Exec("DELETE FROM " + schema + ".channel_order_mapping")
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'SalesOrderLine' AND data->>'order_id' IN (SELECT id FROM " + schema + ".documents WHERE doctype = 'SalesOrder' AND data->>'channel' = 'Shopify' AND data->>'channel_order_id' = 'WEB-9988')")
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'SalesOrder' AND data->>'channel' = 'Shopify' AND data->>'channel_order_id' = 'WEB-9988'")
 
 		// 1. Configure channel product map
 		err := MapChannelProduct(tenantID, "Shopify", "BAR12345", "SHOPIFY-GOLD-01")
@@ -645,15 +650,33 @@ func TestEngines(t *testing.T) {
 			t.Errorf("Expected order to route to WH02 (higher stock 80), but routed to: %s", loc)
 		}
 
-		// 3. Import Channel Order (validates mapping translation, reservation, and idempotency)
+		// 3. Import Channel Order (validates mapping translation, reservation, and idempotency).
+		// Stage 35.1.5 regression gate: the legacy ImportChannelOrder entry
+		// point must now land a real SalesOrder, not the old "reservations
+		// against a bare channel_order_mapping row and no document at all"
+		// behaviour. The synthetic "ORD-<channel>-<id>" identifier it used to
+		// return is gone with it - the id is the SalesOrder's own.
 		orderID, err := ImportChannelOrder(tenantID, "Shopify", "WEB-9988", []map[string]interface{}{
 			{"sku": "SHOPIFY-GOLD-01", "qty": 10},
 		})
 		if err != nil {
 			t.Fatalf("Failed to import channel order: %v", err)
 		}
-		if orderID != "ORD-Shopify-WEB-9988" {
-			t.Errorf("Expected imported order ID ORD-Shopify-WEB-9988, got: %s", orderID)
+		var importedDoctype string
+		if err := db.DB.QueryRow("SELECT doctype FROM "+schema+".documents WHERE id = $1", orderID).Scan(&importedDoctype); err != nil {
+			t.Fatalf("Imported channel order %q has no document: %v", orderID, err)
+		}
+		if importedDoctype != "SalesOrder" {
+			t.Errorf("Expected channel intake to create a SalesOrder, got doctype %q", importedDoctype)
+		}
+		// The channel SKU must have been translated through
+		// channel_product_mapping before the order was written.
+		var lineSKU string
+		if err := db.DB.QueryRow("SELECT data->>'sku' FROM "+schema+".documents WHERE doctype = 'SalesOrderLine' AND data->>'order_id' = $1", orderID).Scan(&lineSKU); err != nil {
+			t.Fatalf("Imported order %q has no SalesOrderLine: %v", orderID, err)
+		}
+		if lineSKU != "BAR12345" {
+			t.Errorf("Expected channel SKU SHOPIFY-GOLD-01 to map to BAR12345, got %q", lineSKU)
 		}
 
 		// 4. Expect idempotency block on duplicate imports
@@ -1058,7 +1081,7 @@ func TestEngines(t *testing.T) {
 		// FulfillmentTasks at different locations. Handing over only the
 		// first location's manifest should leave the order Partially
 		// Fulfilled; handing over the second should flip it to Shipped.
-		orderID, err := CreateSalesOrder(tenantID, "TestChannel", "CHORD-SHIP-1", "Ship Test Customer", "ORDTEST 1 Ship St 560001", "Confirmed", []SalesOrderLineInput{{SKU: sku, Qty: 4, UnitPrice: 50}})
+		orderID, err := CreateSalesOrder(tenantID, SalesOrderInput{Channel: "TestChannel", ChannelOrderID: "CHORD-SHIP-1", CustomerName: "Ship Test Customer", ShippingAddress: "ORDTEST 1 Ship St 560001", PaymentStatus: "Confirmed", Lines: []SalesOrderLineInput{{SKU: sku, Qty: 4, UnitPrice: 50}}})
 		if err != nil {
 			t.Fatalf("CreateSalesOrder failed: %v", err)
 		}
@@ -1263,7 +1286,21 @@ func TestEngines(t *testing.T) {
 			"status":        "Pending",
 		}
 		taskBytes, _ := json.Marshal(taskDoc)
-		threeHoursAgo := time.Now().UTC().Add(-3 * time.Hour)
+		// Local, NOT .UTC() (corrected in Stage 35.2 alongside the
+		// GetSLABreaches timezone fix). documents.created_at is a bare
+		// TIMESTAMP, so what gets stored is the wall clock of whatever literal
+		// lib/pq sends. Every real row is written by DEFAULT CURRENT_TIMESTAMP,
+		// which in an Asia/Calcutta session stores LOCAL wall clock - so a
+		// fixture inserted as UTC sits 5.5 hours behind every row the
+		// application itself writes.
+		//
+		// That mismatch is why the old assertion passed over a broken engine:
+		// GetSLABreaches used time.Since() on a value lib/pq hands back tagged
+		// UTC, which agreed with a UTC-written fixture and disagreed with every
+		// production row by exactly the server's offset. Now that elapsed time
+		// is computed in SQL, the fixture has to be written the way the
+		// application writes rows, or it measures a frame nothing else uses.
+		threeHoursAgo := time.Now().Add(-3 * time.Hour)
 		_, err = db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by, created_at) VALUES ($1, 'FulfillmentTask', $2, 'Pending', 'system', $3)", taskID, taskBytes, threeHoursAgo)
 		if err != nil {
 			t.Fatalf("Failed to insert mock FulfillmentTask: %v", err)
@@ -1648,7 +1685,7 @@ func TestEngines(t *testing.T) {
 		if _, err := db.DB.Exec("INSERT INTO "+schema+".inventory_availability (sku, location_code, on_hand, available) VALUES ($1, $2, 50, 50)", rtoSKU, rtoLocation); err != nil {
 			t.Fatalf("Failed to seed RTO test inventory: %v", err)
 		}
-		rtoOrderID, err := CreateSalesOrder(tenantID, "TestChannel", "CHORD-RTO-TEST-1", "RTO Customer", "RTO ADDR 99 MG Road 560099", "Confirmed", []SalesOrderLineInput{{SKU: rtoSKU, Qty: 2, UnitPrice: 300}})
+		rtoOrderID, err := CreateSalesOrder(tenantID, SalesOrderInput{Channel: "TestChannel", ChannelOrderID: "CHORD-RTO-TEST-1", CustomerName: "RTO Customer", ShippingAddress: "RTO ADDR 99 MG Road 560099", PaymentStatus: "Confirmed", Lines: []SalesOrderLineInput{{SKU: rtoSKU, Qty: 2, UnitPrice: 300}}})
 		if err != nil {
 			t.Fatalf("CreateSalesOrder (RTO fixture) failed: %v", err)
 		}

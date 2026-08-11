@@ -39,7 +39,7 @@ func requireHRAdmin(w http.ResponseWriter, r *http.Request, role string) bool {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Extension tokens cannot access admin/configuration endpoints")
 		return false
 	}
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can access this")
 		return false
 	}

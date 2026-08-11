@@ -21,18 +21,21 @@ const (
 	// "security.totp_skew_steps" read (Stage 30.7).
 )
 
-// mfaRequiredRoles lists the roles SEC-V2 Sec.12 marks MFA-mandatory for
-// ("admin/finance/IT/super users/production support"). This codebase has no
-// distinct Finance/IT role today - HR/Admin is the only privileged,
-// admin-equivalent role, so it stands in for the whole group.
-var mfaRequiredRoles = map[string]bool{
-	"HR/Admin": true,
-}
-
 // RequiresMFA reports whether a role must complete TOTP enrollment/challenge
 // before a full session token is issued.
+//
+// SEC-V2 Sec.12 marks MFA mandatory for "admin/finance/IT/super users/
+// production support". This codebase has no distinct Finance/IT role today -
+// Super Admin is the only privileged, admin-equivalent role, so it stands in
+// for the whole group.
+//
+// Stage 40.3: goes through IsSuperAdmin rather than a role->bool map keyed on
+// the literal, so a session or user record still carrying the legacy
+// "HR/Admin" name is still MFA-gated. A map lookup would have silently
+// returned false for it, which would have dropped MFA off exactly the
+// accounts that most need it.
 func RequiresMFA(role string) bool {
-	return mfaRequiredRoles[role]
+	return IsSuperAdmin(role)
 }
 
 var totpBase32 = base32.StdEncoding.WithPadding(base32.NoPadding)

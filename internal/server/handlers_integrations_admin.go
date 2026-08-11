@@ -24,7 +24,7 @@ func handleUnicommerceCredentials(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can configure Unicommerce credentials")
 		return
 	}
@@ -146,7 +146,7 @@ func handlePineLabsCredentials(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can configure Pine Labs credentials")
 		return
 	}
@@ -232,7 +232,7 @@ func handlePineLabsReconcile(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can run Pine Labs reconciliation")
 		return
 	}
@@ -272,7 +272,7 @@ func handleCleverTapCredentials(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can configure CleverTap credentials")
 		return
 	}
@@ -389,7 +389,7 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can provision new tenants")
 		return
 	}
@@ -454,7 +454,7 @@ func handleSetFeatureFlag(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can modify feature flags")
 		return
 	}
@@ -495,7 +495,7 @@ func handleListModules(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view the module catalog")
 		return
 	}
@@ -519,7 +519,7 @@ func handleListTenants(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can list tenants")
 		return
 	}
@@ -574,7 +574,7 @@ func handleTenantUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view tenant usage")
 		return
 	}
@@ -637,7 +637,7 @@ func handleGetModuleEntitlements(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view module entitlements")
 		return
 	}
@@ -664,7 +664,7 @@ func handleSetModuleEntitlement(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can modify module entitlements")
 		return
 	}
@@ -712,7 +712,7 @@ func handleListProductPackages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view the product package catalog")
 		return
 	}
@@ -748,7 +748,7 @@ func handleSetTenantPackage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can change a tenant's plan")
 		return
 	}
@@ -849,7 +849,7 @@ func handleGetTenantVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view tenant version records")
 		return
 	}
@@ -892,7 +892,7 @@ func handleListPatchProposals(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view patch proposals")
 		return
 	}
@@ -945,7 +945,7 @@ func decidePatchProposal(w http.ResponseWriter, r *http.Request, decision string
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can decide patch proposals")
 		return
 	}
@@ -982,7 +982,7 @@ func handleCreateExtensionHook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can register extension hooks")
 		return
 	}
@@ -1023,7 +1023,7 @@ func handleListExtensionHooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view extension hooks")
 		return
 	}
@@ -1046,7 +1046,7 @@ func handleDeleteExtensionHook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can delete extension hooks")
 		return
 	}
@@ -1066,7 +1066,7 @@ func handleGetExtensionHookLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view extension hook logs")
 		return
 	}
@@ -1094,7 +1094,7 @@ func handleIssueExtensionToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	role := r.Header.Get("Resolved-Role")
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can issue extension tokens")
 		return
 	}

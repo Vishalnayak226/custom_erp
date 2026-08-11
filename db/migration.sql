@@ -347,7 +347,13 @@ INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, field
 -- both hard-reject an Item without them (engines/gst.go's GetItemGSTInfo).
 -- See db/migrations_stage30_1_2_item_tax_mandatory.sql for existing databases.
 ('Item', 'hsn_code', 'HSN Code', 'Data', TRUE, NULL, 7),
-('Item', 'gst_rate', 'GST Rate (%)', 'Number', TRUE, NULL, 8)
+-- Stage 26.6.11: which of the four GST treatments this item is sold under.
+-- Blank/absent reads as 'Taxable', so gst_rate keeps 30.1.2's "must be > 0"
+-- rule by default and a 0% rate is only accepted once a non-taxable treatment
+-- has been chosen explicitly. See
+-- db/migrations_stage26_6_11_item_tax_treatment.sql for existing databases.
+('Item', 'tax_treatment', 'Tax Treatment', 'Select', FALSE, 'Taxable,Exempt,Nil-Rated,Zero-Rated', 8),
+('Item', 'gst_rate', 'GST Rate (%)', 'Number', TRUE, NULL, 9)
 ON CONFLICT (doctype_name, fieldname) DO NOTHING;
 
 -- Seed fields for PurchaseOrder
@@ -415,6 +421,14 @@ INSERT INTO tenant_default.gl_accounts (account_code, account_name, account_type
 ('1200', 'Inventory Control Account', 'Asset'),
 ('2100', 'GRN Suspense Account', 'Liability'),
 ('4100', 'Sales Revenue Account', 'Revenue'),
+-- Stage 26.6.11: non-taxable turnover, moved out of 4100 at checkout so
+-- GetGSTReturnSummary can keep reading 4100 as the period's TAXABLE value.
+-- Three accounts, not one, because GSTR-1 reports nil-rated and exempt in
+-- separate columns and GSTR-3B splits zero-rated (3.1(b)) from exempt+nil
+-- (3.1(c)). See db/migrations_stage26_6_11_item_tax_treatment.sql.
+('4110', 'Exempt Sales Revenue', 'Revenue'),
+('4111', 'Nil-Rated Sales Revenue', 'Revenue'),
+('4112', 'Zero-Rated Sales Revenue', 'Revenue'),
 ('5100', 'Cost of Goods Sold (COGS) Account', 'Expense'),
 -- Stage 30.2.5: the points half of a sale paid for partly with loyalty
 -- points. See db/migrations_stage30_2_5_loyalty_redemption_account.sql.
@@ -998,9 +1012,11 @@ ON CONFLICT (doctype_name, fieldname) DO NOTHING;
 -- validation hook, Stage 13.13c) since nothing like this exists for Item
 -- today.
 INSERT INTO tenant_default.doctype_fields (doctype_name, fieldname, label, fieldtype, mandatory, options, display_order) VALUES
-('Item', 'family', 'Product Family', 'Link', FALSE, 'ProductFamily', 9),
-('Item', 'parent_product_code', 'Parent Product Code', 'Data', FALSE, NULL, 10),
-('Item', 'variant_option_values', 'Variant Options (Key:Value;Key:Value)', 'Data', FALSE, NULL, 11)
+-- display_order 10-12, not 9-11: Stage 26.6.11 inserted tax_treatment at 8 and
+-- pushed gst_rate to 9, so the tax fields stay contiguous with hsn_code (7).
+('Item', 'family', 'Product Family', 'Link', FALSE, 'ProductFamily', 10),
+('Item', 'parent_product_code', 'Parent Product Code', 'Data', FALSE, NULL, 11),
+('Item', 'variant_option_values', 'Variant Options (Key:Value;Key:Value)', 'Data', FALSE, NULL, 12)
 ON CONFLICT (doctype_name, fieldname) DO NOTHING;
 
 INSERT INTO tenant_default.approval_rules (doctype, min_amount, max_amount, required_role) VALUES

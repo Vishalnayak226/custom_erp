@@ -141,6 +141,13 @@ func Run() {
 	// session needs so the frontend can filter its own nav by entitlement.
 	http.HandleFunc("GET /api/v1/me/modules", apiMiddleware(handleMyModules))
 
+	// Setup guidance + localization (Stage 41). Both are self-service reads
+	// on the same tier as /me/permissions and /me/modules: every screen needs
+	// them to render correctly for the signed-in user, so restricting them to
+	// an admin would just mean a Cashier's screens render wrong.
+	http.HandleFunc("GET /api/v1/setup/status", apiMiddleware(handleSetupStatus))
+	http.HandleFunc("GET /api/v1/localization", apiMiddleware(handleGetLocalization))
+
 	// MFA recovery and device migration (Stage 32.5). Unlike the three
 	// /auth/mfa/* endpoints above - which run on short-lived purpose tokens
 	// mid-login - these take a normal session token, because they are things a
@@ -196,6 +203,32 @@ func Run() {
 	http.HandleFunc("POST /api/v1/orders/{id}/hold", apiMiddleware(moduleGate("oms", handlePlaceOrderHold)))
 	http.HandleFunc("POST /api/v1/orders/{id}/release-hold", apiMiddleware(moduleGate("oms", handleReleaseOrderHold)))
 	http.HandleFunc("POST /api/v1/orders/{id}/cancel", apiMiddleware(moduleGate("oms", handleCancelOrder)))
+
+	// Stage 35.2: the OMS Console. Read endpoints for the faceted list, the
+	// one-call order detail, the report-backed tiles and global search, plus
+	// bulk actions and saved views. The console's per-order actions reuse the
+	// three routes above and 35.3's mutation routes below - no duplicate
+	// action API.
+	http.HandleFunc("GET /api/v1/oms/orders", apiMiddleware(moduleGate("oms", handleOMSOrderList)))
+	http.HandleFunc("GET /api/v1/oms/orders/search", apiMiddleware(moduleGate("oms", handleOMSOrderSearch)))
+	http.HandleFunc("GET /api/v1/oms/orders/{id}", apiMiddleware(moduleGate("oms", handleOMSOrderDetail)))
+	http.HandleFunc("GET /api/v1/oms/tiles", apiMiddleware(moduleGate("oms", handleOMSConsoleTiles)))
+	http.HandleFunc("POST /api/v1/oms/orders/bulk", apiMiddleware(moduleGate("oms", handleOMSBulkAction)))
+	http.HandleFunc("GET /api/v1/oms/views", apiMiddleware(moduleGate("oms", handleOMSSavedViews)))
+	http.HandleFunc("POST /api/v1/oms/views", apiMiddleware(moduleGate("oms", handleOMSSavedViews)))
+	http.HandleFunc("DELETE /api/v1/oms/views/{id}", apiMiddleware(moduleGate("oms", handleOMSDeleteSavedView)))
+
+	// Stage 35.3: order-mutation surface parity with Uniware - item-level
+	// hold, order edit, switch facility, priority and split. Every one is
+	// gated by the same StatusTransitionRule master (26.12.9) the
+	// cancellation matrix uses, so the rules stay configurable per tenant.
+	http.HandleFunc("POST /api/v1/orders/{id}/edit", apiMiddleware(moduleGate("oms", handleEditOrder)))
+	http.HandleFunc("POST /api/v1/orders/{id}/switch-facility", apiMiddleware(moduleGate("oms", handleSwitchOrderFacility)))
+	http.HandleFunc("POST /api/v1/orders/{id}/priority", apiMiddleware(moduleGate("oms", handleSetOrderPriority)))
+	http.HandleFunc("POST /api/v1/orders/{id}/split", apiMiddleware(moduleGate("oms", handleSplitOrder)))
+	http.HandleFunc("POST /api/v1/order-lines/{lineId}/hold", apiMiddleware(moduleGate("oms", handleHoldOrderLine)))
+	http.HandleFunc("POST /api/v1/order-lines/{lineId}/release-hold", apiMiddleware(moduleGate("oms", handleReleaseOrderLineHold)))
+	http.HandleFunc("GET /api/v1/oms/pick-queue", apiMiddleware(moduleGate("oms", handlePickQueue)))
 
 	// Stage 26.12.5: Returns/RTO/QC/Refund - a request/approval-gated
 	// workflow distinct from the pre-existing instant POST
@@ -463,6 +496,13 @@ func Run() {
 	// Purchase requisition conversion (Stage 17.7)
 	http.HandleFunc("POST /api/v1/procurement/convert-requisition", apiMiddleware(moduleGate("procurement", handleConvertRequisition)))
 
+	// Purchase Order lines: live pricing preview, the printed vendor copy, and
+	// dispatch to the vendor (Stage 40.1). All three keep HSN/GST resolution
+	// and the inter-state decision server-side - see handlers_purchase_order.go.
+	http.HandleFunc("POST /api/v1/procurement/purchase-order/preview", apiMiddleware(moduleGate("procurement", handlePreviewPurchaseOrder)))
+	http.HandleFunc("GET /api/v1/procurement/purchase-order/{id}/print", apiMiddleware(moduleGate("procurement", handlePrintPurchaseOrder)))
+	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/send", apiMiddleware(moduleGate("procurement", handleSendPurchaseOrder)))
+
 	// Vendor invoice 3-way match + payment (Stage 17.8)
 	http.HandleFunc("POST /api/v1/procurement/vendor-invoice/match", apiMiddleware(moduleGate("procurement", handleMatchVendorInvoice)))
 	http.HandleFunc("POST /api/v1/procurement/vendor-invoice/pay", apiMiddleware(moduleGate("procurement", handlePayVendorInvoice)))
@@ -558,9 +598,14 @@ func Run() {
 
 	// DocType Metadata APIs
 	http.HandleFunc("GET /api/v1/doc/{doctype}/meta", apiMiddleware(handleGetDocTypeMeta))
+	// Field-format specs (Stage 40.2). Read once at boot by the frontend so
+	// the input hints, placeholders and keystroke filtering are driven by the
+	// same declarations the server validates against - one list, not two.
+	http.HandleFunc("GET /api/v1/meta/field-formats", apiMiddleware(handleFieldFormats))
 	http.HandleFunc("GET /api/v1/meta/doctypes", apiMiddleware(handleGetDocTypes))
 	http.HandleFunc("POST /api/v1/meta/doctypes", apiMiddleware(handleSaveDocType))
 	http.HandleFunc("POST /api/v1/meta/{doctype}/fields", apiMiddleware(handleSaveFieldDefinition))
+	http.HandleFunc("PUT /api/v1/meta/{doctype}/fields/{id}", apiMiddleware(handleUpdateFieldDefinition))
 	http.HandleFunc("DELETE /api/v1/meta/{doctype}/fields/{id}", apiMiddleware(handleDeleteFieldDefinition))
 
 	// Core Foundation APIs
@@ -630,9 +675,16 @@ func Run() {
 	// WriteTimeout is generous enough to not clip legitimate long-running
 	// report/export requests (Stage 20 Track B.4's async export exists
 	// precisely for the ones that would otherwise be too slow for this).
+	// Stage 40.4: compression and static caching wrap the whole mux, outside
+	// securityHeaders, so every response - static asset and API alike - gets
+	// them on every access path (the SSH tunnel straight to this port as much
+	// as the Caddy-proxied one). Order matters: staticAssetCache sets headers
+	// before the handler runs, compressResponses must see the Content-Type the
+	// handler sets, and securityHeaders stays innermost so its headers are on
+	// the response either way.
 	srv := &http.Server{
 		Addr:         host + ":" + port,
-		Handler:      securityHeaders(http.DefaultServeMux),
+		Handler:      staticAssetCache(compressResponses(securityHeaders(http.DefaultServeMux))),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,

@@ -15,7 +15,11 @@ type ChannelOrderInput struct {
 	CustomerName    string
 	ShippingAddress string
 	PaymentStatus   string
-	Lines           []SalesOrderLineInput
+	// CustomerPhone (Stage 41) is passed through as the channel sent it -
+	// cleaning and country detection happen once, inside CreateSalesOrder, so
+	// every connector that feeds this struct gets them without its own code.
+	CustomerPhone string
+	Lines         []SalesOrderLineInput
 }
 
 // ImportChannelSalesOrder maps a channel payload then delegates all order
@@ -30,8 +34,18 @@ func ImportChannelSalesOrder(tenantID string, input ChannelOrderInput) (string, 
 	if err != nil {
 		return "", err
 	}
+	// The mapping row is only honoured when the order it names still exists
+	// (Stage 35.1.3). The retired importers wrote a mapping row pointing at a
+	// synthetic "ORD-<channel>-<id>" that was never created as a document, so
+	// an unqualified lookup here returned that phantom id and silently skipped
+	// the import - which made every legacy channel order permanently
+	// un-importable. A dangling row is treated as absent and overwritten below.
 	var mappedID string
-	err = db.DB.QueryRow(fmt.Sprintf(`SELECT order_id FROM %s.channel_order_mapping WHERE channel = $1 AND channel_order_id = $2`, schema), input.Channel, input.ChannelOrderID).Scan(&mappedID)
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT m.order_id FROM %s.channel_order_mapping m
+		WHERE m.channel = $1 AND m.channel_order_id = $2
+		  AND EXISTS (SELECT 1 FROM %s.documents d WHERE d.id = m.order_id AND d.deleted_at IS NULL)`, schema, schema),
+		input.Channel, input.ChannelOrderID).Scan(&mappedID)
 	if err == nil {
 		return mappedID, nil
 	}
@@ -49,11 +63,23 @@ func ImportChannelSalesOrder(tenantID string, input ChannelOrderInput) (string, 
 		}
 	}
 
-	orderID, err := CreateSalesOrder(tenantID, input.Channel, input.ChannelOrderID, input.CustomerName, input.ShippingAddress, input.PaymentStatus, input.Lines)
+	orderID, err := CreateSalesOrder(tenantID, SalesOrderInput{
+		Channel:         input.Channel,
+		ChannelOrderID:  input.ChannelOrderID,
+		CustomerName:    input.CustomerName,
+		ShippingAddress: input.ShippingAddress,
+		PaymentStatus:   input.PaymentStatus,
+		CustomerPhone:   input.CustomerPhone,
+		Lines:           input.Lines,
+	})
 	if err != nil {
 		return "", err
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.channel_order_mapping (order_id, channel, channel_order_id) VALUES ($1, $2, $3) ON CONFLICT (channel, channel_order_id) DO NOTHING`, schema), orderID, input.Channel, input.ChannelOrderID)
+	// DO UPDATE, not DO NOTHING (35.1.3): if a dangling pre-35.1 row is what
+	// let this import through, DO NOTHING would leave it pointing at the
+	// phantom id forever. Repointing it makes the table converge on truth.
+	// Replays of a healthy row never reach here - they returned above.
+	_, err = db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.channel_order_mapping (order_id, channel, channel_order_id) VALUES ($1, $2, $3) ON CONFLICT (channel, channel_order_id) DO UPDATE SET order_id = EXCLUDED.order_id`, schema), orderID, input.Channel, input.ChannelOrderID)
 	return orderID, err
 }
 
@@ -67,8 +93,13 @@ func ImportUnicommerceSalesOrder(tenantID, channelOrderID, storeCode string, lin
 	if err != nil {
 		return "", err
 	}
+	// Same dangling-mapping guard as ImportChannelSalesOrder above (35.1.3).
 	var mappedID string
-	err = db.DB.QueryRow(fmt.Sprintf(`SELECT order_id FROM %s.unicommerce_order_mapping WHERE channel_order_id = $1 AND store_code = $2`, schema), channelOrderID, storeCode).Scan(&mappedID)
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT m.order_id FROM %s.unicommerce_order_mapping m
+		WHERE m.channel_order_id = $1 AND m.store_code = $2
+		  AND EXISTS (SELECT 1 FROM %s.documents d WHERE d.id = m.order_id AND d.deleted_at IS NULL)`, schema, schema),
+		channelOrderID, storeCode).Scan(&mappedID)
 	if err == nil {
 		return mappedID, nil
 	}
@@ -87,8 +118,37 @@ func ImportUnicommerceSalesOrder(tenantID, channelOrderID, storeCode string, lin
 	if err != nil {
 		return "", err
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.unicommerce_order_mapping (order_id, channel_order_id, store_code, status) VALUES ($1, $2, $3, 'Imported')`, schema), orderID, channelOrderID, storeCode)
+	tx, err := db.DB.Begin()
 	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+	if err := db.SetSearchPath(tx, schema); err != nil {
+		return "", err
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.unicommerce_order_mapping (order_id, channel_order_id, store_code, status) VALUES ($1, $2, $3, 'Imported')`, schema), orderID, channelOrderID, storeCode); err != nil {
+		return "", err
+	}
+	// The unicommerce.order.imported outbox event is part of this path's
+	// contract, not an extra: processUnicommerceOutbox consumes it, and the
+	// legacy ImportUnicommerceOrder published it. Rewiring intake onto
+	// SalesOrder (26.12.1) dropped it, which silently stopped acknowledging
+	// imports back to Unicommerce. Restored here (Stage 35.1.2) in the same
+	// transaction as the mapping row, so an event can never outlive a
+	// rolled-back import.
+	items := make([]map[string]interface{}, 0, len(lines))
+	for _, l := range lines {
+		items = append(items, map[string]interface{}{"sku": l.SKU, "qty": l.Qty})
+	}
+	if err := PublishEvent(tx, schema, "unicommerce.order.imported", map[string]interface{}{
+		"order_id":         orderID,
+		"channel_order_id": channelOrderID,
+		"store_code":       storeCode,
+		"items":            items,
+	}); err != nil {
+		return "", err
+	}
+	if err := tx.Commit(); err != nil {
 		return "", err
 	}
 	LogAuditEvent(tenantID, "system", "UNICOMMERCE_ORDER_IMPORTED", "SUCCESS", fmt.Sprintf("order=%s store=%s items=%d", orderID, storeCode, len(lines)))

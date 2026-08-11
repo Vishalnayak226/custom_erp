@@ -137,7 +137,9 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"token": token,
-		"role":  u.Role,
+		// Stage 40.3: the canonical name, so the profile chip never shows the
+		// pre-rename spelling on a database that has not been migrated yet.
+		"role":  engines.CanonicalRole(u.Role),
 		"user":  u.Username,
 	})
 }
@@ -233,7 +235,7 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"token":          token,
-		"role":           role,
+		"role":           engines.CanonicalRole(role),
 		"user":           username,
 		"recovery_codes": recoveryCodes,
 	})
@@ -355,7 +357,7 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 	// exists to prevent.
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"token":                    token,
-		"role":                     role,
+		"role":                     engines.CanonicalRole(role),
 		"user":                     username,
 		"used_recovery_code":       usedRecoveryCode,
 		"recovery_codes_remaining": remaining,

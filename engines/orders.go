@@ -100,20 +100,39 @@ func isCancellationBlocked(tenantID, orderStatus string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-
-	var allowed string
-	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT data->>'allowed' FROM %s.documents
-		 WHERE doctype = 'StatusTransitionRule' AND status = 'Active' AND deleted_at IS NULL
-		   AND data->>'entity' = 'Order' AND data->>'from_status' = $1 AND data->>'to_status' = 'Cancelled'
-		 LIMIT 1`, schema), orderStatus).Scan(&allowed)
-	if err == nil {
-		return allowed != "Yes", nil
-	} else if err != sql.ErrNoRows {
+	// Stage 29.8's lookupStatusTransitionRule (engines/status_transition.go)
+	// reads the same StatusTransitionRule master this used to query inline.
+	// Consolidated in 35.3.6 so the whole order-mutation surface shares one
+	// reader rather than each growing a private copy of the query.
+	rule, err := lookupStatusTransitionRule(schema, "Order", orderStatus, "Cancelled")
+	if err != nil {
 		return false, err
 	}
-
+	if rule.found {
+		return !rule.allowed, nil
+	}
 	return orderCancelBlockedStatuses[orderStatus], nil
+}
+
+// SalesOrderInput is the order-header input to CreateSalesOrder.
+//
+// A struct rather than the seven consecutive string parameters this used to
+// take: Stage 41 needed to add customer contact detail, and an eighth
+// positional string next to "customerName, shippingAddress, paymentStatus"
+// is the kind of signature where two arguments get silently transposed and
+// nothing complains until a customer's phone number shows up as their name.
+type SalesOrderInput struct {
+	Channel         string
+	ChannelOrderID  string
+	CustomerName    string
+	ShippingAddress string
+	PaymentStatus   string
+	// CustomerPhone is accepted in whatever shape the channel sends it -
+	// "+91 98765 43210", "(0)98765-43210", "00919876543210". It is cleaned by
+	// the phone engine before it is stored, and is never a reason to reject
+	// an order. Optional: an empty value simply stores nothing.
+	CustomerPhone string
+	Lines         []SalesOrderLineInput
 }
 
 // CreateSalesOrder validates then reserves stock for a new order, in the
@@ -124,11 +143,16 @@ func isCancellationBlocked(tenantID, orderStatus string) (bool, error) {
 // fallback already uses at the sourcing layer, just applied one layer
 // earlier at order validation. Returns the new SalesOrder's id.
 //
-// This is the Order Engine's own creation path - it does not replace
-// ImportChannelOrder (engines/sourcing.go), which existing channel webhooks
-// still call; rewiring those onto SalesOrder is a separate follow-up, not
-// part of this item's scope.
-func CreateSalesOrder(tenantID, channel, channelOrderID, customerName, shippingAddress, paymentStatus string, lines []SalesOrderLineInput) (string, error) {
+// This is the Order Engine's own creation path, and as of Stage 35.1 it is
+// the only one: ImportChannelOrder and ImportUnicommerceOrder (the legacy
+// signatures in engines/sourcing.go and unicommerce.go) are now thin adapters
+// onto ImportChannelSalesOrder, which calls this. Every channel webhook,
+// poller and manual entry point therefore lands here.
+func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
+	channel, channelOrderID := in.Channel, in.ChannelOrderID
+	customerName, shippingAddress, paymentStatus := in.CustomerName, in.ShippingAddress, in.PaymentStatus
+	lines := in.Lines
+
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
@@ -195,6 +219,32 @@ func CreateSalesOrder(tenantID, channel, channelOrderID, customerName, shippingA
 		"hold_reason":      holdReason,
 		"hold_owner":       "",
 		"total_amount":     totalAmount,
+	}
+
+	// Stage 41: clean the channel-supplied phone number and record which
+	// country it belongs to.
+	//
+	// This path writes the document with a direct INSERT rather than going
+	// through ValidateDocument, so it does not inherit the automatic phone
+	// cleaning that every form-driven save gets - hence the explicit call.
+	//
+	// Note what is deliberately NOT here: any branch that rejects or holds the
+	// order over the phone number. An unparseable or wrong-length number is
+	// stored as cleaned as it can be, with whatever country could be resolved,
+	// and the order proceeds. The three hold codes above are about whether the
+	// order can be *fulfilled* (can we map the SKU, can we ship to the address,
+	// has it been paid for); a contact number cannot answer any of those, so
+	// making it a fourth gate would only ever block real revenue.
+	if in.CustomerPhone != "" {
+		p := NormalizeTenantPhone(tenantID, in.CustomerPhone)
+		orderDoc["customer_phone"] = p.National
+		if p.CountryISO2 != "" {
+			// customer_country is the targeting signal: an order placed from
+			// outside the home market is identifiable here without re-parsing
+			// the number, and stays identifiable if the tenant later changes
+			// its own home country.
+			orderDoc["customer_country"] = p.CountryISO2
+		}
 	}
 	orderMarshaled, err := json.Marshal(orderDoc)
 	if err != nil {

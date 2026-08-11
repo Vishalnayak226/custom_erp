@@ -316,3 +316,46 @@ func PostSalesGSTBooking(tenantID, checkoutID string, breakdown GSTBreakdown) er
 	}
 	return PostDoubleEntry(tenantID, "POSCart", checkoutID, debits, credits, "", fmt.Sprintf("POSCart:%s:SALE_GST", checkoutID))
 }
+
+// PostExemptSalesReclass (Stage 26.6.11) is the non-taxable counterpart of
+// PostSalesGSTBooking above. That one leaves 4100 holding the taxable value by
+// moving the tax portion out; this one leaves 4100 holding ONLY taxable value
+// by moving exempt/nil-rated/zero-rated turnover out into its own revenue
+// account.
+//
+// Without it, an exempt sale would sit in 4100 untouched - no tax to move -
+// and GetGSTReturnSummary, which reads 4100's net balance as the period's
+// taxable value, would report exempt turnover as taxable: GSTR-3B 3.1(a)
+// overstated and 3.1(c) understated by the same amount. Total revenue is
+// unaffected either way; this only reclassifies within Revenue, which is why
+// it is safe to run after the sale is already booked.
+//
+// Three destination accounts rather than one, because the returns do not
+// accept them merged: GSTR-1's nil/exempt/non-GST table has a column each for
+// nil-rated and exempt, and GSTR-3B reports zero-rated in 3.1(b) separately
+// from exempt+nil in 3.1(c).
+func PostExemptSalesReclass(tenantID, checkoutID string, breakdown GSTBreakdown) error {
+	// Truncate each bucket to int first and sum those, for the same reason
+	// PostSalesGSTBooking does: summing first and truncating after can leave
+	// the debit a rupee off the credits and fail PostDoubleEntry's balance
+	// check.
+	intExempt := int(breakdown.ExemptAmount)
+	intNilRated := int(breakdown.NilRatedAmount)
+	intZeroRated := int(breakdown.ZeroRatedAmount)
+	total := intExempt + intNilRated + intZeroRated
+	if total <= 0 {
+		return nil
+	}
+	debits := map[string]int{"4100": total}
+	credits := map[string]int{}
+	if intExempt > 0 {
+		credits["4110"] = intExempt // Exempt Sales Revenue
+	}
+	if intNilRated > 0 {
+		credits["4111"] = intNilRated // Nil-Rated Sales Revenue
+	}
+	if intZeroRated > 0 {
+		credits["4112"] = intZeroRated // Zero-Rated Sales Revenue
+	}
+	return PostDoubleEntry(tenantID, "POSCart", checkoutID, debits, credits, "", fmt.Sprintf("POSCart:%s:SALE_EXEMPT", checkoutID))
+}

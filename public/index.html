@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Custom ERP</title>
-  <link rel="stylesheet" href="styles.css?v=17">
+  <link rel="stylesheet" href="styles.css?v=21">
   <script>
     // Stage 28.2: apply the saved theme before first paint to avoid a light-mode
     // flash. 'system' (or unset) lets the CSS media query follow the OS;
@@ -399,28 +399,37 @@
   </div>
 
   <!-- Add Field Modal -->
+  <!-- Add / Edit Schema Field Modal. One modal serves both verbs - the hidden
+       add-field-id decides which: empty = POST (create), set = PUT (edit).
+       Until Stage 41 this markup existed but nothing in app.js referenced it,
+       and the screen used a chain of six prompt() dialogs with no edit path
+       at all. -->
   <div class="modal-overlay" id="add-field-modal">
     <div class="modal-container">
       <div class="modal-header">
-        <h3 class="modal-title">Add Field to Schema</h3>
+        <h3 class="modal-title" id="add-field-modal-title">Add Field to Schema</h3>
         <button type="button" class="modal-close" aria-label="Close dialog" onclick="closeAddFieldModal()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
       <form id="add-field-form" onsubmit="submitAddField(event)">
         <input type="hidden" id="add-field-doctype">
+        <input type="hidden" id="add-field-id">
         <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
           <div class="form-group">
-            <label class="form-label">Field Name (Technical Identifier)</label>
-            <input type="text" class="form-control" id="add-field-name" placeholder="e.g. material_weight" required>
+            <label class="form-label" for="add-field-name">Field Name (Technical Identifier)</label>
+            <input type="text" class="form-input" id="add-field-name" placeholder="e.g. material_weight" autocomplete="off" required>
+            <div class="empty-state-hint hidden" id="add-field-rename-warning">
+              Renaming a field changes which key the form reads from each saved record. Data stored under the old name is not deleted &mdash; it simply stops being shown until the old name is restored.
+            </div>
           </div>
           <div class="form-group">
-            <label class="form-label">Display Label</label>
-            <input type="text" class="form-control" id="add-field-label" placeholder="e.g. Material Weight" required>
+            <label class="form-label" for="add-field-label">Display Label</label>
+            <input type="text" class="form-input" id="add-field-label" placeholder="e.g. Material Weight" required>
           </div>
           <div class="form-group">
-            <label class="form-label">Field Type</label>
-            <select class="form-control" id="add-field-type" required>
+            <label class="form-label" for="add-field-type">Field Type</label>
+            <select class="form-select" id="add-field-type" required>
               <option value="Data">Data (Short Text)</option>
               <option value="Number">Number</option>
               <option value="Select">Select (Dropdown)</option>
@@ -436,17 +445,18 @@
             </label>
           </div>
           <div class="form-group">
-            <label class="form-label">Options (Required for Select/Link)</label>
-            <input type="text" class="form-control" id="add-field-options" placeholder="Comma separated list OR Target Record Type">
+            <label class="form-label" for="add-field-options">Options (Required for Select/Link)</label>
+            <input type="text" class="form-input" id="add-field-options" placeholder="Comma separated list OR Target Record Type" autocomplete="off">
           </div>
           <div class="form-group">
-            <label class="form-label">Display Order</label>
-            <input type="number" class="form-control" id="add-field-order" placeholder="e.g. 10" required>
+            <label class="form-label" for="add-field-order">Display Order</label>
+            <input type="number" class="form-input" id="add-field-order" placeholder="e.g. 10" required>
           </div>
+          <div class="login-error hidden" id="add-field-error"></div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" onclick="closeAddFieldModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Field</button>
+          <button type="submit" class="btn btn-primary" id="add-field-submit">Save Field</button>
         </div>
       </form>
     </div>
@@ -610,7 +620,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="components/erp-typeahead.js?v=1"></script>
-  <script src="app.js?v=22"></script>
+  <script src="app.js?v=25"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="qz-print.js?v=1"></script>

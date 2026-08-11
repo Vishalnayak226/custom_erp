@@ -18,7 +18,6 @@ import (
 
 var gstinPattern = regexp.MustCompile(`^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$`)
 var bankAccountPattern = regexp.MustCompile(`^[0-9]{9,18}$`)
-var mobilePattern = regexp.MustCompile(`^[6-9][0-9]{9}$`)
 
 // ValidateMasterDataRules checks the Master Data-specific rules (Stage 25)
 // that ValidateDocument's generic metadata pass can't express - format
@@ -75,18 +74,43 @@ func validateItemMasterRules(tenantID, docID string, payload map[string]interfac
 		// checkout and PO creation regardless, so "HSN optional" only ever
 		// meant "saveable now, unusable later". The two layers now agree:
 		// what the master accepts is exactly what a transaction accepts.
+		//
+		// Stage 26.6.11 kept this unconditional across all four tax
+		// treatments: HSN belongs on the invoice whatever the rate is, and
+		// GSTR-1 reports the nil/exempt table HSN-wise too, so an exempt item
+		// needs one exactly as much as a taxable one does.
 		return &ValidationError{Code: "MASTER-0042", Message: "HSN Code is required on every item - both POS checkout and Purchase Order creation reject an item without one"}
 	}
 
-	if !gstRatePositive {
-		// The mirror of the HSN rule above, and of GetItemGSTInfo's own
-		// "missing a positive gst_rate" check. Note this makes a 0% (exempt/
-		// nil-rated) item unsaveable, which matches - deliberately, not as an
-		// oversight - the fact that checkout has always refused to sell one;
-		// supporting exempt goods properly is a product change (an explicit
-		// tax-exempt flag), tracked in docs/micro_checklist.md Stage 30, not
-		// something to slip in by silently letting a 0 rate through here.
-		return &ValidationError{Code: "MASTER-0042", Message: "GST Rate (%) is required on every item and must be greater than zero - both POS checkout and Purchase Order creation reject an item without one"}
+	// Stage 26.6.11. Stage 30.1.2 required a positive gst_rate on every item,
+	// which made genuinely untaxed goods - unbranded grain, fresh produce,
+	// books, exports - unsaveable, so a tenant selling them could not create
+	// the Item at all. The fix is not to allow a bare 0: a 0 is
+	// indistinguishable from "not filled in yet", which is the hole 30.1.2
+	// closed. The item declares its treatment instead, and 0 becomes valid -
+	// mandatory, in fact - only once that declaration exists.
+	treatment, treatmentOK := NormalizeTaxTreatment(strField(payload, "tax_treatment"))
+	if !treatmentOK {
+		return &ValidationError{Code: "MASTER-0044", Message: fmt.Sprintf("Tax Treatment %q is not recognized - expected one of %s, %s, %s or %s", strField(payload, "tax_treatment"), TaxTreatmentTaxable, TaxTreatmentExempt, TaxTreatmentNilRated, TaxTreatmentZeroRated)}
+	}
+
+	if IsTaxableTreatment(treatment) {
+		if !gstRatePositive {
+			// MASTER-0044 ("Tax category is required for this item"), not
+			// MASTER-0042: this is no longer an HSN problem - which is what
+			// MASTER-0042's catalog headline says - but a statement that the
+			// item has not said how it is taxed. The detail below names the
+			// way out, since a user hitting this on genuinely untaxed goods
+			// would otherwise be stuck typing rates that get rejected.
+			return &ValidationError{Code: "MASTER-0044", Message: fmt.Sprintf("GST Rate (%%) must be greater than zero for a %s item - both POS checkout and Purchase Order creation reject an item without one. If this item is genuinely untaxed, set Tax Treatment to %s, %s or %s instead of entering a 0 rate", TaxTreatmentTaxable, TaxTreatmentExempt, TaxTreatmentNilRated, TaxTreatmentZeroRated)}
+		}
+	} else if gstRatePositive {
+		// The mirror check, and the reason the treatment is trustworthy
+		// downstream: a non-taxable item can never carry a rate, so
+		// GetItemTaxInfo can return 0 for one without having to reconcile two
+		// contradictory fields, and the returns cannot report turnover as
+		// exempt while the till charged tax on it.
+		return &ValidationError{Code: "MASTER-0044", Message: fmt.Sprintf("A %s item cannot carry a positive GST Rate (%%) - set the rate to 0, or change Tax Treatment to %s", treatment, TaxTreatmentTaxable)}
 	}
 
 	barcode := strField(payload, "barcode")
@@ -171,14 +195,51 @@ func validateVendorMasterRules(payload map[string]interface{}) error {
 	return nil
 }
 
+// validateCustomerMasterRules enforces MASTER-0051 against the tenant's
+// configured home country (Stage 41) rather than the India-only
+// `^[6-9][0-9]{9}$` it used before.
+//
+// By the time this runs, ValidateDocument has already cleaned the number
+// through NormalizeDocumentPhones - so `phone` here is digits-only with any
+// dial code and trunk prefix already resolved, and what is compared against
+// the country's length is the same value that will be stored. That ordering
+// is what makes this both stricter (a wrong-length number is still refused)
+// and far more forgiving (a correct number written "+91 98765-43210" now
+// saves, where before it was rejected outright).
+//
+// A number that carries another country's dial code explicitly is accepted on
+// its own country's rule - a real business has foreign customers, and this is
+// a customer master, not a domestic-only list. The country is recorded on the
+// record so it stays a usable targeting signal.
 func validateCustomerMasterRules(tenantID, docID string, payload map[string]interface{}) error {
 	phone := strField(payload, "phone")
 	if phone == "" {
 		return nil
 	}
-	if !mobilePattern.MatchString(phone) {
-		return &ValidationError{Code: "MASTER-0051", Message: fmt.Sprintf("Mobile number %q is not a valid 10-digit number", phone)}
+	// Which country's rule to hold this number to is decided by
+	// NormalizeDocumentPhones, which ran first (from ValidateDocument) and is
+	// the only pass that could still see an explicit "+1"/"+971" before it was
+	// stripped. Re-deriving it here from the already-cleaned digits would
+	// silently retag every foreign customer as domestic - a 10-digit US number
+	// and a 10-digit Indian one are indistinguishable once the dial code is
+	// gone. So: trust the stamp when there is one, fall back to the tenant's
+	// home country when there isn't.
+	country := strField(payload, "phone_country")
+	if country == "" {
+		country = TenantPhoneCountry(tenantID)
 	}
+	parsed := NormalizePhone(phone, country)
+	if !parsed.Valid {
+		return &ValidationError{Code: "MASTER-0051", Message: parsed.Reason}
+	}
+	payload["phone"] = parsed.National
+	if parsed.CountryISO2 != "" {
+		payload["phone_country"] = parsed.CountryISO2
+	}
+	// The duplicate check below compares the CLEANED number, which is the
+	// other half of the fix: before this, "9876543210" and "+91 98765 43210"
+	// were two different strings and the same customer could be created twice.
+	phone = parsed.National
 
 	// CUSTOM-0133 (Stage 25.5): "Customer duplicate mobile" - same
 	// duplicate-field query shape as MASTER-0053's Item barcode check and

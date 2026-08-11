@@ -163,7 +163,7 @@ func handleSaveChannelCredential(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}
@@ -217,7 +217,40 @@ func handleBigCommerceWebhook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	engines.LogAuditEvent(tenantID, "system", "BIGCOMMERCE_WEBHOOK_RECEIVED", "SUCCESS", fmt.Sprintf("channel=%s bytes=%d", channelCode, len(body)))
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "acknowledged"})
+
+	// Stage 35.1.2: this handler used to stop at the acknowledgement above, so
+	// every BigCommerce order was verified, audited and then dropped. A
+	// BigCommerce webhook body carries only {scope, data:{type,id}} - never the
+	// order itself - so the order is read back over the API and imported
+	// through the same ImportChannelSalesOrder path Shopify and Unicommerce
+	// use. Non-order scopes (product/inventory/customer hooks) keep the old
+	// acknowledge-only behaviour.
+	var hook struct {
+		Scope string `json:"scope"`
+		Data  struct {
+			Type string `json:"type"`
+			ID   int64  `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &hook); err != nil || hook.Data.Type != "order" || hook.Data.ID == 0 {
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "acknowledged"})
+		return
+	}
+
+	orderID, importErr := engines.ImportBigCommerceOrder(tenantID, channelCode, hook.Data.ID)
+	if importErr != nil {
+		// Deliberately 200, not 4xx/5xx. BigCommerce retries a failed hook and
+		// then disables the subscription after repeated failures; a missing
+		// credential or an unmapped SKU must not cost the store its webhook.
+		// The failure is audited so it is visible in the connector log.
+		engines.LogAuditEvent(tenantID, "system", "BIGCOMMERCE_ORDER_IMPORT", "FAILURE",
+			fmt.Sprintf("channel=%s scope=%s bc_order=%d: %v", channelCode, hook.Scope, hook.Data.ID, importErr))
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "acknowledged", "import_error": importErr.Error()})
+		return
+	}
+	engines.LogAuditEvent(tenantID, "system", "BIGCOMMERCE_ORDER_IMPORT", "SUCCESS",
+		fmt.Sprintf("channel=%s bc_order=%d order=%s", channelCode, hook.Data.ID, orderID))
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "imported", "order_id": orderID})
 }
 
 func handleGetImportTemplate(w http.ResponseWriter, r *http.Request) {
@@ -795,7 +828,7 @@ func handleAccountingPeriods(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(periods)
 
 	case http.MethodPost:
-		if role != "HR/Admin" {
+		if !engines.IsSuperAdmin(role) {
 			writeAPIError(w, r, "GLOBAL-0011", "")
 			return
 		}
@@ -832,7 +865,7 @@ func handleCloseAccountingPeriod(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if role != "HR/Admin" {
+	if !engines.IsSuperAdmin(role) {
 		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}

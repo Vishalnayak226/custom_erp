@@ -1,5 +1,7 @@
 package engines
 
+import "fmt"
+
 // Stage 28.1: the first-wave setting definitions. Each maps a value that was
 // previously a hardcoded constant to a tenant-editable setting whose Default
 // equals the old constant, so behavior is unchanged until an admin edits it.
@@ -106,6 +108,20 @@ func registerStage282Settings() {
 		Label: "GRN edit window", Type: SettingTypeInt, Default: "0", Unit: "days",
 		Min:         settingBound(0),
 		Description: "How many days after creation a Goods Receipt Note may still be edited. 0 means no time limit.",
+	})
+	// Stage 40.1. Defaults to Exclusive: a vendor's quoted purchase price is
+	// normally the taxable value with GST added on top, which is the opposite
+	// of this codebase's sale-side rate fields (MRP-style, tax already in).
+	// Individual POs override it on the PO screen when a particular vendor
+	// quotes landed prices.
+	RegisterSetting(SettingDefinition{
+		Key: "procurement.po_gst_mode", Module: "Procurement",
+		Label: "Purchase Order price GST treatment", Type: SettingTypeSelect, Default: GSTModeExclusive,
+		Options: []SettingOption{
+			{Value: GSTModeExclusive, Label: "Exclusive - GST is added on top of the purchase price"},
+			{Value: GSTModeInclusive, Label: "Inclusive - the purchase price already contains GST"},
+		},
+		Description: "Whether the Purchase Price entered on a PO line already includes GST. Each PO can override this.",
 	})
 
 	// --- Point of Sale ---
@@ -288,5 +304,41 @@ func registerStage282Settings() {
 		Label: "Competitor undercut alert threshold", Type: SettingTypeFloat, Default: "0", Unit: "%",
 		Min: settingBound(0), Max: settingBound(90),
 		Description: "Alert when the cheapest competitor observation is at least this far below our last transacted price. 0 disables competitor undercut alerts.",
+	})
+
+	registerLocalizationSettings()
+}
+
+// SettingKeyDefaultCountry is the tenant's home country. It is referenced by
+// name from engines/phone.go rather than typed as a literal at each consuming
+// site, so the key can never drift between where it is declared and where it
+// is read.
+const SettingKeyDefaultCountry = "localization.default_country"
+
+// registerLocalizationSettings (Stage 41) introduces the tenant's country as
+// a first-class setting. Everything phone-shaped in the product derives from
+// it: how many digits a number must have, which trunk/dial prefixes are
+// stripped when cleaning, and what counts as a foreign order.
+//
+// The option list is generated from engines/phone.go's own country table
+// instead of being retyped here, so adding a country is one row in that table
+// and nothing else - the same "register once, drive generically" posture the
+// rest of this registry uses.
+func registerLocalizationSettings() {
+	countries := PhoneCountries()
+	opts := make([]SettingOption, 0, len(countries))
+	for _, c := range countries {
+		opts = append(opts, SettingOption{
+			Value: c.ISO2,
+			Label: fmt.Sprintf("%s (+%s, %s)", c.Name, c.DialCode, c.LengthLabel()),
+		})
+	}
+	RegisterSetting(SettingDefinition{
+		Key: SettingKeyDefaultCountry, Module: "Localization",
+		Label: "Home country", Type: SettingTypeSelect, Default: DefaultPhoneCountry,
+		Options: opts,
+		Description: "The country this business operates from. Sets the phone-number length every module validates against " +
+			"(POS, Customer master, HR, vendors) and the dial code stripped when cleaning imported data. Orders arriving " +
+			"from other countries are still accepted and are tagged with their own country for targeting.",
 	})
 }

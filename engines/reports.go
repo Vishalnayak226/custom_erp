@@ -292,6 +292,12 @@ func GetReceivablesAgeingReport(tenantID string) ([]PayablesAgeingBucket, error)
 // balance in the window (Sales Revenue net of the tax portion
 // PostSalesGSTBooking moves back out of it), and the three tax accounts are
 // each account's net credit balance in the same window.
+//
+// Stage 26.6.11 added the three non-taxable buckets, read from the revenue
+// accounts PostExemptSalesReclass moves that turnover into. They are what
+// GSTR-1's nil/exempt/non-GST table and GSTR-3B 3.1(b)/3.1(c) need, and their
+// existence is also what keeps TaxableValue honest: before this, exempt
+// turnover stayed in 4100 and was reported as taxable.
 type GSTReturnSummary struct {
 	StartDate         string  `json:"start_date"`
 	EndDate           string  `json:"end_date"`
@@ -300,6 +306,10 @@ type GSTReturnSummary struct {
 	OutputSGST        float64 `json:"output_sgst"`
 	OutputIGST        float64 `json:"output_igst"`
 	TotalTaxLiability float64 `json:"total_tax_liability"`
+	ExemptValue       float64 `json:"exempt_value"`
+	NilRatedValue     float64 `json:"nil_rated_value"`
+	ZeroRatedValue    float64 `json:"zero_rated_value"`
+	NonTaxableValue   float64 `json:"non_taxable_value"`
 	TransactionCount  int     `json:"transaction_count"`
 }
 
@@ -339,6 +349,26 @@ func GetGSTReturnSummary(tenantID, startDate, endDate string) (*GSTReturnSummary
 		return nil, err
 	}
 
+	// Stage 26.6.11: the three non-taxable revenue accounts, read exactly the
+	// same way as the tax accounts above. A tenant that has never sold an
+	// exempt item simply has no postings to them and gets three zeroes.
+	exemptValue, err := glAccountNetBalance(schema, "4110", startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	nilRatedValue, err := glAccountNetBalance(schema, "4111", startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	zeroRatedValue, err := glAccountNetBalance(schema, "4112", startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	// Counted on 4100 rather than the exempt accounts too: every sale credits
+	// 4100 (PostSalesFinanceBooking books full revenue there before anything
+	// is reclassified out of it), so this stays the count of sales in the
+	// window and does not double-count a mixed cart that touched both.
 	var txnCount int
 	if err := db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COUNT(DISTINCT document_id) FROM %s.gl_postings
@@ -350,6 +380,9 @@ func GetGSTReturnSummary(tenantID, startDate, endDate string) (*GSTReturnSummary
 	return &GSTReturnSummary{
 		StartDate: startDate, EndDate: endDate,
 		TaxableValue: taxableValue, OutputCGST: cgst, OutputSGST: sgst, OutputIGST: igst,
-		TotalTaxLiability: cgst + sgst + igst, TransactionCount: txnCount,
+		TotalTaxLiability: cgst + sgst + igst,
+		ExemptValue:       exemptValue, NilRatedValue: nilRatedValue, ZeroRatedValue: zeroRatedValue,
+		NonTaxableValue:  exemptValue + nilRatedValue + zeroRatedValue,
+		TransactionCount: txnCount,
 	}, nil
 }

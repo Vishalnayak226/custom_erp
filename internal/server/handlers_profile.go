@@ -90,7 +90,7 @@ func handleMyPermissions(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 
-	if role == "HR/Admin" {
+	if engines.IsSuperAdmin(role) {
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
 			"role":     role,
 			"is_admin": true,

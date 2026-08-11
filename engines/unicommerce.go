@@ -3,7 +3,6 @@ package engines
 import (
 	"context"
 	"custom_erp/db"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -108,16 +107,24 @@ func SyncUnicommerceInventory(tenantID, sku, storeCode string, quantity int) err
 	return tx.Commit()
 }
 
-// ImportUnicommerceOrder ingests an order from Unicommerce (multi-marketplace)
-// and creates a local POSCart document with stock reservations, following the
-// same pattern as ImportChannelOrder in engines/sourcing.go.
+// ImportUnicommerceOrder is the legacy Unicommerce intake signature, kept so
+// existing callers compile. As of Stage 35.1.1 it delegates to
+// ImportUnicommerceSalesOrder, which routes the order through
+// ImportChannelSalesOrder -> CreateSalesOrder like every other channel.
+//
+// Its old body reserved stock per line and wrote a unicommerce_order_mapping
+// row, but - exactly like ImportChannelOrder - never created the document its
+// own comment claimed ("creates a local POSCart document"). The reservations
+// it made therefore hung off nothing.
+//
+// The ORDER_ALREADY_IMPORTED replay error is preserved; the delegate returns
+// the existing order id idempotently instead, so new code should call it.
 func ImportUnicommerceOrder(tenantID, channelOrderID, storeCode string, items []map[string]interface{}) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
 	}
 
-	// 1. Idempotency check
 	var exists bool
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT EXISTS(
@@ -131,75 +138,7 @@ func ImportUnicommerceOrder(tenantID, channelOrderID, storeCode string, items []
 		return "", fmt.Errorf("ORDER_ALREADY_IMPORTED")
 	}
 
-	// 2. Map channel SKUs to ERP SKUs (fallback to channel SKU if unmapped)
-	var mappedItems []map[string]interface{}
-	for _, item := range items {
-		channelSku, _ := item["sku"].(string)
-		qty, _ := item["qty"].(int)
-
-		var erpSku string
-		err = db.DB.QueryRow(fmt.Sprintf(`
-			SELECT sku FROM %s.channel_product_mapping
-			WHERE channel_sku = $1 AND channel = 'Unicommerce'`, schema), channelSku).Scan(&erpSku)
-		if err == sql.ErrNoRows {
-			erpSku = channelSku
-		} else if err != nil {
-			return "", err
-		}
-
-		mappedItems = append(mappedItems, map[string]interface{}{
-			"sku": erpSku,
-			"qty": qty,
-		})
-	}
-
-	// 3. Create stock reservations at the store location
-	for _, item := range mappedItems {
-		sku := item["sku"].(string)
-		qty := item["qty"].(int)
-		_, err = CreateReservation(tenantID, sku, storeCode, qty, "Online", 0) // 0 = tenant-configured reservation TTL (Stage 28)
-		if err != nil {
-			return "", fmt.Errorf("failed to reserve stock for SKU %s at %s: %v", sku, storeCode, err)
-		}
-	}
-
-	// 4. Record the order mapping
-	orderID := fmt.Sprintf("UC-%s-%s", storeCode, channelOrderID)
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return "", err
-	}
-	defer tx.Rollback()
-
-	if err := db.SetSearchPath(tx, schema); err != nil {
-		return "", err
-	}
-
-	_, err = tx.Exec(fmt.Sprintf(`
-		INSERT INTO %s.unicommerce_order_mapping (order_id, channel_order_id, store_code, status)
-		VALUES ($1, $2, $3, 'Imported')`, schema), orderID, channelOrderID, storeCode)
-	if err != nil {
-		return "", err
-	}
-
-	// Publish outbox event
-	payload := map[string]interface{}{
-		"order_id":         orderID,
-		"channel_order_id": channelOrderID,
-		"store_code":       storeCode,
-		"items":            mappedItems,
-	}
-	if err := PublishEvent(tx, schema, "unicommerce.order.imported", payload); err != nil {
-		return "", err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return "", err
-	}
-
-	LogAuditEvent(tenantID, "system", "UNICOMMERCE_ORDER_IMPORTED", "SUCCESS",
-		fmt.Sprintf("order=%s store=%s items=%d", orderID, storeCode, len(mappedItems)))
-	return orderID, nil
+	return ImportUnicommerceSalesOrder(tenantID, channelOrderID, storeCode, channelLinesFromLooseItems(items))
 }
 
 // ListUnicommerceOrders returns imported Unicommerce orders for a tenant.

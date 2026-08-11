@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -206,6 +207,69 @@ func SaveFieldDefinition(tenantID string, doctype string, f FieldMeta) error {
 	return err
 }
 
+// UpdateFieldDefinition edits an existing field definition in place, addressed
+// by its row id rather than its fieldname - which is what lets the fieldname
+// itself be corrected, the thing SaveFieldDefinition deliberately cannot do.
+//
+// SaveFieldDefinition is create-only on purpose (META-0201: a re-submitted
+// fieldname there is always an accidental collision, never an intended edit),
+// so before this there was no way at all to fix a typo'd label, a wrong
+// fieldtype or a bad display order except delete-and-recreate - which throws
+// away the field's stored data on every existing document. This is the missing
+// half of that pair, and keeps the same two guards:
+//
+//   - META-0197 - the fieldtype must be one this engine actually renders.
+//   - META-0201 - renaming onto a fieldname another row already owns is still
+//     a collision. Excluding this row's own id is what makes "save without
+//     changing the name" work rather than reporting a collision with itself.
+//
+// Renaming a fieldname does NOT rewrite the key inside existing documents'
+// `data` blobs. That is deliberate and matches how the rest of this engine
+// treats metadata: the JSONB payload is the record, the field list is a view
+// over it, and a rename means the old key stops being displayed rather than
+// being destroyed. Renaming back restores it. The UI warns before renaming.
+func UpdateFieldDefinition(tenantID string, doctype string, fieldID string, f FieldMeta) error {
+	if !validFieldTypes[f.Fieldtype] {
+		return &ValidationError{Code: "META-0197", Message: fmt.Sprintf("fieldtype %q is not supported", f.Fieldtype)}
+	}
+
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+
+	var clashID string
+	err = db.DB.QueryRow(fmt.Sprintf(
+		`SELECT id FROM %s.doctype_fields WHERE doctype_name = $1 AND fieldname = $2 AND id != $3`, schema),
+		doctype, f.Fieldname, fieldID).Scan(&clashID)
+	if err == nil {
+		return &ValidationError{Code: "META-0201", Message: fmt.Sprintf("field %q already exists on %s", f.Fieldname, doctype)}
+	} else if err != sql.ErrNoRows {
+		return err
+	}
+
+	var opts interface{}
+	if f.Options != "" {
+		opts = f.Options
+	}
+
+	res, err := db.DB.Exec(fmt.Sprintf(`
+		UPDATE %s.doctype_fields
+		SET fieldname = $1, label = $2, fieldtype = $3, mandatory = $4, options = $5, display_order = $6, max_length = $7
+		WHERE doctype_name = $8 AND id = $9`, schema),
+		f.Fieldname, f.Label, f.Fieldtype, f.Mandatory, opts, f.DisplayOrder, f.MaxLength, doctype, fieldID)
+	if err != nil {
+		return err
+	}
+	// A zero-row UPDATE means the id doesn't belong to this doctype (a stale
+	// screen, or a hand-crafted request). Reported rather than silently
+	// succeeding, so the UI doesn't show "saved" over a no-op.
+	if n, err := res.RowsAffected(); err == nil && n == 0 {
+		return &ValidationError{Code: "META-0197", Message: fmt.Sprintf("no field %s exists on %s", fieldID, doctype)}
+	}
+	return nil
+}
+
 // DeleteFieldDefinition removes a field definition from metadata
 func DeleteFieldDefinition(tenantID string, doctype string, fieldID string) error {
 	schema, err := db.GetTenantSchema(tenantID)
@@ -302,6 +366,25 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 		return &ValidationError{Code: "META-0196", Message: fmt.Sprintf("doctype %s metadata fields not found", doctype)}
 	}
 
+	// Stage 41: clean phone-shaped fields before anything else looks at
+	// them, so the mandatory/length checks below - and everything downstream,
+	// including what actually gets stored - see the canonical form rather than
+	// whatever spacing and punctuation the channel/typist supplied. docData is
+	// a map and therefore shared with the caller, which is what makes the
+	// cleaned value reach the INSERT without a second wiring step.
+	// Non-rejecting by design; see NormalizeDocumentPhones.
+	fieldNames := make([]string, 0, len(fields))
+	hasPhoneField := false
+	for _, f := range fields {
+		fieldNames = append(fieldNames, f.Fieldname)
+		if IsPhoneField(f.Fieldname) {
+			hasPhoneField = true
+		}
+	}
+	if hasPhoneField {
+		NormalizeDocumentPhones(tenantID, fieldNames, docData)
+	}
+
 	for _, f := range fields {
 		val, exists := docData[f.Fieldname]
 		valStr := ""
@@ -383,6 +466,19 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 				}
 			}
 		}
+	}
+
+	// Stage 40.2: format checks for the fields whose NAME says what kind of
+	// value they hold - gstin, email, phone, pan, ifsc, pincode, url. Runs
+	// last so a genuinely missing mandatory field still reports as missing
+	// rather than as badly formatted, and after the phone normalisation above
+	// so a number written "+91 (98765) 43210" is checked in its cleaned form.
+	//
+	// Never makes a field mandatory: an empty value passes every format.
+	// See engines/field_formats.go for why this is keyed off the fieldname
+	// rather than a new fieldtype.
+	if err := ValidateDocumentFieldFormats(fields, docData); err != nil {
+		return err
 	}
 
 	// Stage 36.1 / 37.1 foundations: domain rules for the new PIM group,

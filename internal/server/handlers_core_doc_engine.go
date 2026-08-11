@@ -199,7 +199,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			if !hasLoc {
 				docLoc, hasLoc = dataMap["location_code"]
 			}
-			if hasLoc && fmt.Sprintf("%v", docLoc) != location && role != "HR/Admin" {
+			if hasLoc && fmt.Sprintf("%v", docLoc) != location && !engines.IsSuperAdmin(role) {
 				writeAPIError(w, r, "GLOBAL-0011", "")
 				return
 			}
@@ -235,7 +235,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// non-admin would silently see zero rows of any location-less
 			// doctype, not "all of them" (which is the correct behavior for a
 			// doctype with nothing to scope by).
-			if role != "HR/Admin" {
+			if !engines.IsSuperAdmin(role) {
 				query += fmt.Sprintf(" AND (COALESCE(data->>'location', data->>'location_code') = $%d OR COALESCE(data->>'location', data->>'location_code') IS NULL)", argIndex)
 				args = append(args, location)
 				argIndex++
@@ -451,7 +451,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// are unrestricted. Enforced here at the generic-doc choke point so the
 		// client-side gate can't be bypassed by a hand-crafted request.
 		if doctype == "ReportColumnProfile" {
-			if scope, _ := payload["scope"].(string); scope == "Universal" && role != "HR/Admin" && role != "Store Manager" {
+			if scope, _ := payload["scope"].(string); scope == "Universal" && !engines.IsSuperAdmin(role) && role != "Store Manager" {
 				writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin or Store Manager can create or edit a Universal column profile")
 				return
 			}
@@ -538,12 +538,30 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// breakdown is stored on the document itself (no GL posting here -
 		// PO creation posts no GL entries in this system, GRN receipt does).
 		if doctype == "PurchaseOrder" {
+			// Stage 40.1: derive inter-state vs intra-state from the buying
+			// entity's and the vendor's states BEFORE the breakdown is
+			// computed, since that is what decides IGST vs CGST+SGST. Runs
+			// here rather than on the PO screen so the generic record form,
+			// the PR->PO conversion and any API caller all get it too. A
+			// maker's explicit override is respected - see ApplyPlaceOfSupply.
+			engines.ApplyPlaceOfSupply(tenantID, payload)
+
 			breakdown, errGST := engines.ComputePurchaseOrderGST(tenantID, payload)
 			if errGST != nil {
 				writeEngineError(w, r, errGST, http.StatusUnprocessableEntity)
 				return
 			}
 			payload["gst_breakdown"] = breakdown
+			// total_amount is this codebase's taxable value throughout
+			// (engines.PostDoubleEntry's existing accounting depends on that),
+			// so it is kept as the breakdown's taxable figure rather than the
+			// gross. Before this it was a number the maker typed by hand next
+			// to lines that said something else; now the lines are the source
+			// of truth and the header total follows from them.
+			if breakdown.TaxableAmount > 0 || breakdown.NonTaxableAmount() > 0 {
+				payload["total_amount"] = breakdown.TaxableAmount + breakdown.NonTaxableAmount()
+				payload["grand_total"] = breakdown.TotalAmount
+			}
 		}
 
 		// Location master validation (Stage 17.9): the doctypes/fields where
@@ -873,7 +891,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 }
 
 func checkPermission(tenantID string, role string, doctype string, action string) (bool, error) {
-	if role == "HR/Admin" {
+	if engines.IsSuperAdmin(role) {
 		return true, nil
 	}
 
@@ -1337,6 +1355,28 @@ func handleSaveFieldDefinition(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
+}
+
+// handleUpdateFieldDefinition is the edit half of the field-definition pair.
+// Same error posture as handleSaveFieldDefinition: a *ValidationError
+// (unsupported fieldtype, fieldname collision, unknown id) surfaces with its
+// catalog code, anything else is a genuine 500.
+func handleUpdateFieldDefinition(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	doctype := r.PathValue("doctype")
+	id := r.PathValue("id")
+
+	var req engines.FieldMeta
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
+		return
+	}
+
+	if err := engines.UpdateFieldDefinition(tenantID, doctype, id, req); err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "updated"})
 }
 
 func handleDeleteFieldDefinition(w http.ResponseWriter, r *http.Request) {

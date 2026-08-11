@@ -99,6 +99,16 @@ func settingsCacheKey(schema, key string) string { return schema + "\x00" + key 
 // write.
 func rawSettingForSchema(schema, key string) string {
 	def := settingsRegistry[key] // zero value (Default "") if the key is unregistered
+	// Stage 41: no connection, no override - fall straight back to the
+	// registered default. This function's own contract is that a config read
+	// must never crash a request path, but database/sql panics on a nil *DB
+	// rather than returning an error, so the check has to be here. Reachable
+	// before InitDB (a package-level initializer that reads a setting), in a
+	// unit test that exercises a pure function which happens to consult one,
+	// and during a startup abort.
+	if db.DB == nil {
+		return def.Default
+	}
 	ck := settingsCacheKey(schema, key)
 	settingsCacheMu.RLock()
 	if v, hit := settingsCache[ck]; hit {
@@ -205,6 +215,9 @@ func GetSettingStringForSchema(schema, key string) string {
 // silently beat whatever the admin typed on the Configuration screen - a
 // control that looks wired but does nothing, which is worse than a constant.
 func SettingIsOverridden(tenantID, key string) bool {
+	if db.DB == nil {
+		return false
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return false

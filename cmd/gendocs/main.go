@@ -159,7 +159,7 @@ func reportCatalogDoc(stamp string) string {
 		"**required**, and run it. Where a report supports **drill-down**, clicking a\n"+
 		"figure opens the individual transactions behind it. **Export in Background**\n"+
 		"queues a CSV for any report large enough to time out a normal request.\n\n"+
-		"Some columns are masked for roles other than HR/Admin and Store Manager - those\n"+
+		"Some columns are masked for roles other than Super Admin and Store Manager - those\n"+
 		"are marked *sensitive* below, and render as `•••` rather than being dropped, so the\n"+
 		"table has the same shape whoever runs it.\n\n", len(defs), len(cats)))
 
@@ -265,7 +265,7 @@ func permissionMatrixDoc(stamp, connStr string) (string, error) {
 
 	b.WriteString(fmt.Sprintf("What each role may do with each record type, read from the default tenant's\n"+
 		"grants: **%d record types across %d roles.**\n\n"+
-		"**HR/Admin is not listed** - it always has full access to everything and needs no\n"+
+		"**Super Admin is not listed** - it always has full access to everything and needs no\n"+
 		"grant rows. A role with **no row at all** for a record type has **no access to\n"+
 		"it**: this system fails closed, so a missing grant is a denial, never a default\n"+
 		"allow.\n\n"+

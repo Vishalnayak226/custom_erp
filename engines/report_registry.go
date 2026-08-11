@@ -89,15 +89,17 @@ func ListReportDefinitions() []ReportDefinition {
 // master plan's own Loophole Matrix control for "report export leaks
 // customer or finance data"). Redacted in place, not omitted, so the
 // column set the frontend renders stays identical regardless of who asked.
+// Stage 40.3: keyed on the canonical name, and every lookup runs the role
+// through CanonicalRole first, so the legacy "HR/Admin" still resolves here.
 var reportFullVisibilityRoles = map[string]bool{
-	"HR/Admin":      true,
-	"Store Manager": true,
+	RoleSuperAdmin:   true,
+	RoleStoreManager: true,
 }
 
 const redactedReportValue = "•••"
 
 func maskSensitiveColumns(columns []ReportColumn, rows []map[string]interface{}, role string) []map[string]interface{} {
-	if reportFullVisibilityRoles[role] {
+	if reportFullVisibilityRoles[CanonicalRole(role)] {
 		return rows
 	}
 	var sensitiveKeys []string
@@ -131,7 +133,7 @@ const maxSyncReportRows = 5000
 // anything for this role/column set - shared by RunReport (REPORT-0287
 // annotation) and RunReportDrillDown so both stay consistent.
 func reportMasked(columns []ReportColumn, role string) bool {
-	if reportFullVisibilityRoles[role] {
+	if reportFullVisibilityRoles[CanonicalRole(role)] {
 		return false
 	}
 	for _, c := range columns {

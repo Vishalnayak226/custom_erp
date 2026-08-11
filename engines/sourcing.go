@@ -3,9 +3,11 @@ package engines
 import (
 	"custom_erp/db"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -443,18 +445,33 @@ func ResolveAllocationPlan(tenantID, channel, shippingAddress string, lines []Sa
 	return nil, nil
 }
 
-// ImportChannelOrder validates and imports an external order, reserving stock atomically
+// ImportChannelOrder is the legacy channel-intake signature, retained so that
+// existing callers keep compiling. As of Stage 35.1.1 it no longer has a body
+// of its own: it maps its loose []map[string]interface{} payload onto
+// SalesOrderLineInput and delegates to ImportChannelSalesOrder, so a channel
+// order becomes a SalesOrder/SalesOrderLine like every other order.
+//
+// What it used to do, and why that was wrong: it resolved a single fulfilment
+// node, wrote a CreateReservation per line, and then inserted only a
+// channel_order_mapping row. The "5. Create POSCart document" step its own
+// comment promised was never implemented, so every legacy channel import left
+// stock reserved against no document at all - invisible to the order list, to
+// allocation, to holds, and to the whole OMS engine layer.
+//
+// The one piece of its old contract that IS preserved is the replay error:
+// callers of this name expect errors.New("ORDER_ALREADY_IMPORTED") rather than
+// the idempotent "return the existing id" the SalesOrder path uses. New code
+// should call ImportChannelSalesOrder directly and get the idempotent form.
 func ImportChannelOrder(tenantID string, channel string, channelOrderID string, items []map[string]interface{}) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
 	}
 
-	// 1. Check idempotency: has this order already been processed?
 	var exists bool
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT EXISTS(
-			SELECT 1 FROM %s.channel_order_mapping 
+			SELECT 1 FROM %s.channel_order_mapping
 			WHERE channel_order_id = $1 AND channel = $2
 		)`, schema), channelOrderID, channel).Scan(&exists)
 	if err != nil {
@@ -464,67 +481,58 @@ func ImportChannelOrder(tenantID string, channel string, channelOrderID string, 
 		return "", errors.New("ORDER_ALREADY_IMPORTED")
 	}
 
-	// 2. Map channel SKUs to ERP SKUs
-	var mappedItems []map[string]interface{}
+	return ImportChannelSalesOrder(tenantID, ChannelOrderInput{
+		Channel:        channel,
+		ChannelOrderID: channelOrderID,
+		CustomerName:   channel + " order " + channelOrderID,
+		PaymentStatus:  "Confirmed",
+		Lines:          channelLinesFromLooseItems(items),
+	})
+}
+
+// channelLinesFromLooseItems adapts the legacy []map[string]interface{} line
+// shape to SalesOrderLineInput. Quantities are coerced through
+// numericFromAny because the same map arrives both from Go test fixtures (int)
+// and from json.Unmarshal (float64) - the old code type-asserted .(int) only,
+// so every JSON-sourced line silently imported as qty 0.
+func channelLinesFromLooseItems(items []map[string]interface{}) []SalesOrderLineInput {
+	lines := make([]SalesOrderLineInput, 0, len(items))
 	for _, item := range items {
-		channelSku, _ := item["sku"].(string)
-		qty, _ := item["qty"].(int)
-
-		var erpSku string
-		err = db.DB.QueryRow(fmt.Sprintf(`
-			SELECT sku FROM %s.channel_product_mapping 
-			WHERE channel_sku = $1 AND channel = $2`, schema), channelSku, channel).Scan(&erpSku)
-		if err == sql.ErrNoRows {
-			// Fallback to channel SKU string itself
-			erpSku = channelSku
-		} else if err != nil {
-			return "", err
+		sku, _ := item["sku"].(string)
+		if sku == "" {
+			continue
 		}
-
-		mappedItems = append(mappedItems, map[string]interface{}{
-			"sku": erpSku,
-			"qty": qty,
+		lines = append(lines, SalesOrderLineInput{
+			SKU:       sku,
+			Qty:       int(numericFromAny(item["qty"])),
+			UnitPrice: numericFromAny(item["unit_price"]),
 		})
 	}
+	return lines
+}
 
-	// 3. Find the best fulfillment location node
-	location, err := FindBestFulfillmentNode(tenantID, mappedItems)
-	if err != nil {
-		return "", err
+// numericFromAny coerces the numeric shapes a decoded channel payload can
+// carry (int, int64, float64, json.Number, numeric string) to float64.
+// Anything unrecognised is 0 rather than a panic - a channel is untrusted
+// input and a malformed quantity must not take the intake path down.
+func numericFromAny(v interface{}) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case float32:
+		return float64(n)
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	case json.Number:
+		f, _ := n.Float64()
+		return f
+	case string:
+		f, _ := strconv.ParseFloat(strings.TrimSpace(n), 64)
+		return f
 	}
-
-	// 4. Create stock reservations
-	for _, item := range mappedItems {
-		sku := item["sku"].(string)
-		qty := item["qty"].(int)
-		_, err = CreateReservation(tenantID, sku, location, qty, "Online", 0) // 0 = tenant-configured reservation TTL (Stage 28)
-		if err != nil {
-			return "", fmt.Errorf("failed to reserve stock for SKU %s at node %s: %v", sku, location, err)
-		}
-	}
-
-	// 5. Create POSCart document inside ERP in 'Reserved' status
-	orderID := fmt.Sprintf("ORD-%s-%s", channel, channelOrderID)
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return "", err
-	}
-	defer tx.Rollback()
-
-	if err := db.SetSearchPath(tx, schema); err != nil {
-		return "", err
-	}
-
-	// Save mapping
-	_, err = tx.Exec(fmt.Sprintf(`
-		INSERT INTO %s.channel_order_mapping (order_id, channel, channel_order_id) 
-		VALUES ($1, $2, $3)`, schema), orderID, channel, channelOrderID)
-	if err != nil {
-		return "", err
-	}
-
-	err = tx.Commit()
-	return orderID, err
+	return 0
 }
 
 // MapChannelProduct registers mapping records between external channels and internal SKUs

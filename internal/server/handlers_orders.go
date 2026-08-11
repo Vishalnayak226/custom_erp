@@ -22,6 +22,7 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 		Channel         string `json:"channel"`
 		ChannelOrderID  string `json:"channel_order_id"`
 		CustomerName    string `json:"customer_name"`
+		CustomerPhone   string `json:"customer_phone"`
 		ShippingAddress string `json:"shipping_address"`
 		PaymentStatus   string `json:"payment_status"`
 		Lines           []struct {
@@ -48,7 +49,15 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 		lines[i] = engines.SalesOrderLineInput{SKU: l.SKU, Qty: l.Qty, UnitPrice: l.UnitPrice}
 	}
 
-	orderID, err := engines.CreateSalesOrder(tenantID, req.Channel, req.ChannelOrderID, req.CustomerName, req.ShippingAddress, req.PaymentStatus, lines)
+	orderID, err := engines.CreateSalesOrder(tenantID, engines.SalesOrderInput{
+		Channel:         req.Channel,
+		ChannelOrderID:  req.ChannelOrderID,
+		CustomerName:    req.CustomerName,
+		ShippingAddress: req.ShippingAddress,
+		PaymentStatus:   req.PaymentStatus,
+		CustomerPhone:   req.CustomerPhone,
+		Lines:           lines,
+	})
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return

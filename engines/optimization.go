@@ -138,9 +138,19 @@ func GetSLABreaches(tenantID string, thresholdMinutes float64) ([]SLABreachRepor
 		return nil, err
 	}
 
-	// Query open tasks (Pending, Picking, Packed)
+	// Query open tasks (Pending, Picking, Packed).
+	//
+	// Elapsed minutes are computed in SQL rather than with time.Since in Go
+	// (Stage 35.2). documents.created_at is a bare TIMESTAMP holding the
+	// database server's local wall clock, but lib/pq returns it tagged UTC, so
+	// time.Since() was off by the server's UTC offset - on an Asia/Calcutta
+	// deployment it reported every open task as 330 minutes in the future,
+	// which made `elapsed > thresholdMinutes` false for anything younger than
+	// 5.5 hours plus the threshold. SLA breaches simply never fired for the
+	// window that matters most. NOW() and created_at share the database's own
+	// frame, so their difference is correct in any time zone.
 	query := fmt.Sprintf(`
-		SELECT id, data, created_at FROM %s.documents 
+		SELECT id, data, created_at, EXTRACT(EPOCH FROM (NOW() - created_at)) / 60 FROM %s.documents
 		WHERE doctype = 'FulfillmentTask' AND status IN ('Pending', 'Picking', 'Packed')`, schema)
 	rows, err := db.DB.Query(query)
 	if err != nil {
@@ -153,14 +163,15 @@ func GetSLABreaches(tenantID string, thresholdMinutes float64) ([]SLABreachRepor
 		var id string
 		var dataBytes []byte
 		var createdAt time.Time
-		if errScan := rows.Scan(&id, &dataBytes, &createdAt); errScan == nil {
+		var elapsedMinutes float64
+		if errScan := rows.Scan(&id, &dataBytes, &createdAt, &elapsedMinutes); errScan == nil {
 			var task struct {
 				OrderID      string `json:"order_id"`
 				LocationCode string `json:"location_code"`
 				Status       string `json:"status"`
 			}
 			if errJson := json.Unmarshal(dataBytes, &task); errJson == nil {
-				elapsed := time.Since(createdAt).Minutes()
+				elapsed := elapsedMinutes
 				if elapsed > thresholdMinutes {
 					reports = append(reports, SLABreachReport{
 						TaskID:         id,

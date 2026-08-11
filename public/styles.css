@@ -1,5 +1,19 @@
 /* Custom ERP Stylesheet */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* Stage 40.4: the Google Fonts @import that used to sit here has been
+   removed, and it was the single most expensive thing on the critical path.
+   A CSS @import is discovered only after styles.css itself has downloaded and
+   started parsing, so it cost three chained round trips before first paint -
+   styles.css, then fonts.googleapis.com's CSS, then the woff2 from
+   fonts.gstatic.com - each one blocking, each one to a third party.
+
+   The replacement is the platform's own UI font, which is what a premium
+   native app actually uses: San Francisco on Apple devices, Segoe UI Variable
+   on Windows 11, Roboto on Android. Zero bytes, zero requests, no FOUT, and
+   text renders in the first paint instead of after it. It also let the
+   Content-Security-Policy drop its two Google Fonts exceptions
+   (internal/server/middleware.go), so the app now loads no third-party
+   resource of any kind. */
 
 :root {
   --primary-color: #44546a;
@@ -15,7 +29,13 @@
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
   --shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.08), 0 4px 6px -2px rgba(15, 23, 42, 0.04);
-  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* The platform UI font, best-first. -apple-system/BlinkMacSystemFont resolve
+     to San Francisco; "Segoe UI Variable Text" is Windows 11's refreshed UI
+     face (Segoe UI behind it for Windows 10). Inter is kept last-but-one so a
+     machine that happens to have it installed still uses it. */
+  --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", Roboto, "Helvetica Neue", Inter, sans-serif;
+  /* Tabular figures for money columns, so digits line up down a column. */
+  --font-numeric: "SF Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --sidebar-width: 270px;
   --transition-speed: 0.25s;
   /* Interaction feedback (hover, press) has to land inside the ~100ms a human
@@ -940,20 +960,24 @@ table {
   text-align: left;
 }
 
-/* Sticky header: the table's own scroll ancestor is now .page-container
-   (Stage 26 P2 UI pass, 2026-07-26) - the whole page scrolls as one unit
-   instead of each table owning a cramped inner scrollbar, and this header
-   row freezes at the correct position at the top of that scroll. Known
-   limitation, tried and not resolved: scrolled-past body rows don't fully
-   disappear underneath it - Chromium paints table row/cell backgrounds via
-   its own table-layer algorithm (CSS2.1 17.5.1) ahead of the normal
-   stacking-context order sticky positioning otherwise participates in, so
-   a sticky thead/th ends up positioned correctly but doesn't reliably
-   occlude sibling <tbody> rows the way a sticky block element would.
-   border-collapse:separate, opaque td backgrounds, a forced compositor
-   layer, and isolation:isolate were all tried against this and none of
-   them changed it - a real, still-open cross-browser rough edge with
-   sticky positioning inside native tables, not a one-line CSS fix. */
+/* Sticky header: the table's own scroll ancestor is .page-container (Stage 26
+   P2 UI pass, 2026-07-26) - the whole page scrolls as one unit instead of
+   each table owning a cramped inner scrollbar, and this header row freezes at
+   the top of that scroll.
+   Stage 41 fixes the "scrolled-past rows paint over the frozen header" bug
+   that was previously written off here as unfixable. The diagnosis was right
+   - CSS2.1 17.5.1 has the browser paint table backgrounds in table-layer
+   order (table -> column groups -> row groups -> rows -> cells), and a row
+   group is painted in that layer whatever its `position` is, so a sticky
+   <thead> is positioned correctly but never occludes the <td>s sliding under
+   it - but the conclusion was wrong. The fix is to move `position: sticky`
+   down one level onto the <th> cells: a positioned cell with a z-index leaves
+   the table layer entirely and joins the positioned-descendants layer, which
+   paints above every in-flow <td>. That is why the previous attempts (opaque
+   td backgrounds, forced compositor layer, isolation:isolate) had no effect -
+   they all fought the paint order rather than leaving it.
+   The <thead> keeps its own sticky/z-index so any header decoration that
+   isn't a <th> still travels with it. */
 thead {
   position: sticky;
   top: 0;
@@ -961,14 +985,34 @@ thead {
 }
 
 th {
+  /* Must stay opaque, and must stay a solid colour rather than a token that
+     could resolve to a transparent value - it is the only thing hiding the
+     rows underneath. */
   background-color: var(--bg-color);
+  position: sticky;
+  top: 0;
+  z-index: 16;
   padding: 10px 16px;
   font-size: 11.5px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-muted);
+  /* box-shadow, not only border-bottom: with border-collapse:separate the
+     border belongs to the cell box and can leave a hairline of the row
+     beneath showing through at fractional scroll offsets / non-integer device
+     pixel ratios. The inset shadow paints inside the cell, so the seam is
+     solid at every zoom level. */
   border-bottom: 1px solid var(--border-color);
+  box-shadow: inset 0 -1px 0 var(--border-color);
+}
+
+/* A <th> used as a row header inside a body row (none today, but the generic
+   record/report renderers can emit one) must not freeze at the top of the
+   page as if it were a column header. */
+tbody th {
+  position: static;
+  z-index: auto;
 }
 
 td {
@@ -2231,4 +2275,898 @@ pre {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ===========================================================================
+   Purchase Order composer + printed PO (Stage 40.1)
+
+   The PO screen went from four header inputs to a real line editor, so it
+   needs a layout of its own. Everything below reuses the existing token
+   vocabulary (--surface-subtle, --border-color, --text-muted, the semantic
+   status colours) rather than introducing a second palette - so it inherits
+   dark mode and the reduced-motion rule for free.
+   =========================================================================== */
+
+/* Two utilities the codebase already used in markup but never defined:
+   .btn-sm appears on eleven existing buttons (the JSON line editor's own
+   "+ Add Line" among them) and did nothing at all until now. */
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.btn-ghost {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+}
+
+.btn-ghost:hover {
+  background-color: var(--surface-subtle);
+  color: var(--text-main);
+}
+
+/* Right-align numeric cells. Money and quantities are read by comparing
+   digit positions down a column, which only works if they share an edge. */
+.num,
+th.num,
+td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+input.form-input.num {
+  text-align: right;
+}
+
+.po-composer {
+  padding: 24px;
+  margin-bottom: 24px;
+}
+
+.po-composer-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.po-composer-head h2 {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.po-header-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.po-header-grid .form-group {
+  margin-bottom: 0;
+}
+
+.po-header-grid erp-typeahead,
+.po-header-grid .form-input {
+  width: 100%;
+}
+
+/* The derived-supply-type banner. Three states, because "we could not work it
+   out" has to look different from both answers - a maker who cannot tell
+   those apart will not go and fix the missing GSTIN. */
+.po-supply-banner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 13px;
+  background-color: var(--surface-subtle);
+  transition: background-color var(--transition-med) var(--ease-out),
+              border-color var(--transition-med) var(--ease-out);
+}
+
+.po-supply-idle {
+  color: var(--text-muted);
+}
+
+.po-supply-ok {
+  background-color: var(--success-soft-bg);
+  border-color: var(--success-color);
+  color: var(--success-strong);
+}
+
+.po-supply-warn {
+  background-color: var(--warning-soft-bg);
+  border-color: var(--warning-soft-border);
+  color: var(--warning-strong);
+}
+
+.po-override {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.po-override input {
+  width: auto;
+  margin: 0;
+}
+
+.po-lines-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.po-lines-head h3 {
+  font-size: 14px;
+  font-weight: 700;
+  margin: 0;
+}
+
+.po-optional {
+  font-weight: 400;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.po-lines td {
+  vertical-align: top;
+  padding: 8px;
+}
+
+.po-lines .form-input {
+  width: 100%;
+  padding: 7px 9px;
+}
+
+/* Derived cells are visibly not-editable: same row, different surface, so it
+   reads as "the system filled this in" without needing a legend. */
+.po-derived {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding-top: 15px !important;
+}
+
+.po-line-total {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.po-line-name {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.po-line-error {
+  margin-top: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger-color);
+}
+
+.po-line-flagged td {
+  background-color: var(--danger-soft-bg);
+}
+
+.po-line-remove {
+  width: 26px;
+  height: 26px;
+  margin-top: 4px;
+  padding: 0;
+  font-size: 17px;
+  line-height: 1;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color var(--transition-fast) var(--ease-out),
+              background-color var(--transition-fast) var(--ease-out);
+}
+
+.po-line-remove:hover {
+  color: var(--danger-color);
+  background-color: var(--danger-soft-bg);
+}
+
+.po-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 18px;
+}
+
+.po-totals {
+  min-width: 260px;
+  font-size: 13px;
+}
+
+.po-total-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 4px 0;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.po-total-grand {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.po-total-mode,
+.po-total-hint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.po-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.po-actions .login-error {
+  margin: 0;
+  max-width: 420px;
+}
+
+.po-row-actions {
+  white-space: nowrap;
+}
+
+.po-row-actions .action-btn + .action-btn {
+  margin-left: 4px;
+}
+
+.po-sent-stamp {
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--success-color);
+}
+
+.po-no-lines {
+  font-size: 12px;
+  color: var(--warning-color);
+  cursor: help;
+}
+
+/* --- Printed PO ---------------------------------------------------------
+   Extends .invoice-sheet (the existing A4 browser-print fallback) rather
+   than defining a second sheet, so both documents share one page setup.
+   There is deliberately no MRP column: the server strips it before the
+   payload ever reaches this markup. */
+.po-print .po-print-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin: 10px 0 14px;
+  font-size: 13px;
+}
+
+.po-print-parties {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+
+.po-print-party {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #999;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.po-print-party-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #555;
+}
+
+.po-print-party-name {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.po-print-lines {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.po-print-lines th,
+.po-print-lines td {
+  padding: 6px 8px;
+  border: 1px solid #999;
+  text-align: left;
+}
+
+.po-print-lines th {
+  background-color: #f0f0f0;
+  font-weight: 700;
+}
+
+.po-print-itemname {
+  font-size: 10px;
+  color: #555;
+}
+
+.po-print-totals {
+  width: 300px;
+  margin-left: auto;
+  margin-top: 10px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.po-print-totals td {
+  padding: 4px 8px;
+}
+
+.po-print-grand td {
+  border-top: 2px solid #000;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.po-print-words {
+  margin-top: 10px;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.po-print-pos {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.po-print-foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: 34px;
+  font-size: 11px;
+}
+
+.po-print-sign {
+  padding-top: 6px;
+  border-top: 1px solid #000;
+  font-size: 12px;
+}
+
+/* Field-format guidance (Stage 40.2). Inline under the input, which is the
+   DisplayStyle the message catalog already specifies for these codes. The
+   note element is always present once decorated and simply empties when the
+   value becomes valid, so the form does not jump as the message appears and
+   disappears while typing. */
+.field-format-note {
+  min-height: 0;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.field-format-note.field-format-bad {
+  color: var(--danger-color);
+}
+
+.field-format-invalid {
+  border-color: var(--danger-color) !important;
+}
+
+.field-format-invalid:focus {
+  box-shadow: 0 0 0 3px var(--danger-soft-bg) !important;
+}
+
+/* ===========================================================================
+   Motion system (Stage 40.5)
+
+   The complaint was precise: transitions "felt like a cheap flick". That is
+   what a linear or ease-in-out curve at a middling duration reads as - the
+   movement starts and stops abruptly and spends its time in the middle, which
+   is the one part the eye does not need to see.
+
+   Premium motion on Apple's platforms is the opposite shape: it leaves
+   immediately, covers most of the distance in the first third, and settles.
+   That is a decelerating curve with a slight overshoot, which is what
+   --ease-out already encodes (cubic-bezier(0.22, 1, 0.36, 1)) and what the
+   two curves below extend.
+
+   Four rules everything here follows:
+
+     1. Animate only `transform` and `opacity`. Both are composited on the GPU,
+        so they never trigger layout or paint - which is the actual difference
+        between 60fps and a stutter, far more than duration.
+     2. Distances are small. 6-10px of travel reads as physical; 30px reads as
+        a slide transition in a presentation.
+     3. Interaction feedback is faster than layout movement. A press must
+        answer inside ~100ms or it feels laggy; a panel appearing can take
+        250ms and feel deliberate.
+     4. Nothing moves that the user did not cause.
+
+   The existing @media (prefers-reduced-motion: reduce) block at the end of
+   this file already neutralises every duration here, so none of it fights an
+   accessibility setting.
+   =========================================================================== */
+
+:root {
+  /* Decelerate hard, settle soft. The workhorse for anything entering. */
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+  /* A gentle overshoot, for the one or two things that should feel springy
+     (a value landing, a badge appearing) - never for large surfaces, where
+     overshoot reads as wobble. */
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --duration-view: 0.22s;
+}
+
+/* --- View transitions ---------------------------------------------------
+   renderView() clears #view-root and rebuilds it, which was an instant swap:
+   the old screen vanished and the new one appeared fully formed, with a
+   "Loading..." bar flashing between them on fast responses. That flash is the
+   flick.
+
+   Now the incoming view rises 8px and fades in over one frame budget's worth
+   of time. Because it is transform+opacity only, the table underneath is
+   never re-laid-out, so long lists do not judder as they arrive. */
+#view-root > * {
+  animation: view-enter var(--duration-view) var(--ease-emphasized) both;
+}
+
+@keyframes view-enter {
+  from { opacity: 0; transform: translate3d(0, 8px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+/* The loading bar is the other half of the flicker: on a fast response it
+   appeared and vanished within ~80ms, which registers as a glitch rather than
+   as feedback. Delaying its fade-in past the point where most responses have
+   already returned means a quick screen simply appears, and only a genuinely
+   slow one shows a loader. */
+.view-loading {
+  animation: loader-appear 0.2s var(--ease-out) 0.25s both;
+}
+
+@keyframes loader-appear {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* --- Interaction feedback ----------------------------------------------
+   Buttons and rows answer the cursor inside the ~100ms window a human reads
+   as instant. The press state scales down very slightly - 1.5% is below the
+   threshold of "I saw it move" and above the threshold of "it responded". */
+.btn,
+.action-btn {
+  transition: background-color var(--transition-fast) var(--ease-out),
+              border-color var(--transition-fast) var(--ease-out),
+              color var(--transition-fast) var(--ease-out),
+              transform var(--transition-fast) var(--ease-out),
+              box-shadow var(--transition-fast) var(--ease-out);
+}
+
+.btn:active:not(:disabled),
+.action-btn:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+/* Focus rings animate in rather than snapping, which is the difference
+   between keyboard navigation feeling considered and feeling like a debugger
+   outline. */
+.form-input,
+.form-select,
+.form-textarea,
+erp-typeahead {
+  transition: border-color var(--transition-med) var(--ease-out),
+              box-shadow var(--transition-med) var(--ease-out),
+              background-color var(--transition-med) var(--ease-out);
+}
+
+/* Table rows: colour only. Moving or scaling a row inside a scrolling table
+   is the single most common way a data-dense UI starts to feel cheap. */
+tbody tr {
+  transition: background-color var(--transition-fast) linear;
+}
+
+/* --- Surfaces ----------------------------------------------------------
+   Modals and dialogs scale from 98% rather than sliding, which keeps the
+   user's eye on the same point on screen. The backdrop fades slightly slower
+   than the panel arrives, so the panel leads and the dimming follows. */
+.modal-overlay {
+  transition: opacity var(--transition-med) var(--ease-out);
+}
+
+.modal-overlay.active .modal-container,
+.modal-overlay:not(.hidden) .modal-container {
+  animation: modal-enter 0.24s var(--ease-emphasized) both;
+}
+
+@keyframes modal-enter {
+  from { opacity: 0; transform: scale(0.98) translate3d(0, 6px, 0); }
+  to   { opacity: 1; transform: scale(1) translate3d(0, 0, 0); }
+}
+
+/* Panels that appear inside a view (the PO composer's supply banner changing
+   state, a totals block filling in) settle rather than snap. */
+.po-supply-banner,
+.po-totals {
+  animation: settle 0.26s var(--ease-emphasized) both;
+}
+
+@keyframes settle {
+  from { opacity: 0; transform: translate3d(0, 4px, 0); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+/* --- Rendering quality --------------------------------------------------
+   Grayscale antialiasing on dark backgrounds and subpixel on light is what
+   makes text look native rather than washed out. Setting it globally to
+   antialiased is the standard fix for the "slightly bolder than it should be"
+   look that Chrome gives light text on dark panels. */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Money and quantity columns in the platform's mono face, with tabular
+   figures, so a column of numbers lines up digit for digit. */
+.po-lines .num,
+.po-total-row,
+.po-print-totals,
+td.num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* Long tables get their own paint layer so scrolling one does not repaint the
+   sidebar and header with it. */
+.table-wrapper {
+  contain: paint;
+}
+
+/* The channel reference under an order's source (Stage 40.6). This pairing -
+   which system the order came from, and its id over there - is what makes
+   "did that Unicommerce order actually reach the ERP?" answerable on screen
+   rather than in the database. */
+.oms-channel-ref {
+  margin-top: 2px;
+  font-family: var(--font-numeric);
+  font-size: 10px;
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+/* ===========================================================================
+   Setup guidance (Stage 41)
+
+   Two surfaces, deliberately different in weight:
+
+   .setup-hint   - the line under a picker. Quiet by default and, when the
+                   target list has records, only present while the field is
+                   focused. It is guidance, not an alarm; a form with eight
+                   pickers must not read as eight warnings.
+   .setup-banner - the block at the top of a screen whose prerequisites are
+                   missing. This one IS an alarm, because the user cannot use
+                   the screen at all, so it takes the warning tint.
+
+   Both use only semantic tokens, per the no-literal-colors rule above the
+   dark-theme block, so they re-theme with everything else.
+   =========================================================================== */
+.setup-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  /* Collapsed until it has something to say, so an unfocused field with a
+     populated target list takes no vertical space at all - the hint appears
+     under the field rather than reserving a gap for itself everywhere. */
+  display: none;
+}
+
+.setup-hint.visible {
+  display: block;
+}
+
+.setup-hint-text {
+  color: var(--text-muted);
+}
+
+.setup-hint-missing .setup-hint-text {
+  color: var(--warning-strong);
+  font-weight: 600;
+}
+
+/* The "you don't have access" variant. Muted rather than warning-coloured,
+   and overriding .setup-hint-missing above deliberately: an amber, bold line
+   reads as "you have something to fix", and this user has nothing to fix. It
+   is an explanation of why the screen is empty and who to ask. */
+.setup-hint-missing .setup-hint-blocked,
+.setup-hint-blocked {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* The open-in-new-tab affordance next to every setup link. A separate <a> with
+   target="_blank" rather than a JS window.open, so it behaves like a link:
+   the browser's own context menu, middle-click and modifier-clicks all work,
+   and a popup blocker never eats it. */
+.setup-hint-newtab {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+  padding: 2px;
+  border-radius: 3px;
+  color: var(--primary-color);
+  vertical-align: -2px;
+  transition: background-color var(--transition-fast) ease, color var(--transition-fast) ease;
+}
+
+.setup-hint-newtab:hover,
+.setup-hint-newtab:focus-visible {
+  background-color: var(--primary-light);
+  color: var(--primary-hover);
+}
+
+.setup-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--warning-soft-border);
+  border-radius: 8px;
+  background-color: var(--warning-soft-bg);
+  color: var(--warning-strong);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* Nothing the viewer can act on - every missing prerequisite is one they lack
+   permission to create. Drops to the neutral surface so it reads as
+   information rather than as a task they are failing to do. */
+.setup-banner-blocked {
+  border-color: var(--border-color);
+  background-color: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.setup-banner-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.setup-banner-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.setup-banner-list li {
+  margin-top: 3px;
+}
+
+/* Inside the banner the hint is always shown - the banner exists only when
+   there is something to say, so the picker's focus-gating does not apply. */
+.setup-banner-list .setup-hint-text {
+  color: inherit;
+  font-weight: 400;
+}
+
+.setup-banner-close {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity var(--transition-fast) ease;
+}
+
+.setup-banner-close:hover,
+.setup-banner-close:focus-visible {
+  opacity: 1;
+}
+
+/* The country phone rule shown under a phone field. Reuses .empty-state-hint's
+   size/colour; this only carries the <code> styling for the "+" example. */
+.phone-rule-hint code {
+  padding: 0 3px;
+  border-radius: 3px;
+  background-color: var(--surface-subtle);
+  font-family: var(--font-numeric);
+  font-size: 11px;
+}
+
+/* ===========================================================================
+   OMS Console (Stage 35.2)
+
+   Layout only. Every colour, radius and spacing value below resolves to an
+   existing token - no new palette, no new type scale. The console is a
+   .table-panel with a filter rail, a bulk bar and a wide detail modal, all
+   assembled from vocabulary that already existed.
+   =========================================================================== */
+
+/* .table-panel carries min-height:200px, which is right for a panel holding a
+   table and wrong for one holding a single search field - it reserved a tall
+   empty box above the order list until a search had been run. Modifier rather
+   than a second panel style, so the border/shadow/radius stay shared. */
+.table-panel.oms-compact-panel {
+  min-height: 0;
+}
+
+.oms-search-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.oms-search-row .form-input {
+  flex: 1;
+}
+
+.oms-console-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.oms-view-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* The filter rail. Wraps rather than scrolls: seven facets on a narrow screen
+   should stack into rows the operator can still read, not slide off the edge
+   where a filter can be left set without being visible. */
+.oms-facets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+  padding-bottom: 16px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.oms-facet {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.oms-facet .form-input {
+  min-width: 150px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 13px;
+  color: var(--text);
+}
+
+/* .stat-card is a flex ROW (label beside value), which reads well for a
+   two-item dashboard strip but not for a tile whose label is three words long.
+   Stacked here, and only here, so no other screen's cards move. */
+.oms-tile {
+  cursor: pointer;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.oms-tile-error {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.oms-hold-reason {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.oms-expedite {
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+.oms-pager {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+/* The order detail. Wider than the default modal because it carries nine
+   sections of tabular data; capped at the viewport so it never overflows the
+   page on a laptop, with the body scrolling instead. */
+.oms-detail-container {
+  max-width: min(1100px, 96vw);
+  width: 100%;
+}
+
+.oms-detail-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.oms-detail-address {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.oms-action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.oms-detail-heading {
+  margin: 20px 0 8px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.oms-detail-empty {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.oms-split-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
 }
