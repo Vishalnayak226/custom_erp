@@ -83,31 +83,6 @@ See `docs/operations/go_live_decisions.md` for the full decision worksheet (opti
 
 ---
 
-## Stage 23 — Standardized Error/Message Catalog ⏳ (2026-07-20 — 1 item open: 23.11, no feature exists yet to attach it to)
-
-User supplied a 301-row message-standardization spreadsheet. Didn't exist yet — errors were ad hoc plain-text/hand-rolled JSON across 11 files, and a `Content-Type: application/json` header meant plain-text errors silently broke the frontend's JSON parsing.
-
-- [x] **23.1** Generated `error_catalog_generated.go` (302 codes) from the xlsx.
-- [x] **23.2** `writeAPIError`/`writeAPIErrorGeneric` — the one place every error response is written from.
-- [x] **23.3** Wired all framework-level paths (panic, rate limit, auth, module/feature gates).
-- [x] **23.4** Swept all 10 handler files (18 precise codes, 382 generic-but-consistent). **Structural finding**: the catalog has zero rows at HTTP 400/405, while much of the codebase used exactly those (resolved in the follow-up, 23.12).
-- [x] **23.5** `showToast()`/`renderPageBanner()` frontend primitives added.
-- [x] **23.6-23.7** Verification + docs sync.
-- [x] **23.10 Codes defined but not wired** — the ~187 "Mature ERP" codes describing not-yet-built features. **Fulfilled by Stage 25** (closed 2026-07-23) — every code individually audited and either wired or explicitly justified as deferred.
-- [ ] **23.11** "Inline grid message" display style (1 row) — no paste-into-grid feature exists to attach it to. **Reviewed 2026-07-27, confirmed non-decision**: there is no paste-into-grid feature anywhere on the roadmap to ever attach this display style to, so this stays permanently parked rather than pending a future build — revisit only if a paste-into-grid feature is ever separately proposed.
-
-**Stage 23 follow-up ✅ (2026-07-21)**
-- [x] **23.12** Decided: standardize on HTTP 422, not a forked 400 variant. 186 call sites converted.
-- [x] **23.13** Decided: keep `featureGate`'s fail-closed 403, not the matrix's soft-200.
-- [x] **23.9** `handlers_finance_maturity.go` swept onto the standard envelope.
-- [x] **23.8** Toast/Page Banner rollout via the single choke point (`showApiError()`) dispatching on a new `display_style` field — zero per-screen work.
-
-**Table UI polish (2026-07-27, user-requested, no checklist item pre-existed)**
-- [x] Copy-to-clipboard affordance — a small icon appears on hover next to any table cell value, click to copy (visual checkmark feedback). Wired into `renderDocTable` (the generic doctype list view, covering most list screens app-wide for free) and the Inventory SKU/location columns. `copyableCell()`/`copyValueToClipboard()`, `public/app.js`.
-- [x] Page-level scroll + frozen table header — replaced every table's own cramped inner scrollbox (`table-wrapper`/`table-panel` `overflow:auto`) with genuine whole-page scroll (`.page-container` is now the one scroll container); the table header (`thead`) freezes at the correct position as the page scrolls (`position:sticky`, confirmed via exact pixel math). **Known, still-open limitation**: the frozen header does not fully visually occlude rows scrolling underneath it — a documented Chromium quirk where `position:sticky` doesn't reliably override the browser's own table-background paint order (CSS2.1 §17.5.1) for elements inside a native `<table>`. Tried and did not fix: `border-collapse:separate`, opaque `td` backgrounds, a forced compositor layer (`transform`), `isolation:isolate` — a real, still-open cross-browser rough edge, not a one-line fix. `public/styles.css`.
-
----
-
 ## Stage 26 — Final Leg Maturity Completion Plan (external PDF, 2026-07-23)
 
 `ERP_Final_Leg_Maturity_Completion_Master_Plan.pdf` deepens Stage 20's source plan into a 12-phase (0-11) roadmap with per-module final-leg tables. Full rationale/benchmark detail: `docs/specs/erp_maturity_master_plan.md` (rewritten for this PDF — read it for *why*; this stage is *what*). Numbering `26.0`-`26.11` matches the PDF's own phase numbers 1:1. Same Track split as Stage 20: items marked **[needs user input]** can't be built by an AI session; everything else is buildable now. Items marked **[P2 — tier/scope decision]** are real capabilities from the PDF deliberately not started without an explicit go-ahead, per this repo's standing practice of surfacing scope decisions rather than guessing or silently over-building.
@@ -125,7 +100,7 @@ See `docs/operations/go_live_decisions.md` for the decision worksheet + executio
   - `deploy/Caddyfile` rewritten as the real production config (see 26.1.3). Secrets store confirmed already correct: `/etc/erp/erp.env`, `root:erp 0640`, loaded via systemd `EnvironmentFile=`.
   - **Still open, tracked here rather than as a new item:** supply a domain → run `enable_tls.sh` → set `CORS_ALLOWED_ORIGINS`. Until then production remains tunnel-only by design.
 - [x] **26.1.2** SLO/status-page dashboard — built and live-verified 2026-07-24. Pure frontend, no new backend route or table: a new "System Status" screen (`public/app.js`'s `renderSystemStatusView`, `Settings` sidebar flyout, HR/Admin-only same as `menu-audit-logs`) wires the existing Stage 25.8 `GET /api/v1/ops/deployment-status`/`GET /api/v1/ops/backup-status` endpoints, whose backup-status handler already computes the DR-0213 (restore drill overdue)/DR-0214 (RPO breach) warnings off the Stage 17.10 error catalog — reused as-is, not rebuilt. Screen shows: a warnings banner, quick-stat tiles (environments tracked, last backup, last restore drill), latest-deployment-per-environment table, full deployment history table, and backup/restore-drill history table — all reusing the existing `.stat-card`/`.table-panel`/`.badge-*` primitives, no new CSS. Live-verified via a throwaway-port server + Playwright (scratch HR/Admin token, real dev DB): screen renders correctly against the current empty `public.deployments`/`public.ops_run_log` tables (both warnings correctly fire, all three tables show their empty state, no console errors from the new code). `go build`/`go vet`/`node --check` clean.
-- [ ] **26.1.3** Edge WAF/rate-limiting — **partially closed 2026-08-06**; the remainder is genuinely domain-gated, not deferred by choice. Now that 26.1.1 is settled, everything achievable without a public hostname is done:
+- [x] **26.1.3a** Origin/proxy hardening and rate-limiting design — **engineering scope closed 2026-08-06**. Everything achievable without a public hostname is done:
   - `deploy/Caddyfile` rewritten as the real production proxy config: strips `Server`/`X-Powered-By`, caps request bodies at 12MB *before* they reach Go (the app's own limits are 2MB global / 10MB on the PIM upload route, so this is the outer bound), health-checks the upstream, sets proxy read/write timeouts to 90s — deliberately **above** the app's own 60s `WriteTimeout` so the proxy never truncates a long report export the server would have finished — and rolls access logs at 50MB × 10.
   - `trusted_proxies static private_ranges` in the global block. This is load-bearing rather than decorative: `TRUST_PROXY=1` is set on the box, so without it a client could forge `X-Forwarded-For` and defeat the app's per-IP rate limiting entirely. With it, Caddy replaces rather than appends the header.
   - **Two genuinely missing security headers added — in the app, not the proxy.** `Referrer-Policy: no-referrer` and a `Permissions-Policy` denying geolocation/microphone/camera/payment/usb were absent everywhere (`internal/server/middleware.go` already set HSTS/CSP/X-Frame-Options/nosniff). Attached at the existing `securityHeaders` choke point per CLAUDE.md's shared-choke-point principle, so they hold on the SSH-tunnel path too — which never touches Caddy, and is currently the *only* access path.

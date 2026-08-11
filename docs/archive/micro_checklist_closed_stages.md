@@ -1,10 +1,11 @@
 # Micro-Checklist — Archived Closed Stages
 
-Stages below are **fully closed and verified**. They were moved out of
-`docs/micro_checklist.md` on 2026-08-01 to keep the live tracker small enough
-to read cheaply. Nothing was changed or deleted — this is the verbatim record.
+Stages below are **fully closed and verified**. Most were moved out of
+`docs/micro_checklist.md` on 2026-08-01; Stage 23 followed on 2026-08-11 after
+its last parked item was reconciled as not applicable. This keeps the live
+tracker small enough to read cheaply while preserving the closed record.
 
-Contains: Stages 1-19, 21, 22, 24, 25, 27, 28, 28.5, 29, 29.7, 29.8, 29.9, 30, 32, 33.
+Contains: Stages 1-19, 21, 22, 23, 24, 25, 27, 28, 28.5, 29, 29.7, 29.8, 29.9, 30, 32, 33.
 
 Live tracker (open items only): **[docs/micro_checklist.md](../micro_checklist.md)**
 
@@ -260,6 +261,31 @@ Media Library and Channel Publishing explicitly deferred to 15.2 (needed genuine
 
 ---
 
+## Stage 23 — Standardized Error/Message Catalog ✅ (2026-07-20 — fully closed 2026-08-11)
+
+User supplied a 301-row message-standardization spreadsheet. Didn't exist yet — errors were ad hoc plain-text/hand-rolled JSON across 11 files, and a `Content-Type: application/json` header meant plain-text errors silently broke the frontend's JSON parsing.
+
+- [x] **23.1** Generated `error_catalog_generated.go` (302 codes) from the xlsx.
+- [x] **23.2** `writeAPIError`/`writeAPIErrorGeneric` — the one place every error response is written from.
+- [x] **23.3** Wired all framework-level paths (panic, rate limit, auth, module/feature gates).
+- [x] **23.4** Swept all 10 handler files (18 precise codes, 382 generic-but-consistent). **Structural finding**: the catalog has zero rows at HTTP 400/405, while much of the codebase used exactly those (resolved in the follow-up, 23.12).
+- [x] **23.5** `showToast()`/`renderPageBanner()` frontend primitives added.
+- [x] **23.6-23.7** Verification + docs sync.
+- [x] **23.10 Codes defined but not wired** — the ~187 "Mature ERP" codes describing not-yet-built features. **Fulfilled by Stage 25** (closed 2026-07-23) — every code individually audited and either wired or explicitly justified as deferred.
+- [x] **23.11** "Inline grid message" display style (1 row) — **closed as not applicable, not implemented**. Reviewed 2026-07-27 and reconciled 2026-08-11: there is no paste-into-grid feature in the product or roadmap, so no runtime surface can request this catalog display style. This is a completed scope decision, not unfinished work; revisit only if a paste-into-grid feature is separately proposed.
+
+**Stage 23 follow-up ✅ (2026-07-21)**
+- [x] **23.12** Decided: standardize on HTTP 422, not a forked 400 variant. 186 call sites converted.
+- [x] **23.13** Decided: keep `featureGate`'s fail-closed 403, not the matrix's soft-200.
+- [x] **23.9** `handlers_finance_maturity.go` swept onto the standard envelope.
+- [x] **23.8** Toast/Page Banner rollout via the single choke point (`showApiError()`) dispatching on a new `display_style` field — zero per-screen work.
+
+**Table UI polish (2026-07-27, user-requested, no checklist item pre-existed)**
+- [x] Copy-to-clipboard affordance — a small icon appears on hover next to any table cell value, click to copy (visual checkmark feedback). Wired into `renderDocTable` (the generic doctype list view, covering most list screens app-wide for free) and the Inventory SKU/location columns. `copyableCell()`/`copyValueToClipboard()`, `public/app.js`.
+- [x] Page-level scroll + frozen table header — replaced every table's own cramped inner scrollbox (`table-wrapper`/`table-panel` `overflow:auto`) with genuine whole-page scroll (`.page-container` is now the one scroll container); the table header (`thead`) freezes at the correct position as the page scrolls (`position:sticky`, confirmed via exact pixel math). **Historical limitation, fixed in Stage 41:** the original `thead` implementation did not fully occlude rows scrolling underneath it; Stage 41 moved stickiness to each `<th>` cell so it paints above the body rows.
+
+---
+
 ## Stage 24 — Security & Loopholes Hardening ✅ (34 of 34 items done — 24.35-24.38 closed 2026-07-25, 24.33/24.34 closed 2026-07-26, see addendum)
 
 User supplied a 34-finding AI code review. Every finding re-verified against live source first — 4 were already fixed by later stages, 2 turned out worse than described (zero role check at all, not just a narrower gap).
@@ -391,7 +417,7 @@ User request: sell PIM/WMS/OMS/HR/etc. as fully independent products — any sin
 - [x] **29.4 SalesOrder-to-invoice automation** — full shipment creates one deterministic, idempotent Draft SalesInvoice (`INV-<SalesOrder>`); posting/settlement remain explicit finance actions, so shipping does not silently write GL entries.
 - [x] **29.5 Flyout hover navigation** — sidebar and Schema Designer module flyouts now open as soon as the pointer reaches the module row/arrow, with the same behavior on keyboard focus; click remains available for touch devices. The sidebar stacking layer is above sticky table headers, so the full menu stays visible and clickable over table UI.
 - [x] **29.6 Purchase requisition numbering and lookup masters** — requisition numbers are generated server-side from the configurable `PR` Prefix Config (Settings → Prefix Configs), not typed by a requester. Requirement descriptions are learned into `PurchaseRequisitionDescription` and suggested on later entries; Department uses the existing Department master with the same type-ahead picker.
-- [x] **23.11 clarification** — remains intentionally parked. No paste-into-grid UI exists, so an “inline grid message” cannot be implemented correctly without separately designing that product surface.
+- [x] **23.11 clarification** — closed as not applicable on 2026-08-11. No paste-into-grid UI or roadmap item exists, so there is no product surface on which this display style can run. Revisit only if that feature is separately proposed.
 
 ---
 

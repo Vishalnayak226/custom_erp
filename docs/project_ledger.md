@@ -44,6 +44,16 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 90. Tracker reconciliation — 23.11 and 26.1.3 (2026-08-11, docs only)
+
+Two checklist entries mixed completed engineering decisions with nonexistent or externally gated work. **23.11 is now closed as not applicable, not implemented**: the catalog's one-row inline-grid style has no paste-into-grid product surface or roadmap item, so leaving it unchecked permanently misreported an already-settled scope decision as unfinished work. Stage 23 is fully closed and moved to the closed-stage archive.
+
+**26.1.3 is split along the real ownership boundary.** 26.1.3a records the already-complete repository work (Caddy hardening, trustworthy forwarded IPs for the current direct-to-origin path, application security headers, and the deliberate decision to keep rate limiting in the app rather than maintain a custom Caddy build). 26.1.3b is the only remaining action: activate Cloudflare once the user supplies a public domain and access to its Cloudflare zone. That activation must add Cloudflare's current published CIDRs to Caddy's trusted proxies, enable strict right-to-left forwarded-IP parsing, verify client-IP propagation, and lock the origin firewall to those same ranges. There is no ungated repository work pending, and the tunnel-only production posture is unchanged.
+
+This was documentation-only reconciliation. No source, schema, executable deployment behavior, running service, or in-progress Stage 40/41 work was changed.
+
+---
+
 ## 85. Stage 34.1-34.3 built, the first production DR drill, and nightly backups finally switched on (2026-08-07, code + schema + ops + docs)
 
 The user asked to clear everything actionable. That was two things: Stage 34's buildable half (34.1-34.3), and 26.11.3's restore drill. Both landed; both turned up something the checklist did not know. The drill's finding — that production had no nightly backup — was then signed off and fixed the same day (26.11.7). Item detail in `micro_checklist.md` (34.1-34.3, 26.11.3, 26.11.7).

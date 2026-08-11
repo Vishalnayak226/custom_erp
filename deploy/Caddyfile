@@ -27,6 +27,13 @@
 		# client cannot forge a source IP past the proxy. This is what makes
 		# TRUST_PROXY=1 safe for the app's per-IP rate limiting.
 		trusted_proxies static private_ranges
+
+		# Cloudflare activation changes this trust boundary: Caddy will see a
+		# public Cloudflare edge IP, not the browser. Before orange-clouding DNS,
+		# add Cloudflare's current published IPv4/IPv6 CIDRs here and enable
+		# `trusted_proxies_strict`; then restrict ufw to those same CIDRs. Do not
+		# trust CF-Connecting-IP/X-Forwarded-For from an origin reachable by the
+		# public internet, or clients can forge the IP used by app rate limits.
 	}
 }
 

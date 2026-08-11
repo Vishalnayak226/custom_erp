@@ -24,7 +24,7 @@ Status column current as of **2026-08-06**.
 | 2 | Ops alert webhook | 20.2 / 26.2.2 | — | Portal (Slack/Teams) | ⛔ Open — parked by user 2026-08-06 |
 | 3 | Connector sandbox credentials | 20.3 / 26.2.1 | — | Portal (Shopify/BigCommerce/Magento) | ⛔ Open — parked by user 2026-08-06 |
 | 4 | Production hosting | 20.4 / 26.1.1 | — | Portal (VPS/cloud provider) | ✅ **Decided 2026-08-06** — droplet formalised, `ENV=production` set. Domain/TLS still open |
-| 5 | Edge WAF / rate-limiting | 26.1.3 | #4 | Portal (Cloudflare/cloud WAF) | 🟡 **Partial** — proxy hardening done; WAF needs a domain |
+| 5 | Edge WAF / rate-limiting | 26.1.3a / 26.1.3b | #4 | Portal (Cloudflare/cloud WAF) | ✅ Engineering closed; ⛔ activation needs domain + Cloudflare-zone access |
 | 6 | Tenant backup scope | 26.1.6 | — | Internal scope decision | ✅ Decided + built 2026-08-05 |
 | 7 | External security/perf reviewer | 20.5 | — | Portal/vendor engagement | ⛔ Open — scope doc drafted (see #13) |
 | 8 | GSP sandbox (e-invoice/e-way bill) | 20.30/20.31, 26.2.3/26.2.4, 26.6.9 | — | Portal (NIC or GSP) | ⛔ Open — parked by user 2026-08-06 |
@@ -224,10 +224,10 @@ Given the lightweight-first principle, don't reach for Vault/AWS Secrets Manager
 
 ---
 
-## 5. Edge WAF / rate-limiting (26.1.3) — depends on §4
+## 5. Edge WAF / rate-limiting (26.1.3a / 26.1.3b) — activation depends on §4
 
-> **Partially closed 2026-08-06.** §4 is settled (the droplet), so the parts that
-> don't need a domain are done:
+> **Engineering closed 2026-08-06 (26.1.3a).** §4 is settled (the droplet), and
+> every repository-owned part that does not need a domain is done:
 >
 > - `deploy/Caddyfile` now carries the real production proxy config — strips
 >   `Server`/`X-Powered-By`, caps request bodies at 12MB before they reach Go,
@@ -248,9 +248,11 @@ Given the lightweight-first principle, don't reach for Vault/AWS Secrets Manager
 > the app already does (Stage 13.14: 5/min/IP on the auth category). Rejected as
 > a poor trade under the lightweight-first principle.
 >
-> **Still open, and genuinely blocked on a domain:** the actual edge WAF.
-> Cloudflare needs DNS to point at it, so there is nothing to configure until §4's
-> domain exists.
+> **External activation remains open (26.1.3b):** the actual edge WAF. It needs
+> both a public domain and access to its Cloudflare zone. Activation must add
+> Cloudflare's then-current published CIDRs to Caddy's trusted proxies and turn
+> on strict right-to-left forwarded-IP parsing before `TRUST_PROXY=1` can keep
+> per-client rate limits accurate. There is no ungated repository work pending.
 
 App-level rate limiting (Stage 13.14) already covers you in the meantime, so this isn't urgent — it's defense-in-depth on top.
 
