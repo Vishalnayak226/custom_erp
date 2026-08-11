@@ -406,6 +406,8 @@ func Run() {
 	http.HandleFunc("POST /api/v1/pim/bulk-edit", apiMiddleware(moduleGate("pim", handlePIMBulkEdit)))
 	http.HandleFunc("GET /api/v1/pim/reports/{name}", apiMiddleware(moduleGate("pim", handlePIMReport)))
 	http.HandleFunc("GET /api/v1/pim/workbench", apiMiddleware(moduleGate("pim", handlePIMWorkbench)))
+	// Stage 36.1: resolve a saved static/dynamic Product Group on demand.
+	http.HandleFunc("GET /api/v1/pim/product-groups/{id}/members", apiMiddleware(moduleGate("pim", handlePIMProductGroupMembers)))
 	http.HandleFunc("GET /api/v1/pim/completeness/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMCompleteness)))
 	// Content assist (Stage 26.4.11) - local/offline draft generation from the
 	// item's own data. Suggest-only: writes no ProductContent.

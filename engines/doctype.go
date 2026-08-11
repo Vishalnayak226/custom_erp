@@ -385,6 +385,13 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 		}
 	}
 
+	// Stage 36.1 / 37.1 foundations: domain rules for the new PIM group,
+	// Currency and ExchangeRate masters. Keeping this at ValidateDocument's
+	// shared exit means generic API saves and BulkImportCSV cannot disagree.
+	if err := ValidateParityFoundationDocument(tenantID, doctype, docData); err != nil {
+		return err
+	}
+
 	return nil
 }
 
