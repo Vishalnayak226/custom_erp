@@ -10,7 +10,7 @@
 What each role may do with each record type, read from the default tenant's
 grants: **108 record types across 4 roles.**
 
-**HR/Admin is not listed** - it always has full access to everything and needs no
+**Super Admin is not listed** - it always has full access to everything and needs no
 grant rows. A role with **no row at all** for a record type has **no access to
 it**: this system fails closed, so a missing grant is a denial, never a default
 allow.
@@ -22,7 +22,7 @@ Since Stage 30.5.7 the app also *hides* what a role cannot do - no **New** or
 **Bulk Import** button without create, no row **Edit**/**Delete** icons without
 update/delete - so this table also predicts what each role actually sees.
 
-| Record type | Cashier | HR/Admin | Store Manager | Supplier |
+| Record type | Cashier | Super Admin | Store Manager | Supplier |
 |---|---|---|---|---|
 | **ASN** | - | R C U D | R C U | - |
 | **AllocationRule** | - | R C U D | R | - |

@@ -25,13 +25,20 @@ Jump straight to the thing you're trying to do.
 | Take a return | [USER_SOP §3.3](USER_SOP.md) |
 | Check how much stock I have | §5 |
 | **Order stock from a supplier** | §6 |
-| Record stock that has arrived | §6, step 5 |
+| Add items and prices to a purchase order | §6, step 3 |
+| Print a purchase order and send it to the vendor | §6, step 7 |
+| Understand inclusive vs exclusive GST, or why a PO says IGST | §6.2 |
+| Record stock that has arrived | §6, step 9 |
 | Understand where document numbers come from | §6.1 |
 | Move stock between locations | §7 |
 | Add a vendor, item, brand, location… | §8 |
 | Correct a record I got wrong | §8 — use the row's **Edit** icon |
 | **Record what competitors charge, and see where I sit against them** | §8a, then the Competitor Price Gap report in §9 |
 | Run a report / find the right report | §9 and **[REPORT_CATALOG.md](REPORT_CATALOG.md)** |
+| **Place a customer order by hand (phone / walk-in / replacement)** | §9A.1 |
+| Check whether a marketplace or Unicommerce order reached the ERP | §9A.2 |
+| Process an order through to shipment and invoice | §9A.3 and §9A.4 |
+| Understand why a field says my GSTIN, email or phone number is wrong | §8.1 |
 | Approve or reject something | §10 |
 | Change my own password or auto-logout | §11 |
 | **Understand an error message or code** | §12 and **[ERROR_CODES.md](ERROR_CODES.md)** |
@@ -118,13 +125,13 @@ This is the screen a cashier uses most.
 > **Before your first sale — three things must already exist.** Skip any of them and the sale will be refused, with an error that only makes sense once you know this list.
 >
 > 1. **A Location to sell from.** Setup → Core → **Location**, with **Type = Store**.
-> 2. **At least one Item, with its HSN Code and GST Rate filled in.** Setup → Inventory → **Item**. Both tax fields are required and the system will not let you save without them, because it cannot price a sale it can't tax. Stock also has to exist: an Item on its own has a quantity of zero until a **Goods Receipt** brings some in (§6).
+> 2. **At least one Item, with its HSN Code and GST Rate filled in.** Setup → Inventory → **Item**. Both tax fields are required and the system will not let you save without them, because it cannot price a sale it can't tax. (If the item genuinely isn't taxed — produce, unbranded grain, exports — set its **Tax Treatment** instead of entering a 0 rate; see §9 Step 3.) Stock also has to exist: an Item on its own has a quantity of zero until a **Goods Receipt** brings some in (§6).
 > 3. **An open cashier session at that location.** This is the one people miss. Checkout refuses with *"Cash opening is required before billing"* until a session is open. Opening one is step 2 below.
 
 ### 4.0 Open the till for the shift
 
 1. Click **POS / Billing** (under the **POS** module).
-2. Type your store's code into **Location Code**. The bar above shows whether a session is open there.
+2. Start typing your shop's **name** into **Location** and pick it from the list (the code and short code work too, if that is what you know it by). The bar above shows whether a session is open there.
 3. If it says *"No open session … open one before selling"*, click **Open Session**, type the **cash physically in the till right now**, and confirm. The bar changes to *"Session open at …"*.
 4. At the end of the shift, click **Close Session** and enter the cash you counted. The system shows what it expected, what you counted, and the difference — note it for your manager if it isn't zero.
 
@@ -181,12 +188,28 @@ If you need to know how much stock is *actually free to sell* (not already reser
 
 ## 6. Ordering More Stock (Purchase Order)
 
-1. Click **Purchase Order**.
-2. Click to create a new one.
-3. Pick the vendor (supplier) you're ordering from, and add the items and quantities you need. **You don't type a PO number** — the box shows "Auto (PO series)" and is greyed out on purpose. The number is issued when you save; see §6.1.
-4. Save it. Depending on the amount, it might need someone else's **approval** before it's official — that's a safety check, not a bug. You'll see it move to "pending approval," and once approved, it's ready to send to the vendor.
-5. When the stock physically arrives, record a **GRN** (Goods Receipt Note — "yes, this stock actually showed up") on **Procurement → Goods Receipt**. Click **Load Items from PO**, pick the order, adjust any quantity that arrived short, and click **Post Receipt**. **Only then does the stock count go up** — an order by itself never adds stock, only a confirmed receipt does. Check **Inventory** afterwards to confirm it moved.
+1. Click **Purchase Order**. The **New Purchase Order** panel is at the top of the screen — there's no separate "create" step to click first.
+2. Fill in the four header boxes:
+   - **Vendor** — start typing and pick the supplier from the list.
+   - **Location (billing entity)** — which of your locations is buying. This decides who the vendor invoices, and it's half of how the system works out your GST (see §6.2).
+   - **Target Warehouse (ship to)** — where the goods should physically arrive. Often the same as Location; it doesn't have to be.
+   - **GST treatment of purchase price** — leave it on "Tenant default" unless this particular vendor quotes differently. See §6.2.
+3. **Add your items.** Click **+ Add item** for each line, then fill in:
+   - **Item** — type to search; pick from the list.
+   - **Qty** and **Purchase Price** — what you're ordering and what you're paying per unit.
+   - **MRP** — optional. Record it if you're tracking it; leave it blank if not. **It never appears on the vendor's printed copy** — it's for you, not for them.
 
+   The four grey columns to the right — **HSN**, **GST %**, **Taxable**, **Tax**, **Line Total** — fill themselves in as you type. You can't edit them, on purpose: HSN and GST rate come from the Item master, so there's only ever one answer to "what tax does this item carry".
+
+   If a line turns red, that item is missing its HSN code or GST rate on the Item master. Fix it under **Setup → Items** and the line clears.
+4. Check the **totals** at the bottom — taxable value, the tax split, and the grand total — and the **supply-type banner** above the items (§6.2).
+5. **You don't type a PO number.** The box shows "Auto (PO series)" and is greyed out on purpose. The number is issued when you save; see §6.1.
+6. Click **Create Draft**. Depending on the amount it may need someone else's **approval** before it's official — that's a safety check, not a bug. You'll see it move to "Pending Approval", and once approved it's ready to send.
+7. **Send it to the vendor.** On the order's row, **Print** opens a proper purchase order laid out for A4 — both parties' names, addresses and GSTINs, the item table with HSN and tax, the grand total, and the amount in words. **Send to Vendor** records the dispatch (the row shows "Sent to vendor") and opens a pre-filled email to the vendor's contact address. If your administrator has configured a notification channel, it goes out through that as well.
+8. **Amend** loads the order back into the same panel — including its items — so you can change quantities or prices. Amending an already-approved PO sends it back for re-approval, and the screen warns you before it does.
+9. When the stock physically arrives, record a **GRN** (Goods Receipt Note — "yes, this stock actually showed up") on **Procurement → Goods Receipt**. Click **Load Items from PO**, pick the order, adjust any quantity that arrived short, and click **Post Receipt**. **Only then does the stock count go up** — an order by itself never adds stock, only a confirmed receipt does. Check **Inventory** afterwards to confirm it moved.
+
+**An RFQ is optional.** If you want to compare vendor quotes first, raise a Purchase Requisition and convert it to an **RFQ** (Procurement → RFQ), collect quotes, then convert to a PO. If you already know who you're buying from — which is the normal case — go straight to a Purchase Order as above. Nothing requires an RFQ to exist first.
 
 ![The Purchase Order screen; the PO Number box is greyed out and filled in on save](img/purchase-order.png)
 
@@ -200,6 +223,35 @@ Two things worth knowing:
 
 - **Numbers can have gaps, and that's normal.** If a save fails validation after a number was drawn, that number isn't reused. A gap means "something was started and not completed", never "a document went missing".
 - **You can't reuse or choose a number.** This is deliberate. When people typed their own numbers, two colleagues creating a PO at the same time could pick the same one — and the second save would quietly overwrite the first, with no warning to either of them. Now that can't happen.
+
+### 6.2 GST on a purchase order: inclusive vs exclusive, and inter-state
+
+Two things decide the tax on a PO, and the screen works both out for you.
+
+**Does the price you typed already include GST?**
+
+- **Exclusive** (the usual case, and the default) — the Purchase Price is the base price and GST is added on top. Type 450 at 5% and the line comes to 472.50.
+- **Inclusive** — the price already has GST in it. Type 450 at 5% and the line stays 450, of which 21.43 is tax.
+
+Your administrator sets which one is normal for your business (Admin Guide → Configuration → Procurement → "Purchase Order price GST treatment"). The dropdown on the PO screen shows what that default is, and you can override it on any single PO where a particular vendor quotes the other way.
+
+**Is it inter-state or intra-state?**
+
+You don't tick this any more. The system compares the state of the **legal entity behind your chosen Location** with the state of the **vendor**, and applies:
+
+- **same state** → intra-state → **CGST + SGST**
+- **different states** → inter-state → **IGST**
+
+The banner above the items tells you which it chose and why — for example *"Inter-state (IGST) — vendor in Karnataka (29), billing entity in Maharashtra (27)"*.
+
+Each side's state comes from its GSTIN (the first two digits are the state code), falling back to the **State** field on the record if there's no GSTIN.
+
+If the banner turns amber and says it **could not work the supply type out**, it names exactly what's missing — usually "this vendor has no GSTIN or state recorded". Two options:
+
+- **Fix the master** (better): add the GSTIN or State to the vendor under **Setup → Vendors**, or to the Legal Entity behind your Location. Every future PO for that vendor then gets it right automatically.
+- **Set it by hand** (for this PO only): tick **Inter-state (IGST)** in the banner.
+
+You can also **Override** a derived answer when you know something the master records don't — a bill-to/ship-to split, for instance. Once you override, your choice sticks and later saves won't quietly undo it.
 
 ## 7. Moving Stock Between Locations (Stock Transfer)
 
@@ -226,6 +278,26 @@ Adding a new one always works the same way, no matter which list you're in:
 4. Some fields are small tables rather than boxes — a recipe’s components, a routing’s operations. Use **+ Add Line** to add a row and **Remove** to take one out. You never have to type these in a technical format.
 5. If a dropdown is empty, it says so and offers a **create one first** link straight to the list you need. That is the normal way to find out you are missing a prerequisite.
 6. Click **Save**.
+
+> **Your shop can have a Short Code.** Optional, and nothing depends on it. It is there so staff can find a location by the two or three letters they actually say out loud ("BKC", "LDH2") while the **Location Name** stays the full name shown on screen and the **Location Code** stays the identifier the system uses. Searching a location box matches all three.
+
+### 8.1 The system tells you what is missing — read the hints
+
+You should almost never have to work out *which* list you are missing. Three things do it for you, and they all say the same thing the same way:
+
+- **Under a search box.** Pick a vendor on a Purchase Order and, if no vendors exist yet, the box says so and offers a link straight to the Vendor list. If vendors *do* exist, the line only appears while you are in the box, and reads *"Can't find the Vendor you need? Add a Vendor"* — so it helps when you are stuck and stays out of the way when you are not.
+- **At the top of a screen.** Open a screen that needs something you have not set up and a short panel lists what is missing, each with its own link. Close it with the **×** if you already know; it stays closed for the rest of your visit and comes back next time you sign in — deliberately, so a half-finished setup does not stay half-finished.
+- **The ⧉ icon opens it in a new tab.** Every one of these links has one next to it. Use it when you do not want to lose what you are in the middle of — set the missing thing up in the second tab, come back to the first, and carry on. (The links are ordinary links, so **Ctrl+click** and **middle-click** work too.)
+
+**If it says you do not have access**, the message names what needs setting up and asks you to contact your administrator. That is not an error you can fix — send them the name of the list it mentions.
+
+### 8.2 Phone numbers
+
+Phone boxes follow the country your administrator set up (**Settings → Configuration → Localization → Home country**). With India selected, a phone box takes exactly **10 digits** and will not accept an eleventh; the line under it tells you so before you start typing.
+
+You never have to format anything. Spaces, dashes, brackets and a leading `+91` are all removed automatically, so pasting `+91 (98765) 43210` out of an email stores the same number as typing `9876543210` — which also means the system can tell it is the same customer instead of creating a second one.
+
+**For a number in another country, start with `+` and the country's dialling code** (`+971 50 123 4567`). The system recognises it, stores it correctly, and records which country it belongs to. Orders that arrive from your online channels are cleaned the same way automatically — and an order is **never** rejected because of its phone number.
 
 To change an existing one later, find it in the list (use the search box above the table if there are a lot) and click its row’s pencil **Edit** icon. You never need to delete and recreate a record to correct it.
 
@@ -260,6 +332,45 @@ Then run the **Competitor Price Gap** report (Section 9) to see where you stand.
 
 > **"Our Price" comes from what you actually sold at, not from a price list.** This system has no separate price-list master — the price is set on the sale itself. So the report shows the most recent price you actually transacted at for that item, and tells you which it came from (a POS sale or a sales order). **An item you have never sold shows "No price on file"** rather than a made-up figure — that is correct, not a fault. Ring one through, and the comparison appears.
 
+### 8b. Grouping Products for PIM Work
+
+Once the Stage 36 migration has been applied, open **Setup → PIM → PIM Product Group** to save a set of products you want to review together.
+
+- Choose **Static** when you know the exact products. Add each Item under **Static Products**. The group keeps that hand-picked list until you edit it.
+- Choose **Dynamic** when membership should follow the data. You can limit by Product Family, show products below a completeness percentage, require a particular missing attribute, and/or choose Active or Inactive items. Filled filters are combined, and the group is recalculated whenever it is used—there is no stale saved result to refresh.
+- Do not fill both kinds of input. A static group cannot have dynamic filters, and a dynamic group cannot have static rows; the save message points out the conflict.
+
+To preview a group, open **Reports → PIM Product Group Readiness**, enter either its Group Code or record ID, and run the report. It shows the current members, completeness percentage, and missing fields. Using a group directly for bulk changes, task assignment, or export belongs to the next part of Stage 36 and is not available yet.
+
+### 8.1 Fields that check what you typed (GSTIN, email, phone, PAN, IFSC, PIN code)
+
+Some boxes know what kind of value belongs in them, and help you get it right.
+
+**None of them become compulsory because of this.** If a field was optional before, leaving it blank is still perfectly fine and nothing will complain. The checks only apply once you've typed something — the rule is *"if you fill it in, fill it in properly"*.
+
+What you'll notice:
+
+- **A worked example in the empty box.** A GSTIN field shows `27AAPFU0939F1ZV`, an email field shows `name@company.com`, a PIN code shows `400051`. That's the shape it wants.
+- **Keys that don't belong simply don't type.** A **phone** field takes digits and `+ - ( )` and spaces — letters won't go in at all. A **PIN code** takes digits only.
+- **Automatic capitals** where the format uses them. Type a GSTIN, PAN or IFSC in lower case and it becomes upper case as you go, so it can't be rejected over something as trivial as capitals.
+- **A message under the box when you click away**, if what's there isn't right. It tells you the rule *and* shows a valid example, rather than just saying "invalid".
+
+The rules, in plain terms:
+
+| Field | What it needs |
+|---|---|
+| **GSTIN** | 15 characters — 2-digit state code, 10-character PAN, then 3 more. `27AAPFU0939F1ZV` |
+| **Email** | An `@` and a dot in the domain. `buyer@company.com` — `asdf` and `missing@dot` are both refused |
+| **Phone / mobile** | Digits, optionally with `+ - ( )` and spaces. No letters |
+| **PAN** | 10 characters — 5 letters, 4 digits, 1 letter. `AAPFU0939F` |
+| **IFSC** | 11 characters — 4 bank letters, a `0`, then 6 more. `HDFC0001234` |
+| **PIN code** | 6 digits, not starting with 0. `400051` |
+| **Website / URL** | Must start with `http://` or `https://` |
+
+If you save anyway with something malformed, the server refuses it and tells you the same thing — so a wrong GSTIN can't quietly reach an invoice months later.
+
+> **Worth doing on your vendors:** a vendor's **GSTIN** is what lets a purchase order work out its own tax treatment (§6.2), and a vendor's **email** is what **Send to Vendor** uses (§6, step 7). Both are optional — but filling them in is what makes those two features work without anyone having to think about them.
+
 ## 9. Running a Report
 
 1. Click **Reports** in the sidebar (it is a top-level entry, not inside a module).
@@ -272,6 +383,81 @@ Then run the **Competitor Price Gap** report (Section 9) to see where you stand.
 
 
 ![The report catalog](img/reports.png)
+
+## 9A. Order Management (OMS) — taking and processing customer orders
+
+**Order Management** is the one screen that follows a customer order all the way through: order → stock allocated → picked and packed → shipped → invoiced. Orders arrive here from three places, and they all behave identically once they're in:
+
+- a **sales channel** (a marketplace or webstore your administrator has connected),
+- **Unicommerce** or another OMS middleware, if that's how your orders are routed,
+- or **by hand**, using the panel described below.
+
+### 9A.1 Placing a manual order
+
+Use this for a phone order, a walk-in wholesale order, a replacement, or anything a channel didn't send you.
+
+1. Go to **Order Management**. The **New manual order** panel is at the top.
+2. Fill in:
+   - **Customer name** and **Customer phone** — both optional, but they're what makes an order findable later. The phone box only accepts digits, `+`, `-`, `(`, `)` and spaces; it won't let you type letters.
+   - **Source** — defaults to "Manual". Change it if you want the order tagged as coming from somewhere specific (a phone line, a trade counter, a particular salesperson).
+   - **Reference** — optional, but useful. It's your own order number for this order. If you send the **same reference twice, you get the same order back rather than a duplicate** — so a double-click or a retried entry can't create two orders.
+   - **Payment** — Confirmed (paid), Pending, or Cash on delivery.
+   - **Shipping address** — **required.** The order engine has to know where it's going.
+3. Add items with **+ Add item**: search for the item, set the quantity and the unit price.
+4. Click **Create Order**.
+
+**What happens the moment you click it:** the order goes through exactly the same engine a marketplace order does — stock is checked and **reserved**, the order is allocated, and any hold rules your business has configured are evaluated. This is deliberate. A manual order is a real order, so it can't be allowed to skip the checks a channel order goes through.
+
+That also means a manual order **can be refused**, and the most common reason is *"insufficient stock for reservation"*. That isn't a bug — it's the system declining to promise stock you don't have. Check **Inventory** for that item, receive the stock in (§6), and try again.
+
+### 9A.2 Finding an order, and seeing that it reached the ERP
+
+**If you know any identifier at all, use the search box at the top.** It searches, in one go: the ERP's own order id, the channel's order id, an **AWB / tracking number**, the **customer's phone number**, the customer's name, and any **SKU** on the order. Each result tells you *which* of those matched, which matters when a SKU search returns forty orders. Type the number the customer read out over the phone and you will find their order.
+
+**If you're working a queue rather than looking for one order, use the filters.** Above the Orders table there is a row of filters: **Channel**, **Status**, **Hold reason**, **Location**, a **From/To** date range, and **SLA breach over** (1 hour / 4 hours / 24 hours). Each dropdown shows a count next to every option, so you can see how much work is behind a filter before you pick it. **Clear filters** resets them.
+
+Filters you use repeatedly can be kept: set them up, then **Save this view** and give it a name. It reappears in the **Saved views…** dropdown. Views are private to you.
+
+**Did my marketplace order actually sync in?** Every order — however it arrived — has a **Source** column showing the system it came from and, underneath, **that system's own order id**. Find the channel's order number there and you have your answer; if it isn't there, it hasn't arrived. You don't need anyone to check a database for you.
+
+**The four tiles at the top** are live counts, each of which you can click to open the report behind it: integration exceptions, SLA breached, allocation pending, and reconciliation variance.
+
+### 9A.3 Processing an order through to invoice
+
+The Orders table is a working queue. Read a row left to right: order id (with an **Expedite** badge if it's been prioritised — expedited orders sort to the top), source, customer, status with its hold reason, line count, allocated location, age, and value.
+
+**To act on one order, click Open.** That gives you the whole order on one page: every line with its own status and allocated location, the reservations behind it, fulfillment tasks, shipments, invoices, returns, refunds, the notification log, and the full audit trail.
+
+Across the top of that page is the action bar:
+
+| Action | What it does |
+| --- | --- |
+| **Release hold** | Clears a hold and re-allocates. Only shown while the order is On Hold. |
+| **Hold** | Stops the order. Asks for an active Hold reason code, which is recorded. |
+| **Edit** | Change the customer, phone, shipping/billing address or payment status. **Saving re-runs the same checks a new order goes through** — so if your edit leaves the order unfulfillable (an address with no PIN code, say) the order is placed On Hold with the reason, rather than saved silently broken. |
+| **Reallocate** | Re-runs allocation for lines that haven't been picked yet, letting the engine pick the best location again. |
+| **Switch facility** | Same, but you name the location. Lines already dispatched, cancelled or returned are left alone — the goods have physically moved. |
+| **Expedite / Set Normal** | Flags the order as urgent. Expedited orders sort to the top of this queue **and** to the top of the warehouse's picking worklist. |
+| **Split selected lines** | Tick **split** next to the lines you want fulfilled separately, then click this. They become an independent fulfilment group, picked and shipped on their own. It stays **one order** — one order id for the customer, one invoice chain. You can't split every line out; at least one has to stay. |
+| **Cancel order** | Asks for a cancellation reason code. Not offered once an order is Shipped, Delivered, Closed or Cancelled. |
+
+**Holding a single line** rather than the whole order: in the Lines table, click **Hold line**. The order keeps moving; only that line stops, and the stock it was holding is released back into the pool so another order can use it. **Release line** puts it back — re-reserving the stock if it's still available, or leaving the line Pending if it isn't (which is honest: it won't claim stock that no longer exists).
+
+If an action is greyed out, the order has reached a status that closes it (Shipped, Delivered, Closed, Cancelled). An administrator can reopen any of these by configuring a Status Transition Rule.
+
+**Acting on many orders at once:** tick the checkboxes in the Orders table — the header checkbox selects the whole page — and a bar appears with **Release Hold**, **Hold** and **Cancel**. Each order is still checked individually, so a mixed selection does what it can and tells you exactly which orders refused and why (an order that has already shipped can't be cancelled, and says so).
+
+### 9A.4 The full order-to-cash walkthrough
+
+1. **Order arrives** (channel, middleware, or the manual panel above). Stock is reserved automatically.
+2. **Clear any hold.** An order sitting On Hold does not progress. Open it, read the reason, fix it, click **Release hold**. Working a backlog? Filter the queue by **Status = On Hold**, or by the specific **Hold reason**, tick the ones you've resolved and release them together.
+3. **Pick and pack.** Go to **Fulfillment** — the task for this order is routed to the location holding the stock. Work it through pick → pack. Anything you marked **Expedite** appears at the top of the picking worklist. (Warehouses using wave picking or mobile picking do the same thing from those screens.)
+4. **Book the shipment.** Under **Marketplace & Logistics**, book the courier and print the shipping label. The Shipment column starts reporting the booking's state.
+5. **Hand over.** Once the courier has it, the order moves to Shipped and the shipment to In-Transit.
+6. **Invoice.** The linked invoice appears in the Invoice column. Open it and settle it when the customer has paid.
+7. **Delivered.** Delivery events move the order to Delivered.
+
+If you're comparing this to how Unicommerce or a similar OMS describes the same flow: their "sale order → inventory allocation → picklist → invoice → manifest/dispatch" maps onto steps 1–6 above. The vocabulary differs; the sequence doesn't.
 
 ## 10. Approvals
 
@@ -300,7 +486,8 @@ Underneath there's a **code** like `GLOBAL-0001` and a **correlation ID**. Look 
 | What you see | What it actually means |
 |---|---|
 | *"Cash opening is required before billing"* | No cashier session is open at this location. §4.0. |
-| *"Please enter HSN Code to continue"* | The item is missing its tax details. Every item needs an HSN Code and a GST Rate before it can be sold. |
+| *"Please enter HSN Code to continue"* | The item is missing its HSN Code. Every item needs one, whatever its tax treatment. |
+| *"Tax category is required for this item"* | The item hasn't said how it's taxed. Either give it a **GST Rate** above 0, or set **Tax Treatment** to Exempt / Nil-Rated / Zero-Rated. The same message appears if you picked a non-taxable treatment *and* left a rate above 0 on it — the two contradict each other. |
 | *"item not found"* at the till | The SKU isn't recognised. Code, barcode and internal id all work — check for a typo, or whether the item exists at all. |
 | *"Selected Vendor does not exist or is inactive"* | You typed a vendor that isn't in the list. Use the suggestions as you type, or create the vendor first (§8). |
 | *"…cannot move from 'X' to 'Y'"* | The document can't jump to that status from where it is. The message lists the statuses it *can* move to. |
@@ -331,6 +518,17 @@ Everything above is per-screen. This section is the opposite: one continuous pat
 
 **Setup → Inventory → Item → New Item.** Fill in the name and code, and — this is the step people skip — the **HSN Code** and **GST Rate**. Both are required; the system refuses to save without them, because it can't price a sale it can't tax. Save.
 
+> **Selling something that isn't taxed?** Unbranded grain, fresh produce, salt, books and exports are all sold at 0%, and a 0 in **GST Rate** on its own is still rejected — the system can't tell it apart from a rate you haven't filled in yet. Set **Tax Treatment** (just above GST Rate) instead:
+>
+> | Tax Treatment | Use it for | GST Rate |
+> |---|---|---|
+> | **Taxable** | Everything ordinary. This is what you get if you leave the field alone. | Must be greater than 0 |
+> | **Exempt** | Goods exempted by notification — fresh produce, unbranded grain. | Leave 0 or blank |
+> | **Nil-Rated** | Goods whose tariff rate is genuinely 0% — salt, certain cereals. | Leave 0 or blank |
+> | **Zero-Rated** | Exports and SEZ supplies made under LUT/bond. | Leave 0 or blank |
+>
+> **HSN Code is still required on all four** — it goes on the invoice whatever the rate is, and the nil/exempt part of GSTR-1 is reported HSN-wise too. And you can't have it both ways: pick a non-taxable treatment and the item may not carry a GST Rate above 0.
+
 At this point you have an item with **zero stock**. That's expected.
 
 ### Step 4 — Order some stock
@@ -353,7 +551,7 @@ Back as the first user: **Procurement → Goods Receipt**. Click **Load Items fr
 
 ### Step 7 — Open the till
 
-**POS → POS / Billing.** Type `MAIN` into **Location Code**, click **Open Session**, and enter the cash physically in the drawer.
+**POS → POS / Billing.** Start typing your shop name into **Location** and pick it from the list (typing the code `MAIN` finds it too), click **Open Session**, and enter the cash physically in the drawer.
 
 ### Step 8 — Sell something
 
@@ -389,7 +587,7 @@ That's the whole loop: buy → receive → sell → and the accounting follows b
 | **MFA** | A second security check (a code from your phone) in addition to your password. |
 | **Approval / Maker-checker** | A rule that important actions need a second person to say yes, so no one person can make a big mistake (or fraud) alone. |
 | **Tenant** | Your business's own private copy of the system — other businesses using the same system can never see your data. |
-| **Role** | What kind of user you are (Cashier, Manager, HR/Admin, etc.) — it decides what you can see and do. |
+| **Role** | What kind of user you are (Cashier, Manager, Super Admin, etc.) — it decides what you can see and do. |
 | **Correlation ID** | A tracking code shown when something goes wrong, so support can find exactly what happened. |
 
 ---

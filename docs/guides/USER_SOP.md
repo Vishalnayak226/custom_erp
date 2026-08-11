@@ -93,7 +93,7 @@ This is the more serious sibling of §3A. The server tracks each till's offline 
 2. **Treat a row here as a real event, not noise.** The commonest cause is a browser cache being cleared, or a device being replaced, while sales were still queued — that stock left the shop and no sale was ever recorded for it.
 3. Reconcile against the physical till and the day's cash, and raise the sales manually if you can establish what they were.
 
-Only HR/Admin and Store Manager can see this screen.
+Only Super Admin and Store Manager can see this screen.
 
 ---
 
@@ -278,7 +278,7 @@ Reached via the **Procurement** flyout → **Purchase Order**.
 1. Fill in **Vendor**, **Target Warehouse**, **Location** (all required), **Total Amount** (the taxable value), and optionally a **GST Rate %** plus an **Interstate** checkbox. **PO Number** is greyed out and reads "Auto (PO series)" — it is issued when you save (see §1).
 2. Click **Calculate GST** to preview the CGST/SGST or IGST breakdown for what you've entered so far — this is just a calculator, it doesn't change what gets saved.
 3. Click **Create Draft**. It appears in the list below as **Draft**.
-4. Click **Submit for Approval** on a Draft PO. Depending on the amount, it routes to a Store Manager (under a configured threshold) or HR/Admin (at or above it) — you'll see it move to **Pending Approval**, then **Approved** or **Rejected** once decided (§6).
+4. Click **Submit for Approval** on a Draft PO. Depending on the amount, it routes to a Store Manager (under a configured threshold) or Super Admin (at or above it) — you'll see it move to **Pending Approval**, then **Approved** or **Rejected** once decided (§6).
 
 5. **When the stock arrives**, record it on **Procurement → Goods Receipt** (§15B) against this PO. That is what actually raises your stock count — an approved PO on its own never does. The PO's own status stays **Approved** until the receipt closes it; look at the Goods Receipt screen, not this one, to see what has physically arrived.
 
@@ -293,7 +293,7 @@ Reached via the **Procurement** flyout → **Purchase Requisitions**. A record-l
 3. Fill in the **Description** of what's needed. This field suggests wordings that have been used before as you type; you can also type something new, and the system remembers it for next time.
 4. Fill in the **Department** (also a suggest field) and the quantity/amount.
 5. Save. It starts as **Draft**.
-6. Submit it for approval. It routes by amount exactly like a Purchase Order (0–49,999 → Store Manager; 50,000 and above → HR/Admin by default), and appears in the approver's **Approvals** screen (§6).
+6. Submit it for approval. It routes by amount exactly like a Purchase Order (0–49,999 → Store Manager; 50,000 and above → Super Admin by default), and appears in the approver's **Approvals** screen (§6).
 7. Once approved, raise the actual Purchase Order (§15) against it.
 
 ---

@@ -68,16 +68,16 @@ Add `-Env test` or `-Env live` to target an environment other than the default (
 
 ### B.2 User and Role Management
 
-- **Creating a user**: **Users** screen (HR/Admin only — every other role gets a 403 from the API even though the menu item itself is currently visible to everyone, see [User Guide](USER_GUIDE.md) §3). Fill in username, password (8+ characters), email, and role, then **Create User**. New accounts start **Active**.
+- **Creating a user**: **Users** screen (Super Admin only — every other role gets a 403 from the API even though the menu item itself is currently visible to everyone, see [User Guide](USER_GUIDE.md) §3). Fill in username, password (8+ characters), email, and role, then **Create User**. New accounts start **Active**.
 - **Deactivating/reactivating a user**: same **Users** screen, the **Deactivate**/**Reactivate** action on each row. You can't deactivate the account you're currently logged in as. A deactivated user's login is rejected the same as a wrong password, **and any session they already have open stops working on their next click** — you do not have to wait for their sign-in to time out. The same applies to changing someone's role or location: it takes effect on their live session, not at their next login. (If you make the change directly in the database rather than through this screen, allow up to 30 seconds — see `AUTH_STATE_CACHE_SECONDS` in `deploy/erp.env.example`.)
-- **Granting permissions**: **Roles** screen (also HR/Admin only) shows every currently-granted (role, record type) permission as a table, and a form above it to add or update one — pick the role and record type, check whichever of Read/Create/Update/Delete apply, **Save Grant**. A role with no row for a given record type gets **no access at all** to it (fails closed) — HR/Admin itself always has full access everywhere and never needs a row here. See the [User Guide](USER_GUIDE.md) §3 for what each role's sidebar looks like, and `../ERP_BLUEPRINT.md` §3 for how role checks are enforced (server-side, on every action — never trust a UI-only restriction).
-- **HR/Admin** and other privileged roles require MFA (Multi-Factor Authentication — a 6-digit code from an authenticator app).
+- **Granting permissions**: **Roles** screen (also Super Admin only) shows every currently-granted (role, record type) permission as a table, and a form above it to add or update one — pick the role and record type, check whichever of Read/Create/Update/Delete apply, **Save Grant**. A role with no row for a given record type gets **no access at all** to it (fails closed) — Super Admin itself always has full access everywhere and never needs a row here. See the [User Guide](USER_GUIDE.md) §3 for what each role's sidebar looks like, and `../ERP_BLUEPRINT.md` §3 for how role checks are enforced (server-side, on every action — never trust a UI-only restriction).
+- **Super Admin** and other privileged roles require MFA (Multi-Factor Authentication — a 6-digit code from an authenticator app).
 - **Resetting a user's two-factor setup.** On the **Users** screen each row has a **Reset 2FA** action. Use it when someone has lost both their phone *and* their recovery codes. It clears their authenticator and every recovery code they hold, and forces them to set two-factor up again on a new device at their next login — it does **not** turn MFA off for that account. (The old route, the `cmd/reset_mfa` command-line utility, still exists for the case where nobody can log in at all; it needs shell and database access on the server.)
 - **Users can normally recover themselves, and should be told so** — every reset you perform is one they could have avoided:
   - Ten **single-use recovery codes** are issued when they first enrol, shown once, and accepted on the login screen in place of a 6-digit code.
   - **My Profile → Two-Factor Recovery** lets them move their authenticator to a new phone (confirming with their password, not a code, since the old device may be gone) and generate a fresh set of codes. It also shows how many codes they have left.
   - Only a scrambled fingerprint of each code is stored, so **you cannot look up a user's codes for them** — if they have lost them, the choice is regenerate (if they can still sign in) or Reset 2FA (if they can't).
-- **Worth doing before you need it: keep a second HR/Admin account, enrolled on a different device.** With a single admin account, a lost phone plus lost codes means nobody left in the tenant can perform the reset, and recovery drops back to server shell access.
+- **Worth doing before you need it: keep a second Super Admin account, enrolled on a different device.** With a single admin account, a lost phone plus lost codes means nobody left in the tenant can perform the reset, and recovery drops back to server shell access.
 
 > **Supplier logins (PIM).** A supplier who submits product content is created here like any other user, with the role **Supplier** — there is no separate portal to set up. Their account must also be linked to the **Vendor** record they speak for; until it is, they can sign in but every screen refuses them, by design. A Supplier session can only ever see and edit submissions filed under their own vendor. See §PIM for the review side.
 - If a user's login is locked out after too many failed attempts, wait for the automatic lockout window to expire, or have an admin clear it directly.
@@ -92,18 +92,18 @@ Several things are configurable through the app's admin screens, not by editing 
 - **Adding new record types or custom fields** — **Database Schema Design** screen (this is the same "metadata-driven" engine described in `../architecture/framework_architecture.md` — new master/transaction types don't need a code change). This is different from adding an actual *record* of an existing type (a new Vendor, a new Brand, etc.) — that's a business-user task, see [User Guide](USER_GUIDE.md) §8.
 - **Turning modules on/off per tenant** — module entitlements, admin-only.
 - **Silent printing** (labels, barcode stickers, POS receipts, sales invoices going straight to the right printer with no browser dialog) — a **Printer** record per physical printer, plus QZ Tray on each PC that prints. Full steps in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**. The field that makes it one-click is **Default For** (`Shipping Label` / `Invoice` / `Sticker` / `Receipt` / `General`) — the server resolves the job to the printer holding that role, so operators never pick a printer. **Nothing depends on this being set up**: with no Printer records, or with QZ Tray not running, every one of those screens falls back to the browser print dialog exactly as before.
-- **Which status changes a document is allowed to make** — **Status Transition Rules** screen (a normal master, HR/Admin to edit). Each row says: for this record type (**Entity / Doctype**), moving from **From Status** to **To Status** is **Allowed** yes/no, and optionally **Requires Reason Code**. See §B.3.1 below — this one has a rule about how it fails that's worth understanding before you edit it.
+- **Which status changes a document is allowed to make** — **Status Transition Rules** screen (a normal master, Super Admin to edit). Each row says: for this record type (**Entity / Doctype**), moving from **From Status** to **To Status** is **Allowed** yes/no, and optionally **Requires Reason Code**. See §B.3.1 below — this one has a rule about how it fails that's worth understanding before you edit it.
 
 #### B.3.0 Configuration — every operational setting, in one place
 
-**Settings → Configuration** (HR/Admin only). The left rail lists modules; pick one and you get that module's settings, each with a plain-English description of what it actually controls. Change what you need, then **Save Changes**.
+**Settings → Configuration** (Super Admin only). The left rail lists modules; pick one and you get that module's settings, each with a plain-English description of what it actually controls. Change what you need, then **Save Changes**.
 
 Two things worth knowing:
 
 - **A change takes effect immediately, everywhere, with no restart.** Every setting is read at the moment it is used, not cached when the server starts. Lower the sales return window and the very next return attempt is judged by the new value.
 - **Out-of-range values are refused, not clamped.** Settings that could destabilise the server if set absurdly (page sizes, concurrency, batch sizes) carry a permitted range; a value outside it is rejected at save time with a message naming the limit. Nothing is silently "corrected" behind your back.
 
-What lives where (36 settings across 12 modules):
+What lives where (37 settings across 13 modules):
 
 | Module | Examples of what you can change |
 |---|---|
@@ -119,14 +119,30 @@ What lives where (36 settings across 12 modules):
 | PIM | Max documents per bulk edit, product thumbnail size |
 | Security | Session length, password-reset link validity, failed-logins-before-lockout and lockout duration, two-factor clock tolerance |
 | Platform | API page-size default and cap, per-tenant concurrency, CSV import batch size, max rows for an on-screen report, default field length cap |
+| Localization | **Home country** — the country this business operates from. Sets the phone-number length every module validates against and the dialling code stripped when cleaning imported data. See §B.3.0.2. |
 
 **Integrations** is the last entry in the rail. It holds the endpoint and credentials for the two external systems this ERP talks to — **Pine Labs** card terminals (one entry per terminal ID) and **Unicommerce**, the OMS middleware (one entry per store code). Fill in the fields and save; saving an entry whose terminal ID / store code already exists updates it in place. Existing entries are listed above the form with secrets masked. The background workers pick up a changed Base URL on their next call.
 
 > **On the session-length setting**: if your deployment sets the `JWT_EXPIRY_HOURS` environment variable, that value applies until you explicitly change the setting on this screen — an edit here always wins from then on. So the control is never a dead knob, whatever the server is configured with.
 
+#### B.3.0.2 Home country — what setting it actually changes
+
+**Settings → Configuration → Localization → Home country.** Defaults to India, so an untouched system behaves exactly as it always did. Changing it changes three things at once:
+
+1. **How long a phone number has to be.** Every phone field in the product — Customer, Vendor, Employee, a Location's contact number — is validated against the selected country's national length. India is 10 digits; the UAE is 9; Germany accepts 10 or 11. The browser enforces the same limit while typing, so the user is stopped at the eleventh digit rather than at Save.
+2. **What gets stripped when a number is cleaned.** Every phone number saved anywhere is normalised first: spaces, dashes, dots, brackets and unicode dashes removed, a leading `+91`/`0091` or trunk `0` resolved away. This is unconditional and applies to data arriving from your sales channels as much as to something typed by hand. Two consequences worth knowing: the same customer written three different ways is now recognised as one (duplicate-mobile detection compares the cleaned number), and you no longer have to tell anyone how to format a phone number.
+3. **What counts as a foreign order.** A number that carries an explicit `+<code>` for a different country is recognised as that country's, validated against *its* rules, and stored with a country stamp — `phone_country` on a Customer, `customer_country` on a Sales Order. That is the field to segment on if you want to target customers outside your home market.
+
+**Two deliberate asymmetries you should not "fix":**
+
+- **A master is strict; an order is not.** A Customer with a wrong-length number is refused, with a message naming the expected shape and an example. A Sales Order arriving from a channel is **never** rejected or put on hold over its phone number — it is cleaned as far as possible, tagged with whatever country could be resolved, and saved. The order-hold reasons exist to answer "can this be shipped?", and a contact number cannot answer that.
+- **Changing the home country does not rewrite existing records.** Numbers already stored keep their stored value and their country stamp. The new setting applies from the next save onwards.
+
+The country list covers 54 countries. If one you need is missing, that is a one-line addition to the table in `engines/phone.go` — the settings dropdown, the validation, and the browser's typing limit are all generated from it.
+
 #### B.3.0.1 Setting up POS offers
 
-Offers are ordinary records, not a code change: create an **Offer** (HR/Admin or Store Manager) and it applies at every till on the next sale — there is nothing to deploy, restart, or push to the POS.
+Offers are ordinary records, not a code change: create an **Offer** (Super Admin or Store Manager) and it applies at every till on the next sale — there is nothing to deploy, restart, or push to the POS.
 
 Fill in the name, pick the **Offer Type**, set **Applies To**, and set **Status** to Active. Only the fields belonging to your chosen type matter; leave the rest blank.
 
@@ -154,6 +170,20 @@ Three behaviours worth knowing before you design a promotion:
 - **A non-stackable offer stops the stack.** Combined with Priority, that's how you say "this offer instead of the others, not as well as."
 - **A sale can never go below zero.** If offers add up to more than the bill, the discount is capped at the bill.
 - **To switch an offer off, set Status to Inactive** — it stops applying immediately, and you keep the record and its history. Don't delete it.
+
+#### B.3.0.3 Database Schema Design — adding, editing and removing fields
+
+**Settings → Database Schema Design.** Hover a module on the left, pick a record type, and you get its field list.
+
+- **Add Field** opens a form: technical field name, display label, field type (Data / Number / Select / Check / Date / Link), whether it is mandatory, its options, and its position in the form. New fields land after everything already defined, so several added in a row do not collide on one position.
+- **Edit** on any row opens the same form, pre-filled. Everything is editable, **including the field name**. Before this existed the only way to correct a mistake was Delete-then-Add — which throws away that field's stored value on every existing record. Use Edit.
+- **Delete** removes the field from the form. As with a rename, the stored data is not erased.
+
+**What renaming a field actually does.** The field list is a *view* over each record's stored data, not the data itself. Renaming changes which key the form reads, so values saved under the old name stop being displayed — they are not deleted, and renaming back restores them. The form warns you before you do it. This is worth knowing when a rename looks like it wiped a column: it did not.
+
+**Two things are refused, with the reason named:** a field type the form cannot render, and renaming a field onto a name another field on that record type already uses.
+
+**Fields the system fills in itself are shown read-only** — auto-generated document numbers, and derived companions such as **Phone Country** (which the phone engine resolves from the number itself). They display "Set automatically on save" rather than inviting a value that would be overwritten.
 
 #### B.3.1 Status Transition Rules — how "strict" works
 
@@ -208,6 +238,27 @@ Points worth knowing:
 - **It never changes a price.** The worker only reads and notifies. Repricing stays a human decision — there is no code path in it that writes to a document or a setting.
 - **No template configured means no alert is sent, but the attempt is still logged.** Look in **Notification Log** for `Skipped-NoTemplate` rows if you expected an alert and got nothing — that is the usual cause.
 - **A SKU with no sales history is never alerted on.** The comparison needs a price of ours to compare against, and this system takes that from what you actually sold at (see the note in User Guide §8a). Items never sold appear in the report as "No price on file" and are skipped by the alert.
+
+#### Tax-exempt, nil-rated and zero-rated goods
+
+Most items are taxable and need a GST Rate above 0 — the system rejects a bare 0, because it cannot tell that apart from a rate nobody filled in. Items that genuinely carry no GST (fresh produce, unbranded grain, salt, books, exports) declare it instead, on the **Tax Treatment** field of the Item master: **Taxable**, **Exempt**, **Nil-Rated** or **Zero-Rated**. Users see this in User Guide §9 Step 3; what you need to know as an administrator:
+
+- **Nothing has to be switched on.** The field appears on every Item form already, and leaving it blank means Taxable — every item that existed before this feature keeps behaving exactly as it did, including still being required to carry a positive GST Rate.
+- **HSN Code stays mandatory on all four treatments.** It belongs on the invoice whatever the rate is, and GSTR-1 reports the nil/exempt table HSN-wise too.
+- **Three GL accounts appear in the Chart of Accounts**: `4110` Exempt Sales Revenue, `4111` Nil-Rated Sales Revenue, `4112` Zero-Rated Sales Revenue. A sale of non-taxable goods still credits full revenue to `4100`, then moves that portion into whichever of the three applies. A tenant that never sells such goods never posts to them and will see them sitting at zero — that is expected, not a setup error.
+- **Why they exist:** the **GST Return Summary** report reads `4100`'s balance as the period's *taxable* value. Without the reclass, exempt turnover would sit in `4100` and be reported as taxable — overstating GSTR-3B 3.1(a) and understating 3.1(c). The report now also shows Exempt / Nil-Rated / Zero-Rated / Total Non-Taxable, which is the split GSTR-1's nil-and-exempt table and GSTR-3B 3.1(b)/(c) are filed from. Those four figures are hidden on the screen when they are all zero.
+- **Exempt and Nil-Rated are deliberately not merged**, and neither is Zero-Rated, because the returns report them in different boxes. If you are reconciling by hand, do not add them together before filing.
+- **Zero-Rated here means the LUT/bond route** — exports supplied *without* payment of tax. The export-with-payment-then-claim-refund route is not modelled; the refund claim would need a workflow this system does not have.
+
+#### Currency and exchange-rate setup (Stage 37 foundation)
+
+After `db/migrations_stage37_1_currency_foundation.sql` is applied, two Finance Masters appear under Setup: **Currency** and **Exchange Rate**. INR is seeded because it was already the application's implicit functional currency; add only currencies the tenant actually trades in.
+
+For each rate, set **From Currency**, **To Currency**, a positive Rate, the Rate Type (**Spot**, **Average**, or **Closing**), and its effective dates. Leave **Effective To** blank for an open-ended rate. Manual rates may have an optional note; an **Imported** rate must carry a Source Reference such as the provider and batch/date so it remains auditable. Generic Bulk Import can load repeated rate feeds without a separate importer.
+
+The shared resolver chooses the most recently effective active rate whose date window includes the transaction date. If only the reverse pair exists, it safely uses the inverse; if neither exists it returns `FIN-0021` instead of inventing a value. Currency code and rate-window uniqueness are also enforced in the database.
+
+This is deliberately only the 37.1.1 foundation. Existing sales, purchase, journal and settlement records are still single-currency until 37.1.2 adds transaction and functional amounts. Applying the migration alone therefore does not change existing postings.
 
 ### B.4 Where to Look When Something Seems Wrong
 
@@ -315,6 +366,14 @@ Two additions worth knowing about (Stage 29.8):
 - **New master/transaction types**: use Database Schema Design (§B.3) — no code required for the common case.
 - **New business logic**: add to `engines/` as its own file, following the existing one-file-per-module convention.
 - **3rd-party integrations**: a scoped, read-only extension framework already exists (`extension-sdk/`, self-contained, meant to be handed to an external developer) for hooking into the platform without granting full core access.
+
+#### D.6.1 Public API credentials (Stage 38 foundation)
+
+These are different from extension tokens and browser sessions. Extension tokens are short-lived and read one doctype; a public API credential is a durable integration identity with explicit scopes, expiry, rotation and immediate revocation. It never carries a human role.
+
+After `db/migrations_stage38_2_api_credentials.sql` is applied, a Super Admin can issue/list/rotate/revoke credentials through the private `/api/v1/admin/api-credentials` endpoints documented in `../specs/public_api_v1.md`. A newly issued or rotated key is shown once and the response is marked `Cache-Control: no-store`; copy it directly into the integrator's secret store. The database retains only a one-way digest and an operator-visible prefix, so a lost key cannot be recovered—rotate it.
+
+No public business endpoint accepts these credentials yet. That is deliberate: Stage 38.3's per-credential limiter and 38.5's idempotency contract must exist before the first `/api/public/v1` route is exposed. Do not try to send an API key to the private `/api/v1` application routes; it is not a user session and will be rejected.
 
 ### D.7 Governance Model
 

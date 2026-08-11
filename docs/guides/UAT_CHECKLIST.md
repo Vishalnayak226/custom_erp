@@ -40,7 +40,7 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 
   | Username | Role | Notes |
   |---|---|---|
-  | `admin` or `system` | HR/Admin | Full access to everything. Requires an authenticator app code (MFA) at login. |
+  | `admin` or `system` | Super Admin | Full access to everything. Requires an authenticator app code (MFA) at login. |
   | `manager1` | Store Manager | Can view most masters/transactions; cannot create Purchase Orders, cannot read Vendor/Item/Customer (see note below). |
   | `cashier1` | Cashier | Scoped to POS-related screens; cannot read Vendor/Item/Customer/Location (see note below). |
 
@@ -190,7 +190,7 @@ The tab bar has 9 entries, but only the first 3 are "real" PIM tabs — the othe
 - [ ] **15.1 Dashboard tab**: loads 8 stat cards (Products, Incomplete, Pending approval, Ready to publish, Published, Missing main image, Publish queued, Publish failed) with no error. Clicking a card navigates you either to the Workbench tab or (for "Pending approval") to the ProductContent master table.
 - [ ] **15.2 Workbench tab — list**: selecting a Product Family filters the item list; selecting an item opens a detail panel below with a completeness score (e.g. "72%") and a list of missing fields (or "Nothing - fully complete").
 - [ ] **15.3 Workbench tab — attribute values**: in the item detail panel, the Attribute dropdown is populated from real Attribute Definitions; picking one, entering a value, and clicking Save updates the item (re-check the completeness score changes if the attribute was one of the missing ones).
-- [ ] **15.4 Workbench tab — content**: fill in Title/Short Description/Long Description/SEO Title/Tags and click "Save Draft" — it saves without leaving the page. Click "Submit for Approval" — the content should then show up in **Approvals** (§7) for an HR/Admin to decide.
+- [ ] **15.4 Workbench tab — content**: fill in Title/Short Description/Long Description/SEO Title/Tags and click "Save Draft" — it saves without leaving the page. Click "Submit for Approval" — the content should then show up in **Approvals** (§7) for an Super Admin to decide.
 - [ ] **15.5 Workbench tab — media**: choose an image file, pick a Role (Main Image/Gallery/Variant Image/Lifestyle/Certificate/Internal QC/Video/Other), click Upload — a thumbnail appears in the gallery below. "Deactivate" on a thumbnail removes it from the gallery.
 - [ ] **15.6 Workbench tab — channel publishing**: the Channel dropdown is populated from real Channel records (not hardcoded); clicking "Publish" produces a result — success with an external ID, or a clear rejection reason — as a new row in the publish log table below.
 - [ ] **15.7 Reports tab**: pick a report from the dropdown (**Content aging**, **Duplicate media**, **Channel mapping gaps**, **Attribute quality**) and click "Run report" — each produces a results table (or a clear "no results" state) without error.
@@ -245,7 +245,7 @@ All four of these used to be dead links falling through to a "Module Setup Pendi
 - [ ] **Users**: a "New User" form (username, password, email, role) and a table of existing users with Deactivate/Reactivate buttons. Creating a user with a duplicate username shows a clear "already taken" error, not a generic failure. You cannot deactivate your own account (should show a clear error, not silently no-op).
 - [ ] **Roles**: an "Add or Update a Grant" form (Role, Record Type, Read/Create/Update/Delete checkboxes) and a table of every currently-configured `(role, doctype)` permission. Saving a grant for a role/doctype pair that already has one updates it in place rather than duplicating the row. This is a real, live way to close gaps like Stage 18's "Store Manager/Cashier can't read Vendor/Item" finding — try granting `Store Manager` read access to `Item` here and confirm the POS SKU typeahead (§3) then starts suggesting for that role.
 
-**Users** and **Roles** are HR/Admin-only on the backend (`requireHRAdmin` in every handler) — expect a clear 403, not a crash, if you reach either as a non-admin role. **Inventory** is gated only by the "reports" module being enabled for the tenant (any role can see it once that's on); **Stock Transfer** goes through the ordinary `role_permissions` check for the `TransferOrder` doctype, same as any other generic-doc screen.
+**Users** and **Roles** are Super Admin-only on the backend (`requireHRAdmin` in every handler) — expect a clear 403, not a crash, if you reach either as a non-admin role. **Inventory** is gated only by the "reports" module being enabled for the tenant (any role can see it once that's on); **Stock Transfer** goes through the ordinary `role_permissions` check for the `TransferOrder` doctype, same as any other generic-doc screen.
 
 ---
 
@@ -322,7 +322,7 @@ Each of the following now has its own section in this checklist. Work through th
 - [ ] Deliberately mismatched amounts move it to **MismatchHold** instead, with the reason shown.
 - [ ] A **Matched** invoice shows **Pay** and **Pay w/ TDS**; paying posts to the GL.
 - [ ] A **MismatchHold** invoice shows **Override & Pay**. It **demands a written reason** (cancelling or submitting a blank reason does nothing) and reports *"Override submitted - routed for approval"* — it must **not** pay immediately.
-- [ ] The override then appears on the **Approvals** screen for HR/Admin.
+- [ ] The override then appears on the **Approvals** screen for Super Admin.
 - [ ] A `Draft` invoice cannot jump straight to `Paid` (this would skip the 3-way match; it is refused with GLOBAL-0019).
 
 ### 24.3 Purchase Requisition

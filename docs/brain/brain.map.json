@@ -120,7 +120,7 @@
       "lobe": "brainstem",
       "name": "HTTP Edge & Middleware",
       "role": "The one door in. apiMiddleware does CORS allowlist, 2MB body cap, per-category rate limiting, panic recovery, JWT verification and tenant resolution, then publishes Resolved-* headers every handler downstream reads. routes.go is the full route table and the background-worker startup list.",
-      "match": ["internal/server/routes.go", "internal/server/middleware.go", "internal/server/VERSION", "cmd/server/main.go"]
+      "match": ["internal/server/routes.go", "internal/server/middleware.go", "internal/server/middleware_compress.go", "internal/server/VERSION", "cmd/server/main.go"]
     },
     {
       "id": "api-errors",
@@ -144,7 +144,10 @@
         "engines/master_data_validation.go",
         "engines/transactional_validation.go",
         "engines/status_transition.go",
-        "internal/server/handlers_core_doc_engine.go"
+        "engines/field_formats.go",
+        "engines/phone.go",
+        "internal/server/handlers_core_doc_engine.go",
+        "internal/server/handlers_field_formats.go"
       ]
     },
     {
@@ -159,6 +162,7 @@
         "engines/mfa_recovery.go",
         "engines/password_reset.go",
         "engines/field_permissions.go",
+        "engines/roles.go",
         "internal/server/handlers_auth.go",
         "internal/server/handlers_mfa_recovery.go",
         "internal/server/handlers_admin_identity.go",
@@ -169,15 +173,17 @@
       "id": "tenancy",
       "lobe": "brainstem",
       "name": "Tenancy, Packaging & Settings",
-      "role": "Schema-per-tenant provisioning, the sellable product packages (PIM/WMS/OMS/HR/…) and their module entitlements, tenant limits, the settings registry, and per-tenant UI label overrides.",
+      "role": "Schema-per-tenant provisioning, the sellable product packages (PIM/WMS/OMS/HR/…) and their module entitlements, tenant limits, the settings registry, per-tenant UI label overrides, and the setup-readiness/localization reads the UI uses to tell a user what is not configured yet.",
       "match": [
         "engines/saas.go",
         "engines/modules.go",
         "engines/tenant_limits.go",
         "engines/settings_registry.go",
         "engines/settings_definitions.go",
+        "engines/setup_advisor.go",
         "engines/labels.go",
-        "internal/server/handlers_settings.go"
+        "internal/server/handlers_settings.go",
+        "internal/server/handlers_setup_advisor.go"
       ]
     },
     {
@@ -209,6 +215,7 @@
       "role": "Balanced double-entry posting (PostDoubleEntry), chart of accounts, journal vouchers and recurring templates, accounting-period close, cost centres, bank reconciliation, payment proposals and payment files, sales/vendor invoices, debit and credit notes.",
       "match": [
         "engines/finance.go",
+        "engines/currency.go",
         "engines/finance_reports_stage26.go",
         "engines/gl_cost_center.go",
         "engines/journal_voucher.go",
@@ -230,7 +237,7 @@
       "lobe": "business",
       "name": "Tax & Statutory",
       "role": "GST computation and enforcement (CGST/SGST/IGST, place-of-supply) and TDS. Called from PO creation, checkout and invoicing rather than living inside any one of them.",
-      "match": ["engines/gst.go", "engines/tds.go"]
+      "match": ["engines/gst.go", "engines/tds.go", "engines/gst_place_of_supply.go", "engines/amount_words.go"]
     },
     {
       "id": "procurement",
@@ -241,7 +248,9 @@
         "engines/procurement.go",
         "engines/rfq.go",
         "engines/sourcing.go",
-        "engines/purchase_requisition_catalog.go"
+        "engines/purchase_requisition_catalog.go",
+        "engines/purchase_order.go",
+        "internal/server/handlers_purchase_order.go"
       ]
     },
     {
@@ -268,14 +277,18 @@
       "id": "oms",
       "lobe": "business",
       "name": "Orders & Fulfillment (OMS)",
-      "role": "The order lifecycle: capture, allocation and sourcing, reservation, store/warehouse pick-pack, shipment, and Return Anywhere with RTO/QC/refund.",
+      "role": "The order lifecycle: capture, allocation and sourcing, reservation, store/warehouse pick-pack, shipment, and Return Anywhere with RTO/QC/refund. Stage 35 adds the OMS Console (the faceted cross-channel queue, one-call order detail, report-backed tiles, bulk actions and global search) and the order-mutation surface (item-level hold, edit, switch facility, priority, split).",
       "match": [
         "engines/orders.go",
+        "engines/oms_console.go",
+        "engines/order_mutations.go",
         "engines/fulfillment.go",
         "engines/fulfillment_pickpack.go",
         "engines/returns.go",
         "engines/oms_reports.go",
         "internal/server/handlers_orders.go",
+        "internal/server/handlers_oms_console.go",
+        "internal/server/handlers_order_mutations.go",
         "internal/server/handlers_returns.go"
       ]
     },
@@ -296,7 +309,7 @@
       "lobe": "business",
       "name": "Product Information (PIM)",
       "role": "Family/attribute framework, taxonomy, approval-gated content with versions and rollback, completeness scoring, media library, bulk edit and CSV round-trip, channel publish queue, and barcode/label printing.",
-      "match": ["engines/pim*.go", "engines/stickers.go"]
+      "match": ["engines/pim*.go", "engines/stickers.go", "internal/server/handlers_pim_groups.go"]
     },
     {
       "id": "crm",
@@ -399,8 +412,14 @@
       "id": "extensions",
       "lobe": "peripheral",
       "name": "Extension Platform",
-      "role": "Scoped, read-only, HMAC-signed extension tokens, the patch/bug intake worker (which never mutates tenant state by construction), and the standalone third-party SDK contract.",
-      "match": ["engines/extensions.go", "engines/patchintake.go", "extension-sdk/*"]
+      "role": "Scoped external identities: read-only extension tokens plus durable digest-only public API credentials, the patch/bug intake worker (which never mutates tenant state by construction), and the standalone third-party SDK contract.",
+      "match": [
+        "engines/extensions.go",
+        "engines/public_api_credentials.go",
+        "internal/server/handlers_public_api_admin.go",
+        "engines/patchintake.go",
+        "extension-sdk/*"
+      ]
     },
 
     {
@@ -430,7 +449,7 @@
       "lobe": "memory",
       "name": "Project Documentation",
       "role": "The big 3 (micro_checklist / project_ledger / ai_handover) plus the blueprint, guides, SOPs, specs, architecture notes and runbooks. This is where the project stores what it knows about itself between sessions.",
-      "match": ["docs/*", "README.md", "CLAUDE.md"]
+      "match": ["docs/*", "internal/kb/*", "README.md", "CLAUDE.md"]
     },
     {
       "id": "brain",

@@ -2,13 +2,13 @@
 
 This is the deep companion to **[ADMIN_GUIDE.md](ADMIN_GUIDE.md)**. The Guide covers getting the system running (Part A), the operator/platform level (Part C), and developer/CTO level (Part D) as a reference manual. This SOP picks up where its Part B leaves off and gives literal, click-by-click procedures for **every admin-only screen** (the **Settings** sidebar module) and **every maker-checker / approval-gated workflow** in the system — the two categories the task that produced this doc specifically asked to cover in depth.
 
-This document assumes you're already logged in as an **HR/Admin** role (ADMIN_GUIDE §A.3) and know the basics from **[USER_SOP.md](USER_SOP.md) §1** (record-list screen conventions, error handling). It does not repeat those.
+This document assumes you're already logged in as an **Super Admin** role (ADMIN_GUIDE §A.3) and know the basics from **[USER_SOP.md](USER_SOP.md) §1** (record-list screen conventions, error handling). It does not repeat those.
 
 ---
 
 ## Part A — Settings Screens
 
-These live under the **Settings** flyout in the sidebar. Every action on every one of them is enforced **server-side** as HR/Admin-only — that is the real gate, and it holds regardless of what the menu shows. The menu is *also* trimmed per role: a role with no read access to a screen does not see it, and a whole module flyout disappears once every entry inside it is hidden. Since Stage 30.5.7 the same applies within a screen — a role that can read a record type but not create one sees no **New** or **Bulk Import** button, and no row **Edit**/**Delete** icons, rather than discovering the refusal at Save.
+These live under the **Settings** flyout in the sidebar. Every action on every one of them is enforced **server-side** as Super Admin-only — that is the real gate, and it holds regardless of what the menu shows. The menu is *also* trimmed per role: a role with no read access to a screen does not see it, and a whole module flyout disappears once every entry inside it is hidden. Since Stage 30.5.7 the same applies within a screen — a role that can read a record type but not create one sees no **New** or **Bulk Import** button, and no row **Edit**/**Delete** icons, rather than discovering the refusal at Save.
 
 ### A.1 Users — creating and managing accounts
 
@@ -19,12 +19,12 @@ Sidebar: **Settings** → **Users**.
 3. **Deactivating a user**: click **Deactivate** on their row, confirm. Their login is then rejected exactly like a wrong password — they are not deleted, just locked out. You cannot deactivate the account you're currently logged in as.
 4. **Reactivating**: click **Reactivate** on an Inactive user's row, confirm.
 5. **Changing a user's location**: click **Set Location** on their row, type the new location code when prompted. This matters because location-scoped authorization on several screens (POS, Stock Transfer, Expenses) checks the acting user's own location — a user stuck on the wrong location code will see permission errors that look unrelated to location until you check this.
-6. **MFA reset**: if an HR/Admin (or another MFA-required role) loses their authenticator device, there's no button for this on the Users screen — see ADMIN_GUIDE §B.2: run `cmd/reset_mfa` (`go run ./cmd/reset_mfa`) or ask a developer.
+6. **MFA reset**: if an Super Admin (or another MFA-required role) loses their authenticator device, there's no button for this on the Users screen — see ADMIN_GUIDE §B.2: run `cmd/reset_mfa` (`go run ./cmd/reset_mfa`) or ask a developer.
 7. **Lockouts**: if a user is locked out after repeated failed logins, wait for the automatic lockout window to expire, or clear it directly at the database level (there's no in-app "unlock" button as of this writing).
 
 ### A.2 Roles — the permission grant matrix
 
-Sidebar: **Settings** → **Roles**. This controls what each non-admin role can Read/Create/Update/Delete, per record type. **HR/Admin itself always has full access everywhere and never needs a row here.**
+Sidebar: **Settings** → **Roles**. This controls what each non-admin role can Read/Create/Update/Delete, per record type. **Super Admin itself always has full access everywhere and never needs a row here.**
 
 
 ![The Roles screen: the grant matrix above, the add-grant form below](img/roles.png)
@@ -201,19 +201,19 @@ Which role is required, and above what amount, is controlled by rows in an inter
 ### B.2 Purchase Order approval
 
 - Maker flow: USER_SOP.md §15 (create Draft, Submit for Approval).
-- **Default routing**: 0 – 49,999 → **Store Manager**; 50,000 and above → **HR/Admin**. (These are the seeded defaults — see §B.9 to change them.)
+- **Default routing**: 0 – 49,999 → **Store Manager**; 50,000 and above → **Super Admin**. (These are the seeded defaults — see §B.9 to change them.)
 - Checker flow: Approvals screen, Approve/Reject as in §B.1.
 
 ### B.3 Purchase Requisition approval
 
-A `PurchaseRequisition` record type exists with the same default amount routing as Purchase Orders (0–49,999 → Store Manager, 50,000+ → HR/Admin), and it's already wired into the approval engine at the data layer.
+A `PurchaseRequisition` record type exists with the same default amount routing as Purchase Orders (0–49,999 → Store Manager, 50,000+ → Super Admin), and it's already wired into the approval engine at the data layer.
 
 Maker flow: **Procurement → Purchase Requisitions** (USER_SOP.md §15A). Create it, submit it, and it routes exactly like a PO. Checker flow: Approvals screen, as §B.1. (An earlier version of this SOP said there was no screen for this at all. There is one, in the Procurement flyout.)
 
 ### B.4 Expense Claim approval
 
 - Maker flow: USER_SOP.md §25 (create Draft, Submit for Approval).
-- **Default routing**: 0 – 4,999 → **Store Manager**; 5,000 and above → **HR/Admin**.
+- **Default routing**: 0 – 4,999 → **Store Manager**; 5,000 and above → **Super Admin**.
 - After the manager approval decision, the claim still needs the separate **Finance Verify** and **Mark Paid** steps (USER_SOP.md §25) — those are not part of the maker-checker engine, they're plain status-transition buttons any authorized user can click without a second sign-off.
 
 ### B.5 POS discount-approval gate
@@ -230,13 +230,13 @@ Maker flow: **Procurement → Purchase Requisitions** (USER_SOP.md §15A). Creat
 ### B.7 PIM Content approval (ProductContent)
 
 - Maker flow: USER_SOP.md §27.2 (Workbench tab → item detail panel → Content → Submit for Approval).
-- **Default routing**: any amount → **HR/Admin** (ProductContent has no meaningful rupee amount to band on, so it's a single flat rule).
+- **Default routing**: any amount → **Super Admin** (ProductContent has no meaningful rupee amount to band on, so it's a single flat rule).
 - Checker flow: same Approvals screen, or jump straight to the underlying `ProductContent` record list from the PIM Dashboard tab's "Pending approval" card.
 
 ### B.8 Vendor Invoice override-payment approval
 
 - Normally a `VendorInvoice` is paid directly once **Matched** (USER_SOP.md §7) — no approval needed for that path.
-- The backend also supports an **override**: paying an invoice that is *not* Matched (e.g. stuck in `MismatchHold`) by supplying an `override_reason`, which claims it as Pending Approval instead of paying immediately, routed by the same engine (default: any amount → **HR/Admin**).
+- The backend also supports an **override**: paying an invoice that is *not* Matched (e.g. stuck in `MismatchHold`) by supplying an `override_reason`, which claims it as Pending Approval instead of paying immediately, routed by the same engine (default: any amount → **Super Admin**).
 - **How to trigger it**: on **Financial Accounting → Vendor Invoice**, a `MismatchHold` invoice shows an **Override & Pay** button alongside **Match**. It prompts for a written reason, refuses to proceed without one, and submits the payment for approval rather than paying immediately — the response says *"Override submitted - routed for approval"*. The reason is stored on the invoice (`payment_override_reason`) and in the approval log. (An earlier version of this SOP said no UI path existed. It does.)
 
 ### B.9 Changing approval-rule thresholds/roles
@@ -248,7 +248,7 @@ Two things to get right:
 - **Leave no gap between bands.** A document whose amount falls in no band is not gated at all. If Store Manager covers 0–49,999, the next band must start at 50,000, not 50,001.
 - **A rule needs two people to be useful.** Maker-checker refuses self-approval, so whoever creates the document cannot approve it — see §B.10.
 
-The underlying API (`GET`/`POST /api/v1/approval/rules`, HR/Admin-only for writes) is still there if you need to script a bulk change:
+The underlying API (`GET`/`POST /api/v1/approval/rules`, Super Admin-only for writes) is still there if you need to script a bulk change:
 
 ```powershell
 # 1. Log in and capture the bearer token (replace credentials)
@@ -282,9 +282,9 @@ So, before your first end-to-end run, create at least two users (§A.1):
 | Account | Role | Does |
 |---|---|---|
 | The maker | e.g. **Store Manager** | Creates and submits the PO, GRN, requisition, expense claim |
-| The checker | **HR/Admin**, or a second Store Manager | Approves or rejects it |
+| The checker | **Super Admin**, or a second Store Manager | Approves or rejects it |
 
-Which role has to approve depends on the amount band (§B.9), so make sure the checker's role is the one your bands actually name. The commonest version of this problem is a two-person setup where both people happen to be Store Managers and the amount lands in the HR/Admin band — the document then sits in Approvals with nobody able to decide it.
+Which role has to approve depends on the amount band (§B.9), so make sure the checker's role is the one your bands actually name. The commonest version of this problem is a two-person setup where both people happen to be Store Managers and the amount lands in the Super Admin band — the document then sits in Approvals with nobody able to decide it.
 
 To confirm your setup works, do the smoke test in USER_GUIDE §14 (the end-to-end worked example) with both accounts before rolling the system out to anyone.
 

@@ -4,7 +4,7 @@
      Source: `engines`' report registry (`report_definitions.go`)
      Regenerate: `go run ./cmd/gendocs` -->
 
-> **Generated 2026-08-07.** This page is produced from `engines`' report registry (`report_definitions.go`), so it cannot drift from
+> **Generated 2026-08-09.** This page is produced from `engines`' report registry (`report_definitions.go`), so it cannot drift from
 > the running system. Hand edits are lost on the next run - change the source instead.
 
 Every report reachable from **Sales & Marketplace -> Reports**. There are **47**
@@ -15,7 +15,7 @@ Pick one from the catalog list on that screen, fill in any parameter marked
 figure opens the individual transactions behind it. **Export in Background**
 queues a CSV for any report large enough to time out a normal request.
 
-Some columns are masked for roles other than HR/Admin and Store Manager - those
+Some columns are masked for roles other than Super Admin and Store Manager - those
 are marked *sensitive* below, and render as `•••` rather than being dropped, so the
 table has the same shape whoever runs it.
 
@@ -260,7 +260,7 @@ table has the same shape whoever runs it.
 - **From** (`start`) - date, **required**
 - **To** (`end`) - date, **required**
 
-**Columns:** From · To · Taxable Value *(sensitive)* · Output CGST *(sensitive)* · Output SGST *(sensitive)* · Output IGST *(sensitive)* · Total Tax Liability *(sensitive)* · Transactions
+**Columns:** From · To · Taxable Value *(sensitive)* · Output CGST *(sensitive)* · Output SGST *(sensitive)* · Output IGST *(sensitive)* · Total Tax Liability *(sensitive)* · Exempt Value *(sensitive)* · Nil-Rated Value *(sensitive)* · Zero-Rated Value *(sensitive)* · Total Non-Taxable *(sensitive)* · Transactions
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
