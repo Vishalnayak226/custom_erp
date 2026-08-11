@@ -548,6 +548,14 @@ func Run() {
 	http.HandleFunc("GET /api/v1/admin/extension/hooks/{id}/log", apiMiddleware(handleGetExtensionHookLog))
 	http.HandleFunc("POST /api/v1/admin/extension/token", apiMiddleware(handleIssueExtensionToken))
 
+	// Stage 38.2: durable public-API credentials. Administration uses a
+	// normal human Super Admin session; the generated key is never accepted
+	// by apiMiddleware and therefore cannot become a user session by accident.
+	http.HandleFunc("POST /api/v1/admin/api-credentials", apiMiddleware(handleIssueAPICredential))
+	http.HandleFunc("GET /api/v1/admin/api-credentials", apiMiddleware(handleListAPICredentials))
+	http.HandleFunc("POST /api/v1/admin/api-credentials/{id}/rotate", apiMiddleware(handleRotateAPICredential))
+	http.HandleFunc("DELETE /api/v1/admin/api-credentials/{id}", apiMiddleware(handleRevokeAPICredential))
+
 	// DocType Metadata APIs
 	http.HandleFunc("GET /api/v1/doc/{doctype}/meta", apiMiddleware(handleGetDocTypeMeta))
 	http.HandleFunc("GET /api/v1/meta/doctypes", apiMiddleware(handleGetDocTypes))

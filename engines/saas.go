@@ -141,6 +141,7 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		"product_content_versions",
 		"sticker_print_log",
 		"tenant_limits",
+		"api_credentials",
 	}
 
 	tx, err := db.DB.Begin()
@@ -150,6 +151,21 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 	defer tx.Rollback()
 
 	for _, table := range tables {
+		// Stage 38.2 is intentionally safe to ship before its migration is
+		// applied: existing app behavior and tenant provisioning must keep
+		// working during that window. Once the template table exists it is
+		// cloned like every other tenant-local table; before then only this
+		// new, unused table is skipped. Missing established core tables still
+		// fail loudly below exactly as before.
+		if table == "api_credentials" {
+			var templateExists bool
+			if err = tx.QueryRow(`SELECT to_regclass('tenant_default.api_credentials') IS NOT NULL`).Scan(&templateExists); err != nil {
+				return "", fmt.Errorf("failed to inspect api_credentials template: %v", err)
+			}
+			if !templateExists {
+				continue
+			}
+		}
 		query := fmt.Sprintf("CREATE TABLE IF NOT EXISTS %s.%s (LIKE tenant_default.%s INCLUDING ALL)", schemaName, table, table)
 		_, err = tx.Exec(query)
 		if err != nil {
