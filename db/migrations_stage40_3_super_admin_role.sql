@@ -21,66 +21,119 @@
 -- working. That is what makes this migration safe to run against live data
 -- while sessions are open - nothing is gated on the rename having happened.
 --
--- Idempotent: every statement is a WHERE-guarded UPDATE, so re-running is a
--- no-op.
+-- Idempotent: every statement is WHERE-guarded, so re-running is a no-op.
+--
+-- MERGE, not blind rename (2026-08-11): a straight
+-- `UPDATE ... SET role='Super Admin' WHERE role='HR/Admin'` is NOT safe,
+-- because the row it renames into may already exist. Any database that applied
+-- the Currency / ExchangeRate / PIMProductGroup migrations before this one
+-- already carries 'Super Admin' grants for those doctypes, seeded under the new
+-- name, while the other ~111 grants are still 'HR/Admin'. The rename then
+-- violates role_permissions' UNIQUE (role, doctype_name) - which is exactly how
+-- this failed against the live droplet, mid-deploy, on 2026-08-11.
+--
+-- The two permission tables therefore merge first (OR the flags together, so
+-- the surviving row is never LESS permissive than either input), drop the
+-- now-duplicate 'HR/Admin' row, and only then rename what is left. Ordering
+-- between this migration and the Currency/PIM ones stops mattering in either
+-- direction.
+--
+-- One loop covers tenant_default and every provisioned tenant schema, so all
+-- of them get identical treatment rather than tenant_default having its own
+-- hand-written copy that can drift. Each table is guarded by to_regclass
+-- because tenant schemas are provisioned at different points in this project's
+-- history and do not all carry every table.
 -- ---------------------------------------------------------------------------
 
--- 1. tenant_default -------------------------------------------------------
-UPDATE tenant_default.users
-   SET role = 'Super Admin'
- WHERE role = 'HR/Admin';
-
-UPDATE tenant_default.role_permissions
-   SET role = 'Super Admin'
- WHERE role = 'HR/Admin';
-
-UPDATE tenant_default.approval_rules
-   SET required_role = 'Super Admin'
- WHERE required_role = 'HR/Admin';
-
--- approval_log.actor_role is who acted, not a historical message string, and
--- the approvals screen groups by it - leaving it split across two spellings
--- would show the same person as two different approvers.
-UPDATE tenant_default.approval_log
-   SET actor_role = 'Super Admin'
- WHERE actor_role = 'HR/Admin';
-
--- field_permissions arrived later (Stage 16) and may not exist on a schema
--- that predates it.
-DO $$
-BEGIN
-  IF to_regclass('tenant_default.field_permissions') IS NOT NULL THEN
-    UPDATE tenant_default.field_permissions SET role = 'Super Admin' WHERE role = 'HR/Admin';
-  END IF;
-END $$;
-
--- 2. Every other provisioned tenant schema --------------------------------
--- Same statements, guarded per table because tenant schemas are provisioned
--- at different points in this project's history and do not all carry every
--- table.
-DO $$
+DO $mig$
 DECLARE
-  schema_rec RECORD;
-  tbl        RECORD;
+  s   RECORD;
+  tbl RECORD;
 BEGIN
-  FOR schema_rec IN
+  FOR s IN
     SELECT schema_name FROM information_schema.schemata
-     WHERE schema_name LIKE 'tenant\_%' ESCAPE '\' AND schema_name <> 'tenant_default'
+     WHERE schema_name LIKE 'tenant\_%' ESCAPE '\'
   LOOP
+    -- 1. role_permissions: UNIQUE (role, doctype_name) ---------------------
+    IF to_regclass(format('%I.role_permissions', s.schema_name)) IS NOT NULL THEN
+      -- Fold the old row's grants into the new row where both exist.
+      EXECUTE format($f$
+        UPDATE %I.role_permissions sa
+           SET allow_read   = sa.allow_read   OR ha.allow_read,
+               allow_create = sa.allow_create OR ha.allow_create,
+               allow_update = sa.allow_update OR ha.allow_update,
+               allow_delete = sa.allow_delete OR ha.allow_delete
+          FROM %I.role_permissions ha
+         WHERE sa.role = 'Super Admin'
+           AND ha.role = 'HR/Admin'
+           AND sa.doctype_name = ha.doctype_name
+      $f$, s.schema_name, s.schema_name);
+
+      -- Now that its grants are preserved above, the duplicate can go.
+      EXECUTE format($f$
+        DELETE FROM %I.role_permissions ha
+         WHERE ha.role = 'HR/Admin'
+           AND EXISTS (
+             SELECT 1 FROM %I.role_permissions sa
+              WHERE sa.role = 'Super Admin'
+                AND sa.doctype_name = ha.doctype_name)
+      $f$, s.schema_name, s.schema_name);
+
+      -- Whatever is left has no counterpart and renames cleanly.
+      EXECUTE format($f$
+        UPDATE %I.role_permissions SET role = 'Super Admin' WHERE role = 'HR/Admin'
+      $f$, s.schema_name);
+    END IF;
+
+    -- 2. field_permissions: PRIMARY KEY (role, doctype_name, fieldname) ----
+    -- Same collision is possible here, so same treatment. This table arrived
+    -- in Stage 16 and is absent from schemas that predate it.
+    IF to_regclass(format('%I.field_permissions', s.schema_name)) IS NOT NULL THEN
+      EXECUTE format($f$
+        UPDATE %I.field_permissions sa
+           SET allow_read  = sa.allow_read  OR ha.allow_read,
+               allow_write = sa.allow_write OR ha.allow_write
+          FROM %I.field_permissions ha
+         WHERE sa.role = 'Super Admin'
+           AND ha.role = 'HR/Admin'
+           AND sa.doctype_name = ha.doctype_name
+           AND sa.fieldname = ha.fieldname
+      $f$, s.schema_name, s.schema_name);
+
+      EXECUTE format($f$
+        DELETE FROM %I.field_permissions ha
+         WHERE ha.role = 'HR/Admin'
+           AND EXISTS (
+             SELECT 1 FROM %I.field_permissions sa
+              WHERE sa.role = 'Super Admin'
+                AND sa.doctype_name = ha.doctype_name
+                AND sa.fieldname = ha.fieldname)
+      $f$, s.schema_name, s.schema_name);
+
+      EXECUTE format($f$
+        UPDATE %I.field_permissions SET role = 'Super Admin' WHERE role = 'HR/Admin'
+      $f$, s.schema_name);
+    END IF;
+
+    -- 3. Tables where the role column carries no uniqueness constraint -----
+    -- users.role, approval_rules.required_role and approval_log.actor_role
+    -- are all free of any unique index involving the role, so a plain
+    -- WHERE-guarded rename is enough. approval_log.actor_role is who acted,
+    -- not a historical message string, and the approvals screen groups by it -
+    -- leaving it split across two spellings would show the same person as two
+    -- different approvers.
     FOR tbl IN
       SELECT * FROM (VALUES
-        ('users',            'role'),
-        ('role_permissions', 'role'),
-        ('field_permissions','role'),
-        ('approval_rules',   'required_role'),
-        ('approval_log',     'actor_role')
+        ('users',          'role'),
+        ('approval_rules', 'required_role'),
+        ('approval_log',   'actor_role')
       ) AS t(table_name, column_name)
     LOOP
-      IF to_regclass(format('%I.%I', schema_rec.schema_name, tbl.table_name)) IS NOT NULL THEN
+      IF to_regclass(format('%I.%I', s.schema_name, tbl.table_name)) IS NOT NULL THEN
         EXECUTE format(
           'UPDATE %I.%I SET %I = ''Super Admin'' WHERE %I = ''HR/Admin''',
-          schema_rec.schema_name, tbl.table_name, tbl.column_name, tbl.column_name);
+          s.schema_name, tbl.table_name, tbl.column_name, tbl.column_name);
       END IF;
     END LOOP;
   END LOOP;
-END $$;
+END $mig$;
