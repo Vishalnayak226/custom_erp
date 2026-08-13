@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"custom_erp/engines"
 )
@@ -162,6 +163,7 @@ func handlePIMBulkEdit(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Doctype string      `json:"doctype"`
 		IDs     []string    `json:"ids"`
+		GroupID string      `json:"group_id"` // Stage 36.1.3: edit a PIMProductGroup's live membership
 		Field   string      `json:"field"`
 		Value   interface{} `json:"value"`
 	}
@@ -181,7 +183,23 @@ func handlePIMBulkEdit(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusForbidden, fmt.Sprintf("You do not have permission to update %s documents.", req.Doctype))
 		return
 	}
-	updatedIDs, err := engines.BulkUpdateDocuments(tenantID, req.Doctype, req.IDs, req.Field, req.Value, userID, role)
+	if strings.TrimSpace(req.GroupID) != "" {
+		groupAllowed, err := checkPermission(tenantID, role, "PIMProductGroup", "read")
+		if err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !groupAllowed {
+			writeAPIErrorGeneric(w, r, http.StatusForbidden, "You do not have permission to read product groups.")
+			return
+		}
+	}
+	targetIDs, err := engines.ResolvePIMBulkTargetIDs(tenantID, req.Doctype, req.GroupID, req.IDs)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	updatedIDs, err := engines.BulkUpdateDocuments(tenantID, req.Doctype, targetIDs, req.Field, req.Value, userID, role)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return

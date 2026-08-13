@@ -1,0 +1,22 @@
+<h1 id="retrying-safely-idempotency">Retrying safely (idempotency) <a class="kb-anchor" href="#retrying-safely-idempotency" aria-label="Copy link to this section">#</a></h1>
+<p>A network timeout does not tell you whether the request arrived. Retrying without protection is how one customer order becomes two. Every mutating public endpoint therefore <strong>requires</strong> an <code>Idempotency-Key</code> header - it is not optional, and a request without one is refused before anything happens.</p>
+<h2 id="choosing-a-key">Choosing a key <a class="kb-anchor" href="#choosing-a-key" aria-label="Copy link to this section">#</a></h2>
+<p>Generate a fresh unique value per logical operation - a UUID is ideal. Reuse the <strong>same</strong> key for every retry of that operation, and never for a different one.</p>
+<pre><code>POST /api/public/v1/orders HTTP/1.1
+Authorization: Bearer erp_v1_...
+X-Tenant-ID: your-tenant
+Idempotency-Key: 6f1c9c8e-9f7a-4a1c-9a3e-2b6c1f0d5e44
+Content-Type: application/json
+
+{&#34;channel_order_id&#34;:&#34;AMZ-1001&#34;, &#34;lines&#34;:[...]}</code></pre>
+<h2 id="what-the-server-does">What the server does <a class="kb-anchor" href="#what-the-server-does" aria-label="Copy link to this section">#</a></h2>
+<table><thead><tr><th>Situation</th><th>Response</th></tr></thead><tbody><tr><td>First request with this key</td><td>Runs normally</td></tr><tr><td>Identical retry, first attempt finished</td><td>Replays the stored response, with <code>Idempotency-Replayed: true</code></td></tr><tr><td>Identical retry, first attempt still running</td><td><code>409</code> with <code>Retry-After</code> - wait and retry</td></tr><tr><td>Same key, <strong>different</strong> request body</td><td><code>409</code> - this is a client bug, not a retry</td></tr><tr><td>First attempt returned <code>5xx</code></td><td>The key is released; your retry is a genuine second attempt</td></tr></tbody></table>
+<p>That last row matters: a server error is never cached. If the server failed, you are entitled to try again and get a real answer.</p>
+<aside class="kb-admonition kb-admonition-note" role="note"><p class="kb-admonition-title">Note</p><p>Keys expire after the tenant&#39;s configured retention window (24 hours by default). After that the same key value is treated as a brand new request, so do not rely on a key from last week to deduplicate today&#39;s call.</p></aside>
+<h2 id="practical-advice">Practical advice <a class="kb-anchor" href="#practical-advice" aria-label="Copy link to this section">#</a></h2>
+<ul><li>Derive the key from your own order identifier, not from a timestamp. Then a</li></ul>
+<p>crash-and-restart retry naturally reuses the same key.</p>
+<ul><li>Store the key alongside your record of the operation, so a retry after a</li></ul>
+<p>process restart can find it.</p>
+<ul><li>Do not include the key in a hash of the request. The server already compares</li></ul>
+<p>the request itself, and a key that changes with the body defeats the purpose.</p>

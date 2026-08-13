@@ -488,6 +488,17 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 		return err
 	}
 
+	// Stage 37.1.2: stamp transaction currency, functional currency and the
+	// base-currency amounts onto financial documents. Attached here, at the
+	// shared exit, so a document saved through the generic API, a CSV import or
+	// an engine cannot end up with a currency the others would disagree about.
+	// A no-op for every doctype that is not currency-bearing, and a no-op for a
+	// single-currency tenant beyond recording that the amount is already in its
+	// own currency.
+	if err := ApplyDocumentCurrency(tenantID, doctype, docData); err != nil {
+		return err
+	}
+
 	return nil
 }
 

@@ -185,7 +185,7 @@ func BulkUpdateDocuments(tenantID, doctype string, ids []string, field string, v
 			return nil, err
 		}
 		if update.priorStatus == "Approved" && isApprovalGated {
-			amount := extractAmount(update.data)
+			amount := DocumentBaseAmount(update.data)
 			if _, err := tx.Exec(fmt.Sprintf(`
 				INSERT INTO %s.approval_log (doctype, document_id, action, actor_user_id, actor_role, amount, comment)
 				VALUES ($1, $2, 'Modified', $3, $4, $5, 'Reset to Pending Approval after bulk edit')`, schema), doctype, update.id, editorUserID, editorRole, amount); err != nil {

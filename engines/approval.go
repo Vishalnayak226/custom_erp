@@ -229,7 +229,10 @@ func SubmitForApproval(tenantID, doctype, docID, requesterUserID, requesterRole 
 		return fmt.Errorf("only a Draft document can be submitted for approval (current status: %s)", status)
 	}
 
-	amount := extractAmount(data)
+	// Stage 37.1.2: the BASE amount, so an approval slab written in the tenant's
+	// own currency is never compared against a foreign-currency figure. Falls
+	// back to the raw amount for documents saved before the currency stamp.
+	amount := DocumentBaseAmount(data)
 	role, err := requiredApproverRole(tenantID, doctype, amount)
 	if err != nil {
 		return err
@@ -306,7 +309,10 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		return fmt.Errorf("maker-checker violation: you cannot approve or reject a document you submitted")
 	}
 
-	amount := extractAmount(data)
+	// Stage 37.1.2: the BASE amount, so an approval slab written in the tenant's
+	// own currency is never compared against a foreign-currency figure. Falls
+	// back to the raw amount for documents saved before the currency stamp.
+	amount := DocumentBaseAmount(data)
 	requiredRole, err := requiredApproverRole(tenantID, doctype, amount)
 	if err != nil {
 		return err
@@ -448,7 +454,10 @@ func BulkDecideApproval(tenantID, doctype string, docIDs []string, actorUserID, 
 // re-derives the amount from the freshly-saved data so a routing-relevant
 // change (e.g. total_amount) re-evaluates against the right slab next time.
 func ResetToPendingOnEdit(tenantID, doctype, docID, editorUserID, editorRole string, data map[string]interface{}) error {
-	amount := extractAmount(data)
+	// Stage 37.1.2: the BASE amount, so an approval slab written in the tenant's
+	// own currency is never compared against a foreign-currency figure. Falls
+	// back to the raw amount for documents saved before the currency stamp.
+	amount := DocumentBaseAmount(data)
 	if err := setDocumentStatus(tenantID, doctype, docID, "Pending Approval", data); err != nil {
 		return err
 	}

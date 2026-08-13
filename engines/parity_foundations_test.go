@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"math"
+	"strings"
 	"testing"
 )
 
@@ -141,6 +142,43 @@ func TestResolvePIMProductGroups(t *testing.T) {
 	}
 	if static.MemberCount != 1 || static.Members[0].ItemCode != "TEST-PG-ITEM-B" {
 		t.Fatalf("static members = %#v, want only hand-picked fixture", static.Members)
+	}
+
+	// Stage 36.1.3: the two production consumers of the resolver seam.
+	targets, err := ResolvePIMBulkTargetIDs("default", "Item", "TEST-PG-STATIC", nil)
+	if err != nil {
+		t.Fatalf("resolve bulk targets from group: %v", err)
+	}
+	if len(targets) != 1 || targets[0] != "TEST-PG-ITEM-B" {
+		t.Fatalf("bulk targets = %#v, want the static group's single member", targets)
+	}
+	if _, err := ResolvePIMBulkTargetIDs("default", "Item", "TEST-PG-STATIC", []string{"TEST-PG-ITEM-A"}); err == nil {
+		t.Fatal("a group plus an explicit selection was accepted; the target set must be unambiguous")
+	}
+	if _, err := ResolvePIMBulkTargetIDs("default", "ProductContent", "TEST-PG-STATIC", nil); err == nil {
+		t.Fatal("a product group was allowed to drive a bulk edit of a non-Item doctype")
+	}
+	passthrough, err := ResolvePIMBulkTargetIDs("default", "Item", "", []string{"TEST-PG-ITEM-A"})
+	if err != nil || len(passthrough) != 1 || passthrough[0] != "TEST-PG-ITEM-A" {
+		t.Fatalf("explicit selection without a group = %#v, %v; want it passed through untouched", passthrough, err)
+	}
+
+	groupID, csvBytes, err := ExportPIMProductGroupCSV("default", "TEST-PG-DYNAMIC")
+	if err != nil {
+		t.Fatalf("export product group: %v", err)
+	}
+	if groupID != "TEST-PG-DYNAMIC" {
+		t.Fatalf("export group id = %q, want the canonical document id", groupID)
+	}
+	exported := string(csvBytes)
+	if !strings.HasPrefix(exported, "group_id,group_name,item_code,") {
+		t.Fatalf("export header = %q, want the group export column set", strings.SplitN(exported, "\n", 2)[0])
+	}
+	if !strings.Contains(exported, "TEST-PG-ITEM-A") {
+		t.Fatalf("export did not contain the resolved member:\n%s", exported)
+	}
+	if strings.Contains(exported, "TEST-PG-ITEM-B") {
+		t.Fatalf("export leaked a product outside the group:\n%s", exported)
 	}
 }
 

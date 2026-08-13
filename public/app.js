@@ -2961,6 +2961,9 @@ function setupEventListeners() {
     }
   });
 
+  // Stage 39.5: contextual help for the screen you are on.
+  document.getElementById('help-btn')?.addEventListener('click', () => openHelpDrawer(currentView));
+
   const indSelector = document.getElementById('industry-selector');
   if (indSelector) {
     indSelector.addEventListener('change', async (e) => {
@@ -3696,6 +3699,15 @@ function restoreActiveMenuState(view, doctype) {
 // browser that was last on the retired Dashboard has in localStorage, and
 // which would otherwise restore to a permanently blank screen.
 async function restoreLastView() {
+  // Stage 39.4: /help and /help/<slug> are real URLs. A tab opened on one must
+  // land on that article, ahead of any deep link or saved view - the whole
+  // point of giving articles their own URL is that the link works cold.
+  if (location.pathname === '/help' || location.pathname.startsWith('/help/')) {
+    currentHelpSlug = decodeURIComponent(location.pathname.slice('/help/'.length) || '');
+    await renderView('help');
+    return;
+  }
+
   // Stage 41: a deep link beats the saved view. This is what makes the
   // hints' "open in a new tab" affordance real - the new tab arrives carrying
   // #/setup/Vendor and must land on Vendors, not on whatever screen the
@@ -3854,6 +3866,8 @@ async function renderViewContent(view) {
     await renderTenantUsageView(root);
   } else if (view === 'profile') {
     await renderProfileView(root);
+  } else if (view === 'help') {
+    await renderHelpView(root);
   } else if (view === 'transfers') {
     await renderTransfersView(root);
   } else if (view === 'inventory') {
@@ -14214,7 +14228,11 @@ async function renderPIMDetailPanel(container, itemCode) {
     </div>
     <div id="pim-attr-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
 
-    <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 12px;">Content</h3>
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+      <h3 style="font-size: 14px; font-weight: 700; margin: 0;">Content</h3>
+      <button class="btn btn-outline btn-sm" id="pim-content-assist-btn" title="Draft title, descriptions and tags from this product's own stored data. Nothing is saved until you click Save Draft.">Assist</button>
+    </div>
+    <div id="pim-content-assist-note" class="hidden" style="margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-color); font-size: 13px; color: var(--text-muted);"></div>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="pim-content-lang">Language</label>
@@ -14307,6 +14325,7 @@ async function renderPIMDetailPanel(container, itemCode) {
   container.appendChild(panel);
 
   document.getElementById('pim-attr-save-btn').addEventListener('click', () => savePIMAttributeValue(itemCode));
+  document.getElementById('pim-content-assist-btn').addEventListener('click', () => runPIMContentAssist(itemCode));
   document.getElementById('pim-content-save-btn').addEventListener('click', () => savePIMContent(itemCode, 'Draft'));
   document.getElementById('pim-content-submit-btn').addEventListener('click', () => submitPIMContent(itemCode));
   document.getElementById('pim-media-upload-btn').addEventListener('click', () => uploadPIMMedia(itemCode));
@@ -14316,6 +14335,61 @@ async function renderPIMDetailPanel(container, itemCode) {
   await renderPIMMediaGallery(itemCode);
   await renderPIMPublishSection(itemCode);
   await renderPIMContentHistory(itemCode);
+}
+
+// runPIMContentAssist (Stage 36.7.2) wires the Stage 26.4.11 content-assist
+// endpoint to a button. The draft is written into the form fields, never sent
+// straight to the server: the engine's whole safety argument is that a human
+// reviews the text and saves it as an ordinary Draft, which still passes the
+// existing approval gate. Fields already carrying text are left alone unless
+// the reviewer confirms an overwrite, so Assist can never silently discard
+// copy someone was in the middle of writing.
+async function runPIMContentAssist(itemCode) {
+  const errorEl = document.getElementById('pim-content-error');
+  const noteEl = document.getElementById('pim-content-assist-note');
+  errorEl.classList.add('hidden');
+  noteEl.classList.add('hidden');
+
+  const language = (document.getElementById('pim-content-lang').value || 'en').trim();
+  const res = await apiFetch(`/api/v1/pim/content-assist/${encodeURIComponent(itemCode)}?language=${encodeURIComponent(language)}`);
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Could not build a suggested draft for this product.');
+    return;
+  }
+  const draft = await res.json();
+
+  const targets = [
+    ['pim-content-title', draft.title],
+    ['pim-content-seo', draft.seo_title],
+    ['pim-content-short', draft.short_desc],
+    ['pim-content-long', draft.long_desc],
+    ['pim-content-tags', draft.tags]
+  ];
+  const occupied = targets.filter(([id, value]) => value && document.getElementById(id).value.trim() !== '');
+  let overwrite = false;
+  if (occupied.length > 0) {
+    overwrite = await showCustomConfirm(
+      `${occupied.length} content field${occupied.length === 1 ? '' : 's'} already contain text. Replace them with the suggested draft? Choose Cancel to fill only the empty fields.`,
+      'Assisted Draft');
+  }
+  let filled = 0;
+  targets.forEach(([id, value]) => {
+    if (!value) return;
+    const input = document.getElementById(id);
+    if (input.value.trim() !== '' && !overwrite) return;
+    input.value = value;
+    filled++;
+  });
+
+  const sources = (draft.source_fields || []).join(', ') || 'none';
+  const warnings = (draft.warnings || []).map(w => `<li>${escapeHTMLText(w)}</li>`).join('');
+  noteEl.innerHTML = `
+    <strong>${filled} field${filled === 1 ? '' : 's'} filled from this product's own data.</strong>
+    Nothing has been saved yet - review the text, then use Save Draft or Submit for Approval.
+    <div style="margin-top: 6px;">Built from: ${escapeHTMLText(sources)}</div>
+    ${warnings ? `<ul style="margin: 6px 0 0 18px;">${warnings}</ul>` : ''}`;
+  noteEl.classList.remove('hidden');
 }
 
 async function renderPIMMediaGallery(itemCode) {
@@ -14755,6 +14829,7 @@ async function renderDocTableView(container) {
         </svg>
         <input type="text" placeholder="Search table..." value="${currentSearchQuery}" oninput="handleTableSearch(event)">
       </div>
+      ${currentDoctype === 'Item' ? `<button class="btn btn-outline" id="pim-group-actions-btn" onclick="openPIMProductGroupActionsModal()" title="Act on a saved Product Group instead of hand-picking rows">Group Actions</button>` : ''}
       ${isPIMBulkEditDoctype() ? `<div class="bulk-edit-bar hidden" id="pim-bulk-edit-bar"><span id="pim-bulk-selection-count">0 selected</span><button class="btn btn-outline" id="pim-bulk-edit-button" onclick="openPIMBulkEditModal()" disabled>Edit Selected</button>${currentDoctype === 'ProductContent' ? `<button class="btn btn-primary" id="pim-bulk-approve-button" onclick="bulkDecideProductContent('Approved')" disabled>Approve Selected</button><button class="btn btn-outline" id="pim-bulk-reject-button" onclick="bulkDecideProductContent('Rejected')" disabled>Reject Selected</button>` : ''}</div>` : ''}
     </div>
     <div class="table-wrapper" id="doc-table-wrapper"></div>
@@ -15060,6 +15135,132 @@ window.viewTaxonomyHistory = async function(id) {
   const close = () => overlay.remove();
   overlay.querySelector('.modal-close').addEventListener('click', close);
   overlay.querySelector('.btn-secondary').addEventListener('click', close);
+};
+
+// openPIMProductGroupActionsModal (Stage 36.1.3) is the Product Group's
+// production consumer surface: pick a saved static or dynamic group, see how
+// many products it resolves to right now, then either export it or bulk edit
+// it. It reuses the same .modal-overlay primitives and the same
+// /api/v1/pim/bulk-edit endpoint as the selection-based path above - the only
+// difference is that the server resolves the target list from the group.
+window.openPIMProductGroupActionsModal = async function() {
+  const groupsRes = await apiFetch('/api/v1/doc/PIMProductGroup');
+  if (!groupsRes) return;
+  if (!groupsRes.ok) {
+    await showApiError(groupsRes, 'Could not load product groups.');
+    return;
+  }
+  const groups = (await groupsRes.json()).filter(g => (g.status || 'Active') === 'Active');
+  if (groups.length === 0) {
+    showCustomAlert('No active product groups exist yet. Create one under PIM » Product Group first.', 'Group Actions');
+    return;
+  }
+  const fields = (state.activeDocFields || []).filter(field => field.fieldname !== 'id' && field.fieldname !== 'code');
+
+  document.getElementById('pim-group-actions-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'pim-group-actions-modal';
+  overlay.innerHTML = `
+    <div class="modal-container">
+      <div class="modal-header"><h3 class="modal-title">Product Group Actions</h3><button type="button" class="modal-close" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label" for="pim-group-select">Product group</label>
+          <select class="form-select" id="pim-group-select">${groups.map(g => `<option value="${escapeHTMLText(g.id)}">${escapeHTMLText(g.name || g.id)} (${escapeHTMLText(g.group_type || '')})</option>`).join('')}</select>
+        </div>
+        <p class="text-muted" style="font-size:13px;" id="pim-group-count">Resolving membership&hellip;</p>
+        <div class="form-group"><label class="form-label" for="pim-group-field">Field to edit</label><select class="form-select" id="pim-group-field">${fields.map(f => `<option value="${escapeHTMLText(f.fieldname)}">${escapeHTMLText(getTranslatedLabel(f.label))}</option>`).join('')}</select></div>
+        <div class="form-group"><label class="form-label" id="pim-group-value-label">New value</label><div id="pim-group-value"></div></div>
+        <p class="text-muted" style="font-size:13px; margin:0;">A dynamic group is re-resolved by the server at the moment you confirm, so the edit applies to whatever matches then - not to the count shown above if the catalog changed in between.</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="pim-group-cancel">Cancel</button>
+        <button type="button" class="btn btn-outline" id="pim-group-export">Export CSV</button>
+        <button type="button" class="btn btn-primary" id="pim-group-edit">Bulk edit group</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('#pim-group-cancel').addEventListener('click', close);
+
+  const groupSelect = overlay.querySelector('#pim-group-select');
+  const countEl = overlay.querySelector('#pim-group-count');
+  const refreshCount = async () => {
+    countEl.textContent = 'Resolving membership…';
+    const res = await apiFetch(`/api/v1/pim/product-groups/${encodeURIComponent(groupSelect.value)}/members`);
+    if (!res || !res.ok) { countEl.textContent = 'Could not resolve this group right now.'; return; }
+    const resolved = await res.json();
+    countEl.textContent = `${resolved.member_count} product${resolved.member_count === 1 ? '' : 's'} currently in this group.`;
+  };
+  groupSelect.addEventListener('change', refreshCount);
+
+  const fieldSelect = overlay.querySelector('#pim-group-field');
+  const renderValueInput = () => {
+    const field = fields.find(candidate => candidate.fieldname === fieldSelect.value);
+    const holder = overlay.querySelector('#pim-group-value');
+    holder.replaceChildren();
+    if (!field) return;
+    let input;
+    if (field.fieldtype === 'Select') {
+      input = document.createElement('select');
+      input.className = 'form-select';
+      (field.options || '').split(',').filter(Boolean).forEach(value => {
+        const option = document.createElement('option');
+        option.value = value.trim();
+        option.textContent = value.trim();
+        input.appendChild(option);
+      });
+    } else {
+      input = document.createElement('input');
+      input.className = 'form-input';
+      input.type = field.fieldtype === 'Number' ? 'number' : 'text';
+    }
+    input.id = 'pim-group-value-input';
+    holder.appendChild(input);
+    overlay.querySelector('#pim-group-value-label').textContent = `New ${getTranslatedLabel(field.label)}`;
+  };
+  fieldSelect.addEventListener('change', renderValueInput);
+  renderValueInput();
+
+  overlay.querySelector('#pim-group-export').addEventListener('click', async () => {
+    const res = await apiFetch(`/api/v1/pim/product-groups/${encodeURIComponent(groupSelect.value)}/export.csv`);
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Failed to export this product group.'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `product_group_${groupSelect.value.replace(/[^A-Za-z0-9_-]/g, '_')}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  overlay.querySelector('#pim-group-edit').addEventListener('click', async () => {
+    const field = fields.find(candidate => candidate.fieldname === fieldSelect.value);
+    const input = overlay.querySelector('#pim-group-value-input');
+    if (!field || !input) return;
+    if (field.mandatory && String(input.value).trim() === '') return;
+    const value = field.fieldtype === 'Number' ? Number(input.value) : input.value;
+    const groupName = groupSelect.options[groupSelect.selectedIndex].textContent;
+    if (!await showCustomConfirm(`Update every product currently in ${groupName}?`, 'Confirm Group Bulk Edit')) return;
+    const res = await apiFetch('/api/v1/pim/bulk-edit', {
+      method: 'POST',
+      body: JSON.stringify({ doctype: currentDoctype, group_id: groupSelect.value, field: field.fieldname, value })
+    });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Group bulk edit failed. No records were changed.'); return; }
+    const result = await res.json();
+    close();
+    await showCustomAlert(`${result.updated_count} record${result.updated_count === 1 ? '' : 's'} updated.`, 'Bulk Edit Complete');
+    renderView('doctype-table');
+  });
+
+  await refreshCount();
 };
 
 window.openPIMBulkEditModal = function() {
@@ -17396,6 +17597,230 @@ window.handleBulkImportPreview = async function() {
   }
   summary.innerHTML = html;
 };
+
+// ---------------------------------------------------------------------------
+// Knowledge Center (Stage 39.3-39.5)
+//
+// Articles are rendered to HTML at build time by cmd/genkb and embedded in the
+// server binary; this file only fetches, lists and displays them. Nothing here
+// parses Markdown, and nothing here needs to: the browser receives inert,
+// already-escaped HTML, which is why article text can never execute.
+//
+// Search is a lookup against a prebuilt inverted index (index fetched once,
+// cached for the session) rather than a scan over article bodies or a search
+// service. For a corpus of this size that is a few lines of set intersection.
+// ---------------------------------------------------------------------------
+
+let helpIndexCache = null;
+let helpSearchCache = null;
+let currentHelpSlug = '';
+
+async function loadHelpIndex() {
+  if (helpIndexCache) return helpIndexCache;
+  const res = await apiFetch('/api/v1/help/index');
+  if (!res || !res.ok) return null;
+  helpIndexCache = await res.json();
+  return helpIndexCache;
+}
+
+async function loadHelpSearchIndex() {
+  if (helpSearchCache) return helpSearchCache;
+  const res = await apiFetch('/api/v1/help/search-index');
+  if (!res || !res.ok) return null;
+  helpSearchCache = await res.json();
+  return helpSearchCache;
+}
+
+// searchHelp scores a document by how many of the query's terms it contains,
+// which is the whole ranking model. A term is matched as a prefix so typing
+// "reserv" finds "reservation" - the alternative, exact terms only, makes a
+// search box feel broken while you are still typing.
+function searchHelp(index, query) {
+  const terms = (query || '').toLowerCase().match(/[a-z0-9][a-z0-9_-]*/g) || [];
+  if (terms.length === 0) return [];
+  const scores = new Map();
+  terms.forEach(term => {
+    const matchedDocs = new Set();
+    Object.keys(index.terms).forEach(indexed => {
+      if (indexed.startsWith(term)) index.terms[indexed].forEach(doc => matchedDocs.add(doc));
+    });
+    matchedDocs.forEach(doc => scores.set(doc, (scores.get(doc) || 0) + 1));
+  });
+  return [...scores.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
+    .map(([doc, score]) => ({ ...index.docs[doc], score }));
+}
+
+// flattenHelpArticles gives the reading order the prev/next links follow - the
+// sidebar's own order, so "next" always means the next thing in the sidebar.
+function flattenHelpArticles(index) {
+  const flat = [];
+  (index.sections || []).forEach(section => (section.articles || []).forEach(article => flat.push(article)));
+  return flat;
+}
+
+async function renderHelpView(container) {
+  const index = await loadHelpIndex();
+  if (!index) {
+    container.innerHTML = `<div class="table-panel" style="padding:24px;"><p>The Knowledge Center could not be loaded.</p></div>`;
+    return;
+  }
+  const flat = flattenHelpArticles(index);
+  if (!currentHelpSlug && flat.length > 0) currentHelpSlug = flat[0].slug;
+
+  const layout = document.createElement('div');
+  layout.className = 'kb-layout';
+  layout.innerHTML = `
+    <aside class="kb-sidebar">
+      <div class="kb-search">
+        <input type="search" id="kb-search-input" class="form-input" placeholder="Search help..." aria-label="Search help">
+        <div id="kb-search-results" class="kb-search-results hidden"></div>
+      </div>
+      <nav id="kb-nav" aria-label="Knowledge Center sections"></nav>
+    </aside>
+    <article class="kb-article table-panel" id="kb-article" style="padding:24px;"></article>`;
+  container.appendChild(layout);
+
+  const nav = layout.querySelector('#kb-nav');
+  nav.innerHTML = (index.sections || []).map(section => `
+    <div class="kb-nav-section">
+      <h4>${escapeHTMLText(section.name)}</h4>
+      <ul>${(section.articles || []).map(article =>
+        `<li><a href="/help/${encodeURIComponent(article.slug)}" data-slug="${escapeHTMLText(article.slug)}" class="kb-nav-link${article.slug === currentHelpSlug ? ' active' : ''}">${escapeHTMLText(article.title)}</a></li>`).join('')}
+      </ul>
+    </div>`).join('');
+  nav.addEventListener('click', event => {
+    const link = event.target.closest('.kb-nav-link');
+    if (!link) return;
+    event.preventDefault();
+    openHelpArticle(link.getAttribute('data-slug'));
+  });
+
+  const searchInput = layout.querySelector('#kb-search-input');
+  const searchResults = layout.querySelector('#kb-search-results');
+  searchInput.addEventListener('input', async () => {
+    const query = searchInput.value.trim();
+    if (query.length < 2) { searchResults.classList.add('hidden'); return; }
+    const searchIndex = await loadHelpSearchIndex();
+    if (!searchIndex) return;
+    const hits = searchHelp(searchIndex, query);
+    searchResults.innerHTML = hits.length === 0
+      ? `<div class="kb-search-empty">Nothing matched &ldquo;${escapeHTMLText(query)}&rdquo;.</div>`
+      : hits.map(hit => `<a href="#" data-slug="${escapeHTMLText(hit.slug)}"><strong>${escapeHTMLText(hit.title)}</strong><span>${escapeHTMLText(hit.section)}</span></a>`).join('');
+    searchResults.classList.remove('hidden');
+  });
+  searchResults.addEventListener('click', event => {
+    const link = event.target.closest('a[data-slug]');
+    if (!link) return;
+    event.preventDefault();
+    searchResults.classList.add('hidden');
+    searchInput.value = '';
+    openHelpArticle(link.getAttribute('data-slug'));
+  });
+
+  await renderHelpArticle(currentHelpSlug);
+}
+
+async function openHelpArticle(slug) {
+  currentHelpSlug = slug;
+  history.pushState({}, '', '/help/' + encodeURIComponent(slug));
+  document.querySelectorAll('.kb-nav-link').forEach(link => {
+    link.classList.toggle('active', link.getAttribute('data-slug') === slug);
+  });
+  await renderHelpArticle(slug);
+}
+window.openHelpArticle = openHelpArticle;
+
+async function renderHelpArticle(slug) {
+  const holder = document.getElementById('kb-article');
+  if (!holder) return;
+  if (!slug) { holder.innerHTML = '<p class="text-muted">Select an article from the list.</p>'; return; }
+  const res = await apiFetch(`/api/v1/help/article/${encodeURIComponent(slug)}`);
+  if (!res || !res.ok) {
+    holder.innerHTML = `<p class="text-muted">That article could not be loaded.</p>`;
+    return;
+  }
+  const article = await res.json();
+  const index = await loadHelpIndex();
+  const flat = flattenHelpArticles(index || { sections: [] });
+  const position = flat.findIndex(entry => entry.slug === slug);
+  const previous = position > 0 ? flat[position - 1] : null;
+  const next = position >= 0 && position < flat.length - 1 ? flat[position + 1] : null;
+
+  const toc = (article.headings || []).filter(heading => heading.level === 2);
+  holder.innerHTML = `
+    <nav class="kb-breadcrumb" aria-label="Breadcrumb">
+      <a href="/help" onclick="event.preventDefault(); openHelpArticle('${escapeHTMLText(flat[0] ? flat[0].slug : '')}')">Help</a>
+      <span>/</span><span>${escapeHTMLText(article.section || '')}</span>
+      <span>/</span><span>${escapeHTMLText(article.title || '')}</span>
+    </nav>
+    ${toc.length > 1 ? `<details class="kb-toc"><summary>On this page</summary><ul>${toc.map(h => `<li><a href="#${escapeHTMLText(h.slug)}">${escapeHTMLText(h.text)}</a></li>`).join('')}</ul></details>` : ''}
+    <div class="kb-body">${article.html}</div>
+    <footer class="kb-footer">
+      ${article.last_verified ? `<span class="text-muted">Last verified ${escapeHTMLText(article.last_verified)}.</span>` : ''}
+      <div class="kb-pager">
+        ${previous ? `<a href="#" data-slug="${escapeHTMLText(previous.slug)}">&larr; ${escapeHTMLText(previous.title)}</a>` : '<span></span>'}
+        ${next ? `<a href="#" data-slug="${escapeHTMLText(next.slug)}">${escapeHTMLText(next.title)} &rarr;</a>` : '<span></span>'}
+      </div>
+    </footer>`;
+  holder.querySelectorAll('.kb-pager a[data-slug]').forEach(link => {
+    link.addEventListener('click', event => { event.preventDefault(); openHelpArticle(link.getAttribute('data-slug')); });
+  });
+  holder.scrollTop = 0;
+}
+
+// openHelpDrawer (Stage 39.5) shows the article(s) mapped to a screen, over the
+// screen itself. The mapping comes from each article's own `screens:`
+// frontmatter via the index's screen_map, so there is no second mapping file to
+// keep in sync with the articles.
+async function openHelpDrawer(screenID) {
+  const index = await loadHelpIndex();
+  if (!index) {
+    showCustomAlert('The Knowledge Center could not be loaded.', 'Help');
+    return;
+  }
+  const slugs = (index.screen_map || {})[String(screenID || '').toLowerCase()] || [];
+
+  document.getElementById('kb-drawer')?.remove();
+  const drawer = document.createElement('div');
+  drawer.id = 'kb-drawer';
+  drawer.className = 'modal-overlay open';
+  drawer.innerHTML = `
+    <div class="modal-container kb-drawer-container">
+      <div class="modal-header">
+        <h3 class="modal-title">Help</h3>
+        <button type="button" class="modal-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="modal-body" id="kb-drawer-body"><p class="text-muted">Loading&hellip;</p></div>
+      <div class="modal-footer">
+        <a class="btn btn-outline" href="/help">Open the full Knowledge Center</a>
+        <button type="button" class="btn btn-secondary">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(drawer);
+  const close = () => drawer.remove();
+  drawer.querySelector('.modal-close').addEventListener('click', close);
+  drawer.querySelector('.btn-secondary').addEventListener('click', close);
+
+  const body = drawer.querySelector('#kb-drawer-body');
+  if (slugs.length === 0) {
+    // Say plainly that this screen has no article yet rather than showing an
+    // arbitrary one - a wrong article is worse than an honest gap.
+    body.innerHTML = `<p>No help article is mapped to this screen yet.</p>
+      <p class="text-muted">Open the full Knowledge Center to search everything, or ask an administrator to have this screen documented.</p>`;
+    return;
+  }
+  const res = await apiFetch(`/api/v1/help/article/${encodeURIComponent(slugs[0])}`);
+  if (!res || !res.ok) { body.innerHTML = '<p class="text-muted">That article could not be loaded.</p>'; return; }
+  const article = await res.json();
+  const others = slugs.slice(1);
+  body.innerHTML = `
+    <h4 style="margin:0 0 12px;">${escapeHTMLText(article.title)}</h4>
+    <div class="kb-body">${article.html}</div>
+    ${others.length > 0 ? `<p class="text-muted" style="margin-top:16px;">Also for this screen: ${others.map(slug => `<a href="/help/${encodeURIComponent(slug)}">${escapeHTMLText(slug)}</a>`).join(', ')}</p>` : ''}`;
+}
+window.openHelpDrawer = openHelpDrawer;
 
 // Window load init
 window.addEventListener('DOMContentLoaded', bootstrap);

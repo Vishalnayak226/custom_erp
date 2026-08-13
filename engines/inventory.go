@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -300,8 +301,18 @@ func computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, chan
 	return available - reserved - safetyStock - blocked - qcHold - damaged - channelBuffer
 }
 
+// ReservationAttribution (Stage 35.3.7) names the order line a reservation was
+// made for. Variadic on CreateReservation so the existing call sites that have
+// no order - a cart hold, the load-test harness, the manual reservation API -
+// need no change and keep writing an unattributed row, which is the honest
+// record for them.
+type ReservationAttribution struct {
+	OrderID string
+	LineID  string
+}
+
 // CreateReservation reserves stock temporarily for cart holds or online orders
-func CreateReservation(tenantID string, sku string, locationCode string, qty int, resType string, expirySec int) (string, error) {
+func CreateReservation(tenantID string, sku string, locationCode string, qty int, resType string, expirySec int, attribution ...ReservationAttribution) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
@@ -348,11 +359,20 @@ func CreateReservation(tenantID string, sku string, locationCode string, qty int
 		expirySec = GetSettingInt(tenantID, "inventory.reservation_ttl_seconds")
 	}
 	expiresAt := time.Now().Add(time.Duration(expirySec) * time.Second)
+	var orderArg, lineArg interface{}
+	if len(attribution) > 0 {
+		if strings.TrimSpace(attribution[0].OrderID) != "" {
+			orderArg = strings.TrimSpace(attribution[0].OrderID)
+		}
+		if strings.TrimSpace(attribution[0].LineID) != "" {
+			lineArg = strings.TrimSpace(attribution[0].LineID)
+		}
+	}
 	var resID string
 	err = tx.QueryRow(fmt.Sprintf(`
-		INSERT INTO %s.inventory_reservation (sku, location_code, quantity, reservation_type, expires_at) 
-		VALUES ($1, $2, $3, $4, $5) 
-		RETURNING id::text`, schema), sku, locationCode, qty, resType, expiresAt).Scan(&resID)
+		INSERT INTO %s.inventory_reservation (sku, location_code, quantity, reservation_type, expires_at, order_id, line_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id::text`, schema), sku, locationCode, qty, resType, expiresAt, orderArg, lineArg).Scan(&resID)
 	if err != nil {
 		return "", err
 	}

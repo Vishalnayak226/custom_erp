@@ -142,6 +142,8 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		"sticker_print_log",
 		"tenant_limits",
 		"api_credentials",
+		"api_idempotency_keys",
+		"api_request_log",
 	}
 
 	tx, err := db.DB.Begin()
@@ -157,10 +159,10 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		// cloned like every other tenant-local table; before then only this
 		// new, unused table is skipped. Missing established core tables still
 		// fail loudly below exactly as before.
-		if table == "api_credentials" {
+		if table == "api_credentials" || table == "api_idempotency_keys" || table == "api_request_log" {
 			var templateExists bool
-			if err = tx.QueryRow(`SELECT to_regclass('tenant_default.api_credentials') IS NOT NULL`).Scan(&templateExists); err != nil {
-				return "", fmt.Errorf("failed to inspect api_credentials template: %v", err)
+			if err = tx.QueryRow(`SELECT to_regclass('tenant_default.` + table + `') IS NOT NULL`).Scan(&templateExists); err != nil {
+				return "", fmt.Errorf("failed to inspect %s template: %v", table, err)
 			}
 			if !templateExists {
 				continue

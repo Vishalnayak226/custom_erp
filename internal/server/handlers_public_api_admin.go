@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -105,4 +106,71 @@ func handleRevokeAPICredential(w http.ResponseWriter, r *http.Request) {
 	}
 	engines.LogAuditEvent(tenantID, actor, "API_CREDENTIAL_REVOKED", "SUCCESS", "credential="+credentialID)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "revoked", "id": credentialID})
+}
+
+// handleSetAPICredentialLimits (Stage 38.3) pins one credential's budgets. A
+// null value clears the override and returns that key to the tenant default,
+// which is what makes "raise the plan limit" a one-setting change rather than a
+// sweep over every issued key.
+func handleSetAPICredentialLimits(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	var req struct {
+		RateLimitPerMinute *int `json:"rate_limit_per_minute"`
+		DailyQuota         *int `json:"daily_quota"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid API credential limit payload")
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	actor := r.Header.Get("Resolved-Username")
+	credentialID := r.PathValue("id")
+	if err := engines.SetPublicAPICredentialLimits(tenantID, credentialID, req.RateLimitPerMinute, req.DailyQuota); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	perMinute, perDay, err := engines.ResolvePublicAPICredentialLimits(tenantID, credentialID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	engines.LogAuditEvent(tenantID, actor, "API_CREDENTIAL_LIMITS_SET", "SUCCESS",
+		fmt.Sprintf("credential=%s rate_per_minute=%d daily_quota=%d", credentialID, perMinute, perDay))
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"id": credentialID, "rate_limit_per_minute": perMinute, "daily_quota": perDay,
+	})
+}
+
+// handleListAPICredentialTraffic (Stage 38.9) is the operator's "what has this
+// key been doing" view. Metadata only - no request or response body is stored
+// anywhere, so this cannot become a way to read another tenant's payloads.
+func handleListAPICredentialTraffic(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	limit := 100
+	if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+		if parsed, err := strconv.Atoi(raw); err == nil {
+			limit = parsed
+		}
+	}
+	// Path value is empty on the tenant-wide route and set on the per-key one,
+	// so one handler serves both without a second copy of this logic.
+	entries, err := engines.ListPublicAPITraffic(tenantID, r.PathValue("id"), limit)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	response := map[string]interface{}{"entries": entries}
+	if credentialID := r.PathValue("id"); credentialID != "" {
+		perMinute, perDay, limitErr := engines.ResolvePublicAPICredentialLimits(tenantID, credentialID)
+		if limitErr == nil {
+			response["rate_limit_per_minute"] = perMinute
+			response["daily_quota"] = perDay
+		}
+	}
+	_ = json.NewEncoder(w).Encode(response)
 }

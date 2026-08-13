@@ -1,7 +1,9 @@
 package engines
 
 import (
+	"bytes"
 	"custom_erp/db"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -278,4 +280,76 @@ func ResolvePIMProductGroupItemCodes(tenantID, groupID string) ([]string, error)
 		ids = append(ids, member.ItemCode)
 	}
 	return ids, nil
+}
+
+// ResolvePIMBulkTargetIDs is 36.1.3's bulk-action consumer of the seam above.
+// It deliberately returns ids for BulkUpdateDocuments to consume rather than
+// running its own write path, so a group edit is subject to every guard an
+// explicit selection already passes - the document cap, the PIM-doctype
+// allowlist, per-document validation, variant uniqueness, before-save hooks and
+// re-approval-on-edit. A group and an explicit selection are mutually
+// exclusive: accepting both would leave "what did I just edit?" ambiguous at
+// the exact moment the answer matters most.
+func ResolvePIMBulkTargetIDs(tenantID, doctype, groupID string, explicitIDs []string) ([]string, error) {
+	groupID = strings.TrimSpace(groupID)
+	if groupID == "" {
+		return explicitIDs, nil
+	}
+	if len(explicitIDs) > 0 {
+		return nil, fmt.Errorf("send either a product group or an explicit selection, not both")
+	}
+	if doctype != "Item" {
+		return nil, fmt.Errorf("a product group resolves to Item records, so it cannot drive a bulk edit of %s", doctype)
+	}
+	ids, err := ResolvePIMProductGroupItemCodes(tenantID, groupID)
+	if err != nil {
+		return nil, err
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("product group %q currently resolves to no products", groupID)
+	}
+	return ids, nil
+}
+
+// ExportPIMProductGroupCSV is 36.1.3's export consumer. It joins the group's
+// live membership onto the same reader the Stage 26.4.9 search feed uses, so
+// the two exports cannot disagree about what a product's title, tags or main
+// image are. Completeness and missing fields come from the resolution rather
+// than the stored profile score: a group is normally exported to act on it, and
+// acting on a stale score is the failure this column exists to prevent.
+func ExportPIMProductGroupCSV(tenantID, groupID string) (string, []byte, error) {
+	resolved, err := ResolvePIMProductGroup(tenantID, groupID)
+	if err != nil {
+		return "", nil, err
+	}
+	codes := make([]string, 0, len(resolved.Members))
+	for _, member := range resolved.Members {
+		codes = append(codes, member.ItemCode)
+	}
+	feed, err := fetchSearchFeedRows(tenantID, codes)
+	if err != nil {
+		return "", nil, err
+	}
+	byCode := make(map[string]searchFeedRow, len(feed))
+	for _, row := range feed {
+		byCode[row.ItemCode] = row
+	}
+
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+	_ = writer.Write([]string{"group_id", "group_name", "item_code", "name", "family", "status",
+		"completeness_score", "missing_fields", "title", "short_desc", "tags", "category", "has_main_image"})
+	for _, member := range resolved.Members {
+		row := byCode[member.ItemCode]
+		_ = writer.Write([]string{
+			resolved.GroupID, resolved.Name, member.ItemCode, member.Name, member.Family, member.Status,
+			strconv.FormatFloat(member.Completeness, 'f', 1, 64), strings.Join(member.Missing, "|"),
+			row.Title, row.ShortDesc, row.Tags, row.Category, strconv.FormatBool(row.HasMainImage),
+		})
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return "", nil, err
+	}
+	return resolved.GroupID, buf.Bytes(), nil
 }

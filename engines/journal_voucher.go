@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 )
 
@@ -193,6 +194,25 @@ func postApprovedJournalVoucher(tenantID, voucherID string) {
 	costCenter, _ := data["cost_center"].(string)
 	department, _ := data["department"].(string)
 	opt := PostingOptions{CostCenter: costCenter, Department: department}
+
+	// Stage 37.1.2: a voucher entered in another currency posts functional
+	// amounts to the ledger and carries its own amounts alongside. The line
+	// values above are in the voucher's currency - what the person typed - so
+	// they are converted here rather than at the line editor, keeping one
+	// definition of "what the ledger holds" for every posting path.
+	currency := strings.ToUpper(strings.TrimSpace(fmt.Sprintf("%v", data["currency"])))
+	functional := FunctionalCurrency(tenantID)
+	if currency != "" && currency != "<NIL>" && currency != functional {
+		rate, ok := parityNumber(data["exchange_rate"])
+		if !ok || rate <= 0 {
+			LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher",
+				fmt.Sprintf("voucher %s is in %s but carries no usable exchange rate; not posted", voucherID, currency), "")
+			return
+		}
+		debits, credits, opt.TransactionDebits, opt.TransactionCredits = ConvertPostingToFunctional(debits, credits, rate)
+		opt.Currency = currency
+		opt.ExchangeRate = rate
+	}
 	if err := PostDoubleEntry(tenantID, "JournalVoucher", voucherID, debits, credits, voucherDate, fmt.Sprintf("JournalVoucher:%s:POST", voucherID), opt); err != nil {
 		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s approved but GL post failed: %v", voucherID, err), "")
 		return

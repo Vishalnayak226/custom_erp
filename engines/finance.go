@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // PostingOptions carries optional per-posting metadata that doesn't affect
@@ -11,6 +12,21 @@ import (
 type PostingOptions struct {
 	CostCenter string
 	Department string
+	// Stage 37.1.2. Currency is the currency the source document was
+	// transacted in and ExchangeRate is the rate that produced the
+	// functional-currency debits/credits below. Both empty/zero means the
+	// posting is already in the functional currency - which is every existing
+	// caller, and why this needed no change at 28 call sites.
+	//
+	// The critical invariant: `debits` and `credits` are ALWAYS functional
+	// currency. Every report, trial balance and reconciliation in this codebase
+	// sums the debit/credit columns, and none of them will be taught about
+	// currency. TransactionDebits/TransactionCredits carry the original amounts
+	// alongside, for FX revaluation (37.1.4) and currency reporting (37.1.5).
+	Currency           string
+	ExchangeRate       float64
+	TransactionDebits  map[string]float64
+	TransactionCredits map[string]float64
 }
 
 // PostDoubleEntry writes balanced debit/credit transactions to the GL
@@ -105,15 +121,36 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 		keyArg = postingKey
 	}
 
+	// Stage 37.1.2: the currency columns. NULL for a functional-currency
+	// posting, which keeps every pre-37.1.2 row and every single-currency
+	// tenant's rows byte-identical to what they are today.
+	currencyArg, rateArg := currencyPostingArgs(tenantID, opt)
+	transactionAmount := func(source map[string]float64, code string, functional int) interface{} {
+		if currencyArg == nil {
+			return nil
+		}
+		if value, ok := source[code]; ok {
+			return value
+		}
+		// A caller that named a currency but not the per-account original is
+		// telling us the rate, so the original is recoverable from it. Deriving
+		// it is better than storing NULL and losing the transaction amount.
+		if rate, ok := rateArg.(float64); ok && rate > 0 {
+			return float64(functional) / rate
+		}
+		return nil
+	}
+
 	// Insert debits
 	for code, val := range debits {
 		if val <= 0 {
 			continue
 		}
 		query := fmt.Sprintf(`
-			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department)
-			VALUES ($1, $2, 0, $3, $4, $5, $6, $7)`, schema)
-		_, err := tx.Exec(query, code, val, docType, docID, keyArg, costCenterArg, departmentArg)
+			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_debit)
+			VALUES ($1, $2, 0, $3, $4, $5, $6, $7, $8, $9, $10)`, schema)
+		_, err := tx.Exec(query, code, val, docType, docID, keyArg, costCenterArg, departmentArg,
+			currencyArg, rateArg, transactionAmount(opt.TransactionDebits, code, val))
 		if err != nil {
 			return fmt.Errorf("error posting debit for account %s: %v", code, err)
 		}
@@ -125,15 +162,33 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 			continue
 		}
 		query := fmt.Sprintf(`
-			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department)
-			VALUES ($1, 0, $2, $3, $4, $5, $6, $7)`, schema)
-		_, err := tx.Exec(query, code, val, docType, docID, keyArg, costCenterArg, departmentArg)
+			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_credit)
+			VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, schema)
+		_, err := tx.Exec(query, code, val, docType, docID, keyArg, costCenterArg, departmentArg,
+			currencyArg, rateArg, transactionAmount(opt.TransactionCredits, code, val))
 		if err != nil {
 			return fmt.Errorf("error posting credit for account %s: %v", code, err)
 		}
 	}
 
 	return tx.Commit()
+}
+
+// currencyPostingArgs decides what goes in the currency columns. A posting is
+// only marked foreign when the caller named a currency that genuinely differs
+// from the tenant's functional currency - naming the functional currency
+// explicitly is not an error, it just adds nothing, and writing it would make
+// "is this a foreign posting?" a string comparison instead of a NULL check.
+func currencyPostingArgs(tenantID string, opt PostingOptions) (currency interface{}, rate interface{}) {
+	code := strings.ToUpper(strings.TrimSpace(opt.Currency))
+	if code == "" || code == FunctionalCurrency(tenantID) {
+		return nil, nil
+	}
+	appliedRate := opt.ExchangeRate
+	if appliedRate <= 0 {
+		appliedRate = 1
+	}
+	return code, appliedRate
 }
 
 // GetTrialBalance fetches summary trial balances for the current tenant

@@ -77,6 +77,15 @@ func Run() {
 	// see engines/alerting.go.
 	engines.StartAlertMonitor(workerCtx, 1*time.Minute, 5*time.Minute, 20)
 
+	// Start Backup Freshness Monitor (Stage 43.2) - hourly check that a
+	// nightly backup actually exists and is under 36h old. 36 rather than 24
+	// so a single late or slow run does not page anyone; two consecutive
+	// missed nights always does, which is the signal hypercare_plan.md's
+	// rollback trigger is written against. Disables itself where there is no
+	// backup directory (every dev box), and no-ops in delivery until
+	// OPS_ALERT_WEBHOOK_URL is set - see engines/alerting.go.
+	engines.StartBackupFreshnessMonitor(workerCtx, 1*time.Hour, 36*time.Hour)
+
 	// Start Stage 9.1 Integration Workers (Unicommerce, Pine Labs, CleverTap)
 	engines.StartUnicommerceWorker(workerCtx, 30*time.Second)
 	engines.StartPineLabsReconciliationWorker(workerCtx, 5*time.Minute)
@@ -109,6 +118,20 @@ func Run() {
 	// only; alerts through the existing DispatchNotification path. No-ops for
 	// any tenant that leaves the threshold at its 0 default.
 	engines.StartCompetitorUndercutWorker(workerCtx, 1*time.Hour)
+
+	// Start Reservation Sweeper (Stage 35.3.7) - releases expired cart holds
+	// and reservations left behind by lines that are no longer reserved. It
+	// never expires a live order's reservation on time alone; see the file
+	// header in engines/reservation_sweeper.go for why that distinction is the
+	// whole safety argument. Skips any tenant whose database has not had the
+	// Stage 35.3.7 migration applied yet.
+	engines.StartReservationSweeper(workerCtx, 5*time.Minute)
+
+	// Start Public API Runtime Sweeper (Stage 38.3/38.5/38.9) - hourly deletion
+	// of expired idempotency keys and traffic-log rows past their retention.
+	// Skips any tenant whose database has not had the Stage 38.3 migration
+	// applied yet, so it is safe to ship ahead of the migration.
+	engines.StartPublicAPIRuntimeSweeper(workerCtx, 1*time.Hour)
 
 	// Authentication API
 	http.HandleFunc("POST /api/v1/login", apiMiddleware(handleLogin))
@@ -441,6 +464,7 @@ func Run() {
 	http.HandleFunc("GET /api/v1/pim/workbench", apiMiddleware(moduleGate("pim", handlePIMWorkbench)))
 	// Stage 36.1: resolve a saved static/dynamic Product Group on demand.
 	http.HandleFunc("GET /api/v1/pim/product-groups/{id}/members", apiMiddleware(moduleGate("pim", handlePIMProductGroupMembers)))
+	http.HandleFunc("GET /api/v1/pim/product-groups/{id}/export.csv", apiMiddleware(moduleGate("pim", handlePIMProductGroupExport)))
 	http.HandleFunc("GET /api/v1/pim/completeness/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMCompleteness)))
 	// Content assist (Stage 26.4.11) - local/offline draft generation from the
 	// item's own data. Suggest-only: writes no ProductContent.
@@ -595,6 +619,37 @@ func Run() {
 	http.HandleFunc("GET /api/v1/admin/api-credentials", apiMiddleware(handleListAPICredentials))
 	http.HandleFunc("POST /api/v1/admin/api-credentials/{id}/rotate", apiMiddleware(handleRotateAPICredential))
 	http.HandleFunc("DELETE /api/v1/admin/api-credentials/{id}", apiMiddleware(handleRevokeAPICredential))
+	// Stage 38.3/38.9 administration: per-credential budgets and the traffic
+	// log. Both stay behind the existing Super Admin human-session gate - an
+	// integration key can never read or change its own limits.
+	http.HandleFunc("PUT /api/v1/admin/api-credentials/{id}/limits", apiMiddleware(handleSetAPICredentialLimits))
+	http.HandleFunc("GET /api/v1/admin/api-credentials/{id}/traffic", apiMiddleware(handleListAPICredentialTraffic))
+	http.HandleFunc("GET /api/v1/admin/api-traffic", apiMiddleware(handleListAPICredentialTraffic))
+	// Stage 38.8: the OpenAPI document, generated from the public route table
+	// on every request so it can never be stale.
+	http.HandleFunc("GET /api/v1/admin/public-api/openapi.json", apiMiddleware(handlePublicAPIOpenAPISpec))
+
+	// Stage 39.4/39.6: the Knowledge Center. The generated content is embedded
+	// in the binary and has no copy under public/, so these handlers are the
+	// only way to read an article - "authenticated by default" is a property of
+	// where the content lives, not a check that could be forgotten.
+	http.HandleFunc("GET /api/v1/help/index", apiMiddleware(handleHelpIndex))
+	http.HandleFunc("GET /api/v1/help/search-index", apiMiddleware(handleHelpSearchIndex))
+	http.HandleFunc("GET /api/v1/help/article/{slug}", apiMiddleware(handleHelpArticle))
+	// The unauthenticated subset: only articles marked `public: true`.
+	http.HandleFunc("GET /api/v1/help/public/index", apiMiddleware(handleHelpPublicIndex))
+	http.HandleFunc("GET /api/v1/help/public/search-index", apiMiddleware(handleHelpPublicSearchIndex))
+	http.HandleFunc("GET /api/v1/help/public/article", apiMiddleware(handleHelpPublicArticle))
+
+	// Stage 38.1: the curated public API. These are the ONLY routes an
+	// integration key can reach - every one of them names its required scope
+	// explicitly, and publicAPIMiddleware panics at registration for a route
+	// that does not, so "public by accident" is not a reachable state.
+	//
+	// Read-only by design in this first slice. Writes wait until each specific
+	// mutation has been curated on its own terms; the idempotency spine (38.5)
+	// is already in place under this middleware for when they land.
+	registerPublicAPIV1Routes()
 
 	// DocType Metadata APIs
 	http.HandleFunc("GET /api/v1/doc/{doctype}/meta", apiMiddleware(handleGetDocTypeMeta))
@@ -643,12 +698,18 @@ func Run() {
 	// purely a navigation convenience - actual access control is still
 	// enforced server-side by moduleGate on every API route, never by the
 	// URL itself.
+	spaShell := func(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, "./public/index.html") }
 	for _, pkg := range engines.ProductPackages {
 		prefix := pkg.URLPrefix
-		spaShell := func(w http.ResponseWriter, r *http.Request) { http.ServeFile(w, r, "./public/index.html") }
 		http.HandleFunc("GET "+prefix, spaShell)
 		http.HandleFunc("GET "+prefix+"/{rest...}", spaShell)
 	}
+	// Stage 39.4: /help and /help/<slug> are the Knowledge Center's own URLs,
+	// served by the same SPA shell so an article link can be shared, bookmarked
+	// or opened cold. The shell then fetches the article through the
+	// authenticated help API - the URL carries no content by itself.
+	http.HandleFunc("GET /help", spaShell)
+	http.HandleFunc("GET /help/{rest...}", spaShell)
 
 	// Serve Static Files
 	fs := http.FileServer(http.Dir("./public"))

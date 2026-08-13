@@ -152,9 +152,48 @@ func GetPIMDashboard(tenantID string) (*PIMDashboard, error) {
 // same simplification BuildChannelPayload/CalculateCompleteness already
 // make elsewhere for a single-locale-per-call shape.
 func GetSearchFeedExportCSV(tenantID string) ([]byte, error) {
+	rows, err := fetchSearchFeedRows(tenantID, nil)
+	if err != nil {
+		return nil, err
+	}
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+	_ = writer.Write([]string{"item_code", "name", "title", "short_desc", "tags", "family", "category", "completeness_score", "has_main_image"})
+	for _, row := range rows {
+		_ = writer.Write([]string{row.ItemCode, row.Name, row.Title, row.ShortDesc, row.Tags, row.Family, row.Category,
+			strconv.FormatFloat(row.CompletenessScore, 'f', 1, 64), strconv.FormatBool(row.HasMainImage)})
+	}
+	writer.Flush()
+	return buf.Bytes(), writer.Error()
+}
+
+// searchFeedRow is one product's export-shaped view of its own PIM data.
+type searchFeedRow struct {
+	ItemCode          string
+	Name              string
+	Title             string
+	ShortDesc         string
+	Tags              string
+	Family            string
+	Category          string
+	CompletenessScore float64
+	HasMainImage      bool
+}
+
+// fetchSearchFeedRows is the single reader behind both the whole-catalog search
+// feed above and 36.1.3's per-group export. A nil itemCodes means "every
+// sellable product"; a non-nil (possibly empty) slice scopes the read to
+// exactly those codes, so a group export cannot drift from the feed's column
+// semantics by growing a second query.
+func fetchSearchFeedRows(tenantID string, itemCodes []string) ([]searchFeedRow, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
+	}
+	scope, args := "", []interface{}{}
+	if itemCodes != nil {
+		scope = " AND item.id = ANY($1::text[])"
+		args = append(args, pqTextArray(itemCodes))
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT
@@ -174,28 +213,21 @@ func GetSearchFeedExportCSV(tenantID string) ([]byte, error) {
 		FROM %s.documents item
 		LEFT JOIN %s.documents profile ON profile.doctype = 'PIMProductProfile' AND profile.id = item.id || '::profile'
 		LEFT JOIN %s.documents content ON content.doctype = 'ProductContent' AND content.data->>'product_id' = item.id AND content.data->>'language' = 'en' AND content.status = 'Approved'
-		WHERE item.doctype = 'Item' AND item.status != 'Cancelled'
-		ORDER BY item.id`, schema, schema, schema, schema))
+		WHERE item.doctype = 'Item' AND item.status != 'Cancelled'%s
+		ORDER BY item.id`, schema, schema, schema, schema, scope), args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var buf bytes.Buffer
-	writer := csv.NewWriter(&buf)
-	_ = writer.Write([]string{"item_code", "name", "title", "short_desc", "tags", "family", "category", "completeness_score", "has_main_image"})
+	out := []searchFeedRow{}
 	for rows.Next() {
-		var itemCode, name, title, shortDesc, tags, family, category string
-		var score float64
-		var hasMainImage bool
-		if err := rows.Scan(&itemCode, &name, &title, &shortDesc, &tags, &family, &category, &score, &hasMainImage); err != nil {
+		var row searchFeedRow
+		if err := rows.Scan(&row.ItemCode, &row.Name, &row.Title, &row.ShortDesc, &row.Tags,
+			&row.Family, &row.Category, &row.CompletenessScore, &row.HasMainImage); err != nil {
 			return nil, err
 		}
-		_ = writer.Write([]string{itemCode, name, title, shortDesc, tags, family, category, strconv.FormatFloat(score, 'f', 1, 64), strconv.FormatBool(hasMainImage)})
+		out = append(out, row)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	writer.Flush()
-	return buf.Bytes(), writer.Error()
+	return out, rows.Err()
 }

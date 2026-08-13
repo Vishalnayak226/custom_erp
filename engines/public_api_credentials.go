@@ -335,6 +335,11 @@ func RevokeAPICredential(tenantID, credentialID string) error {
 	if affected, _ := result.RowsAffected(); affected == 0 {
 		return &ValidationError{Code: "GLOBAL-0004", Message: "active API credential not found"}
 	}
+	// Stage 38.3: drop this key's in-process burst window. A revoked key can no
+	// longer authenticate anyway; this just stops its spent budget lingering in
+	// memory until the window ages out.
+	ResetPublicAPICredentialBudget(credentialID)
+	publicAPIDailyUsage.forget(credentialID)
 	return nil
 }
 
@@ -383,6 +388,13 @@ func RotateAPICredential(tenantID, credentialID, rotatedBy string) (*IssuedAPICr
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
+	// The replacement key is a new credential id, so it starts with its own
+	// clean budget; the retired one's window is released here rather than left
+	// behind. Note the daily quota is deliberately per credential id, so a
+	// rotation does grant a fresh daily allowance - rotation is an operator
+	// action, not a caller-reachable one, so it cannot be used to evade a quota.
+	ResetPublicAPICredentialBudget(credentialID)
+	publicAPIDailyUsage.forget(credentialID)
 	return issued, nil
 }
 

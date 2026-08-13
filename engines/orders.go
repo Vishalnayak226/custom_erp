@@ -286,7 +286,11 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 		}
 
 		if holdReason == "" {
-			if _, err := CreateReservation(tenantID, l.SKU, lineLocation, l.Qty, "Online", 0); err != nil {
+			// Stage 35.3.7: the reservation names the line it backs, so releasing
+			// this line later releases exactly this row rather than the oldest
+			// row that happens to match on (sku, location, quantity).
+			if _, err := CreateReservation(tenantID, l.SKU, lineLocation, l.Qty, "Online", 0,
+				ReservationAttribution{OrderID: orderID, LineID: lineID}); err != nil {
 				return "", fmt.Errorf("failed to reserve stock for SKU %s: %v", l.SKU, err)
 			}
 		}
@@ -482,7 +486,8 @@ func ReleaseOrderHold(tenantID, orderID string) error {
 		for j, idx := range pendingIdx {
 			lr := lineRows[idx]
 			lineLocation := plan.LineLocations[j]
-			if _, err := CreateReservation(tenantID, pendingLines[j].SKU, lineLocation, pendingLines[j].Qty, "Online", 0); err != nil {
+			if _, err := CreateReservation(tenantID, pendingLines[j].SKU, lineLocation, pendingLines[j].Qty, "Online", 0,
+				ReservationAttribution{OrderID: orderID, LineID: lr.id}); err != nil {
 				return fmt.Errorf("failed to reserve stock for SKU %s: %v", pendingLines[j].SKU, err)
 			}
 			lr.data["line_status"] = "Reserved"

@@ -305,6 +305,42 @@ func registerStage282Settings() {
 		Min: settingBound(0), Max: settingBound(90),
 		Description: "Alert when the cheapest competitor observation is at least this far below our last transacted price. 0 disables competitor undercut alerts.",
 	})
+	// Stage 38.3/38.5/38.9. These are the tenant-wide defaults; an individual
+	// credential may override the two budgets, so pinning one noisy integration
+	// never means lowering the ceiling for every other key.
+	// Stage 37.1.2. The currency every ledger amount, report and approval slab
+	// is denominated in. Changing it does NOT re-translate existing postings -
+	// it declares what they were always in - so it is a provisioning-time
+	// decision, not an operational one.
+	RegisterSetting(SettingDefinition{
+		Key: SettingKeyFunctionalCurrency, Module: "Finance",
+		Label: "Functional (reporting) currency", Type: SettingTypeString, Default: "INR",
+		Description: "The ISO currency code every ledger posting, report and approval threshold is expressed in. Documents may be transacted in other currencies and are converted to this one at their exchange rate.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "platform.public_api_rate_limit_per_minute", Module: "Platform",
+		Label: "Public API requests per minute per credential", Type: SettingTypeInt, Default: "120", Unit: "requests",
+		Min: settingBound(1), Max: settingBound(100000),
+		Description: "Burst budget for one public API credential. Exceeding it returns 429 with Retry-After; it does not affect internal application requests.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "platform.public_api_daily_quota", Module: "Platform",
+		Label: "Public API daily quota per credential", Type: SettingTypeInt, Default: "50000", Unit: "requests",
+		Min: settingBound(1), Max: settingBound(10000000),
+		Description: "How many public API calls one credential may make between midnights (server time). Counted from the API traffic log, so it survives a restart.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "platform.public_api_log_retention_days", Module: "Platform",
+		Label: "Public API traffic log retention", Type: SettingTypeInt, Default: "30", Unit: "days",
+		Min: settingBound(1), Max: settingBound(365),
+		Description: "How long per-credential API traffic rows are kept before the sweeper deletes them. Must exceed one day or the daily quota loses its history.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "platform.public_api_idempotency_retention_hours", Module: "Platform",
+		Label: "Idempotency key retention", Type: SettingTypeInt, Default: "24", Unit: "hours",
+		Min: settingBound(1), Max: settingBound(720),
+		Description: "How long a completed public API idempotency key can still replay its stored response. After this window the same key is treated as a new request.",
+	})
 
 	registerLocalizationSettings()
 }

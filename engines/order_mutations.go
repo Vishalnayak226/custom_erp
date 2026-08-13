@@ -100,16 +100,23 @@ func writeOrderLine(schema, lineID string, lineData map[string]interface{}) erro
 
 // releaseLineReservation gives back the stock one line is holding.
 //
-// inventory_reservation carries no order or line reference (db/migration.sql
-// §301), so the reservation is matched on (sku, location, quantity, type) and
-// the oldest match is released. Stated plainly because it is a real
-// limitation: with two concurrent orders reserving the same SKU/location/qty,
-// this releases one of the two reservations, not provably "this line's". The
-// availability arithmetic is identical either way - the same quantity comes
-// back to the same pool - so it is correct in aggregate, which is what ATS
-// consumes. Attributing reservations per line is a schema change and belongs
-// with the reservation-sweeper work noted in micro_checklist.md 35.1.3.
-func releaseLineReservation(schema, sku, location string, qty int) error {
+// Stage 35.3.7 made this exact. A reservation now names the line it backs, so
+// the lookup below asks for THIS line's row first. The old heuristic - oldest
+// row matching (sku, location, quantity) - survives only as a fallback for rows
+// written before that migration, where there is no attribution to use and
+// releasing by shape is still better than refusing to release at all. Both
+// paths return the same quantity to the same pool, which is all computeATS
+// consumes; the difference is that the attributed path is provably this line's.
+func releaseLineReservation(schema, sku, location string, qty int, lineID string) error {
+	return releaseLineReservationAtLocation(schema, sku, location, qty, lineID)
+}
+
+// releaseLineReservationAtLocation is the same release, scoped to one location.
+// Switch-facility needs this: it reserves at the destination FIRST (so a
+// concurrent order cannot take the stock in the gap), which means the line then
+// has two attributed rows, and releasing "this line's reservation" without
+// naming the location could delete the new one.
+func releaseLineReservationAtLocation(schema, sku, location string, qty int, lineID string) error {
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return err
@@ -119,16 +126,26 @@ func releaseLineReservation(schema, sku, location string, qty int) error {
 		return err
 	}
 	var resID string
-	err = tx.QueryRow(fmt.Sprintf(
-		`SELECT id::text FROM %s.inventory_reservation
-		 WHERE sku = $1 AND location_code = $2 AND quantity = $3
-		 ORDER BY created_at LIMIT 1 FOR UPDATE`, schema), sku, location, qty).Scan(&resID)
-	if err == sql.ErrNoRows {
-		// Nothing to release - a line that was never reserved (created On
-		// Hold) is not an error condition for the caller.
-		return nil
-	} else if err != nil {
-		return err
+	if strings.TrimSpace(lineID) != "" {
+		err = tx.QueryRow(fmt.Sprintf(
+			`SELECT id::text FROM %s.inventory_reservation
+			 WHERE line_id = $1 AND location_code = $2 ORDER BY created_at LIMIT 1 FOR UPDATE`, schema), lineID, location).Scan(&resID)
+		if err != nil && err != sql.ErrNoRows {
+			return err
+		}
+	}
+	if resID == "" {
+		err = tx.QueryRow(fmt.Sprintf(
+			`SELECT id::text FROM %s.inventory_reservation
+			 WHERE sku = $1 AND location_code = $2 AND quantity = $3 AND line_id IS NULL
+			 ORDER BY created_at LIMIT 1 FOR UPDATE`, schema), sku, location, qty).Scan(&resID)
+		if err == sql.ErrNoRows {
+			// Nothing to release - a line that was never reserved (created On
+			// Hold) is not an error condition for the caller.
+			return nil
+		} else if err != nil {
+			return err
+		}
 	}
 	if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.inventory_reservation WHERE id = $1::uuid`, schema), resID); err != nil {
 		return err
@@ -177,7 +194,7 @@ func HoldOrderLine(tenantID, lineID, reasonCode, owner string) error {
 		location, _ := lineData["location_code"].(string)
 		qty := int(numericFromAny(lineData["qty"]))
 		if location != "" && qty > 0 {
-			if err := releaseLineReservation(schema, sku, location, qty); err != nil {
+			if err := releaseLineReservation(schema, sku, location, qty, lineID); err != nil {
 				return fmt.Errorf("failed to release the reservation behind line %s: %v", lineID, err)
 			}
 		}
@@ -212,7 +229,8 @@ func ReleaseOrderLineHold(tenantID, lineID, userID string) error {
 
 	newStatus := "Pending"
 	if location != "" && qty > 0 {
-		if _, err := CreateReservation(tenantID, sku, location, qty, "Online", 0); err == nil {
+		if _, err := CreateReservation(tenantID, sku, location, qty, "Online", 0,
+			ReservationAttribution{OrderID: orderID, LineID: lineID}); err == nil {
 			newStatus = "Reserved"
 		}
 	}
@@ -453,11 +471,16 @@ func SwitchOrderFacility(tenantID, orderID, targetLocation, userID string) (int,
 		// ends, and a concurrent order could take it - the line would then end
 		// up Pending with its original reservation already gone.
 		if wasReserved == "Reserved" && qty > 0 {
-			if _, err := CreateReservation(tenantID, sku, newLocation, qty, "Online", 0); err != nil {
+			if _, err := CreateReservation(tenantID, sku, newLocation, qty, "Online", 0,
+				ReservationAttribution{OrderID: orderID, LineID: c.id}); err != nil {
 				return moved, fmt.Errorf("line %s: %s has no available stock for %s, nothing was moved past this point: %v", c.id, newLocation, sku, err)
 			}
 			if oldLocation != "" {
-				if err := releaseLineReservation(schema, sku, oldLocation, qty); err != nil {
+				// The destination reservation is already attributed to this
+				// line, so releasing by line id would find the NEW row. Release
+				// the source row by shape, which is unambiguous here because the
+				// old location differs from the new one.
+				if err := releaseLineReservationAtLocation(schema, sku, oldLocation, qty, c.id); err != nil {
 					return moved, err
 				}
 			}

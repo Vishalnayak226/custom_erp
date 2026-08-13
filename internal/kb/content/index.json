@@ -1,0 +1,269 @@
+{
+  "generated_at": "content-hash build; see docs/kb/update-kb.ps1",
+  "sections": [
+    {
+      "name": "Getting Started",
+      "order": 0,
+      "articles": [
+        {
+          "slug": "first-login",
+          "title": "Your first sign-in",
+          "section": "Getting Started",
+          "order": 1,
+          "summary": "Sign in, understand what your role can see, and find your way around the main screens.",
+          "audience": "everyone",
+          "screens": [
+            "profile",
+            "configuration"
+          ],
+          "last_verified": "2026-08-12",
+          "source_path": "getting-started/first-login.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Signing in",
+              "slug": "signing-in"
+            },
+            {
+              "level": 2,
+              "text": "What you can see depends on your role",
+              "slug": "what-you-can-see-depends-on-your-role"
+            },
+            {
+              "level": 2,
+              "text": "Finding your way around",
+              "slug": "finding-your-way-around"
+            },
+            {
+              "level": 2,
+              "text": "Next",
+              "slug": "next"
+            }
+          ]
+        },
+        {
+          "slug": "first-order",
+          "title": "Your first order, end to end",
+          "section": "Getting Started",
+          "order": 2,
+          "summary": "Follow one order from placement to invoice, so the screens in between stop being a mystery.",
+          "audience": "cashier, store manager",
+          "screens": [
+            "oms",
+            "pos",
+            "fulfillment",
+            "sales-invoices"
+          ],
+          "last_verified": "2026-08-12",
+          "source_path": "getting-started/first-order.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Before you start",
+              "slug": "before-you-start"
+            },
+            {
+              "level": 2,
+              "text": "1. Place the order",
+              "slug": "1-place-the-order"
+            },
+            {
+              "level": 2,
+              "text": "2. Watch it allocate",
+              "slug": "2-watch-it-allocate"
+            },
+            {
+              "level": 2,
+              "text": "3. Pick, pack and dispatch",
+              "slug": "3-pick-pack-and-dispatch"
+            },
+            {
+              "level": 2,
+              "text": "4. Invoice",
+              "slug": "4-invoice"
+            },
+            {
+              "level": 2,
+              "text": "What to look at when something stalls",
+              "slug": "what-to-look-at-when-something-stalls"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Module Handbooks",
+      "order": 2,
+      "articles": [
+        {
+          "slug": "pim-product-groups",
+          "title": "Product Groups",
+          "section": "Module Handbooks",
+          "order": 10,
+          "summary": "Group products once - by hand or by rule - then bulk edit, export and report against that group.",
+          "audience": "category manager",
+          "screens": [
+            "pim",
+            "doctype-table"
+          ],
+          "last_verified": "2026-08-12",
+          "source_path": "module-handbooks/pim-product-groups.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The two kinds",
+              "slug": "the-two-kinds"
+            },
+            {
+              "level": 2,
+              "text": "Creating one",
+              "slug": "creating-one"
+            },
+            {
+              "level": 2,
+              "text": "Using one",
+              "slug": "using-one"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Reference",
+      "order": 5,
+      "articles": [
+        {
+          "slug": "public-api-authentication",
+          "title": "Authenticating against the public API",
+          "section": "Reference",
+          "order": 1,
+          "summary": "How an integration gets a key, what a key may do, and what every response tells you about your budget.",
+          "audience": "integrator",
+          "public": true,
+          "last_verified": "2026-08-12",
+          "source_path": "reference/public-api-authentication.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Getting a key",
+              "slug": "getting-a-key"
+            },
+            {
+              "level": 2,
+              "text": "Every request",
+              "slug": "every-request"
+            },
+            {
+              "level": 2,
+              "text": "Every response",
+              "slug": "every-response"
+            },
+            {
+              "level": 2,
+              "text": "When you are refused",
+              "slug": "when-you-are-refused"
+            }
+          ]
+        },
+        {
+          "slug": "public-api-idempotency",
+          "title": "Retrying safely (idempotency)",
+          "section": "Reference",
+          "order": 2,
+          "summary": "Why every mutating call needs an Idempotency-Key, and exactly what the server does with it.",
+          "audience": "integrator",
+          "public": true,
+          "last_verified": "2026-08-12",
+          "source_path": "reference/public-api-idempotency.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Choosing a key",
+              "slug": "choosing-a-key"
+            },
+            {
+              "level": 2,
+              "text": "What the server does",
+              "slug": "what-the-server-does"
+            },
+            {
+              "level": 2,
+              "text": "Practical advice",
+              "slug": "practical-advice"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Troubleshooting",
+      "order": 6,
+      "articles": [
+        {
+          "slug": "error-codes",
+          "title": "Reading an error code",
+          "section": "Troubleshooting",
+          "order": 1,
+          "summary": "What the three lines of an error dialog mean, and how to turn a code into an action.",
+          "audience": "everyone",
+          "last_verified": "2026-08-12",
+          "source_path": "troubleshooting/error-codes.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The three lines of an error dialog",
+              "slug": "the-three-lines-of-an-error-dialog"
+            },
+            {
+              "level": 2,
+              "text": "The code prefixes",
+              "slug": "the-code-prefixes"
+            },
+            {
+              "level": 2,
+              "text": "The correlation id",
+              "slug": "the-correlation-id"
+            },
+            {
+              "level": 2,
+              "text": "Common ones",
+              "slug": "common-ones"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "screen_map": {
+    "configuration": [
+      "first-login"
+    ],
+    "doctype-table": [
+      "pim-product-groups"
+    ],
+    "fulfillment": [
+      "first-order"
+    ],
+    "oms": [
+      "first-order"
+    ],
+    "pim": [
+      "pim-product-groups"
+    ],
+    "pos": [
+      "first-order"
+    ],
+    "profile": [
+      "first-login"
+    ],
+    "sales-invoices": [
+      "first-order"
+    ]
+  },
+  "article_count": 6
+}

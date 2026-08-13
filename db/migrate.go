@@ -97,6 +97,21 @@ func ApplyPendingMigrations() ([]MigrationResult, error) {
 		if _, err := tx.Exec(string(body)); err != nil {
 			_ = tx.Rollback()
 			results = append(results, MigrationResult{File: name, Err: err})
+			// SQLSTATE 22P05 (untranslatable_character) here means one thing in
+			// practice: the database is not UTF8, and a migration seeds a
+			// character its encoding cannot represent - the ₹ in the Stage 37.1
+			// currency seed is the first one to hit it. That is the exact
+			// condition EnforceUTF8Encoding already warns about at startup, and
+			// migrations stop dead until it is fixed, so the failure says so
+			// rather than leaving someone debugging their SQL.
+			if strings.Contains(err.Error(), "22P05") || strings.Contains(err.Error(), "has no equivalent in encoding") {
+				return results, fmt.Errorf("migration %s failed (rolled back, ledger not updated): %w\n"+
+					"       This database's encoding cannot store the character the migration seeds.\n"+
+					"       Check `SHOW server_encoding` - if it is not UTF8, every migration from this\n"+
+					"       one onward is blocked. Recreate the database with\n"+
+					"       CREATE DATABASE ... ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C' TEMPLATE template0\n"+
+					"       and restore into it. See db.EnforceUTF8Encoding's comment for the full background", name, err)
+			}
 			return results, fmt.Errorf("migration %s failed (rolled back, ledger not updated): %w", name, err)
 		}
 		if _, err := tx.Exec(

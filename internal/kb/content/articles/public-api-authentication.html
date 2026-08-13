@@ -1,0 +1,29 @@
+<h1 id="authenticating-against-the-public-api">Authenticating against the public API <a class="kb-anchor" href="#authenticating-against-the-public-api" aria-label="Copy link to this section">#</a></h1>
+<p>The public API is a curated, versioned subset of the application under <code>/api/public/v1/</code>. It is separate from the application&#39;s internal API, which is not a supported integration surface and is not covered by any compatibility promise.</p>
+<h2 id="getting-a-key">Getting a key <a class="kb-anchor" href="#getting-a-key" aria-label="Copy link to this section">#</a></h2>
+<p>A Super Admin issues one from the administration surface. The plaintext key is shown <strong>once</strong>, at creation, and only a one-way digest is stored - if it is lost, rotate the credential rather than trying to recover it.</p>
+<p>A key names its scopes explicitly when it is issued. There is no wildcard scope, and a key never inherits a person&#39;s role.</p>
+<table><thead><tr><th>Scope</th><th>Grants</th></tr></thead><tbody><tr><td><code>items:read</code></td><td>Curated product identity</td></tr><tr><td><code>inventory:read</code></td><td>Available-to-sell reads</td></tr><tr><td><code>orders:read</code></td><td>Order status and tracking</td></tr><tr><td><code>orders:write</code></td><td>Order creation and mutation, once such endpoints exist</td></tr><tr><td><code>pim:read</code></td><td>Product content, groups and readiness</td></tr><tr><td><code>pim:write</code></td><td>Explicit PIM mutations</td></tr><tr><td><code>webhooks:manage</code></td><td>Webhook subscription lifecycle, once it exists</td></tr></tbody></table>
+<h2 id="every-request">Every request <a class="kb-anchor" href="#every-request" aria-label="Copy link to this section">#</a></h2>
+<pre><code>GET /api/public/v1/items?limit=50 HTTP/1.1
+Authorization: Bearer erp_v1_&lt;prefix&gt;_&lt;secret&gt;
+X-Tenant-ID: your-tenant</code></pre>
+<p>Both headers are required. A mutating request also requires <code>Idempotency-Key</code> - see <a href="public-api-idempotency.md">Retrying safely</a>.</p>
+<h2 id="every-response">Every response <a class="kb-anchor" href="#every-response" aria-label="Copy link to this section">#</a></h2>
+<pre><code>X-Correlation-ID: 3f2a...
+X-RateLimit-Limit: 120
+X-RateLimit-Remaining: 118
+X-Quota-Limit: 50000
+X-Quota-Remaining: 49873</code></pre>
+<p>These are present on success and on rejection alike, so you can pace your client from the headers rather than discovering your limits by being refused.</p>
+<h2 id="when-you-are-refused">When you are refused <a class="kb-anchor" href="#when-you-are-refused" aria-label="Copy link to this section">#</a></h2>
+<table><thead><tr><th>Status</th><th>Meaning</th><th>What to do</th></tr></thead><tbody><tr><td>401</td><td>Not authenticated</td><td>Check the key and <code>X-Tenant-ID</code>. The message never says which part failed - that is deliberate.</td></tr><tr><td>403</td><td>Authenticated, wrong scope</td><td>The message names the scope you need. Ask for a key that holds it.</td></tr><tr><td>404</td><td>No such resource, or no such endpoint</td><td>Check the path against the endpoint list.</td></tr><tr><td>422</td><td>A parameter was present but invalid</td><td>The message names the parameter.</td></tr><tr><td>429</td><td>Rate limit or daily quota</td><td>Read <code>Retry-After</code>. The message distinguishes the two - a per-minute burst is a short wait, an exhausted daily quota is not.</td></tr></tbody></table>
+<aside class="kb-admonition kb-admonition-warning" role="note"><p class="kb-admonition-title">Warning</p><p>Do not retry a 429 immediately in a tight loop. <code>Retry-After</code> on a quota rejection can be hours, and hammering it only fills your own traffic log.</p></aside>
+<p>Every error body carries the same envelope:</p>
+<pre><code class="language-json">{
+  &#34;error&#34;: &#34;This API credential does not hold the \&#34;items:read\&#34; scope required by this endpoint.&#34;,
+  &#34;code&#34;: &#34;GLOBAL-0011&#34;,
+  &#34;correlation_id&#34;: &#34;415fcc38-0f88-6dbc-2540-bd76ecb26736&#34;,
+  &#34;retryable&#34;: false
+}</code></pre>
+<p>Quote the <code>correlation_id</code> in a support request - it identifies the exact call in the server&#39;s own traffic log.</p>

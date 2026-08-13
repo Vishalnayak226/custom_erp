@@ -301,7 +301,9 @@ Full procedure and the latest verified restore-drill record: **[`../operations/b
 
 ### C.4 Incident Response and Alerting
 
-Full procedure: **[`../operations/incident_runbook.md`](../operations/incident_runbook.md)** — severity levels (P0-P3), escalation contacts, rollback steps, and every log location in one place. Automated alerting (a message to Slack/Teams when the system panics, a backup fails, or errors spike) is built and only needs `OPS_ALERT_WEBHOOK_URL` set to your real destination — see that doc §3 for exact setup.
+Full procedure: **[`../operations/incident_runbook.md`](../operations/incident_runbook.md)** — severity levels (P0-P3), escalation contacts, rollback steps, and every log location in one place. Automated alerting is built and only needs `OPS_ALERT_WEBHOOK_URL` set to your real destination — see that doc §3 for exact setup. Four things alert: the system panicking, a nightly backup **failing**, a nightly backup **not existing at all**, and a spike in errors.
+
+The third one is worth understanding, because it is the failure the other three cannot catch. A backup job that fails tells you it failed; a backup job that was never installed, or that stopped being scheduled, says nothing — and silence looks exactly like success. The server therefore checks the age of the newest backup file every hour and alerts if it is missing or more than 36 hours old, independently of whether any job ran. **Until you set the webhook URL, all four are written to the server log only and nobody is notified.**
 
 ### C.5 Connector / Integration Verification
 

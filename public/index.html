@@ -4,7 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Custom ERP</title>
-  <link rel="stylesheet" href="styles.css?v=21">
+  <!-- Absolute, not relative (Stage 39.4): the SPA is served for multi-segment
+       URLs like /help/<article>, where a relative "styles.css" would resolve to
+       /help/styles.css and be answered with the SPA shell itself. -->
+  <link rel="stylesheet" href="/styles.css?v=22">
   <script>
     // Stage 28.2: apply the saved theme before first paint to avoid a light-mode
     // flash. 'system' (or unset) lets the CSS media query follow the OS;
@@ -369,6 +372,16 @@
             </svg>
             <span>Sync</span>
           </button>
+          <!-- Stage 39.5: contextual help for the screen you are on. Opens a
+               drawer over the current screen rather than navigating away, so
+               half-entered work is never lost to reading the manual. -->
+          <button class="btn btn-outline" id="help-btn" title="Help for this screen" aria-label="Help for this screen" style="margin-left: 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"></circle>
+              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+              <line x1="12" y1="17" x2="12.01" y2="17"></line>
+            </svg>
+          </button>
         </div>
       </header>
 
@@ -616,13 +629,13 @@
        again; only the sheet inside it is laid out for A4. -->
   <div id="invoice-print-area"></div>
 
-  <script src="db.js"></script>
+  <script src="/db.js"></script>
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
-  <script src="components/erp-typeahead.js?v=1"></script>
-  <script src="app.js?v=25"></script>
+  <script src="/components/erp-typeahead.js?v=1"></script>
+  <script src="/app.js?v=26"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
-  <script src="qz-print.js?v=1"></script>
+  <script src="/qz-print.js?v=1"></script>
 </body>
 </html>

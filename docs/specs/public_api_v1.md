@@ -1,8 +1,13 @@
 # Public API v1 Contract
 
-Status: **foundation in progress (Stage 38, started 2026-08-11).** This document is the compatibility
-policy required by 38.1. No `/api/public/v1` business route is registered yet. The credential
-lifecycle is built first so an internal user session is never mistaken for an integration identity.
+Status: **open, read-only (Stage 38, 2026-08-12).** This document is the compatibility policy
+required by 38.1. The credential lifecycle (38.2), the safety spine (38.3 rate limits and quotas,
+38.5 idempotency, 38.9 traffic log) and the first four read-only endpoints are built; the machine
+contract is generated to [`openapi_public_v1.json`](openapi_public_v1.json) by 38.8.
+
+No mutating public endpoint exists yet. That is a sequencing decision, not an omission: the
+idempotency spine every write depends on is already in place under the same middleware, so a write
+endpoint joins the surface by being curated, not by being made safe first.
 
 ## Boundary
 
@@ -55,5 +60,54 @@ After `db/migrations_stage38_2_api_credentials.sql` is applied, Super Admin huma
 | `DELETE` | `/api/v1/admin/api-credentials/{id}` | Revoke immediately |
 
 Only a SHA-256 digest of 256-bit random key material is stored. Issuance, rotation and revocation are
-written to the existing audit log. These keys are deliberately **not accepted anywhere yet**; 38.1's
-curated handlers and 38.3's per-credential limiter must land before the first public business route.
+written to the existing audit log.
+
+Stage 38.3/38.8/38.9 add three more, on the same Super Admin gate:
+
+| Method | Private administration endpoint | Purpose |
+|---|---|---|
+| `PUT` | `/api/v1/admin/api-credentials/{id}/limits` | Pin one key's per-minute and per-day budgets; `null` clears an override |
+| `GET` | `/api/v1/admin/api-credentials/{id}/traffic` | Recent calls for one key, plus its effective limits |
+| `GET` | `/api/v1/admin/api-traffic` | Recent calls across every key |
+| `GET` | `/api/v1/admin/public-api/openapi.json` | The generated OpenAPI document |
+
+An integration key can never read or change its own limits - that is why these are on the private
+surface rather than the public one.
+
+## Endpoints available now
+
+| Method | Endpoint | Scope | Returns |
+|---|---|---|---|
+| `GET` | `/api/public/v1/items` | `items:read` | Paged product list, `updated_since` for incremental polling |
+| `GET` | `/api/public/v1/items/{code}` | `items:read` | One product |
+| `GET` | `/api/public/v1/inventory?sku=` | `inventory:read` | Available-to-sell per location |
+| `GET` | `/api/public/v1/orders/{id}/status` | `orders:read` | Order status, per-line status, shipments |
+
+Each response is a **curated projection**, not a document dump: the generic internal document API
+returns every stored field, so publishing that shape would turn every future internal field into an
+accidental public contract. The item projection carries no cost, margin or supplier data, and the
+inventory projection publishes availability without the held-back buckets behind it.
+
+## Request and response conventions
+
+Every request carries:
+
+| Header | Required | Meaning |
+|---|---|---|
+| `Authorization: Bearer erp_v1_...` | always | The API credential. Never a user session token. |
+| `X-Tenant-ID` | always | The tenant the credential belongs to. |
+| `Idempotency-Key` | mutating methods | Makes a retry safe. Required, not optional. |
+
+Every response carries `X-Correlation-ID`, plus the budget headers `X-RateLimit-Limit`,
+`X-RateLimit-Remaining`, `X-Quota-Limit` and `X-Quota-Remaining` - on success and on rejection alike,
+so a client can pace itself instead of discovering its limits by being refused. A `429` also carries
+`Retry-After`, and its message distinguishes the per-minute burst limit from the daily quota, because
+"wait a second" and "wait until midnight" call for different client behaviour.
+
+Idempotency semantics: the first request with a given key runs; an identical retry replays the
+stored response with `Idempotency-Replayed: true`; the same key with a *different* body is a `409`
+rather than a replay; a still-running duplicate is a `409` with `Retry-After`. A `5xx` is never
+stored, so retrying after a server error is a genuine second attempt. Keys expire after
+`platform.public_api_idempotency_retention_hours` (default 24).
+
+Unknown paths under `/api/public/v1/` answer a JSON `404`, never the SPA's HTML.

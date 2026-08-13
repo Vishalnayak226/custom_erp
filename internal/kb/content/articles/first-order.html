@@ -1,0 +1,21 @@
+<h1 id="your-first-order-end-to-end">Your first order, end to end <a class="kb-anchor" href="#your-first-order-end-to-end" aria-label="Copy link to this section">#</a></h1>
+<p>This walks one order through every screen it touches. Do it once on a test product and the rest of the application stops looking like a list of unrelated menus.</p>
+<h2 id="before-you-start">Before you start <a class="kb-anchor" href="#before-you-start" aria-label="Copy link to this section">#</a></h2>
+<p>You need one product with stock. Check <strong>Inventory</strong> and confirm the product shows a positive available-to-sell figure at your location. If it shows zero, receive some stock first - an order for stock you do not have will be accepted but will not allocate.</p>
+<h2 id="1-place-the-order">1. Place the order <a class="kb-anchor" href="#1-place-the-order" aria-label="Copy link to this section">#</a></h2>
+<p>Point of sale is the shortest path:</p>
+<ol><li>Open <strong>POS</strong>.</li><li>Scan or search for the product.</li><li>Take payment.</li></ol>
+<p>The sale creates a Sales Order and its lines in one step.</p>
+<p>For a channel order there is nothing to do by hand - the connector imports it and creates the same Sales Order the POS would have.</p>
+<h2 id="2-watch-it-allocate">2. Watch it allocate <a class="kb-anchor" href="#2-watch-it-allocate" aria-label="Copy link to this section">#</a></h2>
+<p>Open <strong>OMS » Orders</strong> and find your order. The allocation state tells you whether stock has been committed to it:</p>
+<table><thead><tr><th>State</th><th>Meaning</th></tr></thead><tbody><tr><td>Pending</td><td>No stock has been reserved yet</td></tr><tr><td>Reserved</td><td>Stock is held for this order at a specific location</td></tr><tr><td>Allocated</td><td>The order is ready to be picked</td></tr></tbody></table>
+<p>If it stays Pending, the <strong>Allocation pending</strong> tile on the same screen lists every order in that state and usually explains why - most often there is no location with enough available-to-sell stock.</p>
+<h2 id="3-pick-pack-and-dispatch">3. Pick, pack and dispatch <a class="kb-anchor" href="#3-pick-pack-and-dispatch" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Fulfillment</strong> shows the work queue. An order moves through picking, packing and dispatch; each step records who did it and when.</p>
+<aside class="kb-admonition kb-admonition-tip" role="note"><p class="kb-admonition-title">Tip</p><p>Use <strong>Priority</strong> on an order in the OMS console to push it to the front of the pick queue. The priority flag is honoured by the queue itself, not just shown as a label.</p></aside>
+<h2 id="4-invoice">4. Invoice <a class="kb-anchor" href="#4-invoice" aria-label="Copy link to this section">#</a></h2>
+<p>Once dispatched, the order can be invoiced from <strong>Sales Invoices</strong>. The invoice carries the tax treatment resolved from the product&#39;s own HSN code and the places of supply - you do not enter tax rates by hand anywhere.</p>
+<h2 id="what-to-look-at-when-something-stalls">What to look at when something stalls <a class="kb-anchor" href="#what-to-look-at-when-something-stalls" aria-label="Copy link to this section">#</a></h2>
+<ul><li><strong>OMS » Exceptions</strong> lists every order stuck for a reason the system knows.</li><li><strong>SLA breaches</strong> lists tasks older than their threshold.</li><li>The order detail screen shows lines, reservations, tasks, shipments,</li></ul>
+<p>invoices, returns, refunds, notifications and the audit trail in one place - start there before hunting through modules.</p>

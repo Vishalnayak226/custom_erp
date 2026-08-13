@@ -1,0 +1,17 @@
+<h1 id="reading-an-error-code">Reading an error code <a class="kb-anchor" href="#reading-an-error-code" aria-label="Copy link to this section">#</a></h1>
+<p>Every refusal in this application carries a code such as <code>GLOBAL-0001</code> or <code>SEC-0280</code>. The code is the fastest route to an answer, because it names the exact condition rather than a category.</p>
+<h2 id="the-three-lines-of-an-error-dialog">The three lines of an error dialog <a class="kb-anchor" href="#the-three-lines-of-an-error-dialog" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Headline</strong> - the catalog&#39;s own message for that code. It says what kind of thing went wrong.</p>
+<p><strong>Detail</strong> - written by the engine that refused, naming the specific field, record or value. This is almost always the line that tells you what to fix.</p>
+<p><strong>Action</strong> - what to do about it, from the catalog.</p>
+<p>If you only read one line, read the detail.</p>
+<h2 id="the-code-prefixes">The code prefixes <a class="kb-anchor" href="#the-code-prefixes" aria-label="Copy link to this section">#</a></h2>
+<table><thead><tr><th>Prefix</th><th>Area</th></tr></thead><tbody><tr><td><code>GLOBAL-</code></td><td>Validation, permissions, sessions, records</td></tr><tr><td><code>SEC-</code></td><td>Rate limits and security controls</td></tr><tr><td><code>META-</code></td><td>Document type and field definitions</td></tr><tr><td><code>USERAC-</code></td><td>Sign-in and account state</td></tr><tr><td><code>REPORT-</code></td><td>Report execution and export</td></tr></tbody></table>
+<p>The complete list, with every message and its recommended action, is in the generated <a href="../../guides/ERROR_CODES.md">error code reference</a>. It is produced from the running catalog, so it cannot drift from what the application actually shows you.</p>
+<h2 id="the-correlation-id">The correlation id <a class="kb-anchor" href="#the-correlation-id" aria-label="Copy link to this section">#</a></h2>
+<p>Every error response carries a <code>correlation_id</code>, also shown in the dialog. It identifies that one request in the server&#39;s logs. Quoting it in a support request is the difference between &#34;something failed yesterday&#34; and a specific line an administrator can look at.</p>
+<h2 id="common-ones">Common ones <a class="kb-anchor" href="#common-ones" aria-label="Copy link to this section">#</a></h2>
+<p><strong><code>GLOBAL-0011</code> Permission denied.</strong> Your role does not have this permission. Nothing you can do from your own account changes that; ask an administrator.</p>
+<p><strong><code>GLOBAL-0009</code> Session expired.</strong> Sign in again. This also appears if your account was deactivated or your role changed while you were signed in - the server re-checks that on every request rather than trusting a token until it expires.</p>
+<p><strong><code>SEC-0280</code> Rate limit exceeded.</strong> You are sending requests faster than the budget for that kind of request. The detail says which budget and how long to wait.</p>
+<p><strong><code>GLOBAL-0004</code> Record not found.</strong> Usually a record someone else deleted, or a link pointing at something that no longer exists. Refresh and reselect.</p>

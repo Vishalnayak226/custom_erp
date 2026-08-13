@@ -1,0 +1,20 @@
+<h1 id="product-groups">Product Groups <a class="kb-anchor" href="#product-groups" aria-label="Copy link to this section">#</a></h1>
+<p>A Product Group is a named set of products you can act on as a unit. It replaces the pattern of filtering a list, selecting rows by hand, and doing it all again next week.</p>
+<h2 id="the-two-kinds">The two kinds <a class="kb-anchor" href="#the-two-kinds" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Static</strong> - you pick the products by hand. The group holds exactly what you put in it, and changes only when you edit it. Use this for a campaign, a range, a one-off cleanup list.</p>
+<p><strong>Dynamic</strong> - you save a filter, and the group is whatever currently matches. It is re-evaluated every time it is used, so a product joins or leaves the moment its data changes. Use this for standing quality work: &#34;everything in Footwear below 80% complete&#34;, &#34;everything missing a care label&#34;.</p>
+<p>A group is one or the other. A static group with filters, or a dynamic group with hand-picked members, is rejected on save.</p>
+<h2 id="creating-one">Creating one <a class="kb-anchor" href="#creating-one" aria-label="Copy link to this section">#</a></h2>
+<ol><li>Open <strong>PIM » Product Group</strong> and create a record.</li><li>Choose <strong>Static</strong> or <strong>Dynamic</strong>.</li><li>For a static group, add Item rows. Each must be a real Item, and no product</li></ol>
+<p>may appear twice.</p>
+<ol><li>For a dynamic group, set at least one filter:</li></ol>
+<table><thead><tr><th>Filter</th><th>Matches</th></tr></thead><tbody><tr><td>Family</td><td>Products in one product family</td></tr><tr><td>Completeness below</td><td>Products scoring under a threshold, 0-100</td></tr><tr><td>Missing attribute</td><td>Products with no value for a named attribute</td></tr><tr><td>Status</td><td>Active or Inactive products</td></tr></tbody></table>
+<p>Filters are combined with AND. There is deliberately no query language here - the four typed filters cover the standing work, and a scripting surface would be a much bigger thing to secure and support.</p>
+<h2 id="using-one">Using one <a class="kb-anchor" href="#using-one" aria-label="Copy link to this section">#</a></h2>
+<p>Open <strong>Setup » Item</strong> and choose <strong>Group Actions</strong>. Pick the group; the dialog tells you how many products it currently resolves to.</p>
+<p><strong>Bulk edit the group.</strong> Choose a field and a new value. Every guard that applies to a hand-picked selection applies here too: the maximum-documents cap, per-document validation, variant uniqueness, and re-approval of approved records whose doctype is approval-gated.</p>
+<aside class="kb-admonition kb-admonition-warning" role="note"><p class="kb-admonition-title">Warning</p><p>A dynamic group is re-resolved by the server at the moment you confirm, not when the dialog opened. If the catalog changed in between, the edit applies to what matches <strong>then</strong>. The count in the dialog is a preview, not a promise.</p></aside>
+<p><strong>Export the group.</strong> Downloads one CSV row per product with the group&#39;s live completeness score, its missing fields, and the same title/description/tags the search feed publishes. This is the file to hand an agency or a translator.</p>
+<p><strong>Report on the group.</strong> The registered report <strong>PIM Product Group Readiness</strong> takes a group id and lists its members with their readiness. Schedule it like any other report to get a standing view of a dynamic group&#39;s health.</p>
+<h2 id="what-is-not-here-yet">What is not here yet <a class="kb-anchor" href="#what-is-not-here-yet" aria-label="Copy link to this section">#</a></h2>
+<p>Assigning a group as work to a person is part of the PIM task engine, which does not exist yet. Today a group drives bulk edits, exports and reporting.</p>

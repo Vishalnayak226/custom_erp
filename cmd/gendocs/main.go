@@ -38,12 +38,25 @@ import (
 func main() {
 	out := flag.String("out", filepath.Join("docs", "guides"), "directory to write the generated docs into")
 	connStr := flag.String("db", "", "database connection string for PERMISSION_MATRIX.md (skipped if empty)")
+	openAPIOut := flag.String("openapi-out", filepath.Join("docs", "specs"), "directory to write openapi_public_v1.json into")
 	flag.Parse()
 
 	stamp := time.Now().Format("2006-01-02")
 
 	writeOut(filepath.Join(*out, "ERROR_CODES.md"), errorCodesDoc(stamp))
 	writeOut(filepath.Join(*out, "REPORT_CATALOG.md"), reportCatalogDoc(stamp))
+
+	// Stage 38.8. The OpenAPI document is generated from the same public route
+	// table the server registers, so the published contract and the running
+	// routes cannot disagree. Written next to the docs it belongs with rather
+	// than into docs/guides/, since it is a machine artifact consumed by client
+	// generators and by the Knowledge Center's API reference.
+	spec, err := server.PublicAPIOpenAPISpec()
+	if err != nil {
+		fmt.Printf("  [fail] openapi_public_v1.json: %v\n", err)
+		os.Exit(1)
+	}
+	writeOut(filepath.Join(*openAPIOut, "openapi_public_v1.json"), string(spec)+"\n")
 
 	if *connStr == "" {
 		fmt.Println("  [skip] PERMISSION_MATRIX.md - pass -db to generate it")

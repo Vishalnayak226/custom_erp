@@ -329,27 +329,32 @@ func GetOrderConsoleDetail(tenantID, orderID string) (map[string]interface{}, er
 	}
 	detail["lines"] = lines
 
-	// Reservations are not order-linked in the schema (inventory_reservation
-	// has no order_id - see the note in oms_reports.go), so they are matched
-	// by the SKU/location pairs this order's lines actually allocated to.
-	// Stated rather than hidden: this is the closest honest answer available,
-	// and it can include another order's reservation on the same pair.
+	// Stage 35.3.7: a reservation now names the order it was made for, so the
+	// first branch below is exact. The second branch keeps the old (sku,
+	// location) match for rows written before that migration - those genuinely
+	// cannot be attributed, and showing an approximate answer for them is
+	// better than showing none. `attributed` tells the screen which it is
+	// looking at rather than leaving the distinction implicit.
 	reservations, err := queryDocs(schema, `
-		SELECT r.sku, r.location_code, r.quantity, r.reservation_type, r.expires_at
+		SELECT r.sku, r.location_code, r.quantity, r.reservation_type, r.expires_at,
+		       COALESCE(r.line_id, ''), r.order_id IS NOT NULL
 		FROM `+schema+`.inventory_reservation r
-		WHERE (r.sku, r.location_code) IN (
+		WHERE r.order_id = $1
+		   OR (r.order_id IS NULL AND (r.sku, r.location_code) IN (
 			SELECT l.data->>'sku', l.data->>'location_code' FROM `+schema+`.documents l
 			WHERE l.doctype = 'SalesOrderLine' AND l.data->>'order_id' = $1 AND l.deleted_at IS NULL
-			  AND NULLIF(l.data->>'location_code', '') IS NOT NULL)
+			  AND NULLIF(l.data->>'location_code', '') IS NOT NULL))
 		ORDER BY r.expires_at`, orderID, func(scan func(...interface{}) error) (map[string]interface{}, error) {
-		var sku, location, resType string
+		var sku, location, resType, lineID string
 		var qty int
 		var expiresAt time.Time
-		if err := scan(&sku, &location, &qty, &resType, &expiresAt); err != nil {
+		var attributed bool
+		if err := scan(&sku, &location, &qty, &resType, &expiresAt, &lineID, &attributed); err != nil {
 			return nil, err
 		}
 		return map[string]interface{}{"sku": sku, "location_code": location, "quantity": qty,
-			"reservation_type": resType, "expires_at": expiresAt}, nil
+			"reservation_type": resType, "expires_at": expiresAt, "line_id": lineID,
+			"attributed": attributed}, nil
 	})
 	if err != nil {
 		return nil, err
