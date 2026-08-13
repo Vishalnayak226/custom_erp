@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -148,6 +149,27 @@ func loadJWTKeyring() ([]jwtKey, jwtKey) {
 	return keys, keys[0]
 }
 
+// claimVal escapes one claim value before it is placed into the flat
+// "k=v&k=v" payload (Stage 43.1).
+//
+// Every value in that payload comes from a database column - username, role,
+// tenant, location_code - and none of those columns restrict their characters.
+// A value carrying a raw "&" or "=" therefore changed the *shape* of the
+// payload rather than just its content, and since the server signs whatever it
+// builds, the resulting forged claims arrived with a valid HMAC. Two concrete
+// consequences, both reproduced by TestTokenClaimsCannotBeSmuggledThroughValues
+// before this existed: a username of "svc&purpose=extension" produced a session
+// token that apiMiddleware exempts from the Stage 29.8 live user-state re-check
+// (so deactivating that account no longer ended its session), and a
+// location_code of "HO&role=Super Admin" overrode the real role claim, because
+// loc is emitted after role and the parser is last-write-wins.
+//
+// Escaping here rather than validating at each write site is deliberate: it is
+// the one choke point all three issuers already pass through, so it covers
+// every future claim and every future caller, not just the columns that happen
+// to feed tokens today.
+func claimVal(v string) string { return url.QueryEscape(v) }
+
 // signClaims base64s and HMACs a claims string with the active signing key -
 // the one place the signature is produced, shared by all three token issuers
 // so a rotation can never apply to some token kinds and not others.
@@ -165,7 +187,7 @@ func kidSuffix() string {
 	if jwtSigningKey.kid == "" {
 		return ""
 	}
-	return "&kid=" + jwtSigningKey.kid
+	return "&kid=" + claimVal(jwtSigningKey.kid)
 }
 
 // verifyClaimSignature checks encodedClaims/signature against every key in the
@@ -206,7 +228,7 @@ func newJTI() string {
 func SignToken(userID, username, role, tenantID, locationCode string) string {
 	now := time.Now()
 	exp := now.Add(tokenTTL(tenantID)).Unix()
-	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&iat=%d&jti=%s%s&exp=%d", userID, username, role, tenantID, locationCode, now.Unix(), newJTI(), kidSuffix(), exp)
+	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&iat=%d&jti=%s%s&exp=%d", claimVal(userID), claimVal(username), claimVal(role), claimVal(tenantID), claimVal(locationCode), now.Unix(), newJTI(), kidSuffix(), exp)
 	return signClaims(claims)
 }
 
@@ -221,7 +243,7 @@ func SignToken(userID, username, role, tenantID, locationCode string) string {
 func SignPurposeToken(userID, username, tenantID, purpose string, ttl time.Duration) string {
 	now := time.Now()
 	exp := now.Add(ttl).Unix()
-	claims := fmt.Sprintf("id=%s&user=%s&tenant=%s&purpose=%s&iat=%d&jti=%s%s&exp=%d", userID, username, tenantID, purpose, now.Unix(), newJTI(), kidSuffix(), exp)
+	claims := fmt.Sprintf("id=%s&user=%s&tenant=%s&purpose=%s&iat=%d&jti=%s%s&exp=%d", claimVal(userID), claimVal(username), claimVal(tenantID), claimVal(purpose), now.Unix(), newJTI(), kidSuffix(), exp)
 	return signClaims(claims)
 }
 
@@ -236,7 +258,7 @@ func SignPurposeToken(userID, username, tenantID, purpose string, ttl time.Durat
 func SignExtensionToken(tenantID, scopeDoctype string, ttl time.Duration) string {
 	now := time.Now()
 	exp := now.Add(ttl).Unix()
-	claims := fmt.Sprintf("tenant=%s&purpose=extension&scope_doctype=%s&iat=%d&jti=%s%s&exp=%d", tenantID, scopeDoctype, now.Unix(), newJTI(), kidSuffix(), exp)
+	claims := fmt.Sprintf("tenant=%s&purpose=extension&scope_doctype=%s&iat=%d&jti=%s%s&exp=%d", claimVal(tenantID), claimVal(scopeDoctype), now.Unix(), newJTI(), kidSuffix(), exp)
 	return signClaims(claims)
 }
 
@@ -276,10 +298,28 @@ func ParseToken(tokenStr string) (map[string]string, error) {
 	pairs := strings.Split(claimsStr, "&")
 
 	for _, pair := range pairs {
-		kv := strings.Split(pair, "=")
-		if len(kv) == 2 {
-			claims[kv[0]] = kv[1]
+		// SplitN, not Split (Stage 43.1): the old code required exactly two
+		// halves, so any pair whose value contained an "=" was skipped
+		// outright - a username of "a=b" silently produced an empty
+		// Resolved-Username and actions attributed to nobody in the audit
+		// trail. Values are escaped at issue time now, so this only matters
+		// for tokens minted before that; splitting on the first "=" is
+		// correct either way.
+		kv := strings.SplitN(pair, "=", 2)
+		if len(kv) != 2 {
+			continue
 		}
+		value, err := url.QueryUnescape(kv[1])
+		if err != nil {
+			// A token issued before claim values were escaped carries them
+			// raw, and a raw value can contain a "%" that is not a valid
+			// escape sequence. Fall back to the literal rather than reject a
+			// token that is otherwise valid and correctly signed - this
+			// cannot reintroduce the injection, because the pair boundaries
+			// were already decided by the split above.
+			value = kv[1]
+		}
+		claims[kv[0]] = value
 	}
 
 	// Enforce expiry

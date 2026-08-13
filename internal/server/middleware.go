@@ -288,6 +288,13 @@ var publicRoutes = map[string]bool{
 	"/api/v1/health":               true,
 	"/api/v1/auth/forgot-password": true,
 	"/api/v1/auth/reset-password":  true,
+	// Stage 39.6: the Knowledge Center is authenticated by default. These three
+	// serve only articles whose own frontmatter says `public: true` - the
+	// integration/API subset an integrator needs before they have a login. The
+	// handlers refuse every other slug with the same 404 an unknown slug gets.
+	"/api/v1/help/public/index":        true,
+	"/api/v1/help/public/article":      true,
+	"/api/v1/help/public/search-index": true,
 }
 
 func loadCORSAllowlist() map[string]bool {
@@ -428,24 +435,110 @@ func moduleGate(moduleKey string, next http.HandlerFunc) http.HandlerFunc {
 // RemoteAddr is the only trustworthy source of the client IP.
 var trustProxy = os.Getenv("TRUST_PROXY") == "1" || strings.EqualFold(os.Getenv("TRUST_PROXY"), "true")
 
-// clientIP returns the caller's source IP for rate-limiting. Behind a trusted
-// proxy the real client is the left-most X-Forwarded-For entry (the proxy sets
-// it, appending on the right); RemoteAddr would otherwise be the proxy's own
-// loopback address, collapsing every client into one shared rate-limit bucket
-// and defeating per-IP login throttling. net.SplitHostPort correctly strips the
-// port from both IPv4 (host:port) and IPv6 ([::1]:port) RemoteAddr forms.
-func clientIP(r *http.Request) string {
-	if trustProxy {
-		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-			if first := strings.TrimSpace(strings.Split(xff, ",")[0]); first != "" {
-				return first
+// defaultTrustedProxyCIDRs mirrors what deploy/Caddyfile trusts
+// (`trusted_proxies static private_ranges`) plus loopback, since Caddy reaches
+// the Go process over 127.0.0.1. Kept in sync with that file by hand - they
+// describe the same trust boundary from two sides.
+var defaultTrustedProxyCIDRs = []string{
+	"127.0.0.0/8", "::1/128",
+	"10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+	"fc00::/7",
+	"169.254.0.0/16", "fe80::/10",
+}
+
+// trustedProxyNets is the set of hops whose own address is never the client.
+// TRUSTED_PROXY_CIDRS (comma-separated) extends it, and that is the whole
+// mechanism Cloudflare activation needs: add Cloudflare's published edge CIDRs
+// to that variable and per-client rate limiting keeps working through their
+// proxy, with no code change and no redeploy of this binary's logic.
+var trustedProxyNets = loadTrustedProxyNets()
+
+func loadTrustedProxyNets() []*net.IPNet {
+	specs := append([]string{}, defaultTrustedProxyCIDRs...)
+	if extra := os.Getenv("TRUSTED_PROXY_CIDRS"); extra != "" {
+		for _, spec := range strings.Split(extra, ",") {
+			if spec = strings.TrimSpace(spec); spec != "" {
+				specs = append(specs, spec)
 			}
 		}
 	}
-	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		return host
+	nets := make([]*net.IPNet, 0, len(specs))
+	for _, spec := range specs {
+		_, network, err := net.ParseCIDR(spec)
+		if err != nil {
+			// A typo in TRUSTED_PROXY_CIDRS must not silently widen or narrow
+			// the trust boundary without saying so.
+			log.Printf("[WARN] ignoring unparseable trusted proxy CIDR %q: %v", spec, err)
+			continue
+		}
+		nets = append(nets, network)
 	}
-	return r.RemoteAddr
+	return nets
+}
+
+func isTrustedProxyIP(ip net.IP) bool {
+	for _, network := range trustedProxyNets {
+		if network.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// clientIP returns the caller's source IP for rate-limiting.
+//
+// Behind a trusted proxy, RemoteAddr is the proxy's own loopback address,
+// which would collapse every client into one shared rate-limit bucket and
+// defeat per-IP login throttling - so the address has to come from
+// X-Forwarded-For instead. net.SplitHostPort correctly strips the port from
+// both IPv4 (host:port) and IPv6 ([::1]:port) RemoteAddr forms.
+//
+// Stage 43.3: the header is walked RIGHT-to-LEFT, returning the first entry
+// that is not itself a trusted proxy, rather than taking the left-most entry.
+// The distinction is security-relevant, because only the right-hand end of
+// that header is written by infrastructure you control: each proxy appends the
+// address it actually saw, so anything further left was supplied by the
+// previous hop and, at the far left, by the client itself. Taking the left-most
+// entry means a client can send `X-Forwarded-For: 1.2.3.4`, land in a bucket of
+// its own choosing, and rotate it per request to bypass the 5/min/IP auth limit
+// entirely - the exact bypass deploy/Caddyfile's `trusted_proxies` setting
+// exists to prevent, but relying on the proxy alone leaves the app correct only
+// for as long as that one config line stays right.
+//
+// This is also what go_live_decisions.md §5 pre-specified as the code-side
+// prerequisite for putting Cloudflare in front: with right-to-left parsing in
+// place, activation is adding Cloudflare's edge CIDRs to TRUSTED_PROXY_CIDRS,
+// not a change to this function.
+func clientIP(r *http.Request) string {
+	remote := r.RemoteAddr
+	if host, _, err := net.SplitHostPort(remote); err == nil {
+		remote = host
+	}
+	if !trustProxy {
+		return remote
+	}
+	xff := r.Header.Get("X-Forwarded-For")
+	if xff == "" {
+		return remote
+	}
+	hops := strings.Split(xff, ",")
+	for i := len(hops) - 1; i >= 0; i-- {
+		ip := net.ParseIP(strings.TrimSpace(hops[i]))
+		if ip == nil {
+			// A malformed entry is attacker-supplied padding as often as it is
+			// a broken proxy; skipping it keeps the walk going toward the
+			// trustworthy end rather than bailing out to a shared bucket.
+			continue
+		}
+		if isTrustedProxyIP(ip) {
+			continue
+		}
+		return ip.String()
+	}
+	// Every hop was a trusted proxy (or unparseable): the request genuinely
+	// originated inside the trusted network, so the socket address is the best
+	// answer available.
+	return remote
 }
 
 // sessionFingerprint (Stage 30.5.9) is a short, stable, non-reversible tag for

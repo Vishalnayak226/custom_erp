@@ -16,15 +16,15 @@ Every item below is a real checklist item (`docs/micro_checklist.md`) that is co
 
 ## Summary table
 
-Status column current as of **2026-08-06**.
+Status column current as of **2026-08-12**.
 
 | # | Decision | Checklist IDs | Depends on | Type | Status |
 |---|---|---|---|---|---|
 | 1 | Escalation contacts | 20.1 | — | Internal, no portal | ⛔ Open — parked by user 2026-08-06 |
-| 2 | Ops alert webhook | 20.2 / 26.2.2 | — | Portal (Slack/Teams) | ⛔ Open — parked by user 2026-08-06 |
+| 2 | Ops alert webhook | 20.2 / 26.2.2 | — | Portal (Slack/Teams) | ⛔ Open — **all four triggers built + tested 2026-08-12 (43.2); setting the env var is the only work left** |
 | 3 | Connector sandbox credentials | 20.3 / 26.2.1 | — | Portal (Shopify/BigCommerce/Magento) | ⛔ Open — parked by user 2026-08-06 |
 | 4 | Production hosting | 20.4 / 26.1.1 | — | Portal (VPS/cloud provider) | ✅ **Decided 2026-08-06** — droplet formalised, `ENV=production` set. Domain/TLS still open |
-| 5 | Edge WAF / rate-limiting | 26.1.3a / 26.1.3b | #4 | Portal (Cloudflare/cloud WAF) | ✅ Engineering closed; ⛔ activation needs domain + Cloudflare-zone access |
+| 5 | Edge WAF / rate-limiting | 26.1.3a / 26.1.3b | #4 | Portal (Cloudflare/cloud WAF) | ✅ Engineering closed (right-to-left XFF parsing added 2026-08-12, 43.3 — earlier "no work pending" was wrong); ⛔ activation needs domain + Cloudflare-zone access |
 | 6 | Tenant backup scope | 26.1.6 | — | Internal scope decision | ✅ Decided + built 2026-08-05 |
 | 7 | External security/perf reviewer | 20.5 | — | Portal/vendor engagement | ⛔ Open — scope doc drafted (see #13) |
 | 8 | GSP sandbox (e-invoice/e-way bill) | 20.30/20.31, 26.2.3/26.2.4, 26.6.9 | — | Portal (NIC or GSP) | ⛔ Open — parked by user 2026-08-06 |
@@ -32,7 +32,7 @@ Status column current as of **2026-08-06**.
 | 10 | Supplier portal auth model | 26.4.10 | — | Internal product decision | ✅ Decided + built 2026-08-05 |
 | 11 | AI content-assist scope | 26.4.11 | — | Internal governance decision | ✅ **Decided + built 2026-08-06** — local/offline only |
 | 12 | P2 bundles go/no-go | 26.5.11, 26.7.8, 26.8.7, 26.9.9, 26.10.6 | — | Internal go-ahead per bundle | ✅ 4 of 5 built 2026-07-27; 26.10.6 measured 2026-08-06 → not justified |
-| 13 | External pen-test engagement | 26.11.1 | #4 (ideally) | Portal/vendor engagement | 🟡 **Scope doc drafted** — [`pentest_scope.md`](pentest_scope.md); needs a vendor |
+| 13 | External pen-test engagement | 26.11.1 | #4 (ideally) | Portal/vendor engagement | 🟡 **Scope doc drafted** — [`pentest_scope.md`](pentest_scope.md); needs a vendor. **One named P1 (token delimiter smuggling) was real and is fixed 2026-08-12 (43.1)** — mark remediated before sending |
 | 14 | DR/restore drill in real prod | 26.11.3 | #4 | Internal, once #4 exists | 🟡 **Unblocked** by #4 — not yet run |
 | 15 | Business UAT cycle | 26.11.5 | — | Internal, needs real users | 🟡 **Run sheet drafted** — [`uat_run_sheet.md`](uat_run_sheet.md); needs real users |
 | 16 | Hypercare window | 26.11.6 | #15 | Internal decision | 🟡 **Plan drafted** — [`hypercare_plan.md`](hypercare_plan.md); needs your sign-off + #1/#2 |
@@ -51,7 +51,19 @@ Status column current as of **2026-08-06**.
 
 ## 2. Ops alert webhook — `OPS_ALERT_WEBHOOK_URL` (20.2 / 26.2.2)
 
-Three real triggers already wired (`incident_runbook.md` §3): panic recovery, failed backup, sustained error rate. They all fire through one env var — whichever chat tool you pick just needs to accept a generic incoming-webhook POST.
+> **Everything that fires into this webhook is now built (Stage 43.2, 2026-08-12).**
+> "Failed backup" below used to be aspirational — the nightly job appended a
+> line to `/var/log/erp-backup.log` and nothing more, so a failure was invisible
+> until somebody looked. Two alert paths now exist: `deploy/backup.sh` reports
+> its own failure, and the server separately alerts when no recent backup
+> *exists*, which is the case a failing job structurally cannot report and the
+> one 26.11.3 actually found on this droplet.
+>
+> Both are silent no-ops until this variable is set. **Setting it is now the
+> entire remaining work for this item** — there is no build left, and the
+> payload/triggers have been verified against a mock receiver.
+
+Four real triggers wired (`incident_runbook.md` §3): panic recovery, failed backup, **missing/stale backup**, sustained error rate. They all fire through one env var — whichever chat tool you pick just needs to accept a generic incoming-webhook POST.
 
 | Option | Pros | Cons |
 |---|---|---|
@@ -249,10 +261,23 @@ Given the lightweight-first principle, don't reach for Vault/AWS Secrets Manager
 > a poor trade under the lightweight-first principle.
 >
 > **External activation remains open (26.1.3b):** the actual edge WAF. It needs
-> both a public domain and access to its Cloudflare zone. Activation must add
-> Cloudflare's then-current published CIDRs to Caddy's trusted proxies and turn
-> on strict right-to-left forwarded-IP parsing before `TRUST_PROXY=1` can keep
-> per-client rate limits accurate. There is no ungated repository work pending.
+> both a public domain and access to its Cloudflare zone.
+>
+> **Correction (2026-08-12, Stage 43.3): "there is no ungated repository work
+> pending" was wrong.** The right-to-left forwarded-IP parsing named above as an
+> activation step was app code, and was buildable without any Cloudflare access
+> — it has now been built. `clientIP` previously took the **left-most**
+> `X-Forwarded-For` entry, which is the end of that header a client writes, so
+> the app was correct only because Caddy's `trusted_proxies` line replaces
+> forged headers. That left a silent, total bypass of the 5/min/IP auth limit
+> one config line away. It now walks right-to-left past known proxies.
+>
+> **What activation actually takes now:** add Cloudflare's then-current
+> published CIDRs in *two* places that must change together — Caddy's
+> `trusted_proxies` (with `trusted_proxies_strict`) and the new
+> **`TRUSTED_PROXY_CIDRS`** in `/etc/erp/erp.env` — then restrict `ufw` to those
+> same CIDRs. Miss the second and every visitor collapses into one rate-limit
+> bucket behind the Cloudflare edge address. No code change is required.
 
 App-level rate limiting (Stage 13.14) already covers you in the meantime, so this isn't urgent — it's defense-in-depth on top.
 
@@ -467,6 +492,17 @@ A pen-test is most valuable against a real target, so doing this after productio
 | Boutique/firm engagement | Structured report, formal deliverable, good for compliance/customer trust | Higher cost, longer lead time (scoping call → SOW → scheduling) |
 | Pentest-as-a-service platform (e.g. Cobalt, HackerOne, Bugcrowd point-in-time engagement) | Faster to start, scoped/fixed-price options exist, vetted testers | Marketplace model — quality/tester assignment less bespoke than a firm relationship |
 | Independent certified freelancer (OSCP/CREST, via a professional network) | Cheapest, most flexible scope | Single point of failure on quality/availability; more vetting burden on you |
+
+> **One of this engagement's own P1s was found and fixed in-house (Stage 43.1,
+> 2026-08-12).** `pentest_scope.md` §4 flags "delimiter smuggling via a username
+> containing `&`/`=`" against the custom token scheme. It was real: a username or
+> location code carrying those characters reshaped the signed claims payload,
+> which could smuggle in a `purpose=extension` claim (making the account survive
+> its own deactivation) and override `role`/`tenant`. It is fixed and covered by
+> tests. **Mark it remediated in the scope doc before sending** — leaving a
+> known-fixed finding in as bait spends engagement budget on a rediscovery, which
+> is exactly what that document's "known-and-accepted items" section exists to
+> prevent.
 
 **My recommendation:** for a first pass on a pre-revenue/early-stage app, a fixed-scope engagement through a pentest-as-a-service platform is the best cost/rigor tradeoff — you get vetted testers and a real report without a full boutique-firm sales cycle.
 

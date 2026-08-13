@@ -157,7 +157,7 @@ Honest list of what must close before this plan can actually run. As of
 | Precondition | Checklist item | Status |
 |---|---|---|
 | Real escalation contacts in the runbook | 20.1 | **Open** — parked, awaiting your input |
-| Ops alert webhook (so alerts reach a human) | 20.2 / 26.2.2 | **Open** — parked, awaiting your input |
+| Ops alert webhook (so alerts reach a human) | 20.2 / 26.2.2 | **Open** — parked, awaiting your input. Every trigger behind it is built and tested as of Stage 43.2, including the two backup alerts this plan's own rollback trigger depends on; only the URL is missing |
 | DR/restore drill in a production-like environment | 26.11.3 | **Open** — now unblocked; the droplet is formalised as production (26.1.1) |
 | Business UAT signed off | 26.11.5 | **Open** — run sheet drafted, needs real users |
 | TLS on a real domain | 26.1.1 | **Open** — `enable_tls.sh` ready, awaiting a domain |

@@ -52,6 +52,59 @@
 #     | pg_restore -d "$SCRATCH_DATABASE_URL" --no-owner
 set -euo pipefail
 
+# ---------------------------------------------------------------------------
+# Failure alerting (Stage 43.2, closing 26.11.7's "nothing alerts if the
+# nightly backup fails")
+# ---------------------------------------------------------------------------
+# Until now this script's only output was an appended line in
+# /var/log/erp-backup.log, so a failed 02:00 run was invisible until somebody
+# thought to look -- and hypercare_plan.md's "two consecutive failed nightly
+# backups" rollback trigger cannot fire on a signal nobody receives.
+#
+# Posts to the same OPS_ALERT_WEBHOOK_URL the Go server uses
+# (engines/alerting.go), with the same Slack-compatible {"text": ...} payload,
+# so one webhook covers app alerts and backup alerts alike. Unset = silent
+# no-op, exactly as SendOpsAlert behaves, so dev and CI need no configuration.
+#
+# Note this only covers a run that STARTS and then fails. A cron that never
+# fires at all cannot report its own absence, which is why the Go server also
+# watches the backup directory's age
+# (engines/alerting.go's StartBackupFreshnessMonitor) -- the two halves catch
+# different failures and neither replaces the other.
+alert_ops() {
+  severity="$1"
+  message="$2"
+  echo "[$severity] $message" >&2
+  [ -n "${OPS_ALERT_WEBHOOK_URL:-}" ] || return 0
+  host="$(hostname -s 2>/dev/null || echo unknown-host)"
+  text=":rotating_light: [$severity] backup.sh on $host: $message"
+  # Escape backslashes then double quotes, and drop control characters, so the
+  # payload is valid JSON without pulling in jq as a dependency.
+  escaped="$(printf '%s' "$text" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | tr -d '\000-\037')"
+  curl -fsS -m 10 -X POST -H 'Content-Type: application/json' \
+    --data "{\"text\":\"$escaped\"}" "$OPS_ALERT_WEBHOOK_URL" >/dev/null 2>&1 \
+    || echo "[WARN] backup alert webhook delivery failed" >&2
+  return 0
+}
+
+# The ERR trap records *where* it broke; the EXIT trap is what actually sends,
+# so a plain `exit 2` from the argument/schema guards below is reported too
+# (ERR does not fire for `exit`). Only the first word of the failing command is
+# reported -- enough to tell pg_dump from openssl from psql, while keeping
+# credential-bearing arguments out of a payload that leaves this machine, the
+# same restraint engines/alerting.go applies to stack traces.
+failed_stage=""
+failed_line=""
+trap 'failed_stage="${BASH_COMMAND%% *}"; failed_line="$LINENO"' ERR
+on_exit() {
+  rc=$?
+  [ "$rc" -eq 0 ] && return 0
+  detail="exit code $rc"
+  [ -n "$failed_stage" ] && detail="$detail during '$failed_stage' (line $failed_line)"
+  alert_ops BACKUP_FAILED "${TENANT_SCHEMA:-whole-database} backup FAILED -- $detail. See /var/log/erp-backup.log" || true
+}
+trap on_exit EXIT
+
 TENANT_SCHEMA="${TENANT_SCHEMA:-}"
 while [ $# -gt 0 ]; do
   case "$1" in

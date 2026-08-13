@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 )
@@ -119,6 +120,136 @@ func StartAlertMonitor(ctx context.Context, pollInterval, window time.Duration, 
 			}
 		}
 	}()
+}
+
+// BackupFreshness reports the age of the newest whole-database backup.
+//
+// Deliberately NOT surfaced over HTTP: the only status endpoint this server
+// has (/api/v1/health) is public by design, and backup paths plus a backup
+// schedule are exactly the reconnaissance an unauthenticated caller should not
+// be handed. The alert channel is the delivery mechanism; this type is
+// exported so a future authenticated admin screen can reuse the check rather
+// than reimplement it.
+type BackupFreshness struct {
+	// Configured is false when there is no backup directory on this machine -
+	// every dev box and CI runner. Callers must treat that as "not applicable"
+	// rather than "stale", or local runs report a permanent false alarm.
+	Configured bool      `json:"configured"`
+	Dir        string    `json:"dir,omitempty"`
+	Newest     time.Time `json:"newest,omitempty"`
+	AgeHours   float64   `json:"age_hours,omitempty"`
+	Found      bool      `json:"found"`
+}
+
+// backupDir resolves where deploy/backup.sh writes, using the same
+// BACKUP_DIR-or-/opt/erp/backups default the script itself uses so the two
+// cannot disagree about which directory is being watched.
+func backupDir() string {
+	if dir := os.Getenv("BACKUP_DIR"); dir != "" {
+		return dir
+	}
+	return "/opt/erp/backups"
+}
+
+// CheckBackupFreshness stats the newest nightly backup. It looks only at
+// `custom_erp_*.dump.enc` - the whole-database nightly - deliberately ignoring
+// on-demand `tenant_*` exports (26.1.6), since one tenant export does not mean
+// the nightly ran.
+func CheckBackupFreshness() BackupFreshness {
+	dir := backupDir()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		// No directory = not a machine that takes backups. Silent by design.
+		return BackupFreshness{Configured: false, Dir: dir}
+	}
+	result := BackupFreshness{Configured: true, Dir: dir}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasPrefix(name, "custom_erp_") || !strings.HasSuffix(name, ".dump.enc") {
+			continue
+		}
+		info, errInfo := entry.Info()
+		if errInfo != nil {
+			continue
+		}
+		if !result.Found || info.ModTime().After(result.Newest) {
+			result.Found = true
+			result.Newest = info.ModTime()
+		}
+	}
+	if result.Found {
+		result.AgeHours = time.Since(result.Newest).Hours()
+	}
+	return result
+}
+
+// StartBackupFreshnessMonitor alerts when the newest nightly backup is older
+// than maxAge (Stage 43.2).
+//
+// This is the half deploy/backup.sh structurally cannot cover: that script
+// alerts when a run starts and fails, but a cron entry that was never
+// installed, or a job the scheduler never fired, produces no run and therefore
+// no failure to report. 26.11.7 found exactly that on production - nightly
+// backups had never been running at all, and the silence was
+// indistinguishable from success. Watching the artifact's age instead of the
+// job's exit status is what makes absence detectable.
+//
+// No-ops entirely where no backup directory exists, so dev machines and CI
+// stay quiet; and no-ops in delivery (logging only) until
+// OPS_ALERT_WEBHOOK_URL is set, matching SendOpsAlert.
+func StartBackupFreshnessMonitor(ctx context.Context, pollInterval, maxAge time.Duration) {
+	if fresh := CheckBackupFreshness(); !fresh.Configured {
+		log.Printf("[BACKUP-MONITOR] no backup directory at %s - monitor disabled on this machine", fresh.Dir)
+		return
+	}
+	ticker := time.NewTicker(pollInterval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				checkBackupAge(maxAge)
+			}
+		}
+	}()
+}
+
+// backupAlertState throttles the stale-backup alert to one per maxAge window.
+// Without it a stale backup would alert on every poll tick, and an alert
+// channel that cries every minute is one people mute - which would defeat the
+// point of wiring it up at all.
+var backupAlertState = struct {
+	sync.Mutex
+	lastAlertAt time.Time
+}{}
+
+func checkBackupAge(maxAge time.Duration) {
+	fresh := CheckBackupFreshness()
+	if !fresh.Configured {
+		return
+	}
+	var message string
+	switch {
+	case !fresh.Found:
+		message = fmt.Sprintf("no nightly backup found in %s at all - the backup cron is not producing files", fresh.Dir)
+	case time.Since(fresh.Newest) > maxAge:
+		message = fmt.Sprintf("newest nightly backup is %.1fh old (limit %s), taken %s", fresh.AgeHours, maxAge, fresh.Newest.UTC().Format(time.RFC3339))
+	default:
+		return
+	}
+
+	backupAlertState.Lock()
+	shouldAlert := backupAlertState.lastAlertAt.IsZero() || time.Since(backupAlertState.lastAlertAt) > maxAge
+	if shouldAlert {
+		backupAlertState.lastAlertAt = time.Now()
+	}
+	backupAlertState.Unlock()
+
+	if shouldAlert {
+		SendOpsAlert("BACKUP_STALE", "backup-monitor", message)
+	}
 }
 
 func checkErrorRate(schema string, window time.Duration, threshold int) {
