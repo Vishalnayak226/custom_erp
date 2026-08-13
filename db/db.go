@@ -64,12 +64,26 @@ func InitDB(connStr string) {
 // Korean/Arabic/Cyrillic-beyond-Latin1/emoji character in any text field -
 // a customer name, a vendor name, a product description - hard-fails the
 // INSERT with a raw Postgres encoding error the moment someone types one
-// in, anywhere in this application. Fixing the cluster's encoding itself
-// means dropping and recreating every database from template0 with
-// ENCODING 'UTF8', which is destructive to whatever's already stored and
-// out of proportion to do automatically against a shared dev database this
-// tree already has standing warnings about (concurrent sessions/edits) -
-// so this only surfaces the problem loudly instead of fixing it silently
+// in, anywhere in this application. The application's own databases were
+// converted (custom_erp and custom_erp_test are UTF8 + ICU en-US as of
+// 2026-08-13), but the remedy is worth stating precisely, because the
+// earlier version of this comment overstated it as "recreate every
+// database", which is not what it takes:
+//
+//   - A database that already holds data must be dumped, recreated with an
+//     explicit ENCODING/LOCALE clause, and reloaded. That part is genuinely
+//     destructive and is why this check warns rather than acts.
+//   - template1 is not that case. It is what a bare CREATE DATABASE copies,
+//     so a WIN1252 template1 is the thing that keeps minting broken
+//     databases - and it is normally pristine, so the documented fix is to
+//     drop and recreate it from template0. That does not touch user data.
+//   - template0 cannot be re-encoded without initdb, and does not need to
+//     be: it is precisely the template a *differing* encoding may legally
+//     be copied from, which is what makes every explicit
+//     "TEMPLATE template0 ENCODING 'UTF8'" clause in this repo work no
+//     matter what the cluster default is.
+//
+// So this only surfaces the problem loudly instead of fixing it silently
 // wrong, same posture as EnforceNoDefaultAdminCredentialInProduction. In
 // production this should never trigger at all: essentially every managed
 // Postgres provider (RDS, Cloud SQL, etc.) defaults new databases to UTF8,

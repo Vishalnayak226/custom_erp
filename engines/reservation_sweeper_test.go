@@ -74,14 +74,33 @@ func TestReservationSweeperReleasesOnlyWhatNothingNeeds(t *testing.T) {
 	// 4. A live cart hold. Must survive.
 	insertReservation(nil, nil, 7, time.Now().Add(1*time.Hour))
 
-	// The sweep is schema-wide by design, and this suite shares one database
-	// with every other test's fixtures, so the counts it returns are not this
-	// test's to assert on. What IS this test's is exactly which of ITS four
-	// reservations survived - which is the behaviour that matters anyway.
-	if _, err := SweepExpiredReservations("default"); err != nil {
-		t.Fatalf("sweep: %v", err)
+	// The sweep is schema-wide and BATCHED (reservationSweepBatch rows per
+	// call, oldest first), because one long transaction against a big backlog
+	// would hold locks the live order path needs. The worker therefore drains
+	// over successive ticks, and a test on a shared database with a real
+	// backlog has to do the same - a single call reaches only the oldest 500
+	// rows, which on this repo's dev database is nowhere near a freshly
+	// inserted fixture. drain() is what the worker does over time, bounded so a
+	// sweep that somehow stops making progress fails the test instead of
+	// hanging the suite.
+	drain := func() {
+		t.Helper()
+		for pass := 0; pass < 500; pass++ {
+			result, err := SweepExpiredReservations("default")
+			if err != nil {
+				t.Fatalf("sweep pass %d: %v", pass, err)
+			}
+			if result.ExpiredHolds == 0 && result.OrphanedOrderRes == 0 {
+				return
+			}
+		}
+		t.Fatal("the sweep never stopped releasing rows; it is not converging")
 	}
+	drain()
 
+	// The counts a sweep returns are not this test's to assert on - other
+	// fixtures share the schema. What IS this test's is exactly which of ITS
+	// four reservations survived, which is the behaviour that matters anyway.
 	var surviving int
 	if err := db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".inventory_reservation WHERE sku = $1", sku).Scan(&surviving); err != nil {
 		t.Fatalf("count survivors: %v", err)
@@ -120,11 +139,9 @@ func TestReservationSweeperReleasesOnlyWhatNothingNeeds(t *testing.T) {
 		t.Fatalf("reserved = %d, want 10 (30 - 20 released)", reserved)
 	}
 
-	// A second sweep must not touch this test's surviving rows again - the
-	// sweep has to be safe to run continuously, not just once.
-	if _, err := SweepExpiredReservations("default"); err != nil {
-		t.Fatalf("second sweep: %v", err)
-	}
+	// Sweeping again must not touch this test's surviving rows - the sweep has
+	// to be safe to run continuously, not just once.
+	drain()
 	if err := db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".inventory_reservation WHERE sku = $1", sku).Scan(&surviving); err != nil {
 		t.Fatalf("count survivors after second sweep: %v", err)
 	}

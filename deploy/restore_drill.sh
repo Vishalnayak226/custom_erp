@@ -72,7 +72,15 @@ cleanup() {
 trap cleanup EXIT
 
 echo "Creating scratch database $DRILL_DB..."
-psql "$admin_url" -q -c "CREATE DATABASE \"$DRILL_DB\"" || fail "could not create the scratch database."
+# Explicit encoding, and TEMPLATE template0 rather than the default template1:
+# a bare CREATE DATABASE inherits whatever template1 is, and a WIN1252 template1
+# silently produces a scratch database that cannot hold the UTF8 bytes in the
+# dump - the drill would then fail (or worse, mangle) for a reason that has
+# nothing to do with the backup being tested. template0 is the one template a
+# differing encoding may legally be copied from. LC_* are 'C' because that
+# locale exists on every platform; collation order does not affect whether a
+# restore succeeds, which is all this drill asserts.
+psql "$admin_url" -q -c "CREATE DATABASE \"$DRILL_DB\" WITH TEMPLATE template0 ENCODING 'UTF8' LC_COLLATE 'C' LC_CTYPE 'C'" || fail "could not create the scratch database."
 
 echo "Restoring..."
 # --no-owner because the scratch database's roles need not match production's;

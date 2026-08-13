@@ -60,7 +60,16 @@ function Initialize-Database($dbName) {
     $exists = & "$PgBin\psql.exe" -h localhost -p $PgPort -U postgres -d postgres -tAc "SELECT 1 FROM pg_database WHERE datname = '$dbName'"
     if ($exists -ne "1") {
         Write-Host "Creating database '$dbName'..." -ForegroundColor Cyan
-        & "$PgBin\psql.exe" -h localhost -p $PgPort -U postgres -d postgres -c "CREATE DATABASE $dbName"
+        # The encoding/locale clause is explicit and TEMPLATE is template0 on
+        # purpose. A bare CREATE DATABASE copies template1, and on this Windows
+        # box template1 was provisioned WIN1252 - so every database made the
+        # default way is born unable to store CJK/Arabic/emoji and hard-fails
+        # the INSERT the moment someone types one (db.go's EnforceUTF8Encoding
+        # is the guard that catches it). template0 is the one template a
+        # differing encoding may legally be copied from, which is what makes
+        # this clause work regardless of what template1 happens to be. Matches
+        # what custom_erp/custom_erp_test already are: UTF8 + ICU en-US.
+        & "$PgBin\psql.exe" -h localhost -p $PgPort -U postgres -d postgres -c "CREATE DATABASE $dbName WITH TEMPLATE template0 ENCODING 'UTF8' LOCALE_PROVIDER icu LOCALE 'en-US'"
     }
 }
 
