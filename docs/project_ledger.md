@@ -65,6 +65,8 @@ It also **caught a wrong assumption in the sweeper's own test**. The sweep is ba
 - **The `postgres` maintenance DB is still WIN1252, deliberately.** It is not what new databases are copied from, so it mints nothing broken. It holds 20 empty tables and a single `test-tenant` row — debris from the retired standalone WMS project — and recreating it would have destroyed those schema objects for no encoding benefit. Left alone by explicit decision.
 - **The two WIN1252 backups are retained by explicit decision**, pending a live UI pass against the converted database. `custom_erp_win1252_backup` (62 MB) and `custom_erp_test_win1252_backup` (15 MB). `ditos_erp` is an unrelated database and was never touched.
 
+**Pushed and deployed the same day.** `main` went to `origin/main` for the first time (95 commits; it had been local-only) and `deploy.ps1` put `b572196` on the droplet. **Worth being honest about what that deploy did:** nothing functional. Every Go change since the deployed `20a8878` was a comment or a test file, and `public/`, `internal/` and `db/*.sql` were untouched — so the only real effects were re-stamping the ldflags build identity (so `/api/v1/version` stops claiming `20a8878`) and hand-shipping the `restore_drill.sh` fix that `deploy.ps1` structurally cannot carry. 0 migrations applied, 91 already current. Full detail and the verification list in `ai_handover.md` §6.
+
 ---
 
 ## 96. Stages 35.3.7 / 36 / 37.1.2 / 38 / 39 — the platform layer: public API, Knowledge Center, multi-currency (2026-08-12, code + schema + docs)
