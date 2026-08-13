@@ -76,7 +76,10 @@ func InitDB(connStr string) {
 //   - template1 is not that case. It is what a bare CREATE DATABASE copies,
 //     so a WIN1252 template1 is the thing that keeps minting broken
 //     databases - and it is normally pristine, so the documented fix is to
-//     drop and recreate it from template0. That does not touch user data.
+//     drop and recreate it from template0. That does not touch user data,
+//     and it was done on this dev box on 2026-08-13: a bare CREATE DATABASE
+//     here now produces UTF8 + ICU en-US. Prove any such fix by creating a
+//     database with no encoding clause at all and checking what comes out.
 //   - template0 cannot be re-encoded without initdb, and does not need to
 //     be: it is precisely the template a *differing* encoding may legally
 //     be copied from, which is what makes every explicit
