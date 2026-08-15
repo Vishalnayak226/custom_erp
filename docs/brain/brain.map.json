@@ -314,7 +314,7 @@
       "id": "oms",
       "lobe": "business",
       "name": "Orders & Fulfillment (OMS)",
-      "role": "The order lifecycle: capture, allocation and sourcing, reservation, store/warehouse pick-pack, shipment, and Return Anywhere with RTO/QC/refund. Stage 35 adds the OMS Console (the faceted cross-channel queue, one-call order detail, report-backed tiles, bulk actions and global search) and the order-mutation surface (item-level hold, edit, switch facility, priority, split).",
+      "role": "The order lifecycle: capture, allocation and sourcing, reservation, store/warehouse pick-pack, shipment, and Return Anywhere with RTO/QC/refund. Stage 35 adds the OMS Console (the faceted cross-channel queue, one-call order detail, report-backed tiles, bulk actions and global search), the order-mutation surface (item-level hold, edit, switch facility, priority, split), and 35.4's outbound document chain — the ShippingPackage that sits between the pack task and the courier booking, the invoice generated from a completed pack, the gate pass for outbound movement, and the credit note raised when an invoiced order is cancelled.",
       "match": [
         "engines/orders.go",
         "engines/oms_console.go",
@@ -323,9 +323,14 @@
         "engines/fulfillment_pickpack.go",
         "engines/returns.go",
         "engines/oms_reports.go",
+        "engines/shipping_package.go",
+        "engines/pack_invoice.go",
+        "engines/gate_pass.go",
+        "engines/cancellation_credit_note.go",
         "internal/server/handlers_orders.go",
         "internal/server/handlers_oms_console.go",
         "internal/server/handlers_order_mutations.go",
+        "internal/server/handlers_shipping_package.go",
         "internal/server/handlers_returns.go"
       ]
     },
@@ -345,11 +350,12 @@
       "id": "pim",
       "lobe": "business",
       "name": "Product Information (PIM)",
-      "role": "Family/attribute framework, taxonomy, approval-gated content with versions and rollback, completeness scoring, media library, bulk edit and CSV round-trip, channel publish queue, and barcode/label printing.",
+      "role": "Family/attribute framework, taxonomy, approval-gated content with versions and rollback, completeness scoring, media library, bulk edit and CSV round-trip, channel publish queue, and barcode/label printing. Stage 36.2 adds the task & workflow engine: assignable tasks with a terminal-state machine and an append-only comment thread, reusable task templates instantiated against a product group, and declarative table-driven workflow definitions whose runs advance on task completion against a closed condition vocabulary.",
       "match": [
         "engines/pim*.go",
         "engines/stickers.go",
-        "internal/server/handlers_pim_groups.go"
+        "internal/server/handlers_pim_groups.go",
+        "internal/server/handlers_pim_tasks.go"
       ]
     },
     {

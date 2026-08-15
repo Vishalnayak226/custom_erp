@@ -23,9 +23,27 @@ func CreateSalesInvoiceFromOrder(tenantID, orderID, userID string) (string, erro
 	if orderStatus != "Shipped" && orderStatus != "Delivered" {
 		return "", fmt.Errorf("sales order %s must be Shipped before invoicing (current status: %s)", orderID, orderStatus)
 	}
+	// Stage 35.4.2 widened this check, and the widening is load-bearing.
+	//
+	// It used to look only for its own "INV-<orderID>". Once packages can be
+	// invoiced individually (GenerateInvoiceForPackage), an order can already
+	// carry one or more invoices under generated ids by the time it reaches
+	// Shipped - and the handover cascade calls this function on exactly that
+	// transition. Under the old check, every package-invoiced order would have
+	// been invoiced a second time, in full, for the whole order value.
+	//
+	// So the question is now "does this order have any invoice", answered
+	// against sales_order_id. A split order with two package invoices returns
+	// the first and creates nothing, which is right: the pack path has already
+	// billed every parcel, and there is nothing left for the order-level
+	// fallback to do.
 	invoiceID := "INV-" + orderID
 	var existing string
-	err = db.DB.QueryRow(fmt.Sprintf(`SELECT id FROM %s.documents WHERE id = $1 AND doctype = 'SalesInvoice' AND deleted_at IS NULL`, schema), invoiceID).Scan(&existing)
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT id FROM %s.documents
+		 WHERE doctype = 'SalesInvoice' AND deleted_at IS NULL AND status <> 'Cancelled'
+		   AND (id = $1 OR data->>'sales_order_id' = $2)
+		 ORDER BY created_at, id LIMIT 1`, schema), invoiceID, orderID).Scan(&existing)
 	if err == nil {
 		return existing, nil
 	}

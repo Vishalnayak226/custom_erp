@@ -264,6 +264,25 @@ func Run() {
 	http.HandleFunc("POST /api/v1/order-lines/{lineId}/release-hold", apiMiddleware(moduleGate("oms", handleReleaseOrderLineHold)))
 	http.HandleFunc("GET /api/v1/oms/pick-queue", apiMiddleware(moduleGate("oms", handlePickQueue)))
 
+	// Stage 35.4: the outbound document chain - shipping package, invoice
+	// from pack, gate pass, credit note. The invoice route is the one that
+	// closes 26.12.3's deferred invoice-from-pack item; the label and
+	// manifest ordering rule it enables is enforced inside the existing
+	// shipment engine, not here, so it applies to every caller.
+	http.HandleFunc("POST /api/v1/oms/shipping-packages", apiMiddleware(moduleGate("oms", handleCreateShippingPackage)))
+	http.HandleFunc("GET /api/v1/oms/shipping-packages", apiMiddleware(moduleGate("oms", handleListShippingPackages)))
+	http.HandleFunc("POST /api/v1/oms/shipping-packages/{id}/update", apiMiddleware(moduleGate("oms", handleUpdateShippingPackage)))
+	http.HandleFunc("POST /api/v1/oms/shipping-packages/{id}/split", apiMiddleware(moduleGate("oms", handleSplitShippingPackage)))
+	http.HandleFunc("POST /api/v1/oms/shipping-packages/{id}/cancel", apiMiddleware(moduleGate("oms", handleCancelShippingPackage)))
+	http.HandleFunc("POST /api/v1/oms/shipping-packages/{id}/invoice", apiMiddleware(moduleGate("oms", handleInvoiceShippingPackage)))
+	http.HandleFunc("POST /api/v1/oms/gate-passes", apiMiddleware(moduleGate("oms", handleCreateGatePass)))
+	http.HandleFunc("GET /api/v1/oms/gate-passes", apiMiddleware(moduleGate("oms", handleSearchGatePasses)))
+	http.HandleFunc("POST /api/v1/oms/gate-passes/{id}/update", apiMiddleware(moduleGate("oms", handleUpdateGatePass)))
+	http.HandleFunc("POST /api/v1/oms/gate-passes/{id}/issue", apiMiddleware(moduleGate("oms", handleGatePassTransition("issue"))))
+	http.HandleFunc("POST /api/v1/oms/gate-passes/{id}/complete", apiMiddleware(moduleGate("oms", handleGatePassTransition("complete"))))
+	http.HandleFunc("POST /api/v1/oms/gate-passes/{id}/discard", apiMiddleware(moduleGate("oms", handleGatePassTransition("discard"))))
+	http.HandleFunc("POST /api/v1/orders/{id}/credit-notes", apiMiddleware(moduleGate("oms", handleOrderCreditNotes)))
+
 	// Stage 26.12.5: Returns/RTO/QC/Refund - a request/approval-gated
 	// workflow distinct from the pre-existing instant POST
 	// /api/v1/fulfillment/return (ProcessReturnAnywhere, the POS in-store
@@ -476,6 +495,23 @@ func Run() {
 	// Stage 36.1: resolve a saved static/dynamic Product Group on demand.
 	http.HandleFunc("GET /api/v1/pim/product-groups/{id}/members", apiMiddleware(moduleGate("pim", handlePIMProductGroupMembers)))
 	http.HandleFunc("GET /api/v1/pim/product-groups/{id}/export.csv", apiMiddleware(moduleGate("pim", handlePIMProductGroupExport)))
+
+	// Stage 36.2 - the PIM task & workflow engine. Authoring a template or a
+	// workflow definition stays on the generic /api/v1/doc/{doctype} API; what
+	// is here is only what the generic API cannot express - the task state
+	// machine, template instantiation against a group, and the run lifecycle.
+	http.HandleFunc("GET /api/v1/pim/tasks", apiMiddleware(moduleGate("pim", handlePIMTasks)))
+	http.HandleFunc("POST /api/v1/pim/tasks", apiMiddleware(moduleGate("pim", handlePIMTasks)))
+	http.HandleFunc("POST /api/v1/pim/tasks/bulk", apiMiddleware(moduleGate("pim", handlePIMTaskBulk)))
+	http.HandleFunc("POST /api/v1/pim/tasks/{id}/{action}", apiMiddleware(moduleGate("pim", handlePIMTaskAction)))
+	http.HandleFunc("GET /api/v1/pim/assignable-users", apiMiddleware(moduleGate("pim", handlePIMAssignableUsers)))
+	http.HandleFunc("GET /api/v1/pim/task-templates", apiMiddleware(moduleGate("pim", handlePIMTaskTemplates)))
+	http.HandleFunc("POST /api/v1/pim/task-templates/{code}/instantiate", apiMiddleware(moduleGate("pim", handlePIMTaskTemplateInstantiate)))
+	http.HandleFunc("GET /api/v1/pim/workflows", apiMiddleware(moduleGate("pim", handlePIMWorkflows)))
+	http.HandleFunc("POST /api/v1/pim/workflows/{code}/start", apiMiddleware(moduleGate("pim", handlePIMWorkflowStart)))
+	http.HandleFunc("GET /api/v1/pim/workflow-runs", apiMiddleware(moduleGate("pim", handlePIMWorkflowRuns)))
+	http.HandleFunc("POST /api/v1/pim/workflow-runs/bulk", apiMiddleware(moduleGate("pim", handlePIMWorkflowRunBulk)))
+	http.HandleFunc("POST /api/v1/pim/workflow-runs/{id}/action", apiMiddleware(moduleGate("pim", handlePIMWorkflowRunAction)))
 	http.HandleFunc("GET /api/v1/pim/completeness/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMCompleteness)))
 	// Content assist (Stage 26.4.11) - local/offline draft generation from the
 	// item's own data. Suggest-only: writes no ProductContent.

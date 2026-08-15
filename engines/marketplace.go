@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -92,13 +93,39 @@ func anyCourierServiceAreaConfigured(schema string) (bool, error) {
 // is optional - a booking with no task link stays outside manifest grouping
 // and the SalesOrder closure cascade below, a documented boundary, not an
 // oversight.
-func CreateLogisticsBooking(tenantID, orderID, fulfillmentTaskID, carrier, trackingNumber, destinationPincode string, shippingCharge int) (string, error) {
+// Stage 35.4.3 added the optional trailing shippingPackageID. It is variadic
+// so all six existing call sites needed no change, the same reason
+// PostingOptions took variadic fields in 37.1.2. When it is omitted the
+// booking still links itself to the package its fulfillment task produced, if
+// there is one - otherwise the ordering guard would only apply to callers who
+// happened to know about packages, which is precisely the set of callers that
+// does not need guarding.
+func CreateLogisticsBooking(tenantID, orderID, fulfillmentTaskID, carrier, trackingNumber, destinationPincode string, shippingCharge int, shippingPackageID ...string) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
 	}
 	if orderID == "" {
 		return "", errors.New("order_id is required")
+	}
+
+	packageID := ""
+	if len(shippingPackageID) > 0 {
+		packageID = strings.TrimSpace(shippingPackageID[0])
+	}
+	if packageID == "" && fulfillmentTaskID != "" {
+		if auto, errP := firstLivePackageForTask(schema, fulfillmentTaskID); errP == nil {
+			packageID = auto
+		}
+	}
+	if packageID != "" {
+		p, errP := loadShippingPackage(schema, packageID)
+		if errP != nil {
+			return "", errP
+		}
+		if p.Status == "Cancelled" {
+			return "", fmt.Errorf("shipping package %s is cancelled and cannot be booked", packageID)
+		}
 	}
 
 	configured, err := anyCourierServiceAreaConfigured(schema)
@@ -150,6 +177,7 @@ func CreateLogisticsBooking(tenantID, orderID, fulfillmentTaskID, carrier, track
 		"destination_pincode": destinationPincode,
 		"awb_number":          awb,
 		"manifest_id":         "",
+		"shipping_package_id": packageID,
 		"shipping_charge":     shippingCharge,
 		"status":              "AWB Assigned",
 	}
@@ -191,17 +219,60 @@ func fetchLogisticsBooking(tenantID, bookingID string) (schema string, data map[
 // GenerateShippingLabel returns a plain-text shipping label for a booking -
 // the same "prints text, not a real scannable symbology/PDF" scope
 // limitation engines/stickers.go already documents for barcode printing,
-// not a new gap introduced here.
+// not a new gap introduced here. (35.5.3 is the item that replaces this with
+// a real Code128/QR PDF.)
+//
+// Stage 35.4.3 enforces Uniware's hard rule here: no label before the invoice.
+// A label is what authorises a parcel to move, and a parcel that moves without
+// a tax document is a compliance problem, not a workflow inconvenience - which
+// is why this refuses rather than warns.
+//
+// The rule applies only to a booking that has a shipping package. A booking
+// made before 35.4.1, or a manual one with no package, has no invoice to wait
+// for and is labelled exactly as it was - the same backward-compatibility
+// boundary CreateLogisticsBooking already draws around task-less bookings.
 func GenerateShippingLabel(tenantID, bookingID string) (string, error) {
-	_, data, _, err := fetchLogisticsBooking(tenantID, bookingID)
+	schema, data, _, err := fetchLogisticsBooking(tenantID, bookingID)
 	if err != nil {
 		return "", err
 	}
+	packageID, _ := data["shipping_package_id"].(string)
+	if packageID != "" {
+		p, errP := loadShippingPackage(schema, packageID)
+		if errP != nil {
+			return "", errP
+		}
+		if p.Status == "Draft" {
+			return "", fmt.Errorf("cannot print a label for booking %s: shipping package %s has not been invoiced yet - generate the invoice first", bookingID, packageID)
+		}
+		if p.Status == "Cancelled" {
+			return "", fmt.Errorf("cannot print a label for booking %s: shipping package %s is cancelled", bookingID, packageID)
+		}
+	}
+
 	carrier, _ := data["carrier"].(string)
 	awb, _ := data["awb_number"].(string)
 	tracking, _ := data["tracking_number"].(string)
 	orderID, _ := data["order_id"].(string)
 	pincode, _ := data["destination_pincode"].(string)
+
+	// Stamp the print so the manifest step can tell a labelled parcel from an
+	// unlabelled one. Recorded on the booking rather than inferred from the
+	// package, because "was a label printed" and "was an invoice raised" are
+	// genuinely different facts and the manifest guard needs the first.
+	//
+	// Write-once, deliberately. This is reached by a GET, so it has to be safe
+	// to repeat: the guard only asks whether a label was ever printed, and
+	// re-printing a damaged label must not rewrite when the first one went out.
+	// The WHERE clause makes the reprint a no-op rather than an update.
+	if _, err := db.DB.Exec(fmt.Sprintf(
+		`UPDATE %s.documents SET data = jsonb_set(data, '{label_generated_at}', to_jsonb($1::text)), updated_at = CURRENT_TIMESTAMP
+		  WHERE id = $2 AND doctype = 'LogisticsBooking'
+		    AND COALESCE(data->>'label_generated_at', '') = ''`, schema),
+		time.Now().UTC().Format(time.RFC3339), bookingID); err != nil {
+		return "", err
+	}
+
 	return fmt.Sprintf("SHIP TO PIN: %s\nCARRIER: %s\nAWB: %s\nTRACKING: %s\nORDER: %s\nBOOKING: %s",
 		pincode, carrier, awb, tracking, orderID, bookingID), nil
 }
@@ -222,13 +293,24 @@ func GenerateManifest(tenantID, courier, locationCode string) (manifestID string
 		return "", 0, err
 	}
 
+	// Stage 35.4.3, the manifest half of the ordering rule: a booking that has
+	// a shipping package must also have had its label printed before it can be
+	// manifested. Expressed as a WHERE clause rather than a post-filter so an
+	// unlabelled parcel is never grouped and then silently dropped - it simply
+	// is not part of this manifest, and stays available for the next one once
+	// its label is printed.
+	//
+	// The NULL-package branch is what keeps every pre-35.4 booking manifesting
+	// exactly as it did.
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT lb.id
 		FROM %s.documents lb
 		JOIN %s.documents ft ON ft.doctype = 'FulfillmentTask' AND ft.id = lb.data->>'fulfillment_task_id'
 		WHERE lb.doctype = 'LogisticsBooking' AND lb.status = 'AWB Assigned'
 		  AND lb.data->>'carrier' = $1 AND ft.data->>'location_code' = $2
-		  AND lb.deleted_at IS NULL AND ft.deleted_at IS NULL`, schema, schema), courier, locationCode)
+		  AND lb.deleted_at IS NULL AND ft.deleted_at IS NULL
+		  AND (COALESCE(lb.data->>'shipping_package_id', '') = ''
+		       OR COALESCE(lb.data->>'label_generated_at', '') <> '')`, schema, schema), courier, locationCode)
 	if err != nil {
 		return "", 0, err
 	}
@@ -246,6 +328,21 @@ func GenerateManifest(tenantID, courier, locationCode string) (manifestID string
 		return "", 0, err
 	}
 	if len(bookingIDs) == 0 {
+		// Distinguish "nothing to ship" from "everything is waiting on a
+		// label", because the two call for completely different operator
+		// action and the old single message sent them looking in the wrong
+		// place.
+		var awaiting int
+		_ = db.DB.QueryRow(fmt.Sprintf(`
+			SELECT COUNT(*)
+			FROM %s.documents lb
+			JOIN %s.documents ft ON ft.doctype = 'FulfillmentTask' AND ft.id = lb.data->>'fulfillment_task_id'
+			WHERE lb.doctype = 'LogisticsBooking' AND lb.status = 'AWB Assigned'
+			  AND lb.data->>'carrier' = $1 AND ft.data->>'location_code' = $2
+			  AND lb.deleted_at IS NULL AND ft.deleted_at IS NULL`, schema, schema), courier, locationCode).Scan(&awaiting)
+		if awaiting > 0 {
+			return "", 0, fmt.Errorf("no manifestable shipments for courier %q at location %q - %d are AWB-assigned but still awaiting an invoice and label", courier, locationCode, awaiting)
+		}
 		return "", 0, fmt.Errorf("no AWB-assigned shipments found for courier %q at location %q", courier, locationCode)
 	}
 
@@ -315,16 +412,16 @@ func HandoverManifest(tenantID, manifestID, userID string) error {
 	}
 
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, COALESCE(data->>'order_id', ''), COALESCE(data->>'fulfillment_task_id', '') FROM %s.documents
+		`SELECT id, COALESCE(data->>'order_id', ''), COALESCE(data->>'fulfillment_task_id', ''), COALESCE(data->>'shipping_package_id', '') FROM %s.documents
 		 WHERE doctype = 'LogisticsBooking' AND data->>'manifest_id' = $1 AND deleted_at IS NULL`, schema), manifestID)
 	if err != nil {
 		return err
 	}
-	type bookingRow struct{ id, orderID, taskID string }
+	type bookingRow struct{ id, orderID, taskID, packageID string }
 	var bookings []bookingRow
 	for rows.Next() {
 		var b bookingRow
-		if err := rows.Scan(&b.id, &b.orderID, &b.taskID); err != nil {
+		if err := rows.Scan(&b.id, &b.orderID, &b.taskID, &b.packageID); err != nil {
 			rows.Close()
 			return err
 		}
@@ -352,6 +449,18 @@ func HandoverManifest(tenantID, manifestID, userID string) error {
 			if taskStatus != "Dispatched" {
 				if err := TransitionTaskStatus(tenantID, b.taskID, "Dispatched"); err != nil {
 					return fmt.Errorf("booking %s: failed to dispatch fulfillment task %s: %v", b.id, b.taskID, err)
+				}
+			}
+		}
+		// Close the package lifecycle at the same moment the parcel physically
+		// leaves. Doing it here rather than in a separate call is what stops
+		// "Invoiced" from becoming a permanent resting state that quietly
+		// disagrees with the booking beside it.
+		if b.packageID != "" {
+			if p, errP := loadShippingPackage(schema, b.packageID); errP == nil && p.Status == "Invoiced" {
+				p.Status = "Shipped"
+				if errS := p.save(dbExecer{}, schema); errS != nil {
+					return fmt.Errorf("booking %s: failed to mark shipping package %s shipped: %v", b.id, b.packageID, errS)
 				}
 			}
 		}

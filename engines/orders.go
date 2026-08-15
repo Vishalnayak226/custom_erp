@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 )
 
 // SalesOrderLineInput is one requested line for CreateSalesOrder - qty/price
@@ -525,7 +526,15 @@ func ReleaseOrderHold(tenantID, orderID string) error {
 // only for lines still Pending/Reserved (§12: "releases reservations only
 // for lines still Reserved/Allocated") - a Dispatched/Cancelled/Returned
 // line is left alone.
-func CancelOrder(tenantID, orderID, reasonCode string) error {
+// Stage 35.4.5 added the optional trailing userID and the two cascades at the
+// end. Variadic so the four existing call sites needed no change; the actor
+// only reaches the audit log, which previously recorded a cancellation with no
+// attribution at all.
+func CancelOrder(tenantID, orderID, reasonCode string, actor ...string) error {
+	userID := "system"
+	if len(actor) > 0 && strings.TrimSpace(actor[0]) != "" {
+		userID = actor[0]
+	}
 	schema, orderData, err := fetchSalesOrder(tenantID, orderID)
 	if err != nil {
 		return err
@@ -618,13 +627,30 @@ func CancelOrder(tenantID, orderID, reasonCode string) error {
 	if err != nil {
 		return err
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(
+	if _, err := db.DB.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = $1, status = 'Cancelled', updated_at = CURRENT_TIMESTAMP WHERE doctype = 'SalesOrder' AND id = $2`, schema),
-		marshaled, orderID)
-	if err == nil {
-		DispatchNotification(tenantID, "Order Cancelled", orderID, map[string]string{"reason_code": reasonCode})
+		marshaled, orderID); err != nil {
+		return err
 	}
-	return err
+
+	// Stage 35.4.5. Both cascades run only after the order is durably
+	// Cancelled, so a failure here leaves a cancelled order with its financial
+	// reversal outstanding - visible and fixable - rather than a live order
+	// that has already been credited.
+	//
+	// Packages first: a Draft package left behind still looks bookable, and a
+	// booking against it would ship goods for an order nobody will pay for.
+	if err := cancelShippingPackagesForOrder(tenantID, schema, orderID, reasonCode, userID); err != nil {
+		return err
+	}
+	// Then the credit. A no-op for the ordinary case of an order cancelled
+	// before it was ever invoiced, which is why it is safe on every path.
+	if _, err := IssueCancellationCreditNotes(tenantID, orderID, reasonCode, userID); err != nil {
+		return fmt.Errorf("order %s was cancelled but its credit note could not be raised: %v", orderID, err)
+	}
+
+	DispatchNotification(tenantID, "Order Cancelled", orderID, map[string]string{"reason_code": reasonCode})
+	return nil
 }
 
 // requireActiveReasonCode validates a mandatory reason code against Stage

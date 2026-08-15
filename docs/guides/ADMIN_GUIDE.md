@@ -377,6 +377,30 @@ After `db/migrations_stage38_2_api_credentials.sql` is applied, a Super Admin ca
 
 No public business endpoint accepts these credentials yet. That is deliberate: Stage 38.3's per-credential limiter and 38.5's idempotency contract must exist before the first `/api/public/v1` route is exposed. Do not try to send an API key to the private `/api/v1` application routes; it is not a user session and will be rejected.
 
+#### D.6.2 PIM tasks and workflows (Stage 36.2)
+
+Four doctypes arrive with `db/migrations_stage36_2_pim_tasks.sql`: `PIMTaskTemplate` and `PIMWorkflowDefinition` (Masters, authored on the PIM → Task Templates / Workflows tabs) and `PIMTask` and `PIMWorkflowRun` (Transactions, driven from PIM → My Work). The migration is additive throughout and includes the standard backfill loop, so tenants provisioned before Stage 36.2 receive the same doctypes, fields, permissions and indexes as new ones.
+
+**Default permissions**, adjustable per role as usual under Settings → Roles:
+
+| Role | Templates & Workflows | Tasks | Runs |
+|---|---|---|---|
+| Super Admin | full | full | full |
+| Store Manager | read/create/update (no delete) | full | read/create/update |
+| Cashier | none | read + update (progress their own work) | read only |
+
+Deleting a workflow definition is withheld from Store Manager on purpose: removing a definition out from under live runs is an authoring action, not an operating one.
+
+Three things worth knowing before you support this module:
+
+- **A task is not an approval, and the two are deliberately separate.** No task action can move a document's approval state, and completing a task is not an approval decision. If someone reports "the approval didn't happen when I finished the task", that is the design, not a bug.
+- **`Done` and `Cancelled` are terminal.** A finished task cannot be re-opened, because finishing it may already have advanced a workflow onto its next stage. The supported answer is **Create follow-up**, which is offered in the task's own dialog.
+- **Editing a live workflow definition can strand its runs.** A run whose stored stage group no longer exists in the edited definition is **stopped with a named reason** rather than restarted from the beginning — restarting would re-create every task the product had already been through. Cancel and restart such runs deliberately. Prefer creating a new definition over reshaping one that has runs in flight.
+
+`GET /api/v1/pim/assignable-users` is a deliberately narrow endpoint returning active users' **username and role only**, gated on update rights over `PIMTask`. It exists because `/api/v1/admin/users` is Super Admin gated and a Store Manager still needs to see who they may assign work to. Do not widen it into a general user-listing endpoint.
+
+For monitoring, three registered reports are available in the Report Catalog: **PIM Task Workload by Assignee**, **PIM Overdue Tasks** and **PIM Stalled Workflow Runs**. The last is the one to schedule — a blocked run has no open tasks by definition, so it never surfaces in anyone's inbox on its own.
+
 ### D.7 Governance Model
 
 Per this project's own planning references: a small central team owns the core kernel and release process; module owners own their business rules and user acceptance; client/industry-specific needs are handled through configuration first (Database Schema Design, feature flags), scoped extension hooks second, and a core code change only when a genuinely reusable platform capability is missing — never a per-client fork of the codebase.

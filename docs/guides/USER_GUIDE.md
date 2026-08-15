@@ -340,7 +340,80 @@ Once the Stage 36 migration has been applied, open **Setup → PIM → PIM Produ
 - Choose **Dynamic** when membership should follow the data. You can limit by Product Family, show products below a completeness percentage, require a particular missing attribute, and/or choose Active or Inactive items. Filled filters are combined, and the group is recalculated whenever it is used—there is no stale saved result to refresh.
 - Do not fill both kinds of input. A static group cannot have dynamic filters, and a dynamic group cannot have static rows; the save message points out the conflict.
 
-To preview a group, open **Reports → PIM Product Group Readiness**, enter either its Group Code or record ID, and run the report. It shows the current members, completeness percentage, and missing fields. Using a group directly for bulk changes, task assignment, or export belongs to the next part of Stage 36 and is not available yet.
+To preview a group, open **Reports → PIM Product Group Readiness**, enter either its Group Code or record ID, and run the report. It shows the current members, completeness percentage, and missing fields.
+
+A group is also the unit you act on: the **Group Actions** button on the Item table exports it or bulk-edits it, and §8c below uses one to hand out work.
+
+### 8c. Handing out PIM work: tasks and workflows
+
+A **task** is a piece of catalogue work with somebody's name on it — "add a main image to this product", due Friday. It is not an approval. An approval asks *"may this saved record proceed?"* and is answered once; a task exists precisely **because** the product is not ready yet, and it stays open, assigned and commented on until someone finishes it.
+
+Everything below lives under **PIM**, on three tabs: **My Work**, **Task Templates** and **Workflows**.
+
+#### Your inbox: PIM → My Work
+
+Opens on *your* tasks. The four tiles count Open, In Progress and Blocked, plus how many rows on this page are overdue. The list puts anything overdue first, then whatever is due soonest, then High priority — so the row that needs you most is at the top rather than buried under whatever was created last.
+
+- **Assignee → Everyone** shows the whole queue instead of just yours. You can also pick one person.
+- **Start** and **Done** are on each row. **Details** opens the task: the full comment thread, who it is for, when it is due, and the actions that do not fit on a row — Reassign, Block, Cancel task, Mark done.
+- **Comments are permanent.** There is no edit or delete. The thread is the record of why something took three weeks, so it is kept honest.
+- **Tick several rows** and a bar appears above the list: reassign, set a status, set a due date or add the same comment to all of them at once. If some of them refuse — a finished task cannot be reassigned — you are told exactly which ones and why, rather than being left guessing which half worked.
+
+> **A task you have marked Done cannot be re-opened.** That is deliberate: finishing a task can advance a workflow onto its next stage, and there is no honest way to un-advance work that has already been handed to someone else. If it turns out not to be finished, open it and press **Create follow-up** — you get a fresh task carrying the same product and assignee, and the history still says truthfully what was completed and when.
+
+#### Handing the same job to many products: Task Templates
+
+Rather than typing the same task fifty times, save it once. Go to **PIM → Task Templates → New**:
+
+| Field | What to put |
+|---|---|
+| **Template Code / Name** | Your reference, e.g. `ENRICH-2026` / "Autumn enrichment sweep" |
+| **Task Type** | Enrichment, Imagery, Attributes, Translation, Review or Other |
+| **Title Pattern** | The title each generated task gets. Use `{item_code}`, `{item_name}`, `{family}` or `{status}` — e.g. `Enrich {item_name}`. Anything else is refused when you save, so a typo cannot end up printed across a hundred tasks |
+| **Default Assignee / Role** | Who normally does this work (optional) |
+| **Due In (days)** | Counted from the day the tasks are created, so the template stays usable months later |
+| **Priority / Instructions** | Optional |
+
+Then on **My Work**, in **Run a task template**, choose the template and a product group and press **Create tasks**. You get one task per product in the group.
+
+Running the same template again is safe and is meant to be routine — a dynamic group picks up new products as the catalogue changes. Any product that **already has an open task from that template** is skipped, and you are told how many. Once a product's task is closed, it becomes eligible again.
+
+#### Multi-step work: Workflows
+
+A workflow walks one product through several stages in order — say *Enrich → Imagery → Review* — creating each stage's tasks as it gets there. Build one under **PIM → Workflows → New**, filling the **Stages** table:
+
+| Column | What it does |
+|---|---|
+| **Stage Code / Stage Name** | The stage's reference and its label. Codes must be unique |
+| **Sequence** | The order stages run in |
+| **Parallel Group** | Leave blank for ordinary one-after-another. Give two stages the *same* value to run them together — the workflow waits for both before moving on |
+| **Task Template** | The work this stage hands out |
+| **Assignee / Role** | Who does it at this point (overrides the template's default) |
+| **Entry Condition** | What must be true before the stage may **start** |
+| **Exit Condition** | What must be true before the workflow may **leave** it. Blank means "when this stage's tasks are all closed", which is what you usually want |
+
+The conditions are a fixed list, not a formula language — you pick from: *always*, *tasks complete*, *completeness at least (a percentage)*, *attribute present (an attribute code)*, *has main image*, *content approved*, and *item status*. Anything else is refused when you save the workflow, because a condition the system cannot evaluate would produce a workflow that silently never moves.
+
+To run one, go to **My Work → Workflow runs**, pick the workflow, choose **One product** or **A product group**, name it, and press **Start run**.
+
+The runs table then shows each product, which stage it is on ("2 of 4"), and — the useful column — **Waiting on**. A run that has stopped tells you why in plain words: *"cannot enter stage imagery: no active Main Image"*. Fix that, press **Advance**, and it carries on.
+
+- The workflow advances **by itself** the moment a stage's last task is closed. You do not need to press anything.
+- **Pause** stops a run without losing its place; **Resume** picks it up and immediately re-checks whether it can move.
+- **Cancel** ends it and cancels its still-open tasks with it, so nobody is left working on a product that has been abandoned.
+- **Activity** shows the run's own history — every stage entered, every block, who paused it and when.
+
+A product can only be on one live run of the same workflow at a time; starting a second is refused until the first is finished or cancelled.
+
+#### Turning a report into work: the Assign task button
+
+Any PIM report listing products has an **Assign task** button on each row — including **PIM Product Group Readiness**, **PIM Overdue Tasks** and **PIM Stalled Workflow Runs**. Run the report, find the product that is short of something, press the button, and fill in the small form. The product code is already filled in, so you never retype it. The new task appears on **My Work**.
+
+Three reports come with this, under **Reports → Report Catalog**:
+
+- **PIM Task Workload by Assignee** — who is carrying how much, and how much of it is late.
+- **PIM Overdue Tasks** — everything past its due date, oldest first, optionally for one person.
+- **PIM Stalled Workflow Runs** — runs that have stopped moving, either blocked or paused-and-forgotten. Worth checking weekly: a blocked run has *no* open tasks, so it will never appear in anybody's inbox on its own.
 
 ### 8.1 Fields that check what you typed (GSTIN, email, phone, PAN, IFSC, PIN code)
 

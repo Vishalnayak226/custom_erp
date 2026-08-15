@@ -10958,12 +10958,21 @@ function renderReportCatalogResultTable(container, result, params) {
   const columns = effectiveReportColumns(result.columns || []);
   const rows = result.rows || [];
   const drillKey = columns.length > 0 ? columns[0].key : null;
+  // Stage 36.2.6: any report row that names a product can put that product in
+  // someone's inbox. Keyed off the presence of an item_code column rather than
+  // a hardcoded list of report ids, so every present and future PIM readiness
+  // report gets the affordance without being enumerated here - which is the
+  // whole reason the report catalog describes its columns as data.
+  const assignKey = columns.some(c => c.key === 'item_code') ? 'item_code' : null;
+  const canAssign = assignKey !== null && typeof canCreateDoctype === 'function' && canCreateDoctype('PIMTask');
+  const extraCols = (result.has_drill_down ? 1 : 0) + (canAssign ? 1 : 0);
   let html = `<table><thead><tr>`;
   columns.forEach(c => { html += `<th>${c.label}</th>`; });
   if (result.has_drill_down) html += `<th>Details</th>`;
+  if (canAssign) html += `<th>Task</th>`;
   html += `</tr></thead><tbody>`;
   if (rows.length === 0) {
-    html += `<tr><td colspan="${columns.length + (result.has_drill_down ? 1 : 0)}" style="text-align:center; color:var(--text-muted);">No rows matched. Widen the date range or clear a filter above, then run the report again.</td></tr>`;
+    html += `<tr><td colspan="${columns.length + extraCols}" style="text-align:center; color:var(--text-muted);">No rows matched. Widen the date range or clear a filter above, then run the report again.</td></tr>`;
   }
   rows.forEach((row, idx) => {
     html += `<tr>`;
@@ -10975,7 +10984,13 @@ function renderReportCatalogResultTable(container, result, params) {
       const rowKeyVal = drillKey ? String(row[drillKey]) : '';
       html += `<td><button class="action-btn" onclick='runReportCatalogDrillDown(${JSON.stringify(result.id)}, ${JSON.stringify(rowKeyVal)}, ${idx})'>View Details</button></td>`;
     }
-    html += `</tr><tr id="rc-drilldown-${idx}" class="hidden"><td colspan="${columns.length + 1}"></td></tr>`;
+    if (canAssign) {
+      const itemCode = row[assignKey] === null || row[assignKey] === undefined ? '' : String(row[assignKey]);
+      html += itemCode
+        ? `<td><button class="action-btn" onclick='openPIMAssignTaskModal(${JSON.stringify(itemCode)}, ${JSON.stringify(result.label || result.id)})'>Assign task</button></td>`
+        : `<td></td>`;
+    }
+    html += `</tr><tr id="rc-drilldown-${idx}" class="hidden"><td colspan="${columns.length + extraCols}"></td></tr>`;
   });
   html += `</tbody></table>`;
   container.innerHTML = html;
@@ -13974,6 +13989,13 @@ const PIM_TABS = [
   { id: 'dashboard', label: 'Dashboard' },
   { id: 'workbench', label: 'Workbench' },
 	{ id: 'reports', label: 'Reports' },
+  // Stage 36.2. My Work is the task inbox (36.2.7); the two doctype-backed
+  // tabs beside it are the authoring surfaces for templates and workflow
+  // definitions, which need no bespoke screen - the generic doctype table
+  // already gives them a list, a form, RBAC, audit and CSV import.
+  { id: 'my-work', label: 'My Work' },
+  { id: 'task-templates', label: 'Task Templates', doctype: 'PIMTaskTemplate' },
+  { id: 'workflows', label: 'Workflows', doctype: 'PIMWorkflowDefinition' },
   { id: 'families', label: 'Product Families', doctype: 'ProductFamily' },
   { id: 'attributes', label: 'Attribute Definitions', doctype: 'ProductAttributeDef' },
   { id: 'attribute-groups', label: 'Attribute Groups', doctype: 'ProductAttributeGroup' },
@@ -14052,6 +14074,8 @@ async function renderPIMView(container) {
     await renderPIMWorkbenchTab(container);
   } else if (currentPIMTab === 'reports') {
     await renderPIMReportsTab(container);
+  } else if (currentPIMTab === 'my-work') {
+    await renderPIMMyWorkTab(container);
   }
 }
 
@@ -14074,6 +14098,627 @@ async function renderPIMDashboardTab(container) {
     currentPIMTab = 'workbench'; renderView('pim');
   }));
 }
+
+// ---------------------------------------------------------------------------
+// Stage 36.2.7 - the My Work inbox, plus the template runner and the workflow
+// run panel that make the task engine operable from the browser.
+//
+// Built entirely from the existing vocabulary: .table-panel, .stat-card /
+// .stat-val, .btn / .action-btn, .badge and the .modal-overlay primitives. No
+// new table implementation and no second dialog mechanism.
+//
+// Filtering happens on the server (GET /api/v1/pim/tasks). The one thing this
+// screen must never become is the old OMS console - a page that fetches every
+// task the tenant has and filters them in the browser.
+// ---------------------------------------------------------------------------
+
+let pimMyWorkState = {
+  filter: { assignee: 'me', status: '', task_type: '', priority: '', only_overdue: false },
+  selected: new Set(),
+  users: [],
+  templates: [],
+  workflows: [],
+  lastResult: null
+};
+
+function pimTaskQuery() {
+  const params = new URLSearchParams();
+  const f = pimMyWorkState.filter;
+  // 'all' is the screen's word for "clear this filter", not a username - the
+  // server would otherwise look for someone actually called "all".
+  if (f.assignee && f.assignee !== 'all') params.set('assignee', f.assignee);
+  if (f.status) params.set('status', f.status);
+  if (f.task_type) params.set('task_type', f.task_type);
+  if (f.priority) params.set('priority', f.priority);
+  if (f.only_overdue) params.set('only_overdue', '1');
+  params.set('limit', '200');
+  return params.toString();
+}
+
+async function renderPIMMyWorkTab(container) {
+  pimMyWorkState.selected.clear();
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.innerHTML = `
+    <div class="dashboard-stats-row" id="pim-task-tiles"></div>
+    <div class="table-controls" style="flex-wrap:wrap;gap:12px;">
+      <div class="form-group" style="margin:0;">
+        <label class="form-label" for="pim-task-assignee">Assignee</label>
+        <select class="form-select" id="pim-task-assignee"><option value="me">My tasks</option><option value="all">Everyone</option></select>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label class="form-label" for="pim-task-status">Status</label>
+        <select class="form-select" id="pim-task-status">
+          <option value="">Any status</option><option value="Open">Open</option><option value="In Progress">In Progress</option>
+          <option value="Blocked">Blocked</option><option value="Done">Done</option><option value="Cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label class="form-label" for="pim-task-type">Type</label>
+        <select class="form-select" id="pim-task-type">
+          <option value="">Any type</option><option value="Enrichment">Enrichment</option><option value="Imagery">Imagery</option>
+          <option value="Attributes">Attributes</option><option value="Translation">Translation</option>
+          <option value="Review">Review</option><option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;">
+        <label class="form-label" for="pim-task-priority">Priority</label>
+        <select class="form-select" id="pim-task-priority">
+          <option value="">Any priority</option><option value="High">High</option><option value="Normal">Normal</option><option value="Low">Low</option>
+        </select>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:18px;">
+        <input type="checkbox" id="pim-task-overdue"> Overdue only
+      </label>
+      <button class="btn btn-outline" id="pim-task-refresh" style="margin-top:14px;">Refresh</button>
+    </div>
+    <div class="bulk-edit-bar hidden" id="pim-task-bulk-bar">
+      <span id="pim-task-selection-count">0 selected</span>
+      <button class="btn btn-outline btn-sm" id="pim-task-bulk-assign">Reassign</button>
+      <button class="btn btn-outline btn-sm" id="pim-task-bulk-status">Set status</button>
+      <button class="btn btn-outline btn-sm" id="pim-task-bulk-due">Set due date</button>
+      <button class="btn btn-outline btn-sm" id="pim-task-bulk-comment">Add comment</button>
+    </div>
+    <div class="table-wrapper" id="pim-task-table" style="margin-top:12px;"></div>`;
+  container.appendChild(panel);
+
+  const templatePanel = document.createElement('div');
+  templatePanel.className = 'table-panel';
+  templatePanel.style.cssText = 'padding:24px;margin-top:24px;';
+  templatePanel.innerHTML = `
+    <h2 style="font-size:16px;margin:0 0 4px;">Run a task template</h2>
+    <p class="text-muted" style="font-size:13px;margin:0 0 14px;">Creates one task per product in the chosen group. A product that already has an open task from this template is skipped, so re-running the template picks up new products without duplicating work.</p>
+    <div class="table-controls" style="flex-wrap:wrap;gap:12px;">
+      <div class="form-group" style="margin:0;"><label class="form-label" for="pim-template-select">Template</label><select class="form-select" id="pim-template-select"></select></div>
+      <div class="form-group" style="margin:0;"><label class="form-label" for="pim-template-group">Product group</label><select class="form-select" id="pim-template-group"></select></div>
+      <button class="btn btn-primary" id="pim-template-run" style="margin-top:14px;">Create tasks</button>
+    </div>
+    <div id="pim-template-result" style="margin-top:12px;"></div>`;
+  container.appendChild(templatePanel);
+
+  const workflowPanel = document.createElement('div');
+  workflowPanel.className = 'table-panel';
+  workflowPanel.style.cssText = 'padding:24px;margin-top:24px;';
+  workflowPanel.innerHTML = `
+    <h2 style="font-size:16px;margin:0 0 4px;">Workflow runs</h2>
+    <p class="text-muted" style="font-size:13px;margin:0 0 14px;">A run walks one product through a workflow's stages, creating each stage's tasks as it enters. Advance is automatic when a stage's last task closes; press Advance to re-check a run that is waiting on a condition.</p>
+    <div class="table-controls" style="flex-wrap:wrap;gap:12px;">
+      <div class="form-group" style="margin:0;"><label class="form-label" for="pim-workflow-select">Workflow</label><select class="form-select" id="pim-workflow-select"></select></div>
+      <div class="form-group" style="margin:0;"><label class="form-label" for="pim-workflow-target">Start for</label><select class="form-select" id="pim-workflow-target"><option value="item">One product</option><option value="group">A product group</option></select></div>
+      <div class="form-group" style="margin:0;"><label class="form-label" for="pim-workflow-ref">Product / group</label><input class="form-input" id="pim-workflow-ref" placeholder="Item code"></div>
+      <button class="btn btn-primary" id="pim-workflow-start" style="margin-top:14px;">Start run</button>
+      <div class="form-group" style="margin:0;"><label class="form-label" for="pim-run-status">Show</label><select class="form-select" id="pim-run-status"><option value="Running">Running</option><option value="Paused">Paused</option><option value="">All</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select></div>
+    </div>
+    <div class="table-wrapper" id="pim-run-table" style="margin-top:12px;"></div>`;
+  container.appendChild(workflowPanel);
+
+  const f = pimMyWorkState.filter;
+  const bind = (id, key, isCheckbox) => {
+    const el = panel.querySelector(id);
+    if (!el) return;
+    if (isCheckbox) el.checked = !!f[key]; else el.value = f[key] || '';
+    el.addEventListener('change', () => {
+      f[key] = isCheckbox ? el.checked : el.value;
+      pimMyWorkState.selected.clear();
+      loadPIMTasks();
+    });
+  };
+  bind('#pim-task-assignee', 'assignee');
+  bind('#pim-task-status', 'status');
+  bind('#pim-task-type', 'task_type');
+  bind('#pim-task-priority', 'priority');
+  bind('#pim-task-overdue', 'only_overdue', true);
+  panel.querySelector('#pim-task-refresh').addEventListener('click', loadPIMTasks);
+  panel.querySelector('#pim-task-bulk-assign').addEventListener('click', () => runPIMTaskBulk('assign'));
+  panel.querySelector('#pim-task-bulk-status').addEventListener('click', () => runPIMTaskBulk('status'));
+  panel.querySelector('#pim-task-bulk-due').addEventListener('click', () => runPIMTaskBulk('due_date'));
+  panel.querySelector('#pim-task-bulk-comment').addEventListener('click', () => runPIMTaskBulk('comment'));
+
+  templatePanel.querySelector('#pim-template-run').addEventListener('click', runPIMTaskTemplate);
+  workflowPanel.querySelector('#pim-workflow-start').addEventListener('click', startPIMWorkflowRun);
+  workflowPanel.querySelector('#pim-run-status').addEventListener('change', loadPIMWorkflowRuns);
+  workflowPanel.querySelector('#pim-workflow-target').addEventListener('change', e => {
+    workflowPanel.querySelector('#pim-workflow-ref').placeholder =
+      e.target.value === 'group' ? 'Product group id or code' : 'Item code';
+  });
+
+  // The four reads are independent, so they go out together rather than in
+  // sequence - the inbox is opened dozens of times a day.
+  await Promise.all([
+    loadPIMAssignableUsers(), loadPIMTaskTemplates(), loadPIMWorkflowDefinitions(),
+    loadPIMTasks(), loadPIMWorkflowRuns()
+  ]);
+}
+
+async function loadPIMAssignableUsers() {
+  const res = await apiFetch('/api/v1/pim/assignable-users');
+  // A role that may read tasks but not reassign them gets a 403 here. That is
+  // not an error worth showing: the picker simply stays as "My tasks /
+  // Everyone", which is exactly what that role can act on.
+  if (!res || !res.ok) return;
+  pimMyWorkState.users = (await res.json()).users || [];
+  const select = document.getElementById('pim-task-assignee');
+  if (!select) return;
+  const current = pimMyWorkState.filter.assignee;
+  select.innerHTML = `<option value="me">My tasks</option><option value="all">Everyone</option>` +
+    pimMyWorkState.users.map(u => `<option value="${escapeHTMLText(u.username)}">${escapeHTMLText(u.username)} (${escapeHTMLText(u.role)})</option>`).join('');
+  select.value = current;
+}
+
+async function loadPIMTaskTemplates() {
+  const [templateRes, groupRes] = await Promise.all([
+    apiFetch('/api/v1/pim/task-templates'),
+    apiFetch('/api/v1/doc/PIMProductGroup')
+  ]);
+  const templateSelect = document.getElementById('pim-template-select');
+  const groupSelect = document.getElementById('pim-template-group');
+  if (!templateSelect || !groupSelect) return;
+
+  if (templateRes && templateRes.ok) {
+    pimMyWorkState.templates = (await templateRes.json()).templates || [];
+  }
+  templateSelect.innerHTML = pimMyWorkState.templates.length === 0
+    ? '<option value="">No active templates</option>'
+    : pimMyWorkState.templates.map(t => `<option value="${escapeHTMLText(t.code)}">${escapeHTMLText(t.name || t.code)}</option>`).join('');
+
+  let groups = [];
+  if (groupRes && groupRes.ok) {
+    groups = (await groupRes.json()).filter(g => (g.status || 'Active') === 'Active');
+  }
+  groupSelect.innerHTML = groups.length === 0
+    ? '<option value="">No active product groups</option>'
+    : groups.map(g => `<option value="${escapeHTMLText(g.id)}">${escapeHTMLText(g.name || g.id)}</option>`).join('');
+}
+
+async function loadPIMWorkflowDefinitions() {
+  const res = await apiFetch('/api/v1/pim/workflows');
+  const select = document.getElementById('pim-workflow-select');
+  if (!select) return;
+  if (res && res.ok) {
+    pimMyWorkState.workflows = (await res.json()).workflows || [];
+  }
+  select.innerHTML = pimMyWorkState.workflows.length === 0
+    ? '<option value="">No active workflows</option>'
+    : pimMyWorkState.workflows.map(w => `<option value="${escapeHTMLText(w.code)}">${escapeHTMLText(w.name || w.code)} (${(w.stages || []).length} stages)</option>`).join('');
+}
+
+async function loadPIMTasks() {
+  const host = document.getElementById('pim-task-table');
+  if (!host) return;
+  host.innerHTML = '<div class="text-muted" style="padding:16px;">Loading tasks…</div>';
+  const res = await apiFetch(`/api/v1/pim/tasks?${pimTaskQuery()}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to load tasks.'); host.innerHTML = ''; return; }
+  const result = await res.json();
+  pimMyWorkState.lastResult = result;
+  renderPIMTaskTiles(result);
+  renderPIMTaskTable(result);
+  updatePIMTaskBulkBar();
+}
+
+function renderPIMTaskTiles(result) {
+  const host = document.getElementById('pim-task-tiles');
+  if (!host) return;
+  const tally = result.status_tally || {};
+  const overdue = (result.tasks || []).filter(t => t.overdue).length;
+  const tiles = [
+    ['Open', tally['Open'] || 0],
+    ['In Progress', tally['In Progress'] || 0],
+    ['Blocked', tally['Blocked'] || 0],
+    // Counted from the page rather than the whole filtered set, and labelled
+    // so - the tally the server returns is per status, and inventing a
+    // whole-set overdue number the server did not send would be a guess.
+    ['Overdue on this page', overdue]
+  ];
+  host.innerHTML = tiles.map(([label, count]) => `
+    <div class="stat-card">
+      <span class="stat-label">${escapeHTMLText(label)}</span>
+      <span class="stat-val">${count}</span>
+    </div>`).join('');
+}
+
+function pimTaskStatusBadge(task) {
+  const map = { 'Done': 'badge-success', 'Cancelled': 'badge-secondary', 'Blocked': 'badge-danger', 'In Progress': 'badge-warning' };
+  return `<span class="badge ${map[task.status] || 'badge-secondary'}">${escapeHTMLText(task.status)}</span>`;
+}
+
+function renderPIMTaskTable(result) {
+  const host = document.getElementById('pim-task-table');
+  if (!host) return;
+  const tasks = result.tasks || [];
+  if (tasks.length === 0) {
+    host.innerHTML = `<p class="text-muted" style="padding:16px;text-align:center;">No tasks match this filter. ${pimMyWorkState.filter.assignee === 'me' ? 'Switch Assignee to "Everyone" to see the whole queue.' : 'Run a task template below, or assign one from a PIM report row.'}</p>`;
+    return;
+  }
+  const rows = tasks.map(task => {
+    const due = task.due_date
+      ? `${escapeHTMLText(task.due_date)}${task.overdue ? ' <span class="badge badge-danger">overdue</span>' : ''}`
+      : '<span class="text-muted">—</span>';
+    const canProgress = task.status !== 'Done' && task.status !== 'Cancelled';
+    return `<tr>
+      <td><input type="checkbox" class="pim-task-select" data-task="${escapeHTMLText(task.id)}"${pimMyWorkState.selected.has(task.id) ? ' checked' : ''}></td>
+      <td>
+        <div style="font-weight:600;">${escapeHTMLText(task.title)}</div>
+        <div class="text-muted" style="font-size:12px;">${escapeHTMLText(task.task_type || '')}${task.stage ? ' · stage ' + escapeHTMLText(task.stage) : ''}${task.comments && task.comments.length ? ' · ' + task.comments.length + ' comment(s)' : ''}</div>
+      </td>
+      <td>${task.item_code ? escapeHTMLText(task.item_code) + (task.item_name ? `<div class="text-muted" style="font-size:12px;">${escapeHTMLText(task.item_name)}</div>` : '') : '<span class="text-muted">—</span>'}</td>
+      <td>${escapeHTMLText(task.assignee || '(unassigned)')}</td>
+      <td>${due}</td>
+      <td>${escapeHTMLText(task.priority || 'Normal')}</td>
+      <td>${pimTaskStatusBadge(task)}</td>
+      <td style="white-space:nowrap;">
+        ${canProgress && task.status !== 'In Progress' ? `<button class="action-btn" data-task-act="start" data-task="${escapeHTMLText(task.id)}">Start</button>` : ''}
+        ${canProgress ? `<button class="action-btn" data-task-act="done" data-task="${escapeHTMLText(task.id)}">Done</button>` : ''}
+        <button class="action-btn" data-task-act="open" data-task="${escapeHTMLText(task.id)}">Details</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  host.innerHTML = `<table>
+    <thead><tr>
+      <th style="width:32px;"><input type="checkbox" id="pim-task-select-all"></th>
+      <th>Task</th><th>Product</th><th>Assignee</th><th>Due</th><th>Priority</th><th>Status</th><th>Actions</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <p class="text-muted" style="font-size:12px;margin:10px 0 0;">Showing ${tasks.length} of ${result.total} task(s).</p>`;
+
+  host.querySelectorAll('.pim-task-select').forEach(box => {
+    box.addEventListener('change', () => {
+      const id = box.getAttribute('data-task');
+      if (box.checked) pimMyWorkState.selected.add(id); else pimMyWorkState.selected.delete(id);
+      updatePIMTaskBulkBar();
+    });
+  });
+  const selectAll = host.querySelector('#pim-task-select-all');
+  if (selectAll) {
+    selectAll.addEventListener('change', e => {
+      host.querySelectorAll('.pim-task-select').forEach(box => {
+        box.checked = e.target.checked;
+        const id = box.getAttribute('data-task');
+        if (e.target.checked) pimMyWorkState.selected.add(id); else pimMyWorkState.selected.delete(id);
+      });
+      updatePIMTaskBulkBar();
+    });
+  }
+  host.querySelectorAll('[data-task-act]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.getAttribute('data-task');
+      const act = btn.getAttribute('data-task-act');
+      if (act === 'open') { openPIMTaskDetail(id); return; }
+      runPIMTaskAction(id, 'status', { status: act === 'start' ? 'In Progress' : 'Done' });
+    });
+  });
+}
+
+function updatePIMTaskBulkBar() {
+  const bar = document.getElementById('pim-task-bulk-bar');
+  const label = document.getElementById('pim-task-selection-count');
+  if (!bar || !label) return;
+  const count = pimMyWorkState.selected.size;
+  bar.classList.toggle('hidden', count === 0);
+  label.textContent = `${count} selected`;
+}
+
+async function runPIMTaskAction(taskID, action, body) {
+  const res = await apiFetch(`/api/v1/pim/tasks/${encodeURIComponent(taskID)}/${action}`, {
+    method: 'POST', body: JSON.stringify(body || {})
+  });
+  if (!res) return false;
+  if (!res.ok) { await showApiError(res, 'That task action was refused.'); return false; }
+  await loadPIMTasks();
+  // A completed task can advance its workflow run, so the run panel is stale
+  // the moment a status changes.
+  await loadPIMWorkflowRuns();
+  return true;
+}
+
+// 36.2.5 - the bulk bar. Reports per-task outcomes rather than a single
+// success/failure, because a mixed selection is expected to be partially
+// applicable (a Done task cannot be reassigned) and a blanket message would
+// hide the ones that did work.
+async function runPIMTaskBulk(action) {
+  const taskIDs = Array.from(pimMyWorkState.selected);
+  if (taskIDs.length === 0) return;
+  let value = '';
+  if (action === 'assign') {
+    value = await showCustomPrompt(`Reassign ${taskIDs.length} task(s) to which user? Leave blank to unassign.`, '', 'Reassign tasks');
+    if (value === null) return;
+  } else if (action === 'status') {
+    value = await showCustomPrompt(`New status for ${taskIDs.length} task(s): Open, In Progress, Blocked, Done or Cancelled.`, 'In Progress', 'Set task status');
+    if (!value) return;
+  } else if (action === 'due_date') {
+    value = await showCustomPrompt(`New due date for ${taskIDs.length} task(s), as YYYY-MM-DD. Leave blank to clear it.`, '', 'Set due date');
+    if (value === null) return;
+  } else if (action === 'comment') {
+    value = await showCustomPrompt(`Comment to add to ${taskIDs.length} task(s).`, '', 'Add comment');
+    if (!value) return;
+  }
+  const res = await apiFetch('/api/v1/pim/tasks/bulk', {
+    method: 'POST', body: JSON.stringify({ action, task_ids: taskIDs, value })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'The bulk action was refused.'); return; }
+  const result = await res.json();
+  const refused = (result.outcomes || []).filter(o => !o.ok);
+  let message = `${result.succeeded} of ${result.requested} task(s) updated.`;
+  if (refused.length > 0) {
+    message += `\n\nRefused:\n` + refused.slice(0, 10).map(o => `• ${o.task_id}: ${o.error}`).join('\n');
+    if (refused.length > 10) message += `\n…and ${refused.length - 10} more.`;
+  }
+  showCustomAlert(message, 'Bulk task action');
+  pimMyWorkState.selected.clear();
+  await loadPIMTasks();
+  await loadPIMWorkflowRuns();
+}
+
+// The task detail modal: the full comment thread, plus the actions that do not
+// fit on a table row. Built on the same .modal-overlay primitives as every
+// other dialog in this file.
+async function openPIMTaskDetail(taskID) {
+  const res = await apiFetch(`/api/v1/pim/tasks?task_id=${encodeURIComponent(taskID)}`);
+  if (!res || !res.ok) { await showApiError(res, 'Could not load that task.'); return; }
+  const task = ((await res.json()).tasks || [])[0];
+  if (!task) { showCustomAlert('That task no longer exists.', 'Task'); return; }
+
+  document.getElementById('pim-task-detail-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'pim-task-detail-modal';
+  const terminal = task.status === 'Done' || task.status === 'Cancelled';
+  overlay.innerHTML = `
+    <div class="modal-container">
+      <div class="modal-header"><h3 class="modal-title">${escapeHTMLText(task.title)}</h3><button type="button" class="modal-close" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <p style="margin:0 0 10px;">${pimTaskStatusBadge(task)} <span class="text-muted" style="font-size:13px;">${escapeHTMLText(task.task_type || '')} · ${escapeHTMLText(task.scope_type || '')} ${escapeHTMLText(task.scope_ref || '')}</span></p>
+        ${task.instructions ? `<p style="font-size:13px;">${escapeHTMLText(task.instructions)}</p>` : ''}
+        <dl style="display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:13px;margin:0 0 14px;">
+          <dt class="text-muted">Product</dt><dd style="margin:0;">${escapeHTMLText(task.item_code || '—')} ${escapeHTMLText(task.item_name || '')}</dd>
+          <dt class="text-muted">Assignee</dt><dd style="margin:0;">${escapeHTMLText(task.assignee || '(unassigned)')}</dd>
+          <dt class="text-muted">Due</dt><dd style="margin:0;">${escapeHTMLText(task.due_date || '—')}${task.overdue ? ' <span class="badge badge-danger">overdue</span>' : ''}</dd>
+          ${task.workflow_run ? `<dt class="text-muted">Workflow run</dt><dd style="margin:0;">${escapeHTMLText(task.workflow_run)} · stage ${escapeHTMLText(task.stage || '')}</dd>` : ''}
+          ${task.completed_at ? `<dt class="text-muted">Completed</dt><dd style="margin:0;">${escapeHTMLText(task.completed_at)} by ${escapeHTMLText(task.completed_by || '')}</dd>` : ''}
+        </dl>
+        <h4 style="font-size:13px;margin:0 0 6px;">Comments</h4>
+        <div id="pim-task-comments" style="max-height:200px;overflow-y:auto;font-size:13px;">
+          ${(task.comments || []).length === 0 ? '<p class="text-muted" style="margin:0;">No comments yet.</p>' :
+            task.comments.map(c => `<p style="margin:0 0 8px;"><strong>${escapeHTMLText(c.author)}</strong> <span class="text-muted">${escapeHTMLText((c.at || '').slice(0, 16).replace('T', ' '))}</span><br>${escapeHTMLText(c.comment)}</p>`).join('')}
+        </div>
+        <div class="form-group" style="margin-top:12px;">
+          <label class="form-label" for="pim-task-comment-input">Add a comment</label>
+          <input class="form-input" id="pim-task-comment-input" placeholder="What changed, or what is blocking this?">
+        </div>
+      </div>
+      <div class="modal-footer" style="flex-wrap:wrap;gap:8px;">
+        <button type="button" class="btn btn-secondary" id="pim-task-close">Close</button>
+        <button type="button" class="btn btn-outline" id="pim-task-comment-btn">Comment</button>
+        ${!terminal ? `<button type="button" class="btn btn-outline" id="pim-task-reassign">Reassign</button>` : ''}
+        ${!terminal ? `<button type="button" class="btn btn-outline" id="pim-task-block">Block</button>` : ''}
+        ${!terminal ? `<button type="button" class="btn btn-outline" id="pim-task-cancel-task">Cancel task</button>` : ''}
+        ${!terminal ? `<button type="button" class="btn btn-primary" id="pim-task-done">Mark done</button>` : ''}
+        ${terminal ? `<button type="button" class="btn btn-primary" id="pim-task-followup">Create follow-up</button>` : ''}
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('#pim-task-close').addEventListener('click', close);
+
+  const act = async (action, body) => {
+    if (await runPIMTaskAction(taskID, action, body)) close();
+  };
+  overlay.querySelector('#pim-task-comment-btn').addEventListener('click', async () => {
+    const input = overlay.querySelector('#pim-task-comment-input');
+    if (!input.value.trim()) return;
+    await act('comment', { comment: input.value.trim() });
+  });
+  overlay.querySelector('#pim-task-done')?.addEventListener('click', () => act('status', { status: 'Done' }));
+  overlay.querySelector('#pim-task-block')?.addEventListener('click', () => act('status', { status: 'Blocked' }));
+  overlay.querySelector('#pim-task-cancel-task')?.addEventListener('click', async () => {
+    if (!await showCustomConfirm('Cancel this task? A cancelled task cannot be re-opened.', 'Cancel task')) return;
+    await act('status', { status: 'Cancelled' });
+  });
+  overlay.querySelector('#pim-task-reassign')?.addEventListener('click', async () => {
+    const assignee = await showCustomPrompt('Reassign to which user? Leave blank to unassign.', task.assignee || '', 'Reassign task');
+    if (assignee === null) return;
+    await act('assign', { assignee });
+  });
+  // Re-opening a Done task is deliberately not offered - a completed task may
+  // already have advanced its workflow past that stage, and there is no honest
+  // way to un-advance it. A follow-up says the same thing truthfully.
+  overlay.querySelector('#pim-task-followup')?.addEventListener('click', async () => {
+    const note = await showCustomPrompt('What still needs doing?', '', 'Create follow-up task');
+    if (note === null) return;
+    await act('follow-up', { note });
+  });
+}
+
+// 36.2.2 - instantiate a template across a product group.
+async function runPIMTaskTemplate() {
+  const templateCode = document.getElementById('pim-template-select')?.value;
+  const groupID = document.getElementById('pim-template-group')?.value;
+  const host = document.getElementById('pim-template-result');
+  if (!templateCode || !groupID) {
+    showCustomAlert('Pick both a template and a product group first. Templates are authored on the Task Templates tab and groups under PIM » Product Group.', 'Run a task template');
+    return;
+  }
+  const res = await apiFetch(`/api/v1/pim/task-templates/${encodeURIComponent(templateCode)}/instantiate`, {
+    method: 'POST', body: JSON.stringify({ group_id: groupID })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Could not run that template.'); return; }
+  const result = await res.json();
+  host.innerHTML = `<p style="font-size:13px;margin:0;"><strong>${result.created_count}</strong> task(s) created${result.skipped_count > 0 ? `, <strong>${result.skipped_count}</strong> skipped (they already have an open task from this template)` : ''}.</p>`;
+  await loadPIMTasks();
+}
+
+// 36.2.4 / 36.2.5 - the workflow run panel.
+async function startPIMWorkflowRun() {
+  const code = document.getElementById('pim-workflow-select')?.value;
+  const target = document.getElementById('pim-workflow-target')?.value;
+  const ref = (document.getElementById('pim-workflow-ref')?.value || '').trim();
+  if (!code || !ref) {
+    showCustomAlert('Pick a workflow and name the product or group to start it for.', 'Start a workflow');
+    return;
+  }
+  const body = target === 'group' ? { group_id: ref } : { item_code: ref };
+  const res = await apiFetch(`/api/v1/pim/workflows/${encodeURIComponent(code)}/start`, {
+    method: 'POST', body: JSON.stringify(body)
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Could not start that workflow.'); return; }
+  const result = await res.json();
+  showCustomAlert(result.run_id
+    ? `Run ${result.run_id} started.`
+    : `${result.succeeded} of ${result.requested} run(s) started${result.failed ? `, ${result.failed} refused` : ''}.`, 'Workflow started');
+  await Promise.all([loadPIMWorkflowRuns(), loadPIMTasks()]);
+}
+
+async function loadPIMWorkflowRuns() {
+  const host = document.getElementById('pim-run-table');
+  if (!host) return;
+  const status = document.getElementById('pim-run-status')?.value ?? 'Running';
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  const res = await apiFetch(`/api/v1/pim/workflow-runs?${params.toString()}`);
+  if (!res || !res.ok) { host.innerHTML = '<p class="text-muted" style="padding:12px;">Could not load workflow runs.</p>'; return; }
+  const runs = (await res.json()).runs || [];
+  if (runs.length === 0) {
+    host.innerHTML = '<p class="text-muted" style="padding:12px;">No workflow runs in this state.</p>';
+    return;
+  }
+  host.innerHTML = `<table>
+    <thead><tr><th>Product</th><th>Workflow</th><th>Stage</th><th>Status</th><th>Waiting on</th><th>Tasks</th><th>Actions</th></tr></thead>
+    <tbody>${runs.map(run => `<tr>
+      <td>${escapeHTMLText(run.item_code)}${run.item_name ? `<div class="text-muted" style="font-size:12px;">${escapeHTMLText(run.item_name)}</div>` : ''}</td>
+      <td>${escapeHTMLText(run.workflow_name || run.workflow)}</td>
+      <td>${escapeHTMLText(run.current_stage || '—')}<div class="text-muted" style="font-size:12px;">${escapeHTMLText(run.stage_progress || '')}</div></td>
+      <td><span class="badge ${run.status === 'Completed' ? 'badge-success' : run.status === 'Cancelled' ? 'badge-secondary' : run.status === 'Paused' ? 'badge-warning' : 'badge-secondary'}">${escapeHTMLText(run.status)}</span></td>
+      <td style="font-size:12px;">${escapeHTMLText(run.blocked_reason || '—')}</td>
+      <td>${run.open_tasks} open / ${run.total_tasks}</td>
+      <td style="white-space:nowrap;">
+        ${run.status === 'Running' ? `<button class="action-btn" data-run-act="advance" data-run="${escapeHTMLText(run.id)}">Advance</button>
+        <button class="action-btn" data-run-act="pause" data-run="${escapeHTMLText(run.id)}">Pause</button>` : ''}
+        ${run.status === 'Paused' ? `<button class="action-btn" data-run-act="resume" data-run="${escapeHTMLText(run.id)}">Resume</button>` : ''}
+        ${run.status === 'Running' || run.status === 'Paused' ? `<button class="action-btn" data-run-act="cancel" data-run="${escapeHTMLText(run.id)}">Cancel</button>` : ''}
+        <button class="action-btn" data-run-act="log" data-run="${escapeHTMLText(run.id)}">Activity</button>
+      </td></tr>`).join('')}</tbody></table>`;
+
+  host.querySelectorAll('[data-run-act]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const runID = btn.getAttribute('data-run');
+      const action = btn.getAttribute('data-run-act');
+      if (action === 'log') {
+        const run = runs.find(r => r.id === runID);
+        const lines = (run?.activity || []).map(a =>
+          `${(a.at || '').slice(0, 16).replace('T', ' ')} — ${a.actor}: ${a.event}${a.detail ? ' (' + a.detail + ')' : ''}`);
+        showCustomAlert(lines.length ? lines.join('\n') : 'No activity recorded yet.', `Run ${runID}`);
+        return;
+      }
+      if (action === 'cancel' && !await showCustomConfirm('Cancel this run? Its open tasks are cancelled with it.', 'Cancel workflow run')) return;
+      const res = await apiFetch(`/api/v1/pim/workflow-runs/${encodeURIComponent(runID)}/action`, {
+        method: 'POST', body: JSON.stringify({ action })
+      });
+      if (!res) return;
+      if (!res.ok) { await showApiError(res, 'That workflow action was refused.'); return; }
+      const result = await res.json();
+      if (result.message) showCustomAlert(result.message, 'Workflow run');
+      await Promise.all([loadPIMWorkflowRuns(), loadPIMTasks()]);
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// 36.2.6 - assign a task straight from a report row.
+//
+// This is the affordance that turns a readiness report from something you read
+// into something you act on: the report tells you which products are short of
+// what, and this puts that product in someone's inbox without retyping the code
+// into a separate form.
+// ---------------------------------------------------------------------------
+window.openPIMAssignTaskModal = async function(itemCode, contextLabel) {
+  let users = pimMyWorkState.users;
+  if (users.length === 0) {
+    const res = await apiFetch('/api/v1/pim/assignable-users');
+    if (res && res.ok) { users = (await res.json()).users || []; pimMyWorkState.users = users; }
+  }
+
+  document.getElementById('pim-assign-task-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'pim-assign-task-modal';
+  overlay.innerHTML = `
+    <div class="modal-container">
+      <div class="modal-header"><h3 class="modal-title">Assign a task</h3><button type="button" class="modal-close" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <p class="text-muted" style="font-size:13px;margin:0 0 12px;">On <strong>${escapeHTMLText(itemCode)}</strong>${contextLabel ? `, from ${escapeHTMLText(contextLabel)}` : ''}.</p>
+        <div class="form-group"><label class="form-label" for="pim-assign-title">Title</label><input class="form-input" id="pim-assign-title" value="Fix ${escapeHTMLText(itemCode)}"></div>
+        <div class="form-group"><label class="form-label" for="pim-assign-type">Type</label><select class="form-select" id="pim-assign-type">
+          <option>Enrichment</option><option>Imagery</option><option>Attributes</option><option>Translation</option><option>Review</option><option>Other</option>
+        </select></div>
+        <div class="form-group"><label class="form-label" for="pim-assign-who">Assignee</label><select class="form-select" id="pim-assign-who">
+          <option value="">(unassigned)</option>${users.map(u => `<option value="${escapeHTMLText(u.username)}">${escapeHTMLText(u.username)} (${escapeHTMLText(u.role)})</option>`).join('')}
+        </select></div>
+        <div class="form-group"><label class="form-label" for="pim-assign-due">Due date</label><input type="date" class="form-input" id="pim-assign-due"></div>
+        <div class="form-group"><label class="form-label" for="pim-assign-priority">Priority</label><select class="form-select" id="pim-assign-priority">
+          <option>Normal</option><option>High</option><option>Low</option>
+        </select></div>
+        <div class="form-group"><label class="form-label" for="pim-assign-notes">Instructions</label><input class="form-input" id="pim-assign-notes" placeholder="What needs doing, and why"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="pim-assign-cancel">Cancel</button>
+        <button type="button" class="btn btn-primary" id="pim-assign-create">Create task</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('#pim-assign-cancel').addEventListener('click', close);
+  overlay.querySelector('#pim-assign-create').addEventListener('click', async () => {
+    const body = {
+      title: overlay.querySelector('#pim-assign-title').value.trim(),
+      task_type: overlay.querySelector('#pim-assign-type').value,
+      scope_type: 'Product',
+      scope_ref: itemCode,
+      item_code: itemCode,
+      assignee: overlay.querySelector('#pim-assign-who').value,
+      due_date: overlay.querySelector('#pim-assign-due').value,
+      priority: overlay.querySelector('#pim-assign-priority').value,
+      instructions: overlay.querySelector('#pim-assign-notes').value.trim()
+    };
+    if (!body.title) { showCustomAlert('A task needs a title.', 'Assign a task'); return; }
+    const res = await apiFetch('/api/v1/pim/tasks', { method: 'POST', body: JSON.stringify(body) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Could not create that task.'); return; }
+    const result = await res.json();
+    close();
+    showCustomAlert(`Task ${result.task_id} created${body.assignee ? ` for ${body.assignee}` : ''}. It is on the PIM » My Work tab.`, 'Task created');
+  });
+};
 
 async function renderPIMReportsTab(container) {
   const panel = document.createElement('div');

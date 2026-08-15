@@ -106,6 +106,16 @@ func ValidateParityFoundationDocument(tenantID, doctype string, payload map[stri
 	switch doctype {
 	case "PIMProductGroup":
 		return ValidatePIMProductGroupDocument(tenantID, payload)
+	// Stage 36.2: the task/workflow doctypes join here rather than growing a
+	// second validation entry point, so a task or workflow written through the
+	// generic document API is subject to the same state machine and condition
+	// vocabulary the engine enforces on its own writes.
+	case "PIMTask":
+		return ValidatePIMTaskDocument(tenantID, payload)
+	case "PIMTaskTemplate":
+		return ValidatePIMTaskTemplateDocument(tenantID, payload)
+	case "PIMWorkflowDefinition":
+		return ValidatePIMWorkflowDefinitionDocument(tenantID, payload)
 	case "Currency":
 		return ValidateCurrencyDocument(payload)
 	case "ExchangeRate":
