@@ -1,8 +1,10 @@
 package server
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -259,6 +261,66 @@ func TestOriginAllowedWithoutBaseDomain(t *testing.T) {
 	}
 	if !originAllowed("http://localhost:8080") {
 		t.Error("the built-in dev allowlist must keep working with no base domain")
+	}
+}
+
+// normalizeHostSlug is the guard between an operator typing a name and a
+// hostname that has to survive DNS and a certificate, so it must apply exactly
+// the rules hostLabel later enforces - a slug accepted here but rejected there
+// would produce a tenant that is configured and unreachable.
+func TestNormalizeHostSlug(t *testing.T) {
+	ok := map[string]string{
+		"acme":      "acme",
+		"ACME":      "acme",
+		"  acme  ":  "acme",
+		"acme-corp": "acme-corp",
+		"minn":      "minn",
+		"a1":        "a1",
+		// Empty is legal and means "no hostname of its own" - the state every
+		// tenant starts in.
+		"":   "",
+		"  ": "",
+	}
+	for in, want := range ok {
+		got, err := normalizeHostSlug(in)
+		if err != nil {
+			t.Errorf("normalizeHostSlug(%q) returned error %v, want %q", in, err, want)
+			continue
+		}
+		if got != want {
+			t.Errorf("normalizeHostSlug(%q) = %q, want %q", in, got, want)
+		}
+	}
+
+	// Rejected for shape.
+	for _, in := range []string{"acme_corp", "-acme", "acme-", "a.b", "acme corp", "üñî", strings.Repeat("a", 64)} {
+		if _, err := normalizeHostSlug(in); !errors.Is(err, errInvalidHostSlug) {
+			t.Errorf("normalizeHostSlug(%q) error = %v, want errInvalidHostSlug", in, err)
+		}
+	}
+
+	// Rejected because the platform or infrastructure owns the name. Without
+	// this a client called "www" or "mail" would take over that hostname.
+	for _, in := range []string{"app", "www", "api", "admin", "mail", "APP"} {
+		if _, err := normalizeHostSlug(in); !errors.Is(err, errReservedHostSlug) {
+			t.Errorf("normalizeHostSlug(%q) error = %v, want errReservedHostSlug", in, err)
+		}
+	}
+}
+
+// Every slug normalizeHostSlug accepts must round-trip through hostLabel, or
+// an operator could set a name the request path would never match.
+func TestNormalizeHostSlugAgreesWithHostLabel(t *testing.T) {
+	const base = "wholeops.in"
+	for _, in := range []string{"acme", "ACME", "acme-corp", "minn", "a1", "0acme", strings.Repeat("a", 63)} {
+		slug, err := normalizeHostSlug(in)
+		if err != nil {
+			t.Fatalf("normalizeHostSlug(%q) unexpectedly failed: %v", in, err)
+		}
+		if got := hostLabel(slug+"."+base, base); got != slug {
+			t.Errorf("slug %q accepted but hostLabel(%q) = %q - a tenant set to this would be unreachable",
+				slug, slug+"."+base, got)
+		}
 	}
 }
 

@@ -605,6 +605,10 @@ func Run() {
 	// reuses Stage 27's engines.ProductPackages/ApplyPackageSelection)
 	http.HandleFunc("GET /api/v1/admin/packages", apiMiddleware(handleListProductPackages))
 	http.HandleFunc("POST /api/v1/admin/tenant/package", apiMiddleware(handleSetTenantPackage))
+	// Stage 44.11: the write path for a tenant's own hostname. Stage 44
+	// shipped public.tenants.host_slug with no way to set it short of raw SQL
+	// against production, which is not an operator workflow.
+	http.HandleFunc("POST /api/v1/admin/tenant/host-slug", apiMiddleware(handleSetTenantHostSlug))
 
 	// Per-Tenant Version Record (Stage 14.6)
 	http.HandleFunc("GET /api/v1/admin/tenant/version", apiMiddleware(handleGetTenantVersion))

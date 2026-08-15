@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -406,6 +407,13 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 		// and sets entitlements to exactly that set (plus whatever is_core
 		// requires, which SetModuleEntitlement enforces regardless).
 		Packages []string `json:"packages"`
+		// HostSlug (Stage 44.11, optional) - the tenant's own hostname label,
+		// so <slug>.<TENANT_BASE_DOMAIN> resolves to it. Omitted: falls back
+		// to tenant_id when that is already a legal DNS label, which is the
+		// same rule the Stage 44.1 migration's backfill applied, so a tenant
+		// provisioned before and after this field behave identically.
+		// Explicitly "": no hostname, which is always a valid state.
+		HostSlug *string `json:"host_slug"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -418,10 +426,42 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolved BEFORE the schema is created, so a bad slug is a clean 422
+	// rather than a half-provisioned tenant that has to be cleaned up by hand.
+	desiredSlug := req.TenantID
+	if req.HostSlug != nil {
+		desiredSlug = *req.HostSlug
+	}
+	hostSlug, slugErr := normalizeHostSlug(desiredSlug)
+	if slugErr != nil {
+		if req.HostSlug == nil {
+			// Derived, not asked for - a tenant_id that is not a legal label
+			// simply means no hostname, exactly as the migration decided for
+			// the ids already in the table.
+			hostSlug = ""
+		} else {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, slugErr.Error())
+			return
+		}
+	}
+
 	adminPassword, err := engines.ProvisionTenantSchema(req.TenantID, req.SchemaName, currentAppVersion())
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	if hostSlug != "" {
+		// Best-effort, deliberately: the tenant exists and works by this
+		// point, and the only thing a failure here costs is the branded
+		// address, which handleSetTenantHostSlug can assign afterwards.
+		// Failing the whole provision over it would be the worse trade.
+		if _, err := db.DB.Exec(
+			`UPDATE public.tenants SET host_slug = $1 WHERE tenant_id = $2`, hostSlug, req.TenantID); err != nil {
+			log.Printf("[WARN] provisioned tenant %q but could not set host_slug %q: %v", req.TenantID, hostSlug, err)
+		} else {
+			invalidateTenantHostCache()
+		}
 	}
 
 	if len(req.Packages) > 0 {
@@ -524,7 +564,9 @@ func handleListTenants(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := db.DB.Query(`SELECT tenant_id, name, created_at::text FROM public.tenants ORDER BY tenant_id`)
+	// COALESCE so a tenant with no hostname of its own comes back as "" rather
+	// than needing a NULL-aware scan on the client (Stage 44.11).
+	rows, err := db.DB.Query(`SELECT tenant_id, name, created_at::text, COALESCE(host_slug, '') FROM public.tenants ORDER BY tenant_id`)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
@@ -535,11 +577,12 @@ func handleListTenants(w http.ResponseWriter, r *http.Request) {
 		TenantID  string `json:"tenant_id"`
 		Name      string `json:"name"`
 		CreatedAt string `json:"created_at"`
+		HostSlug  string `json:"host_slug"`
 	}
 	out := []tenantRow{}
 	for rows.Next() {
 		var t tenantRow
-		if err := rows.Scan(&t.TenantID, &t.Name, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.TenantID, &t.Name, &t.CreatedAt, &t.HostSlug); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}

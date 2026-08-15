@@ -10,6 +10,8 @@ package server
 // localhost dev paths working unchanged.
 
 import (
+	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"os"
@@ -18,6 +20,7 @@ import (
 	"time"
 
 	"custom_erp/db"
+	"custom_erp/engines"
 )
 
 // tenantHostCacheTTL bounds how stale the slug->tenant map may be. Host
@@ -149,6 +152,124 @@ func refreshTenantHostCache() {
 		return
 	}
 	tenantHostCache.slugs = next
+}
+
+// invalidateTenantHostCache forces the next lookup to re-read the table.
+//
+// Called whenever a slug is assigned or cleared. Without it a newly named
+// hostname would be refused for up to tenantHostCacheTTL - and not merely by
+// the app: the on-demand TLS ask gate answers from this same map, so the
+// tenant would get a certificate error rather than a 404, which is a much
+// more confusing first impression of their brand-new address.
+func invalidateTenantHostCache() {
+	tenantHostCache.Lock()
+	tenantHostCache.loaded = time.Time{}
+	tenantHostCache.Unlock()
+}
+
+// normalizeHostSlug validates an operator-supplied slug against exactly the
+// rules a hostname will later be held to, and returns it lowercased.
+//
+// The empty string is legal and means "this tenant has no hostname of its
+// own" - the state every tenant starts in and the one the migration leaves
+// behind for any tenant_id that is not already a legal DNS label.
+func normalizeHostSlug(raw string) (string, error) {
+	slug := strings.ToLower(strings.TrimSpace(raw))
+	if slug == "" {
+		return "", nil
+	}
+	if !validHostLabel(slug) {
+		return "", errInvalidHostSlug
+	}
+	if reservedHostLabels[slug] {
+		return "", errReservedHostSlug
+	}
+	return slug, nil
+}
+
+var (
+	errInvalidHostSlug  = errors.New("a hostname label may only contain lowercase letters, digits and hyphens, may not start or end with a hyphen, and may be at most 63 characters")
+	errReservedHostSlug = errors.New("that label is reserved for the platform or for infrastructure and cannot be given to a tenant")
+)
+
+// handleSetTenantHostSlug assigns (or clears) a tenant's own hostname.
+//
+// Stage 44 shipped public.tenants.host_slug with no supported way to write it
+// - provisioning never set it and no endpoint touched it, so the only way to
+// give a client their address was raw SQL against production. This is that
+// missing half.
+//
+// Deliberately its own endpoint rather than a field on some larger tenant
+// update: it is the one write that changes which certificate gets issued and
+// which hostname resolves where, and it wants its own audit trail and its own
+// permission check rather than riding along inside a general edit.
+func handleSetTenantHostSlug(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	if !engines.IsSuperAdmin(r.Header.Get("Resolved-Role")) {
+		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can set a tenant hostname")
+		return
+	}
+
+	var req struct {
+		TenantID string `json:"tenant_id"`
+		HostSlug string `json:"host_slug"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
+		return
+	}
+	if strings.TrimSpace(req.TenantID) == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'tenant_id' is required")
+		return
+	}
+
+	slug, err := normalizeHostSlug(req.HostSlug)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	// NULL rather than '' for the cleared case, so the partial unique index
+	// keeps ignoring these rows - any number of tenants may have no hostname,
+	// but '' would collide on the second one.
+	var value interface{}
+	if slug != "" {
+		value = slug
+	}
+	res, err := db.DB.Exec(
+		`UPDATE public.tenants SET host_slug = $1 WHERE tenant_id = $2`, value, req.TenantID)
+	if err != nil {
+		// The partial unique index on LOWER(host_slug) is the authority on
+		// collisions, not a pre-flight SELECT: checking first and inserting
+		// after would leave a race between two operators naming the same
+		// hostname. Translate its violation into something an operator can
+		// act on instead of surfacing a driver message.
+		if strings.Contains(strings.ToLower(err.Error()), "tenants_host_slug_lower_key") {
+			writeAPIErrorGeneric(w, r, http.StatusConflict,
+				"Another tenant already uses the hostname '"+slug+"'")
+			return
+		}
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "No tenant '"+req.TenantID+"'")
+		return
+	}
+
+	invalidateTenantHostCache()
+
+	tenantID, userID, _ := resolvedContext(r)
+	engines.LogAuditEvent(tenantID, userID, "TENANT-HOST-SLUG", "Update",
+		"host_slug for tenant '"+req.TenantID+"' set to '"+slug+"'")
+
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"tenant_id": req.TenantID,
+		"host_slug": slug,
+	})
 }
 
 // tenantForHost maps a request's Host header to a tenant id.

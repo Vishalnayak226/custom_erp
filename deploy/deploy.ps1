@@ -75,8 +75,26 @@ chmod +x $RemoteDir/erp-server
 sudo systemctl restart erp
 sleep 2
 systemctl is-active erp
+echo DEPLOY-OK
 "@
-& ssh $Target $remote
+# Force LF. A PowerShell here-string carries THIS FILE's line endings, and a
+# fresh git checkout on Windows gives it CRLF -- so every line arrives at bash
+# with a trailing \r and the whole block fails in ways that read like nonsense:
+# `set: -: invalid option`, `chmod: cannot access '/opt/erp/erp-server.new'$'\r'`,
+# `Failed to restart erp\x0d.service`. It never bit before because this repo's
+# working copy has always held LF (git only converts on checkout, and these
+# files were written, not checked out) -- it bit the first deploy run from a
+# clean worktree, 2026-08-15.
+$remote = $remote -replace "`r`n", "`n"
+
+$remoteOut = & ssh $Target $remote 2>&1
+$remoteOut | ForEach-Object { Write-Host $_ }
 if ($LASTEXITCODE -ne 0) { throw "remote migrate/restart failed" }
+# The exit code alone is not enough. The CRLF failure above exited 0 while
+# migrating nothing, swapping nothing and restarting nothing, and this script
+# then printed "Deployed" over the top of it -- a deploy that reports success
+# and changed nothing is worse than one that fails loudly. So the marker the
+# remote block prints last has to actually be there.
+if ($remoteOut -notcontains "DEPLOY-OK") { throw "remote block did not reach its end marker -- nothing was migrated or restarted. Output above." }
 
 Write-Host "Deployed $commit to $Target." -ForegroundColor Green
