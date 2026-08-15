@@ -129,11 +129,12 @@
       "id": "http-edge",
       "lobe": "brainstem",
       "name": "HTTP Edge & Middleware",
-      "role": "The one door in. apiMiddleware does CORS allowlist, 2MB body cap, per-category rate limiting, panic recovery, JWT verification and tenant resolution, then publishes Resolved-* headers every handler downstream reads. routes.go is the full route table and the background-worker startup list.",
+      "role": "The one door in. apiMiddleware does CORS allowlist, 2MB body cap, per-category rate limiting, panic recovery, JWT verification and tenant resolution, then publishes Resolved-* headers every handler downstream reads. routes.go is the full route table and the background-worker startup list. tenant_host.go maps <slug>.<TENANT_BASE_DOMAIN> to a tenant and gates Caddy's on-demand certificate issuance.",
       "match": [
         "internal/server/routes.go",
         "internal/server/middleware.go",
         "internal/server/middleware_compress.go",
+        "internal/server/tenant_host.go",
         "internal/server/VERSION",
         "cmd/server/main.go"
       ]

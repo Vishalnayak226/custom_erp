@@ -142,6 +142,17 @@ func Run() {
 	// Health check (24.14) - for a load balancer/process supervisor to poll;
 	// same public tier as /version, no bearer token required.
 	http.HandleFunc("GET /api/v1/health", apiMiddleware(handleHealth))
+	// Stage 44: the gate behind Caddy's on_demand_tls "ask" directive - Caddy
+	// calls this before requesting a certificate for a hostname it has not
+	// seen, and issues only on a 2xx.
+	//
+	// Registered without apiMiddleware on purpose: Caddy calls it over
+	// 127.0.0.1 mid-TLS-handshake with no bearer token to present, and
+	// putting it in a rate-limit bucket would mean a burst of handshakes
+	// could block certificate issuance for a legitimate tenant. It is not
+	// under /api/v1 so deploy/Caddyfile can block /internal/* wholesale on
+	// the public listener without pattern-matching a single API path.
+	http.HandleFunc("GET /internal/tls-ask", handleTLSAsk)
 	http.HandleFunc("POST /api/v1/auth/mfa/enroll", apiMiddleware(handleMFAEnroll))
 	http.HandleFunc("POST /api/v1/auth/mfa/activate", apiMiddleware(handleMFAActivate))
 	http.HandleFunc("POST /api/v1/auth/mfa/verify", apiMiddleware(handleMFAVerify))
@@ -743,9 +754,15 @@ func Run() {
 	// before the handler runs, compressResponses must see the Content-Type the
 	// handler sets, and securityHeaders stays innermost so its headers are on
 	// the response either way.
+	//
+	// Stage 44.10: tenantHostGate sits inside securityHeaders and outside the
+	// mux. Inside, so its 404 still carries the security headers; outside the
+	// mux, so it covers the SPA shell and the static files too - a browser
+	// asks for those first, and they never pass through apiMiddleware. It is
+	// inert unless TENANT_BASE_DOMAIN is set.
 	srv := &http.Server{
 		Addr:         host + ":" + port,
-		Handler:      staticAssetCache(compressResponses(securityHeaders(http.DefaultServeMux))),
+		Handler:      staticAssetCache(compressResponses(securityHeaders(tenantHostGate(http.DefaultServeMux)))),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,

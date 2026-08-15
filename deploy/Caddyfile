@@ -7,6 +7,16 @@
 #
 #   sudo bash /opt/erp/deploy/enable_tls.sh erp.yourdomain.com you@yourdomain.com
 #
+# That script also chooses between the two postures this one file describes --
+# direct (Let's Encrypt, on-demand per-tenant certificates) and behind
+# Cloudflare (`--cloudflare`, Origin CA certificate, Cloudflare CIDRs trusted).
+# Every ERP_*_ token below is substituted by it.
+#
+# Note for anyone editing this file: the installer refuses to install a config
+# in which the literal string P-L-A-C-E-H-O-L-D-E-R (unhyphenated) survives, so
+# do not spell that word out in a comment here -- a prose mention is
+# indistinguishable from an unsubstituted token, and the install fails.
+#
 # Until a domain exists the box runs deploy/Caddyfile.holding instead, which
 # deliberately does NOT expose the app -- see that file for why.
 #
@@ -23,27 +33,56 @@
 
 	servers {
 		# Makes Caddy's own X-Forwarded-For authoritative: a header arriving
-		# from anywhere but a private range is replaced, not appended to, so a
-		# client cannot forge a source IP past the proxy. This is what makes
+		# from an untrusted hop is replaced, not appended to, so a client
+		# cannot forge a source IP past the proxy. This is what makes
 		# TRUST_PROXY=1 safe for the app's per-IP rate limiting.
-		trusted_proxies static private_ranges
-
-		# Cloudflare activation changes this trust boundary: Caddy will see a
-		# public Cloudflare edge IP, not the browser. Before orange-clouding DNS,
-		# add Cloudflare's current published IPv4/IPv6 CIDRs here and enable
-		# `trusted_proxies_strict`; then restrict ufw to those same CIDRs. Do not
-		# trust CF-Connecting-IP/X-Forwarded-For from an origin reachable by the
-		# public internet, or clients can forge the IP used by app rate limits.
 		#
-		# The same CIDRs must also go into TRUSTED_PROXY_CIDRS in /etc/erp/erp.env
-		# (Stage 43.3): the app now walks X-Forwarded-For right-to-left and skips
+		# Substituted by enable_tls.sh, because the trust boundary depends on
+		# the posture. Direct: `static private_ranges` (Caddy sees the browser
+		# itself). Behind Cloudflare (--cloudflare): that plus every published
+		# Cloudflare CIDR, fetched at install time, plus
+		# `trusted_proxies_strict` -- Caddy then sees a public Cloudflare edge
+		# address rather than the browser, and must be told that address is a
+		# proxy rather than the client.
+		#
+		# The same CIDRs must also reach TRUSTED_PROXY_CIDRS in /etc/erp/erp.env
+		# (Stage 43.3): the app walks X-Forwarded-For right-to-left and skips
 		# hops it knows are proxies, so an unlisted Cloudflare edge node would be
 		# mistaken for the client and collapse every visitor into one rate-limit
-		# bucket. Two lists, one trust boundary -- change them together.
+		# bucket. Two lists, one trust boundary -- which is why `--cloudflare`
+		# writes both in one command rather than leaving the second to memory.
+		ERP_TRUSTED_PROXIES_PLACEHOLDER
+	}
+
+	# Stage 44: per-tenant hostnames (<slug>.<base-domain>) are not listed in
+	# this file, because the set of tenants changes without a config change.
+	# Each one's certificate is obtained on its first TLS handshake instead.
+	#
+	# `ask` is the whole reason that is safe. Caddy calls the app before it
+	# requests a certificate and proceeds only on a 2xx, so a hostname that is
+	# not a live tenant never reaches Let's Encrypt. Without this gate, anyone
+	# who pointed a DNS record at this box could drive unbounded issuance --
+	# exhausting the ACME rate limit and filling the cert store with names
+	# that have nothing to do with this deployment.
+	#
+	# Current Caddy removed the old `interval`/`burst` throttle from this
+	# directive -- `ask` is now the only supported gate, which is why the
+	# handler behind it fails closed (unset TENANT_BASE_DOMAIN, unknown slug,
+	# reserved label and DB-less startup all answer non-2xx) rather than
+	# leaning on a rate limit that no longer exists.
+	#
+	# Kept configured in both postures even though nothing uses it behind
+	# Cloudflare (the Origin CA certificate covers every tenant name up
+	# front). It costs nothing unused, and it means dropping back to direct
+	# TLS is one flag on enable_tls.sh rather than an edit here.
+	on_demand_tls {
+		ask http://127.0.0.1:8080/internal/tls-ask
 	}
 }
 
-ERP_DOMAIN_PLACEHOLDER {
+# Proxy behaviour is defined once here and imported by both site blocks below,
+# so the platform host and the per-tenant hosts cannot drift apart.
+(erp_app) {
 	encode gzip
 
 	# --- Defence in depth -------------------------------------------------
@@ -56,6 +95,14 @@ ERP_DOMAIN_PLACEHOLDER {
 		-Server
 		-X-Powered-By
 	}
+
+	# /internal/* is machine-to-machine surface for processes already on this
+	# box (today: the on_demand_tls ask gate, which Caddy calls directly over
+	# 127.0.0.1 and therefore never through this site block). Nothing there is
+	# meant to be reachable from the internet, so the public listener refuses
+	# the whole prefix rather than each path being remembered individually.
+	@internal path /internal/*
+	respond @internal 404
 
 	# Cap request bodies at the edge. The app enforces 2MB globally and 10MB on
 	# the PIM upload route (middleware.go / handlers_procurement_pim2.go); this
@@ -87,6 +134,37 @@ ERP_DOMAIN_PLACEHOLDER {
 	}
 }
 
+# The platform host -- the console/admin surface, and the one name
+# enable_tls.sh substitutes.
+#
+# The TLS line is substituted, not written here: direct, it is empty and Caddy
+# obtains an ordinary Let's Encrypt certificate; behind Cloudflare it names the
+# Origin CA certificate instead. That is not a preference -- once the origin
+# firewall admits only Cloudflare, Let's Encrypt can no longer reach this box
+# to validate a RENEWAL, so a working certificate would quietly expire ~90 days
+# later with nothing in the logs until it did.
+ERP_DOMAIN_PLACEHOLDER {
+	ERP_PLATFORM_TLS_PLACEHOLDER
+	import erp_app
+}
+
+# Catch-all for every per-tenant hostname (Stage 44). Caddy always prefers the
+# most specific matching site, so the block above still wins for the platform
+# host and this only ever sees names the config was never told about.
+#
+# Direct: `tls { on_demand }`, and the ask gate above is what filters that set
+# down to live tenants before any certificate is requested.
+#
+# Behind Cloudflare: the Origin CA certificate covers `*.<base>` outright, so
+# every name under the base domain completes a handshake and the ask gate
+# stops filtering anything. That is the reason the app grew its own check
+# (tenantHostGate, Stage 44.10) -- without it an unknown hostname would fall
+# through to the default tenant instead of being refused.
+https:// {
+	ERP_TENANT_TLS_PLACEHOLDER
+	import erp_app
+}
+
 # --- On rate limiting at the edge (26.1.3) --------------------------------
 # Caddy has NO built-in rate limiter. The community `caddy-ratelimit` module
 # would mean rebuilding Caddy with xcaddy and maintaining a custom binary on the
@@ -100,7 +178,19 @@ ERP_DOMAIN_PLACEHOLDER {
 # `trusted_proxies` above make X-Forwarded-For both present and unforgeable.
 #
 # For a genuine edge WAF -- L7 DDoS absorption, managed rule sets, bot scoring,
-# country blocking -- put Cloudflare (free tier is sufficient) in front of this
-# box once the domain exists. That is a DNS-level change needing no config here
-# beyond restricting ufw to Cloudflare's published IP ranges so the origin can't
-# be reached directly. See docs/operations/go_live_decisions.md section 5.
+# country blocking -- Cloudflare (free tier is sufficient) goes in front of this
+# box: `enable_tls.sh --cloudflare`. See docs/operations/go_live_decisions.md
+# section 5.
+#
+# It is NOT the pure DNS-level change this comment used to claim (26.1.3b,
+# corrected 2026-08-15). Three things change together, and the middle one is
+# the reason the other two cannot be done piecemeal:
+#   1. Cloudflare's published CIDRs are trusted here AND in TRUSTED_PROXY_CIDRS.
+#   2. TLS at the origin moves from Let's Encrypt to a Cloudflare Origin CA
+#      certificate -- because step 3 removes Let's Encrypt's ability to reach
+#      this box for renewal, and neither TLS-ALPN-01 (Cloudflare terminates
+#      TLS) nor HTTP-01 (unreliable through the proxy) survives it.
+#   3. The origin firewall is restricted to those same CIDRs -- in the
+#      DigitalOcean cloud firewall, not only ufw. ufw was never what was
+#      blocking traffic on this box (Stage 44.9), so restricting it alone
+#      would leave the origin wide open and the WAF trivially bypassable.

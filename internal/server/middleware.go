@@ -573,7 +573,7 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 		// 1. CORS Headers (explicit allowlist - never reflect an arbitrary Origin)
 		origin := r.Header.Get("Origin")
-		if origin != "" && corsAllowedOrigins[origin] {
+		if originAllowed(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Tenant-ID")
@@ -642,7 +642,19 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}()
 
 		// 4. Token & Tenant Resolution
-		tenantID := r.Header.Get("X-Tenant-ID")
+		//
+		// Stage 44: the Host header is consulted first. <slug>.<base-domain>
+		// is a tenant's own hostname, and it is a stronger pre-auth signal
+		// than X-Tenant-ID or ?tenant_id=, both of which are simply whatever
+		// the caller typed - a hostname had to survive DNS and a certificate
+		// to get here. It stays a pre-auth signal only: the bearer token below
+		// still overrides it, so this never widens what a session can reach.
+		hostTenantID, hostTenantOK := tenantForHost(r.Host)
+
+		tenantID := hostTenantID
+		if tenantID == "" {
+			tenantID = r.Header.Get("X-Tenant-ID")
+		}
 		if tenantID == "" {
 			tenantID = r.URL.Query().Get("tenant_id")
 		}
@@ -670,6 +682,19 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				locationCode = claims["loc"]
 				purpose = claims["purpose"]
 				scopeDoctype = claims["scope_doctype"]
+
+				// Stage 44: a token is authoritative for its own tenant, so
+				// the hostname must agree with it or the request is refused.
+				// Letting the token silently win would serve tenant A's data
+				// under tenant B's branding and URL - not a data breach (the
+				// claim still scopes every query) but exactly the kind of
+				// cross-tenant confusion a per-tenant hostname exists to
+				// prevent. Same generic 401 as any other dead session: the
+				// caller learns their session is not valid here, not why.
+				if hostTenantOK && hostTenantID != tenantID {
+					writeAPIError(w, r, "GLOBAL-0009", "")
+					return
+				}
 
 				// Live user-state re-check (Stage 29.8). A token's claims are
 				// frozen at issue time, so without this a deactivated user
