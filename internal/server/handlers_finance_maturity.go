@@ -166,9 +166,16 @@ func handleSettleSalesInvoice(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	invoiceID := r.PathValue("id")
-	amount, err := engines.SettleSalesInvoice(tenantID, invoiceID, userID)
+	// Stage 37.1.3: an optional body carries the date the money actually moved
+	// and the rate the bank actually gave. Both optional, and a request with no
+	// body behaves exactly as it did before this stage - which is what keeps
+	// every existing caller and the current frontend working untouched.
+	// Without this the engine's SettlementOptions would be unreachable over
+	// HTTP, and a finance team entering a receipt three days late would have no
+	// way to say so.
+	amount, err := engines.SettleSalesInvoice(tenantID, invoiceID, userID, settlementOptionsFromRequest(r))
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "Paid", "id": invoiceID, "amount": amount})

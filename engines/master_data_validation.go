@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strings"
@@ -36,6 +37,131 @@ func ValidateMasterDataRules(tenantID, docID, doctype string, payload map[string
 		return validateCustomerMasterRules(tenantID, docID, payload)
 	case "ProductContent":
 		return validateProductContentDuplicate(tenantID, docID, payload)
+	case "Batch":
+		return validateBatchMasterRules(tenantID, docID, payload)
+	}
+	return nil
+}
+
+// validateItemTrackingFields (Stage 42.1.1) checks the traceability field
+// group. All four fields are optional, so every check below is conditional on
+// the tenant having typed something - an item that never opts in is validated
+// exactly as it was before Stage 42.
+//
+// The rules exist because each of these numbers silently drives a gate that is
+// hard to debug from its symptom. A negative shelf life derives an expiry in the
+// past and quarantines a lot the moment it is received; a pick minimum larger
+// than the shelf life itself makes the item permanently unpickable - stock
+// arrives, is never allocatable, and nothing in the pick list says why. Both are
+// far cheaper to refuse here than to diagnose on a warehouse floor.
+func validateItemTrackingFields(payload map[string]interface{}) error {
+	mode := strField(payload, "tracking_mode")
+	switch mode {
+	case "", TrackingNone, TrackingBatch, TrackingSerial, TrackingBatchAndSerial:
+	default:
+		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Traceability", Message: fmt.Sprintf(
+			"traceability %q is not recognised - expected one of %s, %s, %s or %s",
+			mode, TrackingNone, TrackingBatch, TrackingSerial, TrackingBatchAndSerial)}
+	}
+
+	shelfLife := int(numFromInterface(payload["shelf_life_days"]))
+	onReceipt := int(numFromInterface(payload["min_shelf_life_on_receipt_days"]))
+	onPick := int(numFromInterface(payload["min_shelf_life_on_pick_days"]))
+
+	for _, f := range []struct {
+		label string
+		value int
+	}{
+		{"Shelf Life (days)", shelfLife},
+		{"Min Shelf Life on Receipt (days)", onReceipt},
+		{"Min Shelf Life on Pick (days)", onPick},
+	} {
+		if f.value < 0 {
+			return &ValidationError{Code: "GLOBAL-0002", SubFor: f.label,
+				Message: fmt.Sprintf("%s cannot be negative", f.label)}
+		}
+	}
+
+	if shelfLife > 0 && onReceipt > shelfLife {
+		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Min Shelf Life on Receipt (days)", Message: fmt.Sprintf(
+			"a %d-day minimum on receipt is longer than the item's own %d-day shelf life, so no delivery could ever be accepted",
+			onReceipt, shelfLife)}
+	}
+	if shelfLife > 0 && onPick > shelfLife {
+		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Min Shelf Life on Pick (days)", Message: fmt.Sprintf(
+			"a %d-day minimum on pick is longer than the item's own %d-day shelf life, so no stock could ever be allocated",
+			onPick, shelfLife)}
+	}
+	return nil
+}
+
+// validateBatchMasterRules (Stage 42.1.2) enforces the three things a Batch's
+// generic metadata pass cannot express.
+//
+// The uniqueness rule is the important one, and it is why batch_no is a field
+// rather than the document id: documents.id is the primary key across EVERY
+// doctype in this schema, but a batch number is only unique within its item -
+// two suppliers both shipping "LOT-001" of different SKUs is completely normal,
+// and keying on batch_no alone would make the second one unsaveable with a raw
+// primary-key violation instead of a sentence. So the pair is checked here,
+// where it can produce a real message.
+func validateBatchMasterRules(tenantID, docID string, payload map[string]interface{}) error {
+	batchNo := strField(payload, "batch_no")
+	item := strField(payload, "item")
+	if batchNo == "" || item == "" {
+		// Both are mandatory; ValidateDocument has already said so more
+		// precisely than this function could.
+		return nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+
+	// The item must exist, by CODE. See the migration's note on why `item` is
+	// not a Link field: the generic Link check resolves against documents.id,
+	// and an Item's id is not its code in this tree.
+	var itemExists bool
+	if err := db.DB.QueryRow(fmt.Sprintf(
+		`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'Item' AND data->>'code' = $1 AND deleted_at IS NULL)`, schema),
+		item).Scan(&itemExists); err != nil {
+		return err
+	}
+	if !itemExists {
+		return &ValidationError{Code: "META-0198", SubFor: "Item Code (SKU)",
+			Message: fmt.Sprintf("no item with code %q exists - a batch must belong to a real item", item)}
+	}
+
+	// (item, batch_no) uniqueness.
+	var existingID string
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT id FROM %s.documents
+		WHERE doctype = 'Batch' AND data->>'item' = $1 AND data->>'batch_no' = $2 AND id != $3
+		LIMIT 1`, schema), item, batchNo, docID).Scan(&existingID)
+	if err == nil {
+		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
+			"batch %q already exists for item %s (%s) - a lot number must be unique within its item", batchNo, item, existingID)}
+	}
+
+	// Expiry must follow manufacture. A lot dated to expire before it was made
+	// is always a typo, and letting it save means FEFO allocates it first,
+	// forever - the single most damaging bad row this master can hold.
+	mfg, hasMfg := parseTraceDate(strField(payload, "mfg_date"))
+	expiry, hasExpiry := parseTraceDate(strField(payload, "expiry_date"))
+	if hasMfg && hasExpiry && !expiry.After(mfg) {
+		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Expiry Date", Message: fmt.Sprintf(
+			"expiry date %s is not after the manufacture date %s", expiry.Format(isoDate), mfg.Format(isoDate))}
+	}
+
+	// Lottable attributes are JSON by contract (Infor §16 validates customer
+	// constraints against them). Storing an unparseable string would make every
+	// later constraint check silently pass, which is worse than refusing it now.
+	if raw := strField(payload, "attributes"); raw != "" {
+		var probe map[string]interface{}
+		if err := json.Unmarshal([]byte(raw), &probe); err != nil {
+			return &ValidationError{Code: "GLOBAL-0002", SubFor: "Lottable Attributes JSON",
+				Message: "lottable attributes must be a JSON object, e.g. {\"country_of_origin\": \"IN\", \"grade\": \"A\"}"}
+		}
 	}
 	return nil
 }
@@ -111,6 +237,13 @@ func validateItemMasterRules(tenantID, docID string, payload map[string]interfac
 		// contradictory fields, and the returns cannot report turnover as
 		// exempt while the till charged tax on it.
 		return &ValidationError{Code: "MASTER-0044", Message: fmt.Sprintf("A %s item cannot carry a positive GST Rate (%%) - set the rate to 0, or change Tax Treatment to %s", treatment, TaxTreatmentTaxable)}
+	}
+
+	// Stage 42.1.1: the traceability field group. Every check here only fires
+	// on a value the tenant actually typed, so an item that never opts into
+	// tracking is validated exactly as it was before Stage 42.
+	if err := validateItemTrackingFields(payload); err != nil {
+		return err
 	}
 
 	barcode := strField(payload, "barcode")

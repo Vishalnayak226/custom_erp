@@ -317,6 +317,21 @@ func registerStage282Settings() {
 		Label: "Functional (reporting) currency", Type: SettingTypeString, Default: "INR",
 		Description: "The ISO currency code every ledger posting, report and approval threshold is expressed in. Documents may be transacted in other currencies and are converted to this one at their exchange rate.",
 	})
+	// Stage 37.1.4. Which rate a period-end revaluation quotes open foreign
+	// balances at. Closing is what every accounting standard names for a
+	// balance-sheet item and is the default; it is configurable because a
+	// tenant whose rate feed only publishes Spot must still be able to close a
+	// period rather than be unable to revalue at all.
+	RegisterSetting(SettingDefinition{
+		Key: SettingKeyRevaluationRateType, Module: "Finance",
+		Label: "FX revaluation rate type", Type: SettingTypeSelect, Default: "Closing",
+		Options: []SettingOption{
+			{Value: "Closing", Label: "Closing"},
+			{Value: "Spot", Label: "Spot"},
+			{Value: "Average", Label: "Average"},
+		},
+		Description: "The exchange-rate type used to restate open foreign-currency receivables and payables at a period end. Changing it does not alter revaluations already posted.",
+	})
 	RegisterSetting(SettingDefinition{
 		Key: "platform.public_api_rate_limit_per_minute", Module: "Platform",
 		Label: "Public API requests per minute per credential", Type: SettingTypeInt, Default: "120", Unit: "requests",

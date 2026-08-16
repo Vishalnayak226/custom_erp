@@ -70,12 +70,54 @@ func ValidateCurrencyDocument(payload map[string]interface{}) error {
 	if !ok || decimalPlaces < 0 || decimalPlaces > 4 || decimalPlaces != math.Trunc(decimalPlaces) {
 		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Decimal Places", Message: "decimal_places must be a whole number from 0 to 4"}
 	}
+
+	// Stage 37.1.3: a Currency's document id MUST be its ISO code, and this is
+	// where that becomes self-enforcing rather than folklore.
+	//
+	// The system already depends on it from two directions that never meet.
+	// `SalesInvoice.currency` and friends are declared as Link fields, and the
+	// generic Link check (META-0198) resolves against documents.id - while
+	// ApplyDocumentCurrency requires the stored value to be a three-letter ISO
+	// code. So the only value that satisfies both is one where id == code. The
+	// seeded INR row happens to be keyed that way, which is why nothing noticed.
+	//
+	// Created any other way - "CUR-USD", an auto-generated id, anything - the
+	// currency saves happily and then EVERY invoice that selects it fails with
+	// "Linked Currency record with ID \"USD\" does not exist", a message that
+	// points at the invoice and names a record that is sitting right there.
+	// Found over live HTTP while verifying 37.1.3; the unit tests could not have
+	// caught it because they never travel the Link check.
+	//
+	// Refused at authoring time, where the fix is one field, instead of at every
+	// future document that references it. Absent id (an engine-generated
+	// document) is left alone.
+	if id := currencyField(payload, "id"); id != "" && !strings.EqualFold(id, code) {
+		return &ValidationError{Code: "GLOBAL-0002", SubFor: "ISO Currency Code",
+			Message: fmt.Sprintf("a Currency's ID must be its ISO code - use %q as the ID, not %q. Every document that selects a currency links to it by ID, so any other ID makes this currency unusable on invoices and orders.", code, id)}
+	}
 	return nil
 }
 
+// currencyField reads an optional payload key as a trimmed string.
+//
+// Stage 37.1.3 found the need for this the expensive way, over live HTTP: this
+// function used to spell every read as fmt.Sprintf("%v", payload[key]), and
+// fmt.Sprintf("%v", nil) is the four-character string "<nil>", not "". So an
+// optional field that was simply not sent arrived here as a NON-empty value
+// which then failed its format check. An ExchangeRate with no end date - an
+// open-ended rate, which is how essentially every rate table is really
+// maintained - was impossible to save, and the message blamed a field the user
+// had never filled in ("Effective To must use YYYY-MM-DD").
+//
+// It delegates to the existing payloadString (document_mirror_fields.go) rather
+// than defining a second one, and adds the trim this file's checks rely on.
+func currencyField(payload map[string]interface{}, key string) string {
+	return strings.TrimSpace(payloadString(payload, key))
+}
+
 func ValidateExchangeRateDocument(payload map[string]interface{}) error {
-	from := strings.TrimSpace(fmt.Sprintf("%v", payload["from_currency"]))
-	to := strings.TrimSpace(fmt.Sprintf("%v", payload["to_currency"]))
+	from := currencyField(payload, "from_currency")
+	to := currencyField(payload, "to_currency")
 	if from != "" && from == to {
 		return &ValidationError{Code: "FIN-0021", SubFor: "To Currency", Message: "an exchange rate must convert between two different currencies"}
 	}
@@ -83,8 +125,8 @@ func ValidateExchangeRateDocument(payload map[string]interface{}) error {
 	if !ok || rate <= 0 || math.IsInf(rate, 0) || math.IsNaN(rate) {
 		return &ValidationError{Code: "FIN-0021", SubFor: "Exchange Rate", Message: "exchange rate must be a finite number greater than zero"}
 	}
-	fromDate := strings.TrimSpace(fmt.Sprintf("%v", payload["effective_from"]))
-	toDate := strings.TrimSpace(fmt.Sprintf("%v", payload["effective_to"]))
+	fromDate := currencyField(payload, "effective_from")
+	toDate := currencyField(payload, "effective_to")
 	if err := validateISODate("Effective From", fromDate, true); err != nil {
 		return err
 	}
@@ -94,7 +136,7 @@ func ValidateExchangeRateDocument(payload map[string]interface{}) error {
 	if toDate != "" && toDate < fromDate {
 		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Effective To", Message: "effective_to cannot be before effective_from"}
 	}
-	if strings.TrimSpace(fmt.Sprintf("%v", payload["source"])) == "Imported" && strings.TrimSpace(fmt.Sprintf("%v", payload["source_reference"])) == "" {
+	if currencyField(payload, "source") == "Imported" && currencyField(payload, "source_reference") == "" {
 		return &ValidationError{Code: "GLOBAL-0001", SubFor: "Source Reference", Message: "an Imported exchange rate needs a source reference for auditability"}
 	}
 	return nil

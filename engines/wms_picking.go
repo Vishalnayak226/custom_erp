@@ -70,6 +70,11 @@ type WavePickLine struct {
 	Aisle   string `json:"aisle"`
 	Rack    string `json:"rack"`
 	PickQty int    `json:"pick_qty"`
+	// Stage 42.1.5: which lot to take, and when it expires. Both omitempty and
+	// both empty for a FIFO (non-batch-tracked) allocation, so an existing
+	// consumer of this payload sees exactly the JSON it saw before.
+	BatchNo    string `json:"batch_no,omitempty"`
+	ExpiryDate string `json:"expiry_date,omitempty"`
 }
 
 // WaveOrderAllocation is how much of a wave-picked SKU actually ended up
@@ -164,35 +169,22 @@ func GenerateWavePickList(tenantID, waveID string) ([]WavePickLine, []WaveOrderA
 	allocatedTotalBySku := map[string]int{}
 	for _, sku := range skus {
 		demand := demandBySku[sku]
-		binRows, err := db.DB.Query(fmt.Sprintf(`
-			SELECT bs.bin_code, bs.qty, COALESCE(b.data->>'zone', ''), COALESCE(b.data->>'aisle', ''), COALESCE(b.data->>'rack', '')
-			FROM %s.bin_stock bs
-			LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
-			WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.qty > 0
-			ORDER BY bs.updated_at ASC`, schema, schema), sku, locationCode)
+		// Stage 42.1.5: the bin-selection query that used to live inline here is
+		// now AllocateFromStock, which picks FIFO or FEFO from the item's own
+		// tracking_mode and applies the expiry gates. FIFO's SQL is byte-for-byte
+		// the query this block used to run, so a warehouse with no batch-tracked
+		// item gets the same pick list it got before.
+		candidates, shortfall, err := AllocateFromStock(tenantID, sku, locationCode, demand)
 		if err != nil {
 			return nil, nil, err
 		}
-		needed := demand
-		for binRows.Next() && needed > 0 {
-			var binCode, zone, aisle, rack string
-			var available int
-			if err := binRows.Scan(&binCode, &available, &zone, &aisle, &rack); err != nil {
-				binRows.Close()
-				return nil, nil, err
-			}
-			pick := available
-			if pick > needed {
-				pick = needed
-			}
-			needed -= pick
-			pickLines = append(pickLines, WavePickLine{Sku: sku, BinCode: binCode, Zone: zone, Aisle: aisle, Rack: rack, PickQty: pick})
+		for _, c := range candidates {
+			pickLines = append(pickLines, WavePickLine{
+				Sku: sku, BinCode: c.BinCode, Zone: c.Zone, Aisle: c.Aisle, Rack: c.Rack,
+				PickQty: c.Qty, BatchNo: c.BatchNo, ExpiryDate: c.ExpiryDate,
+			})
 		}
-		binRows.Close()
-		if err := binRows.Err(); err != nil {
-			return nil, nil, err
-		}
-		allocatedTotalBySku[sku] = demand - needed
+		allocatedTotalBySku[sku] = demand - shortfall
 	}
 
 	// Distribute each SKU's allocated total back to the tasks that need it,
@@ -225,7 +217,14 @@ func GenerateWavePickList(tenantID, waveID string) ([]WavePickLine, []WaveOrderA
 		if a.Rack != b.Rack {
 			return a.Rack < b.Rack
 		}
-		return a.BinCode < b.BinCode
+		if a.BinCode != b.BinCode {
+			return a.BinCode < b.BinCode
+		}
+		// 42.1.5: two lots of one SKU can share a bin, so the walk-route sort
+		// needs a final tiebreaker or their order is whatever the map iteration
+		// happened to produce - and a pick list that reorders itself between two
+		// identical calls is not one a picker can trust.
+		return a.BatchNo < b.BatchNo
 	})
 
 	return pickLines, allocations, nil

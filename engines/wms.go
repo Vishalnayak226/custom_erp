@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 )
 
@@ -110,6 +111,11 @@ type PickListLine struct {
 	Rack      string `json:"rack"`
 	PickQty   int    `json:"pick_qty"`
 	Shortfall int    `json:"shortfall,omitempty"`
+	// Stage 42.1.5: which lot to take, and when it expires. Both empty for a
+	// non-batch-tracked item, which is what keeps this payload unchanged for
+	// every warehouse that has not opted into traceability.
+	BatchNo    string `json:"batch_no,omitempty"`
+	ExpiryDate string `json:"expiry_date,omitempty"`
 }
 
 // GenerateBinPickList (20.18) builds a bin-grouped, walk-route-sorted (by
@@ -144,34 +150,39 @@ func GenerateBinPickList(tenantID, taskID string) ([]PickListLine, error) {
 
 	var lines []PickListLine
 	for _, item := range task.Items {
-		needed := item.Qty
-		rows, err := db.DB.Query(fmt.Sprintf(`
-			SELECT bs.bin_code, bs.qty, COALESCE(b.data->>'zone', ''), COALESCE(b.data->>'aisle', ''), COALESCE(b.data->>'rack', '')
-			FROM %s.bin_stock bs
-			LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
-			WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.qty > 0
-			ORDER BY COALESCE(b.data->>'zone', ''), COALESCE(b.data->>'aisle', ''), COALESCE(b.data->>'rack', ''), bs.bin_code`,
-			schema, schema), item.Sku, task.LocationCode)
+		// Stage 42.1.5: bin selection moved to AllocateFromStock, the one choke
+		// point that decides FIFO vs FEFO from the item's tracking_mode and
+		// applies the expiry gates. Its FIFO branch runs the same query this
+		// block used to; the only visible change for a non-batch item is the
+		// walk-route sort, which is re-applied below rather than in SQL.
+		candidates, shortfall, err := AllocateFromStock(tenantID, item.Sku, task.LocationCode, item.Qty)
 		if err != nil {
 			return nil, err
 		}
-		for rows.Next() && needed > 0 {
-			var binCode, zone, aisle, rack string
-			var available int
-			if err := rows.Scan(&binCode, &available, &zone, &aisle, &rack); err != nil {
-				rows.Close()
-				return nil, err
+		sort.SliceStable(candidates, func(i, j int) bool {
+			a, b := candidates[i], candidates[j]
+			if a.Zone != b.Zone {
+				return a.Zone < b.Zone
 			}
-			pick := available
-			if pick > needed {
-				pick = needed
+			if a.Aisle != b.Aisle {
+				return a.Aisle < b.Aisle
 			}
-			needed -= pick
-			lines = append(lines, PickListLine{Sku: item.Sku, BinCode: binCode, Zone: zone, Aisle: aisle, Rack: rack, PickQty: pick})
+			if a.Rack != b.Rack {
+				return a.Rack < b.Rack
+			}
+			if a.BinCode != b.BinCode {
+				return a.BinCode < b.BinCode
+			}
+			return a.BatchNo < b.BatchNo
+		})
+		for _, c := range candidates {
+			lines = append(lines, PickListLine{
+				Sku: item.Sku, BinCode: c.BinCode, Zone: c.Zone, Aisle: c.Aisle, Rack: c.Rack,
+				PickQty: c.Qty, BatchNo: c.BatchNo, ExpiryDate: c.ExpiryDate,
+			})
 		}
-		rows.Close()
-		if needed > 0 {
-			lines = append(lines, PickListLine{Sku: item.Sku, BinCode: "", PickQty: 0, Shortfall: needed})
+		if shortfall > 0 {
+			lines = append(lines, PickListLine{Sku: item.Sku, BinCode: "", PickQty: 0, Shortfall: shortfall})
 		}
 	}
 	return lines, nil

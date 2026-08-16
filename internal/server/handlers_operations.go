@@ -599,12 +599,18 @@ func handlePayVendorInvoice(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		InvoiceID      string `json:"invoice_id"`
 		OverrideReason string `json:"override_reason"`
+		// Stage 37.1.3, both optional: the date the payment actually left and
+		// the rate the bank actually gave. Omitted, this behaves exactly as it
+		// did before - today's rate, resolved from the rate table.
+		SettlementDate string  `json:"settlement_date"`
+		ExchangeRate   float64 `json:"exchange_rate"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.InvoiceID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'invoice_id' is required")
 		return
 	}
-	amountPaid, pendingApproval, err := engines.PayVendorInvoice(tenantID, req.InvoiceID, userID, role, req.OverrideReason)
+	amountPaid, pendingApproval, err := engines.PayVendorInvoice(tenantID, req.InvoiceID, userID, role, req.OverrideReason,
+		engines.SettlementOptions{SettlementDate: strings.TrimSpace(req.SettlementDate), ExchangeRate: req.ExchangeRate})
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return

@@ -47,15 +47,27 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
 		return 0, err
 	}
-	amountF := numFromInterface(data["total_amount"])
-	if amountF <= 0 {
+	// Stage 37.1.3. `total_amount` is in the currency the invoice was
+	// transacted in; the ledger is in the tenant's functional currency. Posting
+	// the raw field - which is what this line did before - booked a USD 1,000
+	// invoice as a 1,000-rupee receivable. The base twin 37.1.2 stamps is the
+	// functional value, and it is what 1300 and 4100 must receive.
+	position := documentFXPosition(tenantID, data, "total_amount")
+	if position.TransactionAmount <= 0 {
 		return 0, fmt.Errorf("total_amount must be positive to post")
 	}
-	amount = int(amountF)
+	amount = position.BookedAmount
+	if amount <= 0 {
+		return 0, fmt.Errorf("total_amount converts to a non-positive %s value at rate %v", position.Functional, position.Rate)
+	}
 
 	debits := map[string]int{"1300": amount}
 	credits := map[string]int{"4100": amount}
-	if err := PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, debits, credits, "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID)); err != nil {
+	if err := PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, debits, credits, "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),
+		postingOptionsFor(position, position.Rate, debits, credits, map[string]float64{
+			"1300": position.TransactionAmount,
+			"4100": position.TransactionAmount,
+		})); err != nil {
 		return 0, fmt.Errorf("GL posting failed, invoice not marked Approved: %v", err)
 	}
 
@@ -80,7 +92,10 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 // customer actually pays: debit Cash/Bank (1100), credit Accounts
 // Receivable (1300), clearing the receivable this invoice booked in
 // PostSalesInvoice. Symmetric to PayVendorInvoice on the payable side.
-func SettleSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error) {
+// Stage 37.1.3 adds the realised FX leg. opts is variadic so both existing
+// callers needed no change; it carries the date the money actually moved and,
+// optionally, the rate the bank actually gave.
+func SettleSalesInvoice(tenantID, invoiceID, userID string, opts ...SettlementOptions) (amount int, err error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return 0, err
@@ -107,14 +122,32 @@ func SettleSalesInvoice(tenantID, invoiceID, userID string) (amount int, err err
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
 		return 0, err
 	}
-	amountF := numFromInterface(data["total_amount"])
-	amount = int(amountF)
+	// Stage 37.1.3. The cash actually received is the transaction amount at the
+	// SETTLEMENT rate; the receivable being cleared is what the ledger carries
+	// for it, which is the booking rate plus any period-end revaluation already
+	// posted. The gap between those two is a realised gain or loss, and it is
+	// the whole reason this stage exists.
+	position := documentFXPosition(tenantID, data, "total_amount")
+	settlement, err := resolveSettlementFX(tenantID, position, true, settlementOption(opts))
+	if err != nil {
+		return 0, err
+	}
+	amount = settlement.SettlementAmount
 
-	debits := map[string]int{"1100": amount}
-	credits := map[string]int{"1300": amount}
-	if err := PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, debits, credits, "", fmt.Sprintf("SalesInvoice:%s:SETTLE", invoiceID)); err != nil {
+	debits := map[string]int{"1100": settlement.SettlementAmount}
+	credits := map[string]int{"1300": position.CarryingAmount}
+	applyRealisedFXLine(debits, credits, settlement.RealisedGainLoss)
+	if err := PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, debits, credits, settlement.PostingDate(), fmt.Sprintf("SalesInvoice:%s:SETTLE", invoiceID),
+		// The cash and receivable lines carry the full foreign amount; the
+		// realised gain/loss line is left at zero, because it has no
+		// foreign-currency value by construction.
+		postingOptionsFor(position, settlement.SettlementRate, debits, credits, map[string]float64{
+			"1100": position.TransactionAmount,
+			"1300": position.TransactionAmount,
+		})); err != nil {
 		return 0, fmt.Errorf("GL posting failed, invoice not marked Paid: %v", err)
 	}
+	recordSettlementFX(data, settlement)
 
 	data["status"] = "Paid"
 	updatedBytes, err := json.Marshal(data)
@@ -129,6 +162,6 @@ func SettleSalesInvoice(tenantID, invoiceID, userID string) (amount int, err err
 	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
-	LogAuditEvent(tenantID, userID, "SETTLE_SALES_INVOICE", "SUCCESS", fmt.Sprintf("Settled sales invoice %s amount=%d", invoiceID, amount))
+	LogAuditEvent(tenantID, userID, "SETTLE_SALES_INVOICE", "SUCCESS", settlementAuditDetail("sales invoice", invoiceID, settlement))
 	return amount, nil
 }

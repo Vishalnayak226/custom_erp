@@ -51,6 +51,15 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 		damaged  float64
 	}
 	var qcSplits []qcSplit
+	// 42.1.4: lots seen on this receipt, registered after the stock posts. A
+	// receipt of a batch-tracked item that names no lot is rejected below
+	// before anything is written, so this list only ever contains lots whose
+	// stock genuinely arrived.
+	type receivedBatch struct {
+		info     BatchInfo
+		acceptedQty float64
+	}
+	var receivedBatches []receivedBatch
 
 	for _, raw := range items {
 		m, ok := raw.(map[string]interface{})
@@ -81,8 +90,41 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 			accepted = 0
 		}
 
+		// 42.1.4: batch capture. The gate itself is ValidateReceiptBatchLine,
+		// the same function validateGRNRules runs BEFORE the document is
+		// written - so on the normal path this call has already passed and is
+		// pure defence for a caller that reached this function without going
+		// through the document validator. Anything it can reject, it rejects
+		// before a single write below.
+		batchNo := strField(m, "batch_no")
+		if err := ValidateReceiptBatchLine(tenantID, sku, batchNo, strField(m, "expiry_date")); err != nil {
+			return nil, err
+		}
+		// A lot number typed against an item nobody asked to trace is kept
+		// rather than dropped - it costs nothing, and switching that item to
+		// Batch later then finds real history instead of a blank past.
+		if batchNo != "" && accepted > 0 {
+			receivedBatches = append(receivedBatches, receivedBatch{
+				info: BatchInfo{
+					BatchNo:       batchNo,
+					Item:          sku,
+					MfgDate:       strField(m, "mfg_date"),
+					ExpiryDate:    strField(m, "expiry_date"),
+					SupplierBatch: strField(m, "supplier_batch"),
+				},
+				acceptedQty: accepted,
+			})
+		}
+
 		if accepted > 0 {
-			acceptedItems = append(acceptedItems, map[string]interface{}{"sku": sku, "qty": accepted})
+			// batch_no rides along on the line PostInventoryLedgerWithVoucher
+			// already posts, so the receipt produces ONE ledger entry carrying
+			// the lot - not a second, quantity-duplicating one.
+			acceptedLine := map[string]interface{}{"sku": sku, "qty": accepted}
+			if batchNo != "" {
+				acceptedLine["batch_no"] = batchNo
+			}
+			acceptedItems = append(acceptedItems, acceptedLine)
 		}
 		if rejected > 0 || damaged > 0 {
 			qcSplits = append(qcSplits, qcSplit{sku: sku, rejected: rejected, damaged: damaged})
@@ -151,5 +193,46 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 			fmt.Sprintf("Routed QC-sampled receipt qty to qc_hold/damaged buckets at %s for %d line(s)", locationCode, len(qcSplits)))
 	}
 
+	// 42.1.4: register the lots last, once the stock they describe has actually
+	// posted. The ordering matters and is the reason this is not folded into the
+	// loop above: every rejection this function can raise (a batch-tracked line
+	// with no lot number, short-dated goods) happens BEFORE any write, and every
+	// Batch document created here therefore describes stock that is now
+	// genuinely on hand.
+	//
+	// A failure here is logged rather than returned. The goods are in the
+	// building and the receipt has posted, so failing the caller would trip the
+	// GRN cancel-on-post-failure path in handlers_core_doc_engine.go and cancel
+	// a receipt whose stock had already moved - strictly worse than a batch
+	// master that has to be created by hand. The lot is still recoverable: the
+	// ledger entry carrying batch_no was written by the accepted-items post
+	// above regardless.
+	vendor := grnVendor(schema, grnID)
+	for _, rb := range receivedBatches {
+		rb.info.Vendor = vendor
+		if _, err := EnsureBatch(tenantID, rb.info, rb.acceptedQty, userID); err != nil {
+			LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC",
+				fmt.Sprintf("batch %s of %s could not be registered from GRN %s: %v", rb.info.BatchNo, rb.info.Item, grnID, err), "")
+		}
+	}
+
 	return negativeEvents, nil
+}
+
+// grnVendor reads the supplier off a GRN so a batch registered from a receipt
+// carries who it came from - the first thing a recall asks and the one field a
+// receiving clerk should never have to retype. Best-effort: a GRN without a
+// vendor (a stock-in with no purchase behind it) simply registers the batch
+// without one.
+func grnVendor(schema, grnID string) string {
+	if grnID == "" {
+		return ""
+	}
+	var vendor string
+	if err := db.DB.QueryRow(fmt.Sprintf(
+		`SELECT COALESCE(data->>'vendor', '') FROM %s.documents WHERE doctype = 'GRN' AND id = $1`, schema),
+		grnID).Scan(&vendor); err != nil {
+		return ""
+	}
+	return vendor
 }

@@ -258,7 +258,71 @@ For each rate, set **From Currency**, **To Currency**, a positive Rate, the Rate
 
 The shared resolver chooses the most recently effective active rate whose date window includes the transaction date. If only the reverse pair exists, it safely uses the inverse; if neither exists it returns `FIN-0021` instead of inventing a value. Currency code and rate-window uniqueness are also enforced in the database.
 
-This is deliberately only the 37.1.1 foundation. Existing sales, purchase, journal and settlement records are still single-currency until 37.1.2 adds transaction and functional amounts. Applying the migration alone therefore does not change existing postings.
+**One rule that will otherwise cost you an afternoon: a Currency's ID must be its ISO code.** Create the US dollar with ID `USD`, not `CUR-USD` or an auto-generated value. Every document that selects a currency links to it by ID, so any other ID makes that currency unusable on invoices and orders. The system now refuses a mismatched ID at save time and tells you which one to use, but if you are importing currencies in bulk, set the ID column to the code.
+
+#### Foreign-currency invoices, FX gain/loss, and period-end revaluation (Stage 37.1.3-37.1.5)
+
+Set the tenant's reporting currency under **Configuration → Finance → Functional (reporting) currency** (default INR). Every ledger posting, report and approval threshold is expressed in it. Documents may be transacted in other currencies and are converted to it at their exchange rate. **Changing it does not re-translate existing postings** — it declares what they were always in — so treat it as a provisioning-time decision.
+
+**Raising a foreign-currency invoice.** Set **Currency** on the invoice and leave **Exchange Rate** blank to have the rate resolved from your rate table *on the invoice's own date* (not today's — a back-dated invoice does not quietly pick up this morning's rate). Enter a rate explicitly to override it, which is what you want when a contract fixes the rate. The invoice keeps the amount you agreed in the foreign currency; the ledger holds its value in your functional currency.
+
+**Settling one.** Post the invoice as usual. On settlement you may optionally supply:
+
+- **Settlement date** — the date the money actually moved. Use it when a receipt is entered a few days late, so the rate quoted is the one that applied on the day, not today.
+- **Exchange rate** — the rate the bank actually gave you. A bank confirmation beats any rate table; without it the difference just hides in your cash account.
+
+The system books the cash at the settlement rate, clears the receivable at what the ledger was carrying, and posts the difference as a **realised** gain or loss. Four accounts are used and they are deliberately kept apart:
+
+| Account | Name | Used for |
+|---|---|---|
+| 4200 | Realised FX Gain | Cash actually received/paid was worth more than carried |
+| 5600 | Realised FX Loss | …worth less than carried |
+| 4210 | Unrealised FX Gain | A still-open balance revalued upward at a period end |
+| 5610 | Unrealised FX Loss | …revalued downward |
+
+Realised means cash has moved and the result can never reverse. Unrealised is an opinion about an open balance that may well reverse next month. Never merge the two into one account — auditors and tax authorities treat them differently and the split cannot be recovered afterwards.
+
+**Running a period-end revaluation.** Open foreign-currency receivables and payables are still carried at the rate they were booked at, which goes stale. To restate them:
+
+1. **Preview first.** `GET /api/v1/finance/fx-revaluation?as_of=YYYY-MM-DD&rate_type=Closing` returns exactly what would be posted, per document, and **writes nothing**. Check the totals before committing.
+2. **Commit.** `POST` the same endpoint with `{"as_of": "YYYY-MM-DD", "rate_type": "Closing"}`.
+
+The rate type defaults to **Configuration → Finance → FX revaluation rate type** (Closing, which is what accounting standards name for balance-sheet items). Only genuinely booked balances are revalued — Approved sales invoices and Matched/Pending-Approval vendor invoices. Purchase orders and sales orders are *commitments*, not balances, and are deliberately left alone.
+
+Running the same date twice is safe: the second run reports each document as *already revalued on that date* and posts nothing. A revaluation dated into a closed accounting period is refused, like any other posting.
+
+**Reporting.** Three reports appear in the report catalog under Finance, with the usual CSV/PDF export and scheduling:
+
+- **Open FX Exposure** — every open foreign balance and what it is worth at today's rate. This is the daily treasury view, and it is the same calculation the revaluation preview runs.
+- **FX Gain/Loss Register** — every posting to the four accounts above, filterable to realised or unrealised. Use it to answer "where did this FX figure on the P&L come from".
+- **Trial Balance in Presentation Currency** — your ledger restated into another currency at a chosen rate type.
+
+⚠️ **The presentation trial balance applies one rate to every line.** A full IAS 21 translation uses the closing rate for balance-sheet items, the average for P&L items and historical rates for equity. This is an honest single-rate convenience translation — good for "roughly what does this look like in dollars", not a statutory consolidation. Every row carries the rate type used so it cannot be mistaken for one.
+
+#### B.3.3 Turning on batch / lot traceability (Stage 42.1)
+
+Batch tracking is **off for every item until you switch it on for that item**. Nothing changes for a tenant that never touches it — pick lists, receipts and stock figures behave exactly as before. Switch it on only for items where the lot genuinely matters: food, pharma, cosmetics, chemicals, anything with a shelf life or a recall obligation.
+
+**Step 1 — configure the item.** Under **Setup → Items**, four fields appear on each item:
+
+| Field | What it does |
+| --- | --- |
+| **Traceability** | `None` (default), `Batch`, `Serial`, or `Batch and Serial`. Only the two Batch modes have any effect today — `Serial` is accepted and stored, but the serial register itself is a later item (42.1.8). |
+| **Shelf Life (days)** | Used to *derive* an expiry when a receipt gives a manufacture date but no expiry. Leave blank if cartons always print an expiry. |
+| **Min Shelf Life on Receipt (days)** | Refuse a delivery arriving with less than this left. Your defence against a supplier clearing short-dated stock onto you. |
+| **Min Shelf Life on Pick (days)** | Never allocate stock with less than this left. **This is the important one** — it's what stops goods expiring in a customer's hands. |
+
+Two configurations are refused when you save, because both are silently unusable rather than merely odd: a negative number, and a receipt/pick minimum longer than the item's own shelf life (no delivery could ever be accepted, or no stock could ever be allocated, and nothing on a pick list would say why).
+
+**Step 2 — there is no step 2.** Receiving clerks are prompted for a lot number automatically from then on, batches register themselves from the receipt, and pick lists switch from FIFO to FEFO for that item. See [User Guide](USER_GUIDE.md) §6.3 for what your users will see.
+
+**What you can do that they can't.**
+
+- **Hold or release a lot.** The `Batch` master (Setup → Batch, or via `POST /api/v1/wms/batch/status`) carries `Active` / `Quarantined` / `Blocked` / `Expired` / `Consumed`. Anything not `Active` is invisible to allocation. **Releasing a held lot back to Active requires a reason** — it's the first question a recall audit asks. `Consumed` is terminal on purpose: a fully-shipped lot never becomes Active again, a new receipt gets a new lot.
+- **Run the expiry sweep.** `POST /api/v1/wms/batch/expiry-sweep` marks every past-expiry lot `Expired` and moves its remaining good stock into the existing **QC-Hold** bucket, which takes it out of `available` through the same path a damaged-goods call uses. It is **idempotent** — running it twice quarantines nothing twice — and it returns a count of what it did rather than changing things silently. It is deliberately operator-triggered rather than a background timer: it moves stock out of sellable, so someone should be able to point at a person and a time. If you want it on a schedule, call it from the existing scheduled-job path rather than expecting the server to do it on its own.
+- **Correct a batch by hand.** `Batch` is an ordinary master, so bulk CSV import, field permissions and the audit trail all work on it. Note that a lot number only has to be unique **within its item** — two suppliers both shipping "LOT-001" for different SKUs is normal and allowed.
+
+**One limitation worth knowing before you roll this out.** Turning on batch tracking for an item that *already* has stock on the shelves does not retroactively give that stock a lot — it can't, because nobody recorded one. FEFO will then only offer the stock that does carry a lot, and report the rest as short. That is the correct refusal (issuing untraceable units is what batch tracking exists to prevent), but it means **you should either switch an item over when its stock is low, or assign lots to the existing stock first** via `POST /api/v1/wms/batch/putaway`. The **Batch Stock Inquiry** report shows you exactly what has been assigned so far.
 
 ### B.4 Where to Look When Something Seems Wrong
 

@@ -6609,6 +6609,30 @@ async function transitionFulfillmentTask(taskId, newStatus) {
 
 // viewPickList (Stage 26.3.4) shows GenerateBinPickList's bin-grouped,
 // walk-route-sorted result for one FulfillmentTask in a lightweight
+// Stage 42.1.5: one shared renderer for the "which lot, and how urgent" cell,
+// used by every pick surface (task pick list, wave pick list, mobile picking)
+// so a picker reads the same thing in the same colours wherever they are.
+//
+// The urgency badge is the whole point of showing the expiry at all: FEFO has
+// already put the earliest-expiry lot first, and the colour is what tells a
+// picker whether the line in front of them is routine or needs a supervisor.
+// Days are computed client-side from the date the server sent, so this stays a
+// pure render helper with no extra round trip.
+function batchCellHTML(line) {
+  if (!line || !line.batch_no) return '<span class="text-muted">&mdash;</span>';
+  const safeBatch = escapeHTMLText(line.batch_no);
+  if (!line.expiry_date) return `<strong>${safeBatch}</strong>`;
+  const expiry = String(line.expiry_date).slice(0, 10);
+  const days = Math.floor((new Date(expiry + 'T00:00:00Z') - new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00Z')) / 86400000);
+  let badge = '';
+  if (!isNaN(days)) {
+    if (days < 0) badge = `<span class="badge badge-danger">expired</span>`;
+    else if (days <= 7) badge = `<span class="badge badge-danger">${days}d left</span>`;
+    else if (days <= 30) badge = `<span class="badge badge-warning">${days}d left</span>`;
+  }
+  return `<strong>${safeBatch}</strong><br><small class="text-muted">${escapeHTMLText(expiry)}</small> ${badge}`;
+}
+
 // read-only modal, reusing the same .modal-overlay/.modal-container
 // primitives as viewTaxonomyHistory instead of introducing a new one.
 window.viewPickList = async function(taskId) {
@@ -6624,18 +6648,22 @@ window.viewPickList = async function(taskId) {
   const overlay = document.createElement('div');
   overlay.className = 'modal-overlay open';
   overlay.id = 'pick-list-modal';
+  // Stage 42.1.5: the Batch/Expiry column only appears when the list actually
+  // carries lots, so a warehouse with no batch-tracked item sees exactly the
+  // six-column table it saw before.
+  const hasBatches = (lines || []).some(l => l.batch_no);
   const rows = (!lines || lines.length === 0)
-    ? `<tr><td colspan="6" class="text-center text-muted">No bin-level pick lines for this task &mdash; it will be picked from general stock instead. Continue as normal.</td></tr>`
+    ? `<tr><td colspan="${hasBatches ? 7 : 6}" class="text-center text-muted">No bin-level pick lines for this task &mdash; it will be picked from general stock instead. Continue as normal.</td></tr>`
     : lines.map(l => {
         const short = l.shortfall > 0
           ? `<span class="badge badge-danger">Short ${l.shortfall}</span>`
           : '';
-        return `<tr><td>${l.sku || ''}</td><td>${l.bin_code || ''}</td><td>${l.zone || ''}</td><td>${l.aisle || ''}</td><td>${l.rack || ''}</td><td>${l.pick_qty || 0} ${short}</td></tr>`;
+        return `<tr><td>${l.sku || ''}</td>${hasBatches ? `<td>${batchCellHTML(l)}</td>` : ''}<td>${l.bin_code || ''}</td><td>${l.zone || ''}</td><td>${l.aisle || ''}</td><td>${l.rack || ''}</td><td>${l.pick_qty || 0} ${short}</td></tr>`;
       }).join('');
   overlay.innerHTML = `
     <div class="modal-container">
       <div class="modal-header"><h3 class="modal-title">Pick List: ${taskId}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
-      <div class="modal-body"><div class="table-wrapper"><table><thead><tr><th>SKU</th><th>Bin</th><th>Zone</th><th>Aisle</th><th>Rack</th><th>Pick Qty</th></tr></thead><tbody>${rows}</tbody></table></div></div>
+      <div class="modal-body"><div class="table-wrapper"><table><thead><tr><th>SKU</th>${hasBatches ? '<th>Batch / Expiry</th>' : ''}<th>Bin</th><th>Zone</th><th>Aisle</th><th>Rack</th><th>Pick Qty</th></tr></thead><tbody>${rows}</tbody></table></div></div>
       <div class="modal-footer"><button type="button" class="btn btn-secondary">Close</button></div>
     </div>`;
   document.body.appendChild(overlay);
@@ -7199,6 +7227,7 @@ function renderMobilePickCard() {
       <div class="text-muted" style="font-size:13px; margin-bottom:12px;">Item ${mobilePickIndex + 1} of ${mobilePickLines.length}</div>
       <div style="font-size:32px; font-weight:700; letter-spacing:-0.5px; margin-bottom:6px;">${line.sku}</div>
       <div style="font-size:15px; color:var(--text-muted); margin-bottom:16px;">Zone ${line.zone || '-'} / Aisle ${line.aisle || '-'} / Rack ${line.rack || '-'} / Bin ${line.bin_code}</div>
+      ${line.batch_no ? `<div style="font-size:15px; margin-bottom:16px; line-height:1.7;">Batch ${batchCellHTML(line)}</div>` : ''}
       <div style="font-size:48px; font-weight:800; color:var(--primary-color); margin-bottom:20px;">${line.pick_qty}${line.shortfall ? ` <span class="badge badge-warning" style="font-size:14px; vertical-align:middle;">short ${line.shortfall}</span>` : ''}</div>
       <div style="display:flex; gap:10px; justify-content:center; margin-bottom:14px;">
         <button class="btn btn-outline" id="mobile-pick-prev" type="button" ${mobilePickIndex === 0 ? 'disabled' : ''}>Previous</button>
@@ -7224,7 +7253,12 @@ function renderMobilePickCard() {
 function speakMobilePickLine(line) {
   if (!('speechSynthesis' in window)) return;
   window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(`Pick ${line.pick_qty} of ${line.sku}, bin ${line.bin_code}, zone ${line.zone || 'unspecified'}.`);
+  // Stage 42.1.5: the lot is spoken too when there is one - a voice-picking
+  // flow that names the bin but not the batch would send a picker to the right
+  // shelf to take the wrong lot, which is precisely the failure FEFO exists to
+  // prevent.
+  const batchPhrase = line.batch_no ? ` Batch ${line.batch_no}.` : '';
+  const utterance = new SpeechSynthesisUtterance(`Pick ${line.pick_qty} of ${line.sku}, bin ${line.bin_code}, zone ${line.zone || 'unspecified'}.${batchPhrase}`);
   window.speechSynthesis.speak(utterance);
 }
 
@@ -7291,11 +7325,18 @@ async function submitWavePickList() {
   if (!res) return;
   if (!res.ok) { await showApiError(res, 'Failed to generate wave pick list.', 'Wave Pick List Failed'); return; }
   const data = await res.json();
+  // Stage 42.1.5: the Batch/Expiry column appears only when this wave actually
+  // allocated lots (FEFO), so a non-traceability warehouse sees the same six
+  // columns it always has.
+  const waveHasBatches = (data.pick_lines || []).some(l => l.batch_no);
   let html = `<h3 style="font-size: 14px; font-weight: 700; margin: 16px 0 8px;">Consolidated Pick List (zone/aisle/rack walking order)</h3>`;
-  html += `<table><thead><tr><th>Zone</th><th>Aisle</th><th>Rack</th><th>Bin</th><th>SKU</th><th>Pick Qty</th></tr></thead><tbody>`;
+  if (waveHasBatches) {
+    html += `<p class="text-muted" style="font-size:12px; margin:0 0 8px;">Lines are allocated <b>FEFO</b> (first-expiry-first-out) &mdash; pick the exact batch shown. Expired lots and lots inside the item's minimum remaining shelf life are excluded automatically.</p>`;
+  }
+  html += `<table><thead><tr><th>Zone</th><th>Aisle</th><th>Rack</th><th>Bin</th><th>SKU</th>${waveHasBatches ? '<th>Batch / Expiry</th>' : ''}<th>Pick Qty</th></tr></thead><tbody>`;
   html += data.pick_lines.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No pick lines &mdash; nothing in this wave is currently stored in a bin.</td></tr>`
-    : data.pick_lines.map(l => `<tr><td>${l.zone || ''}</td><td>${l.aisle || ''}</td><td>${l.rack || ''}</td><td>${l.bin_code}</td><td>${l.sku}</td><td>${l.pick_qty}</td></tr>`).join('');
+    ? `<tr><td colspan="${waveHasBatches ? 7 : 6}" style="text-align:center; color:var(--text-muted);">No pick lines &mdash; nothing in this wave is currently stored in a bin.</td></tr>`
+    : data.pick_lines.map(l => `<tr><td>${l.zone || ''}</td><td>${l.aisle || ''}</td><td>${l.rack || ''}</td><td>${l.bin_code}</td><td>${l.sku}</td>${waveHasBatches ? `<td>${batchCellHTML(l)}</td>` : ''}<td>${l.pick_qty}</td></tr>`).join('');
   html += `</tbody></table>`;
   html += `<h3 style="font-size: 14px; font-weight: 700; margin: 20px 0 8px;">Per-Order Allocation</h3>`;
   html += `<table><thead><tr><th>Task ID</th><th>SKU</th><th>Allocated Qty</th><th>Shortfall</th></tr></thead><tbody>`;
@@ -9703,6 +9744,32 @@ async function renderGRNWorkbenchView(container) {
       </div>
       <button class="btn btn-outline" id="grn-add-line-btn" type="button">Add Line</button>
     </div>
+
+    <!-- Stage 42.1.4: batch/lot capture at receipt. Its own row rather than
+         three more fields squeezed into the QC row above, because a receiving
+         clerk types these off the carton in one go and they belong together.
+         The whole row hides itself for an item that is not batch-tracked
+         (populateGRNBatchRow below), so a warehouse that has opted no item
+         into traceability never sees it. -->
+    <div id="grn-batch-row" class="hidden" style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-batch">Batch / Lot No</label>
+        <input type="text" id="grn-line-batch" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-mfg">Manufacture Date</label>
+        <input type="date" id="grn-line-mfg" class="form-input" style="width: 160px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-expiry">Expiry Date</label>
+        <input type="date" id="grn-line-expiry" class="form-input" style="width: 160px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-supplier-batch">Supplier Batch No</label>
+        <input type="text" id="grn-line-supplier-batch" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <div id="grn-batch-note" style="font-size: 12.5px; color: var(--text-muted); align-self: center;"></div>
+    </div>
     <div id="grn-lines-list" style="margin: 12px 0;"></div>
     <div id="grn-form-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
     <button class="btn btn-primary" id="grn-create-btn">Post Receipt</button>
@@ -9714,11 +9781,23 @@ async function renderGRNWorkbenchView(container) {
   attachLinkTypeahead(document.getElementById('grn-asn'), 'ASN');
   attachLinkTypeahead(document.getElementById('grn-line-sku'), 'Item');
 
+  // Stage 42.1.4: the batch row follows whatever SKU is in the line field, so
+  // the clerk is asked for a lot number exactly when the item needs one and
+  // never otherwise. `change` (not `input`) so the typeahead's resolved value
+  // is what gets looked up, matching how grn-po already drives its own reload.
+  document.getElementById('grn-line-sku').addEventListener('change', populateGRNBatchRow);
+
   document.getElementById('grn-po').addEventListener('change', loadGRNItemsFromPO);
   document.getElementById('grn-load-po-btn').addEventListener('click', loadGRNItemsFromPO);
   document.getElementById('grn-load-asn-btn').addEventListener('click', loadGRNItemsFromASN);
   document.getElementById('grn-add-line-btn').addEventListener('click', addGRNLine);
   document.getElementById('grn-create-btn').addEventListener('click', createGRN);
+
+  // Stage 42.1.4: drop the per-SKU tracking cache each time the screen is
+  // opened, so an item switched to batch-tracked in Setup is picked up on the
+  // clerk's next visit rather than surviving until a page reload.
+  grnBatchTracked = {};
+  grnBatchShelfLife = {};
 
   renderGRNLinesList();
 
@@ -9764,9 +9843,12 @@ function renderGRNLinesList() {
     el.innerHTML = `<p style="font-size: 13px; color: var(--text-muted);">No lines added yet.</p>`;
     return;
   }
+  // Stage 42.1.4: the Batch/Expiry column appears only once a line on this
+  // receipt actually carries a lot.
+  const grnHasBatches = grnLineItems.some(l => l.batch_no);
   el.innerHTML = `
     <table style="margin-top: 4px;">
-      <thead><tr><th>SKU</th><th>Barcode</th><th>Ordered</th><th>Received</th><th>Accepted</th><th>Rejected</th><th>Damaged</th><th>Short</th><th></th></tr></thead>
+      <thead><tr><th>SKU</th><th>Barcode</th>${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}<th>Ordered</th><th>Received</th><th>Accepted</th><th>Rejected</th><th>Damaged</th><th>Short</th><th></th></tr></thead>
       <tbody>
         ${grnLineItems.map((line, idx) => {
           const ordered = line.ordered_qty;
@@ -9775,6 +9857,7 @@ function renderGRNLinesList() {
             <tr>
               <td style="font-family: monospace;">${line.sku}</td>
               <td><span class="badge badge-secondary" style="font-family: Consolas, Monaco, monospace; letter-spacing: 1px;">${line.barcode || line.sku}</span></td>
+              ${grnHasBatches ? `<td>${batchCellHTML({ batch_no: line.batch_no, expiry_date: line.expiry_date })}</td>` : ''}
               <td>${(ordered === null || ordered === undefined || ordered === '') ? '&mdash;' : ordered}</td>
               <td>${line.qty}</td>
               <td>${line.accepted_qty}</td>
@@ -9838,8 +9921,31 @@ async function addGRNLine() {
     return;
   }
 
+  // Stage 42.1.4: batch capture. The mandatory check is repeated server-side
+  // in PostGRNReceiptWithQC (INVENT-0115) - this copy exists only so the clerk
+  // finds out while the carton is still in their hands, not after posting.
+  const batchEl = document.getElementById('grn-line-batch');
+  const mfgEl = document.getElementById('grn-line-mfg');
+  const expiryEl = document.getElementById('grn-line-expiry');
+  const supplierBatchEl = document.getElementById('grn-line-supplier-batch');
+  const batchNo = (batchEl?.value || '').trim();
+  const mfgDate = (mfgEl?.value || '').trim();
+  const expiryDate = (expiryEl?.value || '').trim();
+  const supplierBatch = (supplierBatchEl?.value || '').trim();
+
+  if (grnBatchTracked[sku] && !batchNo) {
+    errorEl.textContent = `${sku} is batch-tracked - enter the batch/lot number printed on the carton before adding this line.`;
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (mfgDate && expiryDate && expiryDate <= mfgDate) {
+    errorEl.textContent = 'Expiry date must be after the manufacture date.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
   const barcode = await lookupGRNBarcode(sku);
-  grnLineItems.push({
+  const line = {
     sku, ordered_qty: ordered, qty,
     accepted_qty: qty - rejectedQty - damagedQty,
     rejected_qty: rejectedQty,
@@ -9847,7 +9953,15 @@ async function addGRNLine() {
     damaged_qty: damagedQty,
     damage_reason: damageReason,
     barcode
-  });
+  };
+  // Only set when present, so a non-traceability receipt posts the exact same
+  // received_items JSON it always has.
+  if (batchNo) line.batch_no = batchNo;
+  if (mfgDate) line.mfg_date = mfgDate;
+  if (expiryDate) line.expiry_date = expiryDate;
+  if (supplierBatch) line.supplier_batch = supplierBatch;
+  grnLineItems.push(line);
+
   skuEl.value = '';
   orderedEl.value = '';
   receivedEl.value = '';
@@ -9855,8 +9969,62 @@ async function addGRNLine() {
   reasonEl.value = '';
   damagedEl.value = '0';
   damageReasonEl.value = '';
+  if (batchEl) batchEl.value = '';
+  if (mfgEl) mfgEl.value = '';
+  if (expiryEl) expiryEl.value = '';
+  if (supplierBatchEl) supplierBatchEl.value = '';
+  populateGRNBatchRow();
   renderGRNLinesList();
 }
+
+// Stage 42.1.4: which SKUs are batch-tracked, cached per screen visit so
+// re-typing the same SKU does not re-fetch the Item. Keyed by SKU, value is
+// the boolean - an absent key means "not looked up yet".
+let grnBatchTracked = {};
+
+// populateGRNBatchRow shows or hides the batch/lot row for whatever SKU is
+// currently in the line field, and says WHY it is showing - a receiving clerk
+// should not have to know which items someone configured as batch-tracked.
+async function populateGRNBatchRow() {
+  const row = document.getElementById('grn-batch-row');
+  const note = document.getElementById('grn-batch-note');
+  const batchEl = document.getElementById('grn-line-batch');
+  if (!row) return;
+  const sku = (document.getElementById('grn-line-sku')?.value || '').trim();
+  if (!sku) { row.classList.add('hidden'); return; }
+
+  if (!(sku in grnBatchTracked)) {
+    // The Item doc endpoint keys on document id, and an Item's id is not
+    // reliably its code in this tree, so a miss here is "unknown", never
+    // "not tracked" - the server-side gate still catches a genuinely
+    // batch-tracked item whose lookup failed.
+    const res = await apiFetch(`/api/v1/doc/Item/${encodeURIComponent(sku)}`);
+    let mode = '';
+    let shelfLife = 0;
+    if (res && res.ok) {
+      const item = await res.json();
+      mode = item.tracking_mode || '';
+      shelfLife = Number(item.shelf_life_days) || 0;
+    }
+    grnBatchTracked[sku] = (mode === 'Batch' || mode === 'Batch and Serial');
+    grnBatchShelfLife[sku] = shelfLife;
+  }
+
+  const tracked = grnBatchTracked[sku];
+  row.classList.remove('hidden');
+  if (batchEl) batchEl.placeholder = tracked ? 'required for this item' : 'optional';
+  if (note) {
+    const shelfLife = grnBatchShelfLife[sku] || 0;
+    note.innerHTML = tracked
+      ? `<b>${escapeHTMLText(sku)}</b> is batch-tracked &mdash; a lot number is required.${shelfLife > 0 ? ` If you enter a manufacture date and leave Expiry blank, expiry is derived as manufacture + ${shelfLife} days.` : ''}`
+      : `<b>${escapeHTMLText(sku)}</b> is not batch-tracked. You may still record a lot number; it will be kept for traceability.`;
+  }
+}
+
+// Shelf life per SKU, cached alongside grnBatchTracked, so the note above can
+// explain the derive-expiry-from-manufacture-date behaviour concretely rather
+// than in the abstract.
+let grnBatchShelfLife = {};
 
 window.removeGRNLine = function(idx) {
   grnLineItems.splice(idx, 1);

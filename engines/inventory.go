@@ -72,6 +72,7 @@ type StockLedgerEntry struct {
 	ToStatus       string
 	UserID         string
 	DeviceID       string
+	BatchNo        string // Stage 42.1.3: the lot this movement was of. Empty for non-batch-tracked stock, which is most of it - it is what makes the ledger answerable for recall without a second history table.
 }
 
 
@@ -125,6 +126,9 @@ func WriteStockLedgerEntry(tenantID string, e StockLedgerEntry) error {
 	}
 	if e.DeviceID != "" {
 		docData["device_id"] = e.DeviceID
+	}
+	if e.BatchNo != "" {
+		docData["batch_no"] = e.BatchNo
 	}
 
 	marshaled, err := json.Marshal(docData)
@@ -198,6 +202,11 @@ func PostInventoryLedgerWithVoucher(tenantID string, locationCode string, items 
 	type postedLine struct {
 		sku string
 		qty int
+		// Stage 42.1.3/42.1.4: the lot this line was of, when the caller knows
+		// it. Carried through to the ledger entry below rather than written as
+		// a second entry, because a second entry would double-count the same
+		// physical movement in every report that sums ledger qty.
+		batchNo string
 	}
 	var postedLines []postedLine
 
@@ -268,7 +277,8 @@ func PostInventoryLedgerWithVoucher(tenantID string, locationCode string, items 
 		if err != nil {
 			return nil, err
 		}
-		postedLines = append(postedLines, postedLine{sku: sku, qty: qtyVal})
+		batchNo, _ := itemMap["batch_no"].(string)
+		postedLines = append(postedLines, postedLine{sku: sku, qty: qtyVal, batchNo: strings.TrimSpace(batchNo)})
 	}
 
 	if err := tx.Commit(); err != nil {
@@ -279,9 +289,17 @@ func PostInventoryLedgerWithVoucher(tenantID string, locationCode string, items 
 		entry := StockLedgerEntry{
 			ItemID: p.sku, WarehouseID: locationCode, Qty: float64(p.qty),
 			VoucherType: voucherType, VoucherID: voucherID, UserID: userID,
+			BatchNo: p.batchNo,
 		}
 		if voucherID != "" {
 			entry.IdempotencyKey = fmt.Sprintf("%s:%s:%s:%s", voucherType, voucherID, locationCode, p.sku)
+			// Two lots of one SKU on one voucher are two real movements, and
+			// without the lot in the key the second would be swallowed as a
+			// replay of the first. Appended only when there IS a lot, so every
+			// key minted before Stage 42 is byte-identical to what it was.
+			if p.batchNo != "" {
+				entry.IdempotencyKey += ":" + p.batchNo
+			}
 		}
 		if lerr := WriteStockLedgerEntry(tenantID, entry); lerr != nil {
 			LogSystemError(tenantID, "", "WARN", "PostInventoryLedgerWithVoucher", fmt.Sprintf("stock ledger write failed for %s at %s: %v", p.sku, locationCode, lerr), "")

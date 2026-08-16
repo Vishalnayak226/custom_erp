@@ -239,7 +239,7 @@
       "id": "finance",
       "lobe": "business",
       "name": "Finance & General Ledger",
-      "role": "Balanced double-entry posting (PostDoubleEntry), chart of accounts, journal vouchers and recurring templates, accounting-period close, cost centres, bank reconciliation, payment proposals and payment files, sales/vendor invoices, debit and credit notes.",
+      "role": "Balanced double-entry posting (PostDoubleEntry), chart of accounts, journal vouchers and recurring templates, accounting-period close, cost centres, bank reconciliation, payment proposals and payment files, sales/vendor invoices, debit and credit notes, and the multi-currency stack: effective-dated rates, dual-currency postings, realised FX at settlement, period-end revaluation and presentation-currency reporting.",
       "match": [
         "engines/finance.go",
         "engines/currency.go",
@@ -257,7 +257,10 @@
         "engines/notes.go",
         "internal/server/handlers_finance_maturity.go",
         "internal/server/handlers_finance_stage26.go",
-        "engines/currency_documents.go"
+        "engines/currency_documents.go",
+        "engines/currency_fx.go",
+        "engines/currency_reports.go",
+        "internal/server/handlers_currency_fx.go"
       ]
     },
     {
@@ -304,10 +307,12 @@
       "id": "wms",
       "lobe": "business",
       "name": "Warehouse Management (WMS)",
-      "role": "Receiving, put-away, slotting, picking, pack counts, 3PL billing, productivity tracking and robotics hooks — the enterprise warehouse tier on top of plain inventory.",
+      "role": "Receiving, put-away, slotting, picking, pack counts, 3PL billing, productivity tracking and robotics hooks — the enterprise warehouse tier on top of plain inventory. Stage 42.1 adds the traceability foundation: per-item batch/serial tracking flags and shelf-life rules, the Batch master, a bin_stock_batch sub-ledger that breaks bin stock down by lot the same way bin_stock breaks down inventory_availability, batch capture at receipt, FEFO allocation behind one AllocateFromStock choke point both pick-list generators call, the expiry and hold gates that filter it, and recall traceability as reports read off the batch-stamped stock ledger.",
       "match": [
         "engines/wms*.go",
-        "internal/server/handlers_wms*.go"
+        "engines/traceability*.go",
+        "internal/server/handlers_wms*.go",
+        "internal/server/handlers_traceability.go"
       ]
     },
     {

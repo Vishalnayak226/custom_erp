@@ -188,7 +188,9 @@ func Match3Way(tenantID, poID, grnID, invoiceID string, tolerancePercent float64
 // for approval instead of paid; handleDecideApproval finalizes the actual
 // payment (FinalizeVendorInvoiceOverridePayment) only once a checker
 // Approves it.
-func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason string) (paidAmount int, pendingApproval bool, err error) {
+// Stage 37.1.3 adds the realised FX leg. opts is variadic so all three existing
+// callers needed no change.
+func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason string, opts ...SettlementOptions) (paidAmount int, pendingApproval bool, err error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return 0, false, err
@@ -282,11 +284,30 @@ func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 	// pay attempt on the same invoice, and a GL failure here leaves the
 	// invoice's status untouched (this tx is rolled back via defer) rather
 	// than marking it Paid with no posting behind it.
-	debits := map[string]int{"2100": amountInt}  // clear GRN Suspense liability
-	credits := map[string]int{"1100": amountInt} // Cash/Bank paid out
-	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, debits, credits, "", fmt.Sprintf("VendorInvoice:%s:PAY", invoiceID)); err != nil {
+	// Stage 37.1.3. The liability is cleared at what the ledger carries for it;
+	// the cash leaving the bank is the invoice amount at the payment-date rate.
+	// A payable settled after the foreign currency strengthened costs more
+	// rupees than it was booked at, and that excess is a realised LOSS - the
+	// opposite sign to the receivable side, which is why resolveSettlementFX is
+	// told which side it is on rather than inferring it.
+	position := documentFXPosition(tenantID, data, "invoice_amount")
+	settlement, ferr := resolveSettlementFX(tenantID, position, false, settlementOption(opts))
+	if ferr != nil {
+		return 0, false, ferr
+	}
+	amountInt = settlement.SettlementAmount
+
+	debits := map[string]int{"2100": position.CarryingAmount}      // clear GRN Suspense liability
+	credits := map[string]int{"1100": settlement.SettlementAmount} // Cash/Bank paid out
+	applyRealisedFXLine(debits, credits, settlement.RealisedGainLoss)
+	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, debits, credits, settlement.PostingDate(), fmt.Sprintf("VendorInvoice:%s:PAY", invoiceID),
+		postingOptionsFor(position, settlement.SettlementRate, debits, credits, map[string]float64{
+			"2100": position.TransactionAmount,
+			"1100": position.TransactionAmount,
+		})); err != nil {
 		return 0, false, fmt.Errorf("GL posting failed, invoice not marked Paid: %v", err)
 	}
+	recordSettlementFX(data, settlement)
 
 	data["status"] = "Paid"
 	updatedBytes, _ := json.Marshal(data)
@@ -300,7 +321,7 @@ func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 		return 0, false, err
 	}
 
-	LogAuditEvent(tenantID, userID, "PAY_VENDOR_INVOICE", "SUCCESS", fmt.Sprintf("Paid vendor invoice %s amount=%d", invoiceID, amountInt))
+	LogAuditEvent(tenantID, userID, "PAY_VENDOR_INVOICE", "SUCCESS", settlementAuditDetail("vendor invoice", invoiceID, settlement))
 	return amountInt, false, nil
 }
 
@@ -310,7 +331,7 @@ func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 // posting and Paid transition never happened at submit time, same
 // finalize-on-approve shape as FinalizePOSCheckout (Stage 20.10) and
 // PostCycleCountAdjustment (Stage 20.22).
-func FinalizeVendorInvoiceOverridePayment(tenantID, invoiceID, userID string) (paidAmount int, err error) {
+func FinalizeVendorInvoiceOverridePayment(tenantID, invoiceID, userID string, opts ...SettlementOptions) (paidAmount int, err error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return 0, err
@@ -339,14 +360,28 @@ func FinalizeVendorInvoiceOverridePayment(tenantID, invoiceID, userID string) (p
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
 		return 0, err
 	}
-	amount, _ := data["invoice_amount"].(float64)
-	amountInt := int(amount)
+	// Stage 37.1.3, identical treatment to PayVendorInvoice's own leg. The
+	// override path posts on approval rather than on submission, so the rate
+	// that applies is the one on the day the money actually leaves - which is
+	// today, here, not the day the override was requested.
+	position := documentFXPosition(tenantID, data, "invoice_amount")
+	settlement, ferr := resolveSettlementFX(tenantID, position, false, settlementOption(opts))
+	if ferr != nil {
+		return 0, ferr
+	}
+	amountInt := settlement.SettlementAmount
 
-	debits := map[string]int{"2100": amountInt}
-	credits := map[string]int{"1100": amountInt}
-	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, debits, credits, "", fmt.Sprintf("VendorInvoice:%s:PAY_OVERRIDE", invoiceID)); err != nil {
+	debits := map[string]int{"2100": position.CarryingAmount}
+	credits := map[string]int{"1100": settlement.SettlementAmount}
+	applyRealisedFXLine(debits, credits, settlement.RealisedGainLoss)
+	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, debits, credits, settlement.PostingDate(), fmt.Sprintf("VendorInvoice:%s:PAY_OVERRIDE", invoiceID),
+		postingOptionsFor(position, settlement.SettlementRate, debits, credits, map[string]float64{
+			"2100": position.TransactionAmount,
+			"1100": position.TransactionAmount,
+		})); err != nil {
 		return 0, fmt.Errorf("GL posting failed, invoice not marked Paid: %v", err)
 	}
+	recordSettlementFX(data, settlement)
 
 	data["status"] = "Paid"
 	updatedBytes, _ := json.Marshal(data)
@@ -359,6 +394,6 @@ func FinalizeVendorInvoiceOverridePayment(tenantID, invoiceID, userID string) (p
 		return 0, err
 	}
 	LogAuditEvent(tenantID, userID, "PAY_VENDOR_INVOICE_OVERRIDE_FINALIZED", "SUCCESS",
-		fmt.Sprintf("Override-approved vendor invoice %s paid amount=%d", invoiceID, amountInt))
+		"Override-approved "+settlementAuditDetail("vendor invoice", invoiceID, settlement))
 	return amountInt, nil
 }

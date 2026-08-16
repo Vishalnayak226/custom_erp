@@ -339,6 +339,16 @@ func Run() {
 	http.HandleFunc("POST /api/v1/wms/cycle-count/recount/submit", apiMiddleware(moduleGate("wms", handleSubmitRecountValue)))
 	http.HandleFunc("POST /api/v1/wms/cycle-count/variance-reason", apiMiddleware(moduleGate("wms", handleSetCycleCountVarianceReason)))
 	http.HandleFunc("POST /api/v1/wms/cycle-count/post-adjustment", apiMiddleware(moduleGate("wms", handleRetryCycleCountPost)))
+	// Stage 42.1 (traceability foundation): batch/lot floor actions. Same
+	// moduleGate("wms", ...) as every other floor-ops route above. The three
+	// read paths (near-expiry watchlist, batch stock inquiry, batch movement
+	// history) are ReportDefinitions served by the generic report endpoint, so
+	// they deliberately have no routes of their own.
+	http.HandleFunc("POST /api/v1/wms/batch/putaway", apiMiddleware(moduleGate("wms", handleBatchPutaway)))
+	http.HandleFunc("POST /api/v1/wms/batch/consume", apiMiddleware(moduleGate("wms", handleBatchConsume)))
+	http.HandleFunc("POST /api/v1/wms/batch/status", apiMiddleware(moduleGate("wms", handleBatchStatus)))
+	http.HandleFunc("POST /api/v1/wms/batch/expiry-sweep", apiMiddleware(moduleGate("wms", handleBatchExpirySweep)))
+	http.HandleFunc("GET /api/v1/wms/batch/allocation-preview", apiMiddleware(moduleGate("wms", handleBatchAllocationPreview)))
 
 	// Checkout & Finance APIs
 	http.HandleFunc("POST /api/v1/checkout", apiMiddleware(handleCheckout))
@@ -371,6 +381,15 @@ func Run() {
 	http.HandleFunc("POST /api/v1/finance/credit-note/{id}/post", apiMiddleware(handlePostCreditNote))
 	http.HandleFunc("POST /api/v1/finance/sales-invoice/{id}/post", apiMiddleware(handlePostSalesInvoice))
 	http.HandleFunc("POST /api/v1/finance/sales-invoice/{id}/settle", apiMiddleware(handleSettleSalesInvoice))
+
+	// Stage 37.1.4/37.1.5 - FX revaluation and the presentation-currency trial
+	// balance. GET previews the revaluation and POST commits it; the split is
+	// the verb, not a flag, so a preview can never post. The three 37.1.5
+	// reports need no route - they are registered ReportDefinitions and the
+	// generic report catalog already serves and exports them.
+	http.HandleFunc("GET /api/v1/finance/fx-revaluation", apiMiddleware(handleFXRevaluation))
+	http.HandleFunc("POST /api/v1/finance/fx-revaluation", apiMiddleware(handleFXRevaluation))
+	http.HandleFunc("GET /api/v1/finance/trial-balance/presentation", apiMiddleware(handleTrialBalancePresentationCurrency))
 
 	// Journal Voucher (Stage 26.6.4) - manual GL entries, reversal,
 	// recurring templates. Submit-for-approval/approve/reject reuse the

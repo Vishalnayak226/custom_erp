@@ -91,6 +91,14 @@ type grnReceivedLine struct {
 	RejectionReason string   `json:"rejection_reason,omitempty"`
 	DamagedQty      *float64 `json:"damaged_qty,omitempty"`
 	DamageReason    string   `json:"damage_reason,omitempty"`
+	// Stage 42.1.4: batch/lot capture. Optional like everything above the
+	// first two - a line that omits them is exactly the line this struct
+	// already described, and PostGRNReceiptWithQC registers the lot from the
+	// same three keys at posting time.
+	BatchNo       string `json:"batch_no,omitempty"`
+	MfgDate       string `json:"mfg_date,omitempty"`
+	ExpiryDate    string `json:"expiry_date,omitempty"`
+	SupplierBatch string `json:"supplier_batch,omitempty"`
 }
 
 // PrepareGRNReceipt fills in a GRN's receiving `location` from its referenced
@@ -290,6 +298,25 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 		}
 		if rejected+damaged > line.Qty+1e-9 {
 			return &ValidationError{Code: "GOODSR-0097", Message: fmt.Sprintf("rejected (%v) plus damaged (%v) quantity for SKU %q cannot exceed received quantity (%v)", rejected, damaged, line.Sku, line.Qty)}
+		}
+		// 42.1.4: a batch-tracked item must arrive with a lot number, and
+		// short-dated goods are refused at the door. Validated HERE, before the
+		// document is written, rather than only at posting time: the GRN create
+		// hook cancels the receipt if posting fails, so a rejection raised later
+		// reaches the user as an unexpected-error 500 with a cancelled GRN
+		// behind it instead of a field message they can act on.
+		if err := ValidateReceiptBatchLine(tenantID, line.Sku, line.BatchNo, line.ExpiryDate); err != nil {
+			return err
+		}
+		// A lot dated to expire before it was made is a typo that would make
+		// FEFO allocate it first forever - the same rule the Batch master
+		// applies, enforced on the receipt that would create that master.
+		if mfg, okM := parseTraceDate(line.MfgDate); okM {
+			if exp, okE := parseTraceDate(line.ExpiryDate); okE && !exp.After(mfg) {
+				return &ValidationError{Code: "GLOBAL-0002", SubFor: "Expiry Date", Message: fmt.Sprintf(
+					"expiry date %s for SKU %q is not after its manufacture date %s",
+					exp.Format(isoDate), line.Sku, mfg.Format(isoDate))}
+			}
 		}
 	}
 
