@@ -6,6 +6,7 @@ package kb
 import (
 	"html"
 	"net/url"
+	"path"
 	"regexp"
 	"strconv"
 	"strings"
@@ -253,7 +254,11 @@ func safeLanguage(language string) string {
 	return out.String()
 }
 
-func (r *renderer) uniqueSlug(text string) string {
+// HeadingSlug is the anchor this renderer gives a heading. Exported because a
+// generator that writes its own contents list has to predict the anchor it is
+// linking to; a second implementation of this rule would produce a table of
+// contents whose links quietly stop resolving.
+func HeadingSlug(text string) string {
 	var slug strings.Builder
 	lastDash := false
 	for _, char := range strings.ToLower(text) {
@@ -269,6 +274,11 @@ func (r *renderer) uniqueSlug(text string) string {
 	if base == "" {
 		base = "section"
 	}
+	return base
+}
+
+func (r *renderer) uniqueSlug(text string) string {
+	base := HeadingSlug(text)
 	r.slugs[base]++
 	if r.slugs[base] == 1 {
 		return base
@@ -298,7 +308,7 @@ func renderInline(input string) string {
 				if closeURL := strings.Index(input[closeText+2:], ")"); closeURL >= 0 {
 					closeURL += closeText + 2
 					label := input[1:closeText]
-					url := safeURL(input[closeText+2 : closeURL])
+					url := articleURL(safeURL(input[closeText+2 : closeURL]))
 					out.WriteString(`<a href="` + html.EscapeString(url) + `">` + renderInline(label) + `</a>`)
 					input = input[closeURL+1:]
 					continue
@@ -341,6 +351,35 @@ func renderInline(input string) string {
 		input = input[size:]
 	}
 	return out.String()
+}
+
+// articleURL turns a relative Markdown link between two source files into the
+// URL the shell actually serves. `[x](../troubleshooting/error-codes.md)` in
+// docs/kb/ becomes `/help/error-codes`, because the slug is the basename and
+// carries no directory (see slugFromPath).
+//
+// Done here rather than by writing `/help/<slug>` by hand in every article for
+// two reasons: the source files stay readable and navigable as plain Markdown
+// on disk and in a repo browser, and an author cannot get the app's URL shape
+// wrong because they never type it. Only scheme-less, host-less links are
+// touched - an http(s) link to some other project's .md file is left alone.
+func articleURL(value string) string {
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Scheme != "" || parsed.Host != "" || parsed.Path == "" {
+		return value
+	}
+	if !strings.EqualFold(path.Ext(parsed.Path), ".md") {
+		return value
+	}
+	slug := strings.ToLower(strings.TrimSuffix(path.Base(parsed.Path), path.Ext(parsed.Path)))
+	if slug == "" || slug == "." {
+		return value
+	}
+	rewritten := "/help/" + slug
+	if parsed.Fragment != "" {
+		rewritten += "#" + parsed.Fragment
+	}
+	return rewritten
 }
 
 func safeURL(raw string) string {
