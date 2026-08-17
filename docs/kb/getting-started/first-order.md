@@ -1,7 +1,7 @@
 ---
 title: Your first order, end to end
 section: Getting Started
-order: 2
+order: 4
 summary: Follow one order from placement to invoice, so the screens in between stop being a mystery.
 audience: cashier, store manager
 last_verified: 2026-08-12

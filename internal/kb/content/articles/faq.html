@@ -1,0 +1,45 @@
+<h1 id="frequently-asked-questions">Frequently asked questions <a class="kb-anchor" href="#frequently-asked-questions" aria-label="Copy link to this section">#</a></h1>
+<p>Grouped by what you are trying to do. If you have an error code in front of you, go straight to <a href="/help/troubleshooting-index">Troubleshooting by symptom</a> instead.</p>
+<h2 id="access-and-sign-in">Access and sign-in <a class="kb-anchor" href="#access-and-sign-in" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Why can a colleague see a screen I cannot?</strong> Your role. The sidebar lists only what your role can open, and buttons you cannot use are not rendered at all. Nothing in the application lets you grant yourself access, which is deliberate. Ask an administrator.</p>
+<p><strong>Is a whole missing module also a permission?</strong> Not always. A module missing from <em>everyone&#39;s</em> sidebar is usually an entitlement</p>
+<ul><li>something your business has not licensed. One missing from only your sidebar</li></ul>
+<p>is a permission. An administrator can tell the two apart under <strong>Settings » Tenant Entitlements</strong>.</p>
+<p><strong>I typed my password wrong a few times and now nothing works.</strong> Five failed sign-ins in a minute are refused for a short cooling-off period. That is a rate limit, not a lockout. Wait a minute.</p>
+<p><strong>I lost the phone with my authenticator.</strong> Use a recovery code: on the sign-in screen, choose <em>Lost your phone? Use a recovery code</em>. Then set up a new device from <strong>My Profile</strong>. If you have lost both the phone and the codes, an administrator must reset your two-factor setup</p>
+<ul><li>nobody can look up an existing code for you, because only a fingerprint of</li></ul>
+<p>each is stored.</p>
+<p><strong>Can I stay signed in?</strong> Sessions expire, and the server re-checks your account and role on every request rather than trusting a token until it expires. So a role change or a deactivation takes effect immediately rather than at your next sign-in.</p>
+<h2 id="selling">Selling <a class="kb-anchor" href="#selling" aria-label="Copy link to this section">#</a></h2>
+<p><strong>The till refuses to take a sale.</strong> Almost always no open cashier session at that location. Open one, entering the cash physically in the drawer.</p>
+<p><strong>Why was my discount not applied straight away?</strong> Large manual discounts are routed to a manager. The sale sits as Pending Approval and nothing is charged until they decide it. Offers set up by head office never need approval.</p>
+<p><strong>An offer I expected did not appear.</strong> Three usual causes: the cart does not meet the condition yet, the offer needs a coupon code you have not entered, or it is restricted to a customer tier and you have not looked the customer up.</p>
+<p><strong>Can I reprint a receipt?</strong> Yes, at any time. It is rebuilt from the recorded sale rather than from the screen, so it always shows what was originally rung up.</p>
+<p><strong>Do I lose sales if the internet drops?</strong> No. Sales queue locally and sync when the connection returns. A manager reviews anything that did not apply cleanly under <strong>POS » Offline Sync Review</strong>.</p>
+<h2 id="stock">Stock <a class="kb-anchor" href="#stock" aria-label="Copy link to this section">#</a></h2>
+<p><strong>The system says we have none and I am looking at it.</strong> In order of likelihood: the goods receipt was never posted; the stock was received but never put away; the bin is in a blocked or quarantined condition; or it is reserved for another order. Only the last one is visible in a raw count, which is why <em>available to sell</em> is the figure to read.</p>
+<p><strong>What is the difference between the two stock numbers?</strong> Physical quantity is what is in the building. Available to sell subtracts what is already promised to other orders. Promise customers the second one.</p>
+<p><strong>Should I correct a cycle count to match the system?</strong> No. The variance is the only signal that something upstream is wrong. Adjusting the count to agree with the record destroys the evidence and keeps the error.</p>
+<h2 id="buying">Buying <a class="kb-anchor" href="#buying" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Do I have to raise an RFQ before a purchase order?</strong> No. A purchase order does not require one, and nothing gates a PO on an RFQ existing.</p>
+<p><strong>Why can I not approve my own purchase order?</strong> Self-approval is refused everywhere and is not configurable. Whoever raises a document cannot be the person who approves it.</p>
+<p><strong>I edited an approved document and now it says Pending Approval again.</strong> That is intended. An approval is of a specific version of a document, not of the document forever.</p>
+<p><strong>Where does the PO number come from?</strong> It is issued on save, from the numbering rules an administrator configured under <strong>Settings » Prefix Configs</strong>. You never type one.</p>
+<h2 id="products-and-tax">Products and tax <a class="kb-anchor" href="#products-and-tax" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Why will an item not save?</strong> Usually a missing HSN Code or GST Rate. Both are required, because the system cannot price a sale it cannot tax.</p>
+<p><strong>My product genuinely is not taxed.</strong> Set <strong>Tax Treatment</strong> to Exempt, Nil-Rated or Zero-Rated rather than typing a zero rate - a <code>0</code> on its own is rejected because it is indistinguishable from a field nobody has filled in. HSN is still required on all four treatments.</p>
+<p><strong>An invoice has the wrong tax on it.</strong> Fix the Item, not the invoice. Tax is resolved from the product&#39;s HSN code and the places of supply; an invoice that looks wrong is nearly always a product classified wrong.</p>
+<h2 id="orders">Orders <a class="kb-anchor" href="#orders" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Did my marketplace order actually arrive?</strong> Look at the <strong>Source</strong> column in Order Management - it shows the system the order came from and that system&#39;s own order id. If the channel&#39;s number is not there, the order has not arrived. You do not need anyone to check a database.</p>
+<p><strong>Why was my manual order refused?</strong> Most often <em>insufficient stock for reservation</em>. A manual order goes through the same engine a channel order does, on purpose, so it can be refused for the same reasons. Receive the stock and try again.</p>
+<p><strong>I clicked Create Order twice.</strong> If you filled in <strong>Reference</strong>, the same reference returns the same order rather than creating a second one. This is exactly what that field is for.</p>
+<p><strong>Can I fulfil part of an order now and the rest later?</strong> Yes - tick the lines and use <strong>Split selected lines</strong>. It stays one order with one id and one invoice chain. At least one line has to stay behind.</p>
+<h2 id="money">Money <a class="kb-anchor" href="#money" aria-label="Copy link to this section">#</a></h2>
+<p><strong>The trial balance does not balance.</strong> Something upstream failed to post. Check <strong>Finance / GL</strong> with <strong>As Of Date</strong> set to today, then work backwards through the day&#39;s receipts and invoices. The sooner you look, the smaller the search.</p>
+<p><strong>We received a different amount from what we invoiced in dollars.</strong> Expected. Between the invoice date and the payment date the rate moves. Enter the <strong>settlement date</strong> and, if you have it, the <strong>exchange rate</strong> from the remittance advice; the difference is recorded automatically as a foreign exchange gain or loss.</p>
+<p><strong>Should I edit an invoice to correct it?</strong> No - issue a debit or credit note. Editing history makes the correction invisible to everyone who already acted on the original.</p>
+<h2 id="the-system-itself">The system itself <a class="kb-anchor" href="#the-system-itself" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Who can see what I did?</strong> Everything is logged - who, what, when, which record - and administrators can read it under <strong>Settings » Activity Log</strong>. This is what makes it safe to give people real access rather than routing everything through one person.</p>
+<p><strong>Can we add our own fields?</strong> Yes. An administrator adds fields and record types under <strong>Settings » Database Schema Design</strong>, and can rename any field&#39;s label without touching data using <strong>Dynamic Labels</strong>.</p>
+<p><strong>Can another business on this system see our data?</strong> No. Each tenant&#39;s records are held separately in the database, not merely filtered in the application.</p>
+<p><strong>Something I expected is not here.</strong> This system is under active development. Ask your administrator before assuming you are doing it wrong - it may not be built yet.</p>

@@ -1,0 +1,341 @@
+<p>&lt;!-- GENERATED ARTICLE - DO NOT EDIT BY HAND. Regenerate: go run ./cmd/gendocs &amp;&amp; go run ./cmd/genkb --&gt;</p>
+<h1 id="report-catalog">Report catalog <a class="kb-anchor" href="#report-catalog" aria-label="Copy link to this section">#</a></h1>
+<p><strong>58</strong> reports across <strong>13</strong> categories, all reachable from <strong>Sales &amp; Marketplace » Reports</strong>.</p>
+<p>Pick one from the catalog list on that screen, fill in any parameter marked <strong>required</strong>, and run it. Where a report supports drill-down, clicking a figure opens the individual transactions behind it. <strong>Export in Background</strong> queues a CSV for any report large enough to time out a normal request.</p>
+<p>Columns marked <em>sensitive</em> are masked as <code>•••</code> for roles other than Super Admin and Store Manager. They are masked rather than dropped, so the table has the same shape whoever runs it and a screenshot from one person lines up with a screenshot from another.</p>
+<h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
+<ul><li><a href="#assets">Assets</a> - 1 reports</li><li><a href="#bi">BI</a> - 1 reports</li><li><a href="#crm">CRM</a> - 7 reports</li><li><a href="#exceptions">Exceptions</a> - 3 reports</li><li><a href="#finance">Finance</a> - 15 reports</li><li><a href="#hr">HR</a> - 1 reports</li><li><a href="#inventory">Inventory</a> - 2 reports</li><li><a href="#manufacturing">Manufacturing</a> - 2 reports</li><li><a href="#oms">OMS</a> - 10 reports</li><li><a href="#pim">PIM</a> - 4 reports</li><li><a href="#procurement">Procurement</a> - 3 reports</li><li><a href="#sales">Sales</a> - 3 reports</li><li><a href="#wms">WMS</a> - 6 reports</li></ul>
+<h2 id="assets">Assets <a class="kb-anchor" href="#assets" aria-label="Copy link to this section">#</a></h2>
+<h3 id="asset-register">Asset Register <a class="kb-anchor" href="#asset-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>asset-register</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Asset ID · Code · Category · Cost <em>(sensitive)</em> · Location · Custodian · Status · Accumulated Depreciation <em>(sensitive)</em> · Net Block <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h2 id="bi">BI <a class="kb-anchor" href="#bi" aria-label="Copy link to this section">#</a></h2>
+<h3 id="report-performance">Report Performance <a class="kb-anchor" href="#report-performance" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>report-performance</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Report · Runs · Avg Duration (ms) · Max Duration (ms) · Avg Rows · Last Run</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h2 id="crm">CRM <a class="kb-anchor" href="#crm" aria-label="Copy link to this section">#</a></h2>
+<h3 id="campaign-roi">Campaign ROI <a class="kb-anchor" href="#campaign-roi" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>campaign-roi</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Campaign ID · Campaign · Customers Targeted · Attributed Revenue <em>(sensitive)</em> · Cost <em>(sensitive)</em> · ROI <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="cohort-retention">Cohort Retention <a class="kb-anchor" href="#cohort-retention" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cohort-retention</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Cohort Month · Cohort Size · Month Offset · Retained</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="customer-360">Customer 360 <a class="kb-anchor" href="#customer-360" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>customer-360</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Customer ID</strong> (<code>customer_id</code>) - text, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Customer · Loyalty Balance <em>(sensitive)</em> · POS Purchases · POS Spend <em>(sensitive)</em> · Last Purchase · Invoices · Invoice Total <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="customer-lifetime-value">Customer Lifetime Value <a class="kb-anchor" href="#customer-lifetime-value" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>customer-lifetime-value</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Churn Threshold Days (default 90)</strong> (<code>churn_days</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Customer · Lifetime Value <em>(sensitive)</em> · Orders · First Order · Last Order · Churned?</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="loyalty-ledger-summary">Loyalty Ledger Summary <a class="kb-anchor" href="#loyalty-ledger-summary" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>loyalty-summary</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Customer · Total Earned · Total Redeemed · Current Balance <em>(sensitive)</em> · Transactions</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="loyalty-points-liability">Loyalty Points Liability <a class="kb-anchor" href="#loyalty-points-liability" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>points-liability</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Outstanding Points · Liability Value <em>(sensitive)</em> · Customers</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="rfm-customer-segmentation">RFM Customer Segmentation <a class="kb-anchor" href="#rfm-customer-segmentation" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>rfm-segmentation</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Customer · Recency (days) · Frequency · Monetary <em>(sensitive)</em> · R · F · M · Segment</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h2 id="exceptions">Exceptions <a class="kb-anchor" href="#exceptions" aria-label="Copy link to this section">#</a></h2>
+<h3 id="failed-syncs">Failed Syncs <a class="kb-anchor" href="#failed-syncs" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>exception-failed-syncs</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Event ID · Event · Attempts · Queued</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="negative-stock-flags">Negative Stock Flags <a class="kb-anchor" href="#negative-stock-flags" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>exception-negative-stock</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Flag ID · SKU · Location · Cart · Shortfall · Resulting Available · Flagged</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="stale-approvals">Stale Approvals <a class="kb-anchor" href="#stale-approvals" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>exception-stale-approvals</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Threshold Hours (default 24)</strong> (<code>threshold_hours</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Doctype · Document · Submitted · Hours Pending</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h2 id="finance">Finance <a class="kb-anchor" href="#finance" aria-label="Copy link to this section">#</a></h2>
+<h3 id="balance-sheet">Balance Sheet <a class="kb-anchor" href="#balance-sheet" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>balance-sheet</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>As Of</strong> (<code>as_of</code>) - date, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Account Code · Account Name · Type · Amount <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="bank-book">Bank Book <a class="kb-anchor" href="#bank-book" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>bank-book</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Bank Account</strong> (<code>bank_account</code>) - text, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Date · Document Type · Document ID · Debit <em>(sensitive)</em> · Credit <em>(sensitive)</em> · Running Balance <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="cash-book">Cash Book <a class="kb-anchor" href="#cash-book" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cash-book</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Date · Document Type · Document ID · Debit <em>(sensitive)</em> · Credit <em>(sensitive)</em> · Running Balance <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="cash-flow-statement">Cash Flow Statement <a class="kb-anchor" href="#cash-flow-statement" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cash-flow-statement</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>To</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Activity · Cash In <em>(sensitive)</em> · Cash Out <em>(sensitive)</em> · Net Change <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="cost-center-p-l">Cost Center P&amp;L <a class="kb-anchor" href="#cost-center-p-l" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>cost-center-pl</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>To</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Cost Center · Type · Amount <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="fx-gain-loss-register">FX Gain/Loss Register <a class="kb-anchor" href="#fx-gain-loss-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>fx-gain-loss-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From (YYYY-MM-DD, default 3 months back)</strong> (<code>from_date</code>) - text, optional</li><li><strong>To (YYYY-MM-DD, default today)</strong> (<code>to_date</code>) - text, optional</li><li><strong>Kind (realised / unrealised, blank for both)</strong> (<code>kind</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Posted · Kind · Account · Account Name · Document Type · Document · Currency · Rate · Gain · Loss · Net</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="gl-drill-down-by-account">GL Drill-down (by Account) <a class="kb-anchor" href="#gl-drill-down-by-account" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>gl-drilldown</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Account Code</strong> (<code>account_code</code>) - text, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Document Type · Document ID · Debit <em>(sensitive)</em> · Credit <em>(sensitive)</em> · Running Balance <em>(sensitive)</em> · Date</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="gst-return-summary">GST Return Summary <a class="kb-anchor" href="#gst-return-summary" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>gst-return-summary</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>To</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> From · To · Taxable Value <em>(sensitive)</em> · Output CGST <em>(sensitive)</em> · Output SGST <em>(sensitive)</em> · Output IGST <em>(sensitive)</em> · Total Tax Liability <em>(sensitive)</em> · Exempt Value <em>(sensitive)</em> · Nil-Rated Value <em>(sensitive)</em> · Zero-Rated Value <em>(sensitive)</em> · Total Non-Taxable <em>(sensitive)</em> · Transactions</p>
+<p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
+<h3 id="open-fx-exposure">Open FX Exposure <a class="kb-anchor" href="#open-fx-exposure" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>fx-open-item-exposure</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>As Of (YYYY-MM-DD, default today)</strong> (<code>as_of</code>) - text, optional</li><li><strong>Rate Type (Closing/Spot/Average)</strong> (<code>rate_type</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Document Type · Document · Currency · Amount (txn) · Booked Rate · Booked (functional) · Carrying · Rate Now · Revalued · Unrealised Movement · Last Revalued · Note</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="payables-ageing">Payables Ageing <a class="kb-anchor" href="#payables-ageing" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>payables-ageing</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Age Bucket · PO Count · Outstanding Amount <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
+<h3 id="profit-loss">Profit &amp; Loss <a class="kb-anchor" href="#profit-loss" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>profit-and-loss</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>To</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Account Code · Account Name · Type · Amount <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="receivables-ageing">Receivables Ageing <a class="kb-anchor" href="#receivables-ageing" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>receivables-ageing</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Age Bucket · Invoice Count · Outstanding Amount <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
+<h3 id="statutory-audit-export-full-gl">Statutory Audit Export (Full GL) <a class="kb-anchor" href="#statutory-audit-export-full-gl" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>statutory-gl-export</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Period Start</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>Period End</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Posting ID · Account Code · Account Name · Type · Document Type · Document ID · Debit <em>(sensitive)</em> · Credit <em>(sensitive)</em> · Date</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="tax-ledger">Tax Ledger <a class="kb-anchor" href="#tax-ledger" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>tax-ledger</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Account Code · Account Name · Document Type · Document ID · Debit <em>(sensitive)</em> · Credit <em>(sensitive)</em> · Date</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="trial-balance-in-presentation-currency">Trial Balance in Presentation Currency <a class="kb-anchor" href="#trial-balance-in-presentation-currency" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>trial-balance-presentation-currency</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>As Of (YYYY-MM-DD, default today)</strong> (<code>as_of</code>) - text, optional</li><li><strong>Present In (ISO code, e.g. USD)</strong> (<code>presentation_currency</code>) - text, optional</li><li><strong>Rate Type (Closing/Spot/Average)</strong> (<code>rate_type</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Account · Account Name · Type · Balance (functional) · Balance (presentation) · Currency · Rate · Rate Type</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h2 id="hr">HR <a class="kb-anchor" href="#hr" aria-label="Copy link to this section">#</a></h2>
+<h3 id="attendance-summary">Attendance Summary <a class="kb-anchor" href="#attendance-summary" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>attendance-summary</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Employee ID · Employee · Department · Present · Absent · Late · Leave · Holiday · Weekly Off · Total Marked Days · Attendance %</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h2 id="inventory">Inventory <a class="kb-anchor" href="#inventory" aria-label="Copy link to this section">#</a></h2>
+<h3 id="current-stock">Current Stock <a class="kb-anchor" href="#current-stock" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>current-stock</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> SKU · Location · On Hand · Available · Committed · Reserved · Safety Stock</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="stock-ledger">Stock Ledger <a class="kb-anchor" href="#stock-ledger" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>stock-ledger</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>SKU (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Location (optional)</strong> (<code>location_code</code>) - text, optional</li><li><strong>Voucher Type (optional)</strong> (<code>voucher_type</code>) - text, optional</li><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Date · SKU · Location · Qty Delta · Running Balance · Voucher Type · Voucher ID · From Location/Bin · To Location/Bin · From Condition · To Condition · User</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h2 id="manufacturing">Manufacturing <a class="kb-anchor" href="#manufacturing" aria-label="Copy link to this section">#</a></h2>
+<h3 id="production-cost-variance">Production Cost Variance <a class="kb-anchor" href="#production-cost-variance" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>production_cost_variance</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Production Order · BOM · Quantity · Standard Cost (Total) · Actual Cost · Variance · Variance % · Flag</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="production-order-status">Production Order Status <a class="kb-anchor" href="#production-order-status" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>production-order-status</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Order ID · BOM · Finished Item · Qty · Status · Date</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h2 id="oms">OMS <a class="kb-anchor" href="#oms" aria-label="Copy link to this section">#</a></h2>
+<h3 id="allocation-pending">Allocation Pending <a class="kb-anchor" href="#allocation-pending" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>allocation-pending</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Order · Customer · Channel · Total Amount <em>(sensitive)</em> · Created At</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="courier-performance">Courier Performance <a class="kb-anchor" href="#courier-performance" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>courier-performance</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Carrier · Total Shipments · Delivered · RTO · RTO Rate % · Avg Handover-&gt;Delivered (hrs)</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="oms-exception-queue">OMS Exception Queue <a class="kb-anchor" href="#oms-exception-queue" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>oms-exception-queue</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Event ID · Event · Status · Attempts · Queued At · Last Error</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="oms-reconciliation-variance">OMS Reconciliation Variance <a class="kb-anchor" href="#oms-reconciliation-variance" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>oms-reconciliation-variance</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Order · Order Status · Shipment/Booking · Booking Status · Variance</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="order-aging">Order Aging <a class="kb-anchor" href="#order-aging" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>order-aging</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Age Bucket · Order Count · Total Amount <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
+<h3 id="orphaned-channel-orders-pre-35-1-intake">Orphaned Channel Orders (pre-35.1 intake) <a class="kb-anchor" href="#orphaned-channel-orders-pre-35-1-intake" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>orphaned-channel-orders</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Mapping Table · Channel · Channel Order ID · Legacy Order ID · Last Written</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="reserved-stock">Reserved Stock <a class="kb-anchor" href="#reserved-stock" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>reserved-stock</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> SKU · Location · Reserved · Committed · On Hand · Available</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="return-aging">Return Aging <a class="kb-anchor" href="#return-aging" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>return-aging</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Age Bucket · Return Request Count</p>
+<p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
+<h3 id="sla-breach">SLA Breach <a class="kb-anchor" href="#sla-breach" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>sla-breach</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Threshold (minutes, default 120)</strong> (<code>threshold_minutes</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Task ID · Order · Location · Status · Minutes Elapsed · Threshold (mins)</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="stock-mismatch">Stock Mismatch <a class="kb-anchor" href="#stock-mismatch" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>stock-mismatch</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> SKU · Location · On Hand · Available · Reserved · Safety Stock · Blocked · QC Hold · Damaged · Channel Buffer · ATS (negative = over-committed)</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h2 id="pim">PIM <a class="kb-anchor" href="#pim" aria-label="Copy link to this section">#</a></h2>
+<h3 id="pim-overdue-tasks">PIM Overdue Tasks <a class="kb-anchor" href="#pim-overdue-tasks" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>pim-task-overdue</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Assignee (blank = everyone)</strong> (<code>assignee</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Task · Title · Item · Assignee · Due · Days Overdue · Priority · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="pim-product-group-readiness">PIM Product Group Readiness <a class="kb-anchor" href="#pim-product-group-readiness" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>pim-product-group-readiness</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Product Group ID or code</strong> (<code>group_id</code>) - text, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Item · Name · Family · Status · Completeness % · Missing Fields</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="pim-stalled-workflow-runs">PIM Stalled Workflow Runs <a class="kb-anchor" href="#pim-stalled-workflow-runs" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>pim-workflow-stalled</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Run · Workflow · Item · Stage · Status · Why It Is Waiting · Age (days) · Open Tasks</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="pim-task-workload-by-assignee">PIM Task Workload by Assignee <a class="kb-anchor" href="#pim-task-workload-by-assignee" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>pim-task-workload</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Assignee · Open · In Progress · Blocked · Overdue · Due This Week</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h2 id="procurement">Procurement <a class="kb-anchor" href="#procurement" aria-label="Copy link to this section">#</a></h2>
+<h3 id="grn-register">GRN Register <a class="kb-anchor" href="#grn-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>grn-register</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> GRN ID · PO Reference · Item Lines · Status · Date</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="rfq-comparison-export">RFQ Comparison Export <a class="kb-anchor" href="#rfq-comparison-export" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>rfq-comparison</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>RFQ ID</strong> (<code>rfq_id</code>) - text, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Quote ID · Vendor · Quoted Price <em>(sensitive)</em> · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="vendor-ledger">Vendor Ledger <a class="kb-anchor" href="#vendor-ledger" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>vendor-ledger</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Vendor (optional)</strong> (<code>vendor_id</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> PO ID · Vendor · PO Number · Total Amount <em>(sensitive)</em> · Status · Date</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h2 id="sales">Sales <a class="kb-anchor" href="#sales" aria-label="Copy link to this section">#</a></h2>
+<h3 id="competitor-price-gap">Competitor Price Gap <a class="kb-anchor" href="#competitor-price-gap" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>competitor-price-gap</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Platform (optional)</strong> (<code>platform</code>) - select, optional, one of: Amazon,Flipkart,Myntra,Meesho,Ajio,Nykaa,Tata Cliq,JioMart,eBay,Own Website,Other</li><li><strong>Our SKU (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Observed on or after (optional)</strong> (<code>since</code>) - date, optional</li><li><strong>We are (optional)</strong> (<code>position</code>) - select, optional, one of: Above,At,Below,No price on file</li></ul>
+<p><strong>Columns:</strong> Our SKU · Item · Our Price · Our Price From · Best Competitor Price · Platform · Gap (₹) · Gap (%) · We Are · Observed On · Observations · Source</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="customer-ledger">Customer Ledger <a class="kb-anchor" href="#customer-ledger" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>customer-ledger</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Customer (optional)</strong> (<code>customer</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Invoice ID · Customer · Invoice Number · Total Amount <em>(sensitive)</em> · Status · Date</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="sales-register">Sales Register <a class="kb-anchor" href="#sales-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>sales-register</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Cart Number · Location · Payment Mode · Status · Sale Total <em>(sensitive)</em> · Date · Data Issue</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h2 id="wms">WMS <a class="kb-anchor" href="#wms" aria-label="Copy link to this section">#</a></h2>
+<h3 id="3pl-storage-handling-billing">3PL Storage &amp; Handling Billing <a class="kb-anchor" href="#3pl-storage-handling-billing" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>3pl-storage-billing</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Owner (optional)</strong> (<code>owner_id</code>) - text, optional</li><li><strong>Period Start</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>Period End</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> Owner · Location · Current Units · Days · Storage Charge <em>(sensitive)</em> · Handling Tasks · Handling Charge <em>(sensitive)</em> · Total <em>(sensitive)</em></p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="batch-movement-history-recall">Batch Movement History (Recall) <a class="kb-anchor" href="#batch-movement-history-recall" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>batch-movement-history</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Batch / Lot</strong> (<code>batch_no</code>) - text, <strong>required</strong></li><li><strong>Item Code (optional)</strong> (<code>sku</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> When · Item · Batch / Lot · Qty · Movement · Document · Location · From Bin · To Bin · By</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="batch-near-expiry-watchlist">Batch Near-Expiry Watchlist <a class="kb-anchor" href="#batch-near-expiry-watchlist" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>batch-near-expiry</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Within (days, default 30)</strong> (<code>within_days</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Item · Batch / Lot · Expires · Days Left · Batch Status · Qty On Hand · Locations</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="batch-stock-inquiry">Batch Stock Inquiry <a class="kb-anchor" href="#batch-stock-inquiry" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>batch-stock-inquiry</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Item Code (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Location (optional)</strong> (<code>location</code>) - text, optional</li><li><strong>Batch / Lot (optional)</strong> (<code>batch_no</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Item · Batch / Lot · Location · Bin · Condition · Qty · Expires · Days Left · Batch Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="labor-productivity">Labor Productivity <a class="kb-anchor" href="#labor-productivity" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>labor-productivity</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> User · Task Type · Tasks · Tasks/Hour · First Task · Last Task</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="slotting-re-slotting-suggestions">Slotting / Re-Slotting Suggestions <a class="kb-anchor" href="#slotting-re-slotting-suggestions" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>slotting-suggestions</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Location</strong> (<code>location_code</code>) - text, <strong>required</strong></li></ul>
+<p><strong>Columns:</strong> SKU · Velocity Tier · Daily Velocity · Suggested Action · From Bin · To Bin · Qty · Reason</p>
+<p><strong>Drill-down:</strong> no.</p>

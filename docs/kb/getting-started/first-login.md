@@ -1,7 +1,7 @@
 ---
 title: Your first sign-in
 section: Getting Started
-order: 1
+order: 2
 summary: Sign in, understand what your role can see, and find your way around the main screens.
 audience: everyone
 last_verified: 2026-08-12

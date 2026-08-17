@@ -1,0 +1,34 @@
+<h1 id="a-day-as-an-administrator">A day as an administrator <a class="kb-anchor" href="#a-day-as-an-administrator" aria-label="Copy link to this section">#</a></h1>
+<p>A well-configured system barely needs you, which is the point. Most of this job is front-loaded: get the setup right and the daily part becomes four checks and a queue.</p>
+<h2 id="setup-in-dependency-order">Setup, in dependency order <a class="kb-anchor" href="#setup-in-dependency-order" aria-label="Copy link to this section">#</a></h2>
+<p>Doing these out of order is the usual cause of a frustrating first week - each one needs the one above it.</p>
+<p><strong>1. Configuration.</strong> <strong>Settings » Configuration</strong> holds the tenant-wide decisions: your default country, which drives every phone field in the system; GST mode for purchase orders; retention periods; the thresholds that send things to approval.</p>
+<p><strong>2. Prefix Configs.</strong> Numbering rules for every document type. Set these before anyone raises a document, because the numbers already issued do not change retrospectively.</p>
+<p><strong>3. Roles.</strong> <strong>Settings » Roles</strong> grants read, create, update and delete per record type. The system fails closed - a record type with no grant row is denied to that role rather than allowed by default. Four roles ship: Cashier, Store Manager, Super Admin, Supplier. Create more when a real job does not fit one.</p>
+<p>The application also <em>hides</em> what a role cannot do: no <strong>New</strong> or <strong>Bulk Import</strong> button without create, no row <strong>Edit</strong> or <strong>Delete</strong> icons without those permissions. So a role&#39;s grants also predict what its holders actually see, which makes testing a role a matter of signing in as one.</p>
+<p><strong>4. Users.</strong> <strong>Settings » Users</strong>. Assign the role, not a pile of individual permissions.</p>
+<p><strong>5. Approval Rules.</strong> Which documents need a second pair of eyes, above what threshold, decided by whom. Self-approval is refused everywhere and is not configurable - the person who raises a document cannot be the person who approves it.</p>
+<p><strong>6. Master data.</strong> Locations, then Vendors, then Items. Nothing transactional works until these exist, and the application will tell users so with a banner naming exactly what is missing.</p>
+<h2 id="shaping-the-system-to-the-business">Shaping the system to the business <a class="kb-anchor" href="#shaping-the-system-to-the-business" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Dynamic Labels</strong> renames a field&#39;s label across the application without touching the data underneath. Use it when your business calls something by a different name; do not use it to repurpose a field for a different meaning.</p>
+<p><strong>Database Schema Design</strong> adds fields and record types. It supports both create and edit, addressed by row - so a typo&#39;d label or a wrong field type is fixed in place rather than by deleting and recreating, which would discard that field&#39;s stored data on every existing document.</p>
+<aside class="kb-admonition kb-admonition-warning" role="note"><p class="kb-admonition-title">Warning</p><p>Renaming a field&#39;s <em>fieldname</em> means data stored under the old key stops being displayed. It is not deleted, and renaming back restores it - but the screen will look empty in the meantime, so do it deliberately.</p></aside>
+<p><strong>Extension Hooks</strong> run your own logic at defined points. <strong>Extension Hook Log</strong> shows what they did, which is where to look when a hook is suspected.</p>
+<h2 id="the-daily-four">The daily four <a class="kb-anchor" href="#the-daily-four" aria-label="Copy link to this section">#</a></h2>
+<table><thead><tr><th>Check</th><th>Screen</th><th>Looking for</th></tr></thead><tbody><tr><td>Is it up and healthy</td><td><strong>System Status</strong></td><td>Anything not green</td></tr><tr><td>What happened</td><td><strong>Activity Log</strong></td><td>Unexpected deletions, permission changes, after-hours activity</td></tr><tr><td>Is anyone blocked</td><td><strong>Approvals</strong></td><td>Documents waiting on a person who is away</td></tr><tr><td>Are we within our plan</td><td><strong>Tenant Usage</strong></td><td>Approaching an entitlement limit before it refuses someone</td></tr></tbody></table>
+<p><strong>Tenant Entitlements</strong> is what your business has licensed; a module absent from everyone&#39;s sidebar is usually an entitlement, not a permission, and the two are worth telling apart before you go changing roles.</p>
+<h2 id="the-requests-you-will-actually-get">The requests you will actually get <a class="kb-anchor" href="#the-requests-you-will-actually-get" aria-label="Copy link to this section">#</a></h2>
+<p><strong>&#34;I can&#39;t see a screen.&#34;</strong> Almost always the role. Check the grants; check the entitlement if it is a whole module.</p>
+<p><strong>&#34;I&#39;m locked out.&#34;</strong> Five failed sign-ins in a minute is a rate limit, not a lockout - a minute&#39;s wait fixes it. A genuine lockout, or a lost second factor, you resolve on the user&#39;s record.</p>
+<p><strong>&#34;I lost my phone and my recovery codes.&#34;</strong> Reset their two-factor setup. They will be asked to set it up again at next sign-in. Recovery codes are stored only as a fingerprint, so nobody - including you - can look up an existing one.</p>
+<p><strong>&#34;Can you change this number for me?&#34;</strong> Ask whether the document is approved first. Editing an approved document sends it back for re-approval on purpose, and routing around that with an admin account defeats the control you configured in step 5.</p>
+<h2 id="before-going-live">Before going live <a class="kb-anchor" href="#before-going-live" aria-label="Copy link to this section">#</a></h2>
+<ul><li>[ ] Sign in as each role and confirm the sidebar matches what that job needs.</li><li>[ ] Raise and approve one document of each approval-gated type, using two</li></ul>
+<p>accounts.</p>
+<ul><li>[ ] Confirm numbering looks right on a real document of each type.</li><li>[ ] Check <strong>System Status</strong> is clean and backups are running.</li><li>[ ] Walk [Open a shop and make your first</li></ul>
+<p>sale](open-a-shop-and-make-your-first-sale.md) end to end on real data.</p>
+<h2 id="next">Next <a class="kb-anchor" href="#next" aria-label="Copy link to this section">#</a></h2>
+<ul><li><a href="/help/country-phone-rules">Country codes and phone number rules</a> - what</li></ul>
+<p><code>localization.default_country</code> actually changes.</p>
+<ul><li><a href="/help/error-code-reference">Error code reference</a> - every code, for when someone</li></ul>
+<p>quotes one at you.</p>

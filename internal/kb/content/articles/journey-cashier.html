@@ -1,0 +1,46 @@
+<h1 id="a-day-as-a-cashier">A day as a cashier <a class="kb-anchor" href="#a-day-as-a-cashier" aria-label="Copy link to this section">#</a></h1>
+<p>Almost everything you do is on one screen: <strong>POS » POS / Billing</strong>. This is that screen in the order you meet it.</p>
+<h2 id="start-of-shift-open-the-till">Start of shift: open the till <a class="kb-anchor" href="#start-of-shift-open-the-till" aria-label="Copy link to this section">#</a></h2>
+<ol><li>Open <strong>POS » POS / Billing</strong>.</li><li>Start typing your shop&#39;s <strong>name</strong> into <strong>Location</strong> and pick it from the</li></ol>
+<p>list. The code and short code work too, if that is what you know it by.</p>
+<ol><li>The bar across the top says whether a session is open there. If it says *&#34;No</li></ol>
+<p>open session&#34;<em>, click </em><em>Open Session</em><em> and type </em><em>the cash physically in the till right now</em>*.</p>
+<p>You open a session once per shift, not once per sale. Until one is open, checkout is refused with <em>&#34;Cash opening is required before billing&#34;</em> - which is the single most common first-day confusion, and now you know it.</p>
+<h2 id="ringing-up-a-sale">Ringing up a sale <a class="kb-anchor" href="#ringing-up-a-sale" aria-label="Copy link to this section">#</a></h2>
+<ol><li>Type or scan the item&#39;s barcode into the box and press Enter. The item&#39;s</li></ol>
+<p>code, its barcode and its internal id all find the same item.</p>
+<ol><li>Repeat for everything the customer is buying.</li><li>For a loyalty customer, type their code into <strong>Customer Code</strong>. **Redeem</li></ol>
+<p>Points** spends their points on this sale; the discount comes off what you collect, and the points are only actually deducted once the sale completes.</p>
+<ol><li>Any offers that apply appear on their own above the total. If the customer</li></ol>
+<p>has a coupon, type it into <strong>Coupon code</strong>.</p>
+<ol><li>Check the total. Tax is worked out for you.</li><li>Choose the payment mode and click <strong>Complete Sale</strong>.</li><li>Answer <strong>Print receipt?</strong>. On a till with a receipt printer configured it</li></ol>
+<p>prints straight there; otherwise the browser&#39;s print dialog opens.</p>
+<p>Stock falls and the accounting entries are made in that same moment. You never have to tell another screen about a sale.</p>
+<h2 id="offers-you-do-not-apply-them">Offers: you do not apply them <a class="kb-anchor" href="#offers-you-do-not-apply-them" aria-label="Copy link to this section">#</a></h2>
+<p>Whatever head office has set up is worked out automatically as you build the cart and shown by name above the total, with what each one took off.</p>
+<ul><li><strong>Automatic offers just appear.</strong> Remove an item and the offer disappears</li></ul>
+<p>again if the cart no longer qualifies.</p>
+<ul><li><strong>Coupon offers need the code.</strong> Case does not matter and you can enter more</li></ul>
+<p>than one, separated by a space or comma. A code that does not apply says so in plain words rather than being silently ignored - check the spelling, and whether the cart actually meets the conditions.</p>
+<ul><li><strong>Some offers are customer-specific.</strong> Look the customer up <em>before</em> expecting</li></ul>
+<p>a loyalty-tier offer to show; with no customer on the sale it will not appear.</p>
+<ul><li><strong>The panel is a preview.</strong> The discount is recalculated for real when you</li></ul>
+<p>take payment. If the two ever disagree, the amount charged is the correct one.</p>
+<ul><li><strong>The Discount % box is separate</strong> - that is a manual discount you apply, and</li></ul>
+<p>a large one may need a manager. Offers never need approval; they are rules head office already signed off.</p>
+<h2 id="the-four-things-that-go-wrong">The four things that go wrong <a class="kb-anchor" href="#the-four-things-that-go-wrong" aria-label="Copy link to this section">#</a></h2>
+<p><strong>&#34;Cash opening is required before billing.&#34;</strong> No session is open at that location. Open one.</p>
+<p><strong>&#34;Not enough stock.&#34;</strong> The system is refusing to sell what it does not have. Tell your manager; you cannot fix this from the till.</p>
+<p><strong>A large discount needs manager approval.</strong> The sale sits as <strong>Pending Approval</strong> and nothing is charged until a manager decides it on the <strong>Approvals</strong> screen. It will not print a receipt in the meantime, because the money has not been collected.</p>
+<p><strong>A barcode does not scan.</strong> Try the item&#39;s code instead. If neither finds it, the item does not exist in the system yet - that is a job for whoever maintains the product list.</p>
+<h2 id="reprinting-a-receipt">Reprinting a receipt <a class="kb-anchor" href="#reprinting-a-receipt" aria-label="Copy link to this section">#</a></h2>
+<p>Safe at any time. The receipt is rebuilt from the recorded sale, not from whatever happens to be on screen, so it always shows what was originally rung up - including offers and points as their own lines, so the printed total matches the cash that went into the drawer.</p>
+<h2 id="end-of-shift-close-the-till">End of shift: close the till <a class="kb-anchor" href="#end-of-shift-close-the-till" aria-label="Copy link to this section">#</a></h2>
+<p>Click <strong>Close Session</strong> and enter the cash you counted. The system shows what it expected, what you counted and the difference.</p>
+<aside class="kb-admonition kb-admonition-tip" role="note"><p class="kb-admonition-title">Tip</p><p>Note the variance for your manager if it is not zero, and do it now rather than tomorrow. A variance with an explanation attached the same evening is a countable event; the same variance found a week later is an investigation.</p></aside>
+<h2 id="if-the-network-drops">If the network drops <a class="kb-anchor" href="#if-the-network-drops" aria-label="Copy link to this section">#</a></h2>
+<p>Keep selling. Sales are queued locally and synced when the connection returns. Your manager reviews anything that could not be applied cleanly under <strong>POS » Offline Sync Review</strong>, and <strong>Offline Queue Gaps</strong> shows any sale the queue believes is missing. Neither is your job, but it is worth knowing they exist so that a dropped connection does not feel like lost money.</p>
+<h2 id="next">Next <a class="kb-anchor" href="#next" aria-label="Copy link to this section">#</a></h2>
+<ul><li><a href="/help/first-order">Your first order, end to end</a> - what happens to a sale after</li></ul>
+<p>you complete it.</p>
+<ul><li><a href="/help/error-codes">Reading an error code</a> - turning a refusal into an action.</li></ul>

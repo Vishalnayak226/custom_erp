@@ -1,0 +1,36 @@
+<h1 id="a-day-as-a-warehouse-operator">A day as a warehouse operator <a class="kb-anchor" href="#a-day-as-a-warehouse-operator" aria-label="Copy link to this section">#</a></h1>
+<p>Goods come in, get put somewhere, get taken out again, and leave. Each of those has a screen, and the discipline that matters is doing them in that order rather than in the order the paperwork arrives.</p>
+<h2 id="inbound">Inbound <a class="kb-anchor" href="#inbound" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Know what is coming.</strong> <strong>Procurement » ASN</strong> holds advance shipment notices - what a supplier says they have dispatched. An ASN is not stock; it is a promise you can plan a dock around.</p>
+<p><strong>Receive it.</strong> <strong>Procurement » Goods Receipt</strong>. Use <strong>Load Items from PO</strong> so the lines come from the order rather than being typed, then correct the quantities to what physically arrived. <strong>Post Receipt</strong>.</p>
+<aside class="kb-admonition kb-admonition-important" role="note"><p class="kb-admonition-title">Important</p><p>Posting the receipt is what creates stock. A delivery sitting on the dock with no posted GRN does not exist as far as every other screen is concerned - and that is the single most common cause of &#34;the system says we have none&#34;.</p></aside>
+<p><strong>Put it away.</strong> <strong>Stock » Putaway</strong> turns received stock into stock in a specific bin. Until then it is in the system but not in a place, and picking cannot route anyone to it.</p>
+<h2 id="where-things-live">Where things live <a class="kb-anchor" href="#where-things-live" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Stock » Bin</strong> is the map. <strong>Stock » Bin Conditions</strong> records the state a bin is in - damaged, quarantined, blocked - so that stock which exists but must not be sold is visibly separated rather than quietly wrong.</p>
+<p><strong>Stock » LPN / Cartons / Pallets</strong> tracks handling units: a carton or pallet identified as one thing, so a whole unit can be moved, received or shipped without scanning every item inside it.</p>
+<p><strong>Stock » Bin Replenishment</strong> moves stock from bulk storage into pick faces before a picker finds the face empty. Working the replenishment list first thing is what stops the pick queue stalling mid-morning.</p>
+<h2 id="outbound">Outbound <a class="kb-anchor" href="#outbound" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Fulfillment</strong> is the main work queue: pick, pack, dispatch, each step recording who did it and when. Orders flagged <strong>Expedite</strong> sort to the top, and that is honoured by the queue itself.</p>
+<p>Two alternatives for higher volume:</p>
+<ul><li><strong>Stock » Wave / Batch Picking</strong> groups many orders into one pass through the</li></ul>
+<p>warehouse, so a picker walks the route once rather than once per order.</p>
+<ul><li><strong>Stock » Mobile Picking</strong> is the handheld view of the same work, for scanning</li></ul>
+<p>as you go rather than working from a printed list.</p>
+<p><strong>Stock » Sticker Printing</strong> produces the labels - shelf, item or shipping - and is worth doing in a batch rather than one at a time.</p>
+<h2 id="counting">Counting <a class="kb-anchor" href="#counting" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Stock » Cycle Count</strong> is a rolling count of part of the warehouse rather than a full annual stop. Count what the screen asks for, enter what you actually found, and let the variance be what it is.</p>
+<aside class="kb-admonition kb-admonition-warning" role="note"><p class="kb-admonition-title">Warning</p><p>Do not &#34;correct&#34; a count to match the system. The variance is the only signal anyone has that something upstream is wrong, and a count adjusted to agree with the record destroys the evidence and keeps the error.</p></aside>
+<h2 id="moving-stock-between-locations">Moving stock between locations <a class="kb-anchor" href="#moving-stock-between-locations" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Stock » Stock Transfer</strong>. A transfer is two half-events - out of one place and into another - and stock in transit belongs to neither until the receiving end confirms it. Confirm arrivals the day they arrive.</p>
+<h2 id="when-picking-cannot-find-the-stock">When picking cannot find the stock <a class="kb-anchor" href="#when-picking-cannot-find-the-stock" aria-label="Copy link to this section">#</a></h2>
+<p>In order of likelihood:</p>
+<ol><li><strong>The receipt was never posted.</strong> Check <strong>Goods Receipt</strong> for an unposted</li></ol>
+<p>record against the PO.</p>
+<ol><li><strong>It was received but never put away</strong>, so it has no bin to be picked from.</li><li><strong>The bin is in a condition that blocks it</strong> - check <strong>Bin Conditions</strong>.</li><li><strong>It is reserved for another order.</strong> The available-to-sell figure in</li></ol>
+<p><strong>Inventory</strong> already accounts for this; a raw count will not.</p>
+<ol><li><strong>It genuinely is not there</strong>, which a cycle count will confirm.</li></ol>
+<h2 id="next">Next <a class="kb-anchor" href="#next" aria-label="Copy link to this section">#</a></h2>
+<ul><li><a href="/help/journey-store-manager">A day as a store manager</a> - who releases the orders</li></ul>
+<p>you pick.</p>
+<ul><li><a href="/help/first-order">Your first order, end to end</a> - the whole path an order takes</li></ul>
+<p>through your queues.</p>

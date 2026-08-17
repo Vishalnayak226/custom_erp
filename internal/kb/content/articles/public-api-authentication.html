@@ -8,7 +8,7 @@
 <pre><code>GET /api/public/v1/items?limit=50 HTTP/1.1
 Authorization: Bearer erp_v1_&lt;prefix&gt;_&lt;secret&gt;
 X-Tenant-ID: your-tenant</code></pre>
-<p>Both headers are required. A mutating request also requires <code>Idempotency-Key</code> - see <a href="public-api-idempotency.md">Retrying safely</a>.</p>
+<p>Both headers are required. A mutating request also requires <code>Idempotency-Key</code> - see <a href="/help/public-api-idempotency">Retrying safely</a>.</p>
 <h2 id="every-response">Every response <a class="kb-anchor" href="#every-response" aria-label="Copy link to this section">#</a></h2>
 <pre><code>X-Correlation-ID: 3f2a...
 X-RateLimit-Limit: 120

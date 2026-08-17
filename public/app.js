@@ -18580,6 +18580,19 @@ async function renderHelpArticle(slug) {
   holder.querySelectorAll('.kb-pager a[data-slug]').forEach(link => {
     link.addEventListener('click', event => { event.preventDefault(); openHelpArticle(link.getAttribute('data-slug')); });
   });
+  // Cross-references inside the article body. The renderer turns a relative
+  // `other-article.md` link into `/help/other-article`, which is a real URL the
+  // server would serve - so this is an optimisation, not a fix: it keeps an
+  // in-article link as fast as a sidebar click instead of reloading the app.
+  // Modified clicks are left alone so ctrl/middle-click still opens a new tab.
+  holder.querySelector('.kb-body')?.addEventListener('click', event => {
+    const link = event.target.closest('a[href^="/help/"]');
+    if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+    const target = link.getAttribute('href').slice('/help/'.length);
+    if (!target || target.includes('#')) return;
+    event.preventDefault();
+    openHelpArticle(decodeURIComponent(target));
+  });
   holder.scrollTop = 0;
 }
 

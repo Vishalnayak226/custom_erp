@@ -1,0 +1,38 @@
+<h1 id="a-day-in-finance">A day in finance <a class="kb-anchor" href="#a-day-in-finance" aria-label="Copy link to this section">#</a></h1>
+<p>You are downstream of everyone. The good news is that most entries have already been made for you: a sale posts its own ledger entries, a goods receipt posts its own. Your job is the money either side of that - what is owed, what is paid, and whether the books agree with the bank.</p>
+<h2 id="the-screens-in-the-order-money-moves">The screens, in the order money moves <a class="kb-anchor" href="#the-screens-in-the-order-money-moves" aria-label="Copy link to this section">#</a></h2>
+<table><thead><tr><th>Screen</th><th>What it is for</th></tr></thead><tbody><tr><td><strong>Vendor Invoice</strong></td><td>What suppliers have billed you</td></tr><tr><td><strong>Payment Proposals</strong></td><td>Deciding what to pay, and when</td></tr><tr><td><strong>Sales Invoice</strong></td><td>What you have billed customers</td></tr><tr><td><strong>Debit / Credit Notes</strong></td><td>Corrections in either direction</td></tr><tr><td><strong>Bank Reconciliation</strong></td><td>Making the statement and the ledger agree</td></tr><tr><td><strong>Finance / GL</strong></td><td>The ledger itself, and the trial balance</td></tr><tr><td><strong>Approvals</strong></td><td>Anything routed to you for a decision</td></tr></tbody></table>
+<p>All of them are under <strong>Financial Accounting</strong>.</p>
+<h2 id="payables">Payables <a class="kb-anchor" href="#payables" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Vendor Invoice</strong> is where a supplier&#39;s bill is recorded and matched against what you ordered and what you received. The three-way agreement between order, receipt and invoice is the whole control: an invoice that does not match one of the other two is the thing worth your attention, and the rest is data entry.</p>
+<p><strong>Payment Proposals</strong> turns approved payables into a decision about what to pay now. Work the proposal rather than paying invoices one at a time - it is the difference between a payment run and a series of small judgements nobody can reconstruct later.</p>
+<h2 id="receivables">Receivables <a class="kb-anchor" href="#receivables" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Sales Invoice</strong> carries the tax treatment resolved from the product&#39;s own HSN code and the places of supply. You do not enter tax rates by hand anywhere, and an invoice that looks wrong is almost always a product classified wrong rather than an invoice built wrong - fix it on the Item.</p>
+<p>Settle invoices as the money arrives. <strong>Debit / Credit Notes</strong> handle the corrections; use them rather than editing history.</p>
+<h2 id="foreign-currency-if-you-use-it">Foreign currency, if you use it <a class="kb-anchor" href="#foreign-currency-if-you-use-it" aria-label="Copy link to this section">#</a></h2>
+<p>Skip this entirely if you only invoice in your own currency.</p>
+<p><strong>On the invoice.</strong> Set <strong>Currency</strong>. Leave <strong>Exchange Rate</strong> blank and the rate is looked up using <strong>the invoice&#39;s own date</strong>, not today&#39;s - so back-dating an invoice does not quietly apply this morning&#39;s rate. Type a rate yourself when a contract fixes one; what you type wins.</p>
+<p>The invoice keeps the amount agreed in the customer&#39;s currency; the accounts record what that is worth in yours. Both numbers matter.</p>
+<p><strong>On settlement.</strong> Two optional fields are worth supplying, because the rate has almost certainly moved since:</p>
+<ul><li><strong>Settlement date</strong> - the day the money actually reached you, so the rate used</li></ul>
+<p>is the one that applied then rather than today&#39;s.</p>
+<ul><li><strong>Exchange rate</strong> - the rate your bank actually gave you, from the remittance</li></ul>
+<p>advice. This beats any stored rate. Without it the difference does not vanish; it just hides somewhere less obvious.</p>
+<p>The gain or loss is recorded automatically. A $1,000 invoice raised at 83 and collected at 85 brings in ₹85,000 against ₹83,000 booked; that ₹2,000 is a genuine gain, not an error in the invoice. The reverse happens as often.</p>
+<p><strong>Where you stand</strong>, both under <strong>Reports</strong> in the Finance category:</p>
+<ul><li><strong>Open FX Exposure</strong> - every unpaid foreign-currency invoice at today&#39;s rate.</li></ul>
+<p>Worth a look before a large receipt.</p>
+<ul><li><strong>FX Gain/Loss Register</strong> - every gain and loss recorded, and which document</li></ul>
+<p>caused it.</p>
+<h2 id="reconciliation">Reconciliation <a class="kb-anchor" href="#reconciliation" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Bank Reconciliation</strong> matches the statement to the ledger. Do it often enough that an unmatched line is still explicable - a month of unmatched lines is an archaeology project, a day of them is a phone call.</p>
+<h2 id="the-check-that-catches-almost-everything">The check that catches almost everything <a class="kb-anchor" href="#the-check-that-catches-almost-everything" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Finance / GL</strong>, set <strong>As Of Date</strong> to today. Debits should equal credits and the status should read <em>Balanced trial ledger</em>.</p>
+<p>If it does not balance, something upstream failed to post, and the sooner you find it the smaller the search. This is a thirty-second check and it is worth making it a habit.</p>
+<h2 id="month-end">Month end <a class="kb-anchor" href="#month-end" aria-label="Copy link to this section">#</a></h2>
+<table><thead><tr><th>Step</th><th>Screen</th></tr></thead><tbody><tr><td>Every receipt posted, every invoice raised</td><td><strong>Vendor Invoice</strong> / <strong>Sales Invoice</strong></td></tr><tr><td>Payment run completed</td><td><strong>Payment Proposals</strong></td></tr><tr><td>Bank fully reconciled</td><td><strong>Bank Reconciliation</strong></td></tr><tr><td>Corrections issued as notes, not edits</td><td><strong>Debit / Credit Notes</strong></td></tr><tr><td>Trial ledger balances</td><td><strong>Finance / GL</strong></td></tr><tr><td>Open foreign balances restated</td><td><strong>Reports » Open FX Exposure</strong></td></tr></tbody></table>
+<h2 id="next">Next <a class="kb-anchor" href="#next" aria-label="Copy link to this section">#</a></h2>
+<ul><li><a href="/help/report-catalog">Report catalog</a> - every finance report and what it asks</li></ul>
+<p>for.</p>
+<ul><li><a href="/help/journey-store-manager">A day as a store manager</a> - where most of your</li></ul>
+<p>entries come from.</p>

@@ -9,13 +9,13 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `6b6138dd` |
-| Brain redrawn | 2026-08-16 |
+| Graph built from commit | `8db14aec` |
+| Brain redrawn | 2026-08-17 |
 | Regions / lobes | 36 / 8 |
-| Files in the working tree | 517 (367 of them parsed into the graph) |
+| Files in the working tree | 552 (385 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
-| Symbols in the graph | 4642 |
-| Cross-region relationships | 1822 extracted (95% inferred) + 8 declared by hand |
+| Symbols in the graph | 4905 |
+| Cross-region relationships | 1843 extracted (95% inferred) + 8 declared by hand |
 
 **Interactive version: [brain.html](brain.html)** — open it in a browser and click any region.
 
@@ -39,9 +39,9 @@ flowchart LR
   n_business["Functional Lobes — Business Operations<br/><small>115 files · 1092 symbols</small>"]
   n_peripheral["Peripheral Nerves — Integrations<br/><small>29 files · 363 symbols</small>"]
   n_autonomic["Autonomic — Background & Reflexes<br/><small>7 files · 73 symbols</small>"]
-  n_memory["Hippocampus — Written Memory<br/><small>95 files · 1407 symbols</small>"]
-  n_motor["Motor Cortex — Build & Delivery<br/><small>34 files · 104 symbols</small>"]
-  n_verification["Cerebellum — Verification<br/><small>79 files · 345 symbols</small>"]
+  n_memory["Hippocampus — Written Memory<br/><small>129 files · 1662 symbols</small>"]
+  n_motor["Motor Cortex — Build & Delivery<br/><small>35 files · 110 symbols</small>"]
+  n_verification["Cerebellum — Verification<br/><small>79 files · 347 symbols</small>"]
   n_business -.->|621| n_brainstem
   n_peripheral -.->|160| n_brainstem
   n_business -.->|129| n_autonomic
@@ -53,16 +53,16 @@ flowchart LR
   n_peripheral -->|17| n_business
   n_business -->|14| n_peripheral
   n_brainstem -.->|13| n_peripheral
-  n_motor -.->|5| n_brainstem
+  n_motor -.->|7| n_brainstem
   n_memory -.->|4| n_brainstem
   n_memory -->|2| n_motor
-  n_peripheral -.->|1| n_memory
-  n_motor -.->|1| n_business
-  n_motor -->|1| n_memory
-  n_autonomic -.->|1| n_peripheral
+  n_motor -->|2| n_memory
+  n_motor -.->|2| n_business
   n_business -.->|1| n_memory
-  n_motor -.->|1| n_peripheral
+  n_autonomic -.->|1| n_peripheral
   n_memory -->|1| n_peripheral
+  n_motor -.->|1| n_peripheral
+  n_peripheral -.->|1| n_memory
   n_brainstem ==>|error envelope| n_cortex
   n_cortex ==>|HTTP/JSON| n_brainstem
   n_motor ==>|applies migrations| n_brainstem
@@ -92,9 +92,9 @@ flowchart LR
 | **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 115 | 1092 | 181 |
 | **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 29 | 363 | 7 |
 | **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 7 | 73 | 1 |
-| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 95 | 1407 | 59 |
-| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 34 | 104 | 0 |
-| **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 79 | 345 | 0 |
+| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 129 | 1662 | 76 |
+| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 35 | 110 | 0 |
+| **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 79 | 347 | 0 |
 
 ## 2. Region map
 
@@ -151,16 +151,16 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>88 files · 1289 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>122 files · 1544 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 118 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>34 files · 104 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>35 files · 110 symbols</small>"]
   end
+  n_brain -->|76| n_docs_memory
   n_mixed_handlers -.->|74| n_api_errors
   n_pim -.->|66| n_persistence
-  n_brain -->|59| n_docs_memory
   n_oms -.->|55| n_persistence
   n_finance -.->|49| n_persistence
   n_wms -.->|47| n_persistence
@@ -270,14 +270,14 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>88 files · 1289 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>122 files · 1544 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 118 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>34 files · 104 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>35 files · 110 symbols</small>"]
   end
-  n_brain -->|59| n_docs_memory
+  n_brain -->|76| n_docs_memory
   n_mixed_handlers -.->|24| n_pim
   n_connectors -.->|22| n_identity
   n_oms -.->|20| n_doc_kernel
@@ -522,10 +522,10 @@ flowchart LR
 | [Extension Platform](#extension-platform) | Peripheral Nerves — Integrations | 12 | 169 | → Persistence & Migrations (24) |
 | [Event Outbox](#event-outbox) | Autonomic — Background & Reflexes | 1 | 7 | ← Channel Connectors (9) |
 | [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 6 | 66 | → Error & Message Catalog (46) |
-| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 88 | 1289 | ← The Brain Map (this) (59) |
-| [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 118 | → Project Documentation (59) |
-| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 34 | 104 | → Persistence & Migrations (3) |
-| [Test Suite](#test-suite) | Cerebellum — Verification | 79 | 345 | — |
+| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 122 | 1544 | ← The Brain Map (this) (76) |
+| [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 118 | → Project Documentation (76) |
+| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 35 | 110 | → Persistence & Migrations (3) |
+| [Test Suite](#test-suite) | Cerebellum — Verification | 79 | 347 | — |
 
 ## 5. Region detail
 
@@ -1585,8 +1585,8 @@ The ReportDefinition/RegisterReport framework, the report registry and column pr
 - ← **Finance & General Ledger** — 7 relationships, 7 inferred
 - ← **Cross-module API Handlers** — 4 relationships, 4 inferred
 - ← **HTTP Edge & Middleware** — 3 relationships, 3 inferred
+- ← **Build, Deploy & Operate** — 2 relationships, 2 inferred
 - ← **Product Information (PIM)** — 2 relationships, 2 inferred
-- ← **Manufacturing & MRP** — 1 relationship, 1 inferred
 
 <details><summary>8 files</summary>
 
@@ -1877,8 +1877,8 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the blueprint, g
 
 **Most connected symbols**
 
+- `RenderMarkdown()` — [internal/kb/markdown.go](../../internal/kb/markdown.go#L27) · degree 16
 - `Build()` — [internal/kb/build.go](../../internal/kb/build.go#L230) · degree 14
-- `RenderMarkdown()` — [internal/kb/markdown.go](../../internal/kb/markdown.go#L26) · degree 14
 - `Index` — [internal/kb/build.go](../../internal/kb/build.go#L72) · degree 9
 - `Article` — [internal/kb/build.go](../../internal/kb/build.go#L35) · degree 7
 - `handleHelpPublicArticle()` — [internal/server/handlers_help.go](../../internal/server/handlers_help.go#L76) · degree 7
@@ -1887,13 +1887,13 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the blueprint, g
 **Wired to**
 
 - → **Error & Message Catalog** — 4 relationships, 4 inferred
-- ← **The Brain Map (this)** — 59 relationships, 1 inferred
-- ← **Build, Deploy & Operate** — 1 relationship, all extracted
+- ← **The Brain Map (this)** — 76 relationships, 1 inferred
+- ← **Build, Deploy & Operate** — 2 relationships, 1 inferred
 - ← **Product Information (PIM)** — 1 relationship, 1 inferred
 - ← **Device Printing (QZ Tray)** — 1 relationship, 1 inferred
 - ← **The Brain Map (this)** — declared: keeps in sync
 
-<details><summary>88 files</summary>
+<details><summary>122 files</summary>
 
 - [CLAUDE.md](../../CLAUDE.md)
 - [README.md](../../README.md)
@@ -1938,12 +1938,29 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the blueprint, g
 - [docs/guides/img/sidebar.png](../../docs/guides/img/sidebar.png)
 - [docs/guides/img/trial-balance.png](../../docs/guides/img/trial-balance.png)
 - [docs/guides/update-guides.ps1](../../docs/guides/update-guides.ps1)
+- [docs/kb/getting-started/finding-your-way-around.md](../../docs/kb/getting-started/finding-your-way-around.md)
 - [docs/kb/getting-started/first-login.md](../../docs/kb/getting-started/first-login.md)
 - [docs/kb/getting-started/first-order.md](../../docs/kb/getting-started/first-order.md)
+- [docs/kb/getting-started/open-a-shop-and-make-your-first-sale.md](../../docs/kb/getting-started/open-a-shop-and-make-your-first-sale.md)
+- [docs/kb/getting-started/what-is-this-system.md](../../docs/kb/getting-started/what-is-this-system.md)
 - [docs/kb/module-handbooks/pim-product-groups.md](../../docs/kb/module-handbooks/pim-product-groups.md)
+- [docs/kb/reference/abbreviations.md](../../docs/kb/reference/abbreviations.md)
+- [docs/kb/reference/country-phone-rules.md](../../docs/kb/reference/country-phone-rules.md)
+- [docs/kb/reference/faq.md](../../docs/kb/reference/faq.md)
+- [docs/kb/reference/glossary.md](../../docs/kb/reference/glossary.md)
 - [docs/kb/reference/public-api-authentication.md](../../docs/kb/reference/public-api-authentication.md)
 - [docs/kb/reference/public-api-idempotency.md](../../docs/kb/reference/public-api-idempotency.md)
+- [docs/kb/reference/report-catalog.md](../../docs/kb/reference/report-catalog.md)
+- [docs/kb/role-journeys/journey-admin.md](../../docs/kb/role-journeys/journey-admin.md)
+- [docs/kb/role-journeys/journey-cashier.md](../../docs/kb/role-journeys/journey-cashier.md)
+- [docs/kb/role-journeys/journey-category-manager.md](../../docs/kb/role-journeys/journey-category-manager.md)
+- [docs/kb/role-journeys/journey-finance.md](../../docs/kb/role-journeys/journey-finance.md)
+- [docs/kb/role-journeys/journey-store-manager.md](../../docs/kb/role-journeys/journey-store-manager.md)
+- [docs/kb/role-journeys/journey-warehouse-operator.md](../../docs/kb/role-journeys/journey-warehouse-operator.md)
+- [docs/kb/role-journeys/role-journeys-overview.md](../../docs/kb/role-journeys/role-journeys-overview.md)
+- [docs/kb/troubleshooting/error-code-reference.md](../../docs/kb/troubleshooting/error-code-reference.md)
 - [docs/kb/troubleshooting/error-codes.md](../../docs/kb/troubleshooting/error-codes.md)
+- [docs/kb/troubleshooting/troubleshooting-index.md](../../docs/kb/troubleshooting/troubleshooting-index.md)
 - [docs/kb/update-kb.ps1](../../docs/kb/update-kb.ps1)
 - [docs/micro_checklist.md](../../docs/micro_checklist.md)
 - [docs/operations/backup_restore.md](../../docs/operations/backup_restore.md)
@@ -1973,12 +1990,29 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the blueprint, g
 - [docs/specs/wms_parity_plan.md](../../docs/specs/wms_parity_plan.md)
 - [internal/kb/build.go](../../internal/kb/build.go)
 - [internal/kb/content.go](../../internal/kb/content.go)
+- [internal/kb/content/articles/abbreviations.html](../../internal/kb/content/articles/abbreviations.html)
+- [internal/kb/content/articles/country-phone-rules.html](../../internal/kb/content/articles/country-phone-rules.html)
+- [internal/kb/content/articles/error-code-reference.html](../../internal/kb/content/articles/error-code-reference.html)
 - [internal/kb/content/articles/error-codes.html](../../internal/kb/content/articles/error-codes.html)
+- [internal/kb/content/articles/faq.html](../../internal/kb/content/articles/faq.html)
+- [internal/kb/content/articles/finding-your-way-around.html](../../internal/kb/content/articles/finding-your-way-around.html)
 - [internal/kb/content/articles/first-login.html](../../internal/kb/content/articles/first-login.html)
 - [internal/kb/content/articles/first-order.html](../../internal/kb/content/articles/first-order.html)
+- [internal/kb/content/articles/glossary.html](../../internal/kb/content/articles/glossary.html)
+- [internal/kb/content/articles/journey-admin.html](../../internal/kb/content/articles/journey-admin.html)
+- [internal/kb/content/articles/journey-cashier.html](../../internal/kb/content/articles/journey-cashier.html)
+- [internal/kb/content/articles/journey-category-manager.html](../../internal/kb/content/articles/journey-category-manager.html)
+- [internal/kb/content/articles/journey-finance.html](../../internal/kb/content/articles/journey-finance.html)
+- [internal/kb/content/articles/journey-store-manager.html](../../internal/kb/content/articles/journey-store-manager.html)
+- [internal/kb/content/articles/journey-warehouse-operator.html](../../internal/kb/content/articles/journey-warehouse-operator.html)
+- [internal/kb/content/articles/open-a-shop-and-make-your-first-sale.html](../../internal/kb/content/articles/open-a-shop-and-make-your-first-sale.html)
 - [internal/kb/content/articles/pim-product-groups.html](../../internal/kb/content/articles/pim-product-groups.html)
 - [internal/kb/content/articles/public-api-authentication.html](../../internal/kb/content/articles/public-api-authentication.html)
 - [internal/kb/content/articles/public-api-idempotency.html](../../internal/kb/content/articles/public-api-idempotency.html)
+- [internal/kb/content/articles/report-catalog.html](../../internal/kb/content/articles/report-catalog.html)
+- [internal/kb/content/articles/role-journeys-overview.html](../../internal/kb/content/articles/role-journeys-overview.html)
+- [internal/kb/content/articles/troubleshooting-index.html](../../internal/kb/content/articles/troubleshooting-index.html)
+- [internal/kb/content/articles/what-is-this-system.html](../../internal/kb/content/articles/what-is-this-system.html)
 - [internal/kb/content/index.json](../../internal/kb/content/index.json)
 - [internal/kb/content/search.json](../../internal/kb/content/search.json)
 - [internal/kb/markdown.go](../../internal/kb/markdown.go)
@@ -2001,7 +2035,7 @@ The map you are reading and the generator that draws it. brain.map.json is the o
 
 **Wired to**
 
-- → **Project Documentation** — 59 relationships, 1 inferred
+- → **Project Documentation** — 76 relationships, 1 inferred
 - → **Build, Deploy & Operate** — 2 relationships, all extracted
 - → **Extension Platform** — 1 relationship, all extracted
 - → **Project Documentation** — declared: keeps in sync
@@ -2030,24 +2064,24 @@ manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build �
 
 - `Invoke-Action()` — [manage.ps1](../../manage.ps1#L614) · degree 13
 - `Test-PortOpen()` — [manage.ps1](../../manage.ps1#L107) · degree 10
+- `main()` — [cmd/gendocs/main.go](../../cmd/gendocs/main.go#L38) · degree 8
 - `Backup-Databases()` — [manage.ps1](../../manage.ps1#L352) · degree 6
 - `Invoke-RestoreDrill()` — [manage.ps1](../../manage.ps1#L501) · degree 6
-- `errorCodesDoc()` — [cmd/gendocs/main.go](../../cmd/gendocs/main.go#L99) · degree 6
-- `Export-Tenant()` — [manage.ps1](../../manage.ps1#L407) · degree 5
+- `errorCodesDoc()` — [cmd/gendocs/main.go](../../cmd/gendocs/main.go#L113) · degree 6
 
 **Wired to**
 
 - → **Persistence & Migrations** — 3 relationships, 3 inferred
-- → **Error & Message Catalog** — 1 relationship, 1 inferred
-- → **Project Documentation** — 1 relationship, all extracted
+- → **Error & Message Catalog** — 2 relationships, 2 inferred
+- → **Project Documentation** — 2 relationships, 1 inferred
+- → **Reporting Engine** — 2 relationships, 2 inferred
+- → **Document Kernel** — 1 relationship, 1 inferred
 - → **Extension Platform** — 1 relationship, 1 inferred
 - → **Identity, RBAC & MFA** — 1 relationship, 1 inferred
-- → **Reporting Engine** — 1 relationship, 1 inferred
 - → **Persistence & Migrations** — declared: applies migrations
-- → **HTTP Edge & Middleware** — declared: builds & restarts
 - ← **The Brain Map (this)** — 2 relationships, all extracted
 
-<details><summary>34 files</summary>
+<details><summary>35 files</summary>
 
 - [.dockerignore](../../.dockerignore)
 - [.gitattributes](../../.gitattributes)
@@ -2055,6 +2089,7 @@ manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build �
 - [.gitignore](../../.gitignore)
 - [Dockerfile](../../Dockerfile)
 - [Open-ERP.cmd](../../Open-ERP.cmd)
+- [cmd/gendocs/kbdocs.go](../../cmd/gendocs/kbdocs.go)
 - [cmd/gendocs/main.go](../../cmd/gendocs/main.go)
 - [cmd/minttoken/main.go](../../cmd/minttoken/main.go)
 - [cmd/reset_mfa/main.go](../../cmd/reset_mfa/main.go)
@@ -2189,10 +2224,10 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 
 ## 6. What the brain does not know yet
 
-Nothing — every one of the 517 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
+Nothing — every one of the 552 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
 
 Two other things the brain is honest about not seeing:
 
-- **367 of 517 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
+- **385 of 552 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
 - **275 graph nodes are external type references** (`sql.Tx`, `context.Context` and friends) with no source file of their own. They belong to no region by design.
 

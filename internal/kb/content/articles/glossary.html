@@ -1,0 +1,52 @@
+<h1 id="glossary">Glossary <a class="kb-anchor" href="#glossary" aria-label="Copy link to this section">#</a></h1>
+<p>Terms as this application uses them. Where an industry meaning differs, the application&#39;s meaning is what is written here.</p>
+<p>For short forms - GRN, ASN, SKU, LPN and the rest - see <a href="/help/abbreviations">Abbreviations</a>.</p>
+<h2 id="the-shape-of-the-data">The shape of the data <a class="kb-anchor" href="#the-shape-of-the-data" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Record type.</strong> A kind of record: Purchase Order, Item, Vendor. Defined as configuration rather than written into the software, which is why an administrator can add one.</p>
+<p><strong>Master.</strong> A record that exists in its own right and changes rarely - a product, a supplier, a shop, a bin. You set masters up once.</p>
+<p><strong>Transaction.</strong> A record of something that happened at a point in time, which refers to masters: a sale, a receipt, a transfer. Transactions accumulate; you never &#34;set them up&#34;.</p>
+<p><strong>Document.</strong> Any transaction record that moves through states and may need approval.</p>
+<p><strong>Field.</strong> One piece of data on a record. <strong>Fieldname</strong> is its internal key; <strong>label</strong> is what you see, and an administrator can change the label without touching the data.</p>
+<h2 id="who-can-do-what">Who can do what <a class="kb-anchor" href="#who-can-do-what" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Role.</strong> What kind of user you are - Cashier, Store Manager, Super Admin, Supplier, or one your administrator created. It decides what you can see and do.</p>
+<p><strong>RBAC.</strong> Role-Based Access Control: permission follows the role, not the person. The practical consequence is that access is changed by changing a role, and reviewed by reading four role definitions rather than four hundred user records.</p>
+<p><strong>Fails closed.</strong> A record type with no permission row for a role is denied to that role. A missing grant is a denial, never a default allow.</p>
+<p><strong>Tenant.</strong> Your business&#39;s own private copy of the system. Other businesses on the same installation cannot see your data - each tenant&#39;s records are held separately in the database, not merely filtered in the application.</p>
+<p><strong>Entitlement.</strong> What your business has licensed. A module missing from <em>everyone&#39;s</em> sidebar is usually an entitlement; one missing from <em>your</em> sidebar is usually a permission.</p>
+<h2 id="approvals-and-control">Approvals and control <a class="kb-anchor" href="#approvals-and-control" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Maker-checker.</strong> The rule that an important action needs a second person to agree. The person who raises a document can never approve it, and that is not configurable.</p>
+<p><strong>Approval rule.</strong> Which document types need approval, above what threshold, and from whom.</p>
+<p><strong>Re-approval.</strong> Editing an approved document sends it back for approval. This is deliberate: an approval is of a specific version, not of a document forever.</p>
+<p><strong>Audit trail.</strong> The record of who did what, when, to which record. Present on every record and readable in full under <strong>Settings » Activity Log</strong>.</p>
+<h2 id="stock">Stock <a class="kb-anchor" href="#stock" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Available to sell.</strong> What is genuinely free to promise a customer - physical stock minus what is already reserved for other orders. This, not a raw count, is the number that matters.</p>
+<p><strong>Reservation.</strong> Stock committed to a specific order. It exists from allocation until the goods are picked.</p>
+<p><strong>Allocation.</strong> Deciding which location&#39;s stock fulfils which order line.</p>
+<p><strong>Bin.</strong> A specific place in a warehouse. <strong>Bin condition</strong> records a bin as damaged, quarantined or blocked, so stock that exists but must not be sold is visibly separated.</p>
+<p><strong>Putaway.</strong> Moving received stock into a bin. Until it is done, stock is in the system but not in a place, and picking cannot route anyone to it.</p>
+<p><strong>Replenishment.</strong> Moving stock from bulk storage into pick faces before a picker finds the face empty.</p>
+<p><strong>Cycle count.</strong> A rolling count of part of the warehouse, rather than a full annual stop.</p>
+<p><strong>Handling unit.</strong> A carton or pallet identified as one thing, so it can be moved or shipped without scanning each item inside.</p>
+<h2 id="orders-and-fulfilment">Orders and fulfilment <a class="kb-anchor" href="#orders-and-fulfilment" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Hold.</strong> A stop on an order, or on one line of it, with a recorded reason code. Holding a line releases the stock it was holding back into the pool.</p>
+<p><strong>Expedite.</strong> A priority flag honoured by the queues themselves - the order sorts to the top of both the order console and the picking worklist, not just displayed with a badge.</p>
+<p><strong>Split.</strong> Fulfilling some lines of an order separately from the rest. It stays one order with one id and one invoice chain.</p>
+<p><strong>SLA breach.</strong> A task older than the threshold set for its type.</p>
+<p><strong>Source.</strong> Where an order came from - a channel, middleware, or entered by hand - shown with that system&#39;s own order id, so you can confirm a marketplace order actually arrived without asking anyone to check a database.</p>
+<h2 id="money">Money <a class="kb-anchor" href="#money" aria-label="Copy link to this section">#</a></h2>
+<p><strong>GL / ledger.</strong> The accounting record of every amount moving in or out. <em>Double-entry</em> means every transaction has matching debits and credits that must balance.</p>
+<p><strong>Trial balance.</strong> The check that they do. <strong>Finance / GL</strong> reports it as <em>Balanced trial ledger</em> when debits equal credits as of a date.</p>
+<p><strong>GST.</strong> The sales tax added automatically, resolved from the product&#39;s HSN code and the places of supply. You never type a tax rate onto a transaction.</p>
+<p><strong>Tax treatment.</strong> Why something is not taxed: Taxable, Exempt, Nil-Rated or Zero-Rated. Used instead of entering a zero rate, which on its own is rejected as indistinguishable from an unfilled field.</p>
+<p><strong>Intra-state / inter-state.</strong> Whether supplier and customer are in the same state, which decides the form the tax takes. Derived from the GSTIN&#39;s first two digits rather than asked.</p>
+<p><strong>Three-way match.</strong> Agreement between what was ordered, what was received and what was invoiced. Where they disagree is the only part worth a human&#39;s time.</p>
+<p><strong>FX gain or loss.</strong> The difference between what a foreign-currency invoice was booked at and what the money was actually worth when it arrived. Recorded automatically.</p>
+<h2 id="when-things-go-wrong">When things go wrong <a class="kb-anchor" href="#when-things-go-wrong" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Error code.</strong> The identifier on every refusal, such as <code>GLOBAL-0001</code>. It names the exact condition rather than a category. See <a href="/help/error-codes">Reading an error code</a>.</p>
+<p><strong>Correlation id.</strong> A tracking code identifying one request in the server&#39;s logs. Quoting it turns &#34;something failed yesterday&#34; into a specific line an administrator can read.</p>
+<p><strong>Idempotency key.</strong> A safeguard so that the same request arriving twice - a network retry, a double-click - takes effect only once.</p>
+<h2 id="security">Security <a class="kb-anchor" href="#security" aria-label="Copy link to this section">#</a></h2>
+<p><strong>MFA / TOTP.</strong> A second sign-in check using a time-based code from an authenticator app.</p>
+<p><strong>Recovery codes.</strong> Ten single-use codes shown once when MFA is set up. Only a fingerprint of each is stored, so nobody - including your administrator - can look one up for you later.</p>
+<p><strong>Rate limit.</strong> A cap on how fast requests of some kind are accepted. Five failed sign-ins in a minute is a rate limit, not a lockout; a minute&#39;s wait clears it.</p>
+<p><strong>API key.</strong> A credential issued to an integration rather than a person. It carries explicit scopes, can be rotated and revoked, and is shown in full exactly once.</p>

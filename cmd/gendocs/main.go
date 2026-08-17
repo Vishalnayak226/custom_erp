@@ -39,12 +39,26 @@ func main() {
 	out := flag.String("out", filepath.Join("docs", "guides"), "directory to write the generated docs into")
 	connStr := flag.String("db", "", "database connection string for PERMISSION_MATRIX.md (skipped if empty)")
 	openAPIOut := flag.String("openapi-out", filepath.Join("docs", "specs"), "directory to write openapi_public_v1.json into")
+	kbOut := flag.String("kb-out", filepath.Join("docs", "kb"), "directory of Knowledge Center sources to write the generated articles into")
 	flag.Parse()
 
 	stamp := time.Now().Format("2006-01-02")
 
 	writeOut(filepath.Join(*out, "ERROR_CODES.md"), errorCodesDoc(stamp))
 	writeOut(filepath.Join(*out, "REPORT_CATALOG.md"), reportCatalogDoc(stamp))
+
+	// Stage 39.17 / 39.16. The same three lists, written a second time as
+	// Knowledge Center articles. Not a duplicate of the docs/guides/ copies in
+	// any sense that can drift: both come from the same registry in the same
+	// run, and the Knowledge Center is where a user in the application actually
+	// looks. Writing Markdown into docs/kb/ rather than HTML into
+	// internal/kb/content/ keeps a single generator for the Centre - genkb
+	// still renders every article, so these get the same anchors, the same
+	// search index and the same access model as a hand-written one.
+	writeOut(filepath.Join(*kbOut, "troubleshooting", "error-code-reference.md"), kbErrorCodeReference(stamp))
+	writeOut(filepath.Join(*kbOut, "reference", "report-catalog.md"), kbReportCatalog(stamp))
+	writeOut(filepath.Join(*kbOut, "reference", "country-phone-rules.md"), kbCountryPhoneRules(stamp))
+	fmt.Println("  [note] docs/kb/ changed - run `go run ./cmd/genkb` (or docs/kb/update-kb.ps1) to rebuild the Knowledge Center.")
 
 	// Stage 38.8. The OpenAPI document is generated from the same public route
 	// table the server registers, so the published contract and the running

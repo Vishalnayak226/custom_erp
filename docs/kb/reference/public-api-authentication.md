@@ -1,7 +1,7 @@
 ---
 title: Authenticating against the public API
 section: Reference
-order: 1
+order: 40
 summary: How an integration gets a key, what a key may do, and what every response tells you about your budget.
 audience: integrator
 public: true

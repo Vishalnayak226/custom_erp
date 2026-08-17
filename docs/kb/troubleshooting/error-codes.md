@@ -36,9 +36,11 @@ If you only read one line, read the detail.
 | `REPORT-` | Report execution and export |
 
 The complete list, with every message and its recommended action, is in the
-generated [error code reference](../../guides/ERROR_CODES.md). It is produced
-from the running catalog, so it cannot drift from what the application actually
-shows you.
+[error code reference](error-code-reference.md). It is produced from the running
+catalog, so it cannot drift from what the application actually shows you.
+
+If you know the symptom but not the code, start from
+[Troubleshooting by symptom](troubleshooting-index.md) instead.
 
 ## The correlation id
 

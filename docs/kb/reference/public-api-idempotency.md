@@ -1,7 +1,7 @@
 ---
 title: Retrying safely (idempotency)
 section: Reference
-order: 2
+order: 41
 summary: Why every mutating call needs an Idempotency-Key, and exactly what the server does with it.
 audience: integrator
 public: true

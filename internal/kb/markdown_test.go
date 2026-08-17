@@ -75,3 +75,48 @@ func TestRenderMarkdownHandlesUnclosedAndMalformedInput(t *testing.T) {
 		t.Fatalf("unclosed code fence was not escaped: %q", got)
 	}
 }
+
+// A cross-reference between two articles is written the way Markdown files
+// reference each other on disk, so the sources stay readable outside the app.
+// The renderer is what turns that into the URL the shell actually serves - and
+// an article link that 404s is worse than no link, so pin every case.
+func TestRenderMarkdownRewritesArticleLinks(t *testing.T) {
+	cases := []struct{ source, want string }{
+		{"[a](first-order.md)", `<a href="/help/first-order">a</a>`},
+		{"[a](../troubleshooting/error-codes.md)", `<a href="/help/error-codes">a</a>`},
+		{"[a](Error-Codes.MD)", `<a href="/help/error-codes">a</a>`},
+		{"[a](glossary.md#stock)", `<a href="/help/glossary#stock">a</a>`},
+		// Left alone: another project's file, an in-page anchor, a non-article
+		// path, and a link that is already in the served shape.
+		{"[a](https://example.com/readme.md)", `<a href="https://example.com/readme.md">a</a>`},
+		{"[a](#reading-an-error-code)", `<a href="#reading-an-error-code">a</a>`},
+		{"[a](/help/setup.html)", `<a href="/help/setup.html">a</a>`},
+		{"[a](mailto:support@example.com)", `<a href="mailto:support@example.com">a</a>`},
+	}
+	for _, testCase := range cases {
+		if got := RenderMarkdown(testCase.source); !strings.Contains(got, testCase.want) {
+			t.Errorf("RenderMarkdown(%q) = %q, want it to contain %q", testCase.source, got, testCase.want)
+		}
+	}
+	// The rewrite must not become a way to smuggle a scheme past safeURL.
+	if got := RenderMarkdown("[a](javascript:alert(1).md)"); strings.Contains(got, "javascript:") {
+		t.Fatalf("unsafe scheme survived the article-link rewrite: %q", got)
+	}
+}
+
+// HeadingSlug is exported so a generator can predict the anchor it links to.
+// If it ever disagrees with the anchor the renderer actually emits, every
+// generated table of contents silently stops resolving.
+func TestHeadingSlugMatchesRenderedAnchor(t *testing.T) {
+	for _, heading := range []string{
+		"Data Import / Excel Upload",
+		"Goods Receipt / GRN",
+		"Finance & Accounting",
+		"Getting Started",
+	} {
+		want := `id="` + HeadingSlug(heading) + `"`
+		if got := RenderMarkdown("## " + heading); !strings.Contains(got, want) {
+			t.Errorf("HeadingSlug(%q) does not match the rendered anchor: %q", heading, got)
+		}
+	}
+}

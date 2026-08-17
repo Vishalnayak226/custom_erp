@@ -6,10 +6,45 @@
       "order": 0,
       "articles": [
         {
+          "slug": "what-is-this-system",
+          "title": "What this system is",
+          "section": "Getting Started",
+          "order": 1,
+          "summary": "One shared record of the business, and the five ideas you need before any screen makes sense.",
+          "audience": "everyone",
+          "screens": [
+            "reports"
+          ],
+          "last_verified": "2026-08-17",
+          "source_path": "getting-started/what-is-this-system.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Why that matters in practice",
+              "slug": "why-that-matters-in-practice"
+            },
+            {
+              "level": 2,
+              "text": "Five ideas that make every screen readable",
+              "slug": "five-ideas-that-make-every-screen-readable"
+            },
+            {
+              "level": 2,
+              "text": "What it will not do for you",
+              "slug": "what-it-will-not-do-for-you"
+            },
+            {
+              "level": 2,
+              "text": "Where to go next",
+              "slug": "where-to-go-next"
+            }
+          ]
+        },
+        {
           "slug": "first-login",
           "title": "Your first sign-in",
           "section": "Getting Started",
-          "order": 1,
+          "order": 2,
           "summary": "Sign in, understand what your role can see, and find your way around the main screens.",
           "audience": "everyone",
           "screens": [
@@ -42,10 +77,57 @@
           ]
         },
         {
+          "slug": "finding-your-way-around",
+          "title": "Finding your way around",
+          "section": "Getting Started",
+          "order": 3,
+          "summary": "The sidebar's eleven entries, the two search boxes that do different things, and the shape every list screen shares.",
+          "audience": "everyone",
+          "screens": [
+            "reports",
+            "doctype-table",
+            "inventory"
+          ],
+          "last_verified": "2026-08-17",
+          "source_path": "getting-started/finding-your-way-around.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The sidebar",
+              "slug": "the-sidebar"
+            },
+            {
+              "level": 2,
+              "text": "Two search boxes, doing different things",
+              "slug": "two-search-boxes-doing-different-things"
+            },
+            {
+              "level": 2,
+              "text": "The shape of a list screen",
+              "slug": "the-shape-of-a-list-screen"
+            },
+            {
+              "level": 2,
+              "text": "Help, from wherever you are",
+              "slug": "help-from-wherever-you-are"
+            },
+            {
+              "level": 2,
+              "text": "When a screen tells you something is not set up",
+              "slug": "when-a-screen-tells-you-something-is-not-set-up"
+            },
+            {
+              "level": 2,
+              "text": "Deep links",
+              "slug": "deep-links"
+            }
+          ]
+        },
+        {
           "slug": "first-order",
           "title": "Your first order, end to end",
           "section": "Getting Started",
-          "order": 2,
+          "order": 4,
           "summary": "Follow one order from placement to invoice, so the screens in between stop being a mystery.",
           "audience": "cashier, store manager",
           "screens": [
@@ -86,6 +168,463 @@
               "level": 2,
               "text": "What to look at when something stalls",
               "slug": "what-to-look-at-when-something-stalls"
+            }
+          ]
+        },
+        {
+          "slug": "open-a-shop-and-make-your-first-sale",
+          "title": "Open a shop and make your first sale",
+          "section": "Getting Started",
+          "order": 5,
+          "summary": "Half an hour, ten steps, from an empty system to money in the till - and proof that the accounting followed by itself.",
+          "audience": "store manager, admin",
+          "screens": [
+            "pos",
+            "purchase-orders",
+            "grn",
+            "inventory",
+            "approvals",
+            "finance",
+            "reports"
+          ],
+          "last_verified": "2026-08-17",
+          "source_path": "getting-started/open-a-shop-and-make-your-first-sale.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "1. Create the place you trade from",
+              "slug": "1-create-the-place-you-trade-from"
+            },
+            {
+              "level": 2,
+              "text": "2. Create the supplier you buy from",
+              "slug": "2-create-the-supplier-you-buy-from"
+            },
+            {
+              "level": 2,
+              "text": "3. Create something to sell",
+              "slug": "3-create-something-to-sell"
+            },
+            {
+              "level": 2,
+              "text": "4. Order some stock",
+              "slug": "4-order-some-stock"
+            },
+            {
+              "level": 2,
+              "text": "5. Approve it, as the other user",
+              "slug": "5-approve-it-as-the-other-user"
+            },
+            {
+              "level": 2,
+              "text": "6. Receive the stock",
+              "slug": "6-receive-the-stock"
+            },
+            {
+              "level": 2,
+              "text": "7. Open the till",
+              "slug": "7-open-the-till"
+            },
+            {
+              "level": 2,
+              "text": "8. Sell something",
+              "slug": "8-sell-something"
+            },
+            {
+              "level": 2,
+              "text": "9. Check that everything moved on its own",
+              "slug": "9-check-that-everything-moved-on-its-own"
+            },
+            {
+              "level": 2,
+              "text": "10. Close the till",
+              "slug": "10-close-the-till"
+            },
+            {
+              "level": 2,
+              "text": "That is the skeleton",
+              "slug": "that-is-the-skeleton"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Role Journeys",
+      "order": 1,
+      "articles": [
+        {
+          "slug": "role-journeys-overview",
+          "title": "Which journey is mine",
+          "section": "Role Journeys",
+          "order": 1,
+          "summary": "Six jobs, four shipped roles, and how the two line up - read this before picking a journey.",
+          "audience": "everyone",
+          "screens": [
+            "roles"
+          ],
+          "last_verified": "2026-08-17",
+          "source_path": "role-journeys/role-journeys-overview.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The four roles the system ships with",
+              "slug": "the-four-roles-the-system-ships-with"
+            },
+            {
+              "level": 2,
+              "text": "The six journeys, and who usually does them",
+              "slug": "the-six-journeys-and-who-usually-does-them"
+            },
+            {
+              "level": 2,
+              "text": "Reading a journey",
+              "slug": "reading-a-journey"
+            }
+          ]
+        },
+        {
+          "slug": "journey-cashier",
+          "title": "A day as a cashier",
+          "section": "Role Journeys",
+          "order": 2,
+          "summary": "Open the till, ring up sales, handle the four things that commonly go wrong, and close out with a clean variance.",
+          "audience": "cashier",
+          "screens": [
+            "pos"
+          ],
+          "last_verified": "2026-08-17",
+          "source_path": "role-journeys/journey-cashier.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Start of shift: open the till",
+              "slug": "start-of-shift-open-the-till"
+            },
+            {
+              "level": 2,
+              "text": "Ringing up a sale",
+              "slug": "ringing-up-a-sale"
+            },
+            {
+              "level": 2,
+              "text": "Offers: you do not apply them",
+              "slug": "offers-you-do-not-apply-them"
+            },
+            {
+              "level": 2,
+              "text": "The four things that go wrong",
+              "slug": "the-four-things-that-go-wrong"
+            },
+            {
+              "level": 2,
+              "text": "Reprinting a receipt",
+              "slug": "reprinting-a-receipt"
+            },
+            {
+              "level": 2,
+              "text": "End of shift: close the till",
+              "slug": "end-of-shift-close-the-till"
+            },
+            {
+              "level": 2,
+              "text": "If the network drops",
+              "slug": "if-the-network-drops"
+            },
+            {
+              "level": 2,
+              "text": "Next",
+              "slug": "next"
+            }
+          ]
+        },
+        {
+          "slug": "journey-store-manager",
+          "title": "A day as a store manager",
+          "section": "Role Journeys",
+          "order": 3,
+          "summary": "Morning queues, approvals, stock that needs ordering, and the four checks worth making before you close.",
+          "audience": "store manager",
+          "screens": [
+            "reports",
+            "oms",
+            "approvals",
+            "inventory",
+            "purchase-orders",
+            "grn",
+            "pos",
+            "transfers"
+          ],
+          "last_verified": "2026-08-17",
+          "source_path": "role-journeys/journey-store-manager.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Morning: clear what is blocked",
+              "slug": "morning-clear-what-is-blocked"
+            },
+            {
+              "level": 2,
+              "text": "Keeping stock ahead of demand",
+              "slug": "keeping-stock-ahead-of-demand"
+            },
+            {
+              "level": 2,
+              "text": "What only you can decide",
+              "slug": "what-only-you-can-decide"
+            },
+            {
+              "level": 2,
+              "text": "Taking an order by hand",
+              "slug": "taking-an-order-by-hand"
+            },
+            {
+              "level": 2,
+              "text": "Finding one order fast",
+              "slug": "finding-one-order-fast"
+            },
+            {
+              "level": 2,
+              "text": "Before you close",
+              "slug": "before-you-close"
+            },
+            {
+              "level": 2,
+              "text": "Next",
+              "slug": "next"
+            }
+          ]
+        },
+        {
+          "slug": "journey-warehouse-operator",
+          "title": "A day as a warehouse operator",
+          "section": "Role Journeys",
+          "order": 4,
+          "summary": "Receive, put away, pick, pack, dispatch - and the counting work that keeps the numbers honest.",
+          "audience": "warehouse operator",
+          "screens": [
+            "grn",
+            "asn",
+            "putaway",
+            "fulfillment",
+            "wave-picking",
+            "mobile-picking",
+            "cycle-count",
+            "lpn",
+            "bin-replenishment",
+            "bin-conditions",
+            "transfers",
+            "stickers"
+          ],
+          "last_verified": "2026-08-17",
+          "source_path": "role-journeys/journey-warehouse-operator.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Inbound",
+              "slug": "inbound"
+            },
+            {
+              "level": 2,
+              "text": "Where things live",
+              "slug": "where-things-live"
+            },
+            {
+              "level": 2,
+              "text": "Outbound",
+              "slug": "outbound"
+            },
+            {
+              "level": 2,
+              "text": "Counting",
+              "slug": "counting"
+            },
+            {
+              "level": 2,
+              "text": "Moving stock between locations",
+              "slug": "moving-stock-between-locations"
+            },
+            {
+              "level": 2,
+              "text": "When picking cannot find the stock",
+              "slug": "when-picking-cannot-find-the-stock"
+            },
+            {
+              "level": 2,
+              "text": "Next",
+              "slug": "next"
+            }
+          ]
+        },
+        {
+          "slug": "journey-category-manager",
+          "title": "A day as a category manager",
+          "section": "Role Journeys",
+          "order": 5,
+          "summary": "Own the product record, get it complete enough to publish, and keep it that way as the range changes.",
+          "audience": "category manager",
+          "screens": [
+            "pim",
+            "doctype-table",
+            "marketplace",
+            "reports",
+            "stickers"
+          ],
+          "last_verified": "2026-08-17",
+          "source_path": "role-journeys/journey-category-manager.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The two screens you live in",
+              "slug": "the-two-screens-you-live-in"
+            },
+            {
+              "level": 2,
+              "text": "Getting an item right the first time",
+              "slug": "getting-an-item-right-the-first-time"
+            },
+            {
+              "level": 2,
+              "text": "Working in bulk, not one record at a time",
+              "slug": "working-in-bulk-not-one-record-at-a-time"
+            },
+            {
+              "level": 2,
+              "text": "Completeness, and why it is the metric that matters",
+              "slug": "completeness-and-why-it-is-the-metric-that-matters"
+            },
+            {
+              "level": 2,
+              "text": "Publishing outward",
+              "slug": "publishing-outward"
+            },
+            {
+              "level": 2,
+              "text": "The weekly rhythm",
+              "slug": "the-weekly-rhythm"
+            },
+            {
+              "level": 2,
+              "text": "Next",
+              "slug": "next"
+            }
+          ]
+        },
+        {
+          "slug": "journey-finance",
+          "title": "A day in finance",
+          "section": "Role Journeys",
+          "order": 6,
+          "summary": "Payables in, receivables out, the bank reconciled, and a trial ledger that balances before you go home.",
+          "audience": "finance",
+          "screens": [
+            "finance",
+            "vendor-invoices",
+            "sales-invoices",
+            "payment-proposals",
+            "bank-reconciliation",
+            "finance-notes",
+            "approvals",
+            "reports"
+          ],
+          "last_verified": "2026-08-17",
+          "source_path": "role-journeys/journey-finance.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The screens, in the order money moves",
+              "slug": "the-screens-in-the-order-money-moves"
+            },
+            {
+              "level": 2,
+              "text": "Payables",
+              "slug": "payables"
+            },
+            {
+              "level": 2,
+              "text": "Receivables",
+              "slug": "receivables"
+            },
+            {
+              "level": 2,
+              "text": "Foreign currency, if you use it",
+              "slug": "foreign-currency-if-you-use-it"
+            },
+            {
+              "level": 2,
+              "text": "Reconciliation",
+              "slug": "reconciliation"
+            },
+            {
+              "level": 2,
+              "text": "The check that catches almost everything",
+              "slug": "the-check-that-catches-almost-everything"
+            },
+            {
+              "level": 2,
+              "text": "Month end",
+              "slug": "month-end"
+            },
+            {
+              "level": 2,
+              "text": "Next",
+              "slug": "next"
+            }
+          ]
+        },
+        {
+          "slug": "journey-admin",
+          "title": "A day as an administrator",
+          "section": "Role Journeys",
+          "order": 7,
+          "summary": "Set the system up once so it stops needing you, then watch the four things that actually tell you it is healthy.",
+          "audience": "admin",
+          "screens": [
+            "users",
+            "roles",
+            "approval-rules",
+            "prefix-configs",
+            "dynamic-labels",
+            "doctype-builder",
+            "configuration",
+            "audit-logs",
+            "system-status",
+            "tenant-entitlements",
+            "tenant-usage",
+            "extension-hooks"
+          ],
+          "last_verified": "2026-08-17",
+          "source_path": "role-journeys/journey-admin.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Setup, in dependency order",
+              "slug": "setup-in-dependency-order"
+            },
+            {
+              "level": 2,
+              "text": "Shaping the system to the business",
+              "slug": "shaping-the-system-to-the-business"
+            },
+            {
+              "level": 2,
+              "text": "The daily four",
+              "slug": "the-daily-four"
+            },
+            {
+              "level": 2,
+              "text": "The requests you will actually get",
+              "slug": "the-requests-you-will-actually-get"
+            },
+            {
+              "level": 2,
+              "text": "Before going live",
+              "slug": "before-going-live"
+            },
+            {
+              "level": 2,
+              "text": "Next",
+              "slug": "next"
             }
           ]
         }
@@ -138,10 +677,556 @@
       "order": 5,
       "articles": [
         {
+          "slug": "glossary",
+          "title": "Glossary",
+          "section": "Reference",
+          "order": 1,
+          "summary": "Every term the application uses that is not self-explanatory, in plain language.",
+          "audience": "everyone",
+          "last_verified": "2026-08-17",
+          "source_path": "reference/glossary.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The shape of the data",
+              "slug": "the-shape-of-the-data"
+            },
+            {
+              "level": 2,
+              "text": "Who can do what",
+              "slug": "who-can-do-what"
+            },
+            {
+              "level": 2,
+              "text": "Approvals and control",
+              "slug": "approvals-and-control"
+            },
+            {
+              "level": 2,
+              "text": "Stock",
+              "slug": "stock"
+            },
+            {
+              "level": 2,
+              "text": "Orders and fulfilment",
+              "slug": "orders-and-fulfilment"
+            },
+            {
+              "level": 2,
+              "text": "Money",
+              "slug": "money"
+            },
+            {
+              "level": 2,
+              "text": "When things go wrong",
+              "slug": "when-things-go-wrong"
+            },
+            {
+              "level": 2,
+              "text": "Security",
+              "slug": "security"
+            }
+          ]
+        },
+        {
+          "slug": "abbreviations",
+          "title": "Abbreviations",
+          "section": "Reference",
+          "order": 2,
+          "summary": "Every short form used in the application and its screens, expanded.",
+          "audience": "everyone",
+          "last_verified": "2026-08-17",
+          "source_path": "reference/abbreviations.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Documents and operations",
+              "slug": "documents-and-operations"
+            },
+            {
+              "level": 2,
+              "text": "Tax and compliance",
+              "slug": "tax-and-compliance"
+            },
+            {
+              "level": 2,
+              "text": "Money",
+              "slug": "money"
+            },
+            {
+              "level": 2,
+              "text": "People, security and systems",
+              "slug": "people-security-and-systems"
+            },
+            {
+              "level": 2,
+              "text": "Warehouse and logistics",
+              "slug": "warehouse-and-logistics"
+            }
+          ]
+        },
+        {
+          "slug": "faq",
+          "title": "Frequently asked questions",
+          "section": "Reference",
+          "order": 3,
+          "summary": "The questions people actually ask in the first month, answered without a tour of the menus.",
+          "audience": "everyone",
+          "last_verified": "2026-08-17",
+          "source_path": "reference/faq.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Access and sign-in",
+              "slug": "access-and-sign-in"
+            },
+            {
+              "level": 2,
+              "text": "Selling",
+              "slug": "selling"
+            },
+            {
+              "level": 2,
+              "text": "Stock",
+              "slug": "stock"
+            },
+            {
+              "level": 2,
+              "text": "Buying",
+              "slug": "buying"
+            },
+            {
+              "level": 2,
+              "text": "Products and tax",
+              "slug": "products-and-tax"
+            },
+            {
+              "level": 2,
+              "text": "Orders",
+              "slug": "orders"
+            },
+            {
+              "level": 2,
+              "text": "Money",
+              "slug": "money"
+            },
+            {
+              "level": 2,
+              "text": "The system itself",
+              "slug": "the-system-itself"
+            }
+          ]
+        },
+        {
+          "slug": "report-catalog",
+          "title": "Report catalog",
+          "section": "Reference",
+          "order": 20,
+          "summary": "Every report you can run, what it asks for, what it returns and whether you can drill into it.",
+          "audience": "store manager, finance, category manager, admin",
+          "screens": [
+            "reports"
+          ],
+          "last_verified": "2026-08-17",
+          "source_path": "reference/report-catalog.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "Assets",
+              "slug": "assets"
+            },
+            {
+              "level": 3,
+              "text": "Asset Register",
+              "slug": "asset-register"
+            },
+            {
+              "level": 2,
+              "text": "BI",
+              "slug": "bi"
+            },
+            {
+              "level": 3,
+              "text": "Report Performance",
+              "slug": "report-performance"
+            },
+            {
+              "level": 2,
+              "text": "CRM",
+              "slug": "crm"
+            },
+            {
+              "level": 3,
+              "text": "Campaign ROI",
+              "slug": "campaign-roi"
+            },
+            {
+              "level": 3,
+              "text": "Cohort Retention",
+              "slug": "cohort-retention"
+            },
+            {
+              "level": 3,
+              "text": "Customer 360",
+              "slug": "customer-360"
+            },
+            {
+              "level": 3,
+              "text": "Customer Lifetime Value",
+              "slug": "customer-lifetime-value"
+            },
+            {
+              "level": 3,
+              "text": "Loyalty Ledger Summary",
+              "slug": "loyalty-ledger-summary"
+            },
+            {
+              "level": 3,
+              "text": "Loyalty Points Liability",
+              "slug": "loyalty-points-liability"
+            },
+            {
+              "level": 3,
+              "text": "RFM Customer Segmentation",
+              "slug": "rfm-customer-segmentation"
+            },
+            {
+              "level": 2,
+              "text": "Exceptions",
+              "slug": "exceptions"
+            },
+            {
+              "level": 3,
+              "text": "Failed Syncs",
+              "slug": "failed-syncs"
+            },
+            {
+              "level": 3,
+              "text": "Negative Stock Flags",
+              "slug": "negative-stock-flags"
+            },
+            {
+              "level": 3,
+              "text": "Stale Approvals",
+              "slug": "stale-approvals"
+            },
+            {
+              "level": 2,
+              "text": "Finance",
+              "slug": "finance"
+            },
+            {
+              "level": 3,
+              "text": "Balance Sheet",
+              "slug": "balance-sheet"
+            },
+            {
+              "level": 3,
+              "text": "Bank Book",
+              "slug": "bank-book"
+            },
+            {
+              "level": 3,
+              "text": "Cash Book",
+              "slug": "cash-book"
+            },
+            {
+              "level": 3,
+              "text": "Cash Flow Statement",
+              "slug": "cash-flow-statement"
+            },
+            {
+              "level": 3,
+              "text": "Cost Center P\u0026L",
+              "slug": "cost-center-p-l"
+            },
+            {
+              "level": 3,
+              "text": "FX Gain/Loss Register",
+              "slug": "fx-gain-loss-register"
+            },
+            {
+              "level": 3,
+              "text": "GL Drill-down (by Account)",
+              "slug": "gl-drill-down-by-account"
+            },
+            {
+              "level": 3,
+              "text": "GST Return Summary",
+              "slug": "gst-return-summary"
+            },
+            {
+              "level": 3,
+              "text": "Open FX Exposure",
+              "slug": "open-fx-exposure"
+            },
+            {
+              "level": 3,
+              "text": "Payables Ageing",
+              "slug": "payables-ageing"
+            },
+            {
+              "level": 3,
+              "text": "Profit \u0026 Loss",
+              "slug": "profit-loss"
+            },
+            {
+              "level": 3,
+              "text": "Receivables Ageing",
+              "slug": "receivables-ageing"
+            },
+            {
+              "level": 3,
+              "text": "Statutory Audit Export (Full GL)",
+              "slug": "statutory-audit-export-full-gl"
+            },
+            {
+              "level": 3,
+              "text": "Tax Ledger",
+              "slug": "tax-ledger"
+            },
+            {
+              "level": 3,
+              "text": "Trial Balance in Presentation Currency",
+              "slug": "trial-balance-in-presentation-currency"
+            },
+            {
+              "level": 2,
+              "text": "HR",
+              "slug": "hr"
+            },
+            {
+              "level": 3,
+              "text": "Attendance Summary",
+              "slug": "attendance-summary"
+            },
+            {
+              "level": 2,
+              "text": "Inventory",
+              "slug": "inventory"
+            },
+            {
+              "level": 3,
+              "text": "Current Stock",
+              "slug": "current-stock"
+            },
+            {
+              "level": 3,
+              "text": "Stock Ledger",
+              "slug": "stock-ledger"
+            },
+            {
+              "level": 2,
+              "text": "Manufacturing",
+              "slug": "manufacturing"
+            },
+            {
+              "level": 3,
+              "text": "Production Cost Variance",
+              "slug": "production-cost-variance"
+            },
+            {
+              "level": 3,
+              "text": "Production Order Status",
+              "slug": "production-order-status"
+            },
+            {
+              "level": 2,
+              "text": "OMS",
+              "slug": "oms"
+            },
+            {
+              "level": 3,
+              "text": "Allocation Pending",
+              "slug": "allocation-pending"
+            },
+            {
+              "level": 3,
+              "text": "Courier Performance",
+              "slug": "courier-performance"
+            },
+            {
+              "level": 3,
+              "text": "OMS Exception Queue",
+              "slug": "oms-exception-queue"
+            },
+            {
+              "level": 3,
+              "text": "OMS Reconciliation Variance",
+              "slug": "oms-reconciliation-variance"
+            },
+            {
+              "level": 3,
+              "text": "Order Aging",
+              "slug": "order-aging"
+            },
+            {
+              "level": 3,
+              "text": "Orphaned Channel Orders (pre-35.1 intake)",
+              "slug": "orphaned-channel-orders-pre-35-1-intake"
+            },
+            {
+              "level": 3,
+              "text": "Reserved Stock",
+              "slug": "reserved-stock"
+            },
+            {
+              "level": 3,
+              "text": "Return Aging",
+              "slug": "return-aging"
+            },
+            {
+              "level": 3,
+              "text": "SLA Breach",
+              "slug": "sla-breach"
+            },
+            {
+              "level": 3,
+              "text": "Stock Mismatch",
+              "slug": "stock-mismatch"
+            },
+            {
+              "level": 2,
+              "text": "PIM",
+              "slug": "pim"
+            },
+            {
+              "level": 3,
+              "text": "PIM Overdue Tasks",
+              "slug": "pim-overdue-tasks"
+            },
+            {
+              "level": 3,
+              "text": "PIM Product Group Readiness",
+              "slug": "pim-product-group-readiness"
+            },
+            {
+              "level": 3,
+              "text": "PIM Stalled Workflow Runs",
+              "slug": "pim-stalled-workflow-runs"
+            },
+            {
+              "level": 3,
+              "text": "PIM Task Workload by Assignee",
+              "slug": "pim-task-workload-by-assignee"
+            },
+            {
+              "level": 2,
+              "text": "Procurement",
+              "slug": "procurement"
+            },
+            {
+              "level": 3,
+              "text": "GRN Register",
+              "slug": "grn-register"
+            },
+            {
+              "level": 3,
+              "text": "RFQ Comparison Export",
+              "slug": "rfq-comparison-export"
+            },
+            {
+              "level": 3,
+              "text": "Vendor Ledger",
+              "slug": "vendor-ledger"
+            },
+            {
+              "level": 2,
+              "text": "Sales",
+              "slug": "sales"
+            },
+            {
+              "level": 3,
+              "text": "Competitor Price Gap",
+              "slug": "competitor-price-gap"
+            },
+            {
+              "level": 3,
+              "text": "Customer Ledger",
+              "slug": "customer-ledger"
+            },
+            {
+              "level": 3,
+              "text": "Sales Register",
+              "slug": "sales-register"
+            },
+            {
+              "level": 2,
+              "text": "WMS",
+              "slug": "wms"
+            },
+            {
+              "level": 3,
+              "text": "3PL Storage \u0026 Handling Billing",
+              "slug": "3pl-storage-handling-billing"
+            },
+            {
+              "level": 3,
+              "text": "Batch Movement History (Recall)",
+              "slug": "batch-movement-history-recall"
+            },
+            {
+              "level": 3,
+              "text": "Batch Near-Expiry Watchlist",
+              "slug": "batch-near-expiry-watchlist"
+            },
+            {
+              "level": 3,
+              "text": "Batch Stock Inquiry",
+              "slug": "batch-stock-inquiry"
+            },
+            {
+              "level": 3,
+              "text": "Labor Productivity",
+              "slug": "labor-productivity"
+            },
+            {
+              "level": 3,
+              "text": "Slotting / Re-Slotting Suggestions",
+              "slug": "slotting-re-slotting-suggestions"
+            }
+          ]
+        },
+        {
+          "slug": "country-phone-rules",
+          "title": "Country codes and phone number rules",
+          "section": "Reference",
+          "order": 30,
+          "summary": "The countries the application knows, their dialling codes, and the phone number lengths each one accepts.",
+          "audience": "admin, store manager",
+          "screens": [
+            "configuration"
+          ],
+          "last_verified": "2026-08-17",
+          "source_path": "reference/country-phone-rules.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "How a number is read",
+              "slug": "how-a-number-is-read"
+            },
+            {
+              "level": 2,
+              "text": "The table",
+              "slug": "the-table"
+            },
+            {
+              "level": 2,
+              "text": "Currencies are not on this list, and why",
+              "slug": "currencies-are-not-on-this-list-and-why"
+            }
+          ]
+        },
+        {
           "slug": "public-api-authentication",
           "title": "Authenticating against the public API",
           "section": "Reference",
-          "order": 1,
+          "order": 40,
           "summary": "How an integration gets a key, what a key may do, and what every response tells you about your budget.",
           "audience": "integrator",
           "public": true,
@@ -174,7 +1259,7 @@
           "slug": "public-api-idempotency",
           "title": "Retrying safely (idempotency)",
           "section": "Reference",
-          "order": 2,
+          "order": 41,
           "summary": "Why every mutating call needs an Idempotency-Key, and exactly what the server does with it.",
           "audience": "integrator",
           "public": true,
@@ -235,35 +1320,476 @@
               "slug": "common-ones"
             }
           ]
+        },
+        {
+          "slug": "troubleshooting-index",
+          "title": "Troubleshooting by symptom",
+          "section": "Troubleshooting",
+          "order": 2,
+          "summary": "Start from what you saw, not from a code - each symptom below names the codes it produces and what actually fixes it.",
+          "audience": "everyone",
+          "screens": [
+            "pos",
+            "oms",
+            "inventory",
+            "purchase-orders",
+            "grn",
+            "sales-invoices",
+            "marketplace",
+            "transfers"
+          ],
+          "last_verified": "2026-08-17",
+          "source_path": "troubleshooting/troubleshooting-index.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Signing in",
+              "slug": "signing-in"
+            },
+            {
+              "level": 2,
+              "text": "Being refused an action",
+              "slug": "being-refused-an-action"
+            },
+            {
+              "level": 2,
+              "text": "Saving a record",
+              "slug": "saving-a-record"
+            },
+            {
+              "level": 2,
+              "text": "Items and tax",
+              "slug": "items-and-tax"
+            },
+            {
+              "level": 2,
+              "text": "Tax on a transaction",
+              "slug": "tax-on-a-transaction"
+            },
+            {
+              "level": 2,
+              "text": "At the till",
+              "slug": "at-the-till"
+            },
+            {
+              "level": 2,
+              "text": "Stock",
+              "slug": "stock"
+            },
+            {
+              "level": 2,
+              "text": "Buying and receiving",
+              "slug": "buying-and-receiving"
+            },
+            {
+              "level": 2,
+              "text": "Orders",
+              "slug": "orders"
+            },
+            {
+              "level": 2,
+              "text": "Integrations and channels",
+              "slug": "integrations-and-channels"
+            },
+            {
+              "level": 2,
+              "text": "Reports and files",
+              "slug": "reports-and-files"
+            },
+            {
+              "level": 2,
+              "text": "When none of the above fits",
+              "slug": "when-none-of-the-above-fits"
+            }
+          ]
+        },
+        {
+          "slug": "error-code-reference",
+          "title": "Error code reference",
+          "section": "Troubleshooting",
+          "order": 20,
+          "summary": "Every code the application can show you, what causes it and what to do about it.",
+          "audience": "everyone",
+          "last_verified": "2026-08-17",
+          "source_path": "troubleshooting/error-code-reference.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Contents",
+              "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "Admin / Configuration",
+              "slug": "admin-configuration"
+            },
+            {
+              "level": 2,
+              "text": "Approvals / Workflow",
+              "slug": "approvals-workflow"
+            },
+            {
+              "level": 2,
+              "text": "Audit \u0026 Compliance",
+              "slug": "audit-compliance"
+            },
+            {
+              "level": 2,
+              "text": "Backup / DR",
+              "slug": "backup-dr"
+            },
+            {
+              "level": 2,
+              "text": "Channel Connectors",
+              "slug": "channel-connectors"
+            },
+            {
+              "level": 2,
+              "text": "Customer / CRM",
+              "slug": "customer-crm"
+            },
+            {
+              "level": 2,
+              "text": "Data Import / Excel Upload",
+              "slug": "data-import-excel-upload"
+            },
+            {
+              "level": 2,
+              "text": "Deployment / Release",
+              "slug": "deployment-release"
+            },
+            {
+              "level": 2,
+              "text": "DocType / Dynamic Metadata",
+              "slug": "doctype-dynamic-metadata"
+            },
+            {
+              "level": 2,
+              "text": "Expense Management",
+              "slug": "expense-management"
+            },
+            {
+              "level": 2,
+              "text": "Extension Hooks / Customization",
+              "slug": "extension-hooks-customization"
+            },
+            {
+              "level": 2,
+              "text": "Finance \u0026 Accounting",
+              "slug": "finance-accounting"
+            },
+            {
+              "level": 2,
+              "text": "Fixed Assets",
+              "slug": "fixed-assets"
+            },
+            {
+              "level": 2,
+              "text": "Global / Common",
+              "slug": "global-common"
+            },
+            {
+              "level": 2,
+              "text": "Goods Receipt / GRN",
+              "slug": "goods-receipt-grn"
+            },
+            {
+              "level": 2,
+              "text": "HR / Payroll",
+              "slug": "hr-payroll"
+            },
+            {
+              "level": 2,
+              "text": "Integration / API",
+              "slug": "integration-api"
+            },
+            {
+              "level": 2,
+              "text": "Inventory / Warehouse",
+              "slug": "inventory-warehouse"
+            },
+            {
+              "level": 2,
+              "text": "Manufacturing / Production",
+              "slug": "manufacturing-production"
+            },
+            {
+              "level": 2,
+              "text": "Master Data",
+              "slug": "master-data"
+            },
+            {
+              "level": 2,
+              "text": "Mobile App / Device",
+              "slug": "mobile-app-device"
+            },
+            {
+              "level": 2,
+              "text": "Notifications",
+              "slug": "notifications"
+            },
+            {
+              "level": 2,
+              "text": "Observability / Incident",
+              "slug": "observability-incident"
+            },
+            {
+              "level": 2,
+              "text": "Omnichannel / OMS",
+              "slug": "omnichannel-oms"
+            },
+            {
+              "level": 2,
+              "text": "Order Management",
+              "slug": "order-management"
+            },
+            {
+              "level": 2,
+              "text": "PIM / Product Publishing",
+              "slug": "pim-product-publishing"
+            },
+            {
+              "level": 2,
+              "text": "POS / Offline \u0026 Cash Drawer",
+              "slug": "pos-offline-cash-drawer"
+            },
+            {
+              "level": 2,
+              "text": "Patch / Bug Governance",
+              "slug": "patch-bug-governance"
+            },
+            {
+              "level": 2,
+              "text": "Payments",
+              "slug": "payments"
+            },
+            {
+              "level": 2,
+              "text": "Procurement / RFQ",
+              "slug": "procurement-rfq"
+            },
+            {
+              "level": 2,
+              "text": "Purchase Order",
+              "slug": "purchase-order"
+            },
+            {
+              "level": 2,
+              "text": "Purchase Return / RTV",
+              "slug": "purchase-return-rtv"
+            },
+            {
+              "level": 2,
+              "text": "Reports \u0026 Exports",
+              "slug": "reports-exports"
+            },
+            {
+              "level": 2,
+              "text": "SaaS / Multi-Tenant",
+              "slug": "saas-multi-tenant"
+            },
+            {
+              "level": 2,
+              "text": "Sales / POS",
+              "slug": "sales-pos"
+            },
+            {
+              "level": 2,
+              "text": "Sales Return",
+              "slug": "sales-return"
+            },
+            {
+              "level": 2,
+              "text": "Security / Rate Limit",
+              "slug": "security-rate-limit"
+            },
+            {
+              "level": 2,
+              "text": "Stock Transfer",
+              "slug": "stock-transfer"
+            },
+            {
+              "level": 2,
+              "text": "Tax / GST / E-Invoice",
+              "slug": "tax-gst-e-invoice"
+            },
+            {
+              "level": 2,
+              "text": "User Access \u0026 Security",
+              "slug": "user-access-security"
+            },
+            {
+              "level": 2,
+              "text": "Vendor Invoice / AP",
+              "slug": "vendor-invoice-ap"
+            },
+            {
+              "level": 2,
+              "text": "WMS / Logistics",
+              "slug": "wms-logistics"
+            }
+          ]
         }
       ]
     }
   ],
   "screen_map": {
+    "approval-rules": [
+      "journey-admin"
+    ],
+    "approvals": [
+      "journey-finance",
+      "journey-store-manager",
+      "open-a-shop-and-make-your-first-sale"
+    ],
+    "asn": [
+      "journey-warehouse-operator"
+    ],
+    "audit-logs": [
+      "journey-admin"
+    ],
+    "bank-reconciliation": [
+      "journey-finance"
+    ],
+    "bin-conditions": [
+      "journey-warehouse-operator"
+    ],
+    "bin-replenishment": [
+      "journey-warehouse-operator"
+    ],
     "configuration": [
-      "first-login"
+      "country-phone-rules",
+      "first-login",
+      "journey-admin"
+    ],
+    "cycle-count": [
+      "journey-warehouse-operator"
+    ],
+    "doctype-builder": [
+      "journey-admin"
     ],
     "doctype-table": [
+      "finding-your-way-around",
+      "journey-category-manager",
       "pim-product-groups"
     ],
+    "dynamic-labels": [
+      "journey-admin"
+    ],
+    "extension-hooks": [
+      "journey-admin"
+    ],
+    "finance": [
+      "journey-finance",
+      "open-a-shop-and-make-your-first-sale"
+    ],
+    "finance-notes": [
+      "journey-finance"
+    ],
     "fulfillment": [
-      "first-order"
+      "first-order",
+      "journey-warehouse-operator"
+    ],
+    "grn": [
+      "journey-store-manager",
+      "journey-warehouse-operator",
+      "open-a-shop-and-make-your-first-sale",
+      "troubleshooting-index"
+    ],
+    "inventory": [
+      "finding-your-way-around",
+      "journey-store-manager",
+      "open-a-shop-and-make-your-first-sale",
+      "troubleshooting-index"
+    ],
+    "lpn": [
+      "journey-warehouse-operator"
+    ],
+    "marketplace": [
+      "journey-category-manager",
+      "troubleshooting-index"
+    ],
+    "mobile-picking": [
+      "journey-warehouse-operator"
     ],
     "oms": [
-      "first-order"
+      "first-order",
+      "journey-store-manager",
+      "troubleshooting-index"
+    ],
+    "payment-proposals": [
+      "journey-finance"
     ],
     "pim": [
+      "journey-category-manager",
       "pim-product-groups"
     ],
     "pos": [
-      "first-order"
+      "first-order",
+      "journey-cashier",
+      "journey-store-manager",
+      "open-a-shop-and-make-your-first-sale",
+      "troubleshooting-index"
+    ],
+    "prefix-configs": [
+      "journey-admin"
     ],
     "profile": [
       "first-login"
     ],
+    "purchase-orders": [
+      "journey-store-manager",
+      "open-a-shop-and-make-your-first-sale",
+      "troubleshooting-index"
+    ],
+    "putaway": [
+      "journey-warehouse-operator"
+    ],
+    "reports": [
+      "finding-your-way-around",
+      "journey-category-manager",
+      "journey-finance",
+      "journey-store-manager",
+      "open-a-shop-and-make-your-first-sale",
+      "report-catalog",
+      "what-is-this-system"
+    ],
+    "roles": [
+      "journey-admin",
+      "role-journeys-overview"
+    ],
     "sales-invoices": [
-      "first-order"
+      "first-order",
+      "journey-finance",
+      "troubleshooting-index"
+    ],
+    "stickers": [
+      "journey-category-manager",
+      "journey-warehouse-operator"
+    ],
+    "system-status": [
+      "journey-admin"
+    ],
+    "tenant-entitlements": [
+      "journey-admin"
+    ],
+    "tenant-usage": [
+      "journey-admin"
+    ],
+    "transfers": [
+      "journey-store-manager",
+      "journey-warehouse-operator",
+      "troubleshooting-index"
+    ],
+    "users": [
+      "journey-admin"
+    ],
+    "vendor-invoices": [
+      "journey-finance"
+    ],
+    "wave-picking": [
+      "journey-warehouse-operator"
     ]
   },
-  "article_count": 6
+  "article_count": 23
 }

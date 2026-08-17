@@ -1,0 +1,41 @@
+<h1 id="open-a-shop-and-make-your-first-sale">Open a shop and make your first sale <a class="kb-anchor" href="#open-a-shop-and-make-your-first-sale" aria-label="Copy link to this section">#</a></h1>
+<p>Every other article is per-screen. This one is the opposite: one continuous path from an empty system to a completed sale, so you can see how the pieces connect rather than reading about them one at a time. Allow about half an hour.</p>
+<aside class="kb-admonition kb-admonition-important" role="note"><p class="kb-admonition-title">Important</p><p><strong>You need two user accounts.</strong> Approvals refuse self-approval, so whoever raises the purchase order cannot be the person who approves it. Ask your administrator for a second login before you start.</p></aside>
+<h2 id="1-create-the-place-you-trade-from">1. Create the place you trade from <a class="kb-anchor" href="#1-create-the-place-you-trade-from" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Setup » Location » New.</strong> Give it a code (<code>MAIN</code>), a name, and set <strong>Type = Store</strong>. Save.</p>
+<p>This is the record that makes a shop real to the rest of the system. Every transaction points at a Location.</p>
+<h2 id="2-create-the-supplier-you-buy-from">2. Create the supplier you buy from <a class="kb-anchor" href="#2-create-the-supplier-you-buy-from" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Procurement » Vendors » New.</strong> Name and contact details. Save.</p>
+<h2 id="3-create-something-to-sell">3. Create something to sell <a class="kb-anchor" href="#3-create-something-to-sell" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Setup » Item » New.</strong> Fill in the name and code, and - this is the step people skip - the <strong>HSN Code</strong> and <strong>GST Rate</strong>. The system refuses to save without them, because it cannot price a sale it cannot tax.</p>
+<p>Selling something that is not taxed? A <code>0</code> in <strong>GST Rate</strong> on its own is rejected, because it is indistinguishable from a rate nobody has filled in yet. Set <strong>Tax Treatment</strong> instead:</p>
+<table><thead><tr><th>Tax Treatment</th><th>Use it for</th><th>GST Rate</th></tr></thead><tbody><tr><td><strong>Taxable</strong></td><td>Everything ordinary. The default.</td><td>Must be greater than 0</td></tr><tr><td><strong>Exempt</strong></td><td>Goods exempted by notification - fresh produce, unbranded grain.</td><td>Leave 0 or blank</td></tr><tr><td><strong>Nil-Rated</strong></td><td>Goods whose tariff rate is genuinely 0% - salt, certain cereals.</td><td>Leave 0 or blank</td></tr><tr><td><strong>Zero-Rated</strong></td><td>Exports and SEZ supplies under LUT or bond.</td><td>Leave 0 or blank</td></tr></tbody></table>
+<p><strong>HSN Code is required on all four</strong> - it goes on the invoice whatever the rate is, and the nil and exempt parts of GSTR-1 are reported HSN-wise too. You cannot have it both ways either: a non-taxable treatment may not carry a GST Rate above zero.</p>
+<p>You now have an item with <strong>zero stock</strong>. That is expected.</p>
+<h2 id="4-order-some-stock">4. Order some stock <a class="kb-anchor" href="#4-order-some-stock" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Procurement » Purchase Order.</strong> Pick your vendor, target warehouse and location, add your item as a line with a quantity and rate, and click <strong>Create Draft</strong>.</p>
+<p>You do not type a PO number. It is issued on save, from the numbering rules your administrator configured.</p>
+<p>Click <strong>Submit for Approval</strong>.</p>
+<h2 id="5-approve-it-as-the-other-user">5. Approve it, as the other user <a class="kb-anchor" href="#5-approve-it-as-the-other-user" aria-label="Copy link to this section">#</a></h2>
+<p>Sign in with your second account, open <strong>Financial Accounting » Approvals</strong>, find the purchase order and click <strong>Approve</strong>.</p>
+<aside class="kb-admonition kb-admonition-tip" role="note"><p class="kb-admonition-title">Tip</p><p>If Approve is refused, you are signed in as the person who raised it. That is the check working, not a fault. Use the other account.</p></aside>
+<h2 id="6-receive-the-stock">6. Receive the stock <a class="kb-anchor" href="#6-receive-the-stock" aria-label="Copy link to this section">#</a></h2>
+<p>Back as the first user: <strong>Procurement » Goods Receipt</strong>. Click <strong>Load Items from PO</strong>, choose your approved PO, confirm the quantities that actually arrived, and click <strong>Post Receipt</strong>.</p>
+<p><strong>Now open Stock » Inventory.</strong> The quantity should have gone up.</p>
+<aside class="kb-admonition kb-admonition-warning" role="note"><p class="kb-admonition-title">Warning</p><p>If stock did not move, stop here. Everything downstream depends on this step having worked, and continuing will only produce a second confusing failure.</p></aside>
+<h2 id="7-open-the-till">7. Open the till <a class="kb-anchor" href="#7-open-the-till" aria-label="Copy link to this section">#</a></h2>
+<p><strong>POS » POS / Billing.</strong> Start typing your shop&#39;s name into <strong>Location</strong> and pick it from the list - typing the code <code>MAIN</code> finds it too. Click <strong>Open Session</strong> and enter the cash physically in the drawer.</p>
+<h2 id="8-sell-something">8. Sell something <a class="kb-anchor" href="#8-sell-something" aria-label="Copy link to this section">#</a></h2>
+<p>Scan or type your item&#39;s code, press Enter, choose a payment mode, and click <strong>Complete Sale</strong>. Say yes to the receipt if you want to see it: it goes straight to the till printer where one has been configured, and otherwise through the browser&#39;s print dialog.</p>
+<h2 id="9-check-that-everything-moved-on-its-own">9. Check that everything moved on its own <a class="kb-anchor" href="#9-check-that-everything-moved-on-its-own" aria-label="Copy link to this section">#</a></h2>
+<p>You should not have to tell any other screen about that sale. Confirm it:</p>
+<table><thead><tr><th>Check</th><th>Where</th><th>What you should see</th></tr></thead><tbody><tr><td>Stock went down</td><td><strong>Stock » Inventory</strong></td><td>Quantity reduced by what you sold</td></tr><tr><td>The sale was recorded</td><td><strong>Reports » Sales Register</strong></td><td>Your sale, with its total</td></tr><tr><td>The books balanced</td><td><strong>Financial Accounting » Finance / GL</strong></td><td>Set <strong>As Of Date</strong> to today - debits equal credits, status reads &#34;Balanced trial ledger&#34;</td></tr><tr><td>The money is owed to the vendor</td><td><strong>Reports » Vendor Ledger</strong></td><td>Your purchase order against that vendor</td></tr></tbody></table>
+<p>This table is the point of the whole exercise. Four screens nobody touched now agree with each other.</p>
+<h2 id="10-close-the-till">10. Close the till <a class="kb-anchor" href="#10-close-the-till" aria-label="Copy link to this section">#</a></h2>
+<p>Back on <strong>POS / Billing</strong>, click <strong>Close Session</strong> and enter the counted cash. The system shows expected, counted and the variance.</p>
+<h2 id="that-is-the-skeleton">That is the skeleton <a class="kb-anchor" href="#that-is-the-skeleton" aria-label="Copy link to this section">#</a></h2>
+<p>Buy, receive, sell - and the accounting follows by itself. Every other feature hangs off this loop. From here:</p>
+<ul><li><a href="/help/first-order">Your first order, end to end</a> covers the same ground from the</li></ul>
+<p>order&#39;s point of view, including channel orders and fulfillment.</p>
+<ul><li>The role journeys narrow it to one job: start with</li></ul>
+<p><a href="/help/journey-store-manager">A day as a store manager</a>.</p>

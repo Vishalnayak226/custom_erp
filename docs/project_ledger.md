@@ -44,6 +44,26 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 103. Stage 39.11/39.12/39.16/39.17 — the Knowledge Center gets its content, 6 articles → 23 (2026-08-17, content + code)
+
+Asked to start writing Stage 39's content, which was 11 open items described as "mostly content authoring". Four of them are now closed. Full item-by-item detail in `micro_checklist.md` Stage 39.
+
+**Two code changes came first, because the seed content had already got cross-linking wrong and every article in this pass links to others.** `first-login.md` linked `first-order.md` the way one Markdown file references another; rendered, that is a *relative* href, so from `/help/first-login` the browser asked for `/help/first-order.md` — a slug that does not exist. `error-codes.md` pointed at `../../guides/ERROR_CODES.md`, which is not reachable from inside the application at all. Both had shipped, and nothing caught either. The fix is at the renderer rather than in the articles: `articleURL` rewrites any scheme-less, host-less `*.md` link to `/help/<basename>`, mirroring `slugFromPath`. Authors keep writing ordinary Markdown links — the sources stay readable on disk and in a repo browser — and cannot get the app's URL shape wrong because they never type it. It runs *after* `safeURL`, so it cannot be used to smuggle a scheme past the allowlist, and that is pinned by a test.
+
+**Three reference articles are generated, not written.** `cmd/gendocs` gained `-kb-out` and now emits `error-code-reference` (all 302 codes), `report-catalog` (every registered report) and `country-phone-rules` (all 54 countries, from `engines.PhoneCountries()`). They are written as **Markdown into `docs/kb/`**, not as HTML into `internal/kb/content/` — so `genkb` remains the only thing that renders an article, and the generated pages get the same anchors, the same search index and the same access model as a hand-written one rather than a parallel path that would drift from all three. This is the repo's settled rule applied again: a hand-written copy of a list the code owns is wrong the day someone touches the code.
+
+**That forced one small export.** A generator writing its own contents list has to predict the anchor the renderer will emit. GitHub's anchor rule and this renderer's disagree on runs of punctuation — `data-import--excel-upload` against `data-import-excel-upload` — which is precisely the kind of difference that produces a table of contents whose links quietly stop resolving and that nobody notices for months. `HeadingSlug` is therefore exported and used by both, with a test asserting they agree.
+
+**The content itself, 17 new articles.** Getting Started grew to five (what the system is; finding your way around; the ten-step worked example from `USER_GUIDE` §13). Role Journeys is seven — six jobs plus an overview that exists because the ask named six *jobs* while the system ships four *roles*, and writing six "role" articles without saying which is which would have been the more misleading choice. Reference gained a ~50-term glossary, ~60 abbreviations and an FAQ. Troubleshooting gained a symptom index keying ~70 symptoms to the codes they produce, because the reference answers "what does this code mean" and the question people actually arrive with is "this happened, now what". Every code cited in it was read out of the live catalog rather than recalled.
+
+**Two mechanical checks now exist that did not before**, both run over the built output: zero dangling cross-references (all 20 distinct `/help/` targets resolve to a real slug) and zero invalid screen ids (all 40 declared `screens:` values match a real `renderView` id). Those are 39.8's job to automate, and they found nothing this pass only because the renderer fix removed the class of error that was already there.
+
+**Live-verified** on a throwaway server (port 9142, stopped afterwards): 23 articles in the intended sidebar order, articles fetch with correct titles and tables of contents, rendered hrefs are the rewritten form — and the **public index is still narrowed to the two opted-in articles**, so 39.6's access model holds at 23 articles exactly as it did at 6.
+
+**Left open and said so rather than quietly begun:** 39.13 (module handbooks, the largest remaining item), 39.14, 39.15, and 39.18 — the last of which *deletes* five guide files that `CLAUDE.md` and many docs reference by path, and wants to be its own reviewed unit rather than a side-effect of an authoring session.
+
+---
+
 ## 102. Stage 37.1.3-37.1.5 — multi-currency finished, and the 98.8% receivable understatement it uncovered (2026-08-16, code + schema + docs)
 
 Asked to start building from the open parity backlog, whose first row is **Stage 37 — ERP core depth**, annotated "incl. finishing multi-currency (37.1.3-37.1.5)". That was the right place to start for a reason beyond ordering: 37.1 was the only half-built item in the list, and half-built multi-currency is not a missing feature, it is a live correctness liability. Full item-by-item detail in `micro_checklist.md` Stage 37.1. A concurrent session's Stage 42.1 work was uncommitted in this tree throughout — see the note at the end.

@@ -1,0 +1,34 @@
+<h1 id="a-day-as-a-store-manager">A day as a store manager <a class="kb-anchor" href="#a-day-as-a-store-manager" aria-label="Copy link to this section">#</a></h1>
+<p>You sit between the till and everything behind it. The job splits into three: clear what is blocked, keep stock ahead of demand, and decide the things only a manager can decide.</p>
+<h2 id="morning-clear-what-is-blocked">Morning: clear what is blocked <a class="kb-anchor" href="#morning-clear-what-is-blocked" aria-label="Copy link to this section">#</a></h2>
+<p>Start on <strong>Reports</strong> - it is where you land at sign-in, and its first tab is a dashboard of live figures. Then work the queues in this order, because each one feeds the next.</p>
+<p><strong>1. Approvals.</strong> <strong>Financial Accounting » Approvals</strong> lists everything waiting on you: purchase orders, large manual discounts from the till, anything else your business has put behind a rule. An approval you leave sitting is a purchase that is not happening and a sale that has not been charged.</p>
+<p>You cannot approve your own document. If Approve is missing on something you raised, that is the rule working.</p>
+<p><strong>2. Orders on hold.</strong> <strong>Sales &amp; Marketplace » Order Management</strong>, filter <strong>Status = On Hold</strong>. Every dropdown shows a count, so you can see the size of the backlog before opening it. Open an order, read the hold reason, fix the cause, click <strong>Release hold</strong>. Resolved several with the same cause? Tick them and release them together.</p>
+<p><strong>3. The four tiles</strong> at the top of Order Management are live counts and each opens the report behind it: integration exceptions, SLA breached, allocation pending, reconciliation variance. <em>Allocation pending</em> is the one that usually means &#34;you are out of stock and do not know it yet&#34;.</p>
+<h2 id="keeping-stock-ahead-of-demand">Keeping stock ahead of demand <a class="kb-anchor" href="#keeping-stock-ahead-of-demand" aria-label="Copy link to this section">#</a></h2>
+<p><strong>Check what you have.</strong> <strong>Stock » Inventory</strong>, search by name or code. The figure you care about is what is <em>free to sell</em> - it already accounts for stock promised to other orders, so it is not a raw warehouse count.</p>
+<p><strong>Order more.</strong> <strong>Procurement » Purchase Order</strong>: pick the vendor, target warehouse and location, add lines with quantity and rate, <strong>Create Draft</strong>, then <strong>Submit for Approval</strong>. You do not type a PO number; it is issued on save.</p>
+<p>Prices, HSN and tax on each line are resolved by the server from the Item master, so you cannot accidentally order at a tax classification that disagrees with the product. A line that errors usually means the item is missing its HSN code.</p>
+<p><strong>Receive it.</strong> <strong>Procurement » Goods Receipt</strong> » <strong>Load Items from PO</strong>, confirm what actually arrived, <strong>Post Receipt</strong>. Then check <strong>Inventory</strong> moved. Receiving is the step that turns a purchase into sellable stock, and a receipt that was never posted is the most common cause of &#34;we definitely have that in the back&#34;.</p>
+<p><strong>Move it between shops.</strong> <strong>Stock » Stock Transfer</strong>.</p>
+<h2 id="what-only-you-can-decide">What only you can decide <a class="kb-anchor" href="#what-only-you-can-decide" aria-label="Copy link to this section">#</a></h2>
+<ul><li><strong>Manual discounts</strong> above the threshold, from the Approvals screen. Nothing</li></ul>
+<p>is charged to the customer until you decide.</p>
+<ul><li><strong>Cash variances</strong> at session close. The cashier reports; you explain.</li><li><strong>Holds and priorities.</strong> <strong>Expedite</strong> on an order pushes it to the top of</li></ul>
+<p>both this queue and the warehouse&#39;s picking worklist - it is honoured by the queue itself, not just shown as a label.</p>
+<ul><li><strong>Cancellations</strong>, which always ask for a reason code.</li></ul>
+<h2 id="taking-an-order-by-hand">Taking an order by hand <a class="kb-anchor" href="#taking-an-order-by-hand" aria-label="Copy link to this section">#</a></h2>
+<p>Phone orders, wholesale walk-ins and replacements go in through <strong>Order Management » New manual order</strong>. Shipping address is required; customer name and phone are optional but are what make the order findable later.</p>
+<p>Put your own order number in <strong>Reference</strong>. The same reference twice returns the same order rather than creating a duplicate, so a double-click cannot cost you anything.</p>
+<p>A manual order goes through exactly the same engine a marketplace order does - stock reserved, allocation run, hold rules evaluated. That means it can be refused, most often for <em>insufficient stock for reservation</em>. That is not a fault; it is the system declining to promise stock you do not have.</p>
+<h2 id="finding-one-order-fast">Finding one order fast <a class="kb-anchor" href="#finding-one-order-fast" aria-label="Copy link to this section">#</a></h2>
+<p>The search box at the top of Order Management searches, in one go: the ERP&#39;s order id, the channel&#39;s order id, an AWB or tracking number, the customer&#39;s phone, the customer&#39;s name, and any SKU on the order. Each result says which of those matched. Type whatever the customer reads out over the phone.</p>
+<p>Filters you use repeatedly can be saved with <strong>Save this view</strong>. Views are private to you.</p>
+<h2 id="before-you-close">Before you close <a class="kb-anchor" href="#before-you-close" aria-label="Copy link to this section">#</a></h2>
+<table><thead><tr><th>Check</th><th>Where</th><th>Looking for</th></tr></thead><tbody><tr><td>Sessions closed</td><td><strong>POS » POS / Billing</strong></td><td>No session left open overnight</td></tr><tr><td>Today&#39;s sales</td><td><strong>Reports » Sales Register</strong></td><td>The day&#39;s total matches the till</td></tr><tr><td>Nothing stuck</td><td><strong>Order Management</strong>, filter On Hold</td><td>Ideally empty</td></tr><tr><td>Receipts posted</td><td><strong>Stock » Inventory</strong></td><td>Today&#39;s deliveries actually raised stock</td></tr></tbody></table>
+<h2 id="next">Next <a class="kb-anchor" href="#next" aria-label="Copy link to this section">#</a></h2>
+<ul><li><a href="/help/journey-warehouse-operator">A day as a warehouse operator</a> - what happens</li></ul>
+<p>to the orders you release.</p>
+<ul><li><a href="/help/open-a-shop-and-make-your-first-sale">Open a shop and make your first sale</a> -</li></ul>
+<p>the whole loop in one worked example.</p>
