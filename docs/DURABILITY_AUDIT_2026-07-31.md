@@ -325,7 +325,7 @@ to a security gate that found nothing.
 ## Recommended order of work
 
 1. ~~**Validate Item code/SKU charset server-side** — finding 6, tourniquet, hours.~~ ✅ **DONE 2026-08-21** (Stage 46).
-2. ~~**Decide the money representation** — finding 7. Hardest to defer; gets worse yearly.~~ ✅ **DONE 2026-08-21** — full paise migration built and verified; production deploy still pending the user's go-ahead (Stage 46.7).
+2. ~~**Decide the money representation** — finding 7. Hardest to defer; gets worse yearly.~~ ✅ **DONE 2026-08-21** — full paise migration built, verified, and deployed to production (Stage 46.7, commit `2575097`).
 3. **Watch the first `-race` CI run** — finding 3. It may surface real races.
 4. **Make the test suite self-contained** — finding 5, so a fresh environment can go green.
 5. Retire `'unsafe-inline'` — finding 6, (c). (a) is largely done separately per `ERP_LOOPHOLES_ANALYSIS.md`'s 2026-08-20 note, not independently re-verified here.

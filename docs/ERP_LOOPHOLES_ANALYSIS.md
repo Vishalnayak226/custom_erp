@@ -499,7 +499,7 @@ A fresh full-codebase review was performed against the current tree (now ~190 Go
 
 The system is materially stronger than at the 2026-07-29 QC, and stronger again after Stage 46: both items this document carried as genuinely open — money precision and the Item code/SKU charset gap — are now closed. **Two items remain open**, listed above, neither blocking on more analysis: `'unsafe-inline'` needs the `onclick=`→`addEventListener` refactor, and token revocation/key-rotation stays deliberately deferred by standing policy pending a real need.
 
-**Conditional production readiness: YES for deployments that accept the residual `'unsafe-inline'` CSP surface; the integer-rupee accounting caveat from the 2026-08-20 revision no longer applies. Production deploy of the Stage 46 migration itself is still pending — see `micro_checklist.md` 46.7 — so live `:8080` still runs the pre-fix integer-rupee ledger until that deploy happens.**
+**Conditional production readiness: YES for deployments that accept the residual `'unsafe-inline'` CSP surface; the integer-rupee accounting caveat from the 2026-08-20 revision no longer applies. Stage 46's migration deployed to production 2026-08-21 (commit `2575097`, see `micro_checklist.md` 46.7) — live `:8080` now runs the paise-precision ledger.**
 
 ---
 
