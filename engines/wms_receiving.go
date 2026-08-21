@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"fmt"
+	"strings"
 )
 
 // Stage 26.5 (WMS Enterprise Maturity Sprint): 26.5.1 ASN capture ahead of a
@@ -60,6 +61,13 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 		acceptedQty float64
 	}
 	var receivedBatches []receivedBatch
+	// 42.1.8: units seen on this receipt, registered after the stock posts -
+	// same ordering and same-file-defence-in-depth reasoning as the batch
+	// list above.
+	type receivedSerial struct {
+		info SerialInfo
+	}
+	var receivedSerials []receivedSerial
 
 	for _, raw := range items {
 		m, ok := raw.(map[string]interface{})
@@ -116,10 +124,33 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 			})
 		}
 
+		// 42.1.8: serial capture. Same defence-in-depth call as the batch check
+		// above, against the same accepted-qty this function itself derived
+		// (not the caller's, which validateGRNRules already checked matches).
+		var serialNumbers []string
+		if raw, ok := m["serial_numbers"].([]interface{}); ok {
+			for _, v := range raw {
+				if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+					serialNumbers = append(serialNumbers, strings.TrimSpace(s))
+				}
+			}
+		}
+		if err := ValidateReceiptSerialLine(tenantID, sku, serialNumbers, accepted); err != nil {
+			return nil, err
+		}
+		for _, sn := range serialNumbers {
+			receivedSerials = append(receivedSerials, receivedSerial{
+				info: SerialInfo{SerialNo: sn, Item: sku, BatchNo: batchNo},
+			})
+		}
+
 		if accepted > 0 {
 			// batch_no rides along on the line PostInventoryLedgerWithVoucher
 			// already posts, so the receipt produces ONE ledger entry carrying
-			// the lot - not a second, quantity-duplicating one.
+			// the lot - not a second, quantity-duplicating one. Serial numbers
+			// cannot ride along the same way (a line can carry many), so each
+			// one gets its own zero-qty ledger entry from RegisterSerial below,
+			// once the stock itself has posted.
 			acceptedLine := map[string]interface{}{"sku": sku, "qty": accepted}
 			if batchNo != "" {
 				acceptedLine["batch_no"] = batchNo
@@ -213,6 +244,16 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 		if _, err := EnsureBatch(tenantID, rb.info, rb.acceptedQty, userID); err != nil {
 			LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC",
 				fmt.Sprintf("batch %s of %s could not be registered from GRN %s: %v", rb.info.BatchNo, rb.info.Item, grnID, err), "")
+		}
+	}
+	// 42.1.8: register the units last, same ordering and same logged-not-
+	// returned failure handling as the batch loop immediately above, and for
+	// the identical reason.
+	for _, rs := range receivedSerials {
+		rs.info.Vendor = vendor
+		if _, err := RegisterSerial(tenantID, rs.info, locationCode, "GRN", grnID, userID); err != nil {
+			LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC",
+				fmt.Sprintf("serial %s of %s could not be registered from GRN %s: %v", rs.info.SerialNo, rs.info.Item, grnID, err), "")
 		}
 	}
 

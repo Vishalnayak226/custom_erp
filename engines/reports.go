@@ -313,12 +313,17 @@ type GSTReturnSummary struct {
 	TransactionCount  int     `json:"transaction_count"`
 }
 
+// glAccountNetBalance returns rupees. gl_postings.debit/credit store paise
+// (Stage 45); the SUM below is therefore paise too, converted at this
+// function's boundary so every caller (GST return filing among them) keeps
+// working in rupees exactly as before.
 func glAccountNetBalance(schema, accountCode, startDate, endDate string) (net float64, err error) {
+	var netPaise int64
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT COALESCE(SUM(credit), 0) - COALESCE(SUM(debit), 0) FROM %s.gl_postings
 		WHERE account_code = $1 AND created_at >= $2::date AND created_at < ($3::date + 1)`, schema),
-		accountCode, startDate, endDate).Scan(&net)
-	return net, err
+		accountCode, startDate, endDate).Scan(&netPaise)
+	return PaiseToRupees(netPaise), err
 }
 
 // GetGSTReturnSummary aggregates output-tax liability for [startDate, endDate]

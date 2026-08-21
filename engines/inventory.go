@@ -73,6 +73,7 @@ type StockLedgerEntry struct {
 	UserID         string
 	DeviceID       string
 	BatchNo        string // Stage 42.1.3: the lot this movement was of. Empty for non-batch-tracked stock, which is most of it - it is what makes the ledger answerable for recall without a second history table.
+	SerialNo       string // Stage 42.1.8: the unit this movement was of. Same convention as BatchNo - empty for non-serial-tracked stock, and what makes GetSerialMovementHistory a read of this table rather than a second store.
 }
 
 
@@ -129,6 +130,9 @@ func WriteStockLedgerEntry(tenantID string, e StockLedgerEntry) error {
 	}
 	if e.BatchNo != "" {
 		docData["batch_no"] = e.BatchNo
+	}
+	if e.SerialNo != "" {
+		docData["serial_no"] = e.SerialNo
 	}
 
 	marshaled, err := json.Marshal(docData)
@@ -315,8 +319,8 @@ func PostInventoryLedgerWithVoucher(tenantID string, locationCode string, items 
 // admission check, GetAvailableToSell's read, and FindBestFulfillmentNode's
 // sourcing comparison (engines/sourcing.go) all call this instead of each
 // repeating the formula, so they can't drift out of sync with each other.
-func computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer int) int {
-	return available - reserved - safetyStock - blocked - qcHold - damaged - channelBuffer
+func computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held int) int {
+	return available - reserved - safetyStock - blocked - qcHold - damaged - channelBuffer - held
 }
 
 // ReservationAttribution (Stage 35.3.7) names the order line a reservation was
@@ -351,18 +355,18 @@ func CreateReservation(tenantID string, sku string, locationCode string, qty int
 	// could both read sufficient ATS before either commits and over-reserve;
 	// the decrement path above (PostInventoryLedger) already locks this same
 	// way, this closes the inconsistency.
-	var onHand, available, committed, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer int
+	var onHand, available, committed, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held int
 	err = tx.QueryRow(fmt.Sprintf(`
-		SELECT on_hand, available, committed, reserved, safety_stock, blocked, qc_hold, damaged, channel_buffer
+		SELECT on_hand, available, committed, reserved, safety_stock, blocked, qc_hold, damaged, channel_buffer, hold_qty
 		FROM %s.inventory_availability
 		WHERE sku = $1 AND location_code = $2
-		FOR UPDATE`, schema), sku, locationCode).Scan(&onHand, &available, &committed, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer)
+		FOR UPDATE`, schema), sku, locationCode).Scan(&onHand, &available, &committed, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer, &held)
 	if err != nil {
 		// If no inventory availability record exists, we cannot reserve stock
 		return "", fmt.Errorf("insufficient stock for reservation of SKU: %s", sku)
 	}
 
-	ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer)
+	ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 	if ats < qty {
 		return "", fmt.Errorf("insufficient stock available for reservation (ATS: %d, requested: %d)", ats, qty)
 	}
@@ -416,11 +420,11 @@ func GetAvailableToSell(tenantID string, sku string, locationCode string) (map[s
 		return nil, err
 	}
 
-	var onHand, available, committed, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer int
+	var onHand, available, committed, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held int
 	err = db.DB.QueryRow(fmt.Sprintf(`
-		SELECT on_hand, available, committed, reserved, safety_stock, blocked, qc_hold, damaged, channel_buffer
+		SELECT on_hand, available, committed, reserved, safety_stock, blocked, qc_hold, damaged, channel_buffer, hold_qty
 		FROM %s.inventory_availability
-		WHERE sku = $1 AND location_code = $2`, schema), sku, locationCode).Scan(&onHand, &available, &committed, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer)
+		WHERE sku = $1 AND location_code = $2`, schema), sku, locationCode).Scan(&onHand, &available, &committed, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer, &held)
 	if err == sql.ErrNoRows {
 		// Fallback to zeros
 		return map[string]interface{}{
@@ -435,13 +439,14 @@ func GetAvailableToSell(tenantID string, sku string, locationCode string) (map[s
 			"qc_hold":        0,
 			"damaged":        0,
 			"channel_buffer": 0,
+			"hold_qty":       0,
 			"ats":            0,
 		}, nil
 	} else if err != nil {
 		return nil, err
 	}
 
-	ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer)
+	ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 	return map[string]interface{}{
 		"sku":            sku,
 		"location_code":  locationCode,
@@ -454,6 +459,7 @@ func GetAvailableToSell(tenantID string, sku string, locationCode string) (map[s
 		"qc_hold":        qcHold,
 		"damaged":        damaged,
 		"channel_buffer": channelBuffer,
+		"hold_qty":       held,
 		"ats":            ats,
 	}, nil
 }

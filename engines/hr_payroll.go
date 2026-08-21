@@ -225,7 +225,7 @@ func PostPayslipToGL(tenantID, payslipID, actorUserID string) error {
 		credits["1600"] = loanDed
 	}
 	debits := map[string]int{"5500": gross}
-	if err := PostDoubleEntry(tenantID, "Payslip", payslipID, debits, credits, periodTo, fmt.Sprintf("Payslip:%s:POST", payslipID)); err != nil {
+	if err := PostDoubleEntry(tenantID, "Payslip", payslipID, PaiseMap(debits), PaiseMap(credits), periodTo, fmt.Sprintf("Payslip:%s:POST", payslipID)); err != nil {
 		return fmt.Errorf("GL posting failed, payslip not marked Posted: %v", err)
 	}
 
@@ -281,7 +281,7 @@ func DisburseEmployeeLoan(tenantID, loanID, actorUserID string) error {
 
 	debits := map[string]int{"1600": principal}
 	credits := map[string]int{"1100": principal}
-	if err := PostDoubleEntry(tenantID, "EmployeeLoan", loanID, debits, credits, "", fmt.Sprintf("EmployeeLoan:%s:DISBURSE", loanID)); err != nil {
+	if err := PostDoubleEntry(tenantID, "EmployeeLoan", loanID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("EmployeeLoan:%s:DISBURSE", loanID)); err != nil {
 		return fmt.Errorf("GL posting failed, loan not disbursed: %v", err)
 	}
 

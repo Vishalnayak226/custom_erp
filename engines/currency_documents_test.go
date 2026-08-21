@@ -135,7 +135,7 @@ func TestForeignCurrencyPostingRecordsBothAmounts(t *testing.T) {
 
 	debits, credits, transactionDebits, transactionCredits := ConvertPostingToFunctional(
 		map[string]int{"1100": 100}, map[string]int{"4100": 100}, 83.0)
-	err = PostDoubleEntry("default", "JournalVoucher", docID, debits, credits, "", "",
+	err = PostDoubleEntry("default", "JournalVoucher", docID, PaiseMap(debits), PaiseMap(credits), "", "",
 		PostingOptions{Currency: "USD", ExchangeRate: 83.0,
 			TransactionDebits: transactionDebits, TransactionCredits: transactionCredits})
 	if err != nil {
@@ -151,7 +151,7 @@ func TestForeignCurrencyPostingRecordsBothAmounts(t *testing.T) {
 	seen := 0
 	for rows.Next() {
 		var account, currency string
-		var debit, credit int
+		var debit, credit int64
 		var rate, transactionDebit, transactionCredit float64
 		if err := rows.Scan(&account, &debit, &credit, &currency, &rate, &transactionDebit, &transactionCredit); err != nil {
 			t.Fatalf("scan: %v", err)
@@ -160,10 +160,11 @@ func TestForeignCurrencyPostingRecordsBothAmounts(t *testing.T) {
 		if currency != "USD" || rate != 83.0 {
 			t.Fatalf("row %s carries currency %q rate %v, want USD/83", account, currency, rate)
 		}
-		// The functional amount is what every existing report sums; the
-		// transaction amount is what the document said.
-		if debit+credit != 8300 {
-			t.Fatalf("row %s functional amount = %d, want 8300", account, debit+credit)
+		// The functional amount is what every existing report sums (paise,
+		// Stage 45: 100 rupees at 83.0 = 8300 rupees = 830000 paise); the
+		// transaction amount is what the document said, still rupees.
+		if debit+credit != 830000 {
+			t.Fatalf("row %s functional amount = %d, want 830000", account, debit+credit)
 		}
 		if transactionDebit+transactionCredit != 100 {
 			t.Fatalf("row %s transaction amount = %v, want 100", account, transactionDebit+transactionCredit)

@@ -182,7 +182,7 @@ func CapitalizeAsset(tenantID, assetID string) error {
 		data["capitalisation_date"] = time.Now().Format("2006-01-02")
 	}
 
-	if err := PostDoubleEntry(tenantID, "Asset", assetID, map[string]int{"1400": cost}, map[string]int{"2100": cost}, "", fmt.Sprintf("Asset:%s:CAPITALIZE", assetID)); err != nil {
+	if err := PostDoubleEntry(tenantID, "Asset", assetID, PaiseMap(map[string]int{"1400": cost}), PaiseMap(map[string]int{"2100": cost}), "", fmt.Sprintf("Asset:%s:CAPITALIZE", assetID)); err != nil {
 		return fmt.Errorf("failed to post capitalisation GL entry: %v", err)
 	}
 	return saveAssetData(tenantID, assetID, "Capitalised", data)
@@ -238,7 +238,7 @@ func DisposeAsset(tenantID, assetID, disposalType string) error {
 	_, netBlock := calculateDepreciation(cost, usefulLife, capDate)
 
 	if netBlock > 0 {
-		if err := PostDoubleEntry(tenantID, "Asset-Disposal", assetID, map[string]int{"5300": netBlock}, map[string]int{"1400": netBlock}, "", fmt.Sprintf("Asset:%s:DISPOSE", assetID)); err != nil {
+		if err := PostDoubleEntry(tenantID, "Asset-Disposal", assetID, PaiseMap(map[string]int{"5300": netBlock}), PaiseMap(map[string]int{"1400": netBlock}), "", fmt.Sprintf("Asset:%s:DISPOSE", assetID)); err != nil {
 			return fmt.Errorf("failed to post disposal GL entry: %v", err)
 		}
 	}

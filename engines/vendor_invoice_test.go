@@ -121,11 +121,13 @@ func TestVendorInvoice3WayMatchAndPayment(t *testing.T) {
 		if paid != 1000 {
 			t.Fatalf("expected paid=1000, got %d", paid)
 		}
-		var cash, suspense int
+		// gl_postings stores paise (Stage 45): a 1000-rupee settlement is
+		// 100000 paise.
+		var cash, suspense int64
 		db.DB.QueryRow("SELECT COALESCE(SUM(debit),0) FROM "+schema+".gl_postings WHERE document_id='TEST-VI-INV4' AND account_code='2100'").Scan(&suspense)
 		db.DB.QueryRow("SELECT COALESCE(SUM(credit),0) FROM "+schema+".gl_postings WHERE document_id='TEST-VI-INV4' AND account_code='1100'").Scan(&cash)
-		if suspense != 1000 || cash != 1000 {
-			t.Fatalf("expected balanced GL debit/credit of 1000, got suspense_debit=%d cash_credit=%d", suspense, cash)
+		if suspense != 100000 || cash != 100000 {
+			t.Fatalf("expected balanced GL debit/credit of 100000 paise, got suspense_debit=%d cash_credit=%d", suspense, cash)
 		}
 
 		if _, _, err := PayVendorInvoice(tenantID, "TEST-VI-INV4", "system", "HR/Admin", ""); err == nil {

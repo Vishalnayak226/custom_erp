@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Custom ERP</title>
+  <title>Wholeops</title>
   <!-- Absolute, not relative (Stage 39.4): the SPA is served for multi-segment
        URLs like /help/<article>, where a relative "styles.css" would resolve to
        /help/styles.css and be answered with the SPA shell itself. -->
@@ -33,7 +33,7 @@
             <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
           </svg>
         </span>
-        <span>Custom ERP</span>
+        <span>Wholeops</span>
       </div>
       <p class="login-subtitle">Sign in to continue</p>
       <form id="login-form">
@@ -121,7 +121,7 @@
             <rect x="14" y="14" width="7" height="7" rx="1.5"></rect>
           </svg>
         </span>
-        <span class="sidebar-logo">Custom ERP</span>
+        <span class="sidebar-logo">Wholeops</span>
       </div>
       
       <ul class="sidebar-menu">
@@ -189,6 +189,17 @@
           </a>
         </li>
 
+        <!-- Stage 45: the full Knowledge Center (renderHelpView, /help) had no
+             sidebar entry and wasn't in the global search index either - the
+             only way in was the per-screen "?" drawer's footer link, or
+             already knowing the /help URL. buildGlobalSearchIndex() reads the
+             sidebar automatically, so this one entry also makes it searchable. -->
+        <li class="menu-item-container">
+          <a class="menu-item" id="menu-knowledge-center">
+            <span>Knowledge Center</span>
+          </a>
+        </li>
+
         <!-- Module: Procurement (2026-07-26: renamed to "Procurement" per final SaaS naming decision; internal id/module_key left as procurement) -->
         <li class="menu-item-container has-flyout">
           <a class="menu-item menu-item-group" href="#" id="module-procurement">
@@ -220,12 +231,29 @@
             <li><a class="menu-item" id="menu-transfers"><span>Stock Transfer</span></a></li>
             <li><a class="menu-item" id="menu-bins"><span>Bin</span></a></li>
             <li><a class="menu-item" id="menu-putaway"><span>Putaway</span></a></li>
+            <li><a class="menu-item" id="menu-warehouse-cockpit"><span>Warehouse Cockpit</span></a></li>
             <li><a class="menu-item" id="menu-bin-conditions"><span>Bin Conditions</span></a></li>
             <li><a class="menu-item" id="menu-lpn"><span>LPN / Cartons / Pallets</span></a></li>
             <li><a class="menu-item" id="menu-bin-replenishment"><span>Bin Replenishment</span></a></li>
             <li><a class="menu-item" id="menu-wave-picking"><span>Wave / Batch Picking</span></a></li>
             <li><a class="menu-item" id="menu-mobile-picking"><span>Mobile Picking</span></a></li>
             <li><a class="menu-item" id="menu-cycle-count"><span>Cycle Count</span></a></li>
+            <li><a class="menu-item" id="menu-dock-doors"><span>Dock Doors</span></a></li>
+            <li><a class="menu-item" id="menu-appointments"><span>Appointment Calendar</span></a></li>
+            <li><a class="menu-item" id="menu-yard-board"><span>Yard Board</span></a></li>
+            <li><a class="menu-item" id="menu-trailers"><span>Trailers</span></a></li>
+            <li><a class="menu-item" id="menu-hold-codes"><span>Hold Codes</span></a></li>
+            <li><a class="menu-item" id="menu-holds"><span>Holds</span></a></li>
+            <li><a class="menu-item" id="menu-place-hold"><span>Place Hold</span></a></li>
+            <li><a class="menu-item" id="menu-hold-release-requests"><span>Hold Release Requests</span></a></li>
+            <li><a class="menu-item" id="menu-crossdock-plans"><span>Cross-Dock Plans</span></a></li>
+            <li><a class="menu-item" id="menu-rf-receiving"><span>RF Receiving</span></a></li>
+            <!-- Stage 42.4: outbound depth. Waves/SortSlots/LoadingTasks ride
+                 the generic doctype-table screen like Hold/CrossDockPlan
+                 above; Sortation and Loading are dedicated scan screens. -->
+            <li><a class="menu-item" id="menu-waves"><span>Waves</span></a></li>
+            <li><a class="menu-item" id="menu-sortation"><span>Sortation / Put-Wall</span></a></li>
+            <li><a class="menu-item" id="menu-loading"><span>Loading</span></a></li>
             <!-- Stage 30.5.5: the "Stores" entry was removed here. It opened a
                  master that nothing in the system could select - a shop is a
                  Location with Type = Store, and always was. Its four unique
@@ -375,7 +403,7 @@
           <!-- Stage 39.5: contextual help for the screen you are on. Opens a
                drawer over the current screen rather than navigating away, so
                half-entered work is never lost to reading the manual. -->
-          <button class="btn btn-outline" id="help-btn" title="Help for this screen" aria-label="Help for this screen" style="margin-left: 8px;">
+          <button class="btn btn-outline btn-icon" id="help-btn" title="Help for this screen" aria-label="Help for this screen" style="margin-left: 8px;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"></circle>
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
@@ -628,6 +656,11 @@
        Invoice "Print" button, for when QZ Tray is not running. Same pattern
        again; only the sheet inside it is laid out for A4. -->
   <div id="invoice-print-area"></div>
+
+  <!-- Bill of Lading (Stage 42.4.9) - same hidden-until-printing pattern as
+       invoice-print-area above; assembled from a completed LoadingTask,
+       no server-side PDF renderer. -->
+  <div id="bol-print-area"></div>
 
   <script src="/db.js"></script>
   <!-- 21.14: this app's first Web Component - plain <script>, no build

@@ -280,6 +280,51 @@ func TestWMSEnterprise(t *testing.T) {
 		}
 	})
 
+	// Stage 42.1.10 - UOM conversion wired into cartonization: a line
+	// expressed in an alternate UOM converts to eaches before packing, and a
+	// blank UOM (every line above) is untouched - that is the regression the
+	// "Cartonization" subtest right above already locks down.
+	t.Run("CartonizationWithUOM", func(t *testing.T) {
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'CartonType' AND id = 'CT-WMSENT-UOM'")
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'UOMConversion' AND data->>'item' = 'SKU-WMSENT-UOM'")
+		defer func() {
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'CartonType' AND id = 'CT-WMSENT-UOM'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'UOMConversion' AND data->>'item' = 'SKU-WMSENT-UOM'")
+		}()
+		cartonData, _ := json.Marshal(map[string]interface{}{"code": "BOX-M", "name": "Medium Box", "max_qty_capacity": 30})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'CartonType', $2, 'Active', 'system')",
+			"CT-WMSENT-UOM", cartonData); err != nil {
+			t.Fatalf("seed CartonType: %v", err)
+		}
+		convData, _ := json.Marshal(map[string]interface{}{
+			"item": "SKU-WMSENT-UOM", "from_uom": "CASE", "to_uom": "EA", "factor": 12, "status": "Active",
+		})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'UOMConversion', $2, 'Active', 'system')",
+			"UOMCONV-WMSENT-1", convData); err != nil {
+			t.Fatalf("seed UOMConversion: %v", err)
+		}
+
+		// 2 CASE of SKU-WMSENT-UOM (24 EA) alongside 3 EA of a plain item.
+		boxes, err := SuggestCartonization(tenantID, "CT-WMSENT-UOM", []CartonizationItem{
+			{Sku: "SKU-WMSENT-UOM", Qty: 2, UOM: "CASE"}, {Sku: "PLAIN", Qty: 3},
+		})
+		if err != nil {
+			t.Fatalf("SuggestCartonization with UOM failed: %v", err)
+		}
+		totalPacked := 0
+		for _, b := range boxes {
+			for _, it := range b.Items {
+				totalPacked += it.Qty
+				if it.Sku == "SKU-WMSENT-UOM" && it.UOM != "" {
+					t.Errorf("expected the packed line to carry no UOM (already converted to eaches), got %q", it.UOM)
+				}
+			}
+		}
+		if totalPacked != 27 {
+			t.Errorf("expected 2 CASE (24 EA) + 3 EA = 27 total eaches packed, got %d", totalPacked)
+		}
+	})
+
 	t.Run("ABCCycleCountPlan", func(t *testing.T) {
 		sku := "SKU-WMSENT-ABC"
 		location := "WH01"

@@ -58,10 +58,14 @@ func GetProfitAndLoss(tenantID, startDate, endDate string) ([]map[string]interfa
 	totalRevenue, totalExpense := 0.0, 0.0
 	for rows.Next() {
 		var code, name, atype string
-		var amount float64
-		if err := rows.Scan(&code, &name, &atype, &amount); err != nil {
+		var amountPaise int64
+		if err := rows.Scan(&code, &name, &atype, &amountPaise); err != nil {
 			return nil, err
 		}
+		// gl_postings.debit/credit are paise (Stage 45); every report in
+		// this file converts to rupees at its own scan, right where the raw
+		// SUM comes back, so the rest of the function is unchanged.
+		amount := PaiseToRupees(amountPaise)
 		if atype == "Revenue" {
 			totalRevenue += amount
 		} else {
@@ -112,10 +116,11 @@ func GetBalanceSheet(tenantID, asOfDate string) ([]map[string]interface{}, error
 	totals := map[string]float64{}
 	for rows.Next() {
 		var code, name, atype string
-		var amount float64
-		if err := rows.Scan(&code, &name, &atype, &amount); err != nil {
+		var amountPaise int64
+		if err := rows.Scan(&code, &name, &atype, &amountPaise); err != nil {
 			return nil, err
 		}
+		amount := PaiseToRupees(amountPaise)
 		totals[atype] += amount
 		out = append(out, map[string]interface{}{
 			"account_code": code, "account_name": name, "account_type": atype, "amount": amount,
@@ -177,10 +182,11 @@ func GetCashFlowStatement(tenantID, startDate, endDate string) ([]map[string]int
 	}
 	for rows.Next() {
 		var docType string
-		var in, out float64
-		if err := rows.Scan(&docType, &in, &out); err != nil {
+		var inPaise, outPaise int64
+		if err := rows.Scan(&docType, &inPaise, &outPaise); err != nil {
 			return nil, err
 		}
+		in, out := PaiseToRupees(inPaise), PaiseToRupees(outPaise)
 		act := cashFlowActivity(docType)
 		f, ok := byActivity[act]
 		if !ok {
@@ -290,14 +296,14 @@ func GetTaxLedgerReport(tenantID, startDate, endDate string) ([]map[string]inter
 	var out []map[string]interface{}
 	for rows.Next() {
 		var accountCode, accountName, docType, docID string
-		var debit, credit int
+		var debitPaise, creditPaise int64
 		var createdAt time.Time
-		if err := rows.Scan(&accountCode, &accountName, &docType, &docID, &debit, &credit, &createdAt); err != nil {
+		if err := rows.Scan(&accountCode, &accountName, &docType, &docID, &debitPaise, &creditPaise, &createdAt); err != nil {
 			return nil, err
 		}
 		out = append(out, map[string]interface{}{
 			"account_code": accountCode, "account_name": accountName, "document_type": docType,
-			"document_id": docID, "debit": debit, "credit": credit, "created_at": createdAt,
+			"document_id": docID, "debit": PaiseToRupees(debitPaise), "credit": PaiseToRupees(creditPaise), "created_at": createdAt,
 		})
 	}
 	if out == nil {
@@ -333,15 +339,15 @@ func GetStatutoryGLExport(tenantID, startDate, endDate string) ([]map[string]int
 	var out []map[string]interface{}
 	for rows.Next() {
 		var postingID, accountCode, accountName, accountType, docType, docID string
-		var debit, credit int
+		var debitPaise, creditPaise int64
 		var createdAt time.Time
-		if err := rows.Scan(&postingID, &accountCode, &accountName, &accountType, &docType, &docID, &debit, &credit, &createdAt); err != nil {
+		if err := rows.Scan(&postingID, &accountCode, &accountName, &accountType, &docType, &docID, &debitPaise, &creditPaise, &createdAt); err != nil {
 			return nil, err
 		}
 		out = append(out, map[string]interface{}{
 			"posting_id": postingID, "account_code": accountCode, "account_name": accountName,
 			"account_type": accountType, "document_type": docType, "document_id": docID,
-			"debit": debit, "credit": credit, "created_at": createdAt,
+			"debit": PaiseToRupees(debitPaise), "credit": PaiseToRupees(creditPaise), "created_at": createdAt,
 		})
 	}
 	if out == nil {

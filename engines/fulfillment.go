@@ -355,8 +355,11 @@ func ProcessReturnAnywhere(tenantID string, returnLocation string, originalOrder
 		return 0, err
 	}
 
-	totalSalePrice := 0
-	totalCostPrice := 0
+	// Stage 45: paise, computed from each line's own float64 price before the
+	// qty multiply - not from an int()-truncated whole rupee - same fix as
+	// pos_checkout.go's FinalizePOSCheckout for the identical bug pattern.
+	totalSalePricePaise := int64(0)
+	totalCostPricePaise := int64(0)
 
 	// 1. Process returned item inventory delta sync
 	for _, itemVal := range items {
@@ -385,28 +388,28 @@ func ProcessReturnAnywhere(tenantID string, returnLocation string, originalOrder
 			return 0, fmt.Errorf("return quantity must be positive (sku=%q, qty=%d)", sku, qty)
 		}
 
-		salePrice := 0
+		salePrice := 0.0
 		if p, exists := itemMap["sale_price"]; exists {
 			switch v := p.(type) {
 			case float64:
-				salePrice = int(v)
-			case int:
 				salePrice = v
+			case int:
+				salePrice = float64(v)
 			}
 		}
 
-		costPrice := 0
+		costPrice := 0.0
 		if p, exists := itemMap["cost_price"]; exists {
 			switch v := p.(type) {
 			case float64:
-				costPrice = int(v)
-			case int:
 				costPrice = v
+			case int:
+				costPrice = float64(v)
 			}
 		}
 
-		totalSalePrice += salePrice * qty
-		totalCostPrice += costPrice * qty
+		totalSalePricePaise += RupeesToPaise(salePrice) * int64(qty)
+		totalCostPricePaise += RupeesToPaise(costPrice) * int64(qty)
 
 		// Increment return location stock
 		_, err = tx.Exec(fmt.Sprintf(`
@@ -434,17 +437,17 @@ func ProcessReturnAnywhere(tenantID string, returnLocation string, originalOrder
 	// over time, so keying on originalOrderID alone would wrongly block the
 	// second one. A real fix needs a dedicated per-return document/ID, out
 	// of scope for this pass.
-	revenueDebits := map[string]int{"4100": totalSalePrice}  // Debit: Sales Revenue (reduce revenue)
-	revenueCredits := map[string]int{"1100": totalSalePrice} // Credit: Cash/Bank (refund customer)
+	revenueDebits := map[string]int64{"4100": totalSalePricePaise}  // Debit: Sales Revenue (reduce revenue)
+	revenueCredits := map[string]int64{"1100": totalSalePricePaise} // Credit: Cash/Bank (refund customer)
 	err = PostDoubleEntry(tenantID, "SalesReturn", originalOrderID, revenueDebits, revenueCredits, "", "")
 	if err != nil {
 		return 0, err
 	}
 
-	inventoryDebits := map[string]int{"1200": totalCostPrice}  // Debit: Inventory Control (receive stock)
-	inventoryCredits := map[string]int{"5100": totalCostPrice} // Credit: Cost of Goods Sold (reduce COGS)
+	inventoryDebits := map[string]int64{"1200": totalCostPricePaise}  // Debit: Inventory Control (receive stock)
+	inventoryCredits := map[string]int64{"5100": totalCostPricePaise} // Credit: Cost of Goods Sold (reduce COGS)
 	if err := PostDoubleEntry(tenantID, "SalesReturn", originalOrderID, inventoryDebits, inventoryCredits, "", ""); err != nil {
 		return 0, err
 	}
-	return totalSalePrice, nil
+	return int(PaiseToRupees(totalSalePricePaise)), nil
 }

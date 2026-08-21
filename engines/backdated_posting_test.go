@@ -62,7 +62,7 @@ func TestBackdatedPostingApproval(t *testing.T) {
 		t.Fatalf("expected retry to still fail with no BackdatedPostingRequest approved yet")
 	}
 	var verr *ValidationError
-	if postErr := PostDoubleEntry(tenantID, "JournalVoucher", voucherID, map[string]int{"5100": 250}, map[string]int{"1100": 250}, voucherDate, ""); postErr == nil {
+	if postErr := PostDoubleEntry(tenantID, "JournalVoucher", voucherID, map[string]int64{"5100": 250}, map[string]int64{"1100": 250}, voucherDate, ""); postErr == nil {
 		t.Fatalf("expected a direct PostDoubleEntry call to also be blocked")
 	} else if ve, ok := postErr.(*ValidationError); !ok || ve.Code != "FIN-0260" {
 		t.Fatalf("expected a FIN-0260 ValidationError, got %v (%T)", postErr, postErr)
@@ -102,11 +102,13 @@ func TestBackdatedPostingApproval(t *testing.T) {
 	if status != "Posted" {
 		t.Fatalf("expected Posted after backdated approval + retry, got %s", status)
 	}
-	var debit int
+	// gl_postings stores paise (Stage 45): the voucher's 250-rupee line is
+	// 25000 paise.
+	var debit int64
 	if err := db.DB.QueryRow("SELECT COALESCE(SUM(debit),0) FROM "+schema+".gl_postings WHERE document_type='JournalVoucher' AND document_id=$1", voucherID).Scan(&debit); err != nil {
 		t.Fatalf("query gl_postings: %v", err)
 	}
-	if debit != 250 {
-		t.Fatalf("expected gl_postings debit=250, got %d", debit)
+	if debit != 25000 {
+		t.Fatalf("expected gl_postings debit=25000, got %d", debit)
 	}
 }

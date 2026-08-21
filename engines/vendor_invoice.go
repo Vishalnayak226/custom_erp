@@ -300,7 +300,7 @@ func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 	debits := map[string]int{"2100": position.CarryingAmount}      // clear GRN Suspense liability
 	credits := map[string]int{"1100": settlement.SettlementAmount} // Cash/Bank paid out
 	applyRealisedFXLine(debits, credits, settlement.RealisedGainLoss)
-	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, debits, credits, settlement.PostingDate(), fmt.Sprintf("VendorInvoice:%s:PAY", invoiceID),
+	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), settlement.PostingDate(), fmt.Sprintf("VendorInvoice:%s:PAY", invoiceID),
 		postingOptionsFor(position, settlement.SettlementRate, debits, credits, map[string]float64{
 			"2100": position.TransactionAmount,
 			"1100": position.TransactionAmount,
@@ -374,7 +374,7 @@ func FinalizeVendorInvoiceOverridePayment(tenantID, invoiceID, userID string, op
 	debits := map[string]int{"2100": position.CarryingAmount}
 	credits := map[string]int{"1100": settlement.SettlementAmount}
 	applyRealisedFXLine(debits, credits, settlement.RealisedGainLoss)
-	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, debits, credits, settlement.PostingDate(), fmt.Sprintf("VendorInvoice:%s:PAY_OVERRIDE", invoiceID),
+	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), settlement.PostingDate(), fmt.Sprintf("VendorInvoice:%s:PAY_OVERRIDE", invoiceID),
 		postingOptionsFor(position, settlement.SettlementRate, debits, credits, map[string]float64{
 			"2100": position.TransactionAmount,
 			"1100": position.TransactionAmount,

@@ -19,6 +19,15 @@ type StickerLabel struct {
 	Name    string `json:"name"`
 	Barcode string `json:"barcode"`
 	HSNCode string `json:"hsn_code"`
+	// Stage 42.1.11: a real, scannable Code 128 rendering of Barcode, for the
+	// browser @media print fallback sheet (the QZ Tray silent-print path
+	// already gets a real barcode from the label printer's own native ZPL
+	// ^BC command, engines/qz_payload.go, and needs nothing here). Blank
+	// whenever Barcode contains a character Code Set B can't encode (rare -
+	// SKU/barcode values are ordinarily plain ASCII) rather than failing the
+	// whole print run over one unrenderable label; the plain-text fallback
+	// in that case is exactly what every label looked like before this Stage.
+	BarcodeSVG string `json:"barcode_svg,omitempty"`
 }
 
 // PrintStickers looks up each SKU's Item data, logs one sticker_print_log
@@ -92,6 +101,9 @@ func PrintStickers(tenantID string, skus []string, printerCode, printedBy, repri
 		// only the SKU/barcode known, name/HSN blank.
 		if label.Barcode == "" {
 			label.Barcode = sku
+		}
+		if svg, svgErr := RenderCode128SVG(label.Barcode); svgErr == nil {
+			label.BarcodeSVG = svg
 		}
 		labels = append(labels, label)
 

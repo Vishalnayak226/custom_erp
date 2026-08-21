@@ -467,70 +467,54 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
-		// PIM variant uniqueness (Stage 15): unlike the ExpenseClaim check
-		// above, this runs on create AND update - an edit can introduce a
-		// duplicate variant combination just as easily as a create can.
-		// effectiveID mirrors the docID resolution a few lines below (path
-		// id on update; client-supplied payload["id"] on a create that sets
-		// one explicitly, e.g. "id: code" - this codebase's own
-		// convention; blank otherwise, which is fine since a fresh
-		// server-generated UUID can never collide with a stored sibling).
-		if doctype == "Item" {
-			effectiveID := id
-			if effectiveID == "" {
-				if payloadID, exists := payload["id"]; exists && payloadID != nil {
-					effectiveID = fmt.Sprintf("%v", payloadID)
-				}
+		// Master Data business-rule validation (Stage 25 Batch 2; unified to
+		// one generic call here 2026-08-19). ValidateMasterDataRules's own
+		// switch is the doctype list - Item, Vendor, Customer, ProductContent,
+		// Batch, SerialNumber, LottableConstraint, UOMConversion, and returns
+		// nil untouched for every doctype not in it - so calling it
+		// unconditionally on every save is exactly as safe as the three
+		// separate per-doctype blocks this replaced, and closes them for
+		// every doctype ADDED to that switch from here on without a fourth
+		// (fifth, sixth, ...) copy of this same wiring.
+		//
+		// Found live, not in a test: Batch (42.1.2), SerialNumber (42.1.8),
+		// LottableConstraint (42.1.7) and UOMConversion (42.1.10) all have a
+		// real validateXMasterRules function wired into ValidateMasterDataRules's
+		// switch and covered by a passing unit test that calls
+		// ValidateMasterDataRules directly - but none of the four had ever
+		// been reachable through this actual HTTP save path, because each was
+		// added assuming (wrongly) that this choke point already called the
+		// function generically the way Batch/SerialNumber's own doc comments
+		// describe it. A duplicate (item, batch_no)/(customer, item,
+		// attribute_key)/(item, from_uom, to_uom) row, or a self-converting
+		// UOMConversion, saved clean through the real UI the entire time.
+		//
+		// effectiveID is the URL-path id on an update, or a client-supplied
+		// payload["id"] on a create that sets one explicitly (e.g. "id: code",
+		// this codebase's own convention), blank otherwise - a fresh
+		// server-generated UUID can never collide with a stored sibling. Used
+		// uniformly for every doctype now, including Vendor/Customer (whose
+		// own rule functions never read docID at all, so this is not a
+		// behaviour change for them).
+		effectiveID := id
+		if effectiveID == "" {
+			if payloadID, exists := payload["id"]; exists && payloadID != nil {
+				effectiveID = fmt.Sprintf("%v", payloadID)
 			}
+		}
+		if doctype == "Item" {
 			if err := engines.ValidateItemVariantUniqueness(tenantID, effectiveID, payload); err != nil {
 				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 				return
 			}
-			if err := engines.ValidateMasterDataRules(tenantID, effectiveID, doctype, payload); err != nil {
-				if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
-					writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
-				} else {
-					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
-				}
-				return
-			}
 		}
-
-		// Master Data field-format rules (Stage 25 Batch 2): Vendor/Customer
-		// don't need the id-resolution dance above (their checks are
-		// format-only, no cross-row query), so they're not folded into the
-		// Item block.
-		if doctype == "Vendor" || doctype == "Customer" {
-			if err := engines.ValidateMasterDataRules(tenantID, id, doctype, payload); err != nil {
-				if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
-					writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
-				} else {
-					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
-				}
-				return
+		if err := engines.ValidateMasterDataRules(tenantID, effectiveID, doctype, payload); err != nil {
+			if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
+				writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
+			} else {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 			}
-		}
-
-		// Duplicate-content detection (Stage 26.4.2): ProductContent's own
-		// "<item>::<language>" composite id (Stage 15) is always client-set in
-		// the payload on its upsert-style save, never present in the URL path -
-		// same effectiveID resolution the Item block above uses, needed here
-		// too so the duplicate-title query can exclude the document's own row.
-		if doctype == "ProductContent" {
-			effectiveID := id
-			if effectiveID == "" {
-				if payloadID, exists := payload["id"]; exists && payloadID != nil {
-					effectiveID = fmt.Sprintf("%v", payloadID)
-				}
-			}
-			if err := engines.ValidateMasterDataRules(tenantID, effectiveID, doctype, payload); err != nil {
-				if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
-					writeAPIErrorDetail(w, r, verr.Code, verr.SubFor, verr.Message)
-				} else {
-					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
-				}
-				return
-			}
+			return
 		}
 
 		// GST enforcement (Stage 17.5): every non-empty PO items line must

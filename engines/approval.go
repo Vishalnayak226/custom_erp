@@ -376,6 +376,21 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		executeApprovedLoyaltyRedemption(tenantID, docID, data)
 	}
 
+	// Stage 42.3.5: an Approved HoldReleaseRequest is the only path that may
+	// ever move a Hold from Active to Released - see ReleaseHold's own doc
+	// comment (engines/wms_holds.go). Best-effort/logged rather than failing
+	// the approval decision itself: the maker-checker decision has already
+	// committed above, and a hold left stuck Active after its release was
+	// approved is a visible, correctable data state, not a silent one.
+	if doctype == "HoldReleaseRequest" && decision == "Approved" {
+		if holdID, ok := data["hold_id"].(string); ok && holdID != "" {
+			if errRelease := ReleaseHold(tenantID, holdID); errRelease != nil {
+				LogSystemError(tenantID, "", "ERROR", "DecideApproval",
+					fmt.Sprintf("HoldReleaseRequest %s approved but ReleaseHold(%s) failed: %v", docID, holdID, errRelease), "")
+			}
+		}
+	}
+
 	return nil
 }
 

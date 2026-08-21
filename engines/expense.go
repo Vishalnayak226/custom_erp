@@ -134,7 +134,7 @@ func PayExpenseClaim(tenantID, claimID string) (payableAmount int, err error) {
 		debits["1500"] = gstAmount
 	}
 	credits := map[string]int{"1100": amount + gstAmount}
-	if err := PostDoubleEntry(tenantID, "ExpenseClaim", claimID, debits, credits, "", fmt.Sprintf("ExpenseClaim:%s:PAY", claimID)); err != nil {
+	if err := PostDoubleEntry(tenantID, "ExpenseClaim", claimID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("ExpenseClaim:%s:PAY", claimID)); err != nil {
 		return 0, fmt.Errorf("failed to post expense payment GL entry: %v", err)
 	}
 

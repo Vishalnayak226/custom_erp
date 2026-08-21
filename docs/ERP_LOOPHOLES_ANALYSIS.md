@@ -465,28 +465,42 @@ A separate 3-round exhaustive QC was performed across all modules. See `docs/QC_
 
 These are performance/documentation observations, not defects.
 
-## CONCLUSION
+## RE-EVALUATION (2026-08-20) — post-Stage 44 review
 
-As of 2026-07-29, the ERP system has passed 3 rounds of exhaustive quality control with **zero defects found**. Every originally-identified loophole has been either fixed, mitigated, or confirmed not applicable to this architecture.
+A fresh full-codebase review was performed against the current tree (now ~190 Go files, Stages 29-44 shipped since the 2026-07-29 QC). Findings below are based on **reading the actual code**, not inferred.
 
-~~**One narrower item remains open**: a general per-doctype status-transition map...~~ / ~~One additional item (JWT revocation/key-rotation) is **intentionally deferred by standing policy**...~~
+### Verified HARDENING (landed since 2026-07-29)
 
-**Both closed 2026-07-29 (Stage 29.8), after the user made the two decisions they were waiting on.** The transition map shipped as opt-in-strict enforcement over the existing `StatusTransitionRule` master (178 rules, 64 doctypes flagged). The JWT item shipped as a per-request live user-state re-check plus multi-key signing rotation — and closing it corrected a claim made elsewhere in this document and in `QC_EXHAUSTIVE_REPORT.md` R3.3: "Deactivate Employee → login blocked ✅" only ever blocked *new* logins; the live session survived until token expiry, and a role change never took effect on a live token at all. See "Remaining work" above.
+| Area | File | Evidence |
+|---|---|---|
+| Token claim-injection (delimiter smuggling) | `engines/auth.go` | `claimVal()` = `url.QueryEscape` on every claim; `SplitN(pair,"=",2)` parser; regression tests in `auth_claim_injection_test.go` ✅ |
+| JWT signing-key rotation | `engines/auth.go` | `JWT_SECRET_<n>` ring, `kid` claim, verify-against-all-keys (kid never trust-bearing) ✅ |
+| Live user-state re-check | `engines/auth_livestate.go` + `middleware.go` | Deactivation/demotion takes effect within 30s cache TTL; DB errors fail-retryable (503), not 401 ✅ |
+| Collision-free document IDs | `engines/docid.go` | Atomic strict-increasing nanos + per-process crypto/rand suffix; for the UnixNano-PK-collision bug (durability audit #2) ✅ |
+| Per-doctype status-transition map | `engines/status_transition.go` | Closes the residual half of old **Medium #9** (opt-in strict mode, reason-code requirement, legacy-debris escape hatch) ✅ |
+| Per-tenant hostnames | `internal/server/tenant_host.go` | RFC-1123 label validation, reserved-label blocklist, host-vs-token tenant agreement check, unknown-host 404 gate, TLS-ask gate ✅ |
+| Public API platform | `engines/public_api_credentials.go`, `public_api_runtime.go`, `middleware_public_api.go` | Scope allowlist, SHA-256 key hashing, constant-time compare, per-credential burst+daily quota, idempotency keys, traffic log ✅ |
+| MFA recovery codes | `engines/mfa_recovery.go` | 10×50-bit codes, SHA-256 hashed, atomic redeem (`UPDATE ... WHERE used_at IS NULL`), no modulo bias (256%32=0) ✅ |
+| Embedded migration runner | `db/migrate.go` + `migrate_test.go` | `go:embed` all .sql, per-file TX, ledger, numeric-aware ordering — supersedes broken `deploy/migrate.sh` ✅ |
+| Proxy-safe client IP | `middleware.go` | Right-to-left X-Forwarded-For walk (Stage 43.3), trusted-CIDR server, session-fingerprint rate-limit keys ✅ |
+| Frontend XSS mitigation (partial) | `public/app.js` | `escapeHTMLText()` now exists and is used in hundreds of interpolation sites (OMS console, PO composer, GRN workbench, gate/yard screens) ✅ |
 
-### FINAL VERDICT (after 3-round QC)
+### STILL OPEN (genuinely)
 
-**🟢 PRODUCTION READY — GO FOR LAUNCH**
+1. **🟢 Token revocation list / key-rotation operationalisation** — still deliberately deferred by standing policy (not a code gap; `jti` infrastructure is in place).
+2. **🟡 CSP `'unsafe-inline'`** — the last third of the residual-XSS item below; requires refactoring the remaining `onclick=` attributes to `addEventListener` before it can be dropped.
 
-The system is ready for 20 years of production operation with:
-- Zero SQL injection vectors
-- Zero authentication bypasses
-- Zero financial integrity gaps
-- Zero inventory oversell paths
-- Zero audit trail gaps
-- Zero CSRF vectors
-- Zero unvalidated file uploads
-- Zero unhandled panics
+### ✅ CLOSED 2026-08-21 (Stage 46) — was "STILL OPEN" above
+
+1. **Money precision (durability audit #7)** — **FIXED.** Asked directly which way to close it (`BIGINT` paise migration vs. the `math.Round` intermediate); the user chose the full migration. `gl_postings.debit`/`.credit` are now `BIGINT` paise; `PostDoubleEntry` takes `map[string]int64`. The truncation is fixed at its actual source (`pos_checkout.go`'s per-unit price before the qty multiply, `PostSalesGSTBooking`'s GST split) via new `RupeesToPaise`/`PaiseToRupees` helpers, not just widened at the storage layer. External API/report contract deliberately unchanged — every boundary converts back to rupees — so no frontend change was needed. Verified against a from-scratch throwaway database: the audit's own ₹999/18%-GST example now posts ₹179.82 of tax instead of ₹178. **Not yet applied to the production database** — a deliberate separate step pending the user's go-ahead, since it mutates existing financial data in place. Full detail: `docs/micro_checklist.md` Stage 46, `docs/project_ledger.md` §109.
+2. **Residual Stored-XSS, Item code/SKU half** — **FIXED.** `itemCodePattern` now exists in `engines/master_data_validation.go`'s `validateItemMasterRules`, rejecting HTML/JS metacharacters in an Item's `code` field — the exact gap this document previously confirmed was missing. The `'unsafe-inline'` half of this same finding remains open, listed above.
+
+### Honest verdict
+
+The system is materially stronger than at the 2026-07-29 QC, and stronger again after Stage 46: both items this document carried as genuinely open — money precision and the Item code/SKU charset gap — are now closed. **Two items remain open**, listed above, neither blocking on more analysis: `'unsafe-inline'` needs the `onclick=`→`addEventListener` refactor, and token revocation/key-rotation stays deliberately deferred by standing policy pending a real need.
+
+**Conditional production readiness: YES for deployments that accept the residual `'unsafe-inline'` CSP surface; the integer-rupee accounting caveat from the 2026-08-20 revision no longer applies. Production deploy of the Stage 46 migration itself is still pending — see `micro_checklist.md` 46.7 — so live `:8080` still runs the pre-fix integer-rupee ledger until that deploy happens.**
 
 ---
 
-*End of Analysis — Updated 2026-07-29*
+*End of Analysis — Updated 2026-08-21*

@@ -101,6 +101,12 @@ func GenerateWavePickList(tenantID, waveID string) ([]WavePickLine, []WaveOrderA
 	if err != nil {
 		return nil, nil, err
 	}
+	// Stage 42.4.2: a registered Wave must be Released (or already In
+	// Progress) before it can be picked - a no-op for any waveID that isn't a
+	// real Wave document, so every pre-42.4 caller is unaffected.
+	if err := waveDispatchGate(tenantID, waveID); err != nil {
+		return nil, nil, err
+	}
 
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, data, created_at FROM %s.documents

@@ -191,7 +191,145 @@ func CrossDockPutaway(tenantID, sku, locationCode string, qty int, userID string
 	}
 	LogAuditEvent(tenantID, userID, "WMS_CROSSDOCK_PUTAWAY", "SUCCESS",
 		fmt.Sprintf("Staged %d x %s at %s for cross-dock instead of shelving (matched demand: %d)", staged, sku, binCode, matchedQty))
+	// Stage 42.2.2: additive WarehouseTask retrofit.
+	LogCompletedWarehouseTask(tenantID, NewWarehouseTask{
+		TaskType: "Putaway", LocationCode: locationCode, ToBin: binCode, Item: sku, Qty: float64(staged),
+		Notes: "cross-dock",
+	}, userID)
 	return staged, opportunities, nil
+}
+
+// ------------------------------------------------------------------
+// 42.3.8: Planned cross-dock / flow-through / transship
+// ------------------------------------------------------------------
+
+// crossShipBinCode is Transship's own synthetic staging bin, separate from
+// crossDockBinCode's CrossDock/FlowThrough one so a pick list (or a human
+// scanning the staging area) can tell "waiting on an internal
+// task/transfer" apart from "waiting on a TransferOrder that doesn't exist
+// yet" at a glance.
+func crossShipBinCode(destination string) string {
+	return "XSHIP-" + destination
+}
+
+// PlannedCrossDockPutaway (42.3.8) is CrossDockPutaway's ahead-of-time
+// counterpart: instead of scanning live outbound demand at the moment of
+// putaway (CheckCrossDockOpportunity), it consumes an already-Planned
+// CrossDockPlan raised against the ASN/PO before the shipment even arrived.
+// Requires an exact SKU + Active-plan match at locationCode; stages the
+// lesser of qty and the plan's remaining planned qty, same "never stage more
+// than actually matched" discipline as 26.5.3. A CrossDock/FlowThrough plan
+// stages into the ordinary cross-dock bin (still visible to
+// GenerateBinPickList, still fulfilling the same internal
+// FulfillmentTask/TransferOrder 26.5.3 would have matched opportunistically);
+// a Transship plan stages into its own XSHIP-<destination> bin instead,
+// since there is no existing internal document for it to flow into yet.
+func PlannedCrossDockPutaway(tenantID, sku, locationCode string, qty int, userID string) (staged int, planID string, err error) {
+	if qty <= 0 {
+		return 0, "", errors.New("qty must be positive")
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return 0, "", err
+	}
+
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return 0, "", err
+	}
+	defer tx.Rollback()
+	if err := db.SetSearchPath(tx, schema); err != nil {
+		return 0, "", err
+	}
+
+	var planDataStr string
+	var planQty float64
+	err = tx.QueryRow(fmt.Sprintf(`
+		SELECT id, data, (data->>'qty')::numeric FROM %s.documents
+		WHERE doctype = 'CrossDockPlan' AND status = 'Planned' AND data->>'sku' = $1
+		ORDER BY created_at ASC LIMIT 1 FOR UPDATE`, schema), sku).Scan(&planID, &planDataStr, &planQty)
+	if err == sql.ErrNoRows {
+		return 0, "", fmt.Errorf("no Planned cross-dock plan exists for SKU %s - use ordinary or opportunistic cross-dock putaway instead", sku)
+	} else if err != nil {
+		return 0, "", err
+	}
+	var planData map[string]interface{}
+	if err := json.Unmarshal([]byte(planDataStr), &planData); err != nil {
+		return 0, "", err
+	}
+	planType := strField(planData, "plan_type")
+	destinationRef := strField(planData, "destination_ref")
+
+	staged = qty
+	if staged > int(planQty) {
+		staged = int(planQty)
+	}
+	if staged <= 0 {
+		return 0, planID, fmt.Errorf("cross-dock plan %s for SKU %s has no remaining planned qty", planID, sku)
+	}
+
+	var onHand int
+	err = tx.QueryRow(fmt.Sprintf(
+		`SELECT on_hand FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2 FOR UPDATE`, schema),
+		sku, locationCode).Scan(&onHand)
+	if err == sql.ErrNoRows {
+		return 0, planID, fmt.Errorf("no on-hand stock for SKU %s at location %s", sku, locationCode)
+	} else if err != nil {
+		return 0, planID, err
+	}
+	var alreadyBinned int
+	if err := tx.QueryRow(fmt.Sprintf(
+		`SELECT COALESCE(SUM(qty), 0) FROM %s.bin_stock WHERE sku = $1 AND location_code = $2`, schema),
+		sku, locationCode).Scan(&alreadyBinned); err != nil {
+		return 0, planID, err
+	}
+	if alreadyBinned+staged > onHand {
+		return 0, planID, fmt.Errorf("planned cross-dock qty exceeds unassigned on-hand stock at %s (on_hand=%d, already binned=%d, requested=%d)",
+			locationCode, onHand, alreadyBinned, staged)
+	}
+
+	binCode := crossDockBinCode(locationCode)
+	if planType == "Transship" {
+		binCode = crossShipBinCode(destinationRef)
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`
+		INSERT INTO %s.bin_stock (bin_code, sku, location_code, condition, qty)
+		VALUES ($1, $2, $3, 'Good', $4)
+		ON CONFLICT (bin_code, sku, condition) DO UPDATE SET
+			qty = %s.bin_stock.qty + EXCLUDED.qty, updated_at = CURRENT_TIMESTAMP`, schema, schema),
+		binCode, sku, locationCode, staged); err != nil {
+		return 0, planID, err
+	}
+
+	remainingQty := planQty - float64(staged)
+	planData["qty"] = remainingQty
+	if remainingQty <= 1e-9 {
+		planData["status"] = "Fulfilled"
+	}
+	marshaled, err := json.Marshal(planData)
+	if err != nil {
+		return 0, planID, err
+	}
+	newStatus := "Planned"
+	if remainingQty <= 1e-9 {
+		newStatus = "Fulfilled"
+	}
+	if _, err := tx.Exec(fmt.Sprintf(
+		`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'CrossDockPlan' AND id = $3`, schema),
+		marshaled, newStatus, planID); err != nil {
+		return 0, planID, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, planID, err
+	}
+	LogAuditEvent(tenantID, userID, "WMS_PLANNED_CROSSDOCK_PUTAWAY", "SUCCESS",
+		fmt.Sprintf("Staged %d x %s at %s for planned %s (plan %s) instead of shelving", staged, sku, binCode, planType, planID))
+	LogCompletedWarehouseTask(tenantID, NewWarehouseTask{
+		TaskType: "Putaway", LocationCode: locationCode, ToBin: binCode, Item: sku, Qty: float64(staged),
+		Notes: "planned cross-dock: " + planType,
+	}, userID)
+	return staged, planID, nil
 }
 
 // ------------------------------------------------------------------
@@ -516,5 +654,9 @@ func ExecuteBinReplenishment(tenantID, fromBin, toBin, sku string, qty int, user
 	}
 	LogAuditEvent(tenantID, userID, "WMS_BIN_REPLENISH", "SUCCESS",
 		fmt.Sprintf("Moved %d x %s from bin %s to bin %s", qty, sku, fromBin, toBin))
+	// Stage 42.2.2: additive WarehouseTask retrofit.
+	LogCompletedWarehouseTask(tenantID, NewWarehouseTask{
+		TaskType: "Replenish", LocationCode: locationCode, FromBin: fromBin, ToBin: toBin, Item: sku, Qty: float64(qty),
+	}, userID)
 	return nil
 }

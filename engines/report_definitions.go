@@ -330,18 +330,18 @@ func getGLAccountBook(tenantID, accountCode string) ([]map[string]interface{}, e
 	}
 	defer rows.Close()
 	var results []map[string]interface{}
-	balance := 0
+	balancePaise := int64(0)
 	for rows.Next() {
 		var docType, docID string
-		var debit, credit int
+		var debitPaise, creditPaise int64
 		var createdAt time.Time
-		if err := rows.Scan(&docType, &docID, &debit, &credit, &createdAt); err != nil {
+		if err := rows.Scan(&docType, &docID, &debitPaise, &creditPaise, &createdAt); err != nil {
 			return nil, err
 		}
-		balance += debit - credit
+		balancePaise += debitPaise - creditPaise
 		results = append(results, map[string]interface{}{
-			"document_type": docType, "document_id": docID, "debit": debit, "credit": credit,
-			"balance": balance, "created_at": createdAt,
+			"document_type": docType, "document_id": docID, "debit": PaiseToRupees(debitPaise), "credit": PaiseToRupees(creditPaise),
+			"balance": PaiseToRupees(balancePaise), "created_at": createdAt,
 		})
 	}
 	if results == nil {

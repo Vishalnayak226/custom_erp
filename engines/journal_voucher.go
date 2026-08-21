@@ -213,7 +213,7 @@ func postApprovedJournalVoucher(tenantID, voucherID string) {
 		opt.Currency = currency
 		opt.ExchangeRate = rate
 	}
-	if err := PostDoubleEntry(tenantID, "JournalVoucher", voucherID, debits, credits, voucherDate, fmt.Sprintf("JournalVoucher:%s:POST", voucherID), opt); err != nil {
+	if err := PostDoubleEntry(tenantID, "JournalVoucher", voucherID, PaiseMap(debits), PaiseMap(credits), voucherDate, fmt.Sprintf("JournalVoucher:%s:POST", voucherID), opt); err != nil {
 		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s approved but GL post failed: %v", voucherID, err), "")
 		return
 	}

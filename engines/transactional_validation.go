@@ -99,6 +99,48 @@ type grnReceivedLine struct {
 	MfgDate       string `json:"mfg_date,omitempty"`
 	ExpiryDate    string `json:"expiry_date,omitempty"`
 	SupplierBatch string `json:"supplier_batch,omitempty"`
+	// Stage 42.1.8: serial capture. One entry per accepted unit - a
+	// serial-tracked line with N units accepted must list N distinct serial
+	// numbers, checked by ValidateReceiptSerialLine below. Empty/omitted for
+	// every line this struct already described.
+	SerialNumbers []string `json:"serial_numbers,omitempty"`
+	// Stage 42.3.7: catch weight + dimensional capture. ActualWeight is
+	// mandatory (GOODSR-0098 below) only for a line whose Item has
+	// is_catch_weight = Yes (e.g. meat/produce received by variable actual
+	// weight against a nominal ordered qty) - every other line leaves it
+	// blank exactly as before this Stage. Dimensions are always optional;
+	// nothing downstream requires them yet, but 42.4.4 (VAS/kitting) and
+	// 42.6.9 (slotting by cube) both need somewhere to read them from, and
+	// this received-line snapshot is that place.
+	ActualWeight *float64 `json:"actual_weight,omitempty"`
+	WeightUOM    string   `json:"weight_uom,omitempty"`
+	Length       *float64 `json:"length,omitempty"`
+	Width        *float64 `json:"width,omitempty"`
+	Height       *float64 `json:"height,omitempty"`
+	DimUOM       string   `json:"dim_uom,omitempty"`
+}
+
+// derivedAcceptedQty is the same accepted-quantity derivation
+// PostGRNReceiptWithQC applies at posting time (explicit AcceptedQty wins,
+// otherwise qty minus the rejected/damaged split), pulled out so
+// validateGRNRules can check the serial-count-matches-accepted-qty rule
+// against the same number that will actually be posted, not a re-guess of
+// it.
+func (l grnReceivedLine) derivedAcceptedQty() float64 {
+	accepted := l.Qty
+	if l.RejectedQty != nil {
+		accepted -= *l.RejectedQty
+	}
+	if l.DamagedQty != nil {
+		accepted -= *l.DamagedQty
+	}
+	if l.AcceptedQty != nil {
+		accepted = *l.AcceptedQty
+	}
+	if accepted < 0 {
+		accepted = 0
+	}
+	return accepted
 }
 
 // PrepareGRNReceipt fills in a GRN's receiving `location` from its referenced
@@ -308,6 +350,21 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 		if err := ValidateReceiptBatchLine(tenantID, line.Sku, line.BatchNo, line.ExpiryDate); err != nil {
 			return err
 		}
+		// 42.1.8: a serial-tracked item must arrive with one serial number per
+		// accepted unit, checked against the same accepted-qty derivation
+		// PostGRNReceiptWithQC posts with. Same pre-write rationale as the
+		// batch check immediately above.
+		if err := ValidateReceiptSerialLine(tenantID, line.Sku, line.SerialNumbers, line.derivedAcceptedQty()); err != nil {
+			return err
+		}
+		// Stage 42.3.7: a catch-weight item (Item.is_catch_weight = Yes) must
+		// carry its actual received weight - the whole point of the flag is
+		// that its billable/on-hand quantity is the real scaled weight, not
+		// the nominal ordered qty. Same pre-write rationale as the batch/
+		// serial checks immediately above.
+		if err := ValidateReceiptCatchWeightLine(tenantID, line.Sku, line.ActualWeight); err != nil {
+			return err
+		}
 		// A lot dated to expire before it was made is a typo that would make
 		// FEFO allocate it first forever - the same rule the Batch master
 		// applies, enforced on the receipt that would create that master.
@@ -360,6 +417,16 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 	var poData map[string]interface{}
 	_ = json.Unmarshal([]byte(poDataStr), &poData)
 
+	// Stage 42.3.6: tenant-configurable tolerance on the two hardcoded checks
+	// just below (PURCHA-0088/0087). No ReceiptValidationRule configured
+	// (getReceiptValidationRule's own zero-value default) reproduces exactly
+	// today's behavior - 0% over-receipt tolerance, unexpected items blocked.
+	poVendor, _ := poData["vendor"].(string)
+	overReceiptTolerancePct, allowUnexpectedItems, err := getReceiptValidationRule(tenantID, poVendor)
+	if err != nil {
+		return err
+	}
+
 	// PURCHA-0082 / PURCHA-0086: only meaningful when PurchaseOrder is
 	// actually approval-gated (an admin configured a rule for it) - an
 	// ungated PO has no "pending approval" state to block receiving on.
@@ -371,10 +438,14 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 		return &ValidationError{Code: "PURCHA-0082", Message: fmt.Sprintf("PO %s is pending approval (status: %s)", poID, poStatus)}
 	}
 
-	// PURCHA-0088: every received line's SKU must actually be on the PO.
-	for _, line := range lines {
-		if _, ok := ordered[line.Sku]; !ok {
-			return &ValidationError{Code: "PURCHA-0088", Message: fmt.Sprintf("SKU %q is not part of PO %s", line.Sku, poID)}
+	// PURCHA-0088: every received line's SKU must actually be on the PO,
+	// unless a Stage 42.3.6 ReceiptValidationRule for this vendor (or the
+	// tenant default) explicitly allows unexpected items.
+	if !allowUnexpectedItems {
+		for _, line := range lines {
+			if _, ok := ordered[line.Sku]; !ok {
+				return &ValidationError{Code: "PURCHA-0088", Message: fmt.Sprintf("SKU %q is not part of PO %s", line.Sku, poID)}
+			}
 		}
 	}
 
@@ -394,11 +465,53 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 	}
 
 	for _, line := range lines {
-		if receivedBefore[line.Sku]+line.Qty > ordered[line.Sku]+1e-9 {
-			return &ValidationError{Code: "PURCHA-0087", Message: fmt.Sprintf("received quantity for SKU %q (%v) would exceed open PO quantity (%v)", line.Sku, receivedBefore[line.Sku]+line.Qty, ordered[line.Sku])}
+		orderedQty, onPO := ordered[line.Sku]
+		if !onPO {
+			// Not on the PO at all - already let through (or rejected) by the
+			// PURCHA-0088 check above; there is no PO qty to compare against.
+			continue
+		}
+		allowedQty := orderedQty * (1 + overReceiptTolerancePct/100)
+		if receivedBefore[line.Sku]+line.Qty > allowedQty+1e-9 {
+			return &ValidationError{Code: "PURCHA-0087", Message: fmt.Sprintf("received quantity for SKU %q (%v) would exceed open PO quantity (%v) plus tolerance (%v)", line.Sku, receivedBefore[line.Sku]+line.Qty, orderedQty, allowedQty)}
 		}
 	}
 	return nil
+}
+
+// getReceiptValidationRule (Stage 42.3.6) resolves the Active
+// ReceiptValidationRule that applies to a receipt - a row scoped to
+// `vendor` if one exists, else the Active row with a blank vendor (the
+// tenant default), else the zero value (0% tolerance, unexpected items
+// blocked) that reproduces every pre-42.3.6 tenant's existing behavior
+// exactly. validateReceiptValidationRuleMasterRules (master_data_validation.go)
+// guarantees at most one Active row per scope, so this never has to choose
+// between two conflicting matches.
+func getReceiptValidationRule(tenantID, vendor string) (tolerancePct float64, allowUnexpectedItems bool, err error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return 0, false, err
+	}
+	var toleranceStr, allowStr string
+	scanErr := db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(data->>'over_receipt_tolerance_pct', '0'), COALESCE(data->>'allow_unexpected_items', 'No')
+		FROM %s.documents
+		WHERE doctype = 'ReceiptValidationRule' AND status = 'Active' AND data->>'vendor' = $1
+		LIMIT 1`, schema), vendor).Scan(&toleranceStr, &allowStr)
+	if scanErr == sql.ErrNoRows && vendor != "" {
+		scanErr = db.DB.QueryRow(fmt.Sprintf(`
+			SELECT COALESCE(data->>'over_receipt_tolerance_pct', '0'), COALESCE(data->>'allow_unexpected_items', 'No')
+			FROM %s.documents
+			WHERE doctype = 'ReceiptValidationRule' AND status = 'Active' AND COALESCE(data->>'vendor', '') = ''
+			LIMIT 1`, schema)).Scan(&toleranceStr, &allowStr)
+	}
+	if scanErr == sql.ErrNoRows {
+		return 0, false, nil
+	}
+	if scanErr != nil {
+		return 0, false, scanErr
+	}
+	return numFromInterface(toleranceStr), allowStr == "Yes", nil
 }
 
 // asnExpectedLine is ASN's expected_items line shape - just sku/qty.

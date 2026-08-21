@@ -45,8 +45,8 @@ func PostDebitNote(tenantID, noteID, userID string) (amount int, err error) {
 	}
 	amount = int(amountF)
 
-	debits := map[string]int{"2100": amount}
-	credits := map[string]int{"5150": amount}
+	debits := map[string]int64{"2100": RupeesToPaise(amountF)}
+	credits := map[string]int64{"5150": RupeesToPaise(amountF)}
 	if err := PostDoubleEntry(tenantID, "DebitNote", noteID, debits, credits, "", fmt.Sprintf("DebitNote:%s:POST", noteID)); err != nil {
 		return 0, fmt.Errorf("GL posting failed, note not marked Posted: %v", err)
 	}
@@ -108,8 +108,8 @@ func PostCreditNote(tenantID, noteID, userID string) (amount int, err error) {
 	}
 	amount = int(amountF)
 
-	debits := map[string]int{"4150": amount}
-	credits := map[string]int{"1100": amount}
+	debits := map[string]int64{"4150": RupeesToPaise(amountF)}
+	credits := map[string]int64{"1100": RupeesToPaise(amountF)}
 	if err := PostDoubleEntry(tenantID, "CreditNote", noteID, debits, credits, "", fmt.Sprintf("CreditNote:%s:POST", noteID)); err != nil {
 		return 0, fmt.Errorf("GL posting failed, note not marked Posted: %v", err)
 	}

@@ -62,6 +62,10 @@ func handleBatchPutaway(w http.ResponseWriter, r *http.Request) {
 // document (42.1.3). ValidateBatchForIssue runs first, so every 42.1.6 expiry
 // and hold gate applies to a manually-chosen lot exactly as it applies to an
 // allocation-chosen one - the single-lot expression of the same rule.
+// ValidateLotForCustomer (42.1.7) runs alongside it: an optional `customer`
+// field, no different from the `voucher_type`/`voucher_id` this endpoint
+// already accepts client-supplied. A blank customer is a no-op, so a caller
+// that doesn't pass one sees no change in behaviour.
 func handleBatchConsume(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")
@@ -77,12 +81,17 @@ func handleBatchConsume(w http.ResponseWriter, r *http.Request) {
 		Qty         int    `json:"qty"`
 		VoucherType string `json:"voucher_type"`
 		VoucherID   string `json:"voucher_id"`
+		Customer    string `json:"customer"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BinCode == "" || req.Sku == "" || req.BatchNo == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'bin_code', 'sku' and 'batch_no' are required")
 		return
 	}
 	if err := engines.ValidateBatchForIssue(tenantID, req.Sku, req.BatchNo); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	if err := engines.ValidateLotForCustomer(tenantID, req.Customer, req.Sku, req.BatchNo); err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
@@ -184,5 +193,68 @@ func handleBatchAllocationPreview(w http.ResponseWriter, r *http.Request) {
 		"strategy":    engines.ResolveAllocationStrategy(tenantID, sku),
 		"allocations": candidates,
 		"shortfall":   shortfall,
+	})
+}
+
+// handleSerialPutaway records which bin a registered unit has been placed in
+// (42.1.8) - the serial analogue of handleBatchPutaway.
+func handleSerialPutaway(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	var req struct {
+		Sku          string `json:"sku"`
+		SerialNo     string `json:"serial_no"`
+		BinCode      string `json:"bin_code"`
+		LocationCode string `json:"location_code"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Sku == "" || req.SerialNo == "" || req.BinCode == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'sku', 'serial_no' and 'bin_code' are required")
+		return
+	}
+	if err := engines.PutawaySerial(tenantID, req.Sku, req.SerialNo, req.BinCode, req.LocationCode, userID); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "put_away", "sku": req.Sku, "serial_no": req.SerialNo, "bin_code": req.BinCode,
+	})
+}
+
+// handleSerialStatus moves a unit through its lifecycle - allocate at pick,
+// ship at pack (42.1.8's "verify at pack": TransitionSerialStatus rejects a
+// ship whose voucher doesn't match what the unit was allocated to), return an
+// RMA, or scrap a written-off unit. One endpoint for all four the same way
+// handleBatchStatus is one endpoint for Batch's holds/releases - the engine
+// function is the single choke point that already knows which moves are
+// allowed and which need a reason, so the handler doesn't have to.
+func handleSerialStatus(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	var req struct {
+		Sku         string `json:"sku"`
+		SerialNo    string `json:"serial_no"`
+		Status      string `json:"status"`
+		VoucherType string `json:"voucher_type"`
+		VoucherID   string `json:"voucher_id"`
+		Reason      string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Sku == "" || req.SerialNo == "" || req.Status == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'sku', 'serial_no' and 'status' are required")
+		return
+	}
+	if err := engines.TransitionSerialStatus(tenantID, req.Sku, req.SerialNo, req.Status, req.VoucherType, req.VoucherID, req.Reason, userID); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "updated", "sku": req.Sku, "serial_no": req.SerialNo, "serial_status": req.Status,
 	})
 }

@@ -58,12 +58,15 @@ func TestTrialBalanceAsOfDate(t *testing.T) {
 	defer cleanup()
 
 	// Two balanced pairs, one dated well in the past and one today, so an
-	// as-of between them must see exactly one of them.
+	// as-of between them must see exactly one of them. debit/credit are
+	// rupees as the caller sees them below; gl_postings stores paise
+	// (Stage 45), so the seed scales by 100 to keep this test's numbers
+	// readable as rupees throughout.
 	seed := func(code string, debit, credit, daysAgo int) {
 		if _, err := db.DB.Exec(fmt.Sprintf(
 			`INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, created_at)
 			 VALUES ($1, $2, $3, 'TestJournal', $4, $5)`, schema),
-			code, debit, credit, docID, time.Now().AddDate(0, 0, -daysAgo)); err != nil {
+			code, debit*100, credit*100, docID, time.Now().AddDate(0, 0, -daysAgo)); err != nil {
 			t.Fatalf("failed to seed gl_posting: %v", err)
 		}
 	}
@@ -92,11 +95,11 @@ func TestTrialBalanceAsOfDate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("trial balance failed: %v", err)
 		}
-		if got := tb["total_debits"].(int); got != 1000 {
-			t.Errorf("as of %s only the 40-day-old posting should count: want 1000 debits, got %d", cutoff, got)
+		if got := tb["total_debits"].(float64); got != 1000 {
+			t.Errorf("as of %s only the 40-day-old posting should count: want 1000 debits, got %v", cutoff, got)
 		}
-		if got := tb["total_credits"].(int); got != 1000 {
-			t.Errorf("as of %s: want 1000 credits, got %d", cutoff, got)
+		if got := tb["total_credits"].(float64); got != 1000 {
+			t.Errorf("as of %s: want 1000 credits, got %v", cutoff, got)
 		}
 		if !tb["balanced"].(bool) {
 			t.Error("a bounded trial balance of two balanced pairs must still be balanced")
@@ -112,8 +115,8 @@ func TestTrialBalanceAsOfDate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("trial balance failed: %v", err)
 		}
-		if got := tb["total_debits"].(int); got != 1500 {
-			t.Errorf("today's own postings must be included: want 1500 debits, got %d", got)
+		if got := tb["total_debits"].(float64); got != 1500 {
+			t.Errorf("today's own postings must be included: want 1500 debits, got %v", got)
 		}
 	})
 
@@ -122,8 +125,8 @@ func TestTrialBalanceAsOfDate(t *testing.T) {
 		if err != nil {
 			t.Fatalf("trial balance failed: %v", err)
 		}
-		if got := tb["total_debits"].(int); got != 0 {
-			t.Errorf("want 0 debits before any posting existed, got %d", got)
+		if got := tb["total_debits"].(float64); got != 0 {
+			t.Errorf("want 0 debits before any posting existed, got %v", got)
 		}
 		if !tb["balanced"].(bool) {
 			t.Error("an empty ledger is trivially balanced")

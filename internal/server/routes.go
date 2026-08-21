@@ -99,6 +99,12 @@ func Run() {
 	// for Active ScheduledReport documents whose next_run_date has arrived.
 	engines.StartScheduledReportWorker(workerCtx, 1*time.Hour)
 
+	// Start Wave Auto-Creation Worker (Stage 42.4.1, open decision 5) -
+	// hourly scan for Active WaveTemplates whose run_daily_at has arrived
+	// today, reusing the same ticker/schema-fanout shape as the scheduled
+	// report worker above rather than a second timer mechanism.
+	engines.StartWaveAutoCreationWorker(workerCtx, 1*time.Hour)
+
 	// Start Recurring Journal Worker (Stage 26.6.4) - daily-granularity scan
 	// for Recurring Template JournalVouchers whose next_run_date has arrived.
 	engines.StartRecurringJournalWorker(workerCtx, 1*time.Hour)
@@ -307,6 +313,7 @@ func Run() {
 	// product (see engines/modules.go's ProductPackages) - a tenant that
 	// never bought WMS must not be able to reach these.
 	http.HandleFunc("POST /api/v1/wms/putaway", apiMiddleware(moduleGate("wms", handlePutaway)))
+	http.HandleFunc("POST /api/v1/wms/hold/place", apiMiddleware(moduleGate("wms", handlePlaceHold)))
 	http.HandleFunc("GET /api/v1/wms/pick-list", apiMiddleware(moduleGate("wms", handlePickList)))
 	http.HandleFunc("POST /api/v1/wms/condition-transition", apiMiddleware(moduleGate("wms", handleBinConditionTransition)))
 	http.HandleFunc("POST /api/v1/wms/transfer/pack", apiMiddleware(moduleGate("wms", handlePackTransferOrder)))
@@ -315,7 +322,10 @@ func Run() {
 	http.HandleFunc("POST /api/v1/wms/pick-scan", apiMiddleware(moduleGate("wms", handlePickScan)))
 	http.HandleFunc("POST /api/v1/wms/pack-scan", apiMiddleware(moduleGate("wms", handlePackScan)))
 	http.HandleFunc("POST /api/v1/wms/short-pick", apiMiddleware(moduleGate("wms", handleShortPick)))
-	http.HandleFunc("POST /api/v1/wms/pack-complete", apiMiddleware(moduleGate("wms", handlePackComplete)))
+	// Stage 42.4.6: this route now runs through handlePackCompleteValidated
+	// (handlers_wms_outbound.go), which defers to the same, unchanged
+	// CompletePackTask after an additive pre-pack checklist.
+	http.HandleFunc("POST /api/v1/wms/pack-complete", apiMiddleware(moduleGate("wms", handlePackCompleteValidated)))
 	http.HandleFunc("POST /api/v1/wms/cycle-count/reconcile", apiMiddleware(moduleGate("wms", handleReconcileCycleCount)))
 
 	// Stage 26.5 (WMS Enterprise Maturity Sprint): cross-dock staging, LPN/
@@ -325,6 +335,7 @@ func Run() {
 	// moduleGate("wms",...) as every other floor-ops route above.
 	http.HandleFunc("POST /api/v1/wms/cross-dock/check", apiMiddleware(moduleGate("wms", handleCrossDockCheck)))
 	http.HandleFunc("POST /api/v1/wms/cross-dock/putaway", apiMiddleware(moduleGate("wms", handleCrossDockPutaway)))
+	http.HandleFunc("POST /api/v1/wms/cross-dock/planned-putaway", apiMiddleware(moduleGate("wms", handlePlannedCrossDockPutaway)))
 	http.HandleFunc("POST /api/v1/wms/lpn/assign", apiMiddleware(moduleGate("wms", handleLPNAssign)))
 	http.HandleFunc("GET /api/v1/wms/lpn/contents", apiMiddleware(moduleGate("wms", handleLPNContents)))
 	http.HandleFunc("GET /api/v1/wms/bin-replenishment/suggestions", apiMiddleware(moduleGate("wms", handleBinReplenishmentSuggestions)))
@@ -349,6 +360,42 @@ func Run() {
 	http.HandleFunc("POST /api/v1/wms/batch/status", apiMiddleware(moduleGate("wms", handleBatchStatus)))
 	http.HandleFunc("POST /api/v1/wms/batch/expiry-sweep", apiMiddleware(moduleGate("wms", handleBatchExpirySweep)))
 	http.HandleFunc("GET /api/v1/wms/batch/allocation-preview", apiMiddleware(moduleGate("wms", handleBatchAllocationPreview)))
+	// 42.1.8 - the serial analogues. Same "reports own the read paths" split:
+	// serial-inquiry and serial-movement-history are ReportDefinitions, not
+	// routes here.
+	http.HandleFunc("POST /api/v1/wms/serial/putaway", apiMiddleware(moduleGate("wms", handleSerialPutaway)))
+	http.HandleFunc("POST /api/v1/wms/serial/status", apiMiddleware(moduleGate("wms", handleSerialStatus)))
+	// 42.2 - the warehouse task spine. handleNextTask is the RF/mobile
+	// dispatch call; handleTransitionTask is the one lifecycle route every
+	// future floor action (start/complete/except/cancel) funnels through.
+	http.HandleFunc("POST /api/v1/wms/tasks/next", apiMiddleware(moduleGate("wms", handleNextTask)))
+	http.HandleFunc("POST /api/v1/wms/tasks/transition", apiMiddleware(moduleGate("wms", handleTransitionTask)))
+	// 42.2.7 - directed putaway suggestion; 42.2.10 - the warehouse cockpit.
+	http.HandleFunc("GET /api/v1/wms/putaway/suggest-bin", apiMiddleware(moduleGate("wms", handleSuggestPutawayBin)))
+	http.HandleFunc("GET /api/v1/wms/cockpit", apiMiddleware(moduleGate("wms", handleWarehouseCockpit)))
+
+	// Stage 42.4 - outbound depth. Same moduleGate("wms", ...) as every other
+	// floor-ops route above.
+	http.HandleFunc("POST /api/v1/wms/wave/create", apiMiddleware(moduleGate("wms", handleWaveCreate)))
+	http.HandleFunc("POST /api/v1/wms/wave/template/run", apiMiddleware(moduleGate("wms", handleWaveTemplateRun)))
+	http.HandleFunc("POST /api/v1/wms/wave/transition", apiMiddleware(moduleGate("wms", handleWaveTransition)))
+	http.HandleFunc("GET /api/v1/wms/wave/monitor", apiMiddleware(moduleGate("wms", handleWaveMonitor)))
+	http.HandleFunc("POST /api/v1/wms/sortation/provision-slots", apiMiddleware(moduleGate("wms", handleSortSlotProvision)))
+	http.HandleFunc("POST /api/v1/wms/sortation/assign", apiMiddleware(moduleGate("wms", handleSortSlotAssign)))
+	http.HandleFunc("POST /api/v1/wms/sortation/confirm", apiMiddleware(moduleGate("wms", handleSortSlotConfirm)))
+	http.HandleFunc("POST /api/v1/wms/sortation/clear", apiMiddleware(moduleGate("wms", handleSortSlotClear)))
+	http.HandleFunc("GET /api/v1/wms/sortation/slots", apiMiddleware(moduleGate("wms", handleSortSlotList)))
+	http.HandleFunc("POST /api/v1/wms/cartonization/suggest-v2", apiMiddleware(moduleGate("wms", handleCartonizationSuggestV2)))
+	http.HandleFunc("GET /api/v1/wms/packing-validation", apiMiddleware(moduleGate("wms", handlePackingValidation)))
+	http.HandleFunc("GET /api/v1/wms/pack-template/resolve", apiMiddleware(moduleGate("wms", handlePackTemplateResolve)))
+	http.HandleFunc("POST /api/v1/wms/lpn/deconsolidate", apiMiddleware(moduleGate("wms", handleDeconsolidateLPN)))
+	http.HandleFunc("POST /api/v1/wms/loading/create", apiMiddleware(moduleGate("wms", handleLoadingTaskCreate)))
+	http.HandleFunc("POST /api/v1/wms/loading/scan", apiMiddleware(moduleGate("wms", handleLoadingScan)))
+	http.HandleFunc("POST /api/v1/wms/loading/complete", apiMiddleware(moduleGate("wms", handleLoadingComplete)))
+	http.HandleFunc("POST /api/v1/wms/loading/depart", apiMiddleware(moduleGate("wms", handleLoadingDepart)))
+	http.HandleFunc("GET /api/v1/wms/loading/bol", apiMiddleware(moduleGate("wms", handleBillOfLading)))
+	http.HandleFunc("POST /api/v1/wms/vas/create", apiMiddleware(moduleGate("wms", handleVASTaskCreate)))
+	http.HandleFunc("POST /api/v1/wms/vas/complete", apiMiddleware(moduleGate("wms", handleVASTaskComplete)))
 
 	// Checkout & Finance APIs
 	http.HandleFunc("POST /api/v1/checkout", apiMiddleware(handleCheckout))

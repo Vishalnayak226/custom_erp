@@ -106,6 +106,25 @@ func loadPickPackTask(schema, taskID string) (*pickPackTask, error) {
 	return &pickPackTask{id: taskID, status: status, data: data, items: items}, nil
 }
 
+// FulfillmentTaskLocationCode returns a FulfillmentTask's location_code.
+// Exists so a caller outside this package (Stage 42.2.2's WarehouseTask
+// retrofit, called from the pick/pack scan handlers) can log a completed
+// task without ScanPickItem/ScanPackItem themselves taking on a userID
+// parameter neither has today - the same signature-change 26.5.13's own
+// instrumentation attempt was rejected over.
+func FulfillmentTaskLocationCode(tenantID, taskID string) (string, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return "", err
+	}
+	task, err := loadPickPackTask(schema, taskID)
+	if err != nil {
+		return "", err
+	}
+	loc, _ := task.data["location_code"].(string)
+	return loc, nil
+}
+
 func (t *pickPackTask) save(schema string) error {
 	itemMaps := make([]map[string]interface{}, len(t.items))
 	for i, it := range t.items {

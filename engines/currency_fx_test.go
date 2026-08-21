@@ -421,8 +421,8 @@ func TestFXGainLossRegisterReadsTheLedger(t *testing.T) {
 
 	// A realised gain: cash 8,500 against a receivable of 8,300.
 	if err := PostDoubleEntry("default", "SalesInvoice", docID,
-		map[string]int{AccountCashBank: 8500},
-		map[string]int{AccountAccountsReceivable: 8300, AccountRealisedFXGain: 200},
+		map[string]int64{AccountCashBank: 850000},
+		map[string]int64{AccountAccountsReceivable: 830000, AccountRealisedFXGain: 20000},
 		"", "TEST-FX-REG-0001:SETTLE"); err != nil {
 		t.Fatalf("post: %v", err)
 	}
@@ -441,7 +441,7 @@ func TestFXGainLossRegisterReadsTheLedger(t *testing.T) {
 			t.Fatalf("kind = %q, want Realised", row.Kind)
 		}
 		if row.Gain != 200 || row.Loss != 0 || row.Net != 200 {
-			t.Fatalf("gain/loss/net = %d/%d/%d, want 200/0/200", row.Gain, row.Loss, row.Net)
+			t.Fatalf("gain/loss/net = %v/%v/%v, want 200/0/200", row.Gain, row.Loss, row.Net)
 		}
 	}
 	if !found {

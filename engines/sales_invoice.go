@@ -63,7 +63,7 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 
 	debits := map[string]int{"1300": amount}
 	credits := map[string]int{"4100": amount}
-	if err := PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, debits, credits, "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),
+	if err := PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),
 		postingOptionsFor(position, position.Rate, debits, credits, map[string]float64{
 			"1300": position.TransactionAmount,
 			"4100": position.TransactionAmount,
@@ -137,7 +137,7 @@ func SettleSalesInvoice(tenantID, invoiceID, userID string, opts ...SettlementOp
 	debits := map[string]int{"1100": settlement.SettlementAmount}
 	credits := map[string]int{"1300": position.CarryingAmount}
 	applyRealisedFXLine(debits, credits, settlement.RealisedGainLoss)
-	if err := PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, debits, credits, settlement.PostingDate(), fmt.Sprintf("SalesInvoice:%s:SETTLE", invoiceID),
+	if err := PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), settlement.PostingDate(), fmt.Sprintf("SalesInvoice:%s:SETTLE", invoiceID),
 		// The cash and receivable lines carry the full foreign amount; the
 		// realised gain/loss line is left at zero, because it has no
 		// foreign-currency value by construction.

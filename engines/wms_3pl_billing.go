@@ -33,6 +33,14 @@ type StorageBillingReportRow struct {
 	HandlingTasks  int     `json:"handling_tasks"`
 	HandlingCharge float64 `json:"handling_charge"`
 	TotalCharge    float64 `json:"total_charge"`
+	// Stage 42.1.10: set only when the rate named both an Item and a
+	// BillingUOM. CurrentUnits above stays the raw each-count either way (so
+	// nothing that already reads it changes); these two are the same stock
+	// expressed in the rate's own contracted unit, e.g. "40 CASE" instead of
+	// "480 EA", and StorageCharge is computed against BillingUnits when both
+	// are present.
+	BillingUOM   string  `json:"billing_uom,omitempty"`
+	BillingUnits float64 `json:"billing_units,omitempty"`
 }
 
 func GetStorageBillingReport(tenantID, ownerID, start, end string) ([]StorageBillingReportRow, error) {
@@ -53,21 +61,23 @@ func GetStorageBillingReport(tenantID, ownerID, start, end string) ([]StorageBil
 	rateRows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, COALESCE(data->>'owner_id', ''), COALESCE(data->>'location_code', ''),
 		       COALESCE((data->>'storage_rate_per_unit_per_day')::numeric, 0),
-		       COALESCE((data->>'handling_rate_per_task')::numeric, 0)
+		       COALESCE((data->>'handling_rate_per_task')::numeric, 0),
+		       COALESCE(data->>'item', ''), COALESCE(data->>'billing_uom', '')
 		FROM %s.documents WHERE doctype = 'StorageBillingRate' AND status = 'Active'
 		  AND ($1 = '' OR data->>'owner_id' = $1)`, schema), ownerID)
 	if err != nil {
 		return nil, err
 	}
 	type rate struct {
-		OwnerID, LocationCode          string
-		StorageRate, HandlingRate      float64
+		OwnerID, LocationCode     string
+		StorageRate, HandlingRate float64
+		Item, BillingUOM          string
 	}
 	var rates []rate
 	for rateRows.Next() {
 		var id string
 		var r rate
-		if err := rateRows.Scan(&id, &r.OwnerID, &r.LocationCode, &r.StorageRate, &r.HandlingRate); err != nil {
+		if err := rateRows.Scan(&id, &r.OwnerID, &r.LocationCode, &r.StorageRate, &r.HandlingRate, &r.Item, &r.BillingUOM); err != nil {
 			continue
 		}
 		rates = append(rates, r)
@@ -76,14 +86,30 @@ func GetStorageBillingReport(tenantID, ownerID, start, end string) ([]StorageBil
 
 	out := []StorageBillingReportRow{}
 	for _, r := range rates {
+		// Stage 42.1.10: a rate that names one Item counts only that item's
+		// units at the owner's bins, not the whole location - the per-item
+		// granularity a UOM conversion actually needs (a factor is per-item;
+		// summing several SKUs together first and converting the sum would be
+		// meaningless the moment two of them pack differently).
 		var currentUnits int
-		if err := db.DB.QueryRow(fmt.Sprintf(`
-			SELECT COALESCE(SUM(bs.qty), 0)
-			FROM %s.bin_stock bs
-			JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
-			WHERE b.data->>'owner_id' = $1 AND bs.location_code = $2 AND bs.condition = 'Good'`, schema, schema),
-			r.OwnerID, r.LocationCode).Scan(&currentUnits); err != nil {
-			currentUnits = 0
+		if r.Item == "" {
+			if err := db.DB.QueryRow(fmt.Sprintf(`
+				SELECT COALESCE(SUM(bs.qty), 0)
+				FROM %s.bin_stock bs
+				JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
+				WHERE b.data->>'owner_id' = $1 AND bs.location_code = $2 AND bs.condition = 'Good'`, schema, schema),
+				r.OwnerID, r.LocationCode).Scan(&currentUnits); err != nil {
+				currentUnits = 0
+			}
+		} else {
+			if err := db.DB.QueryRow(fmt.Sprintf(`
+				SELECT COALESCE(SUM(bs.qty), 0)
+				FROM %s.bin_stock bs
+				JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
+				WHERE b.data->>'owner_id' = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.sku = $3`, schema, schema),
+				r.OwnerID, r.LocationCode, r.Item).Scan(&currentUnits); err != nil {
+				currentUnits = 0
+			}
 		}
 
 		var handlingTasks int
@@ -95,10 +121,26 @@ func GetStorageBillingReport(tenantID, ownerID, start, end string) ([]StorageBil
 			handlingTasks = 0
 		}
 
-		storageCharge := roundTo2(float64(currentUnits) * r.StorageRate * float64(days))
+		// billingUnits/billingUOM stay zero/blank (and the charge stays
+		// each-based) unless the rate names BOTH an item and a UOM and a
+		// conversion for that pair actually exists - an undefined conversion
+		// falls back to the each-based charge rather than silently billing
+		// zero, so a misconfigured rate under-bills obviously instead of
+		// quietly.
+		storageUnits := float64(currentUnits)
+		billingUOM := ""
+		var billingUnits float64
+		if r.Item != "" && r.BillingUOM != "" {
+			if converted, cerr := ConvertUOMQty(tenantID, r.Item, float64(currentUnits), "EA", r.BillingUOM); cerr == nil {
+				storageUnits, billingUOM, billingUnits = converted, r.BillingUOM, converted
+			}
+		}
+
+		storageCharge := roundTo2(storageUnits * r.StorageRate * float64(days))
 		handlingCharge := roundTo2(float64(handlingTasks) * r.HandlingRate)
 		out = append(out, StorageBillingReportRow{
 			OwnerID: r.OwnerID, LocationCode: r.LocationCode, CurrentUnits: currentUnits, Days: days,
+			BillingUOM: billingUOM, BillingUnits: billingUnits,
 			StorageCharge: storageCharge, HandlingTasks: handlingTasks, HandlingCharge: handlingCharge,
 			TotalCharge: roundTo2(storageCharge + handlingCharge),
 		})
@@ -111,7 +153,8 @@ func init() {
 		ID: "3pl-storage-billing", Label: "3PL Storage & Handling Billing", Category: "WMS",
 		Columns: []ReportColumn{
 			{Key: "owner_id", Label: "Owner"}, {Key: "location_code", Label: "Location"},
-			{Key: "current_units", Label: "Current Units"}, {Key: "days", Label: "Days"},
+			{Key: "current_units", Label: "Current Units (EA)"}, {Key: "days", Label: "Days"},
+			{Key: "billing_uom", Label: "Billing UOM"}, {Key: "billing_units", Label: "Billing Units"},
 			{Key: "storage_charge", Label: "Storage Charge", Sensitive: true},
 			{Key: "handling_tasks", Label: "Handling Tasks"}, {Key: "handling_charge", Label: "Handling Charge", Sensitive: true},
 			{Key: "total_charge", Label: "Total", Sensitive: true},

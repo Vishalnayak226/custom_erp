@@ -108,17 +108,22 @@ func ReconcileBankStatement(tenantID, bankAccountID, userID string) (*BankReconc
 	}
 	type postingRow struct {
 		ID        string
-		Debit     int
-		Credit    int
+		Debit     float64
+		Credit    float64
 		CreatedAt time.Time
 	}
 	var postings []postingRow
 	for postingRows.Next() {
 		var p postingRow
-		if err := postingRows.Scan(&p.ID, &p.Debit, &p.Credit, &p.CreatedAt); err != nil {
+		var debitPaise, creditPaise int64
+		if err := postingRows.Scan(&p.ID, &debitPaise, &creditPaise, &p.CreatedAt); err != nil {
 			postingRows.Close()
 			return nil, err
 		}
+		// gl_postings.debit/credit are paise (Stage 45); converted here so
+		// the exact-amount match below compares against the bank
+		// statement's rupee amount in the same unit.
+		p.Debit, p.Credit = PaiseToRupees(debitPaise), PaiseToRupees(creditPaise)
 		postings = append(postings, p)
 	}
 	postingRows.Close()
@@ -134,7 +139,7 @@ func ReconcileBankStatement(tenantID, bankAccountID, userID string) (*BankReconc
 			}
 			// Bank statement Credit (money in) <-> our books' debit to the
 			// asset account; Debit (money out) <-> our books' credit.
-			var bookAmount int
+			var bookAmount float64
 			if line.DrCr == "Credit" {
 				bookAmount = p.Debit
 			} else {
@@ -143,7 +148,7 @@ func ReconcileBankStatement(tenantID, bankAccountID, userID string) (*BankReconc
 			if bookAmount == 0 {
 				continue
 			}
-			if math.Abs(float64(bookAmount)-line.Amount) > 0.01 {
+			if math.Abs(bookAmount-line.Amount) > 0.01 {
 				continue
 			}
 			if !line.TxnDate.IsZero() {

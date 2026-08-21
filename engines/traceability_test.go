@@ -470,6 +470,68 @@ func TestTraceability(t *testing.T) {
 	})
 
 	// -----------------------------------------------------------------------
+	// 42.1.7 - outbound lottable validation, expressed for one already-chosen
+	// lot (ValidateLotForCustomer), the same shape ValidateBatchForIssue
+	// already has.
+	// -----------------------------------------------------------------------
+	t.Run("LottableValidationForCustomer", func(t *testing.T) {
+		const sku = "SKU-TRACE-LOTCON"
+		const customer = "CUST-TRACE-LOTCON"
+		traceCleanup(t, schema, "SKU-TRACE-LOTCON")
+		defer traceCleanup(t, schema, "SKU-TRACE-LOTCON")
+		defer func() {
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'LottableConstraint' AND data->>'customer' = '" + customer + "'")
+		}()
+		seedTrackedItem(t, schema, sku, TrackingBatch, 0, 0, 0)
+
+		if _, err := EnsureBatch(tenantID, BatchInfo{
+			BatchNo: "LOT-IN", Item: sku, Attributes: map[string]string{"country_of_origin": "IN"},
+		}, 5, "system"); err != nil {
+			t.Fatalf("EnsureBatch LOT-IN: %v", err)
+		}
+		if _, err := EnsureBatch(tenantID, BatchInfo{
+			BatchNo: "LOT-CN", Item: sku, Attributes: map[string]string{"country_of_origin": "CN"},
+		}, 5, "system"); err != nil {
+			t.Fatalf("EnsureBatch LOT-CN: %v", err)
+		}
+		if _, err := EnsureBatch(tenantID, BatchInfo{BatchNo: "LOT-NOATTR", Item: sku}, 5, "system"); err != nil {
+			t.Fatalf("EnsureBatch LOT-NOATTR: %v", err)
+		}
+
+		// No constraint on file yet: every lot is issuable to this customer.
+		if err := ValidateLotForCustomer(tenantID, customer, sku, "LOT-CN"); err != nil {
+			t.Errorf("expected no constraint to mean no rejection, got %v", err)
+		}
+		// A blank customer is always a no-op, regardless of constraints.
+		if err := ValidateLotForCustomer(tenantID, "", sku, "LOT-CN"); err != nil {
+			t.Errorf("expected a blank customer to be a no-op, got %v", err)
+		}
+
+		constraintData, _ := json.Marshal(map[string]interface{}{
+			"customer": customer, "item": sku, "attribute_key": "country_of_origin",
+			"allowed_values": "IN", "status": "Active",
+		})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'LottableConstraint', $2, 'Active', 'system')",
+			"LOTCON-TRACE-01", constraintData); err != nil {
+			t.Fatalf("seed constraint: %v", err)
+		}
+
+		if err := ValidateLotForCustomer(tenantID, customer, sku, "LOT-IN"); err != nil {
+			t.Errorf("expected the IN lot to satisfy the IN-only constraint: %v", err)
+		}
+		if err := ValidateLotForCustomer(tenantID, customer, sku, "LOT-CN"); err == nil {
+			t.Error("expected the CN lot to violate the IN-only constraint")
+		}
+		if err := ValidateLotForCustomer(tenantID, customer, sku, "LOT-NOATTR"); err == nil {
+			t.Error("expected a lot with no country_of_origin attribute at all to fail the constraint")
+		}
+		// A customer with no contract on this SKU is unaffected.
+		if err := ValidateLotForCustomer(tenantID, "CUST-TRACE-LOTCON-OTHER", sku, "LOT-CN"); err != nil {
+			t.Errorf("expected an unconstrained customer to be unaffected: %v", err)
+		}
+	})
+
+	// -----------------------------------------------------------------------
 	// The regression that matters most: a warehouse with no batch-tracked item
 	// must get exactly the pick list it got before Stage 42 existed.
 	// -----------------------------------------------------------------------

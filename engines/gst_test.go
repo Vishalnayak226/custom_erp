@@ -130,15 +130,16 @@ func TestGSTEnforcement(t *testing.T) {
 		if err := PostSalesGSTBooking(tenantID, "TEST-GST-CART", breakdown); err != nil {
 			t.Fatalf("PostSalesGSTBooking: %v", err)
 		}
-		var cgst, sgst int
+		// gl_postings stores paise (Stage 45): 90 rupees CGST/SGST is 9000 paise.
+		var cgst, sgst int64
 		if err := db.DB.QueryRow("SELECT COALESCE(SUM(credit),0) FROM "+schema+".gl_postings WHERE document_id='TEST-GST-CART' AND account_code='2200'").Scan(&cgst); err != nil {
 			t.Fatalf("query cgst: %v", err)
 		}
 		if err := db.DB.QueryRow("SELECT COALESCE(SUM(credit),0) FROM "+schema+".gl_postings WHERE document_id='TEST-GST-CART' AND account_code='2201'").Scan(&sgst); err != nil {
 			t.Fatalf("query sgst: %v", err)
 		}
-		if cgst != 90 || sgst != 90 {
-			t.Fatalf("expected CGST=90 SGST=90, got cgst=%d sgst=%d", cgst, sgst)
+		if cgst != 9000 || sgst != 9000 {
+			t.Fatalf("expected CGST=9000 SGST=9000 paise, got cgst=%d sgst=%d", cgst, sgst)
 		}
 	})
 }
@@ -279,26 +280,27 @@ func TestExemptGoodsCanBeSold(t *testing.T) {
 		if err := PostExemptSalesReclass(tenantID, cartID, breakdown); err != nil {
 			t.Fatalf("PostExemptSalesReclass: %v", err)
 		}
-		balance := func(account string) int {
-			var v int
+		// gl_postings stores paise (Stage 45): every rupee figure below is x100.
+		balance := func(account string) int64 {
+			var v int64
 			if err := db.DB.QueryRow("SELECT COALESCE(SUM(credit),0) - COALESCE(SUM(debit),0) FROM "+schema+".gl_postings WHERE document_id=$1 AND account_code=$2", cartID, account).Scan(&v); err != nil {
 				t.Fatalf("query %s: %v", account, err)
 			}
 			return v
 		}
-		if got := balance("4110"); got != 100 {
-			t.Fatalf("expected 100 credited to Exempt Sales (4110), got %d", got)
+		if got := balance("4110"); got != 10000 {
+			t.Fatalf("expected 10000 paise credited to Exempt Sales (4110), got %d", got)
 		}
-		if got := balance("4111"); got != 20 {
-			t.Fatalf("expected 20 credited to Nil-Rated Sales (4111), got %d", got)
+		if got := balance("4111"); got != 2000 {
+			t.Fatalf("expected 2000 paise credited to Nil-Rated Sales (4111), got %d", got)
 		}
-		if got := balance("4112"); got != 30 {
-			t.Fatalf("expected 30 credited to Zero-Rated Sales (4112), got %d", got)
+		if got := balance("4112"); got != 3000 {
+			t.Fatalf("expected 3000 paise credited to Zero-Rated Sales (4112), got %d", got)
 		}
 		// The whole point: 4100 is left holding only taxable revenue, which is
 		// what GetGSTReturnSummary reports as the period's taxable value.
-		if got := balance("4100"); got != -150 {
-			t.Fatalf("expected 150 moved out of Sales Revenue (4100), got net %d", got)
+		if got := balance("4100"); got != -15000 {
+			t.Fatalf("expected 15000 paise moved out of Sales Revenue (4100), got net %d", got)
 		}
 	})
 

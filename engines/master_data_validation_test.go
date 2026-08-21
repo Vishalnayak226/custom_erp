@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"encoding/json"
 	"testing"
 )
 
@@ -132,5 +133,65 @@ func TestNormalizeTaxTreatment(t *testing.T) {
 		if got, ok := NormalizeTaxTreatment(raw); ok {
 			t.Errorf("NormalizeTaxTreatment(%q) = %q, true; want a rejection", raw, got)
 		}
+	}
+}
+
+// TestLottableConstraintMasterRules (Stage 42.1.7) locks down the two things
+// LottableConstraint's generic metadata pass cannot express: allowed_values
+// must name at least one real value, and (customer, item, attribute_key) is
+// unique - with item treated as part of that key even when blank, so a
+// customer-wide wildcard row and a SKU-specific override don't collide.
+func TestLottableConstraintMasterRules(t *testing.T) {
+	if db.DB == nil {
+		db.InitDB(testConnStr())
+	}
+	tenantID := "default"
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		t.Fatalf("Failed to get tenant schema: %v", err)
+	}
+	cleanup := func() {
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'LottableConstraint' AND data->>'customer' = 'CUST-LOTCON-TEST'")
+	}
+	cleanup()
+	defer cleanup()
+
+	payload := map[string]interface{}{
+		"customer": "CUST-LOTCON-TEST", "item": "SKU-LOTCON-01",
+		"attribute_key": "country_of_origin", "allowed_values": "IN,US", "status": "Active",
+	}
+	if err := ValidateMasterDataRules(tenantID, "LOTCON-TEST-01", "LottableConstraint", payload); err != nil {
+		t.Fatalf("expected a well-formed constraint to validate, got %v", err)
+	}
+
+	blank := map[string]interface{}{"customer": "CUST-LOTCON-TEST", "attribute_key": "grade", "allowed_values": " , "}
+	if err := ValidateMasterDataRules(tenantID, "LOTCON-TEST-02", "LottableConstraint", blank); err == nil {
+		t.Error("expected allowed_values with no real value to be refused")
+	}
+
+	data, _ := json.Marshal(payload)
+	if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'LottableConstraint', $2, 'Active', 'system')",
+		"LOTCON-TEST-01", data); err != nil {
+		t.Fatalf("seed constraint: %v", err)
+	}
+
+	dup := map[string]interface{}{
+		"customer": "CUST-LOTCON-TEST", "item": "SKU-LOTCON-01",
+		"attribute_key": "country_of_origin", "allowed_values": "CN",
+	}
+	if err := ValidateMasterDataRules(tenantID, "LOTCON-TEST-03", "LottableConstraint", dup); err == nil {
+		t.Error("expected a duplicate (customer, item, attribute_key) to be refused")
+	}
+
+	other := map[string]interface{}{
+		"customer": "CUST-LOTCON-TEST", "item": "SKU-LOTCON-02",
+		"attribute_key": "country_of_origin", "allowed_values": "IN",
+	}
+	if err := ValidateMasterDataRules(tenantID, "LOTCON-TEST-04", "LottableConstraint", other); err != nil {
+		t.Errorf("expected a different item to not collide: %v", err)
+	}
+
+	if err := ValidateMasterDataRules(tenantID, "LOTCON-TEST-01", "LottableConstraint", payload); err != nil {
+		t.Errorf("expected editing the same row to not collide with itself: %v", err)
 	}
 }

@@ -36,7 +36,7 @@ func TestAccountingPeriodClosesBlockPostingsAndOpenPeriodsStillWork(t *testing.T
 	}
 
 	// While the period covering today is still Open, posting must succeed.
-	if err := PostDoubleEntry(tenantID, "TestPeriodDoc", "OPEN-CHECK", map[string]int{"1100": 100}, map[string]int{"4100": 100}, "", ""); err != nil {
+	if err := PostDoubleEntry(tenantID, "TestPeriodDoc", "OPEN-CHECK", map[string]int64{"1100": 100}, map[string]int64{"4100": 100}, "", ""); err != nil {
 		t.Fatalf("expected posting to succeed while period is Open: %v", err)
 	}
 
@@ -50,7 +50,7 @@ func TestAccountingPeriodClosesBlockPostingsAndOpenPeriodsStillWork(t *testing.T
 	}
 
 	// Now that the period covering today is Closed, posting must be rejected.
-	if err := PostDoubleEntry(tenantID, "TestPeriodDoc", "CLOSED-CHECK", map[string]int{"1100": 100}, map[string]int{"4100": 100}, "", ""); err == nil {
+	if err := PostDoubleEntry(tenantID, "TestPeriodDoc", "CLOSED-CHECK", map[string]int64{"1100": 100}, map[string]int64{"4100": 100}, "", ""); err == nil {
 		t.Fatalf("expected posting to be rejected while period is Closed")
 	}
 
@@ -59,13 +59,13 @@ func TestAccountingPeriodClosesBlockPostingsAndOpenPeriodsStillWork(t *testing.T
 	// date in this test - this exercises the $1::date branch specifically,
 	// not just the CURRENT_DATE default every other call in this codebase
 	// still uses.
-	if err := PostDoubleEntry(tenantID, "TestPeriodDoc", "BACKDATED-CHECK", map[string]int{"1100": 100}, map[string]int{"4100": 100}, today.Format("2006-01-02"), ""); err == nil {
+	if err := PostDoubleEntry(tenantID, "TestPeriodDoc", "BACKDATED-CHECK", map[string]int64{"1100": 100}, map[string]int64{"4100": 100}, today.Format("2006-01-02"), ""); err == nil {
 		t.Fatalf("expected posting with an explicit transactionDate inside the closed period to be rejected")
 	}
 	// And a transactionDate outside the closed period must still be allowed
 	// even though a closed period exists at all.
 	farFuture := today.AddDate(1, 0, 0).Format("2006-01-02")
-	if err := PostDoubleEntry(tenantID, "TestPeriodDoc", "FUTURE-DATE-CHECK", map[string]int{"1100": 100}, map[string]int{"4100": 100}, farFuture, ""); err != nil {
+	if err := PostDoubleEntry(tenantID, "TestPeriodDoc", "FUTURE-DATE-CHECK", map[string]int64{"1100": 100}, map[string]int64{"4100": 100}, farFuture, ""); err != nil {
 		t.Fatalf("expected posting with a transactionDate outside the closed period to succeed: %v", err)
 	}
 

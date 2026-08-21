@@ -554,16 +554,16 @@ func TestEngines(t *testing.T) {
 		_, _ = db.DB.Exec("DELETE FROM " + schema + ".gl_postings")
 
 		// 1. Post balanced double-entry
-		debits := map[string]int{"1100": 1000}
-		credits := map[string]int{"4100": 1000}
+		debits := map[string]int64{"1100": 1000}
+		credits := map[string]int64{"4100": 1000}
 		err := PostDoubleEntry(tenantID, "TestVoucher", "V-001", debits, credits, "", "")
 		if err != nil {
 			t.Fatalf("Failed to post balanced journal entry: %v", err)
 		}
 
 		// 2. Expect failure on unbalanced entries
-		badDebits := map[string]int{"1100": 1000}
-		badCredits := map[string]int{"4100": 800}
+		badDebits := map[string]int64{"1100": 1000}
+		badCredits := map[string]int64{"4100": 800}
 		err = PostDoubleEntry(tenantID, "TestVoucher", "V-002", badDebits, badCredits, "", "")
 		if err == nil {
 			t.Errorf("Expected error when posting unbalanced journal entries, but got none")
@@ -571,8 +571,8 @@ func TestEngines(t *testing.T) {
 
 		// 24.5: a repeat call with the same postingKey (simulating a client
 		// retry after a dropped response) must not double-post.
-		idemDebits := map[string]int{"1100": 500}
-		idemCredits := map[string]int{"4100": 500}
+		idemDebits := map[string]int64{"1100": 500}
+		idemCredits := map[string]int64{"4100": 500}
 		if err := PostDoubleEntry(tenantID, "TestVoucher", "V-003", idemDebits, idemCredits, "", "TestVoucher:V-003:TEST"); err != nil {
 			t.Fatalf("first idempotent post failed: %v", err)
 		}
@@ -595,24 +595,30 @@ func TestEngines(t *testing.T) {
 		// debris or a broken posting engine (confirmed: gl_postings is
 		// wiped unconditionally for this schema at the top of this subtest,
 		// so nothing external can be contaminating it by this point).
+		//
+		// Stage 45: GetTrialBalance now returns rupees (float64) converted
+		// from the paise the ledger stores internally, and every literal
+		// debit/credit map above is now paise, so 1000+500 paise = 15.00
+		// rupees.
 		tb, err := GetTrialBalance(tenantID, allPostingsAsOf())
 		if err != nil {
 			t.Fatalf("Failed to fetch trial balance: %v", err)
 		}
 
-		if tb["balanced"].(bool) == false || tb["total_debits"].(int) != 1500 || tb["total_credits"].(int) != 1500 {
+		if tb["balanced"].(bool) == false || tb["total_debits"].(float64) != 15 || tb["total_credits"].(float64) != 15 {
 			t.Errorf("Trial balance mismatch: %+v", tb)
 		}
 
-		// 4. Test automated sales booking
+		// 4. Test automated sales booking. PostSalesFinanceBooking now takes
+		// paise (Stage 45): 5000/3000 paise = 50.00/30.00 rupees.
 		err = PostSalesFinanceBooking(tenantID, "CRT-TEST-99", 5000, 3000, "Cash", 0)
 		if err != nil {
 			t.Fatalf("Failed to post automated sales bookings: %v", err)
 		}
 
 		tbPost, _ := GetTrialBalance(tenantID, allPostingsAsOf())
-		if tbPost["total_debits"].(int) != 9500 || tbPost["total_credits"].(int) != 9500 {
-			t.Errorf("Expected total trial balance debits/credits of 9500 (1000 V-001 + 500 V-003 + 5000 sale + 3000 COGS), got: %+v", tbPost)
+		if tbPost["total_debits"].(float64) != 95 || tbPost["total_credits"].(float64) != 95 {
+			t.Errorf("Expected total trial balance debits/credits of 95 (15.00 V-001+V-003 + 50.00 sale + 30.00 COGS), got: %+v", tbPost)
 		}
 	})
 

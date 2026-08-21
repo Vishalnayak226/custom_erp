@@ -615,7 +615,7 @@ func RevalueOpenForeignItems(tenantID, asOfDate, rateType, userID string, dryRun
 			// period check applies: a revaluation dated into a closed period is
 			// exactly the write that check exists to refuse.
 			postingKey := fmt.Sprintf("%s:%s:FX_REVAL:%s", class.DocType, item.id, asOfDate)
-			if err := PostDoubleEntry(tenantID, class.DocType, item.id, debits, credits, asOfDate, postingKey,
+			if err := PostDoubleEntry(tenantID, class.DocType, item.id, PaiseMap(debits), PaiseMap(credits), asOfDate, postingKey,
 				// A revaluation moves no foreign currency at all - the customer
 				// still owes exactly the same USD - so no account carries one.
 				postingOptionsFor(position, closingRate, debits, credits, nil)); err != nil {
@@ -683,9 +683,12 @@ type FXRegisterRow struct {
 	DocumentID   string  `json:"document_id"`
 	Currency     string  `json:"currency"`
 	ExchangeRate float64 `json:"exchange_rate"`
-	Gain         int     `json:"gain"`
-	Loss         int     `json:"loss"`
-	Net          int     `json:"net"`
+	// Gain/Loss/Net are rupees (Stage 45): gl_postings.debit/credit are paise
+	// internally, converted at this report's response boundary via
+	// PaiseToRupees so the external contract is unchanged in kind.
+	Gain float64 `json:"gain"`
+	Loss float64 `json:"loss"`
+	Net  float64 `json:"net"`
 }
 
 // GetFXGainLossRegister lists every posting to the four FX accounts in a date
@@ -698,14 +701,36 @@ func GetFXGainLossRegister(tenantID, fromDate, toDate, kind string) ([]FXRegiste
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(fromDate) == "" {
-		fromDate = time.Now().UTC().AddDate(0, -3, 0).Format("2006-01-02")
+	if strings.TrimSpace(fromDate) == "" || strings.TrimSpace(toDate) == "" {
+		// Same lesson PostingDate's own comment states two functions above:
+		// reckon a time window against one clock, never a mix of two. A
+		// default window computed from Go's time.Now().UTC() disagrees with
+		// the gl_postings rows it is meant to bound, which are stamped by
+		// Postgres's own (server-local) clock - on this Asia/Calcutta
+		// deployment that mismatch is 5.5 hours wide, so "today" in UTC is
+		// still "yesterday" locally until 05:30, and a posting from the first
+		// hour of a local day would silently fall outside its own default
+		// window. Bug found live: TestFXGainLossRegisterReadsTheLedger failed
+		// deterministically when run between local midnight and 05:30,
+		// because the just-posted row's created_at was already "tomorrow" by
+		// this function's UTC-clock reckoning.
+		var today string
+		if err := db.DB.QueryRow("SELECT CURRENT_DATE::text").Scan(&today); err != nil {
+			return nil, err
+		}
+		todayT, terr := time.Parse("2006-01-02", today)
+		if terr != nil {
+			return nil, terr
+		}
+		if strings.TrimSpace(fromDate) == "" {
+			fromDate = todayT.AddDate(0, -3, 0).Format("2006-01-02")
+		}
+		if strings.TrimSpace(toDate) == "" {
+			toDate = today
+		}
 	}
 	if err := validateISODate("From Date", fromDate, true); err != nil {
 		return nil, err
-	}
-	if strings.TrimSpace(toDate) == "" {
-		toDate = time.Now().UTC().Format("2006-01-02")
 	}
 	if err := validateISODate("To Date", toDate, true); err != nil {
 		return nil, err
@@ -754,9 +779,9 @@ func GetFXGainLossRegister(tenantID, fromDate, toDate, kind string) ([]FXRegiste
 	out := []FXRegisterRow{}
 	for rows.Next() {
 		var row FXRegisterRow
-		var debit, credit int
+		var debitPaise, creditPaise int64
 		if err := rows.Scan(&row.PostedAt, &row.AccountCode, &row.AccountName, &row.DocumentType,
-			&row.DocumentID, &row.Currency, &row.ExchangeRate, &debit, &credit); err != nil {
+			&row.DocumentID, &row.Currency, &row.ExchangeRate, &debitPaise, &creditPaise); err != nil {
 			return nil, err
 		}
 		switch row.AccountCode {
@@ -769,9 +794,9 @@ func GetFXGainLossRegister(tenantID, fromDate, toDate, kind string) ([]FXRegiste
 		// balance of each is what the P&L picks up. Presented as two columns
 		// plus a net, because a register that shows only a signed number makes
 		// the reader work out the sign convention from the account name.
-		row.Gain = credit
-		row.Loss = debit
-		row.Net = credit - debit
+		row.Gain = PaiseToRupees(creditPaise)
+		row.Loss = PaiseToRupees(debitPaise)
+		row.Net = PaiseToRupees(creditPaise - debitPaise)
 		out = append(out, row)
 	}
 	return out, rows.Err()
@@ -783,7 +808,7 @@ type PresentationBalanceRow struct {
 	AccountCode  string  `json:"account_code"`
 	AccountName  string  `json:"account_name"`
 	AccountType  string  `json:"account_type"`
-	Functional   int     `json:"functional_balance"`
+	Functional   float64 `json:"functional_balance"`
 	Presentation float64 `json:"presentation_balance"`
 	Currency     string  `json:"presentation_currency"`
 	Rate         float64 `json:"rate_applied"`
@@ -840,25 +865,25 @@ func GetTrialBalanceInPresentationCurrency(tenantID, asOfDate, presentationCurre
 
 	raw, _ := json.Marshal(balance["balances"])
 	var accounts []struct {
-		Code   string `json:"account_code"`
-		Name   string `json:"account_name"`
-		Type   string `json:"account_type"`
-		Debit  int    `json:"debit"`
-		Credit int    `json:"credit"`
+		Code   string  `json:"account_code"`
+		Name   string  `json:"account_name"`
+		Type   string  `json:"account_type"`
+		Debit  float64 `json:"debit"`
+		Credit float64 `json:"credit"`
 	}
 	if err := json.Unmarshal(raw, &accounts); err != nil {
 		return nil, err
 	}
 
 	translated := []PresentationBalanceRow{}
-	var totalFunctional int
+	var totalFunctional float64
 	var totalPresentation float64
 	for _, account := range accounts {
 		net := account.Debit - account.Credit
 		if net == 0 && account.Debit == 0 && account.Credit == 0 {
 			continue
 		}
-		converted := math.Round(float64(net)*rate*100) / 100
+		converted := math.Round(net*rate*100) / 100
 		translated = append(translated, PresentationBalanceRow{
 			AccountCode: account.Code, AccountName: account.Name, AccountType: account.Type,
 			Functional: net, Presentation: converted, Currency: presentationCurrency,

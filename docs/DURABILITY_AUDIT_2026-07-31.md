@@ -29,7 +29,7 @@ shared dev database.
 | Concurrency (document IDs) | ❌ **primary keys collided under load** |
 | Race detector | ❌ never run anywhere |
 | Stored XSS | ❌ exploitable |
-| Money precision | ⚠️ architectural constraint (needs a decision) |
+| Money precision | ✅ **FIXED 2026-08-21** — full paise `BIGINT` migration (Stage 46) |
 
 ---
 
@@ -197,7 +197,11 @@ vacuous, since the whole point is to verify what the *migration* seeded.
 **Verified both ways**: green twice on a pristine database, and the legacy
 assertion still executes on a database that has the legacy rows.
 
-### 6. Stored XSS in the frontend · **NOT FIXED — needs your decision**
+### 6. Stored XSS in the frontend · **(b) FIXED 2026-08-21; (a) largely done separately; (c) still open**
+
+> **Update — 2026-08-21.** Recommendation (b) — the fast tourniquet — is done: `itemCodePattern` in `engines/master_data_validation.go`'s `validateItemMasterRules` rejects any HTML/JS metacharacter in an Item's `code` field (Stage 46). Separately, `docs/ERP_LOOPHOLES_ANALYSIS.md`'s 2026-08-20 re-evaluation recorded that recommendation (a) — an `escapeHTMLText()` helper — was built in an intervening stage and is now used at hundreds of interpolation sites, though not verified as fully exhaustive. Recommendation (c) — dropping `'unsafe-inline'` from the CSP, which needs the remaining `onclick=` attributes refactored to `addEventListener` first — remains open. See `docs/micro_checklist.md` Stage 46 for this session's part.
+
+The analysis below is preserved as written at the time of the original audit.
 
 `public/app.js` contains **283 `innerHTML` assignments** and **no HTML-escaping
 helper exists anywhere in the file**. User data is interpolated raw:
@@ -231,7 +235,11 @@ Not fixed unilaterally because the honest fix is a choice between:
 
 **Recommendation: (b) now as a fast tourniquet, then (a), then (c).**
 
-### 7. Money is 32-bit integer rupees — sub-rupee amounts are truncated · **NOT FIXED — needs your decision**
+### 7. Money is 32-bit integer rupees — sub-rupee amounts are truncated · **FIXED 2026-08-21 (Stage 46)**
+
+> **Update — 2026-08-21.** Asked directly, choosing between the cheap `math.Round` intermediate and the full paise migration described below: the user chose the full migration. `gl_postings.debit`/`.credit` are now `BIGINT` paise (`db/migrations_stage45_money_paise.sql`, additive+backfill, multi-tenant), with the truncation fixed at its actual source (`pos_checkout.go`'s per-unit price, `PostSalesGSTBooking`'s GST split) rather than only at the storage layer — a `RupeesToPaise`/`PaiseToRupees` pair in `engines/finance.go` is the one rounding rule now used throughout. External API/report contract deliberately unchanged (rupees, converted at each response boundary), so `public/app.js` needed zero edits. Verified against a from-scratch throwaway database: the exact ₹999/18%-GST example below now posts ₹179.82 of tax, not ₹178. Full detail in `docs/micro_checklist.md` Stage 46 and `docs/project_ledger.md` §109. **Not yet applied to the production database** — that is a deliberate, separate step pending the user's go-ahead (see Stage 46.7), since it mutates existing financial data in place.
+
+The analysis below is preserved as written at the time of the original audit.
 
 `gl_postings.debit` / `.credit` are **`INT`** (32-bit, scale 0). The General
 Ledger cannot represent fractional currency at all, and `PostSalesFinanceBooking`
@@ -316,9 +324,9 @@ to a security gate that found nothing.
 
 ## Recommended order of work
 
-1. **Validate Item code/SKU charset server-side** — finding 6, tourniquet, hours.
-2. **Decide the money representation** — finding 7. Hardest to defer; gets worse yearly.
+1. ~~**Validate Item code/SKU charset server-side** — finding 6, tourniquet, hours.~~ ✅ **DONE 2026-08-21** (Stage 46).
+2. ~~**Decide the money representation** — finding 7. Hardest to defer; gets worse yearly.~~ ✅ **DONE 2026-08-21** — full paise migration built and verified; production deploy still pending the user's go-ahead (Stage 46.7).
 3. **Watch the first `-race` CI run** — finding 3. It may surface real races.
 4. **Make the test suite self-contained** — finding 5, so a fresh environment can go green.
-5. Escape the `innerHTML` sites, then retire `'unsafe-inline'` — finding 6, (a) and (c).
+5. Retire `'unsafe-inline'` — finding 6, (c). (a) is largely done separately per `ERP_LOOPHOLES_ANALYSIS.md`'s 2026-08-20 note, not independently re-verified here.
 6. Refresh `x/crypto`; align `go.mod` / CI / local Go versions.

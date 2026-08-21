@@ -4,8 +4,41 @@ import (
 	"custom_erp/db"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 )
+
+// RupeesToPaise and PaiseToRupees (Stage 45) are the one rounding rule for
+// every rupee<->paise conversion in the codebase. gl_postings.debit/credit
+// store paise (int64, no fractional loss); every API/report response
+// converts back to rupees at the boundary so the external contract - and
+// public/app.js's existing money formatting - is unchanged. Converting
+// straight from the original float (never from an already-truncated int)
+// is what actually fixes the GST-truncation bug this migration exists for.
+func RupeesToPaise(r float64) int64 {
+	return int64(math.Round(r * 100))
+}
+
+func PaiseToRupees(p int64) float64 {
+	return float64(p) / 100
+}
+
+// PaiseMap mechanically scales an already-whole-rupee debit/credit map to
+// paise for PostDoubleEntry (Stage 45). For a subsystem whose internal
+// arithmetic is deliberately kept in whole rupees - because it carries
+// cross-period persisted state (FX revaluation's cumulative unrealised
+// balance) or its inputs are already whole-rupee by the business domain
+// (payroll, TDS, settlements) - reworking that arithmetic to invent
+// fractional precision it never validated would be a bigger, riskier change
+// than this migration's scope. RupeesToPaise is for a genuine float64
+// source instead; use it when one exists this close to the posting.
+func PaiseMap(rupees map[string]int) map[string]int64 {
+	paise := make(map[string]int64, len(rupees))
+	for k, v := range rupees {
+		paise[k] = int64(v) * 100
+	}
+	return paise
+}
 
 // PostingOptions carries optional per-posting metadata that doesn't affect
 // the debit/credit balance check itself (Stage 26.6.8).
@@ -54,7 +87,7 @@ type PostingOptions struct {
 // dimension, not per-line (this function's debits/credits maps already
 // aggregate by account_code, so a per-line dimension isn't representable
 // without restructuring that aggregation). Only the first element is used.
-func PostDoubleEntry(tenantID string, docType string, docID string, debits map[string]int, credits map[string]int, transactionDate string, postingKey string, opts ...PostingOptions) error {
+func PostDoubleEntry(tenantID string, docType string, docID string, debits map[string]int64, credits map[string]int64, transactionDate string, postingKey string, opts ...PostingOptions) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
@@ -77,12 +110,12 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 		departmentArg = opt.Department
 	}
 
-	sumDebits := 0
+	sumDebits := int64(0)
 	for _, val := range debits {
 		sumDebits += val
 	}
 
-	sumCredits := 0
+	sumCredits := int64(0)
 	for _, val := range credits {
 		sumCredits += val
 	}
@@ -125,7 +158,7 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 	// posting, which keeps every pre-37.1.2 row and every single-currency
 	// tenant's rows byte-identical to what they are today.
 	currencyArg, rateArg := currencyPostingArgs(tenantID, opt)
-	transactionAmount := func(source map[string]float64, code string, functional int) interface{} {
+	transactionAmount := func(source map[string]float64, code string, functional int64) interface{} {
 		if currencyArg == nil {
 			return nil
 		}
@@ -229,30 +262,42 @@ func GetTrialBalance(tenantID, asOfDate string) (map[string]interface{}, error) 
 	}
 	defer rows.Close()
 
+	type accountBalancePaise struct {
+		Code   string
+		Name   string
+		Type   string
+		Debit  int64
+		Credit int64
+	}
 	type AccountBalance struct {
-		Code   string `json:"account_code"`
-		Name   string `json:"account_name"`
-		Type   string `json:"account_type"`
-		Debit  int    `json:"debit"`
-		Credit int    `json:"credit"`
+		Code   string  `json:"account_code"`
+		Name   string  `json:"account_name"`
+		Type   string  `json:"account_type"`
+		Debit  float64 `json:"debit"`
+		Credit float64 `json:"credit"`
 	}
 
 	var balances []AccountBalance
-	totalDebits := 0
-	totalCredits := 0
+	totalDebitsPaise := int64(0)
+	totalCreditsPaise := int64(0)
 
 	for rows.Next() {
-		var b AccountBalance
+		var b accountBalancePaise
 		err := rows.Scan(&b.Code, &b.Name, &b.Type, &b.Debit, &b.Credit)
 		if err != nil {
 			return nil, err
 		}
-		totalDebits += b.Debit
-		totalCredits += b.Credit
-		balances = append(balances, b)
+		totalDebitsPaise += b.Debit
+		totalCreditsPaise += b.Credit
+		balances = append(balances, AccountBalance{
+			Code: b.Code, Name: b.Name, Type: b.Type,
+			Debit: PaiseToRupees(b.Debit), Credit: PaiseToRupees(b.Credit),
+		})
 	}
 
-	balanced := totalDebits == totalCredits
+	totalDebits := PaiseToRupees(totalDebitsPaise)
+	totalCredits := PaiseToRupees(totalCreditsPaise)
+	balanced := totalDebitsPaise == totalCreditsPaise
 	var statusMsg string
 	if balanced {
 		statusMsg = "Balanced trial ledger"
@@ -270,14 +315,18 @@ func GetTrialBalance(tenantID, asOfDate string) (map[string]interface{}, error) 
 	}, nil
 }
 
-// PostGRNFinanceBooking creates dynamic financial postings for warehouse receiving
+// PostGRNFinanceBooking creates dynamic financial postings for warehouse
+// receiving. amount is rupees; converted to paise at this boundary since
+// this function has no caller anywhere in the repo today (dead code) and so
+// no upstream float to convert from instead.
 func PostGRNFinanceBooking(tenantID string, grnID string, amount int) error {
 	if amount <= 0 {
 		return errors.New("GRN transaction value must be positive")
 	}
 
-	debits := map[string]int{"1200": amount}  // Debit: Inventory Control Account
-	credits := map[string]int{"2100": amount} // Credit: GRN Suspense Account
+	amountPaise := RupeesToPaise(float64(amount))
+	debits := map[string]int64{"1200": amountPaise}  // Debit: Inventory Control Account
+	credits := map[string]int64{"2100": amountPaise} // Credit: GRN Suspense Account
 
 	return PostDoubleEntry(tenantID, "GRN", grnID, debits, credits, "", fmt.Sprintf("GRN:%s:RECEIPT", grnID))
 }
@@ -299,7 +348,7 @@ func paymentModeClearingAccount(paymentMode string) string {
 // PostSalesFinanceBooking creates dynamic financial postings for sales cart checkout.
 // paymentMode selects which GL clearing account the sale settles into
 // (Stage 20.9) - previously every mode posted to 1100 regardless.
-// loyaltyDiscount (Stage 30.2.5) is the rupee value of loyalty points the
+// loyaltyDiscount (Stage 30.2.5) is the paise value of loyalty points the
 // customer paid with. Revenue is still credited at the full sale value - the
 // goods were sold for that price, and the GST posting on top of this one is
 // computed on that same value - but the debit side splits: only the cash
@@ -307,7 +356,12 @@ func paymentModeClearingAccount(paymentMode string) string {
 // hits 5250 (Loyalty Points Redeemed), where the cost of the loyalty programme
 // belongs. Pass 0 for a sale with no redemption and the postings are
 // byte-for-byte what they always were.
-func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int, costPrice int, paymentMode string, loyaltyDiscount int) error {
+//
+// salePrice/costPrice/loyaltyDiscount are paise (Stage 45), not rupees - the
+// caller is expected to convert from its own float64 rupee amount via
+// RupeesToPaise before calling, so precision survives from the original
+// float all the way into the ledger instead of being floor-truncated here.
+func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int64, costPrice int64, paymentMode string, loyaltyDiscount int64) error {
 	if salePrice <= 0 || costPrice <= 0 {
 		return errors.New("sales and cost prices must be positive")
 	}
@@ -322,22 +376,22 @@ func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int, 
 	}
 
 	// 1. Post Revenue Bookings
-	revenueDebits := map[string]int{}
+	revenueDebits := map[string]int64{}
 	if cash := salePrice - loyaltyDiscount; cash > 0 {
 		revenueDebits[paymentModeClearingAccount(paymentMode)] = cash // Debit: Cash/Card/UPI clearing account
 	}
 	if loyaltyDiscount > 0 {
 		revenueDebits["5250"] = loyaltyDiscount // Debit: Loyalty Points Redeemed (5250)
 	}
-	revenueCredits := map[string]int{"4100": salePrice} // Credit: Sales Revenue Account
+	revenueCredits := map[string]int64{"4100": salePrice} // Credit: Sales Revenue Account
 	err := PostDoubleEntry(tenantID, "POSCart", checkoutID, revenueDebits, revenueCredits, "", fmt.Sprintf("POSCart:%s:SALE_REVENUE", checkoutID))
 	if err != nil {
 		return err
 	}
 
 	// 2. Post COGS / Inventory Bookings
-	cogsDebits := map[string]int{"5100": costPrice}  // Debit: Cost of Goods Sold Account
-	cogsCredits := map[string]int{"1200": costPrice} // Credit: Inventory Control Account
+	cogsDebits := map[string]int64{"5100": costPrice}  // Debit: Cost of Goods Sold Account
+	cogsCredits := map[string]int64{"1200": costPrice} // Credit: Inventory Control Account
 	return PostDoubleEntry(tenantID, "POSCart", checkoutID, cogsDebits, cogsCredits, "", fmt.Sprintf("POSCart:%s:SALE_COGS", checkoutID))
 }
 
@@ -349,25 +403,27 @@ func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int, 
 // taxable (net-of-tax) amount - Cash (1100) still holds the full amount
 // actually collected, unchanged.
 func PostSalesGSTBooking(tenantID, checkoutID string, breakdown GSTBreakdown) error {
-	// Round each component to int first, then sum those - not the other way
+	// Round each component to paise first, then sum those - not the other way
 	// around - so the debit side below always exactly matches what the
-	// credit side actually posts (independent per-component truncation
-	// could otherwise leave the two off by a rupee and fail PostDoubleEntry's
-	// balance check).
-	intCGST := int(breakdown.CGST)
-	intSGST := int(breakdown.SGST)
-	intIGST := int(breakdown.IGST)
-	totalTax := intCGST + intSGST + intIGST
+	// credit side actually posts (independent per-component rounding could
+	// otherwise leave the two off by a paisa and fail PostDoubleEntry's
+	// balance check). Stage 45: paise via RupeesToPaise, not int() truncation
+	// - this is the exact spot the durability audit's finding #7 named as
+	// where GST output-tax liability was silently understated.
+	paiseCGST := RupeesToPaise(breakdown.CGST)
+	paiseSGST := RupeesToPaise(breakdown.SGST)
+	paiseIGST := RupeesToPaise(breakdown.IGST)
+	totalTax := paiseCGST + paiseSGST + paiseIGST
 	if totalTax <= 0 {
 		return nil
 	}
-	debits := map[string]int{"4100": totalTax}
-	credits := map[string]int{}
+	debits := map[string]int64{"4100": totalTax}
+	credits := map[string]int64{}
 	if breakdown.Interstate {
-		credits["2202"] = intIGST // GST Output Payable - IGST
+		credits["2202"] = paiseIGST // GST Output Payable - IGST
 	} else {
-		credits["2200"] = intCGST // GST Output Payable - CGST
-		credits["2201"] = intSGST // GST Output Payable - SGST
+		credits["2200"] = paiseCGST // GST Output Payable - CGST
+		credits["2201"] = paiseSGST // GST Output Payable - SGST
 	}
 	return PostDoubleEntry(tenantID, "POSCart", checkoutID, debits, credits, "", fmt.Sprintf("POSCart:%s:SALE_GST", checkoutID))
 }
@@ -390,27 +446,27 @@ func PostSalesGSTBooking(tenantID, checkoutID string, breakdown GSTBreakdown) er
 // nil-rated and exempt, and GSTR-3B reports zero-rated in 3.1(b) separately
 // from exempt+nil in 3.1(c).
 func PostExemptSalesReclass(tenantID, checkoutID string, breakdown GSTBreakdown) error {
-	// Truncate each bucket to int first and sum those, for the same reason
-	// PostSalesGSTBooking does: summing first and truncating after can leave
-	// the debit a rupee off the credits and fail PostDoubleEntry's balance
+	// Round each bucket to paise first and sum those, for the same reason
+	// PostSalesGSTBooking does: summing first and rounding after can leave
+	// the debit a paisa off the credits and fail PostDoubleEntry's balance
 	// check.
-	intExempt := int(breakdown.ExemptAmount)
-	intNilRated := int(breakdown.NilRatedAmount)
-	intZeroRated := int(breakdown.ZeroRatedAmount)
-	total := intExempt + intNilRated + intZeroRated
+	paiseExempt := RupeesToPaise(breakdown.ExemptAmount)
+	paiseNilRated := RupeesToPaise(breakdown.NilRatedAmount)
+	paiseZeroRated := RupeesToPaise(breakdown.ZeroRatedAmount)
+	total := paiseExempt + paiseNilRated + paiseZeroRated
 	if total <= 0 {
 		return nil
 	}
-	debits := map[string]int{"4100": total}
-	credits := map[string]int{}
-	if intExempt > 0 {
-		credits["4110"] = intExempt // Exempt Sales Revenue
+	debits := map[string]int64{"4100": total}
+	credits := map[string]int64{}
+	if paiseExempt > 0 {
+		credits["4110"] = paiseExempt // Exempt Sales Revenue
 	}
-	if intNilRated > 0 {
-		credits["4111"] = intNilRated // Nil-Rated Sales Revenue
+	if paiseNilRated > 0 {
+		credits["4111"] = paiseNilRated // Nil-Rated Sales Revenue
 	}
-	if intZeroRated > 0 {
-		credits["4112"] = intZeroRated // Zero-Rated Sales Revenue
+	if paiseZeroRated > 0 {
+		credits["4112"] = paiseZeroRated // Zero-Rated Sales Revenue
 	}
 	return PostDoubleEntry(tenantID, "POSCart", checkoutID, debits, credits, "", fmt.Sprintf("POSCart:%s:SALE_EXEMPT", checkoutID))
 }

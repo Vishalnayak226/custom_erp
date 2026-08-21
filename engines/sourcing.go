@@ -53,11 +53,11 @@ func FindBestFulfillmentNode(tenantID string, items []map[string]interface{}) (s
 			sku, _ := item["sku"].(string)
 			reqQty, _ := item["qty"].(int)
 
-			var available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer int
+			var available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held int
 			err = db.DB.QueryRow(fmt.Sprintf(`
-				SELECT available, reserved, safety_stock, blocked, qc_hold, damaged, channel_buffer
+				SELECT available, reserved, safety_stock, blocked, qc_hold, damaged, channel_buffer, hold_qty
 				FROM %s.inventory_availability
-				WHERE sku = $1 AND location_code = $2`, schema), sku, loc).Scan(&available, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer)
+				WHERE sku = $1 AND location_code = $2`, schema), sku, loc).Scan(&available, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer, &held)
 			if err == sql.ErrNoRows {
 				hasAllItems = false
 				break
@@ -65,7 +65,7 @@ func FindBestFulfillmentNode(tenantID string, items []map[string]interface{}) (s
 				return "", err
 			}
 
-			ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer)
+			ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 			if ats < reqQty {
 				hasAllItems = false
 				break
@@ -148,13 +148,13 @@ func qualifyingLocations(schema string, items []map[string]interface{}) ([]candi
 			sku, _ := item["sku"].(string)
 			reqQty, _ := item["qty"].(int)
 
-			var available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer int
+			var available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held int
 			var updatedAt time.Time
 			err := db.DB.QueryRow(fmt.Sprintf(`
-				SELECT available, reserved, safety_stock, blocked, qc_hold, damaged, channel_buffer, updated_at
+				SELECT available, reserved, safety_stock, blocked, qc_hold, damaged, channel_buffer, hold_qty, updated_at
 				FROM %s.inventory_availability
 				WHERE sku = $1 AND location_code = $2`, schema), sku, loc,
-			).Scan(&available, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer, &updatedAt)
+			).Scan(&available, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer, &held, &updatedAt)
 			if err == sql.ErrNoRows {
 				hasAll = false
 				break
@@ -162,7 +162,7 @@ func qualifyingLocations(schema string, items []map[string]interface{}) ([]candi
 				return nil, err
 			}
 
-			ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer)
+			ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 			if ats < reqQty {
 				hasAll = false
 				break

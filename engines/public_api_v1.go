@@ -188,7 +188,7 @@ func ListPublicInventory(tenantID, sku, locationCode string) ([]PublicInventoryL
 		locationClause = " AND location_code = $2"
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT sku, location_code, available, reserved,
-		safety_stock, blocked, qc_hold, damaged, channel_buffer, updated_at
+		safety_stock, blocked, qc_hold, damaged, channel_buffer, hold_qty, updated_at
 		FROM %s.inventory_availability WHERE sku = $1%s ORDER BY location_code`, schema, locationClause), args...)
 	if err != nil {
 		return nil, err
@@ -197,15 +197,15 @@ func ListPublicInventory(tenantID, sku, locationCode string) ([]PublicInventoryL
 	out := []PublicInventoryLevel{}
 	for rows.Next() {
 		var level PublicInventoryLevel
-		var available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer int
+		var available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held int
 		var updatedAt sql.NullTime
 		if err := rows.Scan(&level.SKU, &level.LocationCode, &available, &reserved, &safetyStock,
-			&blocked, &qcHold, &damaged, &channelBuffer, &updatedAt); err != nil {
+			&blocked, &qcHold, &damaged, &channelBuffer, &held, &updatedAt); err != nil {
 			return nil, err
 		}
 		// The same computeATS choke point every internal caller uses, so a
 		// public read can never disagree with what the order path will accept.
-		level.Available = computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer)
+		level.Available = computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 		if level.Available < 0 {
 			level.Available = 0
 		}

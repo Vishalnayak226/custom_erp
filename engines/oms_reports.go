@@ -447,7 +447,7 @@ func getStockMismatchReport(tenantID string, params map[string]string) ([]map[st
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT sku, location_code, on_hand, available, reserved, safety_stock, blocked, qc_hold, damaged, channel_buffer
+		SELECT sku, location_code, on_hand, available, reserved, safety_stock, blocked, qc_hold, damaged, channel_buffer, hold_qty
 		FROM %s.inventory_availability`, schema))
 	if err != nil {
 		return nil, err
@@ -456,11 +456,11 @@ func getStockMismatchReport(tenantID string, params map[string]string) ([]map[st
 	var results []map[string]interface{}
 	for rows.Next() {
 		var sku, location string
-		var onHand, available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer int
-		if err := rows.Scan(&sku, &location, &onHand, &available, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer); err != nil {
+		var onHand, available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held int
+		if err := rows.Scan(&sku, &location, &onHand, &available, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer, &held); err != nil {
 			return nil, err
 		}
-		ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer)
+		ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 		if ats >= 0 {
 			continue
 		}

@@ -79,8 +79,6 @@ func PayVendorInvoiceWithTDS(tenantID, invoiceID, sectionCode, userID string) (n
 	if amount <= 0 {
 		return 0, 0, fmt.Errorf("invoice_amount must be positive to pay")
 	}
-	amountInt := int(amount)
-
 	tdsF, netF, err := CalculateTDS(tenantID, sectionCode, amount)
 	if err != nil {
 		return 0, 0, err
@@ -92,8 +90,8 @@ func PayVendorInvoiceWithTDS(tenantID, invoiceID, sectionCode, userID string) (n
 	// GL posted before the status flip commits, so a posting failure leaves
 	// the invoice untouched (this tx rolls back) rather than marked Paid
 	// with no posting behind it.
-	debits := map[string]int{"2100": amountInt}
-	credits := map[string]int{"1100": netPaid, "2300": tdsAmount}
+	debits := map[string]int64{"2100": RupeesToPaise(amount)}
+	credits := map[string]int64{"1100": RupeesToPaise(netF), "2300": RupeesToPaise(tdsF)}
 	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, debits, credits, "", fmt.Sprintf("VendorInvoice:%s:PAY_TDS", invoiceID)); err != nil {
 		return 0, 0, fmt.Errorf("GL posting failed, invoice not marked Paid: %v", err)
 	}

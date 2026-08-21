@@ -42,10 +42,16 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 		return err
 	}
 
-	var location, binStatus string
+	var location, binStatus, binOpState, binZone string
+	var maxQty, maxWeight, maxVolume float64
 	err = tx.QueryRow(fmt.Sprintf(
-		`SELECT data->>'location', status FROM %s.documents WHERE doctype = 'Bin' AND data->>'bin_code' = $1`, schema),
-		binCode).Scan(&location, &binStatus)
+		`SELECT data->>'location', status, COALESCE(data->>'bin_status', ''),
+		        COALESCE(NULLIF(data->>'capacity', '')::numeric, 0),
+		        COALESCE(NULLIF(data->>'max_weight', '')::numeric, 0),
+		        COALESCE(NULLIF(data->>'max_volume', '')::numeric, 0),
+		        COALESCE(data->>'zone', '')
+		 FROM %s.documents WHERE doctype = 'Bin' AND data->>'bin_code' = $1`, schema),
+		binCode).Scan(&location, &binStatus, &binOpState, &maxQty, &maxWeight, &maxVolume, &binZone)
 	if err == sql.ErrNoRows {
 		return fmt.Errorf("bin %s not found", binCode)
 	} else if err != nil {
@@ -53,6 +59,22 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 	}
 	if binStatus != "Active" {
 		return fmt.Errorf("bin %s is not Active", binCode)
+	}
+	// Stage 42.2.6: bin_status is the bin's OPERATIONAL state, distinct from
+	// the Active/Inactive record-status check above - a bin can be an Active
+	// record and still be temporarily unavailable for placement. Blank (every
+	// bin before this Stage, and any bin that never sets it) is treated as
+	// Available.
+	if binOpState == "Blocked" || binOpState == "Full" || binOpState == "Counting" {
+		return fmt.Errorf("bin %s is %s and cannot receive putaway right now", binCode, binOpState)
+	}
+	// Stage 42.3.9: hazmat compatibility. A hazmat-classified item (anything
+	// other than blank/None) may only be placed in a zone that has opted in
+	// (Zone.hazmat_allowed = Yes) - the same field 42.2.5 added and defaults
+	// every pre-existing/auto-created zone to, so a tenant that never
+	// classifies an item as hazmat sees no change in behavior at all.
+	if err := checkHazmatCompatibility(tx, schema, sku, binZone, binCode); err != nil {
+		return err
 	}
 
 	var onHand int
@@ -74,6 +96,10 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 	if alreadyBinned+qty > onHand {
 		return fmt.Errorf("putaway qty exceeds unassigned on-hand stock at %s (on_hand=%d, already binned=%d, requested=%d)",
 			location, onHand, alreadyBinned, qty)
+	}
+
+	if err := enforceBinCapacity(tx, schema, binCode, sku, qty, maxQty, maxWeight, maxVolume); err != nil {
+		return err
 	}
 
 	if _, err := tx.Exec(fmt.Sprintf(`
@@ -99,6 +125,87 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 	}
 	LogAuditEvent(tenantID, userID, "WMS_PUTAWAY", "SUCCESS", fmt.Sprintf("Put away %d x %s into bin %s", qty, sku, binCode))
 	logTaskCompletion(tenantID, "Putaway", userID, location, binCode, float64(qty))
+	// Stage 42.2.2: additive WarehouseTask retrofit - a real queue/cockpit
+	// record alongside the productivity log above, never a gate on the
+	// putaway itself.
+	LogCompletedWarehouseTask(tenantID, NewWarehouseTask{
+		TaskType: "Putaway", LocationCode: location, ToBin: binCode, Item: sku, Qty: float64(qty),
+	}, userID)
+	return nil
+}
+
+// enforceBinCapacity (Stage 42.2.6) refuses a putaway that would push a
+// bin's contents past whichever of max_qty/max_weight/max_volume are
+// actually configured on it - zero/unset on all three (every bin before
+// this Stage) is a no-op, so PutawayToBin's behaviour is unchanged until a
+// tenant opts a bin into capacity tracking. Runs inside PutawayToBin's own
+// transaction so the check and the insert that follows it see the same
+// snapshot of bin_stock.
+func enforceBinCapacity(tx *sql.Tx, schema, binCode, sku string, addQty int, maxQty, maxWeight, maxVolume float64) error {
+	if maxQty <= 0 && maxWeight <= 0 && maxVolume <= 0 {
+		return nil
+	}
+	var curQty, curWeight, curVolume float64
+	if err := tx.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(SUM(bs.qty), 0),
+		       COALESCE(SUM(bs.qty * COALESCE(NULLIF(i.data->>'weight', '')::numeric, 0)), 0),
+		       COALESCE(SUM(bs.qty * COALESCE(NULLIF(i.data->>'volume', '')::numeric, 0)), 0)
+		FROM %s.bin_stock bs
+		LEFT JOIN %s.documents i ON i.doctype = 'Item' AND i.data->>'code' = bs.sku
+		WHERE bs.bin_code = $1`, schema, schema), binCode).Scan(&curQty, &curWeight, &curVolume); err != nil {
+		return err
+	}
+	var itemWeight, itemVolume float64
+	if err := tx.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(NULLIF(data->>'weight', '')::numeric, 0), COALESCE(NULLIF(data->>'volume', '')::numeric, 0)
+		FROM %s.documents WHERE doctype = 'Item' AND data->>'code' = $1`, schema), sku).Scan(&itemWeight, &itemVolume); err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	newQty := curQty + float64(addQty)
+	newWeight := curWeight + float64(addQty)*itemWeight
+	newVolume := curVolume + float64(addQty)*itemVolume
+	if maxQty > 0 && newQty > maxQty {
+		return fmt.Errorf("putaway would leave bin %s holding %.0f units, over its capacity of %.0f", binCode, newQty, maxQty)
+	}
+	if maxWeight > 0 && newWeight > maxWeight {
+		return fmt.Errorf("putaway would leave bin %s holding %.2f weight units, over its max_weight of %.2f", binCode, newWeight, maxWeight)
+	}
+	if maxVolume > 0 && newVolume > maxVolume {
+		return fmt.Errorf("putaway would leave bin %s holding %.2f volume units, over its max_volume of %.2f", binCode, newVolume, maxVolume)
+	}
+	return nil
+}
+
+// checkHazmatCompatibility (Stage 42.3.9) refuses a putaway of a
+// hazmat-classified item (Item.hazmat_class not blank/None) into a bin whose
+// zone has not opted into hazmat storage (Zone.hazmat_allowed != Yes). A bin
+// with no zone set, or a zone with no hazmat_allowed value, is left exactly
+// as validateBinMasterRules/the Zone migration already default it -
+// hazmat_allowed defaults to Yes on every auto-created zone, so this is a
+// no-op for any tenant that never classifies an item as hazmat, and only
+// bites for a zone someone has explicitly marked hazmat_allowed = No.
+func checkHazmatCompatibility(tx *sql.Tx, schema, sku, binZone, binCode string) error {
+	var hazmatClass string
+	if err := tx.QueryRow(fmt.Sprintf(
+		`SELECT COALESCE(data->>'hazmat_class', '') FROM %s.documents WHERE doctype = 'Item' AND data->>'code' = $1`, schema),
+		sku).Scan(&hazmatClass); err != nil && err != sql.ErrNoRows {
+		return err
+	}
+	if hazmatClass == "" || hazmatClass == "None" || binZone == "" {
+		return nil
+	}
+	var hazmatAllowed string
+	if err := tx.QueryRow(fmt.Sprintf(
+		`SELECT COALESCE(data->>'hazmat_allowed', 'Yes') FROM %s.documents WHERE doctype = 'Zone' AND data->>'code' = $1 AND status = 'Active'`, schema),
+		binZone).Scan(&hazmatAllowed); err != nil {
+		if err == sql.ErrNoRows {
+			return nil // no matching Zone master - validateBinMasterRules already covers that gap
+		}
+		return err
+	}
+	if hazmatAllowed != "Yes" {
+		return fmt.Errorf("item %s is classified %s - bin %s is in zone %s, which does not allow hazmat storage", sku, hazmatClass, binCode, binZone)
+	}
 	return nil
 }
 
@@ -116,6 +223,14 @@ type PickListLine struct {
 	// every warehouse that has not opted into traceability.
 	BatchNo    string `json:"batch_no,omitempty"`
 	ExpiryDate string `json:"expiry_date,omitempty"`
+	// Stage 42.1.10: PickQty stays in eaches always - allocation, bin_stock and
+	// every existing reader all assume that unit. PickUOM/PickQtyInUOM are a
+	// pure display convenience for a task whose line requested one ("pick 2
+	// CASE" reads better than "pick 24 EA" on a floor where cases are how
+	// people count) and are both empty when the task named no UOM, which is
+	// every task created before this Stage.
+	PickUOM      string  `json:"pick_uom,omitempty"`
+	PickQtyInUOM float64 `json:"pick_qty_in_uom,omitempty"`
 }
 
 // GenerateBinPickList (20.18) builds a bin-grouped, walk-route-sorted (by
@@ -142,6 +257,10 @@ func GenerateBinPickList(tenantID, taskID string) ([]PickListLine, error) {
 		Items        []struct {
 			Sku string `json:"sku"`
 			Qty int    `json:"qty"`
+			// Stage 42.1.10: optional pick-display UOM, e.g. "CASE". Blank for
+			// every task created before this Stage, and for any caller that
+			// still just wants eaches.
+			PickUOM string `json:"pick_uom"`
 		} `json:"items"`
 	}
 	if err := json.Unmarshal([]byte(dataStr), &task); err != nil {
@@ -176,10 +295,21 @@ func GenerateBinPickList(tenantID, taskID string) ([]PickListLine, error) {
 			return a.BatchNo < b.BatchNo
 		})
 		for _, c := range candidates {
-			lines = append(lines, PickListLine{
+			line := PickListLine{
 				Sku: item.Sku, BinCode: c.BinCode, Zone: c.Zone, Aisle: c.Aisle, Rack: c.Rack,
 				PickQty: c.Qty, BatchNo: c.BatchNo, ExpiryDate: c.ExpiryDate,
-			})
+			}
+			// Display-only: a conversion that isn't defined is silently
+			// skipped rather than failing the pick line - a picker missing a
+			// "how many cases is that" hint still has the real eaches qty to
+			// work from, and must never be blocked from picking real stock
+			// because a UOM master row happens to be missing.
+			if item.PickUOM != "" {
+				if inUOM, err := ConvertUOMQty(tenantID, item.Sku, float64(c.Qty), "EA", item.PickUOM); err == nil {
+					line.PickUOM, line.PickQtyInUOM = item.PickUOM, inUOM
+				}
+			}
+			lines = append(lines, line)
 		}
 		if shortfall > 0 {
 			lines = append(lines, PickListLine{Sku: item.Sku, BinCode: "", PickQty: 0, Shortfall: shortfall})
@@ -443,6 +573,11 @@ func PostCycleCountAdjustment(tenantID, lineID, userID string) error {
 		LogSystemError(tenantID, "", "WARN", "PostCycleCountAdjustment", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
 	}
 	logTaskCompletion(tenantID, "CycleCount", userID, location, lineID, 1)
+	// Stage 42.2.2: additive WarehouseTask retrofit.
+	LogCompletedWarehouseTask(tenantID, NewWarehouseTask{
+		TaskType: "Count", LocationCode: location, Item: sku, Qty: float64(variance),
+		SourceDocType: "CycleCountLine", SourceDocID: lineID,
+	}, userID)
 	return nil
 }
 

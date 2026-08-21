@@ -67,6 +67,33 @@ func handleCrossDockPutaway(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"staged": staged, "opportunities": opportunities})
 }
 
+// handlePlannedCrossDockPutaway (Stage 42.3.8) is the ahead-of-time
+// counterpart to handleCrossDockPutaway above - stages against an already-
+// Planned CrossDockPlan instead of scanning for live opportunistic demand.
+func handlePlannedCrossDockPutaway(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	var req struct {
+		Sku          string `json:"sku"`
+		LocationCode string `json:"location_code"`
+		Qty          int    `json:"qty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Sku == "" || req.LocationCode == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'sku' and 'location_code' are required")
+		return
+	}
+	staged, planID, err := engines.PlannedCrossDockPutaway(tenantID, req.Sku, req.LocationCode, req.Qty, userID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"staged": staged, "plan_id": planID})
+}
+
 func handleLPNAssign(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")

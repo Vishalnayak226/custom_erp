@@ -535,8 +535,8 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 	}
 
 	if costReceivedTotal > 0 {
-		inventoryDebits := map[string]int{"1200": int(costReceivedTotal)}
-		inventoryCredits := map[string]int{"5100": int(costReceivedTotal)}
+		inventoryDebits := map[string]int64{"1200": RupeesToPaise(costReceivedTotal)}
+		inventoryCredits := map[string]int64{"5100": RupeesToPaise(costReceivedTotal)}
 		if err := PostDoubleEntry(tenantID, "ReturnRequest", returnRequestID, inventoryDebits, inventoryCredits, "", ""); err != nil {
 			return refundTotal, refundRequestID, err
 		}
@@ -627,17 +627,17 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 	if data["status"] != "Approved" {
 		return fmt.Errorf("refund request %s is not Approved (currently %v)", refundRequestID, data["status"])
 	}
-	amount := 0
+	amountF := 0.0
 	switch v := data["amount"].(type) {
 	case float64:
-		amount = int(v)
+		amountF = v
 	case int:
-		amount = v
+		amountF = float64(v)
 	}
 	returnRequestID, _ := data["return_request_id"].(string)
 
-	revenueDebits := map[string]int{"4100": amount}
-	revenueCredits := map[string]int{"1100": amount}
+	revenueDebits := map[string]int64{"4100": RupeesToPaise(amountF)}
+	revenueCredits := map[string]int64{"1100": RupeesToPaise(amountF)}
 	if err := PostDoubleEntry(tenantID, "RefundRequest", refundRequestID, revenueDebits, revenueCredits, "", ""); err != nil {
 		return err
 	}
@@ -657,7 +657,7 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 			if errSave := saveReturnRequest(schema, returnRequestID, rrData, "Closed"); errSave == nil {
 				DispatchNotification(tenantID, "Refund Processed", originalOrderID, map[string]string{
 					"return_request_id": returnRequestID, "refund_request_id": refundRequestID,
-					"amount": fmt.Sprintf("%d", amount),
+					"amount": fmt.Sprintf("%d", int(amountF)),
 				})
 			}
 		}

@@ -62,12 +62,13 @@ func TestJournalVoucherLifecycle(t *testing.T) {
 			t.Fatalf("expected status Posted after approval, got %s", status)
 		}
 
-		var debit, credit int
+		// gl_postings stores paise (Stage 45): a 777-rupee line is 77700 paise.
+		var debit, credit int64
 		if err := db.DB.QueryRow("SELECT COALESCE(SUM(debit),0), COALESCE(SUM(credit),0) FROM "+schema+".gl_postings WHERE document_type='JournalVoucher' AND document_id=$1", voucherID).Scan(&debit, &credit); err != nil {
 			t.Fatalf("query gl_postings: %v", err)
 		}
-		if debit != 777 || credit != 777 {
-			t.Fatalf("expected gl_postings debit=777 credit=777, got debit=%d credit=%d", debit, credit)
+		if debit != 77700 || credit != 77700 {
+			t.Fatalf("expected gl_postings debit=77700 credit=77700, got debit=%d credit=%d", debit, credit)
 		}
 
 		reversalID, err := ReverseJournalVoucher(tenantID, voucherID, "admin")

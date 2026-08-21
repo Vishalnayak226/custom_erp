@@ -108,10 +108,11 @@ func GetCostCenterPL(tenantID, startDate, endDate string) ([]map[string]interfac
 	var out []map[string]interface{}
 	for rows.Next() {
 		var costCenter, accountType string
-		var amount float64
-		if err := rows.Scan(&costCenter, &accountType, &amount); err != nil {
+		var amountPaise int64
+		if err := rows.Scan(&costCenter, &accountType, &amountPaise); err != nil {
 			return nil, err
 		}
+		amount := PaiseToRupees(amountPaise)
 		if accountType == "Revenue" {
 			totals[costCenter] += amount
 		} else {

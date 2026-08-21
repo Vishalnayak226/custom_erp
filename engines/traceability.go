@@ -211,14 +211,8 @@ func batchFromData(docID, dataStr, status string) BatchInfo {
 	if out.Status == "" {
 		out.Status, _ = data["status"].(string)
 	}
-	if raw, _ := data["attributes"].(string); strings.TrimSpace(raw) != "" {
-		var attrs map[string]interface{}
-		if err := json.Unmarshal([]byte(raw), &attrs); err == nil {
-			out.Attributes = map[string]string{}
-			for k, v := range attrs {
-				out.Attributes[k] = strings.TrimSpace(fmt.Sprintf("%v", v))
-			}
-		}
+	if raw, _ := data["attributes"].(string); raw != "" {
+		out.Attributes = parseBatchAttributes(raw)
 	}
 	return out
 }
@@ -645,11 +639,32 @@ func GetBatchStock(tenantID, sku, locationCode, batchNo string) ([]BatchStockRow
 
 // Allocation strategy values. 42.2.8 promotes these to an AllocationStrategy
 // master; naming them here first means that item changes where the value comes
-// from, not what the values are.
+// from, not what the values are. FEFO is deliberately not selectable through
+// AllocationStrategy - it is ResolveAllocationStrategy's own hard rule for a
+// batch-tracked item, not a preference a tenant can configure away (see the
+// migration's own note).
 const (
-	StrategyFIFO = "FIFO"
-	StrategyFEFO = "FEFO"
+	StrategyFIFO          = "FIFO"
+	StrategyFEFO          = "FEFO"
+	StrategyLIFO          = "LIFO"
+	StrategyNearestBin    = "NearestBin"
+	StrategyFewestPicks   = "FewestPicks"
+	StrategyCleanLocation = "CleanLocation"
 )
+
+// allocationOrderFragments (42.2.8) maps each AllocationStrategy-selectable
+// token to the ORDER BY clause allocateByOrder splices in - a closed
+// whitelist (validateAllocationStrategyMasterRules checks against the same
+// map), never string-interpolated tenant text. "zone_pick_seq" is a column
+// alias allocateByOrder's own query always selects (via a LEFT JOIN to
+// Zone), so NearestBin needs no special-cased query shape.
+var allocationOrderFragments = map[string]string{
+	StrategyFIFO:          "bs.updated_at ASC",
+	StrategyLIFO:          "bs.updated_at DESC",
+	StrategyNearestBin:    "zone_pick_seq ASC, bs.updated_at ASC",
+	StrategyFewestPicks:   "bs.qty DESC",
+	StrategyCleanLocation: "bs.qty ASC",
+}
 
 // ResolveAllocationStrategy answers which rotation rule applies to one SKU.
 //
@@ -659,6 +674,12 @@ const (
 // stock actually carries an expiry. An item declared batch-tracked is allocated
 // by expiry even if today's stock has none, because the answer must not flip
 // between two waves just because one lot happened to be dated.
+//
+// Stage 42.2.8: a batch-tracked item's FEFO answer is still unconditional -
+// checked BEFORE looking at any configured AllocationStrategy, so that
+// master can never be used to bypass the expiry gate. Only a non-batch-
+// tracked item's default (previously always FIFO, hardcoded) is now
+// overridable by a configured strategy.
 func ResolveAllocationStrategy(tenantID, sku string) string {
 	tracking, err := GetItemTracking(tenantID, sku)
 	if err != nil {
@@ -667,7 +688,43 @@ func ResolveAllocationStrategy(tenantID, sku string) string {
 	if tracking.TracksBatch() {
 		return StrategyFEFO
 	}
+	if configured := resolveConfiguredAllocationStrategy(tenantID, sku); configured != "" {
+		return configured
+	}
 	return StrategyFIFO
+}
+
+// resolveConfiguredAllocationStrategy looks up the Active AllocationStrategy
+// for sku (falling back to the blank-item "applies to every non-batch-
+// tracked item" row), returning "" when neither exists - the caller's
+// unconditional FIFO default. Errors are swallowed in favour of that
+// default for the same reason resolveDispatchOrder swallows them: a
+// malformed or missing strategy must never block allocation.
+func resolveConfiguredAllocationStrategy(tenantID, sku string) string {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return ""
+	}
+	var strategy string
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT data->>'strategy' FROM %s.documents
+		WHERE doctype = 'AllocationStrategy' AND COALESCE(status, '') = 'Active'
+		  AND data->>'item' = $1
+		LIMIT 1`, schema), sku).Scan(&strategy)
+	if err == sql.ErrNoRows {
+		err = db.DB.QueryRow(fmt.Sprintf(`
+			SELECT data->>'strategy' FROM %s.documents
+			WHERE doctype = 'AllocationStrategy' AND COALESCE(status, '') = 'Active'
+			  AND COALESCE(data->>'item', '') = ''
+			LIMIT 1`, schema)).Scan(&strategy)
+	}
+	if err != nil {
+		return ""
+	}
+	if _, ok := allocationOrderFragments[strategy]; !ok {
+		return ""
+	}
+	return strategy
 }
 
 // AllocationCandidate is one "take this much of this lot, from this bin"
@@ -690,32 +747,43 @@ type AllocationCandidate struct {
 // for the stock that IS there - the same judgement GenerateBinPickList made in
 // Stage 20.18.
 //
-// This is the single choke point both pick-list generators now call, so a
-// future strategy (LIFO, nearest-bin, fewest-picks - 42.2.8) is added in one
-// place and every caller inherits it.
+// This is the single choke point both pick-list generators now call, so
+// 42.2.8's strategies (LIFO, nearest-bin, fewest-picks, clean-location) are
+// added in one place and every caller inherits them.
 func AllocateFromStock(tenantID, sku, locationCode string, needed int) (allocated []AllocationCandidate, shortfall int, err error) {
 	if needed <= 0 {
 		return nil, 0, nil
 	}
-	if ResolveAllocationStrategy(tenantID, sku) == StrategyFEFO {
+	strategy := ResolveAllocationStrategy(tenantID, sku)
+	if strategy == StrategyFEFO {
 		return allocateFEFO(tenantID, sku, locationCode, needed)
 	}
-	return allocateFIFO(tenantID, sku, locationCode, needed)
+	orderBy, ok := allocationOrderFragments[strategy]
+	if !ok {
+		orderBy = allocationOrderFragments[StrategyFIFO]
+	}
+	return allocateByOrder(tenantID, sku, locationCode, needed, orderBy)
 }
 
-// allocateFIFO is Stage 26.5.6's original rule, unchanged: oldest-binned stock
-// first, by bin_stock.updated_at ascending.
-func allocateFIFO(tenantID, sku, locationCode string, needed int) ([]AllocationCandidate, int, error) {
+// allocateByOrder (42.2.8, generalising 26.5.6's original allocateFIFO) is
+// the one query every non-FEFO strategy shares - only the ORDER BY clause
+// changes. zone_pick_seq is always selected (a LEFT JOIN to the bin's
+// Zone), so NearestBin needs no special-cased query, only a different
+// fragment from allocationOrderFragments; every other strategy's ORDER BY
+// simply ignores that column.
+func allocateByOrder(tenantID, sku, locationCode string, needed int, orderBy string) ([]AllocationCandidate, int, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, needed, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT bs.bin_code, bs.qty, COALESCE(b.data->>'zone', ''), COALESCE(b.data->>'aisle', ''), COALESCE(b.data->>'rack', '')
+		SELECT bs.bin_code, bs.qty, COALESCE(b.data->>'zone', ''), COALESCE(b.data->>'aisle', ''), COALESCE(b.data->>'rack', ''),
+		       COALESCE(NULLIF(z.data->>'pick_sequence', '')::int, 999999) AS zone_pick_seq
 		FROM %s.bin_stock bs
 		LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
+		LEFT JOIN %s.documents z ON z.doctype = 'Zone' AND z.status = 'Active' AND z.data->>'code' = b.data->>'zone'
 		WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.qty > 0
-		ORDER BY bs.updated_at ASC`, schema, schema), sku, locationCode)
+		ORDER BY %s`, schema, schema, schema, orderBy), sku, locationCode)
 	if err != nil {
 		return nil, needed, err
 	}
@@ -725,8 +793,8 @@ func allocateFIFO(tenantID, sku, locationCode string, needed int) ([]AllocationC
 	remaining := needed
 	for rows.Next() && remaining > 0 {
 		var c AllocationCandidate
-		var available int
-		if err := rows.Scan(&c.BinCode, &available, &c.Zone, &c.Aisle, &c.Rack); err != nil {
+		var available, zonePickSeq int
+		if err := rows.Scan(&c.BinCode, &available, &c.Zone, &c.Aisle, &c.Rack, &zonePickSeq); err != nil {
 			return nil, needed, err
 		}
 		take := available
@@ -893,6 +961,42 @@ func ValidateReceiptBatchLine(tenantID, sku, batchNo, expiryDate string) error {
 		return nil
 	}
 	return ValidateBatchForReceipt(tracking, sku, batchNo, expiryDate)
+}
+
+// ValidateReceiptCatchWeightLine (Stage 42.3.7) requires an actual weight on
+// any received line whose Item is flagged is_catch_weight = Yes - a nominal
+// qty means nothing for an item billed/stocked by variable actual weight
+// (meat, produce, cable-by-the-reel), so a receipt that omits it is a real
+// data gap, not an optional nicety.
+func ValidateReceiptCatchWeightLine(tenantID, sku string, actualWeight *float64) error {
+	if strings.TrimSpace(sku) == "" {
+		return nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var isCatchWeight string
+	if err := db.DB.QueryRow(fmt.Sprintf(
+		`SELECT COALESCE(data->>'is_catch_weight', 'No') FROM %s.documents WHERE doctype = 'Item' AND data->>'code' = $1`, schema),
+		sku).Scan(&isCatchWeight); err != nil {
+		if err == sql.ErrNoRows {
+			return nil // Item existence is enforced elsewhere (META-0198)
+		}
+		return err
+	}
+	if isCatchWeight == "Yes" && (actualWeight == nil || *actualWeight <= 0) {
+		// GLOBAL-0002, not a new GOODSR-* code: error_catalog_generated.go is
+		// generated from ERP_Standard_Message_Control_Matrix_Final.xlsx (DO
+		// NOT EDIT BY HAND) - a code writeAPIErrorDetail can't find in that
+		// map falls back to a bare 500 with no log line at all (confirmed
+		// live: this returned GLOBAL-0302 until this was changed), so a new
+		// business-rule check reuses an existing catalog code exactly the
+		// way every other Stage 42.3 validator in this file already does.
+		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Actual Weight", Message: fmt.Sprintf(
+			"item %s is a catch weight item - every received line must carry an actual_weight greater than zero", sku)}
+	}
+	return nil
 }
 
 // ValidateBatchForReceipt is the shelf-life half of the inbound gate: a
@@ -1179,6 +1283,165 @@ func GetBatchMovementHistory(tenantID, sku, batchNo string) ([]RecallMovementRow
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// ---------------------------------------------------------------------------
+// 42.1.7 - outbound lottable validation (Infor §16).
+//
+// Batch.attributes has carried arbitrary lottable JSON since 42.1.2
+// ({"country_of_origin": "IN", "grade": "A"}); what was missing was a master
+// to declare which values a customer's contract actually requires, and a
+// check that reads it. LottableConstraint is that master: one row is
+// (customer, item-or-blank-for-all, attribute_key, allowed_values). A blank
+// item applies the rule to every SKU that customer buys, matching the plan's
+// "per-customer/per-order" framing without forcing a duplicate row per SKU.
+//
+// Scope decision, stated plainly because it is the one a reader will
+// question: this lands as ValidateLotForCustomer, a single-lot choke point
+// wired into the manual/RF batch-consume path (handleBatchConsume), the same
+// "expressed for one already-chosen lot" shape ValidateBatchForIssue already
+// has. It is deliberately NOT pushed down into AllocateFromStock's FEFO query
+// to pre-filter which lots a pick list even offers. Doing that right needs a
+// customer identity threaded through GenerateBinPickList/GenerateWavePickList,
+// and the wave path (wms_picking.go) deliberately erases per-task identity
+// before allocation - it pools demand by SKU across every task in the wave
+// before a single lot is chosen, precisely so one wave can serve many orders
+// with one query. Threading a single customer through that pool is a real
+// design question (whose constraint wins when two customers in the same wave
+// disagree?), not a filter to bolt on under time pressure - it belongs with
+// 42.2's task-spine retrofit, the same deferral this phase already made for
+// automatic batch consumption at pick-scan.
+// ---------------------------------------------------------------------------
+
+// lottableConstraint is one Active LottableConstraint row, resolved down to
+// what the check actually needs.
+type lottableConstraint struct {
+	AttributeKey  string
+	AllowedValues []string
+}
+
+// parseBatchAttributes turns a Batch document's raw `attributes` JSON string
+// (the Data field 42.1.2 defined) into a flat map. Shared by batchFromData
+// and the lottable check below so the two can never parse it differently.
+func parseBatchAttributes(raw string) map[string]string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var attrs map[string]interface{}
+	if err := json.Unmarshal([]byte(raw), &attrs); err != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for k, v := range attrs {
+		out[k] = strings.TrimSpace(fmt.Sprintf("%v", v))
+	}
+	return out
+}
+
+// fetchLottableConstraints returns the Active constraints that apply to one
+// (customer, sku) pair - both the SKU-specific rows and the customer's
+// blank-item ("applies to everything I buy") rows. An empty customer or no
+// matching rows returns (nil, nil), which is the fast path every caller that
+// doesn't know a customer, or whose customer has no contract on file, takes.
+func fetchLottableConstraints(tenantID, customer, sku string) ([]lottableConstraint, error) {
+	if strings.TrimSpace(customer) == "" {
+		return nil, nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT data->>'attribute_key', COALESCE(data->>'allowed_values', '')
+		FROM %s.documents
+		WHERE doctype = 'LottableConstraint' AND COALESCE(status, '') = 'Active'
+		  AND data->>'customer' = $1
+		  AND (COALESCE(data->>'item', '') = '' OR data->>'item' = $2)`, schema), customer, sku)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []lottableConstraint
+	for rows.Next() {
+		var key, valsRaw string
+		if err := rows.Scan(&key, &valsRaw); err != nil {
+			return nil, err
+		}
+		var vals []string
+		for _, v := range strings.Split(valsRaw, ",") {
+			if v = strings.TrimSpace(v); v != "" {
+				vals = append(vals, v)
+			}
+		}
+		if key != "" && len(vals) > 0 {
+			out = append(out, lottableConstraint{AttributeKey: key, AllowedValues: vals})
+		}
+	}
+	return out, rows.Err()
+}
+
+// satisfiesLottableConstraints reports whether attrs (a batch's lottable
+// attributes) matches every constraint, and names the first attribute that
+// doesn't - a missing key fails the same as a wrong value, because a
+// constraint the batch never recorded is exactly as unverifiable as one it
+// contradicts.
+func satisfiesLottableConstraints(attrs map[string]string, constraints []lottableConstraint) (bool, string) {
+	for _, c := range constraints {
+		val, ok := attrs[c.AttributeKey]
+		if !ok {
+			return false, c.AttributeKey
+		}
+		matched := false
+		for _, allowed := range c.AllowedValues {
+			if strings.EqualFold(val, allowed) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false, c.AttributeKey
+		}
+	}
+	return true, ""
+}
+
+// ValidateLotForCustomer is the single-lot expression of 42.1.7's outbound
+// lottable check - the same relationship ValidateBatchForIssue has to the
+// FEFO query's expiry filter, applied to a customer's contract instead of a
+// shelf-life minimum. A blank customer or blank batch number is a no-op, so
+// every caller that doesn't (yet) know its customer is unaffected.
+//
+// Reuses INVENT-0114 ("Reserved stock blocked" / "This stock is reserved for
+// another order and cannot be used") rather than adding a new catalog code -
+// the message matrix is machine-generated from an xlsx and not hand-editable,
+// and the sentence already fits: a lot that fails a customer's lottable
+// contract is stock this order cannot use, exactly as reserved stock is.
+func ValidateLotForCustomer(tenantID, customer, sku, batchNo string) error {
+	if strings.TrimSpace(customer) == "" || strings.TrimSpace(batchNo) == "" {
+		return nil
+	}
+	constraints, err := fetchLottableConstraints(tenantID, customer, sku)
+	if err != nil {
+		return err
+	}
+	if len(constraints) == 0 {
+		return nil
+	}
+	batch, err := GetBatch(tenantID, sku, batchNo)
+	if err != nil {
+		return err
+	}
+	if batch == nil {
+		// Not registered - ValidateBatchForIssue's INVENT-0115 already owns
+		// that rejection, so this is a no-op rather than a second complaint.
+		return nil
+	}
+	if ok, failedKey := satisfiesLottableConstraints(batch.Attributes, constraints); !ok {
+		return &ValidationError{Code: "INVENT-0114", Message: fmt.Sprintf(
+			"batch %s of %s does not satisfy customer %s's %q requirement - this lot cannot be issued against this order",
+			batchNo, sku, customer, failedKey)}
+	}
+	return nil
 }
 
 // sortBatchStockByExpiry orders a batch-stock slice earliest-expiry-first with

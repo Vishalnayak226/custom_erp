@@ -18,10 +18,15 @@ import (
 // 26.5.8: Cartonization at pack step
 // ------------------------------------------------------------------
 
-// CartonizationItem is one sku/qty line to be split across boxes.
+// CartonizationItem is one sku/qty line to be split across boxes. UOM is
+// Stage 42.1.10's addition: optional, and blank means exactly what it always
+// meant before that Stage existed - qty is already in eaches. When set, qty
+// is converted to its each-equivalent via ConvertUOMQty before packing, so a
+// caller can hand this function "2 CASE of SKU-X" as naturally as "24 EA".
 type CartonizationItem struct {
 	Sku string `json:"sku"`
 	Qty int    `json:"qty"`
+	UOM string `json:"uom,omitempty"`
 }
 
 // SuggestedCarton is one box in a cartonization suggestion - shaped so it
@@ -59,6 +64,17 @@ func SuggestCartonization(tenantID, cartonTypeCode string, items []Cartonization
 
 	sorted := make([]CartonizationItem, len(items))
 	copy(sorted, items)
+	for i := range sorted {
+		if sorted[i].UOM == "" {
+			continue
+		}
+		eaches, err := ConvertUOMQty(tenantID, sorted[i].Sku, float64(sorted[i].Qty), sorted[i].UOM, "EA")
+		if err != nil {
+			return nil, err
+		}
+		sorted[i].Qty = int(eaches)
+		sorted[i].UOM = ""
+	}
 	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Qty > sorted[j].Qty })
 
 	var boxes []SuggestedCarton

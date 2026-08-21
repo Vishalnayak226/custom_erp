@@ -36,6 +36,37 @@ func handlePutaway(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
+// handlePlaceHold (Stage 42.3.5) is the only creation path for a Hold
+// document - role-open like handlePutaway, since PlaceHold's own checks
+// (Active hold code, qty vs on-hand) are the real gate, not who is allowed
+// to call it.
+func handlePlaceHold(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	var req struct {
+		HoldCode     string `json:"hold_code"`
+		Sku          string `json:"sku"`
+		LocationCode string `json:"location_code"`
+		BatchNo      string `json:"batch_no"`
+		Qty          int    `json:"qty"`
+		Reason       string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.HoldCode == "" || req.Sku == "" || req.LocationCode == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'hold_code', 'sku' and 'location_code' are required")
+		return
+	}
+	holdID, err := engines.PlaceHold(tenantID, req.HoldCode, req.Sku, req.LocationCode, req.BatchNo, req.Qty, req.Reason, userID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "id": holdID})
+}
+
 func handlePickList(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
@@ -107,6 +138,17 @@ func handlePickScan(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
+	// Stage 42.2.2: additive WarehouseTask retrofit, done from the handler
+	// (which has Resolved-User-ID) rather than inside ScanPickItem itself,
+	// which deliberately keeps its existing signature - see
+	// FulfillmentTaskLocationCode's own comment for why.
+	if loc, lerr := engines.FulfillmentTaskLocationCode(tenantID, req.TaskID); lerr == nil {
+		userID := r.Header.Get("Resolved-User-ID")
+		engines.LogCompletedWarehouseTask(tenantID, engines.NewWarehouseTask{
+			TaskType: "Pick", LocationCode: loc, Item: sku, Qty: 1,
+			SourceDocType: "FulfillmentTask", SourceDocID: req.TaskID,
+		}, userID)
+	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"sku": sku, "picked_qty": pickedQty})
 }
 
@@ -152,26 +194,6 @@ func handleShortPick(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "short_picked"})
-}
-
-func handlePackComplete(w http.ResponseWriter, r *http.Request) {
-	tenantID := r.Header.Get("Resolved-Tenant-ID")
-	if r.Method != http.MethodPost {
-		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
-		return
-	}
-	var req struct {
-		TaskID string `json:"task_id"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TaskID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'task_id' is required")
-		return
-	}
-	if err := engines.CompletePackTask(tenantID, req.TaskID); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "packed"})
 }
 
 func handlePackTransferOrder(w http.ResponseWriter, r *http.Request) {

@@ -64,11 +64,26 @@ func FinalizePOSCheckout(tenantID, cartNumber, correlationID string) (saleTotal 
 	}
 
 	itemsInterface := make([]interface{}, len(cart.Items))
-	totalSale, totalCost := 0, 0
+	// Stage 45: paise totals for the ledger/receipt, computed straight from
+	// each line's own float64 price - not from a whole-rupee int() truncated
+	// before the qty multiply, which is the exact leak the 2026-07-31
+	// durability audit's finding #7 named (a fractional-rupee item lost its
+	// fraction on every unit sold, not just once per sale).
+	//
+	// totalSaleRupees/totalCostRupees stay the OLD truncating computation,
+	// unchanged, because the loyalty points economy (redemption cap,
+	// ReverseLoyaltyRedemption, EarnLoyaltyPoints below) is denominated in
+	// whole rupees by its own rupees_per_point setting and is not part of
+	// this migration - recomputing it from the precise paise total instead
+	// would shift point-earning behavior, which is a separate decision.
+	totalSalePaise, totalCostPaise := int64(0), int64(0)
+	totalSaleRupees, totalCostRupees := 0, 0
 	for i, item := range cart.Items {
 		itemsInterface[i] = map[string]interface{}{"sku": item.Sku, "qty": -item.Qty}
-		totalSale += int(item.SalePrice) * item.Qty
-		totalCost += int(item.CostPrice) * item.Qty
+		totalSalePaise += RupeesToPaise(item.SalePrice) * int64(item.Qty)
+		totalCostPaise += RupeesToPaise(item.CostPrice) * int64(item.Qty)
+		totalSaleRupees += int(item.SalePrice) * item.Qty
+		totalCostRupees += int(item.CostPrice) * item.Qty
 	}
 
 	negativeEvents, err := PostInventoryLedgerWithVoucher(tenantID, cart.Location, itemsInterface, cart.OfflineSynced, "POSInvoice", cartNumber, cashier)
@@ -93,15 +108,15 @@ func FinalizePOSCheckout(tenantID, cartNumber, correlationID string) (saleTotal 
 			markFailed()
 			return 0, 0, err
 		}
-		if loyaltyDiscount > totalSale {
+		if loyaltyDiscount > totalSaleRupees {
 			// Cap rather than reject: the points were already accepted, and a
 			// customer covering more than the bill simply pays nothing. The
 			// unused remainder goes straight back.
-			if errBack := ReverseLoyaltyRedemption(tenantID, cart.CustomerID, loyaltyDiscount-totalSale, cartNumber); errBack != nil {
+			if errBack := ReverseLoyaltyRedemption(tenantID, cart.CustomerID, loyaltyDiscount-totalSaleRupees, cartNumber); errBack != nil {
 				LogSystemError(tenantID, correlationID, "ERROR", "/api/v1/checkout",
-					fmt.Sprintf("cart %s: could not return %d over-redeemed loyalty point(s): %v", cartNumber, loyaltyDiscount-totalSale, errBack), "")
+					fmt.Sprintf("cart %s: could not return %d over-redeemed loyalty point(s): %v", cartNumber, loyaltyDiscount-totalSaleRupees, errBack), "")
 			}
-			loyaltyDiscount = totalSale
+			loyaltyDiscount = totalSaleRupees
 		}
 	}
 	failAndRefundPoints := func(wrapped error) (float64, float64, error) {
@@ -122,7 +137,8 @@ func FinalizePOSCheckout(tenantID, cartNumber, correlationID string) (saleTotal 
 		// review/reconcile (e.g. against the next GRN), never silently lost.
 		recordOfflineSyncVariance(tenantID, cartNumber, negativeEvents)
 	}
-	if err = PostSalesFinanceBooking(tenantID, cartNumber, totalSale, totalCost, cart.PaymentMode, loyaltyDiscount); err != nil {
+	loyaltyDiscountPaise := RupeesToPaise(float64(loyaltyDiscount))
+	if err = PostSalesFinanceBooking(tenantID, cartNumber, totalSalePaise, totalCostPaise, cart.PaymentMode, loyaltyDiscountPaise); err != nil {
 		return failAndRefundPoints(fmt.Errorf("GL booking failed: %v", err))
 	}
 	if err = PostSalesGSTBooking(tenantID, cartNumber, cart.GSTBreakdown); err != nil {
@@ -146,12 +162,12 @@ func FinalizePOSCheckout(tenantID, cartNumber, correlationID string) (saleTotal 
 	// what EarnLoyaltyPoints' own contract already asked its callers for -
 	// there was simply no redemption on a cart to net off until Stage 30.2.5.
 	if cart.CustomerID != "" {
-		if errEarn := EarnLoyaltyPoints(tenantID, cart.CustomerID, totalSale-loyaltyDiscount, cartNumber); errEarn != nil {
+		if errEarn := EarnLoyaltyPoints(tenantID, cart.CustomerID, totalSaleRupees-loyaltyDiscount, cartNumber); errEarn != nil {
 			LogSystemError(tenantID, correlationID, "LOYALTY_EARN_FAILED", "/api/v1/checkout", errEarn.Error(), "")
 		}
 	}
 
-	return float64(totalSale), float64(totalCost), nil
+	return PaiseToRupees(totalSalePaise), PaiseToRupees(totalCostPaise), nil
 }
 
 // recordOfflineSyncVariance (20.13) writes one POSOfflineSyncVariance

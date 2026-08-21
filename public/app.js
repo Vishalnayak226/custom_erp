@@ -1659,28 +1659,12 @@ const VIEW_SETUP_PREREQS = {
   'stickers': ['Item']
 };
 
-// A dismissal lasts for the browser session only. Deliberate: sessionStorage,
-// not localStorage. "Not always" was the ask - but a permanent dismissal would
-// mean a user who clicks x once never learns the module is unconfigured again,
-// which is how a half-set-up ERP stays half set up.
-const SETUP_BANNER_DISMISS_KEY = 'erp_setup_banner_dismissed';
-
-function setupBannerDismissed(view) {
-  try {
-    return (JSON.parse(sessionStorage.getItem(SETUP_BANNER_DISMISS_KEY) || '[]')).includes(view);
-  } catch (e) { return false; }
-}
-
-window.dismissSetupBanner = function (view) {
-  try {
-    const list = JSON.parse(sessionStorage.getItem(SETUP_BANNER_DISMISS_KEY) || '[]');
-    if (!list.includes(view)) list.push(view);
-    sessionStorage.setItem(SETUP_BANNER_DISMISS_KEY, JSON.stringify(list));
-  } catch (e) { /* storage unavailable - the banner just won't stay dismissed */ }
-  const el = document.getElementById('setup-banner');
-  if (el) el.remove();
-};
-
+// Stage 45: no dismiss. Previously a click on the banner's x hid it for the
+// rest of the browser session (sessionStorage) - the user asked for that to
+// go away entirely: as long as a screen's prerequisites are genuinely unmet,
+// the banner is not something the user should be able to make disappear
+// while the underlying gap is still there, every visit.
+//
 // renderSetupBanner prepends the banner to a rendered view when that view's
 // prerequisites are not met. Called from renderView, so no screen has to
 // remember to do it.
@@ -1689,7 +1673,6 @@ function renderSetupBanner(view) {
   if (!root || !state.setupStatus.loaded) return;
   const existing = document.getElementById('setup-banner');
   if (existing) existing.remove();
-  if (setupBannerDismissed(view)) return;
 
   const prereqs = (VIEW_SETUP_PREREQS[view] || [])
     .filter(dt => state.setupStatus.byDoctype[dt])
@@ -1707,9 +1690,6 @@ function renderSetupBanner(view) {
         ${prereqs.map(dt => `<li>${setupHintHTML(dt, 'missing')}</li>`).join('')}
       </ul>
     </div>
-    <button type="button" class="setup-banner-close" aria-label="Dismiss" onclick="dismissSetupBanner('${view}')">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-    </button>
   `;
   root.insertBefore(banner, root.firstChild);
 }
@@ -2293,6 +2273,10 @@ const MENU_PERMISSION_MAP = {
   // separately from Store Manager/Cashier/HR-Admin") - { open: true } here
   // matches that actual server behavior rather than inventing a UI-only gate.
   'menu-putaway': { open: true },
+  // Stage 42.2.10: same role-open convention as the rest of the WMS
+  // floor-ops screens (handlers_warehouse_task.go's cockpit route has no
+  // role_permissions check either).
+  'menu-warehouse-cockpit': { open: true },
   'menu-bin-conditions': { open: true },
   'menu-cycle-count': { open: true },
   // Stage 26.5: same role-open convention as the rest of the WMS floor-ops
@@ -2305,6 +2289,28 @@ const MENU_PERMISSION_MAP = {
   'menu-wave-picking': { open: true },
   'menu-mobile-picking': { open: true },
   'menu-stickers': { open: true },
+  // Stage 42.3: DockDoor/Trailer/HoldCode/Hold/HoldReleaseRequest all ride
+  // the generic doctype-table screen, gated by the doctype's own
+  // role_permissions exactly like menu-bins/menu-asn above. Appointment and
+  // YardCheckIn have dedicated screens (calendar / yard board) but are
+  // gated the same way since both still read/write through the generic
+  // /api/v1/doc/{doctype} endpoint underneath.
+  'menu-dock-doors': { doctypes: ['DockDoor'] },
+  'menu-appointments': { doctypes: ['Appointment'] },
+  'menu-yard-board': { doctypes: ['YardCheckIn'] },
+  'menu-trailers': { doctypes: ['Trailer'] },
+  'menu-hold-codes': { doctypes: ['HoldCode'] },
+  'menu-holds': { doctypes: ['Hold'] },
+  'menu-place-hold': { open: true },
+  'menu-hold-release-requests': { doctypes: ['HoldReleaseRequest'] },
+  'menu-crossdock-plans': { doctypes: ['CrossDockPlan'] },
+  'menu-rf-receiving': { doctypes: ['GRN'] },
+  // Stage 42.4: same "gated by the doctype's own role_permissions" pattern
+  // as the Stage 42.3 rows above - Sortation/Loading read/write through the
+  // generic /api/v1/doc/{doctype} endpoint underneath their dedicated screens.
+  'menu-waves': { doctypes: ['Wave'] },
+  'menu-sortation': { doctypes: ['SortSlot'] },
+  'menu-loading': { doctypes: ['LoadingTask'] },
 
   'menu-hr': { doctypes: ['Employee'] },
   'menu-assets': { open: true },
@@ -2351,6 +2357,8 @@ const MENU_PERMISSION_MAP = {
 // Stage 27 alongside the older featureGate integration flags.
 const MENU_MODULE_MAP = {
   'menu-putaway': 'wms',
+  'menu-warehouse-cockpit': 'wms',
+  'menu-place-hold': 'wms',
   'menu-bin-conditions': 'wms',
   'menu-cycle-count': 'wms',
   'menu-lpn': 'wms',
@@ -2820,6 +2828,14 @@ function setupEventListeners() {
     renderView('reports');
   });
 
+  document.getElementById('menu-knowledge-center').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-knowledge-center');
+    closeSubmenus();
+    currentHelpSlug = '';
+    renderView('help');
+  });
+
   document.getElementById('menu-rfq').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-rfq');
@@ -2922,13 +2938,29 @@ function setupEventListeners() {
   // Bin (Stage 20.16) - same generic doctype-table pattern as POS Profile/Vendors above.
   document.getElementById('menu-bins').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-bins'); closeSubmenus(); currentDoctype = 'Bin'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
+  // Stage 42.3.1/42.3.4/42.3.5: masters/logs on the generic doctype-table
+  // pattern, same as Bin above.
+  document.getElementById('menu-dock-doors').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-dock-doors'); closeSubmenus(); currentDoctype = 'DockDoor'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+  document.getElementById('menu-trailers').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-trailers'); closeSubmenus(); currentDoctype = 'Trailer'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+  document.getElementById('menu-hold-codes').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-hold-codes'); closeSubmenus(); currentDoctype = 'HoldCode'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+  document.getElementById('menu-holds').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-holds'); closeSubmenus(); currentDoctype = 'Hold'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+  document.getElementById('menu-hold-release-requests').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-hold-release-requests'); closeSubmenus(); currentDoctype = 'HoldReleaseRequest'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+  document.getElementById('menu-crossdock-plans').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-crossdock-plans'); closeSubmenus(); currentDoctype = 'CrossDockPlan'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+  document.getElementById('menu-rf-receiving').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-rf-receiving'); closeSubmenus(); renderView('rf-receiving'); });
+  document.getElementById('menu-waves').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-waves'); closeSubmenus(); currentDoctype = 'Wave'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
+  document.getElementById('menu-sortation').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-sortation'); closeSubmenus(); renderView('sortation'); });
+  document.getElementById('menu-loading').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-loading'); closeSubmenus(); renderView('loading-dock'); });
+  document.getElementById('menu-appointments').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-appointments'); closeSubmenus(); renderView('appointment-calendar'); });
+  document.getElementById('menu-yard-board').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-yard-board'); closeSubmenus(); renderView('yard-board'); });
+  document.getElementById('menu-place-hold').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-place-hold'); closeSubmenus(); renderView('place-hold'); });
+
   // Offline Sync Review (Stage 20.13) - same generic doctype-table pattern as POS Profile/Bin above.
   document.getElementById('menu-pos-offline-sync').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-sync'); closeSubmenus(); currentDoctype = 'POSOfflineSyncVariance'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
   // Offline Queue Gaps (24.36) - same generic doctype-table pattern as Offline Sync Review above.
   document.getElementById('menu-pos-offline-gaps').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-gaps'); closeSubmenus(); currentDoctype = 'POSOfflineQueueGap'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
+  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-warehouse-cockpit', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -3616,8 +3648,15 @@ const STATIC_VIEW_MENU_IDS = {
 	oms: 'menu-oms',
   approvals: 'menu-approvals',
   reports: 'menu-reports',
+  help: 'menu-knowledge-center',
   rfq: 'menu-rfq',
   stickers: 'menu-stickers',
+  'appointment-calendar': 'menu-appointments',
+  'yard-board': 'menu-yard-board',
+  'place-hold': 'menu-place-hold',
+  'rf-receiving': 'menu-rf-receiving',
+  sortation: 'menu-sortation',
+  'loading-dock': 'menu-loading',
   hr: 'menu-hr',
   assets: 'menu-assets',
   expenses: 'menu-expenses',
@@ -3631,6 +3670,7 @@ const STATIC_VIEW_MENU_IDS = {
   inventory: 'menu-inventory',
   transfers: 'menu-transfers',
   putaway: 'menu-putaway',
+  'warehouse-cockpit': 'menu-warehouse-cockpit',
   'bin-conditions': 'menu-bin-conditions',
   'cycle-count': 'menu-cycle-count',
   asn: 'menu-asn',
@@ -3757,7 +3797,19 @@ async function restoreLastView() {
 // That is the most likely remaining cause of the "I have to click many times"
 // report behind Stage 32, and no amount of transition tuning would have fixed
 // it, because nothing was being rendered to transition.
+// Stage 45: navigation is not serialised anywhere upstream (menu clicks,
+// deep links, restoreLastView all call this directly), so two calls can be
+// in flight together - a double click, or any other duplicate trigger fired
+// before the first one's fetch has resolved. Previously both calls appended
+// straight into #view-root, so a losing call's content landed permanently
+// alongside the winner's instead of being discarded. viewRenderToken makes
+// each call check, after its own fetch settles, whether a newer call has
+// since started; a stale call still cleans up its own loading placeholder
+// but never touches #view-root otherwise.
+let viewRenderToken = 0;
+
 async function renderView(view) {
+  const myToken = ++viewRenderToken;
   const root = document.getElementById('view-root');
   root.innerHTML = '';
   root.scrollTop = 0;
@@ -3767,13 +3819,44 @@ async function renderView(view) {
   placeholder.innerHTML = '<div class="view-loading-bar"></div><span>Loading&hellip;</span>';
   root.appendChild(placeholder);
 
+  // Built in a container that is NOT #view-root, so a stale call has
+  // something harmless to throw away instead of DOM nodes that were ever
+  // actually visible - but it must still be attached to the live document
+  // (off-screen, not display:none - Chromium skips layout for display:none
+  // subtrees, which broke position:sticky table headers the first time this
+  // was tried), not a fully detached node: a render*View function's own
+  // document.getElementById(...) calls for elements it just created (the
+  // overwhelming majority of them, e.g. renderPutawayView's
+  // "putaway-submit-btn" wiring) only find those elements while they live
+  // in the actual document - detached, getElementById simply can never see
+  // them, however deep an await this function is awaiting. Found live
+  // (Stage 42.2.7's own Playwright pass): every renderer that wires an event
+  // listener or reads/writes an input's value right after building it was
+  // silently broken by this the moment Stage 45 introduced the detached
+  // scratch buffer - confirmed on Putaway, Bin Conditions and Wave Picking,
+  // so this is not a one-screen bug, it is the buffering mechanism itself.
+  const scratch = document.createElement('div');
+  scratch.style.cssText = 'position:absolute; left:-99999px; top:0; width:1px; overflow:hidden;';
+  document.body.appendChild(scratch);
   try {
-    await renderViewContent(view);
+    await renderViewContent(view, scratch);
   } finally {
     // finally, not after the await: a renderer that throws must not leave a
     // permanent "Loading..." on screen, which would be a worse lie than the
     // blank panel this replaces.
     placeholder.remove();
+    if (myToken !== viewRenderToken) { scratch.remove(); return; }
+    while (scratch.firstChild) root.appendChild(scratch.firstChild);
+    scratch.remove();
+    // Chromium can cache a stale containing-block rect for `position: sticky`
+    // content (e.g. a table's frozen header row) when it's inserted into a
+    // scroll container in the very same reflow that establishes that
+    // container's own scrollable overflow - the sticky element then just
+    // scrolls away with the page instead of freezing. One forced layout read
+    // after paint fixes it; done once here so every view's tables get it for
+    // free instead of patching each table-rendering function individually.
+    requestAnimationFrame(() => { void root.offsetHeight; });
+    setTimeout(translateDOM, 50);
     // Stage 40.2: one sweep per render decorates every recognised input the
     // view just built with its placeholder and hint. Done here rather than in
     // each renderer so bespoke screens get it without a call site each.
@@ -3787,10 +3870,9 @@ async function renderView(view) {
   }
 }
 
-async function renderViewContent(view) {
+async function renderViewContent(view, root) {
   currentView = view;
   saveNavState();
-  const root = document.getElementById('view-root');
 
   if (view === 'pos') {
     renderPOSView(root);
@@ -3800,6 +3882,20 @@ async function renderViewContent(view) {
     await renderFulfillmentView(root);
   } else if (view === 'putaway') {
     await renderPutawayView(root);
+  } else if (view === 'warehouse-cockpit') {
+    await renderWarehouseCockpitView(root);
+  } else if (view === 'appointment-calendar') {
+    await renderAppointmentCalendarView(root);
+  } else if (view === 'yard-board') {
+    await renderYardBoardView(root);
+  } else if (view === 'place-hold') {
+    await renderPlaceHoldView(root);
+  } else if (view === 'rf-receiving') {
+    await renderRFReceivingView(root);
+  } else if (view === 'sortation') {
+    await renderSortationView(root);
+  } else if (view === 'loading-dock') {
+    await renderLoadingDockView(root);
   } else if (view === 'bin-conditions') {
     await renderBinConditionsView(root);
   } else if (view === 'cycle-count') {
@@ -3889,15 +3985,6 @@ async function renderViewContent(view) {
   } else {
     renderMockModuleView(root, view);
   }
-  setTimeout(translateDOM, 50);
-  // Chromium can cache a stale containing-block rect for `position: sticky`
-  // content (e.g. a table's frozen header row) when it's inserted into a
-  // scroll container in the very same reflow that establishes that
-  // container's own scrollable overflow - the sticky element then just
-  // scrolls away with the page instead of freezing. One forced layout read
-  // after paint fixes it; done once here so every view's tables get it for
-  // free instead of patching each table-rendering function individually.
-  requestAnimationFrame(() => { void root.offsetHeight; });
 }
 
 // Translate labels in DOM dynamically
@@ -5653,6 +5740,28 @@ async function renderFinanceView(container) {
   tabBar.style.display = 'flex';
   tabBar.style.gap = '8px';
   tabBar.style.marginBottom = '16px';
+  // Stage 45: at a narrow enough width/zoom this row is wider than the page
+  // - .page-container clips overflow-x rather than scrolling it, so without
+  // this the trailing tabs were just gone with no way back to them. Scoping
+  // the scroll to the bar itself (not the whole page) keeps the rest of the
+  // screen from picking up a horizontal scrollbar too.
+  //
+  // flex-shrink: 0 is load-bearing, not decorative. Verified live: setting
+  // only overflow-x on a flex item inside .page-container's column flexbox
+  // let the whole bar collapse to 0px height whenever the page's other
+  // content was tall enough to overflow vertically - overflow-x non-visible
+  // suppresses this item's automatic min-height (content-based sizing only
+  // applies when overflow is 'visible'), and per the CSS Overflow spec the
+  // *used* value of overflow-y becomes 'auto' here regardless of what's
+  // declared (confirmed: getComputedStyle still reports 'auto' even with
+  // overflow-y explicitly set to 'visible' below - that line documents
+  // intent but does not itself prevent the collapse). flex-shrink: 0 is what
+  // actually fixes it: it exempts the item from shrinking at all, which
+  // sidesteps the automatic-minimum-size calculation entirely rather than
+  // trying to win it.
+  tabBar.style.overflowX = 'auto';
+  tabBar.style.overflowY = 'visible';
+  tabBar.style.flexShrink = '0';
   tabBar.innerHTML = FINANCE_TABS.map(t =>
     `<button class="btn ${t.id === currentFinanceTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-finance-tab="${t.id}">${t.label}</button>`
   ).join('');
@@ -6706,15 +6815,23 @@ async function renderPutawayView(container) {
         <label class="form-label" for="putaway-qty">Qty</label>
         <input type="number" id="putaway-qty" class="form-input" style="width: 90px;" min="1" value="1">
       </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="putaway-location">Location (for Suggest Bin)</label>
+        <input type="text" id="putaway-location" class="form-input" style="width: 140px;" autocomplete="off">
+      </div>
+      <button class="btn btn-outline" id="putaway-suggest-btn" type="button">Suggest Bin</button>
       <button class="btn btn-primary" id="putaway-submit-btn" type="button">Put Away</button>
     </div>
+    <div id="putaway-suggest-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
     <div id="putaway-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
   container.appendChild(panel);
 
   document.getElementById('putaway-submit-btn').addEventListener('click', submitPutaway);
+  document.getElementById('putaway-suggest-btn').addEventListener('click', suggestPutawayBin);
   attachLinkTypeahead(document.getElementById('putaway-bin'), 'Bin');
   attachLinkTypeahead(document.getElementById('putaway-sku'), 'Item');
+  attachLinkTypeahead(document.getElementById('putaway-location'), 'Location');
 
   // Stage 26.5.3: cross-dock/flow-through putaway - an alternative to
   // shelving when a transfer/sale is already waiting on this exact SKU at
@@ -6750,6 +6867,64 @@ async function renderPutawayView(container) {
   document.getElementById('xdock-stage-btn').addEventListener('click', submitCrossDockPutaway);
   attachLinkTypeahead(document.getElementById('xdock-sku'), 'Item');
   attachLinkTypeahead(document.getElementById('xdock-location'), 'Location');
+
+  // Stage 42.3.8: planned cross-dock/flow-through/transship - stages against
+  // a CrossDockPlan raised ahead of receipt (Cross-Dock Plans in the sidebar)
+  // instead of scanning for live opportunistic demand like the panel above.
+  const planPanel = document.createElement('div');
+  planPanel.className = 'table-panel';
+  planPanel.style.padding = '24px';
+  planPanel.style.marginTop = '24px';
+  planPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">Planned Cross-Dock / Flow-Through / Transship</h2>
+    <p style="color: var(--text-muted); margin-bottom: 12px;">Stages against a Cross-Dock Plan raised ahead of receipt (see Cross-Dock Plans), rather than scanning for live demand.</p>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="xplan-sku">SKU</label>
+        <input type="text" id="xplan-sku" class="form-input" style="width: 160px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="xplan-location">Location</label>
+        <input type="text" id="xplan-location" class="form-input" style="width: 140px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="xplan-qty">Qty on hand to stage</label>
+        <input type="number" id="xplan-qty" class="form-input" style="width: 90px;" min="1" value="1">
+      </div>
+      <button class="btn btn-primary" id="xplan-stage-btn" type="button">Stage Against Plan</button>
+    </div>
+    <div id="xplan-result" style="margin-top: 12px; font-size: 13px; color: var(--text-muted);"></div>
+    <div id="xplan-form-error" class="login-error hidden" style="margin-top: 12px;"></div>
+  `;
+  container.appendChild(planPanel);
+  document.getElementById('xplan-stage-btn').addEventListener('click', submitPlannedCrossDockPutaway);
+  attachLinkTypeahead(document.getElementById('xplan-sku'), 'Item');
+  attachLinkTypeahead(document.getElementById('xplan-location'), 'Location');
+}
+
+async function submitPlannedCrossDockPutaway() {
+  const errorEl = document.getElementById('xplan-form-error');
+  const resultEl = document.getElementById('xplan-result');
+  errorEl.classList.add('hidden');
+  const sku = document.getElementById('xplan-sku').value.trim();
+  const location = document.getElementById('xplan-location').value.trim();
+  const qty = parseInt(document.getElementById('xplan-qty').value, 10);
+  if (!sku || !location || !qty || qty <= 0) {
+    errorEl.textContent = 'SKU, Location, and a Qty greater than zero are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const res = await apiFetch('/api/v1/wms/cross-dock/planned-putaway', {
+    method: 'POST',
+    body: JSON.stringify({ sku, location_code: location, qty })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to stage against a cross-dock plan.', 'Planned Cross-Dock Failed');
+    return;
+  }
+  const data = await res.json();
+  resultEl.textContent = `Staged ${data.staged} x ${sku} against plan ${data.plan_id}.`;
 }
 
 async function checkCrossDockOpportunity() {
@@ -6793,6 +6968,33 @@ async function submitCrossDockPutaway() {
   resultEl.innerHTML = `<span class="badge badge-success">Staged ${data.staged} unit(s)</span> for cross-dock.`;
 }
 
+// suggestPutawayBin (42.2.7) calls the directed-putaway suggestion endpoint
+// and fills the Bin Code field when one comes back - a pure convenience, it
+// never blocks manual entry, and a "no suggestion" response is shown as
+// plain text rather than an error (SuggestPutawayBin's own contract: no
+// configured strategy or no eligible bin are both real, expected outcomes).
+async function suggestPutawayBin() {
+  const resultEl = document.getElementById('putaway-suggest-result');
+  const sku = document.getElementById('putaway-sku').value.trim();
+  const location = document.getElementById('putaway-location').value.trim();
+  const qty = parseInt(document.getElementById('putaway-qty').value, 10) || 1;
+  if (!sku || !location) {
+    resultEl.textContent = 'Enter a SKU and Location first.';
+    return;
+  }
+  const params = new URLSearchParams({ sku, location_code: location, qty: String(qty) });
+  const res = await apiFetch(`/api/v1/wms/putaway/suggest-bin?${params}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to suggest a bin.', 'Suggestion Failed'); return; }
+  const data = await res.json();
+  if (data.bin_code) {
+    document.getElementById('putaway-bin').value = data.bin_code;
+    resultEl.innerHTML = `<span class="badge badge-success">Suggested bin ${data.bin_code}</span> - ${data.reason}`;
+  } else {
+    resultEl.textContent = data.reason || 'No suggestion available - enter a bin manually.';
+  }
+}
+
 async function submitPutaway() {
   const errorEl = document.getElementById('putaway-form-error');
   errorEl.classList.add('hidden');
@@ -6818,6 +7020,1148 @@ async function submitPutaway() {
   }
   await showCustomAlert(`Put away ${qty} x ${sku} into bin ${binCode}.`, 'Putaway Complete');
   document.getElementById('putaway-qty').value = 1;
+}
+
+// Stage 42.3.5 - Place Hold: the only creation path for a Hold document
+// (generic create is blocked by role_permissions, see
+// db/migrations_stage42_3_5_holdcode.sql) - same single-panel-form shape as
+// Putaway above, posting to its own action endpoint instead of the generic
+// doc API.
+async function renderPlaceHoldView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Place Hold</h1>
+      <p class="page-subtitle">Immediately blocks qty of a SKU at a location from allocation. Release requires a Hold Release Request and Store Manager approval.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="hold-code">Hold Code</label>
+        <input type="text" id="hold-code" class="form-input" style="width: 160px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="hold-sku">SKU</label>
+        <input type="text" id="hold-sku" class="form-input" style="width: 160px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="hold-location">Location</label>
+        <input type="text" id="hold-location" class="form-input" style="width: 140px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="hold-batch">Batch / Lot No (optional)</label>
+        <input type="text" id="hold-batch" class="form-input" style="width: 140px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="hold-qty">Qty</label>
+        <input type="number" id="hold-qty" class="form-input" style="width: 90px;" min="1" value="1">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="hold-reason">Reason (optional)</label>
+        <input type="text" id="hold-reason" class="form-input" style="width: 220px;" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="hold-submit-btn" type="button">Place Hold</button>
+    </div>
+    <div id="hold-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(panel);
+
+  document.getElementById('hold-submit-btn').addEventListener('click', submitPlaceHold);
+  attachLinkTypeahead(document.getElementById('hold-code'), 'HoldCode');
+  attachLinkTypeahead(document.getElementById('hold-sku'), 'Item');
+  attachLinkTypeahead(document.getElementById('hold-location'), 'Location');
+}
+
+async function submitPlaceHold() {
+  const errorEl = document.getElementById('hold-form-error');
+  errorEl.classList.add('hidden');
+
+  const holdCode = document.getElementById('hold-code').value.trim();
+  const sku = document.getElementById('hold-sku').value.trim();
+  const locationCode = document.getElementById('hold-location').value.trim();
+  const batchNo = document.getElementById('hold-batch').value.trim();
+  const qty = parseInt(document.getElementById('hold-qty').value, 10);
+  const reason = document.getElementById('hold-reason').value.trim();
+
+  if (!holdCode || !sku || !locationCode || !qty || qty <= 0) {
+    errorEl.textContent = 'Hold Code, SKU, Location, and a Qty greater than zero are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/wms/hold/place', {
+    method: 'POST',
+    body: JSON.stringify({ hold_code: holdCode, sku: sku, location_code: locationCode, batch_no: batchNo, qty: qty, reason: reason })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to place hold.', 'Place Hold Failed');
+    return;
+  }
+  await showCustomAlert(`Placed a hold of ${qty} x ${sku} at ${locationCode}.`, 'Hold Placed');
+  document.getElementById('hold-qty').value = 1;
+  document.getElementById('hold-reason').value = '';
+}
+
+// Stage 42.3.4 - Yard Board: check-in/check-out for trailers, InYard ->
+// AtDoor -> Departed (validateYardCheckInMasterRules enforces the order
+// server-side). Infor's 3D yard view is explicitly out of scope - this is a
+// flat status board, not a spatial map.
+async function renderYardBoardView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Yard Board</h1>
+      <p class="page-subtitle">Check a trailer into the yard, spot it at a door, and check it out when it departs.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.style.marginBottom = '24px';
+  panel.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="yard-trailer">Trailer No</label>
+        <input type="text" id="yard-trailer" class="form-input" style="width: 140px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="yard-carrier">Carrier (optional)</label>
+        <input type="text" id="yard-carrier" class="form-input" style="width: 140px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="yard-driver">Driver (optional)</label>
+        <input type="text" id="yard-driver" class="form-input" style="width: 140px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="yard-slot">Yard Slot (optional)</label>
+        <input type="text" id="yard-slot" class="form-input" style="width: 110px;" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="yard-checkin-btn" type="button">Check In</button>
+    </div>
+    <div id="yard-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  container.appendChild(panel);
+  document.getElementById('yard-checkin-btn').addEventListener('click', submitYardCheckIn);
+  attachLinkTypeahead(document.getElementById('yard-trailer'), 'Trailer', { valueFields: ['code'] });
+
+  const body = document.createElement('div');
+  body.id = 'yard-board-body';
+  container.appendChild(body);
+  await loadYardBoard();
+}
+
+async function loadYardBoard() {
+  const body = document.getElementById('yard-board-body');
+  if (!body) return;
+  body.innerHTML = '<div class="table-panel" style="padding:24px;">Loading yard status…</div>';
+  const res = await apiFetch('/api/v1/doc/YardCheckIn');
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to load yard status.');
+    return;
+  }
+  const records = await res.json();
+  const active = (records || []).filter(r => r.status !== 'Departed').sort((a, b) => (a.trailer_no || '').localeCompare(b.trailer_no || ''));
+
+  if (active.length === 0) {
+    body.innerHTML = '<div class="table-panel" style="padding:24px; color:var(--text-muted);">No trailers currently in the yard.</div>';
+    return;
+  }
+
+  const rows = active.map(r => `
+    <tr>
+      <td>${escapeHTMLText(r.trailer_no || '')}</td>
+      <td>${escapeHTMLText(r.carrier || '-')}</td>
+      <td>${escapeHTMLText(r.driver_name || '-')}</td>
+      <td><span class="badge">${escapeHTMLText(r.status || '')}</span></td>
+      <td>${escapeHTMLText(r.dock_door || r.yard_location || '-')}</td>
+      <td>
+        ${r.status === 'InYard' ? `<button class="btn btn-outline btn-sm" onclick="assignYardDoor('${r.id}')">Assign to Door</button>` : ''}
+        <button class="btn btn-outline btn-sm" onclick="checkOutYardTrailer('${r.id}')">Check Out</button>
+      </td>
+    </tr>`).join('');
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.innerHTML = `
+    <div class="table-wrapper"><table>
+      <thead><tr><th>Trailer</th><th>Carrier</th><th>Driver</th><th>Status</th><th>Door / Slot</th><th>Actions</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
+  `;
+  body.innerHTML = '';
+  body.appendChild(panel);
+}
+
+async function submitYardCheckIn() {
+  const errorEl = document.getElementById('yard-form-error');
+  errorEl.classList.add('hidden');
+  const trailerNo = document.getElementById('yard-trailer').value.trim();
+  if (!trailerNo) {
+    errorEl.textContent = 'Trailer No is required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const payload = {
+    trailer_no: trailerNo,
+    carrier: document.getElementById('yard-carrier').value.trim(),
+    driver_name: document.getElementById('yard-driver').value.trim(),
+    yard_location: document.getElementById('yard-slot').value.trim(),
+    status: 'InYard'
+  };
+  const res = await apiFetch('/api/v1/doc/YardCheckIn', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to check in trailer.');
+    return;
+  }
+  document.getElementById('yard-trailer').value = '';
+  document.getElementById('yard-carrier').value = '';
+  document.getElementById('yard-driver').value = '';
+  document.getElementById('yard-slot').value = '';
+  await loadYardBoard();
+}
+
+// The generic doc endpoint replaces the whole `data` blob on save (the same
+// full-record resend editDocRecord/handleDynamicFormSubmit already do for
+// every other doctype's edit form) - so both actions below fetch the
+// current record first and patch it, rather than posting just the two
+// fields that changed, which would silently blank every other field.
+async function patchYardCheckIn(id, patch) {
+  const getRes = await apiFetch(`/api/v1/doc/YardCheckIn/${id}`);
+  if (!getRes) return null;
+  if (!getRes.ok) {
+    await showApiError(getRes, 'Failed to load yard check-in record.');
+    return null;
+  }
+  const record = await getRes.json();
+  Object.assign(record, patch);
+  return apiFetch(`/api/v1/doc/YardCheckIn/${id}`, { method: 'POST', body: JSON.stringify(record) });
+}
+
+window.assignYardDoor = async function(id) {
+  const dockDoor = await showCustomPrompt('Assign to which dock door?');
+  if (!dockDoor) return;
+  const res = await patchYardCheckIn(id, { status: 'AtDoor', dock_door: dockDoor.trim() });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to assign door.');
+    return;
+  }
+  await loadYardBoard();
+};
+
+window.checkOutYardTrailer = async function(id) {
+  const res = await patchYardCheckIn(id, { status: 'Departed', checked_out_at: new Date().toISOString() });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to check out trailer.');
+    return;
+  }
+  await loadYardBoard();
+};
+
+// Stage 42.3.2/42.3.3 - Appointment scheduling + calendar. Day view lays
+// appointments out on a horizontal timeline per door (06:00-22:00, plain
+// CSS flex positioning - no calendar library, per the plan). Week view
+// trades the timeline for a door x day grid of chips, since positioning by
+// time-of-day stops being legible at 7-day zoom.
+let calendarDate = new Date().toISOString().slice(0, 10);
+let calendarWeekView = false;
+
+async function renderAppointmentCalendarView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Appointment Calendar</h1>
+      <p class="page-subtitle">Inbound/outbound dock appointments, scheduled against each door's capacity and service window.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const controls = document.createElement('div');
+  controls.className = 'table-panel';
+  controls.style.padding = '16px 24px';
+  controls.style.marginBottom = '24px';
+  controls.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+      <button class="btn btn-outline" id="cal-prev-btn" type="button">&larr;</button>
+      <input type="date" id="cal-date" class="form-input" style="width: 160px;" value="${calendarDate}">
+      <button class="btn btn-outline" id="cal-next-btn" type="button">&rarr;</button>
+      <button class="btn btn-outline" id="cal-view-toggle" type="button">${calendarWeekView ? 'Switch to Day' : 'Switch to Week'}</button>
+      <div style="flex:1;"></div>
+      <button class="btn btn-primary" id="cal-new-btn" type="button">+ New Appointment</button>
+    </div>
+    <div id="cal-new-form" class="hidden" style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border-color); display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-door">Dock Door</label><input type="text" id="cal-door" class="form-input" style="width:120px;" autocomplete="off"></div>
+      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-type">Type</label>
+        <select id="cal-type" class="form-select" style="width:120px;"><option value="Inbound">Inbound</option><option value="Outbound">Outbound</option></select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-carrier">Carrier</label><input type="text" id="cal-carrier" class="form-input" style="width:120px;" autocomplete="off"></div>
+      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-trailer">Trailer No</label><input type="text" id="cal-trailer" class="form-input" style="width:120px;" autocomplete="off"></div>
+      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-appt-date">Date</label><input type="date" id="cal-appt-date" class="form-input" style="width:150px;" value="${calendarDate}"></div>
+      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-start">Start (HH:MM)</label><input type="text" id="cal-start" class="form-input" style="width:90px;" placeholder="09:00"></div>
+      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-end">End (HH:MM)</label><input type="text" id="cal-end" class="form-input" style="width:90px;" placeholder="10:00"></div>
+      <button class="btn btn-primary" id="cal-save-btn" type="button">Save</button>
+    </div>
+    <div id="cal-form-error" class="login-error hidden" style="margin-top: 12px;"></div>
+  `;
+  container.appendChild(controls);
+
+  const body = document.createElement('div');
+  body.id = 'cal-body';
+  container.appendChild(body);
+
+  document.getElementById('cal-date').addEventListener('change', (e) => { calendarDate = e.target.value; loadAppointmentCalendar(); });
+  document.getElementById('cal-prev-btn').addEventListener('click', () => shiftCalendarDate(calendarWeekView ? -7 : -1));
+  document.getElementById('cal-next-btn').addEventListener('click', () => shiftCalendarDate(calendarWeekView ? 7 : 1));
+  document.getElementById('cal-view-toggle').addEventListener('click', () => { calendarWeekView = !calendarWeekView; renderView('appointment-calendar'); });
+  document.getElementById('cal-new-btn').addEventListener('click', () => { document.getElementById('cal-new-form').classList.toggle('hidden'); });
+  document.getElementById('cal-save-btn').addEventListener('click', submitNewAppointment);
+  attachLinkTypeahead(document.getElementById('cal-door'), 'DockDoor', { valueFields: ['code'] });
+
+  await loadAppointmentCalendar();
+}
+
+function shiftCalendarDate(days) {
+  const d = new Date(calendarDate + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  calendarDate = d.toISOString().slice(0, 10);
+  document.getElementById('cal-date').value = calendarDate;
+  loadAppointmentCalendar();
+}
+
+function calendarWeekDates() {
+  const d = new Date(calendarDate + 'T00:00:00');
+  d.setDate(d.getDate() - d.getDay());
+  const out = [];
+  for (let i = 0; i < 7; i++) {
+    out.push(d.toISOString().slice(0, 10));
+    d.setDate(d.getDate() + 1);
+  }
+  return out;
+}
+
+async function loadAppointmentCalendar() {
+  const body = document.getElementById('cal-body');
+  if (!body) return;
+  body.innerHTML = '<div class="table-panel" style="padding:24px;">Loading appointments…</div>';
+
+  const [doorsRes, apptRes] = await Promise.all([
+    apiFetch('/api/v1/doc/DockDoor'),
+    apiFetch('/api/v1/doc/Appointment')
+  ]);
+  if (!doorsRes || !apptRes) return;
+  if (!doorsRes.ok || !apptRes.ok) {
+    await showApiError(!doorsRes.ok ? doorsRes : apptRes, 'Failed to load calendar data.');
+    return;
+  }
+  const doors = (await doorsRes.json()).filter(d => d.status === 'Active').sort((a, b) => (a.code || '').localeCompare(b.code || ''));
+  const allAppts = await apptRes.json();
+
+  if (doors.length === 0) {
+    body.innerHTML = '<div class="table-panel" style="padding:24px; color:var(--text-muted);">No Active dock doors - create one under Dock Doors first.</div>';
+    return;
+  }
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '16px';
+  panel.style.overflowX = 'auto';
+
+  if (calendarWeekView) {
+    const dates = calendarWeekDates();
+    let html = '<table style="min-width:900px;"><thead><tr><th>Door</th>' + dates.map(d => `<th>${d}</th>`).join('') + '</tr></thead><tbody>';
+    for (const door of doors) {
+      html += `<tr><td><strong>${escapeHTMLText(door.code)}</strong></td>`;
+      for (const date of dates) {
+        const dayAppts = allAppts.filter(a => a.dock_door === door.code && a.appointment_date === date && a.status !== 'Cancelled');
+        html += `<td style="vertical-align:top; min-width:110px;">${dayAppts.map(a => apptChip(a)).join('')}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    panel.innerHTML = html;
+  } else {
+    const hours = [];
+    for (let h = 6; h <= 22; h++) hours.push(h);
+    let html = '<div style="display:flex; flex-direction:column; gap:6px;">';
+    html += '<div style="display:flex;"><div style="width:100px;"></div>' + hours.map(h => `<div style="flex:1; font-size:11px; color:var(--text-muted); text-align:center;">${String(h).padStart(2, '0')}:00</div>`).join('') + '</div>';
+    for (const door of doors) {
+      const dayAppts = allAppts.filter(a => a.dock_door === door.code && a.appointment_date === calendarDate && a.status !== 'Cancelled');
+      html += `<div style="display:flex; align-items:center; border-top:1px solid var(--border-color); padding-top:6px;">
+        <div style="width:100px; font-weight:600; font-size:13px;">${escapeHTMLText(door.code)}</div>
+        <div style="position:relative; flex:1; height:32px; background:var(--bg-subtle, #f5f5f7); border-radius:4px;">`;
+      for (const a of dayAppts) {
+        const startMin = timeToMinutes(a.start_time), endMin = timeToMinutes(a.end_time);
+        const rangeStart = 6 * 60, rangeEnd = 22 * 60;
+        const leftPct = Math.max(0, (startMin - rangeStart) / (rangeEnd - rangeStart) * 100);
+        const widthPct = Math.max(2, (endMin - startMin) / (rangeEnd - rangeStart) * 100);
+        html += `<div title="${escapeHTMLText(a.carrier || '')} ${escapeHTMLText(a.trailer_no || '')} ${escapeHTMLText(a.start_time)}-${escapeHTMLText(a.end_time)}"
+          style="position:absolute; left:${leftPct}%; width:${widthPct}%; top:2px; bottom:2px; background:var(--accent, #4f46e5); color:#fff; font-size:10px; border-radius:3px; overflow:hidden; padding:2px 4px; white-space:nowrap;">
+          ${escapeHTMLText(a.appointment_type === 'Outbound' ? 'OUT' : 'IN')} ${escapeHTMLText(a.trailer_no || a.carrier || '')}</div>`;
+      }
+      html += '</div></div>';
+    }
+    html += '</div>';
+    panel.innerHTML = html;
+  }
+  body.innerHTML = '';
+  body.appendChild(panel);
+}
+
+function timeToMinutes(hhmm) {
+  const [h, m] = (hhmm || '0:0').split(':').map(n => parseInt(n, 10) || 0);
+  return h * 60 + m;
+}
+
+function apptChip(a) {
+  const color = a.appointment_type === 'Outbound' ? '#9333ea' : '#4f46e5';
+  return `<div style="background:${color}; color:#fff; font-size:10px; border-radius:3px; padding:2px 4px; margin-bottom:3px;">${escapeHTMLText(a.start_time || '')} ${escapeHTMLText(a.trailer_no || a.carrier || '')}</div>`;
+}
+
+async function submitNewAppointment() {
+  const errorEl = document.getElementById('cal-form-error');
+  errorEl.classList.add('hidden');
+  const payload = {
+    dock_door: document.getElementById('cal-door').value.trim(),
+    appointment_type: document.getElementById('cal-type').value,
+    carrier: document.getElementById('cal-carrier').value.trim(),
+    trailer_no: document.getElementById('cal-trailer').value.trim(),
+    appointment_date: document.getElementById('cal-appt-date').value,
+    start_time: document.getElementById('cal-start').value.trim(),
+    end_time: document.getElementById('cal-end').value.trim(),
+    status: 'Scheduled'
+  };
+  if (!payload.dock_door || !payload.appointment_date || !payload.start_time || !payload.end_time) {
+    errorEl.textContent = 'Dock Door, Date, Start and End time are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const res = await apiFetch('/api/v1/doc/Appointment', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to schedule appointment.');
+    return;
+  }
+  document.getElementById('cal-new-form').classList.add('hidden');
+  document.getElementById('cal-carrier').value = '';
+  document.getElementById('cal-trailer').value = '';
+  document.getElementById('cal-start').value = '';
+  document.getElementById('cal-end').value = '';
+  await loadAppointmentCalendar();
+}
+
+// Stage 42.3.10 - RF Receiving: scan-driven receiving against an ASN,
+// mirroring Mobile Picking's one-card, big-target shape and POS's
+// scan-then-Enter input convention (this codebase's barcodes encode the SKU
+// code directly - see addSKUToPOSCart - so a scan resolves against
+// expected_items[].sku with no separate barcode->SKU lookup step). Deliberately
+// qty-confirm only: batch/serial/catch-weight/dimension capture (42.1.4,
+// 42.1.8, 42.3.7) stay on the desktop GRN Workbench, the same scope boundary
+// Infor's own RF receiving screens draw - an RF gun confirms quantities fast,
+// a supervisor desk handles exceptions.
+let rfReceivingExpected = [];
+let rfReceivingLines = [];
+let rfReceivingASNId = '';
+let rfReceivingPOId = '';
+
+async function renderRFReceivingView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">RF Receiving</h1>
+      <p class="page-subtitle">Scan an ASN, then scan each carton's SKU to confirm it against what's expected. Batch/serial/catch-weight capture stays on the GRN Workbench.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const setupPanel = document.createElement('div');
+  setupPanel.className = 'table-panel';
+  setupPanel.style.padding = '20px';
+  setupPanel.style.marginBottom = '16px';
+  setupPanel.style.maxWidth = '480px';
+  setupPanel.innerHTML = `
+    <div class="form-group" style="margin-bottom: 12px;">
+      <label class="form-label" for="rf-asn-input">Scan or Enter ASN</label>
+      <input type="text" id="rf-asn-input" class="form-input" placeholder="ASN number, then Enter" autocomplete="off" style="font-size:18px; padding:14px;">
+    </div>
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label" for="rf-location-input">Receiving Location</label>
+      <input type="text" id="rf-location-input" class="form-input" autocomplete="off">
+    </div>
+    <div id="rf-setup-error" class="login-error hidden" style="margin-top: 12px;"></div>
+  `;
+  container.appendChild(setupPanel);
+  document.getElementById('rf-asn-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); loadRFReceivingASN(); } });
+  attachLinkTypeahead(document.getElementById('rf-location-input'), 'Location');
+
+  const body = document.createElement('div');
+  body.id = 'rf-receiving-body';
+  body.style.maxWidth = '480px';
+  container.appendChild(body);
+
+  rfReceivingExpected = [];
+  rfReceivingLines = [];
+  rfReceivingASNId = '';
+  rfReceivingPOId = '';
+}
+
+async function loadRFReceivingASN() {
+  const errorEl = document.getElementById('rf-setup-error');
+  errorEl.classList.add('hidden');
+  const asnId = document.getElementById('rf-asn-input').value.trim();
+  if (!asnId) return;
+
+  const res = await apiFetch(`/api/v1/doc/ASN/${encodeURIComponent(asnId)}`);
+  if (!res) return;
+  if (!res.ok) {
+    errorEl.textContent = `ASN ${asnId} not found.`;
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const asn = await res.json();
+  let items = [];
+  try { items = JSON.parse(asn.expected_items || '[]'); } catch (e) { items = []; }
+  if (items.length === 0) {
+    errorEl.textContent = `ASN ${asnId} has no recorded expected items.`;
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  rfReceivingASNId = asnId;
+  rfReceivingPOId = asn.po_id || '';
+  rfReceivingExpected = items.map(it => ({ sku: it.sku || '', expectedQty: Number(it.qty) || 0, receivedQty: 0 }));
+  rfReceivingLines = [];
+  renderRFReceivingBody();
+}
+
+function renderRFReceivingBody() {
+  const body = document.getElementById('rf-receiving-body');
+  if (!body) return;
+  if (rfReceivingExpected.length === 0) {
+    body.innerHTML = '';
+    return;
+  }
+
+  const remaining = rfReceivingExpected.filter(l => l.receivedQty < l.expectedQty);
+  const totalLines = rfReceivingExpected.length;
+  const doneLines = totalLines - remaining.length;
+
+  const rows = rfReceivingExpected.map(l => `
+    <tr style="${l.receivedQty >= l.expectedQty ? 'opacity:0.5;' : ''}">
+      <td>${escapeHTMLText(l.sku)}</td>
+      <td>${l.receivedQty} / ${l.expectedQty}</td>
+    </tr>`).join('');
+
+  body.innerHTML = `
+    <div class="table-panel" style="padding:20px; margin-bottom:16px;">
+      <div class="text-muted" style="font-size:13px; margin-bottom:10px;">ASN ${escapeHTMLText(rfReceivingASNId)} &mdash; ${doneLines} of ${totalLines} SKU(s) fully received</div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="rf-scan-input">Scan Carton SKU</label>
+        <input type="text" id="rf-scan-input" class="form-input" placeholder="Scan or type SKU, then Enter" autocomplete="off" style="font-size:22px; padding:16px;">
+      </div>
+      <div id="rf-scan-error" class="login-error hidden" style="margin-top:10px;"></div>
+      <div id="rf-scan-confirm" style="margin-top:10px; font-size:14px;"></div>
+    </div>
+    <div class="table-panel" style="padding:0; margin-bottom:16px;">
+      <div class="table-wrapper"><table>
+        <thead><tr><th>SKU</th><th>Received / Expected</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table></div>
+    </div>
+    <button class="btn btn-primary" id="rf-post-btn" type="button" style="width:100%; padding:14px; font-size:16px;" ${rfReceivingLines.length === 0 ? 'disabled' : ''}>Post Receipt (${rfReceivingLines.length} line(s))</button>
+  `;
+  const scanInput = document.getElementById('rf-scan-input');
+  scanInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); confirmRFScan(); } });
+  scanInput.focus();
+  document.getElementById('rf-post-btn').addEventListener('click', postRFReceipt);
+}
+
+function confirmRFScan() {
+  const scanInput = document.getElementById('rf-scan-input');
+  const errorEl = document.getElementById('rf-scan-error');
+  const confirmEl = document.getElementById('rf-scan-confirm');
+  errorEl.classList.add('hidden');
+  const scanned = scanInput.value.trim();
+  scanInput.value = '';
+  if (!scanned) return;
+
+  const expectedLine = rfReceivingExpected.find(l => l.sku === scanned && l.receivedQty < l.expectedQty);
+  if (!expectedLine) {
+    errorEl.textContent = `${scanned} is not an outstanding line on this ASN.`;
+    errorEl.classList.remove('hidden');
+    scanInput.focus();
+    return;
+  }
+
+  const qty = expectedLine.expectedQty - expectedLine.receivedQty;
+  expectedLine.receivedQty += qty;
+  const existingLine = rfReceivingLines.find(l => l.sku === scanned);
+  if (existingLine) {
+    existingLine.qty += qty;
+  } else {
+    rfReceivingLines.push({ sku: scanned, qty, accepted_qty: qty, rejected_qty: 0, damaged_qty: 0 });
+  }
+  confirmEl.innerHTML = `<span class="badge badge-success">Confirmed ${qty} x ${escapeHTMLText(scanned)}</span>`;
+  renderRFReceivingBody();
+}
+
+async function postRFReceipt() {
+  const errorEl = document.getElementById('rf-setup-error');
+  errorEl.classList.add('hidden');
+  const location = document.getElementById('rf-location-input').value.trim();
+  if (!location) {
+    errorEl.textContent = 'A receiving location is required before posting.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (!rfReceivingPOId) {
+    errorEl.textContent = `ASN ${rfReceivingASNId} has no PO reference - a GRN requires one. Use the GRN Workbench to receive against this ASN instead.`;
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (rfReceivingLines.length === 0) return;
+
+  const totalQty = rfReceivingLines.reduce((s, l) => s + l.qty, 0);
+  if (!(await showCustomConfirm(`Post this goods receipt against ${rfReceivingPOId}? ${totalQty} unit(s) will be added to stock at ${location}.`, 'Post Goods Receipt'))) return;
+
+  const payload = {
+    po_id: rfReceivingPOId,
+    asn_id: rfReceivingASNId,
+    location,
+    received_items: JSON.stringify(rfReceivingLines),
+    status: 'Approved'
+  };
+
+  const res = await apiFetch('/api/v1/doc/GRN', { method: 'POST', body: JSON.stringify(payload) });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to post the receipt.', 'RF Receiving Failed');
+    return;
+  }
+  await showCustomAlert(`Posted a GRN for ${rfReceivingLines.length} line(s) against ASN ${rfReceivingASNId}.`, 'Receipt Posted');
+  rfReceivingExpected = [];
+  rfReceivingLines = [];
+  rfReceivingASNId = '';
+  rfReceivingPOId = '';
+  document.getElementById('rf-asn-input').value = '';
+  renderRFReceivingBody();
+}
+
+// Stage 42.4.3 - Sortation / put-wall. Loads a SortStation's slot board and
+// lets the operator assign an order to the next Empty slot, confirm a scan
+// into it, and clear it once handed off - the un-consolidation step
+// GenerateWavePickList's batch pick needs before packing.
+async function renderSortationView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Sortation / Put-Wall</h1>
+      <p class="page-subtitle">Assign an order to a slot, confirm scans into it, then clear it once handed off to packing.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const controls = document.createElement('div');
+  controls.className = 'table-panel';
+  controls.style.padding = '20px';
+  controls.style.marginBottom = '16px';
+  controls.innerHTML = `
+    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="sort-station">Sort Station</label>
+        <input type="text" id="sort-station" class="form-input" style="width:160px;" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="sort-load-btn" type="button">Load Slots</button>
+    </div>
+    <div id="sort-setup-error" class="login-error hidden" style="margin-top:12px;"></div>
+  `;
+  container.appendChild(controls);
+
+  const assignPanel = document.createElement('div');
+  assignPanel.className = 'table-panel';
+  assignPanel.style.padding = '20px';
+  assignPanel.style.marginBottom = '16px';
+  assignPanel.innerHTML = `
+    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="sort-task-id">Fulfillment Task / Order</label>
+        <input type="text" id="sort-task-id" class="form-input" style="width:180px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="sort-sku">SKU (optional)</label>
+        <input type="text" id="sort-sku" class="form-input" style="width:140px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="sort-qty-expected">Qty Expected (optional)</label>
+        <input type="number" id="sort-qty-expected" class="form-input" style="width:100px;" min="0">
+      </div>
+      <button class="btn btn-secondary" id="sort-assign-btn" type="button">Assign to Slot</button>
+    </div>
+  `;
+  container.appendChild(assignPanel);
+
+  const body = document.createElement('div');
+  body.id = 'sortation-body';
+  container.appendChild(body);
+
+  document.getElementById('sort-load-btn').addEventListener('click', loadSortationSlots);
+  document.getElementById('sort-assign-btn').addEventListener('click', sortationAssignSlot);
+}
+
+async function loadSortationSlots() {
+  const errorEl = document.getElementById('sort-setup-error');
+  errorEl.classList.add('hidden');
+  const station = document.getElementById('sort-station').value.trim();
+  const body = document.getElementById('sortation-body');
+  if (!station) { body.innerHTML = ''; return; }
+  const res = await apiFetch(`/api/v1/wms/sortation/slots?station=${encodeURIComponent(station)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to load slots.', 'Load Failed'); return; }
+  const data = await res.json();
+  const slots = data.slots || [];
+  if (slots.length === 0) {
+    body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">No slots provisioned for station ${escapeHTMLText(station)} yet - provision them from the SortStation master record.</div>`;
+    return;
+  }
+  body.innerHTML = `
+    <div class="table-panel" style="padding:0;">
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Slot</th><th>Status</th><th>Order</th><th>SKU</th><th>Confirmed / Expected</th><th></th></tr></thead>
+        <tbody>${slots.map(s => `<tr>
+            <td>${s.slot_no}</td><td>${s.status}</td><td>${s.fulfillment_task_id || '&mdash;'}</td><td>${s.sku || '&mdash;'}</td>
+            <td>${s.qty_confirmed} / ${s.qty_expected || '?'}</td>
+            <td>
+              ${(s.status === 'Assigned' || s.status === 'Filled') ? `
+                <input type="number" min="1" value="1" class="form-input sort-confirm-qty" data-slot="${s.doc_id}" style="width:70px; display:inline-block;">
+                <button class="btn btn-sm btn-secondary sort-confirm-btn" data-slot="${s.doc_id}" type="button">Confirm</button>` : ''}
+              ${s.status === 'Filled' ? `<button class="btn btn-sm btn-secondary sort-clear-btn" data-slot="${s.doc_id}" type="button">Clear</button>` : ''}
+            </td>
+          </tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+  document.querySelectorAll('.sort-confirm-btn').forEach(btn => btn.addEventListener('click', async () => {
+    const qtyInput = document.querySelector(`.sort-confirm-qty[data-slot="${btn.dataset.slot}"]`);
+    const qty = parseInt(qtyInput.value, 10) || 0;
+    if (qty <= 0) return;
+    const res = await apiFetch('/api/v1/wms/sortation/confirm', { method: 'POST', body: JSON.stringify({ slot_id: btn.dataset.slot, qty }) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Failed to confirm the slot.', 'Confirm Failed'); return; }
+    loadSortationSlots();
+  }));
+  document.querySelectorAll('.sort-clear-btn').forEach(btn => btn.addEventListener('click', async () => {
+    const res = await apiFetch('/api/v1/wms/sortation/clear', { method: 'POST', body: JSON.stringify({ slot_id: btn.dataset.slot }) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Failed to clear the slot.', 'Clear Failed'); return; }
+    loadSortationSlots();
+  }));
+}
+
+async function sortationAssignSlot() {
+  const errorEl = document.getElementById('sort-setup-error');
+  errorEl.classList.add('hidden');
+  const station = document.getElementById('sort-station').value.trim();
+  const taskId = document.getElementById('sort-task-id').value.trim();
+  const sku = document.getElementById('sort-sku').value.trim();
+  const qtyExpected = parseInt(document.getElementById('sort-qty-expected').value, 10) || 0;
+  if (!station || !taskId) {
+    errorEl.textContent = 'A station and a fulfillment task / order are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const res = await apiFetch('/api/v1/wms/sortation/assign', {
+    method: 'POST',
+    body: JSON.stringify({ station, fulfillment_task_id: taskId, sku, qty_expected: qtyExpected })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to assign a slot.', 'Assign Failed'); return; }
+  document.getElementById('sort-task-id').value = '';
+  document.getElementById('sort-sku').value = '';
+  document.getElementById('sort-qty-expected').value = '';
+  loadSortationSlots();
+}
+
+// Stage 42.4.8/42.4.9 - Loading: open a load against a dock door + trailer,
+// scan cartons onto it, complete (running the pre-ship gate), record pallet
+// exchange and depart, and print a Bill of Lading through the existing
+// browser print-sheet path.
+let loadingCurrentTaskId = '';
+
+async function renderLoadingDockView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Loading</h1>
+      <p class="page-subtitle">Open a load against a dock door and trailer, scan each carton, then complete and depart.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const setupPanel = document.createElement('div');
+  setupPanel.className = 'table-panel';
+  setupPanel.style.padding = '20px';
+  setupPanel.style.marginBottom = '16px';
+  setupPanel.innerHTML = `
+    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="load-existing-id">Existing Loading Task ID</label>
+        <input type="text" id="load-existing-id" class="form-input" style="width:200px;" autocomplete="off">
+      </div>
+      <button class="btn btn-secondary" id="load-open-existing-btn" type="button">Open</button>
+    </div>
+    <hr style="margin:16px 0;">
+    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="load-dock-door">Dock Door</label>
+        <input type="text" id="load-dock-door" class="form-input" style="width:140px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="load-trailer">Trailer</label>
+        <input type="text" id="load-trailer" class="form-input" style="width:140px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="load-manifest">Manifest ID (optional)</label>
+        <input type="text" id="load-manifest" class="form-input" style="width:160px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="load-expected-count">Expected Cartons (optional)</label>
+        <input type="number" id="load-expected-count" class="form-input" style="width:120px;" min="0">
+      </div>
+      <button class="btn btn-primary" id="load-create-btn" type="button">Open New Load</button>
+    </div>
+    <div id="load-setup-error" class="login-error hidden" style="margin-top:12px;"></div>
+  `;
+  container.appendChild(setupPanel);
+
+  const body = document.createElement('div');
+  body.id = 'loading-body';
+  container.appendChild(body);
+
+  document.getElementById('load-open-existing-btn').addEventListener('click', () => {
+    const id = document.getElementById('load-existing-id').value.trim();
+    if (id) { loadingCurrentTaskId = id; loadLoadingDock(); }
+  });
+  document.getElementById('load-create-btn').addEventListener('click', createLoadingDockTask);
+  loadingCurrentTaskId = '';
+}
+
+async function createLoadingDockTask() {
+  const errorEl = document.getElementById('load-setup-error');
+  errorEl.classList.add('hidden');
+  const dockDoor = document.getElementById('load-dock-door').value.trim();
+  const trailer = document.getElementById('load-trailer').value.trim();
+  const manifestId = document.getElementById('load-manifest').value.trim();
+  const expected = parseInt(document.getElementById('load-expected-count').value, 10) || 0;
+  if (!dockDoor || !trailer) {
+    errorEl.textContent = 'Dock door and trailer are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const res = await apiFetch('/api/v1/wms/loading/create', {
+    method: 'POST',
+    body: JSON.stringify({ dock_door: dockDoor, trailer_no: trailer, manifest_id: manifestId, expected_carton_count: expected })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to open the load.', 'Open Failed'); return; }
+  const data = await res.json();
+  loadingCurrentTaskId = data.loading_task_id;
+  loadLoadingDock();
+}
+
+async function loadLoadingDock() {
+  const body = document.getElementById('loading-body');
+  if (!loadingCurrentTaskId) { body.innerHTML = ''; return; }
+  const res = await apiFetch(`/api/v1/wms/loading/bol?loading_task_id=${encodeURIComponent(loadingCurrentTaskId)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to load the loading task.', 'Load Failed'); return; }
+  const data = await res.json();
+  const task = data.loading_task;
+  const packages = data.packages || [];
+
+  body.innerHTML = `
+    <div class="table-panel" style="padding:20px; margin-bottom:16px;">
+      <div class="text-muted" style="font-size:13px; margin-bottom:10px;">
+        Load ${escapeHTMLText(task.doc_id)} &mdash; door ${escapeHTMLText(task.dock_door)}, trailer ${escapeHTMLText(task.trailer_no)} &mdash;
+        <span class="badge">${task.status}</span> &mdash; ${task.scanned_carton_count} scanned${task.expected_carton_count ? ' / ' + task.expected_carton_count + ' expected' : ''}
+      </div>
+      ${(task.status === 'Planned' || task.status === 'Loading') ? `
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="load-scan-input">Scan Package / Carton</label>
+          <input type="text" id="load-scan-input" class="form-input" placeholder="Scan or type package code, then Enter" autocomplete="off" style="font-size:20px; padding:14px;">
+        </div>
+        <div id="load-scan-error" class="login-error hidden" style="margin-top:10px;"></div>
+        <button class="btn btn-primary" id="load-complete-btn" type="button" style="margin-top:12px;" ${task.scanned_carton_count === 0 ? 'disabled' : ''}>Complete Load</button>
+      ` : ''}
+      ${task.status === 'Loaded' ? `
+        <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-top:8px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" for="load-pallets-out">Pallets Out</label>
+            <input type="number" id="load-pallets-out" class="form-input" style="width:100px;" min="0" value="${task.pallet_exchange_out || 0}">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label" for="load-pallets-in">Pallets In</label>
+            <input type="number" id="load-pallets-in" class="form-input" style="width:100px;" min="0" value="${task.pallet_exchange_in || 0}">
+          </div>
+          <button class="btn btn-secondary" id="load-depart-btn" type="button">Record Exchange &amp; Depart</button>
+          <button class="btn btn-secondary" id="load-print-bol-btn" type="button">Print Bill of Lading</button>
+        </div>
+      ` : ''}
+      ${task.status === 'Departed' ? `<button class="btn btn-secondary" id="load-print-bol-btn" type="button" style="margin-top:8px;">Print Bill of Lading</button>` : ''}
+    </div>
+    <div class="table-panel" style="padding:0;">
+      <div class="table-wrapper"><table>
+        <thead><tr><th>Package</th><th>Order</th><th>Weight (kg)</th></tr></thead>
+        <tbody>${packages.length === 0 ? '<tr><td colspan="3">No cartons scanned yet.</td></tr>' : packages.map(p => `<tr><td>${p.package_code}</td><td>${p.order_id || '&mdash;'}</td><td>${p.weight_kg || '&mdash;'}</td></tr>`).join('')}</tbody>
+      </table></div>
+    </div>`;
+
+  const scanInput = document.getElementById('load-scan-input');
+  if (scanInput) {
+    scanInput.addEventListener('keydown', async (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const errorEl = document.getElementById('load-scan-error');
+      errorEl.classList.add('hidden');
+      const code = scanInput.value.trim();
+      scanInput.value = '';
+      if (!code) return;
+      const res = await apiFetch('/api/v1/wms/loading/scan', { method: 'POST', body: JSON.stringify({ loading_task_id: loadingCurrentTaskId, package_code: code }) });
+      if (!res) return;
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        errorEl.textContent = data.error || 'Scan failed.';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+      loadLoadingDock();
+    });
+    scanInput.focus();
+  }
+  const completeBtn = document.getElementById('load-complete-btn');
+  if (completeBtn) completeBtn.addEventListener('click', async () => {
+    const res = await apiFetch('/api/v1/wms/loading/complete', { method: 'POST', body: JSON.stringify({ loading_task_id: loadingCurrentTaskId }) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Failed to complete the load.', 'Complete Failed'); return; }
+    loadLoadingDock();
+  });
+  const departBtn = document.getElementById('load-depart-btn');
+  if (departBtn) departBtn.addEventListener('click', async () => {
+    const palletsOut = parseInt(document.getElementById('load-pallets-out').value, 10) || 0;
+    const palletsIn = parseInt(document.getElementById('load-pallets-in').value, 10) || 0;
+    const res = await apiFetch('/api/v1/wms/loading/depart', {
+      method: 'POST',
+      body: JSON.stringify({ loading_task_id: loadingCurrentTaskId, pallet_exchange_out: palletsOut, pallet_exchange_in: palletsIn })
+    });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Failed to record departure.', 'Depart Failed'); return; }
+    loadLoadingDock();
+  });
+  const printBtn = document.getElementById('load-print-bol-btn');
+  if (printBtn) printBtn.addEventListener('click', () => renderBOLPrintSheet(task, packages));
+}
+
+function renderBOLPrintSheet(task, packages) {
+  const area = document.getElementById('bol-print-area');
+  if (!area) return;
+  const rows = packages.map(p => `<tr><td>${p.package_code}</td><td>${p.order_id || '&mdash;'}</td><td>${p.weight_kg || '&mdash;'}</td></tr>`).join('');
+  area.innerHTML = `
+    <div class="invoice-sheet">
+      <div class="invoice-title">Bill of Lading</div>
+      <hr>
+      <table>
+        <tr><td class="invoice-key">Load</td><td>${task.doc_id}</td></tr>
+        <tr><td class="invoice-key">Dock Door</td><td>${task.dock_door}</td></tr>
+        <tr><td class="invoice-key">Trailer</td><td>${task.trailer_no}</td></tr>
+        <tr><td class="invoice-key">Status</td><td>${task.status}</td></tr>
+        <tr><td class="invoice-key">Pallets Out / In</td><td>${task.pallet_exchange_out || 0} / ${task.pallet_exchange_in || 0}</td></tr>
+      </table>
+      <hr>
+      <table>
+        <thead><tr><th>Package</th><th>Order</th><th>Weight (kg)</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="invoice-total">Total Cartons: ${packages.length}</div>
+    </div>
+  `;
+  area.classList.add('printing');
+  window.print();
+  setTimeout(() => area.classList.remove('printing'), 500);
+}
+
+// Stage 42.2.10 - the warehouse cockpit: one screen combining open tasks by
+// type/age, the exception queue, wave status, inbound due today, pick/pack
+// throughput and bin utilisation - every section reads GetWarehouseCockpit's
+// own best-effort aggregation, so one empty section never blocks the rest
+// from rendering. No dock/appointment strip - 42.3 (dock scheduling)
+// doesn't exist yet, and the plan's own note says that section is populated
+// there, not here.
+async function renderWarehouseCockpitView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Warehouse Cockpit</h1>
+      <p class="page-subtitle">Open tasks, exceptions, wave status, inbound due today, throughput and bin utilisation for one location, in one place.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const controls = document.createElement('div');
+  controls.className = 'table-panel';
+  controls.style.padding = '24px';
+  controls.style.marginBottom = '24px';
+  controls.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="cockpit-location">Location</label>
+        <input type="text" id="cockpit-location" class="form-input" style="width: 160px;" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="cockpit-refresh-btn" type="button">Refresh</button>
+    </div>
+  `;
+  container.appendChild(controls);
+
+  const body = document.createElement('div');
+  body.id = 'cockpit-body';
+  container.appendChild(body);
+
+  document.getElementById('cockpit-refresh-btn').addEventListener('click', loadWarehouseCockpit);
+  attachLinkTypeahead(document.getElementById('cockpit-location'), 'Location');
+  document.getElementById('cockpit-location').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') loadWarehouseCockpit();
+  });
+}
+
+async function loadWarehouseCockpit() {
+  const body = document.getElementById('cockpit-body');
+  const location = document.getElementById('cockpit-location').value.trim();
+  if (!location) {
+    body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">Enter a Location and click Refresh.</div>`;
+    return;
+  }
+  body.innerHTML = `<div class="table-panel" style="padding:24px; color:var(--text-muted);">Loading...</div>`;
+  const res = await apiFetch(`/api/v1/wms/cockpit?location_code=${encodeURIComponent(location)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to load the cockpit.', 'Load Failed'); return; }
+  const c = await res.json();
+
+  const section = (title, inner) => `
+    <div class="table-panel" style="padding:24px; margin-bottom:24px;">
+      <h2 style="font-size:16px; font-weight:700; margin-bottom:12px;">${title}</h2>
+      ${inner}
+    </div>`;
+  const empty = 'No records.';
+
+  const openTasksHtml = (c.open_tasks || []).length === 0 ? empty : `
+    <table>
+      <thead><tr><th>Task Type</th><th>Status</th><th>Count</th><th>Oldest (mins)</th></tr></thead>
+      <tbody>
+        ${c.open_tasks.map(t => `<tr><td>${t.task_type}</td><td>${t.status}</td><td>${t.count}</td><td>${t.oldest_age_mins}</td></tr>`).join('')}
+      </tbody>
+    </table>`;
+
+  const exceptionsHtml = (c.exception_queue || []).length === 0 ? empty : `
+    <table>
+      <thead><tr><th>Task</th><th>Type</th><th>Item</th><th>Bin</th><th>Process Step</th><th>Follow-On</th><th>Age (mins)</th></tr></thead>
+      <tbody>
+        ${c.exception_queue.map(e => `<tr>
+          <td>${e.task_id}</td><td>${e.task_type}</td><td>${e.item || '&mdash;'}</td><td>${e.bin_code || '&mdash;'}</td>
+          <td>${e.process_step || '&mdash;'}</td><td><span class="badge badge-warning">${e.follow_on_action || '&mdash;'}</span></td>
+          <td>${e.age_mins}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+
+  const waveHtml = (c.wave_status || []).length === 0 ? empty : `
+    <table>
+      <thead><tr><th>Wave</th><th>Status</th><th>Count</th></tr></thead>
+      <tbody>${c.wave_status.map(w => `<tr><td>${w.wave_id}</td><td>${w.status}</td><td>${w.count}</td></tr>`).join('')}</tbody>
+    </table>`;
+
+  // Stage 42.4.2: the registered-Wave lifecycle view, separate from the
+  // per-FulfillmentTask-status breakdown above. "Advance" moves a wave one
+  // step forward through TransitionWaveStatus; a wave with no open tasks
+  // left can be advanced straight through to Closed by repeated clicks.
+  const waveNextStatus = { 'Planned': 'Released', 'Released': 'In Progress', 'In Progress': 'Complete', 'Complete': 'Closed' };
+  const waveMonitorHtml = (c.wave_monitor || []).length === 0 ? empty : `
+    <table>
+      <thead><tr><th>Wave</th><th>Status</th><th>Via</th><th>Tasks</th><th>Open</th><th>Age (mins)</th><th></th></tr></thead>
+      <tbody>${c.wave_monitor.map(w => `<tr>
+          <td>${w.wave_id}</td><td>${w.status}</td><td>${w.created_via}</td><td>${w.task_count}</td><td>${w.open_tasks}</td><td>${w.age_mins}</td>
+          <td>${waveNextStatus[w.status] ? `<button class="btn btn-sm btn-secondary wave-advance-btn" data-wave="${w.wave_id}" data-next="${waveNextStatus[w.status]}" type="button">${waveNextStatus[w.status]}</button>` : ''}</td>
+        </tr>`).join('')}</tbody>
+    </table>
+    <div style="display:flex; gap:8px; align-items:flex-end; margin-top:16px; flex-wrap:wrap;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="cockpit-wave-template">Wave Template ID</label>
+        <input type="text" id="cockpit-wave-template" class="form-input" style="width:220px;" autocomplete="off">
+      </div>
+      <button class="btn btn-primary" id="cockpit-run-template-btn" type="button">Run Template Now</button>
+    </div>`;
+
+  const inboundHtml = (c.inbound_due_today || []).length === 0 ? empty : `
+    <table>
+      <thead><tr><th>ASN</th><th>Vendor</th><th>Expected Date</th><th>Status</th></tr></thead>
+      <tbody>${c.inbound_due_today.map(a => `<tr><td>${a.asn_number}</td><td>${a.vendor || '&mdash;'}</td><td>${a.expected_date}</td><td>${a.status}</td></tr>`).join('')}</tbody>
+    </table>`;
+
+  const throughputHtml = (c.throughput_today || []).length === 0 ? empty : `
+    <table>
+      <thead><tr><th>User</th><th>Task Type</th><th>Count</th><th>Tasks/Hour</th></tr></thead>
+      <tbody>${c.throughput_today.map(p => `<tr><td>${p.user_id}</td><td>${p.task_type}</td><td>${p.task_count}</td><td>${p.tasks_per_hour}</td></tr>`).join('')}</tbody>
+    </table>`;
+
+  const binUtilHtml = (c.bin_utilization || []).length === 0 ? `${empty} (no bin at this location has a capacity configured yet.)` : `
+    <table>
+      <thead><tr><th>Bin</th><th>Used</th><th>Capacity</th><th>% Used</th></tr></thead>
+      <tbody>${c.bin_utilization.map(u => `<tr><td>${u.bin_code}</td><td>${u.used_qty}</td><td>${u.max_qty}</td>
+        <td><span class="badge ${u.pct_used >= 90 ? 'badge-danger' : (u.pct_used >= 70 ? 'badge-warning' : 'badge-success')}">${u.pct_used}%</span></td></tr>`).join('')}</tbody>
+    </table>`;
+
+  body.innerHTML =
+    section('Open Tasks by Type / Age', openTasksHtml) +
+    section('Exception Queue', exceptionsHtml) +
+    section('Wave Status', waveHtml) +
+    section('Wave Monitor', waveMonitorHtml) +
+    section('Inbound Due Today', inboundHtml) +
+    section("Today's Throughput", throughputHtml) +
+    section('Bin Utilisation', binUtilHtml);
+
+  document.querySelectorAll('.wave-advance-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const res = await apiFetch('/api/v1/wms/wave/transition', { method: 'POST', body: JSON.stringify({ wave_id: btn.dataset.wave, status: btn.dataset.next }) });
+      if (!res) return;
+      if (!res.ok) { await showApiError(res, 'Failed to advance the wave.', 'Advance Failed'); return; }
+      loadWarehouseCockpit();
+    });
+  });
+  const runTemplateBtn = document.getElementById('cockpit-run-template-btn');
+  if (runTemplateBtn) {
+    runTemplateBtn.addEventListener('click', async () => {
+      const templateId = document.getElementById('cockpit-wave-template').value.trim();
+      if (!templateId) return;
+      const res = await apiFetch('/api/v1/wms/wave/template/run', { method: 'POST', body: JSON.stringify({ wave_template_id: templateId }) });
+      if (!res) return;
+      if (!res.ok) { await showApiError(res, 'Failed to run the wave template.', 'Run Failed'); return; }
+      loadWarehouseCockpit();
+    });
+  }
 }
 
 const BIN_STOCK_CONDITIONS = ['Good', 'Damaged', 'QC-Hold', 'RTV'];
@@ -9770,6 +11114,51 @@ async function renderGRNWorkbenchView(container) {
       </div>
       <div id="grn-batch-note" style="font-size: 12.5px; color: var(--text-muted); align-self: center;"></div>
     </div>
+
+    <!-- Stage 42.1.8: serial capture at receipt. Its own row, hidden unless
+         the SKU in the line field is Serial or Batch and Serial tracked
+         (populateGRNBatchRow below also drives this one) - one serial number
+         per accepted unit, which is what makes this a textarea rather than a
+         single input. -->
+    <div id="grn-serial-row" class="hidden" style="display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
+      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 260px;">
+        <label class="form-label" for="grn-line-serials">Serial Numbers (one per unit)</label>
+        <textarea id="grn-line-serials" class="form-input" rows="2" style="width: 100%; font-family: Consolas, Monaco, monospace;" placeholder="one per line, or comma-separated"></textarea>
+      </div>
+      <div id="grn-serial-note" style="font-size: 12.5px; color: var(--text-muted); align-self: center;"></div>
+    </div>
+    <!-- Stage 42.3.7: catch weight + dimensional capture at receipt. Weight
+         is shown (and required) only for an item flagged is_catch_weight;
+         dimensions are always optional and offered for every line, same
+         "no gate, just an optional capture" shape as the batch fields for a
+         non-tracked item above. -->
+    <div id="grn-weight-row" style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-weight">Actual Weight</label>
+        <input type="number" id="grn-line-weight" class="form-input" style="width: 110px;" min="0" step="0.01">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-weight-uom">Weight UOM</label>
+        <input type="text" id="grn-line-weight-uom" class="form-input" style="width: 90px;" placeholder="kg" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-length">L</label>
+        <input type="number" id="grn-line-length" class="form-input" style="width: 70px;" min="0" step="0.01">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-width">W</label>
+        <input type="number" id="grn-line-width" class="form-input" style="width: 70px;" min="0" step="0.01">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-height">H</label>
+        <input type="number" id="grn-line-height" class="form-input" style="width: 70px;" min="0" step="0.01">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-line-dim-uom">Dim UOM</label>
+        <input type="text" id="grn-line-dim-uom" class="form-input" style="width: 80px;" placeholder="cm" autocomplete="off">
+      </div>
+      <div id="grn-weight-note" style="font-size: 12.5px; color: var(--text-muted); align-self: center;"></div>
+    </div>
     <div id="grn-lines-list" style="margin: 12px 0;"></div>
     <div id="grn-form-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
     <button class="btn btn-primary" id="grn-create-btn">Post Receipt</button>
@@ -9798,6 +11187,8 @@ async function renderGRNWorkbenchView(container) {
   // clerk's next visit rather than surviving until a page reload.
   grnBatchTracked = {};
   grnBatchShelfLife = {};
+  grnSerialTracked = {};
+  grnCatchWeight = {};
 
   renderGRNLinesList();
 
@@ -9843,12 +11234,13 @@ function renderGRNLinesList() {
     el.innerHTML = `<p style="font-size: 13px; color: var(--text-muted);">No lines added yet.</p>`;
     return;
   }
-  // Stage 42.1.4: the Batch/Expiry column appears only once a line on this
-  // receipt actually carries a lot.
+  // Stage 42.1.4/42.1.8: the Batch/Expiry and Serials columns each appear
+  // only once a line on this receipt actually carries one.
   const grnHasBatches = grnLineItems.some(l => l.batch_no);
+  const grnHasSerials = grnLineItems.some(l => l.serial_numbers && l.serial_numbers.length);
   el.innerHTML = `
     <table style="margin-top: 4px;">
-      <thead><tr><th>SKU</th><th>Barcode</th>${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}<th>Ordered</th><th>Received</th><th>Accepted</th><th>Rejected</th><th>Damaged</th><th>Short</th><th></th></tr></thead>
+      <thead><tr><th>SKU</th><th>Barcode</th>${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}${grnHasSerials ? '<th>Serials</th>' : ''}<th>Ordered</th><th>Received</th><th>Accepted</th><th>Rejected</th><th>Damaged</th><th>Short</th><th></th></tr></thead>
       <tbody>
         ${grnLineItems.map((line, idx) => {
           const ordered = line.ordered_qty;
@@ -9858,6 +11250,7 @@ function renderGRNLinesList() {
               <td style="font-family: monospace;">${line.sku}</td>
               <td><span class="badge badge-secondary" style="font-family: Consolas, Monaco, monospace; letter-spacing: 1px;">${line.barcode || line.sku}</span></td>
               ${grnHasBatches ? `<td>${batchCellHTML({ batch_no: line.batch_no, expiry_date: line.expiry_date })}</td>` : ''}
+              ${grnHasSerials ? `<td>${line.serial_numbers && line.serial_numbers.length ? `<span class="badge badge-secondary" title="${line.serial_numbers.map(escapeHTMLText).join(', ')}">${line.serial_numbers.length} unit(s)</span>` : ''}</td>` : ''}
               <td>${(ordered === null || ordered === undefined || ordered === '') ? '&mdash;' : ordered}</td>
               <td>${line.qty}</td>
               <td>${line.accepted_qty}</td>
@@ -9944,10 +11337,54 @@ async function addGRNLine() {
     return;
   }
 
+  // Stage 42.1.8: serial capture. Same "server re-checks, this copy is so the
+  // clerk finds out with the carton still in hand" reasoning as batch above -
+  // the server-side gate is ValidateReceiptSerialLine (INVENT-0115).
+  const serialsEl = document.getElementById('grn-line-serials');
+  const acceptedQty = qty - rejectedQty - damagedQty;
+  const serialNumbers = (serialsEl?.value || '')
+    .split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+  if (grnSerialTracked[sku] && acceptedQty > 0) {
+    const unique = new Set(serialNumbers);
+    if (unique.size !== serialNumbers.length) {
+      errorEl.textContent = `${sku} has a serial number listed more than once - each unit needs its own serial number.`;
+      errorEl.classList.remove('hidden');
+      return;
+    }
+    if (serialNumbers.length !== acceptedQty) {
+      errorEl.textContent = `${sku} is serial-tracked - ${acceptedQty} unit(s) accepted but ${serialNumbers.length} serial number(s) entered. List exactly one per accepted unit.`;
+      errorEl.classList.remove('hidden');
+      return;
+    }
+  }
+
+  // Stage 42.3.7: catch weight + dimensions. The mandatory check is repeated
+  // server-side in ValidateReceiptCatchWeightLine (GOODSR-0098) - same
+  // "clerk finds out with the carton still in hand" reasoning as batch/
+  // serial above.
+  const weightEl = document.getElementById('grn-line-weight');
+  const weightUomEl = document.getElementById('grn-line-weight-uom');
+  const lengthEl = document.getElementById('grn-line-length');
+  const widthEl = document.getElementById('grn-line-width');
+  const heightEl = document.getElementById('grn-line-height');
+  const dimUomEl = document.getElementById('grn-line-dim-uom');
+  const actualWeight = (weightEl?.value || '') === '' ? null : parseFloat(weightEl.value);
+  const weightUom = (weightUomEl?.value || '').trim();
+  const length = (lengthEl?.value || '') === '' ? null : parseFloat(lengthEl.value);
+  const width = (widthEl?.value || '') === '' ? null : parseFloat(widthEl.value);
+  const height = (heightEl?.value || '') === '' ? null : parseFloat(heightEl.value);
+  const dimUom = (dimUomEl?.value || '').trim();
+
+  if (grnCatchWeight[sku] && (actualWeight === null || actualWeight <= 0)) {
+    errorEl.textContent = `${sku} is a catch weight item - enter the actual weight before adding this line.`;
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
   const barcode = await lookupGRNBarcode(sku);
   const line = {
     sku, ordered_qty: ordered, qty,
-    accepted_qty: qty - rejectedQty - damagedQty,
+    accepted_qty: acceptedQty,
     rejected_qty: rejectedQty,
     rejection_reason: rejectionReason,
     damaged_qty: damagedQty,
@@ -9960,6 +11397,13 @@ async function addGRNLine() {
   if (mfgDate) line.mfg_date = mfgDate;
   if (expiryDate) line.expiry_date = expiryDate;
   if (supplierBatch) line.supplier_batch = supplierBatch;
+  if (serialNumbers.length) line.serial_numbers = serialNumbers;
+  if (actualWeight !== null) line.actual_weight = actualWeight;
+  if (weightUom) line.weight_uom = weightUom;
+  if (length !== null) line.length = length;
+  if (width !== null) line.width = width;
+  if (height !== null) line.height = height;
+  if (dimUom) line.dim_uom = dimUom;
   grnLineItems.push(line);
 
   skuEl.value = '';
@@ -9973,6 +11417,13 @@ async function addGRNLine() {
   if (mfgEl) mfgEl.value = '';
   if (expiryEl) expiryEl.value = '';
   if (supplierBatchEl) supplierBatchEl.value = '';
+  if (serialsEl) serialsEl.value = '';
+  if (weightEl) weightEl.value = '';
+  if (weightUomEl) weightUomEl.value = '';
+  if (lengthEl) lengthEl.value = '';
+  if (widthEl) widthEl.value = '';
+  if (heightEl) heightEl.value = '';
+  if (dimUomEl) dimUomEl.value = '';
   populateGRNBatchRow();
   renderGRNLinesList();
 }
@@ -9989,9 +11440,15 @@ async function populateGRNBatchRow() {
   const row = document.getElementById('grn-batch-row');
   const note = document.getElementById('grn-batch-note');
   const batchEl = document.getElementById('grn-line-batch');
+  const serialRow = document.getElementById('grn-serial-row');
+  const serialNote = document.getElementById('grn-serial-note');
   if (!row) return;
   const sku = (document.getElementById('grn-line-sku')?.value || '').trim();
-  if (!sku) { row.classList.add('hidden'); return; }
+  if (!sku) {
+    row.classList.add('hidden');
+    if (serialRow) serialRow.classList.add('hidden');
+    return;
+  }
 
   if (!(sku in grnBatchTracked)) {
     // The Item doc endpoint keys on document id, and an Item's id is not
@@ -10001,13 +11458,17 @@ async function populateGRNBatchRow() {
     const res = await apiFetch(`/api/v1/doc/Item/${encodeURIComponent(sku)}`);
     let mode = '';
     let shelfLife = 0;
+    let catchWeight = false;
     if (res && res.ok) {
       const item = await res.json();
       mode = item.tracking_mode || '';
       shelfLife = Number(item.shelf_life_days) || 0;
+      catchWeight = item.is_catch_weight === 'Yes';
     }
     grnBatchTracked[sku] = (mode === 'Batch' || mode === 'Batch and Serial');
     grnBatchShelfLife[sku] = shelfLife;
+    grnSerialTracked[sku] = (mode === 'Serial' || mode === 'Batch and Serial');
+    grnCatchWeight[sku] = catchWeight;
   }
 
   const tracked = grnBatchTracked[sku];
@@ -10019,12 +11480,44 @@ async function populateGRNBatchRow() {
       ? `<b>${escapeHTMLText(sku)}</b> is batch-tracked &mdash; a lot number is required.${shelfLife > 0 ? ` If you enter a manufacture date and leave Expiry blank, expiry is derived as manufacture + ${shelfLife} days.` : ''}`
       : `<b>${escapeHTMLText(sku)}</b> is not batch-tracked. You may still record a lot number; it will be kept for traceability.`;
   }
+
+  // Stage 42.1.8: the serial row only shows for a Serial / Batch and Serial
+  // item - unlike the batch row above, which stays visible (but optional)
+  // for every item, since recording a stray serial on an untracked item has
+  // no use the way a stray batch number does.
+  const serialTracked = grnSerialTracked[sku];
+  if (serialRow) serialRow.classList.toggle('hidden', !serialTracked);
+  if (serialNote && serialTracked) {
+    serialNote.innerHTML = `<b>${escapeHTMLText(sku)}</b> is serial-tracked &mdash; list exactly one serial number per accepted unit.`;
+  }
+
+  // Stage 42.3.7: catch weight. The row itself always shows (dimensions are
+  // a free capture for any item), but only a catch-weight item's note/
+  // placeholder says weight is required - addGRNLine is what actually
+  // enforces it.
+  const catchWeight = grnCatchWeight[sku];
+  const weightEl = document.getElementById('grn-line-weight');
+  const weightNote = document.getElementById('grn-weight-note');
+  if (weightEl) weightEl.placeholder = catchWeight ? 'required for this item' : 'optional';
+  if (weightNote) {
+    weightNote.innerHTML = catchWeight
+      ? `<b>${escapeHTMLText(sku)}</b> is a catch weight item &mdash; the actual weight is required.`
+      : '';
+  }
 }
 
 // Shelf life per SKU, cached alongside grnBatchTracked, so the note above can
 // explain the derive-expiry-from-manufacture-date behaviour concretely rather
 // than in the abstract.
 let grnBatchShelfLife = {};
+
+// Stage 42.1.8: which SKUs are serial-tracked, same per-screen-visit cache
+// shape as grnBatchTracked.
+let grnSerialTracked = {};
+
+// Stage 42.3.7: which SKUs are catch-weight items, same per-screen-visit
+// cache shape as grnBatchTracked.
+let grnCatchWeight = {};
 
 window.removeGRNLine = function(idx) {
   grnLineItems.splice(idx, 1);
@@ -10402,6 +11895,28 @@ async function renderReportsView(container) {
   tabBar.style.display = 'flex';
   tabBar.style.gap = '8px';
   tabBar.style.marginBottom = '16px';
+  // Stage 45: at a narrow enough width/zoom this row is wider than the page
+  // - .page-container clips overflow-x rather than scrolling it, so without
+  // this the trailing tabs were just gone with no way back to them. Scoping
+  // the scroll to the bar itself (not the whole page) keeps the rest of the
+  // screen from picking up a horizontal scrollbar too.
+  //
+  // flex-shrink: 0 is load-bearing, not decorative. Verified live: setting
+  // only overflow-x on a flex item inside .page-container's column flexbox
+  // let the whole bar collapse to 0px height whenever the page's other
+  // content was tall enough to overflow vertically - overflow-x non-visible
+  // suppresses this item's automatic min-height (content-based sizing only
+  // applies when overflow is 'visible'), and per the CSS Overflow spec the
+  // *used* value of overflow-y becomes 'auto' here regardless of what's
+  // declared (confirmed: getComputedStyle still reports 'auto' even with
+  // overflow-y explicitly set to 'visible' below - that line documents
+  // intent but does not itself prevent the collapse). flex-shrink: 0 is what
+  // actually fixes it: it exempts the item from shrinking at all, which
+  // sidesteps the automatic-minimum-size calculation entirely rather than
+  // trying to win it.
+  tabBar.style.overflowX = 'auto';
+  tabBar.style.overflowY = 'visible';
+  tabBar.style.flexShrink = '0';
   tabBar.innerHTML = REPORT_TABS.map(t =>
     `<button class="btn ${t.id === currentReportTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-report-tab="${t.id}">${t.label}</button>`
   ).join('');
@@ -11972,7 +13487,7 @@ function renderPrintSheet(labels, copies) {
       html += `
         <div class="sticker-label">
           <div class="sticker-name">${label.name || label.sku}</div>
-          <div class="sticker-barcode">${label.barcode}</div>
+          <div class="sticker-barcode">${label.barcode_svg || label.barcode}</div>
           <div class="sticker-meta">SKU: ${label.sku}${label.hsn_code ? ' &nbsp;|&nbsp; HSN: ' + label.hsn_code : ''}</div>
         </div>
       `;
@@ -12018,6 +13533,28 @@ async function renderHRView(container) {
   tabBar.style.display = 'flex';
   tabBar.style.gap = '8px';
   tabBar.style.marginBottom = '16px';
+  // Stage 45: at a narrow enough width/zoom this row is wider than the page
+  // - .page-container clips overflow-x rather than scrolling it, so without
+  // this the trailing tabs were just gone with no way back to them. Scoping
+  // the scroll to the bar itself (not the whole page) keeps the rest of the
+  // screen from picking up a horizontal scrollbar too.
+  //
+  // flex-shrink: 0 is load-bearing, not decorative. Verified live: setting
+  // only overflow-x on a flex item inside .page-container's column flexbox
+  // let the whole bar collapse to 0px height whenever the page's other
+  // content was tall enough to overflow vertically - overflow-x non-visible
+  // suppresses this item's automatic min-height (content-based sizing only
+  // applies when overflow is 'visible'), and per the CSS Overflow spec the
+  // *used* value of overflow-y becomes 'auto' here regardless of what's
+  // declared (confirmed: getComputedStyle still reports 'auto' even with
+  // overflow-y explicitly set to 'visible' below - that line documents
+  // intent but does not itself prevent the collapse). flex-shrink: 0 is what
+  // actually fixes it: it exempts the item from shrinking at all, which
+  // sidesteps the automatic-minimum-size calculation entirely rather than
+  // trying to win it.
+  tabBar.style.overflowX = 'auto';
+  tabBar.style.overflowY = 'visible';
+  tabBar.style.flexShrink = '0';
   tabBar.innerHTML = HR_TABS.map(t =>
     `<button class="btn ${t.id === currentHRTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-hr-tab="${t.id}">${t.label}</button>`
   ).join('');
@@ -13637,6 +15174,28 @@ async function renderManufacturingView(container) {
   tabBar.style.display = 'flex';
   tabBar.style.gap = '8px';
   tabBar.style.marginBottom = '16px';
+  // Stage 45: at a narrow enough width/zoom this row is wider than the page
+  // - .page-container clips overflow-x rather than scrolling it, so without
+  // this the trailing tabs were just gone with no way back to them. Scoping
+  // the scroll to the bar itself (not the whole page) keeps the rest of the
+  // screen from picking up a horizontal scrollbar too.
+  //
+  // flex-shrink: 0 is load-bearing, not decorative. Verified live: setting
+  // only overflow-x on a flex item inside .page-container's column flexbox
+  // let the whole bar collapse to 0px height whenever the page's other
+  // content was tall enough to overflow vertically - overflow-x non-visible
+  // suppresses this item's automatic min-height (content-based sizing only
+  // applies when overflow is 'visible'), and per the CSS Overflow spec the
+  // *used* value of overflow-y becomes 'auto' here regardless of what's
+  // declared (confirmed: getComputedStyle still reports 'auto' even with
+  // overflow-y explicitly set to 'visible' below - that line documents
+  // intent but does not itself prevent the collapse). flex-shrink: 0 is what
+  // actually fixes it: it exempts the item from shrinking at all, which
+  // sidesteps the automatic-minimum-size calculation entirely rather than
+  // trying to win it.
+  tabBar.style.overflowX = 'auto';
+  tabBar.style.overflowY = 'visible';
+  tabBar.style.flexShrink = '0';
   tabBar.innerHTML = MFG_TABS.map(t =>
     `<button class="btn ${t.id === currentMfgTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-mfg-tab="${t.id}">${t.label}</button>`
   ).join('');
@@ -14210,6 +15769,28 @@ function renderPIMShellHeader(container) {
   tabBar.style.display = 'flex';
   tabBar.style.gap = '8px';
   tabBar.style.marginBottom = '16px';
+  // Stage 45: at a narrow enough width/zoom this row is wider than the page
+  // - .page-container clips overflow-x rather than scrolling it, so without
+  // this the trailing tabs were just gone with no way back to them. Scoping
+  // the scroll to the bar itself (not the whole page) keeps the rest of the
+  // screen from picking up a horizontal scrollbar too.
+  //
+  // flex-shrink: 0 is load-bearing, not decorative. Verified live: setting
+  // only overflow-x on a flex item inside .page-container's column flexbox
+  // let the whole bar collapse to 0px height whenever the page's other
+  // content was tall enough to overflow vertically - overflow-x non-visible
+  // suppresses this item's automatic min-height (content-based sizing only
+  // applies when overflow is 'visible'), and per the CSS Overflow spec the
+  // *used* value of overflow-y becomes 'auto' here regardless of what's
+  // declared (confirmed: getComputedStyle still reports 'auto' even with
+  // overflow-y explicitly set to 'visible' below - that line documents
+  // intent but does not itself prevent the collapse). flex-shrink: 0 is what
+  // actually fixes it: it exempts the item from shrinking at all, which
+  // sidesteps the automatic-minimum-size calculation entirely rather than
+  // trying to win it.
+  tabBar.style.overflowX = 'auto';
+  tabBar.style.overflowY = 'visible';
+  tabBar.style.flexShrink = '0';
   tabBar.innerHTML = PIM_TABS.map(t =>
     `<button class="btn ${t.id === currentPIMTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-pim-tab="${t.id}">${t.label}</button>`
   ).join('');

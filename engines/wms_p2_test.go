@@ -167,6 +167,62 @@ func TestWMSP2(t *testing.T) {
 		}
 	})
 
+	// Stage 42.1.10 - a rate that names both an Item and a BillingUOM counts
+	// only that item's units (not the whole location) and bills against the
+	// converted quantity, e.g. "$5 per CASE/day" on 24 EA of stock = 2 CASE.
+	t.Run("StorageBillingReportWithUOM", func(t *testing.T) {
+		owner := "OWNER-3PL-UOM-TEST"
+		location := "WH-3PL-UOM-TEST"
+		bin := "BIN-3PL-UOM-TEST"
+		sku := "SKU-3PL-UOM-TEST"
+		rateID := "RATE-3PL-UOM-TEST"
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".bin_stock WHERE sku = $1", sku)
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE id IN ($1, 'BINDOC-"+bin+"')", rateID)
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'UOMConversion' AND data->>'item' = '" + sku + "'")
+		defer func() {
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'UOMConversion' AND data->>'item' = '" + sku + "'")
+		}()
+
+		seedBin(bin, location, "Reserve", owner)
+		seedBinStock(bin, sku, location, 24)
+
+		convData, _ := json.Marshal(map[string]interface{}{
+			"item": sku, "from_uom": "CASE", "to_uom": "EA", "factor": 12, "status": "Active",
+		})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'UOMConversion', $2, 'Active', 'system')",
+			"UOMCONV-3PL-1", convData); err != nil {
+			t.Fatalf("seed UOMConversion: %v", err)
+		}
+		rateData, _ := json.Marshal(map[string]interface{}{
+			"code": rateID, "owner_id": owner, "location_code": location,
+			"storage_rate_per_unit_per_day": 5, "handling_rate_per_task": 0,
+			"item": sku, "billing_uom": "CASE",
+		})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'StorageBillingRate', $2, 'Active', 'system')",
+			rateID, rateData); err != nil {
+			t.Fatalf("seed StorageBillingRate: %v", err)
+		}
+
+		rows, err := GetStorageBillingReport(tenantID, owner, "2020-01-01", "2020-01-05")
+		if err != nil {
+			t.Fatalf("GetStorageBillingReport failed: %v", err)
+		}
+		if len(rows) != 1 {
+			t.Fatalf("expected exactly 1 billing row for owner %s, got %+v", owner, rows)
+		}
+		r := rows[0]
+		if r.CurrentUnits != 24 {
+			t.Errorf("expected current_units=24 (raw each-count, unchanged), got %d", r.CurrentUnits)
+		}
+		if r.BillingUOM != "CASE" || r.BillingUnits != 2 {
+			t.Errorf("expected billing_uom=CASE, billing_units=2 (24 EA / 12), got %q / %v", r.BillingUOM, r.BillingUnits)
+		}
+		wantStorage := 2.0 * 5 * 5 // 2 CASE * $5/CASE/day * 5 days
+		if r.StorageCharge != wantStorage {
+			t.Errorf("expected storage_charge=%v (billed by CASE, not EA), got %v", wantStorage, r.StorageCharge)
+		}
+	})
+
 	t.Run("RoboticsEvents", func(t *testing.T) {
 		apiKey := "test-robotics-key-12345"
 		credID := "ROBOT-CRED-TEST"
