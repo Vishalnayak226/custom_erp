@@ -771,6 +771,11 @@ func AllocateFromStock(tenantID, sku, locationCode string, needed int) (allocate
 // Zone), so NearestBin needs no special-cased query, only a different
 // fragment from allocationOrderFragments; every other strategy's ORDER BY
 // simply ignores that column.
+// Stage 42.5.1: excludes a Blocked/Full/Counting bin from allocation, the
+// same bin_status values PutawayToBin (engines/wms.go) already refuses on
+// the inbound side - extended here so a bin frozen for a physical
+// inventory (or already blocked/full for any other reason) can't have
+// stock picked out from under a count either.
 func allocateByOrder(tenantID, sku, locationCode string, needed int, orderBy string) ([]AllocationCandidate, int, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -783,6 +788,7 @@ func allocateByOrder(tenantID, sku, locationCode string, needed int, orderBy str
 		LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
 		LEFT JOIN %s.documents z ON z.doctype = 'Zone' AND z.status = 'Active' AND z.data->>'code' = b.data->>'zone'
 		WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.qty > 0
+		  AND COALESCE(b.data->>'bin_status', '') NOT IN ('Blocked', 'Full', 'Counting')
 		ORDER BY %s`, schema, schema, schema, orderBy), sku, locationCode)
 	if err != nil {
 		return nil, needed, err
@@ -852,6 +858,7 @@ func allocateFEFO(tenantID, sku, locationCode string, needed int) ([]AllocationC
 		WHERE bsb.sku = $1 AND bsb.location_code = $2 AND bsb.condition = 'Good' AND bsb.qty > 0
 		  AND COALESCE(b.status, '') = 'Active'
 		  AND (NULLIF(b.data->>'expiry_date', '') IS NULL OR b.data->>'expiry_date' >= $3)
+		  AND COALESCE(bn.data->>'bin_status', '') NOT IN ('Blocked', 'Full', 'Counting')
 		ORDER BY NULLIF(b.data->>'expiry_date', '') ASC NULLS LAST, bsb.batch_no, bsb.bin_code`,
 		schema, schema, schema), sku, locationCode, cutoff)
 	if err != nil {

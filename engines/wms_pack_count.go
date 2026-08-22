@@ -138,13 +138,13 @@ func getCartonCapacity(tenantID, cartonTypeCode string) (int, error) {
 // ABCCycleCountSuggestion is one SKU's velocity tier and whether it's due
 // for its next count.
 type ABCCycleCountSuggestion struct {
-	Sku                 string  `json:"sku"`
-	LocationCode        string  `json:"location_code"`
-	Tier                string  `json:"tier"` // A, B, or C
-	DailyVelocity       float64 `json:"daily_velocity"`
-	DaysSinceLastCount  int     `json:"days_since_last_count"` // -1 = never counted
-	IntervalDays        int     `json:"interval_days"`
-	Due                 bool    `json:"due"`
+	Sku                string  `json:"sku"`
+	LocationCode       string  `json:"location_code"`
+	Tier               string  `json:"tier"` // A, B, or C
+	DailyVelocity      float64 `json:"daily_velocity"`
+	DaysSinceLastCount int     `json:"days_since_last_count"` // -1 = never counted
+	IntervalDays       int     `json:"interval_days"`
+	Due                bool    `json:"due"`
 }
 
 // GetABCCycleCountPlan (26.5.9) classifies every SKU on hand at
@@ -411,4 +411,150 @@ func SetCycleCountVarianceReason(tenantID, lineID, reasonCode, userID string) er
 	}
 	LogAuditEvent(tenantID, userID, "WMS_VARIANCE_REASON_SET", "SUCCESS", fmt.Sprintf("Set variance reason %s on line %s", reasonCode, lineID))
 	return nil
+}
+
+// ------------------------------------------------------------------
+// 42.5.2: CycleClass master - configurable cycle-count tiers
+// ------------------------------------------------------------------
+
+type cycleClassDef struct {
+	Code         string
+	CutoffPct    float64
+	IntervalDays int
+}
+
+func loadActiveCycleClasses(tenantID string) ([]cycleClassDef, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(
+		`SELECT data FROM %s.documents WHERE doctype = 'CycleClass' AND status = 'Active' ORDER BY (data->>'sequence')::numeric ASC`, schema))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []cycleClassDef
+	for rows.Next() {
+		var dataStr string
+		if err := rows.Scan(&dataStr); err != nil {
+			return nil, err
+		}
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+			continue
+		}
+		code, _ := data["code"].(string)
+		if code == "" {
+			continue
+		}
+		out = append(out, cycleClassDef{
+			Code:         code,
+			CutoffPct:    numFromInterface(data["pareto_cutoff_pct"]),
+			IntervalDays: int(numFromInterface(data["interval_days"])),
+		})
+	}
+	return out, rows.Err()
+}
+
+// GetCycleCountPlan (42.5.2) is GetABCCycleCountPlan's tenant-configurable
+// generalisation: if the tenant has defined any Active CycleClass rows, this
+// classifies every SKU on hand at locationCode against those cumulative
+// pareto_cutoff_pct boundaries (evaluated in ascending sequence order) and
+// each class's own interval_days, instead of the fixed 20/50 A/B split
+// GetABCCycleCountPlan always uses. A tenant that has never created a
+// CycleClass keeps that fixed split exactly as before - this function
+// simply delegates to GetABCCycleCountPlan in that case, which is what
+// makes 26.5.9's split "the default, not the only option" rather than a
+// second, divergent implementation of it.
+func GetCycleCountPlan(tenantID, locationCode string) ([]ABCCycleCountSuggestion, error) {
+	classes, err := loadActiveCycleClasses(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if len(classes) == 0 {
+		return GetABCCycleCountPlan(tenantID, locationCode, 0, 0, 0)
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.DB.Query(fmt.Sprintf(
+		`SELECT sku FROM %s.inventory_availability WHERE location_code = $1 AND on_hand > 0`, schema), locationCode)
+	if err != nil {
+		return nil, err
+	}
+	var skus []string
+	for rows.Next() {
+		var sku string
+		if err := rows.Scan(&sku); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		skus = append(skus, sku)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(skus) == 0 {
+		return nil, nil
+	}
+
+	type skuVelocity struct {
+		Sku      string
+		Velocity float64
+	}
+	velocities := make([]skuVelocity, 0, len(skus))
+	for _, sku := range skus {
+		v, err := CalculateSalesVelocity(tenantID, locationCode, sku, 30)
+		if err != nil {
+			v = 0
+		}
+		velocities = append(velocities, skuVelocity{Sku: sku, Velocity: v})
+	}
+	sort.SliceStable(velocities, func(i, j int) bool { return velocities[i].Velocity > velocities[j].Velocity })
+
+	n := len(velocities)
+	suggestions := make([]ABCCycleCountSuggestion, 0, n)
+	for i, sv := range velocities {
+		rankPct := float64(i+1) / float64(n) * 100
+		// The last class by sequence is the remainder bucket - it catches
+		// every SKU whose rank exceeds every configured cutoff, the same
+		// "no SKU is ever left unclassified" guarantee GetABCCycleCountPlan
+		// gives Tier C.
+		class := classes[len(classes)-1]
+		for _, c := range classes {
+			if rankPct <= c.CutoffPct {
+				class = c
+				break
+			}
+		}
+		var lastCounted sql.NullTime
+		_ = db.DB.QueryRow(fmt.Sprintf(`
+			SELECT MAX(created_at) FROM %s.documents
+			WHERE doctype = 'CycleCountLine' AND status = 'Posted' AND data->>'sku' = $1 AND data->>'location' = $2`, schema),
+			sv.Sku, locationCode).Scan(&lastCounted)
+		daysSince := -1
+		due := true
+		if lastCounted.Valid {
+			daysSince = int(time.Since(lastCounted.Time).Hours() / 24)
+			due = daysSince >= class.IntervalDays
+		}
+		suggestions = append(suggestions, ABCCycleCountSuggestion{
+			Sku: sv.Sku, LocationCode: locationCode, Tier: class.Code, DailyVelocity: sv.Velocity,
+			DaysSinceLastCount: daysSince, IntervalDays: class.IntervalDays, Due: due,
+		})
+	}
+	sort.SliceStable(suggestions, func(i, j int) bool {
+		if suggestions[i].Due != suggestions[j].Due {
+			return suggestions[i].Due
+		}
+		if suggestions[i].Tier != suggestions[j].Tier {
+			return suggestions[i].Tier < suggestions[j].Tier
+		}
+		return suggestions[i].DaysSinceLastCount > suggestions[j].DaysSinceLastCount
+	})
+	return suggestions, nil
 }

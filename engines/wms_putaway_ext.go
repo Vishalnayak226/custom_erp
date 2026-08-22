@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 )
 
@@ -447,10 +448,59 @@ type BinReplenishmentSuggestion struct {
 }
 
 type binReplenishmentRule struct {
+	BinCode     string
+	Sku         string
+	MinQty      int
+	MaxQty      int
+	TriggerType string
+}
+
+type reserveBin struct {
 	BinCode string
-	Sku     string
-	MinQty  int
-	MaxQty  int
+	Qty     int
+}
+
+// findReplenishmentReserves (26.5.5, extracted in 42.5.3 so
+// GetDemandDrivenReplenishmentSuggestions can reuse the exact same source
+// selection GetBinReplenishmentSuggestions already uses) finds bins holding
+// sku at locationCode - other than excludeBinCode, the bin being
+// replenished itself - ordered by highest qty first. Prefers bins tagged
+// bin_type='Reserve' if any exist, falling back to any other bin so this
+// still works before a warehouse has bothered tagging reserve bins.
+func findReplenishmentReserves(schema, sku, locationCode, excludeBinCode string) ([]reserveBin, error) {
+	fetch := func(reserveOnly bool) ([]reserveBin, error) {
+		q := fmt.Sprintf(`
+			SELECT bs.bin_code, bs.qty FROM %s.bin_stock bs
+			LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
+			WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good'
+			  AND bs.bin_code != $3 AND bs.qty > 0`, schema, schema)
+		if reserveOnly {
+			q += ` AND b.data->>'bin_type' = 'Reserve'`
+		}
+		q += ` ORDER BY bs.qty DESC`
+		rows, err := db.DB.Query(q, sku, locationCode, excludeBinCode)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var out []reserveBin
+		for rows.Next() {
+			var rb reserveBin
+			if err := rows.Scan(&rb.BinCode, &rb.Qty); err != nil {
+				return nil, err
+			}
+			out = append(out, rb)
+		}
+		return out, rows.Err()
+	}
+	reserves, err := fetch(true)
+	if err != nil {
+		return nil, err
+	}
+	if len(reserves) == 0 {
+		return fetch(false)
+	}
+	return reserves, nil
 }
 
 // GetBinReplenishmentSuggestions (26.5.5) implements the design note
@@ -470,35 +520,8 @@ func GetBinReplenishmentSuggestions(tenantID, locationCode string) ([]BinRepleni
 		return nil, err
 	}
 
-	ruleRows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, data FROM %s.documents WHERE doctype = 'BinReplenishmentRule' AND status = 'Active' AND deleted_at IS NULL`, schema))
+	rules, err := loadBinReplenishmentRules(schema)
 	if err != nil {
-		return nil, err
-	}
-	var rules []binReplenishmentRule
-	for ruleRows.Next() {
-		var id, dataStr string
-		if err := ruleRows.Scan(&id, &dataStr); err != nil {
-			ruleRows.Close()
-			return nil, err
-		}
-		var data map[string]interface{}
-		if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
-			continue
-		}
-		binCode, _ := data["bin_code"].(string)
-		sku, _ := data["sku"].(string)
-		if binCode == "" || sku == "" {
-			continue
-		}
-		rules = append(rules, binReplenishmentRule{
-			BinCode: binCode, Sku: sku,
-			MinQty: int(numFromInterface(data["min_qty"])),
-			MaxQty: int(numFromInterface(data["max_qty"])),
-		})
-	}
-	ruleRows.Close()
-	if err := ruleRows.Err(); err != nil {
 		return nil, err
 	}
 
@@ -516,45 +539,9 @@ func GetBinReplenishmentSuggestions(tenantID, locationCode string) ([]BinRepleni
 			continue
 		}
 
-		type reserveBin struct {
-			BinCode string
-			Qty     int
-		}
-		fetchReserves := func(reserveOnly bool) ([]reserveBin, error) {
-			q := fmt.Sprintf(`
-				SELECT bs.bin_code, bs.qty FROM %s.bin_stock bs
-				LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
-				WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good'
-				  AND bs.bin_code != $3 AND bs.qty > 0`, schema, schema)
-			if reserveOnly {
-				q += ` AND b.data->>'bin_type' = 'Reserve'`
-			}
-			q += ` ORDER BY bs.qty DESC`
-			rows, err := db.DB.Query(q, rule.Sku, locationCode, rule.BinCode)
-			if err != nil {
-				return nil, err
-			}
-			defer rows.Close()
-			var out []reserveBin
-			for rows.Next() {
-				var rb reserveBin
-				if err := rows.Scan(&rb.BinCode, &rb.Qty); err != nil {
-					return nil, err
-				}
-				out = append(out, rb)
-			}
-			return out, rows.Err()
-		}
-
-		reserves, err := fetchReserves(true)
+		reserves, err := findReplenishmentReserves(schema, rule.Sku, locationCode, rule.BinCode)
 		if err != nil {
 			return nil, err
-		}
-		if len(reserves) == 0 {
-			reserves, err = fetchReserves(false)
-			if err != nil {
-				return nil, err
-			}
 		}
 
 		remaining := shortage
@@ -658,5 +645,310 @@ func ExecuteBinReplenishment(tenantID, fromBin, toBin, sku string, qty int, user
 	LogCompletedWarehouseTask(tenantID, NewWarehouseTask{
 		TaskType: "Replenish", LocationCode: locationCode, FromBin: fromBin, ToBin: toBin, Item: sku, Qty: float64(qty),
 	}, userID)
+	return nil
+}
+
+// ------------------------------------------------------------------
+// 42.5.3: Replenishment breadth - demand-driven, wave-triggered, and
+// dynamic pick-face triggers alongside 26.5.5's static min/max
+// ------------------------------------------------------------------
+
+func loadBinReplenishmentRules(schema string) ([]binReplenishmentRule, error) {
+	ruleRows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT data FROM %s.documents WHERE doctype = 'BinReplenishmentRule' AND status = 'Active' AND deleted_at IS NULL`, schema))
+	if err != nil {
+		return nil, err
+	}
+	defer ruleRows.Close()
+	var rules []binReplenishmentRule
+	for ruleRows.Next() {
+		var dataStr string
+		if err := ruleRows.Scan(&dataStr); err != nil {
+			return nil, err
+		}
+		var data map[string]interface{}
+		if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+			continue
+		}
+		binCode, _ := data["bin_code"].(string)
+		sku, _ := data["sku"].(string)
+		if binCode == "" || sku == "" {
+			continue
+		}
+		triggerType, _ := data["trigger_type"].(string)
+		rules = append(rules, binReplenishmentRule{
+			BinCode: binCode, Sku: sku, TriggerType: triggerType,
+			MinQty: int(numFromInterface(data["min_qty"])),
+			MaxQty: int(numFromInterface(data["max_qty"])),
+		})
+	}
+	return rules, ruleRows.Err()
+}
+
+// openPickDemand sums the qty of not-yet-terminal Pick WarehouseTasks
+// staged out of binCode for sku at locationCode - the "how much is already
+// promised out of this bin" signal demand-driven and wave-triggered
+// replenishment both key off, instead of a static min_qty threshold.
+func openPickDemand(schema, binCode, sku, locationCode string) (int, error) {
+	var qty int
+	err := db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(SUM(COALESCE((data->>'qty')::numeric, 0)), 0) FROM %s.documents
+		WHERE doctype = 'WarehouseTask' AND data->>'task_type' = 'Pick' AND status IN ('Pending', 'Assigned', 'In Progress')
+		  AND data->>'from_bin' = $1 AND data->>'item' = $2 AND data->>'location_code' = $3`, schema),
+		binCode, sku, locationCode).Scan(&qty)
+	return qty, err
+}
+
+// buildReplenishmentSuggestion is the shared "cover this shortage from
+// reserve bins" step demand-driven and wave-triggered replenishment share
+// with GetBinReplenishmentSuggestions' own min/max logic - one suggestion
+// row per reserve bin drawn from, or a single zero-source row (FromBinCode
+// blank) if nothing had spare stock at all, so a shortage with no source is
+// still visible rather than silently vanishing.
+func buildReplenishmentSuggestion(schema string, rule binReplenishmentRule, locationCode string, currentQty, shortage int) ([]BinReplenishmentSuggestion, error) {
+	reserves, err := findReplenishmentReserves(schema, rule.Sku, locationCode, rule.BinCode)
+	if err != nil {
+		return nil, err
+	}
+	var out []BinReplenishmentSuggestion
+	remaining := shortage
+	for _, rb := range reserves {
+		if remaining <= 0 {
+			break
+		}
+		move := rb.Qty
+		if move > remaining {
+			move = remaining
+		}
+		out = append(out, BinReplenishmentSuggestion{
+			BinCode: rule.BinCode, Sku: rule.Sku, CurrentQty: currentQty, MinQty: rule.MinQty, MaxQty: rule.MaxQty,
+			Shortage: shortage, FromBinCode: rb.BinCode, MoveQty: move,
+		})
+		remaining -= move
+	}
+	if remaining == shortage {
+		out = append(out, BinReplenishmentSuggestion{
+			BinCode: rule.BinCode, Sku: rule.Sku, CurrentQty: currentQty, MinQty: rule.MinQty, MaxQty: rule.MaxQty,
+			Shortage: shortage,
+		})
+	}
+	return out, nil
+}
+
+// GetDemandDrivenReplenishmentSuggestions (42.5.3) is GetBinReplenishmentSuggestions'
+// demand-aware counterpart: instead of firing only once a bin's Good-condition
+// qty falls below its static min_qty, this fires whenever open Pick-task
+// demand against that bin/SKU (openPickDemand) exceeds what is actually
+// sitting in the bin right now - catching a demand surge a min/max sized for
+// a typical day would miss entirely, and firing independently of min_qty (a
+// bin can be above its min and still short of what's already been promised
+// to open picks). Shares the exact same reserve-bin selection as the min/max
+// path, so both scans always agree on where a shortage would be filled from.
+func GetDemandDrivenReplenishmentSuggestions(tenantID, locationCode string) ([]BinReplenishmentSuggestion, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rules, err := loadBinReplenishmentRules(schema)
+	if err != nil {
+		return nil, err
+	}
+
+	var suggestions []BinReplenishmentSuggestion
+	for _, rule := range rules {
+		var currentQty int
+		_ = db.DB.QueryRow(fmt.Sprintf(
+			`SELECT COALESCE(qty, 0) FROM %s.bin_stock WHERE bin_code = $1 AND sku = $2 AND condition = 'Good'`, schema),
+			rule.BinCode, rule.Sku).Scan(&currentQty)
+
+		demand, err := openPickDemand(schema, rule.BinCode, rule.Sku, locationCode)
+		if err != nil {
+			return nil, err
+		}
+		if demand <= currentQty {
+			continue
+		}
+		built, err := buildReplenishmentSuggestion(schema, rule, locationCode, currentQty, demand-currentQty)
+		if err != nil {
+			return nil, err
+		}
+		suggestions = append(suggestions, built...)
+	}
+	sort.Slice(suggestions, func(i, j int) bool { return suggestions[i].BinCode < suggestions[j].BinCode })
+	return suggestions, nil
+}
+
+// GetWaveReplenishmentSuggestions (42.5.3) is the wave-triggered path: given
+// a Wave's id, finds every pick-face bin (rule.BinCode from an Active
+// BinReplenishmentRule) whose SKU that wave's own FulfillmentTasks need, and
+// runs the same demand-vs-on-hand check GetDemandDrivenReplenishmentSuggestions
+// does, but scoped to only that wave's SKUs - meant to be called right after
+// a Wave is Released (see engines/wms_wave.go's TransitionWaveStatus), so a
+// pick-face shortfall is surfaced before pickers hit an empty bin mid-wave
+// rather than discovered as a short-pick.
+func GetWaveReplenishmentSuggestions(tenantID, waveID string) ([]BinReplenishmentSuggestion, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	wave, err := getWave(schema, waveID)
+	if err != nil {
+		return nil, err
+	}
+	if wave == nil {
+		return nil, fmt.Errorf("wave %s not found", waveID)
+	}
+
+	// FulfillmentTask carries its lines in a free-form "items" JSON array
+	// (see engines/wms.go's GenerateBinPickList, which parses the same shape)
+	// rather than a registered flat field, so the SKUs it wants have to come
+	// from jsonb_array_elements, not a plain data->>'sku' lookup.
+	skuRows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT DISTINCT item->>'sku' FROM %s.documents, jsonb_array_elements(COALESCE(data->'items', '[]'::jsonb)) AS item
+		WHERE doctype = 'FulfillmentTask' AND data->>'wave_id' = $1 AND COALESCE(item->>'sku', '') != ''`, schema), waveID)
+	if err != nil {
+		return nil, err
+	}
+	waveSkus := map[string]bool{}
+	for skuRows.Next() {
+		var sku string
+		if err := skuRows.Scan(&sku); err != nil {
+			skuRows.Close()
+			return nil, err
+		}
+		waveSkus[sku] = true
+	}
+	skuRows.Close()
+	if err := skuRows.Err(); err != nil {
+		return nil, err
+	}
+	if len(waveSkus) == 0 {
+		return nil, nil
+	}
+
+	rules, err := loadBinReplenishmentRules(schema)
+	if err != nil {
+		return nil, err
+	}
+	var suggestions []BinReplenishmentSuggestion
+	for _, rule := range rules {
+		if !waveSkus[rule.Sku] {
+			continue
+		}
+		var currentQty int
+		_ = db.DB.QueryRow(fmt.Sprintf(
+			`SELECT COALESCE(qty, 0) FROM %s.bin_stock WHERE bin_code = $1 AND sku = $2 AND condition = 'Good'`, schema),
+			rule.BinCode, rule.Sku).Scan(&currentQty)
+
+		demand, err := openPickDemand(schema, rule.BinCode, rule.Sku, wave.LocationCode)
+		if err != nil {
+			return nil, err
+		}
+		if demand <= currentQty {
+			continue
+		}
+		built, err := buildReplenishmentSuggestion(schema, rule, wave.LocationCode, currentQty, demand-currentQty)
+		if err != nil {
+			return nil, err
+		}
+		suggestions = append(suggestions, built...)
+	}
+	sort.Slice(suggestions, func(i, j int) bool { return suggestions[i].BinCode < suggestions[j].BinCode })
+	return suggestions, nil
+}
+
+// DynamicPickFaceSuggestion is one bin/SKU rule whose min_qty/max_qty a
+// recomputation suggests changing, based on trailing sales velocity rather
+// than the fixed values a rule was created with.
+type DynamicPickFaceSuggestion struct {
+	BinCode         string  `json:"bin_code"`
+	Sku             string  `json:"sku"`
+	DailyVelocity   float64 `json:"daily_velocity"`
+	CurrentMinQty   int     `json:"current_min_qty"`
+	CurrentMaxQty   int     `json:"current_max_qty"`
+	SuggestedMinQty int     `json:"suggested_min_qty"`
+	SuggestedMaxQty int     `json:"suggested_max_qty"`
+}
+
+// GetDynamicPickFaceSuggestions (42.5.3) recomputes what each Active
+// BinReplenishmentRule's min_qty/max_qty "should" be from the SKU's trailing
+// 30-day sales velocity at locationCode (CalculateSalesVelocity, the same
+// signal GetABCCycleCountPlan/GetSlottingSuggestions already use): suggested
+// min = ceil(coverageDays * velocity), suggested max = 2x that - a rough but
+// principled "roughly a coverageDays supply, refilled to twice that" pick-face
+// sizing, in place of a min/max a manager typed in once and never revisited.
+// Read-only, the same "suggestion report, no auto-applied write" precedent
+// every replenishment/slotting function in this codebase already follows -
+// ApplyDynamicPickFaceMinMax is the separate, explicit action that writes it.
+func GetDynamicPickFaceSuggestions(tenantID, locationCode string, coverageDays int) ([]DynamicPickFaceSuggestion, error) {
+	if coverageDays <= 0 {
+		coverageDays = 3
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rules, err := loadBinReplenishmentRules(schema)
+	if err != nil {
+		return nil, err
+	}
+	var out []DynamicPickFaceSuggestion
+	for _, rule := range rules {
+		velocity, err := CalculateSalesVelocity(tenantID, locationCode, rule.Sku, 30)
+		if err != nil {
+			velocity = 0
+		}
+		suggestedMin := int(math.Ceil(velocity * float64(coverageDays)))
+		suggestedMax := suggestedMin * 2
+		if suggestedMin == rule.MinQty && suggestedMax == rule.MaxQty {
+			continue
+		}
+		out = append(out, DynamicPickFaceSuggestion{
+			BinCode: rule.BinCode, Sku: rule.Sku, DailyVelocity: velocity,
+			CurrentMinQty: rule.MinQty, CurrentMaxQty: rule.MaxQty,
+			SuggestedMinQty: suggestedMin, SuggestedMaxQty: suggestedMax,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].BinCode < out[j].BinCode })
+	return out, nil
+}
+
+// ApplyDynamicPickFaceMinMax (42.5.3) writes a recomputed min_qty/max_qty
+// onto the Active BinReplenishmentRule for binCode/sku - the explicit,
+// separate action GetDynamicPickFaceSuggestions' own doc comment promises,
+// never applied automatically. Also stamps trigger_type to 'Dynamic' so the
+// rule visibly records that its thresholds are now recompute-managed rather
+// than a one-time manual entry.
+func ApplyDynamicPickFaceMinMax(tenantID, binCode, sku string, minQty, maxQty int, userID string) error {
+	if minQty < 0 || maxQty < minQty {
+		return errors.New("min_qty must be >= 0 and max_qty must be >= min_qty")
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var id, dataStr string
+	if err := db.DB.QueryRow(fmt.Sprintf(
+		`SELECT id, data FROM %s.documents WHERE doctype = 'BinReplenishmentRule' AND status = 'Active'
+		 AND data->>'bin_code' = $1 AND data->>'sku' = $2`, schema), binCode, sku).
+		Scan(&id, &dataStr); err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("no Active BinReplenishmentRule for bin %s / sku %s", binCode, sku)
+		}
+		return err
+	}
+	var data map[string]interface{}
+	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
+		return err
+	}
+	data["min_qty"], data["max_qty"], data["trigger_type"] = minQty, maxQty, "Dynamic"
+	marshaled, _ := json.Marshal(data)
+	if _, err := db.DB.Exec(fmt.Sprintf(
+		`UPDATE %s.documents SET data = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, schema),
+		marshaled, id); err != nil {
+		return err
+	}
+	LogAuditEvent(tenantID, userID, "WMS_DYNAMIC_PICKFACE_APPLY", "SUCCESS",
+		fmt.Sprintf("Set bin %s / sku %s to min=%d max=%d (dynamic)", binCode, sku, minQty, maxQty))
 	return nil
 }

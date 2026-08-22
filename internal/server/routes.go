@@ -397,6 +397,27 @@ func Run() {
 	http.HandleFunc("POST /api/v1/wms/vas/create", apiMiddleware(moduleGate("wms", handleVASTaskCreate)))
 	http.HandleFunc("POST /api/v1/wms/vas/complete", apiMiddleware(moduleGate("wms", handleVASTaskComplete)))
 
+	// Stage 42.5 - inventory control depth: physical inventory, the
+	// CycleClass-aware cycle-count plan, demand-driven/wave-triggered/
+	// dynamic pick-face replenishment, and facility hierarchy/copy. Same
+	// moduleGate("wms", ...) as every other floor-ops route above. Slotting
+	// v2 and the two facility-inventory inquiries add no routes here - see
+	// handlers_wms_inventory_depth.go's own comment: they're
+	// ReportDefinitions served by the generic report endpoint.
+	http.HandleFunc("POST /api/v1/wms/physical-inventory/start", apiMiddleware(moduleGate("wms", handlePhysicalInventoryStart)))
+	http.HandleFunc("POST /api/v1/wms/physical-inventory/submit-count", apiMiddleware(moduleGate("wms", handlePhysicalInventorySubmitCount)))
+	http.HandleFunc("POST /api/v1/wms/physical-inventory/reconcile", apiMiddleware(moduleGate("wms", handlePhysicalInventoryReconcile)))
+	http.HandleFunc("POST /api/v1/wms/physical-inventory/close", apiMiddleware(moduleGate("wms", handlePhysicalInventoryClose)))
+	http.HandleFunc("POST /api/v1/wms/physical-inventory/cancel", apiMiddleware(moduleGate("wms", handlePhysicalInventoryCancel)))
+	http.HandleFunc("GET /api/v1/wms/cycle-count/plan", apiMiddleware(moduleGate("wms", handleCycleCountPlan)))
+	http.HandleFunc("GET /api/v1/wms/bin-replenishment/demand-driven", apiMiddleware(moduleGate("wms", handleDemandDrivenReplenishmentSuggestions)))
+	http.HandleFunc("GET /api/v1/wms/bin-replenishment/wave", apiMiddleware(moduleGate("wms", handleWaveReplenishmentSuggestions)))
+	http.HandleFunc("GET /api/v1/wms/bin-replenishment/dynamic-pickface", apiMiddleware(moduleGate("wms", handleDynamicPickFaceSuggestions)))
+	http.HandleFunc("POST /api/v1/wms/bin-replenishment/dynamic-pickface/apply", apiMiddleware(moduleGate("wms", handleApplyDynamicPickFaceMinMax)))
+	http.HandleFunc("GET /api/v1/wms/facility/children", apiMiddleware(moduleGate("wms", handleFacilityChildren)))
+	http.HandleFunc("GET /api/v1/wms/facility/descendants", apiMiddleware(moduleGate("wms", handleFacilityDescendants)))
+	http.HandleFunc("POST /api/v1/wms/facility/copy", apiMiddleware(moduleGate("wms", handleFacilityCopy)))
+
 	// Checkout & Finance APIs
 	http.HandleFunc("POST /api/v1/checkout", apiMiddleware(handleCheckout))
 	http.HandleFunc("POST /api/v1/pos/session/open", apiMiddleware(handlePOSSessionOpen))
