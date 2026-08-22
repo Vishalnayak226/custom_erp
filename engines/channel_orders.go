@@ -10,11 +10,14 @@ import (
 // accepted from channel webhooks and pollers.  It deliberately feeds the
 // SalesOrder engine instead of creating a parallel channel-order document.
 type ChannelOrderInput struct {
-	Channel         string
-	ChannelOrderID  string
-	CustomerName    string
-	ShippingAddress string
-	PaymentStatus   string
+	Channel           string
+	ChannelOrderID    string
+	CustomerName      string
+	ShippingAddress   string
+	ShippingState     string
+	PaymentStatus     string
+	PreferredLocation string
+	NoSplit           bool
 	// CustomerPhone (Stage 41) is passed through as the channel sent it -
 	// cleaning and country detection happen once, inside CreateSalesOrder, so
 	// every connector that feeds this struct gets them without its own code.
@@ -60,17 +63,25 @@ func ImportChannelSalesOrder(tenantID string, input ChannelOrderInput) (string, 
 			input.Lines[i].SKU = sku
 		} else if err != sql.ErrNoRows {
 			return "", err
+		} else if item, resolveErr := ResolveItemBySKU(tenantID, input.Lines[i].SKU); resolveErr == nil && item.Status == "Active" {
+			// A channel may already send the ERP SKU. It is valid, but record no
+			// redundant mapping row merely to satisfy the import path.
+		} else if recordErr := RecordChannelSKUException(tenantID, input.Channel, input.Lines[i].SKU, input.ChannelOrderID); recordErr != nil {
+			return "", recordErr
 		}
 	}
 
 	orderID, err := CreateSalesOrder(tenantID, SalesOrderInput{
-		Channel:         input.Channel,
-		ChannelOrderID:  input.ChannelOrderID,
-		CustomerName:    input.CustomerName,
-		ShippingAddress: input.ShippingAddress,
-		PaymentStatus:   input.PaymentStatus,
-		CustomerPhone:   input.CustomerPhone,
-		Lines:           input.Lines,
+		Channel:           input.Channel,
+		ChannelOrderID:    input.ChannelOrderID,
+		CustomerName:      input.CustomerName,
+		ShippingAddress:   input.ShippingAddress,
+		ShippingState:     input.ShippingState,
+		PaymentStatus:     input.PaymentStatus,
+		PreferredLocation: input.PreferredLocation,
+		NoSplit:           input.NoSplit,
+		CustomerPhone:     input.CustomerPhone,
+		Lines:             input.Lines,
 	})
 	if err != nil {
 		return "", err

@@ -9005,6 +9005,22 @@ async function renderOMSWorkbenchView(container) {
          styles.css at all, which is why its four tiles rendered as full-width
          stacked bars with an unstyled number. -->
     <div class="dashboard-stats-row" id="oms-tiles"></div>
+    <div class="table-panel" style="padding:24px;margin-bottom:24px;">
+      <div class="oms-console-head">
+        <div><h2 style="font-size:16px;margin:0;">Channel connectors</h2><p class="page-subtitle" style="margin:4px 0 0;">Sync health, lag and unmapped marketplace SKUs.</p></div>
+        <button class="btn btn-outline btn-sm" id="oms-connectors-refresh">Refresh connectors</button>
+      </div>
+      <div id="oms-connector-health" class="table-wrapper" style="margin-top:16px;"></div>
+      <h3 style="font-size:14px;margin:20px 0 8px;">Unmapped SKU exceptions</h3>
+      <div id="oms-sku-exceptions" class="table-wrapper"></div>
+    </div>
+    <div class="table-panel" style="padding:24px;margin-bottom:24px;">
+      <div class="oms-console-head">
+        <div><h2 style="font-size:16px;margin:0;">Bundles and kits</h2><p class="page-subtitle" style="margin:4px 0 0;">Virtual availability is derived from components; stocked kits can be assembled or disassembled.</p></div>
+        <button class="btn btn-outline btn-sm" id="oms-bundles-manage">Manage definitions</button>
+      </div>
+      <div id="oms-bundle-operations" class="table-wrapper" style="margin-top:16px;"></div>
+    </div>
     <div class="table-panel oms-compact-panel" style="padding:16px 24px;margin-bottom:24px;">
       <div class="oms-search-row">
         <input type="search" id="oms-global-search" class="form-input" placeholder="Search any order: order id, channel order id, AWB, phone, customer or SKU">
@@ -9046,11 +9062,125 @@ async function renderOMSWorkbenchView(container) {
   document.getElementById('oms-save-view').addEventListener('click', saveCurrentOMSView);
   document.getElementById('oms-delete-view').addEventListener('click', deleteSelectedOMSView);
   document.getElementById('oms-saved-views').addEventListener('change', applySelectedOMSView);
+  document.getElementById('oms-connectors-refresh').addEventListener('click', loadOMSConnectorOperations);
+  document.getElementById('oms-bundles-manage').addEventListener('click', () => openOMSDoctype('ProductBundle', ''));
 
   renderManualOrderPanel(document.getElementById('oms-manual-panel'));
   // The tiles, the saved views and the order list are independent reads, so
   // they go out together rather than in sequence.
-  await Promise.all([loadOMSTiles(), loadOMSSavedViews(), loadOMSOrders()]);
+  await Promise.all([loadOMSTiles(), loadOMSSavedViews(), loadOMSOrders(), loadOMSConnectorOperations(), loadOMSBundleOperations()]);
+}
+
+async function loadOMSBundleOperations() {
+  const host = document.getElementById('oms-bundle-operations');
+  if (!host) return;
+  host.innerHTML = '<div class="text-muted">Loading bundles…</div>';
+  const res = await apiFetch('/api/v1/doc/ProductBundle');
+  if (!res || !res.ok) { host.innerHTML = '<div class="text-muted">Bundle definitions are unavailable.</div>'; return; }
+  const bundles = (await res.json()).filter(bundle => (bundle.status || '') === 'Active');
+  if (bundles.length === 0) { host.innerHTML = '<div class="text-muted">No active bundles. Use Manage definitions to create one.</div>'; return; }
+  const availability = await Promise.all(bundles.map(async bundle => {
+    const sku = bundle.bundle_sku || bundle.code || bundle.id;
+    const response = await apiFetch(`/api/v1/oms/bundles/${encodeURIComponent(sku)}/availability`);
+    if (!response || !response.ok) return [];
+    const data = await response.json();
+    return data.locations || [];
+  }));
+  host.innerHTML = `<table><thead><tr><th>Bundle</th><th>Mode</th><th>Pricing</th><th>Components</th><th>Available to sell</th><th>Warehouse operation</th></tr></thead><tbody>${bundles.map((bundle, index) => {
+    const sku = bundle.bundle_sku || bundle.code || bundle.id;
+    let components = bundle.components || [];
+    if (typeof components === 'string') { try { components = JSON.parse(components); } catch (_) { components = []; } }
+    const ats = availability[index].length ? availability[index].map(row => `${escapeHTMLText(row.location_code)}: ${Number(row.ats || 0)}`).join('<br>') : '0';
+    const stocked = bundle.fulfillment_mode === 'Stocked';
+    return `<tr><td><strong>${escapeHTMLText(bundle.name || sku)}</strong><div class="oms-channel-ref">${escapeHTMLText(sku)}</div></td><td><span class="badge ${stocked ? 'badge-warning' : 'badge-secondary'}">${escapeHTMLText(bundle.fulfillment_mode || '')}</span></td><td>${escapeHTMLText(bundle.pricing_mode || '')}</td><td>${components.map(c => `${escapeHTMLText(c.sku)} × ${Number(c.quantity || 0)}`).join('<br>')}</td><td>${ats}</td><td>${stocked ? `<div style="display:flex;gap:6px;flex-wrap:wrap;"><input class="form-input" data-bundle-location="${index}" placeholder="Location" style="width:110px;"><input class="form-input" data-bundle-qty="${index}" type="number" min="1" value="1" style="width:70px;"><button class="btn btn-outline btn-sm" data-bundle-operation="assemble" data-bundle-index="${index}" data-bundle-sku="${escapeHTMLText(sku)}">Assemble</button><button class="btn btn-outline btn-sm" data-bundle-operation="disassemble" data-bundle-index="${index}" data-bundle-sku="${escapeHTMLText(sku)}">Disassemble</button></div>` : '<span class="text-muted">Explodes at order creation</span>'}</td></tr>`;
+  }).join('')}</tbody></table>`;
+  host.querySelectorAll('[data-bundle-operation]').forEach(button => button.addEventListener('click', () => runOMSBundleOperation(button)));
+}
+
+async function runOMSBundleOperation(button) {
+  const index = button.getAttribute('data-bundle-index');
+  const operation = button.getAttribute('data-bundle-operation');
+  const bundleSKU = button.getAttribute('data-bundle-sku');
+  const location = document.querySelector(`[data-bundle-location="${index}"]`)?.value.trim();
+  const quantity = Number(document.querySelector(`[data-bundle-qty="${index}"]`)?.value || 0);
+  if (!location || !Number.isInteger(quantity) || quantity <= 0) { showToast('Enter a location and positive whole quantity.', { variant: 'warning' }); return; }
+  const requestKey = (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`);
+  button.disabled = true;
+  const res = await apiFetch(`/api/v1/wms/bundles/${operation}`, { method: 'POST', body: JSON.stringify({ bundle_sku: bundleSKU, location_code: location, quantity, idempotency_key: requestKey }) });
+  button.disabled = false;
+  if (!res || !res.ok) { if (res) await showApiError(res, `Could not ${operation} this kit.`); return; }
+  const result = await res.json();
+  showToast(`${operation === 'assemble' ? 'Assembled' : 'Disassembled'} ${quantity} × ${bundleSKU} (${result.operation_id}).`, { variant: 'success' });
+  loadOMSBundleOperations();
+}
+
+async function loadOMSConnectorOperations() {
+  const healthHost = document.getElementById('oms-connector-health');
+  const exceptionHost = document.getElementById('oms-sku-exceptions');
+  if (!healthHost || !exceptionHost) return;
+  healthHost.innerHTML = '<div class="text-muted">Loading connector health…</div>';
+  exceptionHost.innerHTML = '<div class="text-muted">Loading exceptions…</div>';
+  const [healthRes, exceptionRes] = await Promise.all([
+    apiFetch('/api/v1/marketplace/connectors/health'),
+    apiFetch('/api/v1/marketplace/sku-exceptions')
+  ]);
+  if (!healthRes || !healthRes.ok) {
+    healthHost.innerHTML = '<div class="text-muted">Connector health is unavailable.</div>';
+  } else {
+    const { channels = [] } = await healthRes.json();
+    healthHost.innerHTML = channels.length === 0 ? '<div class="text-muted">No active channels configured.</div>' : `
+      <table><thead><tr><th>Channel</th><th>Platform</th><th>Last sync</th><th>Lag</th><th>24h failures</th><th>Exceptions</th><th>Actions</th></tr></thead><tbody>${channels.map(h => `
+        <tr><td>${escapeHTMLText(h.channel)}</td><td>${escapeHTMLText(h.platform)}</td><td><span class="badge ${h.last_status === 'Failed' ? 'badge-danger' : 'badge-success'}">${escapeHTMLText(h.last_status || 'Never')}</span><div class="oms-channel-ref">${escapeHTMLText(h.last_sync_at || '—')}</div></td><td>${formatOMSLag(h.lag_seconds)}</td><td>${Number(h.failures_24h || 0)} / ${Number(h.runs_24h || 0)}</td><td>${Number(h.open_exceptions || 0)}</td><td>${h.can_pull_orders ? `<button class="btn btn-outline btn-sm" data-channel-sync="pull-orders" data-channel="${escapeHTMLText(h.channel)}">Pull orders</button>` : ''} ${h.can_push_ats ? `<button class="btn btn-outline btn-sm" data-channel-sync="sync-inventory" data-channel="${escapeHTMLText(h.channel)}">Push ATS</button>` : ''}${!h.can_pull_orders && !h.can_push_ats ? '<span class="text-muted">Catalogue only</span>' : ''}</td></tr>`).join('')}
+      </tbody></table>`;
+    healthHost.querySelectorAll('[data-channel-sync]').forEach(button => button.addEventListener('click', () => runOMSChannelSync(button)));
+  }
+  if (!exceptionRes || !exceptionRes.ok) {
+    exceptionHost.innerHTML = '<div class="text-muted">SKU exceptions are unavailable.</div>';
+  } else {
+    const { exceptions = [] } = await exceptionRes.json();
+    exceptionHost.innerHTML = exceptions.length === 0 ? '<div class="text-muted">No open mapping exceptions.</div>' : `
+      <table><thead><tr><th>Channel</th><th>Channel SKU</th><th>Latest order</th><th>Count</th><th>Map to ERP item</th><th>External product</th><th>Location</th><th></th></tr></thead><tbody>${exceptions.map((e, index) => `
+        <tr><td>${escapeHTMLText(e.channel)}</td><td style="font-family:monospace;">${escapeHTMLText(e.channel_sku)}</td><td>${escapeHTMLText(e.last_order_id || '—')}</td><td>${Number(e.occurrences || 1)}</td><td><input class="form-input" data-map-sku="${index}" placeholder="ERP SKU"></td><td><input class="form-input" data-map-product="${index}" placeholder="Product ID"></td><td><input class="form-input" data-map-location="${index}" placeholder="Location"></td><td><button class="btn btn-primary btn-sm" data-map-exception="${index}" data-channel="${escapeHTMLText(e.channel)}" data-channel-sku="${escapeHTMLText(e.channel_sku)}">Map</button></td></tr>`).join('')}
+      </tbody></table>`;
+    exceptionHost.querySelectorAll('[data-map-exception]').forEach(button => button.addEventListener('click', () => resolveOMSChannelSKU(button)));
+  }
+}
+
+function formatOMSLag(seconds) {
+  const value = Number(seconds || 0);
+  if (!value) return '—';
+  if (value < 3600) return `${Math.floor(value / 60)}m`;
+  if (value < 86400) return `${Math.floor(value / 3600)}h`;
+  return `${Math.floor(value / 86400)}d`;
+}
+
+async function runOMSChannelSync(button) {
+  const channel = button.getAttribute('data-channel');
+  const operation = button.getAttribute('data-channel-sync');
+  button.disabled = true;
+  const res = await apiFetch(`/api/v1/marketplace/channels/${encodeURIComponent(channel)}/${operation}`, { method: 'POST' });
+  button.disabled = false;
+  if (!res || !res.ok) { if (res) await showApiError(res, 'Channel sync failed.'); return; }
+  const result = await res.json();
+  showToast(`${channel}: ${result.processed || 0} processed, ${result.failed || 0} failed.`, { variant: result.failed ? 'warning' : 'success' });
+  loadOMSConnectorOperations();
+}
+
+async function resolveOMSChannelSKU(button) {
+  const index = button.getAttribute('data-map-exception');
+  const sku = document.querySelector(`[data-map-sku="${index}"]`)?.value.trim();
+  if (!sku) { showToast('Enter the ERP SKU to map.', { variant: 'warning' }); return; }
+  const body = {
+    sku,
+    channel: button.getAttribute('data-channel'),
+    channel_sku: button.getAttribute('data-channel-sku'),
+    external_product_id: document.querySelector(`[data-map-product="${index}"]`)?.value.trim() || '',
+    location_code: document.querySelector(`[data-map-location="${index}"]`)?.value.trim() || ''
+  };
+  const res = await apiFetch('/api/v1/marketplace/sku-mappings', { method: 'POST', body: JSON.stringify(body) });
+  if (!res || !res.ok) { if (res) await showApiError(res, 'Could not save SKU mapping.'); return; }
+  showToast(`${body.channel_sku} mapped to ${body.sku}.`, { variant: 'success' });
+  loadOMSConnectorOperations();
 }
 
 // 35.2.4 - four tiles, each the row count of an already-registered report.

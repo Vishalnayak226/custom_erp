@@ -83,6 +83,8 @@ func ValidateMasterDataRules(tenantID, docID, doctype string, payload map[string
 		return validateLoadingTaskMasterRules(tenantID, docID, payload)
 	case "PreShipValidationRule":
 		return validatePreShipValidationRuleMasterRules(tenantID, docID, payload)
+	case "ProductBundle":
+		return validateProductBundleMasterRules(tenantID, docID, payload)
 	}
 	return nil
 }

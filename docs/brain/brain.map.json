@@ -324,7 +324,7 @@
       "id": "oms",
       "lobe": "business",
       "name": "Orders & Fulfillment (OMS)",
-      "role": "The order lifecycle: capture, allocation and sourcing, reservation, store/warehouse pick-pack, shipment, and Return Anywhere with RTO/QC/refund. Stage 35 adds the OMS Console (the faceted cross-channel queue, one-call order detail, report-backed tiles, bulk actions and global search), the order-mutation surface (item-level hold, edit, switch facility, priority, split), and 35.4's outbound document chain — the ShippingPackage that sits between the pack task and the courier booking, the invoice generated from a completed pack, the gate pass for outbound movement, and the credit note raised when an invoiced order is cancelled.",
+      "role": "The order lifecycle: capture, allocation and sourcing, reservation, store/warehouse pick-pack, shipment, and Return Anywhere with RTO/QC/refund. Stage 35 adds the OMS Console (the faceted cross-channel queue, one-call order detail, report-backed tiles, bulk actions and global search), the order-mutation surface (item-level hold, edit, switch facility, priority, split), the outbound document chain, courier/channel integrations, and bundle/kit fulfillment with virtual-SKU availability and atomic stocked-kit assembly.",
       "match": [
         "engines/orders.go",
         "engines/oms_console.go",
@@ -337,10 +337,12 @@
         "engines/pack_invoice.go",
         "engines/gate_pass.go",
         "engines/cancellation_credit_note.go",
+        "engines/bundles*.go",
         "internal/server/handlers_orders.go",
         "internal/server/handlers_oms_console.go",
         "internal/server/handlers_order_mutations.go",
         "internal/server/handlers_shipping_package.go",
+        "internal/server/handlers_bundles.go",
         "internal/server/handlers_returns.go"
       ]
     },
@@ -438,9 +440,12 @@
       "id": "logistics",
       "lobe": "business",
       "name": "Shipping & Logistics",
-      "role": "Courier serviceability, logistics booking, shipping labels, manifest generation and handover, and delivery-event tracking.",
+      "role": "Courier serviceability, logistics booking, provider adapters and encrypted credentials, real AWB/pickup/cancellation calls, rate shopping, PDF/Code128 shipping labels, signed tracking webhooks, manifests, handover, and NDR/RTO handling.",
       "match": [
-        "engines/marketplace.go"
+        "engines/marketplace.go",
+        "engines/courier*.go",
+        "engines/shipping_label_pdf.go",
+        "internal/server/handlers_courier.go"
       ]
     },
     {
@@ -456,7 +461,7 @@
       "id": "connectors",
       "lobe": "peripheral",
       "name": "Channel Connectors",
-      "role": "Real Shopify / BigCommerce / Magento API clients, channel credentials encrypted at rest, channel order intake, inbound webhook HMAC verification, plus Unicommerce, Pine Labs and CleverTap integrations.",
+      "role": "Channel connector SDK and operations: public-contract Amazon, Flipkart and WooCommerce adapters; negotiated-path Indian marketplace and quick-commerce adapters; existing Shopify / BigCommerce / Magento clients; encrypted credentials, order/ATS/status sync, SKU exceptions, health, inbound webhook verification, plus Unicommerce, Pine Labs and CleverTap integrations.",
       "match": [
         "engines/connector*.go",
         "engines/channel_*.go",
@@ -464,7 +469,8 @@
         "engines/clevertap.go",
         "engines/pinelabs.go",
         "engines/webhook_verify.go",
-        "internal/server/handlers_integrations_admin.go"
+        "internal/server/handlers_integrations_admin.go",
+        "internal/server/handlers_channel_connectors.go"
       ]
     },
     {

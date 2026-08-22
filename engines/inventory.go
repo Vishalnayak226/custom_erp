@@ -76,7 +76,6 @@ type StockLedgerEntry struct {
 	SerialNo       string // Stage 42.1.8: the unit this movement was of. Same convention as BatchNo - empty for non-serial-tracked stock, and what makes GetSerialMovementHistory a read of this table rather than a second store.
 }
 
-
 // WriteStockLedgerEntry writes an append-only inventory card record.
 func WriteStockLedgerEntry(tenantID string, e StockLedgerEntry) error {
 	schema, err := db.GetTenantSchema(tenantID)
@@ -418,6 +417,15 @@ func GetAvailableToSell(tenantID string, sku string, locationCode string) (map[s
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
+	}
+	if bundle, found, bundleErr := loadActiveProductBundle(tenantID, sku); bundleErr != nil {
+		return nil, bundleErr
+	} else if found && bundle.FulfillmentMode == "Virtual" {
+		ats, atsErr := ComputeSellableSKUATS(tenantID, sku, locationCode)
+		if atsErr != nil {
+			return nil, atsErr
+		}
+		return map[string]interface{}{"sku": sku, "location_code": locationCode, "ats": ats, "derived_from_components": true, "component_count": len(bundle.Components)}, nil
 	}
 
 	var onHand, available, committed, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held int

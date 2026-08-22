@@ -15,9 +15,13 @@ import (
 // screen), everything else (location_code, line_status) is computed by the
 // engine during validate/reserve.
 type SalesOrderLineInput struct {
-	SKU       string
-	Qty       int
-	UnitPrice float64
+	SKU                     string
+	Qty                     int
+	UnitPrice               float64
+	BundleSKU               string
+	BundleQuantity          int
+	BundleComponentQuantity int
+	BundlePricingMode       string
 }
 
 // Hold-routing exception codes (Stage 26.12.1). Deliberately distinct from
@@ -123,11 +127,14 @@ func isCancellationBlocked(tenantID, orderStatus string) (bool, error) {
 // is the kind of signature where two arguments get silently transposed and
 // nothing complains until a customer's phone number shows up as their name.
 type SalesOrderInput struct {
-	Channel         string
-	ChannelOrderID  string
-	CustomerName    string
-	ShippingAddress string
-	PaymentStatus   string
+	Channel           string
+	ChannelOrderID    string
+	CustomerName      string
+	ShippingAddress   string
+	ShippingState     string
+	PaymentStatus     string
+	PreferredLocation string
+	NoSplit           bool
 	// CustomerPhone is accepted in whatever shape the channel sends it -
 	// "+91 98765 43210", "(0)98765-43210", "00919876543210". It is cleaned by
 	// the phone engine before it is stored, and is never a reason to reject
@@ -177,6 +184,15 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 		}
 	}
 
+	// Stage 35.7: a virtual commercial SKU never becomes a stock source of its
+	// own. Expand it once, before validation/sourcing/reservation, so every
+	// downstream warehouse action sees the real component Items. Stocked kits
+	// deliberately remain one line and consume their assembled inventory.
+	lines, bundleLines, err := ExpandSalesOrderBundles(tenantID, lines)
+	if err != nil {
+		return "", err
+	}
+
 	holdReason, err := validateOrderChain(tenantID, shippingAddress, paymentStatus, lines)
 	if err != nil {
 		return "", err
@@ -187,11 +203,31 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 	// fixed check order the design note calls out (§12).
 	var plan *AllocationPlan
 	if holdReason == "" {
-		plan, err = ResolveAllocationPlan(tenantID, channel, shippingAddress, lines)
+		if in.PreferredLocation != "" {
+			items := make([]map[string]interface{}, 0, len(lines))
+			for _, line := range lines {
+				items = append(items, map[string]interface{}{"sku": line.SKU, "qty": line.Qty})
+			}
+			candidates, errQ := qualifyingLocations(schema, items)
+			if errQ != nil {
+				return "", errQ
+			}
+			for _, candidate := range candidates {
+				if candidate.code == in.PreferredLocation {
+					plan = &AllocationPlan{LineLocations: make([]string, len(lines)), Strategy: "Channel Location"}
+					for i := range plan.LineLocations {
+						plan.LineLocations[i] = candidate.code
+					}
+					break
+				}
+			}
+		} else {
+			plan, err = ResolveAllocationPlan(tenantID, channel, shippingAddress, lines)
+		}
 		if err != nil {
 			return "", err
 		}
-		if plan == nil {
+		if plan == nil || (in.NoSplit && plan.Split) {
 			holdReason = HoldAllocationFailed
 		}
 	}
@@ -215,11 +251,14 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 		"channel_order_id": channelOrderID,
 		"customer_name":    customerName,
 		"shipping_address": shippingAddress,
+		"shipping_state":   in.ShippingState,
 		"payment_status":   paymentStatus,
 		"order_status":     orderStatus,
 		"hold_reason":      holdReason,
 		"hold_owner":       "",
 		"total_amount":     totalAmount,
+		"contains_bundles": len(bundleLines) > 0,
+		"bundle_lines":     bundleLines,
 	}
 
 	// Stage 41: clean the channel-supplied phone number and record which
@@ -268,13 +307,17 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 			lineLocation = plan.LineLocations[i]
 		}
 		lineDoc := map[string]interface{}{
-			"code":          lineID,
-			"order_id":      orderID,
-			"sku":           l.SKU,
-			"qty":           l.Qty,
-			"unit_price":    l.UnitPrice,
-			"location_code": lineLocation,
-			"line_status":   lineStatus,
+			"code":                 lineID,
+			"order_id":             orderID,
+			"sku":                  l.SKU,
+			"qty":                  l.Qty,
+			"unit_price":           l.UnitPrice,
+			"location_code":        lineLocation,
+			"line_status":          lineStatus,
+			"bundle_sku":           l.BundleSKU,
+			"bundle_quantity":      l.BundleQuantity,
+			"bundle_component_qty": l.BundleComponentQuantity,
+			"bundle_pricing_mode":  l.BundlePricingMode,
 		}
 		lineMarshaled, err := json.Marshal(lineDoc)
 		if err != nil {

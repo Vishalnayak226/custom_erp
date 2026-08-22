@@ -58,6 +58,9 @@ func Run() {
 	// Start PIM Publish Queue background poller (Stage 15.2 - stub connector,
 	// see engines/pim_publish.go's file header for the real-connector caveat)
 	engines.StartPublishQueueWorker(workerCtx, 10*time.Second)
+	// Stage 35.6: order pull + ATS inventory sync for every Active Channel.
+	// One worker owns both directions so a connector cannot race two cursors.
+	engines.StartChannelSyncWorker(workerCtx, 5*time.Minute)
 
 	// Start Magento Open Source order-change poller (Stage 16.4) - the
 	// substitute for native webhooks Magento Open Source does not have.
@@ -418,6 +421,17 @@ func Run() {
 	http.HandleFunc("GET /api/v1/wms/facility/descendants", apiMiddleware(moduleGate("wms", handleFacilityDescendants)))
 	http.HandleFunc("POST /api/v1/wms/facility/copy", apiMiddleware(moduleGate("wms", handleFacilityCopy)))
 
+	// Stage 42.6 - engineered labour planning and 3PL billing. The associated
+	// masters stay on the generic document API; these are the calculation and
+	// system-write actions that must not be editable like ordinary documents.
+	http.HandleFunc("GET /api/v1/wms/labor/plan", apiMiddleware(moduleGate("wms", handleLaborPlan)))
+	http.HandleFunc("GET /api/v1/wms/billing/charges", apiMiddleware(moduleGate("wms", handleCapturedCharges)))
+	http.HandleFunc("POST /api/v1/wms/billing/charges", apiMiddleware(moduleGate("wms", handleCapturedCharges)))
+	http.HandleFunc("POST /api/v1/wms/billing/invoices", apiMiddleware(moduleGate("wms", handleCapturedChargeInvoice)))
+	http.HandleFunc("POST /api/v1/wms/billing/storage/snapshot", apiMiddleware(moduleGate("wms", handleStorageBalanceSnapshot)))
+	http.HandleFunc("GET /api/v1/wms/billing/storage", apiMiddleware(moduleGate("wms", handleStorageBillingV2)))
+	http.HandleFunc("POST /api/v1/wms/billing/storage/capture", apiMiddleware(moduleGate("wms", handleCaptureStorageCharges)))
+
 	// Checkout & Finance APIs
 	http.HandleFunc("POST /api/v1/checkout", apiMiddleware(handleCheckout))
 	http.HandleFunc("POST /api/v1/pos/session/open", apiMiddleware(handlePOSSessionOpen))
@@ -682,6 +696,33 @@ func Run() {
 	http.HandleFunc("POST /api/v1/marketplace/logistics/tracking", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShipmentTracking))))
 	http.HandleFunc("POST /api/v1/marketplace/logistics/rto", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShipmentRTO))))
 	http.HandleFunc("GET /api/v1/marketplace/logistics/label", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShippingLabel))))
+	// Stage 35.5: encrypted courier credentials, real provider AWB/pickup/
+	// cancellation calls, rate shopping, a vector Code128 PDF label, signed
+	// tracking intake and NDR resolution. The provider is path-scoped so a
+	// new adapter adds no new route family.
+	http.HandleFunc("POST /api/v1/marketplace/couriers/{provider}/credentials", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierCredentials))))
+	http.HandleFunc("GET /api/v1/marketplace/couriers/{provider}/credentials", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierCredentials))))
+	http.HandleFunc("POST /api/v1/marketplace/couriers/{provider}/awb", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierAllocateAWB))))
+	http.HandleFunc("POST /api/v1/marketplace/couriers/{provider}/pickup", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierPickup))))
+	http.HandleFunc("POST /api/v1/marketplace/couriers/{provider}/cancel", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierCancel))))
+	http.HandleFunc("GET /api/v1/marketplace/couriers/rates", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierRates))))
+	http.HandleFunc("POST /api/v1/integration/courier/{provider}/tracking", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleCourierTrackingWebhook))))
+	http.HandleFunc("POST /api/v1/marketplace/ndr/{id}/resolve", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleNDRResolve))))
+	http.HandleFunc("GET /api/v1/marketplace/logistics/label.pdf", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleShippingLabelPDF))))
+	// Stage 35.6: the full connector SDK and its operational surface.
+	http.HandleFunc("GET /api/v1/marketplace/connectors", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleConnectorDescriptors))))
+	http.HandleFunc("GET /api/v1/marketplace/channels/{channel}/credentials", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelConnectorCredentials))))
+	http.HandleFunc("POST /api/v1/marketplace/channels/{channel}/credentials", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelConnectorCredentials))))
+	http.HandleFunc("POST /api/v1/marketplace/channels/{channel}/pull-orders", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelOrderPull))))
+	http.HandleFunc("POST /api/v1/marketplace/channels/{channel}/sync-inventory", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelInventorySync))))
+	http.HandleFunc("POST /api/v1/marketplace/channels/{channel}/push-status", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelStatusPush))))
+	http.HandleFunc("GET /api/v1/marketplace/sku-mappings", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelSKUMappings))))
+	http.HandleFunc("POST /api/v1/marketplace/sku-mappings", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelSKUMappings))))
+	http.HandleFunc("GET /api/v1/marketplace/sku-exceptions", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleChannelSKUExceptions))))
+	http.HandleFunc("GET /api/v1/marketplace/connectors/health", apiMiddleware(moduleGate("oms", featureGate("oms_integration", handleConnectorHealth))))
+	// Stage 35.7: virtual-bundle availability and stocked-kit warehouse moves.
+	http.HandleFunc("GET /api/v1/oms/bundles/{sku}/availability", apiMiddleware(moduleGate("oms", handleBundleAvailability)))
+	http.HandleFunc("POST /api/v1/wms/bundles/{operation}", apiMiddleware(moduleGate("wms", handleBundleAssembly)))
 
 	// Optimization & Advanced Forecasting APIs (gated by the "advanced_forecasting" flag)
 	http.HandleFunc("GET /api/v1/optimization/replenishment-suggestions", apiMiddleware(featureGate("advanced_forecasting", handleReplenishmentSuggestions)))

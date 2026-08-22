@@ -44,6 +44,61 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 114. Stage 35.7 — commercial bundles and physically stocked kits (2026-08-22, code + schema + UI)
+
+All four Stage 35.7 items are complete. `ProductBundle` is intentionally not another manufacturing BOM: it describes a sellable commercial composition, with Virtual/Stocked fulfillment and Parent/Fixed/Component pricing. Validation pins every SKU to an active Item, forbids duplicate/self/nested components and keeps one active definition per bundle SKU.
+
+Virtual availability has no balance to drift. The new sellable-SKU seam derives each component through the existing seven-term `computeATS`, divides by required component quantity and takes the limiting result. Network availability sums only bundles complete at one facility, rather than combining stranded parts across locations. That seam now feeds both `/availability` and channel ATS push. At order creation a Virtual line becomes attributed component SalesOrderLines before sourcing/reservation; the parent/fixed revenue is allocated exactly, while the SalesOrder retains the commercial bundle summary. A Stocked kit remains one normal stock/pick line.
+
+Assembly and disassembly use one transaction for `BundleAssembly`, every component/kit availability mutation and every append-only `StockLedgerEntry`. Consumption checks ATS, not raw available stock, so reserved or held components cannot be stolen by the kit floor. A shortage leaves no partial movement or operation row; a unique request key makes transport retries safe. The OMS panel displays definitions and location ATS and drives stocked-kit operations through a WMS-gated route.
+
+**Schema/concurrency**: additive `db/migrations_stage35_7_bundles_kits.sql` was applied surgically and ledger-recorded on dev, propagating both doctypes/fields/permissions/indexes to `tenant_default` and `tenant_new_schema`. The parallel Stage 42.6 migration was not applied, and its files were not edited. Nothing was staged or committed.
+
+**Verified**: the migration-backed Stage 35.7 regression covers all pricing modes, definition refusals, ATS, expansion/reservation, exact revenue, stocked-kit behavior, assembly/replay/disassembly, shortage rollback and ledger evidence. Final build/vet/JS syntax checks and the entire serial Go suite are green.
+
+---
+
+## 113. Stage 35.6 — channel breadth becomes an operational SDK (2026-08-22, code + schema + UI)
+
+All seven Stage 35.6 items are code-complete. The new connector contract declares auth validation, order pull, inventory push, catalogue publish, status push, error mapping and capabilities; the scheduler and UI consume capabilities instead of platform-name conditionals. Amazon and Flipkart implement their public seller contracts, WooCommerce implements REST v3, and Myntra/Meesho/Ajio/Nykaa/Blinkit/Zepto/Swiggy Instamart use a fail-closed negotiated-path adapter because their seller contracts are private. Quick-commerce descriptors bind orders to a store location and forbid split allocation.
+
+Inventory sync reuses the existing availability truth: active channel configuration writes the conservative oversell buffer into `channel_buffer`, then all outbound quantities pass through `computeATS`. Mapping rows now retain external product and optional channel-location ids. Unmapped order SKUs open one deduplicated `ChannelSKUException`; resolving the mapping closes the queue row. `ChannelSyncRun` feeds the new OMS panel with last sync, lag, 24-hour failure rate, open exceptions and capability-aware manual actions.
+
+**Scope and honesty boundaries**: the established Shopify/BigCommerce/Magento/Adobe Commerce catalogue implementations remain intact and are exposed as catalogue-only capabilities; their existing webhook/poll intake was not replaced by fabricated operations. Amazon/Flipkart/WooCommerce are fixed public-contract implementations, while six Indian partner channels require real negotiated endpoint paths in encrypted credentials. No seller account was called. Amazon order intake uses the current `2026-01-01` contract; its shipment confirmation remains on Amazon's still-live legacy operation and requires item ids/quantities.
+
+**Schema/concurrency**: `db/migrations_stage35_6_channel_breadth.sql` is additive, dev-applied and ledger-recorded, including propagation to existing tenant schemas. New work is confined to the Stage 35.6 connector/sync/test/handler files and the OMS panel, with narrow shared edits in `orders.go`, `channel_orders.go` and `routes.go`. The parallel Stage 42.6 files were preserved and its migration was not applied. Nothing was staged or committed.
+
+**Verified**: official Amazon/Flipkart contracts were re-read and corrected before handoff; HTTP tests pin Amazon, Flipkart and WooCommerce shapes, and the real-Postgres test pins exception dedupe → mapping → resolution. `go build ./...`, `go vet ./...`, `node --check public/app.js`, `go test ./db`, focused server tests and all `TestStage356*` tests are green.
+
+---
+
+## 112. Stage 42.6 — Labour and billing depth (2026-08-22, code + schema, uncommitted)
+
+All nine listed Phase 42.6 rows are built (the source heading calls the phase eight items, but the checklist contains 42.6.1 through 42.6.9).
+
+- **Engineered labour, not a flat target**: new `LaborOperation`, `LaborElement`, `LaborAllowance`, `TravelSection`, `LaborStandard`, `Shift`, `WeeklySchedule`, and `UserWorkSchedule` masters underpin `GetLaborPlan`. Missing task standards are surfaced as uncovered work instead of silently understaffing a department.
+- **Reports and billing evidence**: six labour reports use the existing `TaskCompletionLog`. Configurable `ChargeGroup`, `RateGroup`, `ChargeCode`, and dated `ChargeContract` records flow into immutable `CapturedCharge` records; owner-attributed completed tasks auto-capture idempotently, with a manual accessorial endpoint for other events.
+- **Actual billable documents**: storage daily balance snapshots replace the old current-balance projection in v2 billing. Captured charges batch into a deterministic existing `SalesInvoice`, which is posted through `PostSalesInvoice` so it produces the ordinary AR/GL document rather than a parallel billing object.
+
+**Scope touched**: additive `db/migrations_stage42_6_labour_billing_depth.sql`; new `engines/wms_labour_billing.go`, `engines/wms_stage42_6_test.go`, `internal/server/handlers_wms_labour_billing.go`; narrow capture hooks in `engines/warehouse_task.go`; seven WMS API routes in `routes.go`. No third-party dependency and no dedicated frontend screen: masters use the existing generic DocType form, reports use the report catalog, and operations use the documented API surface.
+
+**Verified**: focused `TestStage42_6LabourBillingDepth` green end-to-end (component standard → plan → automatic task charge → storage snapshot/charge → posted SalesInvoice); `go build ./...`, `go vet ./...`, and the `internal/server` compile test pass. The migration queue was intentionally not applied because it includes other active parallel work; this Phase 42.6 migration is uncommitted and not deployed.
+
+## 111. Stage 35.5 — Courier integration crosses the provider boundary (2026-08-22, code + schema)
+
+All six Stage 35.5 items are code-complete using the parity plan's default first providers, Delhivery and Shiprocket; actually calling either account remains credential-gated. Full item detail is in `micro_checklist.md` Stage 35.
+
+- **One provider contract, two real adapters**: `CourierAdapter` isolates AWB allocation, pickup, cancellation, quotes and webhook parsing. Provider credentials reuse the existing encrypted `channel_credentials` store under `courier:<provider>`; the API can write them and report configured/not-configured, never read them back.
+- **Durable shipment semantics**: a provider AWB replaces the old internal placeholder only after the courier confirms it, and a retry returns the already-allocated AWB rather than buying a second label. Pickup/cancel references are recorded on the same `LogisticsBooking`.
+- **Labels and tracking**: a dependency-free 4×6 PDF renderer draws a checksum-valid Code 128-B as vector bars and preserves the existing invoice-before-label guard. Signed tracking payloads normalize Delhivery/Shiprocket vocabulary into the existing delivery/RTO state machine; provider event ids are recorded idempotently.
+- **Rate shopping and NDR**: serviceable quotes sort by charge then ETA while isolating one provider's outage. Failed delivery opens/refreshed an `NDRCase`, with explicit re-attempt, close and RTO actions instead of collapsing every failure into RTO.
+
+**Scope touched**: additive dev-applied migration `db/migrations_stage35_5_courier_integration.sql`; new `engines/courier.go`, `courier_adapters.go`, `shipping_label_pdf.go`, `courier_stage35_test.go`; new `internal/server/handlers_courier.go` + `handlers_courier_test.go`; nine additive routes in `routes.go`; two exact webhook entries and their 30/min category in `middleware.go`. Zero third-party dependencies, no frontend change, no live-provider claim without credentials.
+
+**Verified**: `go build ./...` and `go vet ./...` clean on the combined tree; migration-backed Stage 35.5 regression suite green; `internal/server`, `internal/kb` and `db` suites green. A whole-suite attempt hit the repository's documented `db.InitDB` connection-pool ceiling in unrelated engine tests; this Stage's suite was rerun clean after the pool settled. Brain coverage is 100%, 0 files unclaimed.
+
+---
+
 ## 110. Stage 42.5 — Inventory control depth: physical inventory, CycleClass, replenishment breadth, slotting v2, facility hierarchy/copy/cross-facility inquiry (2026-08-22, code + schema)
 
 7 of 8 items (42.5.1-42.5.4, 42.5.6-42.5.8); 42.5.5 (multi-owner stock segregation) excluded, still gated on open decision 42.D2 (is 3PL a real target?). Full item-by-item detail in `micro_checklist.md` Stage 42.

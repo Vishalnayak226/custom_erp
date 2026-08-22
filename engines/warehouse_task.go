@@ -144,6 +144,15 @@ func insertWarehouseTask(tenantID string, in NewWarehouseTask, status, userID st
 		taskID, payload, status, userID); err != nil {
 		return "", err
 	}
+	// Stage 42.6.7: a completed task is a billable event only after the task
+	// itself exists. Capture is deliberately non-blocking instrumentation: an
+	// unconfigured 3PL owner/rate must never undo a physical warehouse action;
+	// the event monitor's deterministic id makes the next retry safe.
+	if status == WTStatusCompleted {
+		if err := CaptureWarehouseTaskCharges(tenantID, taskID, userID); err != nil {
+			LogSystemError(tenantID, "", "WARN", "CaptureWarehouseTaskCharges", fmt.Sprintf("task %s charge capture failed: %v", taskID, err), "")
+		}
+	}
 	return taskID, nil
 }
 
@@ -282,6 +291,14 @@ func TransitionWarehouseTaskStatus(tenantID, taskID, newStatus, reason, assigned
 	}
 	LogAuditEvent(tenantID, userID, "WAREHOUSE_TASK_STATUS_CHANGE", "SUCCESS",
 		fmt.Sprintf("WarehouseTask %s: %s -> %s%s", taskID, task.Status, newStatus, reasonSuffix(reason)))
+	if newStatus == WTStatusCompleted {
+		// Same non-blocking boundary as insertWarehouseTask's already-complete
+		// instrumentation. The task's status transition is authoritative; a
+		// captured charge can safely be retried by its deterministic event key.
+		if err := CaptureWarehouseTaskCharges(tenantID, taskID, userID); err != nil {
+			LogSystemError(tenantID, "", "WARN", "CaptureWarehouseTaskCharges", fmt.Sprintf("task %s charge capture failed: %v", taskID, err), "")
+		}
+	}
 	if newStatus == WTStatusException {
 		applyExceptionFollowOn(tenantID, task, reason, userID)
 	}

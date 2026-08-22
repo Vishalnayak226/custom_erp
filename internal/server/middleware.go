@@ -182,7 +182,7 @@ func rateLimitCategory(path, method string) (category string, limit int) {
 		// interactive browsing alone. Combined with the per-session keying
 		// below, one user can no longer consume a shared site's whole budget.
 		return "report", 60
-	case strings.HasPrefix(path, "/api/v1/integration/shopify/"):
+	case strings.HasPrefix(path, "/api/v1/integration/shopify/") || strings.HasPrefix(path, "/api/v1/integration/courier/"):
 		// Webhook API: bursts from the external platform are expected and
 		// legitimate, so this gets a higher budget than login/reports.
 		return "webhook", 30
@@ -288,6 +288,11 @@ var publicRoutes = map[string]bool{
 	"/api/v1/health":               true,
 	"/api/v1/auth/forgot-password": true,
 	"/api/v1/auth/reset-password":  true,
+	// Stage 35.5: couriers cannot hold a human ERP bearer token. These two
+	// fixed provider endpoints are public only up to their handler's mandatory
+	// per-tenant HMAC verification; a missing or invalid signature is 401.
+	"/api/v1/integration/courier/delhivery/tracking": true,
+	"/api/v1/integration/courier/shiprocket/tracking": true,
 	// Stage 39.6: the Knowledge Center is authenticated by default. These three
 	// serve only articles whose own frontmatter says `public: true` - the
 	// integration/API subset an integrator needs before they have a login. The
