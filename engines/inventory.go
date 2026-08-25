@@ -74,6 +74,7 @@ type StockLedgerEntry struct {
 	DeviceID       string
 	BatchNo        string // Stage 42.1.3: the lot this movement was of. Empty for non-batch-tracked stock, which is most of it - it is what makes the ledger answerable for recall without a second history table.
 	SerialNo       string // Stage 42.1.8: the unit this movement was of. Same convention as BatchNo - empty for non-serial-tracked stock, and what makes GetSerialMovementHistory a read of this table rather than a second store.
+	OwnerID        string // Stage 42.5.5: the 3PL owner this movement was of. Same convention as BatchNo/SerialNo - empty unless the stock has been explicitly owner-segregated with RecordOwnerStock/ConsumeOwnerStock.
 }
 
 // WriteStockLedgerEntry writes an append-only inventory card record.
@@ -132,6 +133,9 @@ func WriteStockLedgerEntry(tenantID string, e StockLedgerEntry) error {
 	}
 	if e.SerialNo != "" {
 		docData["serial_no"] = e.SerialNo
+	}
+	if e.OwnerID != "" {
+		docData["owner_id"] = e.OwnerID
 	}
 
 	marshaled, err := json.Marshal(docData)

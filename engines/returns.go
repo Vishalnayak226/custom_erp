@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"database/sql"
 	"encoding/json"
@@ -42,6 +43,9 @@ type returnItemRecord struct {
 	OriginalUnitPrice float64 `json:"original_unit_price"`
 	OriginalCostPrice float64 `json:"original_cost_price"`
 	Disposition       string  `json:"disposition"`
+	// ExchangeSKU (Stage 35.9.2) is set only when this line was resolved as
+	// an exchange rather than a refund - see ApplyReturnQC's own comment.
+	ExchangeSKU string `json:"exchange_sku,omitempty"`
 }
 
 // originalLinePrice is what resolveOriginalSaleLinePrices/
@@ -195,9 +199,6 @@ func CreateReturnRequest(tenantID, requestType, returnLocation, originalOrderID,
 	if requestType != "Customer Return" && requestType != "RTO" {
 		return "", fmt.Errorf("request_type must be 'Customer Return' or 'RTO', got %q", requestType)
 	}
-	if returnLocation == "" {
-		return "", errors.New("return_location is required")
-	}
 	if len(items) == 0 {
 		return "", errors.New("at least one item is required")
 	}
@@ -207,6 +208,14 @@ func CreateReturnRequest(tenantID, requestType, returnLocation, originalOrderID,
 	}
 
 	priceBySku := map[string]originalLinePrice{}
+	// Stage 35.9.3 (return routing): populated only for an RTO, whose
+	// LogisticsBooking already carries the pincode the parcel was being
+	// delivered to - the one pincode source this workflow has. A Customer
+	// Return's original order is a POSCart/SalesInvoice (resolveOriginalSale,
+	// engines/fulfillment.go), neither of which carries a shipping address, so
+	// auto-routing below simply has nothing to route from there and that path
+	// keeps requiring an explicit return_location, same as today.
+	rtoDestinationPincode := ""
 
 	switch requestType {
 	case "Customer Return":
@@ -276,6 +285,28 @@ func CreateReturnRequest(tenantID, requestType, returnLocation, originalOrderID,
 				return "", err
 			}
 		}
+		rtoDestinationPincode, _ = bookingData["destination_pincode"].(string)
+	}
+
+	// Stage 35.9.3: return routing. An explicit return_location always wins
+	// (unchanged from before this stage); only when the caller leaves it blank
+	// does this resolve one automatically, reusing engines/sourcing.go's own
+	// Nearest-Pincode strategy - the same distance-proxy logic
+	// ResolveAllocationPlan already uses to source an order, run in reverse to
+	// decide where a return should land.
+	autoRouted := false
+	if returnLocation == "" && rtoDestinationPincode != "" {
+		routingItems := make([]map[string]interface{}, len(items))
+		for i, it := range items {
+			routingItems[i] = map[string]interface{}{"sku": it.SKU, "qty": it.Qty}
+		}
+		if loc, ok, errRoute := singleLocationNearestPincode(schema, rtoDestinationPincode, routingItems); errRoute == nil && ok {
+			returnLocation = loc
+			autoRouted = true
+		}
+	}
+	if returnLocation == "" {
+		return "", errors.New("return_location is required (no return location could be auto-routed for this request)")
 	}
 
 	records := make([]returnItemRecord, len(items))
@@ -290,8 +321,8 @@ func CreateReturnRequest(tenantID, requestType, returnLocation, originalOrderID,
 	returnID := NewDocID("RR")
 	doc := map[string]interface{}{
 		"code": returnID, "request_type": requestType, "original_order_id": originalOrderID,
-		"booking_id": bookingID, "return_location": returnLocation, "status": "Requested",
-		"requested_by": requestedBy, "approved_by": "", "rejection_reason": "",
+		"booking_id": bookingID, "return_location": returnLocation, "return_location_auto_routed": autoRouted,
+		"status": "Requested", "requested_by": requestedBy, "approved_by": "", "rejection_reason": "",
 		"items": records, "total_refund_eligible": 0,
 	}
 	marshaled, err := json.Marshal(doc)
@@ -397,7 +428,13 @@ func ReceiveReturnRequest(tenantID, returnRequestID, receivedBy string) error {
 	if err != nil {
 		return err
 	}
-	if data["status"] != "Approved" {
+	// "Pickup Scheduled" (Stage 35.9.1) is the courier-reverse-pickup path's
+	// own extra step between Approved and Received - a manual receipt is
+	// still allowed from it (the operator physically has the parcel before
+	// the tracking webhook catches up), same as receiving straight from
+	// Approved always has been for a walk-in/self-shipped return.
+	status, _ := data["status"].(string)
+	if status != "Approved" && status != "Pickup Scheduled" {
 		return fmt.Errorf("return request %s is not Approved (currently %v)", returnRequestID, data["status"])
 	}
 	data["status"] = "Received"
@@ -446,7 +483,21 @@ func applyReturnedStockToBucket(tx *sql.Tx, schema, sku, locationCode string, qt
 // see ProcessRefundRequest's own comment for why the revenue-side post is
 // deliberately kept separate. A return with nothing refund-eligible closes
 // immediately (no RefundRequest is created for a zero amount).
-func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]string, qcBy string) (totalRefund float64, refundRequestID string, err error) {
+//
+// exchangeFor (Stage 35.9.2, variadic so every existing call site is
+// untouched) is an optional originalSKU -> desiredExchangeSKU map. A line
+// named there is resolved as a same-value swap instead of a refund: the
+// exchange SKU is picked from the same return_location stock the returned
+// item just landed in, in the SAME transaction, so a shortage on the
+// exchange side rolls back the whole QC call - nothing is received without
+// its replacement actually being available, and nothing is issued without
+// the original actually coming back. This build deliberately only supports
+// an equal-value exchange (no price lookup exists on the Item master to
+// price a different-value swap correctly - the same missing-cost-master gap
+// resolveSalesOrderLinePrices' own comment already documents for RTO lines);
+// a different-value swap is refused with a message pointing at return +
+// new sale instead.
+func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]string, qcBy string, exchangeFor ...map[string]string) (totalRefund float64, refundRequestID string, err error) {
 	schema, data, err := fetchReturnRequest(tenantID, returnRequestID)
 	if err != nil {
 		return 0, "", err
@@ -468,6 +519,26 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 		return 0, "", fmt.Errorf("return request %s has no items", returnRequestID)
 	}
 
+	exchanges := map[string]string{}
+	if len(exchangeFor) > 0 {
+		exchanges = exchangeFor[0]
+	}
+	for original, exchangeSKU := range exchanges {
+		if exchangeSKU == "" || exchangeSKU == original {
+			return 0, "", fmt.Errorf("exchange sku for %q must be a non-empty, different sku", original)
+		}
+		found := false
+		for _, it := range items {
+			if it.SKU == original {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return 0, "", fmt.Errorf("exchange requested for sku %q, which is not on return request %s", original, returnRequestID)
+		}
+	}
+
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return 0, "", err
@@ -477,7 +548,7 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 		return 0, "", err
 	}
 
-	var refundTotal, costReceivedTotal float64
+	var refundTotal, costReceivedTotal, exchangeCostTotal float64
 	for i := range items {
 		disposition := dispositions[items[i].SKU]
 		rule, ok := returnDispositionRule[disposition]
@@ -491,6 +562,33 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 			}
 			costReceivedTotal += items[i].OriginalCostPrice * float64(items[i].Qty)
 		}
+
+		if exchangeSKU, wantsExchange := exchanges[items[i].SKU]; wantsExchange {
+			if !rule.ReceivesStock {
+				return 0, "", fmt.Errorf("sku %q was dispositioned %q (the original item was not actually received back) and cannot be exchanged", items[i].SKU, disposition)
+			}
+			var exists bool
+			if err := tx.QueryRow(fmt.Sprintf(
+				`SELECT EXISTS(SELECT 1 FROM %s.documents WHERE doctype = 'Item' AND data->>'code' = $1 AND status != 'Cancelled' AND deleted_at IS NULL)`, schema),
+				exchangeSKU).Scan(&exists); err != nil {
+				return 0, "", err
+			}
+			if !exists {
+				return 0, "", fmt.Errorf("exchange sku %q is not a valid active Item", exchangeSKU)
+			}
+			if err := deductExchangeStock(tx, schema, exchangeSKU, returnLocation, items[i].Qty, returnRequestID, qcBy); err != nil {
+				return 0, "", fmt.Errorf("exchange for sku %q: %v", items[i].SKU, err)
+			}
+			items[i].ExchangeSKU = exchangeSKU
+			// Same documented cost-basis simplification as OriginalCostPrice
+			// itself: no Item-master cost field exists to look up the exchange
+			// SKU's own cost, so this build uses the returned line's own cost as
+			// the exchange leg's COGS basis too, correct for the common
+			// same-family swap (size/colour) this feature targets.
+			exchangeCostTotal += items[i].OriginalCostPrice * float64(items[i].Qty)
+			continue
+		}
+
 		if rule.RefundEligible {
 			refundTotal += items[i].OriginalUnitPrice * float64(items[i].Qty)
 		}
@@ -541,9 +639,65 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 			return refundTotal, refundRequestID, err
 		}
 	}
+	if exchangeCostTotal > 0 {
+		// Mirror image of the block above: stock physically left in the
+		// exchange, so Inventory Control is credited and COGS debited this
+		// time, for the same reused cost basis.
+		exchangeDebits := map[string]int64{"5100": RupeesToPaise(exchangeCostTotal)}
+		exchangeCredits := map[string]int64{"1200": RupeesToPaise(exchangeCostTotal)}
+		if err := PostDoubleEntry(tenantID, "ReturnRequest", returnRequestID, exchangeDebits, exchangeCredits, "", fmt.Sprintf("ReturnRequest:%s:EXCHANGE", returnRequestID)); err != nil {
+			return refundTotal, refundRequestID, err
+		}
+	}
 
-	_ = qcBy
 	return refundTotal, refundRequestID, nil
+}
+
+// deductExchangeStock issues the exchange SKU out of return_location's own
+// stock, inside the caller's transaction - the same ATS-check-then-ledger-
+// entry shape engines/bundles.go's applyBundleAssemblyMovements already uses
+// for a stocked kit's own outbound leg, reused here rather than reinvented.
+func deductExchangeStock(tx *sql.Tx, schema, sku, locationCode string, qty int, returnRequestID, userID string) error {
+	var available, reserved, safety, blocked, qc, damaged, buffer, held int
+	err := tx.QueryRow(fmt.Sprintf(
+		`SELECT available,reserved,safety_stock,blocked,qc_hold,damaged,channel_buffer,hold_qty
+		 FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2 FOR UPDATE`, schema),
+		sku, locationCode).Scan(&available, &reserved, &safety, &blocked, &qc, &damaged, &buffer, &held)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("insufficient stock for exchange sku %s at %s: no inventory record", sku, locationCode)
+	}
+	if err != nil {
+		return err
+	}
+	ats := computeATS(available, reserved, safety, blocked, qc, damaged, buffer, held)
+	if ats < qty {
+		return fmt.Errorf("insufficient ATS for exchange sku %s at %s: ATS %d, requested %d", sku, locationCode, ats, qty)
+	}
+	if _, err := tx.Exec(fmt.Sprintf(
+		`UPDATE %s.inventory_availability SET on_hand = on_hand - $3, available = available - $3, updated_at = CURRENT_TIMESTAMP
+		 WHERE sku = $1 AND location_code = $2`, schema),
+		sku, locationCode, qty); err != nil {
+		return err
+	}
+	ledgerID := NewDocIDCompact("SLE")
+	ledgerData, err := json.Marshal(map[string]interface{}{
+		"id": ledgerID, "code": ledgerID, "item_id": sku, "warehouse_id": locationCode, "qty": -qty,
+		"voucher_type": "ReturnExchange", "voucher_id": returnRequestID,
+		"idempotency_key": fmt.Sprintf("ReturnExchange:%s:%s:%s", returnRequestID, locationCode, sku),
+		"user_id":         userID, "status": "Active",
+	})
+	if err != nil {
+		return err
+	}
+	// created_by is 'system' like every other insert in this file
+	// (CreateReturnRequest's own ReturnRequest insert included) - it has a
+	// foreign key onto the users table, whereas the actor name passed in here
+	// (qcBy) is free text recorded in the JSON payload's user_id, not
+	// guaranteed to be a real login.
+	_, err = tx.Exec(fmt.Sprintf(
+		`INSERT INTO %s.documents(id,doctype,data,status,created_by) VALUES($1,'StockLedgerEntry',$2,'Active','system')`, schema),
+		ledgerID, ledgerData)
+	return err
 }
 
 func fetchRefundRequest(tenantID, refundRequestID string) (schema string, data map[string]interface{}, err error) {
@@ -663,4 +817,76 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 		}
 	}
 	return nil
+}
+
+// ScheduleReturnReversePickup (Stage 35.9.1) books a courier reverse-pickup
+// for an Approved Customer Return - RTO never needs this (that parcel is
+// already inbound the moment RecordRTO fires; it only needs QC once it
+// arrives). Rather than a parallel booking mechanism, this creates an
+// ordinary LogisticsBooking through the exact same CreateLogisticsBooking
+// serviceability/carrier-selection logic Stage 26.12.4 built, tags it
+// shipment_direction=Reverse plus the return_request_id, and then drives it
+// through the unmodified Stage 35.5 AllocateCourierAWB/ScheduleCourierPickup
+// pair - so a provider's real pickup API is called exactly the way a forward
+// shipment already calls it, and RecordDeliveryEvent's own Reverse-direction
+// branch (engines/marketplace.go) auto-receives the return once the same
+// tracking webhook that already ingests forward deliveries reports this
+// parcel Delivered (i.e. arrived back at the warehouse).
+//
+// pickupPincode doubles as CreateLogisticsBooking's destination_pincode for
+// the serviceability check - a repurposing of a forward-shipment field for a
+// pickup-direction lookup, not a new one, since a courier's CourierServiceArea
+// coverage is the same table either direction.
+func ScheduleReturnReversePickup(ctx context.Context, tenantID, returnRequestID, provider, pickupPincode, pickupAddress, pickupName string, pickupAt time.Time) (bookingID string, awb string, err error) {
+	schema, data, err := fetchReturnRequest(tenantID, returnRequestID)
+	if err != nil {
+		return "", "", err
+	}
+	if data["status"] != "Approved" {
+		return "", "", fmt.Errorf("return request %s is not Approved (currently %v)", returnRequestID, data["status"])
+	}
+	if data["request_type"] != "Customer Return" {
+		return "", "", fmt.Errorf("reverse pickup only applies to a Customer Return (return request %s is %v)", returnRequestID, data["request_type"])
+	}
+
+	var existing string
+	errDup := db.DB.QueryRow(fmt.Sprintf(
+		`SELECT id FROM %s.documents WHERE doctype = 'LogisticsBooking' AND data->>'return_request_id' = $1 AND deleted_at IS NULL LIMIT 1`, schema),
+		returnRequestID).Scan(&existing)
+	if errDup == nil {
+		return existing, "", nil
+	} else if errDup != sql.ErrNoRows {
+		return "", "", errDup
+	}
+
+	originalOrderID, _ := data["original_order_id"].(string)
+	bookingID, err = CreateLogisticsBooking(tenantID, originalOrderID, "", provider, "", pickupPincode, 0)
+	if err != nil {
+		return "", "", err
+	}
+	if _, err := db.DB.Exec(fmt.Sprintf(
+		`UPDATE %s.documents SET data = data || jsonb_build_object('return_request_id', $1::text, 'shipment_direction', 'Reverse'), updated_at = CURRENT_TIMESTAMP
+		 WHERE id = $2 AND doctype = 'LogisticsBooking'`, schema),
+		returnRequestID, bookingID); err != nil {
+		return bookingID, "", err
+	}
+
+	awbResult, err := AllocateCourierAWB(ctx, tenantID, provider, bookingID, CourierShipmentRequest{
+		OriginPincode: pickupPincode, DestinationPincode: pickupPincode,
+		RecipientName: pickupName, RecipientAddress: pickupAddress,
+	})
+	if err != nil {
+		return bookingID, "", err
+	}
+	if _, err := ScheduleCourierPickup(ctx, tenantID, provider, bookingID, pickupName, pickupAt); err != nil {
+		return bookingID, awbResult.AWB, err
+	}
+
+	data["status"] = "Pickup Scheduled"
+	data["pickup_booking_id"] = bookingID
+	if err := saveReturnRequest(schema, returnRequestID, data, "Pickup Scheduled"); err != nil {
+		return bookingID, awbResult.AWB, err
+	}
+	DispatchNotification(tenantID, "Return Pickup Scheduled", originalOrderID, map[string]string{"return_request_id": returnRequestID, "booking_id": bookingID})
+	return bookingID, awbResult.AWB, nil
 }

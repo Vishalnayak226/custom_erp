@@ -357,6 +357,20 @@ func registerStage282Settings() {
 		Description: "How long a completed public API idempotency key can still replay its stored response. After this window the same key is treated as a new request.",
 	})
 
+	// --- OMS Settlement Reconciliation (Stage 35.8) ---
+	RegisterSetting(SettingDefinition{
+		Key: "oms.settlement_variance_tolerance", Module: "OMS",
+		Label: "Settlement auto-match tolerance", Type: SettingTypeFloat, Default: "2.00", Unit: "₹",
+		Min:         settingBound(0),
+		Description: "A settlement line whose gross amount differs from the matched order's invoiced value by no more than this is auto-matched and posted; a larger gap is held as a Variance for an operator to dispute or write off.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "oms.settlement_aging_days", Module: "OMS",
+		Label: "Unsettled order aging threshold", Type: SettingTypeInt, Default: "7", Unit: "days",
+		Min:         settingBound(1),
+		Description: "How many days after a marketplace order ships it is flagged on the Unsettled Settlements report if no settlement line has matched it yet.",
+	})
+
 	registerLocalizationSettings()
 }
 

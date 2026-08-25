@@ -5,6 +5,7 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"custom_erp/db"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -156,6 +157,33 @@ func AllocateCourierAWB(ctx context.Context, tenantID, provider, bookingID strin
 	if existing := courierDataString(data, "provider_awb"); existing != "" {
 		return CourierAWB{AWB: existing, TrackingNumber: courierDataString(data, "tracking_number"), RemoteShipmentID: courierDataString(data, "remote_shipment_id")}, nil
 	}
+	// Claim the booking before calling the provider. Without this, two
+	// concurrent calls for the same booking (a UI double-click, or a client
+	// retrying a request that timed out but actually succeeded) both read
+	// provider_awb as empty and both allocate a real, billable AWB at the
+	// courier - the second UPDATE below would then silently overwrite the
+	// first's AWB, orphaning a live shipment the ERP no longer references.
+	// Only one of two concurrent UPDATEs can flip this empty-to-non-empty
+	// marker; Postgres row-locking on the UPDATE serializes the race.
+	var claimed bool
+	err = db.DB.QueryRow(fmt.Sprintf(`UPDATE %s.documents SET data = data || jsonb_build_object('awb_allocation_claimed_at', $1::text)
+		WHERE id = $2 AND doctype = 'LogisticsBooking'
+		  AND COALESCE(data->>'provider_awb','') = '' AND COALESCE(data->>'awb_allocation_claimed_at','') = ''
+		RETURNING true`, schema), time.Now().UTC().Format(time.RFC3339Nano), bookingID).Scan(&claimed)
+	if err == sql.ErrNoRows {
+		if _, refetched, _, refetchErr := fetchLogisticsBooking(tenantID, bookingID); refetchErr == nil {
+			if existing := courierDataString(refetched, "provider_awb"); existing != "" {
+				return CourierAWB{AWB: existing, TrackingNumber: courierDataString(refetched, "tracking_number"), RemoteShipmentID: courierDataString(refetched, "remote_shipment_id")}, nil
+			}
+		}
+		return CourierAWB{}, fmt.Errorf("booking %s AWB allocation is already in progress; retry shortly", bookingID)
+	}
+	if err != nil {
+		return CourierAWB{}, err
+	}
+	releaseClaim := func() {
+		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data - 'awb_allocation_claimed_at' WHERE id = $1 AND doctype = 'LogisticsBooking'`, schema), bookingID)
+	}
 	req.BookingID = bookingID
 	if req.OrderID == "" {
 		req.OrderID = courierDataString(data, "order_id")
@@ -168,10 +196,12 @@ func AllocateCourierAWB(ctx context.Context, tenantID, provider, bookingID strin
 	}
 	awb, err := adapter.AllocateAWB(ctx, cred, req)
 	if err != nil {
+		releaseClaim()
 		return CourierAWB{}, err
 	}
 	awb.AWB = strings.TrimSpace(awb.AWB)
 	if awb.AWB == "" {
+		releaseClaim()
 		return CourierAWB{}, fmt.Errorf("%s returned an empty AWB", provider)
 	}
 	if awb.TrackingNumber == "" {
@@ -182,7 +212,7 @@ func AllocateCourierAWB(ctx context.Context, tenantID, provider, bookingID strin
 		"tracking_number": awb.TrackingNumber, "remote_shipment_id": awb.RemoteShipmentID,
 		"provider_charge_paise": awb.ChargePaise, "awb_allocated_at": time.Now().UTC().Format(time.RFC3339),
 	})
-	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || $1::jsonb, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND doctype = 'LogisticsBooking'`, schema), patch, bookingID)
+	_, err = db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = (data - 'awb_allocation_claimed_at') || $1::jsonb, updated_at = CURRENT_TIMESTAMP WHERE id = $2 AND doctype = 'LogisticsBooking'`, schema), patch, bookingID)
 	if err == nil {
 		LogAuditEvent(tenantID, "system", "COURIER_AWB_ALLOCATED", "SUCCESS", fmt.Sprintf("booking=%s provider=%s awb=%s", bookingID, provider, awb.AWB))
 	}

@@ -129,6 +129,7 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		"bin_stock",
 		"bin_stock_lpn",
 		"bin_stock_batch",
+		"bin_stock_owner",
 		"channel_credentials",
 		"clevertap_credentials",
 		"clevertap_event_log",
@@ -160,14 +161,15 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		// cloned like every other tenant-local table; before then only this
 		// new, unused table is skipped. Missing established core tables still
 		// fail loudly below exactly as before.
-		// Stage 42.1.3 adds bin_stock_batch to this list for the same reason
-		// Stage 38.2 added the three api_* tables: the binary can legitimately
-		// ship before its migration has been applied, and provisioning a tenant
-		// in that window must keep working. Once the template table exists it is
-		// cloned like every other tenant-local table. Established core tables
-		// still fail loudly below exactly as before - that is the 26.11.2 bug
-		// this guard is deliberately narrow enough not to re-open.
-		if table == "api_credentials" || table == "api_idempotency_keys" || table == "api_request_log" || table == "bin_stock_batch" {
+		// Stage 42.1.3 adds bin_stock_batch (and 42.5.5 adds bin_stock_owner) to
+		// this list for the same reason Stage 38.2 added the three api_*
+		// tables: the binary can legitimately ship before its migration has
+		// been applied, and provisioning a tenant in that window must keep
+		// working. Once the template table exists it is cloned like every
+		// other tenant-local table. Established core tables still fail loudly
+		// below exactly as before - that is the 26.11.2 bug this guard is
+		// deliberately narrow enough not to re-open.
+		if table == "api_credentials" || table == "api_idempotency_keys" || table == "api_request_log" || table == "bin_stock_batch" || table == "bin_stock_owner" {
 			var templateExists bool
 			if err = tx.QueryRow(`SELECT to_regclass('tenant_default.` + table + `') IS NOT NULL`).Scan(&templateExists); err != nil {
 				return "", fmt.Errorf("failed to inspect %s template: %v", table, err)

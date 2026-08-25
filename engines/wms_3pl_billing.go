@@ -91,25 +91,13 @@ func GetStorageBillingReport(tenantID, ownerID, start, end string) ([]StorageBil
 		// granularity a UOM conversion actually needs (a factor is per-item;
 		// summing several SKUs together first and converting the sum would be
 		// meaningless the moment two of them pack differently).
-		var currentUnits int
-		if r.Item == "" {
-			if err := db.DB.QueryRow(fmt.Sprintf(`
-				SELECT COALESCE(SUM(bs.qty), 0)
-				FROM %s.bin_stock bs
-				JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
-				WHERE b.data->>'owner_id' = $1 AND bs.location_code = $2 AND bs.condition = 'Good'`, schema, schema),
-				r.OwnerID, r.LocationCode).Scan(&currentUnits); err != nil {
-				currentUnits = 0
-			}
-		} else {
-			if err := db.DB.QueryRow(fmt.Sprintf(`
-				SELECT COALESCE(SUM(bs.qty), 0)
-				FROM %s.bin_stock bs
-				JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
-				WHERE b.data->>'owner_id' = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.sku = $3`, schema, schema),
-				r.OwnerID, r.LocationCode, r.Item).Scan(&currentUnits); err != nil {
-				currentUnits = 0
-			}
+		//
+		// Stage 42.5.5: ownerStockQty combines the explicit bin_stock_owner
+		// breakdown with the legacy whole-bin Bin.owner_id fallback this
+		// query used alone before - see that function's comment.
+		currentUnits, err := ownerStockQty(schema, r.OwnerID, r.LocationCode, r.Item)
+		if err != nil {
+			currentUnits = 0
 		}
 
 		var handlingTasks int

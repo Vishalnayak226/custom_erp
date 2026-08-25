@@ -132,6 +132,15 @@ func (amazonSPConnector) PullOrders(ctx context.Context, c map[string]string, re
 	}
 	page := ConnectorOrderPage{NextCursor: response.Pagination.NextToken}
 	for _, row := range response.Orders {
+		// lastUpdatedAfter surfaces every status transition, including a
+		// buyer cancellation - Amazon does not filter those out of this
+		// feed. Skip anything not actually fulfillable so a cancelled or
+		// not-yet-payment-confirmed order can't be imported as Confirmed
+		// and picked/shipped for a sale that will never be paid.
+		switch strings.ToLower(row.OrderStatus) {
+		case "canceled", "cancelled", "pending", "pendingavailability", "unfulfillable":
+			continue
+		}
 		address := row.Recipient.DeliveryAddress
 		o := ConnectorOrder{ChannelOrderID: row.OrderID, CustomerName: row.Buyer.Name, CustomerPhone: address.Phone, ShippingState: address.State, ShippingAddress: strings.TrimSpace(strings.Join([]string{address.Name, address.AddressLine1, address.AddressLine2, address.City, address.State, address.PostalCode, address.Country}, " ")), PaymentStatus: "Confirmed"}
 		for _, line := range row.Items {

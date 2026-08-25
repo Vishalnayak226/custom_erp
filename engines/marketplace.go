@@ -592,7 +592,21 @@ func RecordDeliveryEvent(tenantID, bookingID, newStatus, userID string) error {
 	}
 	LogAuditEvent(tenantID, userID, "SHIPMENT_TRACKING_UPDATE", "SUCCESS", fmt.Sprintf("Booking %s -> %s", bookingID, newStatus))
 	if newStatus == "Delivered" {
-		if orderID, _ := bookingData["order_id"].(string); orderID != "" {
+		orderID, _ := bookingData["order_id"].(string)
+		// Stage 35.9.1: a reverse-pickup booking's "Delivered" means the
+		// parcel arrived back at OUR warehouse, not that the customer's order
+		// was delivered - the same tracking-sync ingestion point (this
+		// function, reached from both a manual call and the 35.5.4 webhook)
+		// is reused rather than building a second reverse-tracking path, but
+		// the outcome it drives is different by direction.
+		if direction, _ := bookingData["shipment_direction"].(string); direction == "Reverse" {
+			if returnRequestID, _ := bookingData["return_request_id"].(string); returnRequestID != "" {
+				if errRecv := ReceiveReturnRequest(tenantID, returnRequestID, userID); errRecv != nil {
+					return fmt.Errorf("booking %s delivered but return request %s could not be marked Received: %v", bookingID, returnRequestID, errRecv)
+				}
+				DispatchNotification(tenantID, "Return Received", orderID, map[string]string{"return_request_id": returnRequestID, "booking_id": bookingID})
+			}
+		} else if orderID != "" {
 			DispatchNotification(tenantID, "Order Delivered", orderID, map[string]string{"booking_id": bookingID, "tracking_number": fmt.Sprint(bookingData["tracking_number"])})
 		}
 	}

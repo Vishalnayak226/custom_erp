@@ -521,10 +521,20 @@ func stage42CaptureCharge(schema, eventKey, triggerEvent, chargeCode, ownerID, l
 	return id, nil
 }
 
+// Stage 42.5.5: prefers the explicit per-stock owner (ownerOfBinStock, which
+// itself falls back to the bin's own owner_id when no bin_stock_owner row
+// exists for this exact SKU) over a bare Bin lookup - a mixed-owner bin now
+// attributes the charge to whoever's stock the task actually moved, not to
+// "the bin's one owner" when it no longer has just one.
 func stage42TaskOwner(schema string, task *WarehouseTaskInfo) string {
 	for _, binCode := range []string{task.ToBin, task.FromBin} {
 		if binCode == "" {
 			continue
+		}
+		if task.Item != "" {
+			if owner, err := ownerOfBinStock(schema, binCode, task.Item, "Good"); err == nil && owner != "" {
+				return owner
+			}
 		}
 		var owner string
 		err := db.DB.QueryRow(fmt.Sprintf(`
@@ -691,24 +701,19 @@ func CaptureStorageBalanceSnapshot(tenantID, snapshotDate, userID string) (int, 
 	if err != nil {
 		return 0, err
 	}
-	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT COALESCE(b.data->>'owner_id',''), bs.location_code, bs.sku, SUM(bs.qty)
-		FROM %s.bin_stock bs JOIN %s.documents b
-		  ON b.doctype = 'Bin' AND b.deleted_at IS NULL AND b.data->>'bin_code' = bs.bin_code
-		WHERE bs.condition = 'Good' AND COALESCE(b.data->>'owner_id','') <> ''
-		GROUP BY b.data->>'owner_id', bs.location_code, bs.sku`, schema, schema))
+	// Stage 42.5.5: ownerLocationSkuBalances unions the explicit
+	// bin_stock_owner breakdown with the same legacy whole-bin fallback this
+	// query used alone before - a tenant that has never called
+	// RecordOwnerStock sees byte-identical snapshots to before this file
+	// existed.
+	balances, err := ownerLocationSkuBalances(schema)
 	if err != nil {
 		return 0, err
 	}
-	defer rows.Close()
 	captured := 0
 	seen := map[string]bool{}
-	for rows.Next() {
-		var owner, location, item string
-		var qty float64
-		if err := rows.Scan(&owner, &location, &item, &qty); err != nil {
-			return captured, err
-		}
+	for _, bal := range balances {
+		owner, location, item, qty := bal.Owner, bal.Location, bal.Sku, bal.Qty
 		inserted, err := stage42InsertStorageSnapshot(schema, snapshotDate, owner, location, item, qty, userID)
 		if err != nil {
 			return captured, err
@@ -718,10 +723,6 @@ func CaptureStorageBalanceSnapshot(tenantID, snapshotDate, userID string) (int, 
 			captured++
 		}
 	}
-	if err := rows.Err(); err != nil {
-		return captured, err
-	}
-	rows.Close()
 
 	// A daily snapshot is only meaningful for a configured billing scope. For
 	// an item rate, add its zero if that SKU was absent. For an all-item rate,

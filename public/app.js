@@ -9918,6 +9918,17 @@ async function renderMarketplaceView(container) {
   `;
   container.appendChild(settlementPanel);
 
+  // --- Settlement Reconciliation panel (Stage 35.8, the "UniReco" gap) ---
+  // The panel above stays exactly as it was (a manual one-shot reconcile for
+  // a caller who already knows the payout math). This one is the real
+  // per-order-line workflow: import a marketplace's settlement file as
+  // MarketplaceSettlementLine rows (reuses the generic Bulk Import UI, one
+  // click away via "Import / View Settlement Lines" below - no new upload
+  // code needed), auto-match them against what was actually invoiced, and
+  // work the Variance queue by hand when a line doesn't match within
+  // tolerance.
+  await renderSettlementReconciliationPanel(container);
+
   // --- Logistics bookings panel (Stage 26.12.4: serviceability-driven AWB
   // assignment - Carrier/Tracking Number are now optional, auto-resolved by
   // engines.CreateLogisticsBooking off the CourierServiceArea master when a
@@ -10044,6 +10055,141 @@ async function renderMarketplaceView(container) {
   document.getElementById('mkt-manifest-btn').addEventListener('click', submitGenerateManifest);
   attachLinkTypeahead(document.getElementById('mkt-manifest-location'), 'Location');
   populateMarketplaceChannelOptions();
+}
+
+// Stage 35.8: Settlement Reconciliation panel - reads the
+// oms-settlement-variance report (registered report catalog, same
+// GET /api/v1/reports/run/{id} every other report uses) for the queue table,
+// and drives ReconcileMarketplaceSettlements/RaiseSettlementDispute/
+// ResolveSettlementDispute/WriteOffSettlementVariance directly.
+async function renderSettlementReconciliationPanel(container) {
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.style.marginBottom = '24px';
+  panel.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
+      <div>
+        <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 4px;">Settlement Reconciliation</h2>
+        <p style="color: var(--text-muted); font-size: 13px; margin: 0;">Import a marketplace payout file, then auto-match each line against what was actually invoiced. Anything outside tolerance lands in the queue below.</p>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-outline" id="stl-import-btn">Import / View Settlement Lines</button>
+        <button class="btn btn-primary" id="stl-reconcile-btn">Run Auto-Reconcile</button>
+      </div>
+    </div>
+    <div id="stl-recon-summary" style="margin-bottom:16px;"></div>
+    <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Line</th><th>Channel</th><th>Channel Order</th><th>Order</th><th>Batch</th>
+          <th>Gross</th><th>Expected (Invoiced)</th><th>Variance</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="stl-variance-body">
+        <tr><td colspan="10" style="text-align:center; color:var(--text-muted);">Loading&hellip;</td></tr>
+      </tbody>
+    </table>
+    </div>
+  `;
+  container.appendChild(panel);
+
+  document.getElementById('stl-import-btn').addEventListener('click', () => openOMSDoctype('MarketplaceSettlementLine'));
+  document.getElementById('stl-reconcile-btn').addEventListener('click', runSettlementReconcile);
+  await loadSettlementVarianceQueue();
+}
+
+async function loadSettlementVarianceQueue() {
+  const body = document.getElementById('stl-variance-body');
+  if (!body) return;
+  const res = await apiFetch('/api/v1/reports/run/oms-settlement-variance');
+  if (!res || !res.ok) {
+    body.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--text-muted);">Could not load the variance queue.</td></tr>`;
+    return;
+  }
+  const rows = await res.json();
+  const list = Array.isArray(rows) ? rows : (rows.rows || []);
+  if (list.length === 0) {
+    body.innerHTML = `<tr><td colspan="10" style="text-align:center; color:var(--text-muted);">No open variance - every reconciled line matched or has been resolved.</td></tr>`;
+    return;
+  }
+  body.innerHTML = list.map(r => `
+    <tr>
+      <td style="font-family: monospace;">${r.line_id || ''}</td>
+      <td>${r.channel || ''}</td>
+      <td style="font-family: monospace;">${r.channel_order_id || ''}</td>
+      <td style="font-family: monospace;">${r.order_id || ''}</td>
+      <td>${r.settlement_batch_id || ''}</td>
+      <td>${(r.gross_amount ?? 0).toLocaleString()}</td>
+      <td>${(r.expected_amount ?? 0).toLocaleString()}</td>
+      <td>${(r.variance_amount ?? 0).toLocaleString()}</td>
+      <td><span class="badge ${r.match_status === 'Disputed' ? 'badge-warning' : 'badge-danger'}">${r.match_status || ''}</span></td>
+      <td style="white-space:nowrap;">
+        ${r.match_status === 'Variance' ? `<button class="action-btn" onclick="raiseSettlementDisputeUI('${r.line_id}')">Dispute</button>` : ''}
+        ${r.match_status === 'Disputed' ? `<button class="action-btn" onclick="resolveSettlementDisputeUI('${r.line_id}')">Resolve</button>` : ''}
+        <button class="action-btn" onclick="writeOffSettlementVarianceUI('${r.line_id}')">Write Off</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+async function runSettlementReconcile() {
+  const summaryEl = document.getElementById('stl-recon-summary');
+  const res = await apiFetch('/api/v1/oms/settlements/reconcile', { method: 'POST' });
+  if (!res) return;
+  if (!res.ok) {
+    if (summaryEl) summaryEl.innerHTML = `<p class="login-error">${await getErrorMessage(res, 'Reconciliation pass failed.')}</p>`;
+    return;
+  }
+  const result = await res.json();
+  if (summaryEl) {
+    summaryEl.innerHTML = `<span class="badge badge-success">Scanned ${result.scanned ?? 0}</span> ` +
+      `<span class="badge badge-success">Matched ${result.matched ?? 0}</span> ` +
+      `<span class="badge badge-warning">Variance ${result.variance ?? 0}</span> ` +
+      `<span class="badge badge-danger">Invalid ${result.invalid ?? 0}</span> ` +
+      `<span class="badge badge-secondary">Unresolved (no order mapping yet) ${result.unresolved ?? 0}</span>`;
+  }
+  await loadSettlementVarianceQueue();
+}
+
+async function raiseSettlementDisputeUI(lineId) {
+  const reasonCode = await showCustomPrompt('Settlement dispute reason code:', '', 'Raise Dispute');
+  if (reasonCode === null || !reasonCode.trim()) return;
+  const note = await showCustomPrompt('Note (optional):', '', 'Raise Dispute');
+  const res = await apiFetch(`/api/v1/oms/settlements/${encodeURIComponent(lineId)}/dispute`, {
+    method: 'POST',
+    body: JSON.stringify({ reason_code: reasonCode.trim(), note: (note || '').trim() })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to raise the dispute.'); return; }
+  await loadSettlementVarianceQueue();
+}
+
+async function resolveSettlementDisputeUI(lineId) {
+  const corrected = await showCustomPrompt('Corrected gross amount from the marketplace:', '', 'Resolve Dispute');
+  if (corrected === null || corrected.trim() === '' || isNaN(parseFloat(corrected))) return;
+  const res = await apiFetch(`/api/v1/oms/settlements/${encodeURIComponent(lineId)}/resolve`, {
+    method: 'POST',
+    body: JSON.stringify({ corrected_gross_amount: parseFloat(corrected) })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to resolve the dispute.'); return; }
+  await loadSettlementVarianceQueue();
+}
+
+async function writeOffSettlementVarianceUI(lineId) {
+  const reasonCode = await showCustomPrompt('Write-off reason code:', '', 'Write Off Variance');
+  if (reasonCode === null || !reasonCode.trim()) return;
+  const confirmed = await showCustomConfirm('Write off this variance? This posts it to Settlement Variance Written Off and closes the line.', 'Confirm Write-Off');
+  if (!confirmed) return;
+  const res = await apiFetch(`/api/v1/oms/settlements/${encodeURIComponent(lineId)}/write-off`, {
+    method: 'POST',
+    body: JSON.stringify({ reason_code: reasonCode.trim() })
+  });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to write off the variance.'); return; }
+  await loadSettlementVarianceQueue();
 }
 
 // Stage 18.3: the Channel select here was a hardcoded Shopify/Amazon

@@ -336,4 +336,93 @@ func TestStage42_5InventoryControlDepth(t *testing.T) {
 			t.Fatalf("expected a consolidation suggestion moving %s from %s into %s, got %+v", skuSplit, reserveA, reserveB, consolidation)
 		}
 	})
+
+	t.Run("MultiOwnerStockSegregation", func(t *testing.T) {
+		location := "WH-OWN-TEST"
+		mixedBin := "BIN-OWN-MIX"
+		legacyBin := "BIN-OWN-LEGACY"
+		sku := "SKU-OWN-01"
+		ownerA, ownerB, ownerC := "OWNER-A-TEST", "OWNER-B-TEST", "OWNER-C-TEST"
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".bin_stock_owner WHERE bin_code IN ('BIN-OWN-MIX','BIN-OWN-LEGACY')")
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".bin_stock WHERE bin_code IN ('BIN-OWN-MIX','BIN-OWN-LEGACY')")
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE id IN ('BINDOC-BIN-OWN-MIX','BINDOC-BIN-OWN-LEGACY')")
+
+		seedLocation(location)
+		seedBin(mixedBin, location, "", "Reserve") // unowned at the Bin level - purely stock-level segregated below.
+		seedBinStock(mixedBin, sku, location, 100)
+
+		// 42.5.5's core claim: one bin can hold two owners' stock.
+		if err := RecordOwnerStock(tenantID, mixedBin, sku, ownerA, "Good", 60, "system"); err != nil {
+			t.Fatalf("RecordOwnerStock(ownerA) failed: %v", err)
+		}
+		if err := RecordOwnerStock(tenantID, mixedBin, sku, ownerB, "Good", 30, "system"); err != nil {
+			t.Fatalf("RecordOwnerStock(ownerB) failed: %v", err)
+		}
+		// The bin only holds 100; 60+30+20 > 100 must be refused - the same
+		// invariant RecordBatchPutaway enforces against bin_stock.
+		if err := RecordOwnerStock(tenantID, mixedBin, sku, "OWNER-D-TEST", "Good", 20, "system"); err == nil {
+			t.Fatalf("expected over-assignment beyond the bin's own qty to be refused")
+		}
+
+		breakdown, err := GetOwnerStock(tenantID, sku, location, "")
+		if err != nil {
+			t.Fatalf("GetOwnerStock failed: %v", err)
+		}
+		var breakdownTotal int
+		for _, r := range breakdown {
+			if r.BinCode == mixedBin {
+				breakdownTotal += r.Qty
+			}
+		}
+		if breakdownTotal != 90 {
+			t.Fatalf("expected the mixed bin's owner breakdown to total 90, got %d (%+v)", breakdownTotal, breakdown)
+		}
+
+		// A bin whose ownership was never split still behaves exactly as it did
+		// before this file existed: attributed wholly to the Bin's own owner_id.
+		seedBin(legacyBin, location, "", "Reserve")
+		if _, err := db.DB.Exec("UPDATE "+schema+".documents SET data = jsonb_set(data, '{owner_id}', to_jsonb($1::text)) WHERE id = $2",
+			ownerC, "BINDOC-"+legacyBin); err != nil {
+			t.Fatalf("failed to set legacy bin owner_id: %v", err)
+		}
+		seedBinStock(legacyBin, sku, location, 25)
+
+		if qty, err := OwnerStockQty(tenantID, ownerC, location, sku); err != nil || qty != 25 {
+			t.Fatalf("expected legacy whole-bin fallback to attribute 25 to %s, got %d, err=%v", ownerC, qty, err)
+		}
+		if qty, err := OwnerStockQty(tenantID, ownerA, location, sku); err != nil || qty != 60 {
+			t.Fatalf("expected explicit breakdown to attribute 60 to %s, got %d, err=%v", ownerA, qty, err)
+		}
+		// ownerB's stock sits only in the mixed bin - the legacy bin must not
+		// leak into its total.
+		if qty, err := OwnerStockQty(tenantID, ownerB, location, ""); err != nil || qty != 30 {
+			t.Fatalf("expected %s to hold exactly 30 across all bins, got %d, err=%v", ownerB, qty, err)
+		}
+
+		// Consuming more than an owner's own assigned qty is refused even
+		// though the bin itself still holds plenty of other owners' stock.
+		if err := ConsumeOwnerStock(tenantID, mixedBin, sku, ownerA, "Good", 61, "SalesOrder", "SO-OWN-TEST", "system"); err == nil {
+			t.Fatalf("expected consuming more than ownerA's assigned qty to be refused")
+		}
+		if err := ConsumeOwnerStock(tenantID, mixedBin, sku, ownerA, "Good", 60, "SalesOrder", "SO-OWN-TEST", "system"); err != nil {
+			t.Fatalf("ConsumeOwnerStock(ownerA) failed: %v", err)
+		}
+		if qty, err := OwnerStockQty(tenantID, ownerA, location, sku); err != nil || qty != 0 {
+			t.Fatalf("expected ownerA's qty to be 0 after full consumption, got %d, err=%v", qty, err)
+		}
+		// ownerB is untouched by ownerA's consumption.
+		if qty, err := OwnerStockQty(tenantID, ownerB, location, sku); err != nil || qty != 30 {
+			t.Fatalf("expected ownerB's qty to remain 30, got %d, err=%v", qty, err)
+		}
+
+		// The task-completion billing hook's resolver must not error on a
+		// mixed bin and must return one of the owners actually holding stock
+		// there (ownerB, the only one left with qty > 0 in this bin).
+		if owner, err := ownerOfBinStock(schema, mixedBin, sku, "Good"); err != nil || owner != ownerB {
+			t.Fatalf("expected ownerOfBinStock to resolve %s, got %q, err=%v", ownerB, owner, err)
+		}
+		if owner, err := ownerOfBinStock(schema, legacyBin, sku, "Good"); err != nil || owner != ownerC {
+			t.Fatalf("expected ownerOfBinStock to fall back to the legacy bin owner %s, got %q, err=%v", ownerC, owner, err)
+		}
+	})
 }

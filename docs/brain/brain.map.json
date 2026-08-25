@@ -338,12 +338,14 @@
         "engines/gate_pass.go",
         "engines/cancellation_credit_note.go",
         "engines/bundles*.go",
+        "engines/settlement_reconciliation.go",
         "internal/server/handlers_orders.go",
         "internal/server/handlers_oms_console.go",
         "internal/server/handlers_order_mutations.go",
         "internal/server/handlers_shipping_package.go",
         "internal/server/handlers_bundles.go",
-        "internal/server/handlers_returns.go"
+        "internal/server/handlers_returns.go",
+        "internal/server/handlers_settlement_reconciliation.go"
       ]
     },
     {

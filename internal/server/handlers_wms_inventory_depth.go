@@ -9,13 +9,15 @@ import (
 
 // Stage 42.5 (Inventory control depth): physical inventory, the
 // tenant-configurable CycleClass cycle-count plan, demand-driven/
-// wave-triggered/dynamic pick-face replenishment, and facility hierarchy/
-// copy/cross-facility inventory inquiry. Kept in its own file, same
-// per-Stage split as handlers_wms_outbound.go/handlers_wms_enterprise.go.
-// 42.5.4 (slotting v2) and the two facility inquiries add no routes of
-// their own here - they're ReportDefinitions served by the generic report
-// endpoint, the same "reports own the read paths" split routes.go's own
-// comments already document for the batch/serial inquiries.
+// wave-triggered/dynamic pick-face replenishment, facility hierarchy/
+// copy/cross-facility inventory inquiry, and (42.5.5) multi-owner stock
+// segregation assign/consume. Kept in its own file, same per-Stage split
+// as handlers_wms_outbound.go/handlers_wms_enterprise.go.
+// 42.5.4 (slotting v2), the two facility inquiries, and the owner-stock
+// inquiry add no routes of their own here - they're ReportDefinitions
+// served by the generic report endpoint, the same "reports own the read
+// paths" split routes.go's own comments already document for the
+// batch/serial inquiries.
 
 func handlePhysicalInventoryStart(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
@@ -282,6 +284,63 @@ func handleFacilityDescendants(w http.ResponseWriter, r *http.Request) {
 		descendants = []string{}
 	}
 	_ = json.NewEncoder(w).Encode(descendants)
+}
+
+// handleOwnerStockAssign assigns already-binned stock to a 3PL owner (42.5.5).
+func handleOwnerStockAssign(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	var req struct {
+		BinCode   string `json:"bin_code"`
+		Sku       string `json:"sku"`
+		OwnerID   string `json:"owner_id"`
+		Condition string `json:"condition"`
+		Qty       int    `json:"qty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BinCode == "" || req.Sku == "" || req.OwnerID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'bin_code', 'sku' and 'owner_id' are required")
+		return
+	}
+	if err := engines.RecordOwnerStock(tenantID, req.BinCode, req.Sku, req.OwnerID, req.Condition, req.Qty, userID); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "assigned", "bin_code": req.BinCode, "sku": req.Sku, "owner_id": req.OwnerID, "qty": req.Qty,
+	})
+}
+
+// handleOwnerStockConsume removes an owner's stock from a bin against a
+// consuming voucher (42.5.5).
+func handleOwnerStockConsume(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	var req struct {
+		BinCode     string `json:"bin_code"`
+		Sku         string `json:"sku"`
+		OwnerID     string `json:"owner_id"`
+		Condition   string `json:"condition"`
+		Qty         int    `json:"qty"`
+		VoucherType string `json:"voucher_type"`
+		VoucherID   string `json:"voucher_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.BinCode == "" || req.Sku == "" || req.OwnerID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'bin_code', 'sku' and 'owner_id' are required")
+		return
+	}
+	if err := engines.ConsumeOwnerStock(tenantID, req.BinCode, req.Sku, req.OwnerID, req.Condition, req.Qty, req.VoucherType, req.VoucherID, userID); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "consumed"})
 }
 
 func handleFacilityCopy(w http.ResponseWriter, r *http.Request) {

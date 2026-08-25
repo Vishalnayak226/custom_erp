@@ -1,9 +1,11 @@
 package server
 
 import (
+	"context"
 	"custom_erp/engines"
 	"encoding/json"
 	"net/http"
+	"time"
 )
 
 // handleCreateReturnRequest is Stage 26.12.5's entry point for both a
@@ -131,6 +133,9 @@ func handleApplyReturnQC(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Dispositions map[string]string `json:"dispositions"`
 		QCBy         string            `json:"qc_by"`
+		// ExchangeFor (Stage 35.9.2) is an optional originalSKU ->
+		// exchangeSKU map - see engines.ApplyReturnQC's own doc comment.
+		ExchangeFor map[string]string `json:"exchange_for"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
@@ -141,7 +146,7 @@ func handleApplyReturnQC(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	totalRefund, refundRequestID, err := engines.ApplyReturnQC(tenantID, returnID, req.Dispositions, req.QCBy)
+	totalRefund, refundRequestID, err := engines.ApplyReturnQC(tenantID, returnID, req.Dispositions, req.QCBy, req.ExchangeFor)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
@@ -150,6 +155,48 @@ func handleApplyReturnQC(w http.ResponseWriter, r *http.Request) {
 		"total_refund_eligible": totalRefund,
 		"refund_request_id":     refundRequestID,
 	})
+}
+
+// handleScheduleReturnReversePickup is Stage 35.9.1's entry point - see
+// engines.ScheduleReturnReversePickup's own doc comment for why this only
+// applies to a Customer Return and how it reuses the Stage 35.5 courier
+// machinery unmodified.
+func handleScheduleReturnReversePickup(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	returnID := r.PathValue("id")
+
+	var req struct {
+		Provider      string `json:"provider"`
+		PickupPincode string `json:"pickup_pincode"`
+		PickupAddress string `json:"pickup_address"`
+		PickupName    string `json:"pickup_name"`
+		PickupAt      string `json:"pickup_at"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
+		return
+	}
+	if req.Provider == "" || req.PickupPincode == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'provider' and 'pickup_pincode' are required")
+		return
+	}
+	pickupAt := time.Now().Add(24 * time.Hour)
+	if req.PickupAt != "" {
+		if parsed, errT := time.Parse(time.RFC3339, req.PickupAt); errT == nil {
+			pickupAt = parsed
+		}
+	}
+
+	bookingID, awb, err := engines.ScheduleReturnReversePickup(context.Background(), tenantID, returnID, req.Provider, req.PickupPincode, req.PickupAddress, req.PickupName, pickupAt)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"booking_id": bookingID, "awb": awb})
 }
 
 func handleApproveRefundRequest(w http.ResponseWriter, r *http.Request) {

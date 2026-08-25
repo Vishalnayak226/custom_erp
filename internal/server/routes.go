@@ -303,9 +303,20 @@ func Run() {
 	http.HandleFunc("POST /api/v1/returns/{id}/reject", apiMiddleware(moduleGate("oms", handleRejectReturnRequest)))
 	http.HandleFunc("POST /api/v1/returns/{id}/receive", apiMiddleware(moduleGate("oms", handleReceiveReturnRequest)))
 	http.HandleFunc("POST /api/v1/returns/{id}/qc", apiMiddleware(moduleGate("oms", handleApplyReturnQC)))
+	// Stage 35.9.1: courier reverse pickup for a Customer Return.
+	http.HandleFunc("POST /api/v1/returns/{id}/reverse-pickup", apiMiddleware(moduleGate("oms", handleScheduleReturnReversePickup)))
 	http.HandleFunc("POST /api/v1/refunds/{id}/approve", apiMiddleware(moduleGate("oms", handleApproveRefundRequest)))
 	http.HandleFunc("POST /api/v1/refunds/{id}/reject", apiMiddleware(moduleGate("oms", handleRejectRefundRequest)))
 	http.HandleFunc("POST /api/v1/refunds/{id}/process", apiMiddleware(moduleGate("oms", handleProcessRefundRequest)))
+
+	// Stage 35.8: Settlement/payment reconciliation. Import itself reuses
+	// POST /api/v1/import/MarketplaceSettlementLine (registered generically
+	// above, no dedicated route needed) - these are the matching/dispute/
+	// write-off actions layered on top of it.
+	http.HandleFunc("POST /api/v1/oms/settlements/reconcile", apiMiddleware(moduleGate("oms", handleReconcileMarketplaceSettlements)))
+	http.HandleFunc("POST /api/v1/oms/settlements/{id}/dispute", apiMiddleware(moduleGate("oms", handleRaiseSettlementDispute)))
+	http.HandleFunc("POST /api/v1/oms/settlements/{id}/resolve", apiMiddleware(moduleGate("oms", handleResolveSettlementDispute)))
+	http.HandleFunc("POST /api/v1/oms/settlements/{id}/write-off", apiMiddleware(moduleGate("oms", handleWriteOffSettlementVariance)))
 
 	// WMS Maturity (Stage 20 Track B.2): putaway, bin-grouped pick lists,
 	// transfer-order pack/box-mapping, cycle-count reconciliation.
@@ -420,6 +431,10 @@ func Run() {
 	http.HandleFunc("GET /api/v1/wms/facility/children", apiMiddleware(moduleGate("wms", handleFacilityChildren)))
 	http.HandleFunc("GET /api/v1/wms/facility/descendants", apiMiddleware(moduleGate("wms", handleFacilityDescendants)))
 	http.HandleFunc("POST /api/v1/wms/facility/copy", apiMiddleware(moduleGate("wms", handleFacilityCopy)))
+	// 42.5.5 - multi-owner stock segregation. Same manual assign/consume shape
+	// as the batch breakdown's /wms/batch/putaway and /wms/batch/consume.
+	http.HandleFunc("POST /api/v1/wms/owner-stock/assign", apiMiddleware(moduleGate("wms", handleOwnerStockAssign)))
+	http.HandleFunc("POST /api/v1/wms/owner-stock/consume", apiMiddleware(moduleGate("wms", handleOwnerStockConsume)))
 
 	// Stage 42.6 - engineered labour planning and 3PL billing. The associated
 	// masters stay on the generic document API; these are the calculation and
