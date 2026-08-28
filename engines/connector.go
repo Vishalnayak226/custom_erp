@@ -170,16 +170,16 @@ func BuildChannelPayload(tenantID, itemCode, channelCode string) (*ChannelProduc
 	}
 
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT COALESCE(data->>'source_field', ''), COALESCE(data->>'target_field', '') FROM %s.documents
+		SELECT COALESCE(data->>'source_field', ''), COALESCE(data->>'target_field', ''), COALESCE(data->>'transform_rule', '') FROM %s.documents
 		WHERE doctype = 'ChannelFieldMap' AND data->>'channel' = $1`, schema), channelCode)
 	if err != nil {
 		return nil, err
 	}
-	type mapping struct{ source, target string }
+	type mapping struct{ source, target, transformRule string }
 	var mappings []mapping
 	for rows.Next() {
 		var m mapping
-		if err := rows.Scan(&m.source, &m.target); err != nil {
+		if err := rows.Scan(&m.source, &m.target, &m.transformRule); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -199,6 +199,18 @@ func BuildChannelPayload(tenantID, itemCode, channelCode string) (*ChannelProduc
 			// outbound payload actually gets the channel-specific value
 			// (e.g. a French title override) instead of always the global one.
 			val, _ = ResolveAttributeValue(tenantID, itemCode, m.source, defaultLocale, channelCode)
+		}
+		if val != "" && m.transformRule != "" {
+			// Stage 36.5: a mapping with no transform_rule behaves exactly
+			// as it always has (plain passthrough). A set rule that fails
+			// to apply (deleted/deactivated since the mapping was saved, or
+			// a value this rule's steps genuinely cannot handle) fails the
+			// whole payload build rather than silently publishing an
+			// untransformed or blank value to a live channel.
+			val, err = ApplyPIMTransformRule(tenantID, m.transformRule, val)
+			if err != nil {
+				return nil, fmt.Errorf("channel field map %s -> %s: %w", m.source, m.target, err)
+			}
 		}
 		if val != "" {
 			payload.Attributes[m.target] = val

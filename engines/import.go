@@ -66,23 +66,9 @@ const importBatchRows = 500
 // (create/update/reject) with zero risk of a partial write, without a
 // second parsing codepath.
 func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, dryRun bool) (*ImportResult, error) {
-	schema, err := db.GetTenantSchema(tenantID)
+	records, err := readCSVRecords(r)
 	if err != nil {
 		return nil, err
-	}
-
-	reader := csv.NewReader(r)
-	records, err := reader.ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read CSV: %w", err)
-	}
-
-	if len(records) < 2 {
-		// DATAIM-0163 (Stage 25.5): "Excel template invalid" - a file with
-		// no header row or no data rows can't be the doctype's own
-		// generated template (GenerateCSVTemplate always emits at least a
-		// header row), so this is exactly that scenario.
-		return nil, &ValidationError{Code: "DATAIM-0163", Message: "CSV is empty or missing data rows"}
 	}
 
 	headers := records[0]
@@ -99,8 +85,72 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 		return nil, &ValidationError{Code: "DATAIM-0164", Message: fmt.Sprintf("uploaded file is missing mandatory column(s): %s", strings.Join(missing, ", "))}
 	}
 
+	docRows := csvRowsToDocData(headers, records[1:])
+	preErrors := make([]string, len(docRows))
+	if strings.EqualFold(doctype, "Item") {
+		// Stage 36.3.5: applies to every Item import, not only a templated
+		// one - variant-parent-ordering is a property of the doctype, not of
+		// how the file's columns happened to be named.
+		preErrors = pimVariantParentPreflight(tenantID, docRows)
+	}
+	return runDocDataImport(tenantID, doctype, userID, dryRun, docRows, preErrors)
+}
+
+// readCSVRecords is the one CSV-parsing entry point BulkImportCSV and Stage
+// 36.3's RunPIMImportTemplate both go through, so the empty-file check
+// (DATAIM-0163) is enforced identically for a plain upload and a templated
+// one instead of drifting into two slightly different messages.
+func readCSVRecords(r io.Reader) ([][]string, error) {
+	reader := csv.NewReader(r)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read CSV: %w", err)
+	}
+	if len(records) < 2 {
+		// DATAIM-0163 (Stage 25.5): "Excel template invalid" - a file with
+		// no header row or no data rows can't be the doctype's own
+		// generated template (GenerateCSVTemplate always emits at least a
+		// header row), so this is exactly that scenario.
+		return nil, &ValidationError{Code: "DATAIM-0163", Message: "CSV is empty or missing data rows"}
+	}
+	return records, nil
+}
+
+// csvRowsToDocData zips a header row against every data row to build the
+// same fieldname->value map shape importBatch (now runDocDataImport) has
+// always validated and inserted - split out so Stage 36.3's template path
+// can build the identical shape from a remapped/transformed source instead
+// of straight from CSV columns, and both feed the one shared batching core.
+func csvRowsToDocData(headers []string, rows [][]string) []map[string]interface{} {
+	out := make([]map[string]interface{}, len(rows))
+	for i, row := range rows {
+		docData := make(map[string]interface{})
+		for colIdx, val := range row {
+			if colIdx < len(headers) {
+				docData[headers[colIdx]] = sanitizeCSVCell(strings.TrimSpace(val))
+			}
+		}
+		out[i] = docData
+	}
+	return out
+}
+
+// runDocDataImport is the shared batching core every import path now feeds
+// through: BulkImportCSV's plain-CSV rows, and Stage 36.3's
+// RunPIMImportTemplate rows (remapped/transformed, plus a variant-parent
+// preflight check for Item). preErrors is parallel to docRows - a non-empty
+// entry means the row already failed before reaching this function (a
+// transform error, a missing variant parent) and is recorded as a failure
+// without ever being passed to ValidateDocument, while every row after it
+// keeps the same row number it would have had either way.
+func runDocDataImport(tenantID, doctype, userID string, dryRun bool, docRows []map[string]interface{}, preErrors []string) (*ImportResult, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+
 	result := &ImportResult{
-		TotalRows: len(records) - 1,
+		TotalRows: len(docRows),
 		DryRun:    dryRun,
 	}
 
@@ -111,7 +161,6 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 	// fresh generated code, so they can't collide with each other here).
 	seenIDs := map[string]bool{}
 
-	dataRows := records[1:]
 	// Resolved once per import (not per batch): the batch size must stay
 	// constant for the whole file, or a mid-import config edit would leave
 	// the row-number arithmetic below inconsistent.
@@ -119,12 +168,13 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 	if batchRows < 1 {
 		batchRows = 1
 	}
-	for batchStart := 0; batchStart < len(dataRows); batchStart += batchRows {
+	for batchStart := 0; batchStart < len(docRows); batchStart += batchRows {
 		batchEnd := batchStart + batchRows
-		if batchEnd > len(dataRows) {
-			batchEnd = len(dataRows)
+		if batchEnd > len(docRows) {
+			batchEnd = len(docRows)
 		}
-		if err := importBatch(tenantID, schema, doctype, userID, dryRun, headers, dataRows[batchStart:batchEnd], batchStart+2, result, seenIDs); err != nil {
+		if err := importBatch(tenantID, schema, doctype, userID, dryRun,
+			docRows[batchStart:batchEnd], preErrors[batchStart:batchEnd], batchStart+2, result, seenIDs); err != nil {
 			return nil, err
 		}
 	}
@@ -171,8 +221,11 @@ func missingMandatoryColumns(tenantID, doctype string, headers []string) []strin
 // (non-dry-run, at least one success in the batch) or rolling back (dry
 // run, or a batch with zero successes) - the same per-transaction rule
 // BulkImportCSV used to apply once for the whole file, now applied once per
-// batch instead.
-func importBatch(tenantID, schema, doctype, userID string, dryRun bool, headers []string, rows [][]string, firstRowNumber int, result *ImportResult, seenIDs map[string]bool) error {
+// batch instead. docRows are already in fieldname->value shape (Stage 36.3:
+// either a plain CSV row or a template-remapped/transformed one); preErrors
+// is parallel to docRows and, when non-empty for a row, records that row as
+// failed for the given reason without calling ValidateDocument at all.
+func importBatch(tenantID, schema, doctype, userID string, dryRun bool, docRows []map[string]interface{}, preErrors []string, firstRowNumber int, result *ImportResult, seenIDs map[string]bool) error {
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return err
@@ -184,16 +237,16 @@ func importBatch(tenantID, schema, doctype, userID string, dryRun bool, headers 
 	}
 
 	batchSuccessCount := 0
-	for i, row := range rows {
+	for i, docData := range docRows {
 		rowNumber := firstRowNumber + i
-		docData := make(map[string]interface{})
 
-		// Map headers to CSV values
-		for colIdx, val := range row {
-			if colIdx < len(headers) {
-				fieldName := headers[colIdx]
-				docData[fieldName] = sanitizeCSVCell(strings.TrimSpace(val))
-			}
+		if preErr := preErrors[i]; preErr != "" {
+			result.FailedRows++
+			result.Errors = append(result.Errors, RowValidationError{
+				RowNumber: rowNumber,
+				Message:   preErr,
+			})
+			continue
 		}
 
 		// Perform field structure validation

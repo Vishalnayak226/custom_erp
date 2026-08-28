@@ -158,6 +158,15 @@ func ValidateParityFoundationDocument(tenantID, doctype string, payload map[stri
 		return ValidatePIMTaskTemplateDocument(tenantID, payload)
 	case "PIMWorkflowDefinition":
 		return ValidatePIMWorkflowDefinitionDocument(tenantID, payload)
+	// Stage 36.5: joins here rather than growing a second validation entry
+	// point, so a rule written through the generic document API is subject
+	// to the same closed-vocabulary check the engine enforces on its own writes.
+	case "PIMTransformRule":
+		return ValidatePIMTransformRuleDocument(tenantID, payload)
+	case "PIMImportTemplate":
+		return ValidatePIMImportTemplateDocument(tenantID, payload)
+	case "PIMImportSchedule":
+		return ValidatePIMImportScheduleDocument(tenantID, payload)
 	case "Currency":
 		return ValidateCurrencyDocument(payload)
 	case "ExchangeRate":

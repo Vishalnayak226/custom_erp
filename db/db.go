@@ -36,8 +36,20 @@ func ConnStringFromEnv() string {
 	return "postgres://postgres@localhost:5435/custom_erp?sslmode=disable"
 }
 
-// InitDB initializes the global connection pool
+// InitDB initializes the global connection pool. Production calls this
+// exactly once at startup, but the test suite calls it at the top of nearly
+// every DB-touching test function in a package (testdb_test.go's own
+// documented convention) - without closing whatever pool DB already points
+// at, each call leaks its predecessor's idle connections (up to
+// dbMaxIdleConns) for the rest of the test binary's life, since nothing
+// else ever holds a reference to close it. Enough test files now do this
+// that the leak alone was enough to exhaust Postgres's connection limit
+// partway through `go test ./engines/...` (found while adding Stage 36.3's
+// tests, not caused by any one of them - just the one that tipped it over).
 func InitDB(connStr string) {
+	if DB != nil {
+		_ = DB.Close()
+	}
 	var err error
 	DB, err = sql.Open("postgres", connStr)
 	if err != nil {

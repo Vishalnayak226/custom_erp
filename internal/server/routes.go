@@ -112,6 +112,12 @@ func Run() {
 	// for Recurring Template JournalVouchers whose next_run_date has arrived.
 	engines.StartRecurringJournalWorker(workerCtx, 1*time.Hour)
 
+	// Start PIM Import Schedule Worker (Stage 36.3.1) - hourly scan for
+	// Active Drop-Directory PIMImportSchedules whose next_run_date has
+	// arrived, reusing the same ticker/schema-fanout shape as the scheduled
+	// report and wave-auto-creation workers above.
+	engines.StartPIMImportScheduleWorker(workerCtx, 1*time.Hour)
+
 	// Start Loyalty Expiry Worker (Stage 26.7.3) - daily-granularity sweep
 	// of lapsed loyalty point lots.
 	engines.StartLoyaltyExpiryWorker(workerCtx, 1*time.Hour)
@@ -629,6 +635,9 @@ func Run() {
 	http.HandleFunc("POST /api/v1/pim/workflow-runs/bulk", apiMiddleware(moduleGate("pim", handlePIMWorkflowRunBulk)))
 	http.HandleFunc("POST /api/v1/pim/workflow-runs/{id}/action", apiMiddleware(moduleGate("pim", handlePIMWorkflowRunAction)))
 	http.HandleFunc("GET /api/v1/pim/completeness/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMCompleteness)))
+	// Declarative data transformation rules (Stage 36.5) - the vocabulary a
+	// Channel Field Map or (Stage 36.3) Import Template step editor offers.
+	http.HandleFunc("GET /api/v1/pim/transform-rules", apiMiddleware(moduleGate("pim", handlePIMTransformRules)))
 	// Content assist (Stage 26.4.11) - local/offline draft generation from the
 	// item's own data. Suggest-only: writes no ProductContent.
 	http.HandleFunc("GET /api/v1/pim/content-assist/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMContentAssist)))
@@ -647,6 +656,18 @@ func Run() {
 	// Import/Export (Stage 15.2)
 	http.HandleFunc("POST /api/v1/pim/import/{doctype}/preview", apiMiddleware(moduleGate("pim", handlePIMImportPreview)))
 	http.HandleFunc("GET /api/v1/pim/import-jobs/{id}/errors.csv", apiMiddleware(moduleGate("pim", handlePIMImportJobErrors)))
+	// Import depth (Stage 36.3): reusable column-mapping templates, driven
+	// either by a scheduled directory scan or an inbound webhook token.
+	http.HandleFunc("GET /api/v1/pim/import-templates", apiMiddleware(moduleGate("pim", handlePIMImportTemplates)))
+	http.HandleFunc("GET /api/v1/pim/import-templates/{id}/preview-mapping", apiMiddleware(moduleGate("pim", handlePIMImportTemplatePreviewMapping)))
+	http.HandleFunc("POST /api/v1/pim/import-templates/{id}/preview", apiMiddleware(moduleGate("pim", handlePIMImportTemplateRun(true))))
+	http.HandleFunc("POST /api/v1/pim/import-templates/{id}/import", apiMiddleware(moduleGate("pim", handlePIMImportTemplateRun(false))))
+	http.HandleFunc("GET /api/v1/pim/import-schedules", apiMiddleware(moduleGate("pim", handlePIMImportSchedules)))
+	http.HandleFunc("POST /api/v1/pim/import-schedules/{id}/rotate-hook-token", apiMiddleware(moduleGate("pim", handlePIMImportScheduleRotateHookToken)))
+	// Public: listed in middleware.go's publicRoutes. An external system
+	// authenticates with X-Hook-Token alone (verified inside the handler),
+	// never a session - see handlePIMImportHook's own comment.
+	http.HandleFunc("POST /api/v1/pim/import/hook", apiMiddleware(moduleGate("pim", handlePIMImportHook)))
 	// Real Channel Connector Framework (Stage 16.1) - write-only credential
 	// endpoint, HR/Admin only; there is deliberately no matching GET.
 	http.HandleFunc("POST /api/v1/pim/channels/{code}/credentials", apiMiddleware(moduleGate("pim", handleSaveChannelCredential)))

@@ -300,6 +300,11 @@ var publicRoutes = map[string]bool{
 	"/api/v1/help/public/index":        true,
 	"/api/v1/help/public/article":      true,
 	"/api/v1/help/public/search-index": true,
+	// Stage 36.3.4: PIM import hook. An external system holds only its own
+	// minted token (X-Hook-Token), never a session - public only up to that
+	// header's mandatory verification inside the handler, the same posture
+	// the two courier tracking routes above already take with their HMAC.
+	"/api/v1/pim/import/hook": true,
 }
 
 func loadCORSAllowlist() map[string]bool {
