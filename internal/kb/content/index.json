@@ -669,6 +669,79 @@
               "slug": "what-is-not-here-yet"
             }
           ]
+        },
+        {
+          "slug": "traceability-batch-serial",
+          "title": "Batch, Serial \u0026 Expiry Traceability",
+          "section": "Module Handbooks",
+          "order": 20,
+          "summary": "Track a lot or an individual unit from receipt to dispatch, pick the right stock first by expiry, and answer a recall in two directions.",
+          "audience": "warehouse operator, category manager, admin",
+          "screens": [
+            "grn",
+            "wave-picking",
+            "doctype-table",
+            "reports"
+          ],
+          "last_verified": "2026-08-31",
+          "source_path": "module-handbooks/traceability-batch-serial.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Turning it on for an item",
+              "slug": "turning-it-on-for-an-item"
+            },
+            {
+              "level": 2,
+              "text": "Receiving: capturing a batch or serial",
+              "slug": "receiving-capturing-a-batch-or-serial"
+            },
+            {
+              "level": 2,
+              "text": "Picking: oldest-expiry-first, automatically",
+              "slug": "picking-oldest-expiry-first-automatically"
+            },
+            {
+              "level": 2,
+              "text": "Serial verification at pack",
+              "slug": "serial-verification-at-pack"
+            },
+            {
+              "level": 2,
+              "text": "Expiry sweep: moving expired stock out of available",
+              "slug": "expiry-sweep-moving-expired-stock-out-of-available"
+            },
+            {
+              "level": 2,
+              "text": "Restricting a lot to certain customers",
+              "slug": "restricting-a-lot-to-certain-customers"
+            },
+            {
+              "level": 2,
+              "text": "Recording a manual consumption",
+              "slug": "recording-a-manual-consumption"
+            },
+            {
+              "level": 2,
+              "text": "Finding a lot or a serial: the five reports",
+              "slug": "finding-a-lot-or-a-serial-the-five-reports"
+            },
+            {
+              "level": 2,
+              "text": "Unit conversion (UOM)",
+              "slug": "unit-conversion-uom"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
         }
       ]
     },
@@ -1671,7 +1744,8 @@
     "doctype-table": [
       "finding-your-way-around",
       "journey-category-manager",
-      "pim-product-groups"
+      "pim-product-groups",
+      "traceability-batch-serial"
     ],
     "dynamic-labels": [
       "journey-admin"
@@ -1694,6 +1768,7 @@
       "journey-store-manager",
       "journey-warehouse-operator",
       "open-a-shop-and-make-your-first-sale",
+      "traceability-batch-serial",
       "troubleshooting-index"
     ],
     "inventory": [
@@ -1752,6 +1827,7 @@
       "journey-store-manager",
       "open-a-shop-and-make-your-first-sale",
       "report-catalog",
+      "traceability-batch-serial",
       "what-is-this-system"
     ],
     "roles": [
@@ -1788,8 +1864,9 @@
       "journey-finance"
     ],
     "wave-picking": [
-      "journey-warehouse-operator"
+      "journey-warehouse-operator",
+      "traceability-batch-serial"
     ]
   },
-  "article_count": 23
+  "article_count": 24
 }

@@ -371,7 +371,11 @@
         "internal/server/handlers_pim_groups.go",
         "internal/server/handlers_pim_tasks.go",
         "internal/server/handlers_pim_transform.go",
-        "internal/server/handlers_pim_import_template.go"
+        "internal/server/handlers_pim_import_template.go",
+        "internal/server/handlers_pim_dam.go",
+        "internal/server/handlers_pim_export.go",
+        "internal/server/handlers_pim_quality.go",
+        "public/pim-catalog-share.html"
       ]
     },
     {
