@@ -15997,6 +15997,11 @@ const PIM_TABS = [
   // definitions, which need no bespoke screen - the generic doctype table
   // already gives them a list, a form, RBAC, audit and CSV import.
   { id: 'my-work', label: 'My Work' },
+  // Stage 36.6.3: catalog-wide media browse/search/tag/bulk. No doctype -
+  // same bespoke-screen treatment as Dashboard/Workbench/Reports/My Work,
+  // since it needs thumbnails, filters and a bulk zip action the generic
+  // doctype table doesn't have.
+  { id: 'media-library', label: 'Media Library' },
   { id: 'task-templates', label: 'Task Templates', doctype: 'PIMTaskTemplate' },
   { id: 'workflows', label: 'Workflows', doctype: 'PIMWorkflowDefinition' },
   { id: 'families', label: 'Product Families', doctype: 'ProductFamily' },
@@ -16011,7 +16016,19 @@ const PIM_TABS = [
   // themselves sign in with the limited 'Supplier' role and reach the same
   // doctype through the generic table screen - there is no second app, and no
   // second list/table implementation here either.
-  { id: 'supplier-submissions', label: 'Supplier Submissions', doctype: 'SupplierSubmission' }
+  { id: 'supplier-submissions', label: 'Supplier Submissions', doctype: 'SupplierSubmission' },
+  // Stage 36.3 import depth. Also closes that stage's own stated gap (no
+  // frontend surface yet) - the generic doctype table already gives
+  // create/list/edit/RBAC/audit for free, so a tab is the whole fix.
+  { id: 'import-templates', label: 'Import Templates', doctype: 'PIMImportTemplate' },
+  { id: 'import-schedules', label: 'Import Schedules', doctype: 'PIMImportSchedule' },
+  // Stage 36.4 export & syndication depth. "Run" (export templates) and
+  // "Share Link" (catalogs) are row actions added in the generic table's
+  // action-button wiring below, PIM_DOCTYPE_ROW_ACTIONS - the templates and
+  // schedules besides them need no bespoke screen either.
+  { id: 'export-templates', label: 'Export Templates', doctype: 'PIMExportTemplate' },
+  { id: 'export-schedules', label: 'Export Schedules', doctype: 'PIMExportSchedule' },
+  { id: 'catalogs', label: 'Catalogs', doctype: 'PIMCatalog' }
 ];
 
 // Stage 26.4.3: taxonomy doctypes whose audit_logs trail (already captured
@@ -16101,7 +16118,177 @@ async function renderPIMView(container) {
     await renderPIMReportsTab(container);
   } else if (currentPIMTab === 'my-work') {
     await renderPIMMyWorkTab(container);
+  } else if (currentPIMTab === 'media-library') {
+    await renderPIMMediaLibraryTab(container);
   }
+}
+
+// Stage 36.6.3: catalog-wide media browse/search/tag - the per-item gallery
+// inside the Workbench (renderPIMWorkbenchTab's Media section) stays as-is
+// for "upload onto the product I'm looking at"; this tab is for "find/tag/
+// bulk-manage assets across the whole catalog," which had no screen at all
+// before this (metadata like tags already existed server-side; only the
+// browse UI was missing).
+const PIM_MEDIA_ROLES = ['Main Image', 'Gallery', 'Variant Image', 'Lifestyle', 'Certificate', 'Internal QC', 'Video/Other'];
+
+async function renderPIMMediaLibraryTab(container) {
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.innerHTML = `
+    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-bottom:16px;">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="pim-medlib-item">Item code</label>
+        <input type="text" id="pim-medlib-item" class="form-input" style="width:160px;" placeholder="e.g. SKU-001">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="pim-medlib-role">Role</label>
+        <select id="pim-medlib-role" class="form-input" style="width:150px;">
+          <option value="">Any role</option>
+          ${PIM_MEDIA_ROLES.map(role => `<option value="${role}">${role}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="pim-medlib-tag">Tag</label>
+        <input type="text" id="pim-medlib-tag" class="form-input" style="width:140px;" placeholder="e.g. winter-2026">
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="pim-medlib-filetype">File type</label>
+        <select id="pim-medlib-filetype" class="form-input" style="width:140px;">
+          <option value="">Any type</option>
+          <option value="image/jpeg">JPEG</option>
+          <option value="image/png">PNG</option>
+          <option value="image/webp">WebP</option>
+          <option value="image/gif">GIF</option>
+          <option value="application/pdf">PDF</option>
+        </select>
+      </div>
+      <button class="btn btn-outline" id="pim-medlib-search">Search</button>
+    </div>
+    <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-bottom:16px; padding-top:12px; border-top:1px solid var(--border-color);">
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="pim-medlib-bulk-zip">Bulk upload (.zip, files named ITEMCODE__role.ext or ITEMCODE.ext)</label>
+        <input type="file" id="pim-medlib-bulk-zip" class="form-input" accept=".zip">
+      </div>
+      <button class="btn btn-outline" id="pim-medlib-bulk-upload-btn">Upload ZIP</button>
+      <div class="form-group" style="margin-bottom:0;">
+        <label class="form-label" for="pim-medlib-bulk-items">Bulk download - item codes (comma-separated)</label>
+        <input type="text" id="pim-medlib-bulk-items" class="form-input" style="width:220px;" placeholder="SKU-001, SKU-002">
+      </div>
+      <button class="btn btn-outline" id="pim-medlib-bulk-download-btn">Download ZIP</button>
+    </div>
+    <div id="pim-medlib-bulk-result" style="margin-bottom:16px;"></div>
+    <div id="pim-medlib-grid" style="display:flex; gap:12px; flex-wrap:wrap;"></div>
+  `;
+  container.appendChild(panel);
+
+  const runSearch = async () => {
+    const grid = panel.querySelector('#pim-medlib-grid');
+    grid.innerHTML = `<div class="text-muted">Searching&hellip;</div>`;
+    const params = new URLSearchParams();
+    const item = panel.querySelector('#pim-medlib-item').value.trim();
+    const role = panel.querySelector('#pim-medlib-role').value;
+    const tag = panel.querySelector('#pim-medlib-tag').value.trim();
+    const fileType = panel.querySelector('#pim-medlib-filetype').value;
+    if (item) params.set('item', item);
+    if (role) params.set('role', role);
+    if (tag) params.set('tag', tag);
+    if (fileType) params.set('file_type', fileType);
+    const res = await apiFetch(`/api/v1/pim/media/search?${params.toString()}`);
+    if (!res || !res.ok) { grid.innerHTML = `<div class="text-muted">Unable to search media right now.</div>`; return; }
+    const assets = await res.json();
+    if (assets.length === 0) {
+      grid.innerHTML = `<div class="text-muted">No media matches these filters.</div>`;
+      return;
+    }
+    grid.innerHTML = assets.map(m => `
+      <div class="table-panel" style="padding:8px; width:160px;" data-medlib-card="${escapeHTMLText(m.id)}">
+        <div style="font-size:11px; font-weight:600; margin-bottom:4px;">${escapeHTMLText(m.item)}</div>
+        <img data-medlib-thumb="${escapeHTMLText(m.id)}" style="width:100%; height:90px; object-fit:cover; background:var(--surface-subtle); border-radius:4px;" alt="${escapeHTMLText(m.alt_text || m.media_role)}">
+        <div class="text-muted" style="font-size:10px; margin-top:4px;">${escapeHTMLText(m.media_role)} &middot; ${escapeHTMLText(m.file_type)}</div>
+        <div style="font-size:10px; margin-top:2px; word-break:break-word;">${m.tags ? escapeHTMLText(m.tags) : '<span class="text-muted">No tags</span>'}</div>
+        <button class="btn btn-outline btn-sm" style="width:100%; margin-top:6px;" data-medlib-edit-tags="${escapeHTMLText(m.id)}" data-tags="${escapeHTMLText(m.tags || '')}">Edit Tags</button>
+        <button class="btn btn-outline btn-sm" style="width:100%; margin-top:4px;" data-medlib-deactivate="${escapeHTMLText(m.id)}">Deactivate</button>
+      </div>
+    `).join('');
+
+    // <img> can't carry a Bearer token - same authenticated-blob swap
+    // renderPIMMediaGallery already uses, preferring the small "small"
+    // transform (36.6.1) over the full original for a lighter grid.
+    assets.forEach(async (m) => {
+      let imgRes = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/transform/small`);
+      if (!imgRes || !imgRes.ok) imgRes = m.has_thumbnail ? await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/thumbnail`) : null;
+      if (!imgRes || !imgRes.ok) imgRes = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(m.id)}/file`);
+      if (imgRes && imgRes.ok) {
+        const blob = await imgRes.blob();
+        const imgEl = grid.querySelector(`[data-medlib-thumb="${CSS.escape(m.id)}"]`);
+        if (imgEl) imgEl.src = URL.createObjectURL(blob);
+      }
+    });
+
+    grid.querySelectorAll('[data-medlib-deactivate]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const mediaId = btn.getAttribute('data-medlib-deactivate');
+        if (!await showCustomConfirm('Deactivate this media asset? It stops appearing anywhere it is used from.', 'Deactivate Media')) return;
+        const res2 = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(mediaId)}/deactivate`, { method: 'POST' });
+        if (res2 && res2.ok) runSearch();
+      });
+    });
+    grid.querySelectorAll('[data-medlib-edit-tags]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const mediaId = btn.getAttribute('data-medlib-edit-tags');
+        const tags = await showCustomPrompt('Tags (comma-separated):', btn.getAttribute('data-tags') || '', 'Edit Media Tags');
+        if (tags === null) return;
+        const res2 = await apiFetch(`/api/v1/pim/media/${encodeURIComponent(mediaId)}/metadata`, {
+          method: 'POST', body: JSON.stringify({ tags })
+        });
+        if (!res2) return;
+        if (!res2.ok) { await showApiError(res2, 'Failed to update tags.'); return; }
+        runSearch();
+      });
+    });
+  };
+
+  panel.querySelector('#pim-medlib-search').addEventListener('click', runSearch);
+
+  panel.querySelector('#pim-medlib-bulk-upload-btn').addEventListener('click', async () => {
+    const fileInput = panel.querySelector('#pim-medlib-bulk-zip');
+    const resultEl = panel.querySelector('#pim-medlib-bulk-result');
+    if (!fileInput.files[0]) { resultEl.innerHTML = `<div class="login-error">Choose a .zip file first.</div>`; return; }
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    resultEl.innerHTML = `<div class="text-muted">Uploading&hellip;</div>`;
+    // apiUpload (not apiFetch): a multipart body needs the browser to set
+    // its own Content-Type with the boundary - apiFetch's default
+    // 'Content-Type: application/json' would break parsing server-side.
+    const res = await apiUpload('/api/v1/pim/media/bulk-upload', formData);
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Bulk upload failed.'); resultEl.innerHTML = ''; return; }
+    const outcomes = await res.json();
+    const ok = outcomes.filter(o => !o.error).length;
+    resultEl.innerHTML = `<div class="table-wrapper"><p>${ok} of ${outcomes.length} file(s) uploaded.</p><table><thead><tr><th>File</th><th>Item</th><th>Role</th><th>Result</th></tr></thead><tbody>${
+      outcomes.map(o => `<tr><td>${escapeHTMLText(o.filename)}</td><td>${escapeHTMLText(o.item_code)}</td><td>${escapeHTMLText(o.media_role)}</td><td>${o.error ? `<span class="badge badge-danger">${escapeHTMLText(o.error)}</span>` : `<span class="badge badge-success">Saved</span>`}</td></tr>`).join('')
+    }</tbody></table></div>`;
+    runSearch();
+  });
+
+  panel.querySelector('#pim-medlib-bulk-download-btn').addEventListener('click', async () => {
+    const raw = panel.querySelector('#pim-medlib-bulk-items').value.trim();
+    if (!raw) { showCustomAlert('Enter one or more comma-separated item codes first.', 'Bulk Download'); return; }
+    const res = await apiFetch(`/api/v1/pim/media/bulk-download?item=${encodeURIComponent(raw)}`);
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Bulk download failed.'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pim_media_bulk.zip';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  });
+
+  await runSearch();
 }
 
 async function renderPIMDashboardTab(container) {
@@ -16909,6 +17096,13 @@ async function renderPIMDetailPanel(container, itemCode) {
         <input type="text" id="pim-content-lang" class="form-input" style="width: 90px;" value="en">
       </div>
       <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="pim-content-shape" title="Marketplace shapes the title and adds bullet points plus a meta description - the format most marketplace listing pages use, versus a storefront page's single flowing description.">Assist Shape</label>
+        <select id="pim-content-shape" class="form-input" style="width: 140px;">
+          <option value="standard">Standard</option>
+          <option value="marketplace">Marketplace</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="pim-content-title">Title</label>
         <input type="text" id="pim-content-title" class="form-input" style="width: 220px;">
       </div>
@@ -16991,6 +17185,9 @@ async function renderPIMDetailPanel(container, itemCode) {
     <div id="pim-publish-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
     <div id="pim-publish-preview" style="margin-bottom: 12px;"></div>
     <div id="pim-publish-log"></div>
+
+    <h3 style="font-size: 14px; font-weight: 700; margin: 24px 0 12px;">Related Products</h3>
+    <div id="pim-related-products" class="text-muted">Loading&hellip;</div>
   `;
   container.appendChild(panel);
 
@@ -17005,6 +17202,44 @@ async function renderPIMDetailPanel(container, itemCode) {
   await renderPIMMediaGallery(itemCode);
   await renderPIMPublishSection(itemCode);
   await renderPIMContentHistory(itemCode);
+  await renderPIMRelatedProducts(itemCode);
+}
+
+// renderPIMRelatedProducts (Stage 36.7.3): other Active items in the same
+// family sharing attribute values with this one, most-shared first -
+// clicking a row jumps the Workbench straight to that product, the same
+// "row is a shortcut into the thing it names" pattern the workbench's own
+// item list already uses.
+async function renderPIMRelatedProducts(itemCode) {
+  const el = document.getElementById('pim-related-products');
+  if (!el) return;
+  const res = await apiFetch(`/api/v1/pim/related-products/${encodeURIComponent(itemCode)}`);
+  if (!res || !res.ok) { el.textContent = 'Unable to load related products.'; return; }
+  const related = await res.json();
+  if (!related || related.length === 0) {
+    el.innerHTML = '<span class="text-muted">No related products found (needs a shared family and at least one shared attribute value).</span>';
+    return;
+  }
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>Item</th><th>Name</th><th>Shared Attributes</th></tr></thead>
+      <tbody>
+        ${related.map(r => `
+          <tr class="pim-related-row" data-item="${escapeHTMLText(r.item_code)}" style="cursor:pointer;">
+            <td style="font-family: monospace;">${escapeHTMLText(r.item_code)}</td>
+            <td>${escapeHTMLText(r.name)}</td>
+            <td>${r.shared_attributes}</td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+  el.querySelectorAll('.pim-related-row').forEach(row => {
+    row.addEventListener('click', () => {
+      currentPIMSelectedItem = row.getAttribute('data-item');
+      renderView('pim');
+    });
+  });
 }
 
 // runPIMContentAssist (Stage 36.7.2) wires the Stage 26.4.11 content-assist
@@ -17021,7 +17256,8 @@ async function runPIMContentAssist(itemCode) {
   noteEl.classList.add('hidden');
 
   const language = (document.getElementById('pim-content-lang').value || 'en').trim();
-  const res = await apiFetch(`/api/v1/pim/content-assist/${encodeURIComponent(itemCode)}?language=${encodeURIComponent(language)}`);
+  const shape = document.getElementById('pim-content-shape').value || 'standard';
+  const res = await apiFetch(`/api/v1/pim/content-assist/${encodeURIComponent(itemCode)}?language=${encodeURIComponent(language)}&shape=${encodeURIComponent(shape)}`);
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Could not build a suggested draft for this product.');
@@ -17054,11 +17290,23 @@ async function runPIMContentAssist(itemCode) {
 
   const sources = (draft.source_fields || []).join(', ') || 'none';
   const warnings = (draft.warnings || []).map(w => `<li>${escapeHTMLText(w)}</li>`).join('');
+  // Stage 36.7.1: bullets/meta_description only come back for the
+  // marketplace shape. Neither has a ProductContent field of its own, so
+  // they are shown here for the reviewer to copy manually rather than
+  // silently dropped.
+  const bullets = (draft.bullets || []).map(b => `<li>${escapeHTMLText(b)}</li>`).join('');
+  const marketplaceExtra = (draft.bullets && draft.bullets.length > 0) || draft.meta_description
+    ? `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border-color);">
+         ${bullets ? `<div><strong>Bullet points:</strong></div><ul style="margin: 4px 0 0 18px;">${bullets}</ul>` : ''}
+         ${draft.meta_description ? `<div style="margin-top: 6px;"><strong>Meta description:</strong> ${escapeHTMLText(draft.meta_description)}</div>` : ''}
+       </div>`
+    : '';
   noteEl.innerHTML = `
     <strong>${filled} field${filled === 1 ? '' : 's'} filled from this product's own data.</strong>
     Nothing has been saved yet - review the text, then use Save Draft or Submit for Approval.
     <div style="margin-top: 6px;">Built from: ${escapeHTMLText(sources)}</div>
-    ${warnings ? `<ul style="margin: 6px 0 0 18px;">${warnings}</ul>` : ''}`;
+    ${warnings ? `<ul style="margin: 6px 0 0 18px;">${warnings}</ul>` : ''}
+    ${marketplaceExtra}`;
   noteEl.classList.remove('hidden');
 }
 
@@ -17626,6 +17874,21 @@ function renderDocTable() {
         ? `<button class="action-btn" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" style="margin-right:4px;" onclick="submitDocForApproval('${currentDoctype}','${row.id}')">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
            </button>`
+        // Stage 36.4.1/36.4.3: run this export template right now and
+        // download the CSV - same authenticated-blob pattern as the Product
+        // Group Actions modal's Export CSV button, since a plain <a href>
+        // can't carry the Bearer token this endpoint requires.
+        : currentDoctype === 'PIMExportTemplate' && row.status === 'Active'
+        ? `<button class="action-btn" title="Run" aria-label="Run export template ${escapeHTMLText(row.id)}" style="margin-right:4px;" onclick="runPIMExportTemplateRow('${row.id}')">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+           </button>`
+        // Stage 36.4.4: mint/rotate this catalog's share link and show it
+        // once - the same one-time-reveal posture Stage 36.3.4's import
+        // hook token and Stage 38.2a's API keys both already take.
+        : currentDoctype === 'PIMCatalog'
+        ? `<button class="action-btn" title="Share Link" aria-label="Get share link for catalog ${escapeHTMLText(row.id)}" style="margin-right:4px;" onclick="openPIMCatalogShareModal('${row.id}','${escapeHTMLText((row.name || row.id).replace(/'/g, "\\'"))}')">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+           </button>`
         : '';
       tableHTML += `
         <td style="text-align: right;">
@@ -17843,6 +18106,22 @@ window.openPIMProductGroupActionsModal = async function() {
         <div class="form-group"><label class="form-label" for="pim-group-field">Field to edit</label><select class="form-select" id="pim-group-field">${fields.map(f => `<option value="${escapeHTMLText(f.fieldname)}">${escapeHTMLText(getTranslatedLabel(f.label))}</option>`).join('')}</select></div>
         <div class="form-group"><label class="form-label" id="pim-group-value-label">New value</label><div id="pim-group-value"></div></div>
         <p class="text-muted" style="font-size:13px; margin:0;">A dynamic group is re-resolved by the server at the moment you confirm, so the edit applies to whatever matches then - not to the count shown above if the catalog changed in between.</p>
+
+        <div style="margin-top:20px; padding-top:16px; border-top:1px solid var(--border-color);">
+          <label class="form-label" style="margin-bottom:8px;" title="Seeds a Draft in the target language, copied from each product's Approved content in the source language - not a machine translation. A human still has to translate the text and submit it for approval like any other content.">Bulk Catalog Translation (Stage 36.7.5)</label>
+          <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" for="pim-group-xlt-source">Source language</label>
+              <input type="text" id="pim-group-xlt-source" class="form-input" style="width:100px;" value="en">
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" for="pim-group-xlt-target">Target language</label>
+              <input type="text" id="pim-group-xlt-target" class="form-input" style="width:100px;" placeholder="e.g. hi">
+            </div>
+            <button type="button" class="btn btn-outline" id="pim-group-xlt-run">Seed Translations</button>
+          </div>
+          <div id="pim-group-xlt-result" style="margin-top:12px;"></div>
+        </div>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" id="pim-group-cancel">Cancel</button>
@@ -17930,7 +18209,93 @@ window.openPIMProductGroupActionsModal = async function() {
     renderView('doctype-table');
   });
 
+  overlay.querySelector('#pim-group-xlt-run').addEventListener('click', async () => {
+    const source = overlay.querySelector('#pim-group-xlt-source').value.trim();
+    const target = overlay.querySelector('#pim-group-xlt-target').value.trim();
+    const resultEl = overlay.querySelector('#pim-group-xlt-result');
+    if (!source || !target) {
+      resultEl.innerHTML = `<div class="login-error">Source and target language are both required.</div>`;
+      return;
+    }
+    const groupName = groupSelect.options[groupSelect.selectedIndex].textContent;
+    if (!await showCustomConfirm(`Seed ${target} Draft content (from ${source}) for every product currently in ${groupName}? Existing content in ${target} is left untouched.`, 'Seed Translations')) return;
+    resultEl.innerHTML = `<div class="text-muted">Seeding&hellip;</div>`;
+    const res = await apiFetch('/api/v1/pim/translations/seed', {
+      method: 'POST',
+      body: JSON.stringify({ group_id: groupSelect.value, source_language: source, target_language: target })
+    });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Bulk translation seeding failed.'); resultEl.innerHTML = ''; return; }
+    const outcomes = await res.json();
+    const ok = outcomes.filter(o => !o.error).length;
+    resultEl.innerHTML = `<div class="table-wrapper"><p>${ok} of ${outcomes.length} item(s) seeded.</p><table><thead><tr><th>Item</th><th>Result</th></tr></thead><tbody>${
+      outcomes.map(o => `<tr><td style="font-family:monospace;">${escapeHTMLText(o.item_code)}</td><td>${o.error ? `<span class="badge badge-secondary">${escapeHTMLText(o.error)}</span>` : `<span class="badge badge-success">Seeded as Draft</span>`}</td></tr>`).join('')
+    }</tbody></table></div>`;
+  });
+
   await refreshCount();
+};
+
+// runPIMExportTemplateRow (Stage 36.4.1/36.4.3) runs one export template and
+// downloads its CSV - same authenticated-blob pattern as
+// downloadReportExportCSV/the search-feed export above.
+window.runPIMExportTemplateRow = async function(id) {
+  const res = await apiFetch(`/api/v1/pim/export-templates/${encodeURIComponent(id)}/run`, { method: 'POST' });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to run this export template.'); return; }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `pim_export_${id.replace(/[^A-Za-z0-9_-]/g, '_')}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+
+// openPIMCatalogShareModal (Stage 36.4.4) mints/rotates a catalog's share
+// link and shows the full, ready-to-copy URL exactly once - the raw token
+// is never retrievable again after this, the same one-time-reveal posture
+// Stage 36.3.4's import hook token and Stage 38.2a's API keys both already
+// take. tenant_id travels in the URL itself (not a header) because the link
+// has to work from a plain browser click with no session.
+window.openPIMCatalogShareModal = async function(id, name) {
+  if (!await showCustomConfirm(`Mint a new share link for "${name}"? Any link shared before this will stop working immediately.`, 'Catalog Share Link')) return;
+  const res = await apiFetch(`/api/v1/pim/catalogs/${encodeURIComponent(id)}/rotate-share-token`, { method: 'POST' });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to mint a share link for this catalog.'); return; }
+  const result = await res.json();
+  const shareURL = `${location.origin}/pim-catalog-share.html?tenant_id=${encodeURIComponent(result.tenant_id)}&token=${encodeURIComponent(result.share_token)}`;
+
+  document.getElementById('pim-catalog-share-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'pim-catalog-share-modal';
+  overlay.innerHTML = `
+    <div class="modal-container">
+      <div class="modal-header"><h3 class="modal-title">Share Link: ${escapeHTMLText(name)}</h3><button type="button" class="modal-close" aria-label="Close">&times;</button></div>
+      <div class="modal-body">
+        <p class="text-muted" style="font-size:13px;">Anyone with this link can view this catalog's live product list without signing in. It will not be shown again after you close this window - mint a new link if it is lost.</p>
+        <div class="form-group"><input class="form-input" id="pim-catalog-share-url" readonly value="${escapeHTMLText(shareURL)}" onclick="this.select()"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" id="pim-catalog-share-close">Close</button>
+        <button type="button" class="btn btn-primary" id="pim-catalog-share-copy">Copy Link</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('#pim-catalog-share-close').addEventListener('click', close);
+  overlay.querySelector('#pim-catalog-share-copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(shareURL);
+      showCustomAlert('Share link copied to clipboard.', 'Copied');
+    } catch {
+      overlay.querySelector('#pim-catalog-share-url').select();
+    }
+  });
 };
 
 window.openPIMBulkEditModal = function() {
@@ -18168,7 +18533,35 @@ window.openDynamicModal = async function(existingRecord) {
         input.required = f.mandatory;
         if (existingVal !== undefined && existingVal !== null) input.value = existingVal;
       }
-      fg.appendChild(input);
+      // Stage 36.7.4: a "Generate" button beside Item.barcode - the one
+      // field this ERP mints a check-digit-correct EAN-13 for on request.
+      // Scoped to this exact field rather than every text input, since no
+      // other field has a generator behind it.
+      if (currentDoctype === 'Item' && f.fieldname === 'barcode' && !isCodeField) {
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.gap = '8px';
+        input.style.flex = '1';
+        const genBtn = document.createElement('button');
+        genBtn.type = 'button';
+        genBtn.className = 'btn btn-outline';
+        genBtn.textContent = 'Generate';
+        genBtn.title = 'Generate a check-digit-correct EAN-13 barcode';
+        genBtn.addEventListener('click', async () => {
+          genBtn.disabled = true;
+          const res = await apiFetch('/api/v1/pim/barcode/generate', { method: 'POST' });
+          genBtn.disabled = false;
+          if (!res) return;
+          if (!res.ok) { await showApiError(res, 'Failed to generate a barcode.'); return; }
+          const result = await res.json();
+          input.value = result.barcode;
+        });
+        row.appendChild(input);
+        row.appendChild(genBtn);
+        fg.appendChild(row);
+      } else {
+        fg.appendChild(input);
+      }
     }
     body.appendChild(fg);
   }

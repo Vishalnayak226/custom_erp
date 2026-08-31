@@ -65,7 +65,7 @@ const importBatchRows = 500
 // rolled back instead of committed, so a preview can classify rows
 // (create/update/reject) with zero risk of a partial write, without a
 // second parsing codepath.
-func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, dryRun bool) (*ImportResult, error) {
+func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID, role string, dryRun bool) (*ImportResult, error) {
 	records, err := readCSVRecords(r)
 	if err != nil {
 		return nil, err
@@ -93,7 +93,7 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID string, 
 		// how the file's columns happened to be named.
 		preErrors = pimVariantParentPreflight(tenantID, docRows)
 	}
-	return runDocDataImport(tenantID, doctype, userID, dryRun, docRows, preErrors)
+	return runDocDataImport(tenantID, doctype, userID, role, dryRun, docRows, preErrors)
 }
 
 // readCSVRecords is the one CSV-parsing entry point BulkImportCSV and Stage
@@ -143,7 +143,7 @@ func csvRowsToDocData(headers []string, rows [][]string) []map[string]interface{
 // transform error, a missing variant parent) and is recorded as a failure
 // without ever being passed to ValidateDocument, while every row after it
 // keeps the same row number it would have had either way.
-func runDocDataImport(tenantID, doctype, userID string, dryRun bool, docRows []map[string]interface{}, preErrors []string) (*ImportResult, error) {
+func runDocDataImport(tenantID, doctype, userID, role string, dryRun bool, docRows []map[string]interface{}, preErrors []string) (*ImportResult, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -173,7 +173,7 @@ func runDocDataImport(tenantID, doctype, userID string, dryRun bool, docRows []m
 		if batchEnd > len(docRows) {
 			batchEnd = len(docRows)
 		}
-		if err := importBatch(tenantID, schema, doctype, userID, dryRun,
+		if err := importBatch(tenantID, schema, doctype, userID, role, dryRun,
 			docRows[batchStart:batchEnd], preErrors[batchStart:batchEnd], batchStart+2, result, seenIDs); err != nil {
 			return nil, err
 		}
@@ -225,7 +225,7 @@ func missingMandatoryColumns(tenantID, doctype string, headers []string) []strin
 // either a plain CSV row or a template-remapped/transformed one); preErrors
 // is parallel to docRows and, when non-empty for a row, records that row as
 // failed for the given reason without calling ValidateDocument at all.
-func importBatch(tenantID, schema, doctype, userID string, dryRun bool, docRows []map[string]interface{}, preErrors []string, firstRowNumber int, result *ImportResult, seenIDs map[string]bool) error {
+func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, docRows []map[string]interface{}, preErrors []string, firstRowNumber int, result *ImportResult, seenIDs map[string]bool) error {
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return err
@@ -247,6 +247,26 @@ func importBatch(tenantID, schema, doctype, userID string, dryRun bool, docRows 
 				Message:   preErr,
 			})
 			continue
+		}
+
+		// Stage 36.7.6: a CSV import writes fields exactly like the generic
+		// single-document update path does, but had never been taught that
+		// path's RejectRestrictedFieldWrites check - a role blocked from
+		// editing a field on-screen could still push it through in bulk via
+		// import. role is "" for the two system-initiated paths (the
+		// unauthenticated import hook, the scheduled drop-directory worker),
+		// which have no operator role to restrict against, so the check is
+		// skipped there rather than issuing a query that would only ever
+		// find zero rows for a role named "".
+		if role != "" {
+			if permErr := RejectRestrictedFieldWrites(tenantID, role, doctype, docData); permErr != nil {
+				result.FailedRows++
+				result.Errors = append(result.Errors, RowValidationError{
+					RowNumber: rowNumber,
+					Message:   permErr.Error(),
+				})
+				continue
+			}
 		}
 
 		// Perform field structure validation

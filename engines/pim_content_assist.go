@@ -45,11 +45,20 @@ import (
 type ContentSuggestion struct {
 	ItemCode  string `json:"item_code"`
 	Language  string `json:"language"`
+	Shape     string `json:"shape"`
 	Title     string `json:"title"`
 	SEOTitle  string `json:"seo_title"`
 	ShortDesc string `json:"short_desc"`
 	LongDesc  string `json:"long_desc"`
 	Tags      string `json:"tags"`
+	// Bullets and MetaDescription (Stage 36.7.1) are populated only for
+	// shape="marketplace" - the format most marketplace listing pages
+	// (Unbxd's own target apps included) actually render, as opposed to the
+	// single flowing paragraph a storefront product page uses. Left empty
+	// for the default "standard" shape so every existing caller of this
+	// function sees byte-identical output to before this stage.
+	Bullets         []string `json:"bullets,omitempty"`
+	MetaDescription string   `json:"meta_description,omitempty"`
 	// SourceFields names every field the draft was actually built from, so a
 	// reviewer can tell what the text rests on rather than trusting it blind.
 	SourceFields []string `json:"source_fields"`
@@ -62,6 +71,40 @@ type ContentSuggestion struct {
 // assistMaxSEOTitle is the conventional SEO title budget. Longer titles get
 // truncated on a word boundary rather than mid-word.
 const assistMaxSEOTitle = 60
+
+// Stage 36.7.1: a closed vocabulary of two shapes, not a per-channel
+// template config - the same "form cannot offer what the engine cannot
+// run" discipline every other Stage 36 vocabulary (transform functions,
+// workflow conditions, media transform presets) already applies. "generic
+// marketplace" rather than a named platform (Amazon/Flipkart/Myntra) is a
+// stated scope limit: this stays a local/offline template (the 26.4.11
+// governance decision), and a platform-branded shape would invite exactly
+// the "specific field limits/policy quirks per marketplace" scope this
+// engine deliberately does not take on.
+const (
+	assistShapeStandard    = "standard"
+	assistShapeMarketplace = "marketplace"
+)
+
+// assistMaxMarketplaceTitle mirrors the tighter title budget marketplace
+// listing pages enforce compared to a storefront's own product page title.
+const assistMaxMarketplaceTitle = 150
+
+// assistMaxMetaDescription is the conventional search-snippet length a meta
+// description is written to, distinct from the SEO title budget above.
+const assistMaxMetaDescription = 155
+
+// assistMaxBullets caps the bullet list at the count Unbxd's own
+// marketplace apps and most real listing pages settle on.
+const assistMaxBullets = 5
+
+// ListPIMContentAssistShapes publishes exactly the vocabulary
+// GenerateContentSuggestion implements, the same "the picker can never
+// offer what the engine cannot run" guarantee every other Stage 36 closed
+// vocabulary publishes its own list for.
+func ListPIMContentAssistShapes() []string {
+	return []string{assistShapeStandard, assistShapeMarketplace}
+}
 
 // sanitizeAssistInput strips markup, collapses whitespace and drops control
 // characters from a stored value before it is composed into copy.
@@ -139,12 +182,18 @@ func collectAssistAttributes(tenantID, itemCode, family, locale string) []assist
 // It returns a suggestion; it writes no ProductContent. See the file header for
 // why that separation is the human-in-the-loop guarantee rather than a
 // convention.
-func GenerateContentSuggestion(tenantID, itemCode, language, userID string) (*ContentSuggestion, error) {
+func GenerateContentSuggestion(tenantID, itemCode, language, shape, userID string) (*ContentSuggestion, error) {
 	if strings.TrimSpace(itemCode) == "" {
 		return nil, &ValidationError{Code: "GLOBAL-0002", Message: "item code is required"}
 	}
 	if language == "" {
 		language = "en"
+	}
+	if shape == "" {
+		shape = assistShapeStandard
+	}
+	if shape != assistShapeStandard && shape != assistShapeMarketplace {
+		return nil, &ValidationError{Code: "GLOBAL-0002", Message: fmt.Sprintf("unknown content assist shape %q - see GET /api/v1/pim/content-assist-shapes", shape)}
 	}
 
 	data, _, err := fetchItemDoc(tenantID, itemCode)
@@ -164,7 +213,7 @@ func GenerateContentSuggestion(tenantID, itemCode, language, userID string) (*Co
 	category := get("category")
 	family, _ := data["family"].(string)
 
-	sug := &ContentSuggestion{ItemCode: itemCode, Language: language}
+	sug := &ContentSuggestion{ItemCode: itemCode, Language: language, Shape: shape}
 	var sources []string
 	note := func(field string, val string) string {
 		if val != "" {
@@ -198,6 +247,28 @@ func GenerateContentSuggestion(tenantID, itemCode, language, userID string) (*Co
 		title = brand + " " + name
 	}
 	sug.Title = title
+	if shape == assistShapeMarketplace {
+		// Marketplace listing titles conventionally front-load the
+		// differentiating attributes (color/material/size) and the
+		// category, within a tighter budget than a storefront page title -
+		// the shape difference 36.7.1 exists to produce.
+		marketTitle := title
+		if len(attrs) > 0 {
+			lead := attrs
+			if len(lead) > 3 {
+				lead = lead[:3]
+			}
+			vals := make([]string, 0, len(lead))
+			for _, a := range lead {
+				vals = append(vals, a.Value)
+			}
+			marketTitle += " - " + strings.Join(vals, ", ")
+		}
+		if category != "" {
+			marketTitle += " | " + category
+		}
+		sug.Title = truncateOnWord(marketTitle, assistMaxMarketplaceTitle)
+	}
 
 	// --- SEO title: title + category, within the length budget -------------
 	seo := title
@@ -257,6 +328,30 @@ func GenerateContentSuggestion(tenantID, itemCode, language, userID string) (*Co
 	}
 	sug.Tags = strings.Join(tags, ", ")
 
+	// --- Marketplace-only: bullet points and a meta description -------------
+	// Left nil/empty for the "standard" shape - a storefront product page
+	// has no use for either, and every pre-36.7.1 caller keeps seeing
+	// exactly the fields it always has.
+	if shape == assistShapeMarketplace {
+		bullets := make([]string, 0, assistMaxBullets)
+		for _, a := range attrs {
+			if len(bullets) >= assistMaxBullets {
+				break
+			}
+			bullets = append(bullets, a.Label+": "+a.Value)
+		}
+		if category != "" && len(bullets) < assistMaxBullets {
+			bullets = append(bullets, "Category: "+category)
+		}
+		sug.Bullets = bullets
+
+		meta := sug.ShortDesc
+		if category != "" {
+			meta += " Part of our " + category + " range."
+		}
+		sug.MetaDescription = truncateOnWord(meta, assistMaxMetaDescription)
+	}
+
 	// --- Provenance and honesty about thin input ---------------------------
 	sort.Strings(sources)
 	sug.SourceFields = sources
@@ -311,6 +406,7 @@ func writeContentAssistLog(tenantID, itemCode, language, userID string, sug *Con
 		// replaced by a real model call, existing rows stay unambiguous about
 		// which engine produced them.
 		"generator":            "local-template-v1",
+		"shape":                sug.Shape,
 		"suggested_title":      sug.Title,
 		"suggested_short_desc": sug.ShortDesc,
 		"suggested_long_desc":  sug.LongDesc,

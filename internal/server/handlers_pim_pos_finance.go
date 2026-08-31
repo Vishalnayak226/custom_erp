@@ -31,6 +31,7 @@ func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 	// actual user id header, matching every other handler in this file
 	// (e.g. handleCapitalizeAsset, handlePIMPublish).
 	userID := r.Header.Get("Resolved-User-ID")
+	role := r.Header.Get("Resolved-Role")
 
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
 		writeAPIError(w, r, "GLOBAL-0007", "")
@@ -44,7 +45,7 @@ func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	res, err := engines.BulkImportCSV(tenantID, doctype, file, userID, false)
+	res, err := engines.BulkImportCSV(tenantID, doctype, file, userID, role, false)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
@@ -108,6 +109,7 @@ func handlePIMImportPreview(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	doctype := r.PathValue("doctype")
 	userID := r.Header.Get("Resolved-User-ID")
+	role := r.Header.Get("Resolved-Role")
 
 	if err := r.ParseMultipartForm(5 << 20); err != nil {
 		writeAPIError(w, r, "GLOBAL-0007", "")
@@ -120,7 +122,7 @@ func handlePIMImportPreview(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	res, err := engines.BulkImportCSV(tenantID, doctype, file, userID, true)
+	res, err := engines.BulkImportCSV(tenantID, doctype, file, userID, role, true)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return

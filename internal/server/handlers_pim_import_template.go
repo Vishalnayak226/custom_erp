@@ -78,7 +78,7 @@ func handlePIMImportTemplateRun(dryRun bool) http.HandlerFunc {
 		}
 		defer file.Close()
 
-		res, err := engines.RunPIMImportTemplate(tenantID, r.PathValue("id"), file, userID, dryRun)
+		res, err := engines.RunPIMImportTemplate(tenantID, r.PathValue("id"), file, userID, r.Header.Get("Resolved-Role"), dryRun)
 		if err != nil {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return
@@ -173,7 +173,9 @@ func handlePIMImportHook(w http.ResponseWriter, r *http.Request) {
 	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
-	res, err := engines.RunPIMImportTemplate(tenantID, templateID, r.Body, "system", false)
+	// "" role: an inbound webhook authenticates by token, not a session, so
+	// there is no operator role to check field-write restrictions against.
+	res, err := engines.RunPIMImportTemplate(tenantID, templateID, r.Body, "system", "", false)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return

@@ -281,7 +281,7 @@ func pimVariantParentPreflight(tenantID string, docRows []map[string]interface{}
 // operator cannot point a Vendor-targeted template at the Item import
 // screen (or a hook minted for one doctype) and have it silently import
 // into a different one.
-func RunPIMImportTemplate(tenantID, templateID string, r io.Reader, userID string, dryRun bool) (*ImportResult, error) {
+func RunPIMImportTemplate(tenantID, templateID string, r io.Reader, userID, role string, dryRun bool) (*ImportResult, error) {
 	_, targetDoctype, mappings, err := fetchPIMImportTemplate(tenantID, templateID)
 	if err != nil {
 		return nil, err
@@ -348,5 +348,5 @@ func RunPIMImportTemplate(tenantID, templateID string, r io.Reader, userID strin
 		}
 	}
 
-	return runDocDataImport(tenantID, targetDoctype, userID, dryRun, docRows, preErrors)
+	return runDocDataImport(tenantID, targetDoctype, userID, role, dryRun, docRows, preErrors)
 }

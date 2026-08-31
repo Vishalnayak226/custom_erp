@@ -253,8 +253,9 @@ func handlePIMContentAssist(w http.ResponseWriter, r *http.Request) {
 	}
 	itemCode := r.PathValue("itemCode")
 	language := r.URL.Query().Get("language")
+	shape := r.URL.Query().Get("shape")
 	userID := r.Header.Get("Resolved-User-ID")
-	sug, err := engines.GenerateContentSuggestion(tenantID, itemCode, language, userID)
+	sug, err := engines.GenerateContentSuggestion(tenantID, itemCode, language, shape, userID)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
@@ -336,15 +337,16 @@ func handlePIMMediaUpdateMetadata(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		AltText    string `json:"alt_text"`
-		ExpiryDate string `json:"expiry_date"`
+		AltText    string  `json:"alt_text"`
+		ExpiryDate string  `json:"expiry_date"`
+		Tags       *string `json:"tags"` // omitted entirely -> existing tags left untouched; see engines.UpdateMediaMetadata
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "invalid request body")
 		return
 	}
 	mediaID := r.PathValue("id")
-	if err := engines.UpdateMediaMetadata(tenantID, mediaID, req.AltText, req.ExpiryDate); err != nil {
+	if err := engines.UpdateMediaMetadata(tenantID, mediaID, req.AltText, req.ExpiryDate, req.Tags); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}

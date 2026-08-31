@@ -72,6 +72,18 @@ func BulkUpdateDocuments(tenantID, doctype string, ids []string, field string, v
 		return nil, fmt.Errorf("field %q is not defined for %s", field, doctype)
 	}
 
+	// Stage 36.7.6: the generic single-document update path already refuses
+	// a field a role's field_permissions row marks not-writable
+	// (RejectRestrictedFieldWrites, handlers_core_doc_engine.go); this bulk
+	// path edits the same documents through a different door and had never
+	// been taught the same restriction, so a role blocked from writing a
+	// field one-at-a-time could still change it for a hundred documents at
+	// once via Group Actions. One check up front (the field is the same for
+	// every row in a bulk edit) rather than per-row inside the transaction.
+	if err := RejectRestrictedFieldWrites(tenantID, editorRole, doctype, map[string]interface{}{field: value}); err != nil {
+		return nil, err
+	}
+
 	seen := make(map[string]struct{}, len(ids))
 	orderedIDs := make([]string, 0, len(ids))
 	for _, id := range ids {

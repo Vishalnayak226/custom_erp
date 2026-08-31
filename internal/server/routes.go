@@ -118,6 +118,11 @@ func Run() {
 	// report and wave-auto-creation workers above.
 	engines.StartPIMImportScheduleWorker(workerCtx, 1*time.Hour)
 
+	// Start PIM Export Schedule Worker (Stage 36.4.2) - same ticker/
+	// schema-fanout shape, delivering an export template's output via the
+	// existing outbox instead of scanning a directory.
+	engines.StartPIMExportScheduleWorker(workerCtx, 1*time.Hour)
+
 	// Start Loyalty Expiry Worker (Stage 26.7.3) - daily-granularity sweep
 	// of lapsed loyalty point lots.
 	engines.StartLoyaltyExpiryWorker(workerCtx, 1*time.Hour)
@@ -648,6 +653,14 @@ func Run() {
 	http.HandleFunc("POST /api/v1/pim/media/{id}/metadata", apiMiddleware(moduleGate("pim", handlePIMMediaUpdateMetadata)))
 	http.HandleFunc("GET /api/v1/pim/media", apiMiddleware(moduleGate("pim", handlePIMMediaList)))
 	http.HandleFunc("POST /api/v1/pim/media/{id}/deactivate", apiMiddleware(moduleGate("pim", handlePIMMediaDeactivate)))
+	// DAM depth (Stage 36.6): on-demand transform renditions, bulk zip
+	// up/down with filename auto-association, and the catalog-wide search
+	// the Media Library browse tab reads.
+	http.HandleFunc("GET /api/v1/pim/media/transform-presets", apiMiddleware(moduleGate("pim", handlePIMMediaTransformPresets)))
+	http.HandleFunc("GET /api/v1/pim/media/{id}/transform/{preset}", apiMiddleware(moduleGate("pim", handlePIMMediaTransform)))
+	http.HandleFunc("POST /api/v1/pim/media/bulk-upload", apiMiddleware(moduleGate("pim", handlePIMMediaBulkUpload)))
+	http.HandleFunc("GET /api/v1/pim/media/bulk-download", apiMiddleware(moduleGate("pim", handlePIMMediaBulkDownload)))
+	http.HandleFunc("GET /api/v1/pim/media/search", apiMiddleware(moduleGate("pim", handlePIMMediaSearch)))
 	// Channel Publishing (Stage 15.2; validation packs + diff preview Stage 26.4.7)
 	http.HandleFunc("POST /api/v1/pim/publish", apiMiddleware(moduleGate("pim", handlePIMPublish)))
 	http.HandleFunc("GET /api/v1/pim/publish-preview", apiMiddleware(moduleGate("pim", handlePIMPublishPreview)))
@@ -668,6 +681,23 @@ func Run() {
 	// authenticates with X-Hook-Token alone (verified inside the handler),
 	// never a session - see handlePIMImportHook's own comment.
 	http.HandleFunc("POST /api/v1/pim/import/hook", apiMiddleware(moduleGate("pim", handlePIMImportHook)))
+	// Export & syndication depth (Stage 36.4): template create/list/edit use
+	// the generic document API like every PIM master; running one is the one
+	// action that needs logic the generic endpoint doesn't have.
+	http.HandleFunc("POST /api/v1/pim/export-templates/{id}/run", apiMiddleware(moduleGate("pim", handlePIMExportTemplateRun)))
+	http.HandleFunc("POST /api/v1/pim/catalogs/{id}/rotate-share-token", apiMiddleware(moduleGate("pim", handlePIMCatalogRotateShareToken)))
+	// Public: listed in middleware.go's publicRoutes. A partner holds only
+	// the share token (as ?token=, verified inside the handler), never a
+	// session - see handlePIMCatalogShare's own comment.
+	http.HandleFunc("GET /api/v1/pim/catalog-share", apiMiddleware(moduleGate("pim", handlePIMCatalogShare)))
+	// Enrichment & quality (Stage 36.7): related products, UPC/EAN generation.
+	http.HandleFunc("GET /api/v1/pim/content-assist-shapes", apiMiddleware(moduleGate("pim", handlePIMContentAssistShapes)))
+	http.HandleFunc("GET /api/v1/pim/related-products/{itemCode}", apiMiddleware(moduleGate("pim", handlePIMRelatedProducts)))
+	http.HandleFunc("POST /api/v1/pim/barcode/generate", apiMiddleware(moduleGate("pim", handlePIMGenerateBarcode)))
+	http.HandleFunc("POST /api/v1/pim/translations/seed", apiMiddleware(moduleGate("pim", handlePIMSeedTranslations)))
+	// Bulk channel download (36.4.5): pull selected items' live channel
+	// state back for a connector that supports it (see engines.ChannelReader).
+	http.HandleFunc("POST /api/v1/pim/channels/{code}/pull-state", apiMiddleware(moduleGate("pim", handlePIMChannelPullState)))
 	// Real Channel Connector Framework (Stage 16.1) - write-only credential
 	// endpoint, HR/Admin only; there is deliberately no matching GET.
 	http.HandleFunc("POST /api/v1/pim/channels/{code}/credentials", apiMiddleware(moduleGate("pim", handleSaveChannelCredential)))

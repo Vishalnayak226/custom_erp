@@ -305,6 +305,12 @@ var publicRoutes = map[string]bool{
 	// header's mandatory verification inside the handler, the same posture
 	// the two courier tracking routes above already take with their HMAC.
 	"/api/v1/pim/import/hook": true,
+	// Stage 36.4.4: PIM catalog share link. A partner holds only the share
+	// token (?token=, verified inside the handler by SHA-256 digest
+	// comparison), never a session - the same posture as the hook above,
+	// carried as a query parameter instead of a header because this route
+	// has to be openable from a plain browser click.
+	"/api/v1/pim/catalog-share": true,
 }
 
 func loadCORSAllowlist() map[string]bool {

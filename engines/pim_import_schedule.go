@@ -316,7 +316,9 @@ func runPIMImportScheduleDropDirectory(tenantID, scheduleID string, data map[str
 					fmt.Sprintf("schedule %s: cannot open %q: %v", scheduleID, filePath, openErr), "")
 				continue
 			}
-			result, runErr := RunPIMImportTemplate(tenantID, template, f, "system", false)
+			// "" role: a scheduled worker run has no operator session/role to
+			// check field-write restrictions against, same as the hook path.
+			result, runErr := RunPIMImportTemplate(tenantID, template, f, "system", "", false)
 			f.Close()
 
 			destDir := importedDir

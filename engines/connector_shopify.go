@@ -306,6 +306,90 @@ func uploadShopifyMedia(ctx context.Context, shopDomain, accessToken, productID 
 	return err
 }
 
+var shopifyProductQuery = strings.Join([]string{
+	"query readProduct($id: ID!) {",
+	"  product(id: $id) {",
+	"    title",
+	"    descriptionHtml",
+	"    vendor",
+	"    productType",
+	"    tags",
+	"    metafields(first: 50, namespace: \"custom\") { edges { node { key value } } }",
+	"    images(first: 250) { edges { node { id } } }",
+	"  }",
+	"}",
+}, "\n")
+
+// FetchProductState implements ChannelReader (Stage 36.4.5): reads a
+// product's current state back from Shopify by the GID PublishProduct
+// returned, and reshapes it into exactly the same ChannelProductPayload
+// shape PublishProduct builds from ERP data - so buildChannelDiff can
+// compare "what the channel holds" against "what we would send" field by
+// field without a second payload shape to keep in sync.
+func (shopifyConnector) FetchProductState(ctx context.Context, cred map[string]string, externalID string) (ChannelProductPayload, error) {
+	shopDomain := cred["shop_domain"]
+	accessToken := cred["access_token"]
+	if shopDomain == "" || accessToken == "" {
+		return ChannelProductPayload{}, &ValidationError{Code: "CONN-0224", Message: "shopify credential missing shop_domain/access_token, configure it via POST /api/v1/pim/channels/{code}/credentials"}
+	}
+	resp, err := callShopifyGraphQL(ctx, shopDomain, accessToken, shopifyProductQuery, map[string]interface{}{"id": externalID})
+	if err != nil {
+		return ChannelProductPayload{}, err
+	}
+	var result struct {
+		Product *struct {
+			Title           string `json:"title"`
+			DescriptionHTML string `json:"descriptionHtml"`
+			Vendor          string `json:"vendor"`
+			ProductType     string `json:"productType"`
+			Tags            []string `json:"tags"`
+			Metafields      struct {
+				Edges []struct {
+					Node struct {
+						Key   string `json:"key"`
+						Value string `json:"value"`
+					} `json:"node"`
+				} `json:"edges"`
+			} `json:"metafields"`
+			Images struct {
+				Edges []struct {
+					Node struct {
+						ID string `json:"id"`
+					} `json:"node"`
+				} `json:"edges"`
+			} `json:"images"`
+		} `json:"product"`
+	}
+	if err := json.Unmarshal(resp.Data, &result); err != nil {
+		return ChannelProductPayload{}, fmt.Errorf("failed to parse product read response: %v", err)
+	}
+	if result.Product == nil {
+		return ChannelProductPayload{}, fmt.Errorf("shopify product %q no longer exists", externalID)
+	}
+	p := result.Product
+	payload := ChannelProductPayload{
+		Title:       p.Title,
+		Description: p.DescriptionHTML,
+		Attributes:  map[string]string{},
+	}
+	if p.Vendor != "" {
+		payload.Attributes["vendor"] = p.Vendor
+	}
+	if p.ProductType != "" {
+		payload.Attributes["product_type"] = p.ProductType
+	}
+	if len(p.Tags) > 0 {
+		payload.Attributes["tags"] = strings.Join(p.Tags, ",")
+	}
+	for _, edge := range p.Metafields.Edges {
+		payload.Attributes[edge.Node.Key] = edge.Node.Value
+	}
+	// image_count is compared via len(Images), not fetched bytes - a live
+	// read has no reason to download every image just to count them.
+	payload.Images = make([]ChannelImage, len(p.Images.Edges))
+	return payload, nil
+}
+
 // putStagedUpload performs the multipart POST the Shopify staged-upload
 // target expects: the exact parameters Shopify returned, in order, plus
 // the file bytes as the final field.

@@ -29,7 +29,14 @@ import (
 // original, mark inactive instead" trivial: identical bytes always resolve
 // to the same stored file.
 
-const mediaStoreDir = "media_store"
+// mediaStoreDir is a var (not const), same reason connector_shopify.go's
+// shopifyGraphQLURL is: so tests can point storage at a scratch directory
+// instead of this relative path under the working directory, which on this
+// machine sits under Documents\ - Windows Controlled Folder Access blocks a
+// freshly-built (test) binary from creating a new directory there (see the
+// CLAUDE.md note on that exact error). Production is unaffected either way;
+// the deployed server's working directory is not under Documents\.
+var mediaStoreDir = "media_store"
 
 var allowedMediaExtensions = map[string]string{
 	".jpg":  "image/jpeg",
@@ -51,6 +58,7 @@ type ProductMediaAsset struct {
 	AltText      string `json:"alt_text,omitempty"`
 	ExpiryDate   string `json:"expiry_date,omitempty"`
 	HasThumbnail bool   `json:"has_thumbnail,omitempty"`
+	Tags         string `json:"tags,omitempty"`
 }
 
 // generateThumbnail decodes a jpg/png upload and produces a nearest-
@@ -65,9 +73,6 @@ type ProductMediaAsset struct {
 // "pim.thumbnail_max_dim" setting, default still 200) so this stays a pure
 // image helper with no tenant/DB dependency - the caller resolves it.
 func generateThumbnail(fileBytes []byte, fileType string, maxDim int) (thumbBytes []byte, ok bool) {
-	if maxDim < 1 {
-		maxDim = 1
-	}
 	if fileType != "image/jpeg" && fileType != "image/png" {
 		return nil, false
 	}
@@ -75,10 +80,24 @@ func generateThumbnail(fileBytes []byte, fileType string, maxDim int) (thumbByte
 	if err != nil {
 		return nil, false
 	}
+	return encodeJPEG(resizeToMaxDim(src, maxDim))
+}
+
+// resizeToMaxDim nearest-neighbor-downsamples src so its longest side is no
+// larger than maxDim, preserving aspect ratio - the exact resize math
+// generateThumbnail always used, now shared with Stage 36.6.1's transform
+// presets so there is one resize implementation, not two that could drift.
+// Never upscales past maxDim < 1's floor of 1px; a source already at or
+// under maxDim on both sides is returned unchanged in size (scale stays
+// 1.0), matching generateThumbnail's original behaviour exactly.
+func resizeToMaxDim(src image.Image, maxDim int) *image.RGBA {
+	if maxDim < 1 {
+		maxDim = 1
+	}
 	bounds := src.Bounds()
 	w, h := bounds.Dx(), bounds.Dy()
 	if w <= 0 || h <= 0 {
-		return nil, false
+		return image.NewRGBA(image.Rect(0, 0, 1, 1))
 	}
 	scale := 1.0
 	if w >= h && w > maxDim {
@@ -101,8 +120,12 @@ func generateThumbnail(fileBytes []byte, fileType string, maxDim int) (thumbByte
 			dst.Set(x, y, src.At(srcX, srcY))
 		}
 	}
+	return dst
+}
+
+func encodeJPEG(img image.Image) (jpegBytes []byte, ok bool) {
 	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 80}); err != nil {
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 80}); err != nil {
 		return nil, false
 	}
 	return buf.Bytes(), true
@@ -347,10 +370,15 @@ func SaveMediaFile(tenantID string, fileBytes []byte, filename, itemCode, mediaR
 	}, nil
 }
 
-// UpdateMediaMetadata (Stage 26.4.4) corrects alt text/expiry date after
-// upload without re-uploading the file - both are metadata-only fields;
-// editing them never touches the stored bytes, checksum, or version.
-func UpdateMediaMetadata(tenantID, mediaID, altText, expiryDate string) error {
+// UpdateMediaMetadata (Stage 26.4.4; tags added Stage 36.6.3) corrects alt
+// text/expiry date/tags after upload without re-uploading the file - all
+// three are metadata-only fields; editing them never touches the stored
+// bytes, checksum, or version. tags is a comma-separated list, the same
+// shape ProductContent.tags already uses, and is a *string so a caller that
+// only edits alt text/expiry (the existing single-item Workbench gallery,
+// which has no tags input) can pass nil and leave whatever tags are already
+// set untouched, rather than every such edit silently wiping them.
+func UpdateMediaMetadata(tenantID, mediaID, altText, expiryDate string, tags *string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
@@ -365,6 +393,9 @@ func UpdateMediaMetadata(tenantID, mediaID, altText, expiryDate string) error {
 	}
 	data["alt_text"] = altText
 	data["expiry_date"] = expiryDate
+	if tags != nil {
+		data["tags"] = *tags
+	}
 	marshaled, err := json.Marshal(data)
 	if err != nil {
 		return err

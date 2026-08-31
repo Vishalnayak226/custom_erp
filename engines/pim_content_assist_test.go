@@ -46,7 +46,7 @@ func TestGenerateContentSuggestion(t *testing.T) {
 		"code": itemCode, "name": "Acme Cotton Shirt", "brand": "Acme", "category": "Apparel",
 	})
 
-	sug, err := GenerateContentSuggestion("default", itemCode, "en", "manager1")
+	sug, err := GenerateContentSuggestion("default", itemCode, "en", "standard", "manager1")
 	if err != nil {
 		t.Fatalf("GenerateContentSuggestion failed: %v", err)
 	}
@@ -89,7 +89,7 @@ func TestGenerateContentSuggestion(t *testing.T) {
 	// --- Deterministic: same item, same draft ------------------------------
 	// Two reviewers comparing notes must see identical text; attribute
 	// ordering upstream comes from a map, so this is a real risk.
-	again, err := GenerateContentSuggestion("default", itemCode, "en", "manager1")
+	again, err := GenerateContentSuggestion("default", itemCode, "en", "standard", "manager1")
 	if err != nil {
 		t.Fatalf("second GenerateContentSuggestion failed: %v", err)
 	}
@@ -99,13 +99,84 @@ func TestGenerateContentSuggestion(t *testing.T) {
 
 	// --- An item with no name is refused, not given a SKU-shaped title ----
 	insertDoc(namelessItem, "Item", "Active", map[string]interface{}{"code": namelessItem})
-	if _, err := GenerateContentSuggestion("default", namelessItem, "en", "manager1"); err == nil {
+	if _, err := GenerateContentSuggestion("default", namelessItem, "en", "standard", "manager1"); err == nil {
 		t.Error("expected an error for an item with no name")
 	}
 
 	// --- Unknown item is an error, not an empty draft ---------------------
-	if _, err := GenerateContentSuggestion("default", "CA-ASSIST-DOES-NOT-EXIST", "en", "manager1"); err == nil {
+	if _, err := GenerateContentSuggestion("default", "CA-ASSIST-DOES-NOT-EXIST", "en", "standard", "manager1"); err == nil {
 		t.Error("expected an error for an unknown item")
+	}
+}
+
+// TestGenerateContentSuggestionMarketplaceShape (Stage 36.7.1): the
+// standard shape's fields must stay exactly as they were (no existing
+// caller's output changes), while the marketplace shape adds bullets and a
+// meta description and shapes the title differently.
+func TestGenerateContentSuggestionMarketplaceShape(t *testing.T) {
+	db.InitDB(testConnStr())
+	schema, err := db.GetTenantSchema("default")
+	if err != nil {
+		t.Fatalf("resolve default tenant schema: %v", err)
+	}
+	const itemCode = "CA-ASSIST-MP-FIXTURE"
+	cleanup := func() {
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", itemCode)
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'ContentAssistLog' AND data->>'item_code' = $1", itemCode)
+	}
+	cleanup()
+	defer cleanup()
+
+	encoded, _ := json.Marshal(map[string]interface{}{
+		"code": itemCode, "name": "Trail Runner Jacket", "brand": "Acme", "category": "Outerwear",
+	})
+	if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')", itemCode, encoded); err != nil {
+		t.Fatalf("insert fixture item: %v", err)
+	}
+
+	standard, err := GenerateContentSuggestion("default", itemCode, "en", "standard", "manager1")
+	if err != nil {
+		t.Fatalf("GenerateContentSuggestion (standard): %v", err)
+	}
+	if len(standard.Bullets) != 0 || standard.MetaDescription != "" {
+		t.Errorf("standard shape must leave bullets/meta_description empty, got bullets=%#v meta=%q", standard.Bullets, standard.MetaDescription)
+	}
+
+	marketplace, err := GenerateContentSuggestion("default", itemCode, "en", "marketplace", "manager1")
+	if err != nil {
+		t.Fatalf("GenerateContentSuggestion (marketplace): %v", err)
+	}
+	if marketplace.MetaDescription == "" {
+		t.Error("marketplace shape should populate a meta description")
+	}
+	if len(marketplace.MetaDescription) > assistMaxMetaDescription {
+		t.Errorf("meta_description %q is %d chars, over the %d budget", marketplace.MetaDescription, len(marketplace.MetaDescription), assistMaxMetaDescription)
+	}
+	if len(marketplace.Title) > assistMaxMarketplaceTitle {
+		t.Errorf("marketplace title %q is %d chars, over the %d budget", marketplace.Title, len(marketplace.Title), assistMaxMarketplaceTitle)
+	}
+	// Category is the one source field guaranteed present on this fixture
+	// (no family, so no attribute values resolve) - it must show up as a
+	// bullet so the marketplace shape isn't just an empty list.
+	foundCategoryBullet := false
+	for _, b := range marketplace.Bullets {
+		if strings.Contains(b, "Outerwear") {
+			foundCategoryBullet = true
+		}
+	}
+	if !foundCategoryBullet {
+		t.Errorf("expected a bullet naming the category, got %#v", marketplace.Bullets)
+	}
+	if standard.Title == marketplace.Title {
+		// Not a hard requirement in general (a thin-attribute item could
+		// coincidentally produce the same string), but for this fixture
+		// (a category and no attributes) the marketplace title appends
+		// " | Outerwear" that the standard title does not carry.
+		t.Error("expected the marketplace title to differ from the standard title for this fixture")
+	}
+
+	if _, err := GenerateContentSuggestion("default", itemCode, "en", "not-a-real-shape", "manager1"); err == nil {
+		t.Error("expected an unknown shape to be refused")
 	}
 }
 

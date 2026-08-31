@@ -411,6 +411,21 @@ func validateItemMasterRules(tenantID, docID string, payload map[string]interfac
 
 	barcode := strField(payload, "barcode")
 	if barcode != "" {
+		// Stage 36.7.4: a barcode shaped like a standard EAN-8/UPC-A/EAN-13
+		// (all-digit, standard length) must carry the check digit GS1's own
+		// algorithm computes for it - checked before the duplicate query
+		// below so a malformed code is refused with a code-quality reason,
+		// not a coincidental "already used" one. A non-standard/free-text
+		// barcode (most fixtures and many real internal SKUs in this
+		// codebase) is untouched, exactly as before this stage.
+		if err := ValidateBarcodeCheckDigit(barcode); err != nil {
+			// GLOBAL-0002 ("Invalid format"), the same reused-not-minted code
+			// Stage 36.5's transform-rule validator already established for a
+			// bespoke format rule with no pre-allocated Master Data matrix
+			// code of its own (MASTER-0054 is already "Inactive item
+			// transaction" - a different scenario).
+			return &ValidationError{Code: "GLOBAL-0002", Message: err.Error()}
+		}
 		schema, err := db.GetTenantSchema(tenantID)
 		if err != nil {
 			return err

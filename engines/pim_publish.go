@@ -533,13 +533,24 @@ func PreviewChannelDiff(tenantID, itemCode, channelCode string) (*ChannelDiffPre
 		WHERE item_code = $1 AND channel_code = $2 AND payload_snapshot IS NOT NULL
 		ORDER BY created_at DESC LIMIT 1`, schema), itemCode, channelCode).Scan(&snapshotStr)
 
-	preview := &ChannelDiffPreview{ItemCode: itemCode, ChannelCode: channelCode}
 	var prior ChannelProductPayload
+	hasPrior := false
 	if err == nil {
 		if unmarshalErr := json.Unmarshal([]byte(snapshotStr), &prior); unmarshalErr == nil {
-			preview.HasPriorSnapshot = true
+			hasPrior = true
 		}
 	}
+
+	return buildChannelDiff(itemCode, channelCode, prior, *current, hasPrior), nil
+}
+
+// buildChannelDiff is the one field-by-field comparison both
+// PreviewChannelDiff (against the last payload we SENT) and PullChannelState
+// (against what the channel actually HOLDS, 36.4.5) build their preview
+// from, so the two "what changed" views can never disagree about which
+// fields they compare or how.
+func buildChannelDiff(itemCode, channelCode string, prior, current ChannelProductPayload, hasPrior bool) *ChannelDiffPreview {
+	preview := &ChannelDiffPreview{ItemCode: itemCode, ChannelCode: channelCode, HasPriorSnapshot: hasPrior}
 
 	addField := func(name, oldVal, newVal string) {
 		preview.Fields = append(preview.Fields, ChannelDiffField{Field: name, Old: oldVal, New: newVal, Changed: oldVal != newVal})
@@ -564,5 +575,109 @@ func PreviewChannelDiff(tenantID, itemCode, channelCode string) (*ChannelDiffPre
 		addField("attribute:"+k, prior.Attributes[k], current.Attributes[k])
 	}
 
-	return preview, nil
+	return preview
+}
+
+// ChannelReader is an optional capability a ChannelConnector may implement:
+// read a product's current state back from the platform by its external id.
+// Deliberately NOT part of the ChannelConnector interface every connector
+// must satisfy - only Shopify implements it so far (a stated scope limit,
+// not a guess: BigCommerce/Magento's REST product-read shapes are real work
+// this stage does not do). Callers type-assert rather than requiring it.
+type ChannelReader interface {
+	FetchProductState(ctx context.Context, cred map[string]string, externalID string) (ChannelProductPayload, error)
+}
+
+// lastExternalIDForChannel returns the most recent external id this item was
+// published to this channel under - PullChannelState has nothing to read
+// back without one; an item never published to this channel has no state to
+// pull.
+func lastExternalIDForChannel(tenantID, itemCode, channelCode string) (string, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return "", err
+	}
+	var externalID string
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(external_id, '') FROM %s.pim_publish_log
+		WHERE item_code = $1 AND channel_code = $2 AND status = 'Published' AND external_id IS NOT NULL AND external_id <> ''
+		ORDER BY created_at DESC LIMIT 1`, schema), itemCode, channelCode).Scan(&externalID)
+	if err != nil {
+		return "", fmt.Errorf("item %q has no prior successful publish to channel %q to read back", itemCode, channelCode)
+	}
+	return externalID, nil
+}
+
+// PullChannelState (Stage 36.4.5) deepens PreviewChannelDiff from "last
+// payload we sent" toward "what the channel actually holds" - for channels
+// whose adapter supports a read (see ChannelReader). A channel that does not
+// implement it refuses by name rather than silently falling back to the
+// snapshot diff, which would look like a live read while actually being the
+// same thing PreviewChannelDiff already offers.
+func PullChannelState(tenantID, itemCode, channelCode string) (*ChannelDiffPreview, error) {
+	desired, err := BuildChannelPayload(tenantID, itemCode, channelCode)
+	if err != nil {
+		return nil, err
+	}
+	externalID, err := lastExternalIDForChannel(tenantID, itemCode, channelCode)
+	if err != nil {
+		return nil, err
+	}
+	platform, err := fetchChannelPlatform(tenantID, channelCode)
+	if err != nil {
+		return nil, err
+	}
+	connector := resolveConnector(platform)
+	reader, ok := connector.(ChannelReader)
+	if !ok {
+		return nil, fmt.Errorf("channel %q (platform %q) does not support reading state back", channelCode, platform)
+	}
+	// A live read hits the exact same platform API the publish queue does,
+	// so it draws from the same RateLimit() budget (allowConnectorCall,
+	// engines/connector_http.go) - not a second unbounded call path against
+	// a real connector's documented limit.
+	capacity, window := connector.RateLimit()
+	if !allowConnectorCall(channelCode, capacity, window) {
+		return nil, fmt.Errorf("channel %q's outbound call budget is exhausted right now - try again shortly", channelCode)
+	}
+	cred, credErr := getChannelCredential(tenantID, channelCode)
+	if credErr != nil {
+		cred = map[string]string{}
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	live, err := reader.FetchProductState(ctx, cred, externalID)
+	if err != nil {
+		return nil, err
+	}
+	// Framed the same direction buildChannelDiff always reads ("old" -> "new"):
+	// here "old" is what the platform currently holds and "new" is what a
+	// republish would send, so Changed means "publishing now would change
+	// something," exactly like the snapshot-diff case.
+	return buildChannelDiff(itemCode, channelCode, live, *desired, true), nil
+}
+
+// ChannelPullOutcome is one item's result from BulkPullChannelState - a
+// per-item outcome list, the same "report exactly which succeeded/failed and
+// why" shape 36.2.5's bulk task/workflow actions and 36.3's variant preflight
+// already use, rather than one failure aborting the whole batch.
+type ChannelPullOutcome struct {
+	ItemCode string             `json:"item_code"`
+	Error    string             `json:"error,omitempty"`
+	Diff     *ChannelDiffPreview `json:"diff,omitempty"`
+}
+
+// BulkPullChannelState runs PullChannelState over a selection - the read-back
+// half of 36.4.5's "bulk channel download."
+func BulkPullChannelState(tenantID, channelCode string, itemCodes []string) []ChannelPullOutcome {
+	out := make([]ChannelPullOutcome, 0, len(itemCodes))
+	for _, code := range itemCodes {
+		diff, err := PullChannelState(tenantID, code, channelCode)
+		if err != nil {
+			out = append(out, ChannelPullOutcome{ItemCode: code, Error: err.Error()})
+			continue
+		}
+		out = append(out, ChannelPullOutcome{ItemCode: code, Diff: diff})
+	}
+	return out
 }

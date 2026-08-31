@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shared Catalog</title>
+<!-- Stage 36.4.4: the public, unauthenticated viewer for a PIM Catalog share
+     link. Deliberately its own static page rather than a route inside the
+     SPA shell - the whole point is that a partner with no login can open it,
+     and the SPA shell assumes a session exists. Reuses the app's own
+     styles.css tokens so it looks like part of the same product, not a
+     second design system, but loads no app.js and makes no authenticated
+     call - only GET /api/v1/pim/catalog-share, which is itself public
+     (see middleware.go's publicRoutes). -->
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { background: var(--bg-color); color: var(--text-main); min-height: 100vh; }
+  .share-wrap { max-width: 960px; margin: 0 auto; padding: 32px 20px 64px; }
+  .share-header { margin-bottom: 24px; }
+  .share-header h1 { margin: 0 0 4px; font-size: 24px; }
+  .share-header p { margin: 0; color: var(--text-muted); font-size: 14px; }
+  .share-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  .share-card { border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; background: var(--surface-subtle); }
+  .share-card-thumb { width: 100%; aspect-ratio: 1; border-radius: 6px; background: var(--border-color); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 12px; margin-bottom: 10px; }
+  .share-card h3 { margin: 0 0 4px; font-size: 15px; }
+  .share-card .code { color: var(--text-muted); font-size: 12px; margin-bottom: 6px; }
+  .share-card .desc { font-size: 13px; color: var(--text-main); margin: 0 0 6px; }
+  .share-card .category { font-size: 12px; color: var(--text-muted); }
+  .share-state { text-align: center; padding: 64px 20px; color: var(--text-muted); }
+  .share-count { font-size: 13px; color: var(--text-muted); margin: 0 0 16px; }
+</style>
+</head>
+<body>
+<div class="share-wrap">
+  <div class="share-header">
+    <h1 id="share-title">Loading catalog&hellip;</h1>
+    <p id="share-subtitle"></p>
+  </div>
+  <p class="share-count" id="share-count" hidden></p>
+  <div class="share-grid" id="share-grid"></div>
+  <div class="share-state" id="share-state" hidden></div>
+</div>
+<script>
+(function () {
+  function escapeHTML(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  var params = new URLSearchParams(location.search);
+  var token = params.get('token') || '';
+  var tenantID = params.get('tenant_id') || 'default';
+  var titleEl = document.getElementById('share-title');
+  var subtitleEl = document.getElementById('share-subtitle');
+  var countEl = document.getElementById('share-count');
+  var gridEl = document.getElementById('share-grid');
+  var stateEl = document.getElementById('share-state');
+
+  function showState(message) {
+    gridEl.hidden = true;
+    stateEl.hidden = false;
+    stateEl.textContent = message;
+  }
+
+  if (!token) {
+    titleEl.textContent = 'Shared Catalog';
+    showState('This link is missing its share token.');
+    return;
+  }
+
+  fetch('/api/v1/pim/catalog-share?token=' + encodeURIComponent(token) + '&tenant_id=' + encodeURIComponent(tenantID), {
+    headers: { 'X-Tenant-ID': tenantID }
+  })
+    .then(function (res) {
+      if (!res.ok) { throw new Error('not-found'); }
+      return res.json();
+    })
+    .then(function (view) {
+      titleEl.textContent = view.catalog_name || 'Shared Catalog';
+      subtitleEl.textContent = 'Live product list - refresh this page any time to see the current catalog.';
+      var products = view.products || [];
+      if (products.length === 0) {
+        showState('This catalog currently has no products.');
+        return;
+      }
+      countEl.hidden = false;
+      countEl.textContent = products.length + ' product' + (products.length === 1 ? '' : 's');
+      gridEl.innerHTML = products.map(function (p) {
+        return '<div class="share-card">' +
+          '<div class="share-card-thumb">' + (p.has_main_image ? 'Image' : 'No image') + '</div>' +
+          '<h3>' + escapeHTML(p.title || p.name || p.item_code) + '</h3>' +
+          '<div class="code">' + escapeHTML(p.item_code) + '</div>' +
+          (p.short_desc ? '<p class="desc">' + escapeHTML(p.short_desc) + '</p>' : '') +
+          (p.category ? '<div class="category">' + escapeHTML(p.category) + '</div>' : '') +
+          '</div>';
+      }).join('');
+    })
+    .catch(function () {
+      titleEl.textContent = 'Shared Catalog';
+      showState('This share link is invalid, expired, or has been revoked.');
+    });
+})();
+</script>
+</body>
+</html>

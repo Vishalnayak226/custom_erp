@@ -125,7 +125,7 @@ func TestMarketIntelligenceStage34(t *testing.T) {
 		csv := "code,our_item,platform,competitor_price,mrp,observed_at,status\n" +
 			"MI34-CP-1," + sku + ",Amazon,80,120,2026-08-01,Active\n" +
 			"MI34-CP-2," + sku + ",Flipkart,90,120,2026-08-02,Active\n"
-		res, err := BulkImportCSV(tenantID, "CompetitorPrice", strings.NewReader(csv), "system", false)
+		res, err := BulkImportCSV(tenantID, "CompetitorPrice", strings.NewReader(csv), "system", "", false)
 		if err != nil {
 			t.Fatalf("BulkImportCSV failed: %v", err)
 		}

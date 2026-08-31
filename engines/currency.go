@@ -167,6 +167,16 @@ func ValidateParityFoundationDocument(tenantID, doctype string, payload map[stri
 		return ValidatePIMImportTemplateDocument(tenantID, payload)
 	case "PIMImportSchedule":
 		return ValidatePIMImportScheduleDocument(tenantID, payload)
+	// Stage 36.4: joins here for the same reason 36.3's import doctypes do -
+	// a template/schedule/catalog written through the generic document API
+	// is subject to the same column/channel/token rules the engine enforces
+	// on its own writes.
+	case "PIMExportTemplate":
+		return ValidatePIMExportTemplateDocument(tenantID, payload)
+	case "PIMExportSchedule":
+		return ValidatePIMExportScheduleDocument(tenantID, payload)
+	case "PIMCatalog":
+		return ValidatePIMCatalogDocument(tenantID, payload)
 	case "Currency":
 		return ValidateCurrencyDocument(payload)
 	case "ExchangeRate":
