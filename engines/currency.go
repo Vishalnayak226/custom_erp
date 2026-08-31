@@ -192,6 +192,10 @@ func ValidateParityFoundationDocument(tenantID, doctype string, payload map[stri
 	// ApplyLandedCostVoucher's own read already relies on.
 	case "LandedCostVoucher":
 		return ValidateLandedCostVoucherDocument(tenantID, payload)
+	// Stage 37.4.1: Budget is a pure generic-document doctype (no dedicated
+	// create/apply function), so this IS its only validation seam.
+	case "Budget":
+		return ValidateBudgetDocument(tenantID, payload)
 	default:
 		return nil
 	}

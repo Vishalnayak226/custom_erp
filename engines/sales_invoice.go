@@ -61,6 +61,18 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 		return 0, fmt.Errorf("total_amount converts to a non-positive %s value at rate %v", position.Functional, position.Rate)
 	}
 
+	// Stage 37.4.2: posting is the moment this invoice's amount becomes real
+	// AR (see this function's own doc comment) - the deliberate, human-
+	// triggered point to check it, rather than at Draft creation (which can
+	// fire from an automated shipment cascade, CreateSalesInvoiceFromOrder's
+	// own doc comment) or leaving it unchecked forever. A blank/zero
+	// Customer.credit_limit is always a no-op.
+	if customer, _ := data["customer"].(string); customer != "" {
+		if err := CheckCustomerCreditLimit(tenantID, customer, float64(amount)); err != nil {
+			return 0, err
+		}
+	}
+
 	debits := map[string]int{"1300": amount}
 	credits := map[string]int{"4100": amount}
 	if err := PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),

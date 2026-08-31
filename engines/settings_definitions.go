@@ -371,6 +371,20 @@ func registerStage282Settings() {
 		Description: "How many days after a marketplace order ships it is flagged on the Unsettled Settlements report if no settlement line has matched it yet.",
 	})
 
+	// --- Dunning (Stage 37.4.4) ---
+	RegisterSetting(SettingDefinition{
+		Key: "finance.dunning_reminder_days", Module: "Finance",
+		Label: "Dunning reminder threshold", Type: SettingTypeInt, Default: "7", Unit: "days",
+		Min:         settingBound(1),
+		Description: "An Approved SalesInvoice with a due_date this many days in the past gets a Reminder notification.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "finance.dunning_escalation_days", Module: "Finance",
+		Label: "Dunning escalation threshold", Type: SettingTypeInt, Default: "30", Unit: "days",
+		Min:         settingBound(1),
+		Description: "An Approved SalesInvoice this many days past due_date gets an Escalation notification instead of a Reminder.",
+	})
+
 	registerLocalizationSettings()
 }
 

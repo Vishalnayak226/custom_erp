@@ -127,6 +127,11 @@ func Run() {
 	// of lapsed loyalty point lots.
 	engines.StartLoyaltyExpiryWorker(workerCtx, 1*time.Hour)
 
+	// Start Dunning Worker (Stage 37.4.4) - daily-granularity scan of
+	// overdue SalesInvoices, dispatching Reminder/Escalation notifications
+	// through the existing outbox.
+	engines.StartDunningWorker(workerCtx, 1*time.Hour)
+
 	// Start Campaign Worker (Stage 26.7.4) - daily-granularity scan for
 	// Active campaigns whose birthday/lapsed-customer trigger newly
 	// matches a customer.

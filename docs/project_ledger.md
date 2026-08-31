@@ -44,6 +44,22 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 121. Stage 37.4 — Budgeting, cash-flow forecast, credit limits, dunning (2026-09-01, code + schema)
+
+Pre-build audit found all four completely absent, and one structural finding shaped the whole design: neither `SalesOrder` nor `SalesInvoice` carries a real `Customer` Link - customer identity flows as a free-text name throughout, the same convention `GetCustomerLedgerReport` already relies on. Credit-limit matching (37.4.2) inherits that name-based convention rather than adding a second, inconsistent identity model - a real Link-based rework of customer identity across these doctypes is a materially larger, separate undertaking.
+
+- **37.4.1 Budgeting**: `Budget` is a pure generic-document doctype (`Currency`/`ExchangeRate` precedent - no dedicated create/apply function, never posted to the GL). `GetBudgetVarianceReport` compares Approved rows against real `gl_postings`, one level more granular than `GetCostCenterPL`'s own shape (per account, not per account_type).
+- **37.4.2 Credit limits**: `Customer.credit_limit` (optional). `CheckCustomerCreditLimit` wired into `PostSalesInvoice` - the deliberate, human-triggered point AR is actually recognized, not the automated Draft-creation cascade, which the function's own doc comment explains is unsuitable for a hard refusal.
+- **37.4.3 Due dates**: `SalesInvoice.due_date`/`VendorInvoice.due_date` (both optional). `GetReceivablesAgeingReport` now ages off `COALESCE(due_date, created_at)`.
+- **37.4.4 Dunning**: `StartDunningWorker` reuses the existing `DispatchNotification`/outbox machinery entirely - no second delivery path - scanning for invoices past configurable reminder/escalation thresholds, idempotent via a stamped last-notified tier.
+- **37.4.5 Cash-flow forecast**: `GetCashFlowForecast` is a real forward projection (unlike the historical-only `GetCashFlowStatement`), from today's real Cash/Bank GL balance plus open invoices due within the horizon.
+- **Surface/schema**: additive `db/migrations_stage37_4_budgeting_credit_dunning.sql` (dev only). New `engines/budgeting.go` (+`_test.go`), 2 settings, 3 reports, no new handler file.
+- **Two real bugs caught by this stage's own test before shipping, not live**: `CheckCustomerCreditLimit`'s Customer lookup queried a bare `name` column that doesn't exist on `documents` (needed `data->>'name'`) - silently always no-op'd until the test caught it. `GetCashFlowForecast`'s outflow query read `total_amount` for `VendorInvoice`, which actually stores `invoice_amount` (a pre-existing, differently-named field for the same concept SalesInvoice calls `total_amount`) - outflows always computed as zero until fixed.
+- **Verified**: `go build ./...`/`go vet ./...`/`node --check public/app.js` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage374BudgetingCreditDunning`. **Live over HTTP** (port 9262, stopped afterward): a real credit-limit refusal with the exact expected message, and all three new reports responding correctly. Every fixture hard-deleted afterward, zero residue confirmed.
+- **Next**: 37.5 (financial statement builder with dimensions and drill-down), then 37.6-37.11 in plan order, then Stage 38's remaining 38.4/38.6/38.7.
+
+---
+
 ## 120. Stage 37.3 — Costing & valuation, incl. landed cost allocation (2026-09-01, code + schema)
 
 Pre-build audit found this codebase had NO costing method anywhere - `StockLedgerEntry`/`bin_stock`/`inventory_availability` track quantity only. Two real, previously-undiscovered gaps fell out of that audit and are closed by this stage, not just the checklist's own "5 sub-items":

@@ -230,16 +230,22 @@ func GetPayablesAgeingReport(tenantID string) ([]PayablesAgeingBucket, error) {
 }
 
 // GetReceivablesAgeingReport buckets "Approved" (invoiced/AR-recognized but
-// not yet Paid - see engines/sales_invoice.go) SalesInvoices by age since
-// creation, mirroring GetPayablesAgeingReport's PurchaseOrder-Approved
-// approximation on the receivable side (Stage 20.33).
+// not yet Paid - see engines/sales_invoice.go) SalesInvoices by age.
+//
+// Stage 37.4.3: an invoice that carries a real due_date ages from when it is
+// actually due, not from when it was raised - the more meaningful figure for
+// collections. An invoice with no due_date (every pre-37.4.3 row, and any
+// new one that still leaves it blank) falls back to created_at exactly as
+// before, mirroring GetPayablesAgeingReport's PurchaseOrder-Approved
+// approximation on the receivable side (Stage 20.33) - unchanged behaviour
+// for a tenant that never sets the field.
 func GetReceivablesAgeingReport(tenantID string) ([]PayablesAgeingBucket, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT COALESCE((data->>'total_amount')::numeric, 0), created_at
+		SELECT COALESCE((data->>'total_amount')::numeric, 0), created_at, COALESCE(data->>'due_date', '')
 		FROM %s.documents WHERE doctype = 'SalesInvoice' AND status = 'Approved'`, schema))
 	if err != nil {
 		return nil, err
@@ -258,10 +264,24 @@ func GetReceivablesAgeingReport(tenantID string) ([]PayablesAgeingBucket, error)
 	for rows.Next() {
 		var amount float64
 		var createdAt time.Time
-		if err := rows.Scan(&amount, &createdAt); err != nil {
+		var dueDateStr string
+		if err := rows.Scan(&amount, &createdAt, &dueDateStr); err != nil {
 			return nil, err
 		}
-		ageDays := int(now.Sub(createdAt).Hours() / 24)
+		ageFrom := createdAt
+		if dueDateStr != "" {
+			if parsed, perr := time.Parse("2006-01-02", dueDateStr); perr == nil {
+				ageFrom = parsed
+			}
+		}
+		ageDays := int(now.Sub(ageFrom).Hours() / 24)
+		if ageDays < 0 {
+			// A real due_date can be in the future (not yet due) - unlike
+			// created_at, which is always in the past. Clamped into the
+			// freshest bucket rather than a negative age, since this report
+			// has never distinguished "not yet due" from "just raised".
+			ageDays = 0
+		}
 		var key string
 		switch {
 		case ageDays <= 30:
