@@ -187,6 +187,11 @@ func ValidateParityFoundationDocument(tenantID, doctype string, payload map[stri
 	// enforces.
 	case "IntercompanyTransaction":
 		return ValidateIntercompanyTransactionDocument(tenantID, payload)
+	// Stage 37.3.2: joins here for the same reason IntercompanyTransaction
+	// does - a generic-API write is subject to the same referential check
+	// ApplyLandedCostVoucher's own read already relies on.
+	case "LandedCostVoucher":
+		return ValidateLandedCostVoucherDocument(tenantID, payload)
 	default:
 		return nil
 	}

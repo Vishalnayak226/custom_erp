@@ -518,6 +518,12 @@ func Run() {
 	http.HandleFunc("POST /api/v1/finance/intercompany-transaction", apiMiddleware(handleCreateIntercompanyTransaction))
 	http.HandleFunc("POST /api/v1/finance/intercompany-transaction/{id}/retry-post", apiMiddleware(handleRetryPostIntercompanyTransaction))
 
+	// Costing & valuation (Stage 37.3.2). The inventory-valuation report
+	// needs no route - it is a registered ReportDefinition served by the
+	// generic report catalog.
+	http.HandleFunc("POST /api/v1/finance/landed-cost-voucher", apiMiddleware(handleCreateLandedCostVoucher))
+	http.HandleFunc("POST /api/v1/finance/landed-cost-voucher/{id}/apply", apiMiddleware(handleApplyLandedCostVoucher))
+
 	// Approval / Workflow Engine (maker-checker)
 	http.HandleFunc("POST /api/v1/approval/submit", apiMiddleware(handleSubmitApproval))
 	http.HandleFunc("POST /api/v1/approval/decide", apiMiddleware(handleDecideApproval))

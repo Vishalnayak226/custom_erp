@@ -239,7 +239,7 @@
       "id": "finance",
       "lobe": "business",
       "name": "Finance & General Ledger",
-      "role": "Balanced double-entry posting (PostDoubleEntry), chart of accounts, journal vouchers and recurring templates, accounting-period close, cost centres, bank reconciliation, payment proposals and payment files, sales/vendor invoices, debit and credit notes, the multi-currency stack (effective-dated rates, dual-currency postings, realised FX at settlement, period-end revaluation and presentation-currency reporting), and multi-entity/intercompany (entity-scoped posting, mirrored intercompany legs, reconciliation and consolidation with eliminations).",
+      "role": "Balanced double-entry posting (PostDoubleEntry), chart of accounts, journal vouchers and recurring templates, accounting-period close, cost centres, bank reconciliation, payment proposals and payment files, sales/vendor invoices, debit and credit notes, the multi-currency stack (effective-dated rates, dual-currency postings, realised FX at settlement, period-end revaluation and presentation-currency reporting), multi-entity/intercompany (entity-scoped posting, mirrored intercompany legs, reconciliation and consolidation with eliminations), and costing/valuation (moving-average item cost, landed cost allocation, real GRN/COGS GL posting).",
       "match": [
         "engines/finance.go",
         "engines/currency.go",
@@ -262,7 +262,9 @@
         "engines/currency_reports.go",
         "internal/server/handlers_currency_fx.go",
         "engines/intercompany.go",
-        "internal/server/handlers_intercompany.go"
+        "internal/server/handlers_intercompany.go",
+        "engines/costing.go",
+        "internal/server/handlers_costing.go"
       ]
     },
     {

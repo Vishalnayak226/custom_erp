@@ -81,9 +81,16 @@ func FinalizePOSCheckout(tenantID, cartNumber, correlationID string) (saleTotal 
 	for i, item := range cart.Items {
 		itemsInterface[i] = map[string]interface{}{"sku": item.Sku, "qty": -item.Qty}
 		totalSalePaise += RupeesToPaise(item.SalePrice) * int64(item.Qty)
-		totalCostPaise += RupeesToPaise(item.CostPrice) * int64(item.Qty)
+		// Stage 37.3.3: a real moving-average cost (engines/costing.go) wins
+		// over the client-submitted cost_price, which until this stage was
+		// the ONLY cost ever posted to COGS - unverified against anything.
+		// An item with no receipt history yet falls back to the client's own
+		// figure unchanged, so nothing here changes behaviour for a tenant
+		// that has never used GRN-based receiving.
+		resolvedCostPaise := ResolveCOGSUnitCostPaise(tenantID, item.Sku, item.CostPrice)
+		totalCostPaise += resolvedCostPaise * int64(item.Qty)
 		totalSaleRupees += int(item.SalePrice) * item.Qty
-		totalCostRupees += int(item.CostPrice) * item.Qty
+		totalCostRupees += int(PaiseToRupees(resolvedCostPaise)) * item.Qty
 	}
 
 	negativeEvents, err := PostInventoryLedgerWithVoucher(tenantID, cart.Location, itemsInterface, cart.OfflineSynced, "POSInvoice", cartNumber, cashier)

@@ -168,6 +168,34 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 		if err != nil {
 			return negativeEvents, err
 		}
+
+		// Stage 37.3: cost the receipt and post the GRN's real GL entry
+		// (Dr 1200 Inventory / Cr 2100 GRN Suspense) - see
+		// RecordGRNReceiptCosting's own comment for why this closes a
+		// previously-total gap (nothing has ever credited 2100) and why a
+		// failure here must never unwind stock that has already posted
+		// above, the identical "goods are already in the building" posture
+		// the batch/serial registration loops below already take.
+		costingLines := make([]struct {
+			SKU string
+			Qty float64
+		}, 0, len(acceptedItems))
+		for _, raw := range acceptedItems {
+			m, ok := raw.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			sku, _ := m["sku"].(string)
+			qty := numFromInterface(m["qty"])
+			if sku == "" || qty <= 0 {
+				continue
+			}
+			costingLines = append(costingLines, struct {
+				SKU string
+				Qty float64
+			}{SKU: sku, Qty: qty})
+		}
+		RecordGRNReceiptCosting(tenantID, schema, grnID, costingLines)
 	}
 
 	if len(qcSplits) > 0 {

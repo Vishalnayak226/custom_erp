@@ -44,6 +44,27 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 120. Stage 37.3 — Costing & valuation, incl. landed cost allocation (2026-09-01, code + schema)
+
+Pre-build audit found this codebase had NO costing method anywhere - `StockLedgerEntry`/`bin_stock`/`inventory_availability` track quantity only. Two real, previously-undiscovered gaps fell out of that audit and are closed by this stage, not just the checklist's own "5 sub-items":
+
+- **POS checkout's "COGS" was never real.** `PostSalesFinanceBooking` posted `Dr 5100/Cr 1200` using whatever `cost_price` the client's cart JSON happened to send - unverified against anything, effectively a placeholder.
+- **`2100` GRN Suspense had never been credited by anything.** `PostGRNFinanceBooking` (the intended Dr 1200/Cr 2100 GRN-receipt posting) was dead code with zero callers, while `PayVendorInvoice`'s debit to `2100` has been running the whole time - meaning every vendor payment this system has ever posted has driven that account further into an incorrect balance, with nothing on the other side.
+
+**Design**: a single company-wide (not per-location) moving-weighted-average unit cost per item (`item_cost`, `engines/costing.go`) - the Ind AS 2/AS 2 acceptable method, avoiding FIFO/LIFO layer tracking this codebase has no infrastructure for. The average only moves on receipt (a GRN, or a landed-cost top-up applied once a freight/customs bill arrives later) - never on issue - so nothing needed to intercept this codebase's many stock-out paths to stay correct; a real "current value" is computed at report time by multiplying real on-hand qty against the stored rate instead.
+
+- **37.3.1** `item_cost` + the moving-average engine.
+- **37.3.2** `LandedCostVoucher` (Draft → Applied, one-shot) - spreads charge lines proportionally by each GRN line's own base value, posting `Dr 1200 / Cr 2110` (new Landed Cost Clearing account).
+- **37.3.3** `ResolveCOGSUnitCostPaise` wired into `FinalizePOSCheckout` - a real cost wins over the client-submitted figure; an uncosted item falls back unchanged, so nothing changes for a tenant that has never used GRN-based receiving.
+- **37.3.4** `GetInventoryValuation` report - on-hand qty × the current rate, computed fresh rather than tracked as a parallel pool.
+- **37.3.5** `RecordGRNReceiptCosting`, hooked into `PostGRNReceiptWithQC` - resolves each line's ex-GST base cost from the GRN's own PO (reusing `PreviewPurchaseOrder`'s existing GST-aware taxable computation) and posts `Dr 1200 / Cr 2100` - the missing credit side of the 2100 gap above.
+- **Surface/schema**: additive `db/migrations_stage37_3_costing_valuation.sql` (dev only, surgical apply). New `engines/costing.go` + `costing_test.go`, `internal/server/handlers_costing.go`, 2 routes, 1 GL account, 1 report.
+- **Stated limitations**: company-wide not per-location costing; a landed cost voucher applied after intervening activity spreads over the item's *current* pool using the original GRN qty as the weight (an approximation once the pool has moved on); GST input credit (1500) is deliberately not recognised at GRN time (GST law ties it to a matched tax invoice, not a PO estimate) - a separate, pre-existing VendorInvoice-side gap, not attempted here.
+- **Verified**: `go build ./...`/`go vet ./...`/`node --check public/app.js` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage373CostingValuation`. **Live over HTTP** (port 9261, stopped afterward): a real Item + Approved PO + GRN created via the actual `POST /api/v1/doc/GRN` path, correct item_cost and 1200/2100 GL entries, a landed cost voucher created and applied over HTTP with correct 1200/2110 entries and average-cost top-up, and the `inventory-valuation` report reading back the right figure. Every fixture hard-deleted afterward, zero residue confirmed.
+- **Next**: 37.4 (budgeting, cash-flow forecast, credit limits, dunning), then 37.5-37.11 in plan order, then Stage 38's remaining 38.4/38.6/38.7.
+
+---
+
 ## 119. Stage 37.2 — Multi-entity & intercompany: entity-scoped posting, mirrored entries, reconciliation, consolidation (2026-09-01, code + schema)
 
 User asked to build the remaining open Stage 37/38 backlog, starting with 37.2 (the largest ERP-core item still open after 37.1's multi-currency work closed). `LegalEntity` (Stage 17.9) already existed as a Master, linked from `Location.legal_entity`, but nothing transacted across entities — this closes that gap entirely inside one tenant's schema (confirmed via `engines/saas.go` that one schema = one tenant = one consolidation group; there is no cross-tenant consolidation model in this codebase and this stage does not invent one).
