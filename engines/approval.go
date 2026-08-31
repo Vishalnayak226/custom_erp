@@ -369,6 +369,14 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		postApprovedJournalVoucher(tenantID, docID)
 	}
 
+	// Stage 37.2.2: an Approved IntercompanyTransaction posts its two
+	// mirrored entity legs here, the same "the approval decision itself is
+	// the authorization to post" reasoning JournalVoucher's own hook above
+	// uses.
+	if doctype == "IntercompanyTransaction" && decision == "Approved" {
+		postApprovedIntercompanyTransaction(tenantID, docID)
+	}
+
 	// Stage 26.7.5: an Approved LoyaltyRedemptionRequest (a staff-restricted
 	// large burn that VerifyAndRedeemLoyaltyOTP routed here instead of
 	// redeeming immediately) actually burns the points here.

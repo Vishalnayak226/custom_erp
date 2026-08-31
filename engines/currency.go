@@ -181,6 +181,12 @@ func ValidateParityFoundationDocument(tenantID, doctype string, payload map[stri
 		return ValidateCurrencyDocument(payload)
 	case "ExchangeRate":
 		return ValidateExchangeRateDocument(payload)
+	// Stage 37.2.2: joins here for the same reason 36.4's PIM doctypes do -
+	// a generic-API write to IntercompanyTransaction is subject to the same
+	// referential checks CreateIntercompanyTransaction's dedicated path
+	// enforces.
+	case "IntercompanyTransaction":
+		return ValidateIntercompanyTransactionDocument(tenantID, payload)
 	default:
 		return nil
 	}

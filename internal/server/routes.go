@@ -508,6 +508,16 @@ func Run() {
 	http.HandleFunc("POST /api/v1/finance/journal-voucher/{id}/retry-post", apiMiddleware(handleRetryPostJournalVoucher))
 	http.HandleFunc("POST /api/v1/finance/journal-voucher/recurring", apiMiddleware(handleCreateRecurringJournalTemplate))
 
+	// Multi-entity & intercompany (Stage 37.2.2). Submit-for-approval/
+	// approve/reject reuse the generic /api/v1/approval/submit|decide
+	// endpoints below (doctype "IntercompanyTransaction") - no new endpoint
+	// needed for that part. The three new reports (entity-trial-balance,
+	// intercompany-reconciliation, consolidated-trial-balance) need no
+	// route either - they are registered ReportDefinitions served by the
+	// generic report catalog, the same posture 37.1.5 already took.
+	http.HandleFunc("POST /api/v1/finance/intercompany-transaction", apiMiddleware(handleCreateIntercompanyTransaction))
+	http.HandleFunc("POST /api/v1/finance/intercompany-transaction/{id}/retry-post", apiMiddleware(handleRetryPostIntercompanyTransaction))
+
 	// Approval / Workflow Engine (maker-checker)
 	http.HandleFunc("POST /api/v1/approval/submit", apiMiddleware(handleSubmitApproval))
 	http.HandleFunc("POST /api/v1/approval/decide", apiMiddleware(handleDecideApproval))

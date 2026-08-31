@@ -60,6 +60,14 @@ type PostingOptions struct {
 	ExchangeRate       float64
 	TransactionDebits  map[string]float64
 	TransactionCredits map[string]float64
+	// Stage 37.2.1. Entity is a LegalEntity document id - another
+	// whole-posting dimension, the same shape as CostCenter/Department. A
+	// mirrored intercompany posting (engines/intercompany.go) is the reason
+	// this exists: its two legs tag two DIFFERENT entities, which is why
+	// they must be two separate PostDoubleEntry calls rather than one -
+	// this field, like CostCenter/Department, applies to every line a
+	// single call inserts.
+	Entity string
 }
 
 // PostDoubleEntry writes balanced debit/credit transactions to the GL
@@ -102,12 +110,18 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 	if err := validateDepartmentReference(tenantID, opt.Department); err != nil {
 		return err
 	}
-	var costCenterArg, departmentArg interface{}
+	if err := validateLegalEntityReference(tenantID, opt.Entity); err != nil {
+		return err
+	}
+	var costCenterArg, departmentArg, entityArg interface{}
 	if opt.CostCenter != "" {
 		costCenterArg = opt.CostCenter
 	}
 	if opt.Department != "" {
 		departmentArg = opt.Department
+	}
+	if opt.Entity != "" {
+		entityArg = opt.Entity
 	}
 
 	sumDebits := int64(0)
@@ -180,10 +194,10 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 			continue
 		}
 		query := fmt.Sprintf(`
-			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_debit)
-			VALUES ($1, $2, 0, $3, $4, $5, $6, $7, $8, $9, $10)`, schema)
+			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_debit, entity)
+			VALUES ($1, $2, 0, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, schema)
 		_, err := tx.Exec(query, code, val, docType, docID, keyArg, costCenterArg, departmentArg,
-			currencyArg, rateArg, transactionAmount(opt.TransactionDebits, code, val))
+			currencyArg, rateArg, transactionAmount(opt.TransactionDebits, code, val), entityArg)
 		if err != nil {
 			return fmt.Errorf("error posting debit for account %s: %v", code, err)
 		}
@@ -195,10 +209,10 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 			continue
 		}
 		query := fmt.Sprintf(`
-			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_credit)
-			VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, schema)
+			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_credit, entity)
+			VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, schema)
 		_, err := tx.Exec(query, code, val, docType, docID, keyArg, costCenterArg, departmentArg,
-			currencyArg, rateArg, transactionAmount(opt.TransactionCredits, code, val))
+			currencyArg, rateArg, transactionAmount(opt.TransactionCredits, code, val), entityArg)
 		if err != nil {
 			return fmt.Errorf("error posting credit for account %s: %v", code, err)
 		}
@@ -238,6 +252,18 @@ func currencyPostingArgs(tenantID string, opt PostingOptions) (currency interfac
 // top of finance_reports_stage26.go: a cast wraps the indexed column in a
 // function call, which can never be a range seek, so the sargable spelling is
 // what actually lets idx_gl_postings_account_created serve this.
+// AccountBalance is one GetTrialBalance row - package-scoped (not declared
+// inside the function) so Stage 37.2.5's GetConsolidatedTrialBalance can
+// consume "balances" back out of the map by its real type instead of
+// re-querying the identical SQL a second time.
+type AccountBalance struct {
+	Code   string  `json:"account_code"`
+	Name   string  `json:"account_name"`
+	Type   string  `json:"account_type"`
+	Debit  float64 `json:"debit"`
+	Credit float64 `json:"credit"`
+}
+
 func GetTrialBalance(tenantID, asOfDate string) (map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -268,13 +294,6 @@ func GetTrialBalance(tenantID, asOfDate string) (map[string]interface{}, error) 
 		Type   string
 		Debit  int64
 		Credit int64
-	}
-	type AccountBalance struct {
-		Code   string  `json:"account_code"`
-		Name   string  `json:"account_name"`
-		Type   string  `json:"account_type"`
-		Debit  float64 `json:"debit"`
-		Credit float64 `json:"credit"`
 	}
 
 	var balances []AccountBalance
