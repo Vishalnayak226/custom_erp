@@ -804,7 +804,15 @@ func handleTrialBalance(w http.ResponseWriter, r *http.Request) {
 	// message naming the missing parameter rather than a bare 400.
 	asOf := r.URL.Query().Get("as_of")
 
-	res, err := engines.GetTrialBalance(tenantID, asOf)
+	// Stage 37.5.1: optional dimension narrowing, additive query params - an
+	// existing caller that never sends any of these gets the identical
+	// whole-tenant trial balance it always has.
+	filter := engines.FinancialReportFilter{
+		CostCenter: r.URL.Query().Get("cost_center"),
+		Department: r.URL.Query().Get("department"),
+		Entity:     r.URL.Query().Get("entity"),
+	}
+	res, err := engines.GetTrialBalance(tenantID, asOf, filter)
 	if err != nil {
 		// writeEngineError already routes a coded *ValidationError through the
 		// catalog and everything else to the fallback status.

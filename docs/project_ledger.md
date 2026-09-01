@@ -44,6 +44,20 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 122. Stage 37.5 — Financial statement builder with dimensions and drill-down (2026-09-01, code only)
+
+Pre-build audit found the codebase's own `ReportDefinition` framework explicitly rejects user-authored query/layout flexibility as an injection-risk feature outside its stated scope - so "builder" here is scoped to extending the existing hardcoded Trial Balance/P&L/Balance Sheet with dimension filters and drill-down, not a new statement-layout doctype (which would be the first violation of that stated principle). `gl_accounts` is also confirmed flat (5 basic types, never altered since Stage 1) - a full multi-section layout is a separate, larger undertaking not attempted here.
+
+- **37.5.1** `FinancialReportFilter{CostCenter, Department, Entity}` - the `PostingOptions` variadic precedent - added to `GetTrialBalance`, `GetProfitAndLoss`, `GetBalanceSheet`. The filter lives inside each `LEFT JOIN`'s own `ON` clause, not a `WHERE`, so a filtered statement still lists zero-balance accounts.
+- **37.5.2** `GetDepartmentPL` - the one dimension (of cost_center/department/entity) with no dimensioned P&L before this.
+- **37.5.3** `financialStatementDrillDown` wired onto `profit-and-loss`/`balance-sheet` - the real postings behind a clicked line, honoring whatever dimension filter was active.
+- **37.5.4** `dimensionPLDrillDown` wired onto `cost-center-pl`/`department-pl`, including the "Unassigned" bucket.
+- **Surface/schema**: no migration - pure code change. Modified `engines/finance.go`, `finance_reports_stage26.go`, `gl_cost_center.go`, `internal/server/handlers_pim_pos_finance.go`. New `engines/finance_statement_builder_test.go`. 1 new report (`department-pl`); 3 existing reports gained drill-down for the first time.
+- **Verified**: `go build ./...`/`go vet ./...`/`node --check public/app.js` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage375FinancialStatementBuilder`. **Live over HTTP** (port 9263, stopped afterward): a cost-center-tagged voucher, the filtered P&L showing exactly that cost center's activity, its drill-down returning the one matching posting, and `department-pl` responding with drill-down enabled. Every fixture hard-deleted afterward, zero residue confirmed.
+- **Next**: 37.6 (deferred revenue, prepaid amortisation, recurring billing, price-list versioning), then 37.7-37.11 in plan order, then Stage 38's remaining 38.4/38.6/38.7.
+
+---
+
 ## 121. Stage 37.4 — Budgeting, cash-flow forecast, credit limits, dunning (2026-09-01, code + schema)
 
 Pre-build audit found all four completely absent, and one structural finding shaped the whole design: neither `SalesOrder` nor `SalesInvoice` carries a real `Customer` Link - customer identity flows as a free-text name throughout, the same convention `GetCustomerLedgerReport` already relies on. Credit-limit matching (37.4.2) inherits that name-based convention rather than adding a second, inconsistent identity model - a real Link-based rework of customer identity across these doctypes is a materially larger, separate undertaking.

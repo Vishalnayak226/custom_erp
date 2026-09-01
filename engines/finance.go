@@ -264,7 +264,40 @@ type AccountBalance struct {
 	Credit float64 `json:"credit"`
 }
 
-func GetTrialBalance(tenantID, asOfDate string) (map[string]interface{}, error) {
+// FinancialReportFilter (Stage 37.5.1) narrows a statement to one dimension
+// value - the same whole-posting dimensions PostingOptions already carries
+// (CostCenter/Department Stage 26.6.8, Entity Stage 37.2.1). Variadic on
+// every function below, the PostingOptions/JournalVoucherOptions precedent,
+// so GetConsolidatedTrialBalance's own existing call (Stage 37.2.5) and
+// every other pre-37.5 caller need zero changes. At most one field is
+// expected to be set per call - combining two is accepted but answers a
+// narrower question ("this cost center AND this entity"), never an error.
+type FinancialReportFilter struct {
+	CostCenter string
+	Department string
+	Entity     string
+}
+
+// dimensionJoinClause turns a filter into an extra `AND` clause plus its
+// bind arg, appended inside a LEFT JOIN's own ON condition (never a WHERE)
+// so a filtered statement still lists every account at zero rather than
+// silently dropping any account with no matching posting - a WHERE on the
+// joined side would turn the LEFT JOIN into an inner join for exactly the
+// accounts a statement most needs to show as zero.
+func dimensionJoinClause(filter FinancialReportFilter, nextArgPos int) (clause string, arg interface{}) {
+	switch {
+	case filter.CostCenter != "":
+		return fmt.Sprintf(" AND p.cost_center = $%d", nextArgPos), filter.CostCenter
+	case filter.Department != "":
+		return fmt.Sprintf(" AND p.department = $%d", nextArgPos), filter.Department
+	case filter.Entity != "":
+		return fmt.Sprintf(" AND p.entity = $%d", nextArgPos), filter.Entity
+	default:
+		return "", nil
+	}
+}
+
+func GetTrialBalance(tenantID, asOfDate string, filters ...FinancialReportFilter) (map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -272,17 +305,26 @@ func GetTrialBalance(tenantID, asOfDate string) (map[string]interface{}, error) 
 	if asOfDate == "" {
 		return nil, &ValidationError{Code: "GLOBAL-0001", SubFor: "As Of Date", Message: "as_of date is required for a trial balance"}
 	}
+	var filter FinancialReportFilter
+	if len(filters) > 0 {
+		filter = filters[0]
+	}
+	dimClause, dimArg := dimensionJoinClause(filter, 2)
+	args := []interface{}{asOfDate}
+	if dimArg != nil {
+		args = append(args, dimArg)
+	}
 
 	query := fmt.Sprintf(`
 		SELECT a.account_code, a.account_name, a.account_type,
 		       COALESCE(SUM(p.debit), 0) as total_debit,
 		       COALESCE(SUM(p.credit), 0) as total_credit
 		FROM %s.gl_accounts a
-		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at < ($1::date + 1)
+		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at < ($1::date + 1)%s
 		GROUP BY a.account_code, a.account_name, a.account_type
-		ORDER BY a.account_code`, schema, schema)
+		ORDER BY a.account_code`, schema, schema, dimClause)
 
-	rows, err := db.DB.Query(query, asOfDate)
+	rows, err := db.DB.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

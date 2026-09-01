@@ -32,7 +32,7 @@ import (
 // GetProfitAndLoss sums Revenue and Expense account activity between
 // [startDate, endDate] (inclusive, "YYYY-MM-DD"). Revenue's natural balance
 // is credit, Expense's is debit - both are reported as positive numbers.
-func GetProfitAndLoss(tenantID, startDate, endDate string) ([]map[string]interface{}, error) {
+func GetProfitAndLoss(tenantID, startDate, endDate string, filters ...FinancialReportFilter) ([]map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -40,15 +40,24 @@ func GetProfitAndLoss(tenantID, startDate, endDate string) ([]map[string]interfa
 	if startDate == "" || endDate == "" {
 		return nil, fmt.Errorf("start and end are required")
 	}
+	var filter FinancialReportFilter
+	if len(filters) > 0 {
+		filter = filters[0]
+	}
+	dimClause, dimArg := dimensionJoinClause(filter, 3)
+	args := []interface{}{startDate, endDate}
+	if dimArg != nil {
+		args = append(args, dimArg)
+	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT a.account_code, a.account_name, a.account_type,
 		       CASE WHEN a.account_type = 'Revenue' THEN COALESCE(SUM(p.credit), 0) - COALESCE(SUM(p.debit), 0)
 		            ELSE COALESCE(SUM(p.debit), 0) - COALESCE(SUM(p.credit), 0) END AS amount
 		FROM %s.gl_accounts a
-		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at >= $1::date AND p.created_at < ($2::date + 1)
+		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at >= $1::date AND p.created_at < ($2::date + 1)%s
 		WHERE a.account_type IN ('Revenue', 'Expense')
 		GROUP BY a.account_code, a.account_name, a.account_type
-		ORDER BY a.account_type, a.account_code`, schema, schema), startDate, endDate)
+		ORDER BY a.account_type, a.account_code`, schema, schema, dimClause), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +99,7 @@ func GetProfitAndLoss(tenantID, startDate, endDate string) ([]map[string]interfa
 // Expense activity for the current open period is not rolled into Equity.
 // A known simplification, the same spirit as this system's other reports
 // (e.g. GetPayablesAgeingReport's own documented approximation).
-func GetBalanceSheet(tenantID, asOfDate string) ([]map[string]interface{}, error) {
+func GetBalanceSheet(tenantID, asOfDate string, filters ...FinancialReportFilter) ([]map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -98,15 +107,24 @@ func GetBalanceSheet(tenantID, asOfDate string) ([]map[string]interface{}, error
 	if asOfDate == "" {
 		return nil, fmt.Errorf("as_of date is required")
 	}
+	var filter FinancialReportFilter
+	if len(filters) > 0 {
+		filter = filters[0]
+	}
+	dimClause, dimArg := dimensionJoinClause(filter, 2)
+	args := []interface{}{asOfDate}
+	if dimArg != nil {
+		args = append(args, dimArg)
+	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT a.account_code, a.account_name, a.account_type,
 		       CASE WHEN a.account_type = 'Asset' THEN COALESCE(SUM(p.debit), 0) - COALESCE(SUM(p.credit), 0)
 		            ELSE COALESCE(SUM(p.credit), 0) - COALESCE(SUM(p.debit), 0) END AS amount
 		FROM %s.gl_accounts a
-		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at < ($1::date + 1)
+		LEFT JOIN %s.gl_postings p ON a.account_code = p.account_code AND p.created_at < ($1::date + 1)%s
 		WHERE a.account_type IN ('Asset', 'Liability', 'Equity')
 		GROUP BY a.account_code, a.account_name, a.account_type
-		ORDER BY a.account_type, a.account_code`, schema, schema), asOfDate)
+		ORDER BY a.account_type, a.account_code`, schema, schema, dimClause), args...)
 	if err != nil {
 		return nil, err
 	}
@@ -356,6 +374,69 @@ func GetStatutoryGLExport(tenantID, startDate, endDate string) ([]map[string]int
 	return out, nil
 }
 
+// financialStatementDrillDown (Stage 37.5.3) shows the individual gl_postings
+// rows behind one P&L/Balance Sheet line - rowKey is the account_code the
+// user clicked. startDate is blank for a Balance Sheet (as-of, from the
+// beginning of the ledger) and set for a P&L (its own period). Honors
+// whatever dimension filter the parent statement was run with, so drilling
+// into a cost-center-filtered P&L shows exactly the postings that filtered
+// view summed, not the account's unfiltered activity.
+func financialStatementDrillDown(tenantID, accountCode, startDate, endDate string, filter FinancialReportFilter) ([]map[string]interface{}, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if accountCode == "" {
+		return nil, fmt.Errorf("account_code is required")
+	}
+	args := []interface{}{accountCode, endDate}
+	dateClause := "p.created_at < ($2::date + 1)"
+	if startDate != "" {
+		dateClause = "p.created_at >= $2::date AND p.created_at < ($3::date + 1)"
+		args = []interface{}{accountCode, startDate, endDate}
+	}
+	dimClause, dimArg := dimensionJoinClause(filter, len(args)+1)
+	if dimArg != nil {
+		args = append(args, dimArg)
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT document_type, document_id, debit, credit, created_at FROM %s.gl_postings p
+		WHERE p.account_code = $1 AND %s%s ORDER BY p.created_at ASC`, schema, dateClause, dimClause), args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []map[string]interface{}
+	for rows.Next() {
+		var docType, docID string
+		var debitPaise, creditPaise int64
+		var createdAt time.Time
+		if err := rows.Scan(&docType, &docID, &debitPaise, &creditPaise, &createdAt); err != nil {
+			return nil, err
+		}
+		out = append(out, map[string]interface{}{
+			"document_type": docType, "document_id": docID,
+			"debit": PaiseToRupees(debitPaise), "credit": PaiseToRupees(creditPaise), "created_at": createdAt,
+		})
+	}
+	if out == nil {
+		out = []map[string]interface{}{}
+	}
+	return out, nil
+}
+
+// financialReportFilterFromParams reads the three optional dimension
+// ReportParams (Stage 37.5.1) a generic report-run request may carry.
+func financialReportFilterFromParams(params map[string]string) FinancialReportFilter {
+	return FinancialReportFilter{CostCenter: params["cost_center"], Department: params["department"], Entity: params["entity"]}
+}
+
+var dimensionReportParams = []ReportParam{
+	{Key: "cost_center", Label: "Cost Center (optional)", Type: "text", Required: false},
+	{Key: "department", Label: "Department (optional)", Type: "text", Required: false},
+	{Key: "entity", Label: "Entity (optional)", Type: "text", Required: false},
+}
+
 func init() {
 	RegisterReport(ReportDefinition{
 		ID: "profit-and-loss", Label: "Profit & Loss", Category: "Finance",
@@ -363,12 +444,15 @@ func init() {
 			{Key: "account_code", Label: "Account Code"}, {Key: "account_name", Label: "Account Name"},
 			{Key: "account_type", Label: "Type"}, {Key: "amount", Label: "Amount", Sensitive: true},
 		},
-		Params: []ReportParam{
+		Params: append([]ReportParam{
 			{Key: "start", Label: "From", Type: "date", Required: true},
 			{Key: "end", Label: "To", Type: "date", Required: true},
-		},
+		}, dimensionReportParams...),
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
-			return GetProfitAndLoss(tenantID, params["start"], params["end"])
+			return GetProfitAndLoss(tenantID, params["start"], params["end"], financialReportFilterFromParams(params))
+		},
+		DrillDown: func(tenantID, rowKey string, params map[string]string) ([]map[string]interface{}, error) {
+			return financialStatementDrillDown(tenantID, rowKey, params["start"], params["end"], financialReportFilterFromParams(params))
 		},
 	})
 
@@ -378,9 +462,14 @@ func init() {
 			{Key: "account_code", Label: "Account Code"}, {Key: "account_name", Label: "Account Name"},
 			{Key: "account_type", Label: "Type"}, {Key: "amount", Label: "Amount", Sensitive: true},
 		},
-		Params: []ReportParam{{Key: "as_of", Label: "As Of", Type: "date", Required: true}},
+		Params: append([]ReportParam{
+			{Key: "as_of", Label: "As Of", Type: "date", Required: true},
+		}, dimensionReportParams...),
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
-			return GetBalanceSheet(tenantID, params["as_of"])
+			return GetBalanceSheet(tenantID, params["as_of"], financialReportFilterFromParams(params))
+		},
+		DrillDown: func(tenantID, rowKey string, params map[string]string) ([]map[string]interface{}, error) {
+			return financialStatementDrillDown(tenantID, rowKey, "", params["as_of"], financialReportFilterFromParams(params))
 		},
 	})
 
