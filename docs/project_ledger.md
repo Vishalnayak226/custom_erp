@@ -44,6 +44,21 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 126. Stage 37.9 — Quality & maintenance: inspection plans, CoA, NCR/CAPA, preventive maintenance (2026-09-01, code + schema)
+
+Pre-build audit found all four completely absent. GRN receiving's own QC (Stage 26.5.2) is a pure quantity split with no structured per-item test list, so `PostGRNReceiptWithQC` is deliberately left untouched. `ReasonCode` is reused as-is for NCR root-cause (a new "Quality" category value).
+
+- **37.9.1**: `InspectionPlan` - a pure generic-document Master: per-item test parameters + sample size.
+- **37.9.2**: `CertificateOfAnalysis` - Draft→Released/Rejected, `overall_result` derived (any Fail fails the whole CoA), Release refused on Fail. Rejection reuses `TransitionBinStockCondition`/`bin_stock_batch` quarantine (Stage 42.1). **Real bug caught by this stage's own test**: the first draft moved only the parent `bin_stock` aggregate, never the `bin_stock_batch` sub-ledger, which `moveBatchStockCondition`'s own doc comment says is required together with the parent call.
+- **37.9.3**: `NonConformanceReport` (NCR/CAPA) - Draft→Investigating→CorrectiveActionPlanned→Closed, root cause validated against an Active Quality `ReasonCode`, corrective action required before closing.
+- **37.9.4**: `MaintenanceSchedule` + `MaintenanceOrder` - the `RecurringSalesContract` spawn-a-document shape, not the dunning-style notify-only scan, since preventive maintenance needs an actionable work item.
+- **Surface/schema**: additive `db/migrations_stage37_9_quality_maintenance.sql` (dev only). New `engines/quality_maintenance.go` (+`_test.go`), `internal/server/handlers_quality_maintenance.go`, 10 routes, 1 worker.
+- **A second, more consequential gap found during this stage's own live-HTTP pass, affecting Stage 37.8 too**: neither `quality` nor `service` was ever registered as a real `module_key` (`public.modules`/`module_entitlements`) - the same registration Stage 27 had to add for `wms`/`oms`. The generic document-create path checks module entitlement per request and refused `InspectionPlan`/`MaintenanceSchedule`/37.8's `ServiceContract` with `SAAS-0191` the whole time; dedicated-route doctypes (`ServiceTicket`, `CertificateOfAnalysis`, `NonConformanceReport`) were unaffected, which is why 37.8's own live check didn't surface it. Fixed in this stage's migration (registers both module keys, backfills every schema) rather than a separate follow-up - re-verified live that both `ServiceContract` and `MaintenanceSchedule` now create successfully.
+- **Verified**: `go build ./...`/`go vet ./...`/`node --check public/app.js` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage379QualityMaintenance` (CoA derivation + the quarantine bug catch, NCR's full lifecycle, maintenance scheduling + order lifecycle). **Live over HTTP** (port 9267, stopped afterward): a Fail CoA's release refused, Reject correctly quarantining both bins holding the batch in both `bin_stock` and `bin_stock_batch` (confirmed via direct SQL), the full NCR lifecycle (which surfaced the `ReasonCode.category` closed-vocabulary gap, fixed in the same migration), and - after the module-registration fix - a real Asset/MaintenanceSchedule/ServiceContract all creating successfully via the generic doc API. Every fixture hard-deleted afterward, zero residue confirmed.
+- **Next**: 37.10 (planning depth), then 37.11, then Stage 38's remaining 38.4/38.6/38.7.
+
+---
+
 ## 125. Stage 37.8 — Service management (2026-09-01, code + schema)
 
 Pre-build audit found no ServiceTicket/WorkOrder/AMC concept anywhere. WarehouseTask's dispatch spine (Stage 42.2) is WMS-specific and not directly reusable as an object, but its lifecycle PATTERN - typed status enum, terminal-state guard, reason-required transitions - is what ServiceTicket's own dedicated engine functions copy, the same shape IntercompanyTransaction/LandedCostVoucher/PrepaidExpenseSchedule already use this session.

@@ -141,6 +141,11 @@ func Run() {
 	// per due RecurringSalesContract.
 	engines.StartRecurringBillingWorker(workerCtx, 1*time.Hour)
 
+	// Start Maintenance Scheduling Worker (Stage 37.9.4) - the identical
+	// pattern, spawning a Scheduled MaintenanceOrder per due
+	// MaintenanceSchedule.
+	engines.StartMaintenanceSchedulingWorker(workerCtx, 1*time.Hour)
+
 	// Start Campaign Worker (Stage 26.7.4) - daily-granularity scan for
 	// Active campaigns whose birthday/lapsed-customer trigger newly
 	// matches a customer.
@@ -548,6 +553,20 @@ func Run() {
 	http.HandleFunc("POST /api/v1/service/ticket/{id}/resolve", apiMiddleware(handleResolveServiceTicket))
 	http.HandleFunc("POST /api/v1/service/ticket/{id}/close", apiMiddleware(handleCloseServiceTicket))
 	http.HandleFunc("POST /api/v1/service/ticket/{id}/cancel", apiMiddleware(handleCancelServiceTicket))
+
+	// Quality & maintenance (Stage 37.9). InspectionPlan/MaintenanceSchedule
+	// are read/list/create via the generic doc API - only lifecycle actions
+	// need routes here.
+	http.HandleFunc("POST /api/v1/quality/coa", apiMiddleware(handleCreateCertificateOfAnalysis))
+	http.HandleFunc("POST /api/v1/quality/coa/{id}/release", apiMiddleware(handleReleaseCertificateOfAnalysis))
+	http.HandleFunc("POST /api/v1/quality/coa/{id}/reject", apiMiddleware(handleRejectCertificateOfAnalysis))
+	http.HandleFunc("POST /api/v1/quality/ncr", apiMiddleware(handleCreateNonConformanceReport))
+	http.HandleFunc("POST /api/v1/quality/ncr/{id}/investigate", apiMiddleware(handleInvestigateNonConformanceReport))
+	http.HandleFunc("POST /api/v1/quality/ncr/{id}/plan-corrective-action", apiMiddleware(handlePlanCorrectiveAction))
+	http.HandleFunc("POST /api/v1/quality/ncr/{id}/close", apiMiddleware(handleCloseNonConformanceReport))
+	http.HandleFunc("POST /api/v1/quality/maintenance-order/{id}/start", apiMiddleware(handleStartMaintenanceOrder))
+	http.HandleFunc("POST /api/v1/quality/maintenance-order/{id}/complete", apiMiddleware(handleCompleteMaintenanceOrder))
+	http.HandleFunc("POST /api/v1/quality/maintenance-order/{id}/cancel", apiMiddleware(handleCancelMaintenanceOrder))
 
 	// Approval / Workflow Engine (maker-checker)
 	http.HandleFunc("POST /api/v1/approval/submit", apiMiddleware(handleSubmitApproval))

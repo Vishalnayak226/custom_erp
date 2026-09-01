@@ -423,12 +423,14 @@
     {
       "id": "assets",
       "lobe": "business",
-      "name": "Fixed Assets & Service Management",
-      "role": "Capitalize → straight-line depreciate → transfer → dispose, with the asset register and its GL postings, plus service tickets (Draft→Assigned→InProgress→Resolved→Closed) and AMC service contracts with visit-entitlement tracking against those assets.",
+      "name": "Fixed Assets, Service & Quality Management",
+      "role": "Capitalize → straight-line depreciate → transfer → dispose, with the asset register and its GL postings; service tickets (Draft→Assigned→InProgress→Resolved→Closed) and AMC service contracts with visit-entitlement tracking against those assets; and quality/maintenance - inspection plans, certificates of analysis (with batch quarantine on rejection), non-conformance/CAPA, and preventive maintenance schedules against those same assets.",
       "match": [
         "engines/assets.go",
         "engines/service_management.go",
-        "internal/server/handlers_service_management.go"
+        "internal/server/handlers_service_management.go",
+        "engines/quality_maintenance.go",
+        "internal/server/handlers_quality_maintenance.go"
       ]
     },
     {
