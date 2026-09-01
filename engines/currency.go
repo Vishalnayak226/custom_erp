@@ -208,6 +208,8 @@ func ValidateParityFoundationDocument(tenantID, doctype string, payload map[stri
 		return ValidateRecurringSalesContractDocument(tenantID, payload)
 	case "PriceListVersion":
 		return ValidatePriceListVersionDocument(tenantID, payload)
+	case "ServiceContract":
+		return ValidateServiceContractDocument(tenantID, payload)
 	default:
 		return nil
 	}

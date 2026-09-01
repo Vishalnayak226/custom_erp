@@ -44,6 +44,20 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 125. Stage 37.8 — Service management (2026-09-01, code + schema)
+
+Pre-build audit found no ServiceTicket/WorkOrder/AMC concept anywhere. WarehouseTask's dispatch spine (Stage 42.2) is WMS-specific and not directly reusable as an object, but its lifecycle PATTERN - typed status enum, terminal-state guard, reason-required transitions - is what ServiceTicket's own dedicated engine functions copy, the same shape IntercompanyTransaction/LandedCostVoucher/PrepaidExpenseSchedule already use this session.
+
+- **37.8.1**: `ServiceTicket` (Draft→Assigned→InProgress→Resolved→Closed, Cancelled exit), each transition its own explicit guard - resolving requires written notes, cancelling requires a reason.
+- **37.8.2**: Technician assignment reuses `WarehouseTask.AssignedTo`'s bare-username convention, no Employee-link enforcement.
+- **37.8.3**: `ServiceContract` (AMC) - one asset per contract (stated scope decision), visit entitlement tracking consumed automatically when a linked ticket closes; optionally references a Stage 37.6 RecurringSalesContract for billing.
+- **37.8.4**: `GetServiceSLABreaches` (`service-sla-breaches`) - `GetSLABreaches`'s own reasoning applied to date-only respond/resolve-by fields, avoiding that function's own documented timezone history.
+- **Surface/schema**: additive `db/migrations_stage37_8_service_management.sql` (dev only). New `engines/service_management.go` (+`_test.go`), `internal/server/handlers_service_management.go`, 6 routes, 1 report.
+- **Verified**: `go build ./...`/`go vet ./...`/`node --check public/app.js` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage378ServiceManagement` (full lifecycle with every guard enforced, contract visit consumption + exhaustion, SLA breach classification). **Live over HTTP** (port 9266, stopped afterward): a real ServiceTicket created/assigned/started/resolved/closed via the actual routes (the no-notes resolve refusal confirmed live too), and the SLA breach report responding. Every fixture hard-deleted afterward, zero residue confirmed.
+- **Next**: 37.9 (quality & maintenance), then 37.10-37.11 in plan order, then Stage 38's remaining 38.4/38.6/38.7.
+
+---
+
 ## 124. Stage 37.7 — Projects & job costing (2026-09-01, code + schema)
 
 Pre-build audit found no Project concept anywhere, and confirmed the codebase's own conventions point to Project as a 4th whole-posting dimension (the CostCenter/Department/Entity precedent) rather than a WIP-style running-cost ledger, since every cost-incurring doctype here posts immediately - there is no accumulation stage to attach one to.

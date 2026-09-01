@@ -538,6 +538,17 @@ func Run() {
 	http.HandleFunc("POST /api/v1/finance/landed-cost-voucher", apiMiddleware(handleCreateLandedCostVoucher))
 	http.HandleFunc("POST /api/v1/finance/landed-cost-voucher/{id}/apply", apiMiddleware(handleApplyLandedCostVoucher))
 
+	// Service management (Stage 37.8). ServiceContract is read/list/create
+	// via the generic doc API - only ServiceTicket's dedicated lifecycle
+	// actions need routes. The SLA breach report needs no route either - a
+	// registered ReportDefinition served by the generic report catalog.
+	http.HandleFunc("POST /api/v1/service/ticket", apiMiddleware(handleCreateServiceTicket))
+	http.HandleFunc("POST /api/v1/service/ticket/{id}/assign", apiMiddleware(handleAssignServiceTicket))
+	http.HandleFunc("POST /api/v1/service/ticket/{id}/start", apiMiddleware(handleStartServiceTicket))
+	http.HandleFunc("POST /api/v1/service/ticket/{id}/resolve", apiMiddleware(handleResolveServiceTicket))
+	http.HandleFunc("POST /api/v1/service/ticket/{id}/close", apiMiddleware(handleCloseServiceTicket))
+	http.HandleFunc("POST /api/v1/service/ticket/{id}/cancel", apiMiddleware(handleCancelServiceTicket))
+
 	// Approval / Workflow Engine (maker-checker)
 	http.HandleFunc("POST /api/v1/approval/submit", apiMiddleware(handleSubmitApproval))
 	http.HandleFunc("POST /api/v1/approval/decide", apiMiddleware(handleDecideApproval))

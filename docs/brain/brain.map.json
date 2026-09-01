@@ -423,10 +423,12 @@
     {
       "id": "assets",
       "lobe": "business",
-      "name": "Fixed Assets",
-      "role": "Capitalize → straight-line depreciate → transfer → dispose, with the asset register and its GL postings.",
+      "name": "Fixed Assets & Service Management",
+      "role": "Capitalize → straight-line depreciate → transfer → dispose, with the asset register and its GL postings, plus service tickets (Draft→Assigned→InProgress→Resolved→Closed) and AMC service contracts with visit-entitlement tracking against those assets.",
       "match": [
-        "engines/assets.go"
+        "engines/assets.go",
+        "engines/service_management.go",
+        "internal/server/handlers_service_management.go"
       ]
     },
     {
