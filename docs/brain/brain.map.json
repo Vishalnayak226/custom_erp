@@ -300,14 +300,15 @@
       "id": "inventory",
       "lobe": "business",
       "name": "Inventory & Planning",
-      "role": "Stock ledger and Available-to-Sell read model (Available − Reserved − Safety Stock − Channel Holds), item lookup by SKU/barcode, location masters, transfer orders, and the replenishment/velocity/demand-forecast engines.",
+      "role": "Stock ledger and Available-to-Sell read model (Available − Reserved − Safety Stock − Channel Holds), item lookup by SKU/barcode, location masters, transfer orders, the replenishment/velocity/demand-forecast engines, and planning depth (trend-weighted forecasting, per-item reorder-point config, demand/supply pegging, and a report wired onto the existing production capacity scheduler).",
       "match": [
         "engines/inventory.go",
         "engines/item_lookup.go",
         "engines/transfer_orders.go",
         "engines/location_masters.go",
         "engines/optimization.go",
-        "engines/reservation_sweeper.go"
+        "engines/reservation_sweeper.go",
+        "engines/planning.go"
       ]
     },
     {

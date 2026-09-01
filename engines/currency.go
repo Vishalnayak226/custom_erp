@@ -214,6 +214,8 @@ func ValidateParityFoundationDocument(tenantID, doctype string, payload map[stri
 		return ValidateInspectionPlanDocument(tenantID, payload)
 	case "MaintenanceSchedule":
 		return ValidateMaintenanceScheduleDocument(tenantID, payload)
+	case "ReorderPointConfig":
+		return ValidateReorderPointConfigDocument(tenantID, payload)
 	default:
 		return nil
 	}

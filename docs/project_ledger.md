@@ -44,6 +44,20 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 127. Stage 37.10 — Planning depth: forecasting, reorder points, pegging, capacity (2026-09-01, code + schema)
+
+Pre-build audit found this ~60% already built under different names: `ForecastDemand`/`CalculateSalesVelocity` (real but naive), `GetReplenishmentSuggestions`/`GetMRPSuggestions` (reorder point from call-site parameters, not persisted config), `GetProductionSchedule` (already a genuine finite-capacity scheduler, never wired to a report). Pegging was the one genuinely new piece. Every new function is a sibling of an existing one - originals untouched.
+
+- **37.10.1**: `CalculateWeightedVelocity` + `ForecastDemandTrend` - a trend-aware forecast alongside the existing flat one. Report `demand-forecast`.
+- **37.10.2**: `ReorderPointConfig` - persisted per-(item, location) lead-time/safety-stock override, consulted by the new `GetReplenishmentSuggestionsConfigured` sibling. Report `reorder-suggestions`.
+- **37.10.3**: `GetPeggedDemand` - real pegging visibility (open SalesOrderLines vs on-hand + Approved-PO supply), deliberately read-only, not auto-allocation. Report `pegged-demand-supply`.
+- **37.10.4**: `GetProductionSchedule` wired to a report for the first time - no code change to the function itself.
+- **Surface/schema**: additive `db/migrations_stage37_10_planning_depth.sql` (dev only). New `engines/planning.go` (+`_test.go`), no new handler/route file. `ReorderPointConfig`'s module_key is `inventory` (already core/always-enabled), avoiding 37.9's module-registration gap by design.
+- **Verified**: `go build ./...`/`go vet ./...`/`node --check public/app.js` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage3710PlanningDepth`. **Live over HTTP** (port 9268, stopped afterward): a real ReorderPointConfig created via the generic doc API and all four new reports responding correctly. Fixture hard-deleted afterward, zero residue confirmed.
+- **Next**: 37.11 (role dashboards), then Stage 38's remaining 38.4/38.6/38.7.
+
+---
+
 ## 126. Stage 37.9 — Quality & maintenance: inspection plans, CoA, NCR/CAPA, preventive maintenance (2026-09-01, code + schema)
 
 Pre-build audit found all four completely absent. GRN receiving's own QC (Stage 26.5.2) is a pure quantity split with no structured per-item test list, so `PostGRNReceiptWithQC` is deliberately left untouched. `ReasonCode` is reused as-is for NCR root-cause (a new "Quality" category value).
