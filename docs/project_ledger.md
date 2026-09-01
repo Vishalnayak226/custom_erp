@@ -44,6 +44,22 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 123. Stage 37.6 — Deferred revenue, prepaid amortisation, recurring billing, price-list versioning (2026-09-01, code + schema)
+
+Pre-build audit found all four completely absent, plus a structural finding: `SalesInvoice` is lump-sum only (no `lines` field) - deferred revenue is recognised at the whole-invoice level, not per line.
+
+- **37.6.1**: `SalesInvoice.deferred_revenue`/`deferred_term_months` - a flagged invoice's `PostSalesInvoice` posting credits 2600 Deferred Revenue instead of 4100; auto-creates an Active `DeferredRevenueSchedule` (no maker-checker of its own - the decision was already made).
+- **37.6.2**: `PrepaidExpenseSchedule` - its own independent Draft→Approved lifecycle; approval posts the upfront `Dr 1800/Cr 1100` and starts recognition.
+- **Shared worker** (`StartAmortizationWorker`) recognises both types monthly, last month absorbing the paise remainder. Two new roll-forward reports.
+- **37.6.3**: `RecurringSalesContract` - the `CreateRecurringJournalTemplate` shape, spawning a Draft `SalesInvoice` on schedule; each spawned invoice still goes through `PostSalesInvoice`'s credit-limit gate.
+- **37.6.4**: `PriceListVersion` - `ExchangeRate`'s effective-dated-row pattern, not a snapshot table. Approving a version supersedes the prior open-ended one; `ResolvePriceForSKU` still resolves a Superseded version for dates inside its own historical window.
+- **Surface/schema**: additive `db/migrations_stage37_6_deferred_prepaid_recurring_pricelist.sql` (dev only). New `engines/deferred_prepaid.go` (+`_test.go`), 2 GL accounts, 2 reports, 2 workers, no new handler/route file.
+- **Two real bugs caught by this stage's own test before shipping**: a double rupee→paise conversion corrupted a schedule's `total_amount` by 100x; price resolution wrongly excluded a superseded-but-historically-valid version, breaking backdated lookups. Both fixed before commit.
+- **Verified**: `go build ./...`/`go vet ./...`/`node --check public/app.js` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage376DeferredPrepaidRecurringPriceList`. **Live over HTTP** (port 9264, stopped afterward): a real deferred SalesInvoice created and posted through the actual generic-doc-create + post routes, confirming Dr 1300/Cr 2600 and a real schedule row. Every fixture hard-deleted afterward, zero residue confirmed.
+- **Next**: 37.7 (projects & job costing), then 37.8-37.11 in plan order, then Stage 38's remaining 38.4/38.6/38.7.
+
+---
+
 ## 122. Stage 37.5 — Financial statement builder with dimensions and drill-down (2026-09-01, code only)
 
 Pre-build audit found the codebase's own `ReportDefinition` framework explicitly rejects user-authored query/layout flexibility as an injection-risk feature outside its stated scope - so "builder" here is scoped to extending the existing hardcoded Trial Balance/P&L/Balance Sheet with dimension filters and drill-down, not a new statement-layout doctype (which would be the first violation of that stated principle). `gl_accounts` is also confirmed flat (5 basic types, never altered since Stage 1) - a full multi-section layout is a separate, larger undertaking not attempted here.

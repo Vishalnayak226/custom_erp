@@ -196,6 +196,18 @@ func ValidateParityFoundationDocument(tenantID, doctype string, payload map[stri
 	// create/apply function), so this IS its only validation seam.
 	case "Budget":
 		return ValidateBudgetDocument(tenantID, payload)
+	// Stage 37.6: joins here for the same reason every other new Stage 37
+	// transactional/master doctype does - a generic-API write is subject to
+	// the same referential/business checks the dedicated engine paths
+	// enforce (PrepaidExpenseSchedule's own creation, if it grows a
+	// dedicated function later, and PriceListVersion/RecurringSalesContract,
+	// which are created entirely through the generic API today).
+	case "PrepaidExpenseSchedule":
+		return ValidatePrepaidExpenseScheduleDocument(tenantID, payload)
+	case "RecurringSalesContract":
+		return ValidateRecurringSalesContractDocument(tenantID, payload)
+	case "PriceListVersion":
+		return ValidatePriceListVersionDocument(tenantID, payload)
 	default:
 		return nil
 	}

@@ -132,6 +132,15 @@ func Run() {
 	// through the existing outbox.
 	engines.StartDunningWorker(workerCtx, 1*time.Hour)
 
+	// Start Amortization Worker (Stage 37.6.1/37.6.2) - monthly-granularity
+	// recognition of deferred revenue and prepaid expense schedules.
+	engines.StartAmortizationWorker(workerCtx, 1*time.Hour)
+
+	// Start Recurring Billing Worker (Stage 37.6.3) - the
+	// StartRecurringJournalWorker precedent, spawning a Draft SalesInvoice
+	// per due RecurringSalesContract.
+	engines.StartRecurringBillingWorker(workerCtx, 1*time.Hour)
+
 	// Start Campaign Worker (Stage 26.7.4) - daily-granularity scan for
 	// Active campaigns whose birthday/lapsed-customer trigger newly
 	// matches a customer.

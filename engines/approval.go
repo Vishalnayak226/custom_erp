@@ -377,6 +377,21 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		postApprovedIntercompanyTransaction(tenantID, docID)
 	}
 
+	// Stage 37.6.2: an Approved PrepaidExpenseSchedule books its upfront
+	// cash outlay here and starts its monthly recognition clock - the same
+	// "the approval decision itself is the authorization to post" reasoning
+	// JournalVoucher's own hook above uses.
+	if doctype == "PrepaidExpenseSchedule" && decision == "Approved" {
+		postApprovedPrepaidExpenseSchedule(tenantID, docID)
+	}
+
+	// Stage 37.6.4: an Approved PriceListVersion supersedes any other
+	// open-ended Active version of the same price list - the versioning
+	// behaviour itself.
+	if doctype == "PriceListVersion" && decision == "Approved" {
+		postApprovedPriceListVersion(tenantID, docID)
+	}
+
 	// Stage 26.7.5: an Approved LoyaltyRedemptionRequest (a staff-restricted
 	// large burn that VerifyAndRedeemLoyaltyOTP routed here instead of
 	// redeeming immediately) actually burns the points here.

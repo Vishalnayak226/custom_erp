@@ -73,12 +73,23 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 		}
 	}
 
+	// Stage 37.6.1: an invoice flagged deferred_revenue credits 2600 Deferred
+	// Revenue instead of 4100 Sales Revenue - the service/goods have been
+	// billed but not yet delivered over their term, so recognising the whole
+	// amount as revenue today would be wrong. Every other invoice's posting
+	// (deferred_revenue blank/"No", i.e. every invoice before this stage
+	// existed) is byte-identical to before.
+	revenueAccount := "4100"
+	deferred := data["deferred_revenue"] == "Yes"
+	if deferred {
+		revenueAccount = "2600"
+	}
 	debits := map[string]int{"1300": amount}
-	credits := map[string]int{"4100": amount}
+	credits := map[string]int{revenueAccount: amount}
 	if err := PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),
 		postingOptionsFor(position, position.Rate, debits, credits, map[string]float64{
-			"1300": position.TransactionAmount,
-			"4100": position.TransactionAmount,
+			"1300":         position.TransactionAmount,
+			revenueAccount: position.TransactionAmount,
 		})); err != nil {
 		return 0, fmt.Errorf("GL posting failed, invoice not marked Approved: %v", err)
 	}
@@ -97,6 +108,24 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 		return 0, err
 	}
 	LogAuditEvent(tenantID, userID, "POST_SALES_INVOICE", "SUCCESS", fmt.Sprintf("Posted sales invoice %s amount=%d, AR recognized", invoiceID, amount))
+
+	// Stage 37.6.1: the schedule is created here, after the posting above has
+	// already committed, exactly the recognition decision this invoice was
+	// just posted with - it needs no maker-checker of its own (the human
+	// already decided, by flagging + posting this invoice) and a failure
+	// here must never unwind a posting that has already committed real GL
+	// entries, so it is best-effort/logged like the batch/serial
+	// registration precedent (engines/wms_receiving.go).
+	if deferred {
+		termMonths := int(numFromInterface(data["deferred_term_months"]))
+		if termMonths > 0 {
+			if err := createDeferredRevenueSchedule(tenantID, invoiceID, float64(amount), termMonths); err != nil {
+				LogSystemError(tenantID, "", "ERROR", "PostSalesInvoice", fmt.Sprintf("invoice %s posted but its DeferredRevenueSchedule could not be created: %v", invoiceID, err), "")
+			}
+		} else {
+			LogSystemError(tenantID, "", "WARN", "PostSalesInvoice", fmt.Sprintf("invoice %s is flagged deferred_revenue but has no positive deferred_term_months - no schedule created", invoiceID), "")
+		}
+	}
 	return amount, nil
 }
 
