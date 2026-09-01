@@ -63,6 +63,10 @@ type JournalVoucherOptions struct {
 	// the same optional whole-voucher dimension as CostCenter/Department,
 	// flowing into PostDoubleEntry via PostingOptions.Entity.
 	Entity string
+	// Stage 37.7.2: which Project this voucher's cost/revenue belongs to -
+	// the same optional whole-voucher dimension, flowing into
+	// PostDoubleEntry via PostingOptions.Project.
+	Project string
 }
 
 // createJournalVoucherInSchema is the schema-level primitive shared by
@@ -89,6 +93,9 @@ func createJournalVoucherInSchema(schema, voucherDate, narration string, lines [
 	if err := validateLegalEntityReferenceInSchema(schema, opts.Entity); err != nil {
 		return "", err
 	}
+	if err := validateProjectReferenceInSchema(schema, opts.Project); err != nil {
+		return "", err
+	}
 
 	linesJSON, err := json.Marshal(lines)
 	if err != nil {
@@ -99,7 +106,7 @@ func createJournalVoucherInSchema(schema, voucherDate, narration string, lines [
 		"id": voucherID, "code": voucherID, "voucher_number": voucherID,
 		"voucher_date": voucherDate, "narration": narration,
 		"lines": string(linesJSON), "total_amount": totalAmount, "status": "Draft",
-		"cost_center": opts.CostCenter, "department": opts.Department, "entity": opts.Entity,
+		"cost_center": opts.CostCenter, "department": opts.Department, "entity": opts.Entity, "project": opts.Project,
 	}
 	marshaled, err := json.Marshal(docData)
 	if err != nil {
@@ -201,7 +208,8 @@ func postApprovedJournalVoucher(tenantID, voucherID string) {
 	costCenter, _ := data["cost_center"].(string)
 	department, _ := data["department"].(string)
 	entity, _ := data["entity"].(string)
-	opt := PostingOptions{CostCenter: costCenter, Department: department, Entity: entity}
+	project, _ := data["project"].(string)
+	opt := PostingOptions{CostCenter: costCenter, Department: department, Entity: entity, Project: project}
 
 	// Stage 37.1.2: a voucher entered in another currency posts functional
 	// amounts to the ledger and carries its own amounts alongside. The line
@@ -291,7 +299,8 @@ func ReverseJournalVoucher(tenantID, voucherID, userID string) (string, error) {
 	costCenter, _ := data["cost_center"].(string)
 	department, _ := data["department"].(string)
 	entity, _ := data["entity"].(string)
-	newID, err := createJournalVoucherInSchema(schema, time.Now().Format("2006-01-02"), narration, reversed, userID, JournalVoucherOptions{CostCenter: costCenter, Department: department, Entity: entity})
+	project, _ := data["project"].(string)
+	newID, err := createJournalVoucherInSchema(schema, time.Now().Format("2006-01-02"), narration, reversed, userID, JournalVoucherOptions{CostCenter: costCenter, Department: department, Entity: entity, Project: project})
 	if err != nil {
 		return "", err
 	}
@@ -404,7 +413,8 @@ func runRecurringJournalsForSchema(schema string) {
 		costCenter, _ := data["cost_center"].(string)
 		department, _ := data["department"].(string)
 		entity, _ := data["entity"].(string)
-		if _, err := createJournalVoucherInSchema(schema, nextRunDate, narration, lines, "system", JournalVoucherOptions{CostCenter: costCenter, Department: department, Entity: entity}); err != nil {
+		project, _ := data["project"].(string)
+		if _, err := createJournalVoucherInSchema(schema, nextRunDate, narration, lines, "system", JournalVoucherOptions{CostCenter: costCenter, Department: department, Entity: entity, Project: project}); err != nil {
 			log.Printf("[RECURRING-JV] Failed to spawn instance from template %s: %v", t.id, err)
 			continue
 		}

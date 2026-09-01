@@ -68,6 +68,14 @@ type PostingOptions struct {
 	// this field, like CostCenter/Department, applies to every line a
 	// single call inserts.
 	Entity string
+	// Stage 37.7.2. Project is a Project document id - a 4th whole-posting
+	// dimension, the same shape as CostCenter/Department/Entity. Job costing
+	// here is "which project a posting belongs to," not a pre-GL running
+	// cost ledger: every cost-incurring doctype in this codebase posts
+	// immediately on approval/payment, so there is no accumulation stage to
+	// attach a WIP mechanism to (unlike item_cost, Stage 37.3, which exists
+	// because inventory valuation genuinely needs one).
+	Project string
 }
 
 // PostDoubleEntry writes balanced debit/credit transactions to the GL
@@ -113,7 +121,10 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 	if err := validateLegalEntityReference(tenantID, opt.Entity); err != nil {
 		return err
 	}
-	var costCenterArg, departmentArg, entityArg interface{}
+	if err := validateProjectReference(tenantID, opt.Project); err != nil {
+		return err
+	}
+	var costCenterArg, departmentArg, entityArg, projectArg interface{}
 	if opt.CostCenter != "" {
 		costCenterArg = opt.CostCenter
 	}
@@ -122,6 +133,9 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 	}
 	if opt.Entity != "" {
 		entityArg = opt.Entity
+	}
+	if opt.Project != "" {
+		projectArg = opt.Project
 	}
 
 	sumDebits := int64(0)
@@ -194,10 +208,10 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 			continue
 		}
 		query := fmt.Sprintf(`
-			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_debit, entity)
-			VALUES ($1, $2, 0, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, schema)
+			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_debit, entity, project)
+			VALUES ($1, $2, 0, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`, schema)
 		_, err := tx.Exec(query, code, val, docType, docID, keyArg, costCenterArg, departmentArg,
-			currencyArg, rateArg, transactionAmount(opt.TransactionDebits, code, val), entityArg)
+			currencyArg, rateArg, transactionAmount(opt.TransactionDebits, code, val), entityArg, projectArg)
 		if err != nil {
 			return fmt.Errorf("error posting debit for account %s: %v", code, err)
 		}
@@ -209,10 +223,10 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 			continue
 		}
 		query := fmt.Sprintf(`
-			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_credit, entity)
-			VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`, schema)
+			INSERT INTO %s.gl_postings (account_code, debit, credit, document_type, document_id, idempotency_key, cost_center, department, currency, exchange_rate, transaction_credit, entity, project)
+			VALUES ($1, 0, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`, schema)
 		_, err := tx.Exec(query, code, val, docType, docID, keyArg, costCenterArg, departmentArg,
-			currencyArg, rateArg, transactionAmount(opt.TransactionCredits, code, val), entityArg)
+			currencyArg, rateArg, transactionAmount(opt.TransactionCredits, code, val), entityArg, projectArg)
 		if err != nil {
 			return fmt.Errorf("error posting credit for account %s: %v", code, err)
 		}

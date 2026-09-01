@@ -44,6 +44,21 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 124. Stage 37.7 — Projects & job costing (2026-09-01, code + schema)
+
+Pre-build audit found no Project concept anywhere, and confirmed the codebase's own conventions point to Project as a 4th whole-posting dimension (the CostCenter/Department/Entity precedent) rather than a WIP-style running-cost ledger, since every cost-incurring doctype here posts immediately - there is no accumulation stage to attach one to.
+
+- **37.7.1**: `Project` master, Active/Inactive, no maker-checker (the CostCenter/Department shape).
+- **37.7.2**: `PostingOptions.Project`/`JournalVoucherOptions.Project` (5th dimension) + `gl_postings.project`, wired through all 4 JournalVoucher call sites.
+- **37.7.3**: Tagged onto `ExpenseClaim`. **Real adjacent gap found and fixed**: `PayExpenseClaim` posted with no `PostingOptions` at all, so `ExpenseClaim.department` (present since Stage 1) had never reached `gl_postings.department`.
+- **37.7.4**: `GetProjectPL` (`project-pl`) - `GetCostCenterPL`'s exact shape, reusing 37.5.4's drill-down unchanged.
+- **Second real, previously-hidden gap, found during live-HTTP verification**: `handleCreateJournalVoucher`'s own request struct never accepted `entity` at all - Stage 37.2.1's Entity dimension was reachable only via the Go API, never the actual HTTP route, since that stage never touched this handler. Fixed alongside adding `project`.
+- **Surface/schema**: additive `db/migrations_stage37_7_projects_job_costing.sql` (dev only). New `engines/project.go` (+`_test.go`), no new handler/route file.
+- **Verified**: `go build ./...`/`go vet ./...`/`node --check public/app.js` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage377ProjectsJobCosting`. **Live over HTTP** (port 9265, stopped afterward): a real Project + a project-tagged Journal Voucher posted through the actual create-journal-voucher route (which is what surfaced the entity/project request-field gap - the first attempt silently dropped the tag), then `project-pl` correctly showing it once fixed. Every fixture hard-deleted afterward, zero residue confirmed.
+- **Next**: 37.8 (service management), then 37.9-37.11 in plan order, then Stage 38's remaining 38.4/38.6/38.7.
+
+---
+
 ## 123. Stage 37.6 — Deferred revenue, prepaid amortisation, recurring billing, price-list versioning (2026-09-01, code + schema)
 
 Pre-build audit found all four completely absent, plus a structural finding: `SalesInvoice` is lump-sum only (no `lines` field) - deferred revenue is recognised at the whole-invoice level, not per line.

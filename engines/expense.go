@@ -134,7 +134,15 @@ func PayExpenseClaim(tenantID, claimID string) (payableAmount int, err error) {
 		debits["1500"] = gstAmount
 	}
 	credits := map[string]int{"1100": amount + gstAmount}
-	if err := PostDoubleEntry(tenantID, "ExpenseClaim", claimID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("ExpenseClaim:%s:PAY", claimID)); err != nil {
+	// Stage 37.7.3: a real, adjacent gap found while wiring Project onto
+	// this same call - ExpenseClaim.department (a field this doctype has
+	// had since Stage 1) was never actually passed as PostingOptions, so it
+	// has never reached gl_postings.department. Fixed here since it is the
+	// identical call site.
+	department, _ := data["department"].(string)
+	project, _ := data["project"].(string)
+	if err := PostDoubleEntry(tenantID, "ExpenseClaim", claimID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("ExpenseClaim:%s:PAY", claimID),
+		PostingOptions{Department: department, Project: project}); err != nil {
 		return 0, fmt.Errorf("failed to post expense payment GL entry: %v", err)
 	}
 

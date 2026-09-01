@@ -26,13 +26,21 @@ func handleCreateJournalVoucher(w http.ResponseWriter, r *http.Request) {
 		Lines       []engines.JournalVoucherLine `json:"lines"`
 		CostCenter  string                       `json:"cost_center"`
 		Department  string                       `json:"department"`
+		// Stage 37.7.3: Entity (37.2.1) and Project (37.7.2) were both
+		// wired into JournalVoucherOptions/gl_postings but never into this
+		// endpoint's own request struct - a real, previously-hidden gap
+		// found while live-verifying this stage over the actual HTTP route,
+		// not the Go API directly. Both were reachable only by calling
+		// engines.CreateJournalVoucher in Go until this fix.
+		Entity  string `json:"entity"`
+		Project string `json:"project"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
 		return
 	}
 	voucherID, err := engines.CreateJournalVoucher(tenantID, req.VoucherDate, req.Narration, req.Lines, userID,
-		engines.JournalVoucherOptions{CostCenter: req.CostCenter, Department: req.Department})
+		engines.JournalVoucherOptions{CostCenter: req.CostCenter, Department: req.Department, Entity: req.Entity, Project: req.Project})
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
