@@ -112,6 +112,16 @@ func processOutbox(schema string) {
 		// Simulate event dispatching to integrations (Shopify, WMS, OMS)
 		log.Printf("[OUTBOX] Dispatching event %s (%s) - Attempt %d", ev.EventName, ev.ID, nextAttempts)
 
+		// Stage 38.4: fan out to any WebhookSubscription whose event_pattern
+		// matches this event, on every attempt (not just the first) - the
+		// idempotency_key on each enqueued job (eventID+subscriptionID)
+		// means a retried outbox event never double-enqueues delivery to the
+		// same subscription, so re-dispatching here on a retry is safe.
+		var webhookPayloadMap map[string]interface{}
+		if err := json.Unmarshal([]byte(ev.Payload), &webhookPayloadMap); err == nil {
+			dispatchWebhooksForEvent(schema, ev.ID, ev.EventName, webhookPayloadMap)
+		}
+
 		if ev.EventName == "report.scheduled_delivery" {
 			var payloadMap map[string]interface{}
 			if err := json.Unmarshal([]byte(ev.Payload), &payloadMap); err == nil {

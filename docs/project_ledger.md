@@ -55,7 +55,52 @@ Pre-build audit of the existing exec dashboard (`renderExecDashboard`, `public/a
 - **37.11.5**: BI data-mart deferral (26.10.6) re-checked, not re-decided - a digest tick adds no new query shape, thresholds unaffected. No action.
 - **Surface/schema**: additive `db/migrations_stage37_11_dashboards.sql` (dev only). New `engines/dashboard.go` (+`_test.go`), one new handler file (`internal/server/handlers_dashboard.go`), 3 new routes, 1 new background worker. `public/app.js`'s dashboard generalized into `renderExecDashboard` + `renderExecDashboardBody` + `defaultDashboardTiles()`.
 - **Verified**: `go build ./...`/`go vet ./...`/`node --check public/app.js` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage3711Dashboards` (validation, owner-only vs role-shared visibility, delete permission boundary, digest worker running both tiles and advancing the schedule). **Live over HTTP** (port 9269, stopped afterward): private vs role-shared visibility confirmed between `manager1`/`cashier1`, delete-permission boundary confirmed, a real `DashboardDigest` created via the generic doc API. **Real-browser verification via Playwright**: logged in via an injected token, added/removed a tile, confirmed drill-through opened Report Catalog with the right report pre-selected, saved/selected/deleted a layout end-to-end with no console errors. Every fixture cleaned, zero active residue confirmed.
-- **Next**: Stage 38's remaining 38.4 (webhooks), 38.6 (async job runner), 38.7 (integrator sandbox).
+- **Next**: Stage 38's remaining 38.4 (webhooks), 38.6 (async job runner), 38.7 (integrator sandbox) - now built, see §129-131 above.
+
+---
+
+## 131. Stage 38.7 — Self-service sandbox tenant for integrators (2026-09-01, code + schema)
+
+Built last of the three remaining Stage 38 items (its webhook side-effect-off hook depends on 38.4). A sandbox is a normal tenant - provisioned through the exact same `ProvisionTenantSchema` every real tenant uses - flagged via two additive columns on `public.tenants` (`is_sandbox`, `sandbox_expires_at`), not a new table.
+
+- Deliberately does **not** seed a synthetic demo dataset - a real, separate, materially larger feature. An integrator tests their own integration against the Public API v1 by creating their own records through it.
+- "Self-service" describes the integrator's experience once a sandbox exists (own login, own API credentials) - provisioning itself stays Super-Admin-gated, the same as every other tenant-provisioning action.
+- Auto-expiry refused at login **and** on Stage 29.8's existing live session re-check (`apiMiddleware`) - deliberately NOT wired into `db.GetTenantSchema` itself (~100+ call sites, too broad a blast radius).
+- Reset truncates exactly the set `ProvisionTenantSchema`'s own comment documents as "per-tenant transactional data" - refuses on any non-sandbox tenant, leaves users/config untouched, extends expiry. Delete drops the schema + registry row with the identical guard - the only place in this codebase's non-test code that runs `DROP SCHEMA`.
+- **Surface/schema**: additive `db/migrations_stage38_7_sandbox_tenants.sql`. New `engines/sandbox.go` (+`_test.go`), one new handler file, 4 new Super-Admin routes, a 2-line hook into `handleLogin` and `apiMiddleware`. No frontend screen - matching every other Stage 38 admin-facing piece.
+- **Verified**: `go build ./...`/`go vet ./...` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage387SandboxTenants`. **Live over HTTP** (port 9270, stopped afterward): provisioned, permission-boundary-checked, logged into (correctly required MFA like any Super Admin), reset, expiry-forced-then-login-refused, reset/delete refused against the real `default` tenant, then deleted with both schema and registry row confirmed gone. Zero residue confirmed.
+- **Stage 38 is now fully closed** except the explicitly-deferred 38.2d (OAuth2 client-credentials grant).
+
+---
+
+## 130. Stage 38.4 — Webhook subscriptions with HMAC signing, retry/backoff and DLQ (2026-09-01, code + schema)
+
+Built on top of 38.6 (same session, built first). Extends `outbox.go` exactly as the backlog item names it: `WebhookSubscription` is a plain generic-doc-API doctype (the `ScheduledReport` precedent), and `dispatchWebhooksForEvent` (`engines/webhook.go`) is called from `processOutbox` once an outbox event is already committed - fanning out to one `webhook_delivery` async job per matching Active subscription. The job runner's own retry/backoff/DeadLettered handling IS this item's DLQ - no second retry mechanism built.
+
+- HMAC-SHA256 signing (`X-Webhook-Signature`) over the real request body, secret mandatory.
+- SSRF guard (stdlib `net`/`net/http` only): https-only, every resolved IP must be genuinely public, checked at both create time and immediately before every delivery attempt (DNS can change between the two), redirects never followed.
+- Sandbox side-effect-off (38.7's concrete need): a sandbox tenant's delivery is simulated, zero real HTTP calls - proven live via a canary server never touched.
+- New module_key `integrations`, registered proactively in the same migration (Stage 37.9's lesson).
+- **Surface/schema**: additive `db/migrations_stage38_4_webhook_subscriptions.sql`. New `engines/webhook.go` (+`_test.go`), a 4-line hook into `processOutbox`, 1 new `currency.go` dispatcher case. No new handler/route file.
+- **Verified**: `go build ./...`/`go vet ./...` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage384WebhookSubscriptions`. **Live over HTTP** (port 9270, stopped afterward, shared pass with 38.6): a real subscription against a TEST-NET-2 address (RFC 5737, no real third party contacted), a real seeded outbox event picked up by the live ticker, a real job enqueued/claimed/attempted (genuine HTTPS POST, correct timeout, correct reschedule) - proving the full live pipeline, not just unit tests. Retry/Cancel confirmed over the real routes. Zero residue confirmed.
+- **Next**: 38.7 (sandbox tenant) - now built, see §131 above.
+
+---
+
+## 129. Stage 38.6 — One general async job runner with retries, DLQ and a visibility screen (2026-09-01, code + schema)
+
+Built first of the three remaining Stage 38 items - 38.4 and 38.7 both depend on it. The foundation `micro_checklist.md`'s own §47.11.4 already named as the target every bespoke ticker in this codebase should migrate onto incrementally, later - this stage builds the runner and its visibility screen only, no existing ticker touched. A dedicated `async_jobs` table (the `integration_event_outbox` precedent, not a generic doctype).
+
+- Real `SELECT...FOR UPDATE SKIP LOCKED` claiming (Pending due, or Leased with an expired lease), batch 10, every 10s.
+- Lease is a claim deadline (5 min), not a live heartbeat - honestly scoped to this codebase's synchronous handlers; `UpdateJobProgress` exists for a future long-running one.
+- Exponential backoff to `max_attempts` (default 5) then `DeadLettered` - that status IS the DLQ. `ReplayJob`/`CancelJob` mirror `RetryIntegrationEvent`'s precedent.
+- Idempotent enqueue via a partial unique index on `(job_type, idempotency_key)`.
+- Hourly retention sweep (`platform.job_runner_retention_days`, default 30) - the `SweepPublicAPIRuntime` precedent.
+- New "Async Jobs" 4th tab on the existing Activity Log screen, same pane pattern as the pre-existing Integration Payloads tab.
+- **Real bug caught mid-build**: the retention sweeper's first draft passed a schema name where `SweepJobRunnerRetention` expected a tenantID, silently sweeping `tenant_default` instead of the real tenant for every non-default schema - fixed via the existing `tenantIDForSchema` helper, the same fix `StartPublicAPIRuntimeSweeper` already needed for the identical reason.
+- **Surface/schema**: additive `db/migrations_stage38_6_async_job_runner.sql` (`async_jobs` added to `ProvisionTenantSchema`'s clone list with the `api_credentials`-style guard). New `engines/jobrunner.go` (+`_test.go`), one new handler file, 3 new routes, 2 new workers, 1 new setting.
+- **Verified**: `go build ./...`/`go vet ./...`/`node --check public/app.js` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage386JobRunner`. **Live + real-browser** (port 9270, stopped afterward, shared pass with 38.4): list/retry/cancel exercised against a real job; the new Async Jobs tab verified in a real browser via Playwright (all 4 tabs, correct headers/empty-state, and per-status action-button rendering with 4 seeded jobs), zero console errors. Zero residue confirmed.
+- **Next**: 38.4 (webhooks, rides this runner) - now built, see §130 above.
 
 ---
 

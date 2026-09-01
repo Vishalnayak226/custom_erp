@@ -19688,6 +19688,11 @@ async function renderLogHubView(container) {
   const intLoadFailed = !!intRes && !intRes.ok;
   const intLogs = intRes && intRes.ok ? await intRes.json() : [];
 
+  // Stage 38.6: the async job runner's visibility screen, same pane pattern.
+  const jobsRes = await apiFetch('/api/v1/jobs');
+  const jobsLoadFailed = !!jobsRes && !jobsRes.ok;
+  let jobs = jobsRes && jobsRes.ok ? ((await jobsRes.json()).jobs || []) : [];
+
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
@@ -19709,6 +19714,7 @@ async function renderLogHubView(container) {
     <button class="log-hub-tab active" data-tab="audit" style="padding:10px 20px; border:none; background:var(--card-bg); cursor:pointer; font-weight:600; border-bottom:2px solid var(--primary-color); margin-bottom:-2px; color:var(--primary-color);">Audit Logs</button>
     <button class="log-hub-tab" data-tab="system" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">System Errors</button>
     <button class="log-hub-tab" data-tab="integration" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">Integration Payloads</button>
+    <button class="log-hub-tab" data-tab="jobs" style="padding:10px 20px; border:none; background:transparent; cursor:pointer; font-weight:500; color:var(--text-muted);">Async Jobs</button>
   `;
   container.appendChild(tabBar);
 
@@ -19816,6 +19822,79 @@ async function renderLogHubView(container) {
     `;
   }
 
+  function jobStatusBadgeClass(status) {
+    if (status === 'Succeeded') return 'badge-success';
+    if (status === 'DeadLettered' || status === 'Failed') return 'badge-danger';
+    if (status === 'Cancelled') return 'badge-secondary';
+    return 'badge-secondary'; // Pending, Leased
+  }
+
+  async function reloadJobs() {
+    const res = await apiFetch('/api/v1/jobs');
+    jobs = res && res.ok ? ((await res.json()).jobs || []) : [];
+    renderJobsPane();
+  }
+
+  function renderJobsPane() {
+    tabContent.innerHTML = `
+      <div class="table-panel">
+        <h3 style="font-size:16px; font-weight:600; margin-bottom:12px; padding: 16px 16px 0;">Async Jobs</h3>
+        <p style="padding: 0 16px 12px; color: var(--text-muted); font-size: 13px;">Every background job queued through the Stage 38.6 job runner (webhook deliveries and future job types) - retry a Failed/DeadLettered job or cancel a Pending one.</p>
+        ${jobsLoadFailed ? `<p style="padding: 0 16px 12px; color: var(--danger-color); font-size: 13px;">Failed to load async jobs.</p>` : ''}
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Attempts</th>
+                <th>Progress</th>
+                <th>Last Error</th>
+                <th>Updated</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${jobs.length === 0 ? '<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No async jobs found for the current filter.</td></tr>' : jobs.map(j => `
+                <tr>
+                  <td style="font-weight:600;">${escapeHTMLText(j.job_type)}</td>
+                  <td><span class="badge ${jobStatusBadgeClass(j.status)}">${escapeHTMLText(j.status)}</span></td>
+                  <td>${j.attempts}/${j.max_attempts}</td>
+                  <td>${j.progress_pct}%</td>
+                  <td style="font-size:11px; max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHTMLText(j.last_error || '')}">${escapeHTMLText(j.last_error || '-')}</td>
+                  <td style="font-size:11px; white-space:nowrap;">${j.updated_at}</td>
+                  <td>
+                    ${(j.status === 'Failed' || j.status === 'DeadLettered' || j.status === 'Cancelled') ? `<button class="btn btn-sm btn-outline" onclick="retryAsyncJob('${j.id}')">Retry</button>` : ''}
+                    ${(j.status === 'Pending' || j.status === 'Leased') ? `<button class="btn btn-sm btn-outline" onclick="cancelAsyncJob('${j.id}')">Cancel</button>` : ''}
+                    ${(j.status === 'Succeeded') ? '<span style="color:var(--text-muted); font-size:12px;">-</span>' : ''}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  }
+
+  window.retryAsyncJob = async function(jobId) {
+    if (!await showCustomConfirm('Retry this job?')) return;
+    const res = await apiFetch(`/api/v1/jobs/${encodeURIComponent(jobId)}/retry`, { method: 'POST' });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Failed to retry this job.'); return; }
+    showToast('Job queued for retry.');
+    reloadJobs();
+  };
+
+  window.cancelAsyncJob = async function(jobId) {
+    if (!await showCustomConfirm('Cancel this job?')) return;
+    const res = await apiFetch(`/api/v1/jobs/${encodeURIComponent(jobId)}/cancel`, { method: 'POST' });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Failed to cancel this job.'); return; }
+    showToast('Job cancelled.');
+    reloadJobs();
+  };
+
   // Tab switching logic
   tabBar.querySelectorAll('.log-hub-tab').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -19834,6 +19913,7 @@ async function renderLogHubView(container) {
       if (tab === 'audit') renderAuditPane();
       else if (tab === 'system') renderSystemPane();
       else if (tab === 'integration') renderIntegrationPane();
+      else if (tab === 'jobs') renderJobsPane();
     });
   });
 

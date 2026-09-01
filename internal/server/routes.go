@@ -151,6 +151,14 @@ func Run() {
 	// DashboardLayout and delivering one combined CSV through the outbox.
 	engines.StartDashboardDigestWorker(workerCtx, 1*time.Hour)
 
+	// Start Async Job Runner (Stage 38.6) - claims and executes Pending/
+	// lease-expired async_jobs rows every 10 seconds, the same cadence as
+	// the Report Export worker (another short-latency, user-visible queue).
+	engines.StartJobRunnerWorker(workerCtx, 10*time.Second)
+	// Start Job Runner Retention Sweeper (Stage 38.6) - the
+	// StartPublicAPIRuntimeSweeper precedent, keeping async_jobs bounded.
+	engines.StartJobRunnerRetentionSweeper(workerCtx, 1*time.Hour)
+
 	// Start Campaign Worker (Stage 26.7.4) - daily-granularity scan for
 	// Active campaigns whose birthday/lapsed-customer trigger newly
 	// matches a customer.
@@ -890,6 +898,17 @@ func Run() {
 	// Integration Logs and Retry APIs
 	http.HandleFunc("GET /api/v1/integration/logs", apiMiddleware(handleGetIntegrationLogs))
 	http.HandleFunc("POST /api/v1/integration/retry", apiMiddleware(handleRetryIntegrationEvent))
+
+	// Stage 38.6: the async job runner's visibility/control surface.
+	http.HandleFunc("GET /api/v1/jobs", apiMiddleware(handleListJobs))
+	http.HandleFunc("POST /api/v1/jobs/{id}/retry", apiMiddleware(handleRetryJob))
+	http.HandleFunc("POST /api/v1/jobs/{id}/cancel", apiMiddleware(handleCancelJob))
+
+	// Stage 38.7: self-service sandbox tenant provisioning for integrators.
+	http.HandleFunc("POST /api/v1/admin/sandbox-tenants", apiMiddleware(handleProvisionSandboxTenant))
+	http.HandleFunc("GET /api/v1/admin/sandbox-tenants", apiMiddleware(handleListSandboxTenants))
+	http.HandleFunc("POST /api/v1/admin/sandbox-tenants/{id}/reset", apiMiddleware(handleResetSandboxTenant))
+	http.HandleFunc("DELETE /api/v1/admin/sandbox-tenants/{id}", apiMiddleware(handleDeleteSandboxTenant))
 
 	// Tenant Provisioning and SaaS Control APIs
 	http.HandleFunc("POST /api/v1/admin/tenant/provision", apiMiddleware(handleProvisionTenant))

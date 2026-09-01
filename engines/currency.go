@@ -216,6 +216,8 @@ func ValidateParityFoundationDocument(tenantID, doctype string, payload map[stri
 		return ValidateMaintenanceScheduleDocument(tenantID, payload)
 	case "ReorderPointConfig":
 		return ValidateReorderPointConfigDocument(tenantID, payload)
+	case "WebhookSubscription":
+		return ValidateWebhookSubscriptionDocument(tenantID, payload)
 	default:
 		return nil
 	}

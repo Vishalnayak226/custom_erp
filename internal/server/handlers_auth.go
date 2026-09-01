@@ -33,6 +33,14 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Stage 38.7: an expired sandbox tenant refuses new logins with the same
+	// generic failure as a bad password - a caller learns their session is
+	// dead, not why, the same choice the account-lockout check below makes.
+	if expired, _ := engines.IsSandboxExpired(tenantID); expired {
+		writeAPIError(w, r, "USERAC-0021", "")
+		return
+	}
+
 	var u struct {
 		ID               string
 		Username         string

@@ -193,9 +193,10 @@
       "id": "tenancy",
       "lobe": "brainstem",
       "name": "Tenancy, Packaging & Settings",
-      "role": "Schema-per-tenant provisioning, the sellable product packages (PIM/WMS/OMS/HR/…) and their module entitlements, tenant limits, the settings registry, per-tenant UI label overrides, and the setup-readiness/localization reads the UI uses to tell a user what is not configured yet.",
+      "role": "Schema-per-tenant provisioning, the sellable product packages (PIM/WMS/OMS/HR/…) and their module entitlements, tenant limits, the settings registry, per-tenant UI label overrides, and the setup-readiness/localization reads the UI uses to tell a user what is not configured yet. Stage 38.7 adds self-service sandbox tenants on top of the same ProvisionTenantSchema baseline: is_sandbox/sandbox_expires_at flag a tenant for auto-expiry (checked at login and on every live session re-check) and for external side effects being turned off (Stage 38.4's webhook delivery checks it), plus a reset (truncate business data, keep login/config) and delete path guarded so neither can ever touch a non-sandbox tenant.",
       "match": [
         "engines/saas.go",
+        "engines/sandbox.go",
         "engines/modules.go",
         "engines/tenant_limits.go",
         "engines/settings_registry.go",
@@ -203,7 +204,8 @@
         "engines/setup_advisor.go",
         "engines/labels.go",
         "internal/server/handlers_settings.go",
-        "internal/server/handlers_setup_advisor.go"
+        "internal/server/handlers_setup_advisor.go",
+        "internal/server/handlers_sandbox.go"
       ]
     },
     {
@@ -529,10 +531,13 @@
     {
       "id": "outbox",
       "lobe": "autonomic",
-      "name": "Event Outbox",
-      "role": "The reason a slow third party can never hang a checkout: business writes publish an event into integration_event_outbox inside the same DB transaction, and a background poller drains it afterwards. Retry and integration logs live here too.",
+      "name": "Event Outbox & Async Job Runner",
+      "role": "The reason a slow third party can never hang a checkout: business writes publish an event into integration_event_outbox inside the same DB transaction, and a background poller drains it afterwards. Retry and integration logs live here too. Stage 38.6 adds a general-purpose async job runner (SELECT...FOR UPDATE SKIP LOCKED claiming, lease/heartbeat, retry/backoff, DeadLettered DLQ, a visibility screen) that any future job type registers a handler with; Stage 38.4's HMAC-signed webhook subscriptions are its first real consumer, fanning out from a committed outbox event to one webhook_delivery job per matching subscription.",
       "match": [
-        "engines/outbox.go"
+        "engines/outbox.go",
+        "engines/jobrunner.go",
+        "engines/webhook.go",
+        "internal/server/handlers_jobrunner.go"
       ]
     },
     {

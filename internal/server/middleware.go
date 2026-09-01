@@ -712,6 +712,18 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 					return
 				}
 
+				// Sandbox expiry re-check (Stage 38.7), same reasoning as the
+				// live user-state re-check just below: a token minted before
+				// expiry must not keep working past it just because the token
+				// itself has not yet expired. Checked first so an expired
+				// sandbox fails the same way regardless of which user is asking.
+				if tenantID != "" && purpose != "extension" {
+					if expired, _ := engines.IsSandboxExpired(tenantID); expired {
+						writeAPIError(w, r, "GLOBAL-0009", "")
+						return
+					}
+				}
+
 				// Live user-state re-check (Stage 29.8). A token's claims are
 				// frozen at issue time, so without this a deactivated user
 				// kept full access until their token expired (up to

@@ -356,6 +356,12 @@ func registerStage282Settings() {
 		Min: settingBound(1), Max: settingBound(720),
 		Description: "How long a completed public API idempotency key can still replay its stored response. After this window the same key is treated as a new request.",
 	})
+	RegisterSetting(SettingDefinition{
+		Key: "platform.job_runner_retention_days", Module: "Platform",
+		Label: "Async job history retention", Type: SettingTypeInt, Default: "30", Unit: "days",
+		Min: settingBound(1), Max: settingBound(365),
+		Description: "How long a completed, dead-lettered or cancelled async job (Stage 38.6) stays visible in the job history before the hourly sweeper deletes it. Jobs still Pending or Leased are never swept.",
+	})
 
 	// --- OMS Settlement Reconciliation (Stage 35.8) ---
 	RegisterSetting(SettingDefinition{
