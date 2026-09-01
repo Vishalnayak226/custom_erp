@@ -447,13 +447,15 @@
       "id": "reports",
       "lobe": "business",
       "name": "Reporting Engine",
-      "role": "The ReportDefinition/RegisterReport framework, the report registry and column profiles, background exports, and scheduled report delivery. Any new report plugs in here rather than getting its own endpoint. Also holds market intelligence (Stage 34): competitor price observations, the price-gap report and the undercut alert worker, which live here because the report is the whole point of the data.",
+      "role": "The ReportDefinition/RegisterReport framework, the report registry and column profiles, background exports, and scheduled report delivery. Any new report plugs in here rather than getting its own endpoint. Also holds market intelligence (Stage 34): competitor price observations, the price-gap report and the undercut alert worker, which live here because the report is the whole point of the data. Stage 37.11 adds role dashboards on top: DashboardLayout (savable/role-shared tile sets over the same report catalog) and DashboardDigest (the ScheduledReport pattern applied to a whole layout).",
       "match": [
         "engines/reports*.go",
         "engines/report_*.go",
         "engines/scheduled_reports.go",
         "engines/market_intelligence*.go",
-        "internal/server/handlers_report_engine.go"
+        "engines/dashboard*.go",
+        "internal/server/handlers_report_engine.go",
+        "internal/server/handlers_dashboard.go"
       ]
     },
     {

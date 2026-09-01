@@ -12249,60 +12249,111 @@ function execDashboardOpenReport(reportId) {
   renderView('reports');
 }
 
+// Stage 37.11: role dashboards - the four cards above are now this
+// screen's *default* tile set (engines.DefaultDashboardTiles' exact
+// values), not its only one. A user can save the tiles they're looking at
+// as a named DashboardLayout (private, or shared with everyone in their
+// role), switch between saved layouts, and add/remove tiles from the
+// catalog - all against the same fetchReportRows/execDashboardOpenReport
+// this screen already had, so drill-through (37.11.4) needs no new code:
+// every tile, default or custom, opens the same Report Catalog drill-down.
+function defaultDashboardTiles() {
+  return [
+    { report_id: 'exception-stale-approvals', title: 'Stale Approvals' },
+    { report_id: 'exception-failed-syncs', title: 'Failed Syncs' },
+    { report_id: 'exception-negative-stock', title: 'Negative Stock Flags' },
+    { report_id: 'sla-breach', title: 'SLA Breaches' }
+  ];
+}
+
+let dashboardLayouts = [];
+let dashboardSelectedLayoutId = '';
+let dashboardCurrentTiles = null;
+let dashboardReportCatalog = [];
+
+async function loadDashboardLayouts() {
+  const res = await apiFetch('/api/v1/dashboards/layouts');
+  dashboardLayouts = (res && res.ok) ? ((await res.json()).layouts || []) : [];
+  if (dashboardReportCatalog.length === 0) {
+    const catRes = await apiFetch('/api/v1/reports/catalog');
+    dashboardReportCatalog = (catRes && catRes.ok) ? (await catRes.json() || []) : [];
+  }
+}
+
 async function renderExecDashboard(panel) {
   panel.innerHTML = `<p style="padding:16px; color:var(--text-muted);">Loading dashboard&hellip;</p>`;
-
-  const [stale, failedSyncs, negStock, sla, salesRows] = await Promise.all([
-    fetchReportRows('exception-stale-approvals', {}),
-    fetchReportRows('exception-failed-syncs', {}),
-    fetchReportRows('exception-negative-stock', {}),
-    fetchReportRows('sla-breach', {}),
-    fetchReportRows('sales-register', {})
-  ]);
-
-  // Sales trend: last 7 calendar days. sale_total is a Sensitive column
-  // (Stage 20.39) - if this role sees it redacted, fall back to an order
-  // COUNT trend instead of silently summing a masked "•••" string.
-  const days = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    days.push(d.toISOString().slice(0, 10));
+  await loadDashboardLayouts();
+  if (dashboardCurrentTiles === null) {
+    dashboardCurrentTiles = defaultDashboardTiles();
   }
-  const totalsByDay = Object.fromEntries(days.map(d => [d, 0]));
-  const countsByDay = Object.fromEntries(days.map(d => [d, 0]));
-  let amountsUsable = !salesRows.masked;
-  salesRows.rows.forEach(r => {
-    const day = String(r.created_at || '').slice(0, 10);
-    if (!(day in countsByDay)) return;
-    countsByDay[day]++;
-    const amt = Number(r.sale_total);
-    if (Number.isFinite(amt)) {
-      totalsByDay[day] += amt;
-    } else {
-      amountsUsable = false;
-    }
-  });
-  const trendValues = days.map(d => (amountsUsable ? totalsByDay[d] : countsByDay[d]));
-  const trendLabel = amountsUsable ? 'Sales Total (last 7 days)' : 'Orders (last 7 days) — amounts restricted for your role';
+  await renderExecDashboardBody(panel);
+}
 
-  const slaBreached = sla.rows.filter(r => r.breached).length;
-  const cards = [
-    { label: 'Stale Approvals', value: stale.rows.length, reportId: 'exception-stale-approvals' },
-    { label: 'Failed Syncs', value: failedSyncs.rows.length, reportId: 'exception-failed-syncs' },
-    { label: 'Negative Stock Flags', value: negStock.rows.length, reportId: 'exception-negative-stock' },
-    { label: 'SLA Breaches', value: slaBreached, reportId: 'sla-breach' }
-  ];
+async function renderExecDashboardBody(panel) {
+  const username = localStorage.getItem('erp_username') || '';
+  const tiles = dashboardCurrentTiles || defaultDashboardTiles();
+  const results = await Promise.all(tiles.map(t => fetchReportRows(t.report_id, {})));
+
+  // The 7-day sales trend is a bonus, not a tile - shown only when a
+  // sales-register tile happens to be on the current layout (true for the
+  // default layout, and for any custom layout that kept it), so a fully
+  // custom layout without it doesn't render an empty chart section.
+  const salesTileIdx = tiles.findIndex(t => t.report_id === 'sales-register');
+  let trendHtml = '';
+  if (salesTileIdx !== -1) {
+    const salesRows = results[salesTileIdx];
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      days.push(d.toISOString().slice(0, 10));
+    }
+    const totalsByDay = Object.fromEntries(days.map(d => [d, 0]));
+    const countsByDay = Object.fromEntries(days.map(d => [d, 0]));
+    let amountsUsable = !salesRows.masked;
+    salesRows.rows.forEach(r => {
+      const day = String(r.created_at || '').slice(0, 10);
+      if (!(day in countsByDay)) return;
+      countsByDay[day]++;
+      const amt = Number(r.sale_total);
+      if (Number.isFinite(amt)) {
+        totalsByDay[day] += amt;
+      } else {
+        amountsUsable = false;
+      }
+    });
+    const trendValues = days.map(d => (amountsUsable ? totalsByDay[d] : countsByDay[d]));
+    const trendLabel = amountsUsable ? 'Sales Total (last 7 days)' : 'Orders (last 7 days) — amounts restricted for your role';
+    trendHtml = `
+      <div style="padding: 20px; border-top: 1px solid var(--border-color);">
+        <h3 style="margin: 0 0 12px; font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">${trendLabel}</h3>
+        <div id="exec-dashboard-trend" data-days='${JSON.stringify(days)}' data-values='${JSON.stringify(trendValues)}'></div>
+      </div>`;
+  }
+
+  const layoutOptions = dashboardLayouts.map(l =>
+    `<option value="${escapeHTMLText(l.id)}" ${l.id === dashboardSelectedLayoutId ? 'selected' : ''}>${escapeHTMLText(l.name)}${l.owner !== username ? ' (shared)' : ''}</option>`
+  ).join('');
+  const addTileOptions = dashboardReportCatalog.map(d =>
+    `<option value="${escapeHTMLText(d.id)}">${escapeHTMLText(d.label)}</option>`
+  ).join('');
 
   panel.innerHTML = `
-    <div style="padding: 16px 16px 0;">
-      <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 12px;">Exception queues below (Stage 26.10.5) - click a card to drill into that report in the Report Catalog tab.</p>
+    <div style="padding: 16px 16px 0; display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
+      <p style="color: var(--text-muted); font-size: 13px; margin: 0; flex: 1 1 auto;">Click a tile to drill into that report in the Report Catalog tab.</p>
+      <select id="dashboard-layout-picker" class="form-input" style="width:auto;">
+        <option value="">Default</option>
+        ${layoutOptions}
+      </select>
+      <button id="dashboard-save-btn" class="btn btn-outline btn-sm">Save as&hellip;</button>
+      <button id="dashboard-delete-btn" class="btn btn-outline btn-sm" ${dashboardSelectedLayoutId ? '' : 'disabled'}>Delete Layout</button>
+      <select id="dashboard-add-tile-picker" class="form-input" style="width:auto;">
+        <option value="">+ Add tile&hellip;</option>
+        ${addTileOptions}
+      </select>
     </div>
     <div class="dashboard-stats-row" id="exec-dashboard-cards"></div>
-    <div style="padding: 20px; border-top: 1px solid var(--border-color);">
-      <h3 style="margin: 0 0 12px; font-size: 14px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">${trendLabel}</h3>
-      <div id="exec-dashboard-trend"></div>
-    </div>
+    ${trendHtml}
   `;
 
   // Found while live-verifying 30.5.8: Reports is DEFAULT_VIEW, so this runs
@@ -12312,20 +12363,76 @@ async function renderExecDashboard(panel) {
   // below already guards its own container.
   const cardsRow = document.getElementById('exec-dashboard-cards');
   if (!cardsRow) return;
-  cards.forEach(c => {
+  tiles.forEach((t, i) => {
+    const value = results[i].rows.length;
     const card = document.createElement('div');
     card.className = 'stat-card';
     card.style.cursor = 'pointer';
+    card.style.position = 'relative';
     card.title = 'Click to open in Report Catalog';
     card.innerHTML = `
-      <span class="stat-label">${c.label}</span>
-      <span class="stat-val" style="color:${c.value > 0 ? '#dc2626' : '#10b981'};">${c.value}</span>
+      <span class="stat-label">${escapeHTMLText(t.title || t.report_id)}</span>
+      <span class="stat-val" style="color:${value > 0 ? '#dc2626' : '#10b981'};">${value}</span>
+      <span data-remove-tile="${i}" title="Remove tile" style="position:absolute; top:4px; right:8px; color:var(--text-muted); font-size:14px; line-height:1;">&times;</span>
     `;
-    card.addEventListener('click', () => execDashboardOpenReport(c.reportId));
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('[data-remove-tile]')) return;
+      execDashboardOpenReport(t.report_id);
+    });
     cardsRow.appendChild(card);
   });
+  cardsRow.querySelectorAll('[data-remove-tile]').forEach(el => {
+    el.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = Number(el.getAttribute('data-remove-tile'));
+      dashboardCurrentTiles = tiles.filter((_, i) => i !== idx);
+      renderExecDashboardBody(panel);
+    });
+  });
 
-  renderExecDashboardTrendChart(document.getElementById('exec-dashboard-trend'), days, trendValues);
+  const trendEl = document.getElementById('exec-dashboard-trend');
+  if (trendEl) {
+    renderExecDashboardTrendChart(trendEl, JSON.parse(trendEl.dataset.days), JSON.parse(trendEl.dataset.values));
+  }
+
+  document.getElementById('dashboard-layout-picker').addEventListener('change', (e) => {
+    dashboardSelectedLayoutId = e.target.value;
+    const layout = dashboardLayouts.find(l => l.id === dashboardSelectedLayoutId);
+    dashboardCurrentTiles = layout ? layout.tiles : defaultDashboardTiles();
+    renderExecDashboardBody(panel);
+  });
+  document.getElementById('dashboard-delete-btn').addEventListener('click', async () => {
+    if (!dashboardSelectedLayoutId) return;
+    const res = await apiFetch(`/api/v1/dashboards/layouts/${encodeURIComponent(dashboardSelectedLayoutId)}`, { method: 'DELETE' });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Failed to delete this layout.'); return; }
+    showToast('Layout deleted.');
+    dashboardSelectedLayoutId = '';
+    dashboardCurrentTiles = defaultDashboardTiles();
+    await loadDashboardLayouts();
+    renderExecDashboardBody(panel);
+  });
+  document.getElementById('dashboard-save-btn').addEventListener('click', async () => {
+    const name = await showCustomPrompt('Name this dashboard:', '', 'Save Dashboard');
+    if (name === null || !name.trim()) return;
+    const role = await showCustomPrompt('Share with role? (leave blank to keep this dashboard private)', '', 'Share (optional)');
+    const res = await apiFetch('/api/v1/dashboards/layouts', {
+      method: 'POST',
+      body: JSON.stringify({ name: name.trim(), role: (role || '').trim(), tiles: dashboardCurrentTiles })
+    });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Failed to save this dashboard.'); return; }
+    showToast('Dashboard saved.');
+    await loadDashboardLayouts();
+    renderExecDashboardBody(panel);
+  });
+  document.getElementById('dashboard-add-tile-picker').addEventListener('change', (e) => {
+    const reportId = e.target.value;
+    if (!reportId) return;
+    const def = dashboardReportCatalog.find(d => d.id === reportId);
+    dashboardCurrentTiles = [...tiles, { report_id: reportId, title: def ? def.label : reportId }];
+    renderExecDashboardBody(panel);
+  });
 }
 
 // A plain inline-SVG bar chart - no charting library (this codebase stays

@@ -44,6 +44,21 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 128. Stage 37.11 — Role dashboards, savable layouts, digests, drill-through (2026-09-01, code + schema)
+
+Pre-build audit of the existing exec dashboard (`renderExecDashboard`, `public/app.js`) found it fully hardcoded - 4 literal cards + a literal `sales-register` trend chart, no persistence, no per-role variation. Generalized rather than replaced: the four cards became `DefaultDashboardTiles()`'s data, not literal code.
+
+- **37.11.1**: `DashboardLayout` doctype - the `OMSSavedView` precedent exactly (engine-written directly to `documents`, not the generic doc-create API). One addition beyond `OMSSavedView`'s shape: an optional `role` field - unset keeps a layout private ("savable layouts"), set makes it a shared default for that role ("role dashboards").
+- **37.11.2**: Savable - `SaveDashboardLayout`/`ListDashboardLayouts`/`DeleteDashboardLayout` (`engines/dashboard.go`), delete owner-only even for a role-shared layout. Frontend: a layout picker + Save-as/Delete/Add-tile controls on the Dashboard tab, each tile closeable inline.
+- **37.11.3**: `DashboardDigest` doctype + `StartDashboardDigestWorker` - the `ScheduledReport` precedent applied to a whole layout: runs every tile, assembles one combined CSV, delivers through the existing outbox. `module_key` (`reports`) confirmed already registered/`default_enabled` before writing the migration - avoided repeating 37.9's module-registration gap.
+- **37.11.4**: Drill-through - pure frontend reuse, no backend change. Every tile calls the same `execDashboardOpenReport` the original 4 cards used, opening Report Catalog with that report pre-selected where `has_drill_down` rendering already exists.
+- **37.11.5**: BI data-mart deferral (26.10.6) re-checked, not re-decided - a digest tick adds no new query shape, thresholds unaffected. No action.
+- **Surface/schema**: additive `db/migrations_stage37_11_dashboards.sql` (dev only). New `engines/dashboard.go` (+`_test.go`), one new handler file (`internal/server/handlers_dashboard.go`), 3 new routes, 1 new background worker. `public/app.js`'s dashboard generalized into `renderExecDashboard` + `renderExecDashboardBody` + `defaultDashboardTiles()`.
+- **Verified**: `go build ./...`/`go vet ./...`/`node --check public/app.js` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage3711Dashboards` (validation, owner-only vs role-shared visibility, delete permission boundary, digest worker running both tiles and advancing the schedule). **Live over HTTP** (port 9269, stopped afterward): private vs role-shared visibility confirmed between `manager1`/`cashier1`, delete-permission boundary confirmed, a real `DashboardDigest` created via the generic doc API. **Real-browser verification via Playwright**: logged in via an injected token, added/removed a tile, confirmed drill-through opened Report Catalog with the right report pre-selected, saved/selected/deleted a layout end-to-end with no console errors. Every fixture cleaned, zero active residue confirmed.
+- **Next**: Stage 38's remaining 38.4 (webhooks), 38.6 (async job runner), 38.7 (integrator sandbox).
+
+---
+
 ## 127. Stage 37.10 — Planning depth: forecasting, reorder points, pegging, capacity (2026-09-01, code + schema)
 
 Pre-build audit found this ~60% already built under different names: `ForecastDemand`/`CalculateSalesVelocity` (real but naive), `GetReplenishmentSuggestions`/`GetMRPSuggestions` (reorder point from call-site parameters, not persisted config), `GetProductionSchedule` (already a genuine finite-capacity scheduler, never wired to a report). Pegging was the one genuinely new piece. Every new function is a sibling of an existing one - originals untouched.
@@ -54,7 +69,7 @@ Pre-build audit found this ~60% already built under different names: `ForecastDe
 - **37.10.4**: `GetProductionSchedule` wired to a report for the first time - no code change to the function itself.
 - **Surface/schema**: additive `db/migrations_stage37_10_planning_depth.sql` (dev only). New `engines/planning.go` (+`_test.go`), no new handler/route file. `ReorderPointConfig`'s module_key is `inventory` (already core/always-enabled), avoiding 37.9's module-registration gap by design.
 - **Verified**: `go build ./...`/`go vet ./...`/`node --check public/app.js` clean; `go test ./... -p 1 -count=1` fully green including new `TestStage3710PlanningDepth`. **Live over HTTP** (port 9268, stopped afterward): a real ReorderPointConfig created via the generic doc API and all four new reports responding correctly. Fixture hard-deleted afterward, zero residue confirmed.
-- **Next**: 37.11 (role dashboards), then Stage 38's remaining 38.4/38.6/38.7.
+- **Next**: 37.11 (role dashboards) - now built, see §128 above.
 
 ---
 

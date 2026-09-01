@@ -146,6 +146,11 @@ func Run() {
 	// MaintenanceSchedule.
 	engines.StartMaintenanceSchedulingWorker(workerCtx, 1*time.Hour)
 
+	// Start Dashboard Digest Worker (Stage 37.11.3) - the
+	// StartScheduledReportWorker precedent, running every tile in a saved
+	// DashboardLayout and delivering one combined CSV through the outbox.
+	engines.StartDashboardDigestWorker(workerCtx, 1*time.Hour)
+
 	// Start Campaign Worker (Stage 26.7.4) - daily-granularity scan for
 	// Active campaigns whose birthday/lapsed-customer trigger newly
 	// matches a customer.
@@ -595,6 +600,13 @@ func Run() {
 	http.HandleFunc("GET /api/v1/reports/drilldown/{id}", apiMiddleware(moduleGate("reports", handleReportDrillDown)))
 	http.HandleFunc("POST /api/v1/reports/export", apiMiddleware(moduleGate("reports", handleCreateReportExport)))
 	http.HandleFunc("GET /api/v1/reports/export/{id}", apiMiddleware(moduleGate("reports", handleGetReportExport)))
+
+	// Stage 37.11: role dashboards - savable layouts on top of the report
+	// engine above. DashboardDigest needs no route here - it is a plain
+	// registered doctype the generic doc API already handles.
+	http.HandleFunc("GET /api/v1/dashboards/layouts", apiMiddleware(moduleGate("reports", handleDashboardLayouts)))
+	http.HandleFunc("POST /api/v1/dashboards/layouts", apiMiddleware(moduleGate("reports", handleDashboardLayouts)))
+	http.HandleFunc("DELETE /api/v1/dashboards/layouts/{id}", apiMiddleware(moduleGate("reports", handleDeleteDashboardLayout)))
 
 	// RFQ / Vendor Quote / Quote Comparison (Stage 14.1: module-gated - "rfq")
 	http.HandleFunc("GET /api/v1/rfq/quotes", apiMiddleware(moduleGate("rfq", handleGetVendorQuotesForRFQ)))
