@@ -4,7 +4,7 @@ section: Reference
 order: 30
 summary: The countries the application knows, their dialling codes, and the phone number lengths each one accepts.
 audience: admin, store manager
-last_verified: 2026-08-17
+last_verified: 2026-09-03
 screens: [configuration]
 ---
 

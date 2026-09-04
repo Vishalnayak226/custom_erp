@@ -161,6 +161,15 @@ func deliverWebhook(schema string, job Job) (map[string]interface{}, error) {
 		return map[string]interface{}{"simulated": true, "reason": "sandbox tenant"}, nil
 	}
 
+	// Stage 47.0.5/47.11.6 Gate 0: this server-wide switch is the sandbox
+	// check's twin for every other tenant - a dev/test boot must not deliver
+	// a real webhook just because a regression/abuse test or a developer
+	// happened to trigger one.
+	if !ExternalSideEffectsEnabled() {
+		log.Printf("[WEBHOOK] external side effects are OFF - simulating delivery of %q to %s (no real HTTP call made)", eventName, rawURL)
+		return map[string]interface{}{"simulated": true, "reason": "external side effects disabled"}, nil
+	}
+
 	if err := validateWebhookURL(rawURL); err != nil {
 		return nil, err
 	}

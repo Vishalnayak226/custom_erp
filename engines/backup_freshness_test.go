@@ -81,6 +81,7 @@ func TestBackupStaleAlertReachesTheWebhook(t *testing.T) {
 	defer srv.Close()
 
 	t.Setenv("OPS_ALERT_WEBHOOK_URL", srv.URL)
+	t.Setenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS", "1") // Stage 47.0.5 Gate 0: opt this real-send test in deliberately
 	t.Setenv("BACKUP_DIR", t.TempDir()) // exists, but holds no backup
 
 	// Reset the throttle so this test is independent of any earlier alert.

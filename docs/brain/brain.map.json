@@ -537,7 +537,9 @@
         "engines/outbox.go",
         "engines/jobrunner.go",
         "engines/webhook.go",
-        "internal/server/handlers_jobrunner.go"
+        "internal/server/handlers_jobrunner.go",
+        "engines/environment.go",
+        "internal/server/handlers_environment.go"
       ]
     },
     {
@@ -567,7 +569,9 @@
         "cmd/genkb/*",
         "internal/kb/**",
         "internal/server/handlers_help.go",
-        "docs/kb/**"
+        "docs/kb/**",
+        "engines/help_feedback.go",
+        "engines/help_feedback_report.go"
       ]
     },
     {
@@ -605,7 +609,8 @@
         "Open-ERP.cmd",
         ".gitignore",
         ".gitattributes",
-        "cmd/minttoken/*"
+        "cmd/minttoken/*",
+        "cmd/snapshot_tenant_config/*"
       ]
     },
     {

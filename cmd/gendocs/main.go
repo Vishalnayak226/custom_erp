@@ -58,6 +58,12 @@ func main() {
 	writeOut(filepath.Join(*kbOut, "troubleshooting", "error-code-reference.md"), kbErrorCodeReference(stamp))
 	writeOut(filepath.Join(*kbOut, "reference", "report-catalog.md"), kbReportCatalog(stamp))
 	writeOut(filepath.Join(*kbOut, "reference", "country-phone-rules.md"), kbCountryPhoneRules(stamp))
+	// Stage 39.10. Skipped (with its own [warn]) rather than failing the run if
+	// docs/project_ledger.md is unreadable from the current working directory -
+	// the other three generators have no such external dependency.
+	if releaseNotes := kbReleaseNotes(stamp); releaseNotes != "" {
+		writeOut(filepath.Join(*kbOut, "reference", "release-notes.md"), releaseNotes)
+	}
 	fmt.Println("  [note] docs/kb/ changed - run `go run ./cmd/genkb` (or docs/kb/update-kb.ps1) to rebuild the Knowledge Center.")
 
 	// Stage 38.8. The OpenAPI document is generated from the same public route

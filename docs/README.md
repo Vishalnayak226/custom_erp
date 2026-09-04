@@ -25,6 +25,11 @@ These three ("the big 3") stay at `docs/` root by standing convention (see the r
 ## "I need to test that every module/page still works"
 - **[guides/UAT_CHECKLIST.md](guides/UAT_CHECKLIST.md)** — single walkthrough script, one section per sidebar screen, click-this-expect-that with pass/fail boxes. Flags known placeholder/limitation screens so they aren't mistaken for bugs. Re-run after significant frontend or schema changes.
 
+## "What are the current product risks and the plan to reach enterprise maturity?"
+- **[audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md](audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md)** — read-only, evidence-labelled audit from business, SAP, Dynamics, OMS, WMS, PIM/MDM, floor-user, security, developer, operations, and legal perspectives. Includes the self-setup verdict, adversarial journeys, performance baseline, and release blockers.
+- **[audits/LIGHTWEIGHT_SMOOTHNESS_PLAN_2026-09-01.md](audits/LIGHTWEIGHT_SMOOTHNESS_PLAN_2026-09-01.md)** — first-principles roadmap and measurable resource budgets for making the ERP trustworthy and exceptionally smooth without adding infrastructure by default.
+- **[audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md](audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md)** — expert documentation inventory and no-change reorganization plan: canonical document set, target taxonomy, ownership/lifecycle rules, BRD/PRD rebuild, generator safety, migration, archive, and deletion gates.
+
 ## "How is this actually built?"
 - **[architecture/framework_architecture.md](architecture/framework_architecture.md)** — the metadata-driven Record Type kernel (this architecture doc's own prose still uses the framework's original technical name, "DocType" — see its own note).
 - **[architecture/architecture_evaluation.md](architecture/architecture_evaluation.md)** — stack choice and multi-tenancy rationale.

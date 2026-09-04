@@ -1,7 +1,7 @@
 ---
 title: Product Groups
 section: Module Handbooks
-order: 10
+order: 55
 summary: Group products once - by hand or by rule - then bulk edit, export and report against that group.
 audience: category manager
 last_verified: 2026-08-12

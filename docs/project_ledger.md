@@ -44,6 +44,16 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 132. Stage 39 — Knowledge Center content: all remaining items closed except one (2026-09-03, content + code + docs)
+
+Closed **39.8** (drift guards over the Knowledge Center - stale `last_verified`, dangling screen/endpoint/error-code references, unmapped screens; `internal/kb/drift.go`), **39.9** (article feedback as a plain generic doctype + registered report, zero new Go handler), **39.10** (release notes generated from this ledger's own Stage headings, `cmd/gendocs/release_notes.go`), **39.14** (channel-connector + courier integration guides, 26.4.8's error dictionary inline), **39.15** (Admin & Operations section - Backup & Restore, Incident Response, adapted from `docs/operations/` rather than duplicated), and **all 9 of 39.13's remaining module handbooks** (POS, Inventory & WMS, Procurement, Security/Roles/Approvals, HR & Payroll, Manufacturing & MRP, PIM/PXM, Finance & Tax, CRM & Loyalty, OMS) - closing Stage 39.13 (module handbooks) entirely, 10 of 10 counting Traceability from 2026-08-31. Full per-item detail, verification steps and file paths are in `micro_checklist.md`'s own Stage 39 entries - this section is the index pointer, not a duplicate.
+
+Three real, pre-existing product bugs were found while writing this content and fixed in the same pass, not left as documented gaps: a stock-transfer short-receive that always failed (`TRN-0259`, no reason field in the UI), a Purchase Order amendment that always failed against an Approved PO (`PURCHA-0085`, same shape of bug), and a public API reference doc illustrating an endpoint that has never existed. A fourth finding - two real error codes used in Go source but missing from the generated-from-Excel error catalog - was deliberately left unfixed and noted, since that generated file has no accessible source spreadsheet in this session. Only **39.18** (retiring the five guide docs into `docs/kb/`) remains untouched, deliberately - it deletes files many other docs reference by path and wants its own reviewed pass.
+
+Ran partly concurrent with another session working Stage 47 - see `docs/ai_handover.md` §6 for how the shared tree was handled and what each session touched.
+
+- **Verified**: `go build ./...`/`go vet ./...` clean, `node --check public/app.js` clean, `pwsh docs/kb/update-kb.ps1` clean (39 articles by the end of this pass, up from 24 at the start), `go test ./internal/kb/...` green including 6 new drift-guard tests. Not committed - see `ai_handover.md` §6 for the shared-tree staging note.
+
 ## 128. Stage 37.11 — Role dashboards, savable layouts, digests, drill-through (2026-09-01, code + schema)
 
 Pre-build audit of the existing exec dashboard (`renderExecDashboard`, `public/app.js`) found it fully hardcoded - 4 literal cards + a literal `sales-register` trend chart, no persistence, no per-role variation. Generalized rather than replaced: the four cards became `DefaultDashboardTiles()`'s data, not literal code.

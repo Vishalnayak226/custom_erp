@@ -2966,6 +2966,37 @@ td.num {
   color: var(--primary-hover);
 }
 
+/* Stage 47.0.4/47.0.5: a persistent, non-dismissible strip so nobody
+   mistakes a SIMULATED (external side effects off) instance for a real one -
+   fixed to the viewport rather than the sidebar layout so it appears
+   identically regardless of which view is on screen. body.env-banner-active
+   (set by renderEnvironmentBanner in app.js) pushes content down by the same
+   height so the banner never overlaps the sidebar/topbar. */
+#environment-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+  display: block;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-bottom: 1px solid var(--warning-soft-border);
+  background-color: var(--warning-soft-bg);
+  color: var(--warning-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: center;
+  cursor: default;
+}
+
+body.env-banner-active {
+  padding-top: 28px;
+}
+
 .setup-banner {
   display: flex;
   align-items: flex-start;
@@ -3361,6 +3392,13 @@ td.num {
   padding-top: 16px;
   border-top: 1px solid var(--border-color);
   font-size: 13px;
+}
+
+.kb-feedback {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .kb-pager {

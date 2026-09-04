@@ -28,6 +28,9 @@ func TestSendOpsAlertPostsToWebhook(t *testing.T) {
 	oldURL := os.Getenv("OPS_ALERT_WEBHOOK_URL")
 	os.Setenv("OPS_ALERT_WEBHOOK_URL", server.URL)
 	defer os.Setenv("OPS_ALERT_WEBHOOK_URL", oldURL)
+	oldEffects := os.Getenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS")
+	os.Setenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS", "1")
+	defer os.Setenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS", oldEffects)
 
 	SendOpsAlert("PANIC", "test-module", "something broke")
 
@@ -72,6 +75,9 @@ func TestSendOpsAlertTruncatesLongMessages(t *testing.T) {
 	oldURL := os.Getenv("OPS_ALERT_WEBHOOK_URL")
 	os.Setenv("OPS_ALERT_WEBHOOK_URL", server.URL)
 	defer os.Setenv("OPS_ALERT_WEBHOOK_URL", oldURL)
+	oldEffects := os.Getenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS")
+	os.Setenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS", "1")
+	defer os.Setenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS", oldEffects)
 
 	longMessage := strings.Repeat("x", 5000)
 	SendOpsAlert("ERROR", "test-module", longMessage)
@@ -108,6 +114,9 @@ func TestCheckErrorRateThresholdAndCooldown(t *testing.T) {
 	oldURL := os.Getenv("OPS_ALERT_WEBHOOK_URL")
 	os.Setenv("OPS_ALERT_WEBHOOK_URL", server.URL)
 	defer os.Setenv("OPS_ALERT_WEBHOOK_URL", oldURL)
+	oldEffects := os.Getenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS")
+	os.Setenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS", "1")
+	defer os.Setenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS", oldEffects)
 
 	marker := "ALERTING_TEST_MARKER"
 	for i := 0; i < 5; i++ {

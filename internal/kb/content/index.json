@@ -635,33 +635,209 @@
       "order": 2,
       "articles": [
         {
-          "slug": "pim-product-groups",
-          "title": "Product Groups",
+          "slug": "pos-operations",
+          "title": "Point of Sale",
           "section": "Module Handbooks",
           "order": 10,
-          "summary": "Group products once - by hand or by rule - then bulk edit, export and report against that group.",
-          "audience": "category manager",
+          "summary": "Open a till, ring up a sale with automatic offers and tax, take a return, print silently, and reconcile the drawer at close — all backed by the same server-side checks whether the till is online or not.",
+          "audience": "cashier, store manager, admin",
           "screens": [
-            "pim",
-            "doctype-table"
+            "pos",
+            "doctype-table",
+            "reports",
+            "approvals",
+            "configuration"
           ],
-          "last_verified": "2026-08-12",
-          "source_path": "module-handbooks/pim-product-groups.md",
+          "last_verified": "2026-09-02",
+          "source_path": "module-handbooks/pos-operations.md",
           "headings": [
             {
               "level": 2,
-              "text": "The two kinds",
-              "slug": "the-two-kinds"
+              "text": "Before the first sale",
+              "slug": "before-the-first-sale"
             },
             {
               "level": 2,
-              "text": "Creating one",
-              "slug": "creating-one"
+              "text": "Till lifecycle: opening and closing a session",
+              "slug": "till-lifecycle-opening-and-closing-a-session"
             },
             {
               "level": 2,
-              "text": "Using one",
-              "slug": "using-one"
+              "text": "Ringing up a sale",
+              "slug": "ringing-up-a-sale"
+            },
+            {
+              "level": 2,
+              "text": "Discounts and offers",
+              "slug": "discounts-and-offers"
+            },
+            {
+              "level": 3,
+              "text": "Discount-approval gate",
+              "slug": "discount-approval-gate"
+            },
+            {
+              "level": 2,
+              "text": "Returns",
+              "slug": "returns"
+            },
+            {
+              "level": 2,
+              "text": "Offline mode",
+              "slug": "offline-mode"
+            },
+            {
+              "level": 2,
+              "text": "Printing the receipt",
+              "slug": "printing-the-receipt"
+            },
+            {
+              "level": 2,
+              "text": "Day-close reconciliation",
+              "slug": "day-close-reconciliation"
+            },
+            {
+              "level": 2,
+              "text": "Error codes reference",
+              "slug": "error-codes-reference"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "inventory-wms-operations",
+          "title": "Inventory \u0026 Warehouse Operations",
+          "section": "Module Handbooks",
+          "order": 20,
+          "summary": "Receive stock against a PO, put it away, pick and pack it back out, count it, adjust it, and move it between locations — the floor-ops backbone every other WMS feature sits on top of.",
+          "audience": "warehouse operator, warehouse manager, admin",
+          "screens": [
+            "grn",
+            "rf-receiving",
+            "putaway",
+            "wave-picking",
+            "cycle-count",
+            "transfers",
+            "warehouse-cockpit",
+            "doctype-table",
+            "reports"
+          ],
+          "last_verified": "2026-09-03",
+          "source_path": "module-handbooks/inventory-wms-operations.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Receiving",
+              "slug": "receiving"
+            },
+            {
+              "level": 3,
+              "text": "GRN Workbench (desktop, full detail)",
+              "slug": "grn-workbench-desktop-full-detail"
+            },
+            {
+              "level": 3,
+              "text": "RF Receiving (scan-only, against an ASN)",
+              "slug": "rf-receiving-scan-only-against-an-asn"
+            },
+            {
+              "level": 3,
+              "text": "Receiving error codes",
+              "slug": "receiving-error-codes"
+            },
+            {
+              "level": 3,
+              "text": "Reading receiving activity",
+              "slug": "reading-receiving-activity"
+            },
+            {
+              "level": 2,
+              "text": "Putaway",
+              "slug": "putaway"
+            },
+            {
+              "level": 3,
+              "text": "Manual putaway",
+              "slug": "manual-putaway"
+            },
+            {
+              "level": 3,
+              "text": "Cross-dock staging",
+              "slug": "cross-dock-staging"
+            },
+            {
+              "level": 2,
+              "text": "Picking \u0026 Packing",
+              "slug": "picking-packing"
+            },
+            {
+              "level": 3,
+              "text": "Bin-grouped pick list",
+              "slug": "bin-grouped-pick-list"
+            },
+            {
+              "level": 3,
+              "text": "Wave / Batch Picking",
+              "slug": "wave-batch-picking"
+            },
+            {
+              "level": 3,
+              "text": "What actually moves the order forward",
+              "slug": "what-actually-moves-the-order-forward"
+            },
+            {
+              "level": 3,
+              "text": "Beyond picking: sortation and loading",
+              "slug": "beyond-picking-sortation-and-loading"
+            },
+            {
+              "level": 2,
+              "text": "Cycle Counts",
+              "slug": "cycle-counts"
+            },
+            {
+              "level": 3,
+              "text": "What actually posts to inventory",
+              "slug": "what-actually-posts-to-inventory"
+            },
+            {
+              "level": 2,
+              "text": "Stock Adjustments",
+              "slug": "stock-adjustments"
+            },
+            {
+              "level": 2,
+              "text": "Transfers (Stock Transfer)",
+              "slug": "transfers-stock-transfer"
+            },
+            {
+              "level": 3,
+              "text": "Transfer error codes",
+              "slug": "transfer-error-codes"
+            },
+            {
+              "level": 2,
+              "text": "Warehouse Cockpit",
+              "slug": "warehouse-cockpit"
+            },
+            {
+              "level": 2,
+              "text": "Reports",
+              "slug": "reports"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
             },
             {
               "level": 2,
@@ -674,7 +850,7 @@
           "slug": "traceability-batch-serial",
           "title": "Batch, Serial \u0026 Expiry Traceability",
           "section": "Module Handbooks",
-          "order": 20,
+          "order": 25,
           "summary": "Track a lot or an individual unit from receipt to dispatch, pick the right stock first by expiry, and answer a recall in two directions.",
           "audience": "warehouse operator, category manager, admin",
           "screens": [
@@ -740,6 +916,962 @@
               "level": 2,
               "text": "What is not here yet",
               "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "procurement",
+          "title": "Procurement",
+          "section": "Module Handbooks",
+          "order": 30,
+          "summary": "Turn a need into stock on the shelf — raise a requisition, shop it round vendors with an optional RFQ, commit to a fully tax-classified Purchase Order, and post the Goods Receipt that actually moves the stock.",
+          "audience": "procurement officer, store manager, admin",
+          "screens": [
+            "purchase-orders",
+            "grn",
+            "rfq",
+            "doctype-table",
+            "vendor-invoices",
+            "reports",
+            "approvals",
+            "configuration"
+          ],
+          "last_verified": "2026-09-03",
+          "source_path": "module-handbooks/procurement.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Before the first PO",
+              "slug": "before-the-first-po"
+            },
+            {
+              "level": 3,
+              "text": "Vendor onboarding",
+              "slug": "vendor-onboarding"
+            },
+            {
+              "level": 3,
+              "text": "Item prerequisites",
+              "slug": "item-prerequisites"
+            },
+            {
+              "level": 2,
+              "text": "The chain: Requisition → RFQ → PO → GRN",
+              "slug": "the-chain-requisition-rfq-po-grn"
+            },
+            {
+              "level": 3,
+              "text": "1. Purchase Requisition",
+              "slug": "1-purchase-requisition"
+            },
+            {
+              "level": 3,
+              "text": "2. RFQ and vendor quote comparison",
+              "slug": "2-rfq-and-vendor-quote-comparison"
+            },
+            {
+              "level": 3,
+              "text": "3. Purchase Order composer",
+              "slug": "3-purchase-order-composer"
+            },
+            {
+              "level": 3,
+              "text": "GST on a Purchase Order: inclusive vs exclusive, and inter-state",
+              "slug": "gst-on-a-purchase-order-inclusive-vs-exclusive-and-inter-state"
+            },
+            {
+              "level": 3,
+              "text": "Printing and sending",
+              "slug": "printing-and-sending"
+            },
+            {
+              "level": 3,
+              "text": "PO amendment",
+              "slug": "po-amendment"
+            },
+            {
+              "level": 3,
+              "text": "4. Goods Receipt (GRN)",
+              "slug": "4-goods-receipt-grn"
+            },
+            {
+              "level": 2,
+              "text": "After the GRN: vendor invoice and payment",
+              "slug": "after-the-grn-vendor-invoice-and-payment"
+            },
+            {
+              "level": 2,
+              "text": "Reports",
+              "slug": "reports"
+            },
+            {
+              "level": 2,
+              "text": "Error codes reference",
+              "slug": "error-codes-reference"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "security-approvals",
+          "title": "Security, Roles \u0026 Approvals",
+          "section": "Module Handbooks",
+          "order": 40,
+          "summary": "How roles gate what a user can see and do, how the maker-checker approval engine routes and locks high-value documents, and how field-level permission and MFA controls layer on top — the cross-cutting reference every other module handbook points back to.",
+          "audience": "admin, auditor",
+          "screens": [
+            "users",
+            "roles",
+            "approvals",
+            "approval-rules",
+            "profile",
+            "audit-logs"
+          ],
+          "last_verified": "2026-09-03",
+          "source_path": "module-handbooks/security-approvals.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Roles: what exists today",
+              "slug": "roles-what-exists-today"
+            },
+            {
+              "level": 3,
+              "text": "Super Admin was renamed from \"HR/Admin\"",
+              "slug": "super-admin-was-renamed-from-hr-admin"
+            },
+            {
+              "level": 2,
+              "text": "Record-type permissions: the Roles screen",
+              "slug": "record-type-permissions-the-roles-screen"
+            },
+            {
+              "level": 3,
+              "text": "Reading the permission matrix",
+              "slug": "reading-the-permission-matrix"
+            },
+            {
+              "level": 2,
+              "text": "Field-level permissions",
+              "slug": "field-level-permissions"
+            },
+            {
+              "level": 2,
+              "text": "The maker-checker approval engine",
+              "slug": "the-maker-checker-approval-engine"
+            },
+            {
+              "level": 3,
+              "text": "How a rule routes",
+              "slug": "how-a-rule-routes"
+            },
+            {
+              "level": 3,
+              "text": "The lifecycle: Submit → Decide",
+              "slug": "the-lifecycle-submit-decide"
+            },
+            {
+              "level": 3,
+              "text": "Editing an approved document re-opens it",
+              "slug": "editing-an-approved-document-re-opens-it"
+            },
+            {
+              "level": 3,
+              "text": "Bulk decisions",
+              "slug": "bulk-decisions"
+            },
+            {
+              "level": 3,
+              "text": "Who sees what in the approvals inbox",
+              "slug": "who-sees-what-in-the-approvals-inbox"
+            },
+            {
+              "level": 3,
+              "text": "Managing the rules themselves",
+              "slug": "managing-the-rules-themselves"
+            },
+            {
+              "level": 3,
+              "text": "Audit trail",
+              "slug": "audit-trail"
+            },
+            {
+              "level": 2,
+              "text": "MFA: who must enroll, and how recovery works",
+              "slug": "mfa-who-must-enroll-and-how-recovery-works"
+            },
+            {
+              "level": 2,
+              "text": "Managing users",
+              "slug": "managing-users"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "channel-connectors",
+          "title": "Channel Connectors",
+          "section": "Module Handbooks",
+          "order": 45,
+          "summary": "Push product content out to Shopify, BigCommerce, Magento, Amazon, Flipkart and a dozen private-contract marketplaces through one shared readiness/queue/retry pipeline, and pull their orders back in through the same connector.",
+          "audience": "category manager, admin, integrator",
+          "screens": [
+            "pim",
+            "oms",
+            "doctype-table"
+          ],
+          "last_verified": "2026-09-03",
+          "source_path": "module-handbooks/channel-connectors.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The shared publish pipeline: readiness, queue, worker, log",
+              "slug": "the-shared-publish-pipeline-readiness-queue-worker-log"
+            },
+            {
+              "level": 2,
+              "text": "Credential storage",
+              "slug": "credential-storage"
+            },
+            {
+              "level": 2,
+              "text": "Shopify",
+              "slug": "shopify"
+            },
+            {
+              "level": 2,
+              "text": "BigCommerce",
+              "slug": "bigcommerce"
+            },
+            {
+              "level": 2,
+              "text": "Magento / Adobe Commerce",
+              "slug": "magento-adobe-commerce"
+            },
+            {
+              "level": 2,
+              "text": "Amazon (Selling Partner API)",
+              "slug": "amazon-selling-partner-api"
+            },
+            {
+              "level": 2,
+              "text": "Flipkart",
+              "slug": "flipkart"
+            },
+            {
+              "level": 2,
+              "text": "Private-contract channels (Myntra, Meesho, Ajio, Nykaa, Blinkit, Zepto, Swiggy Instamart) and WooCommerce",
+              "slug": "private-contract-channels-myntra-meesho-ajio-nykaa-blinkit-zepto-swiggy-instamart-and-woocommerce"
+            },
+            {
+              "level": 2,
+              "text": "Operating channels day to day: the OMS Workbench",
+              "slug": "operating-channels-day-to-day-the-oms-workbench"
+            },
+            {
+              "level": 2,
+              "text": "The 26.4.8 error dictionary",
+              "slug": "the-26-4-8-error-dictionary"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "courier-integrations",
+          "title": "Courier Integrations",
+          "section": "Module Handbooks",
+          "order": 46,
+          "summary": "Book a shipment, check serviceability, print a label, and track it to delivery or RTO — the manual carrier-agnostic flow every warehouse uses today, and the real Delhivery/Shiprocket API layer built alongside it but not yet reachable from a screen.",
+          "audience": "warehouse operator, admin",
+          "screens": [
+            "marketplace",
+            "oms",
+            "doctype-table"
+          ],
+          "last_verified": "2026-09-03",
+          "source_path": "module-handbooks/courier-integrations.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The shared model (engines/courier.go)",
+              "slug": "the-shared-model-engines-courier-go"
+            },
+            {
+              "level": 2,
+              "text": "Credential storage",
+              "slug": "credential-storage"
+            },
+            {
+              "level": 2,
+              "text": "Delhivery",
+              "slug": "delhivery"
+            },
+            {
+              "level": 2,
+              "text": "Shiprocket",
+              "slug": "shiprocket"
+            },
+            {
+              "level": 2,
+              "text": "Webhook verification and the manifest/RTO flow",
+              "slug": "webhook-verification-and-the-manifest-rto-flow"
+            },
+            {
+              "level": 2,
+              "text": "Day to day: the Marketplace screen's manual flow",
+              "slug": "day-to-day-the-marketplace-screen-s-manual-flow"
+            },
+            {
+              "level": 2,
+              "text": "Rate shopping and reverse pickup (built, not wired)",
+              "slug": "rate-shopping-and-reverse-pickup-built-not-wired"
+            },
+            {
+              "level": 2,
+              "text": "The oms_integration feature flag",
+              "slug": "the-oms-integration-feature-flag"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "pim-pxm",
+          "title": "Product Information Management",
+          "section": "Module Handbooks",
+          "order": 50,
+          "summary": "Items, categories and attributes with locale/channel-aware values, a 0-100 completeness score every publish gate reads, and an effective-dated price list that exists in full but has no screen yet.",
+          "audience": "category manager, admin",
+          "screens": [
+            "pim",
+            "doctype-table",
+            "reports",
+            "configuration"
+          ],
+          "last_verified": "2026-09-03",
+          "source_path": "module-handbooks/pim-pxm.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Items",
+              "slug": "items"
+            },
+            {
+              "level": 2,
+              "text": "Categories and attributes (taxonomy)",
+              "slug": "categories-and-attributes-taxonomy"
+            },
+            {
+              "level": 3,
+              "text": "Locale and channel-scoped attribute values",
+              "slug": "locale-and-channel-scoped-attribute-values"
+            },
+            {
+              "level": 2,
+              "text": "Completeness scoring",
+              "slug": "completeness-scoring"
+            },
+            {
+              "level": 2,
+              "text": "Price lists",
+              "slug": "price-lists"
+            },
+            {
+              "level": 2,
+              "text": "Channels: category and field mapping",
+              "slug": "channels-category-and-field-mapping"
+            },
+            {
+              "level": 2,
+              "text": "Supplier submissions",
+              "slug": "supplier-submissions"
+            },
+            {
+              "level": 2,
+              "text": "Field-level edit permissions",
+              "slug": "field-level-edit-permissions"
+            },
+            {
+              "level": 2,
+              "text": "Reports",
+              "slug": "reports"
+            },
+            {
+              "level": 2,
+              "text": "Error codes reference",
+              "slug": "error-codes-reference"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "pim-product-groups",
+          "title": "Product Groups",
+          "section": "Module Handbooks",
+          "order": 55,
+          "summary": "Group products once - by hand or by rule - then bulk edit, export and report against that group.",
+          "audience": "category manager",
+          "screens": [
+            "pim",
+            "doctype-table"
+          ],
+          "last_verified": "2026-08-12",
+          "source_path": "module-handbooks/pim-product-groups.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The two kinds",
+              "slug": "the-two-kinds"
+            },
+            {
+              "level": 2,
+              "text": "Creating one",
+              "slug": "creating-one"
+            },
+            {
+              "level": 2,
+              "text": "Using one",
+              "slug": "using-one"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "oms-order-management",
+          "title": "Order Management",
+          "section": "Module Handbooks",
+          "order": 60,
+          "summary": "Every channel and manual order lands through one Order Engine - validated, allocated across locations by a priority-ordered rule chain, and held with a routable reason rather than ever hard-rejected.",
+          "audience": "order desk, store manager, admin",
+          "screens": [
+            "oms"
+          ],
+          "last_verified": "2026-09-03",
+          "source_path": "module-handbooks/oms-order-management.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The OMS Workbench",
+              "slug": "the-oms-workbench"
+            },
+            {
+              "level": 2,
+              "text": "Order creation: the validate chain",
+              "slug": "order-creation-the-validate-chain"
+            },
+            {
+              "level": 2,
+              "text": "Allocation \u0026 sourcing",
+              "slug": "allocation-sourcing"
+            },
+            {
+              "level": 2,
+              "text": "Holds: three different things share the word \"hold\"",
+              "slug": "holds-three-different-things-share-the-word-hold"
+            },
+            {
+              "level": 2,
+              "text": "Editing, switching facility, priority, and splitting",
+              "slug": "editing-switching-facility-priority-and-splitting"
+            },
+            {
+              "level": 2,
+              "text": "Manual order entry",
+              "slug": "manual-order-entry"
+            },
+            {
+              "level": 2,
+              "text": "Returns and refunds",
+              "slug": "returns-and-refunds"
+            },
+            {
+              "level": 2,
+              "text": "Error codes reference",
+              "slug": "error-codes-reference"
+            },
+            {
+              "level": 2,
+              "text": "Reports",
+              "slug": "reports"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "finance-tax",
+          "title": "Finance \u0026 Tax",
+          "section": "Module Handbooks",
+          "order": 70,
+          "summary": "Every posting is balanced double-entry against a period that can be locked shut, with multi-currency revaluation and 25 registered reports behind it - though several of the deepest entry points are API-only today.",
+          "audience": "accountant, finance manager, admin",
+          "screens": [
+            "finance",
+            "doctype-table",
+            "reports",
+            "configuration"
+          ],
+          "last_verified": "2026-09-03",
+          "source_path": "module-handbooks/finance-tax.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The Finance screen",
+              "slug": "the-finance-screen"
+            },
+            {
+              "level": 2,
+              "text": "Chart of Accounts",
+              "slug": "chart-of-accounts"
+            },
+            {
+              "level": 2,
+              "text": "Posting dimensions",
+              "slug": "posting-dimensions"
+            },
+            {
+              "level": 2,
+              "text": "Accounting periods and closing",
+              "slug": "accounting-periods-and-closing"
+            },
+            {
+              "level": 2,
+              "text": "Trial Balance",
+              "slug": "trial-balance"
+            },
+            {
+              "level": 2,
+              "text": "Accounts Receivable: Sales Invoices",
+              "slug": "accounts-receivable-sales-invoices"
+            },
+            {
+              "level": 2,
+              "text": "Accounts Payable: Vendor Invoices and payment runs",
+              "slug": "accounts-payable-vendor-invoices-and-payment-runs"
+            },
+            {
+              "level": 2,
+              "text": "Multi-currency and FX",
+              "slug": "multi-currency-and-fx"
+            },
+            {
+              "level": 2,
+              "text": "Error codes reference",
+              "slug": "error-codes-reference"
+            },
+            {
+              "level": 2,
+              "text": "Reports",
+              "slug": "reports"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "crm-loyalty",
+          "title": "CRM \u0026 Loyalty",
+          "section": "Module Handbooks",
+          "order": 80,
+          "summary": "Earn and burn loyalty points on real sales, issue vouchers and run birthday/lapsed-customer campaigns, and read customer behaviour back through seven CRM reports.",
+          "audience": "store manager, marketing, admin",
+          "screens": [
+            "doctype-table",
+            "reports",
+            "configuration"
+          ],
+          "last_verified": "2026-09-03",
+          "source_path": "module-handbooks/crm-loyalty.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Loyalty points: earn and burn",
+              "slug": "loyalty-points-earn-and-burn"
+            },
+            {
+              "level": 2,
+              "text": "Loyalty tiers",
+              "slug": "loyalty-tiers"
+            },
+            {
+              "level": 2,
+              "text": "Point expiry",
+              "slug": "point-expiry"
+            },
+            {
+              "level": 2,
+              "text": "Vouchers (coupons)",
+              "slug": "vouchers-coupons"
+            },
+            {
+              "level": 2,
+              "text": "Campaigns",
+              "slug": "campaigns"
+            },
+            {
+              "level": 2,
+              "text": "The OTP-gated secure redemption path",
+              "slug": "the-otp-gated-secure-redemption-path"
+            },
+            {
+              "level": 2,
+              "text": "Merging duplicate customers",
+              "slug": "merging-duplicate-customers"
+            },
+            {
+              "level": 2,
+              "text": "CleverTap integration",
+              "slug": "clevertap-integration"
+            },
+            {
+              "level": 2,
+              "text": "Reports",
+              "slug": "reports"
+            },
+            {
+              "level": 2,
+              "text": "Error codes reference",
+              "slug": "error-codes-reference"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "hr-payroll",
+          "title": "HR \u0026 Payroll",
+          "section": "Module Handbooks",
+          "order": 90,
+          "summary": "Track employees, attendance and leave, then run payroll against a configured salary structure and post it straight to the GL.",
+          "audience": "HR manager, admin",
+          "screens": [
+            "hr"
+          ],
+          "last_verified": "2026-09-03",
+          "source_path": "module-handbooks/hr-payroll.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Setting up an employee",
+              "slug": "setting-up-an-employee"
+            },
+            {
+              "level": 2,
+              "text": "Attendance and leave",
+              "slug": "attendance-and-leave"
+            },
+            {
+              "level": 2,
+              "text": "Payroll Export — for external payroll software",
+              "slug": "payroll-export-for-external-payroll-software"
+            },
+            {
+              "level": 2,
+              "text": "Running payroll — the processing engine",
+              "slug": "running-payroll-the-processing-engine"
+            },
+            {
+              "level": 3,
+              "text": "1. Configure a salary structure",
+              "slug": "1-configure-a-salary-structure"
+            },
+            {
+              "level": 3,
+              "text": "2. Preview, then run",
+              "slug": "2-preview-then-run"
+            },
+            {
+              "level": 3,
+              "text": "Posting a payslip",
+              "slug": "posting-a-payslip"
+            },
+            {
+              "level": 2,
+              "text": "Loans against salary",
+              "slug": "loans-against-salary"
+            },
+            {
+              "level": 2,
+              "text": "Onboarding \u0026 offboarding",
+              "slug": "onboarding-offboarding"
+            },
+            {
+              "level": 2,
+              "text": "Appraisals, training and grievances",
+              "slug": "appraisals-training-and-grievances"
+            },
+            {
+              "level": 2,
+              "text": "Self-service",
+              "slug": "self-service"
+            },
+            {
+              "level": 2,
+              "text": "Reports",
+              "slug": "reports"
+            },
+            {
+              "level": 2,
+              "text": "Error codes reference",
+              "slug": "error-codes-reference"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
+        },
+        {
+          "slug": "manufacturing-mrp",
+          "title": "Manufacturing \u0026 MRP",
+          "section": "Module Handbooks",
+          "order": 100,
+          "summary": "Build a multi-level BOM, run a production order through routing/QC/completion, and let MRP tell you what to build next and what raw materials that would need.",
+          "audience": "production planner, plant manager, admin",
+          "screens": [
+            "manufacturing"
+          ],
+          "last_verified": "2026-09-03",
+          "source_path": "module-handbooks/manufacturing-mrp.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "The Bill of Materials (BOM)",
+              "slug": "the-bill-of-materials-bom"
+            },
+            {
+              "level": 2,
+              "text": "Running a production order",
+              "slug": "running-a-production-order"
+            },
+            {
+              "level": 2,
+              "text": "Quality gate before completion",
+              "slug": "quality-gate-before-completion"
+            },
+            {
+              "level": 2,
+              "text": "Routing, work centers and operations",
+              "slug": "routing-work-centers-and-operations"
+            },
+            {
+              "level": 2,
+              "text": "Scrap and rework",
+              "slug": "scrap-and-rework"
+            },
+            {
+              "level": 2,
+              "text": "MRP: what to build next",
+              "slug": "mrp-what-to-build-next"
+            },
+            {
+              "level": 2,
+              "text": "Production scheduling: finite vs. infinite",
+              "slug": "production-scheduling-finite-vs-infinite"
+            },
+            {
+              "level": 2,
+              "text": "Subcontracting (outside processing)",
+              "slug": "subcontracting-outside-processing"
+            },
+            {
+              "level": 2,
+              "text": "Costing",
+              "slug": "costing"
+            },
+            {
+              "level": 2,
+              "text": "Error codes reference",
+              "slug": "error-codes-reference"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
+            },
+            {
+              "level": 2,
+              "text": "What is not here yet",
+              "slug": "what-is-not-here-yet"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin \u0026 Operations",
+      "order": 4,
+      "articles": [
+        {
+          "slug": "backup-and-restore",
+          "title": "Backup \u0026 Restore",
+          "section": "Admin \u0026 Operations",
+          "order": 10,
+          "summary": "Back up every environment on a schedule, prove the backups actually restore, and know exactly what to run when you need one back.",
+          "audience": "admin",
+          "screens": [
+            "system-status"
+          ],
+          "last_verified": "2026-09-03",
+          "source_path": "admin-operations/backup-and-restore.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "What gets backed up, and how",
+              "slug": "what-gets-backed-up-and-how"
+            },
+            {
+              "level": 3,
+              "text": "The encryption key",
+              "slug": "the-encryption-key"
+            },
+            {
+              "level": 2,
+              "text": "Restoring",
+              "slug": "restoring"
+            },
+            {
+              "level": 2,
+              "text": "The monthly restore drill",
+              "slug": "the-monthly-restore-drill"
+            },
+            {
+              "level": 3,
+              "text": "Registering the schedule",
+              "slug": "registering-the-schedule"
+            },
+            {
+              "level": 2,
+              "text": "Exporting a single tenant",
+              "slug": "exporting-a-single-tenant"
+            },
+            {
+              "level": 2,
+              "text": "The production Linux host is different tooling",
+              "slug": "the-production-linux-host-is-different-tooling"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
+            }
+          ]
+        },
+        {
+          "slug": "incident-response",
+          "title": "Incident Response \u0026 Alerting",
+          "section": "Admin \u0026 Operations",
+          "order": 20,
+          "summary": "Severity levels, what pages you automatically, where to look, and exactly what to run to roll a bad change back.",
+          "audience": "admin",
+          "screens": [
+            "system-status"
+          ],
+          "last_verified": "2026-09-03",
+          "source_path": "admin-operations/incident-response.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Severity levels",
+              "slug": "severity-levels"
+            },
+            {
+              "level": 2,
+              "text": "Automated alerting",
+              "slug": "automated-alerting"
+            },
+            {
+              "level": 2,
+              "text": "Where to look",
+              "slug": "where-to-look"
+            },
+            {
+              "level": 2,
+              "text": "Rolling back",
+              "slug": "rolling-back"
+            },
+            {
+              "level": 2,
+              "text": "Troubleshooting",
+              "slug": "troubleshooting"
             }
           ]
         }
@@ -900,13 +2032,23 @@
           "screens": [
             "reports"
           ],
-          "last_verified": "2026-08-17",
+          "last_verified": "2026-09-03",
           "source_path": "reference/report-catalog.md",
           "headings": [
             {
               "level": 2,
               "text": "Contents",
               "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "Admin",
+              "slug": "admin"
+            },
+            {
+              "level": 3,
+              "text": "Knowledge Center Feedback",
+              "slug": "knowledge-center-feedback"
             },
             {
               "level": 2,
@@ -1005,8 +2147,18 @@
             },
             {
               "level": 3,
+              "text": "Budget vs Actual",
+              "slug": "budget-vs-actual"
+            },
+            {
+              "level": 3,
               "text": "Cash Book",
               "slug": "cash-book"
+            },
+            {
+              "level": 3,
+              "text": "Cash Flow Forecast",
+              "slug": "cash-flow-forecast"
             },
             {
               "level": 3,
@@ -1015,8 +2167,33 @@
             },
             {
               "level": 3,
+              "text": "Consolidated Trial Balance",
+              "slug": "consolidated-trial-balance"
+            },
+            {
+              "level": 3,
               "text": "Cost Center P\u0026L",
               "slug": "cost-center-p-l"
+            },
+            {
+              "level": 3,
+              "text": "Deferred Revenue Roll-Forward",
+              "slug": "deferred-revenue-roll-forward"
+            },
+            {
+              "level": 3,
+              "text": "Department P\u0026L",
+              "slug": "department-p-l"
+            },
+            {
+              "level": 3,
+              "text": "Dunning Queue",
+              "slug": "dunning-queue"
+            },
+            {
+              "level": 3,
+              "text": "Entity Trial Balance",
+              "slug": "entity-trial-balance"
             },
             {
               "level": 3,
@@ -1035,6 +2212,11 @@
             },
             {
               "level": 3,
+              "text": "Intercompany Reconciliation",
+              "slug": "intercompany-reconciliation"
+            },
+            {
+              "level": 3,
               "text": "Open FX Exposure",
               "slug": "open-fx-exposure"
             },
@@ -1045,8 +2227,18 @@
             },
             {
               "level": 3,
+              "text": "Prepaid Expense Roll-Forward",
+              "slug": "prepaid-expense-roll-forward"
+            },
+            {
+              "level": 3,
               "text": "Profit \u0026 Loss",
               "slug": "profit-loss"
+            },
+            {
+              "level": 3,
+              "text": "Project P\u0026L (Job Costing)",
+              "slug": "project-p-l-job-costing"
             },
             {
               "level": 3,
@@ -1090,6 +2282,26 @@
             },
             {
               "level": 3,
+              "text": "Demand Forecast (Trend)",
+              "slug": "demand-forecast-trend"
+            },
+            {
+              "level": 3,
+              "text": "Inventory Valuation",
+              "slug": "inventory-valuation"
+            },
+            {
+              "level": 3,
+              "text": "Pegged Demand \u0026 Supply",
+              "slug": "pegged-demand-supply"
+            },
+            {
+              "level": 3,
+              "text": "Reorder Suggestions (Configured)",
+              "slug": "reorder-suggestions-configured"
+            },
+            {
+              "level": 3,
               "text": "Stock Ledger",
               "slug": "stock-ledger"
             },
@@ -1097,6 +2309,11 @@
               "level": 2,
               "text": "Manufacturing",
               "slug": "manufacturing"
+            },
+            {
+              "level": 3,
+              "text": "Production Capacity Schedule",
+              "slug": "production-capacity-schedule"
             },
             {
               "level": 3,
@@ -1160,8 +2377,18 @@
             },
             {
               "level": 3,
+              "text": "Settlement Variance Queue",
+              "slug": "settlement-variance-queue"
+            },
+            {
+              "level": 3,
               "text": "Stock Mismatch",
               "slug": "stock-mismatch"
+            },
+            {
+              "level": 3,
+              "text": "Unsettled Marketplace Orders",
+              "slug": "unsettled-marketplace-orders"
             },
             {
               "level": 2,
@@ -1230,6 +2457,16 @@
             },
             {
               "level": 2,
+              "text": "Service",
+              "slug": "service"
+            },
+            {
+              "level": 3,
+              "text": "Service SLA Breaches",
+              "slug": "service-sla-breaches"
+            },
+            {
+              "level": 2,
               "text": "WMS",
               "slug": "wms"
             },
@@ -1237,6 +2474,11 @@
               "level": 3,
               "text": "3PL Storage \u0026 Handling Billing",
               "slug": "3pl-storage-handling-billing"
+            },
+            {
+              "level": 3,
+              "text": "3PL Storage Billing v2",
+              "slug": "3pl-storage-billing-v2"
             },
             {
               "level": 3,
@@ -1255,13 +2497,245 @@
             },
             {
               "level": 3,
+              "text": "Clean-Location Consolidation Suggestions",
+              "slug": "clean-location-consolidation-suggestions"
+            },
+            {
+              "level": 3,
+              "text": "Cross-Facility Inventory Inquiry",
+              "slug": "cross-facility-inventory-inquiry"
+            },
+            {
+              "level": 3,
+              "text": "Facility Roll-Up Inventory Inquiry",
+              "slug": "facility-roll-up-inventory-inquiry"
+            },
+            {
+              "level": 3,
               "text": "Labor Productivity",
               "slug": "labor-productivity"
             },
             {
               "level": 3,
+              "text": "Labour Cost",
+              "slug": "labour-cost"
+            },
+            {
+              "level": 3,
+              "text": "Labour Enterprise Productivity",
+              "slug": "labour-enterprise-productivity"
+            },
+            {
+              "level": 3,
+              "text": "Labour Facility Performance",
+              "slug": "labour-facility-performance"
+            },
+            {
+              "level": 3,
+              "text": "Labour Standards Audit",
+              "slug": "labour-standards-audit"
+            },
+            {
+              "level": 3,
+              "text": "Labour Task Productivity",
+              "slug": "labour-task-productivity"
+            },
+            {
+              "level": 3,
+              "text": "Labour User Performance",
+              "slug": "labour-user-performance"
+            },
+            {
+              "level": 3,
+              "text": "Owner Stock Inquiry (3PL)",
+              "slug": "owner-stock-inquiry-3pl"
+            },
+            {
+              "level": 3,
+              "text": "Serial Movement History",
+              "slug": "serial-movement-history"
+            },
+            {
+              "level": 3,
+              "text": "Serial Number Inquiry",
+              "slug": "serial-number-inquiry"
+            },
+            {
+              "level": 3,
               "text": "Slotting / Re-Slotting Suggestions",
               "slug": "slotting-re-slotting-suggestions"
+            },
+            {
+              "level": 3,
+              "text": "Unslotting Suggestions (discontinued items)",
+              "slug": "unslotting-suggestions-discontinued-items"
+            }
+          ]
+        },
+        {
+          "slug": "release-notes",
+          "title": "Release notes",
+          "section": "Reference",
+          "order": 25,
+          "summary": "What shipped and when, generated from the build ledger so this page can't say something the ledger doesn't.",
+          "audience": "everyone",
+          "last_verified": "2026-09-03",
+          "source_path": "reference/release-notes.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "2026-09-01",
+              "slug": "2026-09-01"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-31",
+              "slug": "2026-08-31"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-30",
+              "slug": "2026-08-30"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-28",
+              "slug": "2026-08-28"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-25",
+              "slug": "2026-08-25"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-22",
+              "slug": "2026-08-22"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-24",
+              "slug": "2026-08-24"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-22",
+              "slug": "2026-08-22-2"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-21",
+              "slug": "2026-08-21"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-20",
+              "slug": "2026-08-20"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-19",
+              "slug": "2026-08-19"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-17",
+              "slug": "2026-08-17"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-16",
+              "slug": "2026-08-16"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-15",
+              "slug": "2026-08-15"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-14",
+              "slug": "2026-08-14"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-13",
+              "slug": "2026-08-13"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-12",
+              "slug": "2026-08-12"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-11",
+              "slug": "2026-08-11"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-10",
+              "slug": "2026-08-10"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-09",
+              "slug": "2026-08-09"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-07",
+              "slug": "2026-08-07"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-06",
+              "slug": "2026-08-06"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-05",
+              "slug": "2026-08-05"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-04",
+              "slug": "2026-08-04"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-03",
+              "slug": "2026-08-03"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-02",
+              "slug": "2026-08-02"
+            },
+            {
+              "level": 2,
+              "text": "2026-08-01",
+              "slug": "2026-08-01"
+            },
+            {
+              "level": 2,
+              "text": "2026-07-31",
+              "slug": "2026-07-31"
+            },
+            {
+              "level": 2,
+              "text": "2026-07-29",
+              "slug": "2026-07-29"
+            },
+            {
+              "level": 2,
+              "text": "2026-07-28",
+              "slug": "2026-07-28"
+            },
+            {
+              "level": 2,
+              "text": "2026-07-27",
+              "slug": "2026-07-27"
             }
           ]
         },
@@ -1275,7 +2749,7 @@
           "screens": [
             "configuration"
           ],
-          "last_verified": "2026-08-17",
+          "last_verified": "2026-09-03",
           "source_path": "reference/country-phone-rules.md",
           "headings": [
             {
@@ -1336,7 +2810,7 @@
           "summary": "Why every mutating call needs an Idempotency-Key, and exactly what the server does with it.",
           "audience": "integrator",
           "public": true,
-          "last_verified": "2026-08-12",
+          "last_verified": "2026-09-03",
           "source_path": "reference/public-api-idempotency.md",
           "headings": [
             {
@@ -1483,7 +2957,7 @@
           "order": 20,
           "summary": "Every code the application can show you, what causes it and what to do about it.",
           "audience": "everyone",
-          "last_verified": "2026-08-17",
+          "last_verified": "2026-09-03",
           "source_path": "troubleshooting/error-code-reference.md",
           "headings": [
             {
@@ -1708,18 +3182,23 @@
   ],
   "screen_map": {
     "approval-rules": [
-      "journey-admin"
+      "journey-admin",
+      "security-approvals"
     ],
     "approvals": [
       "journey-finance",
       "journey-store-manager",
-      "open-a-shop-and-make-your-first-sale"
+      "open-a-shop-and-make-your-first-sale",
+      "pos-operations",
+      "procurement",
+      "security-approvals"
     ],
     "asn": [
       "journey-warehouse-operator"
     ],
     "audit-logs": [
-      "journey-admin"
+      "journey-admin",
+      "security-approvals"
     ],
     "bank-reconciliation": [
       "journey-finance"
@@ -1732,19 +3211,33 @@
     ],
     "configuration": [
       "country-phone-rules",
+      "crm-loyalty",
+      "finance-tax",
       "first-login",
-      "journey-admin"
+      "journey-admin",
+      "pim-pxm",
+      "pos-operations",
+      "procurement"
     ],
     "cycle-count": [
+      "inventory-wms-operations",
       "journey-warehouse-operator"
     ],
     "doctype-builder": [
       "journey-admin"
     ],
     "doctype-table": [
+      "channel-connectors",
+      "courier-integrations",
+      "crm-loyalty",
+      "finance-tax",
       "finding-your-way-around",
+      "inventory-wms-operations",
       "journey-category-manager",
       "pim-product-groups",
+      "pim-pxm",
+      "pos-operations",
+      "procurement",
       "traceability-batch-serial"
     ],
     "dynamic-labels": [
@@ -1754,6 +3247,7 @@
       "journey-admin"
     ],
     "finance": [
+      "finance-tax",
       "journey-finance",
       "open-a-shop-and-make-your-first-sale"
     ],
@@ -1765,11 +3259,16 @@
       "journey-warehouse-operator"
     ],
     "grn": [
+      "inventory-wms-operations",
       "journey-store-manager",
       "journey-warehouse-operator",
       "open-a-shop-and-make-your-first-sale",
+      "procurement",
       "traceability-batch-serial",
       "troubleshooting-index"
+    ],
+    "hr": [
+      "hr-payroll"
     ],
     "inventory": [
       "finding-your-way-around",
@@ -1780,7 +3279,11 @@
     "lpn": [
       "journey-warehouse-operator"
     ],
+    "manufacturing": [
+      "manufacturing-mrp"
+    ],
     "marketplace": [
+      "courier-integrations",
       "journey-category-manager",
       "troubleshooting-index"
     ],
@@ -1788,51 +3291,73 @@
       "journey-warehouse-operator"
     ],
     "oms": [
+      "channel-connectors",
+      "courier-integrations",
       "first-order",
       "journey-store-manager",
+      "oms-order-management",
       "troubleshooting-index"
     ],
     "payment-proposals": [
       "journey-finance"
     ],
     "pim": [
+      "channel-connectors",
       "journey-category-manager",
-      "pim-product-groups"
+      "pim-product-groups",
+      "pim-pxm"
     ],
     "pos": [
       "first-order",
       "journey-cashier",
       "journey-store-manager",
       "open-a-shop-and-make-your-first-sale",
+      "pos-operations",
       "troubleshooting-index"
     ],
     "prefix-configs": [
       "journey-admin"
     ],
     "profile": [
-      "first-login"
+      "first-login",
+      "security-approvals"
     ],
     "purchase-orders": [
       "journey-store-manager",
       "open-a-shop-and-make-your-first-sale",
+      "procurement",
       "troubleshooting-index"
     ],
     "putaway": [
+      "inventory-wms-operations",
       "journey-warehouse-operator"
     ],
     "reports": [
+      "crm-loyalty",
+      "finance-tax",
       "finding-your-way-around",
+      "inventory-wms-operations",
       "journey-category-manager",
       "journey-finance",
       "journey-store-manager",
       "open-a-shop-and-make-your-first-sale",
+      "pim-pxm",
+      "pos-operations",
+      "procurement",
       "report-catalog",
       "traceability-batch-serial",
       "what-is-this-system"
     ],
+    "rf-receiving": [
+      "inventory-wms-operations"
+    ],
+    "rfq": [
+      "procurement"
+    ],
     "roles": [
       "journey-admin",
-      "role-journeys-overview"
+      "role-journeys-overview",
+      "security-approvals"
     ],
     "sales-invoices": [
       "first-order",
@@ -1844,6 +3369,8 @@
       "journey-warehouse-operator"
     ],
     "system-status": [
+      "backup-and-restore",
+      "incident-response",
       "journey-admin"
     ],
     "tenant-entitlements": [
@@ -1853,20 +3380,27 @@
       "journey-admin"
     ],
     "transfers": [
+      "inventory-wms-operations",
       "journey-store-manager",
       "journey-warehouse-operator",
       "troubleshooting-index"
     ],
     "users": [
-      "journey-admin"
+      "journey-admin",
+      "security-approvals"
     ],
     "vendor-invoices": [
-      "journey-finance"
+      "journey-finance",
+      "procurement"
+    ],
+    "warehouse-cockpit": [
+      "inventory-wms-operations"
     ],
     "wave-picking": [
+      "inventory-wms-operations",
       "journey-warehouse-operator",
       "traceability-batch-serial"
     ]
   },
-  "article_count": 24
+  "article_count": 39
 }

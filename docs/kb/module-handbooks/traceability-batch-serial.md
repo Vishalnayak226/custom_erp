@@ -1,7 +1,7 @@
 ---
 title: Batch, Serial & Expiry Traceability
 section: Module Handbooks
-order: 20
+order: 25
 summary: Track a lot or an individual unit from receipt to dispatch, pick the right stock first by expiry, and answer a recall in two directions.
 audience: warehouse operator, category manager, admin
 last_verified: 2026-08-31

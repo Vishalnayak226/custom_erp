@@ -4,7 +4,7 @@ section: Troubleshooting
 order: 20
 summary: Every code the application can show you, what causes it and what to do about it.
 audience: everyone
-last_verified: 2026-08-17
+last_verified: 2026-09-03
 ---
 
 <!-- GENERATED ARTICLE - DO NOT EDIT BY HAND.

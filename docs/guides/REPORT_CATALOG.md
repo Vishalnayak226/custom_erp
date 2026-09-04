@@ -4,11 +4,11 @@
      Source: `engines`' report registry (`report_definitions.go`)
      Regenerate: `go run ./cmd/gendocs` -->
 
-> **Generated 2026-08-09.** This page is produced from `engines`' report registry (`report_definitions.go`), so it cannot drift from
+> **Generated 2026-09-03.** This page is produced from `engines`' report registry (`report_definitions.go`), so it cannot drift from
 > the running system. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **47**
-across **12** categories.
+Every report reachable from **Sales & Marketplace -> Reports**. There are **91**
+across **15** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
 **required**, and run it. Where a report supports **drill-down**, clicking a
@@ -21,20 +21,36 @@ table has the same shape whoever runs it.
 
 ## Contents
 
+- [Admin](#admin) - 1 reports
 - [Assets](#assets) - 1 reports
 - [BI](#bi) - 1 reports
 - [CRM](#crm) - 7 reports
 - [Exceptions](#exceptions) - 3 reports
-- [Finance](#finance) - 12 reports
+- [Finance](#finance) - 25 reports
 - [HR](#hr) - 1 reports
-- [Inventory](#inventory) - 2 reports
-- [Manufacturing](#manufacturing) - 2 reports
-- [OMS](#oms) - 9 reports
+- [Inventory](#inventory) - 6 reports
+- [Manufacturing](#manufacturing) - 3 reports
+- [OMS](#oms) - 12 reports
+- [PIM](#pim) - 4 reports
 - [Procurement](#procurement) - 3 reports
 - [Sales](#sales) - 3 reports
-- [WMS](#wms) - 3 reports
+- [Service](#service) - 1 reports
+- [WMS](#wms) - 20 reports
 
 ---
+
+## Admin
+
+### Knowledge Center Feedback
+
+**Report id:** `help-article-feedback`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Article Slug · Marked Helpful · Marked Not Helpful · Total Responses · Helpful % · Last Feedback
+
+**Drill-down:** no.
+
 
 ## Assets
 
@@ -186,10 +202,13 @@ table has the same shape whoever runs it.
 **Parameters:**
 
 - **As Of** (`as_of`) - date, **required**
+- **Cost Center (optional)** (`cost_center`) - text, optional
+- **Department (optional)** (`department`) - text, optional
+- **Entity (optional)** (`entity`) - text, optional
 
 **Columns:** Account Code · Account Name · Type · Amount *(sensitive)*
 
-**Drill-down:** no.
+**Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
 ### Bank Book
 
@@ -203,6 +222,19 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Budget vs Actual
+
+**Report id:** `budget-variance`
+
+**Parameters:**
+
+- **From** (`start`) - date, **required**
+- **To** (`end`) - date, **required**
+
+**Columns:** Cost Center · Account · Planned *(sensitive)* · Actual *(sensitive)* · Variance *(sensitive)*
+
+**Drill-down:** no.
+
 ### Cash Book
 
 **Report id:** `cash-book`
@@ -210,6 +242,19 @@ table has the same shape whoever runs it.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Date · Document Type · Document ID · Debit *(sensitive)* · Credit *(sensitive)* · Running Balance *(sensitive)*
+
+**Drill-down:** no.
+
+### Cash Flow Forecast
+
+**Report id:** `cash-flow-forecast`
+
+**Parameters:**
+
+- **As Of** (`as_of`) - date, **required**
+- **Horizon (days)** (`horizon_days`) - text, optional
+
+**Columns:** Date · Expected Inflow *(sensitive)* · Expected Outflow *(sensitive)* · Projected Balance *(sensitive)*
 
 **Drill-down:** no.
 
@@ -226,6 +271,18 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Consolidated Trial Balance
+
+**Report id:** `consolidated-trial-balance`
+
+**Parameters:**
+
+- **As Of** (`as_of`) - date, **required**
+
+**Columns:** Account · Account Name · Type · Debit (pre-elimination) *(sensitive)* · Credit (pre-elimination) *(sensitive)* · Debit (consolidated) *(sensitive)* · Credit (consolidated) *(sensitive)*
+
+**Drill-down:** no.
+
 ### Cost Center P&L
 
 **Report id:** `cost-center-pl`
@@ -236,6 +293,66 @@ table has the same shape whoever runs it.
 - **To** (`end`) - date, **required**
 
 **Columns:** Cost Center · Type · Amount *(sensitive)*
+
+**Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### Deferred Revenue Roll-Forward
+
+**Report id:** `deferred-revenue-roll-forward`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Schedule · Invoice · Total *(sensitive)* · Recognized Months · Term Months · Recognized *(sensitive)* · Remaining *(sensitive)* · Status
+
+**Drill-down:** no.
+
+### Department P&L
+
+**Report id:** `department-pl`
+
+**Parameters:**
+
+- **From** (`start`) - date, **required**
+- **To** (`end`) - date, **required**
+
+**Columns:** Department · Type · Amount *(sensitive)*
+
+**Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### Dunning Queue
+
+**Report id:** `dunning-queue`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Invoice · Customer · Due Date · Days Overdue · Amount *(sensitive)* · Tier · Last Notified
+
+**Drill-down:** no.
+
+### Entity Trial Balance
+
+**Report id:** `entity-trial-balance`
+
+**Parameters:**
+
+- **From** (`start`) - date, **required**
+- **To** (`end`) - date, **required**
+
+**Columns:** Entity · Account · Account Name · Type · Debit *(sensitive)* · Credit *(sensitive)*
+
+**Drill-down:** no.
+
+### FX Gain/Loss Register
+
+**Report id:** `fx-gain-loss-register`
+
+**Parameters:**
+
+- **From (YYYY-MM-DD, default 3 months back)** (`from_date`) - text, optional
+- **To (YYYY-MM-DD, default today)** (`to_date`) - text, optional
+- **Kind (realised / unrealised, blank for both)** (`kind`) - text, optional
+
+**Columns:** Posted · Kind · Account · Account Name · Document Type · Document · Currency · Rate · Gain · Loss · Net
 
 **Drill-down:** no.
 
@@ -264,6 +381,31 @@ table has the same shape whoever runs it.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
+### Intercompany Reconciliation
+
+**Report id:** `intercompany-reconciliation`
+
+**Parameters:**
+
+- **As Of** (`as_of`) - date, **required**
+
+**Columns:** From Entity · To Entity · IC Ledger Amount *(sensitive)* · From Entity 1700 Balance *(sensitive)* · To Entity 2500 Balance *(sensitive)* · Variance *(sensitive)* · In Balance
+
+**Drill-down:** no.
+
+### Open FX Exposure
+
+**Report id:** `fx-open-item-exposure`
+
+**Parameters:**
+
+- **As Of (YYYY-MM-DD, default today)** (`as_of`) - text, optional
+- **Rate Type (Closing/Spot/Average)** (`rate_type`) - text, optional
+
+**Columns:** Document Type · Document · Currency · Amount (txn) · Booked Rate · Booked (functional) · Carrying · Rate Now · Revalued · Unrealised Movement · Last Revalued · Note
+
+**Drill-down:** no.
+
 ### Payables Ageing
 
 **Report id:** `payables-ageing`
@@ -274,6 +416,16 @@ table has the same shape whoever runs it.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
+### Prepaid Expense Roll-Forward
+
+**Report id:** `prepaid-expense-roll-forward`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Schedule · Expense Account · Total *(sensitive)* · Recognized Months · Term Months · Recognized *(sensitive)* · Remaining *(sensitive)* · Status
+
+**Drill-down:** no.
+
 ### Profit & Loss
 
 **Report id:** `profit-and-loss`
@@ -282,10 +434,26 @@ table has the same shape whoever runs it.
 
 - **From** (`start`) - date, **required**
 - **To** (`end`) - date, **required**
+- **Cost Center (optional)** (`cost_center`) - text, optional
+- **Department (optional)** (`department`) - text, optional
+- **Entity (optional)** (`entity`) - text, optional
 
 **Columns:** Account Code · Account Name · Type · Amount *(sensitive)*
 
-**Drill-down:** no.
+**Drill-down:** yes - a row's **View Details** opens the transactions behind it.
+
+### Project P&L (Job Costing)
+
+**Report id:** `project-pl`
+
+**Parameters:**
+
+- **From** (`start`) - date, **required**
+- **To** (`end`) - date, **required**
+
+**Columns:** Project · Type · Amount *(sensitive)*
+
+**Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
 ### Receivables Ageing
 
@@ -323,6 +491,20 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Trial Balance in Presentation Currency
+
+**Report id:** `trial-balance-presentation-currency`
+
+**Parameters:**
+
+- **As Of (YYYY-MM-DD, default today)** (`as_of`) - text, optional
+- **Present In (ISO code, e.g. USD)** (`presentation_currency`) - text, optional
+- **Rate Type (Closing/Spot/Average)** (`rate_type`) - text, optional
+
+**Columns:** Account · Account Name · Type · Balance (functional) · Balance (presentation) · Currency · Rate · Rate Type
+
+**Drill-down:** no.
+
 
 ## HR
 
@@ -352,6 +534,57 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Demand Forecast (Trend)
+
+**Report id:** `demand-forecast`
+
+**Parameters:**
+
+- **SKU** (`sku`) - text, **required**
+- **Location** (`location_code`) - text, **required**
+- **Forecast Days** (`forecast_days`) - text, **required**
+
+**Columns:** SKU · Location · Forecasted Qty
+
+**Drill-down:** no.
+
+### Inventory Valuation
+
+**Report id:** `inventory-valuation`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** SKU · Qty On Hand · Unit Cost (Avg) *(sensitive)* · Total Value *(sensitive)* · Costed
+
+**Drill-down:** no.
+
+### Pegged Demand & Supply
+
+**Report id:** `pegged-demand-supply`
+
+**Parameters:**
+
+- **SKU** (`sku`) - text, **required**
+- **Location (for on-hand supply)** (`location_code`) - text, optional
+
+**Columns:** Kind · Type · Reference · Qty · Status
+
+**Drill-down:** no.
+
+### Reorder Suggestions (Configured)
+
+**Report id:** `reorder-suggestions`
+
+**Parameters:**
+
+- **Location** (`location_code`) - text, **required**
+- **Default Lead Time (days)** (`default_lead_time_days`) - text, **required**
+- **Default Safety Stock** (`default_safety_stock`) - text, **required**
+
+**Columns:** SKU · Location · Available · Daily Velocity · Reorder Point · Suggested Qty · Safety Stock · Lead Time (days)
+
+**Drill-down:** no.
+
 ### Stock Ledger
 
 **Report id:** `stock-ledger`
@@ -370,6 +603,16 @@ table has the same shape whoever runs it.
 
 
 ## Manufacturing
+
+### Production Capacity Schedule
+
+**Report id:** `production-capacity-schedule`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Production Order · Operation Seq · Work Center · Needed Minutes · Finite Date · Infinite Date · Overflow (past due date)
+
+**Drill-down:** no.
 
 ### Production Cost Variance
 
@@ -444,6 +687,16 @@ table has the same shape whoever runs it.
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
+### Orphaned Channel Orders (pre-35.1 intake)
+
+**Report id:** `orphaned-channel-orders`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Mapping Table · Channel · Channel Order ID · Legacy Order ID · Last Written
+
+**Drill-down:** no.
+
 ### Reserved Stock
 
 **Report id:** `reserved-stock`
@@ -476,6 +729,16 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Settlement Variance Queue
+
+**Report id:** `oms-settlement-variance`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Settlement Line · Channel · Channel Order ID · Order · Batch · Gross Amount *(sensitive)* · Expected (Invoiced) *(sensitive)* · Variance *(sensitive)* · Status · Settlement Date
+
+**Drill-down:** no.
+
 ### Stock Mismatch
 
 **Report id:** `stock-mismatch`
@@ -483,6 +746,63 @@ table has the same shape whoever runs it.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** SKU · Location · On Hand · Available · Reserved · Safety Stock · Blocked · QC Hold · Damaged · Channel Buffer · ATS (negative = over-committed)
+
+**Drill-down:** no.
+
+### Unsettled Marketplace Orders
+
+**Report id:** `oms-unsettled-settlements`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Order · Channel · Order Status · Days Since Ship · Overdue
+
+**Drill-down:** no.
+
+
+## PIM
+
+### PIM Overdue Tasks
+
+**Report id:** `pim-task-overdue`
+
+**Parameters:**
+
+- **Assignee (blank = everyone)** (`assignee`) - text, optional
+
+**Columns:** Task · Title · Item · Assignee · Due · Days Overdue · Priority · Status
+
+**Drill-down:** no.
+
+### PIM Product Group Readiness
+
+**Report id:** `pim-product-group-readiness`
+
+**Parameters:**
+
+- **Product Group ID or code** (`group_id`) - text, **required**
+
+**Columns:** Item · Name · Family · Status · Completeness % · Missing Fields
+
+**Drill-down:** no.
+
+### PIM Stalled Workflow Runs
+
+**Report id:** `pim-workflow-stalled`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Run · Workflow · Item · Stage · Status · Why It Is Waiting · Age (days) · Open Tasks
+
+**Drill-down:** no.
+
+### PIM Task Workload by Assignee
+
+**Report id:** `pim-task-workload`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Assignee · Open · In Progress · Blocked · Overdue · Due This Week
 
 **Drill-down:** no.
 
@@ -564,6 +884,19 @@ table has the same shape whoever runs it.
 **Drill-down:** no.
 
 
+## Service
+
+### Service SLA Breaches
+
+**Report id:** `service-sla-breaches`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Ticket · Customer · Status · Breach Type · Respond By · Resolve By
+
+**Drill-down:** no.
+
+
 ## WMS
 
 ### 3PL Storage & Handling Billing
@@ -576,7 +909,96 @@ table has the same shape whoever runs it.
 - **Period Start** (`start`) - date, **required**
 - **Period End** (`end`) - date, **required**
 
-**Columns:** Owner · Location · Current Units · Days · Storage Charge *(sensitive)* · Handling Tasks · Handling Charge *(sensitive)* · Total *(sensitive)*
+**Columns:** Owner · Location · Current Units (EA) · Days · Billing UOM · Billing Units · Storage Charge *(sensitive)* · Handling Tasks · Handling Charge *(sensitive)* · Total *(sensitive)*
+
+**Drill-down:** no.
+
+### 3PL Storage Billing v2
+
+**Report id:** `storage-billing-v2`
+
+**Parameters:**
+
+- **Owner (optional)** (`owner_id`) - text, optional
+- **Period Start** (`start`) - date, **required**
+- **Period End** (`end`) - date, **required**
+
+**Columns:** Rate · Owner · Location · Item · Snapshot Days · Average Units · Net *(sensitive)* · Tax *(sensitive)* · Total *(sensitive)*
+
+**Drill-down:** no.
+
+### Batch Movement History (Recall)
+
+**Report id:** `batch-movement-history`
+
+**Parameters:**
+
+- **Batch / Lot** (`batch_no`) - text, **required**
+- **Item Code (optional)** (`sku`) - text, optional
+
+**Columns:** When · Item · Batch / Lot · Qty · Movement · Document · Location · From Bin · To Bin · By
+
+**Drill-down:** no.
+
+### Batch Near-Expiry Watchlist
+
+**Report id:** `batch-near-expiry`
+
+**Parameters:**
+
+- **Within (days, default 30)** (`within_days`) - text, optional
+
+**Columns:** Item · Batch / Lot · Expires · Days Left · Batch Status · Qty On Hand · Locations
+
+**Drill-down:** no.
+
+### Batch Stock Inquiry
+
+**Report id:** `batch-stock-inquiry`
+
+**Parameters:**
+
+- **Item Code (optional)** (`sku`) - text, optional
+- **Location (optional)** (`location`) - text, optional
+- **Batch / Lot (optional)** (`batch_no`) - text, optional
+
+**Columns:** Item · Batch / Lot · Location · Bin · Condition · Qty · Expires · Days Left · Batch Status
+
+**Drill-down:** no.
+
+### Clean-Location Consolidation Suggestions
+
+**Report id:** `consolidation-suggestions`
+
+**Parameters:**
+
+- **Location** (`location_code`) - text, **required**
+
+**Columns:** SKU · Action · From Bin · To Bin · Qty · Reason
+
+**Drill-down:** no.
+
+### Cross-Facility Inventory Inquiry
+
+**Report id:** `cross-facility-stock`
+
+**Parameters:**
+
+- **SKU** (`sku`) - text, **required**
+
+**Columns:** SKU · Location · On Hand · Available · In Transit
+
+**Drill-down:** no.
+
+### Facility Roll-Up Inventory Inquiry
+
+**Report id:** `facility-rollup`
+
+**Parameters:**
+
+- **Facility (Location code)** (`facility_code`) - text, **required**
+
+**Columns:** SKU · On Hand · Available · In Transit · Locations
 
 **Drill-down:** no.
 
@@ -593,6 +1015,122 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Labour Cost
+
+**Report id:** `labor-cost`
+
+**Parameters:**
+
+- **From (optional)** (`start`) - date, optional
+- **To (optional)** (`end`) - date, optional
+
+**Columns:** Location · Tasks · Quantity · Standard Hours · Labour Cost *(sensitive)*
+
+**Drill-down:** no.
+
+### Labour Enterprise Productivity
+
+**Report id:** `labor-enterprise-productivity`
+
+**Parameters:**
+
+- **From (optional)** (`start`) - date, optional
+- **To (optional)** (`end`) - date, optional
+
+**Columns:** Scope · Tasks · Quantity · Standard Hours · Labour Cost *(sensitive)*
+
+**Drill-down:** no.
+
+### Labour Facility Performance
+
+**Report id:** `labor-facility-performance`
+
+**Parameters:**
+
+- **From (optional)** (`start`) - date, optional
+- **To (optional)** (`end`) - date, optional
+
+**Columns:** Location · Tasks · Quantity · Standard Hours · Labour Cost *(sensitive)*
+
+**Drill-down:** no.
+
+### Labour Standards Audit
+
+**Report id:** `labor-standards-audit`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Standard · Operation · Element Seconds · Travel Seconds · Allowance Seconds · Total Seconds
+
+**Drill-down:** no.
+
+### Labour Task Productivity
+
+**Report id:** `labor-task-productivity`
+
+**Parameters:**
+
+- **From (optional)** (`start`) - date, optional
+- **To (optional)** (`end`) - date, optional
+
+**Columns:** Task Type · Tasks · Quantity · Standard Hours · Labour Cost *(sensitive)*
+
+**Drill-down:** no.
+
+### Labour User Performance
+
+**Report id:** `labor-user-performance`
+
+**Parameters:**
+
+- **From (optional)** (`start`) - date, optional
+- **To (optional)** (`end`) - date, optional
+
+**Columns:** User · Tasks · Quantity · Standard Hours · Labour Cost *(sensitive)*
+
+**Drill-down:** no.
+
+### Owner Stock Inquiry (3PL)
+
+**Report id:** `owner-stock-inquiry`
+
+**Parameters:**
+
+- **Item Code (optional)** (`sku`) - text, optional
+- **Location (optional)** (`location`) - text, optional
+- **Owner (optional)** (`owner_id`) - text, optional
+
+**Columns:** Owner · Item · Bin · Location · Condition · Qty
+
+**Drill-down:** no.
+
+### Serial Movement History
+
+**Report id:** `serial-movement-history`
+
+**Parameters:**
+
+- **Serial Number** (`serial_no`) - text, **required**
+- **Item Code (optional)** (`sku`) - text, optional
+
+**Columns:** When · Item · Serial Number · Movement · Document · Location · From · To · By
+
+**Drill-down:** no.
+
+### Serial Number Inquiry
+
+**Report id:** `serial-inquiry`
+
+**Parameters:**
+
+- **Item Code (optional)** (`sku`) - text, optional
+- **Serial Number (optional)** (`serial_no`) - text, optional
+- **Status (optional)** (`status`) - select, optional, one of: InStock,Allocated,Shipped,Returned,Scrapped
+
+**Columns:** Item · Serial Number · Batch / Lot · Status · Current Bin · Location · Reserved For · Supplier
+
+**Drill-down:** no.
+
 ### Slotting / Re-Slotting Suggestions
 
 **Report id:** `slotting-suggestions`
@@ -602,6 +1140,18 @@ table has the same shape whoever runs it.
 - **Location** (`location_code`) - text, **required**
 
 **Columns:** SKU · Velocity Tier · Daily Velocity · Suggested Action · From Bin · To Bin · Qty · Reason
+
+**Drill-down:** no.
+
+### Unslotting Suggestions (discontinued items)
+
+**Report id:** `unslotting-suggestions`
+
+**Parameters:**
+
+- **Location** (`location_code`) - text, **required**
+
+**Columns:** SKU · Action · From Bin · To Bin · Qty · Reason
 
 **Drill-down:** no.
 

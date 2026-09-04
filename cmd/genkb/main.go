@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"custom_erp/internal/kb"
 )
@@ -30,6 +31,8 @@ func main() {
 	out := flag.String("out", filepath.Join("internal", "kb", "content"), "directory to write the generated Knowledge Center into")
 	check := flag.Bool("check", false, "do not write; exit non-zero if the generated output is stale or orphaned")
 	quiet := flag.Bool("quiet", false, "suppress per-article warnings")
+	appJS := flag.String("app-js", filepath.Join("public", "app.js"), "path to the frontend router, for the 39.8 screen-id drift guard")
+	errorCatalog := flag.String("error-catalog", filepath.Join("internal", "server", "error_catalog_generated.go"), "path to the error catalog, for the 39.8 error-code drift guard")
 	flag.Parse()
 
 	result, err := kb.Build(*source)
@@ -39,6 +42,17 @@ func main() {
 	}
 	if !*quiet {
 		for _, warning := range result.Warnings {
+			fmt.Printf("  [warn] %s\n", warning)
+		}
+		driftSources := kb.DriftSources{
+			AppJSPath:        *appJS,
+			ErrorCatalogPath: *errorCatalog,
+			RouteFiles: []string{
+				filepath.Join("internal", "server", "routes.go"),
+				filepath.Join("internal", "server", "routes_public_api_v1.go"),
+			},
+		}
+		for _, warning := range kb.DriftGuards(result.Articles, driftSources, time.Now()) {
 			fmt.Printf("  [warn] %s\n", warning)
 		}
 	}

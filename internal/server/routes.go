@@ -46,6 +46,13 @@ func Run() {
 		log.Fatalf("Refusing to start: %v", err)
 	}
 
+	// Stage 47.0.5/47.11.6 Gate 0: log this instance's external-side-effect
+	// posture and quarantine any stale webhook_delivery job left Pending
+	// from before this boot, both before any worker below starts polling -
+	// so a dev/test boot cannot silently deliver leftover queued work.
+	engines.LogEnvironmentBanner()
+	engines.QuarantineStaleExternalDispatchJobs()
+
 	// 24.15: one cancellable context threaded into every background worker,
 	// canceled from the SIGINT/SIGTERM handler at the bottom of this
 	// function so a process stop tells them to finish their current tick
@@ -900,6 +907,10 @@ func Run() {
 	http.HandleFunc("POST /api/v1/integration/retry", apiMiddleware(handleRetryIntegrationEvent))
 
 	// Stage 38.6: the async job runner's visibility/control surface.
+	// Stage 47.0.4/47.0.5: the environment banner endpoint the UI reads to
+	// show whether this instance is LIVE or SIMULATED.
+	http.HandleFunc("GET /api/v1/system/environment", apiMiddleware(handleGetEnvironment))
+
 	http.HandleFunc("GET /api/v1/jobs", apiMiddleware(handleListJobs))
 	http.HandleFunc("POST /api/v1/jobs/{id}/retry", apiMiddleware(handleRetryJob))
 	http.HandleFunc("POST /api/v1/jobs/{id}/cancel", apiMiddleware(handleCancelJob))

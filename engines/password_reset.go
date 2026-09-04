@@ -138,6 +138,13 @@ func sendPasswordResetEmail(tenantID, toEmail, username, resetLink string) {
 		log.Printf("[PASSWORD-RESET] (no SMTP_HOST configured - not sent) reset link for %s: %s", username, resetLink)
 		return
 	}
+	if !ExternalSideEffectsEnabled() {
+		// Stage 47.0.5/47.11.6 Gate 0: an SMTP_HOST configured against a
+		// shared dev/staging relay must not actually deliver mail just
+		// because a regression/abuse test or a developer triggered this path.
+		log.Printf("[PASSWORD-RESET] (external side effects OFF - not sent) reset link for %s: %s", username, resetLink)
+		return
+	}
 	smtpPort := os.Getenv("SMTP_PORT")
 	if smtpPort == "" {
 		smtpPort = "587"

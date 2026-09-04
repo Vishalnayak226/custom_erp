@@ -5,7 +5,7 @@ order: 41
 summary: Why every mutating call needs an Idempotency-Key, and exactly what the server does with it.
 audience: integrator
 public: true
-last_verified: 2026-08-12
+last_verified: 2026-09-03
 ---
 
 # Retrying safely (idempotency)
@@ -13,7 +13,16 @@ last_verified: 2026-08-12
 A network timeout does not tell you whether the request arrived. Retrying
 without protection is how one customer order becomes two. Every mutating public
 endpoint therefore **requires** an `Idempotency-Key` header - it is not
-optional, and a request without one is refused before anything happens.
+optional, and a request without one is refused before anything happens. This is
+enforced generically, for every method other than `GET`, by the same public API
+middleware every call already passes through - not per-endpoint, so it applies
+automatically the moment a mutating endpoint ships.
+
+> [!NOTE]
+> As of this writing the public API v1 surface itself is **read-only**
+> (`items`, `items/{code}`, `inventory`, `orders/{id}/status` - all `GET`).
+> The example below shows the contract a mutating call must follow once one
+> exists; it is illustrative, not a currently callable endpoint.
 
 ## Choosing a key
 

@@ -2194,6 +2194,40 @@ async function init() {
   applyProductPathRouting();
   await restoreLastView();
   fetchAndApplyProfile();
+  fetchAndRenderEnvironmentBanner();
+}
+
+// Stage 47.0.4/47.0.5: fetch once at boot and show a persistent strip when
+// this instance is not delivering real external side effects (email/
+// webhook/ops-alert) - the common case outside a production deployment.
+// Deliberately not on the critical init() Promise.all above: nothing else
+// waits on it, and a slow/failed fetch should never delay the first view.
+async function fetchAndRenderEnvironmentBanner() {
+  try {
+    const res = await apiFetch('/api/v1/system/environment');
+    if (!res || !res.ok) return;
+    const data = await res.json();
+    const notices = data.supported_configuration_notice || [];
+    // Stage 47.0.4: this must never disappear behind a menu - the audit's
+    // own words. Shown whenever there is anything to say, regardless of
+    // role, alongside (not instead of) the simulated-environment strip.
+    if (data.external_side_effects && notices.length === 0) return;
+    const parts = [];
+    if (!data.external_side_effects) {
+      parts.push(`SIMULATED ENVIRONMENT (${data.env}) - email, webhook and ops-alert delivery are OFF`);
+    }
+    if (notices.length > 0) {
+      parts.push(`Conditionally supported: ${notices.join(' · ')}`);
+    }
+    const banner = document.createElement('div');
+    banner.id = 'environment-banner';
+    banner.title = parts.join('\n');
+    banner.textContent = parts.join('  |  ');
+    document.body.appendChild(banner);
+    document.body.classList.add('env-banner-active');
+  } catch (e) {
+    // Non-critical - never block the app on this.
+  }
 }
 
 // fetchLocalization loads the tenant's home country and its phone rule, so the
@@ -10969,7 +11003,17 @@ async function savePurchaseOrder() {
   }
 
   if (d.id) {
-    if (d.wasApproved && !await showCustomConfirm('This PO is Approved. Amending it will reset it to Pending Approval for re-approval. Continue?', 'Amend Purchase Order')) return;
+    if (d.wasApproved) {
+      if (!await showCustomConfirm('This PO is Approved. Amending it will reset it to Pending Approval for re-approval. Continue?', 'Amend Purchase Order')) return;
+      // PURCHA-0085: the server requires a reason when an Approved PO's
+      // items/total actually change. Collected unconditionally here (rather
+      // than trying to mirror the server's own before/after diff) so a save
+      // never fails on a missing field the composer had no way to fill in -
+      // sending it on an edit the server doesn't require it for is harmless.
+      const amendReason = await showCustomPrompt('Reason for this amendment:', '');
+      if (amendReason === null) return;
+      payload.amendment_reason = amendReason;
+    }
     if (typeof d.version === 'number') payload.expected_version = d.version;
     payload.status = d.status || 'Draft';
   } else {
@@ -15297,7 +15341,16 @@ async function receiveTransferOrder(id) {
     const qtyStr = await showCustomPrompt(`Quantity received for ${line.sku} (dispatched ${line.qty}):`, String(line.qty));
     if (qtyStr === null) return;
     const qty = parseInt(qtyStr, 10);
-    receivedItems.push({ sku: line.sku, qty: isNaN(qty) ? 0 : qty });
+    const item = { sku: line.sku, qty: isNaN(qty) ? 0 : qty };
+    // TRN-0259: the server refuses to save a short receipt with no reason -
+    // ask for one here, rather than the whole receive failing with nowhere
+    // on this screen to ever enter it.
+    if (item.qty < line.qty) {
+      const reason = await showCustomPrompt(`Reason for the shortfall on ${line.sku} (received ${item.qty} of ${line.qty}):`, '');
+      if (reason === null) return;
+      item.reason = reason;
+    }
+    receivedItems.push(item);
   }
 
   const res = await apiFetch('/api/v1/transfer/receive', {
@@ -19826,6 +19879,7 @@ async function renderLogHubView(container) {
     if (status === 'Succeeded') return 'badge-success';
     if (status === 'DeadLettered' || status === 'Failed') return 'badge-danger';
     if (status === 'Cancelled') return 'badge-secondary';
+    if (status === 'Quarantined') return 'badge-warning';
     return 'badge-secondary'; // Pending, Leased
   }
 
@@ -19865,6 +19919,7 @@ async function renderLogHubView(container) {
                   <td style="font-size:11px; white-space:nowrap;">${j.updated_at}</td>
                   <td>
                     ${(j.status === 'Failed' || j.status === 'DeadLettered' || j.status === 'Cancelled') ? `<button class="btn btn-sm btn-outline" onclick="retryAsyncJob('${j.id}')">Retry</button>` : ''}
+                    ${(j.status === 'Quarantined') ? `<button class="btn btn-sm btn-outline" onclick="retryAsyncJob('${j.id}')">Replay</button>` : ''}
                     ${(j.status === 'Pending' || j.status === 'Leased') ? `<button class="btn btn-sm btn-outline" onclick="cancelAsyncJob('${j.id}')">Cancel</button>` : ''}
                     ${(j.status === 'Succeeded') ? '<span style="color:var(--text-muted); font-size:12px;">-</span>' : ''}
                   </td>
@@ -20982,6 +21037,15 @@ async function openHelpArticle(slug) {
 }
 window.openHelpArticle = openHelpArticle;
 
+// Stage 39.9 - per-browser dedup for the "Was this helpful?" widget below.
+// A page reload that lands on the same article should not ask again.
+function helpFeedbackAlreadyGiven(slug) {
+  try { return !!localStorage.getItem(`erp_kb_feedback_${slug}`); } catch { return false; }
+}
+function markHelpFeedbackGiven(slug) {
+  try { localStorage.setItem(`erp_kb_feedback_${slug}`, '1'); } catch { /* best-effort only */ }
+}
+
 async function renderHelpArticle(slug) {
   const holder = document.getElementById('kb-article');
   if (!holder) return;
@@ -21009,6 +21073,9 @@ async function renderHelpArticle(slug) {
     <div class="kb-body">${article.html}</div>
     <footer class="kb-footer">
       ${article.last_verified ? `<span class="text-muted">Last verified ${escapeHTMLText(article.last_verified)}.</span>` : ''}
+      <div class="kb-feedback">${helpFeedbackAlreadyGiven(slug)
+        ? '<span class="text-muted">Thanks for the feedback.</span>'
+        : 'Was this helpful? <button type="button" class="btn btn-outline btn-sm" data-helpful="Yes">Yes</button> <button type="button" class="btn btn-outline btn-sm" data-helpful="No">No</button>'}</div>
       <div class="kb-pager">
         ${previous ? `<a href="#" data-slug="${escapeHTMLText(previous.slug)}">&larr; ${escapeHTMLText(previous.title)}</a>` : '<span></span>'}
         ${next ? `<a href="#" data-slug="${escapeHTMLText(next.slug)}">${escapeHTMLText(next.title)} &rarr;</a>` : '<span></span>'}
@@ -21016,6 +21083,25 @@ async function renderHelpArticle(slug) {
     </footer>`;
   holder.querySelectorAll('.kb-pager a[data-slug]').forEach(link => {
     link.addEventListener('click', event => { event.preventDefault(); openHelpArticle(link.getAttribute('data-slug')); });
+  });
+  // Stage 39.9 - "Was this helpful?" feedback. Submits straight to the
+  // existing generic-document API (POST /api/v1/doc/{doctype}) as an
+  // ordinary HelpArticleFeedback record - no bespoke endpoint. Dedup is a
+  // per-browser localStorage flag, not a server-side one-vote rule: this is
+  // signal for an author deciding what to rewrite, not a poll that needs to
+  // resist ballot-stuffing.
+  holder.querySelector('.kb-feedback')?.addEventListener('click', async event => {
+    const button = event.target.closest('button[data-helpful]');
+    if (!button) return;
+    const feedbackEl = button.closest('.kb-feedback');
+    const res = await apiFetch('/api/v1/doc/HelpArticleFeedback', {
+      method: 'POST',
+      body: JSON.stringify({ article: slug, helpful: button.getAttribute('data-helpful') })
+    });
+    if (res && res.ok) {
+      markHelpFeedbackGiven(slug);
+      feedbackEl.innerHTML = '<span class="text-muted">Thanks for the feedback.</span>';
+    }
   });
   // Cross-references inside the article body. The renderer turns a relative
   // `other-article.md` link into `/help/other-article`, which is a real URL the

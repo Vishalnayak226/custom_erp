@@ -308,9 +308,13 @@ func CancelJob(tenantID, jobID string) error {
 	return nil
 }
 
-// ReplayJob resets a Failed, DeadLettered or Cancelled job back to Pending
-// with a clean attempt count - the RetryIntegrationEvent precedent
-// (engines/outbox.go), applied to the general runner.
+// ReplayJob resets a Failed, DeadLettered, Cancelled or Quarantined job back
+// to Pending with a clean attempt count - the RetryIntegrationEvent
+// precedent (engines/outbox.go), applied to the general runner. A
+// Quarantined job (Stage 47.0.5/47.11.6 Gate 0 - see
+// quarantineStaleExternalDispatchJobsInSchema below) reaching here means an
+// administrator deliberately chose to resume it, exactly the "deliberate
+// replay" the gate requires.
 func ReplayJob(tenantID, jobID string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -318,7 +322,7 @@ func ReplayJob(tenantID, jobID string) error {
 	}
 	res, err := db.DB.Exec(fmt.Sprintf(`
 		UPDATE %s.async_jobs SET status = 'Pending', attempts = 0, next_attempt_at = CURRENT_TIMESTAMP, last_error = '', updated_at = CURRENT_TIMESTAMP, completed_at = NULL
-		WHERE id = $1 AND status IN ('Failed', 'DeadLettered', 'Cancelled')`, schema), jobID)
+		WHERE id = $1 AND status IN ('Failed', 'DeadLettered', 'Cancelled', 'Quarantined')`, schema), jobID)
 	if err != nil {
 		return err
 	}
@@ -361,6 +365,26 @@ func ListJobs(tenantID, statusFilter, jobTypeFilter string, limit int) ([]map[st
 		})
 	}
 	return out, rows.Err()
+}
+
+// quarantineStaleExternalDispatchJobsInSchema moves any Pending
+// webhook_delivery job in schema to 'Quarantined' - called once at startup
+// by QuarantineStaleExternalDispatchJobs (engines/environment.go) when
+// external side effects are off, so a leftover queued delivery from before
+// this boot cannot be picked up by StartJobRunnerWorker on this run without
+// an operator deliberately choosing to resume it via ReplayJob (the same
+// Retry action the Async Jobs tab already exposes). 'Quarantined' is outside
+// the runner's claim query (status = 'Pending'/'Leased', see
+// StartJobRunnerWorker) so a quarantined row is inert until replayed.
+func quarantineStaleExternalDispatchJobsInSchema(schema string) (int64, error) {
+	result, err := db.DB.Exec(fmt.Sprintf(`
+		UPDATE %s.async_jobs SET status = 'Quarantined', updated_at = CURRENT_TIMESTAMP
+		WHERE job_type = $1 AND status = 'Pending'`, schema), webhookDeliveryJobType)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := result.RowsAffected()
+	return n, nil
 }
 
 // SweepJobRunnerRetention deletes terminal jobs (Succeeded, DeadLettered,

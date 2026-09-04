@@ -46,6 +46,13 @@ func SendOpsAlert(severity, source, message string) {
 		log.Printf("[OBS-0215] (no OPS_ALERT_WEBHOOK_URL configured, not sent) [%s] %s: %s", severity, source, message)
 		return
 	}
+	if !ExternalSideEffectsEnabled() {
+		// Stage 47.0.5/47.11.6 Gate 0: OPS_ALERT_WEBHOOK_URL configured
+		// against a shared dev/staging channel must not actually post just
+		// because a regression/abuse test or a developer triggered this path.
+		log.Printf("[OPS-ALERT] (external side effects OFF - not sent) [%s] %s: %s", severity, source, truncateForAlert(message))
+		return
+	}
 	text := fmt.Sprintf(":rotating_light: [%s] %s: %s", severity, source, truncateForAlert(message))
 	go postOpsAlert(webhookURL, text)
 }
