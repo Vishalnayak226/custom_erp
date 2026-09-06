@@ -159,6 +159,35 @@ func RequiredApproverRoleForAmount(tenantID, doctype string, amount float64) (st
 	return requiredApproverRole(tenantID, doctype, amount)
 }
 
+// LowestApproverRoleForDoctype returns the approver named by the lowest
+// configured slab for a doctype, and that slab's own min_amount. Both are
+// zero-valued when the tenant has configured no rule for the doctype at all.
+//
+// Stage 47.2.3 uses it for the one case a threshold cannot express: a POS line
+// nothing on the server prices, where there is no reference price to measure a
+// discount against and therefore no amount to look up a slab with. "The server
+// cannot check this price" is not a percentage, but it IS a review request, so
+// it routes to whoever the tenant already trusts with the smallest one.
+//
+// minAmount comes back because the caller must record an amount the slab
+// actually matches: SubmitForApproval re-derives the approver from the stored
+// document, so routing on this role while storing an amount below the slab
+// would fail approval outright ("no approval rule configured") instead of
+// reaching the approver it just chose.
+func LowestApproverRoleForDoctype(tenantID, doctype string) (role string, minAmount float64, err error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return "", 0, err
+	}
+	err = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT required_role, min_amount FROM %s.approval_rules
+		WHERE doctype = $1 ORDER BY min_amount ASC LIMIT 1`, schema), doctype).Scan(&role, &minAmount)
+	if err == sql.ErrNoRows {
+		return "", 0, nil
+	}
+	return role, minAmount, err
+}
+
 // IsApprovalGated reports whether any rule exists for doctype at all -
 // used to decide whether the generic doc-update path needs to run the
 // re-approval-on-edit check for this doctype.

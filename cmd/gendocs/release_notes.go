@@ -11,8 +11,8 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
+	"net/url"
+	"path"
 	"regexp"
 	"strings"
 )
@@ -65,19 +65,42 @@ func parseLedgerEntries(source string) []ledgerEntry {
 			Title:   strings.TrimSpace(source[loc[2]:loc[3]]),
 			Date:    strings.TrimSpace(source[loc[4]:loc[5]]),
 			Kind:    strings.TrimSpace(source[loc[6]:loc[7]]),
-			Excerpt: strings.Join(paragraph, " "),
+			Excerpt: delinkRepoFileReferences(strings.Join(paragraph, " ")),
 		})
 	}
 	return entries
 }
 
-func kbReleaseNotes(stamp string) string {
-	source, err := os.ReadFile(filepath.Join("docs", "project_ledger.md"))
-	if err != nil {
-		fmt.Printf("  [warn] release notes: could not read docs/project_ledger.md: %v (skipping)\n", err)
-		return ""
-	}
-	entries := parseLedgerEntries(string(source))
+// mdLink matches a Markdown inline link: `[label](target)`.
+var mdLink = regexp.MustCompile(`(!?)\[([^\]\n]*)\]\(([^\s)]+)\)`)
+
+// delinkRepoFileReferences strips the hyperlink from any scheme-less,
+// host-less ".md" link copied verbatim out of the ledger's own prose - e.g.
+// `[micro_checklist.md](micro_checklist.md)`, which resolves fine from
+// docs/project_ledger.md's own directory.
+//
+// This excerpt is pasted into a Knowledge Center article instead, and
+// genkb's renderer (internal/kb/markdown.go's articleURL) rewrites every
+// such link into /help/<basename-slug> on the assumption it references
+// another KB article. micro_checklist.md is not a KB article and has no
+// runtime URL at all - docs/ is not shipped, only the embedded KB is - so
+// the rendered link would 404. Keep the visible text, drop the link, rather
+// than emit an href genkb cannot resolve. An http(s) link is left untouched;
+// genkb only intercepts relative .md links.
+func delinkRepoFileReferences(text string) string {
+	return mdLink.ReplaceAllStringFunc(text, func(m string) string {
+		groups := mdLink.FindStringSubmatch(m)
+		label, target := groups[2], groups[3]
+		u, err := url.Parse(target)
+		if err != nil || u.Scheme != "" || u.Host != "" || !strings.EqualFold(path.Ext(u.Path), ".md") {
+			return m
+		}
+		return label
+	})
+}
+
+func kbReleaseNotes(stamp, source string) string {
+	entries := parseLedgerEntries(source)
 
 	var b strings.Builder
 	b.WriteString(kbFrontmatter(

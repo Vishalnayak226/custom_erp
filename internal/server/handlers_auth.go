@@ -3,6 +3,7 @@ package server
 import (
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -37,6 +38,22 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// generic failure as a bad password - a caller learns their session is
 	// dead, not why, the same choice the account-lockout check below makes.
 	if expired, _ := engines.IsSandboxExpired(tenantID); expired {
+		writeAPIError(w, r, "USERAC-0021", "")
+		return
+	}
+
+	// 49.1.5: a suspended or deprovisioning tenant refuses new logins with the
+	// same generic failure, for the same reason the sandbox check above does -
+	// a caller learns the credential did not work, not why. The sessions that
+	// tenant already issued are cut off separately, by the tenant gate in
+	// engines.ResolveLiveUserState. A database failure here is NOT a refusal:
+	// it must not sign a whole tenant out because one query blipped.
+	operational, tenantErr := engines.TenantIsOperational(tenantID)
+	if tenantErr != nil && !errors.Is(tenantErr, engines.ErrTenantNotRegistered) {
+		writeAPIErrorGeneric(w, r, http.StatusServiceUnavailable, "Login is temporarily unavailable")
+		return
+	}
+	if tenantErr != nil || !operational {
 		writeAPIError(w, r, "USERAC-0021", "")
 		return
 	}
@@ -106,6 +123,24 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET failed_login_count = 0, locked_until = NULL WHERE id = $1`, schema), u.ID)
 	}
 
+	// 49.1.5: the one-time credential handed over at provisioning is not a
+	// standing password. While it is unrotated the successful response says so;
+	// once its window has closed the account is refused - generically, like
+	// every other failure here - until an operator reissues one with
+	// `tenantctl rotate-bootstrap`, which is recorded in the tenant's evidence
+	// trail. Evaluated for every account, not just 'admin': the check keys on
+	// the stored hash matching the one that was issued, so it can only ever be
+	// true for the account that credential was minted for.
+	bootstrapState, bootstrapExpiry, bootstrapErr := engines.EvaluateTenantBootstrapCredential(tenantID, u.PasswordHash)
+	if bootstrapErr == nil && bootstrapState == engines.BootstrapExpired {
+		engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "BOOTSTRAP_CREDENTIAL_EXPIRED",
+			"Password correct, but it is the one-time provisioning credential and its rotation window has closed")
+		_ = engines.RecordTenantLifecycleEvent(tenantID, engines.TenantEventBootstrapExpired, u.Username,
+			"login refused: the one-time provisioning credential was never rotated and has expired")
+		writeAPIError(w, r, "USERAC-0021", "")
+		return
+	}
+
 	// MFA-mandatory roles (SEC-V2 Sec.12) never get a full session token
 	// straight out of /login - they're routed into enrollment (first time)
 	// or a TOTP challenge (subsequently) instead.
@@ -118,10 +153,20 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		if !enabled {
 			enrollToken := engines.SignPurposeToken(u.ID, u.Username, tenantID, "mfa_enroll", 10*time.Minute)
 			engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "MFA_ENROLLMENT_REQUIRED", "Password correct; TOTP enrollment required before a session can be issued")
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			enrollResp := map[string]interface{}{
 				"mfa_enrollment_required": true,
 				"enrollment_token":        enrollToken,
-			})
+			}
+			// 49.1.5: this is the path a freshly provisioned tenant admin
+			// actually takes on their first login, so the rotation notice has
+			// to be here as well as on the plain token response below.
+			if bootstrapState == engines.BootstrapPending {
+				enrollResp["must_rotate_password"] = true
+				if bootstrapExpiry != nil {
+					enrollResp["password_rotation_due"] = bootstrapExpiry.Format(time.RFC3339)
+				}
+			}
+			_ = json.NewEncoder(w).Encode(enrollResp)
 			return
 		}
 		challengeToken := engines.SignPurposeToken(u.ID, u.Username, tenantID, "mfa_challenge", 5*time.Minute)
@@ -143,13 +188,23 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "SUCCESS", fmt.Sprintf("User logged in successfully with role %s", u.Role))
 
-	_ = json.NewEncoder(w).Encode(map[string]string{
+	resp := map[string]string{
 		"token": token,
 		// Stage 40.3: the canonical name, so the profile chip never shows the
 		// pre-rename spelling on a database that has not been migrated yet.
-		"role":  engines.CanonicalRole(u.Role),
-		"user":  u.Username,
-	})
+		"role": engines.CanonicalRole(u.Role),
+		"user": u.Username,
+	}
+	// 49.1.5: still on the one-time provisioning credential. The session is
+	// issued - refusing it outright would strand a tenant whose only account is
+	// this one - but the caller is told, and told when it stops working.
+	if bootstrapState == engines.BootstrapPending {
+		resp["must_rotate_password"] = "true"
+		if bootstrapExpiry != nil {
+			resp["password_rotation_due"] = bootstrapExpiry.Format(time.RFC3339)
+		}
+	}
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleMFAEnroll issues a fresh (pending, not-yet-active) TOTP secret for

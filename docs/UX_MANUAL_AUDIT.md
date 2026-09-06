@@ -1,3 +1,6 @@
+<!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
+> **Authority notice:** Historical assessment. Its original findings describe the observed revision and scope, not current release assurance. Original evidence below is retained; later remediation requires separate verification. See the [authority matrix](governance/authority-matrix.md).
+
 # Usability & Manual Audit — Layman End-to-End Pass
 
 **Date:** 2026-07-30 · **Method:** read the user manual first, then drove the live app against it as a first-time user with no prior knowledge of the codebase. Server built from `main` at `e2ba733`, Postgres `custom_erp`, logged in as `manager1` (Store Manager) and `admin` (HR/Admin, real TOTP MFA).

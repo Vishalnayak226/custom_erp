@@ -2032,7 +2032,7 @@
           "screens": [
             "reports"
           ],
-          "last_verified": "2026-09-03",
+          "last_verified": "2026-09-06",
           "source_path": "reference/report-catalog.md",
           "headings": [
             {
@@ -2219,6 +2219,11 @@
               "level": 3,
               "text": "Open FX Exposure",
               "slug": "open-fx-exposure"
+            },
+            {
+              "level": 3,
+              "text": "POS Sale Reconciliation",
+              "slug": "pos-sale-reconciliation"
             },
             {
               "level": 3,
@@ -2579,9 +2584,24 @@
           "order": 25,
           "summary": "What shipped and when, generated from the build ledger so this page can't say something the ledger doesn't.",
           "audience": "everyone",
-          "last_verified": "2026-09-03",
+          "last_verified": "2026-09-06",
           "source_path": "reference/release-notes.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-09-06",
+              "slug": "2026-09-06"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-05",
+              "slug": "2026-09-05"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-03",
+              "slug": "2026-09-03"
+            },
             {
               "level": 2,
               "text": "2026-09-01",
@@ -2749,7 +2769,7 @@
           "screens": [
             "configuration"
           ],
-          "last_verified": "2026-09-03",
+          "last_verified": "2026-09-06",
           "source_path": "reference/country-phone-rules.md",
           "headings": [
             {
@@ -2957,7 +2977,7 @@
           "order": 20,
           "summary": "Every code the application can show you, what causes it and what to do about it.",
           "audience": "everyone",
-          "last_verified": "2026-09-03",
+          "last_verified": "2026-09-06",
           "source_path": "troubleshooting/error-code-reference.md",
           "headings": [
             {

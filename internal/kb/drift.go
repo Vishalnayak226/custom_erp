@@ -66,6 +66,16 @@ type route struct {
 // code claims against the real thing. It also reports, once, how many real
 // screens have no article mapped to them at all, so authors can see where
 // 39.13's remaining coverage gaps are without grepping for it by hand.
+//
+// It additionally requires (47.15.2's "role" completeness gate, independent
+// of whether any external source file is readable, since both are checked
+// against the article's own frontmatter) that any article mapped to a live
+// screen names an audience and a last_verified date at all - not merely "not
+// stale if present". Before this, an article with screens: set but no
+// last_verified frontmatter produced zero warnings, because the staleness
+// check above only fires when the field is non-empty; a screen with a
+// documented owner is worse than useless if nobody can tell it was ever
+// checked.
 func DriftGuards(articles []Article, sources DriftSources, now time.Time) []string {
 	var warnings []string
 
@@ -96,6 +106,15 @@ func DriftGuards(articles []Article, sources DriftSources, now time.Time) []stri
 				warnings = append(warnings, fmt.Sprintf("%s: last_verified %q is not a YYYY-MM-DD date", article.SourcePath, article.LastVerified))
 			} else if age := now.Sub(verified); age > StaleAfter {
 				warnings = append(warnings, fmt.Sprintf("%s: last_verified %s is %d days old (over the %d-day guard) - re-check it still matches the app", article.SourcePath, article.LastVerified, int(age.Hours()/24), int(StaleAfter.Hours()/24)))
+			}
+		}
+
+		if len(article.Screens) > 0 {
+			if article.Audience == "" {
+				warnings = append(warnings, fmt.Sprintf("%s: maps to screen(s) %s but declares no audience - every screen-mapped article must say who it's for", article.SourcePath, strings.Join(article.Screens, ", ")))
+			}
+			if article.LastVerified == "" {
+				warnings = append(warnings, fmt.Sprintf("%s: maps to screen(s) %s but has no last_verified date - every screen-mapped article must record when it was checked", article.SourcePath, strings.Join(article.Screens, ", ")))
 			}
 		}
 

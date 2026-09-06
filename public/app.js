@@ -402,7 +402,7 @@ let state = {
   // the sidebar shows.
   // create/update/delete (30.5.7) mirror `doctypes`, which holds read grants.
   // Same "show everything until loaded" default as the rest of this block.
-  permissions: { isAdmin: true, doctypes: new Set(), create: new Set(), update: new Set(), delete: new Set(), loaded: false },
+  permissions: { isAdmin: true, doctypes: new Set(), create: new Set(), update: new Set(), delete: new Set(), capabilities: new Set(), loaded: false },
   // Stage 27: same "show everything until loaded" default as permissions
   // above - enabled: null means "unknown yet," which isMenuModuleVisible
   // treats as visible; moduleGate on the server is the real enforcement
@@ -433,7 +433,7 @@ const DEFAULT_VIEW = 'reports';
 
 let currentView = DEFAULT_VIEW;
 let currentDoctype = '';
-let posCart = []; // { sku, available, qty, salePrice, costPrice }
+let posCart = []; // { sku, available, qty, salePrice, referencePrice, priceSource, overrideId, unpriced } - Stage 47.2: prices are the server's, not the till's
 let posLocation = '';
 let posOpenSessionId = ''; // Stage 20.7: '' means no open cashier session at posLocation
 const OFFLINE_QUEUE_KEY = 'erp_pos_offline_queue'; // 20.13, see checkoutOnlineOrQueue below
@@ -1224,6 +1224,14 @@ let FIELD_FORMATS = [];
 // reason: a second copy here would drift, and the drift shows up as a
 // keystroke filter on a field the user cannot type a valid value into.
 let FIELD_FORMAT_EXCLUDED_SUFFIXES = [];
+// Stage 47.6.1: explicit semantic metadata, served by the same endpoint so the
+// browser and the server cannot disagree about what an input holds. The case
+// that forced it: mobile-pick-wave-id contains "mobile", so token inference
+// gave the RF Wave ID box the phone keystroke filter and a wave id lost its
+// letters as the operator typed - silently, on a device where nobody could see
+// it happen.
+let FIELD_SEMANTICS = {};
+let FIELD_SCAN_SEMANTICS = [];
 
 async function loadFieldFormats() {
   try {
@@ -1232,6 +1240,8 @@ async function loadFieldFormats() {
     const data = await res.json();
     FIELD_FORMATS = (data && data.formats) || [];
     FIELD_FORMAT_EXCLUDED_SUFFIXES = (data && data.excluded_suffixes) || [];
+    FIELD_SEMANTICS = (data && data.semantics) || {};
+    FIELD_SCAN_SEMANTICS = (data && data.scan) || [];
   } catch (e) {
     // A missing spec list degrades to "no hints, no filtering" - the server
     // still validates on save, so nothing becomes unsafe, just less helpful.
@@ -1245,11 +1255,32 @@ function isDerivedCompanionField(name) {
   return FIELD_FORMAT_EXCLUDED_SUFFIXES.some(suf => n.endsWith(suf));
 }
 
-// detectFieldFormat mirrors the server's DetectFieldFormat: first token match
-// wins, and the list arrives already in the server's own priority order.
+// fieldSemantic mirrors the server's FieldSemantic: whole identifier first,
+// then its "-"/"_" separated words.
+function fieldSemantic(name) {
+  const n = String(name || '').toLowerCase().trim();
+  if (!n) return '';
+  if (FIELD_SEMANTICS[n]) return FIELD_SEMANTICS[n];
+  for (const w of n.split(/[-_.]/)) {
+    if (FIELD_SEMANTICS[w]) return FIELD_SEMANTICS[w];
+  }
+  return '';
+}
+
+// isScanField reports whether an input holds a machine-read code - a barcode,
+// wave, LPN, lot or serial. The RF shell uses it to keep scanner focus and to
+// keep character filters away from codes that legitimately contain letters.
+function isScanField(name) {
+  return FIELD_SCAN_SEMANTICS.indexOf(fieldSemantic(name)) >= 0;
+}
+
+// detectFieldFormat mirrors the server's DetectFieldFormat: an explicit
+// semantic wins, then first token match, from the server's own priority order.
 function detectFieldFormat(name) {
   const n = String(name || '').toLowerCase().trim();
   if (!n || isDerivedCompanionField(n)) return null;
+  const semantic = fieldSemantic(n);
+  if (semantic && semantic !== 'phone') return null;
   for (const spec of FIELD_FORMATS) {
     for (const tok of (spec.tokens || [])) {
       if (n.includes(tok)) return spec;
@@ -2401,6 +2432,8 @@ const MENU_MODULE_MAP = {
   'menu-fulfillment': 'wms',
   'menu-marketplace': 'oms',
 	'menu-oms': 'oms',
+  'menu-returns': 'oms',
+  'menu-rf-traceability': 'wms',
 
   'menu-purchase-requisitions': 'procurement',
   'menu-purchase-orders': 'procurement',
@@ -2601,6 +2634,11 @@ async function fetchAndApplyPermissions() {
         create: new Set(data.create || []),
         update: new Set(data.update || []),
         delete: new Set(data.delete || []),
+        // Stage 47.2.3: capability-gated actions (POS price override) show
+        // or hide from this, not from a hardcoded role name. Server-side
+        // enforcement is unchanged and unconditional; this only avoids
+        // offering a button that would be refused.
+        capabilities: new Set(data.capabilities || []),
         loaded: true
       };
     }
@@ -2759,7 +2797,107 @@ function renderSidebarSubmenu() {
   });
 }
 
+// --- Navigation drawer (Stage 47.6.3) --------------------------------------
+//
+// Below the operator breakpoint the sidebar leaves the layout flow and becomes
+// an off-canvas drawer (see the media query in styles.css). Before this, the
+// sidebar was a hard 270px with no collapsed state anywhere in the stylesheet,
+// so on a 390px device it took 69% of the viewport and left 120px for the
+// application - the concrete form of audit A-06/A-39's "a desktop page
+// squeezed into 390px".
+//
+// The keyboard and focus behaviour here is not decoration: an open drawer that
+// cannot be closed with Escape, or that leaves focus behind it, is a WCAG
+// failure (SC 2.1.2 No Keyboard Trap, SC 2.4.3 Focus Order) and, more
+// practically, is unusable with a ring scanner that only sends Tab/Enter.
+
+// The breakpoint is duplicated from styles.css deliberately and checked with
+// matchMedia rather than a hardcoded width comparison, so the JS follows
+// whatever the CSS actually applied - including at a zoom level where the CSS
+// pixel width and the device width disagree.
+const NAV_DRAWER_QUERY = '(max-width: 820px)';
+
+function navDrawerIsActive() {
+  return window.matchMedia && window.matchMedia(NAV_DRAWER_QUERY).matches;
+}
+
+function setNavDrawer(open) {
+  const container = document.getElementById('app-root');
+  const toggle = document.getElementById('nav-toggle');
+  const scrim = document.getElementById('nav-scrim');
+  if (!container) return;
+  container.classList.toggle('nav-open', !!open);
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    toggle.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+  }
+  // The scrim is `hidden` rather than only CSS-hidden so it is removed from
+  // the accessibility tree as well as the picture - a screen reader should not
+  // find a clickable nothing sitting over the page.
+  if (scrim) scrim.hidden = !open;
+  if (open) {
+    // Move focus into the drawer so the next Tab lands inside it rather than
+    // continuing through the page behind the scrim.
+    const first = document.querySelector('#app-sidebar .menu-item');
+    if (first && first.focus) first.focus();
+  } else if (toggle && navDrawerIsActive() && toggle.focus) {
+    // Returning focus to the control that opened it is what stops a keyboard
+    // user being dropped at the top of the document on every close.
+    toggle.focus();
+  }
+}
+
+function closeNavDrawer() {
+  setNavDrawer(false);
+}
+
+function initNavDrawer() {
+  const toggle = document.getElementById('nav-toggle');
+  const scrim = document.getElementById('nav-scrim');
+  const container = document.getElementById('app-root');
+  if (!toggle || !container) return;
+
+  toggle.addEventListener('click', (e) => {
+    e.preventDefault();
+    setNavDrawer(!container.classList.contains('nav-open'));
+  });
+  if (scrim) scrim.addEventListener('click', closeNavDrawer);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && container.classList.contains('nav-open')) {
+      closeNavDrawer();
+    }
+  });
+
+  // Choosing a destination closes the drawer - on a phone the operator wants
+  // the screen they picked, not the menu they picked it from. Delegated from
+  // the sidebar so it covers the dynamically-rendered Setup submenu too.
+  const sidebar = document.getElementById('app-sidebar');
+  if (sidebar) {
+    sidebar.addEventListener('click', (e) => {
+      if (!navDrawerIsActive()) return;
+      const item = e.target && e.target.closest && e.target.closest('.menu-item');
+      // A module row that owns a flyout is a disclosure, not a destination -
+      // closing on it would shut the menu before its children could be read.
+      if (item && !item.closest('.has-submenu')) closeNavDrawer();
+    });
+  }
+
+  // Resizing back above the breakpoint (rotating a tablet, undoing zoom) must
+  // clear the open state, or the desktop layout renders with a drawer class
+  // still applied and the scrim still in the accessibility tree.
+  if (window.matchMedia) {
+    const mq = window.matchMedia(NAV_DRAWER_QUERY);
+    const onChange = () => { if (!mq.matches) closeNavDrawer(); };
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    else if (mq.addListener) mq.addListener(onChange);
+  }
+}
+
 function setupEventListeners() {
+  // Stage 47.6.3: the operator-width navigation drawer.
+  initNavDrawer();
+
   // Main Navigation links
   document.getElementById('menu-doctype-builder').addEventListener('click', (e) => {
     e.preventDefault();
@@ -2802,6 +2940,26 @@ function setupEventListeners() {
 		closeSubmenus();
 		renderView('oms');
 	});
+
+  const rfMenu = document.getElementById('menu-rf-traceability');
+  if (rfMenu) {
+    rfMenu.addEventListener('click', (e) => {
+      e.preventDefault();
+      setActiveMenu('menu-rf-traceability');
+      closeSubmenus();
+      renderView('rf-traceability');
+    });
+  }
+
+  const returnsMenu = document.getElementById('menu-returns');
+  if (returnsMenu) {
+    returnsMenu.addEventListener('click', (e) => {
+      e.preventDefault();
+      setActiveMenu('menu-returns');
+      closeSubmenus();
+      renderView('returns');
+    });
+  }
 
   document.getElementById('menu-approvals').addEventListener('click', (e) => {
     e.preventDefault();
@@ -3680,6 +3838,8 @@ const STATIC_VIEW_MENU_IDS = {
   fulfillment: 'menu-fulfillment',
   marketplace: 'menu-marketplace',
 	oms: 'menu-oms',
+  'rf-traceability': 'menu-rf-traceability',
+  returns: 'menu-returns',
   approvals: 'menu-approvals',
   reports: 'menu-reports',
   help: 'menu-knowledge-center',
@@ -3908,6 +4068,12 @@ async function renderViewContent(view, root) {
   currentView = view;
   saveNavState();
 
+  // Stage 47.6.2: the RF shell hides the sidebar and the top bar while a task
+  // is open, so leaving it has to put them back. Cleared here - the one place
+  // every view change passes through - rather than in each view's own render,
+  // which is how a screen ends up permanently chromeless after one bad exit.
+  document.body.classList.toggle('rf-shell', view === 'rf-traceability');
+
   if (view === 'pos') {
     renderPOSView(root);
   } else if (view === 'finance') {
@@ -3948,6 +4114,10 @@ async function renderViewContent(view, root) {
     await renderMarketplaceView(root);
 	} else if (view === 'oms') {
 		await renderOMSWorkbenchView(root);
+  } else if (view === 'rf-traceability') {
+    await renderRFTraceabilityView(root);
+  } else if (view === 'returns') {
+    await renderReturnsView(root);
   } else if (view === 'approvals') {
     await renderApprovalsView(root);
   } else if (view === 'reports') {
@@ -4780,8 +4950,11 @@ function renderPOSView(container) {
           <th>SKU</th>
           <th>Available</th>
           <th>Qty</th>
+          <!-- Stage 47.2: Sale Price is now what the SERVER says, rendered
+               read-only with the source it came from; the Cost Price column
+               is gone entirely (a cashier never sees margin, and the server
+               no longer accepts a cost from the till at all). -->
           <th>Sale Price</th>
-          <th>Cost Price</th>
           <th>Line Total</th>
           <th></th>
         </tr>
@@ -4833,8 +5006,8 @@ function renderPOSView(container) {
   // Stage 30.7: re-evaluate offers when the coupon code or the customer
   // changes - a tier-restricted or coupon-gated offer depends on both.
   const couponEl = document.getElementById('pos-coupon-code');
-  if (couponEl) couponEl.addEventListener('change', () => refreshPOSOffers());
-  document.getElementById('pos-customer').addEventListener('change', () => refreshPOSOffers());
+  if (couponEl) couponEl.addEventListener('change', () => refreshPOSQuote());
+  document.getElementById('pos-customer').addEventListener('change', () => refreshPOSQuote());
   document.getElementById('pos-add-btn').addEventListener('click', addSKUToPOSCart);
   document.getElementById('pos-sku-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
@@ -4855,13 +5028,661 @@ function renderPOSView(container) {
   trySyncOfflineQueue();
 }
 
-// Stage 20.11: audited first per the checklist item's own instruction -
-// engines.ProcessReturnAnywhere + POST /api/v1/fulfillment/return (Stage
-// 7.2/13.6) already do the real work; there was just no screen calling it.
-// This is a thin, separate panel (own posReturnCart array) rather than a
+// --- RF traceability task shell (Stage 47.6.2/47.6.3/47.6.4/47.6.7) --------
+//
+// 47.6.7 named the concrete gap: four real, tested, registered endpoints with
+// ZERO caller anywhere in this file, so the operations that make a lot usable
+// were reachable only by a developer with curl.
+//
+//   POST /api/v1/wms/batch/putaway       bin-level lot assignment - what makes
+//                                        a lot visible to FEFO at all
+//   POST /api/v1/wms/batch/consume       issue a specific lot out of a bin
+//   POST /api/v1/wms/batch/expiry-sweep  quarantine everything past its date
+//   POST /api/v1/wms/serial/status       allocate / ship / return / scrap
+//
+// 47.6.2 said to build them as part of the RF task shell rather than a sixth
+// desktop WMS screen, because they are floor operations. So this is that
+// shell, and it is deliberately NOT the desktop layout at a narrow width:
+//
+//   - no sidebar (the shell hides it while a task is open),
+//   - ONE instruction at the top, in words, at a size readable at arm's length,
+//   - ONE primary scan target that keeps focus and re-takes it after every
+//     action, so an operator never has to tap an input between scans,
+//   - a human label beside every code, and no naked UUID anywhere,
+//   - distinct sound + vibration + colour + TEXT per outcome (47.6.4) - never
+//     colour alone, which is unreadable to a colour-blind operator and
+//     invisible in sunlight,
+//   - every control at least 44x44 CSS px, and the layout is a single column
+//     that reflows rather than scrolling sideways (47.6.3).
+
+const RF_TASKS = [
+  {
+    key: 'putaway',
+    label: 'Put a lot away',
+    instruction: 'Scan the bin, then the item, then the lot.',
+    endpoint: '/api/v1/wms/batch/putaway',
+    fields: [
+      { id: 'rf-putaway-bin', label: 'Bin', semantic: 'barcode', body: 'bin_code', required: true },
+      { id: 'rf-putaway-sku', label: 'Item', semantic: 'barcode', body: 'sku', required: true },
+      { id: 'rf-putaway-lot', label: 'Lot / Batch', semantic: 'lot', body: 'batch_no', required: true },
+      { id: 'rf-putaway-qty', label: 'Quantity', semantic: 'number', body: 'qty', required: true, type: 'number' },
+      { id: 'rf-putaway-condition', label: 'Condition', semantic: 'text', body: 'condition', options: ['Good', 'Damaged', 'QC-Hold', 'RTV'] }
+    ],
+    done: 'Lot put away. It can now be picked.'
+  },
+  {
+    key: 'consume',
+    label: 'Issue a lot',
+    instruction: 'Scan the bin, the item and the lot you are taking stock from.',
+    endpoint: '/api/v1/wms/batch/consume',
+    fields: [
+      { id: 'rf-consume-bin', label: 'Bin', semantic: 'barcode', body: 'bin_code', required: true },
+      { id: 'rf-consume-sku', label: 'Item', semantic: 'barcode', body: 'sku', required: true },
+      { id: 'rf-consume-lot', label: 'Lot / Batch', semantic: 'lot', body: 'batch_no', required: true },
+      { id: 'rf-consume-qty', label: 'Quantity', semantic: 'number', body: 'qty', required: true, type: 'number' },
+      { id: 'rf-consume-doc', label: 'Against document (optional)', semantic: 'text', body: 'voucher_id' },
+      { id: 'rf-consume-customer', label: 'For customer (optional)', semantic: 'text', body: 'customer' }
+    ],
+    done: 'Lot issued.'
+  },
+  {
+    key: 'serial',
+    label: 'Change a serial',
+    instruction: 'Scan the item and the serial, then choose what happened to it.',
+    endpoint: '/api/v1/wms/serial/status',
+    fields: [
+      { id: 'rf-serial-sku', label: 'Item', semantic: 'barcode', body: 'sku', required: true },
+      { id: 'rf-serial-no', label: 'Serial number', semantic: 'serial', body: 'serial_no', required: true },
+      { id: 'rf-serial-status', label: 'New status', semantic: 'text', body: 'status', required: true,
+        options: ['In Stock', 'Allocated', 'Shipped', 'Returned', 'Scrapped'] },
+      { id: 'rf-serial-reason', label: 'Reason (required to scrap)', semantic: 'text', body: 'reason' }
+    ],
+    done: 'Serial updated.'
+  },
+  {
+    key: 'expiry',
+    label: 'Sweep expired lots',
+    instruction: 'This quarantines every lot that is past its expiry date. Nothing else changes.',
+    endpoint: '/api/v1/wms/batch/expiry-sweep',
+    fields: [],
+    confirm: 'Quarantine every lot that is past its expiry date?',
+    done: 'Expiry sweep finished.'
+  }
+];
+
+let rfActiveTask = null;
+
+async function renderRFTraceabilityView(container) {
+  const wrap = document.createElement('div');
+  wrap.className = 'rf-wrap';
+  wrap.innerHTML = `
+    <div class="rf-header">
+      <div class="rf-title" id="rf-title">Choose a task</div>
+      <div class="rf-instruction" id="rf-instruction">Pick what you are doing. Everything after that is one scan at a time.</div>
+    </div>
+    <div id="rf-body"></div>
+    <div class="rf-status" id="rf-status" role="status" aria-live="assertive"></div>
+  `;
+  container.appendChild(wrap);
+  renderRFTaskMenu();
+}
+
+function renderRFTaskMenu() {
+  rfActiveTask = null;
+  const body = document.getElementById('rf-body');
+  if (!body) return;
+  document.getElementById('rf-title').textContent = 'Choose a task';
+  document.getElementById('rf-instruction').textContent = 'Pick what you are doing. Everything after that is one scan at a time.';
+  setRFStatus('', '');
+  body.innerHTML = RF_TASKS.map(t => `
+    <button class="rf-task-btn" type="button" onclick="openRFTask('${t.key}')">
+      <span class="rf-task-label">${cfgEsc(t.label)}</span>
+      <span class="rf-task-hint">${cfgEsc(t.instruction)}</span>
+    </button>`).join('');
+}
+
+function openRFTask(key) {
+  const task = RF_TASKS.find(t => t.key === key);
+  if (!task) return;
+  rfActiveTask = task;
+  const body = document.getElementById('rf-body');
+  document.getElementById('rf-title').textContent = task.label;
+  document.getElementById('rf-instruction').textContent = task.instruction;
+  setRFStatus('', '');
+
+  const fields = task.fields.map(f => {
+    // Ids are named so the 47.6.1 semantic registry resolves them (rf-*-lot,
+    // rf-*-serial, rf-*-bin), which is what keeps the shared keystroke filter
+    // away from them - a lot or serial legitimately contains letters, and
+    // stripping them silently is exactly the bug that item exists to kill.
+    if (f.options) {
+      return `
+        <label class="rf-field">
+          <span class="rf-label">${cfgEsc(f.label)}</span>
+          <select id="${f.id}" class="rf-input">
+            ${f.options.map(o => `<option value="${cfgEsc(o)}">${cfgEsc(o)}</option>`).join('')}
+          </select>
+        </label>`;
+    }
+    return `
+      <label class="rf-field">
+        <span class="rf-label">${cfgEsc(f.label)}</span>
+        <input type="${f.type || 'text'}" id="${f.id}" class="rf-input"
+               inputmode="${f.type === 'number' ? 'numeric' : 'text'}"
+               autocomplete="off" autocapitalize="characters" spellcheck="false"
+               data-rf-semantic="${cfgEsc(f.semantic || 'text')}">
+      </label>`;
+  }).join('');
+
+  body.innerHTML = `
+    <form id="rf-form" autocomplete="off">${fields}
+      <button class="rf-primary" type="submit" id="rf-submit">${cfgEsc(task.label)}</button>
+      <button class="rf-secondary" type="button" onclick="renderRFTaskMenu()">Back to tasks</button>
+      <button class="rf-secondary" type="button" onclick="requestRFSupervisor()">Get a supervisor</button>
+    </form>`;
+
+  document.getElementById('rf-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    submitRFTask();
+  });
+  // Scanner focus: the first empty field takes it, and an Enter (which is what
+  // every hardware scanner sends after a barcode) advances to the next one
+  // rather than submitting a half-filled form.
+  task.fields.forEach((f, i) => {
+    const el = document.getElementById(f.id);
+    if (!el || el.tagName !== 'INPUT') return;
+    el.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const next = task.fields.slice(i + 1).map(n => document.getElementById(n.id)).find(n => n && !n.value);
+      if (next) { next.focus(); return; }
+      submitRFTask();
+    });
+  });
+  focusFirstEmptyRFField();
+}
+
+function focusFirstEmptyRFField() {
+  if (!rfActiveTask) return;
+  for (const f of rfActiveTask.fields) {
+    const el = document.getElementById(f.id);
+    if (el && el.tagName === 'INPUT' && !el.value) { el.focus(); return; }
+  }
+  const submit = document.getElementById('rf-submit');
+  if (submit) submit.focus();
+}
+
+// setRFStatus is the whole 47.6.4 feedback rule in one place: text ALWAYS,
+// plus colour, plus a distinct tone and vibration pattern per outcome. Never
+// colour alone - it is unreadable to a colour-blind operator and washes out in
+// sunlight - and never sound alone, which is inaudible in a loud aisle.
+// RF_OUTCOMES is the whole 47.6.4 feedback vocabulary, in one place.
+//
+// The item names six outcomes, and they are six because an operator has to be
+// able to tell them apart WITHOUT reading: "already scanned" and "wrong item"
+// call for completely different next actions, and a single error buzz makes
+// the operator stop and read every time. Each carries a distinct tone, a
+// distinct vibration rhythm, a distinct colour AND text - four channels,
+// because an aisle is loud (sound alone fails), bright (colour alone fails),
+// and an operator may be colour-blind (colour alone fails again).
+//
+// Frequencies rise for good outcomes and fall for bad ones, which is the
+// convention every warehouse scanner already trains people on; the two
+// "stop and check" outcomes (wrong item, owner mismatch) share the low
+// register but differ in rhythm.
+const RF_OUTCOMES = {
+  ok:             { vibrate: [60],                 tone: 880, ms: 120 },
+  duplicate:      { vibrate: [40, 60, 40],         tone: 660, ms: 90 },
+  // "Wrong item" is the one an operator must never mistake for a duplicate:
+  // a duplicate means "you already did this", a wrong item means "the thing
+  // in your hand is not the thing on the screen".
+  wrong_item:     { vibrate: [250, 100, 250],      tone: 200, ms: 300 },
+  // Owner mismatch (3PL) is a wrong item with a different remedy - the stock
+  // is real and correct, it just belongs to somebody else.
+  owner_mismatch: { vibrate: [120, 80, 120, 80, 120], tone: 260, ms: 200 },
+  // A hold is not a failure: the goods are fine and the operator is being
+  // told to stop, so it gets its own mid tone rather than the error buzz.
+  hold:           { vibrate: [400],                tone: 330, ms: 400 },
+  error:          { vibrate: [200, 80, 200],       tone: 220, ms: 260 },
+  offline:        { vibrate: [30, 40, 30, 40, 30], tone: 440, ms: 120 }
+};
+
+// rfOutcomeForResponse maps a server refusal onto the outcome vocabulary.
+//
+// Keyed on the message catalog CODE rather than on the HTTP status, because
+// the status cannot tell these apart - INVENT-0104 (blocked stock),
+// INVENT-0106 (batch expired) and INVENT-0115 (serial/batch mismatch) are all
+// 422, and they call for three different reactions on the floor. The codes are
+// the whole reason engines/traceability.go returns precisely-coded
+// ValidationErrors rather than plain errors, and this is the first caller that
+// actually uses that distinction for anything.
+function rfOutcomeForResponse(res, payload) {
+  const code = (payload && payload.code) || '';
+  switch (code) {
+    // The lot or serial in the operator's hand is not the one the system
+    // expected, or cannot be issued at all.
+    case 'INVENT-0115': // serial/batch mismatch
+    case 'INVENT-0102': // stock not available for barcode
+      return 'wrong_item';
+    // Stock that is real and correct but not available to this movement.
+    case 'INVENT-0104': // blocked stock selected
+    case 'INVENT-0106': // batch expired
+    case 'INVENT-0114': // reserved stock blocked
+      return 'hold';
+    // 3PL ownership. Named here even though owner enforcement itself is
+    // Stage 47.5's work, so the shell already speaks the outcome the moment
+    // the server starts returning it, rather than reporting it as a generic
+    // error until somebody remembers to come back.
+    case 'INVENT-0116':
+      return 'owner_mismatch';
+    case 'INVENT-0103': // barcode already consumed
+      return 'duplicate';
+  }
+  if (res.status === 409) return 'duplicate';
+  return 'error';
+}
+
+function setRFStatus(kind, message) {
+  const el = document.getElementById('rf-status');
+  if (!el) return;
+  el.className = 'rf-status' + (kind ? ' rf-status-' + kind : '');
+  el.textContent = message || '';
+  if (!kind) return;
+  const p = RF_OUTCOMES[kind];
+  if (!p) return;
+  try { if (navigator.vibrate) navigator.vibrate(p.vibrate); } catch (e) { /* unsupported device */ }
+  rfTone(p.tone, p.ms);
+}
+
+// rfTone is a short WebAudio beep. Deliberately not an audio file: a file is a
+// network fetch that fails exactly when the device is on weak Wi-Fi, which is
+// the moment the operator most needs the feedback.
+let rfAudioCtx = null;
+function rfTone(frequency, ms) {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    rfAudioCtx = rfAudioCtx || new Ctx();
+    const osc = rfAudioCtx.createOscillator();
+    const gain = rfAudioCtx.createGain();
+    osc.frequency.value = frequency;
+    gain.gain.value = 0.08;
+    osc.connect(gain).connect(rfAudioCtx.destination);
+    osc.start();
+    setTimeout(() => { try { osc.stop(); } catch (e) { /* already stopped */ } }, ms);
+  } catch (e) {
+    // No audio available - the text and vibration still carry the outcome.
+  }
+}
+
+async function submitRFTask() {
+  if (!rfActiveTask) return;
+  const task = rfActiveTask;
+  const body = {};
+  for (const f of task.fields) {
+    const el = document.getElementById(f.id);
+    if (!el) continue;
+    const raw = String(el.value || '').trim();
+    if (f.required && !raw) {
+      setRFStatus('error', `${f.label} is needed before this can be sent.`);
+      el.focus();
+      return;
+    }
+    if (!raw) continue;
+    body[f.body] = f.type === 'number' ? (parseInt(raw, 10) || 0) : raw;
+  }
+  if (task.confirm && !(await showCustomConfirm(task.confirm, task.label))) return;
+
+  const submit = document.getElementById('rf-submit');
+  if (submit) submit.disabled = true;
+  try {
+    let res;
+    try {
+      res = await apiFetch(task.endpoint, { method: 'POST', body: JSON.stringify(body) });
+    } catch (e) {
+      // 47.6.5: an offline RF action is NOT queued. These four all mutate
+      // stock against server-side state (expiry gates, FEFO ordering, serial
+      // status transitions) that the device cannot evaluate, so replaying one
+      // later could put stock somewhere the server would have refused. The
+      // honest behaviour is to say so and let the operator retry when the link
+      // is back - the POS offline queue exists because a sale has already
+      // physically happened; a putaway has not.
+      setRFStatus('offline', 'No connection. Nothing was sent. Try again when the signal comes back.');
+      return;
+    }
+    if (!res) return;
+    if (!res.ok) {
+      const payload = await res.clone().json().catch(() => ({}));
+      const message = await getErrorMessage(res, 'That could not be done.');
+      setRFStatus(rfOutcomeForResponse(res, payload), message);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
+    setRFStatus('ok', rfSuccessMessage(task, data));
+    // Clear the scan fields but keep the operator on the task - the next unit
+    // is the overwhelmingly common next action, and making them re-choose the
+    // task every time is how an RF screen gets abandoned.
+    task.fields.forEach(f => {
+      const el = document.getElementById(f.id);
+      if (el && el.tagName === 'INPUT') el.value = '';
+    });
+    focusFirstEmptyRFField();
+  } finally {
+    if (submit) submit.disabled = false;
+  }
+}
+
+function rfSuccessMessage(task, data) {
+  if (task.key === 'expiry') {
+    const n = Number(data.quarantined ?? data.swept ?? 0);
+    return n > 0 ? `${task.done} ${n} lot(s) quarantined.` : `${task.done} Nothing was past its date.`;
+  }
+  return task.done;
+}
+
+// requestRFSupervisor is 47.6.2's "one recovery/supervisor action reachable
+// without sharing the operator's own credentials". It raises a request the
+// supervisor answers on their OWN device - it never asks the operator to hand
+// their phone over, and never asks a supervisor to type their password into
+// somebody else's session, which is how shared logins start.
+async function requestRFSupervisor() {
+  const reason = await showCustomPrompt(
+    'What do you need help with? A supervisor will see this on their own device.',
+    '', 'Get a Supervisor');
+  if (!reason || !reason.trim()) return;
+  // FloorAssistRequest, not Grievance: a grievance is an HR complaint, and
+  // filing "I cannot scan this bin" into somebody's HR record would be both
+  // wrong and quietly harmful. This is its own small doctype a supervisor sees
+  // on the ordinary document screen, on their own device.
+  const res = await apiFetch('/api/v1/doc/FloorAssistRequest', {
+    method: 'POST',
+    body: JSON.stringify({
+      task: (rfActiveTask && rfActiveTask.label) || 'Unspecified',
+      request: reason.trim(),
+      status: 'Open'
+    })
+  });
+  if (res && res.ok) {
+    setRFStatus('ok', 'A supervisor has been asked to come to you.');
+  } else {
+    setRFStatus('error', 'The request could not be sent. Ask a colleague to call a supervisor.');
+  }
+}
+
+// --- Returns management (Stage 47.4.6) -----------------------------------
+//
+// Stage 35.9 built the whole ReturnRequest/RefundRequest workflow - approve,
+// reject, reverse pickup, receive, QC with per-line disposition, exchange,
+// refund approval and refund processing - and its own checklist entry recorded
+// that it had no management UI. Every one of those endpoints had zero caller
+// anywhere in this file, which meant a return could be *raised* from the POS
+// and then never progressed except by a developer with curl.
+//
+// This screen is that missing surface. It deliberately drives the existing
+// endpoints rather than adding new ones, and it shows the aggregate's own
+// state machine as the source of which actions are offered - so a state added
+// server-side later cannot leave a stale button behind here.
+
+const RETURN_ACTIONS_BY_STATUS = {
+  'Requested': ['approve', 'reject'],
+  'Approved': ['reverse-pickup', 'receive', 'reject'],
+  'Received': ['qc'],
+  'QC Complete': ['refund'],
+  'Closed': [],
+  'Rejected': []
+};
+
+const RETURN_DISPOSITIONS = ['Sellable', 'Damaged', 'Repairable', 'Missing', 'Wrong-Item', 'Rejected'];
+
+let returnsViewRows = [];
+let returnsViewFilter = 'open';
+
+async function renderReturnsView(root) {
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:16px;">
+      <div>
+        <h2 style="margin:0 0 4px; font-size:16px;">Returns</h2>
+        <div style="font-size:12.5px; color:var(--text-muted);">
+          A return moves Requested &rarr; Approved &rarr; Received &rarr; QC Complete &rarr; Closed.
+          Stock is only received back at inspection, and no refund is paid until the goods have been inspected.
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; align-items:flex-end;">
+        <div class="form-group" style="max-width:180px; margin-bottom:0;">
+          <label class="form-label" for="returns-filter">Show</label>
+          <select id="returns-filter" class="form-input">
+            <option value="open">Open returns</option>
+            <option value="all">All returns</option>
+            <option value="Requested">Awaiting approval</option>
+            <option value="Approved">Awaiting goods</option>
+            <option value="Received">Awaiting inspection</option>
+            <option value="QC Complete">Awaiting refund</option>
+          </select>
+        </div>
+        <button class="btn btn-outline" id="returns-refresh-btn" type="button">Refresh</button>
+      </div>
+    </div>
+    <div id="returns-error" class="login-error hidden" style="margin-bottom:16px;"></div>
+    <table>
+      <thead>
+        <tr>
+          <th>Return</th><th>Type</th><th>Original Bill</th><th>Location</th>
+          <th>Items</th><th>Refund Eligible</th><th>Status</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="returns-body"></tbody>
+    </table>
+    <div id="returns-empty" style="padding:24px 4px; color:var(--text-muted); font-size:13px;"></div>
+  `;
+  root.appendChild(panel);
+
+  document.getElementById('returns-refresh-btn').addEventListener('click', loadReturnsView);
+  document.getElementById('returns-filter').addEventListener('change', (e) => {
+    returnsViewFilter = e.target.value;
+    renderReturnsTable();
+  });
+  await loadReturnsView();
+}
+
+async function loadReturnsView() {
+  const errorEl = document.getElementById('returns-error');
+  if (errorEl) errorEl.classList.add('hidden');
+  // Read through the ordinary generic doctype endpoint rather than a bespoke
+  // list route: ReturnRequest is a registered doctype and already carries the
+  // role/scope filtering every other document read gets, so a second endpoint
+  // would be a second place for that filtering to drift.
+  const res = await apiFetch('/api/v1/doc/ReturnRequest?limit=200');
+  if (!res) return;
+  if (!res.ok) {
+    if (errorEl) {
+      errorEl.textContent = await getErrorMessage(res, 'Returns could not be loaded.');
+      errorEl.classList.remove('hidden');
+    }
+    return;
+  }
+  const payload = await res.json();
+  const docs = Array.isArray(payload) ? payload : (payload.data || payload.documents || []);
+  returnsViewRows = docs.map(d => {
+    const data = d.data || d;
+    return {
+      id: d.id || data.code,
+      requestType: data.request_type || '',
+      originalOrderID: data.original_order_id || '',
+      returnLocation: data.return_location || '',
+      status: data.status || d.status || '',
+      items: Array.isArray(data.items) ? data.items : [],
+      refundEligible: Number(data.total_refund_eligible) || 0
+    };
+  });
+  renderReturnsTable();
+}
+
+function renderReturnsTable() {
+  const body = document.getElementById('returns-body');
+  if (!body) return;
+  body.innerHTML = '';
+
+  const rows = returnsViewRows.filter(r => {
+    if (returnsViewFilter === 'all') return true;
+    if (returnsViewFilter === 'open') return r.status !== 'Closed' && r.status !== 'Rejected';
+    return r.status === returnsViewFilter;
+  });
+
+  const emptyEl = document.getElementById('returns-empty');
+  if (emptyEl) {
+    emptyEl.textContent = rows.length ? '' :
+      (returnsViewRows.length ? 'No returns match this filter.' : 'No returns have been raised yet. A return starts at the till, from the original bill.');
+  }
+
+  rows.forEach(r => {
+    const actions = RETURN_ACTIONS_BY_STATUS[r.status] || [];
+    const qtySummary = r.items.reduce((n, it) => n + (Number(it.qty) || 0), 0);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td style="font-weight:600;">${cfgEsc(r.id)}</td>
+      <td>${cfgEsc(r.requestType)}</td>
+      <td>${cfgEsc(r.originalOrderID)}</td>
+      <td>${cfgEsc(r.returnLocation)}</td>
+      <td>${qtySummary} unit(s) across ${r.items.length} line(s)</td>
+      <td>${r.refundEligible ? r.refundEligible.toFixed(2) : '-'}</td>
+      <td>${cfgEsc(r.status)}</td>
+      <td>${actions.map(a => returnActionButton(r.id, a)).join(' ') || '<span style="color:var(--text-muted);">-</span>'}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+function returnActionButton(returnID, action) {
+  const labels = {
+    'approve': 'Approve', 'reject': 'Reject', 'receive': 'Receive Goods',
+    'qc': 'Inspect', 'refund': 'Refund', 'reverse-pickup': 'Book Pickup'
+  };
+  const cls = action === 'reject' ? 'action-btn action-btn-danger' : 'action-btn';
+  return `<button class="${cls}" onclick="runReturnAction('${returnID}', '${action}')">${labels[action] || action}</button>`;
+}
+
+async function runReturnAction(returnID, action) {
+  const row = returnsViewRows.find(r => r.id === returnID);
+  if (!row) return;
+  try {
+    if (action === 'qc') {
+      await openReturnQCDialog(row);
+    } else if (action === 'refund') {
+      await runReturnRefundFlow(row);
+    } else if (action === 'reject') {
+      const reason = await showCustomPrompt(`Why is return ${returnID} being rejected?`, '', 'Reject Return');
+      if (!reason) return;
+      await postReturnAction(`/api/v1/returns/${encodeURIComponent(returnID)}/reject`, { reason_code: reason.trim() });
+    } else if (action === 'reverse-pickup') {
+      const pincode = await showCustomPrompt('Pickup PIN code for the reverse shipment:', '', 'Book Reverse Pickup');
+      if (!pincode) return;
+      await postReturnAction(`/api/v1/returns/${encodeURIComponent(returnID)}/reverse-pickup`, { pickup_pincode: pincode.trim() });
+    } else {
+      await postReturnAction(`/api/v1/returns/${encodeURIComponent(returnID)}/${action}`, {});
+    }
+  } finally {
+    await loadReturnsView();
+  }
+}
+
+async function postReturnAction(url, body) {
+  const res = await apiFetch(url, { method: 'POST', body: JSON.stringify(body) });
+  if (!res) return null;
+  if (!res.ok) {
+    await showApiError(res, 'That step could not be completed.');
+    return null;
+  }
+  return res.json().catch(() => ({}));
+}
+
+// openReturnQCDialog is the inspection step: a disposition per line, and
+// optionally an exchange SKU. This is the one place a human decides whether
+// goods actually came back sellable - which is why the refund total is
+// computed by the SERVER from these dispositions and shown afterwards, never
+// typed here.
+async function openReturnQCDialog(row) {
+  const dispositions = {};
+  const exchanges = {};
+  for (const item of row.items) {
+    const choice = await showCustomPrompt(
+      `Disposition for ${item.sku} (${item.qty} unit(s)).\nOne of: ${RETURN_DISPOSITIONS.join(', ')}`,
+      'Sellable', `Inspect ${row.id}`);
+    if (!choice) return;
+    const normalized = RETURN_DISPOSITIONS.find(d => d.toLowerCase() === choice.trim().toLowerCase());
+    if (!normalized) {
+      await showCustomAlert(`"${choice}" is not a valid disposition. Nothing was inspected.`, 'Invalid Disposition');
+      return;
+    }
+    dispositions[item.sku] = normalized;
+    if (normalized === 'Sellable' || normalized === 'Repairable' || normalized === 'Damaged') {
+      const exchangeSKU = await showCustomPrompt(
+        `Exchange ${item.sku} for a different SKU? Leave blank to refund instead.`, '', 'Exchange (optional)');
+      if (exchangeSKU && exchangeSKU.trim()) exchanges[item.sku] = exchangeSKU.trim();
+    }
+  }
+  const payload = { dispositions };
+  if (Object.keys(exchanges).length) payload.exchange_for = exchanges;
+  const result = await postReturnAction(`/api/v1/returns/${encodeURIComponent(row.id)}/qc`, payload);
+  if (!result) return;
+  const refund = Number(result.total_refund) || 0;
+  await showCustomAlert(
+    refund > 0
+      ? `Inspection recorded. A refund of ${refund.toFixed(2)} is now pending approval${result.refund_request_id ? ` as ${result.refund_request_id}` : ''}.`
+      : 'Inspection recorded. Nothing on this return is refundable, so it is now closed.',
+    'Inspection Complete');
+}
+
+// runReturnRefundFlow walks the RefundRequest's own two steps - approve, then
+// process - rather than collapsing them, because they are deliberately two
+// decisions: whether the money is owed, and paying it.
+async function runReturnRefundFlow(row) {
+  const res = await apiFetch(`/api/v1/doc/RefundRequest?limit=200`);
+  if (!res || !res.ok) {
+    await showCustomAlert('The refund for this return could not be looked up.', 'Refund');
+    return;
+  }
+  const payload = await res.json();
+  const docs = Array.isArray(payload) ? payload : (payload.data || payload.documents || []);
+  const refund = docs.map(d => ({ id: d.id, ...(d.data || d) }))
+    .find(d => d.return_request_id === row.id && d.status !== 'Rejected' && d.status !== 'Processed');
+  if (!refund) {
+    await showCustomAlert('No refund is pending for this return.', 'Refund');
+    return;
+  }
+  if (refund.status === 'Pending') {
+    const ok = await showCustomConfirm(`Approve a refund of ${Number(refund.amount).toFixed(2)} for return ${row.id}?`, 'Approve Refund');
+    if (!ok) return;
+    if (!await postReturnAction(`/api/v1/refunds/${encodeURIComponent(refund.id)}/approve`, {})) return;
+  }
+  const method = await showCustomPrompt('How is the refund being paid (Cash / Card / UPI / Store Credit)?', 'Cash', 'Process Refund');
+  if (!method) return;
+  if (await postReturnAction(`/api/v1/refunds/${encodeURIComponent(refund.id)}/process`, { refund_method: method.trim() })) {
+    await showCustomAlert(`Refund ${refund.id} processed. The return is now closed and the tax on the returned goods has been reversed.`, 'Refund Processed');
+  }
+}
+
+// Stage 47.4.6 - the Returns surface, rebuilt.
+//
+// What it replaced, and why: the Stage 20.11 panel asked the clerk to type the
+// SKU, the quantity, the SALE PRICE and the COST PRICE, and posted them to the
+// retired POST /api/v1/fulfillment/return. Every one of those four was a
+// question the server could answer better - and the two prices were questions
+// the client had no business answering at all (audit A-02/A-04).
+//
+// It now works the other way round: the clerk types the bill number, the server
+// says what is still returnable and at what price, and the clerk picks
+// quantities. Nothing on this screen can set a price, and the eligibility
+// explanation is shown in words so a refusal can be repeated to the customer
+// standing at the counter rather than appearing as an unexplained rejection.
+//
+// This stays a thin, separate panel (its own posReturnCart) rather than a
 // mode-toggle on the sale cart above, so a return in progress can never be
 // confused with or accidentally merged into an in-progress sale.
-let posReturnCart = []; // { sku, qty, salePrice, costPrice }
+let posReturnCart = []; // { sku, qty, unitPrice, remaining }
+let posReturnEligibility = null;
 
 function renderPOSReturnPanel(container) {
   const panel = document.createElement('div');
@@ -4871,44 +5692,49 @@ function renderPOSReturnPanel(container) {
   panel.innerHTML = `
     <h2 style="margin: 0 0 12px; font-size: 16px;">Process a Return</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px;">
-      <div class="form-group" style="max-width: 240px; margin-bottom: 0;">
-        <label class="form-label" for="pos-return-order-id">Original Order / Cart Number</label>
-        <input type="text" id="pos-return-order-id" class="form-input" placeholder="e.g. POS-HO-171...">
+      <div class="form-group" style="max-width: 260px; margin-bottom: 0;">
+        <label class="form-label" for="pos-return-order-id">Original Bill / Cart Number</label>
+        <input type="text" id="pos-return-order-id" class="form-input" placeholder="e.g. POS-HO-171..." autocomplete="off">
       </div>
-      <div class="form-group" style="max-width: 200px; margin-bottom: 0;">
+      <button class="btn btn-outline" id="pos-return-lookup-btn" type="button">Look Up Bill</button>
+      <div class="form-group" style="max-width: 220px; margin-bottom: 0;">
         <label class="form-label" for="pos-return-location-display">Return Location</label>
         <input type="text" id="pos-return-location-display" class="form-input" placeholder="Search by store name or code" autocomplete="off">
         <input type="hidden" id="pos-return-location" value="${posLocation}">
       </div>
-      <div class="form-group" style="flex: 1; margin-bottom: 0;">
-        <label class="form-label" for="pos-return-sku-input">SKU to Return</label>
-        <input type="text" id="pos-return-sku-input" class="form-input" placeholder="Barcode / SKU, then Enter" autocomplete="off">
-      </div>
-      <button class="btn btn-outline" id="pos-return-add-btn" type="button">Add Line</button>
     </div>
+    <div id="pos-return-eligibility" style="margin-bottom: 16px; font-size: 13px;"></div>
     <div id="pos-return-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
     <table>
       <thead>
-        <tr><th>SKU</th><th>Qty</th><th>Sale Price</th><th>Cost Price</th><th></th></tr>
+        <tr>
+          <th>SKU</th><th>Sold</th><th>Already Returned</th><th>Still Returnable</th>
+          <th>Return Qty</th><th>Price (from the bill)</th><th>Refund</th>
+        </tr>
       </thead>
       <tbody id="pos-return-body"></tbody>
     </table>
-    <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
-      <button class="btn btn-primary" id="pos-return-submit-btn" type="button">Submit Return</button>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; gap: 16px;">
+      <div style="font-size: 12.5px; color: var(--text-muted);">
+        Prices come from the original bill and cannot be changed here. The refund is calculated by the server after the goods are received and inspected.
+      </div>
+      <div style="display:flex; align-items:center; gap:16px;">
+        <div style="font-weight:600;">Refund if all accepted: <span id="pos-return-total">0.00</span></div>
+        <button class="btn btn-primary" id="pos-return-submit-btn" type="button" disabled>Raise Return</button>
+      </div>
     </div>
   `;
   container.appendChild(panel);
 
-  attachLinkTypeahead(document.getElementById('pos-return-sku-input'), 'Item');
   attachCodeNamePicker(
     document.getElementById('pos-return-location-display'),
     document.getElementById('pos-return-location'),
     'Location');
-  document.getElementById('pos-return-add-btn').addEventListener('click', addSKUToPOSReturn);
-  document.getElementById('pos-return-sku-input').addEventListener('keydown', (e) => {
+  document.getElementById('pos-return-lookup-btn').addEventListener('click', lookUpPOSReturnBill);
+  document.getElementById('pos-return-order-id').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      addSKUToPOSReturn();
+      lookUpPOSReturnBill();
     }
   });
   document.getElementById('pos-return-submit-btn').addEventListener('click', submitPOSReturn);
@@ -4916,31 +5742,47 @@ function renderPOSReturnPanel(container) {
   renderPOSReturnTable();
 }
 
-function addSKUToPOSReturn() {
-  const skuInput = document.getElementById('pos-return-sku-input');
-  const sku = skuInput.value.trim();
-  if (!sku) return;
-  const existing = posReturnCart.find(line => line.sku === sku);
-  if (existing) {
-    existing.qty += 1;
-  } else {
-    posReturnCart.push({ sku, qty: 1, salePrice: 0, costPrice: 0 });
+// lookUpPOSReturnBill asks the server what is returnable. Nothing is typed by
+// the clerk except the bill number.
+async function lookUpPOSReturnBill() {
+  const errorEl = document.getElementById('pos-return-error');
+  errorEl.classList.add('hidden');
+  const orderID = document.getElementById('pos-return-order-id').value.trim();
+  posReturnCart = [];
+  posReturnEligibility = null;
+  if (!orderID) {
+    errorEl.textContent = 'Enter the original bill or cart number.';
+    errorEl.classList.remove('hidden');
+    renderPOSReturnTable();
+    return;
   }
-  skuInput.value = '';
-  skuInput.focus();
+  const res = await apiFetch(`/api/v1/returns/eligibility?original_order_id=${encodeURIComponent(orderID)}`);
+  if (!res) return;
+  if (!res.ok) {
+    errorEl.textContent = await getErrorMessage(res, 'That bill could not be looked up.');
+    errorEl.classList.remove('hidden');
+    renderPOSReturnTable();
+    return;
+  }
+  posReturnEligibility = await res.json();
+  // Every returnable line starts at zero: a return is something the clerk
+  // chooses line by line with the customer, not a whole-bill default.
+  posReturnCart = (posReturnEligibility.lines || [])
+    .filter(l => l.remaining_qty > 0)
+    .map(l => ({ sku: l.sku, qty: 0, unitPrice: Number(l.unit_price) || 0, remaining: l.remaining_qty, sold: l.sold_qty, returned: l.already_returned, reason: l.reason }));
   renderPOSReturnTable();
 }
 
-function removeSKUFromPOSReturn(sku) {
-  posReturnCart = posReturnCart.filter(line => line.sku !== sku);
-  renderPOSReturnTable();
-}
-
-function updatePOSReturnLine(sku, field, value) {
+function updatePOSReturnLine(sku, value) {
   const line = posReturnCart.find(l => l.sku === sku);
   if (!line) return;
-  const num = parseFloat(value);
-  line[field] = isNaN(num) ? 0 : num;
+  let qty = parseInt(value, 10);
+  if (isNaN(qty) || qty < 0) qty = 0;
+  // Clamped at the source rather than left for the server to reject: the
+  // server still enforces it under a lock, but a spinner that lets a clerk
+  // type 99 and only learns at submit time is a worse counter experience.
+  if (qty > line.remaining) qty = line.remaining;
+  line.qty = qty;
   renderPOSReturnTable();
 }
 
@@ -4948,17 +5790,43 @@ function renderPOSReturnTable() {
   const body = document.getElementById('pos-return-body');
   if (!body) return;
   body.innerHTML = '';
+
+  const explain = document.getElementById('pos-return-eligibility');
+  if (explain) {
+    if (!posReturnEligibility) {
+      explain.innerHTML = '<span style="color: var(--text-muted);">Enter a bill number and look it up to see what can be returned.</span>';
+    } else {
+      const ok = posReturnEligibility.found && posReturnEligibility.within_window;
+      explain.innerHTML = `
+        <div style="padding:10px 12px; border-radius:6px; border:1px solid ${ok ? 'var(--border-color)' : 'var(--warning-soft-border, var(--border-color))'};
+                    background: ${ok ? 'var(--bg-color)' : 'var(--warning-soft-bg, var(--bg-color))'};">
+          ${cfgEsc(posReturnEligibility.explanation || '')}
+          ${posReturnEligibility.sale_date ? `<span style="color:var(--text-muted);"> Sold ${cfgEsc(posReturnEligibility.sale_date)}; return window ${posReturnEligibility.window_days} days.</span>` : ''}
+        </div>`;
+    }
+  }
+
+  let refund = 0;
   posReturnCart.forEach(line => {
+    refund += line.qty * line.unitPrice;
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td style="font-weight:600;">${line.sku}</td>
-      <td><input type="number" min="1" value="${line.qty}" class="form-input" style="width: 80px;" onchange="updatePOSReturnLine('${line.sku}', 'qty', this.value)"></td>
-      <td><input type="number" min="0" step="0.01" value="${line.salePrice}" class="form-input" style="width: 100px;" onchange="updatePOSReturnLine('${line.sku}', 'salePrice', this.value)"></td>
-      <td><input type="number" min="0" step="0.01" value="${line.costPrice}" class="form-input" style="width: 100px;" onchange="updatePOSReturnLine('${line.sku}', 'costPrice', this.value)"></td>
-      <td><button class="action-btn action-btn-danger" onclick="removeSKUFromPOSReturn('${line.sku}')">Remove</button></td>
+      <td style="font-weight:600;">${cfgEsc(line.sku)}</td>
+      <td>${line.sold}</td>
+      <td>${line.returned}</td>
+      <td>${line.remaining}</td>
+      <td><input type="number" min="0" max="${line.remaining}" value="${line.qty}" class="form-input" style="width: 90px;"
+                 onchange="updatePOSReturnLine('${line.sku}', this.value)"></td>
+      <td>${line.unitPrice.toFixed(2)}</td>
+      <td>${(line.qty * line.unitPrice).toFixed(2)}</td>
     `;
     body.appendChild(tr);
   });
+
+  const totalEl = document.getElementById('pos-return-total');
+  if (totalEl) totalEl.textContent = refund.toFixed(2);
+  const submitBtn = document.getElementById('pos-return-submit-btn');
+  if (submitBtn) submitBtn.disabled = !posReturnCart.some(l => l.qty > 0);
 }
 
 async function submitPOSReturn() {
@@ -4966,14 +5834,15 @@ async function submitPOSReturn() {
   errorEl.classList.add('hidden');
   const orderID = document.getElementById('pos-return-order-id').value.trim();
   const returnLocation = document.getElementById('pos-return-location').value.trim();
+  const lines = posReturnCart.filter(l => l.qty > 0);
 
   if (!orderID || !returnLocation) {
-    errorEl.textContent = 'Original order/cart number and return location are required.';
+    errorEl.textContent = 'Original bill number and return location are required.';
     errorEl.classList.remove('hidden');
     return;
   }
-  if (posReturnCart.length === 0) {
-    errorEl.textContent = 'Add at least one SKU to return.';
+  if (lines.length === 0) {
+    errorEl.textContent = 'Set a return quantity on at least one line.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -4981,32 +5850,44 @@ async function submitPOSReturn() {
   const submitBtn = document.getElementById('pos-return-submit-btn');
   submitBtn.disabled = true;
   try {
-    const res = await apiFetch('/api/v1/fulfillment/return', {
+    // Stage 47.4.3: one key per bill + line set, so a double-click, a lost
+    // response or a second tab raises ONE return. The server refuses a
+    // different payload under the same key, which is why the key includes the
+    // lines rather than only the bill.
+    const idempotencyKey = `${orderID}|${lines.map(l => `${l.sku}:${l.qty}`).sort().join(',')}`;
+    const res = await apiFetch('/api/v1/returns', {
       method: 'POST',
       body: JSON.stringify({
+        request_type: 'Customer Return',
         return_location: returnLocation,
         original_order_id: orderID,
-        items: posReturnCart.map(line => ({
-          sku: line.sku,
-          qty: line.qty,
-          sale_price: line.salePrice,
-          cost_price: line.costPrice
-        }))
+        idempotency_key: idempotencyKey,
+        // Selection only. No price, no cost - the server resolves both from
+        // the original sale lines.
+        items: lines.map(l => ({ sku: l.sku, qty: l.qty }))
       })
     });
     if (!res) return;
     if (!res.ok) {
-      errorEl.textContent = await getErrorMessage(res, 'Return failed.');
+      errorEl.textContent = await getErrorMessage(res, 'The return could not be raised.');
       errorEl.classList.remove('hidden');
       return;
     }
+    const data = await res.json();
     posReturnCart = [];
+    posReturnEligibility = null;
+    document.getElementById('pos-return-order-id').value = '';
     renderPOSReturnTable();
-    await showCustomAlert('Return processed and stock restocked.', 'Return Complete');
+    await showCustomAlert(
+      data.replayed
+        ? `This return was already raised as ${data.return_request_id}. Nothing was duplicated.`
+        : `Return ${data.return_request_id} raised. It now needs approval, then the goods received and inspected before any refund is paid.`,
+      'Return Raised');
   } finally {
     submitBtn.disabled = false;
   }
 }
+
 
 // Stage 20.7: reflects whether the acting cashier already has an Open
 // session at posLocation, so the POS screen doesn't let a cashier build a
@@ -5137,7 +6018,10 @@ async function addSKUToPOSCart() {
   if (existing) {
     existing.qty += 1;
   } else {
-    posCart.push({ sku, available: avail.ats ?? avail.available ?? 0, qty: 1, salePrice: 0, costPrice: 0 });
+    // Stage 47.2: salePrice starts unknown and is filled in by the server's
+    // own quote (refreshPOSQuote below). costPrice is gone from the line
+    // shape entirely - the till neither collects nor sends a cost.
+    posCart.push({ sku, available: avail.ats ?? avail.available ?? 0, qty: 1, salePrice: 0, referencePrice: 0, priceSource: '', overrideId: '', unpriced: false });
   }
   skuInput.value = '';
   skuInput.focus();
@@ -5157,7 +6041,9 @@ function updatePOSCartLine(sku, field, value) {
   renderPOSCartTable();
 }
 
-function renderPOSCartTable() {
+// skipQuote is set by refreshPOSQuote's own re-render after the server's
+// prices land, so writing them onto the screen does not ask for them again.
+function renderPOSCartTable(skipQuote) {
   const body = document.getElementById('pos-cart-body');
   if (!body) return;
   body.innerHTML = '';
@@ -5171,10 +6057,12 @@ function renderPOSCartTable() {
       <td style="font-weight:600;">${line.sku}</td>
       <td>${line.available}</td>
       <td><input type="number" min="1" value="${line.qty}" class="form-input" style="width: 80px;" onchange="updatePOSCartLine('${line.sku}', 'qty', this.value)"></td>
-      <td><input type="number" min="0" step="0.01" value="${line.salePrice}" class="form-input" style="width: 100px;" onchange="updatePOSCartLine('${line.sku}', 'salePrice', this.value)"></td>
-      <td><input type="number" min="0" step="0.01" value="${line.costPrice}" class="form-input" style="width: 100px;" onchange="updatePOSCartLine('${line.sku}', 'costPrice', this.value)"></td>
+      <td>${posPriceCell(line)}</td>
       <td>${lineTotal.toFixed(2)}</td>
-      <td><button class="action-btn action-btn-danger" onclick="removeSKUFromPOSCart('${line.sku}')">Remove</button></td>
+      <td>
+        ${posCanOverridePrice() && !line.unpriced ? `<button class="action-btn" onclick="openPOSPriceOverride('${line.sku}')">Override</button> ` : ''}
+        <button class="action-btn action-btn-danger" onclick="removeSKUFromPOSCart('${line.sku}')">Remove</button>
+      </td>
     `;
     body.appendChild(tr);
   });
@@ -5199,22 +6087,120 @@ function renderPOSCartTable() {
   }
 
   document.getElementById('pos-cart-total').textContent = Math.max(0, total - posRedeemPoints - posOfferDiscount).toFixed(2);
-  refreshPOSOffers();
+  if (!skipQuote) refreshPOSQuote();
 }
 
-// --- POS offers (Stage 30.7) ---------------------------------------------
-// Offers are configured in the ERP as Offer documents and evaluated by the
-// server (POST /api/v1/pos/offers/preview). Nothing about which offers exist
-// or how they price lives in this file - the cashier sees whatever the ERP
-// currently says, so an offer switched on in the back office applies at the
-// till immediately, with no POS reload.
+// --- POS pricing (Stage 47.2) and offers (Stage 30.7) --------------------
+// Every price on this screen comes from POST /api/v1/pos/quote. Nothing about
+// what an item costs, what offer applies, or how much tax is on it lives in
+// this file - the cashier sees whatever the ERP currently says, so a price
+// list approved in the back office applies at the till immediately, with no
+// POS reload.
 //
-// This preview is display-only. Checkout re-evaluates the same rules
-// server-side, so what the customer is charged never depends on this call
-// having run, or on anything the browser could tamper with.
+// The quote is display-only and cannot set a price: checkout re-resolves the
+// identical quote server-side and charges THAT, so what the customer pays
+// never depends on this call having run or on anything the browser could
+// tamper with. posQuoteVersion is carried into checkout for one purpose - so
+// the server can tell the cashier "these prices changed since you quoted
+// them" instead of silently charging either the old or the new figure.
 let posOfferDiscount = 0;
 let posAppliedOffers = [];
 let posOfferPreviewSeq = 0;
+let posQuoteVersion = '';
+// Set for exactly one retry after the cashier confirms a changed price, and
+// cleared immediately afterwards - so a confirmation can never leak into the
+// next sale and silently accept a price change nobody looked at.
+let posAcceptPriceChange = false;
+
+// posCanOverridePrice gates the per-line Override button on the capability
+// the server actually checks (see engines/role_templates.go), never on a role
+// name. A cashier simply does not see it; a supervisor does.
+function posCanOverridePrice() {
+  return !!(state.permissions && state.permissions.capabilities && state.permissions.capabilities.has('pos.price_override'));
+}
+
+// How each price source reads at the till. The point is that the cashier can
+// see WHY a line is priced the way it is - "this came from the customer's
+// contract", "a supervisor authorised this" - rather than a bare number.
+const POS_PRICE_SOURCE_LABELS = {
+  override: 'Supervisor override',
+  contract_price_list: 'Contract price list',
+  default_price_list: 'Price list',
+  item_sale_price: 'Item price',
+  item_mrp: 'MRP',
+  cashier_entered: 'Not priced - keyed in'
+};
+
+// posPriceCell renders one line's price. A server-priced line is read-only
+// text; only a line the server could not price at all (assisted mode) keeps an
+// input, and it is labelled as unverified so nobody mistakes it for a
+// system price.
+function posPriceCell(line) {
+  const label = POS_PRICE_SOURCE_LABELS[line.priceSource] || '';
+  if (line.unpriced) {
+    return `
+      <input type="number" min="0" step="0.01" value="${line.salePrice}" class="form-input" style="width: 100px;"
+             onchange="updatePOSCartLine('${line.sku}', 'salePrice', this.value)">
+      <div style="font-size:11.5px; color:var(--warning-color, #b26a00); margin-top:2px;">No price on record - needs approval</div>`;
+  }
+  const struck = (line.referencePrice > line.salePrice)
+    ? `<span style="text-decoration:line-through; color:var(--text-muted); margin-right:6px;">${Number(line.referencePrice).toFixed(2)}</span>`
+    : '';
+  return `
+    <div style="font-weight:600;">${struck}${Number(line.salePrice).toFixed(2)}</div>
+    ${label ? `<div style="font-size:11.5px; color:var(--text-muted);">${cfgEsc(label)}</div>` : ''}`;
+}
+
+// openPOSPriceOverride raises the capability-gated override command. It is
+// deliberately NOT a way to edit the price box: the server resolves its own
+// reference price, measures the real reduction against it, checks that against
+// the tenant's approval slab and writes immutable evidence - so a supervisor
+// granting a discount and a supervisor exceeding their limit are different
+// outcomes, and both are recorded.
+async function openPOSPriceOverride(sku) {
+  const line = posCart.find(l => l.sku === sku);
+  if (!line) return;
+  const newPrice = await showCustomPrompt(
+    `New unit price for ${sku} (current ${Number(line.salePrice).toFixed(2)}).`,
+    String(line.salePrice), 'Price Override', 'number');
+  if (newPrice === null || newPrice === '') return;
+  const reason = await showCustomPrompt(`Why is ${sku} being sold below its list price?`, '', 'Override Reason');
+  if (!reason) {
+    await showCustomAlert('A reason is required for a price override.', 'Override Not Recorded');
+    return;
+  }
+  const res = await apiFetch('/api/v1/pos/price-override', {
+    method: 'POST',
+    body: JSON.stringify({
+      cart_number: posCurrentCartNumber(),
+      sku,
+      qty: line.qty,
+      location: posLocation,
+      customer_id: (document.getElementById('pos-customer') || {}).value || '',
+      override_price: parseFloat(newPrice) || 0,
+      reason: reason.trim()
+    })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'The price override was not applied.');
+    await refreshPOSQuote();
+    return;
+  }
+  await refreshPOSQuote();
+  showToast(`Override recorded for ${sku}.`, { variant: 'success', title: 'Price Override' });
+}
+
+// posCurrentCartNumber pins ONE cart number for the cart being built, so a
+// price override raised mid-cart and the checkout that consumes it agree on
+// which sale they belong to. It is cleared with the cart.
+let posCartNumber = '';
+function posCurrentCartNumber() {
+  if (!posCartNumber) {
+    posCartNumber = `POS-${posLocation}-${Date.now()}`;
+  }
+  return posCartNumber;
+}
 
 function currentPOSCouponCodes() {
   const el = document.getElementById('pos-coupon-code');
@@ -5224,47 +6210,87 @@ function currentPOSCouponCodes() {
   return el.value.split(/[,\s]+/).map(c => c.trim()).filter(Boolean);
 }
 
-async function refreshPOSOffers() {
+// refreshPOSQuote asks the server what this cart costs and renders the answer.
+// It replaced refreshPOSOffers (Stage 30.7), which asked only about offers and
+// took the cashier's typed prices as given - one call now settles price, tax
+// and offers together, from the same computation checkout will run, so the
+// three can never disagree on this screen.
+async function refreshPOSQuote() {
   const row = document.getElementById('pos-offers-row');
   if (!row) return;
   if (!posCart.length) {
     posOfferDiscount = 0;
     posAppliedOffers = [];
+    posQuoteVersion = '';
     row.classList.add('hidden');
     return;
   }
 
   // Guard against out-of-order responses: only the newest request may write
-  // back, so a slow earlier preview can't overwrite a newer cart's result.
+  // back, so a slow earlier quote can't overwrite a newer cart's result.
   const seq = ++posOfferPreviewSeq;
   const customerId = (document.getElementById('pos-customer') || {}).value || '';
   let res;
   try {
-    res = await apiFetch('/api/v1/pos/offers/preview', {
+    res = await apiFetch('/api/v1/pos/quote', {
       method: 'POST',
       body: JSON.stringify({
+        cart_number: posCurrentCartNumber(),
+        location: posLocation,
         customer_id: customerId.trim(),
         coupon_codes: currentPOSCouponCodes(),
-        items: posCart.map(l => ({ sku: l.sku, qty: l.qty, sale_price: l.salePrice }))
+        // Selection only, plus the operator's own figure for anything the
+        // tenant has not priced - which the server uses ONLY if it can find
+        // no price of its own (and then flags for approval).
+        items: posCart.map(l => ({ sku: l.sku, qty: l.qty, unit_price: l.unpriced ? l.salePrice : 0 }))
       })
     });
   } catch (e) {
-    return; // offline or unreachable - the cart simply shows no offers
+    // Offline (20.13's own scenario). A line already priced by an earlier
+    // quote keeps that price; one added while disconnected has none, so it
+    // falls back to being keyed in - and the server re-resolves it when the
+    // queued sale finally syncs, where a real master price still wins. This
+    // is the only path on which the till prices anything, and it exists
+    // because the alternative is refusing to sell while the link is down.
+    posCart.filter(l => !l.salePrice).forEach(l => { l.unpriced = true; });
+    renderPOSCartTable(true);
+    return;
   }
   if (seq !== posOfferPreviewSeq) return;
-  if (!res || !res.ok) return;
+  if (!res || !res.ok) {
+    // A quote that will not resolve is a real, blocking condition in strict
+    // mode (an item with no price cannot be sold), so say so rather than
+    // leaving a silently unpriced cart on screen.
+    row.classList.remove('hidden');
+    row.innerHTML = `<div style="font-size:13px; color:var(--danger-color, #b00020);">${cfgEsc(await getErrorMessage(res, 'These items could not be priced.'))}</div>`;
+    return;
+  }
 
   const data = await res.json();
   if (seq !== posOfferPreviewSeq) return;
 
-  posAppliedOffers = Array.isArray(data.applied) ? data.applied : [];
-  const newDiscount = Number(data.total_discount) || 0;
-  const unmatched = Array.isArray(data.unmatched_codes) ? data.unmatched_codes : [];
+  // Write the server's own prices back onto the cart. This is the line that
+  // makes the screen authoritative: whatever the cashier typed is replaced by
+  // what the ERP says, every time the cart changes.
+  posQuoteVersion = data.quote_version || '';
+  (data.lines || []).forEach(ql => {
+    const line = posCart.find(l => l.sku === ql.sku);
+    if (!line) return;
+    line.salePrice = Number(ql.unit_price) || 0;
+    line.referencePrice = Number(ql.reference_price) || 0;
+    line.priceSource = ql.price_source || '';
+    line.overrideId = ql.override_id || '';
+    line.unpriced = ql.price_source === 'cashier_entered';
+  });
+
+  posAppliedOffers = Array.isArray(data.applied_offers) ? data.applied_offers : [];
+  const newDiscount = Number(data.offer_discount) || 0;
+  const unmatched = Array.isArray(data.unmatched_coupon_codes) ? data.unmatched_coupon_codes : [];
 
   if (!posAppliedOffers.length && !unmatched.length) {
     posOfferDiscount = 0;
     row.classList.add('hidden');
-    updatePOSTotalForOffers();
+    renderPOSCartTable(true);
     return;
   }
 
@@ -5282,16 +6308,12 @@ async function refreshPOSOffers() {
   `;
 
   posOfferDiscount = newDiscount;
-  updatePOSTotalForOffers();
-}
-
-// Rewrites just the total after an async offer preview lands, without
-// re-entering renderPOSCartTable (which would trigger another preview).
-function updatePOSTotalForOffers() {
-  const totalEl = document.getElementById('pos-cart-total');
-  if (!totalEl) return;
-  const gross = posCart.reduce((sum, l) => sum + l.salePrice * l.qty, 0);
-  totalEl.textContent = Math.max(0, gross - posRedeemPoints - posOfferDiscount).toFixed(2);
+  // Stage 47.2: the quote changed the LINES, not just the total, so the whole
+  // table is redrawn - with skipQuote set, so writing the server's prices onto
+  // the screen does not immediately ask for them again. This replaces
+  // updatePOSTotalForOffers, which only had a total to rewrite back when the
+  // browser still owned the prices.
+  renderPOSCartTable(true);
 }
 
 // 20.13 Offline-first POS queue.
@@ -5516,7 +6538,7 @@ async function submitPOSCheckout() {
     return;
   }
   if (posCart.some(line => line.qty <= 0 || line.salePrice <= 0)) {
-    errorEl.textContent = 'Every line needs a quantity and sale price greater than zero.';
+    errorEl.textContent = 'Every line needs a quantity and a price greater than zero.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -5524,14 +6546,19 @@ async function submitPOSCheckout() {
   const checkoutBtn = document.getElementById('pos-checkout-btn');
   checkoutBtn.disabled = true;
   try {
-    const cartNumber = `POS-${posLocation}-${Date.now()}`;
+    // Stage 47.2.3: the same cart number the quote and any price override
+    // were raised against, so the override the supervisor authorised applies
+    // to the sale it was authorised for.
+    const cartNumber = posCurrentCartNumber();
     const paymentMode = document.getElementById('pos-payment-mode').value;
     const discountPct = parseFloat(document.getElementById('pos-discount-pct').value) || 0;
+    // Stage 47.2.2: selection inputs only. sale_price rides along solely for
+    // a line nothing on the server prices (assisted mode) and is ignored for
+    // every other line; cost_price is not sent at all any more.
     const cartItems = posCart.map(line => ({
       sku: line.sku,
       qty: line.qty,
-      sale_price: line.salePrice,
-      cost_price: line.costPrice
+      sale_price: line.unpriced ? line.salePrice : 0
     }));
     const customerId = document.getElementById('pos-customer').value.trim();
     // Stage 30.2.5: the redemption travels with the sale and is burned
@@ -5545,10 +6572,15 @@ async function submitPOSCheckout() {
       discount_pct: discountPct,
       redeem_points: redeemPoints,
       coupon_codes: currentPOSCouponCodes(),
+      // 47.2.4: what the cashier is looking at. If the server re-resolves to
+      // something else, it says so rather than charging either figure.
+      quote_version: posQuoteVersion,
+      accept_price_change: posAcceptPriceChange,
       items: cartItems
     });
     if (res === 'queued') {
       posCart = [];
+      posCartNumber = '';
       clearPOSRedemption();
       renderPOSCartTable();
       showToast(`No connection - sale ${cartNumber} queued offline and will sync automatically once reconnected.`, { variant: 'warning', title: 'Offline' });
@@ -5556,6 +6588,36 @@ async function submitPOSCheckout() {
     }
     if (!res) return;
     const data = await res.json();
+    // 47.2.4: prices moved between quoting this cart and ringing it up.
+    // Never silently charge either the stale figure or the new one - show
+    // what changed, reprice the screen, and require an explicit confirmation.
+    if (res.status === 409 && data.status === 'price_changed') {
+      if (data.quote) {
+        posQuoteVersion = data.quote.quote_version || '';
+        (data.quote.lines || []).forEach(ql => {
+          const line = posCart.find(l => l.sku === ql.sku);
+          if (!line) return;
+          line.salePrice = Number(ql.unit_price) || 0;
+          line.referencePrice = Number(ql.reference_price) || 0;
+          line.priceSource = ql.price_source || '';
+          line.unpriced = ql.price_source === 'cashier_entered';
+        });
+        posOfferDiscount = Number(data.quote.offer_discount) || 0;
+        posAppliedOffers = data.quote.applied_offers || [];
+        renderPOSCartTable(true);
+      }
+      const confirmed = await showCustomConfirm(
+        `${data.message || 'Prices for this cart changed.'}\n\nThe cart now totals ${Number((data.quote || {}).total || 0).toFixed(2)}. Charge the new price?`,
+        'Price Changed');
+      if (!confirmed) return;
+      posAcceptPriceChange = true;
+      try {
+        await submitPOSCheckout();
+      } finally {
+        posAcceptPriceChange = false;
+      }
+      return;
+    }
     if (!res.ok) {
       errorEl.textContent = data.error || 'Checkout failed.';
       errorEl.classList.remove('hidden');
@@ -5567,6 +6629,7 @@ async function submitPOSCheckout() {
     // (inventory/GL) once a manager decides it Approved from the Approvals screen.
     if (data.status === 'pending_approval') {
       posCart = [];
+      posCartNumber = '';
       clearPOSRedemption();
       renderPOSCartTable();
       await showCustomAlert(data.message || 'This sale requires manager approval before it completes.', 'Approval Required');
@@ -5574,6 +6637,7 @@ async function submitPOSCheckout() {
     }
 
     posCart = [];
+    posCartNumber = '';
     clearPOSRedemption();
     renderPOSCartTable();
     // amount_due is the sale total less any loyalty points spent on it

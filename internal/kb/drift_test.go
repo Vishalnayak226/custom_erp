@@ -250,6 +250,95 @@ Body text.
 	}
 }
 
+func TestDriftGuardsMappedScreenMissingAudience(t *testing.T) {
+	articlesDir, sources := driftFixtureSources(t)
+	kbDir := filepath.Join(articlesDir, "kb")
+	writeArticle(t, kbDir, "module-handbooks/no-audience.md", `---
+title: No Audience Article
+section: Module Handbooks
+order: 1
+summary: Maps a real screen but never says who it's for.
+last_verified: 2026-08-30
+screens: [pos]
+---
+
+# No Audience Article
+
+Body text.
+`)
+
+	result, err := Build(kbDir)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	warnings := DriftGuards(result.Articles, sources, time.Now())
+
+	if !hasWarningContaining(warnings, "no-audience.md: maps to screen(s) pos but declares no audience") {
+		t.Errorf("expected a missing-audience warning, got: %v", warnings)
+	}
+}
+
+func TestDriftGuardsMappedScreenMissingLastVerified(t *testing.T) {
+	articlesDir, sources := driftFixtureSources(t)
+	kbDir := filepath.Join(articlesDir, "kb")
+	writeArticle(t, kbDir, "module-handbooks/no-last-verified.md", `---
+title: No Last Verified Article
+section: Module Handbooks
+order: 1
+summary: Maps a real screen but was never dated.
+audience: cashier
+screens: [pos]
+---
+
+# No Last Verified Article
+
+Body text.
+`)
+
+	result, err := Build(kbDir)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	warnings := DriftGuards(result.Articles, sources, time.Now())
+
+	if !hasWarningContaining(warnings, "no-last-verified.md: maps to screen(s) pos but has no last_verified date") {
+		t.Errorf("expected a missing-last_verified warning, got: %v", warnings)
+	}
+	// Without this check, an empty last_verified previously produced zero
+	// warnings at all - confirm the pre-existing staleness path (which only
+	// fires when the field is non-empty) really is silent here, and that the
+	// new check is what's catching it.
+	if hasWarningContaining(warnings, "not a YYYY-MM-DD date") {
+		t.Errorf("an empty last_verified must not be reported as a malformed date, got: %v", warnings)
+	}
+}
+
+func TestDriftGuardsUnmappedArticleNeedsNoAudienceOrDate(t *testing.T) {
+	articlesDir, sources := driftFixtureSources(t)
+	kbDir := filepath.Join(articlesDir, "kb")
+	writeArticle(t, kbDir, "reference/glossary-like.md", `---
+title: Glossary Like Article
+section: Reference
+order: 1
+summary: Not tied to any screen at all.
+---
+
+# Glossary Like Article
+
+Body text.
+`)
+
+	result, err := Build(kbDir)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	warnings := DriftGuards(result.Articles, sources, time.Now())
+
+	if hasWarningContaining(warnings, "glossary-like.md: maps to screen") {
+		t.Errorf("an article with no screens: should never be held to the screen-completeness gate, got: %v", warnings)
+	}
+}
+
 func TestDriftGuardsMethodlessRouteIsAWildcard(t *testing.T) {
 	articlesDir, sources := driftFixtureSources(t)
 	kbDir := filepath.Join(articlesDir, "kb")

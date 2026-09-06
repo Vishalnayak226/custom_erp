@@ -1,3 +1,6 @@
+<!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
+> **Authority notice:** Legacy specification or system snapshot; rebuild/reconciliation is queued in Stage 48. Built, partial, planned and support claims below have not been reapproved for the current working tree. Use the authority matrix to locate current evidence and open decisions. See the [authority matrix](../governance/authority-matrix.md).
+
 # Market Intelligence & Marketplace Crawling — Reference Notes
 
 **Source project:** `Antigravity Projects/Buying Catalog/OmniCore` — a standalone Python microservices stack (FastAPI + Streamlit + SQLAlchemy/SQLite + Redis/RQ, wired by `docker-compose.yml`), five services: `crawler`, `pims`, `oms`, `erp`, `pos`. Last commit 2025-12-27; read in full and retired 2026-08-05.

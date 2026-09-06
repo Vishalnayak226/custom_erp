@@ -195,6 +195,23 @@ func DetectFieldFormat(fieldname string) (FieldFormat, bool) {
 	if f == "" || IsDerivedCompanionField(f) {
 		return FieldFormat{}, false
 	}
+	// Stage 47.6.1: an EXPLICIT semantic beats the substring inference below.
+	// The case that forced it is mobile-pick-wave-id, which contains "mobile"
+	// and was therefore given the phone keystroke filter - so a wave id lost
+	// its letters as an operator typed it, silently, on a device where nobody
+	// could see it happen. A field declared as a scanned code has no character
+	// format to enforce here; scanner handling is the RF shell's job.
+	if semantic := FieldSemantic(f); semantic != "" {
+		if scanSemantics[semantic] {
+			return FieldFormat{}, false
+		}
+		if semantic != SemanticPhone {
+			// text/number/date carry no character filter either. Only an
+			// explicit phone semantic falls through to the format table, and
+			// then only to find the phone spec it genuinely wants.
+			return FieldFormat{}, false
+		}
+	}
 	for _, spec := range fieldFormats {
 		for _, tok := range spec.Tokens {
 			if strings.Contains(f, tok) {
@@ -222,13 +239,20 @@ func FieldFormatSpecs() map[string]interface{} {
 			"max_len":       f.MaxLen,
 		})
 	}
-	return map[string]interface{}{
+	out := map[string]interface{}{
 		"formats": specs,
 		// The frontend does its own substring matching against the tokens
 		// above, so it needs the same exclusions or it would put a phone
 		// keystroke filter on a country-code field the user never types in.
 		"excluded_suffixes": fieldFormatExcludedSuffixes,
 	}
+	// Stage 47.6.1: and the explicit semantics, for the same reason - the
+	// browser must resolve mobile-pick-wave-id the way the server does, not
+	// re-derive it from tokens and reach the opposite answer.
+	for k, v := range FieldSemanticSpecs() {
+		out[k] = v
+	}
+	return out
 }
 
 // NormalizeFieldFormatValue applies the storage convention for a format -

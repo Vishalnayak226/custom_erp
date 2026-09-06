@@ -1,3 +1,6 @@
+<!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
+> **Authority notice:** Legacy specification or system snapshot; rebuild/reconciliation is queued in Stage 48. Built, partial, planned and support claims below have not been reapproved for the current working tree. Use the authority matrix to locate current evidence and open decisions. See the [authority matrix](../governance/authority-matrix.md).
+
 # Universal WMS Master Blueprint — Reference Notes
 
 **Source document:** `Universal_WMS_Master_Blueprint_Developer_Doc.pdf` (24 sections, v1.0, dated 9 Jul 2026) — an industry-general, architecture-agnostic WMS design reference (patterns distilled from Odoo/ERPNext/Dynamics 365/NetSuite/OpenBoxes/SAP EWM/GS1/OWASP/NIST). Read in full 2026-07-23.

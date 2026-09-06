@@ -90,6 +90,14 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Generated documentation (read-only)
+        shell: pwsh
+        # The local graph snapshot is ignored; this gate owns the reproducible content group.
+        run: ./docs/update-docs.ps1 -Group Content -Check
+
+      - name: Documentation health (advisory during Stage 48 migration)
+        run: go run ./cmd/doclint
+
       - name: Test
         # -race: this codebase serves concurrent HTTP requests over a shared
         # *sql.DB plus several package-level caches (auth livestate, settings

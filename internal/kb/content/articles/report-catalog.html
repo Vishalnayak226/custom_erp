@@ -1,10 +1,10 @@
 <p>&lt;!-- GENERATED ARTICLE - DO NOT EDIT BY HAND. Regenerate: go run ./cmd/gendocs &amp;&amp; go run ./cmd/genkb --&gt;</p>
 <h1 id="report-catalog">Report catalog <a class="kb-anchor" href="#report-catalog" aria-label="Copy link to this section">#</a></h1>
-<p><strong>91</strong> reports across <strong>15</strong> categories, all reachable from <strong>Sales &amp; Marketplace » Reports</strong>.</p>
+<p><strong>92</strong> reports across <strong>15</strong> categories, all reachable from <strong>Sales &amp; Marketplace » Reports</strong>.</p>
 <p>Pick one from the catalog list on that screen, fill in any parameter marked <strong>required</strong>, and run it. Where a report supports drill-down, clicking a figure opens the individual transactions behind it. <strong>Export in Background</strong> queues a CSV for any report large enough to time out a normal request.</p>
 <p>Columns marked <em>sensitive</em> are masked as <code>•••</code> for roles other than Super Admin and Store Manager. They are masked rather than dropped, so the table has the same shape whoever runs it and a screenshot from one person lines up with a screenshot from another.</p>
 <h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
-<ul><li><a href="#admin">Admin</a> - 1 reports</li><li><a href="#assets">Assets</a> - 1 reports</li><li><a href="#bi">BI</a> - 1 reports</li><li><a href="#crm">CRM</a> - 7 reports</li><li><a href="#exceptions">Exceptions</a> - 3 reports</li><li><a href="#finance">Finance</a> - 25 reports</li><li><a href="#hr">HR</a> - 1 reports</li><li><a href="#inventory">Inventory</a> - 6 reports</li><li><a href="#manufacturing">Manufacturing</a> - 3 reports</li><li><a href="#oms">OMS</a> - 12 reports</li><li><a href="#pim">PIM</a> - 4 reports</li><li><a href="#procurement">Procurement</a> - 3 reports</li><li><a href="#sales">Sales</a> - 3 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#wms">WMS</a> - 20 reports</li></ul>
+<ul><li><a href="#admin">Admin</a> - 1 reports</li><li><a href="#assets">Assets</a> - 1 reports</li><li><a href="#bi">BI</a> - 1 reports</li><li><a href="#crm">CRM</a> - 7 reports</li><li><a href="#exceptions">Exceptions</a> - 3 reports</li><li><a href="#finance">Finance</a> - 26 reports</li><li><a href="#hr">HR</a> - 1 reports</li><li><a href="#inventory">Inventory</a> - 6 reports</li><li><a href="#manufacturing">Manufacturing</a> - 3 reports</li><li><a href="#oms">OMS</a> - 12 reports</li><li><a href="#pim">PIM</a> - 4 reports</li><li><a href="#procurement">Procurement</a> - 3 reports</li><li><a href="#sales">Sales</a> - 3 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#wms">WMS</a> - 20 reports</li></ul>
 <h2 id="admin">Admin <a class="kb-anchor" href="#admin" aria-label="Copy link to this section">#</a></h2>
 <h3 id="knowledge-center-feedback">Knowledge Center Feedback <a class="kb-anchor" href="#knowledge-center-feedback" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>help-article-feedback</code></p>
@@ -178,6 +178,12 @@
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>As Of (YYYY-MM-DD, default today)</strong> (<code>as_of</code>) - text, optional</li><li><strong>Rate Type (Closing/Spot/Average)</strong> (<code>rate_type</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Document Type · Document · Currency · Amount (txn) · Booked Rate · Booked (functional) · Carrying · Rate Now · Revalued · Unrealised Movement · Last Revalued · Note</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="pos-sale-reconciliation">POS Sale Reconciliation <a class="kb-anchor" href="#pos-sale-reconciliation" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>pos-sale-reconciliation</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from_date</code>) - date, optional</li><li><strong>To</strong> (<code>to_date</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Sale · Status · Payment State · Qty Sold · Qty in Stock Ledger · Cart Total <em>(sensitive)</em> · Revenue Posted <em>(sensitive)</em> · COGS Posted <em>(sensitive)</em> · Tax Posted <em>(sensitive)</em> · Tender Posted <em>(sensitive)</em> · Points Burned · Event Published · Verdict · Detail</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="payables-ageing">Payables Ageing <a class="kb-anchor" href="#payables-ageing" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>payables-ageing</code></p>

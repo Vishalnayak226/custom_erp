@@ -22,6 +22,8 @@
 // Stdlib only, per the repo's lightweight-and-no-new-dependencies principle.
 package main
 
+import "custom_erp/internal/docgen"
+
 import (
 	"bytes"
 	_ "embed"
@@ -34,7 +36,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
 )
 
 //go:embed brain.tmpl.html
@@ -279,11 +280,13 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
+	sourceRoot := flag.String("source", root, "repository source root")
 	mapPath := flag.String("map", filepath.Join(root, "docs", "brain", "brain.map.json"), "path to brain.map.json")
 	graphPath := flag.String("graph", "", "path to graphify graph.json (default: from brain.map.json settings)")
 	outDir := flag.String("out", "", "output directory (default: from brain.map.json settings)")
-	check := flag.Bool("check", false, "exit non-zero if any repo file is not claimed by a region")
+	check := flag.Bool("check", false, "compare output and region coverage without writing")
 	flag.Parse()
+	root = *sourceRoot
 
 	bm, err := loadMap(*mapPath)
 	if err != nil {
@@ -307,16 +310,16 @@ func main() {
 
 	data := build(bm, g, repoFiles)
 
-	mdPath := filepath.Join(*outDir, "BRAIN.md")
-	if err := writeOut(mdPath, []byte(renderMarkdown(bm, data))); err != nil {
-		fatal(err)
-	}
-	htmlPath := filepath.Join(*outDir, "brain.html")
 	html, err := renderHTML(data)
 	if err != nil {
 		fatal(err)
 	}
-	if err := writeOut(htmlPath, html); err != nil {
+	files := map[string][]byte{"BRAIN.md": []byte(renderMarkdown(bm, data)), "brain.html": html}
+	if *check {
+		if diffs := docgen.Diff(*outDir, files); len(diffs) > 0 {
+			fatal(fmt.Errorf("generated drift: %s", strings.Join(diffs, ", ")))
+		}
+	} else if err := docgen.Write(*outDir, files); err != nil {
 		fatal(err)
 	}
 
@@ -324,8 +327,6 @@ func main() {
 		data.Stats.Regions, data.Stats.Lobes, data.Stats.RepoFiles, data.Stats.Nodes,
 		data.Stats.CrossEdges, data.Stats.Declared)
 	fmt.Printf("brainmap: region coverage %.1f%% (%s unclaimed)\n", data.Stats.CoveragePct, plural(len(data.Unmapped), "file"))
-	fmt.Printf("brainmap: wrote %s\n", mdPath)
-	fmt.Printf("brainmap: wrote %s\n", htmlPath)
 	if len(data.Unmapped) > 0 {
 		fmt.Fprintf(os.Stderr, "brainmap: %s not claimed by any region:\n", plural(len(data.Unmapped), "file"))
 		for _, f := range data.Unmapped {
@@ -666,7 +667,7 @@ func build(bm brainMap, g graph, repoFiles []string) brainData {
 		Title:     bm.Title,
 		Subtitle:  bm.Subtitle,
 		Commit:    commit,
-		Generated: time.Now().Format("2006-01-02"),
+		Generated: "source graph " + commit,
 		Stats: statsOut{
 			Nodes: len(g.Nodes), Links: len(g.Links),
 			RepoFiles: len(repoFiles), GraphFiles: len(graphFiles),

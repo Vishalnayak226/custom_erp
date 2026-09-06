@@ -1,3 +1,6 @@
+<!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
+> **Authority notice:** Historical assessment. Its original findings describe the observed revision and scope, not current release assurance. Original evidence below is retained; later remediation requires separate verification. See the [authority matrix](governance/authority-matrix.md).
+
 # ERP System - Loopholes & Security Analysis
 
 **Date:** 2026-07-27 (Updated from 2026-07-26)

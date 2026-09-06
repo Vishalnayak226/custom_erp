@@ -373,6 +373,93 @@ The third one is worth understanding, because it is the failure the other three 
 
 If you're enabling a real Shopify/BigCommerce/Magento connection for a tenant: **[`../operations/connector_live_verification.md`](../operations/connector_live_verification.md)** — the exact credentials format and a script that verifies the connection against the real platform before you trust it.
 
+### C.6 Creating and Removing a Tenant (`tenantctl`)
+
+Creating and destroying tenants is done from the database host with **`go run ./cmd/tenantctl`** (or a built `tenantctl` binary), never through the web app. There is deliberately no admin page for it: no role inside the product should be able to reach `DROP SCHEMA`, and an offline tool cannot be reached from the internet at all.
+
+Three rules apply to every command:
+
+- **Nothing destructive happens without `-yes`.** Without it you get a dry run that prints exactly what would change.
+- **Every state change needs `-reason`** (and takes `-actor`, defaulting to your Windows/Linux username). Both are written permanently to `public.tenant_lifecycle_events` — the evidence trail, which survives even the tenant's deletion.
+- `DATABASE_URL` picks the database, same as every other tool here.
+
+**Creating a tenant**
+
+```
+go run ./cmd/tenantctl provision -tenant acme -reason "signed 2026-09-06, ticket ERP-1421" -yes
+```
+
+The schema defaults to `tenant_<id>`; pass `-schema` to choose. The command prints a **one-time admin password, shown exactly once** — it is stored only as a hash and nothing can recover it. Hand it over securely.
+
+That password is **not a standing credential**:
+
+- It **expires 72 hours** after it is issued (`TENANT_BOOTSTRAP_TTL_HOURS` changes the window). After that, login is refused — with the same generic failure as a wrong password, so nothing is leaked — until an operator issues a new one.
+- Logging in with it still forces **TOTP enrollment first**, because the tenant admin role is MFA-mandatory. The password alone reaches nothing.
+- Every login while it is unrotated returns `must_rotate_password` and the deadline.
+- Rotating the password (`Profile → Change Password`, or any other write to it) marks the credential consumed and is recorded.
+
+If the handover credential is lost or has expired:
+
+```
+go run ./cmd/tenantctl rotate-bootstrap -tenant acme -reason "handover credential expired" -yes
+```
+
+**Checking state**
+
+```
+go run ./cmd/tenantctl list                 # every tenant, status, bootstrap state, holds
+go run ./cmd/tenantctl show   -tenant acme  # one tenant in full
+go run ./cmd/tenantctl events -tenant acme  # the evidence trail
+```
+
+`list` flags any tenant still sitting on an unrotated one-time credential — worth checking after any onboarding.
+
+**Pausing a tenant** (non-payment, suspected compromise, customer request):
+
+```
+go run ./cmd/tenantctl suspend -tenant acme -reason "non-payment, invoice 2026-08" -yes
+go run ./cmd/tenantctl resume  -tenant acme -reason "payment received" -yes
+```
+
+A suspension stops **new logins and every session already in progress** within ~30 seconds (`AUTH_STATE_CACHE_SECONDS`). Nothing is deleted, and resuming restores service immediately.
+
+**Offboarding a tenant** is deliberately two separate acts, days or weeks apart:
+
+```
+go run ./cmd/tenantctl deprovision -tenant acme -reason "contract ended 2026-09-30" -yes
+```
+
+Traffic stops at once and the **retention clock** starts (30 days by default; `-retention-days N` for an agreed different period, `TENANT_RETENTION_DAYS` for the policy default). Nothing is deleted by this step.
+
+Then, once the window has elapsed and **after** you have taken and verified a tenant export (§C.3):
+
+```
+go run ./cmd/tenantctl purge -tenant acme -backup-ref "tenant_acme_20260930.dump.enc (verified)" -yes
+```
+
+The purge **refuses** — and records the refusal — if the tenant was never deprovisioned, if a legal hold is in force, if the retention window has not elapsed, or if no backup reference is supplied. When it does run, it drops the schema and the registry row in one transaction and then **proves the removal**: no registry row, no schema, no hostname mapping, no row in any shared table, no cached session. That proof is printed and recorded.
+
+**Legal hold** blocks any purge regardless of retention:
+
+```
+go run ./cmd/tenantctl legal-hold -tenant acme -on  -reason "matter 2026-14, counsel instruction" -yes
+go run ./cmd/tenantctl legal-hold -tenant acme -off -reason "matter closed" -yes
+```
+
+**Verifying afterwards** (the registry row is gone, so name the schema):
+
+```
+go run ./cmd/tenantctl verify -tenant acme -schema tenant_acme
+```
+
+**One posture check worth running once per deployment:**
+
+```
+go run ./cmd/tenantctl db-privilege -schema tenant_default
+```
+
+It reports the database role the application actually connects as. If it says the app is a **superuser**, a single SQL-injection or code-execution bug reaches every database on that PostgreSQL server and the filesystem — fix that at the deployment level (an owner-only role), not in the app.
+
 ---
 
 ## Part D — Developer / CTO Level

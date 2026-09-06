@@ -465,6 +465,15 @@ func IsPhoneField(fieldname string) bool {
 	if IsDerivedCompanionField(fieldname) {
 		return false
 	}
+	// Stage 47.6.1: an explicit semantic overrides the substring guess, and
+	// this is the more dangerous half of that fix. DetectFieldFormat only
+	// governs a keystroke filter in the browser; IsPhoneField is what
+	// NormalizeDocumentPhones uses, so without this the SERVER would rewrite a
+	// stored wave id or lot number into E.164 on every save - mangling data at
+	// rest rather than merely while it is typed.
+	if semantic := FieldSemantic(fieldname); semantic != "" {
+		return semantic == SemanticPhone
+	}
 	f := strings.ToLower(fieldname)
 	for _, tok := range phoneFieldTokens {
 		if strings.Contains(f, tok) {

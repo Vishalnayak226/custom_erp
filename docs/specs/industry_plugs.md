@@ -1,3 +1,6 @@
+<!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
+> **Authority notice:** Legacy specification or system snapshot; rebuild/reconciliation is queued in Stage 48. Built, partial, planned and support claims below have not been reapproved for the current working tree. Use the authority matrix to locate current evidence and open decisions. See the [authority matrix](../governance/authority-matrix.md).
+
 # In-House ERP: Multi-Industry Schema & Configuration Specification
 
 > **Status: partially built.** Only 4 industry profiles actually exist today — Jewelry, Food & Beverage, Automobile, Clothing (`public/profiles/*.json`, loaded via `SwitchIndustryProfile` in `engines/doctype.go`). §2.1–2.6 below (Pharma, Metal & Steel, Construction, Medical Devices, Semiconductors, Agriculture) are specification only — no profile file or code path exists for them yet. See `docs/operations/hardening_roadmap.md` for current priorities and `docs/specs/pdf_blueprint_gap_analysis.md` §4 / `docs/micro_checklist.md` Stage 12.1 for tracking.

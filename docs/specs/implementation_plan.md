@@ -1,3 +1,6 @@
+<!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
+> **Authority notice:** Legacy specification or system snapshot; rebuild/reconciliation is queued in Stage 48. Built, partial, planned and support claims below have not been reapproved for the current working tree. Use the authority matrix to locate current evidence and open decisions. See the [authority matrix](../governance/authority-matrix.md).
+
 # Generic Inhouse ERP Platform: Master Approach & Implementation Blueprint
 
 > **Status note (2026-07-12)**: this document is the specification, closely mirroring the source Approach Blueprint PDF — it is not a record of what's built. For what actually exists in the codebase today vs this spec, see **[docs/pdf_blueprint_gap_analysis.md](pdf_blueprint_gap_analysis.md)**. In particular, the maker-checker/approval model described in §1's Control Model below is not implemented (tracked as `micro_checklist.md` Stage 13.1).

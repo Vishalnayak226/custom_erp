@@ -4,8 +4,8 @@
      Source: `internal/server`'s error catalog (`error_catalog_generated.go`)
      Regenerate: `go run ./cmd/gendocs` -->
 
-> **Generated 2026-09-03.** This page is produced from `internal/server`'s error catalog (`error_catalog_generated.go`), so it cannot drift from
-> the running system. Hand edits are lost on the next run - change the source instead.
+> **Generated 2026-09-06.** This page is produced from `internal/server`'s error catalog (`error_catalog_generated.go`), for this source revision.
+> It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 

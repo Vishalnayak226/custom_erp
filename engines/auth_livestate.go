@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -81,6 +82,23 @@ func ResolveLiveUserState(tenantID, userID string) (LiveUserState, error) {
 	if userID == "" {
 		return LiveUserState{}, errUserNotActive
 	}
+	// 49.1.5: a suspended or deprovisioned tenant has to stop serving the
+	// sessions it already issued, not merely refuse new logins - otherwise
+	// suspending a tenant does nothing for up to JWT_EXPIRY_HOURS, exactly the
+	// staleness this file exists to close for a single user. Checked before
+	// the per-user cache so a suspension is not masked by an entry cached
+	// moments earlier, and an unregistered (purged) tenant is rejected here
+	// rather than surfacing as a retryable database error further down.
+	operational, tenantErr := TenantIsOperational(tenantID)
+	switch {
+	case errors.Is(tenantErr, ErrTenantNotRegistered):
+		return LiveUserState{}, errUserNotActive
+	case tenantErr != nil:
+		return LiveUserState{}, tenantErr
+	case !operational:
+		return LiveUserState{}, errUserNotActive
+	}
+
 	key := tenantID + "|" + userID
 	ttl := authStateCacheTTL()
 
@@ -166,4 +184,36 @@ func ResetLiveUserStateCache() {
 	authStateMu.Lock()
 	authStateCache = map[string]authStateEntry{}
 	authStateMu.Unlock()
+}
+
+// invalidateLiveUserStatesForTenant drops every cached user state belonging to
+// one tenant. Called by the 49.1.5 lifecycle transitions: suspending,
+// deprovisioning or purging a tenant has to reach the sessions already in
+// flight, and waiting out the cache window for each of a tenant's users
+// individually is not a revocation.
+func invalidateLiveUserStatesForTenant(tenantID string) {
+	prefix := tenantID + "|"
+	authStateMu.Lock()
+	for key := range authStateCache {
+		if strings.HasPrefix(key, prefix) {
+			delete(authStateCache, key)
+		}
+	}
+	authStateMu.Unlock()
+}
+
+// tenantHasCachedUserState reports whether this process still holds any cached
+// session state for a tenant. Used by the post-purge residue proof
+// (VerifyTenantResidue) - a dropped schema with a live cache entry in front of
+// it is not a clean removal.
+func tenantHasCachedUserState(tenantID string) bool {
+	prefix := tenantID + "|"
+	authStateMu.RLock()
+	defer authStateMu.RUnlock()
+	for key := range authStateCache {
+		if strings.HasPrefix(key, prefix) {
+			return true
+		}
+	}
+	return false
 }

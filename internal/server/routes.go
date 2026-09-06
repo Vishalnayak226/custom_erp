@@ -46,6 +46,16 @@ func Run() {
 		log.Fatalf("Refusing to start: %v", err)
 	}
 
+	// Stage 49.1.3: the fail-fast production configuration validator - the
+	// general form of the two checks above. Logs every security-baseline
+	// finding at every ENV (so a developer sees the same list they will meet
+	// in production), and refuses to start only when ENV=production and a
+	// finding is blocking. See engines/security_baseline.go for the full
+	// check list and why non-production only warns.
+	if err := engines.EnforceProductionSecurityBaseline(); err != nil {
+		log.Fatalf("Refusing to start: %v", err)
+	}
+
 	// Stage 47.0.5/47.11.6 Gate 0: log this instance's external-side-effect
 	// posture and quarantine any stale webhook_delivery job left Pending
 	// from before this boot, both before any worker below starts polling -
@@ -273,6 +283,18 @@ func Run() {
 	http.HandleFunc("GET /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))
 	http.HandleFunc("POST /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))
 
+	// Stage 47.1.5-47.1.7: role templates, their reviewed/reversible tenant
+	// migration, the SoD conflict catalog and the "why allowed / why denied"
+	// administrator preview. All Admin-level (route_capabilities.go), so
+	// Super-Admin-only is enforced once in apiMiddleware.
+	http.HandleFunc("GET /api/v1/admin/role-templates", apiMiddleware(handleListRoleTemplates))
+	http.HandleFunc("GET /api/v1/admin/role-templates/plan", apiMiddleware(handleRoleTemplatePlan))
+	http.HandleFunc("POST /api/v1/admin/role-templates/apply", apiMiddleware(handleApplyRoleTemplates))
+	http.HandleFunc("POST /api/v1/admin/role-templates/revert", apiMiddleware(handleRevertRoleTemplates))
+	http.HandleFunc("GET /api/v1/admin/role-templates/migrations", apiMiddleware(handleListRoleTemplateMigrations))
+	http.HandleFunc("GET /api/v1/admin/access-preview", apiMiddleware(handleAccessPreview))
+	http.HandleFunc("GET /api/v1/admin/sod-conflicts", apiMiddleware(handleSoDCatalog))
+
 	// Stage 28.1: module-by-module admin configuration (system_settings).
 	http.HandleFunc("GET /api/v1/admin/settings", apiMiddleware(handleGetSettings))
 	http.HandleFunc("PUT /api/v1/admin/settings", apiMiddleware(handleUpdateSettings))
@@ -343,12 +365,16 @@ func Run() {
 	http.HandleFunc("POST /api/v1/orders/{id}/credit-notes", apiMiddleware(moduleGate("oms", handleOrderCreditNotes)))
 
 	// Stage 26.12.5: Returns/RTO/QC/Refund - a request/approval-gated
-	// workflow distinct from the pre-existing instant POST
-	// /api/v1/fulfillment/return (ProcessReturnAnywhere, the POS in-store
-	// path, unchanged). moduleGate("oms",...) since ReturnRequest/
-	// RefundRequest are OMS doctypes, same convention as the Order Engine
-	// routes above.
+	// workflow. As of Stage 47.4.1 this is the ONLY return path: the instant
+	// POST /api/v1/fulfillment/return (ProcessReturnAnywhere) it used to sit
+	// beside is retired to a hard 410, because it could not enforce
+	// cumulative return eligibility or post stock and finance together (audit
+	// A-04). moduleGate("oms",...) since ReturnRequest/RefundRequest are OMS
+	// doctypes, same convention as the Order Engine routes above.
 	http.HandleFunc("POST /api/v1/returns", apiMiddleware(moduleGate("oms", handleCreateReturnRequest)))
+	// Stage 47.4.6: what can still be returned against a bill, and why. The
+	// Returns screen renders from this rather than asking a clerk to know.
+	http.HandleFunc("GET /api/v1/returns/eligibility", apiMiddleware(moduleGate("oms", handleReturnEligibility)))
 	http.HandleFunc("POST /api/v1/returns/{id}/approve", apiMiddleware(moduleGate("oms", handleApproveReturnRequest)))
 	http.HandleFunc("POST /api/v1/returns/{id}/reject", apiMiddleware(moduleGate("oms", handleRejectReturnRequest)))
 	http.HandleFunc("POST /api/v1/returns/{id}/receive", apiMiddleware(moduleGate("oms", handleReceiveReturnRequest)))
@@ -506,6 +532,17 @@ func Run() {
 	// Stage 30.7: read-only offer preview for the POS cart. Checkout
 	// re-evaluates server-side regardless, so this never sets the price.
 	http.HandleFunc("POST /api/v1/pos/offers/preview", apiMiddleware(handlePOSOffersPreview))
+	// Stage 47.2: the server-authoritative quote the till renders, and the
+	// capability-gated price-override command that is the only way to deviate
+	// from it. Checkout re-resolves the quote regardless of what either
+	// returned, so neither can set a price on its own.
+	http.HandleFunc("POST /api/v1/pos/quote", apiMiddleware(handlePOSQuote))
+	http.HandleFunc("POST /api/v1/pos/price-override", apiMiddleware(handlePOSPriceOverride))
+	// Stage 47.3.3: the two ends of a payment-provider round trip. The
+	// authorization is raised by /checkout itself with authorize_only, so
+	// pricing, approval and idempotency stay on one code path.
+	http.HandleFunc("POST /api/v1/pos/payment/confirm", apiMiddleware(handlePOSPaymentConfirm))
+	http.HandleFunc("POST /api/v1/pos/payment/void", apiMiddleware(handlePOSPaymentVoid))
 	http.HandleFunc("GET /api/v1/finance/trial-balance", apiMiddleware(handleTrialBalance))
 	http.HandleFunc("GET /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))
 	http.HandleFunc("POST /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))
@@ -1058,8 +1095,11 @@ func Run() {
 	http.HandleFunc("GET /help", spaShell)
 	http.HandleFunc("GET /help/{rest...}", spaShell)
 
-	// Serve Static Files
-	fs := http.FileServer(http.Dir("./public"))
+	// Serve Static Files. Stage 49.1.2: wrapped so a directory with no
+	// index.html 404s instead of returning Go's generated file listing -
+	// public/components and public/profiles were both enumerable
+	// unauthenticated before this. See static_fileserver.go.
+	fs := http.FileServer(noDirectoryListing(http.Dir("./public")))
 	http.Handle("/", fs)
 
 	// Stage 14.9: PORT is what lets dev/test/live (and any throwaway

@@ -131,6 +131,28 @@ func registerStage282Settings() {
 		Min:         settingBound(0),
 		Description: "Counted-vs-expected cash difference a cashier may close a session with before a written variance reason becomes mandatory (POSOFF-0240).",
 	})
+	// Stage 47.2 (audit A-02). Assisted is the default deliberately: every
+	// tenant on this product today prices entirely at the till - Item.sale_price
+	// did not exist before this stage - so defaulting to strict would stop all
+	// of them selling on the next deploy. Assisted still closes the A-02 hole
+	// for any item the tenant HAS priced (master price wins absolutely, the
+	// client's figure is ignored) and routes an unpriceable line through
+	// discount approval instead of letting it through unchecked. Strict is the
+	// end state, reachable per tenant once its catalogue carries prices.
+	RegisterSetting(SettingDefinition{
+		Key: "pos.pricing_mode", Module: "Point of Sale",
+		Label: "POS pricing authority", Type: SettingTypeSelect, Default: PricingModeAssisted,
+		Options: []SettingOption{
+			{Value: PricingModeAssisted, Label: "Assisted - server price wins; an unpriced item may be keyed in, and needs approval"},
+			{Value: PricingModeStrict, Label: "Strict - refuse to sell any item that has no server-side price"},
+		},
+		Description: "Where a POS line's price comes from. In both modes a price the server can resolve (price list, or the item's Sale Price/MRP) overrides anything the till sends. Strict additionally refuses to sell an item nothing on the server prices.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "pos.default_price_list", Module: "Point of Sale",
+		Label: "Default price list", Type: SettingTypeString, Default: "",
+		Description: "The PriceListVersion price_list_code the POS prices from when the customer has no contract price list of their own. Leave empty to price from the item master (Sale Price, then MRP).",
+	})
 
 	// --- Loyalty (Stage 30.7 additions) ---
 	RegisterSetting(SettingDefinition{

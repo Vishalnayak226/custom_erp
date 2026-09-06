@@ -1,3 +1,6 @@
+<!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
+> **Authority notice:** Legacy specification or system snapshot; rebuild/reconciliation is queued in Stage 48. Built, partial, planned and support claims below have not been reapproved for the current working tree. Use the authority matrix to locate current evidence and open decisions. See the [authority matrix](../governance/authority-matrix.md).
+
 # ERP Maturity Master Plan — Source Summary & Repo-Grounded Status
 
 **Latest source document:** `ERP_Final_Leg_Maturity_Completion_Master_Plan.pdf` (10 sections + 2 appendices, dated 23 Jul 2026) — supersedes the original `ERP_Full_Fledged_Maturity_Master_Plan.pdf` (dated 19 Jul 2026) as the active maturity roadmap. This document has been rewritten in place to reflect the newer PDF; the original's phase framework/gap table is kept as history in §6 below rather than duplicated at the top.

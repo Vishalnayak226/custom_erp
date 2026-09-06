@@ -1,3 +1,6 @@
+<!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
+> **Authority notice:** Legacy specification or system snapshot; rebuild/reconciliation is queued in Stage 48. Built, partial, planned and support claims below have not been reapproved for the current working tree. Use the authority matrix to locate current evidence and open decisions. See the [authority matrix](governance/authority-matrix.md).
+
 # Custom ERP — Full Project Blueprint
 
 **Purpose of this document**: a single, self-contained snapshot of this project meant to travel outside the repository — hand it to an outside reviewer (including an AI like ChatGPT) with no other context, and they should be able to form an informed opinion on where this project stands. It is written from five perspectives in turn — CEO, Product Head, CTO/Architect, Developer, and Project Tech Lead — because those are the five questions this project actually gets asked, and each one wants a different cut of the same facts.

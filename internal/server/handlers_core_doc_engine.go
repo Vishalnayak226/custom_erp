@@ -54,6 +54,27 @@ const supplierRole = "Supplier"
 // code the submission belongs to.
 const supplierScopeField = "supplier_code"
 
+// scopeValueExpr renders a scope constraint's field list as the SQL
+// expression the list query compares against (Stage 47.1.4). The field names
+// come only from engines.doctypeScopes - a compile-time map of literals, not
+// from any request input - so they are safe to interpolate; the VALUE is
+// always a bound parameter.
+//
+// NULLIF maps an empty string to NULL so a row storing "" for its scope
+// field is treated as missing rather than as a location/employee/owner
+// literally named "" - the difference matters because a missing value is
+// denied on a mandatory dimension.
+func scopeValueExpr(fields []string) string {
+	parts := make([]string, 0, len(fields))
+	for _, f := range fields {
+		parts = append(parts, fmt.Sprintf("NULLIF(data->>'%s','')", f))
+	}
+	if len(parts) == 1 {
+		return parts[0]
+	}
+	return "COALESCE(" + strings.Join(parts, ", ") + ")"
+}
+
 func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	role := r.Header.Get("Resolved-Role")
@@ -93,6 +114,24 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	// Stage 47.1.4: resolve this session's scope once, here, for the same
+	// reason supplierCode is resolved once above - both halves of the check
+	// (the list query's WHERE clause and the single-document object check)
+	// must agree, and neither should re-derive it. ResolveSessionScope only
+	// queries when the doctype actually declares a self dimension, so an
+	// ordinary request pays nothing for this.
+	docScope := engines.SessionScope{Role: role, UserID: userID, LocationCode: location}
+	if r.Method == http.MethodGet {
+		// Only a read is scope-filtered, and only a self-scoped doctype
+		// costs a query at all - so a write to Payslip/Leave does not pay
+		// for an Employee lookup it will never consult.
+		docScope, err = engines.ResolveSessionScope(tenantID, doctype, docScope)
+		if err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve the access scope for this session")
+			return
+		}
 	}
 
 	// Extension token handling (Stage 14.17-14.20): a token issued by
@@ -190,18 +229,26 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			// Location Filter Validation (Object-Level Auth). Not every doctype
-			// names this field "location" - FulfillmentTask uses "location_code" -
-			// so check both rather than silently skipping the check (and letting
-			// through a doc from another location) whenever a doctype uses the
-			// other name.
-			docLoc, hasLoc := dataMap["location"]
-			if !hasLoc {
-				docLoc, hasLoc = dataMap["location_code"]
-			}
-			if hasLoc && fmt.Sprintf("%v", docLoc) != location && !engines.IsSuperAdmin(role) {
-				writeAPIError(w, r, "GLOBAL-0011", "")
-				return
+			// Scope validation, object level (Stage 47.1.4 - was a
+			// location-only check inline here; engines/scope_policy.go now
+			// owns which dimensions a doctype has and whether a missing
+			// value means "not applicable" or "anomaly, deny"). A doctype
+			// the registry does not know keeps exactly the pre-47.1.4
+			// behavior below.
+			if constraints, known := engines.ScopeConstraints(doctype, docScope); known {
+				if failed := engines.DocumentMatchesScope(constraints, dataMap); failed != "" {
+					writeAPIError(w, r, "GLOBAL-0011", "")
+					return
+				}
+			} else {
+				docLoc, hasLoc := dataMap["location"]
+				if !hasLoc {
+					docLoc, hasLoc = dataMap["location_code"]
+				}
+				if hasLoc && fmt.Sprintf("%v", docLoc) != location && !engines.IsSuperAdmin(role) {
+					writeAPIError(w, r, "GLOBAL-0011", "")
+					return
+				}
 			}
 
 			// 26.4.10: the object-level half of supplier scoping. A row that
@@ -235,7 +282,35 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// non-admin would silently see zero rows of any location-less
 			// doctype, not "all of them" (which is the correct behavior for a
 			// doctype with nothing to scope by).
-			if !engines.IsSuperAdmin(role) {
+			//
+			// Stage 47.1.4 replaces that single clause for every doctype the
+			// scope registry knows: location stays permissive where the
+			// doctype declares it optional (the "not applicable" case the
+			// paragraph above is really about), and becomes strict where the
+			// doctype declares it mandatory - plus the self (employee) and
+			// owner dimensions the old clause had no notion of. A doctype the
+			// registry does not know (one built at runtime through the
+			// Doctype Builder) keeps the original clause unchanged.
+			if constraints, known := engines.ScopeConstraints(doctype, docScope); known {
+				for _, c := range constraints {
+					expr := scopeValueExpr(c.Fields)
+					if c.Value == "" && !c.AllowMissing {
+						// Fail closed: a session whose scope value could
+						// not be resolved (no linked Employee record, no
+						// owner) sees no row of this doctype rather than
+						// every row of it.
+						query += " AND FALSE"
+						continue
+					}
+					if c.AllowMissing {
+						query += fmt.Sprintf(" AND (%s = $%d OR %s IS NULL)", expr, argIndex, expr)
+					} else {
+						query += fmt.Sprintf(" AND %s = $%d", expr, argIndex)
+					}
+					args = append(args, c.Value)
+					argIndex++
+				}
+			} else if !engines.IsSuperAdmin(role) {
 				query += fmt.Sprintf(" AND (COALESCE(data->>'location', data->>'location_code') = $%d OR COALESCE(data->>'location', data->>'location_code') IS NULL)", argIndex)
 				args = append(args, location)
 				argIndex++

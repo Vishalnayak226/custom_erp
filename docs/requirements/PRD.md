@@ -1,3 +1,6 @@
+<!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
+> **Authority notice:** Legacy specification or system snapshot; rebuild/reconciliation is queued in Stage 48. Built, partial, planned and support claims below have not been reapproved for the current working tree. Use the authority matrix to locate current evidence and open decisions. See the [authority matrix](../governance/authority-matrix.md).
+
 # Product Requirements Document (PRD)
 
 Functional module inventory, user roles, workflows, and error-proofing requirements — the "what to build" document, at product level (not code level). For business rationale, see [BRD.md](BRD.md). For built-vs-planned status per item, this document cites [`../micro_checklist.md`](../micro_checklist.md) rather than duplicating it — that file is the current source of truth and changes constantly; this one describes the intended shape of the product and shouldn't need to change every time a checklist item closes.

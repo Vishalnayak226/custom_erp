@@ -29,7 +29,7 @@ Two variants worth knowing:
 
 ```powershell
 pwsh docs/brain/update-brain.ps1 -SkipGraph   # redraw only; skip re-extraction
-pwsh docs/brain/update-brain.ps1 -Check       # also fail if any file has no region
+pwsh docs/brain/update-brain.ps1 -Check       # read-only comparison; also checks unclaimed files
 ```
 
 > **Why a PowerShell wrapper and not just `go run ./cmd/brainmap`?**

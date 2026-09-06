@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -111,7 +112,17 @@ func TestDocumentNumberIssuedByServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("marshal update: %v", err)
 	}
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/doc/RFQ/"+firstID, bytes.NewReader(updateBody))
+	// firstID is a server-issued series number containing the numbering
+	// engine's own "/" separator (engines/numbering.go's default
+	// prefix/store/period format) - url.PathEscape encodes it to %2F so this
+	// single path SEGMENT reaches the {id} wildcard as one piece, the same
+	// way Go's real request parsing/mux matching treats an escaped slash
+	// (verified: a raw, unescaped "/" here does not match
+	// "/api/v1/doc/{doctype}/{id}" at all - Stage 47.1.1's route-capability
+	// lookup is real mux pattern matching, unlike this test's direct
+	// apiMiddleware(handler) call, which never exercised real dispatch
+	// before). Matches how a real client must construct this URL too.
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/doc/RFQ/"+url.PathEscape(firstID), bytes.NewReader(updateBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.SetPathValue("doctype", "RFQ")

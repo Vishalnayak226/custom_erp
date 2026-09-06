@@ -49,38 +49,13 @@ func resolveOriginalSale(tenantID, orderID string) (lines []transferLine, saleDa
 	return nil, time.Time{}, false, nil
 }
 
-// sumPriorReturns totals qty already returned per SKU against orderID from
-// earlier SalesReturn documents, so a second partial return against the
-// same order can't collectively exceed what was originally sold.
-func sumPriorReturns(tenantID, orderID string) (map[string]int, error) {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT data FROM %s.documents WHERE doctype = 'SalesReturn' AND data->>'invoice_id' = $1`, schema), orderID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	totals := map[string]int{}
-	for rows.Next() {
-		var dataStr string
-		if err := rows.Scan(&dataStr); err != nil {
-			return nil, err
-		}
-		var ret struct {
-			Items []transferLine `json:"items"`
-		}
-		if err := json.Unmarshal([]byte(dataStr), &ret); err != nil {
-			continue
-		}
-		for _, l := range ret.Items {
-			totals[l.Sku] += l.Qty
-		}
-	}
-	return totals, rows.Err()
-}
+// sumPriorReturns was the legacy return path's "already returned" pool,
+// read outside any transaction from a SalesReturn document whose repeat
+// writes were silently swallowed - the mechanism audit finding A-04 named.
+// Retired with ProcessReturnAnywhere in Stage 47.4.1; the replacement is
+// assertReturnEligibleTx (engines/returns_atomic.go), which sums the same
+// document families INSIDE the transaction that holds the original sale
+// locked.
 
 // CreateFulfillmentTasks registers a store-level pick task
 func CreateFulfillmentTasks(tenantID string, orderID string, locationCode string, items []interface{}) (string, error) {
@@ -290,164 +265,33 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 	return tx.Commit()
 }
 
-// ProcessReturnAnywhere processes sales returns at any store, updating
-// inventory and general ledger. Returns the total refund value (sum of
-// sale_price*qty across the returned lines) so the caller can persist it
-// on the SalesReturn document as amount_refunded.
+// ProcessReturnAnywhere is RETIRED as of Stage 47.4.1 (audit finding A-04).
+//
+// It is kept as a named refusal rather than deleted because it was an exported
+// engine function as well as an HTTP route, and a caller inside this tree that
+// still reaches for it should get a compile-time-visible, explained failure
+// rather than silently finding some other path.
+//
+// What it did wrong, precisely: it took sale_price and cost_price from its
+// caller, incremented stock with an unlocked ON CONFLICT upsert, committed
+// that, and only then posted two GL reversals with no idempotency key at all.
+// Its "already returned" pool came from a single SalesReturn document with the
+// deterministic id "RET-<originalOrderID>", whose repeat INSERT hit a primary
+// key conflict its HTTP caller discarded - so the recorded returned total never
+// advanced past what the FIRST call wrote while stock and GL for every later
+// call still went through. Four calls of 3 against a sale of 10 returned 12.
+//
+// Everything it was for now lives in the ReturnRequest aggregate
+// (engines/returns.go + returns_atomic.go): eligibility checked under a lock
+// on the original sale, prices resolved from the immutable sale lines, a
+// tenant-scoped idempotency key, and stock + COGS + revenue + tax + refund in
+// one transaction with real posting keys.
 func ProcessReturnAnywhere(tenantID string, returnLocation string, originalOrderID string, items []interface{}) (totalRefund int, err error) {
-	// SALESR-0129/0130/0131: resolved and checked before any side effect
-	// (inventory increment, GL posting) runs, same ordering discipline
-	// checkout/GRN's own validation-before-effects blocks already use.
-	soldLines, saleDate, found, errResolve := resolveOriginalSale(tenantID, originalOrderID)
-	if errResolve != nil {
-		return 0, errResolve
+	return 0, &ValidationError{
+		Code: "SALESR-0131",
+		Message: "the instant return path is retired (Stage 47.4.1): it could not enforce cumulative return eligibility " +
+			"and posted stock and finance in separate transactions. Raise the return through CreateReturnRequestCommand " +
+			"(POST /api/v1/returns), which resolves prices from the original sale, locks eligibility, and posts stock, " +
+			"COGS, revenue, tax and the refund together",
 	}
-	if !found {
-		return 0, &ValidationError{Code: "SALESR-0131", Message: fmt.Sprintf("no original bill found for %q - a sales return requires a valid original bill reference", originalOrderID)}
-	}
-	returnWindowDays := salesReturnWindowDaysFor(tenantID)
-	if !saleDate.IsZero() && time.Since(saleDate) > time.Duration(returnWindowDays)*24*time.Hour {
-		return 0, &ValidationError{Code: "SALESR-0129", Message: fmt.Sprintf("sales return is not allowed more than %d days after the original sale (%s)", returnWindowDays, saleDate.Format("2006-01-02"))}
-	}
-	if len(soldLines) > 0 {
-		soldBySku := map[string]int{}
-		for _, l := range soldLines {
-			soldBySku[l.Sku] += l.Qty
-		}
-		alreadyReturned, errSum := sumPriorReturns(tenantID, originalOrderID)
-		if errSum != nil {
-			return 0, errSum
-		}
-		for _, itemVal := range items {
-			itemMap, ok := itemVal.(map[string]interface{})
-			if !ok {
-				continue
-			}
-			sku, _ := itemMap["sku"].(string)
-			qty := 0
-			if q, exists := itemMap["qty"]; exists {
-				switch v := q.(type) {
-				case float64:
-					qty = int(v)
-				case int:
-					qty = v
-				}
-			}
-			remaining := soldBySku[sku] - alreadyReturned[sku]
-			if qty > remaining {
-				return 0, &ValidationError{Code: "SALESR-0130", Message: fmt.Sprintf("return quantity for SKU %q (%d) exceeds remaining returnable quantity (%d)", sku, qty, remaining)}
-			}
-		}
-	}
-
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return 0, err
-	}
-
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
-
-	if err := db.SetSearchPath(tx, schema); err != nil {
-		return 0, err
-	}
-
-	// Stage 45: paise, computed from each line's own float64 price before the
-	// qty multiply - not from an int()-truncated whole rupee - same fix as
-	// pos_checkout.go's FinalizePOSCheckout for the identical bug pattern.
-	totalSalePricePaise := int64(0)
-	totalCostPricePaise := int64(0)
-
-	// 1. Process returned item inventory delta sync
-	for _, itemVal := range items {
-		itemMap, ok := itemVal.(map[string]interface{})
-		if !ok {
-			continue
-		}
-
-		sku, _ := itemMap["sku"].(string)
-		qty := 0
-		if q, exists := itemMap["qty"]; exists {
-			switch v := q.(type) {
-			case float64:
-				qty = int(v)
-			case int:
-				qty = v
-			}
-		}
-
-		// A return only ever adds stock back - unlike checkout, there's no legitimate
-		// negative-qty case here. Without this check a negative qty silently reduces
-		// the return location's stock with no floor/lock (the increment below is a
-		// bare ON CONFLICT DO UPDATE, not the row-locked floor-checked path checkout
-		// uses), which is exactly the "negative stock" loophole applied to this handler.
-		if qty <= 0 {
-			return 0, fmt.Errorf("return quantity must be positive (sku=%q, qty=%d)", sku, qty)
-		}
-
-		salePrice := 0.0
-		if p, exists := itemMap["sale_price"]; exists {
-			switch v := p.(type) {
-			case float64:
-				salePrice = v
-			case int:
-				salePrice = float64(v)
-			}
-		}
-
-		costPrice := 0.0
-		if p, exists := itemMap["cost_price"]; exists {
-			switch v := p.(type) {
-			case float64:
-				costPrice = v
-			case int:
-				costPrice = float64(v)
-			}
-		}
-
-		totalSalePricePaise += RupeesToPaise(salePrice) * int64(qty)
-		totalCostPricePaise += RupeesToPaise(costPrice) * int64(qty)
-
-		// Increment return location stock
-		_, err = tx.Exec(fmt.Sprintf(`
-			INSERT INTO %s.inventory_availability (sku, location_code, on_hand, available) 
-			VALUES ($1, $2, $3, $3) 
-			ON CONFLICT (sku, location_code) DO UPDATE SET 
-				on_hand = %s.inventory_availability.on_hand + EXCLUDED.on_hand, 
-				available = %s.inventory_availability.available + EXCLUDED.available, 
-				updated_at = CURRENT_TIMESTAMP`, schema, schema, schema), sku, returnLocation, qty)
-		if err != nil {
-			return 0, err
-		}
-	}
-
-	// 2. Commit DB transaction first before using Finance engine
-	err = tx.Commit()
-	if err != nil {
-		return 0, err
-	}
-
-	// 3. Post double-entry reverse finance bookings (debit Revenue, credit Cash/Bank; debit Inventory, credit COGS).
-	// No postingKey (24.5) here: unlike GRN/SalesInvoice/etc., this function
-	// has no per-call unique identifier - a single originalOrderID can
-	// legitimately have more than one partial return processed against it
-	// over time, so keying on originalOrderID alone would wrongly block the
-	// second one. A real fix needs a dedicated per-return document/ID, out
-	// of scope for this pass.
-	revenueDebits := map[string]int64{"4100": totalSalePricePaise}  // Debit: Sales Revenue (reduce revenue)
-	revenueCredits := map[string]int64{"1100": totalSalePricePaise} // Credit: Cash/Bank (refund customer)
-	err = PostDoubleEntry(tenantID, "SalesReturn", originalOrderID, revenueDebits, revenueCredits, "", "")
-	if err != nil {
-		return 0, err
-	}
-
-	inventoryDebits := map[string]int64{"1200": totalCostPricePaise}  // Debit: Inventory Control (receive stock)
-	inventoryCredits := map[string]int64{"5100": totalCostPricePaise} // Credit: Cost of Goods Sold (reduce COGS)
-	if err := PostDoubleEntry(tenantID, "SalesReturn", originalOrderID, inventoryDebits, inventoryCredits, "", ""); err != nil {
-		return 0, err
-	}
-	return int(PaiseToRupees(totalSalePricePaise)), nil
 }

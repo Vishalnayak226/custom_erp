@@ -1,0 +1,381 @@
+{
+  "schema_version": 1,
+  "generator": "cmd/genkb",
+  "generator_version": "stage48-v1",
+  "release": "0.1.0",
+  "scope": "repository registries; not deployed-release or tenant assurance",
+  "schema": "source registries",
+  "tenant": "none",
+  "checksum_encoding": "utf-8-lf",
+  "outputs": [
+    {
+      "path": "internal/kb/content/articles/abbreviations.html",
+      "sha256": "d76ee8563e3b7366a44066eba3cc58b460f93f9c5b70c8d66f8ca5ddf173ccc1",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/backup-and-restore.html",
+      "sha256": "03cd29c6a926eb621ade410cb94c8657affc6e62e681bbb1e8777c97e5363bbd",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/channel-connectors.html",
+      "sha256": "7bc49cd2eb6d2fc4a503450534f12885de8a35eabc7c9c325a2d7db74e2c1134",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/country-phone-rules.html",
+      "sha256": "9aa8c90e19f5c38e9a6a01c6a5d96081b8b4bbf833206583aef59acac2b85b2f",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/courier-integrations.html",
+      "sha256": "f5a143842852e757839f9a5a88cce8f728bea2308b94f677ef56b31db5462f69",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/crm-loyalty.html",
+      "sha256": "41d0c56fb4633110f8597d15d875a38dc8ef048f749f6de2c7e8a839d3793e23",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/error-code-reference.html",
+      "sha256": "2e512ef1d13608194d742d931a83ccc3887aec367669b7da672fe9174b0e3735",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/error-codes.html",
+      "sha256": "4fe144eb7c09807300d3ae02e39bfa6fb073d09fc35d6c8ff5d226b62b274df4",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/faq.html",
+      "sha256": "e64b2cd5050217b918cd3b98ecce6bf8bec4ab4f6b8771af34d077ad11e4e99a",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/finance-tax.html",
+      "sha256": "a009cea39ac07a7890a2eb246a3da81fc33925b54a30b78b694a9475b7c01971",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/finding-your-way-around.html",
+      "sha256": "c4bc00d109eb533678160efa3ba95cd952e72399874c70481aabe25ccb22ea06",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/first-login.html",
+      "sha256": "bfa255d5fe4853bdd63fe7d2f9646fc453b8fc0795166f2feebdfe1079e7608a",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/first-order.html",
+      "sha256": "5fccdced04fec1a00ffbad1dd55cb66eb8e1b55df423f9df63174380ad35515e",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/glossary.html",
+      "sha256": "9491257265ca0d9850176bed8486460ec8c4bdfdd58d9452784cf0b776ea7bd7",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/hr-payroll.html",
+      "sha256": "f685249ba3068756d9ea69a93459a3d819187c8a15c840253f5a65efbaf8eb6d",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/incident-response.html",
+      "sha256": "08e310beaf06768626bcb537326a5c423ec7fa34ee0de2e5584067381f09b6e2",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/inventory-wms-operations.html",
+      "sha256": "42c4a67dc7f983d63fe17d2c306943269d27805823296ae1185c5b0740ba10a2",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/journey-admin.html",
+      "sha256": "e85d376eeeed6f431c57077c2a7113bb50c0277750b16a81b24e0f0b2bda9075",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/journey-cashier.html",
+      "sha256": "cb3ccee41ac06f74173e0afc4b141de2a0466154456bb8e23135c88cbf6ecf05",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/journey-category-manager.html",
+      "sha256": "76e1e357a71cf76e91a523a2baa52105e8dcac1d638839d9df5482208c126ef4",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/journey-finance.html",
+      "sha256": "6a54d2dcb54a8a472d39949928b18d169ca1bb69b79dafe4d963ac6c1a5ad991",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/journey-store-manager.html",
+      "sha256": "1cecc9981cfb21b3ca1ea68e2c113ee5840c6087d73ba4e2fbc6f0c5b0e45a42",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/journey-warehouse-operator.html",
+      "sha256": "808b0255f00259b67a5baff1338377932c72c51e7fd809defa476f9aed09d900",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/manufacturing-mrp.html",
+      "sha256": "bfad45ab54bb65a07ffc8735143697e873bc994275b2b4b6ad45165b438703a9",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/oms-order-management.html",
+      "sha256": "ee292fd6fd93114ae912a5c6075c08d3f465ae0c3989d6e1264dce05f5fd0dbf",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/open-a-shop-and-make-your-first-sale.html",
+      "sha256": "bea9fd8db01df9f0ec24430e2875faf92c8fb426c93021047e362554c1ff969f",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/pim-product-groups.html",
+      "sha256": "9ef5584ba67e61b7260bc3d452e56cf42ee6374f05638e2921c1c340e33fb1df",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/pim-pxm.html",
+      "sha256": "ba8b62f38963219a0d967320f89c02fc544c6e6f474bc875acb1275705cc6637",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/pos-operations.html",
+      "sha256": "200db80706c90e3d44ac4548d40c3b73b71cbf9787675c9c4eadf98ffbaef9d7",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/procurement.html",
+      "sha256": "40024686988c0160dd3a05ee0c1b2ea06d5d0d3674c0725620c5d2e4f49591ea",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/public-api-authentication.html",
+      "sha256": "dc6647843956ab2bd17aec4c71b23be15e1877402077a7a00caa00f801058fbe",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/public-api-idempotency.html",
+      "sha256": "3bff2f0a813d46034af91144b3b59c7aec387b7b407a0894c73396360e560592",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/release-notes.html",
+      "sha256": "2995cc93127f503325406fc19b9edc4bcf01506ffd26cfac9376798ae767254b",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/report-catalog.html",
+      "sha256": "fe9147bedecb243bab8dff91cdb0d8b500df8038444376cd47fa8abef36e838a",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/role-journeys-overview.html",
+      "sha256": "b4e9d4075c72cf3267eee993663810e102dd63142f0122824a48e33379b9198a",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/security-approvals.html",
+      "sha256": "406a2707a50209bd2c0ca3cf7d3ff1b396e003b2cd236561b6a25851f5f05289",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/traceability-batch-serial.html",
+      "sha256": "36a098609977daa1d76d6edd701d4e5be68aa01e89563e4479ea64a7e8d0dc59",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/troubleshooting-index.html",
+      "sha256": "c7c1a8c20dfaffcfe081b6c1f1566fe924724f80462e4bc7732b0ef7495d1cd1",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/what-is-this-system.html",
+      "sha256": "7cdc4ab29bc6ad4219321b93750f175c52c694df63a375793cb92f589e1eca4d",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/index.json",
+      "sha256": "2042aa7d8a5c319a772fe9f77e994ddcf9cb6f7b3728bcce111ac0a9fdfac3c1",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/search.json",
+      "sha256": "ad18103ff325f7a4d61e96a72e92ad9c25908528bb17259b69185a6827888261",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    }
+  ]
+}

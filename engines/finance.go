@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"errors"
 	"fmt"
 	"math"
@@ -108,6 +109,28 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 	if err != nil {
 		return err
 	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := PostDoubleEntryTx(tx, tenantID, schema, docType, docID, debits, credits, transactionDate, postingKey, opts...); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// PostDoubleEntryTx is PostDoubleEntry's body with the transaction supplied by
+// the caller instead of opened here (Stage 47.3.2).
+//
+// The split exists because a POS sale must post stock, revenue, COGS, GST and
+// the loyalty burn in ONE transaction - "every injected failure produces either
+// zero result or one complete, explainable result" is the item's acceptance
+// line, and five separately-committed postings cannot deliver it. Every
+// existing caller keeps calling PostDoubleEntry above and is unaffected: it is
+// now a two-line wrapper that opens a transaction and commits it, which is
+// exactly what it did before.
+func PostDoubleEntryTx(tx *sql.Tx, tenantID, schema string, docType string, docID string, debits map[string]int64, credits map[string]int64, transactionDate string, postingKey string, opts ...PostingOptions) error {
 	var opt PostingOptions
 	if len(opts) > 0 {
 		opt = opts[0]
@@ -152,12 +175,6 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 		return fmt.Errorf("unbalanced double-entry journal: sum of debits (%d) must equal sum of credits (%d)", sumDebits, sumCredits)
 	}
 
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
 	if err := db.SetSearchPath(tx, schema); err != nil {
 		return err
 	}
@@ -173,7 +190,11 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 			return err
 		}
 		if alreadyPosted {
-			return tx.Commit()
+			// Already posted under this key - nothing to add, and NOT an
+			// error. The caller's transaction continues; before the 47.3.2
+			// split this returned tx.Commit() on its own private transaction,
+			// which is the same "stop here, successfully" outcome.
+			return nil
 		}
 	}
 
@@ -232,7 +253,7 @@ func PostDoubleEntry(tenantID string, docType string, docID string, debits map[s
 		}
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 // currencyPostingArgs decides what goes in the currency columns. A posting is
@@ -436,9 +457,41 @@ func paymentModeClearingAccount(paymentMode string) string {
 // caller is expected to convert from its own float64 rupee amount via
 // RupeesToPaise before calling, so precision survives from the original
 // float all the way into the ledger instead of being floor-truncated here.
+// PostSalesFinanceBooking opens its own transaction and delegates to PostSalesFinanceBookingTx. Stage 47.3.2
+// split every sales posting this way so FinalizePOSCheckout can run all of
+// them - plus the stock decrement and the loyalty burn - inside ONE
+// transaction. Callers outside the POS path are unchanged.
 func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int64, costPrice int64, paymentMode string, loyaltyDiscount int64) error {
-	if salePrice <= 0 || costPrice <= 0 {
-		return errors.New("sales and cost prices must be positive")
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := PostSalesFinanceBookingTx(tx, schema, tenantID, checkoutID, salePrice, costPrice, paymentMode, loyaltyDiscount); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func PostSalesFinanceBookingTx(tx *sql.Tx, schema, tenantID, checkoutID string, salePrice int64, costPrice int64, paymentMode string, loyaltyDiscount int64) error {
+	// Stage 47.2.2 relaxed costPrice from "must be positive" to "must not be
+	// negative". A zero cost is now a real, reachable state rather than a
+	// nonsense one: the client-submitted cost_price that used to guarantee
+	// some figure reached here is gone, and an item the tenant has never
+	// received through a GRN and never given a standard_cost genuinely has no
+	// cost basis on record. The honest posting for that is no COGS leg at all
+	// (see below), plus the POSCostingGap engines/pos_quote.go records so the
+	// gap is visible to finance - NOT a number the till invented. salePrice
+	// keeps its original guard: a sale for nothing is still nonsense.
+	if salePrice <= 0 {
+		return errors.New("sale price must be positive")
+	}
+	if costPrice < 0 {
+		return errors.New("cost price cannot be negative")
 	}
 	if loyaltyDiscount < 0 {
 		return errors.New("loyalty discount cannot be negative")
@@ -459,15 +512,22 @@ func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int64
 		revenueDebits["5250"] = loyaltyDiscount // Debit: Loyalty Points Redeemed (5250)
 	}
 	revenueCredits := map[string]int64{"4100": salePrice} // Credit: Sales Revenue Account
-	err := PostDoubleEntry(tenantID, "POSCart", checkoutID, revenueDebits, revenueCredits, "", fmt.Sprintf("POSCart:%s:SALE_REVENUE", checkoutID))
+	err := PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, revenueDebits, revenueCredits, "", fmt.Sprintf("POSCart:%s:SALE_REVENUE", checkoutID))
 	if err != nil {
 		return err
 	}
 
-	// 2. Post COGS / Inventory Bookings
+	// 2. Post COGS / Inventory Bookings. Skipped entirely when there is no
+	// cost basis on record, rather than posting a zero-for-zero journal -
+	// the same shape PostSalesGSTBooking below already uses for a wholly
+	// non-taxable sale, and it keeps the GL free of empty vouchers that
+	// would have to be explained at every audit.
+	if costPrice == 0 {
+		return nil
+	}
 	cogsDebits := map[string]int64{"5100": costPrice}  // Debit: Cost of Goods Sold Account
 	cogsCredits := map[string]int64{"1200": costPrice} // Credit: Inventory Control Account
-	return PostDoubleEntry(tenantID, "POSCart", checkoutID, cogsDebits, cogsCredits, "", fmt.Sprintf("POSCart:%s:SALE_COGS", checkoutID))
+	return PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, cogsDebits, cogsCredits, "", fmt.Sprintf("POSCart:%s:SALE_COGS", checkoutID))
 }
 
 // PostSalesGSTBooking books the output-tax liability split for a completed
@@ -477,7 +537,27 @@ func PostSalesFinanceBooking(tenantID string, checkoutID string, salePrice int64
 // the appropriate payable account(s), leaving 4100 holding only the
 // taxable (net-of-tax) amount - Cash (1100) still holds the full amount
 // actually collected, unchanged.
+// PostSalesGSTBooking opens its own transaction and delegates to PostSalesGSTBookingTx. Stage 47.3.2
+// split every sales posting this way so FinalizePOSCheckout can run all of
+// them - plus the stock decrement and the loyalty burn - inside ONE
+// transaction. Callers outside the POS path are unchanged.
 func PostSalesGSTBooking(tenantID, checkoutID string, breakdown GSTBreakdown) error {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := PostSalesGSTBookingTx(tx, schema, tenantID, checkoutID, breakdown); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func PostSalesGSTBookingTx(tx *sql.Tx, schema, tenantID, checkoutID string, breakdown GSTBreakdown) error {
 	// Round each component to paise first, then sum those - not the other way
 	// around - so the debit side below always exactly matches what the
 	// credit side actually posts (independent per-component rounding could
@@ -500,7 +580,7 @@ func PostSalesGSTBooking(tenantID, checkoutID string, breakdown GSTBreakdown) er
 		credits["2200"] = paiseCGST // GST Output Payable - CGST
 		credits["2201"] = paiseSGST // GST Output Payable - SGST
 	}
-	return PostDoubleEntry(tenantID, "POSCart", checkoutID, debits, credits, "", fmt.Sprintf("POSCart:%s:SALE_GST", checkoutID))
+	return PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, debits, credits, "", fmt.Sprintf("POSCart:%s:SALE_GST", checkoutID))
 }
 
 // PostExemptSalesReclass (Stage 26.6.11) is the non-taxable counterpart of
@@ -520,7 +600,27 @@ func PostSalesGSTBooking(tenantID, checkoutID string, breakdown GSTBreakdown) er
 // accept them merged: GSTR-1's nil/exempt/non-GST table has a column each for
 // nil-rated and exempt, and GSTR-3B reports zero-rated in 3.1(b) separately
 // from exempt+nil in 3.1(c).
+// PostExemptSalesReclass opens its own transaction and delegates to PostExemptSalesReclassTx. Stage 47.3.2
+// split every sales posting this way so FinalizePOSCheckout can run all of
+// them - plus the stock decrement and the loyalty burn - inside ONE
+// transaction. Callers outside the POS path are unchanged.
 func PostExemptSalesReclass(tenantID, checkoutID string, breakdown GSTBreakdown) error {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := PostExemptSalesReclassTx(tx, schema, tenantID, checkoutID, breakdown); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func PostExemptSalesReclassTx(tx *sql.Tx, schema, tenantID, checkoutID string, breakdown GSTBreakdown) error {
 	// Round each bucket to paise first and sum those, for the same reason
 	// PostSalesGSTBooking does: summing first and rounding after can leave
 	// the debit a paisa off the credits and fail PostDoubleEntry's balance
@@ -543,5 +643,5 @@ func PostExemptSalesReclass(tenantID, checkoutID string, breakdown GSTBreakdown)
 	if paiseZeroRated > 0 {
 		credits["4112"] = paiseZeroRated // Zero-Rated Sales Revenue
 	}
-	return PostDoubleEntry(tenantID, "POSCart", checkoutID, debits, credits, "", fmt.Sprintf("POSCart:%s:SALE_EXEMPT", checkoutID))
+	return PostDoubleEntryTx(tx, tenantID, schema, "POSCart", checkoutID, debits, credits, "", fmt.Sprintf("POSCart:%s:SALE_EXEMPT", checkoutID))
 }

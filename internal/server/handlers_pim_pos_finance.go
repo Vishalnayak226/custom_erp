@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"custom_erp/db"
 	"custom_erp/engines"
@@ -347,12 +348,19 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		CartNumber  string  `json:"cart_number"`
-		Location    string  `json:"location"`
-		PaymentMode string  `json:"payment_mode"`
-		CustomerID  string  `json:"customer_id"`
-		Interstate  bool    `json:"interstate"`
-		DiscountPct float64 `json:"discount_pct"`
+		CartNumber string `json:"cart_number"`
+		// IdempotencyKey (Stage 47.3.1) is the caller's own key for THIS
+		// command execution. It defaults to cart_number below, which
+		// reproduces the pre-47.3 guarantee exactly for any client that does
+		// not send one - but a client that sends a stable key gets the real
+		// one: a retry cannot double-post even if it invents a new cart
+		// number, which is precisely what public/app.js used to do.
+		IdempotencyKey string  `json:"idempotency_key"`
+		Location       string  `json:"location"`
+		PaymentMode    string  `json:"payment_mode"`
+		CustomerID     string  `json:"customer_id"`
+		Interstate     bool    `json:"interstate"`
+		DiscountPct    float64 `json:"discount_pct"`
 		// RedeemPoints (Stage 30.2.5): loyalty points to pay part of this
 		// sale with. Validated below and burned by FinalizePOSCheckout only
 		// once the sale actually goes through - never at "Redeem Points"
@@ -370,11 +378,30 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// resulting stock to go negative instead of rejecting a sale whose
 		// goods already physically left the store.
 		OfflineSynced bool `json:"offline_synced"`
-		Items         []struct {
+		// QuoteVersion (Stage 47.2.4): the version of the quote the cashier's
+		// screen is showing. Checkout ALWAYS re-resolves prices server-side;
+		// this field only decides what happens when the re-resolved answer
+		// differs from what the operator was looking at - reject with the new
+		// figures, rather than silently charging either one.
+		QuoteVersion string `json:"quote_version"`
+		// AuthorizeOnly (Stage 47.3.3) stops after reserving the stock and
+		// stamping payment_state=Initiated, so the till can take the card to a
+		// terminal without a database transaction held open across that round
+		// trip. The sale is completed by POST /api/v1/pos/payment/confirm, or
+		// released by /void.
+		AuthorizeOnly bool `json:"authorize_only"`
+		// AcceptPriceChange is the operator's explicit confirmation of a
+		// changed price after such a rejection.
+		AcceptPriceChange bool `json:"accept_price_change"`
+		// Items carries SELECTION inputs only. sale_price is accepted for one
+		// narrowing purpose - an item the tenant has not priced anywhere, in
+		// pos.pricing_mode 'assisted' (see engines.ResolvePOSQuote) - and is
+		// ignored outright for every item that has a server price. cost_price
+		// is gone: it is no longer read, stored or returned anywhere (47.2.2).
+		Items []struct {
 			Sku       string  `json:"sku"`
 			Qty       int     `json:"qty"`
 			SalePrice float64 `json:"sale_price"`
-			CostPrice float64 `json:"cost_price"`
 		} `json:"items"`
 	}
 
@@ -388,6 +415,81 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// --- Stage 47.3.1: claim the COMMAND before any mutation --------------
+	//
+	// This runs before every validation below, not after, because the point of
+	// a command claim is that a duplicate never re-executes the command - and
+	// "re-executes" includes re-running validations that have side effects
+	// (the loyalty balance read, the offer evaluation, the session lookup).
+	// The claim is released again for a request that is rejected outright, so
+	// a genuine mistake can be corrected and resubmitted under the same key.
+	//
+	// The key namespaces to the caller's own identity as well as the tenant:
+	// two cashiers cannot collide on a client-generated key, and one cashier's
+	// key cannot be used to replay another's sale back at them.
+	idempotencyKey := strings.TrimSpace(req.IdempotencyKey)
+	explicitKey := idempotencyKey != ""
+	if !explicitKey {
+		idempotencyKey = req.CartNumber
+	}
+	idempotencyKey = userID + ":" + idempotencyKey
+	// The digest is what tells a retry from a key collision. When the client
+	// supplied its OWN key, that key is the sale's identity and the cart
+	// number is just a label on it - so the cart number is excluded from the
+	// digest, and a retry that mints a fresh cart number (which is exactly
+	// what the POS screen used to do on every attempt, and the reason A-03's
+	// cart-number guard did not hold) is correctly recognised as the same
+	// command. When no key was supplied, the cart number IS the key, so it
+	// stays in the digest and nothing changes for an older client.
+	digestSource := req
+	if explicitKey {
+		digestSource.CartNumber = ""
+	}
+	requestDigest := engines.CommandDigest(digestSource)
+	claim, claimErr := engines.ClaimCommand(tenantID, "pos.checkout", idempotencyKey, requestDigest, r.Header.Get("Resolved-Correlation-ID"))
+	if claimErr != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to claim this checkout")
+		return
+	}
+	switch claim.Outcome {
+	case engines.ClaimReplay:
+		// INT-0222 "This request was already processed. Duplicate action was
+		// ignored." - the catalog's own scenario, and a 200, because from the
+		// caller's point of view the sale succeeded. The body is the original
+		// response verbatim, so a till that lost the first reply prints the
+		// same receipt rather than a different one.
+		w.WriteHeader(http.StatusOK)
+		_ = json.NewEncoder(w).Encode(claim.Response)
+		return
+	case engines.ClaimInProgress:
+		writeAPIErrorDetail(w, r, "POSOFF-0241", "",
+			"This sale is still being processed. Wait a moment and check the sale before retrying - do not ring it up again.")
+		return
+	case engines.ClaimPayloadMismatch:
+		writeAPIErrorGeneric(w, r, http.StatusConflict,
+			"This idempotency key was already used for a different sale. Use a new key for a new sale.")
+		return
+	}
+	// From here on, EVERY exit has to settle the claim or the key stays locked
+	// until its lease expires. There are a dozen early returns below, so this
+	// is a deferred default rather than a call before each one - the same
+	// reasoning as attaching a rule at a shared choke point instead of sweeping
+	// call sites: a validation added later is covered without anyone
+	// remembering to.
+	//
+	// Default = release, because a request rejected by validation mutated
+	// nothing and the operator should be able to fix the input and resubmit
+	// under the same key immediately. The two paths that settle it themselves
+	// are the sale completing (CompleteCommandTx, inside the sale's own
+	// transaction) and the sale failing mid-post (FailCommand, which keeps the
+	// attempt visible instead of erasing it).
+	claimSettled := false
+	defer func() {
+		if !claimSettled {
+			engines.ReleaseCommand(tenantID, claim.Key)
+		}
+	}()
+
 	// Reject non-positive qty/prices before any side effect runs. Below this line,
 	// item.Qty is negated to decrement stock (see loop below) - an already-negative
 	// qty would flip to positive and silently ADD stock instead of being rejected,
@@ -398,24 +500,55 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Item quantity must be positive (sku=%q, qty=%d)", item.Sku, item.Qty))
 			return
 		}
-		if item.SalePrice < 0 || item.CostPrice < 0 {
+		if item.SalePrice < 0 {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Item prices cannot be negative (sku=%q)", item.Sku))
 			return
 		}
 	}
 
-	// GST enforcement (Stage 17.5): every line's Item must carry hsn_code +
-	// gst_rate before checkout can proceed - resolved and validated here,
-	// before any side effect (inventory decrement, GL posting) runs, same
-	// as the qty/price checks above. sale_price is treated as tax-inclusive
-	// (MRP convention), so the taxable amount is backed out of it.
-	gstLines := make([]engines.GSTLineInput, len(req.Items))
+	// Stage 47.2 - the single authoritative pricing step. ResolvePOSQuote
+	// prices every line from tenant master data (approved price list, item
+	// master, or an approved POSPriceOverride), computes GST from those
+	// resolved prices and evaluates offers against them. It replaces three
+	// separate computations that used to run off client-submitted prices here:
+	// the GST enforcement block (Stage 17.5), the offer evaluation (Stage
+	// 30.7), and - crucially - the discount figure the approval gate keyed on.
+	//
+	// GST enforcement itself is unchanged and still happens before any side
+	// effect: ComputeGSTForLines inside the quote rejects a line whose Item is
+	// missing hsn_code/gst_rate exactly as it did when called from here.
+	quoteLines := make([]engines.QuoteLineRequest, len(req.Items))
 	for i, item := range req.Items {
-		gstLines[i] = engines.GSTLineInput{Sku: item.Sku, Qty: item.Qty, UnitRate: item.SalePrice}
+		quoteLines[i] = engines.QuoteLineRequest{Sku: item.Sku, Qty: item.Qty, FallbackUnitPrice: item.SalePrice}
 	}
-	gstBreakdown, gstErr := engines.ComputeGSTForLines(tenantID, gstLines, req.Interstate)
-	if gstErr != nil {
-		writeEngineError(w, r, gstErr, http.StatusUnprocessableEntity)
+	quote, quoteErr := engines.ResolvePOSQuote(tenantID, engines.QuoteRequest{
+		CartNumber:  req.CartNumber,
+		Location:    req.Location,
+		CustomerID:  req.CustomerID,
+		Interstate:  req.Interstate,
+		CouponCodes: req.CouponCodes,
+		Lines:       quoteLines,
+	})
+	if quoteErr != nil {
+		writeEngineError(w, r, quoteErr, http.StatusUnprocessableEntity)
+		return
+	}
+	gstBreakdown := quote.GSTBreakdown
+
+	// 47.2.4: a stale quote is never silently used and never silently
+	// repriced. The operator is shown what changed and confirms it.
+	if engines.QuoteIsStale(req.QuoteVersion, quote) && !req.AcceptPriceChange {
+		w.WriteHeader(http.StatusConflict)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"status":            "price_changed",
+			"cart_number":       req.CartNumber,
+			"message":           "Prices for this cart changed since it was quoted. Review the new total and confirm to continue.",
+			"submitted_version": req.QuoteVersion,
+			// Safe to return whole: a QuoteResult carries no cost or margin
+			// field at all, by construction - see the note at the top of
+			// engines/pos_quote.go on why cost never travels on a quote.
+			"quote": quote,
+		})
 		return
 	}
 
@@ -440,25 +573,6 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		loyaltyDiscount = engines.LoyaltyRedemptionValue(tenantID, req.RedeemPoints)
-	}
-
-	// Offer evaluation (Stage 30.7). Recomputed here from the tenant's own
-	// Offer documents rather than trusting anything the client sent - the POS
-	// screen's /pos/offers/preview call is display only. That also means an
-	// offline cart replayed later is priced against the rules as they stand
-	// when it lands, and a tampered client can't invent a discount.
-	offerLines := make([]engines.OfferCartLine, len(req.Items))
-	for i, item := range req.Items {
-		offerLines[i] = engines.OfferCartLine{Sku: item.Sku, Qty: item.Qty, SalePrice: item.SalePrice}
-	}
-	offerEval, offerErr := engines.EvaluatePOSOffers(tenantID, engines.OfferEvaluationInput{
-		Lines:       offerLines,
-		CustomerID:  req.CustomerID,
-		CouponCodes: req.CouponCodes,
-	})
-	if offerErr != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to evaluate offers for this sale")
-		return
 	}
 
 	schema, err := db.GetTenantSchema(tenantID)
@@ -487,12 +601,51 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	// one PurchaseOrder/VendorInvoice already use) instead of completing the
 	// sale immediately. requiredRole == "" means either no discount or no
 	// approval_rules slab matches it - the normal synchronous path below.
+	//
+	// Stage 47.2.3 (audit A-02) is what the gate keys on now. It used to be
+	// req.DiscountPct alone - a bare client-reported number with no enforced
+	// relationship to any price - so the identical discounted sale could be
+	// declared honestly (gated) or hidden in a low unit price with
+	// discount_pct=0 (not gated). gateDiscountPct is the larger of what the
+	// client declared and what the SERVER measured (quote.ManualDiscountPct =
+	// how far below master price this cart is actually being sold), so the two
+	// submissions now produce the identical requirement. The declared figure is
+	// still honoured rather than discarded: a cashier who says "20% off" on a
+	// cart the server cannot price should still be taken at their word.
+	measuredDiscountPct := req.DiscountPct
+	if quote.ManualDiscountPct > measuredDiscountPct {
+		measuredDiscountPct = quote.ManualDiscountPct
+	}
+	gateDiscountPct := measuredDiscountPct
 	var requiredRole string
-	if req.DiscountPct > 0 {
-		requiredRole, err = engines.RequiredApproverRoleForAmount(tenantID, "POSCart", req.DiscountPct)
+	if gateDiscountPct > 0 {
+		requiredRole, err = engines.RequiredApproverRoleForAmount(tenantID, "POSCart", gateDiscountPct)
 		if err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to evaluate discount approval rules")
 			return
+		}
+	}
+	// The residual A-02 case: a line nothing on the server prices, in assisted
+	// mode. There is no reference to measure a discount against, so the server
+	// cannot judge the price at all - and "cannot judge" must not silently mean
+	// "allow". A tenant that has configured ANY POSCart approval slab has said
+	// it wants prices reviewed, so an unverifiable one goes to the lowest such
+	// slab's approver. A tenant with no slab configured is untouched, which is
+	// exactly its behaviour today. Strict mode never reaches this - an unpriced
+	// line is rejected outright in ResolvePOSQuote.
+	if requiredRole == "" && quote.HasUnverifiedPrice {
+		var slabAmount float64
+		requiredRole, slabAmount, err = engines.LowestApproverRoleForDoctype(tenantID, "POSCart")
+		if err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to evaluate discount approval rules")
+			return
+		}
+		// Record the slab's own amount, not the (meaningless) zero we measured:
+		// SubmitForApproval re-derives the approver from the stored document, so
+		// a stored amount below the slab we just chose would be rejected as
+		// "no approval rule configured" rather than reaching that approver.
+		if requiredRole != "" && slabAmount > gateDiscountPct {
+			gateDiscountPct = slabAmount
 		}
 	}
 
@@ -523,18 +676,55 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "ERROR", r.URL.Path, fmt.Sprintf("failed to round-trip checkout payload: %v", err), "")
 		}
 	}
+	// Stage 47.2: overwrite the client's items with the SERVER's resolved
+	// lines before anything is stored. This is the seam that makes every
+	// downstream consumer authoritative for free, with no call-site change:
+	// FinalizePOSCheckout reads the stored cart (not this request) for the
+	// prices it decrements stock, posts revenue and computes loyalty from; the
+	// receipt renders from it; the approval path re-finalizes from it; and a
+	// return resolves its eligible price from it. The client's own sale_price
+	// survives only where the quote itself fell back to it - an item the
+	// tenant has not priced, in assisted mode - and is labelled as such by
+	// price_source on the line.
+	resolvedItems := make([]map[string]interface{}, 0, len(quote.Lines))
+	for _, l := range quote.Lines {
+		item := map[string]interface{}{
+			"sku": l.Sku, "qty": l.Qty,
+			"sale_price":      l.UnitPrice,
+			"reference_price": l.ReferencePrice,
+			"price_source":    l.PriceSource,
+		}
+		if l.OverrideID != "" {
+			item["override_id"] = l.OverrideID
+		}
+		if l.PriceListCode != "" {
+			item["price_list_code"] = l.PriceListCode
+		}
+		resolvedItems = append(resolvedItems, item)
+	}
+	storedPayload["items"] = resolvedItems
 	storedPayload["gst_breakdown"] = gstBreakdown
 	storedPayload["pos_session"] = sessionID
 	storedPayload["offline_synced"] = req.OfflineSynced
 	// Stage 30.7: persist which offers were applied and what each took off, so
 	// the receipt, the audit trail and any later dispute can all reconstruct
 	// how this bill's price was reached - the same reason gst_breakdown is
-	// stored rather than recomputed on demand.
-	storedPayload["applied_offers"] = offerEval.Applied
-	storedPayload["offer_discount"] = offerEval.TotalDiscount
+	// stored rather than recomputed on demand. Stage 47.2 adds the quote
+	// identity and the server-measured discount next to them, for the same
+	// reason: they are what the approval decision was actually made on.
+	storedPayload["applied_offers"] = quote.AppliedOffers
+	storedPayload["offer_discount"] = quote.OfferDiscount
+	storedPayload["quote_version"] = quote.Version
+	storedPayload["quote_id"] = quote.QuoteID
+	storedPayload["reference_subtotal"] = quote.ReferenceSubtotal
+	storedPayload["manual_discount_pct"] = quote.ManualDiscountPct
+	storedPayload["has_unverified_price"] = quote.HasUnverifiedPrice
 	if requiredRole != "" {
 		// Percentage, not rupees - see extractAmount's comment in engines/approval.go.
-		storedPayload["discount_amount"] = req.DiscountPct
+		// 47.2.3: the server-measured figure, not req.DiscountPct - so the
+		// approver sees, and the approval log records, the discount that was
+		// really being granted rather than the one the till claimed.
+		storedPayload["discount_amount"] = gateDiscountPct
 	}
 	payloadBytes, _ := json.Marshal(storedPayload)
 
@@ -554,32 +744,39 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		WHERE %s.documents.status = 'Failed'
 		RETURNING id`, schema, schema)
 	var claimedID string
-	claimErr := db.DB.QueryRow(claimQuery, req.CartNumber, payloadBytes, claimStatus, claimant).Scan(&claimedID)
-	if claimErr == sql.ErrNoRows {
+	// The cart-row claim (Stage 20.10) stays alongside the command claim above,
+	// not replaced by it: they guard different things. This one keeps ONE cart
+	// number from being processed twice - which still matters, because a cart
+	// number is also the receipt number - while the command claim is what makes
+	// a retry safe regardless of what cart number it carries.
+	cartClaimErr := db.DB.QueryRow(claimQuery, req.CartNumber, payloadBytes, claimStatus, claimant).Scan(&claimedID)
+	if cartClaimErr == sql.ErrNoRows {
 		var existingStatus, existingData string
 		lookupErr := db.DB.QueryRow(fmt.Sprintf(
 			`SELECT status, data FROM %s.documents WHERE doctype = 'POSCart' AND id = $1`, schema),
 			req.CartNumber).Scan(&existingStatus, &existingData)
 		if lookupErr == nil && existingStatus == "Paid" {
+			// Stage 47.2.2: the replay is reconstructed from the SERVER's own
+			// stored resolved prices, and no longer reports a cost total at
+			// all - cost_price is not stored on a cart any more, and a replay
+			// must never become the one path that leaks a figure the live
+			// response withholds.
 			var existing struct {
 				Items []struct {
 					Qty       int     `json:"qty"`
 					SalePrice float64 `json:"sale_price"`
-					CostPrice float64 `json:"cost_price"`
 				} `json:"items"`
 			}
-			replaySale, replayCost := 0, 0
+			replaySale := 0
 			if json.Unmarshal([]byte(existingData), &existing) == nil {
 				for _, it := range existing.Items {
 					replaySale += int(it.SalePrice) * it.Qty
-					replayCost += int(it.CostPrice) * it.Qty
 				}
 			}
 			_ = json.NewEncoder(w).Encode(map[string]interface{}{
 				"status":      "completed",
 				"cart_number": req.CartNumber,
 				"sale_total":  replaySale,
-				"cost_total":  replayCost,
 			})
 			return
 		}
@@ -604,7 +801,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		}
 		writeAPIErrorGeneric(w, r, http.StatusConflict, "This cart is already being processed or was already completed")
 		return
-	} else if claimErr != nil {
+	} else if cartClaimErr != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to claim checkout")
 		return
 	}
@@ -619,29 +816,32 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			"status":        "pending_approval",
 			"cart_number":   req.CartNumber,
 			"required_role": requiredRole,
-			"message":       fmt.Sprintf("Discount of %.1f%% requires %s approval before this sale completes.", req.DiscountPct, requiredRole),
+			// The MEASURED discount, not the slab amount gateDiscountPct may
+			// have been raised to for the unverified-price case - a cashier
+			// told "Discount of 10.0% requires approval" on a cart with no
+			// discount on it would reasonably think the till was broken.
+			"message": posApprovalMessage(measuredDiscountPct, requiredRole, quote.HasUnverifiedPrice),
+			"quote_version": quote.Version,
 		})
+		// A cart waiting on approval has not posted anything, but it HAS
+		// consumed its cart number and raised an approval request - a retry
+		// under the same key must be told the same thing, not raise a second
+		// request. So the claim is failed rather than released: ClaimCommand
+		// turns a Failed claim back into a fresh one on retry, and the cart-row
+		// claim above then reports "pending_approval" for it.
+		engines.FailCommand(tenantID, claim.Key, "sale routed to approval; not posted")
+		claimSettled = true
 		return
 	}
 
-	saleTotal, costTotal, finalizeErr := engines.FinalizePOSCheckout(tenantID, req.CartNumber, r.Header.Get("Resolved-Correlation-ID"))
-	if finalizeErr != nil {
-		writeEngineError(w, r, finalizeErr, http.StatusInternalServerError)
-		return
-	}
-
-	// FinalizePOSCheckout caps the redemption at the sale value and returns
-	// the unusable remainder to the customer's balance, so mirror that here
-	// rather than reporting a negative amount due.
-	if float64(loyaltyDiscount) > saleTotal {
-		loyaltyDiscount = int(saleTotal)
-	}
-
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":        "completed",
-		"cart_number":   req.CartNumber,
-		"sale_total":    saleTotal,
-		"cost_total":    costTotal,
+	// Stage 47.3.1/47.3.2: one call, one transaction, and the idempotency
+	// record completes inside it. What a duplicate replays is exactly this
+	// response body, which is why it is built BEFORE the call and handed in.
+	response := map[string]interface{}{
+		"status":      "completed",
+		"cart_number": req.CartNumber,
+		// gst_breakdown/applied_offers are the quote's, which is what was
+		// posted - see the stored cart's own copies.
 		"gst_breakdown": gstBreakdown,
 		// Stage 30.2.5: what the customer actually pays, after any loyalty
 		// points they spent on this sale - so the receipt and the cash drawer
@@ -651,10 +851,243 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// Stage 30.7: offers applied to this sale, recomputed server-side.
 		// unmatched_coupon_codes lets the POS tell the cashier a code didn't
 		// apply instead of silently dropping it.
-		"applied_offers":          offerEval.Applied,
-		"offer_discount":          offerEval.TotalDiscount,
-		"unmatched_coupon_codes":  offerEval.UnmatchedCodes,
-		"amount_due":              saleTotal - float64(loyaltyDiscount) - offerEval.TotalDiscount,
+		"applied_offers":         quote.AppliedOffers,
+		"offer_discount":         quote.OfferDiscount,
+		"unmatched_coupon_codes": quote.UnmatchedCodes,
+		// Stage 47.2: the identity of the prices this sale actually used, so
+		// the receipt, a dispute and the audit trail all name the same quote.
+		"quote_version": quote.Version,
+		"quote_id":      quote.QuoteID,
+	}
+
+	// Stage 47.3.3: stop before posting when the caller is going to a payment
+	// terminal. The stock is held, the cart is Initiated, and no database
+	// transaction is open while the card is tapped.
+	if req.AuthorizeOnly {
+		auth, authErr := engines.AuthorizePOSSale(tenantID, req.CartNumber)
+		if authErr != nil {
+			engines.FailCommand(tenantID, claim.Key, authErr.Error())
+			claimSettled = true
+			var shortage *engines.InsufficientStockError
+			if errors.As(authErr, &shortage) {
+				writeAPIErrorDetail(w, r, "INVENT-0101", "", shortage.Error())
+				return
+			}
+			writeEngineError(w, r, authErr, http.StatusInternalServerError)
+			return
+		}
+		// The claim is failed rather than completed: the sale has NOT happened
+		// yet, so a duplicate must not be replayed a "completed" response. A
+		// retry re-acquires the key (ClaimCommand revives a Failed claim) and
+		// the cart-row claim then reports the authorization already in flight.
+		engines.FailCommand(tenantID, claim.Key, "authorized, awaiting payment confirmation")
+		claimSettled = true
+		response["status"] = "authorized"
+		response["payment_state"] = auth.PaymentState
+		response["amount_due"] = auth.AmountDue - float64(loyaltyDiscount) - quote.OfferDiscount
+		response["sale_total"] = auth.AmountDue
+		_ = json.NewEncoder(w).Encode(response)
+		return
+	}
+
+	outcome, finalizeErr := engines.FinalizePOSCheckoutCommitted(
+		tenantID, req.CartNumber, r.Header.Get("Resolved-Correlation-ID"), claim.Key, response)
+	if finalizeErr != nil {
+		// The whole sale rolled back - nothing was posted. Recording the
+		// attempt as Failed (rather than releasing the key) is what lets the
+		// operator retry it AND lets a supervisor see that a sale was
+		// attempted and did not happen; ClaimCommand turns a Failed claim back
+		// into a live one on the retry.
+		engines.FailCommand(tenantID, claim.Key, finalizeErr.Error())
+		claimSettled = true
+		// 47.3.4: a business shortage and a retryable database conflict are
+		// different answers to the cashier. "Out of stock" must never be shown
+		// for a lock conflict, and "try again" must never be shown for stock
+		// that genuinely is not there.
+		var shortage *engines.InsufficientStockError
+		if errors.As(finalizeErr, &shortage) {
+			writeAPIErrorDetail(w, r, "INVENT-0101", "", shortage.Error())
+			return
+		}
+		if engines.IsRetryableDBConflict(finalizeErr) {
+			writeAPIErrorGeneric(w, r, http.StatusConflict,
+				"Another till was completing a sale for the same item. Nothing was charged - please try again.")
+			return
+		}
+		writeEngineError(w, r, finalizeErr, http.StatusInternalServerError)
+		return
+	}
+	// The sale committed, and CompleteCommandTx committed with it.
+	claimSettled = true
+
+	// FinalizePOSCheckout caps the redemption at the sale value and returns the
+	// unusable remainder to the customer's balance, so mirror that here rather
+	// than reporting a negative amount due.
+	if float64(outcome.LoyaltyDiscount) > outcome.SaleTotal {
+		outcome.LoyaltyDiscount = int(outcome.SaleTotal)
+	}
+	response["sale_total"] = outcome.SaleTotal
+	response["loyalty_discount"] = outcome.LoyaltyDiscount
+	response["amount_due"] = outcome.SaleTotal - float64(outcome.LoyaltyDiscount) - quote.OfferDiscount
+	// 47.2.2's acceptance line, literally: "Cashier never receives
+	// margin/cost fields." cost_total was returned to every caller before this
+	// stage, which handed the till the exact figure Stage 16.7 already hid on
+	// the Item form. The rule itself is not re-decided here - RoleMaySeeCost
+	// reads the same cost/margin policy engines/sensitive_fields.go applies to
+	// every stored cost field.
+	//
+	// Note it is added AFTER the response was stored for replay, so a replayed
+	// duplicate cannot leak a cost total to a role the live call withheld it
+	// from.
+	if engines.RoleMaySeeCost(role) {
+		response["cost_total"] = outcome.CostTotal
+	}
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+// posApprovalMessage explains WHY a sale is waiting, in the operator's terms.
+// The unverified-price case is a genuinely different reason from an ordinary
+// over-threshold discount, and saying "Discount of 0.0% requires approval" -
+// which is what the old single-sentence message would print for it - is worse
+// than useless at a till.
+func posApprovalMessage(discountPct float64, requiredRole string, unverifiedPrice bool) string {
+	if unverifiedPrice && discountPct <= 0 {
+		return fmt.Sprintf("This sale includes an item with no price on record, so its price cannot be verified. %s approval is required before it completes.", requiredRole)
+	}
+	if unverifiedPrice {
+		return fmt.Sprintf("Discount of %.1f%%, and an item with no price on record, require %s approval before this sale completes.", discountPct, requiredRole)
+	}
+	return fmt.Sprintf("Discount of %.1f%% requires %s approval before this sale completes.", discountPct, requiredRole)
+}
+
+// handlePOSQuote (Stage 47.2.1) prices a cart server-side and returns the
+// quote the till renders. It asserts nothing and changes nothing: no document
+// is written, no stock moves, no approval is raised. Its only job is to give
+// the cashier the SAME prices checkout will use, plus the quote version that
+// lets checkout detect that they have since moved (47.2.4).
+//
+// This is what replaces "the cashier types a price": the POS screen calls it
+// on every cart change and renders what comes back read-only.
+func handlePOSQuote(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	var req engines.QuoteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid quote payload")
+		return
+	}
+	if req.Location == "" || len(req.Lines) == 0 {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'location' and 'items' are required")
+		return
+	}
+	quote, err := engines.ResolvePOSQuote(tenantID, req)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(quote)
+}
+
+// handlePOSPriceOverride (Stage 47.2.3) is the separate, capability-gated
+// command that replaces typing a lower number into the price box. Route
+// capability "pos.price_override" is what keeps it away from the till; the
+// approval_rules slab for doctype 'POSPriceOverride' is what keeps a
+// supervisor from granting more than the tenant allows them to.
+func handlePOSPriceOverride(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
+	role := r.Header.Get("Resolved-Role")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	var req engines.PriceOverrideRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid price-override payload")
+		return
+	}
+	result, err := engines.RecordPriceOverride(tenantID, userID, role, req)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	if result.Status == "Pending Approval" {
+		// SALESP-0123 "Discount exceeds your allowed limit. Approval is
+		// required." - the catalog scenario this is, exactly.
+		writeAPIErrorDetail(w, r, "SALESP-0123", "", fmt.Sprintf(
+			"A %.1f%% reduction (₹%.2f down to ₹%.2f) is above what %s may grant; it has been sent to %s for approval as %s.",
+			result.DiscountPct, result.ReferencePrice, result.OverridePrice, role, result.RequiredRole, result.OverrideID))
+		return
+	}
+	_ = json.NewEncoder(w).Encode(result)
+}
+
+// handlePOSPaymentConfirm and handlePOSPaymentVoid (Stage 47.3.3) are the two
+// ends of the payment-provider round trip. The authorization itself is raised
+// by handleCheckout when the request asks for it (authorize_only), so there is
+// no third endpoint: a cart is authorized by the same call that would
+// otherwise have completed it, which keeps one code path for pricing,
+// approval, session and idempotency instead of two that must be kept in step.
+func handlePOSPaymentConfirm(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	role := r.Header.Get("Resolved-Role")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	var req struct {
+		CartNumber        string `json:"cart_number"`
+		ProviderReference string `json:"payment_reference"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.CartNumber) == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'cart_number' is required")
+		return
+	}
+	outcome, err := engines.ConfirmPOSSale(tenantID, req.CartNumber, strings.TrimSpace(req.ProviderReference), r.Header.Get("Resolved-Correlation-ID"))
+	if err != nil {
+		var shortage *engines.InsufficientStockError
+		if errors.As(err, &shortage) {
+			writeAPIErrorDetail(w, r, "INVENT-0101", "", shortage.Error())
+			return
+		}
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	response := map[string]interface{}{
+		"status":        "completed",
+		"cart_number":   req.CartNumber,
+		"payment_state": engines.PaymentStatePosted,
+		"sale_total":    outcome.SaleTotal,
+	}
+	if engines.RoleMaySeeCost(role) {
+		response["cost_total"] = outcome.CostTotal
+	}
+	_ = json.NewEncoder(w).Encode(response)
+}
+
+func handlePOSPaymentVoid(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	var req struct {
+		CartNumber string `json:"cart_number"`
+		Reason     string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.CartNumber) == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'cart_number' is required")
+		return
+	}
+	if err := engines.VoidPOSSale(tenantID, req.CartNumber, strings.TrimSpace(req.Reason)); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status": "voided", "cart_number": req.CartNumber, "payment_state": engines.PaymentStateVoided,
 	})
 }
 

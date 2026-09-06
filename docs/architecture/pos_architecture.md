@@ -1,3 +1,6 @@
+<!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
+> **Authority notice:** Legacy specification or system snapshot; rebuild/reconciliation is queued in Stage 48. Built, partial, planned and support claims below have not been reapproved for the current working tree. Use the authority matrix to locate current evidence and open decisions. See the [authority matrix](../governance/authority-matrix.md).
+
 # In-House ERP: Pluggable POS Architecture Specification
 
 > **Status: forward-looking specification, mostly not yet built.** A basic POS screen now exists (`renderPOSView` in `public/app.js`, Stage 13.4) — barcode/SKU cart entry, checkout, optional customer selection, and loyalty point earn/redeem — calling the real `handleCheckout` (`POST /api/v1/checkout`) in `internal/server`. But it's a single synchronous online screen: no offline queue, no IndexedDB catalog cache, no cash opening/closing session model, no KOT/split-bill support. Everything else in this document (offline-first architecture, cash drawer sessions, kitchen tickets, seating layouts) describes a planned architecture, not current behavior. See `docs/micro_checklist.md` Stage 13.4 for what shipped and `docs/specs/pdf_blueprint_gap_analysis.md` §3 for the original gap writeup (2026-07-12 snapshot, now partially closed).

@@ -178,6 +178,13 @@ func StartReservationSweeper(ctx context.Context, interval time.Duration) {
 						log.Printf("[RESERVATION-SWEEP] %s: released %d expired hold(s) and %d orphaned order reservation(s), returning %d unit(s) to the sellable pool",
 							schema, result.ExpiredHolds, result.OrphanedOrderRes, result.QuantityReleased)
 					}
+					// Stage 47.3.1: settled command-idempotency claims are
+					// swept on the same tick rather than on a worker of their
+					// own. They share the sweeper's exact shape - per-tenant,
+					// bounded, purely reclaiming state nothing is waiting on -
+					// and a second ticker for one DELETE would be a worse
+					// answer than one line here.
+					purgeSettledCommandClaims(schema)
 				}
 			}
 		}

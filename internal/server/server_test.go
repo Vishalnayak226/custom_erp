@@ -159,6 +159,15 @@ func TestCheckoutToForecastIntegration(t *testing.T) {
 	}
 	defer db.DB.Exec(`DELETE FROM tenant_default.documents WHERE doctype = 'POSSession' AND data->>'cashier' = $1`, testUser)
 
+	// Stage 47.3.1: checkout now claims a command-idempotency record keyed on
+	// (user, cart number). This test reuses a FIXED cart number across runs, so
+	// without this cleanup the second run is correctly refused as a duplicate
+	// of the first - the mechanism working, not a bug. Production rows age out
+	// on their own (purgeSettledCommandClaims); a test that pins its
+	// identifiers has to clean up after itself.
+	defer db.DB.Exec(`DELETE FROM tenant_default.command_idempotency WHERE idempotency_key LIKE '%INTEGRATIONTEST-CART'`)
+	db.DB.Exec(`DELETE FROM tenant_default.command_idempotency WHERE idempotency_key LIKE '%INTEGRATIONTEST-CART'`)
+
 	// 2. Real checkout via the real handler chain - this is what actually writes POSCart's status
 	checkoutRec := doRequest(t, apiMiddleware(handleCheckout), "POST", "/api/v1/checkout", token, map[string]interface{}{
 		"cart_number":  "INTEGRATIONTEST-CART",

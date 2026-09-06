@@ -1,3 +1,6 @@
+<!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
+> **Authority notice:** Historical default-tenant grant snapshot (2026-08-07). It does not describe current effective authorization or another tenant. No routine generator refreshes it; scoped evidence exports are separate. See the [authority matrix](../governance/authority-matrix.md).
+
 # Permission Matrix
 
 <!-- GENERATED FILE - DO NOT EDIT BY HAND.

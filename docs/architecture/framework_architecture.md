@@ -1,3 +1,6 @@
+<!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
+> **Authority notice:** Legacy specification or system snapshot; rebuild/reconciliation is queued in Stage 48. Built, partial, planned and support claims below have not been reapproved for the current working tree. Use the authority matrix to locate current evidence and open decisions. See the [authority matrix](../governance/authority-matrix.md).
+
 # In-House ERP Kernel: Metadata-Driven Framework Architecture
 
 > **Terminology note**: this is a technical architecture doc, so it keeps using "DocType" where it's describing the framework's actual database tables (`doctype_meta`/`doctype_fields`), API paths (`/api/v1/doc/:doctype`), and its design lineage from ERPNext/Frappe's own DocType concept — renaming those references would misdescribe the real code. Everywhere a user or admin actually sees this concept (the UI, `ADMIN_GUIDE.md`, `USER_GUIDE.md`), it's called a **Record Type** instead — "DocType" was fully removed from user-facing surfaces per explicit user request.

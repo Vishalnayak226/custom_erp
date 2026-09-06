@@ -1,3 +1,6 @@
+<!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
+> **Authority notice:** Legacy specification or system snapshot; rebuild/reconciliation is queued in Stage 48. Built, partial, planned and support claims below have not been reapproved for the current working tree. Use the authority matrix to locate current evidence and open decisions. See the [authority matrix](../governance/authority-matrix.md).
+
 # Business Requirements Document (BRD)
 
 Business goals, target market, and scope for this ERP — the "why are we building this" document. For "what to build, module by module," see [PRD.md](PRD.md). For "what's actually built today," see [`../micro_checklist.md`](../micro_checklist.md) and [`../ERP_BLUEPRINT.md`](../ERP_BLUEPRINT.md).

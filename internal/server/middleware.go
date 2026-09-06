@@ -794,6 +794,26 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// explicitly in handleGenericDoc, not a general-purpose claim.
 		r.Header.Set("Resolved-Scope-Doctype", scopeDoctype)
 
+		// Stage 47.1.1: route-capability enforcement (route_capabilities.go),
+		// once every Resolved-* header above is set. Skipped only for
+		// extension tokens (purpose == "extension") - those carry no user/role
+		// at all (see the "Extension tokens... carry no user" comment above),
+		// and every route they can reach already checks Resolved-Scope-Doctype
+		// explicitly (handleGenericDoc) - a role-capability check would have
+		// nothing to compare against and must not silently deny a legitimate
+		// extension call. matchedRoutePattern recovers the exact pattern
+		// string routes.go registered for this request (see its own comment
+		// for why it is a dedicated lookup mux, not http.DefaultServeMux).
+		if purpose != "extension" {
+			pattern := matchedRoutePattern(r)
+			if allowed, _, _ := checkRouteCapability(pattern, role); !allowed {
+				// GLOBAL-0011 "Permission denied" - exact scenario match,
+				// audited (AuditRequired: true in the catalog entry).
+				writeAPIError(w, r, "GLOBAL-0011", "")
+				return
+			}
+		}
+
 		// 24.30: per-tenant concurrency quota, checked only now that
 		// tenantID is fully resolved (a token's own tenant claim, if
 		// present, already overrode the header/query-param/default value

@@ -174,7 +174,7 @@
       "id": "identity",
       "lobe": "brainstem",
       "name": "Identity, RBAC & MFA",
-      "role": "Login, JWT issue/verify, per-role permissions, TOTP MFA for privileged roles, MFA recovery codes and authenticator re-enrollment, account lockout, password reset, and field-level permissions.",
+      "role": "Login, JWT issue/verify, per-role permissions, TOTP MFA for privileged roles, MFA recovery codes and authenticator re-enrollment, account lockout, password reset, field-level permissions, and (Stage 47.1) the deny-by-default authorization layer: the route-capability registry, the sensitive-field policy, scope semantics, role templates, the SoD conflict catalog and the reviewed/reversible tenant grant migration.",
       "match": [
         "engines/auth.go",
         "engines/auth_livestate.go",
@@ -183,9 +183,16 @@
         "engines/password_reset.go",
         "engines/field_permissions.go",
         "engines/roles.go",
+        "engines/sensitive_fields.go",
+        "engines/scope_policy.go",
+        "engines/role_templates.go",
+        "engines/role_template_migration.go",
+        "engines/sod_catalog.go",
         "internal/server/handlers_auth.go",
         "internal/server/handlers_mfa_recovery.go",
         "internal/server/handlers_admin_identity.go",
+        "internal/server/handlers_access_governance.go",
+        "internal/server/route_capabilities.go",
         "internal/server/handlers_profile.go"
       ]
     },
@@ -193,10 +200,12 @@
       "id": "tenancy",
       "lobe": "brainstem",
       "name": "Tenancy, Packaging & Settings",
-      "role": "Schema-per-tenant provisioning, the sellable product packages (PIM/WMS/OMS/HR/…) and their module entitlements, tenant limits, the settings registry, per-tenant UI label overrides, and the setup-readiness/localization reads the UI uses to tell a user what is not configured yet. Stage 38.7 adds self-service sandbox tenants on top of the same ProvisionTenantSchema baseline: is_sandbox/sandbox_expires_at flag a tenant for auto-expiry (checked at login and on every live session re-check) and for external side effects being turned off (Stage 38.4's webhook delivery checks it), plus a reset (truncate business data, keep login/config) and delete path guarded so neither can ever touch a non-sandbox tenant.",
+      "role": "Schema-per-tenant provisioning, the sellable product packages (PIM/WMS/OMS/HR/…) and their module entitlements, tenant limits, the settings registry, per-tenant UI label overrides, and the setup-readiness/localization reads the UI uses to tell a user what is not configured yet. Stage 38.7 adds self-service sandbox tenants on top of the same ProvisionTenantSchema baseline: is_sandbox/sandbox_expires_at flag a tenant for auto-expiry (checked at login and on every live session re-check) and for external side effects being turned off (Stage 38.4's webhook delivery checks it), plus a reset (truncate business data, keep login/config) and delete path guarded so neither can ever touch a non-sandbox tenant. Stage 49.1.5 makes the whole lifecycle governed: tenant_lifecycle.go holds the state machine (active ⇄ suspended, → deprovision_requested → purged), the one-time provisioning credential's expiry and rotation record, the append-only evidence trail in public.tenant_lifecycle_events, the four purge preconditions (deprovisioned first, no legal hold, retention elapsed, backup reference) and the post-purge residue proof; suspension is enforced through the tenant gate in auth_livestate.go so it reaches sessions already in flight, and cmd/tenantctl is the operator surface — deliberately a CLI rather than a route, so no role inside the product can reach DROP SCHEMA.",
       "match": [
         "engines/saas.go",
         "engines/sandbox.go",
+        "engines/tenant_lifecycle.go",
+        "cmd/tenantctl/*",
         "engines/modules.go",
         "engines/tenant_limits.go",
         "engines/settings_registry.go",
@@ -367,6 +376,12 @@
         "engines/pos_checkout.go",
         "engines/pos_session.go",
         "engines/pos_offers.go",
+        "engines/pos_quote.go",
+        "engines/pos_payment.go",
+        "engines/pos_sale_reconciliation.go",
+        "engines/command_idempotency.go",
+        "engines/returns_atomic.go",
+        "engines/field_semantics.go",
         "internal/server/handlers_pos_offers.go"
       ]
     },
@@ -567,6 +582,8 @@
         "README.md",
         "CLAUDE.md",
         "cmd/genkb/*",
+        "cmd/doclint/*",
+        "internal/docgen/*",
         "internal/kb/**",
         "internal/server/handlers_help.go",
         "docs/kb/**",
@@ -611,6 +628,18 @@
         ".gitattributes",
         "cmd/minttoken/*",
         "cmd/snapshot_tenant_config/*"
+      ]
+    },
+    {
+      "id": "security-program",
+      "lobe": "brainstem",
+      "name": "Security Baseline & Attack Surface",
+      "role": "Stage 49's security program spine. security_baseline.go is the fail-fast startup validator (findings SB-001..SB-022) called from Run() next to the 20.6 UTF-8 and 24.27 seed-admin gates: it logs every configuration finding at every ENV and refuses to start on a blocking one when ENV=production, and its findings never echo the value they complain about. internal/securityscan derives the attack-surface inventory (49.1.1) and the no-bypass scan (49.1.4) from source rather than from a runtime registry, so it is imported only by its own tests and by cmd/surfacescan and adds nothing to the production binary; docs/security/attack_surface.json is the approved profile the 49.1.6 drift gate compares against. static_fileserver.go wraps the static root so a directory with no index.html 404s instead of returning a generated file listing.",
+      "match": [
+        "engines/security_baseline.go",
+        "internal/securityscan/*.go",
+        "internal/server/static_fileserver.go",
+        "cmd/surfacescan/*"
       ]
     },
     {

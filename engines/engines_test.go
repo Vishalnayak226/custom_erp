@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -733,11 +734,17 @@ func TestEngines(t *testing.T) {
 			t.Errorf("Expected WH02 reserved count to rise to 20, got: %d", wh02Reserved)
 		}
 
-		// 3. Test Return Anywhere: Return items originally from WH02 to WH01.
-		// ProcessReturnAnywhere's SALESR-0129/0130/0131 checks (Stage 25
-		// Batch 3) now require a real original sale to validate the return
-		// against - seed the Paid POSCart "ORD-WEB-111" refers to as its
-		// original bill (10 units sold, 5 being returned here).
+		// 3. Test Return Anywhere. Stage 47.4.1 RETIRED ProcessReturnAnywhere:
+		// it could not enforce cumulative return eligibility and posted stock
+		// and finance in separate transactions (audit A-04). What this
+		// sub-test now asserts is that the retirement is real - a caller
+		// reaching for the old path gets a named, explained refusal and moves
+		// NO stock - rather than deleting the coverage outright. The
+		// replacement path's own behaviour is covered end to end by
+		// internal/server/returns_stage47_4_test.go, which drives the real
+		// ReturnRequest aggregate through approve/receive/QC/refund.
+		// The Paid POSCart is still seeded so the refusal is proven to come
+		// from the retirement itself, not from a missing original bill.
 		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'POSCart' AND id = $1", "ORD-WEB-111")
 		_, err = db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'POSCart', $2, 'Paid', 'system')",
 			"ORD-WEB-111", `{"items":[{"sku":"BAR12345","qty":10}]}`)
@@ -754,16 +761,54 @@ func TestEngines(t *testing.T) {
 			},
 		}
 
+		var wh01Before int
+		_ = db.DB.QueryRow("SELECT on_hand FROM " + schema + ".inventory_availability WHERE sku = 'BAR12345' AND location_code = 'WH01'").Scan(&wh01Before)
+
 		_, err = ProcessReturnAnywhere(tenantID, "WH01", "ORD-WEB-111", returnItems)
+		if err == nil {
+			t.Fatal("the retired ProcessReturnAnywhere accepted a return; Stage 47.4.1 makes it a hard refusal")
+		}
+		var verr *ValidationError
+		if !errors.As(err, &verr) || verr.Code != "SALESR-0131" {
+			t.Errorf("the refusal is not a coded ValidationError a caller can act on: %v", err)
+		}
+
+		// The refusal must be total: no stock may move on the way out.
+		var wh01After int
+		_ = db.DB.QueryRow("SELECT on_hand FROM " + schema + ".inventory_availability WHERE sku = 'BAR12345' AND location_code = 'WH01'").Scan(&wh01After)
+		if wh01After != wh01Before {
+			t.Errorf("the retired return path still moved stock at WH01 (%d -> %d)", wh01Before, wh01After)
+		}
+
+		// The same return, through the path that replaced it. Kept here rather
+		// than only in the 47.4 suite because the later forecasting sub-test
+		// depends on these 5 units actually arriving at WH01 - and proving the
+		// replacement really restocks is a better way to satisfy that
+		// dependency than seeding the rows by hand.
+		returnID, err := CreateReturnRequest(tenantID, "Customer Return", "WH01", "ORD-WEB-111", "", "system",
+			[]ReturnItemInput{{SKU: "BAR12345", Qty: 5}})
 		if err != nil {
-			t.Fatalf("Failed to process Return Anywhere: %v", err)
+			t.Fatalf("the replacement return path refused a valid return: %v", err)
+		}
+		t.Cleanup(func() {
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", returnID)
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'RefundRequest' AND data->>'return_request_id' = $1", returnID)
+		})
+		if err := ApproveReturnRequest(tenantID, returnID, "system"); err != nil {
+			t.Fatalf("approve failed: %v", err)
+		}
+		if err := ReceiveReturnRequest(tenantID, returnID, "system"); err != nil {
+			t.Fatalf("receive failed: %v", err)
+		}
+		if _, _, err := ApplyReturnQC(tenantID, returnID, map[string]string{"BAR12345": "Sellable"}, "system"); err != nil {
+			t.Fatalf("QC failed: %v", err)
 		}
 
 		// Verify stock at WH01 increased by 5 (original 50 + returned 5 = 55)
 		var wh01OnHand int
 		_ = db.DB.QueryRow("SELECT on_hand FROM " + schema + ".inventory_availability WHERE sku = 'BAR12345' AND location_code = 'WH01'").Scan(&wh01OnHand)
 		if wh01OnHand != 55 {
-			t.Errorf("Expected WH01 stock to rise to 55, got: %d", wh01OnHand)
+			t.Errorf("Expected WH01 stock to rise to 55 after the return was inspected, got: %d", wh01OnHand)
 		}
 	})
 

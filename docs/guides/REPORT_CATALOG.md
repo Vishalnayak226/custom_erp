@@ -4,10 +4,10 @@
      Source: `engines`' report registry (`report_definitions.go`)
      Regenerate: `go run ./cmd/gendocs` -->
 
-> **Generated 2026-09-03.** This page is produced from `engines`' report registry (`report_definitions.go`), so it cannot drift from
-> the running system. Hand edits are lost on the next run - change the source instead.
+> **Generated 2026-09-06.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
+> It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **91**
+Every report reachable from **Sales & Marketplace -> Reports**. There are **92**
 across **15** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -26,7 +26,7 @@ table has the same shape whoever runs it.
 - [BI](#bi) - 1 reports
 - [CRM](#crm) - 7 reports
 - [Exceptions](#exceptions) - 3 reports
-- [Finance](#finance) - 25 reports
+- [Finance](#finance) - 26 reports
 - [HR](#hr) - 1 reports
 - [Inventory](#inventory) - 6 reports
 - [Manufacturing](#manufacturing) - 3 reports
@@ -403,6 +403,19 @@ table has the same shape whoever runs it.
 - **Rate Type (Closing/Spot/Average)** (`rate_type`) - text, optional
 
 **Columns:** Document Type · Document · Currency · Amount (txn) · Booked Rate · Booked (functional) · Carrying · Rate Now · Revalued · Unrealised Movement · Last Revalued · Note
+
+**Drill-down:** no.
+
+### POS Sale Reconciliation
+
+**Report id:** `pos-sale-reconciliation`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+
+**Columns:** Sale · Status · Payment State · Qty Sold · Qty in Stock Ledger · Cart Total *(sensitive)* · Revenue Posted *(sensitive)* · COGS Posted *(sensitive)* · Tax Posted *(sensitive)* · Tender Posted *(sensitive)* · Points Burned · Event Published · Verdict · Detail
 
 **Drill-down:** no.
 

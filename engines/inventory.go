@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -189,33 +190,67 @@ func PostInventoryLedgerWithVoucher(tenantID string, locationCode string, items 
 	if err != nil {
 		return nil, err
 	}
-
 	if len(items) == 0 {
 		return nil, nil
 	}
-
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback()
-
-	// Apply search path scoping
-	if err := db.SetSearchPath(tx, schema); err != nil {
+	events, ledgerLines, err := PostInventoryLedgerWithVoucherTx(tx, schema, locationCode, items, allowNegative)
+	if err != nil {
 		return nil, err
 	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	WriteStockLedgerLines(tenantID, locationCode, voucherType, voucherID, userID, ledgerLines)
+	return events, nil
+}
+
+// PostedStockLine is one SKU/qty/lot movement PostInventoryLedgerWithVoucherTx
+// applied to availability, handed back so the caller can write the matching
+// stock-ledger entries (Stage 47.3.2).
+type PostedStockLine struct {
+	SKU     string
+	Qty     int
+	BatchNo string
+}
+
+// PostInventoryLedgerWithVoucherTx is the availability half of
+// PostInventoryLedgerWithVoucher, run inside the caller's transaction.
+//
+// Split out for Stage 47.3.2: a POS sale's stock decrement has to commit in the
+// same transaction as its GL postings and loyalty burn, and it could not while
+// this function opened and committed its own. Every non-POS caller keeps
+// calling the wrapper above, which behaves exactly as before.
+//
+// 47.3.4's deterministic lock order lives here: lines are sorted by SKU before
+// any row is locked, so two tills selling the same two SKUs acquire those locks
+// in the same order and deadlock instead of... actually, precisely so they do
+// NOT deadlock - one waits for the other rather than each holding what the
+// other needs.
+func PostInventoryLedgerWithVoucherTx(tx *sql.Tx, schema string, locationCode string, items []interface{}, allowNegative bool) ([]NegativeStockEvent, []PostedStockLine, error) {
+	if len(items) == 0 {
+		return nil, nil, nil
+	}
+	if err := db.SetSearchPath(tx, schema); err != nil {
+		return nil, nil, err
+	}
+	// Deterministic lock order (47.3.4). Sorting a copy, not the caller's
+	// slice - the caller's order is its own business and some callers reuse it.
+	items = append([]interface{}(nil), items...)
+	sort.SliceStable(items, func(i, j int) bool {
+		return stockItemSKU(items[i]) < stockItemSKU(items[j])
+	})
 
 	var negativeEvents []NegativeStockEvent
-	type postedLine struct {
-		sku string
-		qty int
-		// Stage 42.1.3/42.1.4: the lot this line was of, when the caller knows
-		// it. Carried through to the ledger entry below rather than written as
-		// a second entry, because a second entry would double-count the same
-		// physical movement in every report that sums ledger qty.
-		batchNo string
-	}
-	var postedLines []postedLine
+	// Stage 42.1.3/42.1.4: PostedStockLine carries the lot this line was of,
+	// when the caller knows it - through to the ledger entry rather than
+	// written as a second entry, because a second entry would double-count the
+	// same physical movement in every report that sums ledger qty.
+	var postedLines []PostedStockLine
 
 	for _, item := range items {
 		itemMap, ok := item.(map[string]interface{})
@@ -247,21 +282,21 @@ func PostInventoryLedgerWithVoucher(tenantID string, locationCode string, items 
 		// the same SKU/location can't both pass the check before either commits.
 		if qtyVal < 0 {
 			var currentAvailable int
-			err = tx.QueryRow(fmt.Sprintf(`
+			err := tx.QueryRow(fmt.Sprintf(`
 				SELECT available FROM %s.inventory_availability
 				WHERE sku = $1 AND location_code = $2
 				FOR UPDATE`, schema), sku, locationCode).Scan(&currentAvailable)
 			if err == sql.ErrNoRows {
 				if !allowNegative {
-					return nil, fmt.Errorf("insufficient stock for SKU %s at %s: no inventory record", sku, locationCode)
+					return nil, nil, &InsufficientStockError{SKU: sku, Location: locationCode, Available: 0, Requested: -qtyVal}
 				}
 				currentAvailable = 0
 			} else if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			if currentAvailable+qtyVal < 0 {
 				if !allowNegative {
-					return nil, fmt.Errorf("insufficient stock for SKU %s at %s: available %d, requested %d", sku, locationCode, currentAvailable, -qtyVal)
+					return nil, nil, &InsufficientStockError{SKU: sku, Location: locationCode, Available: currentAvailable, Requested: -qtyVal}
 				}
 				resulting := currentAvailable + qtyVal
 				negativeEvents = append(negativeEvents, NegativeStockEvent{
@@ -280,39 +315,67 @@ func PostInventoryLedgerWithVoucher(tenantID string, locationCode string, items 
 				available = %s.inventory_availability.available + EXCLUDED.available,
 				updated_at = CURRENT_TIMESTAMP`, schema, schema, schema)
 
-		_, err = tx.Exec(query, sku, locationCode, qtyVal)
-		if err != nil {
-			return nil, err
+		if _, err := tx.Exec(query, sku, locationCode, qtyVal); err != nil {
+			return nil, nil, err
 		}
 		batchNo, _ := itemMap["batch_no"].(string)
-		postedLines = append(postedLines, postedLine{sku: sku, qty: qtyVal, batchNo: strings.TrimSpace(batchNo)})
+		postedLines = append(postedLines, PostedStockLine{SKU: sku, Qty: qtyVal, BatchNo: strings.TrimSpace(batchNo)})
 	}
+	return negativeEvents, postedLines, nil
+}
 
-	if err := tx.Commit(); err != nil {
-		return nil, err
+// stockItemSKU reads one raw item map's sku for the deterministic sort above.
+// A malformed entry sorts first and is skipped by the loop, exactly as before.
+func stockItemSKU(item interface{}) string {
+	m, ok := item.(map[string]interface{})
+	if !ok {
+		return ""
 	}
+	s, _ := m["sku"].(string)
+	return s
+}
 
-	for _, p := range postedLines {
+// InsufficientStockError distinguishes a BUSINESS shortage - there genuinely is
+// not enough stock - from a retryable database conflict, which 47.3.4 requires
+// callers to tell apart: retrying a shortage forever helps nobody, and failing
+// a serialization conflict as "out of stock" tells the cashier a lie.
+type InsufficientStockError struct {
+	SKU       string
+	Location  string
+	Available int
+	Requested int
+}
+
+func (e *InsufficientStockError) Error() string {
+	return fmt.Sprintf("insufficient stock for SKU %s at %s: available %d, requested %d", e.SKU, e.Location, e.Available, e.Requested)
+}
+
+// WriteStockLedgerLines writes the append-only ledger entries for movements
+// that have already been applied to availability. Deliberately AFTER the
+// caller's commit: WriteStockLedgerEntry opens its own transaction, and the
+// entries are idempotency-keyed, so a crash between the commit and this call
+// leaves entries that a replay writes exactly once.
+func WriteStockLedgerLines(tenantID, locationCode, voucherType, voucherID, userID string, lines []PostedStockLine) {
+	for _, p := range lines {
 		entry := StockLedgerEntry{
-			ItemID: p.sku, WarehouseID: locationCode, Qty: float64(p.qty),
+			ItemID: p.SKU, WarehouseID: locationCode, Qty: float64(p.Qty),
 			VoucherType: voucherType, VoucherID: voucherID, UserID: userID,
-			BatchNo: p.batchNo,
+			BatchNo: p.BatchNo,
 		}
 		if voucherID != "" {
-			entry.IdempotencyKey = fmt.Sprintf("%s:%s:%s:%s", voucherType, voucherID, locationCode, p.sku)
+			entry.IdempotencyKey = fmt.Sprintf("%s:%s:%s:%s", voucherType, voucherID, locationCode, p.SKU)
 			// Two lots of one SKU on one voucher are two real movements, and
 			// without the lot in the key the second would be swallowed as a
 			// replay of the first. Appended only when there IS a lot, so every
 			// key minted before Stage 42 is byte-identical to what it was.
-			if p.batchNo != "" {
-				entry.IdempotencyKey += ":" + p.batchNo
+			if p.BatchNo != "" {
+				entry.IdempotencyKey += ":" + p.BatchNo
 			}
 		}
 		if lerr := WriteStockLedgerEntry(tenantID, entry); lerr != nil {
-			LogSystemError(tenantID, "", "WARN", "PostInventoryLedgerWithVoucher", fmt.Sprintf("stock ledger write failed for %s at %s: %v", p.sku, locationCode, lerr), "")
+			LogSystemError(tenantID, "", "WARN", "PostInventoryLedgerWithVoucher", fmt.Sprintf("stock ledger write failed for %s at %s: %v", p.SKU, locationCode, lerr), "")
 		}
 	}
-	return negativeEvents, nil
 }
 
 // computeATS is the ATP formula's one shared choke point - Available minus

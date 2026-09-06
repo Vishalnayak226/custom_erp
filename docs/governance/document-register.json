@@ -1,0 +1,3963 @@
+{
+  "schema_version": 1,
+  "source_commit": "3dc79c13223e9d69c1e3c00e1d55bc5083f09162",
+  "captured_on": "2026-09-06",
+  "scope": "working tree; provisional owners; not a release approval or pre-migration baseline",
+  "documents": [
+    {
+      "path": ".github/pull_request_template.md",
+      "title": "pull_request_template.md",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "bytes": 723,
+      "sha256": "f6393149420efe700d7720b39d496065c1317117361d9886060e8dfc3d4a0b09",
+      "inbound_links": []
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "title": "ci.yml",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "ec27ebf 2026-08-01",
+      "bytes": 5484,
+      "sha256": "0b09200f5daf61dd058910ca876879065a7f52b57e47a74a7785230baebd41c9",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "README.md",
+      "title": "In-House Enterprise ERP System",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "e2549ad 2026-07-20",
+      "bytes": 7697,
+      "sha256": "613ad5005b86ebcd3f1674f3a2394bfb052a06010603de6d26f513a03b9e47d0",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "cmd/brainmap/brain.tmpl.html",
+      "title": "brain.tmpl.html",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c345b12 2026-08-01",
+      "bytes": 25641,
+      "sha256": "0754ad2be001655b1606cac8c1a74b1fcad323b3d50a5a354bfde923e3bdfdbb",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "cmd/brainmap/main.go",
+      "title": "main.go",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c345b12 2026-08-01",
+      "bytes": 37386,
+      "sha256": "e601e4759e9f9e6593ab8f04c7511313682549299a5b54472ea06c29320ad261",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "cmd/doclint/main.go",
+      "title": "main.go",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "bytes": 18228,
+      "sha256": "2c68bdacfbbf2df2d35b25fcca88a60ec477579df8162f6f9e53e0f05a89f847",
+      "inbound_links": []
+    },
+    {
+      "path": "cmd/doclint/main_test.go",
+      "title": "main_test.go",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "bytes": 2800,
+      "sha256": "99af699be7ee9cae04763778a612358ec649e97082c6ebf76152fc332003484a",
+      "inbound_links": []
+    },
+    {
+      "path": "cmd/gendocs/kbdocs.go",
+      "title": "kbdocs.go",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 11604,
+      "sha256": "f5b477b2e56ac80d67e8bb44d88999a1b4da8ef92d8f04a54dd13327a96aab6c",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "cmd/gendocs/main.go",
+      "title": "main.go",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 13990,
+      "sha256": "c86b4da173206197176a5af0f2ec245a91b5bef7fc41432aae4438478f97582d",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "cmd/gendocs/main_test.go",
+      "title": "main_test.go",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "bytes": 1319,
+      "sha256": "490c818e4c3ae8456d1e23c5f26218a80d5867fcac68554fa28bc2a656ce46e6",
+      "inbound_links": []
+    },
+    {
+      "path": "cmd/gendocs/release_notes.go",
+      "title": "release_notes.go",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 3565,
+      "sha256": "ed254501502daa9551d4c5d7a1d5d832f638feb69b77f9e85581ce4b2d941346",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "cmd/genkb/main.go",
+      "title": "main.go",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 3497,
+      "sha256": "fe239aad5bb5e4c4312888afe991379b0605e2835be1f48a43f581c9885f071b",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/Contract/Developer Contract.md",
+      "title": "Developer / Contractor Agreement (Template)",
+      "type": "template",
+      "status": "draft",
+      "owner": "legal-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "2184793 2026-07-23",
+      "bytes": 9956,
+      "sha256": "839b002796525bfe6e91163455a217286df7a1a7bbf189e503477c06f83a5458",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/extension_hooks_checklist.md",
+        "docs/github_checklist.md"
+      ]
+    },
+    {
+      "path": "docs/DURABILITY_AUDIT_2026-07-31.md",
+      "title": "20-Year Durability Audit — 2026-07-31",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "archive",
+      "last_commit": "679e042 2026-08-21",
+      "bytes": 18966,
+      "sha256": "d14cae32439b2555a7e6cd3dea71de280805b1535b0eac77e123d40ee5dfad70",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/ERP_BLUEPRINT.md",
+      "title": "Custom ERP — Full Project Blueprint",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "navigation",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "bd51fc4 2026-09-01",
+      "bytes": 31212,
+      "sha256": "3524b553f40fb63d92af0648d5144c975b0c6d2d163d1197fd77383d495a7f81",
+      "inbound_links": [
+        "README.md",
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/guides/ADMIN_GUIDE.md",
+        "docs/requirements/BRD.md"
+      ]
+    },
+    {
+      "path": "docs/ERP_LOOPHOLES_ANALYSIS.md",
+      "title": "ERP System - Loopholes \u0026 Security Analysis",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "archive",
+      "last_commit": "679e042 2026-08-21",
+      "bytes": 36434,
+      "sha256": "da7ee685af6872360c275997fcbbc608a4ca1b58143ed203995fbb2bd1fe6d6f",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/QC_EXHAUSTIVE_REPORT.md",
+      "title": "Exhaustive QC Report — 20-Year Production Readiness",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "archive",
+      "last_commit": "b746cb8 2026-07-31",
+      "bytes": 32048,
+      "sha256": "e97749c3320c3c155be47030a8fbeb1efe32b646e3603cb10234b8603a044974",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/README.md",
+      "doc_id": "DOC-NAV-001",
+      "title": "Documentation portal",
+      "type": "reference",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[everyone]",
+      "authority": "navigation",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "review_by": "2026-10-06",
+      "superseded_by": "none",
+      "last_verified": "2026-09-06",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 5067,
+      "sha256": "a93a8305374b5cdf29f050654ff498238f752946005b9ad122a6d69b735657c5",
+      "inbound_links": [
+        "README.md",
+        "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md",
+        "docs/brain/BRAIN.md",
+        "docs/brain/README.md"
+      ],
+      "metadata": {
+        "applies_to": "repository navigation",
+        "approvers": "[engineering-owner]",
+        "audience": "[everyone]",
+        "authority": "navigation",
+        "confidentiality": "internal",
+        "doc_id": "DOC-NAV-001",
+        "last_verified": "2026-09-06",
+        "owner": "documentation-maintainer",
+        "review_by": "2026-10-06",
+        "status": "active",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "Documentation portal",
+        "type": "reference"
+      }
+    },
+    {
+      "path": "docs/UX_MANUAL_AUDIT.md",
+      "title": "Usability \u0026 Manual Audit — Layman End-to-End Pass",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "archive",
+      "last_commit": "b7c934e 2026-08-01",
+      "bytes": 23427,
+      "sha256": "97680645a1306ec1c8ce72486fdfe130d757889dec75f052d5625dd5835b9826",
+      "inbound_links": [
+        "docs/archive/micro_checklist_closed_stages.md",
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/ai_handover.md",
+      "title": "AI Handover Note: Developer Guide",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "navigation",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "3dc79c1 2026-09-04",
+      "bytes": 484981,
+      "sha256": "32afcc52fc3bd1fcf3129a4dcc2b42f1540daea31c1500dec8de08c6b1d63a15",
+      "inbound_links": [
+        "README.md",
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/brain/README.md",
+        "docs/governance/authority-matrix.md",
+        "docs/micro_checklist.md",
+        "docs/operations/incident_runbook.md",
+        "docs/specs/pdf_blueprint_gap_analysis.md"
+      ]
+    },
+    {
+      "path": "docs/architecture/architecture_evaluation.md",
+      "title": "Multi-Tenant SaaS ERP: Architectural \u0026 Technology Evaluation",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "99d63de 2026-07-21",
+      "bytes": 9694,
+      "sha256": "33ba43b62c64c576ffbc9d84371352c5e41b5cfdd97f0a0fae7a7ce2479d29d9",
+      "inbound_links": [
+        "README.md",
+        "docs/brain/BRAIN.md",
+        "docs/guides/ADMIN_GUIDE.md",
+        "docs/requirements/BRD.md"
+      ]
+    },
+    {
+      "path": "docs/architecture/framework_architecture.md",
+      "title": "In-House ERP Kernel: Metadata-Driven Framework Architecture",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "99d63de 2026-07-21",
+      "bytes": 15079,
+      "sha256": "a62888b60fb2265405c25fda5401f719271ac303d7444f41ca9b3b9c24eae722",
+      "inbound_links": [
+        "README.md",
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/governance/authority-matrix.md",
+        "docs/guides/ADMIN_GUIDE.md"
+      ]
+    },
+    {
+      "path": "docs/architecture/pos_architecture.md",
+      "title": "In-House ERP: Pluggable POS Architecture Specification",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "123f093 2026-07-19",
+      "bytes": 7331,
+      "sha256": "267b43b157cec81018c477f6f0803393bad2b2e3f1b2acd9190e2da1fdc4c182",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/archive/micro_checklist_closed_stages.md",
+      "title": "Micro-Checklist — Archived Closed Stages",
+      "type": "record",
+      "status": "archived",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "bd51fc4 2026-09-01",
+      "bytes": 209839,
+      "sha256": "50291c3e03110fd7a7bd92fc014e3d3688dbd5fa88f284e8963a5dacd9cfce71",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/micro_checklist.md"
+      ]
+    },
+    {
+      "path": "docs/archive/project_ledger_sections_4_62.md",
+      "title": "Project Ledger — Archived Build Records (SS 4-62)",
+      "type": "record",
+      "status": "archived",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "731ac08 2026-08-01",
+      "bytes": 196838,
+      "sha256": "029f1bde80cb133b677d4d572f186181a8429704949d535d4d93ed261914e5f3",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/project_ledger.md"
+      ]
+    },
+    {
+      "path": "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md",
+      "title": "ERP documentation architecture and reorganization plan — 2026-09-01",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "archive",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 52159,
+      "sha256": "f5435e8fbec31124cc497e644155f21895394bb94439b87a42ae71351ed70fcf",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/micro_checklist.md"
+      ]
+    },
+    {
+      "path": "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md",
+      "title": "ERP deep persona audit — 2026-09-01",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "archive",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 51624,
+      "sha256": "096e31bbd8a2ebcfee19225136e1960e56a486c9e000261afc6150afa3d1ad55",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md",
+        "docs/audits/LIGHTWEIGHT_SMOOTHNESS_PLAN_2026-09-01.md",
+        "docs/audits/STAGE47_ENDPOINT_MUTATION_MAP_2026-09-03.md",
+        "docs/brain/BRAIN.md",
+        "docs/governance/authority-matrix.md",
+        "docs/micro_checklist.md"
+      ]
+    },
+    {
+      "path": "docs/audits/LIGHTWEIGHT_SMOOTHNESS_PLAN_2026-09-01.md",
+      "title": "First-principles lightweight ERP smoothness plan — 2026-09-01",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "archive",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 38977,
+      "sha256": "cc6030c9de1849ff7853bfcc812e32a9fc69f6e2c0334dfa78c8eac3a39cc297",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md",
+        "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md",
+        "docs/brain/BRAIN.md",
+        "docs/micro_checklist.md"
+      ]
+    },
+    {
+      "path": "docs/audits/STAGE47_ENDPOINT_MUTATION_MAP_2026-09-03.md",
+      "title": "Stage 47.0.2 — Sale/Checkout/Return Endpoint \u0026 Mutation Map",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "archive",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 28891,
+      "sha256": "eaa1589d69a933b4fc0e07a3ed0f0462964200f5b41112139a03743284c4e9c8",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/micro_checklist.md"
+      ]
+    },
+    {
+      "path": "docs/brain/BRAIN.md",
+      "title": "Custom ERP — Project Brain",
+      "type": "generated",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 166469,
+      "sha256": "3d6542964477ff2d992ef18438270e58ae7633ca2fa4e46476a1914db759dfe1",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/brain/README.md"
+      ]
+    },
+    {
+      "path": "docs/brain/README.md",
+      "title": "The Project Brain",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "navigation",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "c345b12 2026-08-01",
+      "bytes": 9011,
+      "sha256": "5c1c81da781dc085e0f3141a36f6c9e4918ad553862780efb626a1994de2539f",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/brain/brain.html",
+      "title": "brain.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 129750,
+      "sha256": "378e41ecc99d6aa250d37c8420c5ef9b6403e4fc5bf08f838d534b0d1e355688",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/brain/README.md"
+      ]
+    },
+    {
+      "path": "docs/brain/brain.map.json",
+      "title": "brain.map.json",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "navigation",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 39405,
+      "sha256": "e8506a841abba238cb1a9f0c835c35eecd7bd75fc6b7e0b1d614c4014c1b00a3",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/brain/README.md"
+      ]
+    },
+    {
+      "path": "docs/brain/update-brain.ps1",
+      "title": "update-brain.ps1",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "navigation",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "c345b12 2026-08-01",
+      "bytes": 597,
+      "sha256": "b99d63fdbbdddabe500c1c10a260c52f61cb9ca490bbf47a763357578e9e48a7",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/brain/README.md"
+      ]
+    },
+    {
+      "path": "docs/extension_hooks_checklist.md",
+      "title": "Client Extension Layer — Safety Checklist",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "navigation",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "66170e6 2026-07-23",
+      "bytes": 9460,
+      "sha256": "fe3328c1445c979a27a87c14d9bca1425e5b4013891a97a0171159b8b6d42925",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/github_checklist.md",
+      "title": "GitHub Security \u0026 Access Checklist",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "navigation",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "2184793 2026-07-23",
+      "bytes": 3857,
+      "sha256": "5ac23c485deb468af9c8141bc03a6c456e8b78215b2e926d18aa3ff64c9831a1",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/extension_hooks_checklist.md"
+      ]
+    },
+    {
+      "path": "docs/governance/authority-matrix.md",
+      "doc_id": "DOC-GOV-002",
+      "title": "Documentation authority matrix",
+      "type": "reference",
+      "status": "draft",
+      "owner": "documentation-maintainer",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[everyone]",
+      "authority": "navigation",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "review_by": "2026-10-06",
+      "superseded_by": "none",
+      "last_verified": "2026-09-06",
+      "last_commit": "uncommitted",
+      "bytes": 2904,
+      "sha256": "e7e75976b49d1f0833e42599a372412cd18eb57b8c6d7aa464d6b7f7b7200bd5",
+      "inbound_links": [
+        "docs/DURABILITY_AUDIT_2026-07-31.md",
+        "docs/ERP_BLUEPRINT.md",
+        "docs/ERP_LOOPHOLES_ANALYSIS.md",
+        "docs/QC_EXHAUSTIVE_REPORT.md",
+        "docs/README.md",
+        "docs/UX_MANUAL_AUDIT.md",
+        "docs/architecture/architecture_evaluation.md",
+        "docs/architecture/framework_architecture.md",
+        "docs/architecture/pos_architecture.md",
+        "docs/governance/documentation-standard.md",
+        "docs/guides/PERMISSION_MATRIX.md",
+        "docs/requirements/BRD.md",
+        "docs/requirements/PRD.md",
+        "docs/specs/erp_maturity_master_plan.md",
+        "docs/specs/implementation_plan.md",
+        "docs/specs/industry_plugs.md",
+        "docs/specs/market_intelligence_reference.md",
+        "docs/specs/modules_overview.md",
+        "docs/specs/oms_master_blueprint_reference.md",
+        "docs/specs/parity_master_plan.md",
+        "docs/specs/pdf_blueprint_gap_analysis.md",
+        "docs/specs/wms_master_blueprint_reference.md",
+        "docs/specs/wms_parity_plan.md"
+      ],
+      "metadata": {
+        "applies_to": "repository documentation transition",
+        "approvers": "[product-owner, engineering-owner]",
+        "audience": "[everyone]",
+        "authority": "navigation",
+        "confidentiality": "internal",
+        "doc_id": "DOC-GOV-002",
+        "last_verified": "2026-09-06",
+        "owner": "documentation-maintainer",
+        "review_by": "2026-10-06",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "Documentation authority matrix",
+        "type": "reference"
+      }
+    },
+    {
+      "path": "docs/governance/document-register.json",
+      "title": "document-register.json",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "self-inventory",
+      "bytes": 0,
+      "inbound_links": [
+        "docs/README.md",
+        "docs/governance/authority-matrix.md",
+        "docs/governance/documentation-standard.md"
+      ]
+    },
+    {
+      "path": "docs/governance/documentation-standard.md",
+      "doc_id": "DOC-GOV-001",
+      "title": "Documentation standard",
+      "type": "normative",
+      "status": "draft",
+      "owner": "documentation-maintainer",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[authors, reviewers, maintainers]",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "review_by": "2026-10-06",
+      "superseded_by": "none",
+      "last_verified": "2026-09-06",
+      "last_commit": "uncommitted",
+      "bytes": 8321,
+      "sha256": "48102a6cf19dd88c97388ae32b2faa11c8f27ef75e483e29ac0369036cd885ab",
+      "inbound_links": [
+        "docs/README.md"
+      ],
+      "metadata": {
+        "applies_to": "repository documentation",
+        "approvers": "[product-owner, engineering-owner]",
+        "audience": "[authors, reviewers, maintainers]",
+        "authority": "proposed-policy",
+        "confidentiality": "internal",
+        "doc_id": "DOC-GOV-001",
+        "last_verified": "2026-09-06",
+        "owner": "documentation-maintainer",
+        "review_by": "2026-10-06",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "Documentation standard",
+        "type": "normative"
+      }
+    },
+    {
+      "path": "docs/governance/generation.json",
+      "title": "generation.json",
+      "type": "reference",
+      "status": "draft",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "bytes": 172,
+      "sha256": "e3830cda240283da4eda0bb2a39bd35241759de3406c6e8954546a232a6c81c5",
+      "inbound_links": []
+    },
+    {
+      "path": "docs/governance/register-policy.json",
+      "title": "register-policy.json",
+      "type": "reference",
+      "status": "draft",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "bytes": 7178,
+      "sha256": "12be3151356f081a6a84911159926bf11caf6ed6e93dd4ecf4a6586cb7a77e30",
+      "inbound_links": [
+        "docs/governance/documentation-standard.md"
+      ]
+    },
+    {
+      "path": "docs/guides/ADMIN_GUIDE.md",
+      "title": "Admin Guide",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "4f70289 2026-08-17",
+      "bytes": 60744,
+      "sha256": "7a47b331f41a217abe7de74b76ef192d36cc05c10b3cda28d7bc5efc5ef6ce37",
+      "inbound_links": [
+        "README.md",
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/guides/ADMIN_SOP.md",
+        "docs/guides/UAT_CHECKLIST.md",
+        "docs/guides/USER_SOP.md",
+        "docs/requirements/BRD.md",
+        "docs/security/README.md"
+      ]
+    },
+    {
+      "path": "docs/guides/ADMIN_SOP.md",
+      "title": "Admin SOP — Step-by-Step Procedures",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "fd14c37 2026-08-11",
+      "bytes": 35572,
+      "sha256": "42dbb409c7db3c4ede845a297e43286b54da089b432a9df3b46ca6a1b406af59",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/guides/ADMIN_GUIDE.md",
+        "docs/guides/USER_SOP.md"
+      ]
+    },
+    {
+      "path": "docs/guides/ERROR_CODES.md",
+      "title": "Error Code Reference",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 58459,
+      "sha256": "0bc8185c66ee209c799a516a7359d836a91f86b772f16957d60ccecac07c86a3",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/guides/ERROR_CODES.md",
+        "docs/guides/USER_GUIDE.md"
+      ]
+    },
+    {
+      "path": "docs/guides/PERMISSION_MATRIX.md",
+      "title": "Permission Matrix",
+      "type": "record",
+      "status": "archived",
+      "owner": "security-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "archive",
+      "last_commit": "fd14c37 2026-08-11",
+      "bytes": 6644,
+      "sha256": "646f24ad58995df28178f0fc4fe5b0cc1e116a343ff286e94eb44b73f20f3816",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/USER_GUIDE.md"
+      ]
+    },
+    {
+      "path": "docs/guides/QZ_PRINTING_SETUP.md",
+      "title": "Silent Printing Setup (QZ Tray)",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "0d0e3df 2026-08-05",
+      "bytes": 10830,
+      "sha256": "865f2ebad85c8ca257c9c80c27065de746458863adfbb7a533a06bb6ab06af5b",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/ADMIN_GUIDE.md",
+        "docs/guides/USER_GUIDE.md",
+        "docs/kb/module-handbooks/pos-operations.md"
+      ]
+    },
+    {
+      "path": "docs/guides/REPORT_CATALOG.md",
+      "title": "Report Catalog",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 28950,
+      "sha256": "5872cedd0798eab4f3b8a7da09e253454e28d40111d54151f598a4f1ccb4df27",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/guides/REPORT_CATALOG.md",
+        "docs/guides/USER_GUIDE.md"
+      ]
+    },
+    {
+      "path": "docs/guides/UAT_CHECKLIST.md",
+      "title": "User Acceptance Test Checklist",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "fd14c37 2026-08-11",
+      "bytes": 37056,
+      "sha256": "8100e0c3372063c14cd7d57defa5b921a4a39d384f8d55473145231f28788e75",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/guides/UAT_CHECKLIST.md",
+        "docs/operations/uat_run_sheet.md"
+      ]
+    },
+    {
+      "path": "docs/guides/USER_GUIDE.md",
+      "title": "User Guide",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "4f70289 2026-08-17",
+      "bytes": 68687,
+      "sha256": "632adcca5553d03f757e67d970d96937bee570ad9f710206917550c6a765e875",
+      "inbound_links": [
+        "README.md",
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/guides/ADMIN_GUIDE.md",
+        "docs/guides/ERROR_CODES.md",
+        "docs/guides/UAT_CHECKLIST.md",
+        "docs/guides/USER_SOP.md",
+        "docs/kb/module-handbooks/inventory-wms-operations.md",
+        "docs/kb/module-handbooks/pos-operations.md",
+        "docs/kb/module-handbooks/procurement.md",
+        "docs/requirements/BRD.md"
+      ]
+    },
+    {
+      "path": "docs/guides/USER_SOP.md",
+      "title": "User SOP — Step-by-Step Procedures",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "fd14c37 2026-08-11",
+      "bytes": 50925,
+      "sha256": "1fccae4ba28ab44b3411c594e02cbe097001b1dc47361619121c8b77d8c6dd25",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/guides/ADMIN_SOP.md",
+        "docs/guides/USER_GUIDE.md",
+        "docs/kb/module-handbooks/pos-operations.md"
+      ]
+    },
+    {
+      "path": "docs/guides/capture-screenshots.js",
+      "title": "capture-screenshots.js",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 8354,
+      "sha256": "b314e048a82d3193cb54c734f9fc8af4e1066f6afcea0ba44119c7c4dddc0b9c",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/MANIFEST.md",
+      "title": "Screenshot manifest",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 2149,
+      "sha256": "dcca3477d29e51bc1f1ca6e1ccf395fe7dccc8b32961247aca93c87c1a987097",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/approvals.png",
+      "title": "approvals.png",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 204596,
+      "sha256": "379266b96fa611dcc15d029e0c6b85ef3aeca1ec292c2763dfb3fd258714bd72",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/img/MANIFEST.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/configuration.png",
+      "title": "configuration.png",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 363794,
+      "sha256": "9fbd6588813b346bc0e5c5574cb8f39f9213fe8b2a74a1fd65eb55dd8296e7bb",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/ADMIN_SOP.md",
+        "docs/guides/img/MANIFEST.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/goods-receipt.png",
+      "title": "goods-receipt.png",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 244540,
+      "sha256": "f19f36d9492ddcb0ada5adfb0183ee1d43ec69ea75c538f347ffbb038d8c2bc2",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/USER_SOP.md",
+        "docs/guides/img/MANIFEST.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/inventory.png",
+      "title": "inventory.png",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 257163,
+      "sha256": "c6fcebc562d37d47c68548d8a403e15bca9254e115e585a00d00439e28666608",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/USER_GUIDE.md",
+        "docs/guides/img/MANIFEST.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/json-line-editor.png",
+      "title": "json-line-editor.png",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 355093,
+      "sha256": "fb8cf0b581b5ab11da1e8d4021a109cd878e3c5a50b8af56113f91cf7311118c",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/USER_SOP.md",
+        "docs/guides/img/MANIFEST.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/pos-billing.png",
+      "title": "pos-billing.png",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 237510,
+      "sha256": "0c7d700052ae3f56251ba9678bebc63c76f869dfdd0834828e41fde5ba1a1db7",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/USER_GUIDE.md",
+        "docs/guides/img/MANIFEST.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/purchase-order.png",
+      "title": "purchase-order.png",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 214066,
+      "sha256": "735d69a582e1b895d40fe5fdefa985100d8df5669a932fb82585bf532d0ba24e",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/USER_GUIDE.md",
+        "docs/guides/img/MANIFEST.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/record-list.png",
+      "title": "record-list.png",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 134909,
+      "sha256": "0077165be3851d5c948be1fe67e2c912769b1a32c87fc738cec0dc31f1625700",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/img/MANIFEST.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/reports.png",
+      "title": "reports.png",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 219027,
+      "sha256": "2d5c53e63b0ce484dca5d60aa9a3eacdae9a4a789bffe98f65e00e280cce4269",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/USER_GUIDE.md",
+        "docs/guides/img/MANIFEST.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/roles.png",
+      "title": "roles.png",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 415533,
+      "sha256": "0908f48ca89b257e6e22f6e6a838945afcab6cbbdc1e85d656e57d8eac7f8e63",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/ADMIN_SOP.md",
+        "docs/guides/img/MANIFEST.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/setup-menu.png",
+      "title": "setup-menu.png",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 168894,
+      "sha256": "f1f36ed5cc6343b5cb2b085e88acc8caf2fc97a02b1a3ed0fd15e5d2dff16a15",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/USER_SOP.md",
+        "docs/guides/img/MANIFEST.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/sidebar.png",
+      "title": "sidebar.png",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 53647,
+      "sha256": "da51fb3e3fcc5b245d7d4c65afcfaa2c60de213b2f6e4e82a691df3ad4232556",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/USER_GUIDE.md",
+        "docs/guides/img/MANIFEST.md"
+      ]
+    },
+    {
+      "path": "docs/guides/img/trial-balance.png",
+      "title": "trial-balance.png",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 321136,
+      "sha256": "0954c326bff11693d5f44894a7e34ad290bfb344dc869ac9c9894a45880f90a0",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/img/MANIFEST.md"
+      ]
+    },
+    {
+      "path": "docs/guides/update-guides.ps1",
+      "title": "update-guides.ps1",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "transition-copy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a8ff23b 2026-08-02",
+      "bytes": 213,
+      "sha256": "bbca9f12b2bdb22e480f010080f684adba06fee0f27256154cadfb88c23ddc14",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/kb/admin-operations/backup-and-restore.md",
+      "title": "Backup \u0026 Restore",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 6363,
+      "sha256": "e380127ef1e55933bc9e09cefa6502b75ff7c8f3fde86899348dbe15df794511",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/admin-operations/incident-response.md"
+      ],
+      "metadata": {
+        "audience": "admin",
+        "last_verified": "2026-09-03",
+        "order": "10",
+        "screens": "[system-status]",
+        "section": "Admin \u0026 Operations",
+        "summary": "Back up every environment on a schedule, prove the backups actually restore, and know exactly what to run when you need one back.",
+        "title": "Backup \u0026 Restore"
+      }
+    },
+    {
+      "path": "docs/kb/admin-operations/incident-response.md",
+      "title": "Incident Response \u0026 Alerting",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 6230,
+      "sha256": "8594bd0dfb7d43fd6f93ad409147b4c0ba9dbe23c2b5fdf0e9edc2ce6c77b25b",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/admin-operations/backup-and-restore.md"
+      ],
+      "metadata": {
+        "audience": "admin",
+        "last_verified": "2026-09-03",
+        "order": "20",
+        "screens": "[system-status]",
+        "section": "Admin \u0026 Operations",
+        "summary": "Severity levels, what pages you automatically, where to look, and exactly what to run to roll a bad change back.",
+        "title": "Incident Response \u0026 Alerting"
+      }
+    },
+    {
+      "path": "docs/kb/getting-started/finding-your-way-around.md",
+      "title": "Finding your way around",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "everyone",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 5263,
+      "sha256": "e10395477baddc8513e17e2c0edc4f29ca63da69c82923ef31b9a2bec8f32940",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/getting-started/what-is-this-system.md"
+      ],
+      "metadata": {
+        "audience": "everyone",
+        "last_verified": "2026-08-17",
+        "order": "3",
+        "screens": "[reports, doctype-table, inventory]",
+        "section": "Getting Started",
+        "summary": "The sidebar's eleven entries, the two search boxes that do different things, and the shape every list screen shares.",
+        "title": "Finding your way around"
+      }
+    },
+    {
+      "path": "docs/kb/getting-started/first-login.md",
+      "title": "Your first sign-in",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "everyone",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-12",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 2094,
+      "sha256": "542b1b1e43aaf7706acb44cf28993ab799085e341d25e4b45b2e1791d99ca2af",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/getting-started/what-is-this-system.md"
+      ],
+      "metadata": {
+        "audience": "everyone",
+        "last_verified": "2026-08-12",
+        "order": "2",
+        "screens": "[profile, configuration]",
+        "section": "Getting Started",
+        "summary": "Sign in, understand what your role can see, and find your way around the main screens.",
+        "title": "Your first sign-in"
+      }
+    },
+    {
+      "path": "docs/kb/getting-started/first-order.md",
+      "title": "Your first order, end to end",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "cashier, store manager",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-12",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 2574,
+      "sha256": "5d00fe9d4aa892ed942e2bc4f3c85b2cd7b8a76b591cdc01d723c9edbd074600",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/getting-started/first-login.md",
+        "docs/kb/getting-started/open-a-shop-and-make-your-first-sale.md",
+        "docs/kb/getting-started/what-is-this-system.md",
+        "docs/kb/role-journeys/journey-cashier.md",
+        "docs/kb/role-journeys/journey-warehouse-operator.md"
+      ],
+      "metadata": {
+        "audience": "cashier, store manager",
+        "last_verified": "2026-08-12",
+        "order": "4",
+        "screens": "[oms, pos, fulfillment, sales-invoices]",
+        "section": "Getting Started",
+        "summary": "Follow one order from placement to invoice, so the screens in between stop being a mystery.",
+        "title": "Your first order, end to end"
+      }
+    },
+    {
+      "path": "docs/kb/getting-started/open-a-shop-and-make-your-first-sale.md",
+      "title": "Open a shop and make your first sale",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "store manager, admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 5223,
+      "sha256": "03921faaee4a418f2c0148b3b547cdcb85a45be481892fd5960bde3583d9aee6",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/kb/getting-started/what-is-this-system.md",
+        "docs/kb/role-journeys/journey-store-manager.md"
+      ],
+      "metadata": {
+        "audience": "store manager, admin",
+        "last_verified": "2026-08-17",
+        "order": "5",
+        "screens": "[pos, purchase-orders, grn, inventory, approvals, finance, reports]",
+        "section": "Getting Started",
+        "summary": "Half an hour, ten steps, from an empty system to money in the till - and proof that the accounting followed by itself.",
+        "title": "Open a shop and make your first sale"
+      }
+    },
+    {
+      "path": "docs/kb/getting-started/what-is-this-system.md",
+      "title": "What this system is",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "everyone",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 3602,
+      "sha256": "d7bc2a906182666c2acf491a29785e294c556989e9ddb0c7844e9a167790707b",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ],
+      "metadata": {
+        "audience": "everyone",
+        "last_verified": "2026-08-17",
+        "order": "1",
+        "screens": "[reports]",
+        "section": "Getting Started",
+        "summary": "One shared record of the business, and the five ideas you need before any screen makes sense.",
+        "title": "What this system is"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/channel-connectors.md",
+      "title": "Channel Connectors",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "category manager, admin, integrator",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 19345,
+      "sha256": "c3733233b6a31d0994a82879639dc9d9f95e63fa1147b7935468f4444bb8d8e1",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/module-handbooks/courier-integrations.md",
+        "docs/kb/module-handbooks/oms-order-management.md",
+        "docs/kb/module-handbooks/pim-pxm.md"
+      ],
+      "metadata": {
+        "audience": "category manager, admin, integrator",
+        "last_verified": "2026-09-03",
+        "order": "45",
+        "screens": "[pim, oms, doctype-table]",
+        "section": "Module Handbooks",
+        "summary": "Push product content out to Shopify, BigCommerce, Magento, Amazon, Flipkart and a dozen private-contract marketplaces through one shared readiness/queue/retry pipeline, and pull their orders back in through the same connector.",
+        "title": "Channel Connectors"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/courier-integrations.md",
+      "title": "Courier Integrations",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "warehouse operator, admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 12980,
+      "sha256": "173696bc560b171698cf9c6ae723bf21594e13c60c30c22f03f9d16353ca0b52",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/module-handbooks/channel-connectors.md"
+      ],
+      "metadata": {
+        "audience": "warehouse operator, admin",
+        "last_verified": "2026-09-03",
+        "order": "46",
+        "screens": "[marketplace, oms, doctype-table]",
+        "section": "Module Handbooks",
+        "summary": "Book a shipment, check serviceability, print a label, and track it to delivery or RTO — the manual carrier-agnostic flow every warehouse uses today, and the real Delhivery/Shiprocket API layer built alongside it but not yet reachable from a screen.",
+        "title": "Courier Integrations"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/crm-loyalty.md",
+      "title": "CRM \u0026 Loyalty",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "store manager, marketing, admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 11495,
+      "sha256": "e8a658861722dd65bf5ce481fb0a6a372d17bab65fcae06cff11668ed80f61cd",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/module-handbooks/crm-loyalty.md"
+      ],
+      "metadata": {
+        "audience": "store manager, marketing, admin",
+        "last_verified": "2026-09-03",
+        "order": "80",
+        "screens": "[doctype-table, reports, configuration]",
+        "section": "Module Handbooks",
+        "summary": "Earn and burn loyalty points on real sales, issue vouchers and run birthday/lapsed-customer campaigns, and read customer behaviour back through seven CRM reports.",
+        "title": "CRM \u0026 Loyalty"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/finance-tax.md",
+      "title": "Finance \u0026 Tax",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "accountant, finance manager, admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 11224,
+      "sha256": "99476455431914de5f4cd086f4f78f4f8171ab1187ea503a55ba9a7a391fdda2",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/module-handbooks/finance-tax.md"
+      ],
+      "metadata": {
+        "audience": "accountant, finance manager, admin",
+        "last_verified": "2026-09-03",
+        "order": "70",
+        "screens": "[finance, doctype-table, reports, configuration]",
+        "section": "Module Handbooks",
+        "summary": "Every posting is balanced double-entry against a period that can be locked shut, with multi-currency revaluation and 25 registered reports behind it - though several of the deepest entry points are API-only today.",
+        "title": "Finance \u0026 Tax"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/hr-payroll.md",
+      "title": "HR \u0026 Payroll",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "HR manager, admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 12182,
+      "sha256": "52140c3f7fb2f0693ccbd71763cf98e38f0488713666e4b1b65af93b8b33e193",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/module-handbooks/hr-payroll.md"
+      ],
+      "metadata": {
+        "audience": "HR manager, admin",
+        "last_verified": "2026-09-03",
+        "order": "90",
+        "screens": "[hr]",
+        "section": "Module Handbooks",
+        "summary": "Track employees, attendance and leave, then run payroll against a configured salary structure and post it straight to the GL.",
+        "title": "HR \u0026 Payroll"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/inventory-wms-operations.md",
+      "title": "Inventory \u0026 Warehouse Operations",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "warehouse operator, warehouse manager, admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 27698,
+      "sha256": "41f00f515c044cf5ca22357f32767fd162fd7ea977d068a540a02db756f9e165",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ],
+      "metadata": {
+        "audience": "warehouse operator, warehouse manager, admin",
+        "last_verified": "2026-09-03",
+        "order": "20",
+        "screens": "[grn, rf-receiving, putaway, wave-picking, cycle-count, transfers, warehouse-cockpit, doctype-table, reports]",
+        "section": "Module Handbooks",
+        "summary": "Receive stock against a PO, put it away, pick and pack it back out, count it, adjust it, and move it between locations — the floor-ops backbone every other WMS feature sits on top of.",
+        "title": "Inventory \u0026 Warehouse Operations"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/manufacturing-mrp.md",
+      "title": "Manufacturing \u0026 MRP",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "production planner, plant manager, admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 13973,
+      "sha256": "3574860775f2fe8b4f1bb11b7904f9900c2a248042b06608857baefcc3ce8717",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/module-handbooks/manufacturing-mrp.md"
+      ],
+      "metadata": {
+        "audience": "production planner, plant manager, admin",
+        "last_verified": "2026-09-03",
+        "order": "100",
+        "screens": "[manufacturing]",
+        "section": "Module Handbooks",
+        "summary": "Build a multi-level BOM, run a production order through routing/QC/completion, and let MRP tell you what to build next and what raw materials that would need.",
+        "title": "Manufacturing \u0026 MRP"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/oms-order-management.md",
+      "title": "Order Management",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "order desk, store manager, admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 10606,
+      "sha256": "8af54df28d290f2624b0582bb889b9b56190da97c300506768f7d3c6cea9790a",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ],
+      "metadata": {
+        "audience": "order desk, store manager, admin",
+        "last_verified": "2026-09-03",
+        "order": "60",
+        "screens": "[oms]",
+        "section": "Module Handbooks",
+        "summary": "Every channel and manual order lands through one Order Engine - validated, allocated across locations by a priority-ordered rule chain, and held with a routable reason rather than ever hard-rejected.",
+        "title": "Order Management"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/pim-product-groups.md",
+      "title": "Product Groups",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "category manager",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-12",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 3088,
+      "sha256": "d46de633782cfa98705f70ef236e104db6514bf0e76fecf2fc4502878b7a55d1",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/module-handbooks/pim-pxm.md",
+        "docs/kb/role-journeys/journey-category-manager.md"
+      ],
+      "metadata": {
+        "audience": "category manager",
+        "last_verified": "2026-08-12",
+        "order": "55",
+        "screens": "[pim, doctype-table]",
+        "section": "Module Handbooks",
+        "summary": "Group products once - by hand or by rule - then bulk edit, export and report against that group.",
+        "title": "Product Groups"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/pim-pxm.md",
+      "title": "Product Information Management",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "category manager, admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 10277,
+      "sha256": "9a0103bb11663750e2de5ffca05687aa8dd1cc2bd4ea534cfc62bdceda610915",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ],
+      "metadata": {
+        "audience": "category manager, admin",
+        "last_verified": "2026-09-03",
+        "order": "50",
+        "screens": "[pim, doctype-table, reports, configuration]",
+        "section": "Module Handbooks",
+        "summary": "Items, categories and attributes with locale/channel-aware values, a 0-100 completeness score every publish gate reads, and an effective-dated price list that exists in full but has no screen yet.",
+        "title": "Product Information Management"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/pos-operations.md",
+      "title": "Point of Sale",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "cashier, store manager, admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-02",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 20724,
+      "sha256": "8da3c55845bf1f3c34898782c17a468b57dc015c50b707e392926b8fe046d0ff",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/module-handbooks/crm-loyalty.md",
+        "docs/kb/module-handbooks/oms-order-management.md",
+        "docs/kb/module-handbooks/pim-pxm.md"
+      ],
+      "metadata": {
+        "audience": "cashier, store manager, admin",
+        "last_verified": "2026-09-02",
+        "order": "10",
+        "screens": "[pos, doctype-table, reports, approvals, configuration]",
+        "section": "Module Handbooks",
+        "summary": "Open a till, ring up a sale with automatic offers and tax, take a return, print silently, and reconcile the drawer at close — all backed by the same server-side checks whether the till is online or not.",
+        "title": "Point of Sale"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/procurement.md",
+      "title": "Procurement",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "procurement officer, store manager, admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 25657,
+      "sha256": "57dedf96b21c8b4259ae0ed9572d91cc979249aa3018abaeb43ffee1b933faff",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/module-handbooks/pim-pxm.md"
+      ],
+      "metadata": {
+        "audience": "procurement officer, store manager, admin",
+        "last_verified": "2026-09-03",
+        "order": "30",
+        "screens": "[purchase-orders, grn, rfq, doctype-table, vendor-invoices, reports, approvals, configuration]",
+        "section": "Module Handbooks",
+        "summary": "Turn a need into stock on the shelf — raise a requisition, shop it round vendors with an optional RFQ, commit to a fully tax-classified Purchase Order, and post the Goods Receipt that actually moves the stock.",
+        "title": "Procurement"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/security-approvals.md",
+      "title": "Security, Roles \u0026 Approvals",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "admin, auditor",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 23664,
+      "sha256": "19645cc61733903d1a282dcf0b880403267787f2d2194c3f4d56a73e29654dea",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/kb/module-handbooks/crm-loyalty.md",
+        "docs/kb/module-handbooks/pim-pxm.md"
+      ],
+      "metadata": {
+        "audience": "admin, auditor",
+        "last_verified": "2026-09-03",
+        "order": "40",
+        "screens": "[users, roles, approvals, approval-rules, profile, audit-logs]",
+        "section": "Module Handbooks",
+        "summary": "How roles gate what a user can see and do, how the maker-checker approval engine routes and locks high-value documents, and how field-level permission and MFA controls layer on top — the cross-cutting reference every other module handbook points back to.",
+        "title": "Security, Roles \u0026 Approvals"
+      }
+    },
+    {
+      "path": "docs/kb/module-handbooks/traceability-batch-serial.md",
+      "title": "Batch, Serial \u0026 Expiry Traceability",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "warehouse operator, category manager, admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-31",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 12858,
+      "sha256": "d9fa420aa54c7f50d063102b99e6df62c0f26eb08fe9710dcdd88074fd9af618",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/module-handbooks/inventory-wms-operations.md",
+        "docs/kb/module-handbooks/pos-operations.md",
+        "docs/kb/module-handbooks/procurement.md"
+      ],
+      "metadata": {
+        "audience": "warehouse operator, category manager, admin",
+        "last_verified": "2026-08-31",
+        "order": "25",
+        "screens": "[grn, wave-picking, doctype-table, reports]",
+        "section": "Module Handbooks",
+        "summary": "Track a lot or an individual unit from receipt to dispatch, pick the right stock first by expiry, and answer a recall in two directions.",
+        "title": "Batch, Serial \u0026 Expiry Traceability"
+      }
+    },
+    {
+      "path": "docs/kb/reference/abbreviations.md",
+      "title": "Abbreviations",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "everyone",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 4565,
+      "sha256": "21b84f9c4c320b61c14b180ceac7b75d28cdf6e000ef0e4f231b80ebe6f0180b",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/reference/glossary.md"
+      ],
+      "metadata": {
+        "audience": "everyone",
+        "last_verified": "2026-08-17",
+        "order": "2",
+        "section": "Reference",
+        "summary": "Every short form used in the application and its screens, expanded.",
+        "title": "Abbreviations"
+      }
+    },
+    {
+      "path": "docs/kb/reference/country-phone-rules.md",
+      "title": "Country codes and phone number rules",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "admin, store manager",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 5560,
+      "sha256": "272e03a835beae63f2ae98fab1a30105f43cff7756ccc7bdb88144bf73f20ba3",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/role-journeys/journey-admin.md",
+        "docs/kb/troubleshooting/troubleshooting-index.md"
+      ],
+      "metadata": {
+        "audience": "admin, store manager",
+        "last_verified": "2026-09-03",
+        "order": "30",
+        "screens": "[configuration]",
+        "section": "Reference",
+        "summary": "The countries the application knows, their dialling codes, and the phone number lengths each one accepts.",
+        "title": "Country codes and phone number rules"
+      }
+    },
+    {
+      "path": "docs/kb/reference/faq.md",
+      "title": "Frequently asked questions",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "everyone",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 7393,
+      "sha256": "4b9e13c0bc481c547b485e7604bfae4dcb81bf236aacec18c7914bc6a80d6069",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ],
+      "metadata": {
+        "audience": "everyone",
+        "last_verified": "2026-08-17",
+        "order": "3",
+        "section": "Reference",
+        "summary": "The questions people actually ask in the first month, answered without a tour of the menus.",
+        "title": "Frequently asked questions"
+      }
+    },
+    {
+      "path": "docs/kb/reference/glossary.md",
+      "title": "Glossary",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "everyone",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 6858,
+      "sha256": "5ae0e91f221d21d571f5d07b0f5e0e4a5cc86b16d86609f656a16e32ce457ad8",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/reference/abbreviations.md"
+      ],
+      "metadata": {
+        "audience": "everyone",
+        "last_verified": "2026-08-17",
+        "order": "1",
+        "section": "Reference",
+        "summary": "Every term the application uses that is not self-explanatory, in plain language.",
+        "title": "Glossary"
+      }
+    },
+    {
+      "path": "docs/kb/reference/public-api-authentication.md",
+      "title": "Authenticating against the public API",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "integrator",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-12",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 3066,
+      "sha256": "b4b3aeed4a2d42ed8723fa3261edf9ccced8e4262f94f0e97bb48047ba461070",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ],
+      "metadata": {
+        "audience": "integrator",
+        "last_verified": "2026-08-12",
+        "order": "40",
+        "public": "true",
+        "section": "Reference",
+        "summary": "How an integration gets a key, what a key may do, and what every response tells you about your budget.",
+        "title": "Authenticating against the public API"
+      }
+    },
+    {
+      "path": "docs/kb/reference/public-api-idempotency.md",
+      "title": "Retrying safely (idempotency)",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "integrator",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 2777,
+      "sha256": "119725dc9c2eef77416a9ceecf3a1b6570db6113c5f4697a2c62c4d1912ab47b",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/reference/public-api-authentication.md"
+      ],
+      "metadata": {
+        "audience": "integrator",
+        "last_verified": "2026-09-03",
+        "order": "41",
+        "public": "true",
+        "section": "Reference",
+        "summary": "Why every mutating call needs an Idempotency-Key, and exactly what the server does with it.",
+        "title": "Retrying safely (idempotency)"
+      }
+    },
+    {
+      "path": "docs/kb/reference/release-notes.md",
+      "title": "Release notes",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "everyone",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 36041,
+      "sha256": "ea67981e742d0c758fad19115976c45bccea3359d7f51af456961e505a61787a",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ],
+      "metadata": {
+        "audience": "everyone",
+        "last_verified": "2026-09-03",
+        "order": "25",
+        "section": "Reference",
+        "summary": "What shipped and when, generated from the build ledger so this page can't say something the ledger doesn't.",
+        "title": "Release notes"
+      }
+    },
+    {
+      "path": "docs/kb/reference/report-catalog.md",
+      "title": "Report catalog",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "store manager, finance, category manager, admin",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 28968,
+      "sha256": "c9d31947d08bb5670c23ababd2d16a095f5413df8f99dfeb567f2356c0df5df5",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/module-handbooks/finance-tax.md",
+        "docs/kb/module-handbooks/oms-order-management.md",
+        "docs/kb/reference/report-catalog.md",
+        "docs/kb/role-journeys/journey-category-manager.md",
+        "docs/kb/role-journeys/journey-finance.md"
+      ],
+      "metadata": {
+        "audience": "store manager, finance, category manager, admin",
+        "last_verified": "2026-09-03",
+        "order": "20",
+        "screens": "[reports]",
+        "section": "Reference",
+        "summary": "Every report you can run, what it asks for, what it returns and whether you can drill into it.",
+        "title": "Report catalog"
+      }
+    },
+    {
+      "path": "docs/kb/role-journeys/journey-admin.md",
+      "title": "A day as an administrator",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "admin",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 5399,
+      "sha256": "585b872071513af7925892f289278e97d41292418bc35cc080fbf89ff4321eaa",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/role-journeys/role-journeys-overview.md"
+      ],
+      "metadata": {
+        "audience": "admin",
+        "last_verified": "2026-08-17",
+        "order": "7",
+        "screens": "[users, roles, approval-rules, prefix-configs, dynamic-labels, doctype-builder, configuration, audit-logs, system-status, tenant-entitlements, tenant-usage, extension-hooks]",
+        "section": "Role Journeys",
+        "summary": "Set the system up once so it stops needing you, then watch the four things that actually tell you it is healthy.",
+        "title": "A day as an administrator"
+      }
+    },
+    {
+      "path": "docs/kb/role-journeys/journey-cashier.md",
+      "title": "A day as a cashier",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "cashier",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 5018,
+      "sha256": "1fef548d3262b835db5b587cab10e944fd46826afe5ca394b064871fe5dc9cc9",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/role-journeys/role-journeys-overview.md"
+      ],
+      "metadata": {
+        "audience": "cashier",
+        "last_verified": "2026-08-17",
+        "order": "2",
+        "screens": "[pos]",
+        "section": "Role Journeys",
+        "summary": "Open the till, ring up sales, handle the four things that commonly go wrong, and close out with a clean variance.",
+        "title": "A day as a cashier"
+      }
+    },
+    {
+      "path": "docs/kb/role-journeys/journey-category-manager.md",
+      "title": "A day as a category manager",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "category manager",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 4560,
+      "sha256": "bceb26e6d3b3b28661d42a726fc190f7d5f2b2260f735f6172b5a9e1cec49b47",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/role-journeys/role-journeys-overview.md"
+      ],
+      "metadata": {
+        "audience": "category manager",
+        "last_verified": "2026-08-17",
+        "order": "5",
+        "screens": "[pim, doctype-table, marketplace, reports, stickers]",
+        "section": "Role Journeys",
+        "summary": "Own the product record, get it complete enough to publish, and keep it that way as the range changes.",
+        "title": "A day as a category manager"
+      }
+    },
+    {
+      "path": "docs/kb/role-journeys/journey-finance.md",
+      "title": "A day in finance",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "finance",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 4886,
+      "sha256": "6be560426e3487b1e86276ecb492d788f7d8ce745c7bccc463f7894e69b30432",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/role-journeys/role-journeys-overview.md"
+      ],
+      "metadata": {
+        "audience": "finance",
+        "last_verified": "2026-08-17",
+        "order": "6",
+        "screens": "[finance, vendor-invoices, sales-invoices, payment-proposals, bank-reconciliation, finance-notes, approvals, reports]",
+        "section": "Role Journeys",
+        "summary": "Payables in, receivables out, the bank reconciled, and a trial ledger that balances before you go home.",
+        "title": "A day in finance"
+      }
+    },
+    {
+      "path": "docs/kb/role-journeys/journey-store-manager.md",
+      "title": "A day as a store manager",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "store manager",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 5144,
+      "sha256": "be678e0d70e2160d6cbfd19d37ad4afa53cf9a8c50d1164acb1c7745782f7435",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/getting-started/open-a-shop-and-make-your-first-sale.md",
+        "docs/kb/role-journeys/journey-finance.md",
+        "docs/kb/role-journeys/journey-warehouse-operator.md",
+        "docs/kb/role-journeys/role-journeys-overview.md"
+      ],
+      "metadata": {
+        "audience": "store manager",
+        "last_verified": "2026-08-17",
+        "order": "3",
+        "screens": "[reports, oms, approvals, inventory, purchase-orders, grn, pos, transfers]",
+        "section": "Role Journeys",
+        "summary": "Morning queues, approvals, stock that needs ordering, and the four checks worth making before you close.",
+        "title": "A day as a store manager"
+      }
+    },
+    {
+      "path": "docs/kb/role-journeys/journey-warehouse-operator.md",
+      "title": "A day as a warehouse operator",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "warehouse operator",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 4203,
+      "sha256": "1efa4859cf7c9bf4fe1467265e64e233753b2816a49765b5368ff7e60ca8fc23",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/role-journeys/journey-store-manager.md",
+        "docs/kb/role-journeys/role-journeys-overview.md"
+      ],
+      "metadata": {
+        "audience": "warehouse operator",
+        "last_verified": "2026-08-17",
+        "order": "4",
+        "screens": "[grn, asn, putaway, fulfillment, wave-picking, mobile-picking, cycle-count, lpn, bin-replenishment, bin-conditions, transfers, stickers]",
+        "section": "Role Journeys",
+        "summary": "Receive, put away, pick, pack, dispatch - and the counting work that keeps the numbers honest.",
+        "title": "A day as a warehouse operator"
+      }
+    },
+    {
+      "path": "docs/kb/role-journeys/role-journeys-overview.md",
+      "title": "Which journey is mine",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "everyone",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 2498,
+      "sha256": "dc49c79cc5827093df0dc27fb739f9d02a8d2d74afd3401a74819f7373ed98c2",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/governance/authority-matrix.md"
+      ],
+      "metadata": {
+        "audience": "everyone",
+        "last_verified": "2026-08-17",
+        "order": "1",
+        "screens": "[roles]",
+        "section": "Role Journeys",
+        "summary": "Six jobs, four shipped roles, and how the two line up - read this before picking a journey.",
+        "title": "Which journey is mine"
+      }
+    },
+    {
+      "path": "docs/kb/troubleshooting/error-code-reference.md",
+      "title": "Error code reference",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "everyone",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_verified": "2026-09-03",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 58286,
+      "sha256": "20b1c7f445546ba62725cccb372ffa570b2bf518a0719b01d31634e8c9103d80",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/role-journeys/journey-admin.md",
+        "docs/kb/troubleshooting/error-code-reference.md",
+        "docs/kb/troubleshooting/error-codes.md",
+        "docs/kb/troubleshooting/troubleshooting-index.md"
+      ],
+      "metadata": {
+        "audience": "everyone",
+        "last_verified": "2026-09-03",
+        "order": "20",
+        "section": "Troubleshooting",
+        "summary": "Every code the application can show you, what causes it and what to do about it.",
+        "title": "Error code reference"
+      }
+    },
+    {
+      "path": "docs/kb/troubleshooting/error-codes.md",
+      "title": "Reading an error code",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "everyone",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-12",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 2471,
+      "sha256": "53355bcf21489a377738a4d04ef33b24bedac41dbcf8b8ae0c8d39ccef770b3d",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/kb/getting-started/finding-your-way-around.md",
+        "docs/kb/getting-started/first-login.md",
+        "docs/kb/role-journeys/journey-cashier.md",
+        "docs/kb/troubleshooting/error-code-reference.md",
+        "docs/kb/troubleshooting/troubleshooting-index.md"
+      ],
+      "metadata": {
+        "audience": "everyone",
+        "last_verified": "2026-08-12",
+        "order": "1",
+        "section": "Troubleshooting",
+        "summary": "What the three lines of an error dialog mean, and how to turn a code into an action.",
+        "title": "Reading an error code"
+      }
+    },
+    {
+      "path": "docs/kb/troubleshooting/troubleshooting-index.md",
+      "title": "Troubleshooting by symptom",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "everyone",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_verified": "2026-08-17",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 12679,
+      "sha256": "eaaae3af7d5496ec2d0a240c2358a1c82d7454f189d21cd0cb7739f81bdf7f9c",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/kb/reference/faq.md",
+        "docs/kb/troubleshooting/error-codes.md"
+      ],
+      "metadata": {
+        "audience": "everyone",
+        "last_verified": "2026-08-17",
+        "order": "2",
+        "screens": "[pos, oms, inventory, purchase-orders, grn, sales-invoices, marketplace, transfers]",
+        "section": "Troubleshooting",
+        "summary": "Start from what you saw, not from a code - each symptom below names the codes it produces and what actually fixes it.",
+        "title": "Troubleshooting by symptom"
+      }
+    },
+    {
+      "path": "docs/kb/update-kb.ps1",
+      "title": "update-kb.ps1",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "20a8878 2026-08-13",
+      "bytes": 208,
+      "sha256": "45aa8a182f153292503f3f543fca0e154095abad8fe65f44e1bea497c1343df7",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/micro_checklist.md",
+      "title": "In-House ERP: Micro-Checklist \u0026 Build Tracker",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "navigation",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 548972,
+      "sha256": "2849004e78fe4c4642d0c8527f91b07f20e5132478b2c4520edd38df696c820e",
+      "inbound_links": [
+        "README.md",
+        "docs/README.md",
+        "docs/archive/micro_checklist_closed_stages.md",
+        "docs/audits/STAGE47_ENDPOINT_MUTATION_MAP_2026-09-03.md",
+        "docs/brain/BRAIN.md",
+        "docs/governance/authority-matrix.md",
+        "docs/operations/hardening_roadmap.md",
+        "docs/project_ledger.md",
+        "docs/requirements/BRD.md",
+        "docs/requirements/PRD.md",
+        "docs/specs/erp_maturity_master_plan.md",
+        "docs/specs/modules_overview.md",
+        "docs/specs/parity_master_plan.md",
+        "docs/specs/pdf_blueprint_gap_analysis.md",
+        "docs/specs/wms_parity_plan.md"
+      ]
+    },
+    {
+      "path": "docs/operations/backup_restore.md",
+      "title": "Backup and restore runbook",
+      "type": "procedure",
+      "status": "active",
+      "owner": "operations-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "a410c42 2026-08-08",
+      "bytes": 10754,
+      "sha256": "b8ce115263bea0f7f81b999ee01f5fd5842adc6ec5f9fb6ba0350d486e2fb8d7",
+      "inbound_links": [
+        "README.md",
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/governance/authority-matrix.md",
+        "docs/guides/ADMIN_GUIDE.md",
+        "docs/operations/hypercare_plan.md",
+        "docs/operations/incident_runbook.md",
+        "docs/operations/restore_drill_log.md"
+      ]
+    },
+    {
+      "path": "docs/operations/connector_live_verification.md",
+      "title": "Live connector verification (Stage 17.11)",
+      "type": "procedure",
+      "status": "active",
+      "owner": "operations-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "123f093 2026-07-19",
+      "bytes": 5027,
+      "sha256": "69865cddc4a2f177d8fceafc76c9892c289a7c71274bfa78931f5d58d0003b90",
+      "inbound_links": [
+        "README.md",
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/guides/ADMIN_GUIDE.md",
+        "docs/requirements/PRD.md"
+      ]
+    },
+    {
+      "path": "docs/operations/go_live_decisions.md",
+      "title": "Go-Live Decisions — Worksheet \u0026 Execution Guide",
+      "type": "procedure",
+      "status": "active",
+      "owner": "operations-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "3e53359 2026-08-13",
+      "bytes": 48424,
+      "sha256": "5da56f60aadf8299da621f346ef4e10d7e04b9436d28aede032fc8b9b6ca6ce6",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/operations/hardening_roadmap.md",
+      "title": "Hardening Roadmap: Toward a Lightweight, Solid, Foolproof ERP",
+      "type": "procedure",
+      "status": "active",
+      "owner": "operations-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "123f093 2026-07-19",
+      "bytes": 21261,
+      "sha256": "b23072d51b8f6767540d831a2f6b2d83eba880ca67ac1561b4e72f8983e85272",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/guides/ADMIN_GUIDE.md",
+        "docs/operations/pentest_scope.md",
+        "docs/specs/implementation_plan.md",
+        "docs/specs/pdf_blueprint_gap_analysis.md"
+      ]
+    },
+    {
+      "path": "docs/operations/hypercare_plan.md",
+      "title": "Hypercare Plan — first pilot go-live",
+      "type": "procedure",
+      "status": "active",
+      "owner": "operations-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "3e53359 2026-08-13",
+      "bytes": 8320,
+      "sha256": "5279f19631a1dbd51bf01ee927e75e697e62b8c4453152eb47304624b9c19807",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/operations/go_live_decisions.md",
+        "docs/operations/uat_run_sheet.md"
+      ]
+    },
+    {
+      "path": "docs/operations/incident_runbook.md",
+      "title": "Incident Runbook",
+      "type": "procedure",
+      "status": "active",
+      "owner": "operations-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "3e53359 2026-08-13",
+      "bytes": 8359,
+      "sha256": "94ecf60c883709db56a07db21adb5eec0f71d97481e22b5ee63d706bdcf59cdb",
+      "inbound_links": [
+        "README.md",
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/governance/authority-matrix.md",
+        "docs/guides/ADMIN_GUIDE.md",
+        "docs/operations/hypercare_plan.md",
+        "docs/operations/uat_run_sheet.md",
+        "docs/requirements/BRD.md"
+      ]
+    },
+    {
+      "path": "docs/operations/pentest_scope.md",
+      "title": "Penetration Test — scope document / RFP",
+      "type": "procedure",
+      "status": "active",
+      "owner": "operations-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "3e53359 2026-08-13",
+      "bytes": 8957,
+      "sha256": "c0ea93aee56206518f72b56ec23ba595d9f7af151600c44c6d3fc075a860a549",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/operations/go_live_decisions.md"
+      ]
+    },
+    {
+      "path": "docs/operations/restore_drill_log.md",
+      "title": "Restore drill log",
+      "type": "record",
+      "status": "archived",
+      "owner": "operations-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "archive",
+      "last_commit": "a410c42 2026-08-08",
+      "bytes": 11368,
+      "sha256": "a2316ea8a3f92bcd3ad7fbf79ede98736c86fd34f46ef3de1fb132480eb04d41",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/governance/authority-matrix.md",
+        "docs/guides/ADMIN_GUIDE.md",
+        "docs/operations/backup_restore.md",
+        "docs/operations/hypercare_plan.md"
+      ]
+    },
+    {
+      "path": "docs/operations/uat_run_sheet.md",
+      "title": "Business UAT — run sheet and closure log",
+      "type": "template",
+      "status": "draft",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "ef8a346 2026-08-06",
+      "bytes": 7458,
+      "sha256": "b5a194af13f0548a6ed14b79df1a8c8e4a2c13d873c5f982a2a09081b0643d8e",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/operations/go_live_decisions.md"
+      ]
+    },
+    {
+      "path": "docs/project_ledger.md",
+      "title": "Project Progress Ledger: Custom ERP",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "navigation",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 339001,
+      "sha256": "b04b62b40f91e2b72850a91cc1fdad2f037fdec6cd23aa50b4129f1531a2e714",
+      "inbound_links": [
+        "README.md",
+        "docs/README.md",
+        "docs/archive/project_ledger_sections_4_62.md",
+        "docs/brain/BRAIN.md",
+        "docs/micro_checklist.md",
+        "docs/specs/pdf_blueprint_gap_analysis.md"
+      ]
+    },
+    {
+      "path": "docs/requirements/BRD.md",
+      "title": "Business Requirements Document (BRD)",
+      "type": "normative",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "99d63de 2026-07-21",
+      "bytes": 12109,
+      "sha256": "f338b73e290dee9ed883763e2121fb4d012f4dfbe07db07dc665c968853963a6",
+      "inbound_links": [
+        "README.md",
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/governance/authority-matrix.md",
+        "docs/requirements/PRD.md"
+      ]
+    },
+    {
+      "path": "docs/requirements/PRD.md",
+      "title": "Product Requirements Document (PRD)",
+      "type": "normative",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "99d63de 2026-07-21",
+      "bytes": 17947,
+      "sha256": "b933c33d23e971e815d548de575f0cd4066e58a589b773b8bfb188066958aaf9",
+      "inbound_links": [
+        "README.md",
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/governance/authority-matrix.md",
+        "docs/guides/ADMIN_GUIDE.md",
+        "docs/requirements/BRD.md"
+      ]
+    },
+    {
+      "path": "docs/security/README.md",
+      "title": "docs/security",
+      "type": "reference",
+      "status": "draft",
+      "owner": "security-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "uncommitted",
+      "bytes": 6125,
+      "sha256": "f8a8374b9080d02030e83ee5bcde20c1fcfcb6d7c4c6af759d94db230e7d1dae",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/governance/authority-matrix.md"
+      ]
+    },
+    {
+      "path": "docs/security/attack_surface.json",
+      "title": "attack_surface.json",
+      "type": "generated",
+      "status": "active",
+      "owner": "security-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "bytes": 87574,
+      "sha256": "8cb32124e86eb25db864c2768768310d2d2ea27d36c49ad1831d38d777da41c5",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/security/README.md",
+        "docs/security/threat_model.md"
+      ]
+    },
+    {
+      "path": "docs/security/risk_register.md",
+      "title": "Security risk register",
+      "type": "reference",
+      "status": "draft",
+      "owner": "security-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "uncommitted",
+      "bytes": 12693,
+      "sha256": "2fd1340bd0c947d182aa7a50e651f58a081c8c3d0c28db15b194a585af4635ad",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/security/README.md",
+        "docs/security/threat_model.md"
+      ]
+    },
+    {
+      "path": "docs/security/threat_model.md",
+      "title": "Security charter and threat model",
+      "type": "reference",
+      "status": "draft",
+      "owner": "security-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "uncommitted",
+      "bytes": 26074,
+      "sha256": "be382171b212e3055f3f9c9a513a805ec6e72df27af4300b7425324b1abc0287",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/security/README.md",
+        "docs/security/risk_register.md"
+      ]
+    },
+    {
+      "path": "docs/specs/erp_maturity_master_plan.md",
+      "title": "ERP Maturity Master Plan — Source Summary \u0026 Repo-Grounded Status",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "57401ef 2026-07-23",
+      "bytes": 14568,
+      "sha256": "6e26a0bee9fa2f068146c25a4020418239162718cdbde0b17d1353d329c3e878",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/specs/implementation_plan.md",
+      "title": "Generic Inhouse ERP Platform: Master Approach \u0026 Implementation Blueprint",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "99d63de 2026-07-21",
+      "bytes": 19615,
+      "sha256": "5630f581230a9a4e674b74cfde9131fd015ec57edf8cecd05004600c2a8906ef",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/requirements/PRD.md"
+      ]
+    },
+    {
+      "path": "docs/specs/industry_plugs.md",
+      "title": "In-House ERP: Multi-Industry Schema \u0026 Configuration Specification",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "123f093 2026-07-19",
+      "bytes": 7933,
+      "sha256": "1a0ddb15bc1e49b05b792589249301cfa7c966a838bf802039b882cdcc1062bd",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/requirements/BRD.md"
+      ]
+    },
+    {
+      "path": "docs/specs/market_intelligence_reference.md",
+      "title": "Market Intelligence \u0026 Marketplace Crawling — Reference Notes",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "ad2b4b3 2026-08-05",
+      "bytes": 10334,
+      "sha256": "b133e3b61b52dad6f0b654cd4fe81b5ec8dd57d0700452e7dc689012b1287ad3",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/micro_checklist.md"
+      ]
+    },
+    {
+      "path": "docs/specs/message_catalog.md",
+      "title": "Standardized Message Catalog (Stage 23)",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "e5a3456 2026-07-21",
+      "bytes": 12271,
+      "sha256": "0adf1b3ca1c1d4f6e60d5e0b092db408d450d63fc93b98bddd58d282dff792ff",
+      "inbound_links": [
+        "docs/architecture/architecture_evaluation.md",
+        "docs/brain/BRAIN.md",
+        "docs/requirements/BRD.md",
+        "docs/requirements/PRD.md",
+        "docs/specs/implementation_plan.md",
+        "docs/specs/modules_overview.md"
+      ]
+    },
+    {
+      "path": "docs/specs/modules_overview.md",
+      "title": "In-House ERP: Functional Modules Directory",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "99d63de 2026-07-21",
+      "bytes": 10560,
+      "sha256": "238c02af11df61d8772edfdc433ce16f6ec2ee7651b021f13da8aadf2e27ecf7",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/requirements/PRD.md"
+      ]
+    },
+    {
+      "path": "docs/specs/oms_master_blueprint_reference.md",
+      "title": "OMS Master Blueprint \u0026 BRD Pack — Reference Notes",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "190d025 2026-07-23",
+      "bytes": 22661,
+      "sha256": "0544633dab6048af678337b246801575d762014eb20474a76616bfbd1e0bca74",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/specs/parity_master_plan.md",
+        "docs/specs/wms_parity_plan.md"
+      ]
+    },
+    {
+      "path": "docs/specs/openapi_public_v1.json",
+      "title": "openapi_public_v1.json",
+      "type": "generated",
+      "status": "active",
+      "owner": "api-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "20a8878 2026-08-13",
+      "bytes": 18148,
+      "sha256": "c057c3671fcb70b854f4e7d361f2cca47c072944d7741a0764d063ebb1b146b6",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/governance/authority-matrix.md",
+        "docs/specs/public_api_v1.md"
+      ]
+    },
+    {
+      "path": "docs/specs/parity_master_plan.md",
+      "title": "Parity Master Plan — OMS, PIM, ERP and the Knowledge Center",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "60f346d 2026-08-11",
+      "bytes": 42617,
+      "sha256": "5b800b64437b58ce73dd6ea6c2d6b4bc48f0a1f581e5c634bc469a821720e79c",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/micro_checklist.md",
+        "docs/project_ledger.md",
+        "docs/specs/wms_parity_plan.md"
+      ]
+    },
+    {
+      "path": "docs/specs/pdf_blueprint_gap_analysis.md",
+      "title": "PDF Blueprint Gap Analysis",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "123f093 2026-07-19",
+      "bytes": 23995,
+      "sha256": "ea89a3262f452873359c39e6de04f48cbbe52cef3f6c4a387d0d33775b130b69",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/specs/implementation_plan.md",
+        "docs/specs/modules_overview.md"
+      ]
+    },
+    {
+      "path": "docs/specs/public_api_v1.md",
+      "title": "Public API v1 Contract",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "20a8878 2026-08-13",
+      "bytes": 6498,
+      "sha256": "0730517b2683ce1c258af897349a18322da4f478dc85879c51b57012063c586a",
+      "inbound_links": [
+        "docs/README.md",
+        "docs/brain/BRAIN.md",
+        "docs/governance/authority-matrix.md"
+      ]
+    },
+    {
+      "path": "docs/specs/wms_master_blueprint_reference.md",
+      "title": "Universal WMS Master Blueprint — Reference Notes",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "1c1c050 2026-07-23",
+      "bytes": 10731,
+      "sha256": "4fb83158982bfbcdc828674c63abe49eba1400a9a5a450ce52faf448f35e8e5e",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/specs/wms_parity_plan.md"
+      ]
+    },
+    {
+      "path": "docs/specs/wms_parity_plan.md",
+      "title": "WMS Parity Plan — SAP EWM and Infor WMS as the benchmark",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-design",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "30b9895 2026-08-11",
+      "bytes": 36285,
+      "sha256": "5e47f5d83c403fcff1f03bec64907ae765a94930afd8f36d9ef3761dc965c527",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/update-docs.ps1",
+      "title": "update-docs.ps1",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "navigation",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "uncommitted",
+      "bytes": 10157,
+      "sha256": "899d9d57dabfdbecb335440c84f72339088ea35ab0b58d6a7296117bb696792d",
+      "inbound_links": [
+        "docs/README.md"
+      ]
+    },
+    {
+      "path": "internal/docgen/files.go",
+      "title": "files.go",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "bytes": 1959,
+      "sha256": "ff4a9fb57bbbe534751ef3b4bfe390eb8335d43d7efbc374a783b40af71da86a",
+      "inbound_links": []
+    },
+    {
+      "path": "internal/docgen/files_test.go",
+      "title": "files_test.go",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "bytes": 1611,
+      "sha256": "419f842ad6d4d45f6fa4efd83bf9e5660f746d67a28debcd11cc9e17ec41f1ce",
+      "inbound_links": []
+    },
+    {
+      "path": "internal/kb/content/articles/abbreviations.html",
+      "title": "abbreviations.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 7121,
+      "sha256": "d76ee8563e3b7366a44066eba3cc58b460f93f9c5b70c8d66f8ca5ddf173ccc1",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/backup-and-restore.html",
+      "title": "backup-and-restore.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 8107,
+      "sha256": "03cd29c6a926eb621ade410cb94c8657affc6e62e681bbb1e8777c97e5363bbd",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/channel-connectors.html",
+      "title": "channel-connectors.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 24422,
+      "sha256": "7bc49cd2eb6d2fc4a503450534f12885de8a35eabc7c9c325a2d7db74e2c1134",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/country-phone-rules.html",
+      "title": "country-phone-rules.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 9778,
+      "sha256": "9aa8c90e19f5c38e9a6a01c6a5d96081b8b4bbf833206583aef59acac2b85b2f",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/courier-integrations.html",
+      "title": "courier-integrations.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 16353,
+      "sha256": "f5a143842852e757839f9a5a88cce8f728bea2308b94f677ef56b31db5462f69",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/crm-loyalty.html",
+      "title": "crm-loyalty.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 14608,
+      "sha256": "41d0c56fb4633110f8597d15d875a38dc8ef048f749f6de2c7e8a839d3793e23",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/error-code-reference.html",
+      "title": "error-code-reference.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 83161,
+      "sha256": "2e512ef1d13608194d742d931a83ccc3887aec367669b7da672fe9174b0e3735",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/error-codes.html",
+      "title": "error-codes.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 3382,
+      "sha256": "4fe144eb7c09807300d3ae02e39bfa6fb073d09fc35d6c8ff5d226b62b274df4",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/faq.html",
+      "title": "faq.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 9081,
+      "sha256": "e64b2cd5050217b918cd3b98ecce6bf8bec4ab4f6b8771af34d077ad11e4e99a",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/finance-tax.html",
+      "title": "finance-tax.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 14231,
+      "sha256": "a009cea39ac07a7890a2eb246a3da81fc33925b54a30b78b694a9475b7c01971",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/finding-your-way-around.html",
+      "title": "finding-your-way-around.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 7000,
+      "sha256": "c4bc00d109eb533678160efa3ba95cd952e72399874c70481aabe25ccb22ea06",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/first-login.html",
+      "title": "first-login.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 2857,
+      "sha256": "bfa255d5fe4853bdd63fe7d2f9646fc453b8fc0795166f2feebdfe1079e7608a",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/first-order.html",
+      "title": "first-order.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "20a8878 2026-08-13",
+      "bytes": 3624,
+      "sha256": "5fccdced04fec1a00ffbad1dd55cb66eb8e1b55df423f9df63174380ad35515e",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/glossary.html",
+      "title": "glossary.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 8677,
+      "sha256": "9491257265ca0d9850176bed8486460ec8c4bdfdd58d9452784cf0b776ea7bd7",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/hr-payroll.html",
+      "title": "hr-payroll.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 15815,
+      "sha256": "f685249ba3068756d9ea69a93459a3d819187c8a15c840253f5a65efbaf8eb6d",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/incident-response.html",
+      "title": "incident-response.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 7440,
+      "sha256": "08e310beaf06768626bcb537326a5c423ec7fa34ee0de2e5584067381f09b6e2",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/inventory-wms-operations.html",
+      "title": "inventory-wms-operations.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 36418,
+      "sha256": "42c4a67dc7f983d63fe17d2c306943269d27805823296ae1185c5b0740ba10a2",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/journey-admin.html",
+      "title": "journey-admin.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 6814,
+      "sha256": "e85d376eeeed6f431c57077c2a7113bb50c0277750b16a81b24e0f0b2bda9075",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/journey-cashier.html",
+      "title": "journey-cashier.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 6757,
+      "sha256": "cb3ccee41ac06f74173e0afc4b141de2a0466154456bb8e23135c88cbf6ecf05",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/journey-category-manager.html",
+      "title": "journey-category-manager.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 6197,
+      "sha256": "76e1e357a71cf76e91a523a2baa52105e8dcac1d638839d9df5482208c126ef4",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/journey-finance.html",
+      "title": "journey-finance.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 6711,
+      "sha256": "6a54d2dcb54a8a472d39949928b18d169ca1bb69b79dafe4d963ac6c1a5ad991",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/journey-store-manager.html",
+      "title": "journey-store-manager.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 6739,
+      "sha256": "1cecc9981cfb21b3ca1ea68e2c113ee5840c6087d73ba4e2fbc6f0c5b0e45a42",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/journey-warehouse-operator.html",
+      "title": "journey-warehouse-operator.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 5603,
+      "sha256": "808b0255f00259b67a5baff1338377932c72c51e7fd809defa476f9aed09d900",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/manufacturing-mrp.html",
+      "title": "manufacturing-mrp.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 17536,
+      "sha256": "bfad45ab54bb65a07ffc8735143697e873bc994275b2b4b6ad45165b438703a9",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/oms-order-management.html",
+      "title": "oms-order-management.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 13740,
+      "sha256": "ee292fd6fd93114ae912a5c6075c08d3f465ae0c3989d6e1264dce05f5fd0dbf",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/open-a-shop-and-make-your-first-sale.html",
+      "title": "open-a-shop-and-make-your-first-sale.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 7831,
+      "sha256": "bea9fd8db01df9f0ec24430e2875faf92c8fb426c93021047e362554c1ff969f",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/pim-product-groups.html",
+      "title": "pim-product-groups.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "20a8878 2026-08-13",
+      "bytes": 3913,
+      "sha256": "9ef5584ba67e61b7260bc3d452e56cf42ee6374f05638e2921c1c340e33fb1df",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/pim-pxm.html",
+      "title": "pim-pxm.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 13219,
+      "sha256": "ba8b62f38963219a0d967320f89c02fc544c6e6f474bc875acb1275705cc6637",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/pos-operations.html",
+      "title": "pos-operations.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 25527,
+      "sha256": "200db80706c90e3d44ac4548d40c3b73b71cbf9787675c9c4eadf98ffbaef9d7",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/procurement.html",
+      "title": "procurement.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 33320,
+      "sha256": "40024686988c0160dd3a05ee0c1b2ea06d5d0d3674c0725620c5d2e4f49591ea",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/public-api-authentication.html",
+      "title": "public-api-authentication.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 4270,
+      "sha256": "dc6647843956ab2bd17aec4c71b23be15e1877402077a7a00caa00f801058fbe",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/public-api-idempotency.html",
+      "title": "public-api-idempotency.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 3693,
+      "sha256": "3bff2f0a813d46034af91144b3b59c7aec387b7b407a0894c73396360e560592",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/release-notes.html",
+      "title": "release-notes.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 43593,
+      "sha256": "bfc93ef58adb4b925bc6d795a83eef294914fb765f16a8012f2ea6901b1384fa",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/report-catalog.html",
+      "title": "report-catalog.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 55362,
+      "sha256": "60fb333d88476b53ff3a3339d51028484ea06c5cfa7c7c306443d5c22b6c7de9",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/role-journeys-overview.html",
+      "title": "role-journeys-overview.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 3484,
+      "sha256": "b4e9d4075c72cf3267eee993663810e102dd63142f0122824a48e33379b9198a",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/security-approvals.html",
+      "title": "security-approvals.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 29806,
+      "sha256": "406a2707a50209bd2c0ca3cf7d3ff1b396e003b2cd236561b6a25851f5f05289",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/traceability-batch-serial.html",
+      "title": "traceability-batch-serial.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "bd51fc4 2026-09-01",
+      "bytes": 15935,
+      "sha256": "36a098609977daa1d76d6edd701d4e5be68aa01e89563e4479ea64a7e8d0dc59",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/troubleshooting-index.html",
+      "title": "troubleshooting-index.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 18769,
+      "sha256": "c7c1a8c20dfaffcfe081b6c1f1566fe924724f80462e4bc7732b0ef7495d1cd1",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/what-is-this-system.html",
+      "title": "what-is-this-system.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "c57b830 2026-08-17",
+      "bytes": 4375,
+      "sha256": "7cdc4ab29bc6ad4219321b93750f175c52c694df63a375793cb92f589e1eca4d",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/index.json",
+      "title": "index.json",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 102639,
+      "sha256": "bbcdf909e44e98ee3985796c526a881d816cd42655f87000c0a6733d1f116575",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "internal/kb/content/search.json",
+      "title": "search.json",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "projection",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "0e79425 2026-09-04",
+      "bytes": 330353,
+      "sha256": "04b886b95dfe1da08e8fa73fe6fe805fcde9a2a0b73491577da4c9072e5a8b1e",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    }
+  ]
+}

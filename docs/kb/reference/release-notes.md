@@ -4,7 +4,7 @@ section: Reference
 order: 25
 summary: What shipped and when, generated from the build ledger so this page can't say something the ledger doesn't.
 audience: everyone
-last_verified: 2026-09-03
+last_verified: 2026-09-06
 ---
 
 <!-- GENERATED ARTICLE - DO NOT EDIT BY HAND.
@@ -12,7 +12,33 @@ last_verified: 2026-09-03
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **70** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **75** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+
+## 2026-09-06
+
+**Stage 49.1.5 — Secure tenant provisioning, offboarding and proof of removal** *(code + schema + tests + docs)*
+
+The tenant lifecycle had exactly two states: it existed, or somebody ran `DROP SCHEMA CASCADE` by hand. Everything in between — a credential that stops working, a tenant that stops being served without being destroyed, a deletion that has to wait for a backup and a retention period, a way to show afterwards that nothing of it remains — did not exist. Provisioning itself was better than its reputation (it already minted a cryptographically random one-time password and refused to clone `tenant_default`'s users), but nothing governed what happened to that password after it was handed over.
+
+**Stage 47.4 + 47.6 — Atomic replay-safe returns, and the RF task shell** *(code + schema + tests)*
+
+**47.4 (A-04).** Stage 35.9 had already built the right shape — one `ReturnRequest` aggregate with a real state machine, prices resolved from the original sale — and its own entry recorded that it had no management UI. What it lacked was the four properties that make a returns model safe, and what it sat beside was a legacy instant-return path that had none of them. That path took price and cost from the caller, incremented stock with an unlocked upsert, committed, and only then posted two GL reversals with no idempotency key; its "already returned" pool came from a single `SalesReturn` document whose repeat INSERT conflicted and whose error the HTTP handler discarded, so the recorded total never advanced past the first call while stock and GL for every later call still went through. Four replayed calls of 3 against a sale of 10 returned 12.
+
+**Stage 49 Phase S0 — Security charter, attack-surface inventory and fail-closed production baseline** *(code + docs + tests)*
+
+The first phase of Stage 49's security program: establish what is being protected and from whom (49.0), then make the surface knowable and the production baseline fail closed (49.1). Built in parallel with the Stage 47 session and deliberately scoped to files that session was not holding — two narrow edits to `internal/server/routes.go`, everything else new.
+
+## 2026-09-05
+
+**Stage 47.1 — Deny-by-default authorization, privacy and segregation of duties** *(code + schema + tests)*
+
+All eight of Stage 47.1's sub-items built: **47.1.1/47.1.2** (route-capability registry over all 461 `apiMiddleware` routes, and the five sensitive capabilities the A-01 finding named) earlier the same day, then **47.1.3-47.1.8** — a sensitive-field policy that replaces "no field rows means every field" (`engines/sensitive_fields.go`, merged into `fieldPermissions()` so read, form-meta, write, CSV import and PIM bulk edit all inherit it with no call-site change); scope semantics separated from role capability (`engines/scope_policy.go` — location strict where the doctype declares it mandatory, permissive where optional, plus the self and 3PL-owner dimensions the old inline clause had no notion of, all fail-closed); twelve task-derived role templates (`engines/role_templates.go`, which the route-capability allowlist is now *derived from* rather than duplicating); a six-conflict SoD catalog with evidence-based detection and a one-page "why allowed / why denied" administrator preview (`engines/sod_catalog.go`); a reviewed, reversible per-tenant grant migration that changes nothing until an owner approves a before/after diff and never touches a custom role (`engines/role_template_migration.go`, `db/migrations_stage47_1_role_templates.sql`); and a generated authorization contract matrix of 7,837 route×role assertions plus HTTP-level unauthenticated/deactivated/demoted/cross-location/sensitive-field checks.
+
+## 2026-09-03
+
+**Stage 39 — Knowledge Center content: all remaining items closed except one** *(content + code + docs)*
+
+Closed **39.8** (drift guards over the Knowledge Center - stale `last_verified`, dangling screen/endpoint/error-code references, unmapped screens; `internal/kb/drift.go`), **39.9** (article feedback as a plain generic doctype + registered report, zero new Go handler), **39.10** (release notes generated from this ledger's own Stage headings, `cmd/gendocs/release_notes.go`), **39.14** (channel-connector + courier integration guides, 26.4.8's error dictionary inline), **39.15** (Admin & Operations section - Backup & Restore, Incident Response, adapted from `docs/operations/` rather than duplicated), and **all 9 of 39.13's remaining module handbooks** (POS, Inventory & WMS, Procurement, Security/Roles/Approvals, HR & Payroll, Manufacturing & MRP, PIM/PXM, Finance & Tax, CRM & Loyalty, OMS) - closing Stage 39.13 (module handbooks) entirely, 10 of 10 counting Traceability from 2026-08-31. Full per-item detail, verification steps and file paths are in `micro_checklist.md`'s own Stage 39 entries - this section is the index pointer, not a duplicate.
 
 ## 2026-09-01
 
@@ -306,7 +332,7 @@ User's call, made looking at the screen: *"Dashboard not required. Everything it
 
 **Stage 30.3/30.4/30.5 + the 29.7/29.8 strays — the manual overhaul and the UX sweep** *(code + docs)*
 
-User request: finish the whole remaining Stage 30 manual/UX backlog in one pass, plus three items the previous session had flagged as *open but mis-filed inside the closed-stage archive*. Three genuine product decisions were taken with the user up front so the rest could run end to end without stopping: Trial Balance scoping (**mandatory as-of date**), the screenshot workflow (**scripted Playwright captures**), and the two flagged status transitions (**allow both, reason-code required**). Full item-by-item detail in **[micro_checklist.md](micro_checklist.md)** Stage 29.7/29.8 follow-ups and Stage 30.
+User request: finish the whole remaining Stage 30 manual/UX backlog in one pass, plus three items the previous session had flagged as *open but mis-filed inside the closed-stage archive*. Three genuine product decisions were taken with the user up front so the rest could run end to end without stopping: Trial Balance scoping (**mandatory as-of date**), the screenshot workflow (**scripted Playwright captures**), and the two flagged status transitions (**allow both, reason-code required**). Full item-by-item detail in **micro_checklist.md** Stage 29.7/29.8 follow-ups and Stage 30.
 
 **Stage 30.8 — The project brain map** *(tooling + docs)*
 

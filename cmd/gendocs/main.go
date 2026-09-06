@@ -12,8 +12,7 @@
 //	go run ./cmd/gendocs                      # the two that need no database
 //	go run ./cmd/gendocs -db "postgres://..."  # all three
 //
-// PERMISSION_MATRIX.md is skipped with a warning rather than failing the run
-// if no database is reachable - the other two are the ones that go stale.
+// Database snapshots require explicit environment/schema/output scope and fail closed.
 //
 // Windows note: Controlled Folder Access refuses writes under Documents\ from
 // an unrecognised binary and reports it as "the system cannot find the file
@@ -30,78 +29,95 @@ import (
 	"strings"
 	"time"
 
-	"custom_erp/db"
+	"database/sql"
+	"encoding/json"
+	"regexp"
+
 	"custom_erp/engines"
+	"custom_erp/internal/docgen"
 	"custom_erp/internal/server"
+	"github.com/lib/pq"
 )
 
 func main() {
-	out := flag.String("out", filepath.Join("docs", "guides"), "directory to write the generated docs into")
-	connStr := flag.String("db", "", "database connection string for PERMISSION_MATRIX.md (skipped if empty)")
-	openAPIOut := flag.String("openapi-out", filepath.Join("docs", "specs"), "directory to write openapi_public_v1.json into")
-	kbOut := flag.String("kb-out", filepath.Join("docs", "kb"), "directory of Knowledge Center sources to write the generated articles into")
+	root := flag.String("source", ".", "repository source root")
+	out := flag.String("out", ".", "output root; ALL output paths are relative to this root")
+	check := flag.Bool("check", false, "compare only; never write")
+	stamp := flag.String("stamp", "", "verification date YYYY-MM-DD (defaults to governance/generation.json)")
+	connStr := flag.String("db", "", "optional database connection; requires explicit tenant, environment and output root")
+	tenant := flag.String("tenant", "", "explicit tenant schema for a permission snapshot")
+	environment := flag.String("environment", "", "environment label for a permission snapshot")
 	flag.Parse()
-
-	stamp := time.Now().Format("2006-01-02")
-
-	writeOut(filepath.Join(*out, "ERROR_CODES.md"), errorCodesDoc(stamp))
-	writeOut(filepath.Join(*out, "REPORT_CATALOG.md"), reportCatalogDoc(stamp))
-
-	// Stage 39.17 / 39.16. The same three lists, written a second time as
-	// Knowledge Center articles. Not a duplicate of the docs/guides/ copies in
-	// any sense that can drift: both come from the same registry in the same
-	// run, and the Knowledge Center is where a user in the application actually
-	// looks. Writing Markdown into docs/kb/ rather than HTML into
-	// internal/kb/content/ keeps a single generator for the Centre - genkb
-	// still renders every article, so these get the same anchors, the same
-	// search index and the same access model as a hand-written one.
-	writeOut(filepath.Join(*kbOut, "troubleshooting", "error-code-reference.md"), kbErrorCodeReference(stamp))
-	writeOut(filepath.Join(*kbOut, "reference", "report-catalog.md"), kbReportCatalog(stamp))
-	writeOut(filepath.Join(*kbOut, "reference", "country-phone-rules.md"), kbCountryPhoneRules(stamp))
-	// Stage 39.10. Skipped (with its own [warn]) rather than failing the run if
-	// docs/project_ledger.md is unreadable from the current working directory -
-	// the other three generators have no such external dependency.
-	if releaseNotes := kbReleaseNotes(stamp); releaseNotes != "" {
-		writeOut(filepath.Join(*kbOut, "reference", "release-notes.md"), releaseNotes)
+	fail := func(err error) { fmt.Fprintln(os.Stderr, "gendocs:", err); os.Exit(1) }
+	explicitOut := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "out" {
+			explicitOut = true
+		}
+	})
+	if *connStr != "" && (!explicitOut || *tenant == "" || *environment == "" || *check) {
+		fail(fmt.Errorf("permission evidence requires -out, -tenant, -environment and cannot run in -check"))
 	}
-	fmt.Println("  [note] docs/kb/ changed - run `go run ./cmd/genkb` (or docs/kb/update-kb.ps1) to rebuild the Knowledge Center.")
-
-	// Stage 38.8. The OpenAPI document is generated from the same public route
-	// table the server registers, so the published contract and the running
-	// routes cannot disagree. Written next to the docs it belongs with rather
-	// than into docs/guides/, since it is a machine artifact consumed by client
-	// generators and by the Knowledge Center's API reference.
-	spec, err := server.PublicAPIOpenAPISpec()
+	if *stamp == "" {
+		body, err := os.ReadFile(filepath.Join(*root, "docs", "governance", "generation.json"))
+		if err != nil {
+			fail(err)
+		}
+		var config struct {
+			VerifiedOn string `json:"verified_on"`
+		}
+		if err := json.Unmarshal(body, &config); err != nil {
+			fail(err)
+		}
+		*stamp = config.VerifiedOn
+	}
+	if _, err := time.Parse("2006-01-02", *stamp); err != nil {
+		fail(err)
+	}
+	files, err := referenceFiles(*root, *stamp)
 	if err != nil {
-		fmt.Printf("  [fail] openapi_public_v1.json: %v\n", err)
-		os.Exit(1)
+		fail(err)
 	}
-	writeOut(filepath.Join(*openAPIOut, "openapi_public_v1.json"), string(spec)+"\n")
-
-	if *connStr == "" {
-		fmt.Println("  [skip] PERMISSION_MATRIX.md - pass -db to generate it")
-		return
+	if *connStr != "" {
+		if !regexp.MustCompile(`^[a-z][a-z0-9_]*$`).MatchString(*tenant) || !regexp.MustCompile(`^[a-z][a-z0-9-]*$`).MatchString(*environment) {
+			fail(fmt.Errorf("invalid tenant schema or environment label"))
+		}
+		body, err := permissionMatrixDoc(*stamp, *connStr, *tenant, *environment)
+		if err != nil {
+			fail(fmt.Errorf("permission snapshot failed; no outputs written"))
+		}
+		files["docs/assurance/permissions/"+*stamp+"-"+*environment+"-"+*tenant+".md"] = []byte(body)
 	}
-	body, err := permissionMatrixDoc(stamp, *connStr)
-	if err != nil {
-		fmt.Printf("  [skip] PERMISSION_MATRIX.md - %v\n", err)
-		return
+	if *check {
+		diffs := docgen.Diff(*out, files)
+		if len(diffs) != 0 {
+			fail(fmt.Errorf("generated drift: %s", strings.Join(diffs, ", ")))
+		}
+	} else if err := docgen.Write(*out, files); err != nil {
+		fail(err)
 	}
-	writeOut(filepath.Join(*out, "PERMISSION_MATRIX.md"), body)
+	fmt.Printf("gendocs: %d outputs verified\n", len(files))
 }
 
-func writeOut(path, body string) {
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		fmt.Printf("  [fail] %s: %v\n", path, err)
-		if strings.Contains(err.Error(), "cannot find the file specified") {
-			fmt.Println("         On Windows this is usually Controlled Folder Access blocking an")
-			fmt.Println("         unrecognised binary from writing under Documents\\, not a missing")
-			fmt.Println("         directory. Generate into a TEMP directory with -out and copy in")
-			fmt.Println("         with PowerShell, as docs/guides/update-guides.ps1 does.")
-		}
-		os.Exit(1)
+// Build every artifact before writing any of them. No implicit output directory exists.
+func referenceFiles(root, stamp string) (map[string][]byte, error) {
+	ledger, err := os.ReadFile(filepath.Join(root, "docs", "project_ledger.md"))
+	if err != nil {
+		return nil, err
 	}
-	fmt.Printf("  [ok]   %s (%d bytes)\n", path, len(body))
+	spec, err := server.PublicAPIOpenAPISpec()
+	if err != nil {
+		return nil, err
+	}
+	return map[string][]byte{
+		"docs/guides/ERROR_CODES.md":                      []byte(errorCodesDoc(stamp)),
+		"docs/guides/REPORT_CATALOG.md":                   []byte(reportCatalogDoc(stamp)),
+		"docs/kb/troubleshooting/error-code-reference.md": []byte(kbErrorCodeReference(stamp)),
+		"docs/kb/reference/report-catalog.md":             []byte(kbReportCatalog(stamp)),
+		"docs/kb/reference/country-phone-rules.md":        []byte(kbCountryPhoneRules(stamp)),
+		"docs/kb/reference/release-notes.md":              []byte(kbReleaseNotes(stamp, string(ledger))),
+		"docs/specs/openapi_public_v1.json":               append(spec, '\n'),
+	}, nil
 }
 
 // generatedHeader is the same warning on all three files. Anyone editing one
@@ -111,8 +127,8 @@ func generatedHeader(title, stamp, source, regen string) string {
 		"<!-- GENERATED FILE - DO NOT EDIT BY HAND.\n"+
 		"     Source: %s\n"+
 		"     Regenerate: %s -->\n\n"+
-		"> **Generated %s.** This page is produced from %s, so it cannot drift from\n"+
-		"> the running system. Hand edits are lost on the next run - change the source instead.\n\n",
+		"> **Generated %s.** This page is produced from %s, for this source revision.\n"+
+		"> It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.\n\n",
 		title, source, regen, stamp, source)
 }
 
@@ -248,14 +264,14 @@ func reportCatalogDoc(stamp string) string {
 	return b.String()
 }
 
-func permissionMatrixDoc(stamp, connStr string) (string, error) {
-	db.InitDB(connStr)
-	if db.DB == nil {
-		return "", fmt.Errorf("no database connection")
+func permissionMatrixDoc(stamp, connStr, tenant, environment string) (string, error) {
+	conn, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return "", err
 	}
-
-	rows, err := db.DB.Query(`SELECT role, doctype_name, allow_read, allow_create, allow_update, allow_delete
-	                            FROM tenant_default.role_permissions ORDER BY doctype_name, role`)
+	defer conn.Close()
+	rows, err := conn.Query(`SELECT role, doctype_name, allow_read, allow_create, allow_update, allow_delete
+	                            FROM ` + pq.QuoteIdentifier(tenant) + `.role_permissions ORDER BY doctype_name, role`)
 	if err != nil {
 		return "", err
 	}
@@ -277,6 +293,9 @@ func permissionMatrixDoc(stamp, connStr string) (string, error) {
 		roleSet[role] = true
 	}
 
+	if err := rows.Err(); err != nil {
+		return "", err
+	}
 	roles := make([]string, 0, len(roleSet))
 	for r := range roleSet {
 		roles = append(roles, r)
@@ -296,7 +315,9 @@ func permissionMatrixDoc(stamp, connStr string) (string, error) {
 		"the tenant's own `role_permissions` table",
 		"`go run ./cmd/gendocs -db \"postgres://...\"`"))
 
-	b.WriteString(fmt.Sprintf("What each role may do with each record type, read from the default tenant's\n"+
+	b.WriteString(fmt.Sprintf("Historical grant snapshot only; not an effective authorization policy.\n"+
+		"Environment: "+environment+"; schema: "+tenant+". Route, scope, field and workflow controls also apply.\n\n"+
+		"What each role was granted at capture time:\n"+
 		"grants: **%d record types across %d roles.**\n\n"+
 		"**Super Admin is not listed** - it always has full access to everything and needs no\n"+
 		"grant rows. A role with **no row at all** for a record type has **no access to\n"+

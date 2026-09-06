@@ -4,7 +4,7 @@ section: Reference
 order: 20
 summary: Every report you can run, what it asks for, what it returns and whether you can drill into it.
 audience: store manager, finance, category manager, admin
-last_verified: 2026-09-03
+last_verified: 2026-09-06
 screens: [reports]
 ---
 
@@ -13,7 +13,7 @@ screens: [reports]
 
 # Report catalog
 
-**91** reports across **15** categories, all reachable from
+**92** reports across **15** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -33,7 +33,7 @@ screenshot from another.
 - [BI](#bi) - 1 reports
 - [CRM](#crm) - 7 reports
 - [Exceptions](#exceptions) - 3 reports
-- [Finance](#finance) - 25 reports
+- [Finance](#finance) - 26 reports
 - [HR](#hr) - 1 reports
 - [Inventory](#inventory) - 6 reports
 - [Manufacturing](#manufacturing) - 3 reports
@@ -403,6 +403,19 @@ screenshot from another.
 - **Rate Type (Closing/Spot/Average)** (`rate_type`) - text, optional
 
 **Columns:** Document Type · Document · Currency · Amount (txn) · Booked Rate · Booked (functional) · Carrying · Rate Now · Revalued · Unrealised Movement · Last Revalued · Note
+
+**Drill-down:** no.
+
+### POS Sale Reconciliation
+
+**Report id:** `pos-sale-reconciliation`
+
+**Parameters:**
+
+- **From** (`from_date`) - date, optional
+- **To** (`to_date`) - date, optional
+
+**Columns:** Sale · Status · Payment State · Qty Sold · Qty in Stock Ledger · Cart Total *(sensitive)* · Revenue Posted *(sensitive)* · COGS Posted *(sensitive)* · Tax Posted *(sensitive)* · Tender Posted *(sensitive)* · Points Burned · Event Published · Verdict · Detail
 
 **Drill-down:** no.
 

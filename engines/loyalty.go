@@ -2,6 +2,7 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
 	"fmt"
 	"time"
 )
@@ -47,6 +48,41 @@ func insertLoyaltyLedgerEntry(tenantID, customerID, transactionType string, poin
 		return err
 	}
 	return insertLoyaltyLedgerEntryInSchema(schema, customerID, transactionType, points, referenceDoctype, referenceID, nil)
+}
+
+// RedeemLoyaltyPointsTx is RedeemLoyaltyPoints inside the caller's own
+// transaction (Stage 47.3.2), so the burn commits with the sale or not at all.
+//
+// This removes the compensating-reversal dance FinalizePOSCheckout used to
+// need: before this, the burn committed on its own, and every later failure
+// path had to remember to call ReverseLoyaltyRedemption - a correctness
+// obligation on five separate error branches, each of which could itself fail
+// and only log. Now a rolled-back sale un-burns the points by definition.
+// ReverseLoyaltyRedemption stays for the case it was really written for: a
+// completed sale that is later returned.
+//
+// The balance check reads inside the transaction and locks the customer's
+// ledger rows, so two tills redeeming the same balance concurrently cannot
+// both pass it.
+func RedeemLoyaltyPointsTx(tx *sql.Tx, schema, tenantID, customerID string, points int, referenceID string) (discountValue int, err error) {
+	if points <= 0 {
+		return 0, nil
+	}
+	var balance int
+	if err := tx.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(SUM(CASE WHEN transaction_type = 'Earn' THEN points ELSE -points END), 0)
+		FROM %s.loyalty_point_ledger WHERE customer_id = $1 FOR UPDATE`, schema), customerID).Scan(&balance); err != nil {
+		return 0, err
+	}
+	if points > balance {
+		return 0, &ValidationError{Code: "CUSTOM-0134", Message: fmt.Sprintf("insufficient loyalty points: requested %d, balance %d", points, balance)}
+	}
+	if _, err := tx.Exec(fmt.Sprintf(`
+		INSERT INTO %s.loyalty_point_ledger (customer_id, transaction_type, points, reference_doctype, reference_id)
+		VALUES ($1, 'Burn', $2, 'POSCart', $3)`, schema), customerID, points, referenceID); err != nil {
+		return 0, err
+	}
+	return points * redemptionValuePerPointFor(tenantID), nil
 }
 
 // GetLoyaltyBalance computes a customer's current point balance as

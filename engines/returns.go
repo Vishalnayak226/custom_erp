@@ -83,13 +83,23 @@ var returnDispositionRule = map[string]struct {
 	"Rejected":   {false, "", false},
 }
 
-// resolveOriginalSaleLinePrices reads a POSCart's own stored sale_price/
-// cost_price per SKU - resolveOriginalSale (engines/fulfillment.go) only
-// captures sku/qty via transferLine, which is enough for the SALESR-0129/
-// 0130/0131 window/qty checks this function's caller reuses but not enough
-// to price a refund correctly. A SalesInvoice-only reference (no per-line
-// data at all, see resolveOriginalSale's own comment) resolves to an empty
-// map - those lines simply have no resolvable original price.
+// resolveOriginalSaleLinePrices reads a POSCart's own stored sale_price per
+// SKU - resolveOriginalSale (engines/fulfillment.go) only captures sku/qty via
+// transferLine, which is enough for the SALESR-0129/0130/0131 window/qty
+// checks this function's caller reuses but not enough to price a refund
+// correctly. A SalesInvoice-only reference (no per-line data at all, see
+// resolveOriginalSale's own comment) resolves to an empty map - those lines
+// simply have no resolvable original price.
+//
+// Stage 47.4.2: COST no longer comes from the cart at all. Stage 47.2.2
+// removed cost_price from what a cart stores - it was the browser's own
+// figure - so reading it here would resolve every returned line to a zero cost
+// basis and silently post no COGS reversal, which is exactly what the 47.4.7
+// inspection test caught. Cost is resolved the same server-authoritative way
+// the sale itself resolved it (ResolveQuoteUnitCostPaise: moving-average cost,
+// then Item.standard_cost, then zero), so a sale and its return agree on what
+// the goods cost by construction rather than by both trusting the same
+// client-supplied number.
 func resolveOriginalSaleLinePrices(tenantID, orderID string) (map[string]originalLinePrice, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -108,7 +118,6 @@ func resolveOriginalSaleLinePrices(tenantID, orderID string) (map[string]origina
 		Items []struct {
 			Sku       string  `json:"sku"`
 			SalePrice float64 `json:"sale_price"`
-			CostPrice float64 `json:"cost_price"`
 		} `json:"items"`
 	}
 	if err := json.Unmarshal([]byte(dataStr), &cart); err != nil {
@@ -116,7 +125,8 @@ func resolveOriginalSaleLinePrices(tenantID, orderID string) (map[string]origina
 	}
 	prices := map[string]originalLinePrice{}
 	for _, l := range cart.Items {
-		prices[l.Sku] = originalLinePrice{SalePrice: l.SalePrice, CostPrice: l.CostPrice}
+		costPaise, _ := ResolveQuoteUnitCostPaise(tenantID, l.Sku)
+		prices[l.Sku] = originalLinePrice{SalePrice: l.SalePrice, CostPrice: PaiseToRupees(costPaise)}
 	}
 	return prices, nil
 }
@@ -151,62 +161,49 @@ func resolveSalesOrderLinePrices(tenantID, orderID string) (map[string]originalL
 	return prices, rows.Err()
 }
 
-// sumPriorReturnRequests mirrors sumPriorReturns (engines/fulfillment.go)
-// but scans this file's own ReturnRequest doctype - CreateReturnRequest
-// checks both pools so a customer can't over-return by mixing the instant
-// POS-return path and this approval-gated OMS path against the same
-// original order. A Rejected request never happened, so it's excluded.
-func sumPriorReturnRequests(tenantID, originalOrderID string) (map[string]int, error) {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT data FROM %s.documents WHERE doctype = 'ReturnRequest' AND data->>'original_order_id' = $1 AND data->>'status' != 'Rejected' AND deleted_at IS NULL`, schema),
-		originalOrderID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	totals := map[string]int{}
-	for rows.Next() {
-		var dataStr string
-		if err := rows.Scan(&dataStr); err != nil {
-			return nil, err
-		}
-		var doc struct {
-			Items []returnItemRecord `json:"items"`
-		}
-		if err := json.Unmarshal([]byte(dataStr), &doc); err != nil {
-			continue
-		}
-		for _, it := range doc.Items {
-			totals[it.SKU] += it.Qty
-		}
-	}
-	return totals, rows.Err()
+// The per-original-order return pool used to be summed by a pair of helpers
+// here and in engines/fulfillment.go, read outside any transaction and then
+// acted on. Stage 47.4.3 replaced both with assertReturnEligibleTx
+// (engines/returns_atomic.go), which sums the same two document families
+// INSIDE the transaction that holds the original sale locked - the read and
+// the insert were the race, not the arithmetic.
+
+// preparedReturnRequest is everything CreateReturnRequest resolves BEFORE it
+// needs a lock: the request type, the resolved original order, the priced
+// line records and the routed return location.
+//
+// Stage 47.4.3 split this out of CreateReturnRequest so the cumulative-quantity
+// check - the only part that genuinely races - can run inside a transaction
+// holding a lock on the original sale, while everything above it (which reads
+// immutable or slow-moving data) stays outside and keeps the lock short.
+type preparedReturnRequest struct {
+	requestType     string
+	originalOrderID string
+	returnLocation  string
+	autoRouted      bool
+	records         []returnItemRecord
+	soldBySku       map[string]int
+	interstate      bool
+	// skipEligibility is set only by a No Receipt exception (47.4.5): there is
+	// no original sale to check cumulative quantity against, which is the
+	// whole nature of that case. It is never set by ordinary validation.
+	skipEligibility bool
 }
 
-// CreateReturnRequest is the workflow's entry point for both request types.
-// For a Customer Return it reuses resolveOriginalSale's window/qty checks
-// (SALESR-0129/0130/0131) exactly as ProcessReturnAnywhere does, plus this
-// file's own sumPriorReturnRequests pool. For an RTO it requires the
-// LogisticsBooking (Stage 26.12.4) to already be in the 'RTO' status
-// RecordRTO sets, and is idempotent on booking_id (replaying an RTO webhook/
-// call returns the existing non-Rejected request rather than duplicating
-// it). Returns the new ReturnRequest's id.
-func CreateReturnRequest(tenantID, requestType, returnLocation, originalOrderID, bookingID, requestedBy string, items []ReturnItemInput) (string, error) {
+// prepareReturnRequest runs every validation that does not need serialization:
+// request type, original-bill existence, return window, RTO booking state,
+// return routing, and the server-side price resolution. It deliberately does
+// NOT check cumulative returned quantity - that is assertReturnEligibleTx's
+// job, under the lock (engines/returns_atomic.go).
+func prepareReturnRequest(tenantID, schema, requestType, returnLocation, originalOrderID, bookingID string, items []ReturnItemInput, exception *ReturnException) (*preparedReturnRequest, error) {
 	if requestType != "Customer Return" && requestType != "RTO" {
-		return "", fmt.Errorf("request_type must be 'Customer Return' or 'RTO', got %q", requestType)
+		return nil, fmt.Errorf("request_type must be 'Customer Return' or 'RTO', got %q", requestType)
 	}
 	if len(items) == 0 {
-		return "", errors.New("at least one item is required")
-	}
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return "", err
+		return nil, errors.New("at least one item is required")
 	}
 
+	out := &preparedReturnRequest{requestType: requestType, originalOrderID: originalOrderID, soldBySku: map[string]int{}}
 	priceBySku := map[string]originalLinePrice{}
 	// Stage 35.9.3 (return routing): populated only for an RTO, whose
 	// LogisticsBooking already carries the pincode the parcel was being
@@ -216,73 +213,79 @@ func CreateReturnRequest(tenantID, requestType, returnLocation, originalOrderID,
 	// auto-routing below simply has nothing to route from there and that path
 	// keeps requiring an explicit return_location, same as today.
 	rtoDestinationPincode := ""
+	var err error
 
 	switch requestType {
 	case "Customer Return":
+		// 47.4.5 No Receipt: there is deliberately no bill to resolve. The
+		// line is priced from the item master instead, which is the honest
+		// basis when nobody can say what was actually paid - and the
+		// difference from a receipted return is recorded on the document, not
+		// hidden by making an unpriced return look like a priced one.
+		if exception != nil && exception.Type == ReturnExceptionNoReceipt {
+			out.skipEligibility = true
+			for _, it := range items {
+				salePrice, mrp := itemMasterPrices(tenantID, it.SKU)
+				if salePrice <= 0 {
+					salePrice = mrp
+				}
+				priceBySku[it.SKU] = originalLinePrice{SalePrice: salePrice}
+			}
+			break
+		}
 		if originalOrderID == "" {
-			return "", errors.New("original_order_id is required for a Customer Return")
+			return nil, errors.New("original_order_id is required for a Customer Return")
 		}
 		soldLines, saleDate, found, errResolve := resolveOriginalSale(tenantID, originalOrderID)
 		if errResolve != nil {
-			return "", errResolve
+			return nil, errResolve
 		}
 		if !found {
-			return "", &ValidationError{Code: "SALESR-0131", Message: fmt.Sprintf("no original bill found for %q - a return requires a valid original bill reference", originalOrderID)}
+			return nil, &ValidationError{Code: "SALESR-0131", Message: fmt.Sprintf("no original bill found for %q - a return requires a valid original bill reference. A supervisor may still take it back as a No Receipt exception.", originalOrderID)}
 		}
 		returnWindowDays := salesReturnWindowDaysFor(tenantID)
-		if !saleDate.IsZero() && time.Since(saleDate) > time.Duration(returnWindowDays)*24*time.Hour {
-			return "", &ValidationError{Code: "SALESR-0129", Message: fmt.Sprintf("return is not allowed more than %d days after the original sale (%s)", returnWindowDays, saleDate.Format("2006-01-02"))}
+		// 47.4.5 Goodwill: a supervisor may accept a return past the window.
+		// The window check is the ONLY thing it waives - cumulative eligibility
+		// still holds, because "we will take this back as a gesture" is not the
+		// same as "you may return more than you bought".
+		goodwill := exception != nil && exception.Type == ReturnExceptionGoodwill
+		if !goodwill && !saleDate.IsZero() && time.Since(saleDate) > time.Duration(returnWindowDays)*24*time.Hour {
+			return nil, &ValidationError{Code: "SALESR-0129", Message: fmt.Sprintf("return is not allowed more than %d days after the original sale (%s). A supervisor may still accept it as a Goodwill exception.", returnWindowDays, saleDate.Format("2006-01-02"))}
 		}
-		if len(soldLines) > 0 {
-			soldBySku := map[string]int{}
-			for _, l := range soldLines {
-				soldBySku[l.Sku] += l.Qty
-			}
-			alreadyReturned, errSum := sumPriorReturns(tenantID, originalOrderID)
-			if errSum != nil {
-				return "", errSum
-			}
-			alreadyRequested, errSum2 := sumPriorReturnRequests(tenantID, originalOrderID)
-			if errSum2 != nil {
-				return "", errSum2
-			}
-			for _, it := range items {
-				remaining := soldBySku[it.SKU] - alreadyReturned[it.SKU] - alreadyRequested[it.SKU]
-				if it.Qty > remaining {
-					return "", &ValidationError{Code: "SALESR-0130", Message: fmt.Sprintf("return quantity for SKU %q (%d) exceeds remaining returnable quantity (%d)", it.SKU, it.Qty, remaining)}
-				}
-			}
+		for _, l := range soldLines {
+			out.soldBySku[l.Sku] += l.Qty
 		}
 		priceBySku, err = resolveOriginalSaleLinePrices(tenantID, originalOrderID)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
+		out.interstate = originalSaleWasInterstate(tenantID, originalOrderID)
 
 	case "RTO":
 		if bookingID == "" {
-			return "", errors.New("booking_id is required for an RTO return request")
+			return nil, errors.New("booking_id is required for an RTO return request")
 		}
 		_, bookingData, bookingStatus, errB := fetchLogisticsBooking(tenantID, bookingID)
 		if errB != nil {
-			return "", errB
+			return nil, errB
 		}
 		if bookingStatus != "RTO" {
-			return "", fmt.Errorf("booking %s is not marked RTO (currently %s) - call RecordRTO first", bookingID, bookingStatus)
+			return nil, fmt.Errorf("booking %s is not marked RTO (currently %s) - call RecordRTO first", bookingID, bookingStatus)
 		}
 		var existing string
 		errDup := db.DB.QueryRow(fmt.Sprintf(
 			`SELECT id FROM %s.documents WHERE doctype = 'ReturnRequest' AND data->>'booking_id' = $1 AND data->>'status' != 'Rejected' AND deleted_at IS NULL LIMIT 1`, schema),
 			bookingID).Scan(&existing)
 		if errDup == nil {
-			return existing, nil
+			return nil, &duplicateRTOError{existingID: existing}
 		} else if errDup != sql.ErrNoRows {
-			return "", errDup
+			return nil, errDup
 		}
-		originalOrderID, _ = bookingData["order_id"].(string)
-		if originalOrderID != "" {
-			priceBySku, err = resolveSalesOrderLinePrices(tenantID, originalOrderID)
+		out.originalOrderID, _ = bookingData["order_id"].(string)
+		if out.originalOrderID != "" {
+			priceBySku, err = resolveSalesOrderLinePrices(tenantID, out.originalOrderID)
 			if err != nil {
-				return "", err
+				return nil, err
 			}
 		}
 		rtoDestinationPincode, _ = bookingData["destination_pincode"].(string)
@@ -294,52 +297,87 @@ func CreateReturnRequest(tenantID, requestType, returnLocation, originalOrderID,
 	// Nearest-Pincode strategy - the same distance-proxy logic
 	// ResolveAllocationPlan already uses to source an order, run in reverse to
 	// decide where a return should land.
-	autoRouted := false
-	if returnLocation == "" && rtoDestinationPincode != "" {
+	out.returnLocation = returnLocation
+	if out.returnLocation == "" && rtoDestinationPincode != "" {
 		routingItems := make([]map[string]interface{}, len(items))
 		for i, it := range items {
 			routingItems[i] = map[string]interface{}{"sku": it.SKU, "qty": it.Qty}
 		}
 		if loc, ok, errRoute := singleLocationNearestPincode(schema, rtoDestinationPincode, routingItems); errRoute == nil && ok {
-			returnLocation = loc
-			autoRouted = true
+			out.returnLocation = loc
+			out.autoRouted = true
 		}
 	}
-	if returnLocation == "" {
-		return "", errors.New("return_location is required (no return location could be auto-routed for this request)")
+	if out.returnLocation == "" {
+		return nil, errors.New("return_location is required (no return location could be auto-routed for this request)")
 	}
 
-	records := make([]returnItemRecord, len(items))
+	out.records = make([]returnItemRecord, len(items))
 	for i, it := range items {
 		if it.SKU == "" || it.Qty <= 0 {
-			return "", fmt.Errorf("each item requires a non-empty sku and a positive qty")
+			return nil, fmt.Errorf("each item requires a non-empty sku and a positive qty")
 		}
+		// 47.4.2: price and cost basis come from the immutable original sale
+		// lines, never from the caller. A SKU that was not on the original
+		// bill resolves to a zero-price record, which the eligibility check
+		// under the lock then rejects outright.
 		p := priceBySku[it.SKU]
-		records[i] = returnItemRecord{SKU: it.SKU, Qty: it.Qty, OriginalUnitPrice: p.SalePrice, OriginalCostPrice: p.CostPrice}
+		out.records[i] = returnItemRecord{SKU: it.SKU, Qty: it.Qty, OriginalUnitPrice: p.SalePrice, OriginalCostPrice: p.CostPrice}
 	}
+	return out, nil
+}
 
-	returnID := NewDocID("RR")
-	doc := map[string]interface{}{
-		"code": returnID, "request_type": requestType, "original_order_id": originalOrderID,
-		"booking_id": bookingID, "return_location": returnLocation, "return_location_auto_routed": autoRouted,
-		"status": "Requested", "requested_by": requestedBy, "approved_by": "", "rejection_reason": "",
-		"items": records, "total_refund_eligible": 0,
-	}
-	marshaled, err := json.Marshal(doc)
+// duplicateRTOError signals that an RTO return already exists for a booking -
+// not an error condition, but not a fresh creation either. CreateReturnRequest
+// unwraps it back into its historical "return the existing id" behaviour.
+type duplicateRTOError struct{ existingID string }
+
+func (e *duplicateRTOError) Error() string {
+	return fmt.Sprintf("an RTO return request (%s) already exists for this booking", e.existingID)
+}
+
+// originalSaleWasInterstate reads the tax basis the original sale was booked
+// under, so a return reverses the tax the way it was actually charged rather
+// than the way it would be charged today. A sale with no stored breakdown (a
+// SalesInvoice, or a cart from before Stage 17.5) reads as intrastate, which
+// is this codebase's own default.
+func originalSaleWasInterstate(tenantID, originalOrderID string) bool {
+	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return "", err
+		return false
 	}
-	if _, err := db.DB.Exec(fmt.Sprintf(
-		`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'ReturnRequest', $2, 'Requested', 'system')`, schema),
-		returnID, marshaled); err != nil {
-		return "", err
-	}
+	var interstate sql.NullBool
+	_ = db.DB.QueryRow(fmt.Sprintf(
+		`SELECT (data->'gst_breakdown'->>'interstate')::boolean FROM %s.documents WHERE id = $1`, schema),
+		originalOrderID).Scan(&interstate)
+	return interstate.Valid && interstate.Bool
+}
 
-	event := "Return Requested"
-	if requestType == "RTO" {
-		event = "RTO Detected"
+// CreateReturnRequest is the workflow's entry point for both request types.
+// For a Customer Return it reuses resolveOriginalSale's window/qty checks
+// (SALESR-0129/0130/0131), plus this file's own sumPriorReturnRequests pool.
+// For an RTO it requires the LogisticsBooking (Stage 26.12.4) to already be in
+// the 'RTO' status RecordRTO sets, and is idempotent on booking_id (replaying
+// an RTO webhook/call returns the existing non-Rejected request rather than
+// duplicating it). Returns the new ReturnRequest's id.
+//
+// Stage 47.4.3: this now delegates to the same locked, transactional path
+// CreateReturnRequestCommand uses (engines/returns_atomic.go), so the
+// cumulative-quantity check can no longer be defeated by two concurrent
+// callers - previously it read the prior returns and then inserted with
+// nothing in between. It keeps its original signature and its RTO
+// deduplication for the internal/webhook callers that already have their own
+// idempotency; a caller that can retry (the POS, the API) should use
+// CreateReturnRequestCommand and pass a key.
+func CreateReturnRequest(tenantID, requestType, returnLocation, originalOrderID, bookingID, requestedBy string, items []ReturnItemInput) (string, error) {
+	returnID, err := createReturnRequestLocked(tenantID, requestType, returnLocation, originalOrderID, bookingID, requestedBy, "", items, nil)
+	if err != nil {
+		var dup *duplicateRTOError
+		if errors.As(err, &dup) {
+			return dup.existingID, nil
+		}
+		return "", err
 	}
-	DispatchNotification(tenantID, event, originalOrderID, map[string]string{"return_request_id": returnID, "request_type": requestType})
 	return returnID, nil
 }
 
@@ -628,15 +666,18 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 		}
 	}
 
-	if err := tx.Commit(); err != nil {
-		return 0, "", err
-	}
-
+	// Stage 47.4.4: both GL legs post INSIDE this transaction, not after it.
+	// Before this they ran after tx.Commit(), so a failure between the two
+	// left stock physically received with no COGS reversal against it - the
+	// same split-commit shape audit finding A-03 named for checkout, applied
+	// to returns. Both now also carry a real posting key, so a retried QC
+	// cannot double-post (the COGS leg had no key at all).
 	if costReceivedTotal > 0 {
 		inventoryDebits := map[string]int64{"1200": RupeesToPaise(costReceivedTotal)}
 		inventoryCredits := map[string]int64{"5100": RupeesToPaise(costReceivedTotal)}
-		if err := PostDoubleEntry(tenantID, "ReturnRequest", returnRequestID, inventoryDebits, inventoryCredits, "", ""); err != nil {
-			return refundTotal, refundRequestID, err
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "ReturnRequest", returnRequestID, inventoryDebits, inventoryCredits, "",
+			fmt.Sprintf("ReturnRequest:%s:COGS_REVERSAL", returnRequestID)); err != nil {
+			return 0, "", err
 		}
 	}
 	if exchangeCostTotal > 0 {
@@ -645,9 +686,14 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 		// time, for the same reused cost basis.
 		exchangeDebits := map[string]int64{"5100": RupeesToPaise(exchangeCostTotal)}
 		exchangeCredits := map[string]int64{"1200": RupeesToPaise(exchangeCostTotal)}
-		if err := PostDoubleEntry(tenantID, "ReturnRequest", returnRequestID, exchangeDebits, exchangeCredits, "", fmt.Sprintf("ReturnRequest:%s:EXCHANGE", returnRequestID)); err != nil {
-			return refundTotal, refundRequestID, err
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "ReturnRequest", returnRequestID, exchangeDebits, exchangeCredits, "",
+			fmt.Sprintf("ReturnRequest:%s:EXCHANGE", returnRequestID)); err != nil {
+			return 0, "", err
 		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return 0, "", err
 	}
 
 	return refundTotal, refundRequestID, nil
@@ -790,9 +836,38 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 	}
 	returnRequestID, _ := data["return_request_id"].(string)
 
+	// Stage 47.4.4: the money leg, the refund status and the return closure
+	// are ONE transaction. Before this the GL posted first and the status was
+	// saved afterwards, so a failure in between left cash credited against a
+	// refund still marked Approved - i.e. immediately processable again, for
+	// the same money. The posting also had no idempotency key, so that second
+	// processing would have posted a second time rather than no-opping.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if err := db.SetSearchPath(tx, schema); err != nil {
+		return err
+	}
+
+	// The status is re-read and re-checked under a row lock, not trusted from
+	// the read above: two approvers clicking Process at once both saw
+	// "Approved" there.
+	var lockedStatus string
+	if err := tx.QueryRow(fmt.Sprintf(
+		`SELECT data->>'status' FROM %s.documents WHERE doctype = 'RefundRequest' AND id = $1 FOR UPDATE`, schema),
+		refundRequestID).Scan(&lockedStatus); err != nil {
+		return err
+	}
+	if lockedStatus != "Approved" {
+		return fmt.Errorf("refund request %s is not Approved (currently %s)", refundRequestID, lockedStatus)
+	}
+
 	revenueDebits := map[string]int64{"4100": RupeesToPaise(amountF)}
 	revenueCredits := map[string]int64{"1100": RupeesToPaise(amountF)}
-	if err := PostDoubleEntry(tenantID, "RefundRequest", refundRequestID, revenueDebits, revenueCredits, "", ""); err != nil {
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "RefundRequest", refundRequestID, revenueDebits, revenueCredits, "",
+		fmt.Sprintf("RefundRequest:%s:REFUND", refundRequestID)); err != nil {
 		return err
 	}
 
@@ -801,22 +876,82 @@ func ProcessRefundRequest(tenantID, refundRequestID, processedBy, refundMethod s
 	if refundMethod != "" {
 		data["refund_method"] = refundMethod
 	}
-	if err := saveRefundRequest(schema, refundRequestID, data, "Processed"); err != nil {
+	refundMarshaled, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(fmt.Sprintf(
+		`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'RefundRequest' AND id = $3`, schema),
+		refundMarshaled, "Processed", refundRequestID); err != nil {
+		return err
+	}
+
+	originalOrderID := ""
+	if returnRequestID != "" {
+		_, rrData, errRR := fetchReturnRequest(tenantID, returnRequestID)
+		if errRR != nil {
+			return errRR
+		}
+		originalOrderID, _ = rrData["original_order_id"].(string)
+
+		// 47.4.4 tax reversal. Reversed from the RETURNED lines at their
+		// original prices, using the same ComputeGSTForLines the sale used, so
+		// the sale and its return cannot disagree about how much tax was on
+		// the goods. Keyed on the return request, so this is posted once no
+		// matter how many refunds a return produces.
+		if err := PostReturnGSTReversalTx(tx, schema, tenantID, returnRequestID,
+			refundedGSTLines(rrData), originalSaleWasInterstate(tenantID, originalOrderID)); err != nil {
+			return err
+		}
+
+		rrData["status"] = "Closed"
+		rrMarshaled, errM := json.Marshal(rrData)
+		if errM != nil {
+			return errM
+		}
+		if _, err := tx.Exec(fmt.Sprintf(
+			`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'ReturnRequest' AND id = $3`, schema),
+			rrMarshaled, "Closed", returnRequestID); err != nil {
+			return err
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
 		return err
 	}
 
 	if returnRequestID != "" {
-		if _, rrData, errRR := fetchReturnRequest(tenantID, returnRequestID); errRR == nil {
-			originalOrderID, _ := rrData["original_order_id"].(string)
-			if errSave := saveReturnRequest(schema, returnRequestID, rrData, "Closed"); errSave == nil {
-				DispatchNotification(tenantID, "Refund Processed", originalOrderID, map[string]string{
-					"return_request_id": returnRequestID, "refund_request_id": refundRequestID,
-					"amount": fmt.Sprintf("%d", int(amountF)),
-				})
-			}
-		}
+		DispatchNotification(tenantID, "Refund Processed", originalOrderID, map[string]string{
+			"return_request_id": returnRequestID, "refund_request_id": refundRequestID,
+			"amount": fmt.Sprintf("%d", int(amountF)),
+		})
 	}
 	return nil
+}
+
+// refundedGSTLines turns a ReturnRequest's refund-eligible lines back into GST
+// inputs at their ORIGINAL sale prices - which is the only correct basis for a
+// tax reversal, since that is the price the tax was charged on. A line that was
+// dispositioned as not refundable (Missing, Rejected) contributes nothing,
+// because no money is going back for it and therefore no tax should.
+func refundedGSTLines(returnData map[string]interface{}) []GSTLineInput {
+	itemsRaw, err := json.Marshal(returnData["items"])
+	if err != nil {
+		return nil
+	}
+	var items []returnItemRecord
+	if err := json.Unmarshal(itemsRaw, &items); err != nil {
+		return nil
+	}
+	var lines []GSTLineInput
+	for _, it := range items {
+		rule, ok := returnDispositionRule[it.Disposition]
+		if !ok || !rule.RefundEligible || it.ExchangeSKU != "" || it.OriginalUnitPrice <= 0 {
+			continue
+		}
+		lines = append(lines, GSTLineInput{Sku: it.SKU, Qty: it.Qty, UnitRate: it.OriginalUnitPrice})
+	}
+	return lines
 }
 
 // ScheduleReturnReversePickup (Stage 35.9.1) books a courier reverse-pickup

@@ -98,6 +98,12 @@ func handleMyPermissions(w http.ResponseWriter, r *http.Request) {
 			"create":   []string{},
 			"update":   []string{},
 			"delete":   []string{},
+			// Stage 47.2.3: the capabilities this session holds, so a screen
+			// can offer a capability-gated action (the POS price override) from
+			// the same source of truth checkRouteCapability enforces with,
+			// instead of hardcoding a role name a template edit would
+			// invalidate. Advisory only - the route check still decides.
+			"capabilities": engines.CapabilitiesForRole(role),
 		})
 		return
 	}
@@ -149,12 +155,13 @@ func handleMyPermissions(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"role":     role,
-		"is_admin": false,
-		"doctypes": doctypes,
-		"create":   createable,
-		"update":   updatable,
-		"delete":   deletable,
+		"role":         role,
+		"is_admin":     false,
+		"doctypes":     doctypes,
+		"create":       createable,
+		"update":       updatable,
+		"delete":       deletable,
+		"capabilities": engines.CapabilitiesForRole(role),
 	})
 }
 

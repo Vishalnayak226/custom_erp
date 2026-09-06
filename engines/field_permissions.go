@@ -29,7 +29,31 @@ func fieldPermissions(tenantID, role, doctype string) (map[string]FieldPermissio
 		}
 		result[field] = p
 	}
-	return result, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Stage 47.1.3: merge the code-declared sensitive-field policy
+	// (sensitive_fields.go) on top of the tenant's own rows. This is the
+	// single choke point every field-permission caller already runs
+	// through - read, form meta, write, CSV import and PIM bulk edit - so
+	// the policy needs no call-site change anywhere.
+	//
+	// The merge only ever TIGHTENS: a tenant row that already denies stays
+	// denying, and a tenant cannot grant a role access to payroll, bank
+	// details or a connector secret by inserting an allow row. Before this,
+	// a doctype with no rows meant every field was readable by every role
+	// that passed the doctype gate.
+	for field, policy := range sensitiveFieldPolicy(role, doctype) {
+		existing, ok := result[field]
+		if !ok {
+			result[field] = policy
+			continue
+		}
+		existing.AllowRead = existing.AllowRead && policy.AllowRead
+		existing.AllowWrite = existing.AllowWrite && policy.AllowWrite
+		result[field] = existing
+	}
+	return result, nil
 }
 
 func FilterFieldsForRole(tenantID, role, doctype string, data map[string]interface{}) (map[string]interface{}, error) {

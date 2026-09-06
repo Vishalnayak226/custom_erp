@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"strings"
 
-	"custom_erp/db"
 	"custom_erp/engines"
 )
 
@@ -405,82 +404,45 @@ func handleFulfillmentTaskTransition(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleFulfillmentReturn is RETIRED as of Stage 47.4.1 (audit finding A-04).
+//
+// What it did, and why it could not be repaired in place: it took sale_price
+// and cost_price straight from the browser, incremented stock with a bare
+// ON CONFLICT upsert (no row lock, no floor check), committed that, and only
+// then posted two GL reversals with NO idempotency key at all - its own
+// comment said so. Its "already returned" pool was read from a single
+// SalesReturn document with the deterministic id "RET-<originalOrderID>",
+// whose repeat INSERT hit a primary-key conflict that this handler discarded.
+// So the recorded returned-quantity total never advanced past what the FIRST
+// call wrote, while stock and GL for every later call still went through: a
+// cashier, a duplicated network retry, or two browser tabs could replay the
+// same partial return arbitrarily far past what was ever sold.
+//
+// Every one of those properties is fixed in the ReturnRequest aggregate
+// (engines/returns.go + returns_atomic.go): prices resolved from the immutable
+// original sale lines, cumulative eligibility checked under a lock on the
+// original sale, a tenant-scoped idempotency key, and stock + COGS + revenue +
+// tax + refund all in one transaction with real posting keys.
+//
+// This is a hard 410 rather than a deletion, per 47.4.1's own wording ("or
+// make it a hard deprecated error"): the route may still be called by an
+// integration this repository cannot see, and a named refusal that says where
+// to go is a better answer to that caller than a 404.
 func handleFulfillmentReturn(w http.ResponseWriter, r *http.Request) {
-	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodPost {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-
-	var req struct {
-		ReturnLocation  string `json:"return_location"`
-		OriginalOrderID string `json:"original_order_id"`
-		Items           []struct {
-			Sku       string  `json:"sku"`
-			Qty       int     `json:"qty"`
-			SalePrice float64 `json:"sale_price"`
-			CostPrice float64 `json:"cost_price"`
-		} `json:"items"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid return payload")
-		return
-	}
-
-	if req.ReturnLocation == "" || req.OriginalOrderID == "" || len(req.Items) == 0 {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'return_location', 'original_order_id', and 'items' are required")
-		return
-	}
-
-	// Convert items structure to interface slice
-	itemsInterface := make([]interface{}, len(req.Items))
-	for i, item := range req.Items {
-		itemsInterface[i] = map[string]interface{}{
-			"sku":        item.Sku,
-			"qty":        item.Qty,
-			"sale_price": item.SalePrice,
-			"cost_price": item.CostPrice,
-		}
-	}
-
-	totalRefund, err := engines.ProcessReturnAnywhere(tenantID, req.ReturnLocation, req.OriginalOrderID, itemsInterface)
-	if err != nil {
-		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
-		return
-	}
-
-	// Save dynamic SalesReturn document. Field names match SalesReturn's
-	// own declared doctype_fields schema (return_number/invoice_id/
-	// amount_refunded, db/migration.sql) - a prior version of this handler
-	// persisted req's own field names (original_order_id, no amount_refunded
-	// at all) instead, which silently didn't match that schema and meant
-	// engines.sumPriorReturns (Stage 25 Batch 3, SALESR-0130's already-
-	// returned-qty check) would never have found this record. Fixed here
-	// rather than left for a future caller to rediscover, since getting
-	// SALESR-0130 right requires this to be correct going forward.
-	returnID := fmt.Sprintf("RET-%s", req.OriginalOrderID)
-	schema, err := db.GetTenantSchema(tenantID)
-	if err == nil {
-		docData := map[string]interface{}{
-			"return_number":   returnID,
-			"invoice_id":      req.OriginalOrderID,
-			"amount_refunded": totalRefund,
-			"items":           req.Items,
-			"return_location": req.ReturnLocation,
-		}
-		payloadBytes, _ := json.Marshal(docData)
-		query := fmt.Sprintf(`
-			INSERT INTO %s.documents (id, doctype, data, status, created_by)
-			VALUES ($1, 'SalesReturn', $2, 'Returned', 'system')`, schema)
-		_, _ = db.DB.Exec(query, returnID, payloadBytes)
-	}
-
+	engines.LogSystemError(r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-Correlation-ID"),
+		"WARN", r.URL.Path,
+		"a caller used the retired POST /api/v1/fulfillment/return (Stage 47.4.1); it must move to POST /api/v1/returns/requests", "")
+	w.WriteHeader(http.StatusGone)
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
-		"status":            "refunded",
-		"original_order_id": req.OriginalOrderID,
-		"returned_location": req.ReturnLocation,
-		"amount_refunded":   totalRefund,
+		"error": "This return endpoint has been retired because it could not enforce return eligibility or post stock and finance together.",
+		"user_action": "Raise the return through POST /api/v1/returns/requests, which resolves prices from the original sale, " +
+			"enforces cumulative returned quantity, and posts stock, COGS, revenue, tax and the refund in one transaction.",
+		"code":        "SALESR-0131",
+		"replaced_by": "POST /api/v1/returns/requests",
 	})
 }
 

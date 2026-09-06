@@ -3,6 +3,7 @@ package engines
 import (
 	"crypto/rand"
 	"custom_erp/db"
+	"database/sql"
 	"encoding/hex"
 	"fmt"
 
@@ -61,17 +62,52 @@ func SetFeatureFlag(tenantID string, featureName string, enabled bool) error {
 // binary's own currentAppVersion(); tests/tooling can pass "" to leave it
 // unset.
 func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string) (string, error) {
+	// 49.1.5: schemaName is interpolated into DDL below, so it is checked
+	// against the same identifier rule db.GetTenantSchema applies on the way
+	// back out rather than trusted from the caller.
+	if !validSQLIdentifier(schemaName) {
+		return "", fmt.Errorf("%q is not a usable schema name", schemaName)
+	}
+
+	// 49.1.5: the registry mapping and CREATE SCHEMA used to run as two
+	// separate autocommitted statements ahead of the clone/seed transaction,
+	// so a failure anywhere in the clone left a registry row resolving to an
+	// empty schema - a tenant that authenticates and then 500s on every
+	// request, with no state that says it was never finished. PostgreSQL DDL
+	// is transactional, so all of it now commits or none of it does.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback()
+
 	// 1. Insert tenant registry mapping
-	_, err := db.DB.Exec(`
-		INSERT INTO public.tenants (tenant_id, name, schema_name, app_version)
-		VALUES ($1, $1, $2, NULLIF($3, ''))
+	_, err = tx.Exec(`
+		INSERT INTO public.tenants (tenant_id, name, schema_name, app_version, lifecycle_status, lifecycle_changed_at, provisioned_at)
+		VALUES ($1, $1, $2, NULLIF($3, ''), 'active', NOW(), NOW())
 		ON CONFLICT (tenant_id) DO NOTHING`, tenantID, schemaName, appVersion)
 	if err != nil {
 		return "", fmt.Errorf("failed to register tenant mapping: %v", err)
 	}
 
+	// 49.1.5: re-running provisioning over a tenant whose one-time credential
+	// has already been rotated would overwrite a real, in-use admin password
+	// (step 5's ON CONFLICT DO UPDATE) - the same class of hazard as R-01,
+	// where re-running db/migration.sql resets rotated seed passwords. Refuse
+	// that case specifically; a tenant that was created and never logged into
+	// can still be re-provisioned, which is what makes an interrupted first
+	// attempt recoverable.
+	var bootstrapConsumed sql.NullTime
+	if err = tx.QueryRow(`SELECT bootstrap_consumed_at FROM public.tenants WHERE tenant_id = $1`, tenantID).Scan(&bootstrapConsumed); err != nil {
+		return "", fmt.Errorf("failed to read tenant provisioning state: %v", err)
+	}
+	if bootstrapConsumed.Valid {
+		return "", fmt.Errorf("tenant %s is already provisioned and its admin credential has been rotated - "+
+			"refusing to re-provision it (use tenantctl rotate-bootstrap if the credential needs reissuing)", tenantID)
+	}
+
 	// 2. Create Schema
-	_, err = db.DB.Exec(fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schemaName))
+	_, err = tx.Exec(fmt.Sprintf("CREATE SCHEMA IF NOT EXISTS %s", schemaName))
 	if err != nil {
 		return "", fmt.Errorf("failed to create tenant schema: %v", err)
 	}
@@ -148,12 +184,6 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		"api_request_log",
 		"async_jobs",
 	}
-
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return "", err
-	}
-	defer tx.Rollback()
 
 	for _, table := range tables {
 		// Stage 38.2 is intentionally safe to ship before its migration is
@@ -243,9 +273,35 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		return "", fmt.Errorf("failed to create tenant admin user: %v", err)
 	}
 
+	// 6. (49.1.5) Record the one-time credential and its expiry, and open the
+	// tenant's evidence trail. The stored hash is the same value written into
+	// the admin row above; because bcrypt salts every hash, "the admin's
+	// stored hash is still byte for byte the one we issued" is the cheap,
+	// offline-checkable proof that this credential has never been rotated -
+	// which is what the login path refuses on once the window closes.
+	//
+	// The account is created with the HR/Admin role, which RequiresMFA
+	// already treats as MFA-mandatory: /login routes it into TOTP enrollment
+	// before it can ever be issued a session token, so the one-time password
+	// alone is not enough to reach the tenant's data.
+	ttl := bootstrapCredentialTTL()
+	if err = recordBootstrapCredentialTx(tx, tenantID, string(hash), ttl); err != nil {
+		return "", fmt.Errorf("failed to record the tenant's bootstrap credential: %v", err)
+	}
+	if err = recordTenantLifecycleEventTx(tx, tenantID, TenantEventProvisioned, "system",
+		fmt.Sprintf("schema %s created and seeded (app version %q)", schemaName, appVersion)); err != nil {
+		return "", err
+	}
+	if err = recordTenantLifecycleEventTx(tx, tenantID, TenantEventBootstrapIssued, "system",
+		fmt.Sprintf("one-time admin credential issued for %s.admin, valid for %s; MFA enrollment is mandatory at first login",
+			schemaName, ttl)); err != nil {
+		return "", err
+	}
+
 	if err := tx.Commit(); err != nil {
 		return "", err
 	}
 
+	InvalidateTenantLifecycleCache(tenantID)
 	return password, nil
 }

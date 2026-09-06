@@ -5,6 +5,7 @@ import (
 	"custom_erp/engines"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -24,6 +25,20 @@ func handleCreateReturnRequest(w http.ResponseWriter, r *http.Request) {
 		OriginalOrderID string `json:"original_order_id"`
 		BookingID       string `json:"booking_id"`
 		RequestedBy     string `json:"requested_by"`
+		// IdempotencyKey (Stage 47.4.3) makes a repeated click, a lost
+		// response or two open tabs produce ONE return rather than several.
+		// It defaults to the original order id below, which is the safest
+		// available identity for a client that sends none: without it, a
+		// caller that retries would create a second request against the same
+		// bill, and A-04 is precisely that failure.
+		IdempotencyKey string `json:"idempotency_key"`
+		// ExceptionType/ExceptionReason (Stage 47.4.5) request one of the two
+		// named exception paths - "No Receipt" or "Goodwill". Both are gated on
+		// the returns.exception capability at the route, so a cashier cannot
+		// reach either; the reason is mandatory, and the authoriser is the
+		// caller's own resolved identity, never a name from the request body.
+		ExceptionType   string `json:"exception_type"`
+		ExceptionReason string `json:"exception_reason"`
 		Items           []struct {
 			SKU string `json:"sku"`
 			Qty int    `json:"qty"`
@@ -47,12 +62,74 @@ func handleCreateReturnRequest(w http.ResponseWriter, r *http.Request) {
 		items[i] = engines.ReturnItemInput{SKU: it.SKU, Qty: it.Qty}
 	}
 
-	returnID, err := engines.CreateReturnRequest(tenantID, req.RequestType, req.ReturnLocation, req.OriginalOrderID, req.BookingID, req.RequestedBy, items)
+	// The requester is the CALLER, never the request body - the same rule
+	// every other identity in this codebase follows. Before Stage 47.4 a
+	// client could name anyone as requested_by, which put a stranger's name on
+	// the evidence for a return they never raised.
+	requestedBy := r.Header.Get("Resolved-User-ID")
+	if requestedBy == "" {
+		requestedBy = req.RequestedBy
+	}
+	idempotencyKey := strings.TrimSpace(req.IdempotencyKey)
+	if idempotencyKey == "" {
+		idempotencyKey = req.RequestType + ":" + req.OriginalOrderID + ":" + req.BookingID
+	}
+
+	var exception *engines.ReturnException
+	if strings.TrimSpace(req.ExceptionType) != "" {
+		// A No Receipt or Goodwill return is a supervisor decision, and the
+		// capability is what makes that structural rather than a matter of
+		// which screen someone opened. A Cashier is refused here even though
+		// the route itself is open to them for ordinary returns.
+		if !engines.RoleHasCapability(r.Header.Get("Resolved-Role"), "returns.exception") {
+			writeAPIErrorDetail(w, r, "GLOBAL-0011", "",
+				"A No Receipt or Goodwill return needs a supervisor. Ask one to authorise it.")
+			return
+		}
+		// The route's own capability check (returns.exception) has already run
+		// by the time this handler is entered - see route_capabilities.go. The
+		// authoriser is taken from the session so the evidence names whoever
+		// actually held the capability, not whoever the client typed.
+		exception = &engines.ReturnException{
+			Type:         strings.TrimSpace(req.ExceptionType),
+			Reason:       req.ExceptionReason,
+			AuthorisedBy: requestedBy,
+		}
+	}
+
+	result, err := engines.CreateReturnRequestCommand(tenantID, req.RequestType, req.ReturnLocation,
+		req.OriginalOrderID, req.BookingID, requestedBy, idempotencyKey,
+		r.Header.Get("Resolved-Correlation-ID"), items, exception)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"return_request_id": returnID})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"return_request_id": result.ReturnRequestID,
+		"status":            result.Status,
+		"replayed":          result.Replayed,
+		"exception_type":    result.ExceptionType,
+	})
+}
+
+// handleReturnEligibility (Stage 47.4.6) answers "what can still be returned
+// against this bill, and why" - the question the Returns screen has to be able
+// to answer before a clerk touches anything, and the one the old POS return
+// form could not answer at all (it asked the clerk to type the SKU, the
+// quantity AND the price, with no reference to what was actually sold).
+func handleReturnEligibility(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	orderID := strings.TrimSpace(r.URL.Query().Get("original_order_id"))
+	if orderID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameter 'original_order_id' is required")
+		return
+	}
+	eligibility, err := engines.ResolveReturnEligibility(tenantID, orderID)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(eligibility)
 }
 
 func handleApproveReturnRequest(w http.ResponseWriter, r *http.Request) {

@@ -1,0 +1,269 @@
+{
+  "schema_version": 1,
+  "rules": [
+    {
+      "prefix": "docs/ERP_LOOPHOLES_ANALYSIS.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/QC_EXHAUSTIVE_REPORT.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/UX_MANUAL_AUDIT.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/DURABILITY_AUDIT_2026-07-31.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/governance/document-register.json",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/generated/",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "internal/kb/content/",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/brain/BRAIN.md",
+      "type": "generated",
+      "status": "active",
+      "owner": "engineering-owner",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/brain/brain.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "engineering-owner",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/security/attack_surface.json",
+      "type": "generated",
+      "status": "active",
+      "owner": "security-owner",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/specs/openapi_public_v1.json",
+      "type": "generated",
+      "status": "active",
+      "owner": "api-owner",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/guides/PERMISSION_MATRIX.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "security-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/guides/ERROR_CODES.md",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/guides/REPORT_CATALOG.md",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/kb/reference/country-phone-rules.md",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/kb/reference/report-catalog.md",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/kb/reference/release-notes.md",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/kb/troubleshooting/error-code-reference.md",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/archive/",
+      "type": "record",
+      "status": "archived",
+      "owner": "engineering-owner",
+      "authority": "historical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/audits/",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/operations/restore_drill_log.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "operations-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/operations/uat_run_sheet.md",
+      "type": "template",
+      "status": "draft",
+      "owner": "qa-owner",
+      "authority": "proposed-policy",
+      "disposition": "rebuild"
+    },
+    {
+      "prefix": "docs/Contract/",
+      "type": "template",
+      "status": "draft",
+      "owner": "legal-owner",
+      "authority": "proposed-policy",
+      "disposition": "rebuild"
+    },
+    {
+      "prefix": "docs/governance/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "documentation-maintainer",
+      "authority": "proposed-policy",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/requirements/",
+      "type": "normative",
+      "status": "draft",
+      "owner": "product-owner",
+      "authority": "proposed-policy",
+      "disposition": "rebuild"
+    },
+    {
+      "prefix": "docs/architecture/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "authority": "proposed-design",
+      "disposition": "rebuild"
+    },
+    {
+      "prefix": "docs/specs/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "authority": "proposed-design",
+      "disposition": "rebuild"
+    },
+    {
+      "prefix": "docs/operations/",
+      "type": "procedure",
+      "status": "active",
+      "owner": "operations-owner",
+      "authority": "canonical",
+      "disposition": "rebuild"
+    },
+    {
+      "prefix": "docs/kb/",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "canonical",
+      "disposition": "rebuild"
+    },
+    {
+      "prefix": "docs/guides/",
+      "type": "procedure",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "transition-copy",
+      "disposition": "rebuild"
+    },
+    {
+      "prefix": "docs/security/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "security-owner",
+      "authority": "proposed-policy",
+      "disposition": "rebuild"
+    },
+    {
+      "prefix": "docs/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "authority": "navigation",
+      "disposition": "rebuild"
+    },
+    {
+      "prefix": "",
+      "type": "reference",
+      "status": "active",
+      "owner": "engineering-owner",
+      "authority": "source",
+      "disposition": "keep"
+    }
+  ]
+}
