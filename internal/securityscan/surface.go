@@ -428,7 +428,11 @@ func scanEnvironmentAndOutbound(root string, s *Surface) error {
 		}
 		if fi.IsDir() {
 			switch fi.Name() {
-			case ".git", "node_modules", "graphify-out", "docs":
+			// ".claude" holds agent worktrees - full, gitignored copies of this
+			// repository - and counting their files reported the same outbound
+			// call site once per worktree. Same omission, and same reason, as
+			// skippedDirs in bypass.go.
+			case ".git", "node_modules", "graphify-out", "docs", ".claude":
 				return filepath.SkipDir
 			}
 			return nil

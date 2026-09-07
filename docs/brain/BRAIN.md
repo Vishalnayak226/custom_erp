@@ -9,13 +9,13 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 | | |
 |---|---|
-| Graph built from commit | `3dc79c13` |
-| Brain redrawn | 2026-09-06 |
+| Graph built from commit | `4b7328a1` |
+| Brain redrawn | source graph 4b7328a1 |
 | Regions / lobes | 37 / 8 |
-| Files in the working tree | 808 (567 of them parsed into the graph) |
+| Files in the working tree | 826 (579 of them parsed into the graph) |
 | Files claimed by a region | **100.0%** |
-| Symbols in the graph | 7270 |
-| Cross-region relationships | 2718 extracted (95% inferred) + 8 declared by hand |
+| Symbols in the graph | 7352 |
+| Cross-region relationships | 2722 extracted (95% inferred) + 8 declared by hand |
 
 **Interactive version: [brain.html](brain.html)** — open it in a browser and click any region.
 
@@ -34,14 +34,14 @@ Every part of this system, grouped into brain regions, wired by the call graph g
 
 ```mermaid
 flowchart LR
-  n_cortex["Cortex — Interface<br/><small>16 files · 620 symbols</small>"]
+  n_cortex["Cortex — Interface<br/><small>16 files · 626 symbols</small>"]
   n_brainstem["Brainstem — Kernel<br/><small>216 files · 691 symbols</small>"]
   n_business["Functional Lobes — Business Operations<br/><small>183 files · 1830 symbols</small>"]
   n_peripheral["Peripheral Nerves — Integrations<br/><small>35 files · 472 symbols</small>"]
   n_autonomic["Autonomic — Background & Reflexes<br/><small>12 files · 111 symbols</small>"]
-  n_memory["Hippocampus — Written Memory<br/><small>172 files · 2296 symbols</small>"]
-  n_motor["Motor Cortex — Build & Delivery<br/><small>37 files · 138 symbols</small>"]
-  n_verification["Cerebellum — Verification<br/><small>137 files · 665 symbols</small>"]
+  n_memory["Hippocampus — Written Memory<br/><small>184 files · 2335 symbols</small>"]
+  n_motor["Motor Cortex — Build & Delivery<br/><small>38 files · 140 symbols</small>"]
+  n_verification["Cerebellum — Verification<br/><small>142 files · 694 symbols</small>"]
   n_business -.->|1012| n_brainstem
   n_business -.->|207| n_autonomic
   n_peripheral -.->|181| n_brainstem
@@ -55,15 +55,15 @@ flowchart LR
   n_brainstem -.->|14| n_peripheral
   n_motor -.->|10| n_brainstem
   n_memory -.->|5| n_brainstem
+  n_memory -->|4| n_motor
+  n_autonomic -.->|2| n_peripheral
   n_memory -.->|2| n_business
   n_motor -.->|2| n_business
-  n_autonomic -.->|2| n_peripheral
-  n_memory -->|2| n_motor
   n_motor -->|2| n_memory
   n_business -.->|1| n_memory
-  n_peripheral -.->|1| n_memory
-  n_motor -.->|1| n_peripheral
   n_memory -->|1| n_peripheral
+  n_motor -.->|1| n_peripheral
+  n_peripheral -.->|1| n_memory
   n_brainstem ==>|error envelope| n_cortex
   n_cortex ==>|HTTP/JSON| n_brainstem
   n_motor ==>|applies migrations| n_brainstem
@@ -88,14 +88,14 @@ flowchart LR
 
 | Lobe | What it is | Regions | Files | Symbols | Wiring inside the lobe |
 |---|---|---:|---:|---:|---:|
-| **Cortex — Interface** | What the user sees and touches. Every business intent enters here. | 3 | 16 | 620 | 25 |
+| **Cortex — Interface** | What the user sees and touches. Every business intent enters here. | 3 | 16 | 626 | 25 |
 | **Brainstem — Kernel** | Involuntary and non-negotiable. Every single request passes through here, whatever it is asking for. | 9 | 216 | 691 | 405 |
 | **Functional Lobes — Business Operations** | The specialised areas. Each one owns a domain and can be licensed on its own. | 16 | 183 | 1830 | 367 |
 | **Peripheral Nerves — Integrations** | Contact with the outside world: storefronts, payment terminals, marketing clouds, third-party extensions. | 3 | 35 | 472 | 7 |
 | **Autonomic — Background & Reflexes** | Runs without anyone asking it to: outbox drain, pollers, alerting, scheduled sweeps. | 2 | 12 | 111 | 2 |
-| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 172 | 2296 | 99 |
-| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 37 | 138 | 0 |
-| **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 137 | 665 | 0 |
+| **Hippocampus — Written Memory** | What this project knows about itself: the backlog, the ledger, the guides, the handover note. | 2 | 184 | 2335 | 101 |
+| **Motor Cortex — Build & Delivery** | How the system actually moves: build, migrate, promote, back up, restore. | 1 | 38 | 140 | 0 |
+| **Cerebellum — Verification** | Balance and correction. Kept out of the wiring diagrams on purpose — tests touch everything, so drawing them would grey out every real edge. | 1 | 142 | 694 | 0 |
 
 ## 2. Region map
 
@@ -105,7 +105,7 @@ Every region, grouped by lobe, with the connections of weight **12 or more**. Th
 flowchart LR
   subgraph n_g_cortex ["Cortex — Interface"]
     direction TB
-    n_ui_shell["SPA Shell<br/><small>4 files · 605 symbols</small>"]
+    n_ui_shell["SPA Shell<br/><small>4 files · 611 symbols</small>"]
     n_ui_offline["Offline Store & Device I/O<br/><small>2 files · 15 symbols</small>"]
     n_industry_profiles["Industry Profiles<br/><small>10 files · 0 symbols</small>"]
   end
@@ -153,15 +153,15 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>165 files · 2177 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>177 files · 2216 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 119 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>37 files · 138 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>38 files · 140 symbols</small>"]
   end
   n_wms -.->|141| n_persistence
-  n_brain -->|99| n_docs_memory
+  n_brain -->|101| n_docs_memory
   n_pim -.->|91| n_persistence
   n_wms -.->|86| n_api_errors
   n_mixed_handlers -.->|84| n_api_errors
@@ -246,7 +246,7 @@ flowchart LR
 flowchart LR
   subgraph n_g_cortex ["Cortex — Interface"]
     direction TB
-    n_ui_shell["SPA Shell<br/><small>4 files · 605 symbols</small>"]
+    n_ui_shell["SPA Shell<br/><small>4 files · 611 symbols</small>"]
     n_ui_offline["Offline Store & Device I/O<br/><small>2 files · 15 symbols</small>"]
     n_industry_profiles["Industry Profiles<br/><small>10 files · 0 symbols</small>"]
   end
@@ -291,14 +291,14 @@ flowchart LR
   end
   subgraph n_g_memory ["Hippocampus — Written Memory"]
     direction TB
-    n_docs_memory["Project Documentation<br/><small>165 files · 2177 symbols</small>"]
+    n_docs_memory["Project Documentation<br/><small>177 files · 2216 symbols</small>"]
     n_brain["The Brain Map (this)<br/><small>7 files · 119 symbols</small>"]
   end
   subgraph n_g_motor ["Motor Cortex — Build & Delivery"]
     direction TB
-    n_ops_tooling["Build, Deploy & Operate<br/><small>37 files · 138 symbols</small>"]
+    n_ops_tooling["Build, Deploy & Operate<br/><small>38 files · 140 symbols</small>"]
   end
-  n_brain -->|99| n_docs_memory
+  n_brain -->|101| n_docs_memory
   n_ui_shell -.->|25| n_ui_offline
   n_wms -.->|25| n_reports
   n_mixed_handlers -.->|24| n_pim
@@ -388,6 +388,7 @@ flowchart LR
   n_assets -.->|3| n_pim
   n_assets -.->|3| n_procurement
   n_assets -.->|3| n_wms
+  n_brain -->|3| n_ops_tooling
   n_connectors -.->|3| n_procurement
   n_crm -.->|3| n_wms
   n_doc_kernel -.->|3| n_approval
@@ -425,7 +426,7 @@ flowchart LR
   class n_ops_tooling n_motor;
 ```
 
-*Showing every non-hub connection of weight 3 or more (105 of them).*
+*Showing every non-hub connection of weight 3 or more (106 of them).*
 
 ### 2c. Declared connections
 
@@ -538,7 +539,7 @@ flowchart LR
 
 | Region | Lobe | Files | Symbols | Busiest connection |
 |---|---|---:|---:|---|
-| [SPA Shell](#spa-shell) | Cortex — Interface | 4 | 605 | → Offline Store & Device I/O (25) |
+| [SPA Shell](#spa-shell) | Cortex — Interface | 4 | 611 | → Offline Store & Device I/O (25) |
 | [Offline Store & Device I/O](#offline-store--device-io) | Cortex — Interface | 2 | 15 | ← SPA Shell (25) |
 | [Industry Profiles](#industry-profiles) | Cortex — Interface | 10 | 0 | — |
 | [HTTP Edge & Middleware](#http-edge--middleware) | Brainstem — Kernel | 6 | 55 | → Error & Message Catalog (9) |
@@ -570,11 +571,11 @@ flowchart LR
 | [Extension Platform](#extension-platform) | Peripheral Nerves — Integrations | 12 | 169 | → Persistence & Migrations (24) |
 | [Event Outbox & Async Job Runner](#event-outbox--async-job-runner) | Autonomic — Background & Reflexes | 6 | 45 | ← Channel Connectors (10) |
 | [Logging, Alerting & Notifications](#logging-alerting--notifications) | Autonomic — Background & Reflexes | 6 | 66 | ← Warehouse Management (WMS) (66) |
-| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 165 | 2177 | ← The Brain Map (this) (99) |
-| [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 119 | → Project Documentation (99) |
-| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 37 | 138 | → Persistence & Migrations (5) |
+| [Project Documentation](#project-documentation) | Hippocampus — Written Memory | 177 | 2216 | ← The Brain Map (this) (101) |
+| [The Brain Map (this)](#the-brain-map-this) | Hippocampus — Written Memory | 7 | 119 | → Project Documentation (101) |
+| [Build, Deploy & Operate](#build-deploy--operate) | Motor Cortex — Build & Delivery | 38 | 140 | → Persistence & Migrations (4) |
 | [Security Baseline & Attack Surface](#security-baseline--attack-surface) | Brainstem — Kernel | 6 | 63 | ← HTTP Edge & Middleware (2) |
-| [Test Suite](#test-suite) | Cerebellum — Verification | 137 | 665 | — |
+| [Test Suite](#test-suite) | Cerebellum — Verification | 142 | 694 | — |
 
 ## 5. Region detail
 
@@ -590,8 +591,8 @@ The whole frontend: one hand-written vanilla-JS single-page app, no framework an
 
 - `apiFetch()` — [public/app.js](../../public/app.js#L550) · degree 253
 - `showApiError()` — [public/app.js](../../public/app.js#L191) · degree 128
-- `renderView()` — [public/app.js](../../public/app.js#L3905) · degree 117
-- `renderViewContent()` — [public/app.js](../../public/app.js#L3967) · degree 59
+- `renderView()` — [public/app.js](../../public/app.js#L4005) · degree 117
+- `renderViewContent()` — [public/app.js](../../public/app.js#L4067) · degree 59
 - `escapeHTMLText()` — [public/app.js](../../public/app.js#L1184) · degree 48
 - `showCustomAlert()` — [public/app.js](../../public/app.js#L2) · degree 47
 
@@ -934,7 +935,7 @@ The Postgres connection, GetTenantSchema/SetSearchPath (the tenant boundary, enf
 **Most connected symbols**
 
 - `GetTenantSchema()` — [db/db.go](../../db/db.go#L134) · degree 831
-- `InitDB()` — [db/db.go](../../db/db.go#L49) · degree 184
+- `InitDB()` — [db/db.go](../../db/db.go#L49) · degree 183
 - `SetSearchPath()` — [db/db.go](../../db/db.go#L152) · degree 71
 - `ConnStringFromEnv()` — [db/db.go](../../db/db.go#L32) · degree 5
 - `migrationFileNames()` — [db/migrate.go](../../db/migrate.go#L223) · degree 5
@@ -1154,14 +1155,14 @@ Stage 49's security program spine. security_baseline.go is the fail-fast startup
 - `ScanSurface()` — [internal/securityscan/surface.go](../../internal/securityscan/surface.go#L169) · degree 14
 - `BaselineFinding` — [engines/security_baseline.go](../../engines/security_baseline.go#L60) · degree 9
 - `DescribeDrift()` — [internal/securityscan/drift.go](../../internal/securityscan/drift.go#L36) · degree 9
-- `Encode()` — [internal/securityscan/drift.go](../../internal/securityscan/drift.go#L24) · degree 6
+- `.Open()` — [internal/server/static_fileserver.go](../../internal/server/static_fileserver.go#L44) · degree 6
 
 **Wired to**
 
 - → **Event Outbox & Async Job Runner** — 2 relationships, 2 inferred
 - ← **HTTP Edge & Middleware** — 2 relationships, 2 inferred
+- ← **Build, Deploy & Operate** — 2 relationships, 2 inferred
 - ← **Product Information (PIM)** — 2 relationships, 2 inferred
-- ← **Build, Deploy & Operate** — 1 relationship, 1 inferred
 - ← **Persistence & Migrations** — 1 relationship, 1 inferred
 
 <details><summary>6 files</summary>
@@ -2142,28 +2143,30 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the blueprint, g
 
 **Most connected symbols**
 
-- `Build()` — [internal/kb/build.go](../../internal/kb/build.go#L230) · degree 24
-- `DriftGuards()` — [internal/kb/drift.go](../../internal/kb/drift.go#L79) · degree 19
+- `Build()` — [internal/kb/build.go](../../internal/kb/build.go#L230) · degree 25
+- `DriftGuards()` — [internal/kb/drift.go](../../internal/kb/drift.go#L79) · degree 20
+- `inspect()` — [cmd/doclint/main.go](../../cmd/doclint/main.go#L126) · degree 17
 - `RenderMarkdown()` — [internal/kb/markdown.go](../../internal/kb/markdown.go#L27) · degree 16
-- `Index` — [internal/kb/build.go](../../internal/kb/build.go#L72) · degree 10
+- `Index` — [internal/kb/build.go](../../internal/kb/build.go#L72) · degree 15
 - `Article` — [internal/kb/build.go](../../internal/kb/build.go#L35) · degree 8
-- `handleHelpPublicArticle()` — [internal/server/handlers_help.go](../../internal/server/handlers_help.go#L76) · degree 7
 
 **Wired to**
 
 - → **Error & Message Catalog** — 4 relationships, 4 inferred
 - → **Reporting Engine** — 2 relationships, 2 inferred
+- → **Build, Deploy & Operate** — 1 relationship, all extracted
 - → **Persistence & Migrations** — 1 relationship, 1 inferred
-- ← **The Brain Map (this)** — 99 relationships, 1 inferred
+- ← **The Brain Map (this)** — 101 relationships, 1 inferred
 - ← **Build, Deploy & Operate** — 2 relationships, 1 inferred
 - ← **Product Information (PIM)** — 1 relationship, 1 inferred
 - ← **Device Printing (QZ Tray)** — 1 relationship, 1 inferred
 - ← **The Brain Map (this)** — declared: keeps in sync
 
-<details><summary>165 files</summary>
+<details><summary>177 files</summary>
 
 - [CLAUDE.md](../../CLAUDE.md)
 - [README.md](../../README.md)
+- [cmd/doclint/main.go](../../cmd/doclint/main.go)
 - [cmd/genkb/main.go](../../cmd/genkb/main.go)
 - [docs/Contract/Developer Contract.md](../../docs/Contract/Developer Contract.md)
 - [docs/DURABILITY_AUDIT_2026-07-31.md](../../docs/DURABILITY_AUDIT_2026-07-31.md)
@@ -2183,7 +2186,15 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the blueprint, g
 - [docs/audits/LIGHTWEIGHT_SMOOTHNESS_PLAN_2026-09-01.md](../../docs/audits/LIGHTWEIGHT_SMOOTHNESS_PLAN_2026-09-01.md)
 - [docs/audits/STAGE47_ENDPOINT_MUTATION_MAP_2026-09-03.md](../../docs/audits/STAGE47_ENDPOINT_MUTATION_MAP_2026-09-03.md)
 - [docs/extension_hooks_checklist.md](../../docs/extension_hooks_checklist.md)
+- [docs/generated/brain-manifest.json](../../docs/generated/brain-manifest.json)
+- [docs/generated/guides-manifest.json](../../docs/generated/guides-manifest.json)
+- [docs/generated/kb-manifest.json](../../docs/generated/kb-manifest.json)
 - [docs/github_checklist.md](../../docs/github_checklist.md)
+- [docs/governance/authority-matrix.md](../../docs/governance/authority-matrix.md)
+- [docs/governance/document-register.json](../../docs/governance/document-register.json)
+- [docs/governance/documentation-standard.md](../../docs/governance/documentation-standard.md)
+- [docs/governance/generation.json](../../docs/governance/generation.json)
+- [docs/governance/register-policy.json](../../docs/governance/register-policy.json)
 - [docs/guides/ADMIN_GUIDE.md](../../docs/guides/ADMIN_GUIDE.md)
 - [docs/guides/ADMIN_SOP.md](../../docs/guides/ADMIN_SOP.md)
 - [docs/guides/ERROR_CODES.md](../../docs/guides/ERROR_CODES.md)
@@ -2279,8 +2290,11 @@ The big 3 (micro_checklist / project_ledger / ai_handover) plus the blueprint, g
 - [docs/specs/public_api_v1.md](../../docs/specs/public_api_v1.md)
 - [docs/specs/wms_master_blueprint_reference.md](../../docs/specs/wms_master_blueprint_reference.md)
 - [docs/specs/wms_parity_plan.md](../../docs/specs/wms_parity_plan.md)
+- [docs/test-docs-safety.ps1](../../docs/test-docs-safety.ps1)
+- [docs/update-docs.ps1](../../docs/update-docs.ps1)
 - [engines/help_feedback.go](../../engines/help_feedback.go)
 - [engines/help_feedback_report.go](../../engines/help_feedback_report.go)
+- [internal/docgen/files.go](../../internal/docgen/files.go)
 - [internal/kb/build.go](../../internal/kb/build.go)
 - [internal/kb/content.go](../../internal/kb/content.go)
 - [internal/kb/content/articles/abbreviations.html](../../internal/kb/content/articles/abbreviations.html)
@@ -2336,17 +2350,17 @@ The map you are reading and the generator that draws it. brain.map.json is the o
 
 **Most connected symbols**
 
-- `main()` — [cmd/brainmap/main.go](../../cmd/brainmap/main.go#L277) · degree 10
-- `mdCtx` — [cmd/brainmap/main.go](../../cmd/brainmap/main.go#L713) · degree 10
-- `brainData` — [cmd/brainmap/main.go](../../cmd/brainmap/main.go#L164) · degree 9
-- `renderMarkdown()` — [cmd/brainmap/main.go](../../cmd/brainmap/main.go#L734) · degree 9
-- `brainMap` — [cmd/brainmap/main.go](../../cmd/brainmap/main.go#L46) · degree 8
-- `build()` — [cmd/brainmap/main.go](../../cmd/brainmap/main.go#L494) · degree 8
+- `mdCtx` — [cmd/brainmap/main.go](../../cmd/brainmap/main.go#L714) · degree 10
+- `brainData` — [cmd/brainmap/main.go](../../cmd/brainmap/main.go#L165) · degree 9
+- `main()` — [cmd/brainmap/main.go](../../cmd/brainmap/main.go#L278) · degree 9
+- `renderMarkdown()` — [cmd/brainmap/main.go](../../cmd/brainmap/main.go#L735) · degree 9
+- `brainMap` — [cmd/brainmap/main.go](../../cmd/brainmap/main.go#L47) · degree 8
+- `build()` — [cmd/brainmap/main.go](../../cmd/brainmap/main.go#L495) · degree 8
 
 **Wired to**
 
-- → **Project Documentation** — 99 relationships, 1 inferred
-- → **Build, Deploy & Operate** — 2 relationships, all extracted
+- → **Project Documentation** — 101 relationships, 1 inferred
+- → **Build, Deploy & Operate** — 3 relationships, all extracted
 - → **Extension Platform** — 1 relationship, all extracted
 - → **Project Documentation** — declared: keeps in sync
 
@@ -2374,27 +2388,29 @@ manage.ps1 (start/stop/backup/restore/drill), promote.ps1 (worktree → build �
 
 - `Invoke-Action()` — [manage.ps1](../../manage.ps1#L614) · degree 13
 - `Test-PortOpen()` — [manage.ps1](../../manage.ps1#L107) · degree 10
-- `main()` — [cmd/gendocs/main.go](../../cmd/gendocs/main.go#L38) · degree 9
+- `referenceFiles()` — [cmd/gendocs/main.go](../../cmd/gendocs/main.go#L103) · degree 10
 - `buildSnapshot()` — [cmd/snapshot_tenant_config/main.go](../../cmd/snapshot_tenant_config/main.go#L425) · degree 8
 - `tenantSnapshot` — [cmd/snapshot_tenant_config/main.go](../../cmd/snapshot_tenant_config/main.go#L152) · degree 7
 - `Backup-Databases()` — [manage.ps1](../../manage.ps1#L352) · degree 6
 
 **Wired to**
 
-- → **Persistence & Migrations** — 5 relationships, 5 inferred
+- → **Persistence & Migrations** — 4 relationships, 4 inferred
 - → **Error & Message Catalog** — 2 relationships, 2 inferred
 - → **Project Documentation** — 2 relationships, 1 inferred
 - → **Reporting Engine** — 2 relationships, 2 inferred
+- → **Security Baseline & Attack Surface** — 2 relationships, 2 inferred
 - → **Document Kernel** — 1 relationship, 1 inferred
 - → **Extension Platform** — 1 relationship, 1 inferred
 - → **Identity, RBAC & MFA** — 1 relationship, 1 inferred
-- → **Security Baseline & Attack Surface** — 1 relationship, 1 inferred
-- ← **The Brain Map (this)** — 2 relationships, all extracted
+- ← **The Brain Map (this)** — 3 relationships, all extracted
+- ← **Project Documentation** — 1 relationship, all extracted
 
-<details><summary>37 files</summary>
+<details><summary>38 files</summary>
 
 - [.dockerignore](../../.dockerignore)
 - [.gitattributes](../../.gitattributes)
+- [.github/pull_request_template.md](../../.github/pull_request_template.md)
 - [.github/workflows/ci.yml](../../.github/workflows/ci.yml)
 - [.gitignore](../../.gitignore)
 - [Dockerfile](../../Dockerfile)
@@ -2450,8 +2466,11 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - `testConnStr()` — [internal/server/testdb_test.go](../../internal/server/testdb_test.go#L8) · degree 22
 - `TestStage379QualityMaintenance()` — [engines/quality_maintenance_test.go](../../engines/quality_maintenance_test.go#L11) · degree 20
 
-<details><summary>137 files</summary>
+<details><summary>142 files</summary>
 
+- [cmd/doclint/main_test.go](../../cmd/doclint/main_test.go)
+- [cmd/gendocs/main_test.go](../../cmd/gendocs/main_test.go)
+- [cmd/gendocs/release_notes_test.go](../../cmd/gendocs/release_notes_test.go)
 - [db/migrate_test.go](../../db/migrate_test.go)
 - [engines/accounting_periods_test.go](../../engines/accounting_periods_test.go)
 - [engines/alerting_test.go](../../engines/alerting_test.go)
@@ -2561,6 +2580,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [engines/wms_stage42_5_test.go](../../engines/wms_stage42_5_test.go)
 - [engines/wms_stage42_6_test.go](../../engines/wms_stage42_6_test.go)
 - [engines/wms_task_spine_p2_test.go](../../engines/wms_task_spine_p2_test.go)
+- [internal/docgen/files_test.go](../../internal/docgen/files_test.go)
 - [internal/kb/build_test.go](../../internal/kb/build_test.go)
 - [internal/kb/drift_test.go](../../internal/kb/drift_test.go)
 - [internal/kb/markdown_test.go](../../internal/kb/markdown_test.go)
@@ -2570,6 +2590,7 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 - [internal/server/authorization_contract_test.go](../../internal/server/authorization_contract_test.go)
 - [internal/server/client_ip_test.go](../../internal/server/client_ip_test.go)
 - [internal/server/document_numbering_api_test.go](../../internal/server/document_numbering_api_test.go)
+- [internal/server/frontend_accessibility_test.go](../../internal/server/frontend_accessibility_test.go)
 - [internal/server/handlers_courier_test.go](../../internal/server/handlers_courier_test.go)
 - [internal/server/mfa_recovery_test.go](../../internal/server/mfa_recovery_test.go)
 - [internal/server/pim_dashboard_test.go](../../internal/server/pim_dashboard_test.go)
@@ -2594,10 +2615,10 @@ Every *_test.go in the tree plus the shared test-DB fixture. Deliberately exclud
 
 ## 6. What the brain does not know yet
 
-Nothing — every one of the 808 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
+Nothing — every one of the 826 files in the working tree is claimed by a region (100.0% coverage). When that stops being true, the unclaimed files get listed here and `update-brain.ps1 -Check` fails, which is the signal to add a `match` pattern (or a whole new region) to `brain.map.json`.
 
 Two other things the brain is honest about not seeing:
 
-- **567 of 808 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
-- **447 graph nodes are external type references** (`sql.Tx`, `context.Context` and friends) with no source file of their own. They belong to no region by design.
+- **579 of 826 files are parsed into the call graph.** The rest — `.sql` migrations, JSON industry profiles, PowerShell, CI config, Markdown — are filed into regions by path, but contribute no symbols or edges, because graphify has no extractor for them. A region can therefore be substantial and still show few symbols.
+- **453 graph nodes are external type references** (`sql.Tx`, `context.Context` and friends) with no source file of their own. They belong to no region by design.
 

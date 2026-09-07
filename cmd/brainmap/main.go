@@ -858,7 +858,24 @@ func renderLobeSection(b *strings.Builder, c mdCtx) {
 	for k := range lobeAgg {
 		lk = append(lk, k)
 	}
-	sort.Slice(lk, func(i, j int) bool { return lobeAgg[lk[i]].w > lobeAgg[lk[j]].w })
+	// Weight, then the pair itself. Sorting on weight ALONE left ties in Go's
+	// randomised map-iteration order - and sort.Slice is not stable - so two
+	// lobe pairs of equal weight swapped places between runs and BRAIN.md was
+	// non-deterministic. That made `update-brain.ps1` fail at random on its own
+	// -check step ("generated drift: BRAIN.md (stale)"), which is the redraw
+	// this repo's conventions require after any change that adds or moves a
+	// file. Same (weight, from, to) tiebreak the region-edge sort above already
+	// uses; brain.html was unaffected because it renders from the sorted
+	// edge list instead.
+	sort.Slice(lk, func(i, j int) bool {
+		if lobeAgg[lk[i]].w != lobeAgg[lk[j]].w {
+			return lobeAgg[lk[i]].w > lobeAgg[lk[j]].w
+		}
+		if lk[i][0] != lk[j][0] {
+			return lk[i][0] < lk[j][0]
+		}
+		return lk[i][1] < lk[j][1]
+	})
 	for _, k := range lk {
 		e := lobeAgg[k]
 		arrow := "-->"

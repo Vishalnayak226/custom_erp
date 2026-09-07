@@ -152,6 +152,13 @@ var skippedDirs = map[string]bool{
 	".git": true, "node_modules": true, "graphify-out": true,
 	"docs":               true, // documentation is reviewed as prose, not scanned as code
 	"skill-observations": true,
+	// .claude holds agent worktrees - each a full, gitignored COPY of this
+	// repository. Scanning them reported every engines/*.go outbound call site
+	// once per worktree, so the manifest drifted the moment any concurrent
+	// session had one open and the security suite failed for reasons that had
+	// nothing to do with the code under review. The scan describes THIS
+	// repository, not transient scratch copies of it.
+	".claude": true,
 }
 
 // skippedFiles is this file itself. Every pattern above is written out in
