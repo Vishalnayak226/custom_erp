@@ -375,7 +375,7 @@ with the misuse case each one corresponds to in threat_model.md §5.
 
 ## Closed
 
-### R-10 — A password reset link could be logged in production
+### R-14 — A password reset link could be logged in production
 
 | | |
 |---|---|
