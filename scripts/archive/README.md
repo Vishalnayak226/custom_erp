@@ -1,3 +1,21 @@
+---
+doc_id: DOC-E388F349B2
+title: Archive
+type: reference
+status: draft
+owner: engineering-owner
+approvers: [documentation-maintainer, engineering-owner]
+audience: [maintainers, engineering-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: source
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # Archive
 
 One-off scripts and artifacts from past sessions, kept for historical record rather than deleted (repo convention: don't delete, archive). None of these are referenced by any current build/deploy/test path.

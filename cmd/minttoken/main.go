@@ -51,5 +51,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Print(engines.SignToken(userID, userID, role, tenant, ""))
+	// 49.2.2/49.2.4: the token's "cv" claim must match the real row's
+	// credential_version or apiMiddleware's live-state re-check rejects it
+	// on the very first request, same as an expired/deactivated session.
+	// Best-effort: without a DB connection there is no row to read, so this
+	// falls back to 1 (a freshly seeded user's actual value) and warns -
+	// still correct for the common no-DATABASE_URL case this tool has
+	// always supported, wrong only if that account's password has since
+	// been changed.
+	credentialVersion := 1
+	if db.DB != nil {
+		schema, err := db.GetTenantSchema(tenant)
+		if err == nil {
+			_ = db.DB.QueryRow(fmt.Sprintf(`SELECT credential_version FROM %s.users WHERE id = $1`, schema), userID).Scan(&credentialVersion)
+		}
+	} else {
+		fmt.Fprintln(os.Stderr, "minttoken: no DATABASE_URL - assuming credential_version=1; the token 401s if this account's password has since changed")
+	}
+
+	fmt.Print(engines.SignToken(userID, userID, role, tenant, "", credentialVersion))
 }

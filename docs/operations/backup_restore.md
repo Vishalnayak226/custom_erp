@@ -1,3 +1,21 @@
+---
+doc_id: DOC-C732315BC0
+title: Backup and restore runbook
+type: procedure
+status: draft
+owner: operations-owner
+approvers: [documentation-maintainer, operations-owner]
+audience: [maintainers, operations-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # Backup and restore runbook
 
 `manage.ps1 backup` creates a PostgreSQL custom-format dump for every configured environment whose database currently exists (`dev`, `test`, and `live`), then **encrypts it with AES-256** (`.dump.enc`) and writes a SHA-256 sidecar over the encrypted file. It reports a clear skip for an environment that has not been provisioned yet. Files are written beneath the ignored `backups/<environment>/` directory. Keep backups for at least 30 days, with a monthly copy stored off the machine.
@@ -30,7 +48,7 @@ For a documented, non-interactive restore, pass that same exact value explicitly
 Equivalent manual recipe, if you'd rather create the tasks by hand: a task running as the account owning the portable PostgreSQL installation, with **Start in** set to the repository root and this invocation:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\ABCD\Documents\Antigravity Projects\ERP\manage.ps1" backup
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$env:ERP_REPO_ROOT/manage.ps1" backup
 ```
 
 Review the task result and the newest `.dump.enc`/`.sha256` sidecars after every run.

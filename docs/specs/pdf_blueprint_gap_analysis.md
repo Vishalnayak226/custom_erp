@@ -1,3 +1,6 @@
+<!-- Stage 48 historical authority -->
+> Historical source retained for provenance and unique-content review. Current support is defined by the [capability register projection](../generated/capability-catalog.md); current priorities belong to the [outcome roadmap](../product/roadmap.md). Built/partial/planned labels below describe the original snapshot, not current release support.
+
 <!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
 > **Authority notice:** Legacy specification or system snapshot; rebuild/reconciliation is queued in Stage 48. Built, partial, planned and support claims below have not been reapproved for the current working tree. Use the authority matrix to locate current evidence and open decisions. See the [authority matrix](../governance/authority-matrix.md).
 
@@ -6,7 +9,7 @@
 > **Status: superseded snapshot.** This analysis was written 2026-07-12 and its "Thin" verdict on the business-user-facing layer (§1) drove the Stage 13 build plan in `docs/micro_checklist.md`. Most of what §3+ below lists as missing — POS screen, Finance/GL screen, GST calc, approval/maker-checker engine, MFA, security headers, RFQ/vendor quotes, sticker printing, HR, Fixed Assets, Expense Management, CRM/Loyalty (scoped MVP), Manufacturing (scoped MVP), and per-API-type rate limiting — has since been built (Stage 13.1 through 13.15, including the 13.13a-e split). Treat everything below as a historical record of what was true on 2026-07-12, not current state; **[docs/micro_checklist.md](../micro_checklist.md)** is the current source of truth for what's built.
 
 **Date:** 2026-07-12
-**Source documents:** `C:\Users\ABCD\Downloads\MyBusiness\IT Solution\ERP\PDF\`
+**Source documents:** the original ERP PDF source collection (external artifact; request from the product owner)
 1. `Inhouse_ERP_Master_Blueprint_Generic.pdf` (MB) — 28 pages, 24 sections, jewellery/retail vertical detail
 2. `Generic_Inhouse_ERP_Platform_Approach_Blueprint.pdf` (AB) — 19 pages, 21 sections, multi-tenant SaaS/kernel framing
 3. `Inhouse_ERP_Functionality_Blueprint_One_For_All.pdf` (FB) — condensed cross-industry functional summary

@@ -262,7 +262,7 @@ func TestMFAReenrollMovesAuthenticator(t *testing.T) {
 
 	// A full session token, which is what the /me/mfa/* endpoints take (unlike
 	// the login-time handlers, which run on purpose tokens).
-	sessionToken := engines.SignToken(testUser, testUser, "HR/Admin", "default", "HO")
+	sessionToken := engines.SignToken(testUser, testUser, "HR/Admin", "default", "HO", 1)
 
 	// 1. Start the device change.
 	startRec := doRequest(t, apiMiddleware(handleMFAReenrollStart), "POST", "/api/v1/me/mfa/reenroll", sessionToken,

@@ -6,6 +6,22 @@ summary: Open a till, ring up a sale with automatic offers and tax, take a retur
 audience: cashier, store manager, admin
 last_verified: 2026-09-02
 screens: [pos, doctype-table, reports, approvals, configuration]
+doc_id: DOC-446204194D
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: pos-operations
+task: Point of Sale
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Point of Sale
@@ -14,13 +30,10 @@ A POS sale looks like one click — scan, total, pay — but three separate
 engines sit behind it: a cashier-session guard that refuses to sell without
 an open till, an offer evaluator that recomputes every discount server-side
 so nothing a browser displays can be trusted blindly, and a checkout path
-that posts stock and the general ledger atomically, with an offline queue in
-front of all of it so a lost connection never stops a sale. This handbook
+that posts stock and the general ledger atomically. An offline queue can retain
+a pending sale during a network failure; server acceptance happens on replay. This handbook
 covers the till lifecycle, the sale itself, returns, discounts and offers,
-offline mode, and closing the day — going deeper into setup and
-troubleshooting than the existing walkthrough in
-[USER_GUIDE.md §4](../../guides/USER_GUIDE.md) and
-[USER_SOP.md §3](../../guides/USER_SOP.md).
+offline mode, and closing the day, including setup and troubleshooting.
 
 ## Before the first sale
 
@@ -163,49 +176,23 @@ in this engine that works that way.
 
 ## Returns
 
-The **Process a Return** panel on the POS / Billing screen is deliberately
-separate from the sale cart, so an in-progress return can never get mixed
-into an in-progress sale. Enter the original order/cart number and the
-return location, add each SKU being returned, and submit.
+The **Process a Return** panel now starts with **Look Up Bill**. The server
+returns the sold quantities, quantities already returned, remaining eligibility
+and original prices. Choose the return location and quantities, then choose
+**Raise Return**. The displayed total is conditional on inspection; raising a
+request does not pay the refund.
 
-This calls `POST /api/v1/fulfillment/return` (`ProcessReturnAnywhere` in
-`engines/fulfillment.go`) — a same-visit, refund-in-full return, not the
-QC-and-disposition workflow. Before anything is posted:
-
-- The original bill must resolve (`SALESR-0131` if it doesn't) — `POSCart`
-  is checked first since it carries per-line item data; a `SalesInvoice`
-  match only proves a bill exists, with no quantity to cross-check against.
-- The return must fall inside the configured return window — **30 days by
-  default** (**Settings → Configuration**, "Sales return window",
-  `sales.return_window_days`; 0 disables returns entirely). Outside it,
-  `SALESR-0129`.
-- The returned quantity, added to everything already returned against this
-  same order, cannot exceed what was actually sold (`SALESR-0130`).
-
-Once accepted, stock is put back at the return location immediately and two
-reversing double-entry postings are made in the same call: revenue is
-debited and Cash/Bank credited for the sale price, and Inventory is debited
-against COGS for the cost price — so the refund and the stock movement both
-land the moment the return is submitted, with no separate approval step.
-
-> [!WARNING]
-> **This panel is a refund, not an exchange, and it does not capture a
-> batch or serial number.** `ProcessReturnAnywhere` only restocks and
-> refunds — there is no "swap for a different SKU" option here. A separate,
-> more capable return workflow exists server-side — `POST /api/v1/returns`
-> and its QC-disposition step (`ApplyReturnQC`, `engines/returns.go`) *do*
-> support recording an exchange SKU per line — but as of this writing that
-> whole `/api/v1/returns` family has no caller anywhere in the app; there is
-> no screen for it. If a customer wants an exchange rather than a refund,
-> today's real workflow is a return here plus a fresh sale for the new item,
-> not a single "exchange" action. If the returned item is batch- or
-> serial-tracked, see
-> [Batch, Serial & Expiry Traceability](traceability-batch-serial.md) — this
-> panel does not ask for a lot or serial number on the way back in.
+Open **Returns** to approve or reject, receive, inspect, and progress the refund.
+Read [Returns and refunds](returns-and-refunds.md) for the current steps,
+dispositions, expected evidence and recovery instructions. The old instant
+refund endpoint is retired; earlier instructions to type sale/cost prices and
+immediately restock and refund no longer apply.
 
 ## Offline mode
 
-If the till loses its connection mid-shift, selling does not stop.
+If the till loses its connection mid-shift, the browser can queue a pending sale.
+It is not a posted sale until replay succeeds; review the queue before treating
+the transaction as completed.
 `checkoutOnlineOrQueue` tries `POST /api/v1/checkout` first; on a genuine
 network failure (not a 401 or a 429, which get handled normally) the sale is
 pushed onto a queue kept in the browser's own `localStorage`
@@ -252,9 +239,8 @@ synced).
 ## Printing the receipt
 
 Every completed sale can print; the only question is whether it goes
-straight to the till printer or opens the browser's print dialog. Full setup
-is in [QZ_PRINTING_SETUP.md](../../guides/QZ_PRINTING_SETUP.md) — this section
-covers what's specific to the receipt itself.
+straight to the till printer or opens the browser's print dialog. Ask your administrator to complete workstation printer setup before
+using silent printing. This section covers the receipt itself.
 
 - **Only a `Paid` cart can print.** `BuildReceiptPayload` refuses anything
   else — Draft or Pending Approval is money not yet collected, Failed is a
@@ -350,7 +336,7 @@ naming the cart number, not retried forever.
 
 **"Print receipt?" doesn't go straight to the printer.** QZ Tray isn't
 installed/running on this PC, or no Active Printer has **Default For** set
-to `Receipt` — see [QZ_PRINTING_SETUP.md](../../guides/QZ_PRINTING_SETUP.md).
+to `Receipt`. Ask your administrator to check the workstation printer setup.
 Nothing is broken either way; the browser's own print dialog opens instead.
 
 ## What is not here yet

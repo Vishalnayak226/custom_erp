@@ -99,6 +99,7 @@ pwsh docs/update-docs.ps1 -Group Content  # guides + OpenAPI + generated KB sour
 pwsh docs/update-docs.ps1 -Group Content -Check
 go run ./cmd/doclint                     # warning mode; no writes and no network
 go run ./cmd/doclint -strict             # nonzero for any remaining finding
+go run ./cmd/doclint -fail-on broken-link,broken-anchor,kb-link,generated-drift,capability-evidence
 ```
 
 The guides/KB/brain compatibility wrappers use the same transaction. Brain checks never
@@ -138,3 +139,22 @@ UAT, incidents, restore drills, decisions and required legal versions are retain
 
 Stage 48.0/48.1 implement the first foundation. Later Stage 48 gates own support approval,
 requirements rebuild, full migration, live walkthroughs and final strict enforcement.
+
+The Content pipeline also validates and generates the capability catalog and requirement
+traceability from `docs/product/capability-register.json`. It rejects unsupported maturity
+values, missing references and structurally incomplete Production/Certified claims. Qualified
+reviewers still verify approval authenticity and results. Search output is compact JSON;
+publication enforces its 250 KiB budget and the combined embedded KB 2 MiB budget.
+
+## Curated manuals and screenshots
+
+The [manual portal](../user/manuals.md) links reading/print editions generated
+from canonical KB topics through `manual-selection.json`. The content pipeline
+stages and hashes both manuals; no additional manual assets enter the server.
+Internal topic links and heading IDs are namespaced for the combined edition.
+Older guides remain transitional inputs until unique-content parity is reviewed.
+
+Use the [screenshot procedure](screenshot-capture.md) and repaired capture harness
+before recapturing any living manual asset. A synthetic Chromium test validates
+the harness failure gates; human role/device/content review still controls
+acceptance of the resulting set.

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "verified_on": "2026-09-06",
+  "verified_on": "2026-09-10",
   "scope": "repository registries; not deployed-release or tenant assurance",
   "generator_version": "stage48-v1"
 }

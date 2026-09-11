@@ -6,6 +6,22 @@ summary: Push product content out to Shopify, BigCommerce, Magento, Amazon, Flip
 audience: category manager, admin, integrator
 last_verified: 2026-09-03
 screens: [pim, oms, doctype-table]
+doc_id: DOC-79BB2AA4C0
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: channel-connectors
+task: Channel Connectors
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Channel Connectors
@@ -210,7 +226,8 @@ ongoing health is watched and acted on, once credentials exist:
   **Pull orders** button appears for a channel whose connector declares
   `PullOrders`; a **Push ATS** button appears for one declaring
   `PushInventory` — both call
-  `POST /api/v1/marketplace/channels/{channel}/{pull-orders|sync-inventory}`.
+  `POST /api/v1/marketplace/channels/{channel}/pull-orders` and
+  `POST /api/v1/marketplace/channels/{channel}/sync-inventory`, respectively.
 - **Unmapped SKU exceptions** panel — a channel SKU an inbound order
   referenced with no ERP item mapped to it yet; map it to a SKU (and
   optionally an external product id / location) via

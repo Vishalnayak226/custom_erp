@@ -1,3 +1,21 @@
+---
+doc_id: DOC-A52004EFB3
+title: Client Extension Layer — Safety Checklist
+type: reference
+status: draft
+owner: engineering-owner
+approvers: [documentation-maintainer, engineering-owner]
+audience: [maintainers, engineering-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: navigation
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # Client Extension Layer — Safety Checklist
 
 Tracks the "hired 3rd-party developer builds a custom layer for one client, isolated from other

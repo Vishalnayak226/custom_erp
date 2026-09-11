@@ -6,6 +6,22 @@ summary: Build a multi-level BOM, run a production order through routing/QC/comp
 audience: production planner, plant manager, admin
 last_verified: 2026-09-03
 screens: [manufacturing]
+doc_id: DOC-701A5D19A5
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: manufacturing-mrp
+task: Manufacturing & MRP
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Manufacturing & MRP

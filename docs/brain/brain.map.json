@@ -16,6 +16,7 @@
     "graph_path": "graphify-out/graph.json",
     "out_dir": "docs/brain",
     "ignore": [
+      ".git",
       ".git/*",
       ".claude/*",
       ".vscode/*",
@@ -32,7 +33,11 @@
       "*.local.md",
       "*.local.json",
       ".DS_Store",
-      "Thumbs.db"
+      "Thumbs.db",
+      "CLAUDE.md",
+      "Open-ERP.cmd",
+      "deploy/build/*",
+      "cmd/_scratch*/*"
     ]
   },
   "lobes": [
@@ -146,7 +151,8 @@
       "role": "The 300+ code standard message catalog and the writeAPIError/writeAPIErrorGeneric envelope every handler returns through. Single choke point for what a user is actually told when something fails.",
       "match": [
         "internal/server/apierror.go",
-        "internal/server/error_catalog_generated.go"
+        "internal/server/error_catalog_generated.go",
+        "internal/server/error_catalog_extensions.go"
       ]
     },
     {
@@ -181,6 +187,9 @@
         "engines/mfa.go",
         "engines/mfa_recovery.go",
         "engines/password_reset.go",
+        "engines/password_policy.go",
+        "engines/admin_password_reset.go",
+        "engines/common_passwords.txt",
         "engines/field_permissions.go",
         "engines/roles.go",
         "engines/sensitive_fields.go",
@@ -564,6 +573,7 @@
       "role": "Audit log, system error log (a PANIC alerts immediately), the ops alert monitor that watches error rates per tenant schema, user/ops notifications, the ops status surface, and the concurrency scale simulator.",
       "match": [
         "engines/logs.go",
+        "engines/audit_evidence.go",
         "engines/alerting.go",
         "engines/notifications.go",
         "engines/scale.go",
@@ -580,7 +590,6 @@
         "docs/*",
         "internal/kb/*",
         "README.md",
-        "CLAUDE.md",
         "cmd/genkb/*",
         "cmd/doclint/*",
         "internal/docgen/*",
@@ -623,7 +632,6 @@
         "go.mod",
         "go.sum",
         "environments.json",
-        "Open-ERP.cmd",
         ".gitignore",
         ".gitattributes",
         "cmd/minttoken/*",
@@ -634,12 +642,13 @@
       "id": "security-program",
       "lobe": "brainstem",
       "name": "Security Baseline & Attack Surface",
-      "role": "Stage 49's security program spine. security_baseline.go is the fail-fast startup validator (findings SB-001..SB-022) called from Run() next to the 20.6 UTF-8 and 24.27 seed-admin gates: it logs every configuration finding at every ENV and refuses to start on a blocking one when ENV=production, and its findings never echo the value they complain about. internal/securityscan derives the attack-surface inventory (49.1.1) and the no-bypass scan (49.1.4) from source rather than from a runtime registry, so it is imported only by its own tests and by cmd/surfacescan and adds nothing to the production binary; docs/security/attack_surface.json is the approved profile the 49.1.6 drift gate compares against. static_fileserver.go wraps the static root so a directory with no index.html 404s instead of returning a generated file listing.",
+      "role": "Stage 49's security program spine. security_baseline.go is the fail-fast startup validator (findings SB-001..SB-022) called from Run() next to the 20.6 UTF-8 and 24.27 seed-admin gates: it logs every configuration finding at every ENV and refuses to start on a blocking one when ENV=production, and its findings never echo the value they complain about. internal/securityscan derives the attack-surface inventory (49.1.1) and the no-bypass scan (49.1.4) from source rather than from a runtime registry, so it is imported only by its own tests and by cmd/surfacescan and adds nothing to the production binary; docs/security/attack_surface.json is the approved profile the 49.1.6 drift gate compares against. static_fileserver.go wraps the static root so a directory with no index.html 404s instead of returning a generated file listing, and (49.1.7) refuses any HTTP method but GET/HEAD so the file server itself can't be the one route in the app that answers TRACE/PUT/DELETE. cmd/edgecheck is the 49.1.7 outside-in verification tool - read-only HTTP/TCP probes run from a real external network against a deployed instance, reusable for every future release rather than a one-off manual pass.",
       "match": [
         "engines/security_baseline.go",
         "internal/securityscan/*.go",
         "internal/server/static_fileserver.go",
-        "cmd/surfacescan/*"
+        "cmd/surfacescan/*",
+        "cmd/edgecheck/*"
       ]
     },
     {

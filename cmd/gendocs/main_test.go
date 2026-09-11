@@ -17,14 +17,18 @@ func TestReferenceOutputsStayUnderExplicitRoot(t *testing.T) {
 	if err := os.WriteFile(ledger, []byte("# Ledger\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	writeDictionaryFixture(t, source)
 	files, err := referenceFiles(source, "2026-09-06")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(files) != 7 {
+	if len(files) != 10 {
 		t.Fatalf("got %d outputs", len(files))
 	}
 	out := t.TempDir()
+	if string(files["docs/api/generated/public-v1.json"]) != string(files["docs/specs/openapi_public_v1.json"]) {
+		t.Fatal("OpenAPI compatibility projection diverged")
+	}
 	if err := docgen.Write(out, files); err != nil {
 		t.Fatal(err)
 	}

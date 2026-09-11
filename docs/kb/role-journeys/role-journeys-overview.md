@@ -6,6 +6,22 @@ summary: Six jobs, four shipped roles, and how the two line up - read this befor
 audience: everyone
 last_verified: 2026-08-17
 screens: [roles]
+doc_id: DOC-6794A2722A
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: tutorial
+module: cross-module
+task: Which journey is mine
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Which journey is mine

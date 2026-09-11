@@ -1,3 +1,23 @@
+---
+doc_id: DOC-4CAD923F0F
+title: User SOP — Step-by-Step Procedures
+type: template
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+audience: [maintainers, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: proposed-policy
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
+> Reusable draft template. Fill in the customer, release, roles and evidence, then obtain the accountable owner’s approval before operational use. Existing check marks or examples are not acceptance of a new deployment.
+
 # User SOP — Step-by-Step Procedures
 
 This is the deep companion to **[USER_GUIDE.md](USER_GUIDE.md)**. The Guide explains *what the system is* and walks through two examples (Making a Sale, Moving Stock) in full click-by-click detail. This SOP gives that same literal, click-by-click depth for **every** screen in the sidebar — one section per screen, in the order it appears in the menu. If a term isn't explained here, check the Guide's glossary (§13) first; new terms this SOP introduces are collected in §30 below.
@@ -667,7 +687,7 @@ Click your name/avatar at the bottom of the sidebar to open the account popover.
 
 1. **My Profile**: shows your Username, Role, Status, linked Employee (if any), and whether MFA is enabled — all read-only. Below that:
    - **Contact & Session**: edit your **Email** and your personal **Auto Logout (inactivity)** timer (Never / 15 min / 30 min / 1 hour / 2 hours), click **Save Changes**.
-   - **Change Password**: enter your Current Password, a New Password (8+ characters), confirm it, click **Update Password**.
+   - **Change Password**: enter your Current Password, a New Password (12+ characters by default, and not one of the most common/breached passwords, your username, or a simple repeated/sequential pattern), confirm it, click **Update Password**. This signs your other active sessions out immediately — only this one keeps working.
 2. **Sign Out**: click it, confirm in the dialog. You'll see a brief "Signing you out..." transition before landing back on the login screen.
 
 ---

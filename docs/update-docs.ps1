@@ -70,12 +70,18 @@ try {
     $sets = [ordered]@{}
     $sources = @{}
     $generators = @{}
+    if ($Group -in @('All', 'Content')) {
+        Run-Go @('run', './cmd/doclint', '-root', $repoRoot, '-write-catalog', $stage)
+        $sets['governance'] = @('docs/generated/capability-catalog.md', 'docs/generated/requirements-traceability.md')
+        $sources['governance'] = @('docs/product/capability-register.json', 'docs/requirements/*.md', 'docs/requirements/modules/*.md', 'cmd/doclint/capabilities.go')
+        $generators['governance'] = 'cmd/doclint'
+    }
     if ($Group -in @('All', 'Content', 'Guides', 'KB')) {
         Run-Go @('run', './cmd/gendocs', '-source', $repoRoot, '-out', $stage)
-        $sets['guides'] = @(Get-ChildItem -LiteralPath (Join-Path $stage 'docs') -Recurse -File | ForEach-Object {
+        $sets['guides'] = @(Get-ChildItem -LiteralPath (Join-Path $stage 'docs') -Recurse -File | Where-Object { -not $_.FullName.StartsWith((Join-Path $stage 'docs/generated') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase) } | ForEach-Object {
             [IO.Path]::GetRelativePath($stage, $_.FullName).Replace('\', '/')
         } | Sort-Object)
-        $sources['guides'] = @('cmd/gendocs/*.go', 'engines/*.go', 'internal/server/*.go', 'docs/project_ledger.md', 'docs/governance/generation.json')
+        $sources['guides'] = @('cmd/gendocs/*.go', 'engines/*.go', 'internal/server/*.go', 'docs/project_ledger.md', 'docs/governance/generation.json', 'docs/data/registry-snapshot.json', 'docs/data/business-definitions.json')
         $generators['guides'] = 'cmd/gendocs'
     }
     if ($Group -in @('All', 'Content', 'KB')) {
@@ -87,11 +93,18 @@ try {
         }
         $kbOut = Join-Path $stage 'internal/kb/content'
         Run-Go @('run', './cmd/genkb', '-source', $kbSource, '-out', $kbOut)
+        $kbBytes = (Get-ChildItem -LiteralPath $kbOut -Recurse -File | Measure-Object -Property Length -Sum).Sum
+        if ($kbBytes -gt 2MB) { throw 'Embedded Knowledge Center exceeds the 2 MiB budget.' }
+        if ((Get-Item -LiteralPath (Join-Path $kbOut 'search.json')).Length -gt 250KB) { throw 'Knowledge Center search index exceeds the 250 KiB budget.' }
         $sets['kb'] = @(Get-ChildItem -LiteralPath $kbOut -Recurse -File | ForEach-Object {
             [IO.Path]::GetRelativePath($stage, $_.FullName).Replace('\', '/')
         } | Sort-Object)
         $sources['kb'] = @('docs/kb/**/*.md', 'internal/kb/*.go', 'cmd/genkb/main.go')
         $generators['kb'] = 'cmd/genkb'
+        Run-Go @('run', './cmd/genkb', '-source', $kbSource, '-manuals', (Join-Path $repoRoot 'docs/governance/manual-selection.json'), '-release', $release, '-out', (Join-Path $stage 'docs/user'))
+        $sets['manuals'] = @(Get-ChildItem -LiteralPath (Join-Path $stage 'docs/user') -File | ForEach-Object { 'docs/user/' + $_.Name } | Sort-Object)
+        $sources['manuals'] = @('docs/governance/manual-selection.json', 'docs/kb/**/*.md', 'internal/kb/*.go', 'internal/server/VERSION', 'cmd/genkb/main.go')
+        $generators['manuals'] = 'cmd/genkb'
     }
     if ($Group -in @('All', 'Brain')) {
         if (-not (Test-Path -LiteralPath 'graphify-out/graph.json')) {

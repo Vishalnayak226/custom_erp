@@ -1,3 +1,23 @@
+---
+doc_id: DOC-BA4A91A539
+title: Hypercare Plan — first pilot go-live
+type: template
+status: draft
+owner: operations-owner
+approvers: [documentation-maintainer, operations-owner]
+audience: [maintainers, operations-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: proposed-policy
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
+> Reusable draft template. Fill in the customer, release, roles and evidence, then obtain the accountable owner’s approval before operational use. Existing check marks or examples are not acceptance of a new deployment.
+
 # Hypercare Plan — first pilot go-live
 
 **Status: DRAFT for approval.** Written 2026-08-06 against checklist item 26.11.6.

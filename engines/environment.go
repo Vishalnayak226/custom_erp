@@ -70,10 +70,20 @@ type supportedConfigurationCaveat struct {
 }
 
 var supportedConfigurationCaveats = []supportedConfigurationCaveat{
-	{"47.2-47.4", false, "POS returns and high-value checkout: price/cost/tax are still client-influenced pending 47.2-47.4 - treat as conditional, not fully trustworthy, until closed"},
-	{"47.5", false, "3PL/WMS: owner isolation is not yet enforced during allocation/picking - do not run a mixed-owner warehouse until 47.5 closes"},
-	{"47.6", false, "Mobile/RF WMS and POS: not yet certified for phone-sized/RF device use - Preview only until 47.6 closes"},
-	{"47.7", false, "Audit trail: evidence integrity/retention is not yet closed (legacy blank-checksum rows, unverified concurrent writers) - treat audit-trail completeness/immutability claims as conditional until 47.7 closes"},
+	// 47.2-47.4 closed 2026-09-05/06: pricing is server-authoritative, checkout
+	// and returns are atomic and replay-safe. The caveat is retired rather than
+	// left standing, because a stale warning is as misleading as a missing one.
+	{"47.2-47.4", true, ""},
+	// 47.5 closed 2026-09-09 by the enforced-de-scope limb: one owner per
+	// warehouse. The caveat is REPLACED rather than removed - the remaining
+	// limitation is real and a 3PL operator has to know it.
+	{"47.5", false, "3PL/WMS: allocation and picking do not filter by owner, so this build supports ONE owner per warehouse and enforces it (Stage 47.5.1). Mixed-owner isolation is not implemented; do not switch wms.stock_ownership_mode to the unsupported mixed mode without accepting that one client order can be filled from another client stock."},
+	{"47.6", false, "Mobile/RF WMS and POS: the shell, responsiveness and accessibility foundation are built (47.6.1-47.6.5, 47.6.7), but the device/scanner/printer matrix is NOT certified - Preview only on real RF hardware until 47.6.6 closes."},
+	// 47.7 closed 2026-09-09 with independently signed events + checkpoints.
+	// The caveat is replaced, not removed: the legacy coverage boundary is a
+	// permanent, factual limitation of this data set and an auditor must be
+	// told about it rather than discovering it.
+	{"47.7", false, "Audit trail: rows written from Stage 47.7 onward are independently signed and checkpointed, and tampering or deletion is detected. Rows written BEFORE it carry no signature and are sealed only from the boundary forward - their authorship cannot be proven retrospectively. GET /api/v1/admin/audit-logs/evidence states the exact coverage."},
 }
 
 // SupportedConfigurationNotice returns the still-open caveat messages, for

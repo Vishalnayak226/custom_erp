@@ -1,3 +1,23 @@
+---
+doc_id: DOC-C5D1548A10
+title: Go-Live Decisions — Worksheet & Execution Guide
+type: record
+status: archived
+owner: operations-owner
+approvers: [documentation-maintainer, operations-owner]
+audience: [maintainers, operations-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: historical
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
+> Historical decision worksheet, last updated in August 2026. Preserve its decisions and execution context; its status and portal instructions are not current deployment acceptance. Use the [delivery workbook](../implementation/delivery-workbook.md), [service procedures](service-operations.md) and [live backlog](../micro_checklist.md) for current work. Store actual contacts and credentials in the approved restricted system.
+
 # Go-Live Decisions — Worksheet & Execution Guide
 
 Every item below is a real checklist item (`docs/micro_checklist.md`) that is code-complete or scoped, but blocked purely on a decision or a real-world credential only you can provide. This doc has two jobs:

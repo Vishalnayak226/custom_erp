@@ -6,6 +6,22 @@ summary: How roles gate what a user can see and do, how the maker-checker approv
 audience: admin, auditor
 last_verified: 2026-09-03
 screens: [users, roles, approvals, approval-rules, profile, audit-logs]
+doc_id: DOC-34820397E4
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: security-approvals
+task: Security, Roles & Approvals
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Security, Roles & Approvals

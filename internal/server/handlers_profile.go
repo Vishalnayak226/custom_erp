@@ -230,6 +230,7 @@ func handleMyModules(w http.ResponseWriter, r *http.Request) {
 func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Email              *string `json:"email"`
+		CurrentPassword    string  `json:"current_password"`
 		IdleTimeoutMinutes *int    `json:"idle_timeout_minutes"`
 		ThemePreference    *string `json:"theme_preference"`
 	}
@@ -255,10 +256,42 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	oldEmail := ""
+	if req.Email != nil {
+		// 49.2.4: the account's recovery destination is exactly what a
+		// hijacked session (a stolen token, an unattended workstation) would
+		// change first to set up a takeover - pointing "forgot password" at
+		// an address the attacker controls. Reauthentication with the
+		// current password closes that, the same check handleChangePassword
+		// already performs. A no-op resubmission of the same address (a form
+		// that always sends every field) is exempt, so this can't break a
+		// caller that only meant to change idle-timeout/theme.
+		var currentHash string
+		if err := db.DB.QueryRow(fmt.Sprintf(`SELECT password_hash, COALESCE(email, '') FROM %s.users WHERE id = $1`, schema), userID).
+			Scan(&currentHash, &oldEmail); err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusNotFound, "User not found")
+			return
+		}
+		if *req.Email != oldEmail {
+			if bcrypt.CompareHashAndPassword([]byte(currentHash), []byte(req.CurrentPassword)) != nil {
+				writeAPIErrorGeneric(w, r, http.StatusUnauthorized, "Current password is required and must be correct to change your recovery email")
+				return
+			}
+		}
+	}
+
 	if req.Email != nil {
 		if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET email = $1 WHERE id = $2`, schema), *req.Email, userID); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to update email")
 			return
+		}
+		if *req.Email != oldEmail {
+			// Risk notification goes to the OLD address, if there is one -
+			// the address most likely still read by the legitimate owner if
+			// a hijacked session just redirected "forgot password"
+			// somewhere else. Never sent to the new address: this is a risk
+			// notice, not a confirmation flow.
+			engines.SendRecoveryEmailChangedNotice(tenantID, oldEmail, username, *req.Email)
 		}
 	}
 	if req.IdleTimeoutMinutes != nil {
@@ -287,10 +320,6 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 		return
 	}
-	if len(req.NewPassword) < 8 {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "New password must be at least 8 characters")
-		return
-	}
 
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")
@@ -301,8 +330,17 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var currentHash string
-	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT password_hash FROM %s.users WHERE id = $1`, schema), userID).Scan(&currentHash); err != nil {
+	// 49.2.2: the shared baseline (length, breached/common-password
+	// denylist, trivial-sequence check) - checked before touching the
+	// current-password hash so a rejected new password never costs a
+	// bcrypt comparison either.
+	if err := engines.ValidatePasswordStrength(tenantID, req.NewPassword, username); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	var currentHash, email string
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT password_hash, COALESCE(email, '') FROM %s.users WHERE id = $1`, schema), userID).Scan(&currentHash, &email); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusNotFound, "User not found")
 		return
 	}
@@ -316,11 +354,28 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to set new password")
 		return
 	}
-	if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET password_hash = $1 WHERE id = $2`, schema), string(newHash), userID); err != nil {
+	// 49.2.4: credential_version + 1 revokes every OTHER session on this
+	// account (this request's own token keeps working - it is reissued with
+	// the bumped version below, not invalidated by its own change) via
+	// apiMiddleware's live-state re-check, same mechanism and reasoning as
+	// engines.CompletePasswordReset.
+	var newCredentialVersion int
+	if err := db.DB.QueryRow(fmt.Sprintf(
+		`UPDATE %s.users SET password_hash = $1, credential_version = credential_version + 1 WHERE id = $2 RETURNING credential_version`, schema),
+		string(newHash), userID).Scan(&newCredentialVersion); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to set new password")
 		return
 	}
 
-	engines.LogAuditEvent(tenantID, username, "PROFILE", "PASSWORD_CHANGED", "User changed their own password")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+	// Immediate, not eventually-consistent within the ~30s live-state cache
+	// window - see engines.CompletePasswordReset's identical call for why.
+	engines.InvalidateLiveUserState(tenantID, userID)
+
+	engines.LogAuditEvent(tenantID, username, "PROFILE", "PASSWORD_CHANGED", "User changed their own password; all other sessions revoked")
+	engines.SendPasswordChangedNotice(tenantID, email, username, "your account settings")
+
+	role := r.Header.Get("Resolved-Role")
+	locationCode := r.Header.Get("Resolved-Location")
+	newToken := engines.SignToken(userID, username, role, tenantID, locationCode, newCredentialVersion)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "token": newToken})
 }

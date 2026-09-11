@@ -6,6 +6,22 @@ summary: Half an hour, ten steps, from an empty system to money in the till - an
 audience: store manager, admin
 last_verified: 2026-08-17
 screens: [pos, purchase-orders, grn, inventory, approvals, finance, reports]
+doc_id: DOC-8A016643F6
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: tutorial
+module: platform
+task: Open a shop and make your first sale
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Open a shop and make your first sale

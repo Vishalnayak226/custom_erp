@@ -1,3 +1,6 @@
+<!-- Stage 48 historical authority -->
+> Historical source retained for provenance and unique-content review. Current support is defined by the [capability register projection](../generated/capability-catalog.md); current priorities belong to the [outcome roadmap](../product/roadmap.md). Built/partial/planned labels below describe the original snapshot, not current release support.
+
 # Hardening Roadmap: Toward a Lightweight, Solid, Foolproof ERP
 
 > **Status: closed (2026-07-12).** All four phases below are done and verified — this document is now a historical record, not an active backlog. Current work is tracked in **[docs/micro_checklist.md](../micro_checklist.md)** (Stage 13 onward).

@@ -35,6 +35,8 @@ func kbFrontmatter(title, section string, order int, summary, audience, stamp st
 	b.WriteString("summary: " + summary + "\n")
 	b.WriteString("audience: " + audience + "\n")
 	b.WriteString("last_verified: " + stamp + "\n")
+	b.WriteString("owner: documentation-maintainer\nstatus: active\ntopic_type: reference\nmodule: platform\n")
+	b.WriteString("task: " + title + "\nprerequisites: Authorized access to the relevant ERP task\napplies_to: source registries; not release acceptance\n")
 	if len(screens) > 0 {
 		b.WriteString("screens: [" + strings.Join(screens, ", ") + "]\n")
 	}

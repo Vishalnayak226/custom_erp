@@ -1,3 +1,21 @@
+---
+doc_id: DOC-78F8FF850A
+title: User Guide
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+audience: [maintainers, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: transition-copy
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # User Guide
 
 > **Applies to:** Stage 30.8 · **Last verified against the running app:** 2026-08-01

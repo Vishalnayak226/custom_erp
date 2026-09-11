@@ -1,0 +1,21 @@
+-- Stage 49.2.2/49.2.4: credential_version lets a password change/reset
+-- invalidate every session token issued before it, using the same
+-- "re-read the authoritative row and let it win over the claim" pattern
+-- Stage 29.8 already established for role/status changes
+-- (engines/auth_livestate.go, ResolveLiveUserState) - no token denylist, no
+-- logout endpoint, no expiry sweeper, no new table. SignToken embeds the
+-- current value as the "cv" claim at issue time; apiMiddleware's existing
+-- live-state re-check (internal/server/middleware.go) compares it on every
+-- request to a full session token and rejects a stale one the same generic
+-- way a deactivated user is rejected. Bumped by CompletePasswordReset and
+-- handleChangePassword whenever they actually change the stored hash.
+--
+-- Only tenant_default.users is touched here, matching every earlier
+-- per-tenant-users-table migration in this repo (reset_token_hash,
+-- failed_login_count, locked_until, etc.) - a tenant schema provisioned
+-- after this migration runs clones tenant_default's live shape
+-- (engines/saas.go's "LIKE tenant_default.<table> INCLUDING ALL") and picks
+-- the column up automatically; a tenant schema provisioned before this
+-- migration runs would need it added separately, the same pre-existing gap
+-- every other column in this list already has.
+ALTER TABLE tenant_default.users ADD COLUMN IF NOT EXISTS credential_version INTEGER NOT NULL DEFAULT 1;

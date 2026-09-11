@@ -6,9 +6,28 @@ summary: Every posting is balanced double-entry against a period that can be loc
 audience: accountant, finance manager, admin
 last_verified: 2026-09-03
 screens: [finance, doctype-table, reports, configuration]
+doc_id: DOC-DDBD8E5B5F
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: finance-tax
+task: Finance & Tax
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Finance & Tax
+
+Use [fixed assets](assets.md) for asset records and lifecycle actions, and
+[expense claims](expenses.md) for submission, approval, verification and settlement.
 
 Everything in this handbook sits on one mechanism: `PostDoubleEntry`, the
 single function every posted document in this system goes through to reach

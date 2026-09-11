@@ -226,7 +226,7 @@ func TestUnauthenticatedAndDeactivatedSessionsAreRejected(t *testing.T) {
 
 	userID, cleanup := seedContractUser(t, engines.RoleCashier, "HO")
 	defer cleanup()
-	token := engines.SignToken(userID, userID, engines.RoleCashier, "default", "HO")
+	token := engines.SignToken(userID, userID, engines.RoleCashier, "default", "HO", 1)
 	if rec := contractRequest(mux, http.MethodGet, "/api/v1/doc/Brand", token); rec.Code != http.StatusOK {
 		t.Fatalf("active Cashier GET Brand status=%d body=%s", rec.Code, rec.Body.String())
 	}
@@ -244,7 +244,7 @@ func TestUnauthenticatedAndDeactivatedSessionsAreRejected(t *testing.T) {
 	if _, err := db.DB.Exec(`UPDATE tenant_default.users SET status = 'Active', role = $2 WHERE id = $1`, userID, engines.RoleCashier); err != nil {
 		t.Fatalf("reactivate user: %v", err)
 	}
-	staleAdminToken := engines.SignToken(userID, userID, engines.RoleSuperAdmin, "default", "HO")
+	staleAdminToken := engines.SignToken(userID, userID, engines.RoleSuperAdmin, "default", "HO", 1)
 	adminMux := http.NewServeMux()
 	adminMux.HandleFunc("GET /api/v1/admin/role-templates", apiMiddleware(handleListRoleTemplates))
 	if rec := contractRequest(adminMux, http.MethodGet, "/api/v1/admin/role-templates", staleAdminToken); rec.Code == http.StatusOK {
@@ -280,7 +280,7 @@ func TestCrossLocationAndSensitiveFieldsAreDeniedOverHTTP(t *testing.T) {
 
 	userID, cleanup := seedContractUser(t, engines.RoleCashier, "HO")
 	defer cleanup()
-	token := engines.SignToken(userID, userID, engines.RoleCashier, "default", "HO")
+	token := engines.SignToken(userID, userID, engines.RoleCashier, "default", "HO", 1)
 
 	if rec := contractRequest(mux, http.MethodGet, "/api/v1/doc/POSSession/"+ownID, token); rec.Code != http.StatusOK {
 		t.Errorf("own-location POSSession status=%d body=%s", rec.Code, rec.Body.String())

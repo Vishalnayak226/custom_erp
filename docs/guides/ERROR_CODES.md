@@ -4,12 +4,12 @@
      Source: `internal/server`'s error catalog (`error_catalog_generated.go`)
      Regenerate: `go run ./cmd/gendocs` -->
 
-> **Generated 2026-09-06.** This page is produced from `internal/server`'s error catalog (`error_catalog_generated.go`), for this source revision.
+> **Generated 2026-09-10.** This page is produced from `internal/server`'s error catalog (`error_catalog_generated.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **302** codes. Each row says what the user is shown, what to do about
+There are **304** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -34,6 +34,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Finance & Accounting](#finance--accounting) - 14 codes
 - [Fixed Assets](#fixed-assets) - 3 codes
 - [Global / Common](#global--common) - 25 codes
+- [Goods Receipt](#goods-receipt) - 2 codes
 - [Goods Receipt / GRN](#goods-receipt--grn) - 8 codes
 - [HR / Payroll](#hr--payroll) - 11 codes
 - [Integration / API](#integration--api) - 9 codes
@@ -229,6 +230,13 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `GLOBAL-0296` | Invalid copied grid data | Copied data contains invalid cells. Please correct highlighted rows. | Correct highlighted grid cells. | Medium | 422 |
 | `GLOBAL-0297` | Required lookup inactive | Selected lookup value is inactive. Please choose an active value. | Select active master value. | Medium | 422 |
 | `GLOBAL-0302` | Unexpected server error | An unexpected error occurred. Please try again, or contact support with the reference ID below if it persists. | Retry the action. If it keeps happening, contact support with the correlation ID shown. | Critical | 500 |
+
+## Goods Receipt
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `GOODSR-0096` | Damaged quantity requires a reason | Enter a damage reason for each damaged receipt line. | Record the observed damage and submit the receipt again. | High | 422 |
+| `GOODSR-0097` | Rejected and damaged quantities exceed received quantity | Rejected plus damaged quantity cannot exceed received quantity. | Check the received, rejected and damaged counts; correct the line before submitting. | High | 422 |
 
 ## Goods Receipt / GRN
 

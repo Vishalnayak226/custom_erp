@@ -1,3 +1,21 @@
+---
+doc_id: DOC-2533EC594D
+title: The Project Brain
+type: reference
+status: draft
+owner: engineering-owner
+approvers: [documentation-maintainer, engineering-owner]
+audience: [maintainers, engineering-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: navigation
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # The Project Brain
 
 A single picture of the whole ERP — every file, grouped into brain regions, wired together by the call graph

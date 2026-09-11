@@ -1,0 +1,813 @@
+{
+  "schema_version": 2,
+  "status": "draft",
+  "owner": "product-owner",
+  "release": "0.1.0 development tree; not released support",
+  "configurations": [
+    {
+      "id": "REF-RETAIL-IN",
+      "title": "India retail reference candidate",
+      "industry": "single/multi-store retail",
+      "country": "India",
+      "deployment": "one Go service + PostgreSQL; tenant schemas",
+      "devices": "desktop browser; mobile/RF not certified",
+      "owner_model": "retailer-owned stock",
+      "limit": "Preview evaluation; tenant-role migration, deployment controls and release acceptance remain required."
+    },
+    {
+      "id": "REF-WAREHOUSE-IN",
+      "title": "India warehouse/distribution candidate",
+      "industry": "wholesale distribution with dedicated-owner warehouses",
+      "country": "India",
+      "deployment": "one Go service + PostgreSQL; tenant schemas",
+      "devices": "browser/RF candidate; physical verification pending",
+      "owner_model": "one stock owner per warehouse; Stage 47.5 single_owner guard",
+      "limit": "Preview evaluation of the selected single-owner configuration; deployment and release acceptance required. mixed_unsupported mode provides no allocation/picking isolation and is outside supported use."
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "CAP-POS",
+      "title": "Point of sale",
+      "owner": "store-process-owner",
+      "maturity": "Preview",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/pos.md#fr-pos-001",
+        "docs/requirements/modules/pos.md#fr-pos-002",
+        "docs/requirements/modules/pos.md#fr-pos-003"
+      ],
+      "design": [
+        "engines/pos_checkout.go"
+      ],
+      "tests": [
+        "internal/server/pos_atomic_checkout_stage47_3_test.go",
+        "internal/server/pos_pricing_stage47_2_test.go"
+      ],
+      "help": [
+        "docs/kb/module-handbooks/pos-operations.md"
+      ],
+      "stages": [
+        "47.2",
+        "47.3"
+      ],
+      "limits": "Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative.",
+      "last_verified": "2026-09-09",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-cashier"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-o2c"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    },
+    {
+      "id": "CAP-RET",
+      "title": "Returns and refunds",
+      "owner": "store-process-owner",
+      "maturity": "Preview",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/returns.md#fr-ret-001",
+        "docs/requirements/modules/returns.md#fr-ret-002",
+        "docs/requirements/modules/returns.md#fr-ret-003"
+      ],
+      "design": [
+        "engines/returns_atomic.go"
+      ],
+      "tests": [
+        "internal/server/returns_stage47_4_test.go"
+      ],
+      "help": [
+        "docs/kb/module-handbooks/returns-and-refunds.md"
+      ],
+      "stages": [
+        "47.4"
+      ],
+      "limits": "Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative.",
+      "last_verified": "2026-09-09",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-cashier"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-ret"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    },
+    {
+      "id": "CAP-WMS",
+      "title": "Warehouse operations",
+      "owner": "warehouse-process-owner",
+      "maturity": "Experimental",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/wms.md#fr-wms-001",
+        "docs/requirements/modules/wms.md#fr-wms-002",
+        "docs/requirements/modules/wms.md#fr-wms-003"
+      ],
+      "design": [
+        "engines/wms_owner_stock.go",
+        "engines/wms_single_owner.go"
+      ],
+      "tests": [
+        "engines/stage47_a05_owner_allocation_redteam_test.go",
+        "engines/wms_single_owner_test.go"
+      ],
+      "help": [
+        "docs/kb/module-handbooks/inventory-wms-operations.md"
+      ],
+      "stages": [
+        "47.5",
+        "47.6",
+        "42"
+      ],
+      "limits": "Single-owner-per-warehouse guard implemented; mixed-owner operation explicitly unsupported. Physical device, deployment and qualified release acceptance remain open.",
+      "last_verified": "2026-09-10",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-wms"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-r2s"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    },
+    {
+      "id": "CAP-OMS",
+      "title": "Order management",
+      "owner": "order-process-owner",
+      "maturity": "Preview",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/oms.md#fr-oms-001",
+        "docs/requirements/modules/oms.md#fr-oms-002",
+        "docs/requirements/modules/oms.md#fr-oms-003"
+      ],
+      "design": [
+        "engines/fulfillment.go"
+      ],
+      "tests": [
+        "engines/oms_console_stage35_test.go"
+      ],
+      "help": [
+        "docs/kb/module-handbooks/oms-order-management.md"
+      ],
+      "stages": [
+        "35",
+        "47.5"
+      ],
+      "limits": "Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative.",
+      "last_verified": "2026-09-09",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-data"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-o2c"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    },
+    {
+      "id": "CAP-PIM",
+      "title": "Product and master data",
+      "owner": "data-owner",
+      "maturity": "Preview",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/pim.md#fr-pim-001",
+        "docs/requirements/modules/pim.md#fr-pim-002",
+        "docs/requirements/modules/pim.md#fr-pim-003"
+      ],
+      "design": [
+        "engines/pim_tasks.go"
+      ],
+      "tests": [
+        "engines/pim_tasks_test.go",
+        "engines/pim_import_test.go"
+      ],
+      "help": [
+        "docs/kb/module-handbooks/pim-pxm.md"
+      ],
+      "stages": [
+        "36",
+        "47.13"
+      ],
+      "limits": "Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative.",
+      "last_verified": "2026-09-09",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-data"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-mdm"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    },
+    {
+      "id": "CAP-BUY",
+      "title": "Procurement",
+      "owner": "procurement-process-owner",
+      "maturity": "Preview",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/procurement.md#fr-buy-001",
+        "docs/requirements/modules/procurement.md#fr-buy-002",
+        "docs/requirements/modules/procurement.md#fr-buy-003"
+      ],
+      "design": [
+        "engines/rfq.go"
+      ],
+      "tests": [
+        "engines/engines_test.go"
+      ],
+      "help": [
+        "docs/kb/module-handbooks/procurement.md"
+      ],
+      "stages": [
+        "17",
+        "47.13"
+      ],
+      "limits": "Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative.",
+      "last_verified": "2026-09-09",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-fin"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-p2p"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    },
+    {
+      "id": "CAP-INV",
+      "title": "Inventory and transfers",
+      "owner": "inventory-process-owner",
+      "maturity": "Preview",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/inventory.md#fr-inv-001",
+        "docs/requirements/modules/inventory.md#fr-inv-002",
+        "docs/requirements/modules/inventory.md#fr-inv-003"
+      ],
+      "design": [
+        "engines/inventory.go"
+      ],
+      "tests": [
+        "engines/traceability_test.go"
+      ],
+      "help": [
+        "docs/kb/module-handbooks/traceability-batch-serial.md"
+      ],
+      "stages": [
+        "42",
+        "47.5"
+      ],
+      "limits": "Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative.",
+      "last_verified": "2026-09-09",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-wms"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-r2s"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    },
+    {
+      "id": "CAP-FIN",
+      "title": "Finance and tax",
+      "owner": "finance-process-owner",
+      "maturity": "Preview",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/finance.md#fr-fin-001",
+        "docs/requirements/modules/finance.md#fr-fin-002",
+        "docs/requirements/modules/finance.md#fr-fin-003"
+      ],
+      "design": [
+        "engines/finance.go"
+      ],
+      "tests": [
+        "engines/finance_statement_builder_test.go"
+      ],
+      "help": [
+        "docs/kb/module-handbooks/finance-tax.md"
+      ],
+      "stages": [
+        "37",
+        "47.7",
+        "47.16"
+      ],
+      "limits": "Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative.",
+      "last_verified": "2026-09-09",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-fin"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-r2r"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    },
+    {
+      "id": "CAP-CRM",
+      "title": "Customer relationship and loyalty",
+      "owner": "customer-process-owner",
+      "maturity": "Preview",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/crm.md#fr-crm-001",
+        "docs/requirements/modules/crm.md#fr-crm-002",
+        "docs/requirements/modules/crm.md#fr-crm-003"
+      ],
+      "design": [
+        "engines/loyalty.go"
+      ],
+      "tests": [
+        "engines/crm_analytics_test.go"
+      ],
+      "help": [
+        "docs/kb/module-handbooks/crm-loyalty.md"
+      ],
+      "stages": [
+        "26.7",
+        "47.3"
+      ],
+      "limits": "Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative.",
+      "last_verified": "2026-09-09",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-ceo"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-o2c"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    },
+    {
+      "id": "CAP-HR",
+      "title": "People and payroll",
+      "owner": "hr-process-owner",
+      "maturity": "Preview",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/hr.md#fr-hr-001",
+        "docs/requirements/modules/hr.md#fr-hr-002",
+        "docs/requirements/modules/hr.md#fr-hr-003"
+      ],
+      "design": [
+        "engines/hr.go"
+      ],
+      "tests": [
+        "engines/sensitive_fields_test.go"
+      ],
+      "help": [
+        "docs/kb/module-handbooks/hr-payroll.md"
+      ],
+      "stages": [
+        "26.8",
+        "47.1",
+        "47.16"
+      ],
+      "limits": "Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative.",
+      "last_verified": "2026-09-09",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-admin"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-hr"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    },
+    {
+      "id": "CAP-MFG",
+      "title": "Manufacturing and planning",
+      "owner": "manufacturing-process-owner",
+      "maturity": "Preview",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/manufacturing.md#fr-mfg-001",
+        "docs/requirements/modules/manufacturing.md#fr-mfg-002",
+        "docs/requirements/modules/manufacturing.md#fr-mfg-003"
+      ],
+      "design": [
+        "engines/manufacturing.go"
+      ],
+      "tests": [
+        "engines/manufacturing_scheduling_test.go"
+      ],
+      "help": [
+        "docs/kb/module-handbooks/manufacturing-mrp.md"
+      ],
+      "stages": [
+        "37.10",
+        "26.9"
+      ],
+      "limits": "Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative.",
+      "last_verified": "2026-09-09",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-wms"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-mfg"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    },
+    {
+      "id": "CAP-SRV",
+      "title": "Projects and service",
+      "owner": "service-process-owner",
+      "maturity": "Experimental",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/service.md#fr-srv-001",
+        "docs/requirements/modules/service.md#fr-srv-002",
+        "docs/requirements/modules/service.md#fr-srv-003"
+      ],
+      "design": [
+        "engines/project.go",
+        "engines/service_management.go"
+      ],
+      "tests": [
+        "engines/project_test.go",
+        "engines/service_management_test.go"
+      ],
+      "help": [
+        "docs/kb/reference/report-catalog.md"
+      ],
+      "stages": [
+        "37.7",
+        "37.8"
+      ],
+      "limits": "Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative.",
+      "last_verified": "2026-09-09",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-ceo"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-srv"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    },
+    {
+      "id": "CAP-API",
+      "title": "Platform and integrations",
+      "owner": "engineering-owner",
+      "maturity": "Preview",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/platform.md#fr-api-001",
+        "docs/requirements/modules/platform.md#fr-api-002",
+        "docs/requirements/modules/platform.md#fr-api-003"
+      ],
+      "design": [
+        "internal/server/routes_public_api_v1.go"
+      ],
+      "tests": [
+        "engines/public_api_runtime_test.go"
+      ],
+      "help": [
+        "docs/kb/reference/public-api-idempotency.md"
+      ],
+      "stages": [
+        "38",
+        "49"
+      ],
+      "limits": "Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative.",
+      "last_verified": "2026-09-09",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-eng",
+        "docs/requirements/personas-and-processes.md#per-admin",
+        "docs/requirements/personas-and-processes.md#per-sec"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-mdm"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    },
+    {
+      "id": "CAP-KB",
+      "title": "Knowledge Center",
+      "owner": "documentation-maintainer",
+      "maturity": "Preview",
+      "configurations": [
+        "REF-RETAIL-IN",
+        "REF-WAREHOUSE-IN"
+      ],
+      "requirements": [
+        "docs/requirements/modules/knowledge.md#fr-kb-001",
+        "docs/requirements/modules/knowledge.md#fr-kb-002",
+        "docs/requirements/modules/knowledge.md#fr-kb-003"
+      ],
+      "design": [
+        "internal/kb/build.go"
+      ],
+      "tests": [
+        "internal/kb/build_test.go"
+      ],
+      "help": [
+        "docs/kb/getting-started/finding-your-way-around.md"
+      ],
+      "stages": [
+        "39",
+        "48.7"
+      ],
+      "limits": "Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative.",
+      "last_verified": "2026-09-09",
+      "review_by": "2026-10-09",
+      "approver": "",
+      "release_evidence": [],
+      "business_needs": [
+        "docs/requirements/business-requirements.md#br-001",
+        "docs/requirements/business-requirements.md#br-002",
+        "docs/requirements/business-requirements.md#br-003",
+        "docs/requirements/business-requirements.md#br-004",
+        "docs/requirements/business-requirements.md#br-005"
+      ],
+      "personas": [
+        "docs/requirements/personas-and-processes.md#per-ops"
+      ],
+      "processes": [
+        "docs/requirements/personas-and-processes.md#proc-mdm"
+      ],
+      "controls": [
+        "docs/requirements/control-requirements.md#sec-001",
+        "docs/requirements/control-requirements.md#sec-002",
+        "docs/requirements/control-requirements.md#sec-003",
+        "docs/requirements/control-requirements.md#data-001",
+        "docs/requirements/control-requirements.md#data-002",
+        "docs/requirements/control-requirements.md#ops-001",
+        "docs/requirements/control-requirements.md#ops-002"
+      ]
+    }
+  ],
+  "common_requirements": [
+    "docs/requirements/nonfunctional-requirements.md"
+  ]
+}

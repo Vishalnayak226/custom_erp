@@ -95,8 +95,8 @@ jobs:
         # The local graph snapshot is ignored; this gate owns the reproducible content group.
         run: ./docs/update-docs.ps1 -Group Content -Check
 
-      - name: Documentation health (advisory during Stage 48 migration)
-        run: go run ./cmd/doclint
+      - name: Documentation ownership, links, help and evidence
+        run: go run ./cmd/doclint -strict
 
       - name: Test
         # -race: this codebase serves concurrent HTTP requests over a shared

@@ -13,6 +13,7 @@ import (
 	"os"
 	"regexp"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -758,6 +759,28 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 					// rather than at next login.
 					role = live.Role
 					locationCode = live.LocationCode
+
+					// 49.2.2/49.2.4: a full session token (purpose == "",
+					// i.e. never an MFA enrollment/challenge or extension
+					// token - those don't carry "cv" at all) is void the
+					// moment its credential_version claim stops matching the
+					// row's current value. This is what makes a password
+					// change/reset (handlers_profile.go,
+					// engines/password_reset.go) revoke every OTHER session
+					// it did not itself just issue, on the same ~30s SLO the
+					// role/status re-check above already uses - no token
+					// denylist, no logout endpoint. A token minted before
+					// this claim existed carries no "cv" at all and is
+					// rejected the same way, which is the intended one-time
+					// effect of shipping this control: every session active
+					// at deploy time is asked to sign in again.
+					if purpose == "" {
+						tokenCV, cvErr := strconv.Atoi(claims["cv"])
+						if cvErr != nil || tokenCV != live.CredentialVersion {
+							writeAPIError(w, r, "GLOBAL-0009", "")
+							return
+						}
+					}
 				}
 			} else {
 				// GLOBAL-0009 "Session expired" - closest catalog match for a

@@ -6,6 +6,22 @@ summary: Track employees, attendance and leave, then run payroll against a confi
 audience: HR manager, admin
 last_verified: 2026-09-03
 screens: [hr]
+doc_id: DOC-70777B422A
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: hr-payroll
+task: HR & Payroll
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # HR & Payroll

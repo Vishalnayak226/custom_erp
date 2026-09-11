@@ -43,7 +43,9 @@ try {
     Assert-ReadOnly 'pwsh' @('-NoProfile', '-File', 'docs/update-docs.ps1', '-Group', 'Content', '-Check') $false
     Assert-ReadOnly 'go' @('run', './cmd/gendocs', '-check') $false
     Assert-ReadOnly 'go' @('run', './cmd/genkb', '-check') $false
-    foreach ($rel in @('docs/guides/ERROR_CODES.md', 'internal/kb/content/articles/report-catalog.html', 'docs/brain/BRAIN.md')) {
+    $release = (Get-Content -LiteralPath 'internal/server/VERSION' -Raw).Trim()
+    Assert-ReadOnly 'go' @('run', './cmd/genkb', '-manuals', 'docs/governance/manual-selection.json', '-release', $release, '-out', 'docs/user', '-check') $false
+    foreach ($rel in @('docs/guides/ERROR_CODES.md', 'internal/kb/content/articles/report-catalog.html', 'docs/brain/BRAIN.md', 'docs/user/user-manual.html')) {
         Add-Content -LiteralPath $rel -Value 'Intentional drift fixture.'
     }
     Assert-ReadOnly 'pwsh' @('-NoProfile', '-File', 'docs/guides/update-guides.ps1', '-Check') $true
@@ -51,6 +53,7 @@ try {
     Assert-ReadOnly 'pwsh' @('-NoProfile', '-File', 'docs/brain/update-brain.ps1', '-Check') $true
     Assert-ReadOnly 'go' @('run', './cmd/gendocs', '-check') $true
     Assert-ReadOnly 'go' @('run', './cmd/genkb', '-check') $true
+    Assert-ReadOnly 'go' @('run', './cmd/genkb', '-manuals', 'docs/governance/manual-selection.json', '-release', $release, '-out', 'docs/user', '-check') $true
     Assert-ReadOnly 'go' @('run', './cmd/brainmap', '-check') $true
     Set-Content -LiteralPath 'internal/kb/content/articles/orphan-fixture.html' -Value 'orphan'
     Assert-ReadOnly 'pwsh' @('-NoProfile', '-File', 'docs/update-docs.ps1', '-Group', 'Content') $true

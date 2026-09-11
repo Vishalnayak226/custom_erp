@@ -1431,7 +1431,23 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "decided", "decision": req.Decision})
+
+	resp := map[string]interface{}{"status": "decided", "decision": req.Decision}
+	// 49.2.4: a PasswordResetRequest is not actually executed until it is
+	// Approved, and its result (a one-time password) may only ever reach the
+	// approver - never the requester - so it is surfaced here, in the
+	// decide response, rather than as one of engines.DecideApproval's own
+	// generic (result-less) approval hooks.
+	if req.Doctype == "PasswordResetRequest" && req.Decision == "Approved" {
+		result, execErr := engines.ExecuteApprovedPasswordResetRequest(tenantID, req.DocumentID)
+		if execErr != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("Approved but failed to issue the new password: %v", execErr))
+			return
+		}
+		resp["temp_password"] = result.TempPassword
+		resp["detail"] = result.Detail
+	}
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleBulkDecideApproval (Stage 26.4.6) applies one decision to a bounded

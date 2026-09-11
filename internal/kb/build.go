@@ -33,17 +33,24 @@ import (
 
 // Article is one Knowledge Center page.
 type Article struct {
-	Slug         string    `json:"slug"`
-	Title        string    `json:"title"`
-	Section      string    `json:"section"`
-	Order        int       `json:"order"`
-	Summary      string    `json:"summary,omitempty"`
-	Audience     string    `json:"audience,omitempty"`
-	Public       bool      `json:"public,omitempty"`
-	Screens      []string  `json:"screens,omitempty"`
-	LastVerified string    `json:"last_verified,omitempty"`
-	SourcePath   string    `json:"source_path"`
-	Headings     []Heading `json:"headings,omitempty"`
+	Slug          string    `json:"slug"`
+	Title         string    `json:"title"`
+	Section       string    `json:"section"`
+	Order         int       `json:"order"`
+	Summary       string    `json:"summary,omitempty"`
+	Audience      string    `json:"audience,omitempty"`
+	Public        bool      `json:"public,omitempty"`
+	Screens       []string  `json:"screens,omitempty"`
+	LastVerified  string    `json:"last_verified,omitempty"`
+	Owner         string    `json:"owner,omitempty"`
+	Status        string    `json:"status,omitempty"`
+	TopicType     string    `json:"topic_type,omitempty"`
+	Module        string    `json:"module,omitempty"`
+	Task          string    `json:"task,omitempty"`
+	Prerequisites string    `json:"prerequisites,omitempty"`
+	AppliesTo     string    `json:"applies_to,omitempty"`
+	SourcePath    string    `json:"source_path"`
+	Headings      []Heading `json:"headings,omitempty"`
 
 	// HTML is the rendered body. It is written to its own file rather than
 	// inlined in the index, so opening the Knowledge Center costs one small
@@ -276,7 +283,9 @@ func Build(root string) (*BuildResult, error) {
 			Public:       strings.EqualFold(fields["public"], "true"),
 			Screens:      frontmatterList(fields["screens"]),
 			LastVerified: fields["last_verified"],
-			SourcePath:   relPath,
+			Owner:        fields["owner"], Status: fields["status"], TopicType: fields["topic_type"],
+			Module: fields["module"], Task: fields["task"], Prerequisites: fields["prerequisites"], AppliesTo: fields["applies_to"],
+			SourcePath: relPath,
 		}
 		if article.Title == "" {
 			return nil, fmt.Errorf("%s: frontmatter needs a title", relPath)
@@ -363,7 +372,9 @@ func Build(root string) (*BuildResult, error) {
 	}
 	result.Files["index.json"] = append(indexJSON, '\n')
 
-	searchJSON, err := json.MarshalIndent(buildSearchIndex(result.Articles), "", "  ")
+	// The search index is a machine artifact. Compact encoding preserves every
+	// token/posting while avoiding indentation that exceeded the 250 KiB budget.
+	searchJSON, err := json.Marshal(buildSearchIndex(result.Articles))
 	if err != nil {
 		return nil, err
 	}

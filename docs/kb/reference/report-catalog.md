@@ -4,7 +4,14 @@ section: Reference
 order: 20
 summary: Every report you can run, what it asks for, what it returns and whether you can drill into it.
 audience: store manager, finance, category manager, admin
-last_verified: 2026-09-06
+last_verified: 2026-09-10
+owner: documentation-maintainer
+status: active
+topic_type: reference
+module: platform
+task: Report catalog
+prerequisites: Authorized access to the relevant ERP task
+applies_to: source registries; not release acceptance
 screens: [reports]
 ---
 

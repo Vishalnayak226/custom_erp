@@ -4,7 +4,14 @@ section: Reference
 order: 30
 summary: The countries the application knows, their dialling codes, and the phone number lengths each one accepts.
 audience: admin, store manager
-last_verified: 2026-09-06
+last_verified: 2026-09-10
+owner: documentation-maintainer
+status: active
+topic_type: reference
+module: platform
+task: Country codes and phone number rules
+prerequisites: Authorized access to the relevant ERP task
+applies_to: source registries; not release acceptance
 screens: [configuration]
 ---
 

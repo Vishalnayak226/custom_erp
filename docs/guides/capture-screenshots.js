@@ -1,194 +1,164 @@
-// Screenshot capture for the user-facing guides (Stage 30.4.7).
-//
-// All four guides had zero images, which was the largest single gap against
-// help.sap.com. The decision taken with the user was scripted captures rather
-// than hand-taken ones, for the obvious reason: screenshots go stale faster
-// than anything else in a manual, and a hand-taken set has no way to be
-// refreshed except by someone remembering to do it. This script re-takes the
-// whole set in about a minute, so refreshing them is a chore nobody has to
-// think about.
-//
-// USAGE
-//   1. Have a server running with data in it (a dev instance is fine):
-//        PORT=8152 go run ./cmd/server
-//   2. Mint a token for a full-access user. Any method works; the simplest is
-//      to log in through the app and copy `erp_token` out of localStorage.
-//   3. node docs/guides/capture-screenshots.js --token "<token>" --base http://localhost:8152
-//
-// Options
-//   --token   REQUIRED. A session token for a user who can see every screen.
-//   --base    Server URL. Default http://localhost:8152
-//   --out     Output directory. Default docs/guides/img
-//   --only    Comma-separated shot ids, to re-take just a few.
-//   --theme   light | dark. Default light.
-//
-// Playwright is not a project dependency and never should be (this repo has
-// no build step and no frontend framework - see CLAUDE.md's first principle).
-// The script resolves it from wherever it already is on the machine, and says
-// so clearly if it isn't installed. Nothing in the app or the build depends on
-// this file; it is a documentation tool that happens to live in the repo.
-//
-// WINDOWS NOTE: writing under Documents\ can be blocked by Controlled Folder
-// Access, which reports itself as "cannot find the file specified". If that
-// happens, pass --out to somewhere under %TEMP% and copy the files in with
-// PowerShell, exactly as docs/brain/update-brain.ps1 does.
-
-const fs = require('fs');
-const path = require('path');
-
+// Documentation-only tooling; see ../governance/screenshot-capture.md.
+'use strict';
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
 function resolvePlaywright() {
-  const candidates = [
-    'playwright',
-    path.join(process.env.USERPROFILE || process.env.HOME || '', 'node_modules', 'playwright'),
-    path.join(process.env.APPDATA || '', 'npm', 'node_modules', 'playwright'),
-  ];
-  for (const c of candidates) {
-    try { return require(c); } catch (e) { /* try the next one */ }
+  for (const candidate of ['playwright', path.join(process.env.USERPROFILE || process.env.HOME || '', 'node_modules/playwright'), path.join(process.env.APPDATA || '', 'npm/node_modules/playwright')]) {
+    try { return require(candidate); } catch { /* optional local tooling */ }
   }
-  console.error('Playwright not found.\n' +
-    'Install it anywhere on this machine (it is deliberately not a project dependency):\n' +
-    '  npm install -g playwright && npx playwright install chromium\n' +
-    'then re-run this script.');
-  process.exit(2);
+  throw new Error('Playwright is unavailable locally. It is not an ERP dependency.');
 }
-
-const args = {};
-process.argv.slice(2).forEach((a, i, all) => {
-  if (a.startsWith('--')) args[a.slice(2)] = (all[i + 1] && !all[i + 1].startsWith('--')) ? all[i + 1] : true;
-});
-
-const BASE = args.base || 'http://localhost:8152';
-const OUT = args.out || path.join(__dirname, 'img');
-const THEME = args.theme === 'dark' ? 'dark' : 'light';
-const ONLY = args.only ? String(args.only).split(',').map(s => s.trim()) : null;
-
-if (!args.token) {
-  console.error('--token is required. See the header of this file for how to get one.');
-  process.exit(2);
-}
-
-// The shot list. `id` becomes the filename and is what --only matches.
-// `nav` is run in the page to get to the screen; every screen in this app is
-// reachable by calling its own view function, which is far more robust than
-// hovering flyouts and clicking through a menu that may be permission-trimmed.
-//
-// ADD A SHOT: append an entry here. Keep the id stable once a guide links to
-// it, because the filename is the link.
 const SHOTS = [
-  { id: 'sidebar', caption: 'The twelve top-level sidebar entries',
-    nav: () => window.renderView('dashboard'), clip: 'sidebar' },
-
-  { id: 'setup-menu', caption: 'The Setup flyout: grouped by module, with a filter box and an Advanced divider',
-    nav: async () => { window.renderView('dashboard'); },
-    after: async (page) => {
-      await page.hover('#menu-master-definition');
-      await page.waitForTimeout(800);
-    }, clip: 'sidebar-wide' },
-
-  { id: 'pos-billing', caption: 'POS / Billing with the session bar at the top',
-    nav: () => window.renderView('pos') },
-
-  { id: 'purchase-order', caption: 'Purchase Order: the number field is greyed out and auto-issued',
-    nav: () => window.renderView('purchase-orders') },
-
-  { id: 'goods-receipt', caption: 'Goods Receipt: load lines from a PO, record accepted/short/damaged',
-    nav: () => window.renderView('grn') },
-
-  { id: 'inventory', caption: 'Inventory: on hand versus actually free to sell',
-    nav: () => window.renderView('inventory') },
-
-  { id: 'trial-balance', caption: 'Finance / GL: the Trial Balance and its As Of Date',
-    nav: () => window.renderView('finance') },
-
-  { id: 'approvals', caption: 'Approvals: documents waiting on you',
-    nav: () => window.renderView('approvals') },
-
-  { id: 'reports', caption: 'The report catalog',
-    nav: () => window.renderView('reports') },
-
-  { id: 'record-list', caption: 'A record list, with New / Bulk Import and per-row Edit and Delete',
-    nav: () => window.openSetupDoctype('Vendor') },
-
-  { id: 'json-line-editor', caption: 'A line editor replacing what used to be a hand-typed JSON field',
-    nav: () => window.openSetupDoctype('BOM'),
-    after: async (page) => {
-      await page.evaluate(() => window.openDynamicModal());
-      await page.waitForTimeout(1200);
-    }, clip: 'modal' },
-
-  { id: 'configuration', caption: 'Configuration: every operational setting, per module',
-    nav: () => window.renderView('configuration') },
-
-  { id: 'roles', caption: 'Roles: the permission grant matrix',
-    nav: () => window.renderView('roles') },
+  { id: 'sidebar', view: 'reports', caption: 'Main navigation', clip: { x: 0, y: 0, width: 300, height: 900 } },
+  { id: 'setup-menu', view: 'reports', caption: 'Setup navigation', after: 'setup', clip: { x: 0, y: 0, width: 760, height: 900 } },
+  { id: 'pos-billing', view: 'pos', caption: 'POS billing and cashier session' },
+  { id: 'purchase-order', view: 'purchase-orders', caption: 'Purchase orders' },
+  { id: 'goods-receipt', view: 'grn', caption: 'Goods receipt' },
+  { id: 'inventory', view: 'inventory', caption: 'Inventory availability' },
+  { id: 'trial-balance', view: 'finance', caption: 'Finance and trial balance' },
+  { id: 'approvals', view: 'approvals', caption: 'Pending approvals' },
+  { id: 'reports', view: 'reports', caption: 'Report catalog' },
+  { id: 'record-list', doctype: 'Vendor', caption: 'Vendor records' },
+  { id: 'json-line-editor', doctype: 'BOM', after: 'modal', allowedOverlay: '#dynamic-modal', caption: 'BOM line editor' },
+  { id: 'configuration', view: 'configuration', caption: 'Tenant configuration' },
+  { id: 'roles', view: 'roles', caption: 'Role permissions' },
+  { id: 'returns', view: 'returns', caption: 'Return inspection and refund workflow' },
 ];
-
-const CLIPS = {
-  sidebar: { x: 0, y: 0, width: 300, height: 900 },
-  'sidebar-wide': { x: 0, y: 0, width: 760, height: 900 },
-  modal: null, // full page - the modal is centred and the backdrop is informative
-};
-
-(async () => {
-  const { chromium } = resolvePlaywright();
-  fs.mkdirSync(OUT, { recursive: true });
-
-  const browser = await chromium.launch();
-  const ctx = await browser.newContext({
-    viewport: { width: 1440, height: 900 },
-    deviceScaleFactor: 2, // legible when a reader zooms; roughly doubles file size
-    colorScheme: THEME,
-  });
-  await ctx.addInitScript(([t, theme]) => {
-    localStorage.setItem('erp_token', t);
-    localStorage.setItem('erp_username', 'admin');
-    localStorage.setItem('erp-theme', theme);
-  }, [args.token, THEME]);
-
-  const page = await ctx.newPage();
-  const consoleErrors = [];
-  page.on('pageerror', e => consoleErrors.push(String(e)));
-
-  await page.goto(BASE, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(2500);
-
-  const manifest = [];
-  let failures = 0;
-
-  for (const shot of SHOTS) {
-    if (ONLY && !ONLY.includes(shot.id)) continue;
-    try {
-      await page.evaluate(shot.nav);
-      await page.waitForTimeout(1800);
-      if (shot.after) await shot.after(page);
-
-      const file = path.join(OUT, `${shot.id}.png`);
-      const clip = shot.clip ? CLIPS[shot.clip] : null;
-      await page.screenshot(clip ? { path: file, clip } : { path: file, fullPage: false });
-
-      manifest.push({ id: shot.id, file: path.basename(file), caption: shot.caption });
-      console.log(`  [ok]   ${shot.id}.png`);
-    } catch (err) {
-      failures++;
-      console.error(`  [fail] ${shot.id}: ${err.message}`);
+function parseArgs(argv) {
+  const args = {};
+  for (let i = 0; i < argv.length; i += 2) {
+    if (!/^--[a-z-]+$/.test(argv[i]) || !argv[i + 1] || argv[i + 1].startsWith('--')) throw new Error('Options require an explicit value. See screenshot-capture.md.');
+    const key = argv[i].slice(2);
+    if (!['base', 'out', 'storage-state', 'release', 'role', 'tenant', 'fixture', 'theme', 'locale', 'viewport', 'only', 'interval-ms'].includes(key) || key in args) throw new Error('Unknown or repeated capture option.');
+    args[key] = argv[i + 1];
+  }
+  for (const key of ['out', 'storage-state', 'release', 'role', 'tenant', 'fixture']) if (!args[key]?.trim()) throw new Error(`--${key} is required.`);
+  const base = new URL(args.base || 'http://localhost:8152');
+  if (!['http:', 'https:'].includes(base.protocol) || base.username || base.password || base.search || base.hash || base.pathname !== '/') throw new Error('Base must be an HTTP(S) origin without credentials, path, query or fragment.');
+  const viewport = /^(\d+)x(\d+)$/.exec(args.viewport || '1440x900');
+  if (!viewport || +viewport[1] < 320 || +viewport[2] < 400 || +viewport[1] > 3840 || +viewport[2] > 2160) throw new Error('Viewport must be WIDTHxHEIGHT within 320–3840 by 400–2160.');
+  const theme = args.theme || 'light';
+  if (!['light', 'dark'].includes(theme)) throw new Error('Theme must be light or dark.');
+  const ids = args.only ? args.only.split(',').map(s => s.trim()) : SHOTS.map(s => s.id);
+  const intervalMs = args['interval-ms'] === undefined ? 30000 : Number(args['interval-ms']);
+  if (!Number.isInteger(intervalMs) || intervalMs < 0 || intervalMs > 60000) throw new Error('Capture interval must be 0–60000 milliseconds.');
+  if (new Set(ids).size !== ids.length || ids.some(id => !SHOTS.some(s => s.id === id))) throw new Error('The shot selection contains an unknown or duplicate id.');
+  return { base: base.origin, out: path.resolve(args.out), storageState: path.resolve(args['storage-state']), release: args.release,
+    role: args.role, tenant: args.tenant, fixture: args.fixture, theme, locale: args.locale || 'en-IN',
+    viewport: { width: +viewport[1], height: +viewport[2] }, shots: SHOTS.filter(s => ids.includes(s.id)), timeout: 15000, intervalMs };
+}
+// Browser-side DOM checks: a hidden ancestor can clip controls even when the
+// document reports no overflow. Scrollable areas may legitimately extend below it.
+function inspectScreen(allowedOverlay) {
+  const visible = el => {
+    if (!el) return false;
+    const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none' && +s.opacity !== 0;
+  };
+  if (visible(document.querySelector('#login-screen'))) return 'Authentication screen is visible.';
+  const root = document.querySelector('#view-root');
+  if (!visible(root) || root.innerText.trim().length < 15) return 'The requested screen is empty.';
+  for (const el of document.querySelectorAll('.modal-overlay, [role="dialog"], .loading-overlay, .view-loading, [aria-busy="true"]')) {
+    if (visible(el) && !(allowedOverlay && (el.matches(allowedOverlay) || el.closest(allowedOverlay)))) return 'Unexpected dialog or loading overlay.';
+  }
+  for (const el of document.querySelectorAll('.login-error, .alert-danger, .view-error, [role="alert"]')) if (visible(el) && el.innerText.trim()) return 'The screen contains an error or alert.';
+  if (/access denied|not authorized|not permitted|permission denied|session expired/i.test(root.innerText)) return 'The requested screen reports an authorization failure.';
+  if (document.documentElement.scrollWidth > innerWidth + 2) return 'The page overflows the viewport horizontally.';
+  const scope = allowedOverlay ? document.querySelector(allowedOverlay) : root;
+  if (!visible(scope)) return 'The requested dialog is not visible.';
+  for (const el of scope.querySelectorAll('button,input,select,textarea,th,td,h1,h2,h3,label,a')) {
+    if (!visible(el)) continue;
+    const r = el.getBoundingClientRect();
+    let scrollX = false, scrollY = false;
+    for (let parent = el.parentElement; parent; parent = parent.parentElement) {
+      const s = getComputedStyle(parent), p = parent.getBoundingClientRect();
+      scrollX ||= /auto|scroll/.test(s.overflowX);
+      scrollY ||= /auto|scroll/.test(s.overflowY);
+      if (!scrollX && /hidden|clip/.test(s.overflowX) && (r.left < p.left - 3 || r.right > p.right + 3)) return 'A control or table cell is clipped horizontally.';
+      if (!scrollY && /hidden|clip/.test(s.overflowY) && (r.top < p.top - 3 || r.bottom > p.bottom + 3)) return 'A control or table cell is clipped vertically.';
     }
   }
-
-  await browser.close();
-
-  // A manifest so the guides can reference shots by id, and so a reviewer can
-  // see at a glance what the set is meant to contain.
-  fs.writeFileSync(path.join(OUT, 'MANIFEST.md'),
-    `# Screenshot manifest\n\n` +
-    `<!-- Generated by docs/guides/capture-screenshots.js. Re-take with that script; do not edit. -->\n\n` +
-    `Captured ${new Date().toISOString().slice(0, 10)} against \`${BASE}\`, ${THEME} theme, 1440x900 @2x.\n\n` +
-    `| Shot | File | Shows |\n|---|---|---|\n` +
-    manifest.map(m => `| \`${m.id}\` | [${m.file}](${m.file}) | ${m.caption} |`).join('\n') + '\n');
-
-  if (consoleErrors.length) {
-    console.warn(`\nNote: ${consoleErrors.length} page error(s) during capture — the shots may show an error state:`);
-    consoleErrors.slice(0, 5).forEach(e => console.warn('  ' + e));
+  return null;
+}
+async function capture(options, playwright = resolvePlaywright()) {
+  if (fs.existsSync(options.out)) throw new Error('Output already exists. Use a new review directory.');
+  fs.mkdirSync(path.dirname(options.out), { recursive: true });
+  const stage = fs.mkdtempSync(path.join(path.dirname(options.out), '.erp-shots-'));
+  let browser;
+  try {
+    browser = await playwright.chromium.launch();
+    const context = await browser.newContext({ storageState: options.storageState, viewport: options.viewport, deviceScaleFactor: 2, colorScheme: options.theme, locale: options.locale });
+    await context.addInitScript(theme => localStorage.setItem('erp-theme', theme), options.theme);
+    const records = [];
+    for (const shot of options.shots) {
+      // A new page runs the app's startup requests. Pace full-page captures
+      // within the real server limits; never disable or retry past a refusal.
+      if (records.length && options.intervalMs) await new Promise(resolve => setTimeout(resolve, options.intervalMs));
+      const page = await context.newPage();
+      page.setDefaultTimeout(options.timeout);
+      const errors = [];
+      page.on('pageerror', () => errors.push('Uncaught page error.'));
+      page.on('console', message => { if (message.type() === 'error') errors.push('Browser console error.'); });
+      page.on('response', response => { if (response.status() >= 400) errors.push(`HTTP failure (${response.status()}).`); });
+      page.on('requestfailed', () => errors.push('Network request failed.'));
+      const fragment = shot.doctype ? `#/setup/${encodeURIComponent(shot.doctype)}` : `#/view/${encodeURIComponent(shot.view)}`;
+      await page.goto(options.base + '/' + fragment, { waitUntil: 'networkidle', timeout: options.timeout });
+      await page.locator('#view-root').waitFor({ state: 'visible' });
+      await page.waitForFunction(() => !document.querySelector('#view-root .view-loading'));
+      if (new URL(page.url()).hash !== fragment) throw new Error(`${shot.id}: navigation fell back to a different screen.`);
+      const identityOK = await page.evaluate(async expected => {
+        const token = localStorage.getItem('erp_token'), tenant = localStorage.getItem('erp_tenant_id') || 'default';
+        if (!token || tenant !== expected.tenant || localStorage.getItem('erp_role') !== expected.role) return false;
+        const response = await fetch('/api/v1/me', { headers: { Authorization: `Bearer ${token}`, 'X-Tenant-ID': tenant } });
+        if (!response.ok) return false;
+        const profile = await response.json();
+        return profile.role === expected.role && profile.username === localStorage.getItem('erp_username');
+      }, { role: options.role, tenant: options.tenant });
+      if (!identityOK) throw new Error(`${shot.id}: session identity does not match the requested role and tenant.`);
+      if (shot.after === 'setup') {
+        await page.locator('#menu-master-definition').hover();
+        await page.locator('#submenu-master').waitFor({ state: 'visible' });
+      }
+      if (shot.after === 'modal') {
+        await page.evaluate(async () => {
+          if (typeof window.openDynamicModal !== 'function') throw new Error('Document editor is unavailable.');
+          await window.openDynamicModal();
+        });
+        await page.locator('#dynamic-modal.open').waitFor({ state: 'visible' });
+        await page.waitForFunction(() => Number(getComputedStyle(document.querySelector('#dynamic-modal')).opacity) >= 0.99);
+      }
+      await page.evaluate(() => document.fonts.ready);
+      const problem = await page.evaluate(inspectScreen, shot.allowedOverlay || null);
+      if (problem || errors.length) throw new Error(`${shot.id}: ${problem || errors[0]}`);
+      if (shot.clip && (shot.clip.width > options.viewport.width || shot.clip.height > options.viewport.height)) throw new Error(`${shot.id}: crop exceeds the chosen viewport.`);
+      const filename = `${shot.id}.png`;
+      await page.screenshot({ path: path.join(stage, filename), ...(shot.clip ? { clip: shot.clip } : { fullPage: false }), animations: 'disabled' });
+      if (errors.length) throw new Error(`${shot.id}: ${errors[0]}`);
+      records.push({ id: shot.id, file: filename, caption: shot.caption, route: fragment, sha256: crypto.createHash('sha256').update(fs.readFileSync(path.join(stage, filename))).digest('hex') });
+      await page.close();
+      if (options.onProgress) options.onProgress(shot.id);
+    }
+    const manifest = { schema_version: 1, status: 'pending-human-review', release: options.release, role: options.role, tenant_fixture: options.tenant, fixture: options.fixture,
+      viewport: options.viewport, device_scale: 2, locale: options.locale, theme: options.theme, interval_ms: options.intervalMs || 0, captured_at: new Date().toISOString(), screenshots: records };
+    fs.writeFileSync(path.join(stage, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+    fs.writeFileSync(path.join(stage, 'MANIFEST.md'), '# Screenshot review set\n\nAutomated checks passed. Human content, privacy, accessibility and clipping review is pending.\n\n' + records.map(r => `- [${r.caption}](${r.file})`).join('\n') + '\n');
+    await browser.close();
+    browser = null;
+    if (fs.existsSync(options.out)) throw new Error('Output appeared during capture; no set published.');
+    fs.renameSync(stage, options.out);
+    return manifest;
+  } finally {
+    try { if (browser) await browser.close(); } finally {
+      // Only the fresh, resolved staging child can be removed; old assets are untouched.
+      if (path.dirname(stage) === path.dirname(options.out) && path.basename(stage).startsWith('.erp-shots-')) fs.rmSync(stage, { recursive: true, force: true });
+    }
   }
-  console.log(`\n${manifest.length} shot(s) written to ${OUT}${failures ? `, ${failures} failed` : ''}`);
-  process.exit(failures ? 1 : 0);
-})();
+}
+module.exports = { parseArgs, inspectScreen, capture, resolvePlaywright, SHOTS };
+if (require.main === module) {
+  Promise.resolve().then(() => capture({ ...parseArgs(process.argv.slice(2)), onProgress: id => console.log(`Checked ${id}; staged for review.`) }))
+    .then(result => console.log(`${result.screenshots.length} screenshots staged for human review.`))
+    // Playwright exceptions may contain URLs or page content. Do not print them.
+    .catch(() => { console.error('Screenshot capture failed; no set published. Check the fixture, session, selected screens and local browser installation.'); process.exitCode = 1; });
+}

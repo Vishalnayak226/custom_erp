@@ -6,6 +6,22 @@ summary: Every channel and manual order lands through one Order Engine - validat
 audience: order desk, store manager, admin
 last_verified: 2026-09-03
 screens: [oms]
+doc_id: DOC-C98ADC2B59
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: oms-order-management
+task: Order Management
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Order Management
@@ -148,14 +164,12 @@ goods. This is a complete, tested, courier-integrated return/refund/QC
 state machine.
 
 > [!WARNING]
-> **The entire `ReturnRequest`/`RefundRequest` workflow has no UI anywhere.**
-> Confirmed by grep: zero matches for `ReturnRequest`, `RefundRequest`, or
-> `/api/v1/returns` anywhere in `public/app.js`. QC disposition, exchange-
-> for-SKU, and reverse-pickup booking are all real and reachable only by a
-> direct API call today — the same finding [Point of Sale](pos-operations.md)
-> already made from the till side of this gap. If a customer needs an
-> exchange rather than a refund, today's real workflow is a POS return plus
-> a fresh sale for the new item, not this richer single workflow.
+> **Current management screen.** Open **Returns** to approve/reject a
+> request, book reverse pickup, receive goods, record QC dispositions and
+> progress its refund. The POS panel raises the request after bill lookup.
+> See [Returns and refunds](returns-and-refunds.md) for the current steps and
+> recovery checks. Customer role and end-to-end release acceptance are still
+> required; the existence of a screen is not evidence of provider settlement.
 
 ## Error codes reference
 

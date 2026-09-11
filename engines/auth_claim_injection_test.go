@@ -24,7 +24,7 @@ func TestTokenClaimsCannotBeSmuggledThroughValues(t *testing.T) {
 		// live user-state re-check when purpose == "extension", so smuggling it
 		// into a full session token freezes role/location at issue time and
 		// makes deactivating the account stop working.
-		token := SignToken("u1", "evil&purpose=extension", "Cashier", "default", "HO")
+		token := SignToken("u1", "evil&purpose=extension", "Cashier", "default", "HO", 1)
 		claims, err := ParseToken(token)
 		if err != nil {
 			t.Fatalf("token must still parse: %v", err)
@@ -40,7 +40,7 @@ func TestTokenClaimsCannotBeSmuggledThroughValues(t *testing.T) {
 	t.Run("a location code cannot override a claim emitted before it", func(t *testing.T) {
 		// loc is emitted after role and tenant, so under last-write-wins map
 		// assignment an injected pair here beat the real one.
-		token := SignToken("u2", "cashier1", "Cashier", "default", "HO&role=Super Admin&tenant=victim")
+		token := SignToken("u2", "cashier1", "Cashier", "default", "HO&role=Super Admin&tenant=victim", 1)
 		claims, err := ParseToken(token)
 		if err != nil {
 			t.Fatalf("token must still parse: %v", err)
@@ -57,7 +57,7 @@ func TestTokenClaimsCannotBeSmuggledThroughValues(t *testing.T) {
 		// The old parser skipped any pair that did not split into exactly two
 		// halves, so a username containing "=" silently produced an empty
 		// Resolved-Username - actions attributed to nobody in the audit trail.
-		token := SignToken("u3", "a=b", "Cashier", "default", "HO")
+		token := SignToken("u3", "a=b", "Cashier", "default", "HO", 1)
 		claims, err := ParseToken(token)
 		if err != nil {
 			t.Fatalf("token must still parse: %v", err)
@@ -85,7 +85,7 @@ func TestTokenClaimsCannotBeSmuggledThroughValues(t *testing.T) {
 	})
 
 	t.Run("ordinary values are unaffected", func(t *testing.T) {
-		token := SignToken("admin", "admin", "Super Admin", "default", "HO")
+		token := SignToken("admin", "admin", "Super Admin", "default", "HO", 1)
 		claims, err := ParseToken(token)
 		if err != nil {
 			t.Fatalf("token must parse: %v", err)

@@ -61,8 +61,9 @@ func authStateCacheTTL() time.Duration {
 // LiveUserState is the authoritative, current server-side view of a user,
 // as opposed to whatever their token claimed when it was minted.
 type LiveUserState struct {
-	Role         string
-	LocationCode string
+	Role              string
+	LocationCode      string
+	CredentialVersion int
 }
 
 type authStateEntry struct {
@@ -123,8 +124,8 @@ func ResolveLiveUserState(tenantID, userID string) (LiveUserState, error) {
 
 	var state LiveUserState
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT role, location_code FROM %s.users WHERE id = $1 AND status = 'Active'`, schema),
-		userID).Scan(&state.Role, &state.LocationCode)
+		`SELECT role, location_code, credential_version FROM %s.users WHERE id = $1 AND status = 'Active'`, schema),
+		userID).Scan(&state.Role, &state.LocationCode, &state.CredentialVersion)
 
 	switch {
 	case err == sql.ErrNoRows:

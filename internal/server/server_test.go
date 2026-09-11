@@ -415,7 +415,7 @@ func TestCrossTenantIsolationAndTokenSecurity(t *testing.T) {
 	// Minted directly rather than via /login - tests token-level tenant scoping
 	// independent of the login/MFA flow. With the user row above in place this
 	// is equivalent to what a real successful login would have issued.
-	tokenA := engines.SignToken("sectest-user-a", "sectest-user-a", "HR/Admin", tenantA, "HO")
+	tokenA := engines.SignToken("sectest-user-a", "sectest-user-a", "HR/Admin", tenantA, "HO", 1)
 
 	// 1. Active spoofing attempt: tenant A's token, but the request also claims
 	// X-Tenant-ID: tenant B while asking for a document that only exists in B's schema.

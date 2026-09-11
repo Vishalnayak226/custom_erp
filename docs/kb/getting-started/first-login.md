@@ -6,6 +6,22 @@ summary: Sign in, understand what your role can see, and find your way around th
 audience: everyone
 last_verified: 2026-08-12
 screens: [profile, configuration]
+doc_id: DOC-539ACD5FE4
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: tutorial
+module: platform
+task: Your first sign-in
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Your first sign-in

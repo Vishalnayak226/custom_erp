@@ -1,3 +1,23 @@
+---
+doc_id: DOC-D44C6028FC
+title: User Acceptance Test Checklist
+type: template
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+audience: [maintainers, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: proposed-policy
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
+> Reusable draft template. Fill in the customer, release, roles and evidence, then obtain the accountable owner’s approval before operational use. Existing check marks or examples are not acceptance of a new deployment.
+
 # User Acceptance Test Checklist
 
 A single walkthrough script for a human tester to click through every module and page in the app and confirm it works. No coding knowledge needed — if a step says "click X, expect Y" and you see Y, tick the box and move on.

@@ -6,6 +6,22 @@ summary: Payables in, receivables out, the bank reconciled, and a trial ledger t
 audience: finance
 last_verified: 2026-08-17
 screens: [finance, vendor-invoices, sales-invoices, payment-proposals, bank-reconciliation, finance-notes, approvals, reports]
+doc_id: DOC-186524B8BA
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: tutorial
+module: cross-module
+task: A day in finance
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # A day in finance

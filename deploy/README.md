@@ -1,3 +1,21 @@
+---
+doc_id: DOC-0DB1627664
+title: Deploying the ERP to a Linux Droplet
+type: reference
+status: draft
+owner: engineering-owner
+approvers: [documentation-maintainer, engineering-owner]
+audience: [maintainers, engineering-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: source
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # Deploying the ERP to a Linux Droplet
 
 This is the runbook for the production/staging deploy path described in

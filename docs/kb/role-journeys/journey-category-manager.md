@@ -6,6 +6,22 @@ summary: Own the product record, get it complete enough to publish, and keep it 
 audience: category manager
 last_verified: 2026-08-17
 screens: [pim, doctype-table, marketplace, reports, stickers]
+doc_id: DOC-2D597A7FCF
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: tutorial
+module: cross-module
+task: A day as a category manager
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # A day as a category manager

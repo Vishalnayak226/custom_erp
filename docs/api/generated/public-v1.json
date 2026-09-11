@@ -1,0 +1,643 @@
+{
+  "components": {
+    "parameters": {
+      "TenantHeader": {
+        "description": "The tenant the credential belongs to.",
+        "in": "header",
+        "name": "X-Tenant-ID",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "Error": {
+        "properties": {
+          "code": {
+            "description": "Stable platform error code, for example GLOBAL-0004.",
+            "type": "string"
+          },
+          "correlation_id": {
+            "description": "Echoes the X-Correlation-ID response header. Quote it in a support request.",
+            "type": "string"
+          },
+          "error": {
+            "description": "Human-readable message.",
+            "type": "string"
+          },
+          "retryable": {
+            "description": "Whether retrying the identical request could succeed.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "error",
+          "code"
+        ],
+        "type": "object"
+      },
+      "PublicInventoryLevel": {
+        "properties": {
+          "as_of": {
+            "type": "string"
+          },
+          "available_to_sell": {
+            "type": "integer"
+          },
+          "location_code": {
+            "type": "string"
+          },
+          "sku": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "available_to_sell",
+          "location_code",
+          "sku"
+        ],
+        "type": "object"
+      },
+      "PublicInventoryResponse": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PublicInventoryLevel"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "count",
+          "data"
+        ],
+        "type": "object"
+      },
+      "PublicItem": {
+        "properties": {
+          "barcode": {
+            "type": "string"
+          },
+          "brand": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "family": {
+            "type": "string"
+          },
+          "hsn_code": {
+            "type": "string"
+          },
+          "mrp": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "uom": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "status"
+        ],
+        "type": "object"
+      },
+      "PublicOrderShipment": {
+        "properties": {
+          "carrier": {
+            "type": "string"
+          },
+          "dispatched_at": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "tracking_number": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PublicOrderStatus": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "channel_order_id": {
+            "type": "string"
+          },
+          "hold_reason": {
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PublicOrderStatusLine"
+            },
+            "type": "array"
+          },
+          "order_id": {
+            "type": "string"
+          },
+          "placed_at": {
+            "type": "string"
+          },
+          "shipments": {
+            "items": {
+              "$ref": "#/components/schemas/PublicOrderShipment"
+            },
+            "type": "array"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "lines",
+          "order_id",
+          "shipments",
+          "status"
+        ],
+        "type": "object"
+      },
+      "PublicOrderStatusLine": {
+        "properties": {
+          "quantity": {
+            "type": "number"
+          },
+          "sku": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "quantity",
+          "sku"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "description": "An opaque `erp_v1_...` API credential issued by a Super Admin. Never a user session token.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "The curated public integration surface. Only the endpoints listed here are reachable with an API credential; the application's internal API is not part of this contract.\n\nEvery request carries `Authorization: Bearer \u003capi key\u003e` and `X-Tenant-ID`. Mutating endpoints additionally require an `Idempotency-Key` header, so a retry after a timeout cannot be mistaken for a second request.\n\nResponses carry `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-Quota-Limit` and `X-Quota-Remaining` so a client can pace itself without waiting to be rejected.\n\nCompatibility rules for v1 are in docs/specs/public_api_v1.md.",
+    "title": "ERP Public API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.0.3",
+  "paths": {
+    "/api/public/v1/inventory": {
+      "get": {
+        "description": "Available-to-sell quantity per location, computed with the same formula the order path enforces. A sku is required; there is no whole-catalog stock export on this surface.\n\nRequired scope: `inventory:read`.",
+        "operationId": "getInventory",
+        "parameters": [
+          {
+            "description": "The item code to look up.",
+            "in": "query",
+            "name": "sku",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Restrict to one location code. Omit for every location holding this SKU.",
+            "in": "query",
+            "name": "location",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicInventoryResponse"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Read availability for one SKU",
+        "tags": [
+          "Inventory"
+        ]
+      }
+    },
+    "/api/public/v1/items": {
+      "get": {
+        "description": "One page of sellable products. Cancelled and deleted products are excluded. Use updated_since to poll for changes rather than re-reading the whole catalog.\n\nRequired scope: `items:read`.",
+        "operationId": "getItems",
+        "parameters": [
+          {
+            "description": "Page size, 1-200. Defaults to 50.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Rows to skip. Defaults to 0.",
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "description": "RFC3339 UTC timestamp; returns only products changed at or after it.",
+            "in": "query",
+            "name": "updated_since",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "count": {
+                      "type": "integer"
+                    },
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/PublicItem"
+                      },
+                      "type": "array"
+                    },
+                    "has_more": {
+                      "type": "boolean"
+                    },
+                    "limit": {
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "count",
+                    "data",
+                    "has_more",
+                    "limit",
+                    "offset"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "List products",
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/api/public/v1/items/{code}": {
+      "get": {
+        "description": "Curated product identity for a single item code.\n\nRequired scope: `items:read`.",
+        "operationId": "getItemsCode",
+        "parameters": [
+          {
+            "description": "The item code.",
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicItem"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Get one product",
+        "tags": [
+          "Items"
+        ]
+      }
+    },
+    "/api/public/v1/orders/{id}/status": {
+      "get": {
+        "description": "Order status with per-line status and any shipments. The path segment accepts either this system's order id or the channel order id the order was imported with.\n\nRequired scope: `orders:read`.",
+        "operationId": "getOrdersIdStatus",
+        "parameters": [
+          {
+            "description": "Order id or channel order id.",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/TenantHeader"
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicOrderStatus"
+                }
+              }
+            },
+            "description": "Success."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The API credential is missing, malformed, revoked or expired. The response never says which."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "The credential authenticated but does not hold the scope this endpoint requires."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "No such resource."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "A parameter was present but not valid."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Per-minute rate limit or daily quota exhausted. Retry-After says how long to wait."
+          }
+        },
+        "summary": "Track an order",
+        "tags": [
+          "Orders"
+        ]
+      }
+    }
+  },
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "servers": [
+    {
+      "description": "This deployment.",
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "description": "Curated product identity.",
+      "name": "Items"
+    },
+    {
+      "description": "Availability reads.",
+      "name": "Inventory"
+    },
+    {
+      "description": "Order tracking.",
+      "name": "Orders"
+    }
+  ]
+}

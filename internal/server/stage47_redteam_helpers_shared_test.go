@@ -67,7 +67,25 @@ func seedStage47User(t *testing.T, role, location string) (userID string, cleanu
 // busts the live-user-state cache so apiMiddleware's Stage 29.8 re-check
 // reads this test's freshly-seeded row instead of a stale cached miss.
 func stage47Token(userID, role, location string) string {
-	token := engines.SignToken(userID, userID, role, "default", location)
+	// seedStage47User's INSERT never sets credential_version, so a
+	// freshly-seeded row is always the column's own DEFAULT (1) - safe to
+	// pass literally here, unlike a call site that mints a token for the
+	// real persistent "admin"/"system" seed accounts (see
+	// currentCredentialVersion below for those).
+	token := engines.SignToken(userID, userID, role, "default", location, 1)
 	engines.ResetLiveUserStateCache()
 	return token
+}
+
+// currentCredentialVersion (49.2.2/49.2.4) reads a user's live
+// credential_version so a test that mints a token for a shared, persistent
+// account - "admin"/"system", not a disposable per-test fixture - stays
+// correct regardless of that account's password-change history in this
+// shared development database. Defaults to 1 (never fatal) so a lookup
+// failure produces a token that 401s with a clear cause rather than
+// crashing an unrelated test's setup.
+func currentCredentialVersion(userID string) int {
+	v := 1
+	_ = db.DB.QueryRow(`SELECT credential_version FROM tenant_default.users WHERE id = $1`, userID).Scan(&v)
+	return v
 }

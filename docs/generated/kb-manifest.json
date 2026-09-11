@@ -18,6 +18,24 @@
       ]
     },
     {
+      "path": "internal/kb/content/articles/appointment-calendar.html",
+      "sha256": "14e81816c0deb6e6061fc970bc282e1905695d77720cf894e718fd0c278fa9d9",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/assets.html",
+      "sha256": "056f551c4e5a5fbcd53aa34d65ca342548d8c8c4b35dd7667a8731e7c51775de",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
       "path": "internal/kb/content/articles/backup-and-restore.html",
       "sha256": "03cd29c6a926eb621ade410cb94c8657affc6e62e681bbb1e8777c97e5363bbd",
       "sources": [
@@ -28,7 +46,7 @@
     },
     {
       "path": "internal/kb/content/articles/channel-connectors.html",
-      "sha256": "7bc49cd2eb6d2fc4a503450534f12885de8a35eabc7c9c325a2d7db74e2c1134",
+      "sha256": "dfab12da05ed5cde94a9fa3e13d5f4f56f7f1a7bd8af8f1f9ea9b2c52d19cac3",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -64,7 +82,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference.html",
-      "sha256": "2e512ef1d13608194d742d931a83ccc3887aec367669b7da672fe9174b0e3735",
+      "sha256": "2a480ecea9fe810ae4331c31dfce211ccaaec751dc73057f0d40e5bd0579d1f5",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -74,6 +92,15 @@
     {
       "path": "internal/kb/content/articles/error-codes.html",
       "sha256": "4fe144eb7c09807300d3ae02e39bfa6fb073d09fc35d6c8ff5d226b62b274df4",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/expenses.html",
+      "sha256": "b4d1df8f6db92777bf967be6a90e88ed296cd1c5ebc512a3a8877c7faf14160e",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -91,7 +118,7 @@
     },
     {
       "path": "internal/kb/content/articles/finance-tax.html",
-      "sha256": "a009cea39ac07a7890a2eb246a3da81fc33925b54a30b78b694a9475b7c01971",
+      "sha256": "851bd94570d732dfa4fb7fb8ec5d33b6ce3ffc80cd37c664170c7850ea78df25",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -100,7 +127,7 @@
     },
     {
       "path": "internal/kb/content/articles/finding-your-way-around.html",
-      "sha256": "c4bc00d109eb533678160efa3ba95cd952e72399874c70481aabe25ccb22ea06",
+      "sha256": "555daef998e398bcfa76a0ebc5af34f93ec9b27fbe0c80675a6813e7fea94267",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -154,7 +181,7 @@
     },
     {
       "path": "internal/kb/content/articles/inventory-wms-operations.html",
-      "sha256": "42c4a67dc7f983d63fe17d2c306943269d27805823296ae1185c5b0740ba10a2",
+      "sha256": "9f23fca59e327e9d9d8288af0f577e40ef1c6b9759e636bcb7dbe498aecafeba",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -216,6 +243,15 @@
       ]
     },
     {
+      "path": "internal/kb/content/articles/loading-dock.html",
+      "sha256": "1d259574f04ec40aad0dc3ce779476285e5a22154d7289827a61cbc06cc469a6",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
       "path": "internal/kb/content/articles/manufacturing-mrp.html",
       "sha256": "bfad45ab54bb65a07ffc8735143697e873bc994275b2b4b6ad45165b438703a9",
       "sources": [
@@ -226,7 +262,7 @@
     },
     {
       "path": "internal/kb/content/articles/oms-order-management.html",
-      "sha256": "ee292fd6fd93114ae912a5c6075c08d3f465ae0c3989d6e1264dce05f5fd0dbf",
+      "sha256": "e122e641b0feeb96de0be366ddcb27d6f498e36103559d18b96d411b03d6332e",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -261,8 +297,17 @@
       ]
     },
     {
+      "path": "internal/kb/content/articles/place-hold.html",
+      "sha256": "0efb74e1b04f4b93170a331774c66ae737d5229db0427237ac9dde222e6d3d15",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
       "path": "internal/kb/content/articles/pos-operations.html",
-      "sha256": "200db80706c90e3d44ac4548d40c3b73b71cbf9787675c9c4eadf98ffbaef9d7",
+      "sha256": "8c706e4067534793e7a2206ecedb6bc67320ad01b122aa2f53c9eb9cbe91af01",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -271,7 +316,7 @@
     },
     {
       "path": "internal/kb/content/articles/procurement.html",
-      "sha256": "40024686988c0160dd3a05ee0c1b2ea06d5d0d3674c0725620c5d2e4f49591ea",
+      "sha256": "4d61de2c2c94d2bf5789ff4f67b7f46584540721c518a7f30259b01dc091cb04",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -289,7 +334,7 @@
     },
     {
       "path": "internal/kb/content/articles/public-api-idempotency.html",
-      "sha256": "3bff2f0a813d46034af91144b3b59c7aec387b7b407a0894c73396360e560592",
+      "sha256": "e207391542d691e125d7c62b942cb675a3b33d230cdbba794c7eab80be8b215f",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -298,7 +343,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "2995cc93127f503325406fc19b9edc4bcf01506ffd26cfac9376798ae767254b",
+      "sha256": "a93a34ef000113696064f95690bbc48043e369a2b8c301e6e29e02f695534b5a",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -308,6 +353,24 @@
     {
       "path": "internal/kb/content/articles/report-catalog.html",
       "sha256": "fe9147bedecb243bab8dff91cdb0d8b500df8038444376cd47fa8abef36e838a",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/returns-and-refunds.html",
+      "sha256": "33c589f5e10c1f2b7141200944cf3cf10d000c47e54acc56e242973adad89f9b",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
+      "path": "internal/kb/content/articles/rf-lot-and-serial.html",
+      "sha256": "59de4a9c234b3ae7c6883e896c7d04c89fcf63756c17909cfaabc9b5e05ef6d1",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -333,8 +396,17 @@
       ]
     },
     {
+      "path": "internal/kb/content/articles/sortation.html",
+      "sha256": "ab4a02dba46d971b3bd6b4b1f3f5962f8d3ecd91341fd4c85c061b1a5683569a",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
       "path": "internal/kb/content/articles/traceability-batch-serial.html",
-      "sha256": "36a098609977daa1d76d6edd701d4e5be68aa01e89563e4479ea64a7e8d0dc59",
+      "sha256": "17ba15adb972900f6690c3f837585a5dab04af8eb9f0f158cdffda3eb21c8985",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -351,6 +423,15 @@
       ]
     },
     {
+      "path": "internal/kb/content/articles/using-task-help.html",
+      "sha256": "69c51f683a4bbe4c546f72d39a161a49203c273ad41496a8384417cbaea8c9ac",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
       "path": "internal/kb/content/articles/what-is-this-system.html",
       "sha256": "7cdc4ab29bc6ad4219321b93750f175c52c694df63a375793cb92f589e1eca4d",
       "sources": [
@@ -360,8 +441,17 @@
       ]
     },
     {
+      "path": "internal/kb/content/articles/yard-board.html",
+      "sha256": "06873e1f064d25dac6d8168abeb682bf38860f88ff240ed50ad39541624af480",
+      "sources": [
+        "docs/kb/**/*.md",
+        "internal/kb/*.go",
+        "cmd/genkb/main.go"
+      ]
+    },
+    {
       "path": "internal/kb/content/index.json",
-      "sha256": "2042aa7d8a5c319a772fe9f77e994ddcf9cb6f7b3728bcce111ac0a9fdfac3c1",
+      "sha256": "dba7631f01be2d35e73567ff9feaa61e102668d6f1745912fcd96e34543dbb17",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -370,7 +460,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "ad18103ff325f7a4d61e96a72e92ad9c25908528bb17259b69185a6827888261",
+      "sha256": "8a1ae7d2cdc8d55c11b5aeff0fe019413425090f242daf4b0ea1cb62b8a4e788",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

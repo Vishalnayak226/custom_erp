@@ -6,6 +6,22 @@ summary: Morning queues, approvals, stock that needs ordering, and the four chec
 audience: store manager
 last_verified: 2026-08-17
 screens: [reports, oms, approvals, inventory, purchase-orders, grn, pos, transfers]
+doc_id: DOC-7810824C4A
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: tutorial
+module: cross-module
+task: A day as a store manager
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # A day as a store manager

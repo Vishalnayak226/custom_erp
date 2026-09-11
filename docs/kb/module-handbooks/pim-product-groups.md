@@ -6,6 +6,22 @@ summary: Group products once - by hand or by rule - then bulk edit, export and r
 audience: category manager
 last_verified: 2026-08-12
 screens: [pim, doctype-table]
+doc_id: DOC-64EC9B6A9A
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: pim-product-groups
+task: Product Groups
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Product Groups

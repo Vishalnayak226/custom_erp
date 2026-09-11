@@ -33,7 +33,7 @@ func TestDocumentNumberIssuedByServer(t *testing.T) {
 	}
 	defer cleanup()
 
-	token := engines.SignToken("admin", "admin", "HR/Admin", "default", "HO")
+	token := engines.SignToken("admin", "admin", "HR/Admin", "default", "HO", currentCredentialVersion("admin"))
 	engines.ResetLiveUserStateCache()
 
 	// Built by hand rather than via doRequest: handleGenericDoc reads the

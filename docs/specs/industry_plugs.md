@@ -1,3 +1,21 @@
+---
+doc_id: DOC-E4BD05A9FC
+title: In-House ERP: Multi-Industry Schema & Configuration Specification
+type: reference
+status: draft
+owner: product-owner
+approvers: [documentation-maintainer, product-owner]
+audience: [maintainers, product-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: proposed-design
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 <!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
 > **Authority notice:** Legacy specification or system snapshot; rebuild/reconciliation is queued in Stage 48. Built, partial, planned and support claims below have not been reapproved for the current working tree. Use the authority matrix to locate current evidence and open decisions. See the [authority matrix](../governance/authority-matrix.md).
 

@@ -1,3 +1,6 @@
+<!-- Stage 48 historical authority -->
+> Historical source retained for provenance and unique-content review. Current support is defined by the [capability register projection](../generated/capability-catalog.md); current priorities belong to the [outcome roadmap](../product/roadmap.md). Built/partial/planned labels below describe the original snapshot, not current release support.
+
 <!-- DOC-GOV-TRUTH: 2026-09-06; original content retained -->
 > **Authority notice:** Legacy specification or system snapshot; rebuild/reconciliation is queued in Stage 48. Built, partial, planned and support claims below have not been reapproved for the current working tree. Use the authority matrix to locate current evidence and open decisions. See the [authority matrix](../governance/authority-matrix.md).
 

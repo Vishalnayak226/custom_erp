@@ -9,69 +9,120 @@
   "checksum_encoding": "utf-8-lf",
   "outputs": [
     {
-      "path": "docs/guides/ERROR_CODES.md",
-      "sha256": "1a1f7d42724bf875a22e527a7955f19d5bf734f13abc2008b570fd3b8ba991e5",
+      "path": "docs/api/generated/public-v1.json",
+      "sha256": "c057c3671fcb70b854f4e7d361f2cca47c072944d7741a0764d063ebb1b146b6",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
         "internal/server/*.go",
         "docs/project_ledger.md",
-        "docs/governance/generation.json"
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
+      ]
+    },
+    {
+      "path": "docs/data/generated/dictionary.json",
+      "sha256": "957b527a6a49919f8237e832a7ebe6986434a0edbdf6023144fed5183d327044",
+      "sources": [
+        "cmd/gendocs/*.go",
+        "engines/*.go",
+        "internal/server/*.go",
+        "docs/project_ledger.md",
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
+      ]
+    },
+    {
+      "path": "docs/data/generated/dictionary.md",
+      "sha256": "3ca1c567926a731bc3d3609349d7ac5ebec6499807aa14099355bdf9ce4850ba",
+      "sources": [
+        "cmd/gendocs/*.go",
+        "engines/*.go",
+        "internal/server/*.go",
+        "docs/project_ledger.md",
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
+      ]
+    },
+    {
+      "path": "docs/guides/ERROR_CODES.md",
+      "sha256": "2a5e0e24986b1195e430deae1f1320cfe3f6d05afa0c56a42b59ce028883fc38",
+      "sources": [
+        "cmd/gendocs/*.go",
+        "engines/*.go",
+        "internal/server/*.go",
+        "docs/project_ledger.md",
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
       ]
     },
     {
       "path": "docs/guides/REPORT_CATALOG.md",
-      "sha256": "455272d4709fd1db67d637ca33e6aea6415bf06b1359c7246dedacc84b20d736",
+      "sha256": "a7b0daa168c7f1372ce0da40a62001c9a263561c774dddfe5d3c8369a5d6a9fd",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
         "internal/server/*.go",
         "docs/project_ledger.md",
-        "docs/governance/generation.json"
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
       ]
     },
     {
       "path": "docs/kb/reference/country-phone-rules.md",
-      "sha256": "008c055f729ca3209ea599a46e93ebc58a682f041fedd79565ba825eb89beb09",
+      "sha256": "d5e86eed701fca706e6cd2270a2c6486d4be7a80084a5a29cce2644d7a5474ef",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
         "internal/server/*.go",
         "docs/project_ledger.md",
-        "docs/governance/generation.json"
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
       ]
     },
     {
       "path": "docs/kb/reference/release-notes.md",
-      "sha256": "69df64760c33d6f9806f06f44ed101bbb7b8aca4f954f2fcf4d99cdaa21a9fec",
+      "sha256": "8d96f3ef8ccddfcc680ea129bf6d7105816c54257dbdeaed3a08063ca1f1b6b3",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
         "internal/server/*.go",
         "docs/project_ledger.md",
-        "docs/governance/generation.json"
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
       ]
     },
     {
       "path": "docs/kb/reference/report-catalog.md",
-      "sha256": "b4006d0674b58c633ad614c7cb338c8b86cbcd3de7cb8fd99b21e1aad68c63f0",
+      "sha256": "2deeb93571e8ee33d90db46e89608472ec1b0b997a08eb5aa0f604a86a9b95dd",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
         "internal/server/*.go",
         "docs/project_ledger.md",
-        "docs/governance/generation.json"
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
       ]
     },
     {
       "path": "docs/kb/troubleshooting/error-code-reference.md",
-      "sha256": "75749d422413ecad2ee2e7cb1674d3b767ef97a6be0cec87f3c1c8c71990baed",
+      "sha256": "06bee1346ae1edbfd0d58b567923d91e40139158c4226687904975800d055620",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
         "internal/server/*.go",
         "docs/project_ledger.md",
-        "docs/governance/generation.json"
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
       ]
     },
     {
@@ -82,7 +133,9 @@
         "engines/*.go",
         "internal/server/*.go",
         "docs/project_ledger.md",
-        "docs/governance/generation.json"
+        "docs/governance/generation.json",
+        "docs/data/registry-snapshot.json",
+        "docs/data/business-definitions.json"
       ]
     }
   ]

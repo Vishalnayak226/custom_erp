@@ -162,6 +162,23 @@ func registerStage282Settings() {
 		Description: "What one loyalty point is worth in rupees when a customer burns it at checkout. Also drives the outstanding loyalty-liability report.",
 	})
 
+	// Stage 47.5.1 (audit A-05). Single-owner is the SUPPORTED configuration,
+	// not merely the default: allocation and picking take no owner parameter
+	// anywhere in this codebase, so two owners under one roof means one
+	// client's order can be filled from another client's segregated stock.
+	// The mixed value exists so a real 3PL pilot can opt in knowingly - it is
+	// labelled unsupported because that is what it is, and
+	// ListMixedOwnerLocations reports every location it puts in that state.
+	RegisterSetting(SettingDefinition{
+		Key: StockOwnershipModeSetting, Module: "Warehouse",
+		Label: "Stock ownership model", Type: SettingTypeSelect, Default: OwnershipSingleOwner,
+		Options: []SettingOption{
+			{Value: OwnershipSingleOwner, Label: "One owner per warehouse (supported)"},
+			{Value: OwnershipMixedUnsupported, Label: "Allow mixed owners (UNSUPPORTED - picking is owner-blind)"},
+		},
+		Description: "Whether a warehouse may hold stock for more than one 3PL owner. Allocation and picking do not filter by owner, so mixing owners in one building allows one client's demand to be met from another client's stock. Keep this on one-owner-per-warehouse unless you have accepted that risk.",
+	})
+
 	// --- Manufacturing ---
 	RegisterSetting(SettingDefinition{
 		Key: "manufacturing.max_bom_explosion_depth", Module: "Manufacturing",
@@ -274,6 +291,12 @@ func registerStage282Settings() {
 		Label: "Two-factor clock-drift tolerance", Type: SettingTypeInt, Default: "1", Unit: "× 30s steps",
 		Min: settingBound(0), Max: settingBound(10),
 		Description: "How far a TOTP code may be out of step with server time and still be accepted. 1 tolerates ±30 seconds of drift. Raising this widens the window an intercepted code stays usable.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "security.password_min_length", Module: "Security",
+		Label: "Minimum password length", Type: SettingTypeInt, Default: "12", Unit: "characters",
+		Min: settingBound(8), Max: settingBound(128),
+		Description: "Stage 49.2.2: shortest password ValidatePasswordStrength accepts for a self-service change, a reset completion or an admin-created account. Does not retroactively affect an existing password shorter than this.",
 	})
 
 	// --- Platform ---

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"time"
 )
 
 // auditChecksum (24.24) hashes one row's content together with the
@@ -39,19 +40,36 @@ func LogAuditEvent(tenantID, userID, action, status, details string) {
 		return
 	}
 
-	// Not row-locked: audit logging runs on nearly every request in this
-	// app, and serializing all of it around one "last row" lock would be a
-	// real, out-of-proportion performance cost for a low-severity,
-	// defense-in-depth control (see this function's own file-level scoping
-	// note in the migration for why). Worst case under real concurrency is
-	// two rows briefly chaining from the same parent, not a broken
-	// tamper-evidence guarantee for either of them individually.
+	// Stage 47.7.2: an INDEPENDENT signature, not a chain link.
+	//
+	// This used to read the previous row's checksum and hash into it - chain
+	// semantics - while deliberately not locking, on the reasoning that "worst
+	// case under real concurrency is two rows briefly chaining from the same
+	// parent, not a broken tamper-evidence guarantee". The second half of that
+	// was wrong: sibling rows are exactly what made the old verifier report a
+	// break on perfectly clean data, which is the failure 47.7.2 names. Taking
+	// the lock instead would have serialized every audit write per tenant, on a
+	// table that takes a row on nearly every request.
+	//
+	// Signing each row over its own content removes the ordering dependency
+	// entirely, so there is nothing to read first and nothing to serialize.
+	// Deletion - the one thing per-row signatures cannot catch - is covered by
+	// the periodic checkpoints in engines/audit_evidence.go.
+	//
+	// The legacy `checksum` column is still written so a database mid-upgrade
+	// (new binary, migration not yet applied) keeps its old behaviour rather
+	// than losing the column's value entirely.
+	// Microsecond truncation: Postgres TIMESTAMP stores no finer, so signing
+	// the nanosecond value would sign something the database never held.
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	signature := SignAuditRow(tenantID, userID, action, status, details, "", "", "", now)
 	var prevChecksum string
 	_ = tx.QueryRow(`SELECT checksum FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT 1`).Scan(&prevChecksum)
 	checksum := auditChecksum(prevChecksum, userID, action, status, details)
 
-	query := `INSERT INTO audit_logs (user_id, action, status, details, checksum) VALUES ($1, $2, $3, $4, $5)`
-	_, err = tx.Exec(query, userID, action, status, details, checksum)
+	query := `INSERT INTO audit_logs (user_id, action, status, details, checksum, created_at, signature, sig_version)
+	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
+	_, err = tx.Exec(query, userID, action, status, details, checksum, now, signature, AuditSigVersion)
 	if err != nil {
 		log.Printf("Audit logging failed: cannot insert entry: %v", err)
 		return

@@ -6,6 +6,22 @@ summary: Back up every environment on a schedule, prove the backups actually res
 audience: admin
 last_verified: 2026-09-03
 screens: [system-status]
+doc_id: DOC-2C77FEF66D
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: operations
+task: Backup & Restore
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Backup & Restore

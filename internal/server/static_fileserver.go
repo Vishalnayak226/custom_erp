@@ -65,3 +65,27 @@ func (n noDirectoryListingFS) Open(name string) (http.File, error) {
 	index.Close()
 	return f, nil
 }
+
+// onlyReadMethods rejects anything but GET/HEAD before next runs.
+//
+// Stage 49.1.7 (outside-in verification) found this live: routes.go
+// registers the static file server at the bare "/" pattern, which carries no
+// method in Go's ServeMux syntax and therefore matches every method - and
+// http.FileServer itself never checks r.Method beyond special-casing HEAD
+// internally. TRACE, PUT and DELETE against a real asset (verified against
+// production: TRACE /app.js, PUT /styles.css) all returned 200 with the file
+// body, same as GET. Every other route in this codebase either declares an
+// explicit method in its pattern or runs behind apiMiddleware, which already
+// enforces one; this was the one gap, because a static file server has
+// neither. Applied only where "/" is registered, not globally, so it costs
+// nothing on the method-scoped routes that already fail closed on their own.
+func onlyReadMethods(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			w.Header().Set("Allow", "GET, HEAD")
+			http.Error(w, "405 method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}

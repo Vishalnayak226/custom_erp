@@ -6,6 +6,22 @@ summary: Earn and burn loyalty points on real sales, issue vouchers and run birt
 audience: store manager, marketing, admin
 last_verified: 2026-09-03
 screens: [doctype-table, reports, configuration]
+doc_id: DOC-F07FAE98C4
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: crm-loyalty
+task: CRM & Loyalty
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # CRM & Loyalty

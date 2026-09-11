@@ -5,6 +5,22 @@ order: 2
 summary: Every short form used in the application and its screens, expanded.
 audience: everyone
 last_verified: 2026-08-17
+doc_id: DOC-4E8DD89FC0
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: reference
+module: platform
+task: Abbreviations
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Abbreviations

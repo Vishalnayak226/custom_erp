@@ -6,6 +6,22 @@ summary: Items, categories and attributes with locale/channel-aware values, a 0-
 audience: category manager, admin
 last_verified: 2026-09-03
 screens: [pim, doctype-table, reports, configuration]
+doc_id: DOC-12FFD46675
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: pim-pxm
+task: Product Information Management
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Product Information Management

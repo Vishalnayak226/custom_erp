@@ -6,6 +6,22 @@ summary: Receive, put away, pick, pack, dispatch - and the counting work that ke
 audience: warehouse operator
 last_verified: 2026-08-17
 screens: [grn, asn, putaway, fulfillment, wave-picking, mobile-picking, cycle-count, lpn, bin-replenishment, bin-conditions, transfers, stickers]
+doc_id: DOC-4F17D60B48
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: tutorial
+module: cross-module
+task: A day as a warehouse operator
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # A day as a warehouse operator

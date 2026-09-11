@@ -16,6 +16,13 @@
             "reports"
           ],
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "tutorial",
+          "module": "platform",
+          "task": "What this system is",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "getting-started/what-is-this-system.md",
           "headings": [
             {
@@ -52,6 +59,13 @@
             "configuration"
           ],
           "last_verified": "2026-08-12",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "tutorial",
+          "module": "platform",
+          "task": "Your first sign-in",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "getting-started/first-login.md",
           "headings": [
             {
@@ -89,6 +103,13 @@
             "inventory"
           ],
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "tutorial",
+          "module": "platform",
+          "task": "Finding your way around",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "getting-started/finding-your-way-around.md",
           "headings": [
             {
@@ -124,6 +145,38 @@
           ]
         },
         {
+          "slug": "using-task-help",
+          "title": "Find help for your task",
+          "section": "Getting Started",
+          "order": 4,
+          "summary": "Open help for the current screen, search by task or error code, and report a missing instruction.",
+          "audience": "everyone",
+          "screens": [
+            "help"
+          ],
+          "last_verified": "2026-09-08",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "knowledge",
+          "task": "Find a task instruction or recovery step",
+          "prerequisites": "A signed-in application session",
+          "applies_to": "Knowledge Center in source release 0.1.0",
+          "source_path": "getting-started/using-task-help.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Search or browse",
+              "slug": "search-or-browse"
+            },
+            {
+              "level": 2,
+              "text": "If the instructions do not match",
+              "slug": "if-the-instructions-do-not-match"
+            }
+          ]
+        },
+        {
           "slug": "first-order",
           "title": "Your first order, end to end",
           "section": "Getting Started",
@@ -137,6 +190,13 @@
             "sales-invoices"
           ],
           "last_verified": "2026-08-12",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "tutorial",
+          "module": "platform",
+          "task": "Your first order, end to end",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "getting-started/first-order.md",
           "headings": [
             {
@@ -188,6 +248,13 @@
             "reports"
           ],
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "tutorial",
+          "module": "platform",
+          "task": "Open a shop and make your first sale",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "getting-started/open-a-shop-and-make-your-first-sale.md",
           "headings": [
             {
@@ -264,6 +331,13 @@
             "roles"
           ],
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "tutorial",
+          "module": "cross-module",
+          "task": "Which journey is mine",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "role-journeys/role-journeys-overview.md",
           "headings": [
             {
@@ -294,6 +368,13 @@
             "pos"
           ],
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "tutorial",
+          "module": "cross-module",
+          "task": "A day as a cashier",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "role-journeys/journey-cashier.md",
           "headings": [
             {
@@ -356,6 +437,13 @@
             "transfers"
           ],
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "tutorial",
+          "module": "cross-module",
+          "task": "A day as a store manager",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "role-journeys/journey-store-manager.md",
           "headings": [
             {
@@ -417,6 +505,13 @@
             "stickers"
           ],
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "tutorial",
+          "module": "cross-module",
+          "task": "A day as a warehouse operator",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "role-journeys/journey-warehouse-operator.md",
           "headings": [
             {
@@ -471,6 +566,13 @@
             "stickers"
           ],
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "tutorial",
+          "module": "cross-module",
+          "task": "A day as a category manager",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "role-journeys/journey-category-manager.md",
           "headings": [
             {
@@ -528,6 +630,13 @@
             "reports"
           ],
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "tutorial",
+          "module": "cross-module",
+          "task": "A day in finance",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "role-journeys/journey-finance.md",
           "headings": [
             {
@@ -591,9 +700,17 @@
             "system-status",
             "tenant-entitlements",
             "tenant-usage",
-            "extension-hooks"
+            "extension-hooks",
+            "extension-hook-log"
           ],
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "tutorial",
+          "module": "cross-module",
+          "task": "A day as an administrator",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "role-journeys/journey-admin.md",
           "headings": [
             {
@@ -649,6 +766,13 @@
             "configuration"
           ],
           "last_verified": "2026-09-02",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "pos-operations",
+          "task": "Point of Sale",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/pos-operations.md",
           "headings": [
             {
@@ -714,6 +838,53 @@
           ]
         },
         {
+          "slug": "returns-and-refunds",
+          "title": "Returns and refunds",
+          "section": "Module Handbooks",
+          "order": 15,
+          "summary": "Look up a bill, raise a return, inspect the goods, and progress an approved refund without entering a sale price.",
+          "audience": "cashier, store manager, returns operator",
+          "screens": [
+            "returns"
+          ],
+          "last_verified": "2026-09-08",
+          "owner": "returns-process-owner",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "returns",
+          "task": "Return sold goods and reconcile the refund",
+          "prerequisites": "Original bill, permitted return location, return and refund permissions, physical goods for inspection",
+          "applies_to": "source release 0.1.0; Stage 47.4 return workflow",
+          "source_path": "module-handbooks/returns-and-refunds.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Before you begin",
+              "slug": "before-you-begin"
+            },
+            {
+              "level": 2,
+              "text": "Raise the return at the till",
+              "slug": "raise-the-return-at-the-till"
+            },
+            {
+              "level": 2,
+              "text": "Progress the request in Returns",
+              "slug": "progress-the-request-in-returns"
+            },
+            {
+              "level": 2,
+              "text": "Approve and process the refund",
+              "slug": "approve-and-process-the-refund"
+            },
+            {
+              "level": 2,
+              "text": "When something goes wrong",
+              "slug": "when-something-goes-wrong"
+            }
+          ]
+        },
+        {
           "slug": "inventory-wms-operations",
           "title": "Inventory \u0026 Warehouse Operations",
           "section": "Module Handbooks",
@@ -732,6 +903,13 @@
             "reports"
           ],
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "inventory-wms-operations",
+          "task": "Inventory \u0026 Warehouse Operations",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/inventory-wms-operations.md",
           "headings": [
             {
@@ -843,6 +1021,11 @@
               "level": 2,
               "text": "What is not here yet",
               "slug": "what-is-not-here-yet"
+            },
+            {
+              "level": 2,
+              "text": "Stock ownership per warehouse",
+              "slug": "stock-ownership-per-warehouse"
             }
           ]
         },
@@ -860,6 +1043,13 @@
             "reports"
           ],
           "last_verified": "2026-08-31",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "traceability-batch-serial",
+          "task": "Batch, Serial \u0026 Expiry Traceability",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/traceability-batch-serial.md",
           "headings": [
             {
@@ -920,6 +1110,38 @@
           ]
         },
         {
+          "slug": "rf-lot-and-serial",
+          "title": "RF lot and serial tasks",
+          "section": "Module Handbooks",
+          "order": 26,
+          "summary": "Put a lot away, issue it, update a serial or run an expiry sweep from the floor task screen.",
+          "audience": "warehouse operator, supervisor",
+          "screens": [
+            "rf-traceability"
+          ],
+          "last_verified": "2026-09-08",
+          "owner": "warehouse-process-owner",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "wms",
+          "task": "Record a lot or serial movement",
+          "prerequisites": "Permitted warehouse access, tracked item, matching bin and lot or serial",
+          "applies_to": "source release 0.1.0; Stage 47.6 task shell",
+          "source_path": "module-handbooks/rf-lot-and-serial.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Choose and complete a task",
+              "slug": "choose-and-complete-a-task"
+            },
+            {
+              "level": 2,
+              "text": "Recover from a refusal or uncertain result",
+              "slug": "recover-from-a-refusal-or-uncertain-result"
+            }
+          ]
+        },
+        {
           "slug": "procurement",
           "title": "Procurement",
           "section": "Module Handbooks",
@@ -937,6 +1159,13 @@
             "configuration"
           ],
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "procurement",
+          "task": "Procurement",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/procurement.md",
           "headings": [
             {
@@ -1037,6 +1266,13 @@
             "audit-logs"
           ],
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "security-approvals",
+          "task": "Security, Roles \u0026 Approvals",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/security-approvals.md",
           "headings": [
             {
@@ -1139,6 +1375,13 @@
             "doctype-table"
           ],
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "channel-connectors",
+          "task": "Channel Connectors",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/channel-connectors.md",
           "headings": [
             {
@@ -1216,6 +1459,13 @@
             "doctype-table"
           ],
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "courier-integrations",
+          "task": "Courier Integrations",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/courier-integrations.md",
           "headings": [
             {
@@ -1284,6 +1534,13 @@
             "configuration"
           ],
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "pim-pxm",
+          "task": "Product Information Management",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/pim-pxm.md",
           "headings": [
             {
@@ -1360,6 +1617,13 @@
             "doctype-table"
           ],
           "last_verified": "2026-08-12",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "pim-product-groups",
+          "task": "Product Groups",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/pim-product-groups.md",
           "headings": [
             {
@@ -1395,6 +1659,13 @@
             "oms"
           ],
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "oms-order-management",
+          "task": "Order Management",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/oms-order-management.md",
           "headings": [
             {
@@ -1455,6 +1726,230 @@
           ]
         },
         {
+          "slug": "appointment-calendar",
+          "title": "Dock appointments",
+          "section": "Module Handbooks",
+          "order": 61,
+          "summary": "Dock appointments with saved-state checks and exception recovery.",
+          "audience": "dock planner, warehouse supervisor",
+          "screens": [
+            "appointment-calendar"
+          ],
+          "last_verified": "2026-09-09",
+          "owner": "warehouse-process-owner",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "warehouse",
+          "task": "Dock appointments",
+          "prerequisites": "Active dock door, service window, carrier and trailer reference",
+          "applies_to": "source release 0.1.0; configured tenant permissions",
+          "source_path": "module-handbooks/appointment-calendar.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Schedule an appointment",
+              "slug": "schedule-an-appointment"
+            },
+            {
+              "level": 2,
+              "text": "Resolve an exception",
+              "slug": "resolve-an-exception"
+            }
+          ]
+        },
+        {
+          "slug": "yard-board",
+          "title": "Trailer check-in and yard movement",
+          "section": "Module Handbooks",
+          "order": 62,
+          "summary": "Trailer check-in and yard movement with saved-state checks and exception recovery.",
+          "audience": "yard operator, dock supervisor",
+          "screens": [
+            "yard-board"
+          ],
+          "last_verified": "2026-09-09",
+          "owner": "warehouse-process-owner",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "warehouse",
+          "task": "Trailer check-in and yard movement",
+          "prerequisites": "Trailer identity, permitted yard access and confirmed door assignment",
+          "applies_to": "source release 0.1.0; configured tenant permissions",
+          "source_path": "module-handbooks/yard-board.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Receive and move a trailer",
+              "slug": "receive-and-move-a-trailer"
+            },
+            {
+              "level": 2,
+              "text": "Reconcile the board",
+              "slug": "reconcile-the-board"
+            }
+          ]
+        },
+        {
+          "slug": "place-hold",
+          "title": "Place and release an inventory hold",
+          "section": "Module Handbooks",
+          "order": 63,
+          "summary": "Place and release an inventory hold with saved-state checks and exception recovery.",
+          "audience": "inventory operator, store manager",
+          "screens": [
+            "place-hold"
+          ],
+          "last_verified": "2026-09-09",
+          "owner": "inventory-process-owner",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "inventory",
+          "task": "Place and release an inventory hold",
+          "prerequisites": "Configured Hold Code, SKU, authorized location, counted quantity and lot where applicable",
+          "applies_to": "source release 0.1.0; configured tenant permissions",
+          "source_path": "module-handbooks/place-hold.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Place the hold",
+              "slug": "place-the-hold"
+            },
+            {
+              "level": 2,
+              "text": "Release through approval",
+              "slug": "release-through-approval"
+            }
+          ]
+        },
+        {
+          "slug": "sortation",
+          "title": "Sort orders into put-wall slots",
+          "section": "Module Handbooks",
+          "order": 64,
+          "summary": "Sort orders into put-wall slots with saved-state checks and exception recovery.",
+          "audience": "sortation operator, warehouse supervisor",
+          "screens": [
+            "sortation"
+          ],
+          "last_verified": "2026-09-09",
+          "owner": "warehouse-process-owner",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "warehouse",
+          "task": "Sort orders into put-wall slots",
+          "prerequisites": "Provisioned Sort Station and slots, fulfillment task, counted goods",
+          "applies_to": "source release 0.1.0; configured tenant permissions",
+          "source_path": "module-handbooks/sortation.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Assign and fill a slot",
+              "slug": "assign-and-fill-a-slot"
+            },
+            {
+              "level": 2,
+              "text": "Resolve an exception",
+              "slug": "resolve-an-exception"
+            }
+          ]
+        },
+        {
+          "slug": "loading-dock",
+          "title": "Load cartons and record departure",
+          "section": "Module Handbooks",
+          "order": 65,
+          "summary": "Load cartons and record departure with saved-state checks and exception recovery.",
+          "audience": "loading operator, dock supervisor",
+          "screens": [
+            "loading-dock"
+          ],
+          "last_verified": "2026-09-09",
+          "owner": "warehouse-process-owner",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "warehouse",
+          "task": "Load cartons and record departure",
+          "prerequisites": "Permitted dock door and trailer, packed cartons, manifest where used, printer for the bill of lading",
+          "applies_to": "source release 0.1.0; configured tenant permissions",
+          "source_path": "module-handbooks/loading-dock.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Open and load",
+              "slug": "open-and-load"
+            },
+            {
+              "level": 2,
+              "text": "Resolve an exception",
+              "slug": "resolve-an-exception"
+            }
+          ]
+        },
+        {
+          "slug": "assets",
+          "title": "Register and manage fixed assets",
+          "section": "Module Handbooks",
+          "order": 66,
+          "summary": "Register and manage fixed assets with saved-state checks and exception recovery.",
+          "audience": "finance operator, asset custodian",
+          "screens": [
+            "assets"
+          ],
+          "last_verified": "2026-09-09",
+          "owner": "finance-process-owner",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "finance",
+          "task": "Register and manage fixed assets",
+          "prerequisites": "Approved acquisition evidence, location, useful life, cost and authorized asset access",
+          "applies_to": "source release 0.1.0; configured tenant permissions",
+          "source_path": "module-handbooks/assets.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Create and capitalize",
+              "slug": "create-and-capitalize"
+            },
+            {
+              "level": 2,
+              "text": "Transfer or dispose",
+              "slug": "transfer-or-dispose"
+            }
+          ]
+        },
+        {
+          "slug": "expenses",
+          "title": "Submit and settle an expense claim",
+          "section": "Module Handbooks",
+          "order": 67,
+          "summary": "Submit and settle an expense claim with saved-state checks and exception recovery.",
+          "audience": "employee, approving manager, finance operator",
+          "screens": [
+            "expenses"
+          ],
+          "last_verified": "2026-09-09",
+          "owner": "finance-process-owner",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "finance",
+          "task": "Submit and settle an expense claim",
+          "prerequisites": "Employee identity, permitted location, receipt evidence and approved expense policy",
+          "applies_to": "source release 0.1.0; configured tenant permissions",
+          "source_path": "module-handbooks/expenses.md",
+          "headings": [
+            {
+              "level": 2,
+              "text": "Submit a claim",
+              "slug": "submit-a-claim"
+            },
+            {
+              "level": 2,
+              "text": "Verify and settle",
+              "slug": "verify-and-settle"
+            }
+          ]
+        },
+        {
           "slug": "finance-tax",
           "title": "Finance \u0026 Tax",
           "section": "Module Handbooks",
@@ -1468,6 +1963,13 @@
             "configuration"
           ],
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "finance-tax",
+          "task": "Finance \u0026 Tax",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/finance-tax.md",
           "headings": [
             {
@@ -1545,6 +2047,13 @@
             "configuration"
           ],
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "crm-loyalty",
+          "task": "CRM \u0026 Loyalty",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/crm-loyalty.md",
           "headings": [
             {
@@ -1620,6 +2129,13 @@
             "hr"
           ],
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "hr-payroll",
+          "task": "HR \u0026 Payroll",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/hr-payroll.md",
           "headings": [
             {
@@ -1710,6 +2226,13 @@
             "manufacturing"
           ],
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "manufacturing-mrp",
+          "task": "Manufacturing \u0026 MRP",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/manufacturing-mrp.md",
           "headings": [
             {
@@ -1791,6 +2314,13 @@
             "system-status"
           ],
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "operations",
+          "task": "Backup \u0026 Restore",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "admin-operations/backup-and-restore.md",
           "headings": [
             {
@@ -1846,6 +2376,13 @@
             "system-status"
           ],
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "how-to",
+          "module": "operations",
+          "task": "Incident Response \u0026 Alerting",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "admin-operations/incident-response.md",
           "headings": [
             {
@@ -1889,6 +2426,13 @@
           "summary": "Every term the application uses that is not self-explanatory, in plain language.",
           "audience": "everyone",
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Glossary",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "reference/glossary.md",
           "headings": [
             {
@@ -1941,6 +2485,13 @@
           "summary": "Every short form used in the application and its screens, expanded.",
           "audience": "everyone",
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Abbreviations",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "reference/abbreviations.md",
           "headings": [
             {
@@ -1978,6 +2529,13 @@
           "summary": "The questions people actually ask in the first month, answered without a tour of the menus.",
           "audience": "everyone",
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Frequently asked questions",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "reference/faq.md",
           "headings": [
             {
@@ -2032,7 +2590,14 @@
           "screens": [
             "reports"
           ],
-          "last_verified": "2026-09-06",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Report catalog",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
           "source_path": "reference/report-catalog.md",
           "headings": [
             {
@@ -2584,9 +3149,36 @@
           "order": 25,
           "summary": "What shipped and when, generated from the build ledger so this page can't say something the ledger doesn't.",
           "audience": "everyone",
-          "last_verified": "2026-09-06",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Release notes",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
           "source_path": "reference/release-notes.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "2026-09-09",
+              "slug": "2026-09-09"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-08",
+              "slug": "2026-09-08"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-10",
+              "slug": "2026-09-10"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-08",
+              "slug": "2026-09-08-2"
+            },
             {
               "level": 2,
               "text": "2026-09-06",
@@ -2769,7 +3361,14 @@
           "screens": [
             "configuration"
           ],
-          "last_verified": "2026-09-06",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Country codes and phone number rules",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
           "source_path": "reference/country-phone-rules.md",
           "headings": [
             {
@@ -2798,6 +3397,13 @@
           "audience": "integrator",
           "public": true,
           "last_verified": "2026-08-12",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Authenticating against the public API",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "reference/public-api-authentication.md",
           "headings": [
             {
@@ -2831,6 +3437,13 @@
           "audience": "integrator",
           "public": true,
           "last_verified": "2026-09-03",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Retrying safely (idempotency)",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "reference/public-api-idempotency.md",
           "headings": [
             {
@@ -2864,6 +3477,13 @@
           "summary": "What the three lines of an error dialog mean, and how to turn a code into an action.",
           "audience": "everyone",
           "last_verified": "2026-08-12",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "troubleshooting",
+          "module": "support",
+          "task": "Reading an error code",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "troubleshooting/error-codes.md",
           "headings": [
             {
@@ -2906,6 +3526,13 @@
             "transfers"
           ],
           "last_verified": "2026-08-17",
+          "owner": "documentation-maintainer",
+          "status": "draft",
+          "topic_type": "troubleshooting",
+          "module": "support",
+          "task": "Troubleshooting by symptom",
+          "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
+          "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "troubleshooting/troubleshooting-index.md",
           "headings": [
             {
@@ -2977,7 +3604,14 @@
           "order": 20,
           "summary": "Every code the application can show you, what causes it and what to do about it.",
           "audience": "everyone",
-          "last_verified": "2026-09-06",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Error code reference",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
           "source_path": "troubleshooting/error-code-reference.md",
           "headings": [
             {
@@ -3054,6 +3688,11 @@
               "level": 2,
               "text": "Global / Common",
               "slug": "global-common"
+            },
+            {
+              "level": 2,
+              "text": "Goods Receipt",
+              "slug": "goods-receipt"
             },
             {
               "level": 2,
@@ -3201,6 +3840,9 @@
     }
   ],
   "screen_map": {
+    "appointment-calendar": [
+      "appointment-calendar"
+    ],
     "approval-rules": [
       "journey-admin",
       "security-approvals"
@@ -3215,6 +3857,9 @@
     ],
     "asn": [
       "journey-warehouse-operator"
+    ],
+    "assets": [
+      "assets"
     ],
     "audit-logs": [
       "journey-admin",
@@ -3263,6 +3908,12 @@
     "dynamic-labels": [
       "journey-admin"
     ],
+    "expenses": [
+      "expenses"
+    ],
+    "extension-hook-log": [
+      "journey-admin"
+    ],
     "extension-hooks": [
       "journey-admin"
     ],
@@ -3287,6 +3938,9 @@
       "traceability-batch-serial",
       "troubleshooting-index"
     ],
+    "help": [
+      "using-task-help"
+    ],
     "hr": [
       "hr-payroll"
     ],
@@ -3295,6 +3949,9 @@
       "journey-store-manager",
       "open-a-shop-and-make-your-first-sale",
       "troubleshooting-index"
+    ],
+    "loading-dock": [
+      "loading-dock"
     ],
     "lpn": [
       "journey-warehouse-operator"
@@ -3326,6 +3983,9 @@
       "journey-category-manager",
       "pim-product-groups",
       "pim-pxm"
+    ],
+    "place-hold": [
+      "place-hold"
     ],
     "pos": [
       "first-order",
@@ -3368,8 +4028,14 @@
       "traceability-batch-serial",
       "what-is-this-system"
     ],
+    "returns": [
+      "returns-and-refunds"
+    ],
     "rf-receiving": [
       "inventory-wms-operations"
+    ],
+    "rf-traceability": [
+      "rf-lot-and-serial"
     ],
     "rfq": [
       "procurement"
@@ -3383,6 +4049,9 @@
       "first-order",
       "journey-finance",
       "troubleshooting-index"
+    ],
+    "sortation": [
+      "sortation"
     ],
     "stickers": [
       "journey-category-manager",
@@ -3420,7 +4089,10 @@
       "inventory-wms-operations",
       "journey-warehouse-operator",
       "traceability-batch-serial"
+    ],
+    "yard-board": [
+      "yard-board"
     ]
   },
-  "article_count": 39
+  "article_count": 49
 }

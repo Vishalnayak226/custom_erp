@@ -5,6 +5,22 @@ order: 3
 summary: The questions people actually ask in the first month, answered without a tour of the menus.
 audience: everyone
 last_verified: 2026-08-17
+doc_id: DOC-34166B7C9D
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: reference
+module: platform
+task: Frequently asked questions
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Frequently asked questions

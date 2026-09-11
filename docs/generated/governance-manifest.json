@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "generator": "cmd/doclint",
+  "generator_version": "stage48-v1",
+  "release": "0.1.0",
+  "scope": "repository registries; not deployed-release or tenant assurance",
+  "schema": "source registries",
+  "tenant": "none",
+  "checksum_encoding": "utf-8-lf",
+  "outputs": [
+    {
+      "path": "docs/generated/capability-catalog.md",
+      "sha256": "6b08b570ffac2597f82a8436e6ce0ea53e799610d27e6bafdade06b46150fa1a",
+      "sources": [
+        "docs/product/capability-register.json",
+        "docs/requirements/*.md",
+        "docs/requirements/modules/*.md",
+        "cmd/doclint/capabilities.go"
+      ]
+    },
+    {
+      "path": "docs/generated/requirements-traceability.md",
+      "sha256": "cddcd55602e8859e783b866839694e3186b44f438710f022c3d6aad86b7ea294",
+      "sources": [
+        "docs/product/capability-register.json",
+        "docs/requirements/*.md",
+        "docs/requirements/modules/*.md",
+        "cmd/doclint/capabilities.go"
+      ]
+    }
+  ]
+}

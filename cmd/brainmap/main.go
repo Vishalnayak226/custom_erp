@@ -22,8 +22,6 @@
 // Stdlib only, per the repo's lightweight-and-no-new-dependencies principle.
 package main
 
-import "custom_erp/internal/docgen"
-
 import (
 	"bytes"
 	_ "embed"
@@ -36,6 +34,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"custom_erp/internal/docgen"
 )
 
 //go:embed brain.tmpl.html
@@ -281,12 +281,15 @@ func main() {
 		fatal(err)
 	}
 	sourceRoot := flag.String("source", root, "repository source root")
-	mapPath := flag.String("map", filepath.Join(root, "docs", "brain", "brain.map.json"), "path to brain.map.json")
+	mapPath := flag.String("map", "", "path to brain.map.json (default: under source root)")
 	graphPath := flag.String("graph", "", "path to graphify graph.json (default: from brain.map.json settings)")
 	outDir := flag.String("out", "", "output directory (default: from brain.map.json settings)")
 	check := flag.Bool("check", false, "compare output and region coverage without writing")
 	flag.Parse()
 	root = *sourceRoot
+	if *mapPath == "" {
+		*mapPath = filepath.Join(root, "docs", "brain", "brain.map.json")
+	}
 
 	bm, err := loadMap(*mapPath)
 	if err != nil {

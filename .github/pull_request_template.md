@@ -1,3 +1,23 @@
+---
+doc_id: DOC-B2496E8029
+title: Change and validation
+type: reference
+status: draft
+owner: engineering-owner
+approvers: [documentation-maintainer, engineering-owner]
+audience: [maintainers, engineering-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: source
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
+# Change and validation
+
 Describe the concrete problem and resulting behavior, then record relevant validation.
 
 - Requirements / support scope: affected documents, or reason unchanged.

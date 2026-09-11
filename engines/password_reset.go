@@ -82,21 +82,29 @@ func RequestPasswordReset(tenantID, usernameOrEmail, resetLinkBase string) error
 // CompletePasswordReset validates a reset token (by its hash, never the raw
 // value) and, if it matches a non-expired row, sets the new password and
 // clears the token so it can't be replayed.
+//
+// 49.2.4: also bumps credential_version, which is what makes this actually
+// revoke a session an attacker may already be holding on the compromised
+// old password - apiMiddleware's live-state re-check (middleware.go) starts
+// rejecting every token minted before the bump within the existing ~30s
+// live-state SLO. Without this, a reset closed the "guess the password"
+// door but left any session opened through the door standing.
 func CompletePasswordReset(tenantID, token, newPassword string) error {
-	if len(newPassword) < 8 {
-		return errors.New("new password must be at least 8 characters")
-	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
 
-	var userID, username string
+	var userID, username, email string
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT id, username FROM %s.users WHERE reset_token_hash = $1 AND reset_token_expires_at > NOW()`, schema),
-		hashResetToken(token)).Scan(&userID, &username)
+		`SELECT id, username, COALESCE(email, '') FROM %s.users WHERE reset_token_hash = $1 AND reset_token_expires_at > NOW()`, schema),
+		hashResetToken(token)).Scan(&userID, &username, &email)
 	if err != nil {
 		return errors.New("reset token is invalid or has expired")
+	}
+
+	if err := ValidatePasswordStrength(tenantID, newPassword, username); err != nil {
+		return err
 	}
 
 	newHash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
@@ -104,13 +112,65 @@ func CompletePasswordReset(tenantID, token, newPassword string) error {
 		return err
 	}
 	if _, err := db.DB.Exec(fmt.Sprintf(
-		`UPDATE %s.users SET password_hash = $1, reset_token_hash = NULL, reset_token_expires_at = NULL, failed_login_count = 0, locked_until = NULL WHERE id = $2`, schema),
+		`UPDATE %s.users SET password_hash = $1, reset_token_hash = NULL, reset_token_expires_at = NULL, failed_login_count = 0, locked_until = NULL, credential_version = credential_version + 1 WHERE id = $2`, schema),
 		string(newHash), userID); err != nil {
 		return err
 	}
 
-	LogAuditEvent(tenantID, username, "AUTH", "PASSWORD_RESET_COMPLETED", "Password reset via emailed token")
+	// Without this, the revocation above is real but not immediate - a
+	// session cached moments earlier would keep resolving from
+	// authStateCache for up to AUTH_STATE_CACHE_SECONDS (default 30s)
+	// before the bumped credential_version was ever read back. Same
+	// pattern 49.1.5's tenant suspend/deprovision transitions already use.
+	InvalidateLiveUserState(tenantID, userID)
+
+	LogAuditEvent(tenantID, username, "AUTH", "PASSWORD_RESET_COMPLETED", "Password reset via emailed token; all other sessions revoked")
+	SendPasswordChangedNotice(tenantID, email, username, "a password-reset link")
 	return nil
+}
+
+// SendRecoveryEmailChangedNotice (49.2.4, reauthentication-for-destination-
+// change's risk-notification half) alerts the OLD address when a user's
+// recovery email changes - the address most likely still read by the
+// legitimate owner if a hijacked session just pointed the account's "forgot
+// password" destination somewhere else. Never sent to the NEW address: this
+// is a risk notice, not a confirmation flow - handleUpdateProfile does not
+// verify the new address before storing it, matching this stage's own scope
+// (reauthentication, not building an email-verification subsystem).
+func SendRecoveryEmailChangedNotice(tenantID, oldEmail, username, newEmail string) {
+	if oldEmail == "" {
+		return
+	}
+	smtpHost := os.Getenv("SMTP_HOST")
+	if smtpHost == "" {
+		log.Printf("[EMAIL-CHANGED] (no SMTP_HOST configured - notice not sent) for %s", username)
+		return
+	}
+	if !ExternalSideEffectsEnabled() {
+		log.Printf("[EMAIL-CHANGED] (external side effects OFF - notice not sent) for %s", username)
+		return
+	}
+	smtpPort := os.Getenv("SMTP_PORT")
+	if smtpPort == "" {
+		smtpPort = "587"
+	}
+	from := os.Getenv("SMTP_FROM")
+	if from == "" {
+		from = "no-reply@custom-erp.local"
+	}
+	subject := "Your account recovery email was changed"
+	body := fmt.Sprintf("Hello %s,\r\n\r\nThe email address on file for your account was just changed to %s.\r\n\r\nIf this was you, no action is needed. If it wasn't, contact your administrator immediately - whoever made this change had your password.\r\n", username, newEmail)
+	msg := []byte(fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s", from, oldEmail, subject, body))
+
+	var auth smtp.Auth
+	if smtpUser := os.Getenv("SMTP_USER"); smtpUser != "" {
+		auth = smtp.PlainAuth("", smtpUser, os.Getenv("SMTP_PASSWORD"), smtpHost)
+	}
+	addr := fmt.Sprintf("%s:%s", smtpHost, smtpPort)
+	if err := smtp.SendMail(addr, auth, from, []string{oldEmail}, msg); err != nil {
+		LogSystemError(tenantID, "", "Medium", "Notifications", fmt.Sprintf("[NOTIFI-0170] failed to send email-changed notice to %s: %v", oldEmail, err), "")
+		log.Printf("[EMAIL-CHANGED] failed to send notice to %s: %v", oldEmail, err)
+	}
 }
 
 // sendPasswordResetEmail sends via SMTP_HOST/SMTP_PORT (+ optional
@@ -168,5 +228,53 @@ func sendPasswordResetEmail(tenantID, toEmail, username, resetLink string) {
 		// above (nothing to send to in the first place).
 		LogSystemError(tenantID, "", "Medium", "Notifications", fmt.Sprintf("[NOTIFI-0170] failed to send password reset email to %s: %v", toEmail, err), "")
 		log.Printf("[PASSWORD-RESET] failed to send reset email to %s: %v (link: %s)", toEmail, err, resetLink)
+	}
+}
+
+// SendPasswordChangedNotice (49.2.4 risk notification) tells the account
+// owner their password just changed, via whichever of CompletePasswordReset
+// or handleChangePassword's callers just changed it - "a password-reset
+// link" or "your account settings" names which. Best-effort and silent on
+// every failure mode the same way sendPasswordResetEmail is: a missing
+// email/SMTP_HOST/ExternalSideEffectsEnabled gate must not fail (or even
+// slow down) the password change that already succeeded, and a distinct
+// error response here has no caller who could safely see it - the
+// self-service change flow has already returned success by the time this
+// runs, and RequestPasswordReset's own generic-response contract forbids
+// a reset from ever branching client-visible behavior on email delivery.
+func SendPasswordChangedNotice(tenantID, toEmail, username, viaWhat string) {
+	if toEmail == "" {
+		log.Printf("[PASSWORD-CHANGED] (user has no email on file - notice not sent) for %s", username)
+		return
+	}
+	smtpHost := os.Getenv("SMTP_HOST")
+	if smtpHost == "" {
+		log.Printf("[PASSWORD-CHANGED] (no SMTP_HOST configured - notice not sent) for %s", username)
+		return
+	}
+	if !ExternalSideEffectsEnabled() {
+		log.Printf("[PASSWORD-CHANGED] (external side effects OFF - notice not sent) for %s", username)
+		return
+	}
+	smtpPort := os.Getenv("SMTP_PORT")
+	if smtpPort == "" {
+		smtpPort = "587"
+	}
+	from := os.Getenv("SMTP_FROM")
+	if from == "" {
+		from = "no-reply@custom-erp.local"
+	}
+	subject := "Your password was changed"
+	body := fmt.Sprintf("Hello %s,\r\n\r\nYour account password was just changed via %s.\r\n\r\nIf this was you, no action is needed. If it wasn't, contact your administrator immediately - your other active sessions have already been signed out.\r\n", username, viaWhat)
+	msg := []byte(fmt.Sprintf("From: %s\r\nTo: %s\r\nSubject: %s\r\n\r\n%s", from, toEmail, subject, body))
+
+	var auth smtp.Auth
+	if smtpUser := os.Getenv("SMTP_USER"); smtpUser != "" {
+		auth = smtp.PlainAuth("", smtpUser, os.Getenv("SMTP_PASSWORD"), smtpHost)
+	}
+	addr := fmt.Sprintf("%s:%s", smtpHost, smtpPort)
+	if err := smtp.SendMail(addr, auth, from, []string{toEmail}, msg); err != nil {
+		LogSystemError(tenantID, "", "Medium", "Notifications", fmt.Sprintf("[NOTIFI-0170] failed to send password-changed notice to %s: %v", toEmail, err), "")
+		log.Printf("[PASSWORD-CHANGED] failed to send notice to %s: %v", toEmail, err)
 	}
 }

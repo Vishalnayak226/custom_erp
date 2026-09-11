@@ -148,7 +148,7 @@ func TestEngines(t *testing.T) {
 		}
 
 		// Test JWT signed token signature verification
-		token := SignToken("admin", "admin", "HR/Admin", "default", "HO")
+		token := SignToken("admin", "admin", "HR/Admin", "default", "HO", 1)
 		claims, err := ParseToken(token)
 		if err != nil {
 			t.Fatalf("Failed to parse signed token: %v", err)

@@ -1,3 +1,21 @@
+---
+doc_id: DOC-5D2361897D
+title: docs/security
+type: reference
+status: draft
+owner: security-owner
+approvers: [documentation-maintainer, security-owner]
+audience: [maintainers, security-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: proposed-policy
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # docs/security
 
 Stage 49's security program lives here. Four files, three of them written by hand and

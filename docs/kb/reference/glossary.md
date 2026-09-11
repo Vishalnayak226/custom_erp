@@ -5,6 +5,22 @@ order: 1
 summary: Every term the application uses that is not self-explanatory, in plain language.
 audience: everyone
 last_verified: 2026-08-17
+doc_id: DOC-1E419F843C
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: reference
+module: platform
+task: Glossary
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Glossary

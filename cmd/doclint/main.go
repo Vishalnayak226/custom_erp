@@ -18,6 +18,7 @@ import (
 	"time"
 	"unicode"
 
+	"custom_erp/internal/docgen"
 	"custom_erp/internal/kb"
 )
 
@@ -45,6 +46,7 @@ type Document struct {
 	Replacement     string            `json:"superseded_by,omitempty"`
 	LastVerified    string            `json:"last_verified,omitempty"`
 	LastCommit      string            `json:"last_commit"`
+	WorktreeStatus  string            `json:"worktree_status"`
 	Bytes           int               `json:"bytes"`
 	SHA256          string            `json:"sha256,omitempty"`
 	Inbound         []string          `json:"inbound_links"`
@@ -71,19 +73,49 @@ type Report struct {
 
 var inlineLink = regexp.MustCompile(`!?\[[^\]\n]*\]\((<[^>]+>|[^\s)]+)(?:\s+"[^"]*")?\)`)
 var referenceLink = regexp.MustCompile(`(?m)^\s*\[[^\]\n]+\]:\s*(<[^>]+>|\S+)`)
-var nonportable = regexp.MustCompile(`(?i)file:///|[a-z]:[\\/]Users[\\/]|/Users/[^/\s]+/|/home/[^/\s]+/`)
+var nonportable = regexp.MustCompile("(?i)file:///[^\\s`<>)]|[a-z]:[\\\\/]Users[\\\\/]|/Users/[^/\\s]+/|/home/[^/\\s]+/")
 var secret = regexp.MustCompile(`(?i)-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----|\b(?:ghp_|github_pat_|sk_live_)[a-z0-9_]{20,}|(?:postgres(?:ql)?://)[^\s:/]+:[^\s@<>]+@`)
 var kebab = regexp.MustCompile(`^[a-z0-9]+(?:[.-][a-z0-9]+)*$`)
 
 func main() {
 	root := flag.String("root", ".", "repository root")
 	strict := flag.Bool("strict", false, "exit nonzero on any finding (default: warnings)")
+	failOn := flag.String("fail-on", "", "comma-separated finding classes to enforce while other classes remain warnings")
 	jsonOutput := flag.Bool("json", false, "print a machine-readable health report")
 	registerOut := flag.String("write-register", "", "explicit output path for an inventory snapshot; default never writes")
+	catalogOut := flag.String("write-catalog", "", "explicit staging root for capability/traceability projections")
+	externalOut := flag.String("external-out", "", "opt-in public external-link report; explicit output file, never part of offline checks")
+	externalCache := flag.String("external-cache", "", "explicit cache file for external-link checks (seven-day reuse)")
 	flag.Parse()
 	abs, err := filepath.Abs(*root)
 	if err != nil {
 		die(err)
+	}
+	if *externalOut != "" {
+		if *externalCache == "" {
+			die(fmt.Errorf("external checks require an explicit cache path"))
+		}
+		if err := externalReport(abs, *externalOut, *externalCache, time.Now().UTC()); err != nil {
+			die(err)
+		}
+		return
+	}
+	if *catalogOut != "" {
+		files, findings, err := capabilityFiles(abs, time.Now().UTC())
+		if err != nil {
+			die(err)
+		}
+		if len(findings) > 0 {
+			for _, finding := range findings {
+				fmt.Fprintln(os.Stderr, finding.Message)
+			}
+			die(fmt.Errorf("capability evidence validation failed"))
+		}
+		if err := docgen.Write(*catalogOut, files); err != nil {
+			die(err)
+		}
+		fmt.Printf("doclint: %d capability and traceability projections verified\n", len(files))
+		return
 	}
 	rulesBody, err := os.ReadFile(filepath.Join(abs, "docs/governance/register-policy.json"))
 	if err != nil {
@@ -119,6 +151,11 @@ func main() {
 	}
 	if *strict && len(report.Findings) > 0 {
 		os.Exit(1)
+	}
+	for _, code := range strings.Split(*failOn, ",") {
+		if report.Counts[strings.TrimSpace(code)] > 0 {
+			os.Exit(1)
+		}
 	}
 }
 func die(err error) { fmt.Fprintln(os.Stderr, "doclint:", err); os.Exit(1) }
@@ -161,6 +198,19 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 			paths[path] = true
 		}
 	}
+	// Include documentation outside docs/ without walking ignored worktrees,
+	// local credentials, node_modules or user media.
+	for _, path := range strings.Split(git(root, "ls-files", "--cached", "--others", "--exclude-standard"), "\n") {
+		if strings.Contains(path, ".local.") || !filepath.IsLocal(path) {
+			continue
+		}
+		switch strings.ToLower(filepath.Ext(path)) {
+		case ".md", ".rst", ".pdf", ".docx", ".xlsx":
+			if info, err := os.Lstat(filepath.Join(root, path)); err == nil && info.Mode().IsRegular() {
+				paths[path] = true
+			}
+		}
+	}
 	names := make([]string, 0, len(paths))
 	for p := range paths {
 		names = append(names, p)
@@ -177,6 +227,13 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 		}
 	}
 	commits := lastCommits(root)
+	dirty := map[string]string{}
+	for _, path := range strings.Split(git(root, "diff", "--name-only", "HEAD"), "\n") {
+		dirty[path] = "modified"
+	}
+	for _, path := range strings.Split(git(root, "ls-files", "--others", "--exclude-standard"), "\n") {
+		dirty[path] = "untracked"
+	}
 	texts := map[string]string{}
 	anchors := map[string]map[string]bool{}
 	slugs := map[string]string{}
@@ -192,6 +249,10 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 		d := Document{Path: path, Title: filepath.Base(path), Type: rule.Type, Status: rule.Status, Owner: rule.Owner, Ownership: "provisional-role", Audience: "maintainers", Authority: rule.Authority, Confidentiality: "internal", Disposition: rule.Disposition, Bytes: len(body), LastCommit: commits[path], Inbound: []string{}, Metadata: meta}
 		if d.LastCommit == "" {
 			d.LastCommit = "uncommitted"
+		}
+		d.WorktreeStatus = dirty[path]
+		if d.WorktreeStatus == "" {
+			d.WorktreeStatus = "clean"
 		}
 		for key, dest := range map[string]*string{"doc_id": &d.ID, "title": &d.Title, "type": &d.Type, "status": &d.Status, "owner": &d.Owner, "audience": &d.Audience, "authority": &d.Authority, "confidentiality": &d.Confidentiality, "review_by": &d.ReviewBy, "last_verified": &d.LastVerified, "superseded_by": &d.Replacement} {
 			if meta[key] != "" {
@@ -226,7 +287,7 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 					}
 				}
 			}
-			if h1 != 1 {
+			if h1 != 1 && d.Type != "record" {
 				add(path, "heading", "expected one H1")
 			}
 			if nonportable.MatchString(content) {
@@ -245,11 +306,18 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 				if len(missing) > 0 {
 					add(path, "metadata", "missing "+strings.Join(missing, ", ")+"; disposition="+d.Disposition)
 				}
-				if len(body) > 120*1024 {
+				// The existing work register is an index of open work across stages,
+				// not a reader-facing article. Its bytes remain in the health report.
+				if len(body) > 120*1024 && !(path == "docs/micro_checklist.md" && meta["format"] == "work-register") {
 					add(path, "article-budget", "exceeds 120 KiB raw")
 				}
 			}
 			if strings.HasPrefix(path, "docs/kb/") {
+				for _, key := range []string{"owner", "status", "topic_type", "module", "task", "prerequisites", "applies_to"} {
+					if meta[key] == "" {
+						add(path, "help-metadata", "missing task metadata: "+key)
+					}
+				}
 				slug := strings.TrimSuffix(filepath.Base(path), ".md")
 				if previous := slugs[slug]; previous != "" {
 					add(path, "kb-slug", "duplicate article slug")
@@ -286,7 +354,7 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 				add(path, "review", "review expired")
 			}
 		}
-		if !registered[path] || strings.HasPrefix(path, "docs/governance/") {
+		if strings.HasPrefix(path, "docs/") && (!registered[path] || strings.HasPrefix(path, "docs/governance/")) {
 			for _, part := range strings.Split(path, "/") {
 				if !kebab.MatchString(part) {
 					add(path, "naming", "new paths must use lowercase kebab-case")
@@ -302,6 +370,7 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 	}
 	inbound := map[string]map[string]bool{}
 	for source, text := range texts {
+		text = stripInlineCode(text)
 		links := append(inlineLink.FindAllStringSubmatch(text, -1), referenceLink.FindAllStringSubmatch(text, -1)...)
 		for _, link := range links {
 			target, fragment, external := resolveLink(source, strings.Trim(link[1], "<>"), slugs)
@@ -332,6 +401,10 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 			reg.Documents[i].Inbound = append(reg.Documents[i].Inbound, path)
 		}
 		sort.Strings(reg.Documents[i].Inbound)
+		d := reg.Documents[i]
+		if strings.HasPrefix(d.Path, "docs/") && strings.HasSuffix(d.Path, ".md") && d.Path != "docs/README.md" && d.Type != "record" && d.Type != "generated" && len(d.Inbound) == 0 {
+			add(d.Path, "orphan", "no inbound Markdown link; add an audience entry or explicit historical classification")
+		}
 	}
 	for path := range registered {
 		if !paths[path] {
@@ -339,6 +412,19 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 		}
 	}
 	checkManifests(root, add)
+	if _, err := os.Stat(filepath.Join(root, "docs/product/capability-register.json")); err == nil {
+		files, findings, err := capabilityFiles(root, now)
+		if err != nil {
+			add("docs/product/capability-register.json", "capability-evidence", err.Error())
+		} else {
+			for _, finding := range findings {
+				add(finding.Path, finding.Code, finding.Message)
+			}
+			for _, difference := range docgen.Diff(root, files) {
+				add("docs/generated", "generated-drift", difference)
+			}
+		}
+	}
 	kbBytes := 0
 	for _, d := range reg.Documents {
 		if strings.HasPrefix(d.Path, "internal/kb/content/") {
@@ -357,7 +443,11 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 			add("docs/kb", "kb-build", err.Error())
 		} else {
 			for _, warning := range kb.DriftGuards(result.Articles, kb.DriftSources{AppJSPath: filepath.Join(root, "public/app.js"), ErrorCatalogPath: filepath.Join(root, "internal/server/error_catalog_generated.go"), RouteFiles: []string{filepath.Join(root, "internal/server/routes.go"), filepath.Join(root, "internal/server/routes_public_api_v1.go")}}, now) {
-				add("docs/kb", "help-coverage", warning)
+				code := "help-coverage"
+				if strings.Contains(warning, ": broken help ") {
+					code = "kb-link"
+				}
+				add("docs/kb", code, warning)
 			}
 		}
 	}
@@ -422,6 +512,59 @@ func stripCode(s string) string {
 	}
 	return out.String()
 }
+
+// Link syntax inside a code span is an example, not a navigable Markdown link.
+func stripInlineCode(s string) string {
+	parts := strings.Split(s, "\n\n")
+	for i := range parts {
+		parts[i] = stripCodeSpans(parts[i])
+	}
+	return strings.Join(parts, "\n\n")
+}
+
+func stripCodeSpans(s string) string {
+	var out strings.Builder
+	for i := 0; i < len(s); {
+		if s[i] == '\\' && i+1 < len(s) {
+			out.WriteString(s[i : i+2])
+			i += 2
+			continue
+		}
+		if s[i] != '`' {
+			out.WriteByte(s[i])
+			i++
+			continue
+		}
+		end := i
+		for end < len(s) && s[end] == '`' {
+			end++
+		}
+		length := end - i
+		close := -1
+		for j := end; j < len(s); {
+			if s[j] != '`' {
+				j++
+				continue
+			}
+			k := j
+			for k < len(s) && s[k] == '`' {
+				k++
+			}
+			if k-j == length {
+				close = k
+				break
+			}
+			j = k
+		}
+		if close < 0 {
+			out.WriteString(s[i:end])
+			i = end
+			continue
+		}
+		i = close
+	}
+	return out.String()
+}
 func headingIDs(s string, isKB bool) map[string]bool {
 	out := map[string]bool{}
 	seen := map[string]int{}
@@ -483,7 +626,7 @@ func git(root string, args ...string) string {
 func lastCommits(root string) map[string]string {
 	out := map[string]string{}
 	current := ""
-	for _, line := range strings.Split(git(root, "log", "--format=COMMIT:%h %cs", "--name-only", "--", "docs", "README.md", "cmd", "internal/kb/content", "internal/docgen", ".github"), "\n") {
+	for _, line := range strings.Split(git(root, "log", "--format=COMMIT:%h %cs", "--name-only"), "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "COMMIT:") {
 			current = strings.TrimPrefix(line, "COMMIT:")

@@ -6,9 +6,29 @@ summary: Receive stock against a PO, put it away, pick and pack it back out, cou
 audience: warehouse operator, warehouse manager, admin
 last_verified: 2026-09-03
 screens: [grn, rf-receiving, putaway, wave-picking, cycle-count, transfers, warehouse-cockpit, doctype-table, reports]
+doc_id: DOC-79A300F5E0
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: inventory-wms-operations
+task: Inventory & Warehouse Operations
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Inventory & Warehouse Operations
+
+For dock and floor tasks, use [dock appointments](appointment-calendar.md),
+[yard movement](yard-board.md), [inventory holds](place-hold.md),
+[put-wall sortation](sortation.md) and [loading/departure](loading-dock.md).
 
 A warehouse in this ERP is built from a small set of primitives used
 everywhere: a **Location** (a store, warehouse, or HO) holds stock at the
@@ -332,8 +352,8 @@ justified it.
 > one `CycleCountLine` per SKU under a `PhysicalInventory` header, reusing
 > the exact same reconcile/post/approve mechanics described above rather than
 > a second counting system. All five routes exist
-> (`POST /api/v1/wms/physical-inventory/{start,submit-count,reconcile,close,
-> cancel}`), all are module-gated the same as every other WMS route, and none
+> (the `start`, `submit-count`, `reconcile`, `close` and `cancel` POST
+> actions under `/api/v1/wms/physical-inventory/`), all are module-gated the same as every other WMS route, and none
 > of them — nor the string `PhysicalInventory` — appears anywhere in
 > `public/app.js`. Today, running a full stock take (as opposed to an ongoing
 > ABC-sampled cycle count) means calling these directly, not clicking through
@@ -373,7 +393,7 @@ an expired lot ends up in `QC-Hold` automatically.
 
 ## Transfers (Stock Transfer)
 
-[USER_GUIDE.md §7](../../guides/USER_GUIDE.md) covers the basic Draft →
+The basic transfer workflow is Draft →
 Approved → Dispatch → Receive click-through. This section goes deeper into
 what actually happens at each step and where it can go wrong.
 
@@ -523,3 +543,18 @@ today.
 **There is no free-form stock-adjustment screen**, and that's by design —
 every quantity correction goes through Cycle Count's count/reconcile/
 approve/reason-code path, never a direct "set this SKU's quantity to X."
+
+## Stock ownership per warehouse
+
+The current warehouse configuration uses **one stock owner per warehouse**. An unassigned
+warehouse adopts its first owner through an owner-stock write. A second owner is refused;
+reassignment is also refused while the incumbent still has stock. If an ownership refusal
+appears, stop the receipt/change and ask the warehouse administrator to check the location,
+owner assignment and existing stock. Do not relabel stock to bypass the refusal.
+
+Tenant administrators must retain the default `wms.stock_ownership_mode = single_owner`
+for this configuration. The explicitly named `mixed_unsupported` mode does not isolate
+allocation or picking by owner and is outside supported operation. Check your locally
+approved warehouse procedure and acceptance record before changing configuration. Follow
+the [access and approval guidance](security-approvals.md) and ask the warehouse administrator
+to confirm the owner assignment and reconciliation responsibilities.

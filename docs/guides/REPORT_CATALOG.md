@@ -4,7 +4,7 @@
      Source: `engines`' report registry (`report_definitions.go`)
      Regenerate: `go run ./cmd/gendocs` -->
 
-> **Generated 2026-09-06.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
+> **Generated 2026-09-10.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
 Every report reachable from **Sales & Marketplace -> Reports**. There are **92**

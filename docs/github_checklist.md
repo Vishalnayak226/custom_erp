@@ -1,3 +1,21 @@
+---
+doc_id: DOC-0FD4AADF62
+title: GitHub Security & Access Checklist
+type: reference
+status: draft
+owner: engineering-owner
+approvers: [documentation-maintainer, engineering-owner]
+audience: [maintainers, engineering-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: navigation
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # GitHub Security & Access Checklist
 
 A running checklist for keeping the ERP's GitHub repository/org locked down as more people

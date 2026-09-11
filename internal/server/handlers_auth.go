@@ -59,13 +59,14 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var u struct {
-		ID               string
-		Username         string
-		PasswordHash     string
-		Role             string
-		LocationCode     string
-		FailedLoginCount int
-		IsLocked         bool
+		ID                string
+		Username          string
+		PasswordHash      string
+		Role              string
+		LocationCode      string
+		FailedLoginCount  int
+		IsLocked          bool
+		CredentialVersion int
 	}
 
 	// Query user details. is_locked is computed in SQL (locked_until > NOW())
@@ -78,9 +79,9 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// NOW(), sidesteps any app-server-vs-database clock/timezone
 	// reconciliation entirely rather than trying to get it right in Go.
 	err = db.DB.QueryRow(fmt.Sprintf(`
-		SELECT id, username, password_hash, role, location_code, failed_login_count, (locked_until IS NOT NULL AND locked_until > NOW())
+		SELECT id, username, password_hash, role, location_code, failed_login_count, (locked_until IS NOT NULL AND locked_until > NOW()), credential_version
 		FROM %s.users
-		WHERE username = $1 AND status = 'Active'`, schema), req.Username).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.LocationCode, &u.FailedLoginCount, &u.IsLocked)
+		WHERE username = $1 AND status = 'Active'`, schema), req.Username).Scan(&u.ID, &u.Username, &u.PasswordHash, &u.Role, &u.LocationCode, &u.FailedLoginCount, &u.IsLocked, &u.CredentialVersion)
 	if err != nil {
 		// Generic security error message
 		writeAPIError(w, r, "USERAC-0021", "")
@@ -100,9 +101,17 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Check password with bcrypt (supports fallback check for local seed configs)
+	// 49.2.2: bcrypt only, fails closed. This used to also accept an exact
+	// string match against the stored password_hash ("fallback check for
+	// local seed configs") - every seeded hash in db/migration.sql is a real
+	// bcrypt hash, so that fallback had no legitimate caller, and its
+	// failure mode is the wrong direction for a security control: if
+	// password_hash were ever a plaintext value (a bad migration, a manual
+	// SQL fix, test debris), that comparison would authenticate anyone who
+	// typed the literal stored string, via a non-constant-time `!=`. Fail
+	// closed instead - bcrypt is the only accepted credential form.
 	err = bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(req.Password))
-	if err != nil && u.PasswordHash != req.Password {
+	if err != nil {
 		newCount := u.FailedLoginCount + 1
 		if newCount >= accountLockoutThresholdFor(tenantID) {
 			// NOW() + make_interval(...) is also computed in Postgres for the
@@ -121,6 +130,20 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// Correct password: clear any accumulated failure count/lock.
 	if u.FailedLoginCount > 0 {
 		_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET failed_login_count = 0, locked_until = NULL WHERE id = $1`, schema), u.ID)
+	}
+
+	// 49.2.2: adaptive-hashing cost migration. bcrypt.DefaultCost can rise in
+	// a future Go release (it has before); a hash minted under an older,
+	// weaker cost is transparently upgraded the moment its plaintext is next
+	// available - right here, at a successful login - rather than requiring
+	// every account to change its password to benefit. Not a credential
+	// change from the user's point of view, so credential_version is not
+	// bumped and no other session is affected. Best-effort: a failure here
+	// must not fail the login that already succeeded.
+	if cost, costErr := bcrypt.Cost([]byte(u.PasswordHash)); costErr == nil && cost < bcrypt.DefaultCost {
+		if upgraded, hashErr := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost); hashErr == nil {
+			_, _ = db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET password_hash = $1 WHERE id = $2`, schema), string(upgraded), u.ID)
+		}
 	}
 
 	// 49.1.5: the one-time credential handed over at provisioning is not a
@@ -184,7 +207,7 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 	// everyone else's). Falls back to "HO" for legacy rows via the column's
 	// own DEFAULT (db/migrations_stage24_security.sql), so an unassigned
 	// user behaves exactly as before rather than losing access.
-	token := engines.SignToken(u.ID, u.Username, u.Role, tenantID, u.LocationCode)
+	token := engines.SignToken(u.ID, u.Username, u.Role, tenantID, u.LocationCode, u.CredentialVersion)
 
 	engines.LogAuditEvent(tenantID, u.Username, "LOGIN", "SUCCESS", fmt.Sprintf("User logged in successfully with role %s", u.Role))
 
@@ -268,7 +291,7 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	role, username, locationCode, err := engines.LookupUserRoleAndUsername(tenantID, userID)
+	role, username, locationCode, credentialVersion, err := engines.LookupUserRoleAndUsername(tenantID, userID)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "MFA activated but failed to issue session")
 		return
@@ -290,7 +313,7 @@ func handleMFAActivate(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("failed to issue MFA recovery codes for %s: %v", username, recErr), "")
 	}
 
-	token := engines.SignToken(userID, username, role, tenantID, locationCode)
+	token := engines.SignToken(userID, username, role, tenantID, locationCode, credentialVersion)
 	engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_ENROLLED_AND_VERIFIED", "TOTP enrollment completed and verified")
 	if len(recoveryCodes) > 0 {
 		engines.LogAuditEvent(tenantID, username, "LOGIN", "MFA_RECOVERY_CODES_ISSUED",
@@ -398,12 +421,12 @@ func handleMFAVerify(w http.ResponseWriter, r *http.Request) {
 		usedRecoveryCode = true
 	}
 
-	role, username, locationCode, err := engines.LookupUserRoleAndUsername(tenantID, userID)
+	role, username, locationCode, credentialVersion, err := engines.LookupUserRoleAndUsername(tenantID, userID)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "MFA verified but failed to issue session")
 		return
 	}
-	token := engines.SignToken(userID, username, role, tenantID, locationCode)
+	token := engines.SignToken(userID, username, role, tenantID, locationCode, credentialVersion)
 
 	remaining := 0
 	if usedRecoveryCode {

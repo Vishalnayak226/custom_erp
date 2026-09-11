@@ -14,7 +14,10 @@ package kb
 
 import (
 	"fmt"
+	"html"
+	"net/url"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -29,16 +32,17 @@ import (
 const StaleAfter = 180 * 24 * time.Hour
 
 var (
-	viewIDPattern         = regexp.MustCompile(`view\s*===\s*'([a-z0-9-]+)'`)
+	viewIDPattern = regexp.MustCompile(`view\s*===\s*'([a-z0-9-]+)'`)
 	// The method group is optional: a handful of routes (the generic doc API
 	// chief among them) are registered with no method prefix at all - Go's
 	// mux then matches every method, so an empty capture here is stored as a
 	// wildcard rather than silently dropping the route from validRoutes.
-	literalRoutePattern   = regexp.MustCompile(`http\.HandleFunc\(\s*"(?:([A-Z]+) )?([^"]+)"`)
-	structRoutePattern    = regexp.MustCompile(`Method:\s*(http\.Method\w+|"[A-Z]+")\s*,\s*Path:\s*"([^"]+)"`)
-	errorCodeDefPattern   = regexp.MustCompile(`(?m)^\s*"([A-Z][A-Z0-9]{1,9}-\d{4})":\s*\{`)
-	citedEndpointPattern  = regexp.MustCompile(`\b(GET|POST|PUT|PATCH|DELETE)\s+(/api/[a-zA-Z0-9/_{}.-]+)`)
-	citedErrorCodePattern = regexp.MustCompile(`\b([A-Z][A-Z0-9]{1,9}-\d{4})\b`)
+	literalRoutePattern       = regexp.MustCompile(`http\.HandleFunc\(\s*"(?:([A-Z]+) )?([^"]+)"`)
+	structRoutePattern        = regexp.MustCompile(`Method:\s*(http\.Method\w+|"[A-Z]+")\s*,\s*Path:\s*"([^"]+)"`)
+	errorCodeDefPattern       = regexp.MustCompile(`(?m)^\s*"([A-Z][A-Z0-9]{1,9}-\d{4})":\s*\{`)
+	errorCodeExtensionPattern = regexp.MustCompile(`\bCode:\s*"([A-Z][A-Z0-9]{1,9}-\d{4})"`)
+	citedEndpointPattern      = regexp.MustCompile(`\b(GET|POST|PUT|PATCH|DELETE)\s+(/api/[a-zA-Z0-9/_{}.-]+)`)
+	citedErrorCodePattern     = regexp.MustCompile(`\b([A-Z][A-Z0-9]{1,9}-\d{4})\b`)
 )
 
 var httpMethodConstants = map[string]string{
@@ -77,7 +81,7 @@ type route struct {
 // documented owner is worse than useless if nobody can tell it was ever
 // checked.
 func DriftGuards(articles []Article, sources DriftSources, now time.Time) []string {
-	var warnings []string
+	warnings := LinkWarnings(articles)
 
 	validScreens, screenErr := extractViewIDs(sources.AppJSPath)
 	if screenErr != nil {
@@ -165,6 +169,49 @@ func DriftGuards(articles []Article, sources DriftSources, now time.Time) []stri
 	return warnings
 }
 
+// LinkWarnings checks the URLs users actually follow in embedded HTML. A valid
+// repository Markdown path can still become a nonexistent /help/<slug> route.
+func LinkWarnings(articles []Article) []string {
+	bySlug := map[string]Article{}
+	anchors := map[string]map[string]bool{}
+	ids := regexp.MustCompile(`\bid="([^"]+)"`)
+	for _, article := range articles {
+		bySlug[article.Slug] = article
+		anchors[article.Slug] = map[string]bool{}
+		for _, match := range ids.FindAllStringSubmatch(article.HTML, -1) {
+			anchors[article.Slug][html.UnescapeString(match[1])] = true
+		}
+	}
+	var warnings []string
+	links := regexp.MustCompile(`href="([^"]+)"`)
+	for _, article := range articles {
+		for _, match := range links.FindAllStringSubmatch(article.HTML, -1) {
+			value := html.UnescapeString(match[1])
+			parsed, err := url.Parse(value)
+			if err != nil || parsed.Scheme != "" || parsed.Host != "" {
+				continue
+			}
+			target := article
+			if strings.HasPrefix(parsed.Path, "/help/") {
+				var exists bool
+				target, exists = bySlug[strings.TrimPrefix(parsed.Path, "/help/")]
+				if !exists {
+					warnings = append(warnings, fmt.Sprintf("%s: broken help link %s", article.SourcePath, value))
+					continue
+				}
+			} else if parsed.Path != "" {
+				continue
+			}
+			if parsed.Fragment != "" {
+				if !anchors[target.Slug][parsed.Fragment] {
+					warnings = append(warnings, fmt.Sprintf("%s: broken help anchor %s", article.SourcePath, value))
+				}
+			}
+		}
+	}
+	return warnings
+}
+
 func extractViewIDs(path string) (map[string]bool, error) {
 	if path == "" {
 		return nil, fmt.Errorf("no app.js path configured")
@@ -191,6 +238,15 @@ func extractErrorCodes(path string) (map[string]bool, error) {
 	codes := map[string]bool{}
 	for _, match := range errorCodeDefPattern.FindAllStringSubmatch(string(data), -1) {
 		codes[match[1]] = true
+	}
+	if filepath.Base(path) == "error_catalog_generated.go" {
+		extensions, err := os.ReadFile(filepath.Join(filepath.Dir(path), "error_catalog_extensions.go"))
+		if err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+		for _, match := range errorCodeExtensionPattern.FindAllStringSubmatch(string(extensions), -1) {
+			codes[match[1]] = true
+		}
 	}
 	return codes, nil
 }

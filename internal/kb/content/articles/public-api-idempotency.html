@@ -3,7 +3,7 @@
 <aside class="kb-admonition kb-admonition-note" role="note"><p class="kb-admonition-title">Note</p><p>As of this writing the public API v1 surface itself is <strong>read-only</strong> (<code>items</code>, <code>items/{code}</code>, <code>inventory</code>, <code>orders/{id}/status</code> - all <code>GET</code>). The example below shows the contract a mutating call must follow once one exists; it is illustrative, not a currently callable endpoint.</p></aside>
 <h2 id="choosing-a-key">Choosing a key <a class="kb-anchor" href="#choosing-a-key" aria-label="Copy link to this section">#</a></h2>
 <p>Generate a fresh unique value per logical operation - a UUID is ideal. Reuse the <strong>same</strong> key for every retry of that operation, and never for a different one.</p>
-<pre><code>POST /api/public/v1/orders HTTP/1.1
+<pre><code>POST &lt;future-mutating-endpoint&gt; HTTP/1.1
 Authorization: Bearer erp_v1_...
 X-Tenant-ID: your-tenant
 Idempotency-Key: 6f1c9c8e-9f7a-4a1c-9a3e-2b6c1f0d5e44

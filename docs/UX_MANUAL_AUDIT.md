@@ -28,7 +28,7 @@ The dominant failure mode is not missing functionality. It is that **the docs we
 
 ### A1. POS accepts only the item's hidden internal UUID — not its code, not its barcode
 
-The single most damaging defect found. `GetItemGSTInfo` ([engines/gst.go:78](engines/gst.go#L78)) resolves the scanned SKU with `WHERE doctype='Item' AND id = $1` — it matches the **`id` column**, not `code` and not `barcode`.
+The single most damaging defect found. `GetItemGSTInfo` ([engines/gst.go:78](../engines/gst.go#L78)) resolves the scanned SKU with `WHERE doctype='Item' AND id = $1` — it matches the **`id` column**, not `code` and not `barcode`.
 
 Newly created items are assigned a UUID `id`. Reproduced live, on an item created through the documented flow:
 
@@ -38,7 +38,7 @@ Newly created items are assigned a UUID `id`. Reproduced live, on an item create
 | `8901234567890` (the Barcode they entered) | `item '8901234567890' not found` |
 | `7d2c4e3f-f3c4-2b7d-78ae-06ed17ab1b00` (internal UUID) | accepted |
 
-It is worse than a plain mismatch: the POS field's own autocomplete makes the failure **certain**. `attachTypeahead`'s default `valueFields` is `['code','name','id']` ([public/app.js:507](public/app.js#L507)) — it fills in `code` first. So selecting the item from the app's own dropdown writes the exact value the backend rejects. The UUID is displayed nowhere in the POS screen, so there is no workaround in the UI at all.
+It is worse than a plain mismatch: the POS field's own autocomplete makes the failure **certain**. `attachTypeahead`'s default `valueFields` is `['code','name','id']` ([public/app.js:507](../public/app.js#L507)) — it fills in `code` first. So selecting the item from the app's own dropdown writes the exact value the backend rejects. The UUID is displayed nowhere in the POS screen, so there is no workaround in the UI at all.
 
 USER_GUIDE §4 says *"Type or scan the item's barcode/SKU."* That instruction cannot succeed as written.
 
@@ -66,7 +66,7 @@ Each of these was verified against the running app or the source. These matter m
 
 USER_SOP §1 states there is no per-record Edit on record-list screens and that *"the only way today is to delete it and create it again."* ADMIN_SOP Part D repeats it as *"verified absent in the UI code itself."*
 
-An Edit button exists on every row ([public/app.js:11328](public/app.js#L11328)), and I used it live to add an HSN code to an item (POST to `/api/v1/doc/{doctype}/{id}`, version-checked, returned `saved`). USER_GUIDE §8 correctly says to use Edit — so the two user-facing documents **directly contradict each other**, and the SOP's version tells users to destroy records unnecessarily.
+An Edit button exists on every row ([public/app.js:11328](../public/app.js#L11328)), and I used it live to add an HSN code to an item (POST to `/api/v1/doc/{doctype}/{id}`, version-checked, returned `saved`). USER_GUIDE §8 correctly says to use Edit — so the two user-facing documents **directly contradict each other**, and the SOP's version tells users to destroy records unnecessarily.
 
 ### B2. ADMIN_SOP Part D "Known Gaps" — 8 of 9 rows are wrong
 
@@ -87,11 +87,11 @@ USER_SOP §7, §15, §20 and its closing note repeat the GRN and Bin claims to e
 
 ### B3. ADMIN_SOP §B.9 hands admins curl commands for a screen that exists
 
-§B.9 is titled *"Changing approval-rule thresholds/roles (no screen — API only)"* and supplies a bearer-token curl recipe. The **Approval Rules** screen under Settings does this with full CRUD (`renderApprovalRulesView`, [public/app.js:12076](public/app.js#L12076)).
+§B.9 is titled *"Changing approval-rule thresholds/roles (no screen — API only)"* and supplies a bearer-token curl recipe. The **Approval Rules** screen under Settings does this with full CRUD (`renderApprovalRulesView`, [public/app.js:12076](../public/app.js#L12076)).
 
 ### B4. "The menu shows everything to everyone" — false
 
-USER_GUIDE §3 says role-based menu trimming is *"a known, tracked improvement, not yet built."* It is fully built: `applySidebarPermissions()` toggles `.perm-hidden` per item and hides a module container when all its children are hidden ([public/app.js:1055](public/app.js#L1055)), plus Stage 27's `.module-hidden` entitlement filter. Confirmed live — `manager1` gets a scoped doctype list, `admin` gets `is_admin: true`.
+USER_GUIDE §3 says role-based menu trimming is *"a known, tracked improvement, not yet built."* It is fully built: `applySidebarPermissions()` toggles `.perm-hidden` per item and hides a module container when all its children are hidden ([public/app.js:1055](../public/app.js#L1055)), plus Stage 27's `.module-hidden` entitlement filter. Confirmed live — `manager1` gets a scoped doctype list, `admin` gets `is_admin: true`.
 
 ### B5. The Guide's navigation does not match the actual menu
 
@@ -163,7 +163,7 @@ Also missing: no end-to-end scenario tying modules together (the thing a new use
 
 ### D1. A GRN can close a PO while posting **zero stock**, silently
 
-Stock posting reads `payload["location"]` ([internal/server/handlers_core_doc_engine.go:653](internal/server/handlers_core_doc_engine.go#L653)), but **`location` is not a declared GRN field** (`code`, `po_id`, `received_items`, `status`, `asn_id`). Any GRN created outside the bespoke Workbench — the generic record-list form, the API, bulk import — cannot supply it, so `if locationCode != "" && ...` is skipped.
+Stock posting reads `payload["location"]` ([internal/server/handlers_core_doc_engine.go:653](../internal/server/handlers_core_doc_engine.go#L653)), but **`location` is not a declared GRN field** (`code`, `po_id`, `received_items`, `status`, `asn_id`). Any GRN created outside the bespoke Workbench — the generic record-list form, the API, bulk import — cannot supply it, so `if locationCode != "" && ...` is skipped.
 
 Reproduced: created a GRN via the generic path → HTTP 200 `saved`, stock stayed **0**, and the PO moved to **Closed**. Goods "received" on paper, inventory never moved, no warning anywhere. Re-running with `location` supplied posted the stock correctly (0 → 10), confirming the Workbench path is sound.
 
@@ -190,7 +190,7 @@ Separately, the Sales Register **silently skips** corrupt carts (`[REPORTS] corr
 
 ### D4. The error envelope throws away the useful half of every message
 
-`writeAPIError` ([internal/server/apierror.go:104](internal/server/apierror.go#L104)) responds with `entry.UserMessage` only. It discards:
+`writeAPIError` ([internal/server/apierror.go:104](../internal/server/apierror.go#L104)) responds with `entry.UserMessage` only. It discards:
 - the engine's **specific** `ValidationError.Message` (e.g. *which* item is missing an HSN code), and
 - the catalog's own **`UserAction`** field, which exists on all 302 entries and is never sent.
 
@@ -200,7 +200,7 @@ Related: `META-0199` (Select value not allowed) renders as *"Please select a val
 
 ### D5. Redeeming loyalty points burns them without applying any discount
 
-Clicking **Redeem Points** calls `RedeemLoyaltyPoints` ([engines/loyalty.go:97](engines/loyalty.go#L97)), which writes a `Burn` ledger entry **immediately** — the customer's points are spent at that instant, independent of whether the sale ever completes. The cart is never touched. The UI then instructs the cashier:
+Clicking **Redeem Points** calls `RedeemLoyaltyPoints` ([engines/loyalty.go:97](../engines/loyalty.go#L97)), which writes a `Burn` ledger entry **immediately** — the customer's points are spent at that instant, independent of whether the sale ever completes. The cart is never touched. The UI then instructs the cashier:
 
 > Redeemed N point(s) for a discount of X. **Apply this manually to a cart line's Sale Price** before completing the sale.
 
@@ -213,7 +213,7 @@ USER_GUIDE §4 tells customers their points "can be used," implying this is auto
 
 ### D6. Report browsing trips the rate limiter
 
-Reports are capped at **20/minute per IP** ([internal/server/middleware.go:169](internal/server/middleware.go#L169)) against a catalog of 46. Clicking through the catalog to see what each report does produces a bare *"Too many requests"* toast with no explanation or retry hint. Because the key is the IP, a shop where several users share one egress address consumes the budget collectively.
+Reports are capped at **20/minute per IP** ([internal/server/middleware.go:169](../internal/server/middleware.go#L169)) against a catalog of 46. Clicking through the catalog to see what each report does produces a bare *"Too many requests"* toast with no explanation or retry hint. Because the key is the IP, a shop where several users share one egress address consumes the budget collectively.
 
 ---
 

@@ -175,6 +175,12 @@ func Run() {
 	// Start Job Runner Retention Sweeper (Stage 38.6) - the
 	// StartPublicAPIRuntimeSweeper precedent, keeping async_jobs bounded.
 	engines.StartJobRunnerRetentionSweeper(workerCtx, 1*time.Hour)
+	// Start Audit Evidence Scheduler (Stage 47.7.7) - enqueues the hourly
+	// checkpoint and verification jobs onto the runner above. Hourly rather
+	// than continuous: a checkpoint seals a window, and an hour is short
+	// enough that an undetected deletion has a small blast radius while being
+	// long enough that the checkpoint table stays small.
+	engines.StartAuditEvidenceScheduler(workerCtx, 1*time.Hour)
 
 	// Start Campaign Worker (Stage 26.7.4) - daily-granularity scan for
 	// Active campaigns whose birthday/lapsed-customer trigger newly
@@ -276,6 +282,11 @@ func Run() {
 	// enrollment state rather than disabling MFA, so the next login still has
 	// to set up an authenticator.
 	http.HandleFunc("POST /api/v1/admin/users/reset-mfa", apiMiddleware(handleAdminResetUserMFA))
+	// 49.2.4: the admin-assisted "helpdesk" password reset. Immediate for an
+	// ordinary target; dual-control (a second, different Super Admin must
+	// approve via the existing generic /api/v1/approval/decide) for a target
+	// who is a Super Admin - see engines.RequestAdminPasswordReset.
+	http.HandleFunc("POST /api/v1/admin/users/reset-password", apiMiddleware(handleRequestPasswordReset))
 	// 26.4.10: links a Supplier login to the Vendor it speaks for. Without
 	// it a supplier account cannot be finished from inside the app.
 	http.HandleFunc("POST /api/v1/admin/users/supplier", apiMiddleware(handleSetUserSupplier))
@@ -511,6 +522,10 @@ func Run() {
 	// as the batch breakdown's /wms/batch/putaway and /wms/batch/consume.
 	http.HandleFunc("POST /api/v1/wms/owner-stock/assign", apiMiddleware(moduleGate("wms", handleOwnerStockAssign)))
 	http.HandleFunc("POST /api/v1/wms/owner-stock/consume", apiMiddleware(moduleGate("wms", handleOwnerStockConsume)))
+	// Stage 47.5.1 (audit A-05): one owner per warehouse is the supported 3PL
+	// configuration, because allocation and picking are owner-blind.
+	http.HandleFunc("POST /api/v1/wms/owner/assign-warehouse", apiMiddleware(moduleGate("wms", handleWarehouseOwnerAssign)))
+	http.HandleFunc("GET /api/v1/wms/owner/mixed-locations", apiMiddleware(moduleGate("wms", handleMixedOwnerLocations)))
 
 	// Stage 42.6 - engineered labour planning and 3PL billing. The associated
 	// masters stay on the generic document API; these are the calculation and
@@ -1053,6 +1068,11 @@ func Run() {
 	http.HandleFunc("/api/v1/prefix", apiMiddleware(handlePrefix))
 	http.HandleFunc("/api/v1/logs/audit", apiMiddleware(handleAuditLogs))
 	http.HandleFunc("GET /api/v1/admin/audit-logs/verify", apiMiddleware(handleVerifyAuditLogChain))
+	// Stage 47.7: the signed-evidence verifier and checkpoint writer. The
+	// legacy chain verifier above stays - it reports on the historical
+	// checksum column, which these do not and should not reinterpret.
+	http.HandleFunc("GET /api/v1/admin/audit-logs/evidence", apiMiddleware(handleVerifyAuditEvidence))
+	http.HandleFunc("POST /api/v1/admin/audit-logs/checkpoint", apiMiddleware(handleWriteAuditCheckpoint))
 
 	// Industry Configuration & Preset Profiler
 	http.HandleFunc("GET /api/v1/admin/industries", apiMiddleware(handleGetIndustries))
@@ -1100,7 +1120,7 @@ func Run() {
 	// public/components and public/profiles were both enumerable
 	// unauthenticated before this. See static_fileserver.go.
 	fs := http.FileServer(noDirectoryListing(http.Dir("./public")))
-	http.Handle("/", fs)
+	http.Handle("/", onlyReadMethods(fs))
 
 	// Stage 14.9: PORT is what lets dev/test/live (and any throwaway
 	// verification instance) run the exact same binary side by side on one

@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "manuals": [
+    {
+      "id": "user-manual",
+      "title": "User manual",
+      "audience": "cashier, store manager and warehouse operator",
+      "owner": "documentation-maintainer",
+      "topics": [
+        "what-is-this-system",
+        "first-login",
+        "using-task-help",
+        "finding-your-way-around",
+        "role-journeys-overview",
+        "journey-cashier",
+        "pos-operations",
+        "returns-and-refunds",
+        "journey-warehouse-operator",
+        "inventory-wms-operations",
+        "rf-lot-and-serial",
+        "error-codes",
+        "troubleshooting-index",
+        "glossary",
+        "appointment-calendar",
+        "yard-board",
+        "place-hold",
+        "sortation",
+        "loading-dock",
+        "assets",
+        "expenses"
+      ]
+    },
+    {
+      "id": "tenant-admin-manual",
+      "title": "Tenant administrator manual",
+      "audience": "tenant administrator and implementation consultant",
+      "owner": "implementation-owner",
+      "topics": [
+        "first-login",
+        "finding-your-way-around",
+        "using-task-help",
+        "journey-admin",
+        "security-approvals",
+        "pim-product-groups",
+        "country-phone-rules",
+        "error-codes",
+        "troubleshooting-index"
+      ]
+    }
+  ]
+}

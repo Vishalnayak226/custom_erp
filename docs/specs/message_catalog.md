@@ -1,3 +1,21 @@
+---
+doc_id: DOC-0B50143F6E
+title: Standardized Message Catalog (Stage 23)
+type: reference
+status: draft
+owner: product-owner
+approvers: [documentation-maintainer, product-owner]
+audience: [maintainers, product-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: proposed-design
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # Standardized Message Catalog (Stage 23)
 
 > **Status (2026-07-20, complete; follow-up closed 2026-07-21)**: catalog generated (302 codes) and live; all framework-level paths (auth, rate limiting, panic recovery, module/feature gating) and all error-response call sites across all 11 `internal/server/handlers_*.go` files (including `handlers_finance_maturity.go`, swept 2026-07-21) converted to the standardized envelope. Frontend Toast/Page Banner primitives added; `showApiError()` now dispatches to them automatically based on each response's catalog-derived `display_style`. The two open product decisions from the first pass (400-vs-422 status convention, `SAAS-0192` soft-200) were both resolved 2026-07-21 — see "Known conflicts / gaps" below. `go build`/`go vet`/`go test ./... -p 1` clean; manually verified against a live throwaway instance (401/USERAC-0021 bad login, 401/GLOBAL-0009 no-token, 429/SEC-0280 rate limit — all returned the correct standardized JSON body). This doc is the canonical reference; `docs/specs/implementation_plan.md` §6 and `docs/requirements/PRD.md` §5 point here instead of duplicating detail.
@@ -7,7 +25,7 @@
 Every user-facing error/warning/info/success message in the ERP is now defined once, in one place, instead of being a hand-typed string at each call site. The source of truth is a spreadsheet the product owner maintains:
 
 ```
-C:\Users\ABCD\Downloads\MyBusiness\IT Solution\ERP\Doc\ERP_Standard_Message_Control_Matrix_Final.xlsx
+<approved-source-directory>/ERP_Standard_Message_Control_Matrix_Final.xlsx
 ```
 
 (a dated backup of the pre-Stage-23 version lives alongside it as `ERP_Standard_Message_Control_Matrix_Final.backup-2026-07-20.xlsx`). Its `Final Matrix` sheet has one row per message: a Message ID (`MSG-0001`...), an Error Code (`GLOBAL-0001`, `MASTER-0040`, ...), the module, the scenario that triggers it, the standard user-facing wording, severity, HTTP status, display style, and whether it must be logged/audited.
@@ -90,3 +108,7 @@ Not every one of the 302 catalog codes is called from real code, and that's inte
 - **`GLOBAL-0302` ("Unexpected server error", 500)** — added to the xlsx and catalog during this pass. The original 301-row matrix had no row for the panic-recovery path (no row anywhere used HTTP 500), so the global panic handler had nothing to map to.
 - A handful of scenarios have no catalog row at all regardless of status (flagged by the sweep, not yet added to the xlsx — small enough in number and value to leave as a documented list rather than force into the source spreadsheet): "Approved transactional documents cannot be deleted", "Only master documents can be reactivated" (`handlers_core_doc_engine.go`), and the generic method-not-allowed guard text across every handler file.
 - Legacy `docs/specs/implementation_plan.md` §6 (11 semantic codes like `ITEM_DUPLICATE`) was cross-checked against the new catalog: all 11 scenarios have a clean match (see that file's superseded-notice). Nothing was lost in the transition.
+
+## Source-owned catalog additions
+
+`internal/server/error_catalog_extensions.go` holds live codes added after the historical spreadsheet. It is included in API responses and generated error references; never edit `error_catalog_generated.go` by hand. When the approved spreadsheet gains an extension code, remove the extension in the same reviewed change to avoid a duplicate.

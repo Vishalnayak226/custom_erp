@@ -4283,6 +4283,10 @@ async function renderProfileView(container) {
             ${IDLE_TIMEOUT_OPTIONS.map(o => `<option value="${o.value}" ${o.value === data.idle_timeout_minutes ? 'selected' : ''}>${o.label}</option>`).join('')}
           </select>
         </div>
+        <div class="form-group" style="margin-bottom: 0;">
+          <label class="form-label" for="profile-settings-current-password">Current Password (only needed if changing Email)</label>
+          <input type="password" id="profile-settings-current-password" class="form-input" autocomplete="current-password">
+        </div>
       </div>
       <button type="submit" class="btn btn-primary" style="margin-top: 16px;">Save Changes</button>
     </form>
@@ -4302,11 +4306,11 @@ async function renderProfileView(container) {
         </div>
         <div class="form-group" style="margin-bottom: 0;">
           <label class="form-label" for="profile-new-password">New Password</label>
-          <input type="password" id="profile-new-password" class="form-input" autocomplete="new-password" minlength="8" required>
+          <input type="password" id="profile-new-password" class="form-input" autocomplete="new-password" minlength="12" required>
         </div>
         <div class="form-group" style="margin-bottom: 0;">
           <label class="form-label" for="profile-confirm-password">Confirm New Password</label>
-          <input type="password" id="profile-confirm-password" class="form-input" autocomplete="new-password" minlength="8" required>
+          <input type="password" id="profile-confirm-password" class="form-input" autocomplete="new-password" minlength="12" required>
         </div>
       </div>
       <button type="submit" class="btn btn-primary" style="margin-top: 16px;">Update Password</button>
@@ -4331,15 +4335,19 @@ async function renderProfileView(container) {
     e.preventDefault();
     const email = document.getElementById('profile-email').value.trim();
     const idleTimeoutMinutesVal = parseInt(document.getElementById('profile-idle-timeout').value, 10);
+    // 49.2.4: only required by the server when the email is actually
+    // changing - left blank here is fine for an idle-timeout-only save.
+    const currentPassword = document.getElementById('profile-settings-current-password').value;
     const saveRes = await apiFetch('/api/v1/me', {
       method: 'PUT',
-      body: JSON.stringify({ email, idle_timeout_minutes: idleTimeoutMinutesVal })
+      body: JSON.stringify({ email, current_password: currentPassword, idle_timeout_minutes: idleTimeoutMinutesVal })
     });
     if (!saveRes) return;
     if (!saveRes.ok) {
       await showApiError(saveRes, 'Failed to save changes.');
       return;
     }
+    document.getElementById('profile-settings-current-password').value = '';
     setupIdleTimeout(idleTimeoutMinutesVal);
     if (state.profile) {
       state.profile.email = email;
@@ -4630,7 +4638,7 @@ async function renderUsersView(container) {
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="user-password">Password</label>
-        <input type="password" id="user-password" class="form-input" style="width: 150px;" autocomplete="new-password" minlength="8">
+        <input type="password" id="user-password" class="form-input" style="width: 150px;" autocomplete="new-password" minlength="12">
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="user-email">Email</label>
@@ -4671,6 +4679,7 @@ async function renderUsersView(container) {
           <td>
             <button class="action-btn" onclick="setUserLocation('${u.id}', '${u.location_code || 'HO'}')">Set Location</button>
             <button class="action-btn" onclick="resetUserMFA('${u.id}', '${u.username}')">Reset 2FA</button>
+            <button class="action-btn" onclick="resetUserPassword('${u.id}', '${u.username}')">Reset Password</button>
             ${u.role === 'Supplier' ? `<button class="action-btn" onclick="setUserSupplier('${u.id}', '${u.supplier_code || ''}')">Link Vendor</button>` : ''}
             ${u.status === 'Active'
               ? `<button class="action-btn action-btn-danger" onclick="setUserStatus('${u.id}', 'Inactive')">Deactivate</button>`
@@ -4768,6 +4777,31 @@ window.resetUserMFA = async function(id, username) {
   }
   const data = await res.json();
   await showCustomAlert(data.detail || 'Two-factor authentication has been reset.', 'Done');
+};
+
+// 49.2.4: the admin-assisted "helpdesk" password reset. An ordinary account
+// is reset immediately and the one-time password is shown once, right here -
+// it is never shown again and never emailed, so it must be relayed to the
+// user through a secure out-of-band channel (phone call, in person). A Super
+// Admin target instead comes back "pending_approval": the request now shows
+// up on a second Super Admin's Approvals screen, and only THAT approver ever
+// sees the generated password (via decideApproval below) - the point of
+// requiring a second admin is that the requester alone must not learn it.
+window.resetUserPassword = async function(id, username) {
+  const reason = await showCustomPrompt(
+    `Reason for resetting ${username}'s password (required if they are a Super Admin):`, '', 'Reset Password');
+  if (reason === null) return;
+  const res = await apiFetch('/api/v1/admin/users/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ id, reason })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    await showApiError(res, 'Failed to reset password.');
+    return;
+  }
+  const data = await res.json();
+  await showCustomAlert(data.detail || 'Password reset.', data.status === 'pending_approval' ? 'Approval Required' : 'Done');
 };
 
 // 26.4.10: links a Supplier login to the Vendor it speaks for. Until this is
@@ -11610,6 +11644,15 @@ async function decideApproval(doctype, documentId, decision) {
   if (!res.ok) {
     await showApiError(res, 'Failed to record decision.');
     return;
+  }
+  // 49.2.4: a decision hook can carry a result the approver must see right
+  // now and nowhere else - e.g. PasswordResetRequest's one-time password,
+  // which this response is the only place it is ever shown. Generic on
+  // purpose (keyed on `detail` being present, not on doctype), so a future
+  // hook can use the same path with no frontend change.
+  const data = await res.json();
+  if (data && data.detail) {
+    await showCustomAlert(data.detail, 'Decision Recorded');
   }
   renderView('approvals');
 }

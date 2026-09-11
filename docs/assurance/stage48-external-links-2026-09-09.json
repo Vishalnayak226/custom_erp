@@ -1,0 +1,490 @@
+[
+  {
+    "url": "https://adoptium.net",
+    "sources": [
+      "docs/guides/QZ_PRINTING_SETUP.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://c4model.com/diagrams",
+    "sources": [
+      "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://cbic-gst.gov.in/accnt-record-rules.html",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://cbic-gst.gov.in/gst-invoice-rules.html",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://cbic-gst.gov.in/pdf/CGST-Act-Updated-01082021.pdf",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://consumeraffairs.nic.in/acts-and-rules/consumer-protection/consumer-protection",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "result": "unreachable-or-blocked",
+    "cached": false
+  },
+  {
+    "url": "https://consumeraffairs.nic.in/sites/default/files/14-July-2024.pdf",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "result": "unreachable-or-blocked",
+    "cached": false
+  },
+  {
+    "url": "https://consumeraffairs.nic.in/sites/default/files/file-uploads/latestnews/LM_FAQs.pdf",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "result": "unreachable-or-blocked",
+    "cached": false
+  },
+  {
+    "url": "https://csrc.nist.gov/pubs/sp/800/218/final",
+    "sources": [
+      "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md",
+      "docs/security/secure-development.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://depwd.gov.in/en/document-category/acts/",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://diataxis.fr/_/downloads/en/latest/pdf/",
+    "sources": [
+      "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 404,
+    "result": "http-error",
+    "cached": false
+  },
+  {
+    "url": "https://docs.infor.com/wms/11.5.x/en-us/sceolh/default.html",
+    "sources": [
+      "docs/archive/micro_checklist_closed_stages.md",
+      "docs/specs/wms_parity_plan.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://documentation.unicommerce.com/",
+    "sources": [
+      "docs/archive/ai-handover-2026-09-09.md",
+      "docs/micro_checklist.md",
+      "docs/specs/parity_master_plan.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://documentation.unicommerce.com/docs/saleorder-overview.html",
+    "sources": [
+      "docs/specs/parity_master_plan.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://documentation.unicommerce.com/docs/using-the-uniware-apis.html",
+    "sources": [
+      "docs/specs/parity_master_plan.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://documentation.unicommerce.com/docs/wms-overview.html",
+    "sources": [
+      "docs/specs/parity_master_plan.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://einvoice6.gst.gov.in/content/einvoice-mandate/",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://einvoice6.gst.gov.in/content/revised-time-limit-for-e-invoice-reporting-for-businesses-with-aato-of-%E2%82%B910-crores-above/",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://guidelines.india.gov.in/focus-areas/",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://help.pim.unbxd.com/help-documentation/",
+    "sources": [
+      "docs/archive/ai-handover-2026-09-09.md",
+      "docs/micro_checklist.md",
+      "docs/specs/parity_master_plan.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://help.sap.com/",
+    "sources": [
+      "docs/archive/ai-handover-2026-09-09.md",
+      "docs/micro_checklist.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://help.sap.com/doc/7c9e0bbbd1664c2581b2038a1c7ae4b3",
+    "sources": [
+      "docs/specs/parity_master_plan.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://help.sap.com/docs/CENTRAL_BUSINESS_CONFIGURATION/55c9333eed324cd284f6c4e5dab8462f/00ad51c162c94563bfa5c69cf3dfa556.html",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://help.sap.com/docs/SAP_EXTENDED_WAREHOUSE_MANAGEMENT/",
+    "sources": [
+      "docs/archive/micro_checklist_closed_stages.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://help.sap.com/docs/SAP_EXTENDED_WAREHOUSE_MANAGEMENT/0e21d7e7a45c418cbbe15a723c08dfd2/f0123302094d473ba4f517670e8a93c9.html",
+    "sources": [
+      "docs/specs/wms_parity_plan.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://help.sap.com/docs/SAP_S4HANA_CLOUD/b249d650b15e4b3d9fc2077ee921abd0/3cb6987b7d174e38893e0d9a77ea102e.html",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://help.sap.com/docs/r/product/SAP_S4HANA_CLOUD",
+    "sources": [
+      "docs/specs/parity_master_plan.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/dynamics365/fin-ops-core/dev-itpro/data-entities/data-entities-data-packages",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/dynamics365/fin-ops-core/dev-itpro/user-interface/task-recorder",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/dynamics365/guidance/business-processes/about",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/dynamics365/guidance/implementation-guide/testing-strategy",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/dynamics365/supply-chain/warehousing/install-configure-warehouse-management-app",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://learn.microsoft.com/en-us/dynamics365/supply-chain/warehousing/warehouse-app-data-inquiry",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://qz.io/download",
+    "sources": [
+      "docs/guides/QZ_PRINTING_SETUP.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://spec.openapis.org/oas/latest.html",
+    "sources": [
+      "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://systemhealth.rbi.org.in/Scripts/FAQDisplay.aspx_Id%3D130%281%29.html",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://unicommerce.com/products/multichannel-order-management-system/",
+    "sources": [
+      "docs/archive/ai-handover-2026-09-09.md",
+      "docs/micro_checklist.md",
+      "docs/specs/parity_master_plan.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://www.cert-in.org.in/PDF/FAQs_on_CyberSecurityDirections_May2022.pdf",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://www.iso.org/cms/%20render/live/en/sites/isoorg/contents/data/standard/07/20/72089.html",
+    "sources": [
+      "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://www.iso.org/standard/74393.html",
+    "sources": [
+      "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://www.meity.gov.in/documents/act-and-policies/digital-personal-data-protection-rules-2025-gDOxUjMtQWa",
+    "sources": [
+      "docs/legal/privacy-applicability.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://www.meity.gov.in/static/uploads/2024/02/Digital-Personal-Data-Protection-Act-2023.pdf",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://www.meity.gov.in/static/uploads/2025/11/53450e6e5dc0bfa85ebd78686cadad39.pdf",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://www.meity.gov.in/writereaddata/files/Explanatory-Note-DPDP-Rules-2025.pdf",
+    "sources": [
+      "docs/audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 404,
+    "result": "http-error",
+    "cached": false
+  },
+  {
+    "url": "https://www.microsoft.com/en-us/dynamics-365/",
+    "sources": [
+      "docs/archive/ai-handover-2026-09-09.md",
+      "docs/micro_checklist.md",
+      "docs/specs/parity_master_plan.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://www.microsoft.com/en-us/dynamics-365/products/business-central",
+    "sources": [
+      "docs/specs/parity_master_plan.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  },
+  {
+    "url": "https://www.w3.org/TR/WCAG22/",
+    "sources": [
+      "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md"
+    ],
+    "checked_on": "2026-09-09T14:17:51.3386874Z",
+    "http_status": 200,
+    "result": "reachable",
+    "cached": false
+  }
+]

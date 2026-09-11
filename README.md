@@ -1,3 +1,21 @@
+---
+doc_id: DOC-B335630551
+title: In-House Enterprise ERP System
+type: reference
+status: draft
+owner: engineering-owner
+approvers: [documentation-maintainer, engineering-owner]
+audience: [maintainers, engineering-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: source
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # In-House Enterprise ERP System
 
 A metadata-driven, pluggable, ledger-backed Enterprise Resource Planning (ERP) system serving retail checkout, warehouses, and e-commerce. Backend is a single Go binary; database is PostgreSQL with schema-per-tenant isolation; frontend is a vanilla JS SPA served as static files.

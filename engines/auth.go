@@ -225,10 +225,17 @@ func newJTI() string {
 // switch to golang-jwt (this repo's lightweight-first principle) - so a
 // token has a verifiable issue time and a per-token identity a future
 // revocation hook could check, without full RFC 7519 header compliance.
-func SignToken(userID, username, role, tenantID, locationCode string) string {
+//
+// 49.2.2/49.2.4: credentialVersion is the "cv" claim - the caller's
+// users.credential_version at issue time. apiMiddleware's live-state
+// re-check rejects a token whose cv no longer matches the row, which is
+// what makes a password change/reset revoke every session it did not
+// itself just issue. Callers with no real row to read from (tests minting a
+// token for a freshly seeded user) pass 1, the column's own DEFAULT.
+func SignToken(userID, username, role, tenantID, locationCode string, credentialVersion int) string {
 	now := time.Now()
 	exp := now.Add(tokenTTL(tenantID)).Unix()
-	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&iat=%d&jti=%s%s&exp=%d", claimVal(userID), claimVal(username), claimVal(role), claimVal(tenantID), claimVal(locationCode), now.Unix(), newJTI(), kidSuffix(), exp)
+	claims := fmt.Sprintf("id=%s&user=%s&role=%s&tenant=%s&loc=%s&cv=%d&iat=%d&jti=%s%s&exp=%d", claimVal(userID), claimVal(username), claimVal(role), claimVal(tenantID), claimVal(locationCode), credentialVersion, now.Unix(), newJTI(), kidSuffix(), exp)
 	return signClaims(claims)
 }
 

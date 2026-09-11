@@ -1,0 +1,226 @@
+{
+  "schema_version": 1,
+  "captured_on": "2026-09-09",
+  "source_head": "fed51b4d33e2f9ba0fd80cf739383ae563fd3e09",
+  "status": "preview only; approval and commits pending",
+  "moves": [
+    {
+      "batch": 1,
+      "source": "docs/requirements/BRD.md",
+      "target": "docs/archive/requirements/business-requirements-legacy.md",
+      "replacement": "docs/requirements/business-requirements.md",
+      "source_sha256": "c348193590e590496260aaee1ae0dd990c9a5ce7565e8d1f50407da68c5df7a3",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 1,
+      "source": "docs/requirements/PRD.md",
+      "target": "docs/archive/requirements/product-requirements-legacy.md",
+      "replacement": "docs/requirements/product-requirements.md",
+      "source_sha256": "127bed664f4ec009abf87ce8b465920e3dc00af43102d743120bb275778e79f3",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 1,
+      "source": "docs/ERP_BLUEPRINT.md",
+      "target": "docs/archive/product/erp-blueprint-legacy.md",
+      "replacement": "docs/product/vision.md",
+      "source_sha256": "d4b4c6408260f351a72aadf716ddcc18ce7f42179d19f543237508f8a5238f98",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled",
+      "previous_source_sha256": "cb78bcd46aa714af7cc8d7a4f808271882c938b78c96f287e800d0cc1502f657"
+    },
+    {
+      "batch": 1,
+      "source": "docs/specs/modules_overview.md",
+      "target": "docs/archive/product/modules-overview-legacy.md",
+      "replacement": "docs/generated/capability-catalog.md",
+      "source_sha256": "db2fb3fd7edaefdfecdc26c504422a9975fa559f4545ac5d55ea0711670ce69c",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 1,
+      "source": "docs/specs/erp_maturity_master_plan.md",
+      "target": "docs/archive/product/erp-maturity-plan.md",
+      "replacement": "docs/product/roadmap.md",
+      "source_sha256": "11a08ef627b280f68659570ab0c49f91645bd74d8ce1b8745cfb6c868221435f",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 1,
+      "source": "docs/specs/implementation_plan.md",
+      "target": "docs/archive/product/implementation-plan.md",
+      "replacement": "docs/product/roadmap.md",
+      "source_sha256": "489f8ba0f9ca45c53a3d36d82ee4e10162841a1fb781e0aad71e9586ce5a576a",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 1,
+      "source": "docs/specs/parity_master_plan.md",
+      "target": "docs/archive/product/parity-plan.md",
+      "replacement": "docs/product/roadmap.md",
+      "source_sha256": "899c8479f1072e970ced07fa6aaf4f2a9f2a68ae1bf2c8a70cc8e22cd82c20d6",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 1,
+      "source": "docs/specs/wms_parity_plan.md",
+      "target": "docs/archive/product/wms-parity-plan.md",
+      "replacement": "docs/product/roadmap.md",
+      "source_sha256": "d4bae79d19f03650d9a5d957d64cb72208750dbea84f59e6e75efe7b356d3ced",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 1,
+      "source": "docs/specs/pdf_blueprint_gap_analysis.md",
+      "target": "docs/archive/product/pdf-blueprint-gap-analysis.md",
+      "replacement": "docs/product/roadmap.md",
+      "source_sha256": "d018e2eebb443469eb76edfc544e40cb34b55712f70fa0076fbe4d9e96de0ab3",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 1,
+      "source": "docs/specs/market_intelligence_reference.md",
+      "target": "docs/product/research/market-intelligence.md",
+      "replacement": "docs/product/research/market-intelligence.md",
+      "source_sha256": "fbefb2a5ff6e8efcd77cc0fef190861a0ce41403bb51946c948b949bbb77c286",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 1,
+      "source": "docs/specs/oms_master_blueprint_reference.md",
+      "target": "docs/product/research/oms-benchmark.md",
+      "replacement": "docs/product/research/oms-benchmark.md",
+      "source_sha256": "3b8941a077164cc3d751fb8107c787cb294e7ab4b2c4fdd064f0764690565cd4",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 1,
+      "source": "docs/specs/wms_master_blueprint_reference.md",
+      "target": "docs/product/research/wms-benchmark.md",
+      "replacement": "docs/product/research/wms-benchmark.md",
+      "source_sha256": "8737161ba2db0bc0ada01b19d6ac367ebee01c3fa2db94ea9db1b54b65f616b1",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 2,
+      "source": "docs/architecture/architecture_evaluation.md",
+      "target": "docs/archive/architecture/evaluation-legacy.md",
+      "replacement": "docs/architecture/current-architecture.md",
+      "source_sha256": "578567701b871b2a8b84f0e08c76f62dc06ec252efe606a020b6c450e1ecd982",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 2,
+      "source": "docs/architecture/framework_architecture.md",
+      "target": "docs/archive/architecture/framework-legacy.md",
+      "replacement": "docs/architecture/current-architecture.md",
+      "source_sha256": "f8c66ba939e5d2f5c449ec419b23e3f18df57b1c913e0b15b412e4b35923e71d",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 2,
+      "source": "docs/architecture/pos_architecture.md",
+      "target": "docs/archive/architecture/pos-legacy.md",
+      "replacement": "docs/architecture/current-architecture.md",
+      "source_sha256": "edd3f2ff12792e7bc2f2673c484b725cc5a9ad07b663264d7fabf3b56af9357a",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 2,
+      "source": "docs/specs/public_api_v1.md",
+      "target": "docs/api/public-api-v1.md",
+      "replacement": "docs/api/public-api-v1.md",
+      "source_sha256": "21cb78edfa9348c4eece45a8d480e739fa318346ad7adb9c017e7ec955a599a9",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 2,
+      "source": "docs/specs/message_catalog.md",
+      "target": "docs/api/message-catalog.md",
+      "replacement": "docs/api/message-catalog.md",
+      "source_sha256": "83afb5a36429bf36491bf9c15b6a8d5fbb90cde218604b908f230d28d75eca49",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 3,
+      "source": "docs/operations/backup_restore.md",
+      "target": "docs/operations/backup-and-restore.md",
+      "replacement": "docs/operations/backup-and-restore.md",
+      "source_sha256": "b9b76bcf8762a98d65f564d514d6001186eb16121b6f752c7dc19e1c41691c73",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 3,
+      "source": "docs/operations/incident_runbook.md",
+      "target": "docs/operations/incident-response.md",
+      "replacement": "docs/operations/incident-response.md",
+      "source_sha256": "fa9f424c8094b73af1d9cc80b9cfe39510f797fd8c209633fe7e9cc9f8c87f29",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 3,
+      "source": "docs/operations/connector_live_verification.md",
+      "target": "docs/implementation/connector-verification.md",
+      "replacement": "docs/implementation/connector-verification.md",
+      "source_sha256": "4d110c5ef47a697001e36d41c4c6032bd3cc01e8b8814f5d5549aaac7bdb3994",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 3,
+      "source": "docs/operations/hardening_roadmap.md",
+      "target": "docs/archive/operations/hardening-roadmap.md",
+      "replacement": "docs/archive/operations/hardening-roadmap.md",
+      "source_sha256": "4ad26558a282f762f46c3d1ad1269f8a5a7fa8222e68c7573e8ac23952a7afc8",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 4,
+      "source": "docs/guides/USER_GUIDE.md",
+      "target": "docs/archive/user/user-guide-legacy.md",
+      "replacement": "docs/user/user-manual.html",
+      "source_sha256": "5db837937c0594b71b56c0f567faee48bec29471f93f48d412392c938683a03a",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 4,
+      "source": "docs/guides/ADMIN_GUIDE.md",
+      "target": "docs/archive/user/admin-guide-legacy.md",
+      "replacement": "docs/user/tenant-admin-manual.html",
+      "source_sha256": "040b81e922862905fb674d5eaa7cff9ebe00e30d2f7627598fe591527084b64d",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    },
+    {
+      "batch": 5,
+      "source": "docs/Contract/Developer Contract.md",
+      "target": "docs/legal/templates/developer-agreement.md",
+      "replacement": "docs/legal/templates/developer-agreement.md",
+      "source_sha256": "ed04c4cfcc606953a4a046becfddfca755007f70bc9810a2871dbfcdb5b2b46c",
+      "approval": "pending",
+      "removal_after": "at least two supported releases; not scheduled"
+    }
+  ],
+  "amended_on": "2026-09-10"
+}

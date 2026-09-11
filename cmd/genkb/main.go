@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"custom_erp/internal/docgen"
 	"custom_erp/internal/kb"
 )
 
@@ -31,6 +32,8 @@ func main() {
 	out := flag.String("out", filepath.Join("internal", "kb", "content"), "directory to write the generated Knowledge Center into")
 	check := flag.Bool("check", false, "do not write; exit non-zero if the generated output is stale or orphaned")
 	quiet := flag.Bool("quiet", false, "suppress per-article warnings")
+	manuals := flag.String("manuals", "", "optional curated manual selection JSON; builds manuals instead of embedded KB")
+	release := flag.String("release", "", "source release label required for manual projections")
 	appJS := flag.String("app-js", filepath.Join("public", "app.js"), "path to the frontend router, for the 39.8 screen-id drift guard")
 	errorCatalog := flag.String("error-catalog", filepath.Join("internal", "server", "error_catalog_generated.go"), "path to the error catalog, for the 39.8 error-code drift guard")
 	flag.Parse()
@@ -39,6 +42,36 @@ func main() {
 	if err != nil {
 		fmt.Printf("  [fail] knowledge center build: %v\n", err)
 		os.Exit(1)
+	}
+	if *manuals != "" {
+		if *release == "" {
+			fmt.Fprintln(os.Stderr, "manuals require -release and an explicit -out directory")
+			os.Exit(1)
+		}
+		explicitOut := false
+		flag.Visit(func(f *flag.Flag) {
+			if f.Name == "out" {
+				explicitOut = true
+			}
+		})
+		if !explicitOut {
+			fmt.Fprintln(os.Stderr, "manuals require an explicit -out directory")
+			os.Exit(1)
+		}
+		files, err := kb.BuildManuals(result, *source, *manuals, *release)
+		if err == nil && *check {
+			if diffs := docgen.Diff(*out, files); len(diffs) != 0 {
+				err = fmt.Errorf("manual drift: %v", diffs)
+			}
+		} else if err == nil {
+			err = docgen.Write(*out, files)
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Printf("  [ok]   %d curated manuals verified\n", len(files))
+		return
 	}
 	if !*quiet {
 		for _, warning := range result.Warnings {

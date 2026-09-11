@@ -1,0 +1,32 @@
+<h1 id="returns-and-refunds">Returns and refunds <a class="kb-anchor" href="#returns-and-refunds" aria-label="Copy link to this section">#</a></h1>
+<p>Use <strong>POS / Billing → Process a Return</strong> to raise the request, then open <strong>Returns</strong> to progress it. A request alone does not mean stock has been received or money has been paid. The screen shows the current state and the actions available for it.</p>
+<p>These instructions were checked against the Stage 47.4 source. Customer role, device and end-to-end acceptance remain part of the release review.</p>
+<h2 id="before-you-begin">Before you begin <a class="kb-anchor" href="#before-you-begin" aria-label="Copy link to this section">#</a></h2>
+<p>Have the original bill number, the goods and the receiving location ready. Your administrator must grant the relevant return/refund permissions and location scope. Use your own account. A missing action is a reason to ask the administrator to check access; it is not a reason to borrow another login.</p>
+<h2 id="raise-the-return-at-the-till">Raise the return at the till <a class="kb-anchor" href="#raise-the-return-at-the-till" aria-label="Copy link to this section">#</a></h2>
+<ol><li>In <strong>Process a Return</strong>, enter <strong>Original Bill / Cart Number</strong> and choose</li></ol>
+<p><strong>Look Up Bill</strong>.</p>
+<ol><li>Read <strong>Sold</strong>, <strong>Already Returned</strong> and <strong>Still Returnable</strong> for each line.</li></ol>
+<p>The price comes from the original bill. You cannot replace it with today&#39;s price or type a different refund amount.</p>
+<ol><li>Choose <strong>Return Location</strong> and enter <strong>Return Qty</strong> only for the goods being</li></ol>
+<p>returned. The request must meet the server&#39;s remaining-quantity and return eligibility checks.</p>
+<ol><li>Choose <strong>Raise Return</strong> and retain the return reference. **Refund if all</li></ol>
+<p>accepted** is an estimate; inspection determines eligibility.</p>
+<p>If the bill cannot be resolved, stop and have the original transaction checked. Do not create a substitute sale, edit the original bill or retry with another customer&#39;s reference to get past a refusal.</p>
+<h2 id="progress-the-request-in-returns">Progress the request in Returns <a class="kb-anchor" href="#progress-the-request-in-returns" aria-label="Copy link to this section">#</a></h2>
+<p>Use <strong>Show</strong> to filter the queue and <strong>Refresh</strong> to retrieve its current state. Match the original bill, location and items before taking an action.</p>
+<table><thead><tr><th>Current state</th><th>Action</th><th>Expected evidence</th></tr></thead><tbody><tr><td>Requested</td><td>Approve, or reject with a reason</td><td>Updated request state and decision</td></tr><tr><td>Approved</td><td>Book reverse pickup where configured; receive after the goods arrive</td><td>Pickup reference where applicable, then Received state</td></tr><tr><td>Received</td><td>Inspect each SKU and choose its disposition</td><td>Recorded dispositions and refund-eligible total</td></tr><tr><td>QC Complete</td><td>Progress the refund</td><td>Refund reference, approval decision and payment method</td></tr><tr><td>Closed or Rejected</td><td>Review the record</td><td>Completed outcome; no further workflow action is offered</td></tr></tbody></table>
+<p>At inspection, choose <strong>Sellable</strong>, <strong>Damaged</strong>, <strong>Repairable</strong>, <strong>Missing</strong>, <strong>Wrong-Item</strong> or <strong>Rejected</strong> for each line. The current inspection dialog uses one disposition per SKU line; it cannot split that line across conditions. An exchange SKU can be requested in the inspection dialog. Availability and eligibility are checked by the server; the dialog is not proof that an exchange has been fulfilled.</p>
+<h2 id="approve-and-process-the-refund">Approve and process the refund <a class="kb-anchor" href="#approve-and-process-the-refund" aria-label="Copy link to this section">#</a></h2>
+<p>The refund flow looks up the request&#39;s pending refund. If it needs approval, confirm the amount first. Then record the payment method when prompted. Permission and workflow checks still apply to each step. Do not treat the appearance of a confirmation dialog as authorization to pay.</p>
+<p>After processing, refresh and retain both return and refund references. Match the amount and method to the actual cash movement or provider evidence and the finance records. The application recording a method does not itself prove an external card or UPI provider settled the payment.</p>
+<h2 id="when-something-goes-wrong">When something goes wrong <a class="kb-anchor" href="#when-something-goes-wrong" aria-label="Copy link to this section">#</a></h2>
+<ul><li><strong>No refund is pending:</strong> refresh and check whether inspection is complete,</li></ul>
+<p>whether any line is refundable, or whether the refund was already processed.</p>
+<ul><li><strong>Timeout or uncertain response:</strong> refresh and look for the existing return</li></ul>
+<p>or refund before creating another request. Keep the original reference.</p>
+<ul><li><strong>Wrong state, scope or quantity:</strong> read the refusal, verify the bill and</li></ul>
+<p>location, then ask the responsible manager to resolve the cause.</p>
+<ul><li><strong>Unexpected amount or stock condition:</strong> stop payment/dispatch for that</li></ul>
+<p>case and give support the return ID, refund ID, timestamp and correlation ID shown by the error. Do not include passwords or session tokens.</p>
+<p>The former instant return endpoint has been retired. Do not use old scripts or old instructions that promise an immediate refund and restock from that path. For general error handling, see <a href="/help/error-codes">Reading an error code</a>.</p>

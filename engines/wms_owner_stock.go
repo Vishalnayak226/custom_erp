@@ -88,6 +88,20 @@ func RecordOwnerStock(tenantID, binCode, sku, ownerID, condition string, qty int
 	} else if err != nil {
 		return err
 	}
+
+	// Stage 47.5.1 (audit A-05): one owner per warehouse, checked here because
+	// this is the ONE api in this codebase that can put a second owner into a
+	// building - the same "attach the rule at the shared choke point" reasoning
+	// the rest of this repo follows. It runs after location_code is resolved
+	// from bin_stock and before any write, so a refusal mutates nothing.
+	//
+	// Why the rule is a guard rather than isolation: allocation and picking are
+	// owner-blind (see this file own header), so two owners under one roof means
+	// one client order can be filled from another client stock. Removing the
+	// second owner removes the boundary that was going unenforced.
+	if err := AssertSingleOwnerForLocation(tenantID, locationCode, ownerID); err != nil {
+		return err
+	}
 	var alreadyAssigned int
 	if err := tx.QueryRow(fmt.Sprintf(
 		`SELECT COALESCE(SUM(qty), 0) FROM %s.bin_stock_owner WHERE bin_code = $1 AND sku = $2 AND condition = $3`, schema),

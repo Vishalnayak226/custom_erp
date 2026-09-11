@@ -6,12 +6,30 @@ summary: The sidebar's eleven entries, the two search boxes that do different th
 audience: everyone
 last_verified: 2026-08-17
 screens: [reports, doctype-table, inventory]
+doc_id: DOC-D4BCCBCC10
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: tutorial
+module: platform
+task: Finding your way around
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Finding your way around
 
 Three things account for most of the navigation in this application: the
 sidebar, two search boxes, and one list-screen layout that repeats everywhere.
+
+For task instructions and error recovery, see [Find help for your task](using-task-help.md).
 
 ## The sidebar
 

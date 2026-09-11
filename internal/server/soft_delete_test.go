@@ -20,7 +20,7 @@ func TestGenericSoftDeleteAndMasterReactivation(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/doc/{doctype}/{id}", apiMiddleware(handleGenericDoc))
 	mux.HandleFunc("POST /api/v1/doc/{doctype}/{id}/reactivate", apiMiddleware(handleReactivateMasterDocument))
-	token := engines.SignToken("system", "system", "HR/Admin", "default", "HO")
+	token := engines.SignToken("system", "system", "HR/Admin", "default", "HO", currentCredentialVersion("system"))
 	request := func(method, path string) *httptest.ResponseRecorder {
 		req := httptest.NewRequest(method, path, nil)
 		req.Header.Set("Authorization", "Bearer "+token)

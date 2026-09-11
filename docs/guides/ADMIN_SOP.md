@@ -1,3 +1,23 @@
+---
+doc_id: DOC-F63F05CE95
+title: Admin SOP — Step-by-Step Procedures
+type: template
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+audience: [maintainers, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: proposed-policy
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
+> Reusable draft template. Fill in the customer, release, roles and evidence, then obtain the accountable owner’s approval before operational use. Existing check marks or examples are not acceptance of a new deployment.
+
 # Admin SOP — Step-by-Step Procedures
 
 This is the deep companion to **[ADMIN_GUIDE.md](ADMIN_GUIDE.md)**. The Guide covers getting the system running (Part A), the operator/platform level (Part C), and developer/CTO level (Part D) as a reference manual. This SOP picks up where its Part B leaves off and gives literal, click-by-click procedures for **every admin-only screen** (the **Settings** sidebar module) and **every maker-checker / approval-gated workflow** in the system — the two categories the task that produced this doc specifically asked to cover in depth.

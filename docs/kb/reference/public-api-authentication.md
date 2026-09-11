@@ -6,6 +6,22 @@ summary: How an integration gets a key, what a key may do, and what every respon
 audience: integrator
 public: true
 last_verified: 2026-08-12
+doc_id: DOC-B0B4E9D9C8
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: reference
+module: platform
+task: Authenticating against the public API
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Authenticating against the public API

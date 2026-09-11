@@ -6,6 +6,22 @@ summary: Why every mutating call needs an Idempotency-Key, and exactly what the 
 audience: integrator
 public: true
 last_verified: 2026-09-03
+doc_id: DOC-B6C3A9EEF5
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: reference
+module: platform
+task: Retrying safely (idempotency)
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Retrying safely (idempotency)
@@ -30,7 +46,7 @@ Generate a fresh unique value per logical operation - a UUID is ideal. Reuse the
 **same** key for every retry of that operation, and never for a different one.
 
 ```
-POST /api/public/v1/orders HTTP/1.1
+POST <future-mutating-endpoint> HTTP/1.1
 Authorization: Bearer erp_v1_...
 X-Tenant-ID: your-tenant
 Idempotency-Key: 6f1c9c8e-9f7a-4a1c-9a3e-2b6c1f0d5e44

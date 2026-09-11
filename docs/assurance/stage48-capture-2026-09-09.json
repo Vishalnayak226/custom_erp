@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "status": "pending-human-review",
+  "release": "0.1.0-stage48-review",
+  "role": "Super Admin",
+  "tenant_fixture": "default",
+  "fixture": "migration-seeded-isolated-development",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "device_scale": 2,
+  "locale": "en-IN",
+  "theme": "light",
+  "interval_ms": 30000,
+  "captured_at": "2026-09-09T14:27:44.754Z",
+  "screenshots": [
+    {
+      "id": "sidebar",
+      "file": "sidebar.png",
+      "caption": "Main navigation",
+      "route": "#/view/reports",
+      "sha256": "84439d440e1d08b5045554d05681fbd781f7c3c6bbe0022f25a8f8a1104a6729"
+    },
+    {
+      "id": "setup-menu",
+      "file": "setup-menu.png",
+      "caption": "Setup navigation",
+      "route": "#/view/reports",
+      "sha256": "f9882f2caf585f597e118892058ff8bb07fbfa2e7cd3567886cdbd7908c71302"
+    },
+    {
+      "id": "pos-billing",
+      "file": "pos-billing.png",
+      "caption": "POS billing and cashier session",
+      "route": "#/view/pos",
+      "sha256": "7a5c2ee6aa13b6dac10d0d589e029bd1b26de9d80ee8a3d08294fd9b3b1e6ad4"
+    },
+    {
+      "id": "purchase-order",
+      "file": "purchase-order.png",
+      "caption": "Purchase orders",
+      "route": "#/view/purchase-orders",
+      "sha256": "fa89d457ce560a36275fad9640c1d39101a80d4d9baacc618f0ff813d3641a23"
+    },
+    {
+      "id": "goods-receipt",
+      "file": "goods-receipt.png",
+      "caption": "Goods receipt",
+      "route": "#/view/grn",
+      "sha256": "413793024fc957953bb1b0301de9c50a35db81e80563a96769b1706877b08ddf"
+    },
+    {
+      "id": "inventory",
+      "file": "inventory.png",
+      "caption": "Inventory availability",
+      "route": "#/view/inventory",
+      "sha256": "9192c882c054f327ded7efbde2af583503d791bf3de13559c78bd0ac637443e4"
+    },
+    {
+      "id": "trial-balance",
+      "file": "trial-balance.png",
+      "caption": "Finance and trial balance",
+      "route": "#/view/finance",
+      "sha256": "e3c08c1e7331a2a2dacfd4a7fd3ea61c4b6c52b666c2b966dea2be4783256e99"
+    },
+    {
+      "id": "approvals",
+      "file": "approvals.png",
+      "caption": "Pending approvals",
+      "route": "#/view/approvals",
+      "sha256": "47e1a6b64532e1e9addd48fd9064c7ca373564e9a0b84ee75e77a4b4d223d0c3"
+    },
+    {
+      "id": "reports",
+      "file": "reports.png",
+      "caption": "Report catalog",
+      "route": "#/view/reports",
+      "sha256": "b29412e386218c553c6910bbb66b77add8dc9502f0ee9af639b8256ff2468441"
+    },
+    {
+      "id": "record-list",
+      "file": "record-list.png",
+      "caption": "Vendor records",
+      "route": "#/setup/Vendor",
+      "sha256": "139c3c0c6eb0d4b88404b54192c6250dbe3d838b1a059b0a1fb7c915fc4b4103"
+    },
+    {
+      "id": "json-line-editor",
+      "file": "json-line-editor.png",
+      "caption": "BOM line editor",
+      "route": "#/setup/BOM",
+      "sha256": "f8bbf32854ff2e71378fc1b5c9826f413957be08a40906b9558cbf2b36707268"
+    },
+    {
+      "id": "configuration",
+      "file": "configuration.png",
+      "caption": "Tenant configuration",
+      "route": "#/view/configuration",
+      "sha256": "9d13df409d097904d2ad3269ebdbbfdb6856e006bbce03c6c28afa22ca2dc33c"
+    },
+    {
+      "id": "roles",
+      "file": "roles.png",
+      "caption": "Role permissions",
+      "route": "#/view/roles",
+      "sha256": "52d8b082715299a9dd7ff2a5329b4031134f5bc89ef4a362effa847671b0fcb2"
+    },
+    {
+      "id": "returns",
+      "file": "returns.png",
+      "caption": "Return inspection and refund workflow",
+      "route": "#/view/returns",
+      "sha256": "fb064c2821c99d19a9d443606bd4e60b98e8df2860f2392d48524e48f1ed7f2d"
+    }
+  ]
+}

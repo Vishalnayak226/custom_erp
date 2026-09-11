@@ -1,0 +1,45 @@
+name: Monthly documentation health
+
+on:
+  schedule:
+    - cron: '0 6 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Collect advisory health findings
+        shell: pwsh
+        run: |
+          go run ./cmd/doclint -json | Set-Content -LiteralPath "$env:RUNNER_TEMP/document-health.json" -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Documentation inventory failed.' }
+      - name: Verify generated content without repository writes
+        shell: pwsh
+        run: ./docs/update-docs.ps1 -Group Content -Check
+      - uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/document-link-cache.json
+          key: document-links-${{ github.run_id }}
+          restore-keys: document-links-
+      - name: Check public external links with a bounded cache
+        run: go run ./cmd/doclint -external-out "$RUNNER_TEMP/document-links.json" -external-cache "$RUNNER_TEMP/document-link-cache.json"
+      - name: Retain report for owner review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: document-health-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/document-health.json
+            ${{ runner.temp }}/document-links.json
+          if-no-files-found: error
+          retention-days: 90

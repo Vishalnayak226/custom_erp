@@ -6,6 +6,22 @@ summary: Turn a need into stock on the shelf — raise a requisition, shop it ro
 audience: procurement officer, store manager, admin
 last_verified: 2026-09-03
 screens: [purchase-orders, grn, rfq, doctype-table, vendor-invoices, reports, approvals, configuration]
+doc_id: DOC-7252AA9770
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: procurement
+task: Procurement
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Procurement
@@ -20,7 +36,7 @@ Item and Vendor masters, never typed by hand on the PO screen, because a
 second place to type the same classification is exactly how a PO and its GRN
 end up disagreeing at the third decimal place. This handbook covers the full
 chain plus vendor onboarding and PO amendment, going deeper than the
-walkthrough in [USER_GUIDE.md §6](../../guides/USER_GUIDE.md).
+walkthrough in the earlier purchase-order walkthrough.
 
 Most of what makes a PO usable today came out of one rebuild, **Stage 40.1
 (2026-08-10)**. Before it, a PO recorded a vendor, a warehouse and one

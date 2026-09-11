@@ -2,6 +2,286 @@
   "schema_version": 1,
   "rules": [
     {
+      "prefix": "docs/api/generated/",
+      "type": "generated",
+      "status": "active",
+      "owner": "api-owner",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/data/generated/",
+      "type": "generated",
+      "status": "active",
+      "owner": "data-owner",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/data/registry-snapshot.json",
+      "type": "record",
+      "status": "archived",
+      "owner": "data-owner",
+      "authority": "historical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/assurance/",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "authority": "historical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/legal/templates/",
+      "type": "template",
+      "status": "draft",
+      "owner": "legal-owner",
+      "authority": "proposed-policy",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/legal/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "legal-owner",
+      "authority": "canonical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/project_ledger.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "engineering-owner",
+      "authority": "historical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/security/outside_in_verification_2026-09-08.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "security-owner",
+      "authority": "historical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/ERP_BLUEPRINT.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/requirements/BRD.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/requirements/PRD.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/architecture/architecture_evaluation.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/architecture/framework_architecture.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/architecture/pos_architecture.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/specs/erp_maturity_master_plan.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/specs/implementation_plan.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/specs/market_intelligence_reference.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/specs/modules_overview.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/specs/oms_master_blueprint_reference.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/specs/parity_master_plan.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/specs/pdf_blueprint_gap_analysis.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/specs/wms_master_blueprint_reference.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/specs/wms_parity_plan.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/operations/hardening_roadmap.md",
+      "type": "record",
+      "status": "archived",
+      "owner": "product-owner",
+      "authority": "historical",
+      "disposition": "archive"
+    },
+    {
+      "prefix": "docs/data/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "data-owner",
+      "authority": "canonical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/api/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "api-owner",
+      "authority": "canonical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/engineering/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "authority": "canonical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/implementation/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "implementation-owner",
+      "authority": "canonical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/qa/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "qa-owner",
+      "authority": "canonical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/user/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "documentation-maintainer",
+      "authority": "canonical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/project/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "authority": "canonical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/user/tenant-admin-manual.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/user/user-manual.html",
+      "type": "generated",
+      "status": "active",
+      "owner": "documentation-maintainer",
+      "authority": "projection",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/product/capability-register.json",
+      "type": "normative",
+      "status": "draft",
+      "owner": "product-owner",
+      "authority": "canonical",
+      "disposition": "keep"
+    },
+    {
+      "prefix": "docs/product/",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "authority": "proposed-policy",
+      "disposition": "keep"
+    },
+    {
       "prefix": "docs/ERP_LOOPHOLES_ANALYSIS.md",
       "type": "record",
       "status": "archived",

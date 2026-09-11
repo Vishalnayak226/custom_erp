@@ -50,9 +50,9 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 Chronological build-record. One section per Stage/session. Points back to `docs/micro_checklist.md` for full item-by-item detail rather than duplicating it.
 
 # Project Progress Ledger: Custom ERP
-For the current build tracker, see **[docs/micro_checklist.md](micro_checklist.md)**.
+For the current build tracker, see **[docs/micro_checklist.md](../micro_checklist.md)**.
 
-For the current build tracker, see **[docs/micro_checklist.md](micro_checklist.md)**.
+For the current build tracker, see **[docs/micro_checklist.md](../micro_checklist.md)**.
 
 - **Verified**: `go build`/`go vet`/`go test ./... -p 1` clean throughout (4 new test files, real Postgres: `TestWMSP2`, `TestCRMAnalytics`, `TestManufacturingSchedulingAndSubcontract`, plus an extended `TestReportsStage26_10`). Live-verified over real HTTP and a real-browser (Playwright/Chromium) pass through every new/changed screen as `manager1` (Store Manager) — zero console errors; all 6 new reports confirmed present in the Report Catalog. All live test fixtures and scratch `cmd/` tooling removed from the shared dev DB/tree afterward.
 - Every new doctype was deliberately modeled on the `documents`-table-log pattern (`StockLedgerEntry`/`ReportRunLog`/`TaskCompletionLog`) rather than a bespoke table wherever the data was system-written, and on the flat-doctype-plus-existing-approval-engine pattern (`QualityInspection`/`PurchaseRequisition`) wherever a human submits something for sign-off — avoiding both a new bespoke table (and the tenant-provisioning clone-list drift risk 26.11.2 above already found and fixed once) and a parallel approval mechanism.
@@ -797,4 +797,4 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 Chronological build-record. One section per Stage/session. Points back to `docs/micro_checklist.md` for full item-by-item detail rather than duplicating it.
 
 # Project Progress Ledger: Custom ERP
-For the current build tracker, see **[docs/micro_checklist.md](micro_checklist.md)**.
+For the current build tracker, see **[docs/micro_checklist.md](../micro_checklist.md)**.

@@ -5,7 +5,23 @@ order: 7
 summary: Set the system up once so it stops needing you, then watch the four things that actually tell you it is healthy.
 audience: admin
 last_verified: 2026-08-17
-screens: [users, roles, approval-rules, prefix-configs, dynamic-labels, doctype-builder, configuration, audit-logs, system-status, tenant-entitlements, tenant-usage, extension-hooks]
+screens: [users, roles, approval-rules, prefix-configs, dynamic-labels, doctype-builder, configuration, audit-logs, system-status, tenant-entitlements, tenant-usage, extension-hooks, extension-hook-log]
+doc_id: DOC-198370F14A
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: tutorial
+module: cross-module
+task: A day as an administrator
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # A day as an administrator

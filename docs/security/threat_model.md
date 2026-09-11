@@ -1,9 +1,27 @@
+---
+doc_id: DOC-13177E8D20
+title: Security charter and threat model
+type: reference
+status: draft
+owner: security-owner
+approvers: [documentation-maintainer, security-owner]
+audience: [maintainers, security-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: proposed-policy
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # Security charter and threat model
 
 **Stage 49.0** — established 2026-09-06. Covers items 49.0.1 through 49.0.5 and 49.0.7;
 the risk register (49.0.6) is [risk_register.md](risk_register.md).
 
-> **Status of this document.** This is the first approved version. It is written from
+> **Status of this document.** This is the first engineering draft; domain approval is pending. It is written from
 > the code, the deployment files and the 2026-09-01 deep persona audit, not from a
 > template — every claim below points at something in this repository. It has been
 > drafted and technically verified by the build session that wrote it; the domain

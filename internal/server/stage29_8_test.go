@@ -33,7 +33,7 @@ func TestDeactivatedUserLosesLiveSession(t *testing.T) {
 	engines.ResetLiveUserStateCache()
 
 	handler := apiMiddleware(handleGetDocTypes)
-	token := engines.SignToken(userID, userID, "HR/Admin", "default", "HO")
+	token := engines.SignToken(userID, userID, "HR/Admin", "default", "HO", 1)
 
 	// Baseline: the token works while the account is Active.
 	if rec := doRequest(t, handler, http.MethodGet, "/api/v1/meta/doctypes", token, nil); rec.Code != http.StatusOK {
@@ -79,7 +79,7 @@ func TestStatusTransitionMapEnforcedThroughGenericDocAPI(t *testing.T) {
 		t.Fatalf("seed RFQ: %v", err)
 	}
 
-	token := engines.SignToken("admin", "admin", "HR/Admin", "default", "HO")
+	token := engines.SignToken("admin", "admin", "HR/Admin", "default", "HO", currentCredentialVersion("admin"))
 	engines.ResetLiveUserStateCache()
 
 	// Built by hand rather than via doRequest: handleGenericDoc reads the

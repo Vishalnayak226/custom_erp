@@ -84,3 +84,60 @@ func TestStaticFileServerNeverListsADirectory(t *testing.T) {
 		}
 	})
 }
+
+// Stage 49.1.7 regression: outside-in verification against production found
+// that http.FileServer serves its content for ANY HTTP method - TRACE, PUT
+// and DELETE against a real deployed asset all returned 200, because
+// FileServer only special-cases HEAD and otherwise never looks at r.Method.
+// onlyReadMethods is what routes.go now wraps the file server in.
+func TestOnlyReadMethodsRejectsEverythingButGetAndHead(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "app.js"), []byte("console.log(1)"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := httptest.NewServer(onlyReadMethods(http.FileServer(http.Dir(root))))
+	defer srv.Close()
+
+	do := func(method, path string) *http.Response {
+		t.Helper()
+		req, err := http.NewRequest(method, srv.URL+path, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp, err := srv.Client().Do(req)
+		if err != nil {
+			t.Fatalf("%s %s: %v", method, path, err)
+		}
+		return resp
+	}
+
+	for _, method := range []string{http.MethodTrace, http.MethodPut, http.MethodDelete, http.MethodPatch, http.MethodPost} {
+		t.Run(method+" is refused", func(t *testing.T) {
+			resp := do(method, "/app.js")
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusMethodNotAllowed {
+				t.Errorf("%s /app.js = %d, want 405 - a static file server must not treat every method as a read", method, resp.StatusCode)
+			}
+			if got := resp.Header.Get("Allow"); got != "GET, HEAD" {
+				t.Errorf("Allow header = %q, want %q", got, "GET, HEAD")
+			}
+		})
+	}
+
+	t.Run("GET still serves the file", func(t *testing.T) {
+		resp := do(http.MethodGet, "/app.js")
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("GET /app.js = %d, want 200 - the method restriction must not break normal asset loading", resp.StatusCode)
+		}
+	})
+
+	t.Run("HEAD still succeeds", func(t *testing.T) {
+		resp := do(http.MethodHead, "/app.js")
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("HEAD /app.js = %d, want 200", resp.StatusCode)
+		}
+	})
+}

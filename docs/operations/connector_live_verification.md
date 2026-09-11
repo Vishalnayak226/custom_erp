@@ -1,3 +1,21 @@
+---
+doc_id: DOC-4868DDDE09
+title: Live connector verification (Stage 17.11)
+type: procedure
+status: draft
+owner: operations-owner
+approvers: [documentation-maintainer, operations-owner]
+audience: [maintainers, operations-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # Live connector verification (Stage 17.11)
 
 `micro_checklist.md` 17.11 requires verifying each real channel connector (Shopify, BigCommerce, Magento/Adobe Commerce) against a real disposable store, one at a time, before upgrading that connector's Stage 16 status from BUILT to DONE. This needs real, non-production platform credentials, which only the account owner can supply — everything else (the connector code itself, and the verification tooling below) is built and ready.

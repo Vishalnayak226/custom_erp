@@ -41,7 +41,11 @@ func TestPIMDashboardRouteRequiresAuthenticationAndHonorsModuleGate(t *testing.T
 	}()
 	engines.ResetLiveUserStateCache()
 
-	token := engines.SignToken("dashboard-test", "dashboard-test", "HR/Admin", "default", "HO")
+	// The seed above is an upsert (ON CONFLICT DO UPDATE), which preserves
+	// whatever credential_version a prior run of this fixed-id fixture left
+	// behind rather than resetting it to the column DEFAULT - read the live
+	// value instead of assuming 1.
+	token := engines.SignToken("dashboard-test", "dashboard-test", "HR/Admin", "default", "HO", currentCredentialVersion("dashboard-test"))
 	authorized := doRequest(t, handler, http.MethodGet, "/api/v1/pim/dashboard", token, nil)
 	if authorized.Code != http.StatusOK {
 		t.Fatalf("authorized dashboard status=%d body=%s", authorized.Code, authorized.Body.String())

@@ -4,7 +4,14 @@ section: Troubleshooting
 order: 20
 summary: Every code the application can show you, what causes it and what to do about it.
 audience: everyone
-last_verified: 2026-09-06
+last_verified: 2026-09-10
+owner: documentation-maintainer
+status: active
+topic_type: reference
+module: platform
+task: Error code reference
+prerequisites: Authorized access to the relevant ERP task
+applies_to: source registries; not release acceptance
 ---
 
 <!-- GENERATED ARTICLE - DO NOT EDIT BY HAND.
@@ -12,8 +19,8 @@ last_verified: 2026-09-06
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **302** of them,
-across **42** areas. This page is produced from the running catalog, so it
+Every refusal in this application carries a code. There are **304** of them,
+across **43** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
 Search is usually faster than scrolling: type the code into the search box
@@ -42,6 +49,7 @@ to read the dialog it appears in, start with
 - [Finance & Accounting](#finance-accounting) - 14 codes
 - [Fixed Assets](#fixed-assets) - 3 codes
 - [Global / Common](#global-common) - 25 codes
+- [Goods Receipt](#goods-receipt) - 2 codes
 - [Goods Receipt / GRN](#goods-receipt-grn) - 8 codes
 - [HR / Payroll](#hr-payroll) - 11 codes
 - [Integration / API](#integration-api) - 9 codes
@@ -235,6 +243,13 @@ to read the dialog it appears in, start with
 | `GLOBAL-0296` | Invalid copied grid data | Copied data contains invalid cells. Please correct highlighted rows. | Correct highlighted grid cells. | Medium | 422 |
 | `GLOBAL-0297` | Required lookup inactive | Selected lookup value is inactive. Please choose an active value. | Select active master value. | Medium | 422 |
 | `GLOBAL-0302` | Unexpected server error | An unexpected error occurred. Please try again, or contact support with the reference ID below if it persists. | Retry the action. If it keeps happening, contact support with the correlation ID shown. | Critical | 500 |
+
+## Goods Receipt
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `GOODSR-0096` | Damaged quantity requires a reason | Enter a damage reason for each damaged receipt line. | Record the observed damage and submit the receipt again. | High | 422 |
+| `GOODSR-0097` | Rejected and damaged quantities exceed received quantity | Rejected plus damaged quantity cannot exceed received quantity. | Check the received, rejected and damaged counts; correct the line before submitting. | High | 422 |
 
 ## Goods Receipt / GRN
 

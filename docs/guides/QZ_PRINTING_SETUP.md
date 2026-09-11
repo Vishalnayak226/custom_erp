@@ -1,3 +1,21 @@
+---
+doc_id: DOC-C42FE7B40B
+title: Silent Printing Setup (QZ Tray)
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+audience: [maintainers, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: transition-copy
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # Silent Printing Setup (QZ Tray)
 
 One-click printing of shipping labels, invoices and stickers straight to a

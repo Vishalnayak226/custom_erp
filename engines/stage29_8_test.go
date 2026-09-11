@@ -146,7 +146,7 @@ func TestJWTSigningKeyRotation(t *testing.T) {
 		defer func() { jwtKeys, jwtSigningKey = origKeys, origSigning }()
 		jwtKeys, jwtSigningKey = keys, signing
 
-		token := SignToken("rot-user", "rot-user", "HR/Admin", "default", "HO")
+		token := SignToken("rot-user", "rot-user", "HR/Admin", "default", "HO", 1)
 		claims, err := ParseToken(token)
 		if err != nil {
 			t.Fatalf("a token signed with the active key must verify: %v", err)
@@ -158,7 +158,7 @@ func TestJWTSigningKeyRotation(t *testing.T) {
 		// A token issued BEFORE the rotation (signed by key 1) must still be
 		// accepted - that is the entire point of keeping old keys in the ring.
 		jwtSigningKey = jwtKey{kid: "1", secret: []byte("old-key-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")}
-		oldToken := SignToken("rot-user", "rot-user", "HR/Admin", "default", "HO")
+		oldToken := SignToken("rot-user", "rot-user", "HR/Admin", "default", "HO", 1)
 		jwtSigningKey = signing
 		if _, err := ParseToken(oldToken); err != nil {
 			t.Fatalf("a token signed by a still-configured older key must verify: %v", err)
@@ -181,7 +181,7 @@ func TestJWTSigningKeyRotation(t *testing.T) {
 	})
 
 	t.Run("a forged signature is still rejected under rotation", func(t *testing.T) {
-		token := SignToken("rot-user", "rot-user", "HR/Admin", "default", "HO")
+		token := SignToken("rot-user", "rot-user", "HR/Admin", "default", "HO", 1)
 		if _, err := ParseToken(token + "ff"); err == nil {
 			t.Fatal("a tampered signature must not verify against any key in the ring")
 		}

@@ -1,3 +1,21 @@
+---
+doc_id: DOC-C44AC5B356
+title: Admin Guide
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+audience: [maintainers, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: transition-copy
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # Admin Guide
 
 A complete, standalone operator manual — written so a person can pick up this system with **zero AI assistance**, starting from a bare Windows machine, and get it running, keep it running, and grow with it. It's organized in layers: start at §1 if you've never touched this system before; skip ahead if you already know the basics and need a specific procedure.
@@ -68,7 +86,7 @@ Add `-Env test` or `-Env live` to target an environment other than the default (
 
 ### B.2 User and Role Management
 
-- **Creating a user**: **Users** screen (Super Admin only — every other role gets a 403 from the API even though the menu item itself is currently visible to everyone, see [User Guide](USER_GUIDE.md) §3). Fill in username, password (8+ characters), email, and role, then **Create User**. New accounts start **Active**.
+- **Creating a user**: **Users** screen (Super Admin only — every other role gets a 403 from the API even though the menu item itself is currently visible to everyone, see [User Guide](USER_GUIDE.md) §3). Fill in username, password, email, and role, then **Create User**. New accounts start **Active**. The password must clear the same baseline (Stage 49.2.2) a self-service change/reset does: at least 12 characters by default (`security.password_min_length`, editable in Configuration), not one of the most common/breached passwords, not the username itself, and not a simple repeated or sequential pattern — the API rejects one that doesn't with a specific reason.
 - **Deactivating/reactivating a user**: same **Users** screen, the **Deactivate**/**Reactivate** action on each row. You can't deactivate the account you're currently logged in as. A deactivated user's login is rejected the same as a wrong password, **and any session they already have open stops working on their next click** — you do not have to wait for their sign-in to time out. The same applies to changing someone's role or location: it takes effect on their live session, not at their next login. (If you make the change directly in the database rather than through this screen, allow up to 30 seconds — see `AUTH_STATE_CACHE_SECONDS` in `deploy/erp.env.example`.)
 - **Granting permissions**: **Roles** screen (also Super Admin only) shows every currently-granted (role, record type) permission as a table, and a form above it to add or update one — pick the role and record type, check whichever of Read/Create/Update/Delete apply, **Save Grant**. A role with no row for a given record type gets **no access at all** to it (fails closed) — Super Admin itself always has full access everywhere and never needs a row here. See the [User Guide](USER_GUIDE.md) §3 for what each role's sidebar looks like, and `../ERP_BLUEPRINT.md` §3 for how role checks are enforced (server-side, on every action — never trust a UI-only restriction).
 - **Super Admin** and other privileged roles require MFA (Multi-Factor Authentication — a 6-digit code from an authenticator app).
@@ -77,7 +95,11 @@ Add `-Env test` or `-Env live` to target an environment other than the default (
   - Ten **single-use recovery codes** are issued when they first enrol, shown once, and accepted on the login screen in place of a 6-digit code.
   - **My Profile → Two-Factor Recovery** lets them move their authenticator to a new phone (confirming with their password, not a code, since the old device may be gone) and generate a fresh set of codes. It also shows how many codes they have left.
   - Only a scrambled fingerprint of each code is stored, so **you cannot look up a user's codes for them** — if they have lost them, the choice is regenerate (if they can still sign in) or Reset 2FA (if they can't).
-- **Worth doing before you need it: keep a second Super Admin account, enrolled on a different device.** With a single admin account, a lost phone plus lost codes means nobody left in the tenant can perform the reset, and recovery drops back to server shell access.
+- **Resetting a user's password (Stage 49.2.4).** The same **Users** screen row also has a **Reset Password** action, for someone locked out who cannot reach their own **My Profile → Change Password** (forgotten password) or the emailed **Forgot Password** link (no working email on file). You'll be asked for a reason.
+  - For an ordinary account, the reset happens immediately: a one-time password is shown to you once (it is never emailed, and never shown again) — read or relay it to the user through a channel you already trust is really them, such as a phone call, not chat/email. It replaces their password immediately and signs out every session already open on that account.
+  - **If the target is itself a Super Admin account, one admin acting alone cannot do this.** The request instead appears on the **Approvals** screen, where a *different* Super Admin (never the one who requested it) must approve it before anything changes — and the reason you gave is what they see when deciding. Only the approving admin ever sees the generated one-time password, in the approval decision's own confirmation dialog; the requester does not. This is deliberate: a single compromised or malicious admin account must not be able to both request and learn a privileged credential. You cannot use this action to reset your own password — use **My Profile** instead.
+- **Worth doing before you need it: keep a second Super Admin account, enrolled on a different device.** With a single admin account, a lost phone plus lost codes means nobody left in the tenant can perform the reset, and recovery drops back to server shell access. It is also now a functional requirement for password recovery specifically: **with only one Super Admin account, that account's own forgotten password can only be recovered through the emailed reset link or server/database access** — there is no second admin available to approve a helpdesk reset.
+- **Changing your own recovery email now requires your current password** (Stage 49.2.4), on **My Profile → Contact & Session**. This closes an account-takeover path: without it, anyone who got hold of a signed-in session (a stolen bearer token, an unattended browser) could silently redirect "Forgot Password" to an address they control. If you had an email on file before the change, it receives a notice — the new address does not, since this is a risk alert, not a confirmation step.
 
 > **Supplier logins (PIM).** A supplier who submits product content is created here like any other user, with the role **Supplier** — there is no separate portal to set up. Their account must also be linked to the **Vendor** record they speak for; until it is, they can sign in but every screen refuses them, by design. A Supplier session can only ever see and edit submissions filed under their own vendor. See §PIM for the review side.
 - If a user's login is locked out after too many failed attempts, wait for the automatic lockout window to expire, or have an admin clear it directly.

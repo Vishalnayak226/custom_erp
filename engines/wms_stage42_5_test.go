@@ -351,6 +351,24 @@ func TestStage42_5InventoryControlDepth(t *testing.T) {
 		seedBin(mixedBin, location, "", "Reserve") // unowned at the Bin level - purely stock-level segregated below.
 		seedBinStock(mixedBin, sku, location, 100)
 
+		// Stage 47.5.1 made ONE OWNER PER WAREHOUSE the enforced default
+		// (audit A-05): allocation and picking take no owner parameter, so two
+		// owners under one roof means one client's demand can be filled from
+		// another client's stock. This sub-test exercises 42.5.5's
+		// multi-owner BILLING breakdown, which is exactly the configuration
+		// that guard refuses - so it opts into the unsupported mode explicitly,
+		// which is what a real 3PL pilot would have to do too. The billing maths
+		// below is unchanged and still worth testing; what changed is that
+		// reaching this state is now a deliberate, named choice rather than the
+		// default.
+		if err := SetSetting(tenantID, StockOwnershipModeSetting, OwnershipMixedUnsupported, "stage42.5 test"); err != nil {
+			t.Fatalf("failed to opt into the unsupported mixed-owner mode: %v", err)
+		}
+		t.Cleanup(func() {
+			_ = SetSetting(tenantID, StockOwnershipModeSetting, OwnershipSingleOwner, "stage42.5 test cleanup")
+			_, _ = db.DB.Exec("DELETE FROM "+schema+".warehouse_owner WHERE location_code = $1", location)
+		})
+
 		// 42.5.5's core claim: one bin can hold two owners' stock.
 		if err := RecordOwnerStock(tenantID, mixedBin, sku, ownerA, "Good", 60, "system"); err != nil {
 			t.Fatalf("RecordOwnerStock(ownerA) failed: %v", err)

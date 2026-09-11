@@ -1,3 +1,23 @@
+---
+doc_id: DOC-0E98B31FD2
+title: Business UAT — run sheet and closure log
+type: template
+status: draft
+owner: qa-owner
+approvers: [documentation-maintainer, qa-owner]
+audience: [maintainers, qa-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: proposed-policy
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
+> Reusable draft template. Fill in the customer, release, roles and evidence, then obtain the accountable owner’s approval before operational use. Existing check marks or examples are not acceptance of a new deployment.
+
 # Business UAT — run sheet and closure log
 
 **Status: DRAFT, ready to run once real business users are available.** Written

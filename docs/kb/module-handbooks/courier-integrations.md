@@ -6,6 +6,22 @@ summary: Book a shipment, check serviceability, print a label, and track it to d
 audience: warehouse operator, admin
 last_verified: 2026-09-03
 screens: [marketplace, oms, doctype-table]
+doc_id: DOC-1512253FF0
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: courier-integrations
+task: Courier Integrations
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Courier Integrations

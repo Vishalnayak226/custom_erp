@@ -1,3 +1,21 @@
+---
+doc_id: DOC-B6C9226874
+title: Public API v1 Contract
+type: reference
+status: draft
+owner: product-owner
+approvers: [documentation-maintainer, product-owner]
+audience: [maintainers, product-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: proposed-design
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # Public API v1 Contract
 
 Status: **open, read-only (Stage 38, 2026-08-12).** This document is the compatibility policy

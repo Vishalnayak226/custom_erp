@@ -1,0 +1,22 @@
+{
+  "status": "draft",
+  "owner": "data-owner",
+  "review_by": "2026-10-09",
+  "default_definition": "Configured ERP document; validate the field labels and owning process with the implementation data steward before import.",
+  "domains": {
+    "Inventory": "Stock, storage and movement records managed by the inventory process owner.",
+    "Finance": "Accounting and settlement records managed by the finance process owner.",
+    "HR": "Employee and workforce records managed by the HR process owner.",
+    "Sales": "Customer demand and selling records managed by the sales process owner.",
+    "Procurement": "Supplier purchasing records managed by the procurement process owner."
+  },
+  "definitions": {
+    "Item": "Product master identifying a sellable, purchasable or stocked SKU; operational settings control tracking and validation.",
+    "Customer": "Party receiving goods or services; access and consent must follow the approved customer process.",
+    "Vendor": "Party supplying goods or services; procurement maintains identity and commercial references."
+  },
+  "key_policy": "Physical primary and unique keys are listed in registry.keys. JSON business identifiers and numbering rules are additional application controls; do not infer global uniqueness from a field label.",
+  "tenant_scope": "The captured schema is tenant_default in development. Tenant, entity, location and owner authorization must be checked by the service; copying a document identifier does not grant access.",
+  "retention": "No universal duration is approved. Apply the signed jurisdiction, document-class and customer retention schedule and legal holds before purge; preserve required audit and transactional records.",
+  "classification": "The sensitive-field registry identifies known protected fields. Every other field needs process-owner classification before export; absence from that registry is not a public-data designation."
+}

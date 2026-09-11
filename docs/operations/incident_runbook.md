@@ -1,3 +1,21 @@
+---
+doc_id: DOC-D65D6C4A50
+title: Incident Runbook
+type: procedure
+status: draft
+owner: operations-owner
+approvers: [documentation-maintainer, operations-owner]
+audience: [maintainers, operations-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # Incident Runbook
 
 Operational response procedure for this ERP: severity levels, escalation, rollback, log locations, and the automated alerting that backs this up (Stage 17.10). Pair this with [`docs/operations/backup_restore.md`](backup_restore.md) (backup/restore mechanics) and [`docs/ai_handover.md`](../ai_handover.md) §1-§3 (environment/port map, start/stop commands).

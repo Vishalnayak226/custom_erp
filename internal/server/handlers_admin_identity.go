@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"custom_erp/db"
 	"custom_erp/engines"
@@ -160,10 +161,6 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "username and role are required")
 		return
 	}
-	if len(req.Password) < 8 {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Password must be at least 8 characters")
-		return
-	}
 	// 24.1: defaults to "HO" (the column's own DEFAULT) when omitted,
 	// matching every existing user's behavior before this field existed.
 	if req.LocationCode == "" {
@@ -175,6 +172,13 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	// 49.2.2: the shared baseline applies to an admin-chosen initial
+	// password exactly as it does to a self-service change/reset.
+	if err := engines.ValidatePasswordStrength(tenantID, req.Password, req.Username); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
 
@@ -305,6 +309,56 @@ func handleSetUserLocation(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
+// handleRequestPasswordReset (49.2.4) is the admin-assisted "helpdesk"
+// password reset - the gap the 2026-09-08 handover note flagged explicitly:
+// there was no admin-driven way to reset another user's password at all,
+// only self-service change/reset. A target with an ordinary role is reset
+// immediately, the same shape handleAdminResetUserMFA already uses for MFA.
+// A target who is a Super Admin instead routes through
+// engines.RequestAdminPasswordReset's dual-control path - see its own doc
+// comment for why.
+func handleRequestPasswordReset(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("Resolved-Role")
+	if !requireHRAdmin(w, r, role) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	var req struct {
+		ID     string `json:"id"`
+		Reason string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'id' is required")
+		return
+	}
+
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	actorUserID := r.Header.Get("Resolved-User-ID")
+	if req.ID == actorUserID {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Use Change Password on your own Profile screen to reset your own password")
+		return
+	}
+
+	result, err := engines.RequestAdminPasswordReset(tenantID, actorUserID, role, req.ID, req.Reason)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	status := "pending_approval"
+	if result.Immediate {
+		status = "success"
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":        status,
+		"document_id":   result.DocumentID,
+		"temp_password": result.TempPassword,
+		"detail":        result.Detail,
+	})
+}
+
 func handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
 	if !requireHRAdmin(w, r, role) {
@@ -374,4 +428,65 @@ func handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 	}
+}
+
+// --- Stage 47.7: audit evidence verification and checkpoints ---------------
+
+// handleVerifyAuditEvidence replaces the chain verifier for callers that want
+// the Stage 47.7 answer: per-row signature verification plus checkpoint
+// verification, and an explicit statement of what was NOT covered.
+//
+// The older GET /admin/audit-logs/verify is deliberately left in place and
+// unchanged. It reports on the legacy `checksum` chain, which still exists on
+// historical rows; removing it would delete the only view of that data. The
+// two answer different questions and say so.
+func handleVerifyAuditEvidence(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("Resolved-Role")
+	if !requireHRAdmin(w, r, role) {
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	result, err := engines.VerifyAuditEvidence(tenantID)
+	if err != nil {
+		// A verifier that cannot run is NOT a passing verifier, and must never
+		// be reported as one (47.7.7).
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError,
+			"Audit verification could not be completed - treat the evidence as unverified, not as intact.")
+		return
+	}
+	// "Alert on missing verification, not just explicit failure": how long
+	// since anything was checkpointed at all.
+	overdue, since, _ := engines.AuditVerificationOverdue(tenantID, 48*time.Hour)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"verification":          result,
+		"verification_overdue":  overdue,
+		"hours_since_last_seal": int(since.Hours()),
+	})
+}
+
+// handleWriteAuditCheckpoint seals everything written since the last
+// checkpoint. Exposed as well as scheduled so an operator can take a seal
+// immediately before an export, a restore drill or an auditor's visit.
+func handleWriteAuditCheckpoint(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("Resolved-Role")
+	if !requireHRAdmin(w, r, role) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	cp, err := engines.WriteAuditCheckpoint(tenantID, "Periodic")
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to write an audit checkpoint")
+		return
+	}
+	if cp == nil {
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"checkpointed": false, "reason": "no new audit rows since the last checkpoint",
+		})
+		return
+	}
+	_ = json.NewEncoder(w).Encode(cp)
 }

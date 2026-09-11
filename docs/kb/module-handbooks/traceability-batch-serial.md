@@ -6,6 +6,22 @@ summary: Track a lot or an individual unit from receipt to dispatch, pick the ri
 audience: warehouse operator, category manager, admin
 last_verified: 2026-08-31
 screens: [grn, wave-picking, doctype-table, reports]
+doc_id: DOC-60557E41E3
+type: procedure
+status: draft
+owner: documentation-maintainer
+approvers: [documentation-maintainer, documentation-maintainer]
+applies_to: source documentation; scoped release acceptance required
+authority: canonical
+confidentiality: internal
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+topic_type: how-to
+module: traceability-batch-serial
+task: Batch, Serial & Expiry Traceability
+prerequisites: Signed-in account with permission for the described task; observe the article prerequisites
 ---
 
 # Batch, Serial & Expiry Traceability
@@ -81,28 +97,24 @@ Two expiry gates apply automatically, using the Item's own thresholds:
 **Stock in a bin is only visible to FEFO once that bin/lot combination has
 been explicitly recorded** — receiving a lot on a GRN creates its `Batch`
 record, but does not by itself tell the system which bin the stock ended up
-in. See the known gap below: today that link is written by a direct API
-call, not by the ordinary Putaway screen, so a lot moved through the normal
-putaway flow alone will not yet appear to FEFO.
+in. Use **WMS → RF Lot & Serial → Put a lot away** to record that link.
+The ordinary Putaway screen does not automatically perform this explicit lot
+assignment; verify the bin/lot record before relying on FEFO.
 
 > [!WARNING]
-> **Known gap, current as of this writing.** Linking a received lot to the
-> bin it was put away in (`POST /api/v1/wms/batch/putaway`), running the
-> expiry sweep, recording a manual lot consumption, and the serial
-> allocate/ship/return/scrap transitions (including the pack-time
-> allocated-order check below) are all real, tested server actions — but
-> none of them has a button in the app yet. The ordinary Putaway and Pack
-> screens do not call them. Until that UI catches up, these need a direct
-> API call (by an admin or integrator), not something a warehouse operator
-> can do by clicking through the app. Flagged in `docs/micro_checklist.md`
-> as a follow-up item.
+> **Current task surface.** Lot putaway, lot issue, serial status changes
+> and the expiry sweep are available under **WMS → RF Lot & Serial**.
+> Follow [RF lot and serial tasks](rf-lot-and-serial.md). The ordinary Putaway
+> and Pack screens do not automatically become lot-aware through this change;
+> the pack-time allocated-order check still needs its specific integration.
+> Physical-device and poor-network acceptance remain open.
 
 ## Serial verification at pack
 
 A serial number is allocated to a specific order when a pick is confirmed
 against it, and the system can reject packing that unit against a
 **different** order (`INVENT-0104`) than the one it's reserved for. This
-check exists and is tested, but — per the gap above — it is only reachable
+check exists and is tested, but it is only reachable
 via a direct API call today, not from the app's own Pack screen. If it's
 been run for a serial and rejected, that means the scanned serial belongs to
 a different order; look it up in Serial Number Inquiry to see what it's
@@ -111,9 +123,9 @@ actually reserved for.
 ## Expiry sweep: moving expired stock out of available
 
 Nothing removes expired stock from the sellable pool on its own — there is
-no background timer, and (per the gap above) no button in the app either.
-An admin or integrator runs it as a direct API call
-(`POST /api/v1/wms/batch/expiry-sweep`); it marks any lot past its expiry
+no background timer. An authorized operator can choose **Sweep expired lots**
+in **RF Lot & Serial** and confirm. This calls
+`POST /api/v1/wms/batch/expiry-sweep`; it marks any lot past its expiry
 date `Expired` and moves its stock from `Available` into the same
 quarantine (`qc_hold`) condition the damaged-goods flow uses, through the
 one shared stock-condition transition every quarantine move goes through —
@@ -203,19 +215,17 @@ permanently.
 
 **FEFO picking skips stock you can see in a bin.** For a batch-tracked
 item, only stock already linked to a lot in `bin_stock_batch` is eligible —
-and today that link is written by a direct API call
-(`/wms/batch/putaway`), not by the ordinary Putaway screen. See the known
-gap above; this is the most common way FEFO looks "broken" when the data
+and that link is recorded by **Put a lot away** in **RF Lot & Serial**,
+not automatically by the ordinary Putaway screen; this is the most common way FEFO looks "broken" when the data
 is really just never linked.
 
 **A serial was rejected while packing (`INVENT-0104`).** The scanned unit is
 reserved for a different order than the one being packed. Look it up in
 Serial Number Inquiry to see what it's actually allocated to.
 
-**Expired stock still shows as available.** The expiry sweep is an API
-action with no app button yet (see the known gap above) — someone with
-API/admin access needs to call it. It's idempotent, so calling it again if
-unsure does no harm.
+**Expired stock still shows as available.** Ask an authorized operator to
+review and run **Sweep expired lots** in **RF Lot & Serial**, then check the
+lot and condition reports. The sweep acts on active lots past their expiry date.
 
 **A lot is rejected against a customer order (`INVENT-0114`).** Either a
 Lottable Constraint on that customer/item rejects this lot's attributes, or
@@ -224,14 +234,10 @@ assuming it's a data error.
 
 ## What is not here yet
 
-**UI coverage today is receipt and read-only only.** Capturing a batch/lot
-or serial number happens through the GRN Workbench, and the five reports
-are fully usable from Reports → WMS. Everything else that acts on a batch
-or serial after receipt — linking it to a bin, consuming it against an
-order, sweeping expired stock, and the serial allocate/ship/return/scrap/
-pack-mismatch transitions — is a real, tested server action reachable only
-by direct API call, with no app screen yet. That is the single gap worth
-knowing about before relying on this module for daily floor work.
+**The RF task shell now covers the four explicit lot/serial actions.**
+Receipt capture and the inquiry reports remain available. The ordinary Pack
+screen still does not run the allocated-order serial check automatically, and
+the task shell does not certify every mobile device or scanning workflow.
 
 Scanning a pick at the mobile RF screen does not yet consume a specific lot
 or serial automatically either — it updates the task's picked quantity

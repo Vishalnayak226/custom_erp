@@ -1,4 +1,4 @@
-// Command gendocs generates the three reference appendices in docs/guides/
+// Command gendocs generates guide, KB Markdown and OpenAPI references.
 // that must never be hand-written, because a hand-written copy of a list the
 // code owns drifts the moment anyone touches the code - which is exactly the
 // failure Stage 30.3 spent a whole pass correcting.
@@ -9,8 +9,8 @@
 //
 // Run it with:
 //
-//	go run ./cmd/gendocs                      # the two that need no database
-//	go run ./cmd/gendocs -db "postgres://..."  # all three
+//	go run ./cmd/gendocs -out <staging-root>  # all registry projections
+//	go run ./cmd/gendocs -check               # compare without writing
 //
 // Database snapshots require explicit environment/schema/output scope and fail closed.
 //
@@ -21,17 +21,17 @@
 package main
 
 import (
+	"context"
+	"database/sql"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
-
-	"database/sql"
-	"encoding/json"
-	"regexp"
 
 	"custom_erp/engines"
 	"custom_erp/internal/docgen"
@@ -47,6 +47,7 @@ func main() {
 	connStr := flag.String("db", "", "optional database connection; requires explicit tenant, environment and output root")
 	tenant := flag.String("tenant", "", "explicit tenant schema for a permission snapshot")
 	environment := flag.String("environment", "", "environment label for a permission snapshot")
+	capture := flag.Bool("capture-data-registry", false, "capture only read-only structural metadata; requires explicit database, tenant, environment and output")
 	flag.Parse()
 	fail := func(err error) { fmt.Fprintln(os.Stderr, "gendocs:", err); os.Exit(1) }
 	explicitOut := false
@@ -73,6 +74,20 @@ func main() {
 	}
 	if _, err := time.Parse("2006-01-02", *stamp); err != nil {
 		fail(err)
+	}
+	if *capture {
+		if *connStr == "" || !explicitOut || *tenant == "" || *environment == "" || *check {
+			fail(fmt.Errorf("registry capture requires -db, -tenant, -environment, -out and cannot run in -check"))
+		}
+		body, err := captureRegistry(*connStr, *tenant, *environment, *stamp)
+		if err != nil {
+			fail(err)
+		}
+		if err := docgen.Write(*out, map[string][]byte{"docs/data/registry-snapshot.json": body}); err != nil {
+			fail(err)
+		}
+		fmt.Println("gendocs: read-only structural registry snapshot captured")
+		return
 	}
 	files, err := referenceFiles(*root, *stamp)
 	if err != nil {
@@ -109,7 +124,11 @@ func referenceFiles(root, stamp string) (map[string][]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return map[string][]byte{
+	files, err := dictionaryFiles(root, stamp)
+	if err != nil {
+		return nil, err
+	}
+	for name, body := range map[string][]byte{
 		"docs/guides/ERROR_CODES.md":                      []byte(errorCodesDoc(stamp)),
 		"docs/guides/REPORT_CATALOG.md":                   []byte(reportCatalogDoc(stamp)),
 		"docs/kb/troubleshooting/error-code-reference.md": []byte(kbErrorCodeReference(stamp)),
@@ -117,7 +136,13 @@ func referenceFiles(root, stamp string) (map[string][]byte, error) {
 		"docs/kb/reference/country-phone-rules.md":        []byte(kbCountryPhoneRules(stamp)),
 		"docs/kb/reference/release-notes.md":              []byte(kbReleaseNotes(stamp, string(ledger))),
 		"docs/specs/openapi_public_v1.json":               append(spec, '\n'),
-	}, nil
+		// Preserve the published path as a generated compatibility projection
+		// for the governed transition window; both derive from one registry.
+		"docs/api/generated/public-v1.json": append(spec, '\n'),
+	} {
+		files[name] = body
+	}
+	return files, nil
 }
 
 // generatedHeader is the same warning on all three files. Anyone editing one
@@ -270,8 +295,10 @@ func permissionMatrixDoc(stamp, connStr, tenant, environment string) (string, er
 		return "", err
 	}
 	defer conn.Close()
-	rows, err := conn.Query(`SELECT role, doctype_name, allow_read, allow_create, allow_update, allow_delete
-	                            FROM ` + pq.QuoteIdentifier(tenant) + `.role_permissions ORDER BY doctype_name, role`)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	rows, err := conn.QueryContext(ctx, `SELECT role, doctype_name, allow_read, allow_create, allow_update, allow_delete
+	                            FROM `+pq.QuoteIdentifier(tenant)+`.role_permissions ORDER BY doctype_name, role`)
 	if err != nil {
 		return "", err
 	}
@@ -313,21 +340,18 @@ func permissionMatrixDoc(stamp, connStr, tenant, environment string) (string, er
 		"Permission Matrix",
 		stamp,
 		"the tenant's own `role_permissions` table",
-		"`go run ./cmd/gendocs -db \"postgres://...\"`"))
+		"`go run ./cmd/gendocs -db <connection> -tenant <schema> -environment <label> -out <evidence-root>`"))
 
 	b.WriteString(fmt.Sprintf("Historical grant snapshot only; not an effective authorization policy.\n"+
 		"Environment: "+environment+"; schema: "+tenant+". Route, scope, field and workflow controls also apply.\n\n"+
 		"What each role was granted at capture time:\n"+
 		"grants: **%d record types across %d roles.**\n\n"+
-		"**Super Admin is not listed** - it always has full access to everything and needs no\n"+
-		"grant rows. A role with **no row at all** for a record type has **no access to\n"+
-		"it**: this system fails closed, so a missing grant is a denial, never a default\n"+
-		"allow.\n\n"+
+		"Only roles represented in this table are listed. Absence is not evidence of\n"+
+		"the effective result of route, scope, field, tenant or workflow authorization.\n\n"+
 		"Legend: **R** read - **C** create - **U** update - **D** delete - `-` none\n\n"+
 		"An administrator changes any of this on **Settings -> Roles** (ADMIN_SOP §A.2).\n"+
-		"Since Stage 30.5.7 the app also *hides* what a role cannot do - no **New** or\n"+
-		"**Bulk Import** button without create, no row **Edit**/**Delete** icons without\n"+
-		"update/delete - so this table also predicts what each role actually sees.\n\n",
+		"Verify the effective permission through the relevant API and role workflow\n"+
+		"before using this snapshot as migration evidence.\n\n",
 		len(doctypes), len(roles)))
 
 	b.WriteString("| Record type |")

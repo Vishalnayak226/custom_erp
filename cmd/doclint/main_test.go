@@ -29,6 +29,9 @@ func TestLinksResolveRepositoryAndKBAnchors(t *testing.T) {
 	if strings.Contains(stripCode("```md\n[example](missing.md)\n```\n[real](present.md)"), "missing") {
 		t.Fatal("linted illustrative fenced code")
 	}
+	if got := stripInlineCode("`[example](missing.md)` and ``[example](missing.md)`` [real](present.md)"); strings.Contains(got, "missing") || !strings.Contains(got, "present") {
+		t.Fatal(got)
+	}
 }
 
 func TestLintFindsBrokenLinksExpiredReviewAndDuplicateIDsWithoutWriting(t *testing.T) {

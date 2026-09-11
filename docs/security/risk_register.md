@@ -1,3 +1,21 @@
+---
+doc_id: DOC-883F429D51
+title: Security risk register
+type: reference
+status: draft
+owner: security-owner
+approvers: [documentation-maintainer, security-owner]
+audience: [maintainers, security-owner]
+applies_to: source documentation; scoped release acceptance required
+authority: proposed-policy
+confidentiality: internal
+last_verified: 2026-09-09
+review_by: 2026-10-09
+supersedes: none
+superseded_by: none
+verification_scope: metadata and lifecycle classification; domain acceptance pending
+---
+
 # Security risk register
 
 **Stage 49.0.6** — opened 2026-09-06. Companion to [threat_model.md](threat_model.md).
@@ -181,6 +199,38 @@ back door and the absence of a governed front door are the same gap.
 - **Evidence:** `internal/securityscan/bypass.go` `bypass-vocabulary` scan, clean.
 - **Review:** at 49.14 closure.
 
+### R-10 — Static asset server answered every HTTP method, not just GET/HEAD
+
+| | |
+|---|---|
+| **Severity** | Low (no reflection/echo, no browser can send a real `TRACE`; still a real allowlist gap) |
+| **Exposure** | D1, D2 |
+| **Detectability** | None before this session; now caught by `TestOnlyReadMethodsRejectsEverythingButGetAndHead` and by re-running `cmd/edgecheck`. |
+| **Found** | 2026-09-08, Stage 49.1.7 (outside-in verification), confirmed live against production |
+
+`internal/server/routes.go` registered the static file tree at the bare
+`http.Handle("/", fs)` pattern, which in Go's `net/http.ServeMux` syntax
+matches every HTTP method. `http.FileServer`/`http.ServeFile` only
+special-case `HEAD` and otherwise ignore `r.Method` entirely, so `TRACE`,
+`PUT`, `DELETE`, `PATCH` and `POST` against any real static asset all
+returned `200` with the file body — confirmed against production itself
+(`TRACE /app.js`, `PUT /styles.css`), not just reasoned about. Every other
+route in the codebase either carries an explicit method in its `ServeMux`
+pattern or runs behind `apiMiddleware`, both of which already refuse a wrong
+method; this was the one surface with neither.
+
+- **Treatment:** `internal/server/static_fileserver.go` gained
+  `onlyReadMethods`, wrapping the file server so anything but GET/HEAD gets a
+  `405` with `Allow: GET, HEAD` before the file server runs. Done and tested
+  in this tree; **not yet deployed to production**, so the exposure above is
+  still live until the next deploy.
+- **Owner:** whoever runs the next production deploy.
+- **Evidence:** `internal/server/static_fileserver_test.go`
+  (`TestOnlyReadMethodsRejectsEverythingButGetAndHead`);
+  `docs/security/outside_in_verification_2026-09-08.md`.
+- **Review:** close this row once the fix is deployed and `cmd/edgecheck`
+  re-run against production shows the `TRACE /` check passing.
+
 ### R-09 — No artifact signing, provenance or reproducible build
 
 | | |
@@ -198,6 +248,40 @@ small dependency surface: two Go modules, both indirect, both pinned.
 - **Owner:** whoever owns the release pipeline.
 - **Evidence:** `docs/security/attack_surface.json` `dependencies`; `deploy/deploy.ps1`.
 - **Review:** at 49.9 closure.
+
+### R-12 — Admin-driven MFA reset has no dual control for a privileged target
+
+| | |
+|---|---|
+| **Severity** | Medium (likelihood: low — requires a Super Admin account already compromised or malicious; impact: high — clears a second factor with no second signer) |
+| **Exposure** | D1, D2 |
+| **Detectability** | Good — `USER_MANAGEMENT`/`MFA_RESET_BY_ADMIN` audit log entry, but only after the fact. |
+| **Found** | 2026-09-09, Stage 49.2.4, while closing the equivalent gap for password reset |
+
+`handleAdminResetUserMFA` (`internal/server/handlers_mfa_recovery.go`) lets any
+single Super Admin clear MFA enrollment for *any* other account, including another
+Super Admin's, with no second approver. 49.2.4 built exactly this "auditable
+dual-control helpdesk recovery for privileged users" control for the equivalent
+admin-driven password reset (`engines.RequestAdminPasswordReset`,
+`PasswordResetRequest` doctype) but deliberately did not retrofit it onto the
+pre-existing MFA-reset endpoint in the same session — `TestAdminResetUserMFA`
+(`internal/server/mfa_recovery_test.go`) seeds both the acting admin and the target
+with role `HR/Admin` by construction, so applying dual control here is a real
+behavior change to already-tested, working functionality, not a drop-in addition,
+and deserved its own reviewed session rather than riding along.
+
+- **Treatment:** give `handleAdminResetUserMFA` the same privileged-target gate
+  `RequestAdminPasswordReset` uses (`engines.IsSuperAdmin(targetRole)` routes through
+  `SubmitForApproval`/`DecideApproval` instead of executing immediately, following
+  the `PasswordResetRequest` doctype's exact shape), and update `TestAdminResetUserMFA`
+  to reflect a privileged target needing a second, different Super Admin's approval.
+  The MFA-clearing SQL currently inline in `handleAdminResetUserMFA` should be
+  extracted into a small exported `engines` function first, so both the immediate
+  and the dual-control path call one choke point rather than duplicating it.
+- **Owner:** whoever next picks up a 49.2 sub-item.
+- **Evidence:** `internal/server/handlers_mfa_recovery.go` (`handleAdminResetUserMFA`);
+  `engines/admin_password_reset.go` (the sibling that already has the gate).
+- **Review:** at the next 49.2 session, or 2026-12-09.
 
 ---
 
@@ -227,6 +311,32 @@ with the misuse case each one corresponds to in threat_model.md §5.
 ---
 
 ## Closed
+
+### R-11 — Login accepted a non-constant-time plaintext fallback if `password_hash` were ever unhashed
+
+| | |
+|---|---|
+| **Severity** | High (authentication bypass shape, currently unreachable) |
+| **Closed** | 2026-09-08, Stage 49.2.2 |
+
+`handleLogin` (`internal/server/handlers_auth.go`) checked `bcrypt.CompareHashAndPassword`
+and, on failure, also compared `u.PasswordHash != req.Password` directly — a leftover
+"fallback check for local seed configs." Every account this codebase actually seeds
+(`db/migration.sql`, `engines/saas.go` provisioning, `engines/tenant_lifecycle.go`
+bootstrap credentials) stores a real bcrypt hash, so the fallback had no legitimate
+caller and was not exploitable as shipped. It was still the wrong shape for a
+security control: if `password_hash` were ever a plaintext value — a bad migration,
+a manual SQL fix, test debris written directly with `SET password_hash = '...'`
+(`engines/tenant_lifecycle_test.go` does exactly this to simulate an out-of-band
+rotation) — that comparison would authenticate anyone who typed the literal stored
+string, via a non-constant-time `!=` besides.
+
+- **Fix:** the fallback comparison is removed; a login now succeeds only through
+  `bcrypt.CompareHashAndPassword`, which fails closed on any non-bcrypt value and is
+  constant-time by construction.
+- **Evidence:** `internal/server/stage49_2_2_session_revocation_test.go` and the rest
+  of the 49.2.2 test suite exercise the login/change-password paths with the fallback
+  gone; no test in the suite relied on the removed behavior.
 
 ### R-04 — `public/` subdirectories were enumerable without authentication
 
