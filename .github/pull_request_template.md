@@ -22,7 +22,13 @@ Describe the concrete problem and resulting behavior, then record relevant valid
 
 - Requirements / support scope: affected documents, or reason unchanged.
 - Architecture / ADR / API / data migration: affected contracts and compatibility.
-- Security / privacy / permissions: affected controls and negative-case evidence.
+- Security / privacy / permissions (Stage 49.9.1 - fill in or say why not
+  applicable): crown jewels/trust boundaries touched (see
+  docs/security/threat_model.md §2/§3), abuse cases (§5, or a new one),
+  capabilities/fields/scopes affected, data classification/retention,
+  secrets or egress introduced, failure/recovery behavior, and which test
+  proves it. A small no-impact change should say so explicitly rather than
+  leave this blank.
 - User help / operations / recovery: updated KB or runbook and task verification.
 - Release notes / evidence: customer action, known limits and test results.
 

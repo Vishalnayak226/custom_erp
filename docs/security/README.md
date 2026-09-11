@@ -18,15 +18,36 @@ verification_scope: metadata and lifecycle classification; domain acceptance pen
 
 # docs/security
 
-Stage 49's security program lives here. Four files, three of them written by hand and
-one generated.
+Stage 49's security program lives here.
 
 | File | What it is | Maintained by |
 |---|---|---|
 | [threat_model.md](threat_model.md) | The security charter: supported configurations, objectives, crown jewels, trust boundaries, adversary personas, misuse cases, review triggers. Stage 49.0.1–49.0.5 and 49.0.7. | Hand-written. Re-reviewed on the triggers in its own §6. |
 | [risk_register.md](risk_register.md) | Every open and closed security risk, with exposure, detectability, treatment, owner and review expiry. Stage 49.0.6. The 2026-09-01 deep persona audit's findings are indexed into it rather than tracked separately. | Hand-written. |
-| [attack_surface.json](attack_surface.json) | The machine-readable inventory: every route and its authentication class, static roots, background jobs, CLI commands, migrations, environment flags, outbound call sites, dependencies. Stage 49.1.1, and the approved profile the 49.1.6 drift check compares against. | **Generated — never edit by hand.** |
+| [attack_surface.json](attack_surface.json) | The machine-readable inventory: every route and its authentication class, static roots, background jobs, CLI commands, migrations, environment flags, outbound call sites, dependencies. Stage 49.1.1, and the approved profile the 49.1.6 drift check compares against. | **Generated — never edit by hand.** Regenerate with `go run ./cmd/surfacescan`. |
+| [secure-development-lifecycle.md](secure-development-lifecycle.md) | Stage 49.9's SDLC/dependency/release-artifact supply-chain policy: what's built and tested vs. what's a documented GitHub-settings recommendation `[needs decision: org owner]`. | Hand-written. |
+| [dependency-inventory.md](dependency-inventory.md) | How the dependency ledger works, what's enforced automatically, and the review checklist for a new dependency (49.9.4). | Hand-written. |
+| [dependency-ledger.json](dependency-ledger.json) | Every direct/transitive Go module, CI action, CI tool and OS/runner image, each with owner/purpose/license/provenance/version/checksum. | **Hand-maintained, cross-checked by tests** — see `internal/supplychain`'s test file. |
 | This file | Index and regeneration instructions. | Hand-written. |
+
+## Release artifacts (49.9.6–49.9.9)
+
+`cmd/releasemanifest` builds and verifies the SBOM/checksum/provenance record
+for one build — see secure-development-lifecycle.md §49.9.6–49.9.7 for what
+it produces and `.github/workflows/ci.yml`'s `release-artifact` job for
+where it runs. Nothing here is committed to the repository (a manifest
+describes one specific build, not the source tree), so there is no drift
+check to run by hand the way there is for attack_surface.json.
+
+```sh
+# after building a release binary, from the repo root:
+go run ./cmd/releasemanifest -commit "$(git rev-parse HEAD)" \
+    -artifact erp-server=path/to/erp-server -out release_manifest.json
+
+# before trusting a copy of that binary:
+go run ./cmd/releasemanifest -verify -manifest release_manifest.json \
+    -artifact erp-server=/path/to/candidate/erp-server
+```
 
 The no-bypass inventory (49.1.4) is deliberately *not* a document. It lives as a
 reviewed allowlist in `internal/securityscan/bypass_test.go`, next to the scanner

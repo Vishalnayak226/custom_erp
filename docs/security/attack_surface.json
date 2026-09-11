@@ -3128,6 +3128,10 @@
       "path": "cmd/qzcert"
     },
     {
+      "name": "releasemanifest",
+      "path": "cmd/releasemanifest"
+    },
+    {
       "name": "reset_mfa",
       "path": "cmd/reset_mfa"
     },
@@ -3150,7 +3154,7 @@
   ],
   "migrations": {
     "base_schema_file": "db/migration.sql",
-    "incremental_files": 157,
+    "incremental_files": 156,
     "newest": [
       "migrations_stage49_1_5_tenant_lifecycle.sql",
       "migrations_stage49_2_2_password_hardening.sql",
@@ -3440,7 +3444,7 @@
     "direct_dependencies": 0,
     "environment_flags": 28,
     "environment_flags_security_critical": 12,
-    "incremental_migrations": 157,
+    "incremental_migrations": 156,
     "outbound_call_sites": 9,
     "routes": 486,
     "routes_integration_credential": 4,

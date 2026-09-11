@@ -1,0 +1,64 @@
+# Stage 49.9.2 - review ownership.
+#
+# CODEOWNERS only does anything once branch protection on `main` requires a
+# review from the matching code owner before merge - that's a repository
+# setting (Settings > Branches > Branch protection rules > "Require review
+# from Code Owners") an org owner has to turn on; this file cannot turn it on
+# by itself. See docs/security/secure-development-lifecycle.md, section 49.9.2,
+# for the exact settings to apply, marked [needs decision: org owner].
+#
+# git log shows exactly one contributor identity on this repository today
+# (github.com/Vishalnayak226, the repo owner). That is why every row below
+# names @Vishalnayak226 rather than a team: inventing a fictitious team
+# handle here would make this file look enforced when it is not, and a
+# CODEOWNERS entry that names a team GitHub cannot resolve silently stops
+# blocking merges instead of failing loudly. When a second reviewer joins,
+# split the areas below across real accounts or a real GitHub team (Settings
+# > Teams) and update this file in the same change that grants them repo
+# access - do not let review ownership and repo access drift apart.
+#
+# Order matters: GitHub uses the LAST matching pattern, so the most specific
+# paths are listed after the general fallback.
+
+* @Vishalnayak226
+
+# Authentication, session and tenant-identity surface (threat model crown
+# jewels #1, #3, #4 - signing key, tenant registry, identity/permissions).
+/engines/auth_livestate.go            @Vishalnayak226
+/engines/security_baseline.go         @Vishalnayak226
+/engines/security_baseline_test.go    @Vishalnayak226
+/engines/tenant_lifecycle.go          @Vishalnayak226
+/engines/scope_policy.go              @Vishalnayak226
+/engines/sensitive_fields.go          @Vishalnayak226
+/engines/sod_catalog.go               @Vishalnayak226
+/internal/server/handlers_auth.go     @Vishalnayak226
+/internal/server/middleware.go        @Vishalnayak226
+/internal/server/route_capabilities.go @Vishalnayak226
+/internal/server/tenant_host.go        @Vishalnayak226
+/cmd/tenantctl/                        @Vishalnayak226
+
+# Finance and inventory (crown jewel #6 - money and stock authority).
+/engines/finance.go        @Vishalnayak226
+/engines/inventory.go      @Vishalnayak226
+/engines/pos_checkout.go   @Vishalnayak226
+/engines/pos_payment.go    @Vishalnayak226
+/engines/returns.go        @Vishalnayak226
+/engines/returns_atomic.go @Vishalnayak226
+
+# Migrations (crown jewel #9 - release artifact and migrations; every
+# incremental file here becomes part of every future tenant's schema).
+/db/*.sql @Vishalnayak226
+/db/migrate.go @Vishalnayak226
+
+# Deploy and CI/CD (crown jewel #9; Stage 49.9.6-49.9.8's own controls).
+/deploy/                     @Vishalnayak226
+/.github/workflows/          @Vishalnayak226
+/.github/CODEOWNERS          @Vishalnayak226
+/Dockerfile                  @Vishalnayak226
+
+# Security program itself (this stage, the threat model, the scanners).
+/docs/security/          @Vishalnayak226
+/internal/securityscan/  @Vishalnayak226
+/internal/supplychain/   @Vishalnayak226
+/cmd/surfacescan/        @Vishalnayak226
+/cmd/releasemanifest/    @Vishalnayak226

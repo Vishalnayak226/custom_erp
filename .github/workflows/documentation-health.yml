@@ -10,14 +10,14 @@ permissions:
 
 jobs:
   report:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned label, not the floating `ubuntu-latest` (Stage 49.9.4/49.9.8)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 (pinned; Stage 49.9.8)
         with:
           fetch-depth: 0
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0 (pinned)
         with:
-          go-version: '1.22'
+          go-version: '1.22.12'
       - name: Collect advisory health findings
         shell: pwsh
         run: |
@@ -26,7 +26,7 @@ jobs:
       - name: Verify generated content without repository writes
         shell: pwsh
         run: ./docs/update-docs.ps1 -Group Content -Check
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0 (pinned)
         with:
           path: ${{ runner.temp }}/document-link-cache.json
           key: document-links-${{ github.run_id }}
@@ -35,7 +35,7 @@ jobs:
         run: go run ./cmd/doclint -external-out "$RUNNER_TEMP/document-links.json" -external-cache "$RUNNER_TEMP/document-link-cache.json"
       - name: Retain report for owner review
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.2 (pinned)
         with:
           name: document-health-${{ github.run_id }}
           path: |

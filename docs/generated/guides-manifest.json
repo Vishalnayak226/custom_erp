@@ -23,7 +23,7 @@
     },
     {
       "path": "docs/data/generated/dictionary.json",
-      "sha256": "957b527a6a49919f8237e832a7ebe6986434a0edbdf6023144fed5183d327044",
+      "sha256": "7b4921ddd31b98db13f3fcb8aa92498cf4ba33eb33f9b2c82f5ea756e7fdda45",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -36,7 +36,7 @@
     },
     {
       "path": "docs/data/generated/dictionary.md",
-      "sha256": "3ca1c567926a731bc3d3609349d7ac5ebec6499807aa14099355bdf9ce4850ba",
+      "sha256": "0ccb4328c305c3ebef61476f9573c81e6ec7edfa852dc913ed9bdc24a9e3aaad",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

@@ -1,0 +1,140 @@
+{
+  "schema_version": 1,
+  "updated": "2026-09-06",
+  "entries": [
+    {
+      "name": "github.com/lib/pq",
+      "type": "go_module_indirect",
+      "version": "v1.12.3",
+      "checksum": "h1:tTWxr2YLKwIvK90ZXEw8GP7UFHtcbTtty8zsI+YjrfQ=",
+      "owner": "infrastructure (database access layer, db/ and engines/)",
+      "purpose": "PostgreSQL driver for database/sql - every query in the application goes through it.",
+      "license": "MIT",
+      "provenance": "github.com/lib/pq upstream; version and checksum verified against go.sum, which `go mod verify` checks on every CI run (TestDependencyLedgerMatchesGoMod cross-checks the two files stay in step)."
+    },
+    {
+      "name": "golang.org/x/crypto",
+      "type": "go_module_indirect",
+      "version": "v0.25.0",
+      "checksum": "h1:ypSNr+bnYL2YhwoMt2zPxHFmbAN1KZs/njMG3hxUp30=",
+      "owner": "security (engines/security_baseline.go, auth handlers)",
+      "purpose": "golang.org/x/crypto/bcrypt for password hashing; this is the only cryptographic primitive the application does not implement itself.",
+      "license": "BSD-3-Clause",
+      "provenance": "Official Go sub-repository, maintained by the Go team under the same governance as the standard library; version and checksum verified against go.sum."
+    },
+    {
+      "name": "go",
+      "type": "go_toolchain",
+      "version": "1.22.12",
+      "checksum": "n/a - toolchain integrity is verified by GOSUMDB during `go install`/toolchain download, not a single static hash recorded here",
+      "owner": "infrastructure",
+      "purpose": "Compiler and stdlib used to build, vet and test the application, and to build cmd/releasemanifest itself.",
+      "license": "BSD-3-Clause",
+      "provenance": "go.dev official distribution. CI installs this exact patch via a pinned actions/setup-go (see below); deploy.ps1 uses a pinned go-portable install on the operator's machine (CLAUDE.md / deploy/README.md).",
+      "note": "The one place this ledger cannot yet prove a match by itself: nothing currently fails CI if the operator's local go-portable install and CI's actions/setup-go version drift apart. cmd/releasemanifest records go_version (runtime.Version(), i.e. what actually compiled a given build) in every release manifest, which is how a drift would be caught after the fact rather than never."
+    },
+    {
+      "name": "actions/checkout",
+      "type": "ci_action",
+      "version": "v4.4.0",
+      "checksum": "11d5960a326750d5838078e36cf38b85af677262",
+      "owner": "CI/infrastructure",
+      "purpose": "Checks out the repository for every CI job.",
+      "license": "MIT",
+      "provenance": "Official actions/ GitHub org. Pinned to the full commit SHA behind the v4.4.0 tag (a tag is a mutable pointer a compromised maintainer account could repoint; a commit SHA cannot be silently repointed without the SHA itself changing)."
+    },
+    {
+      "name": "actions/setup-go",
+      "type": "ci_action",
+      "version": "v5.6.0",
+      "checksum": "40f1582b2485089dde7abd97c1529aa768e1baff",
+      "owner": "CI/infrastructure",
+      "purpose": "Installs the pinned Go toolchain (go-version: 1.22.12, matching go.mod's `go` directive exactly) for build/vet/test.",
+      "license": "MIT",
+      "provenance": "Official actions/ GitHub org. Pinned to a full commit SHA."
+    },
+    {
+      "name": "actions/upload-artifact",
+      "type": "ci_action",
+      "version": "v4.6.2",
+      "checksum": "4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1",
+      "owner": "CI/infrastructure",
+      "purpose": "Attaches the release-artifact job's binary, SBOM, checksums and provenance manifest to the workflow run so a human can retrieve and review them before any manual promotion.",
+      "license": "MIT",
+      "provenance": "Official actions/ GitHub org. Pinned to a full commit SHA."
+    },
+    {
+      "name": "actions/cache",
+      "type": "ci_action",
+      "version": "v4.3.0",
+      "checksum": "0057852bfaa89a56745cba8c7296529d2fc39830",
+      "owner": "CI/infrastructure",
+      "purpose": "Caches the monthly documentation-health job's bounded external-link check cache (`documentation-health.yml`) across runs, keyed per run id with a restore-key fallback, so link liveness is not re-checked from scratch every month.",
+      "license": "MIT",
+      "provenance": "Official actions/ GitHub org. Pinned to a full commit SHA."
+    },
+    {
+      "name": "gitleaks/gitleaks-action",
+      "type": "ci_action",
+      "version": "v2.3.9",
+      "checksum": "ff98106e4c7b2bc287b24eaf42907196329070c7",
+      "owner": "security",
+      "purpose": "Secret scanning (49.9.3) - fails the build if a credential-shaped string is committed.",
+      "license": "MIT (wraps gitleaks, also MIT)",
+      "provenance": "Official gitleaks GitHub org. Pinned to a full commit SHA."
+    },
+    {
+      "name": "golang.org/x/vuln/cmd/govulncheck",
+      "type": "ci_tool",
+      "version": "v1.7.0",
+      "checksum": "n/a - installed via `go install ...@v1.7.0` with default GOPROXY/GOSUMDB verification, not vendored",
+      "owner": "security",
+      "purpose": "Go vulnerability-database scanner (49.9.4/49.9.5) - flags known CVEs reachable from the actual call graph, not just present in go.sum.",
+      "license": "BSD-3-Clause",
+      "provenance": "Official Go team tool (golang.org/x/vuln). Pinned to an exact released version rather than @latest, so the scanning tool itself cannot change under CI without a reviewed diff; its vulnerability database is fetched fresh each run by design, which is what keeps the scan 'current' per 49.9.4 while the tool stays pinned."
+    },
+    {
+      "name": "ubuntu runner image",
+      "type": "os_runner",
+      "version": "ubuntu-24.04",
+      "checksum": "n/a - GitHub-hosted runner label, not a content-addressed image; GitHub-hosted runners cannot be pinned to an image digest (only self-hosted/container jobs can)",
+      "owner": "CI/infrastructure",
+      "purpose": "Execution environment for every CI job (build, test, vulnerability/secret scan, release artifact build).",
+      "license": "n/a",
+      "provenance": "GitHub Actions hosted runner catalog. Pinned to the ubuntu-24.04 label instead of the floating `ubuntu-latest`, which GitHub can and does repoint to a new major image on its own schedule with no signal to this repository.",
+      "note": "Residual risk: GitHub still controls what ubuntu-24.04 itself contains and patches over time. This is the practical ceiling of what a repository can pin for a hosted runner; a self-hosted, digest-pinned container runner would close it further and is out of scope for this session."
+    },
+    {
+      "name": "postgres (CI service container)",
+      "type": "os_container_image",
+      "version": "16 (floating minor/patch)",
+      "checksum": "n/a - not pinned to a digest",
+      "owner": "CI/infrastructure",
+      "purpose": "Ephemeral database CI applies every db/*.sql migration against and runs the test suite over. No production data ever touches this container.",
+      "license": "PostgreSQL License",
+      "provenance": "Official postgres image, Docker Hub library/postgres.",
+      "note": "Deliberately not fixed this session: pinning to a digest for a low-severity, ephemeral, no-production-data test fixture needs periodic maintenance (a stale digest eventually fails to receive security patches) for marginal benefit compared to the runner image and the Go toolchain, which actually execute reachable code. Recorded here rather than silently left off the inventory - see docs/security/secure-development-lifecycle.md."
+    },
+    {
+      "name": "golang (Dockerfile builder base image)",
+      "type": "os_container_image",
+      "version": "1.22-bookworm (floating patch)",
+      "checksum": "n/a - not pinned to a digest",
+      "owner": "CI/infrastructure",
+      "purpose": "Builder stage for the Dockerfile's container image build. The Dockerfile itself is dormant (see its own header comment) - not on the current production deploy path, which is deploy.ps1's direct binary build+ship.",
+      "license": "BSD-3-Clause (Go) plus Debian bookworm's own licenses",
+      "provenance": "Official golang image, Docker Hub library/golang.",
+      "note": "Same treatment as the postgres service image, and lower priority still: this path builds nothing that ships today."
+    },
+    {
+      "name": "gcr.io/distroless/static-debian12",
+      "type": "os_container_image",
+      "version": "latest (floating)",
+      "checksum": "n/a - not pinned to a digest",
+      "owner": "CI/infrastructure",
+      "purpose": "Runtime base for the Dockerfile's final stage (dormant path, see above).",
+      "license": "Apache-2.0 (distroless project) plus Debian bookworm's own licenses",
+      "provenance": "Google's distroless project, gcr.io/distroless."
+    }
+  ]
+}

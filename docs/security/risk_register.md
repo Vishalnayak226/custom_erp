@@ -250,19 +250,67 @@ method; this was the one surface with neither.
 
 | | |
 |---|---|
-| **Severity** | High |
+| **Severity** | High, narrowed as of 2026-09-06 (see below) |
 | **Exposure** | D1, D2 |
-| **Detectability** | None. |
+| **Detectability** | Partial since 2026-09-06 — a `release-artifact` CI job now produces a checksum/SBOM/provenance manifest for any tagged build, and `supplychain.VerifyArtifact` detects a tampered candidate binary against it. Still **None** for whatever is already running in production, which predates this manifest, and for the real deploy path, which does not call it yet. |
 
 Nothing at deploy time verifies that `/opt/erp/erp-server` was built from a reviewed
 commit. A compromised build host, contributor account or CI job could publish a
-trusted-looking binary. Mitigated in practice — but not by design — by an unusually
-small dependency surface: two Go modules, both indirect, both pinned.
+trusted-looking binary. Stage 49.9 built the mechanism a signature and a
+deploy-time check would use — a hermetic CI build (`go mod verify`,
+`-trimpath`, `CGO_ENABLED=0`, pinned toolchain and actions), a minimal SBOM +
+checksums + provenance manifest (`cmd/releasemanifest`, package
+`internal/supplychain`), and a verify mode that refuses a mismatched binary —
+but two things remain genuinely open, not merely undocumented: (1) no signing
+key exists, so nothing cryptographically ties the manifest to this specific
+pipeline; provisioning one is an infrastructure decision this session cannot
+make. (2) `deploy/deploy.ps1` does not consume the CI artifact at all — it
+still builds locally on the operator's machine and ships over SSH, so the
+manifest mechanism exists in CI but is not yet wired into the path that
+actually reaches production. See `docs/security/secure-development-lifecycle.md`
+§49.9.7 for the full accounting. Mitigated in practice — but not entirely by
+design — by an unusually small dependency surface: two Go modules, both
+indirect, both pinned, and now every GitHub Action pinned to a commit SHA too
+(49.9.4/49.9.8).
 
-- **Treatment:** 49.9.6, 49.9.7, 49.9.8.
-- **Owner:** whoever owns the release pipeline.
-- **Evidence:** `docs/security/attack_surface.json` `dependencies`; `deploy/deploy.ps1`.
-- **Review:** at 49.9 closure.
+- **Treatment:** 49.9.6/49.9.7 mechanism built; signing-key provisioning and
+  wiring `deploy.ps1` to fetch/verify the CI artifact are the remaining work.
+- **Owner:** whoever owns the release pipeline, for the signing key and the
+  `deploy.ps1` integration.
+- **Evidence:** `docs/security/dependency-ledger.json`;
+  `internal/supplychain/manifest.go`; `cmd/releasemanifest`;
+  `.github/workflows/ci.yml`'s `release-artifact` job; `deploy/deploy.ps1`
+  (still the unmodified local-build path).
+- **Review:** at full 49.9 closure (signing key + deploy-side verification).
+
+### R-13 — No enforced code review or branch protection on `main`
+
+| | |
+|---|---|
+| **Severity** | High |
+| **Exposure** | D1, D2, D3 (affects every commit that reaches any deployment) |
+| **Detectability** | None — GitHub does not log "a direct push bypassed review" as an event distinct from an ordinary push, when no branch protection rule exists to bypass. |
+| **Found** | 2026-09-06, Stage 49.9.2 |
+
+`main` has no branch protection rule today: no required pull request, no
+required status check, no required review, and (per `git log`) exactly one
+contributor identity has ever pushed to this repository. `.github/CODEOWNERS`
+now names an owner for auth/tenant/finance/inventory/migrations/deploy/security
+paths, but CODEOWNERS enforces nothing by itself — it only gates a merge once
+"Require review from Code Owners" is turned on for `main`, which is a
+repository setting an org owner applies, not a file this repository can ship
+its way into being enforced.
+
+- **Treatment:** an org owner enables, on `main`: required pull request +
+  required Code Owner review, required status checks (at minimum
+  `build-and-test` from `.github/workflows/ci.yml`), and (optionally) "include
+  administrators." See `docs/security/secure-development-lifecycle.md` §49.9.2
+  for the exact settings.
+- **Owner:** org owner (github.com/Vishalnayak226).
+- **Evidence:** `.github/CODEOWNERS`; absence of any branch-protection API
+  response to check against from this tree (no GitHub API access from a build
+  session).
+- **Review:** at 49.9.2 closure, when branch protection is actually enabled.
 
 ### R-12 — Admin-driven MFA reset has no dual control for a privileged target
 

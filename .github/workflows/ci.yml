@@ -3,12 +3,21 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
+  workflow_dispatch: {}
+
+# Stage 49.9.8: every job gets read-only repo access by default. Nothing in
+# this workflow pushes a commit, opens a release or writes packages, so
+# nothing needs more; a job that ever does must declare that permission on
+# itself, not inherit it from a broadened default here.
+permissions:
+  contents: read
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04 # pinned label, not the floating `ubuntu-latest` GitHub can repoint without notice (Stage 49.9.4/49.9.8)
 
     services:
       postgres:
@@ -28,11 +37,17 @@ jobs:
           --health-retries 5
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 (Stage 49.9.8: pinned to commit, not the mutable v4 tag)
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0 (pinned; see above)
         with:
-          go-version: '1.22'
+          go-version: '1.22.12' # exact patch, matching go.mod's `go 1.22.12` directive - see docs/security/dependency-ledger.json's "go" entry
+
+      - name: Verify module integrity
+        # `go mod verify` re-hashes every downloaded module against go.sum -
+        # the same content hash docs/security/dependency-ledger.json records
+        # for each entry (Stage 49.9.4/49.9.6: locked, verified modules).
+        run: go mod verify
 
       - name: Apply database schema
         # Applies EVERY db/*.sql in filename order - deliberately a glob, not a
@@ -117,12 +132,25 @@ jobs:
           CGO_ENABLED: '1'
 
       - name: Vulnerability scan (govulncheck)
+        # Tool pinned to an exact release (Stage 49.9.4: "trusted pinned
+        # tools"); its vulnerability database is still fetched fresh every
+        # run, which is what keeps the *analysis* current while the *tool*
+        # cannot change under CI without a reviewed version bump.
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
           govulncheck ./...
 
+      - name: Dependency and workflow supply-chain checks
+        # go test already runs internal/supplychain's tests above, but this
+        # step exists to make the two gates it enforces legible in the CI
+        # log by name rather than buried in a package test list: every
+        # go.mod module has a current, checksum-correct ledger entry
+        # (Stage 49.9.4), and every GitHub Action referenced anywhere in
+        # .github/workflows is pinned to a full commit SHA (Stage 49.9.8).
+        run: go test ./internal/supplychain/... -run 'TestDependencyLedger|TestNoWorkflowActionIsUnpinned' -v
+
       - name: Secrets scan (gitleaks)
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9 (pinned)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -132,8 +160,79 @@ jobs:
     # only proves the image still builds on every push, so it can't silently
     # rot before the day it's actually needed. Deliberately does not push or
     # deploy the image anywhere.
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 (pinned)
       - name: Build image (no push)
         run: docker build -t erp-server:ci-check .
+
+  release-artifact:
+    # Stage 49.9.6/49.9.7/49.9.9: builds the release candidate from a clean,
+    # already-tested checkout and produces its SBOM, checksums and
+    # provenance manifest as a reviewable CI artifact - never as a step that
+    # publishes or deploys anything by itself. Runs only after
+    # build-and-test has passed, and only for a `v*` tag push or a manual
+    # dispatch (so an ordinary branch push never spends the extra minutes).
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0 (pinned)
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0 (pinned)
+        with:
+          go-version: '1.22.12'
+
+      - name: Verify module integrity
+        run: go mod verify
+
+      - name: Hermetic release build
+        # CGO disabled, -trimpath removes the build machine's absolute
+        # paths from the binary, and both ldflags values are derived only
+        # from the commit being built (never wall-clock local state, beyond
+        # the UTC build timestamp recorded for the record, not for
+        # reproducibility) - the same shape deploy.ps1 already uses for a
+        # manual build, run here from a clean, reviewed checkout instead of
+        # an operator's laptop. -mod=readonly refuses to build at all if
+        # go.mod/go.sum do not already describe every import, so a build
+        # can never silently pick up an unreviewed module.
+        run: |
+          set -euo pipefail
+          mkdir -p build
+          COMMIT="${GITHUB_SHA}"
+          BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOFLAGS=-mod=readonly \
+            go build -trimpath \
+              -ldflags="-s -w -X custom_erp/internal/server.gitCommit=${COMMIT:0:12} -X custom_erp/internal/server.buildTime=${BUILD_TIME}" \
+              -o build/erp-server ./cmd/server
+
+      - name: Generate release manifest (SBOM, checksums, provenance)
+        run: |
+          set -euo pipefail
+          go run ./cmd/releasemanifest \
+            -commit "${GITHUB_SHA}" \
+            -branch "${GITHUB_REF_NAME}" \
+            -builder "github-actions:${GITHUB_WORKFLOW}/${GITHUB_RUN_ID}" \
+            -artifact "erp-server=build/erp-server" \
+            -out build/release_manifest.json
+          sha256sum build/erp-server > build/erp-server.sha256
+          cat build/release_manifest.json
+
+      # No signing step exists here - this repository has no signing key to
+      # hold, and provisioning one is an infrastructure decision
+      # (docs/security/secure-development-lifecycle.md §7 [needs decision]).
+      # When one exists, it plugs in right here: sign build/release_manifest.json
+      # (or its sha256sum) with cosign/minisign/GPG under a key that never
+      # touches this workflow's own logs or workspace, and upload the
+      # signature alongside the artifacts below.
+
+      - uses: actions/upload-artifact@4cec3d8aa04e39d1a68397de0c4cd6fb9dce8ec1 # v4.6.2 (pinned)
+        with:
+          name: erp-server-release-${{ github.sha }}
+          path: |
+            build/erp-server
+            build/erp-server.sha256
+            build/release_manifest.json
+          retention-days: 90

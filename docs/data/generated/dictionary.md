@@ -9,7 +9,7 @@
 
 ## Scope and provenance
 
-Metadata captured **2026-09-09**, environment **development**, schema **tenant_default**. Snapshot SHA-256: `c2367646ab6d5121e5fdfc40082f24c9c6ae9823c3b96d32a9d3023e12c9267b`. This is a development structure snapshot, not a claim that any deployed tenant has this schema.
+Metadata captured **2026-09-09**, environment **development**, schema **tenant_default**. Snapshot SHA-256: `d8efb92702e82cf5fd61cb9b57b2e5c9ed107ae116352deacc2f20b0a0cb3393`. This is a development structure snapshot, not a claim that any deployed tenant has this schema.
 
 [Machine-readable dictionary](dictionary.json) contains every captured field, type, required flag, relationship, physical column/key, sensitive-field policy and report definition. [Capture procedure](../dictionary-workflow.md) explains refresh and review. Field labels describe the configured form; source validation and database constraints remain authoritative. No customer records or default values are exported.
 
