@@ -1074,6 +1074,13 @@ func Run() {
 	http.HandleFunc("GET /api/v1/admin/audit-logs/evidence", apiMiddleware(handleVerifyAuditEvidence))
 	http.HandleFunc("POST /api/v1/admin/audit-logs/checkpoint", apiMiddleware(handleWriteAuditCheckpoint))
 
+	// Stage 49.6.8 - data-subject rights request lifecycle (engines/privacy_rights.go).
+	http.HandleFunc("POST /api/v1/admin/privacy/requests", apiMiddleware(handleCreateDataSubjectRequest))
+	http.HandleFunc("GET /api/v1/admin/privacy/requests", apiMiddleware(handleListDataSubjectRequests))
+	http.HandleFunc("POST /api/v1/admin/privacy/requests/{id}/decide", apiMiddleware(handleDecideDataSubjectRequest))
+	http.HandleFunc("POST /api/v1/admin/privacy/requests/{id}/execute", apiMiddleware(handleExecuteDataSubjectRequest))
+	http.HandleFunc("POST /api/v1/admin/privacy/legal-hold", apiMiddleware(handleSetSubjectLegalHold))
+
 	// Industry Configuration & Preset Profiler
 	http.HandleFunc("GET /api/v1/admin/industries", apiMiddleware(handleGetIndustries))
 	http.HandleFunc("POST /api/v1/admin/industry", apiMiddleware(handleSwitchIndustry))
