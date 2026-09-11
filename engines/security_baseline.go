@@ -131,20 +131,7 @@ func configurationFindings() []BaselineFinding {
 
 	// --- Token signing key ------------------------------------------------
 	jwtSecret := os.Getenv("JWT_SECRET")
-	keyringUsed := false
-	for _, kv := range os.Environ() {
-		eq := strings.IndexByte(kv, '=')
-		if eq < 0 {
-			continue
-		}
-		name, value := kv[:eq], kv[eq+1:]
-		if !strings.HasPrefix(name, "JWT_SECRET_") || value == "" {
-			continue
-		}
-		if _, err := strconv.Atoi(strings.TrimPrefix(name, "JWT_SECRET_")); err == nil {
-			keyringUsed = true
-		}
-	}
+	keyringUsed := keyringSuffixConfigured("JWT_SECRET")
 	if jwtSecret == "" && !keyringUsed {
 		add(BaselineFinding{
 			ID: "SB-002", Severity: blockInProd(prod),
@@ -194,12 +181,22 @@ func configurationFindings() []BaselineFinding {
 	// start would be a control operators are entitled to resent. The blocking
 	// version is SB-022 below, which fires only once there is actually
 	// something encrypted with it.
-	if os.Getenv("CHANNEL_CREDENTIAL_KEY") == "" {
+	channelKey := os.Getenv("CHANNEL_CREDENTIAL_KEY")
+	channelKeyringUsed := keyringSuffixConfigured("CHANNEL_CREDENTIAL_KEY")
+	if channelKey == "" && !channelKeyringUsed {
 		add(BaselineFinding{
 			ID: "SB-007", Severity: BaselineWarn,
 			Title:  "no explicit connector credential encryption key",
 			Detail: "CHANNEL_CREDENTIAL_KEY is unset, so the AES-256-GCM key protecting stored Shopify/BigCommerce/Magento tokens would be generated into the OS user config dir - a key no backup captures and no other host can reproduce",
-			Remedy: "set CHANNEL_CREDENTIAL_KEY to exactly 32 bytes before saving any connector credential, and record it in the key inventory (49.6.5)",
+			Remedy: "set CHANNEL_CREDENTIAL_KEY (or the CHANNEL_CREDENTIAL_KEY_<n> rotation keyring) to exactly 32 bytes before saving any connector credential, and record it in the key inventory (49.6.5)",
+		})
+	}
+	if channelKey != "" && isLowEntropyPlaceholder(channelKey) {
+		add(BaselineFinding{
+			ID: "SB-023", Severity: blockInProd(prod),
+			Title:  "connector credential encryption key looks like a placeholder",
+			Detail: "CHANNEL_CREDENTIAL_KEY matches a documentation/example placeholder pattern (a single repeated character, or a word like changeme/secret/example/test), so any reader of this project's docs can decrypt stored connector credentials",
+			Remedy: "replace CHANNEL_CREDENTIAL_KEY with 32 bytes of CSPRNG output and re-encrypt stored credentials (tenantctl reencrypt-channel-credentials) under the new key",
 		})
 	}
 
@@ -458,7 +455,7 @@ func seededCredentialFindings() []BaselineFinding {
 // API token - and it lives in one host's user config directory, outside every
 // backup this deployment takes.
 func storedConnectorCredentialFindings() []BaselineFinding {
-	if db.DB == nil || os.Getenv("CHANNEL_CREDENTIAL_KEY") != "" {
+	if db.DB == nil || os.Getenv("CHANNEL_CREDENTIAL_KEY") != "" || keyringSuffixConfigured("CHANNEL_CREDENTIAL_KEY") {
 		return nil
 	}
 	schemas, err := listTenantSchemas()
@@ -538,6 +535,28 @@ func EnforceProductionSecurityBaseline() error {
 // tutorials and hurried deployments. It is a smell test, not an entropy
 // measure: a long random string that merely contains "test" is not flagged,
 // only one whose whole value is one of these shapes.
+// keyringSuffixConfigured reports whether any envName_<n> (positive integer
+// suffix) environment variable is set to a non-empty value - the rotation
+// keyring pattern shared by JWT_SECRET_<n> (Stage 29.8) and
+// CHANNEL_CREDENTIAL_KEY_<n> (Stage 49.6.5, engines/secret_keyring.go).
+func keyringSuffixConfigured(envName string) bool {
+	prefix := envName + "_"
+	for _, kv := range os.Environ() {
+		eq := strings.IndexByte(kv, '=')
+		if eq < 0 {
+			continue
+		}
+		name, value := kv[:eq], kv[eq+1:]
+		if !strings.HasPrefix(name, prefix) || value == "" {
+			continue
+		}
+		if _, err := strconv.Atoi(strings.TrimPrefix(name, prefix)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 func isLowEntropyPlaceholder(v string) bool {
 	lower := strings.ToLower(strings.TrimSpace(v))
 	if lower == "" {

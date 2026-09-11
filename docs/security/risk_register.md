@@ -110,8 +110,23 @@ documentation correctly.
 - **Treatment:** SB-022 (done). Move the variable into the required section of the
   env example when connectors are in use, and give it a place in the 49.6.5 key
   inventory with a rotation and re-encryption path.
+  **Update 2026-09-11 (Stage 49.6.5):** the rotation and re-encryption path now
+  exists — `engines/secret_keyring.go` generalizes the JWT signing-key keyring
+  (Stage 29.8) to `CHANNEL_CREDENTIAL_KEY_<n>`, and
+  `tenantctl reencrypt-channel-credentials` completes a rotation by re-sealing
+  every stored row under the current key; `deploy/erp.env.example` documents
+  both and moves the bare var into a clearly-labeled "required if you use a
+  connector" section. SB-007/SB-022 and the new SB-023 (placeholder detection)
+  all recognise the keyring form. This closes the TREATMENT; it does not by
+  itself put a real managed key into any live deployment's `CHANNEL_CREDENTIAL_KEY`
+  or back it up off-host, which is a deployment action outside this session's
+  reach — the row therefore stays **Open**, not Closed, until an operator
+  confirms that action.
 - **Owner:** infrastructure, with security review.
-- **Evidence:** `engines/security_baseline.go` (SB-007, SB-022); `deploy/erp.env.example`.
+- **Evidence:** `engines/security_baseline.go` (SB-007, SB-022, SB-023);
+  `engines/secret_keyring.go`, `engines/secret_keyring_test.go`,
+  `engines/channel_credentials_rotation_test.go`; `deploy/erp.env.example`;
+  `docs/security/README.md` key inventory.
 - **Review:** 2027-03-06, or at 49.6.5 closure.
 
 ### R-05 — Two unauthenticated-allowlist entries name routes that do not exist
@@ -311,6 +326,29 @@ with the misuse case each one corresponds to in threat_model.md §5.
 ---
 
 ## Closed
+
+### R-10 — A password reset link could be logged in production
+
+| | |
+|---|---|
+| **Severity** | High (likelihood: medium — any transient SMTP failure; impact: high — full account takeover) |
+| **Exposure** | D1, D2 |
+| **Closed** | 2026-09-11, Stage 49.6.2/49.6.6/49.6.7 |
+
+`engines/password_reset.go`'s `sendPasswordResetEmail` printed the full reset
+link — a working, unexpired credential, not a reference to one — to the
+application log in four branches. Three are dev-only convenience (no email on
+file, no SMTP configured, external side effects off); the fourth,
+`smtp.SendMail` failing, is not dev-only — an ordinary transient SMTP outage
+in a real production deployment would have written a live account-takeover
+token into the production log/journal, readable by anyone with log access,
+for every reset attempted during the outage.
+
+- **Fix:** `maskedResetLink` redacts the link whenever `ENV=production`
+  (`TestMaskedResetLinkRedactsOnlyInProduction`); outside production it still
+  prints, since a developer with no mailer configured has no other way to see
+  the link they just generated.
+- **Evidence:** `engines/password_reset.go`; `engines/password_reset_redaction_test.go`.
 
 ### R-11 — Login accepted a non-constant-time plaintext fallback if `password_hash` were ever unhashed
 

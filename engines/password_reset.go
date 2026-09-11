@@ -178,6 +178,24 @@ func SendRecoveryEmailChangedNotice(tenantID, oldEmail, username, newEmail strin
 // link locally so dev/test environments (no SMTP server available) can
 // still exercise and verify the flow end-to-end, same posture as
 // OPS_ALERT_WEBHOOK_URL being unset.
+// maskedResetLink (Stage 49.6.2/49.6.6/49.6.7 - found while auditing this
+// file for exactly this) keeps sendPasswordResetEmail's dev-mode
+// convenience of printing the link to the log when there is no mailer,
+// while closing the real gap: a reset link IS a working, unexpired
+// credential, and the SMTP-failure branch below can fire in PRODUCTION on
+// an ordinary transient send failure - at which point every log line that
+// printed the raw link had been handing out a live account-takeover token
+// to anyone with journal/log access, exactly what 49.6.7 names explicitly
+// ("no reset ... secret" in telemetry). Outside production the link still
+// prints, because a developer with no mailer configured has no other way to
+// see it.
+func maskedResetLink(link string) string {
+	if IsProductionEnv() {
+		return "[redacted in production - see NOTIFI-0170/0171 for the failure reason]"
+	}
+	return link
+}
+
 func sendPasswordResetEmail(tenantID, toEmail, username, resetLink string) {
 	if toEmail == "" {
 		// NOTIFI-0171 (Stage 25.5): "Email recipient missing" - logged, not
@@ -190,19 +208,19 @@ func sendPasswordResetEmail(tenantID, toEmail, username, resetLink string) {
 		// package LogSystemError call already logs a plain code-prefixed
 		// string rather than importing the catalog.
 		LogSystemError(tenantID, "", "Medium", "Notifications", "[NOTIFI-0171] "+username+" has no email on file - password reset link not sent", "")
-		log.Printf("[PASSWORD-RESET] (user has no email on file - not sent) reset link for %s: %s", username, resetLink)
+		log.Printf("[PASSWORD-RESET] (user has no email on file - not sent) reset link for %s: %s", username, maskedResetLink(resetLink))
 		return
 	}
 	smtpHost := os.Getenv("SMTP_HOST")
 	if smtpHost == "" {
-		log.Printf("[PASSWORD-RESET] (no SMTP_HOST configured - not sent) reset link for %s: %s", username, resetLink)
+		log.Printf("[PASSWORD-RESET] (no SMTP_HOST configured - not sent) reset link for %s: %s", username, maskedResetLink(resetLink))
 		return
 	}
 	if !ExternalSideEffectsEnabled() {
 		// Stage 47.0.5/47.11.6 Gate 0: an SMTP_HOST configured against a
 		// shared dev/staging relay must not actually deliver mail just
 		// because a regression/abuse test or a developer triggered this path.
-		log.Printf("[PASSWORD-RESET] (external side effects OFF - not sent) reset link for %s: %s", username, resetLink)
+		log.Printf("[PASSWORD-RESET] (external side effects OFF - not sent) reset link for %s: %s", username, maskedResetLink(resetLink))
 		return
 	}
 	smtpPort := os.Getenv("SMTP_PORT")
@@ -227,7 +245,7 @@ func sendPasswordResetEmail(tenantID, toEmail, username, resetLink string) {
 		// itself failed (bad host/auth/network), distinct from NOTIFI-0171
 		// above (nothing to send to in the first place).
 		LogSystemError(tenantID, "", "Medium", "Notifications", fmt.Sprintf("[NOTIFI-0170] failed to send password reset email to %s: %v", toEmail, err), "")
-		log.Printf("[PASSWORD-RESET] failed to send reset email to %s: %v (link: %s)", toEmail, err, resetLink)
+		log.Printf("[PASSWORD-RESET] failed to send reset email to %s: %v (link: %s)", toEmail, err, maskedResetLink(resetLink))
 	}
 }
 

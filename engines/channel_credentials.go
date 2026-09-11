@@ -1,15 +1,9 @@
 package engines
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
-	"crypto/rand"
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
-	"log"
-	"os"
-	"path/filepath"
 )
 
 // Channel credential encryption (Stage 16.1). Mirrors engines/auth.go's
@@ -21,76 +15,27 @@ import (
 // ever exists in this system outside the operator's own head. No HTTP
 // handler in internal/server ever returns a decrypted credential - getChannelCredential
 // is package-private by design.
-var channelCredKey = loadOrGenerateChannelCredentialKey()
-
-func loadOrGenerateChannelCredentialKey() []byte {
-	if v := os.Getenv("CHANNEL_CREDENTIAL_KEY"); v != "" {
-		key := []byte(v)
-		if len(key) != 32 {
-			log.Fatalf("CHANNEL_CREDENTIAL_KEY must be exactly 32 bytes for AES-256, got %d", len(key))
-		}
-		return key
-	}
-
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		log.Fatalf("cannot determine user config dir for channel credential key persistence: %v", err)
-	}
-	keyPath := filepath.Join(configDir, "custom_erp", "channel_cred_key.local")
-
-	if data, err := os.ReadFile(keyPath); err == nil && len(data) == 32 {
-		return data
-	}
-
-	raw := make([]byte, 32)
-	if _, err := rand.Read(raw); err != nil {
-		log.Fatalf("failed to generate channel credential key: %v", err)
-	}
-	if err := os.MkdirAll(filepath.Dir(keyPath), 0700); err != nil {
-		log.Fatalf("failed to create config dir for channel credential key: %v", err)
-	}
-	if err := os.WriteFile(keyPath, raw, 0600); err != nil {
-		log.Fatalf("failed to persist channel credential key: %v", err)
-	}
-	log.Printf("Generated new local channel credential encryption key at %s - set CHANNEL_CREDENTIAL_KEY env var explicitly for production deployments", keyPath)
-	return raw
-}
+//
+// Stage 49.6.4/49.6.5: this used to be exactly one static key (risk register
+// R-03 - no rotation path, and a key that exists only on one host's config
+// dir with nothing in any backup). It now goes through the shared
+// engines/secret_keyring.go rotation keyring: CHANNEL_CREDENTIAL_KEY_<n> env
+// vars, newest wins for new writes, every configured key (plus the legacy
+// bare CHANNEL_CREDENTIAL_KEY) still decrypts what it wrote. Unset, this
+// behaves byte-for-byte as before - a deployment that never rotates sees no
+// change at all.
+var channelCredKeys, channelCredSigningKey = loadVersionedKeyring("CHANNEL_CREDENTIAL_KEY", "channel_cred_key.local")
 
 func encryptChannelCredential(fields map[string]string) ([]byte, error) {
 	plaintext, err := json.Marshal(fields)
 	if err != nil {
 		return nil, err
 	}
-	block, err := aes.NewCipher(channelCredKey)
-	if err != nil {
-		return nil, err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	nonce := make([]byte, gcm.NonceSize())
-	if _, err := rand.Read(nonce); err != nil {
-		return nil, err
-	}
-	return gcm.Seal(nonce, nonce, plaintext, nil), nil
+	return encryptVersioned(channelCredSigningKey, plaintext)
 }
 
 func decryptChannelCredential(ciphertext []byte) (map[string]string, error) {
-	block, err := aes.NewCipher(channelCredKey)
-	if err != nil {
-		return nil, err
-	}
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return nil, err
-	}
-	nonceSize := gcm.NonceSize()
-	if len(ciphertext) < nonceSize {
-		return nil, fmt.Errorf("stored credential ciphertext is too short")
-	}
-	nonce, encrypted := ciphertext[:nonceSize], ciphertext[nonceSize:]
-	plaintext, err := gcm.Open(nil, nonce, encrypted, nil)
+	plaintext, err := decryptVersioned(channelCredKeys, ciphertext)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt channel credential (wrong key or tampered data): %v", err)
 	}
@@ -163,4 +108,56 @@ func GetChannelWebhookSecret(tenantID, channelCode string) (string, error) {
 		return "", err
 	}
 	return fields["webhook_secret"], nil
+}
+
+// ReencryptChannelCredentials (Stage 49.6.5 - "old-ciphertext migration") is
+// the operator step that actually completes a key rotation: every stored
+// credential is decrypted under whichever key wrote it (legacy or any
+// numbered key still configured) and re-saved under the CURRENT signing key.
+// Without this, an old key can never be retired - decryptVersioned's
+// backward compatibility means old ciphertext keeps working forever, which
+// is the safe default but not itself a rotation. Exposed via
+// `tenantctl reencrypt-channel-credentials`; no HTTP route, matching the
+// rest of this codebase's platform-level-authority-has-no-route rule
+// (cmd/tenantctl's file header).
+//
+// Idempotent and safe to re-run: a credential already sealed under the
+// current signing key is decrypted and re-sealed (a fresh nonce, same
+// plaintext) rather than skipped, so a partially-completed run can simply be
+// repeated.
+func ReencryptChannelCredentials(tenantID string) (migrated int, err error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return 0, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT channel_code, encrypted_payload FROM %s.channel_credentials`, schema))
+	if err != nil {
+		return 0, err
+	}
+	type row struct {
+		code      string
+		encrypted []byte
+	}
+	var all []row
+	for rows.Next() {
+		var r row
+		if scanErr := rows.Scan(&r.code, &r.encrypted); scanErr != nil {
+			rows.Close()
+			return 0, scanErr
+		}
+		all = append(all, r)
+	}
+	rows.Close()
+
+	for _, r := range all {
+		fields, decErr := decryptChannelCredential(r.encrypted)
+		if decErr != nil {
+			return migrated, fmt.Errorf("channel %q: %v", r.code, decErr)
+		}
+		if err := SaveChannelCredential(tenantID, r.code, fields); err != nil {
+			return migrated, fmt.Errorf("channel %q: %v", r.code, err)
+		}
+		migrated++
+	}
+	return migrated, nil
 }

@@ -51,6 +51,13 @@ Lifecycle
   legal-hold  -tenant <id> -on|-off -reason <text> -actor <who> -yes
   purge     -tenant <id> -backup-ref <where the data was preserved> -actor <who> -yes
 
+Key rotation (Stage 49.6.5)
+  reencrypt-channel-credentials -tenant <id> -reason <text> -actor <who> -yes
+                                            re-seal every stored connector credential under
+                                            the CURRENT CHANNEL_CREDENTIAL_KEY(_<n>) signing
+                                            key - the step that actually retires an old key
+                                            after a rotation window (see docs/security/README.md)
+
 DATABASE_URL selects the database; without it the same local default the rest
 of the tooling uses applies. Nothing destructive happens without -yes.
 `
@@ -97,6 +104,8 @@ func main() {
 		err = cmdLegalHold(args)
 	case "purge":
 		err = cmdPurge(args)
+	case "reencrypt-channel-credentials":
+		err = cmdReencryptChannelCredentials(args)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command %q\n\n%s", command, usage)
 		os.Exit(2)
@@ -442,6 +451,42 @@ func cmdLegalHold(args []string) error {
 	} else {
 		fmt.Printf("Legal hold lifted on %s.\n", *tenant)
 	}
+	return nil
+}
+
+// cmdReencryptChannelCredentials (Stage 49.6.5) completes a
+// CHANNEL_CREDENTIAL_KEY rotation: engines.ReencryptChannelCredentials
+// decrypts every stored connector credential under whichever key wrote it
+// (legacy or any still-configured CHANNEL_CREDENTIAL_KEY_<n>) and re-saves it
+// under the current signing key. Deploy the new key alongside the old one
+// (CHANNEL_CREDENTIAL_KEY_<n>), run this, then retire the old key - the same
+// three-step rotation deploy/erp.env.example already documents for
+// JWT_SECRET_<n>. No HTTP route: this is platform-adjacent credential
+// material, not a tenant-facing action, matching this file's header.
+func cmdReencryptChannelCredentials(args []string) error {
+	fs := flag.NewFlagSet("reencrypt-channel-credentials", flag.ExitOnError)
+	tenant := fs.String("tenant", "", "Tenant id (required).")
+	reason, actor, confirm := commonFlags(fs, "Why this rotation is being completed now")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *tenant == "" {
+		return fmt.Errorf("-tenant is required")
+	}
+	if *reason == "" {
+		return fmt.Errorf("-reason is required and is recorded in the tenant's audit log")
+	}
+	if !*confirm {
+		fmt.Printf("DRY RUN - would re-encrypt every stored channel credential for %s under the current signing key.\nRe-run with -yes to apply it.\n", *tenant)
+		return nil
+	}
+	migrated, err := engines.ReencryptChannelCredentials(*tenant)
+	if err != nil {
+		return err
+	}
+	engines.LogAuditEvent(*tenant, *actor, "channel_credentials_reencrypted", "Success",
+		fmt.Sprintf("migrated %d stored credential(s) to the current CHANNEL_CREDENTIAL_KEY signing key (reason: %s)", migrated, *reason))
+	fmt.Printf("Re-encrypted %d stored channel credential(s) for %s under the current signing key.\n", migrated, *tenant)
 	return nil
 }
 

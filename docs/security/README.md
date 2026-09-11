@@ -108,3 +108,75 @@ The operator procedure, with every command and what it refuses, is
 - `tenantctl db-privilege` reports whether the app connects as a database superuser.
   Fixing that is deployment state and belongs to 49.7.4; reporting it is what keeps
   the gap visible.
+
+## Data classification, keys and secrets (49.6)
+
+**Classification registry (49.6.1).** `engines/data_classification.go` extends
+`engines/sensitive_fields.go` (47.1.3) rather than duplicating it: one row per
+sensitive-field CATEGORY (not per field), adding a tier
+(public/internal/confidential/restricted) and, where it applies, a privacy tag
+(personal/sensitive_financial/authentication/audit/legal) plus purpose,
+source, consumers, masking, export, retention trigger, legal-hold eligibility
+and deletion behavior. `TestSensitiveFieldCategoriesAreAllClassified` fails
+the build if a new sensitive-field category is ever added without a matching
+row here. Several `Deletion`/`RetentionTrigger` answers are marked
+`[needs decision: ...]` — the exact statutory retention window is 47.16's call,
+not something a build session invents.
+
+**Key inventory (49.6.5).** Every at-rest encryption key in this deployment,
+what it protects, and how it rotates:
+
+| Key | Env var(s) | Protects | Rotation | Blast radius if lost/leaked |
+|---|---|---|---|---|
+| Session signing key | `JWT_SECRET` / `JWT_SECRET_<n>` | Bearer session tokens | Zero-downtime keyring (Stage 29.8) — add `_<n>`, wait one token TTL, delete the old one | Forge a session for any user/role/tenant |
+| Connector credential key | `CHANNEL_CREDENTIAL_KEY` / `CHANNEL_CREDENTIAL_KEY_<n>` | Shopify/BigCommerce/Magento tokens (`channel_credentials.encrypted_payload`) | Zero-downtime keyring (Stage 49.6.5, `engines/secret_keyring.go`) — add `_<n>`, run `tenantctl reencrypt-channel-credentials`, delete the old one | Decrypt every stored connector credential (risk register R-03) |
+| Backup encryption key | `BACKUP_ENCRYPTION_KEY` | Nightly `pg_dump` (`deploy/backup.sh`) | Manual — re-encrypt existing backups or accept old backups stay under the old key until they roll off retention. Not read by the Go binary, so it has no `SB-*` baseline check; `deploy/backup.sh` and `docs/operations/backup_restore.md` are the only enforcement today. | Decrypt every historical backup — every tier of data in the system at once |
+
+Both application-managed keys (JWT, channel credential) now share one
+rotation-capable AES-256-GCM keyring implementation
+(`engines/secret_keyring.go`, generalized from the JWT-only Stage 29.8
+pattern): `NAME_<n>` env vars, highest number signs new data, every
+configured key (plus the legacy bare `NAME`) still decrypts what it wrote —
+so a ciphertext written before rotation existed keeps working with no batch
+migration required first. `ReencryptChannelCredentials` /
+`tenantctl reencrypt-channel-credentials` is the operator step that actually
+completes a rotation by re-sealing every stored row under the current key.
+
+`[needs decision: dual-control key recovery]` — nothing here requires a
+second person to approve a key's recovery/rotation/destruction; keys are
+environment-level operator actions, not an in-app workflow, so "dual control"
+today is whatever the deployment's own change-management process enforces
+outside this codebase. A compromise drill is the same: the rotation mechanics
+above are unit-tested (`engines/secret_keyring_test.go`,
+`engines/channel_credentials_rotation_test.go`), but a live drill against a
+real deployment is an operational exercise, not something this session can
+certify.
+
+**Secret lifecycle (49.6.6) and safe telemetry (49.6.7).**
+`engines/telemetry_redaction.go`'s `RedactForTelemetry`/`MaskIdentifier` are a
+redaction CHOKE POINT, not a security-event pipeline — no structured
+security-event system exists yet (that is Stage 49.11); this is what such a
+pipeline must call on day one so the redaction rule cannot drift per call
+site. It masks any key shaped like a bearer/password/secret/MFA/session/
+cookie/credential outright, plus any field `engines/sensitive_fields.go`
+classifies for the given doctype, walking nested maps/slices. Found and fixed
+while auditing for exactly this: `engines/password_reset.go`'s SMTP-failure
+branch logged the full password reset link — a working, unexpired credential
+— and could do so in production on an ordinary transient send failure, not
+only in dev. `maskedResetLink` now redacts it whenever `ENV=production`.
+
+**Privacy rights (49.6.8).** `engines/privacy_rights.go` +
+`db/migrations_stage49_6_privacy_rights.sql` (`data_subject_requests` table)
+implement the request lifecycle — open, maker-checker decide (decider must
+differ from requester), execute, evidence — for one concrete data flow:
+Customer access/export/erasure/anonymization. Erasure anonymizes rather than
+hard-deletes (Sales/Invoice reference `customer_id` and must survive for
+statutory financial retention) and refuses under legal hold
+(`SetSubjectLegalHold`, an ad-hoc JSONB field on the subject document, the
+same no-new-column convention `Item.cost_price` already uses) — the refusal
+is recorded, not silent, mirroring `PurgeTenant`'s (49.1.5) shape exactly.
+Any other subject doctype, or `correction`/`consent_withdraw`, is recorded
+but explicitly NOT auto-executed yet: `[needs decision: which Customer
+marketing/communication flag consent-withdrawal should clear — none exists
+today]`. The full 49.6.8 acceptance bar (search/index, jobs, files, logs,
+audit, backups) remains open beyond Customer.

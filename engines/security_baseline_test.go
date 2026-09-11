@@ -24,8 +24,13 @@ func clearBaselineEnv(t *testing.T) {
 		t.Setenv(name, "")
 	}
 	for _, kv := range os.Environ() {
-		if eq := strings.IndexByte(kv, '='); eq > 0 && strings.HasPrefix(kv[:eq], "JWT_SECRET_") {
-			t.Setenv(kv[:eq], "")
+		eq := strings.IndexByte(kv, '=')
+		if eq <= 0 {
+			continue
+		}
+		name := kv[:eq]
+		if strings.HasPrefix(name, "JWT_SECRET_") || strings.HasPrefix(name, "CHANNEL_CREDENTIAL_KEY_") {
+			t.Setenv(name, "")
 		}
 	}
 }
@@ -197,6 +202,30 @@ func TestPlaceholderSigningKeysAreRejected(t *testing.T) {
 		if isLowEntropyPlaceholder(v) {
 			t.Errorf("%q is a real key shape and must not be flagged as a placeholder", v)
 		}
+	}
+}
+
+// Stage 49.6.5: a CHANNEL_CREDENTIAL_KEY_<n> rotation keyring is just as valid
+// a configuration as the bare var, so SB-007 (unconfigured warn) and SB-022
+// (blocking once something is actually stored) must both recognise it -
+// mirroring how JWT_SECRET_<n> already suppresses SB-002.
+func TestChannelCredentialKeyringSuppressesSB007(t *testing.T) {
+	clearBaselineEnv(t)
+	t.Setenv("ENV", "production")
+	t.Setenv("CHANNEL_CREDENTIAL_KEY_1", "0123456789abcdef0123456789abcdef")
+
+	if hasFinding(configurationFindings(), "SB-007") {
+		t.Error("SB-007 should not fire once a CHANNEL_CREDENTIAL_KEY_<n> rotation keyring is configured")
+	}
+}
+
+func TestChannelCredentialKeyPlaceholderBlocks(t *testing.T) {
+	clearBaselineEnv(t)
+	t.Setenv("ENV", "production")
+	t.Setenv("CHANNEL_CREDENTIAL_KEY", "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
+	if got := severityOf(t, configurationFindings(), "SB-023"); got != BaselineBlock {
+		t.Errorf("SB-023 must block a placeholder connector credential key in production, got %q", got)
 	}
 }
 
