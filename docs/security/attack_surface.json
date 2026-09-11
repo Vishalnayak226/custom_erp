@@ -6,7 +6,7 @@
       "method": "ANY",
       "path": "/",
       "auth": "static",
-      "source": "internal/server/routes.go:1123",
+      "source": "internal/server/routes.go:1130",
       "note": "static file server; see static_roots"
     },
     {
@@ -141,13 +141,13 @@
       "method": "GET",
       "path": "/api/v1/admin/industries",
       "auth": "session",
-      "source": "internal/server/routes.go:1078"
+      "source": "internal/server/routes.go:1085"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/industry",
       "auth": "session",
-      "source": "internal/server/routes.go:1079"
+      "source": "internal/server/routes.go:1086"
     },
     {
       "method": "GET",
@@ -178,6 +178,36 @@
       "path": "/api/v1/admin/patch/reject",
       "auth": "session",
       "source": "internal/server/routes.go:1004"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/privacy/legal-hold",
+      "auth": "session",
+      "source": "internal/server/routes.go:1082"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/privacy/requests",
+      "auth": "session",
+      "source": "internal/server/routes.go:1079"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/privacy/requests",
+      "auth": "session",
+      "source": "internal/server/routes.go:1078"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/privacy/requests/{id}/decide",
+      "auth": "session",
+      "source": "internal/server/routes.go:1080"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/privacy/requests/{id}/execute",
+      "auth": "session",
+      "source": "internal/server/routes.go:1081"
     },
     {
       "method": "GET",
@@ -555,7 +585,7 @@
       "method": "ANY",
       "path": "/api/v1/debug/panic",
       "auth": "session",
-      "source": "internal/server/routes.go:1089",
+      "source": "internal/server/routes.go:1096",
       "note": "registered only when ENV is not production (49.1.2)"
     },
     {
@@ -850,13 +880,13 @@
       "method": "POST",
       "path": "/api/v1/import/{doctype}",
       "auth": "session",
-      "source": "internal/server/routes.go:1082"
+      "source": "internal/server/routes.go:1089"
     },
     {
       "method": "GET",
       "path": "/api/v1/import/{doctype}/template",
       "auth": "session",
-      "source": "internal/server/routes.go:1083"
+      "source": "internal/server/routes.go:1090"
     },
     {
       "method": "POST",
@@ -946,7 +976,7 @@
       "method": "ANY",
       "path": "/api/v1/logs/system",
       "auth": "session",
-      "source": "internal/server/routes.go:1084"
+      "source": "internal/server/routes.go:1091"
     },
     {
       "method": "GET",
@@ -2872,14 +2902,14 @@
       "method": "GET",
       "path": "/help",
       "auth": "static",
-      "source": "internal/server/routes.go:1115",
+      "source": "internal/server/routes.go:1122",
       "note": "serves the SPA shell only"
     },
     {
       "method": "GET",
       "path": "/help/{rest...}",
       "auth": "static",
-      "source": "internal/server/routes.go:1116",
+      "source": "internal/server/routes.go:1123",
       "note": "serves the SPA shell only"
     },
     {
@@ -2893,14 +2923,14 @@
       "method": "GET",
       "path": "{prefix}",
       "auth": "static",
-      "source": "internal/server/routes.go:1108",
+      "source": "internal/server/routes.go:1115",
       "note": "expanded per engines.ProductPackages at registration; serves the SPA shell only"
     },
     {
       "method": "GET",
       "path": "{prefix}+\"/{rest...}\"",
       "auth": "static",
-      "source": "internal/server/routes.go:1109",
+      "source": "internal/server/routes.go:1116",
       "note": "expanded per engines.ProductPackages at registration; serves the SPA shell only"
     }
   ],
@@ -3070,10 +3100,6 @@
   ],
   "cli_commands": [
     {
-      "name": "_scratch_seal",
-      "path": "cmd/_scratch_seal"
-    },
-    {
       "name": "brainmap",
       "path": "cmd/brainmap"
     },
@@ -3126,28 +3152,14 @@
     "base_schema_file": "db/migration.sql",
     "incremental_files": 157,
     "newest": [
-      "migrations_stage47_7_audit_evidence.sql",
       "migrations_stage49_1_5_tenant_lifecycle.sql",
       "migrations_stage49_2_2_password_hardening.sql",
       "migrations_stage49_2_4_admin_password_reset.sql",
+      "migrations_stage49_6_privacy_rights.sql",
       "migrations_stores_master_fields.sql"
     ]
   },
   "environment_flags": [
-    {
-      "name": "AUDIT_ARCHIVE_DIR",
-      "security_critical": false,
-      "read_by": [
-        "engines/audit_archive.go"
-      ]
-    },
-    {
-      "name": "AUDIT_ARCHIVE_KEY",
-      "security_critical": false,
-      "read_by": [
-        "engines/audit_archive.go"
-      ]
-    },
     {
       "name": "AUTH_STATE_CACHE_SECONDS",
       "security_critical": false,
@@ -3166,7 +3178,6 @@
       "name": "CHANNEL_CREDENTIAL_KEY",
       "security_critical": true,
       "read_by": [
-        "engines/channel_credentials.go",
         "engines/security_baseline.go"
       ]
     },
@@ -3182,7 +3193,6 @@
       "name": "DATABASE_URL",
       "security_critical": true,
       "read_by": [
-        "cmd/_scratch_seal/main.go",
         "cmd/minttoken/main.go",
         "cmd/reset_mfa/main.go",
         "db/db.go",
@@ -3425,18 +3435,18 @@
   ],
   "totals": {
     "background_jobs": 29,
-    "cli_commands": 13,
+    "cli_commands": 12,
     "dependencies": 2,
     "direct_dependencies": 0,
-    "environment_flags": 30,
+    "environment_flags": 28,
     "environment_flags_security_critical": 12,
     "incremental_migrations": 157,
     "outbound_call_sites": 9,
-    "routes": 481,
+    "routes": 486,
     "routes_integration_credential": 4,
     "routes_none": 1,
     "routes_public": 10,
-    "routes_session": 461,
+    "routes_session": 466,
     "routes_static": 5
   }
 }
