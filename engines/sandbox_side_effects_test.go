@@ -85,6 +85,70 @@ func TestSandboxTenantNeverSendsPasswordResetEmail(t *testing.T) {
 	}
 }
 
+// TestSandboxTenantNeverSendsAccountRiskNotices covers the two other real
+// SMTP call sites in this same file (Stage 49.2.4's
+// SendRecoveryEmailChangedNotice and SendPasswordChangedNotice), which
+// landed on main after the original sandbox fix above and had the identical
+// gap - found and fixed while reconciling this branch onto main.
+func TestSandboxTenantNeverSendsAccountRiskNotices(t *testing.T) {
+	db.InitDB(testConnStr())
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("net.Listen: %v", err)
+	}
+	defer ln.Close()
+	var connections int32
+	go func() {
+		for {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			atomic.AddInt32(&connections, 1)
+			conn.Close()
+		}
+	}()
+	host, port, err := net.SplitHostPort(ln.Addr().String())
+	if err != nil {
+		t.Fatalf("SplitHostPort: %v", err)
+	}
+
+	for _, key := range []string{"SMTP_HOST", "SMTP_PORT", "SMTP_FROM", "ENV", "ERP_ENABLE_EXTERNAL_SIDE_EFFECTS", "ERP_DISABLE_EXTERNAL_SIDE_EFFECTS"} {
+		old := os.Getenv(key)
+		defer os.Setenv(key, old)
+	}
+	os.Setenv("SMTP_HOST", host)
+	os.Setenv("SMTP_PORT", port)
+	os.Setenv("SMTP_FROM", "no-reply@test.invalid")
+	os.Setenv("ENV", "production")
+	os.Setenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS", "")
+	os.Setenv("ERP_DISABLE_EXTERNAL_SIDE_EFFECTS", "")
+
+	sandboxTenantID, sandboxSchema, _, err := ProvisionSandboxTenant("0.1.0-test", 5)
+	if err != nil {
+		t.Fatalf("ProvisionSandboxTenant: %v", err)
+	}
+	defer func() {
+		db.DB.Exec("DROP SCHEMA IF EXISTS " + sandboxSchema + " CASCADE")
+		db.DB.Exec("DELETE FROM public.tenants WHERE tenant_id = $1", sandboxTenantID)
+	}()
+
+	SendRecoveryEmailChangedNotice(sandboxTenantID, "old@test.invalid", "someone", "new@test.invalid")
+	SendPasswordChangedNotice(sandboxTenantID, "old@test.invalid", "someone", "your account settings")
+	time.Sleep(150 * time.Millisecond)
+	if atomic.LoadInt32(&connections) != 0 {
+		t.Fatalf("expected a sandbox tenant's account-risk notices to make NO real SMTP connection, but the canary listener was hit %d time(s)", atomic.LoadInt32(&connections))
+	}
+
+	// Positive control.
+	SendPasswordChangedNotice("default", "old@test.invalid", "someone", "your account settings")
+	time.Sleep(150 * time.Millisecond)
+	if atomic.LoadInt32(&connections) == 0 {
+		t.Fatalf("expected a real tenant's account-risk notice to attempt a real SMTP connection, but it was never hit")
+	}
+}
+
 // TestSandboxTenantNeverDispatchesNotificationWebhook proves the same fix in
 // DispatchNotification: a sandbox tenant's Active NotificationTemplate +
 // NotificationChannelConfig must never actually be POSTed, and the

@@ -3154,12 +3154,12 @@
   ],
   "migrations": {
     "base_schema_file": "db/migration.sql",
-    "incremental_files": 157,
+    "incremental_files": 158,
     "newest": [
-      "migrations_stage49_1_5_tenant_lifecycle.sql",
       "migrations_stage49_2_2_password_hardening.sql",
       "migrations_stage49_2_4_admin_password_reset.sql",
       "migrations_stage49_6_privacy_rights.sql",
+      "migrations_stage49_7_5_migration_checksums.sql",
       "migrations_stores_master_fields.sql"
     ]
   },
@@ -3444,7 +3444,7 @@
     "direct_dependencies": 0,
     "environment_flags": 28,
     "environment_flags_security_critical": 12,
-    "incremental_migrations": 157,
+    "incremental_migrations": 158,
     "outbound_call_sites": 9,
     "routes": 486,
     "routes_integration_credential": 4,
