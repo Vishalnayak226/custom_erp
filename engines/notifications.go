@@ -112,6 +112,27 @@ func DispatchNotification(tenantID, event, orderID string, extra map[string]stri
 			continue
 		}
 
+		// 49.7.6 / 47.0.5-47.11.6 Gate 0: this was the one real outbound HTTP
+		// call site in the codebase with neither the sandbox check
+		// (engines/webhook.go's deliverWebhook, engines/password_reset.go's
+		// sendPasswordResetEmail) nor the server-wide ExternalSideEffectsEnabled()
+		// switch every other external call site is expected to honour - found
+		// while closing 49.7.6. A tenant's own configured NotificationChannelConfig
+		// (a real Zapier/Make webhook URL) would fire on every order/return event
+		// regardless of sandbox flag or dev/test posture. Logged distinctly so the
+		// NotificationLog audit trail says what actually happened rather than
+		// claiming "Sent" for a call that was suppressed.
+		if isSandbox, _ := IsSandboxSchema(schema); isSandbox {
+			log.Printf("[NOTIFY] sandbox tenant schema %s - simulating dispatch of %q to %s (no real HTTP call made)", schema, event, t.channel)
+			writeNotificationLog(schema, event, t.channel, orderID, t.id, "Skipped-Sandbox", "sandbox tenant - no real webhook call made")
+			continue
+		}
+		if !ExternalSideEffectsEnabled() {
+			log.Printf("[NOTIFY] external side effects are OFF - simulating dispatch of %q to %s (no real HTTP call made)", event, t.channel)
+			writeNotificationLog(schema, event, t.channel, orderID, t.id, "Skipped-SideEffectsOff", "external side effects disabled - no real webhook call made")
+			continue
+		}
+
 		writeNotificationLog(schema, event, t.channel, orderID, t.id, "Sent", "dispatch attempted (fire-and-forget, delivery not confirmed)")
 		payload := notificationWebhookPayload{Event: event, Channel: t.channel, OrderID: orderID, Subject: subject, Body: body, Extra: extra}
 		go postNotificationWebhook(webhookURL, payload)

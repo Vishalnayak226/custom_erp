@@ -298,10 +298,66 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		return "", err
 	}
 
+	// 49.7.4: deploy/postgres_harden.sql's ALTER DEFAULT PRIVILEGES only
+	// covers a schema that already existed when it ran - it cannot know
+	// about a tenant schema this call creates afterwards. Without this
+	// grant, every tenant provisioned on an already-hardened cluster would
+	// get a schema that erp_app (the runtime role deploy/erp.env's
+	// DATABASE_URL would then point at) has no USAGE on at all - "permission
+	// denied for schema" on its very first request. Found by actually
+	// running the hardening script against a scratch database end to end
+	// rather than assuming ALTER DEFAULT PRIVILEGES retroactively covers a
+	// schema that did not exist yet.
+	//
+	// Conditional on erp_app/erp_backup actually existing so this is a
+	// silent no-op on every database that has not run that script - which is
+	// every database today, since it ships in this same change. Whichever
+	// role is running this transaction (erp_migrate after hardening; the
+	// single shared owner role before it) already owns everything it just
+	// created, so it can GRANT on it without needing any extra privilege of
+	// its own.
+	if err := grantLeastPrivilegeSchemaAccessTx(tx, schemaName); err != nil {
+		return "", fmt.Errorf("failed to grant least-privilege access on new tenant schema: %v", err)
+	}
+
 	if err := tx.Commit(); err != nil {
 		return "", err
 	}
 
 	InvalidateTenantLifecycleCache(tenantID)
 	return password, nil
+}
+
+// grantLeastPrivilegeSchemaAccessTx grants erp_app (DML) and erp_backup
+// (SELECT) access on a just-created tenant schema and its objects, and sets
+// up default privileges for anything created in it later, matching exactly
+// the per-schema grants deploy/postgres_harden.sql issues for every schema
+// that existed when it ran. A no-op - not an error - when neither role
+// exists, which is every database that has not run that script yet.
+//
+// schemaName has already passed validSQLIdentifier in ProvisionTenantSchema,
+// its only caller, before reaching here.
+func grantLeastPrivilegeSchemaAccessTx(tx *sql.Tx, schemaName string) error {
+	var hardened bool
+	if err := tx.QueryRow(`SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'erp_app')`).Scan(&hardened); err != nil {
+		return err
+	}
+	if !hardened {
+		return nil
+	}
+	_, err := tx.Exec(fmt.Sprintf(`
+		GRANT USAGE ON SCHEMA %[1]s TO erp_app;
+		GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %[1]s TO erp_app;
+		GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA %[1]s TO erp_app;
+		GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA %[1]s TO erp_app;
+		GRANT USAGE ON SCHEMA %[1]s TO erp_backup;
+		GRANT SELECT ON ALL TABLES IN SCHEMA %[1]s TO erp_backup;
+		GRANT SELECT ON ALL SEQUENCES IN SCHEMA %[1]s TO erp_backup;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA %[1]s GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO erp_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA %[1]s GRANT USAGE, SELECT ON SEQUENCES TO erp_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA %[1]s GRANT EXECUTE ON FUNCTIONS TO erp_app;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA %[1]s GRANT SELECT ON TABLES TO erp_backup;
+		ALTER DEFAULT PRIVILEGES IN SCHEMA %[1]s GRANT SELECT ON SEQUENCES TO erp_backup;
+	`, schemaName))
+	return err
 }

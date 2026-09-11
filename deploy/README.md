@@ -38,7 +38,8 @@ Internet ──▶ Caddy (:443, auto Let's Encrypt) ──▶ erp-server (:8080)
 ```
 
 Files in this kit: `erp.service`, `Caddyfile`, `erp.env.example`, `migrate.sh`,
-`backup.sh` (all run on the box), and `deploy.ps1` (runs on your dev machine).
+`backup.sh`, `postgres_harden.sql` (all run on the box), and `deploy.ps1`
+(runs on your dev machine).
 
 ---
 
@@ -70,6 +71,98 @@ SQL
 
 The `erp` role owns the database so migrations can create schemas/tables. Default
 cluster listens on `localhost:5432` — no `pg_hba.conf` change needed (loopback).
+
+**PostgreSQL baseline (49.7.4).** Use a currently-supported PostgreSQL major
+version (this repo's dev/CI both run 16.x; anything on the [PostgreSQL
+versioning
+policy](https://www.postgresql.org/support/versioning/)'s supported list is
+fine — never one past its final minor release). After creating the database,
+confirm the defaults are what this deployment actually wants:
+
+```sql
+SHOW server_version;                 -- supported, patched major version
+SELECT extname FROM pg_extension;    -- expect plpgsql only; dblink,
+                                      -- postgres_fdw, adminpack, file_fdw and
+                                      -- plpythonu/plperlu/plperl have no use
+                                      -- in this codebase and must never
+                                      -- appear here
+SHOW log_connections;                -- 'on' - monitors failed auth (49.7.4)
+SHOW log_disconnections;             -- 'on'
+SHOW log_min_duration_statement;     -- e.g. '5s', catches runaway/DDL activity
+                                      -- without logging every ordinary query
+```
+
+Set the ones that are not already `on`/reasonable in `postgresql.conf` (path
+via `SHOW config_file;`) and `sudo systemctl reload postgresql`. These are
+cluster-wide, file-based settings outside what a per-role `ALTER ROLE ... SET`
+can reach — deploy/postgres_harden.sql (next section) covers the per-role
+grants and timeouts; this is the file-level half of the same item.
+
+### A2.5. Least-privilege database roles (49.7.1 / 49.7.4)
+
+The single `erp` role above works, but it means the running server, the
+migration runner and the nightly backup all share **one** database
+credential — compromise of the running process is then schema-modify **and**
+full-dump ability, not just a data read (risk register R-07). Run
+`deploy/postgres_harden.sql` once, in a short maintenance window, to split it
+into three least-privilege roles instead. It is idempotent, reviewed, and
+documents itself — read its header comment before running it:
+
+```bash
+psql "$DATABASE_URL" -v current_owner=erp \
+     -v app_password="$(openssl rand -hex 24)" \
+     -v migrate_password="$(openssl rand -hex 24)" \
+     -v backup_password="$(openssl rand -hex 24)" \
+     -f /opt/erp/deploy/postgres_harden.sql
+```
+
+It prints the resulting role posture and schema ownership at the end — confirm
+`erp_app`/`erp_backup` show `superuser=no createrole=no createdb=no` and every
+schema is owned by `erp_migrate` before proceeding.
+
+**What to repoint immediately (safe, tested against a scratch database):**
+
+- `deploy/backup.sh` — give it `erp_backup`'s connection string. It only ever
+  needs `SELECT`, and now provably cannot write.
+- `deploy/migrate.sh` and any `tenantctl` invocation — give them
+  `erp_migrate`'s connection string. `tenantctl provision`/`deprovision`/`purge`
+  are `CREATE SCHEMA`/`DROP SCHEMA` operations (docs/security/README.md's
+  "operator commands, not routes" note), so they need `erp_migrate`, not the
+  DML-only role below. `engines/tenant_lifecycle.go`'s
+  `ProvisionTenantSchema` grants `erp_app`/`erp_backup` access on every schema
+  it creates automatically (whichever role runs it already owns what it just
+  created), so a tenant provisioned this way needs no manual follow-up grant.
+
+**What is NOT yet safe to repoint — `/etc/erp/erp.env`'s own `DATABASE_URL`,
+i.e. what the running `erp-server` process itself connects as.** Found while
+building this: two existing HTTP routes —
+`POST /api/v1/admin/tenant/provision` (`handleProvisionTenant`) and
+`POST /api/v1/admin/sandbox-tenants` (`handleProvisionSandboxTenant`,
+Stage 38.7) — call
+`engines.ProvisionTenantSchema` directly from the running server process using
+its own database connection, and provisioning a tenant is `CREATE SCHEMA`.
+Both are Super-Admin-gated, but "gated" is an application-layer control, not a
+database-layer one — the database connection itself still needs
+schema-creation rights for these two routes to keep working. Pointing
+`DATABASE_URL` at `erp_app` (DML only) today would make both routes fail with
+`permission denied for database` on their very first use.
+
+Until one of the following happens, leave `/etc/erp/erp.env`'s `DATABASE_URL`
+on the schema-owning role (`erp`, or `erp_migrate` if `current_owner` was
+reassigned) — the backup/migrate split above is still real, independent
+progress on R-07 even with this one left open:
+
+1. Those two routes are refactored to use a second, separately-configured
+   connection pool scoped to `erp_migrate` (only for provisioning), while
+   ordinary request handling moves to `erp_app` — the architecturally clean
+   fix, and a larger, separate change than this item attempted.
+2. Or a decision is made that tenant/sandbox provisioning should only ever
+   happen via `tenantctl` (matching what docs/security/README.md already
+   states as the intended design) and both HTTP routes are removed —
+   smaller, but a product/API-surface decision, not an infrastructure one.
+
+`tenantctl db-privilege` reports the connected role's posture at any time —
+run it after any of the changes above to confirm what actually changed.
 
 > **If you put Postgres anywhere other than this box** — a managed instance
 > (DO/RDS/Cloud SQL), a second droplet, a container on another host — the
@@ -230,6 +323,55 @@ Build → ship → migrate → restart, same as `promote.ps1` does for the Windo
 
 ---
 
+## Part G — network boundary verification (49.7.3)
+
+Run these from a **second machine** (your laptop, not the droplet itself) —
+several of them are meaningless run locally, since loopback traffic never
+crosses the firewall being tested.
+
+```bash
+# 1. Default-deny + only the declared ports are open. `ufw status verbose`
+#    on the box should show "Default: deny (incoming)" and exactly
+#    OpenSSH/80/443 as ALLOW rules - Part A1 sets this up; this just proves
+#    nothing has drifted since.
+ssh deploy@<host> sudo ufw status verbose
+
+# 2. PostgreSQL is not reachable from outside this box at all (it should
+#    only ever listen on loopback - Part A2's default cluster config).
+#    A successful TCP connect here is a finding, not a success.
+nc -zv -w3 <host> 5432 && echo "FINDING: Postgres port reachable from outside" || echo "OK: refused/timed out"
+
+# 3. Direct-origin test: the Go server's own port must not be reachable
+#    directly, bypassing Caddy (HOST=127.0.0.1 in erp.env - Part A4/D).
+nc -zv -w3 <host> 8080 && echo "FINDING: app port reachable directly" || echo "OK: refused/timed out"
+
+# 4. Alternate-port test: nothing else is listening that a port scan would
+#    find. Adjust the range for how thorough you want this to be.
+nmap -Pn -p1-65535 <host>   # expect only 22, 80, 443 open (plus 25/587 if
+                             # this box also relays its own outbound mail,
+                             # which it does not by default)
+
+# 5. IPv4/IPv6 parity - repeat 1-4 against the box's IPv6 address if it has
+#    one. `ufw` rules and Caddy's listener apply per-protocol; a firewall
+#    that is correctly closed on IPv4 and wide open on IPv6 is a real,
+#    previously-seen failure mode on cloud providers that assign a public
+#    IPv6 address by default without anyone asking for one.
+ssh deploy@<host> "ip -6 addr show scope global"   # any address printed here
+                                                    # needs the same checks
+```
+
+Administrative access (SSH) is covered by whatever the droplet provider's own
+key-based auth already enforces (Part A1 never enables password SSH); this
+repo does not add a second admin channel to audit here. If a bastion/VPN
+tunnel is used instead of direct SSH, repeat step 1 against the tunnel
+endpoint, not the droplet's public IP.
+
+`[needs deployment]`: every command above needs a real, reachable host to run
+against - none of it is checkable from a dev tree with no droplet. Record the
+actual output (not just "looks fine") in the deployment's own runbook the
+first time this is run for real, so a later drift shows as a diff against
+something, not a fresh guess.
+
 ## What this closes / unblocks in the go-live doc
 
 - **Section 4** (production hosting) — done once Parts A–D are complete.
@@ -250,3 +392,6 @@ Build → ship → migrate → restart, same as `promote.ps1` does for the Windo
 | Check the nightly backup ran | `ls -lt /opt/erp/backups/custom_erp_*.dump.enc \| head -3; tail -20 /var/log/erp-backup.log` |
 | Redeploy | `.\deploy\deploy.ps1 -Target deploy@<host>` |
 | Version running | `curl -s https://erp.yourdomain.com/api/v1/version` |
+| Harden database roles (once, 49.7.1/49.7.4) | `psql "$DATABASE_URL" -v current_owner=erp -v app_password=... -v migrate_password=... -v backup_password=... -f deploy/postgres_harden.sql` |
+| Check the app's own DB role posture | `tenantctl db-privilege` |
+| Check systemd hardening actually applied | `systemd-analyze security erp.service` |

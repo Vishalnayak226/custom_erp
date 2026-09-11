@@ -88,6 +88,44 @@ func TestMigrationOrdering(t *testing.T) {
 		}
 	})
 
+	t.Run("no migration file contains destructive, non-additive DDL", func(t *testing.T) {
+		// Stage 49.7.5: "reviewed checksumed additive migrations" - this
+		// codebase's own convention (stated in this file's package doc
+		// comment above) is that a migration, once shipped, is never edited
+		// or reversed, only added to (CREATE TABLE IF NOT EXISTS, ADD COLUMN
+		// IF NOT EXISTS). A DROP of a table/column/schema/database, or a
+		// TRUNCATE, destroys data or history a rollback cannot restore and a
+		// tenant-scoped restore cannot selectively undo. As of this test, no
+		// migration file uses any of these - if one legitimately needs to,
+		// add a narrow, named exception here with the reason, the same
+		// pattern internal/securityscan/bypass_test.go uses for its own
+		// reviewed exceptions, rather than loosening the check itself.
+		destructive := []string{"DROP TABLE", "DROP COLUMN", "DROP SCHEMA", "DROP DATABASE", "TRUNCATE"}
+		names, err := migrationFileNames()
+		if err != nil {
+			t.Fatalf("migrationFileNames: %v", err)
+		}
+		for _, name := range names {
+			body, err := migrationFiles.ReadFile(name)
+			if err != nil {
+				t.Errorf("read %s: %v", name, err)
+				continue
+			}
+			for _, line := range strings.Split(string(body), "\n") {
+				trimmed := strings.TrimSpace(line)
+				if strings.HasPrefix(trimmed, "--") {
+					continue // a comment mentioning the word is not a statement
+				}
+				upper := strings.ToUpper(trimmed)
+				for _, pattern := range destructive {
+					if strings.Contains(upper, pattern) {
+						t.Errorf("%s contains %q outside a comment - migrations in this codebase must be additive-only (see this test's doc comment for the reviewed-exception pattern): %q", name, pattern, trimmed)
+					}
+				}
+			}
+		}
+	})
+
 	t.Run("the five tables Stage 30.2.2 found missing are shipped as a migration", func(t *testing.T) {
 		body, err := migrationFiles.ReadFile("migrations_stage30_2_2_integration_tables_catchup.sql")
 		if err != nil {

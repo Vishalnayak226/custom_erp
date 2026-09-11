@@ -2,16 +2,34 @@
 # supervision (auto-restart, start-on-boot, graceful stop).
 #
 # Install:
+#   sudo mkdir -p /opt/erp/backups /opt/erp/media_store /opt/erp/.config
+#   sudo chown -R erp:erp /opt/erp/backups /opt/erp/media_store /opt/erp/.config
 #   sudo cp /opt/erp/deploy/erp.service /etc/systemd/system/erp.service
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now erp
 #
+# The three directories are created ahead of time deliberately: ProtectSystem=
+# strict below makes the whole filesystem read-only except the paths named in
+# ReadWritePaths=, and some systemd versions fail (rather than lazily create) a
+# ReadWritePaths= entry that does not exist yet at unit start.
+#
 # Logs go to the journal:  journalctl -u erp -f
+# Verify this file's own hardening actually took effect after a deploy:
+#   systemd-analyze security erp.service
+# (an "EXPOSED"/high score is expected to shrink after 49.7.2's additions
+# below - it will never reach zero for a service that legitimately needs
+# network + a database connection, and that is fine).
 
 [Unit]
 Description=Custom ERP server
 After=network.target postgresql.service
 Wants=postgresql.service
+# 49.7.2: stop systemd restarting a crash-looping process forever - 5 failed
+# starts inside 60s means something is structurally wrong (bad binary, DB
+# unreachable), and a human should see the service land in "failed" rather
+# than have it hammer the database with reconnect attempts indefinitely.
+StartLimitIntervalSec=60
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -27,15 +45,120 @@ RestartSec=3
 
 # routes.go traps SIGINT/SIGTERM to cancel background workers and shut down
 # gracefully, so let it finish in-flight work before systemd force-kills it.
+# TimeoutStartSec covers the mirror case - db.InitDB/EnforceProductionSecurityBaseline
+# run before the HTTP listener opens, so a slow-to-respond database must not
+# be mistaken by systemd for a hung unit and killed mid-boot.
 KillSignal=SIGTERM
 TimeoutStopSec=30
+TimeoutStartSec=30
 
-# Baseline hardening. ProtectSystem=full leaves /opt (report exports, backups)
-# writable while making /usr, /boot, /etc read-only. Tighten later if desired.
-NoNewPrivileges=true
-ProtectSystem=full
+# --- 49.7.1/49.7.2: least-privilege filesystem, capabilities and sandbox ----
+#
+# ProtectSystem=strict makes the ENTIRE filesystem read-only to this process
+# except ReadWritePaths= below - a meaningfully narrower claim than the
+# previous ProtectSystem=full, which left all of /opt (including the binary
+# and public/ themselves) writable. /opt/erp/erp-server, public/ and this
+# unit's own EnvironmentFile stay read-only to a compromised process; only the
+# three directories actually written at runtime do not:
+#   - /opt/erp/backups     - deploy/backup.sh's own output (also read by the
+#                             restore drill; not written by the server itself,
+#                             listed here so the same path works if that ever
+#                             changes)
+#   - /opt/erp/media_store - engines/pim_media.go's mediaStoreDir (PIM image/
+#                             thumbnail store, path is relative to
+#                             WorkingDirectory)
+#   - /opt/erp/.config     - the generated-secret fallback path (engines/
+#                             auth.go, channel_credentials.go, qz_print.go)
+#                             used only when JWT_SECRET/CHANNEL_CREDENTIAL_KEY
+#                             are unset; production should set both explicitly
+#                             (49.1.3 SB-002/SB-007), which makes this
+#                             directory dead weight rather than load-bearing -
+#                             kept writable anyway so a misconfigured box fails
+#                             the way SB-002/SB-007 describe, not with an
+#                             unrelated filesystem-permission error
+#
+# Documented exception: a Stage 26.4.11 PIM import schedule's drop directory
+# is an admin-configured, per-tenant filesystem path (engines/
+# pim_import_schedule.go), not a fixed one this unit can list in advance. If a
+# deployment uses that feature with a drop directory outside /opt/erp, add its
+# absolute path to ReadWritePaths= here and `systemctl daemon-reload` - until
+# then, a schedule pointed outside these paths fails closed (permission
+# denied, logged, no data written) rather than silently succeeding somewhere
+# unexpected.
+ProtectSystem=strict
+ReadWritePaths=/opt/erp/backups /opt/erp/media_store /opt/erp/.config
 ProtectHome=true
 PrivateTmp=true
+
+# No capability this process needs: it listens on HOST:PORT from erp.env
+# (typically 127.0.0.1:8080, an unprivileged port - Caddy, not this process,
+# binds 80/443), never changes file ownership, never raises its own
+# privileges. An empty bounding set means a code-execution bug in this
+# process cannot bind a privileged port, change ownership, trace another
+# process or load a kernel module even as root - and it never runs as root in
+# the first place (User=erp above).
+NoNewPrivileges=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+# Device, kernel, namespace and clock isolation. None of this process's
+# documented behaviour (HTTP server, PostgreSQL client, SMTP client, outbound
+# webhook/connector calls, QZ Tray talks to the *browser*, never this
+# process) touches a device node, kernel tunable, kernel module, cgroup
+# hierarchy, Linux namespace, the system clock or the hostname.
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+RemoveIPC=true
+
+# 49.7.1 "safe umask" - new files this process creates (the ones under
+# ReadWritePaths= above) are not group/world-writable by default even where a
+# call site's own os.WriteFile mode argument is looser than intended.
+UMask=0027
+
+# 49.7.2 "process/file limits" - bounded rather than the distribution
+# default (often 1024 file descriptors), which is too low for a server
+# holding up to 50 pooled DB connections (db.go's dbMaxOpenConns) plus
+# concurrent HTTP clients, but still a hard ceiling against a descriptor-leak
+# bug or a deliberate exhaustion attempt taking down the whole host.
+LimitNOFILE=65536
+LimitNPROC=512
+TasksMax=512
+
+# Deliberately NOT enabled, with the reason, rather than silently omitted:
+#
+#   SystemCallFilter=@system-service - the standard syscall allowlist for a
+#   long-running service. Left commented rather than on by default because it
+#   cannot be verified from this tree (no Linux host here - CLAUDE.md's
+#   Controlled Folder Access note is about a different problem, but the
+#   underlying constraint is the same: this repo is authored on Windows) and
+#   49.7.2 explicitly requires testing before trusting a restriction that can
+#   turn a benign syscall into a hard SIGSYS crash. Enable it on a staging box
+#   first, with SystemCallErrorNumber=EPERM (below) so a filtered call fails
+#   with an ordinary error instead of killing the process outright, watch
+#   `journalctl -u erp` for "Operation not permitted"/seccomp denials across a
+#   full smoke test (login, checkout, PIM image upload, report export, QZ
+#   print, backup, tenant provisioning), then remove SystemCallErrorNumber=
+#   and switch to the harder default once nothing is denied.
+#SystemCallFilter=@system-service
+#SystemCallErrorNumber=EPERM
+#
+#   MemoryDenyWriteExecute=true - safe for the common case (this binary has
+#   no cgo dependency: lib/pq is pure Go, `go build` for the release binary
+#   does not need CGO_ENABLED=1 - only `go test -race` in CI does, and that
+#   never ships), but Go's runtime has had version- and architecture-specific
+#   reports of needing a W+X page transiently during goroutine stack/signal
+#   setup on some combinations. Same rule as above: stage it, do not ship it
+#   unverified.
+#MemoryDenyWriteExecute=true
 
 [Install]
 WantedBy=multi-user.target

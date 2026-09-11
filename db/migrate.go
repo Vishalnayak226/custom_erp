@@ -1,7 +1,9 @@
 package db
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strconv"
@@ -66,6 +68,9 @@ func ApplyPendingMigrations() ([]MigrationResult, error) {
 		)`); err != nil {
 		return nil, fmt.Errorf("could not ensure public.schema_migrations exists: %w", err)
 	}
+	if err := ensureMigrationChecksumColumn(); err != nil {
+		return nil, err
+	}
 
 	applied, err := appliedMigrations()
 	if err != nil {
@@ -115,9 +120,9 @@ func ApplyPendingMigrations() ([]MigrationResult, error) {
 			return results, fmt.Errorf("migration %s failed (rolled back, ledger not updated): %w", name, err)
 		}
 		if _, err := tx.Exec(
-			`INSERT INTO public.schema_migrations (migration_file, description) VALUES ($1, $2)
+			`INSERT INTO public.schema_migrations (migration_file, description, checksum) VALUES ($1, $2, $3)
 			 ON CONFLICT (migration_file) DO NOTHING`,
-			name, "applied by erp-server -migrate"); err != nil {
+			name, "applied by erp-server -migrate", checksumOf(body)); err != nil {
 			_ = tx.Rollback()
 			results = append(results, MigrationResult{File: name, Err: err})
 			return results, fmt.Errorf("could not record %s in the ledger (rolled back): %w", name, err)
@@ -159,16 +164,23 @@ func BaselineMigrations() (int, error) {
 		)`); err != nil {
 		return 0, fmt.Errorf("could not ensure public.schema_migrations exists: %w", err)
 	}
+	if err := ensureMigrationChecksumColumn(); err != nil {
+		return 0, err
+	}
 	names, err := migrationFileNames()
 	if err != nil {
 		return 0, err
 	}
 	recorded := 0
 	for _, name := range names {
+		body, err := migrationFiles.ReadFile(name)
+		if err != nil {
+			return recorded, fmt.Errorf("could not read embedded migration %s: %w", name, err)
+		}
 		res, err := DB.Exec(
-			`INSERT INTO public.schema_migrations (migration_file, description) VALUES ($1, $2)
+			`INSERT INTO public.schema_migrations (migration_file, description, checksum) VALUES ($1, $2, $3)
 			 ON CONFLICT (migration_file) DO NOTHING`,
-			name, "baselined - assumed already applied before the runner existed")
+			name, "baselined - assumed already applied before the runner existed", checksumOf(body))
 		if err != nil {
 			return recorded, fmt.Errorf("could not baseline %s: %w", name, err)
 		}
@@ -177,6 +189,113 @@ func BaselineMigrations() (int, error) {
 		}
 	}
 	return recorded, nil
+}
+
+// --- Stage 49.7.5: migration ledger checksums ------------------------------
+//
+// checksumOf is the one place a migration file's content is hashed, so
+// ApplyPendingMigrations, BaselineMigrations and VerifyMigrationChecksums
+// cannot silently disagree about what a "checksum" means.
+func checksumOf(body []byte) string {
+	sum := sha256.Sum256(body)
+	return hex.EncodeToString(sum[:])
+}
+
+// ensureMigrationChecksumColumn adds the checksum column ahead of the very
+// first INSERT that might reference it. It cannot wait for its own migration
+// file (migrations_stage49_7_5_migration_checksums.sql) to reach the front of
+// the queue, because on a brand-new database EVERY earlier file's ledger row
+// - inserted by the loop above, not by that file's own SQL - already names
+// the checksum column. Idempotent and safe to call on every boot, the same
+// as the CREATE TABLE IF NOT EXISTS immediately above each call site; the
+// migration file's own ADD COLUMN IF NOT EXISTS is then a guaranteed no-op,
+// kept only so the ledger shows an explicit, reviewable row for this change
+// like every other schema change in this codebase.
+func ensureMigrationChecksumColumn() error {
+	_, err := DB.Exec(`ALTER TABLE public.schema_migrations ADD COLUMN IF NOT EXISTS checksum VARCHAR(64)`)
+	if err != nil {
+		return fmt.Errorf("could not ensure public.schema_migrations.checksum exists: %w", err)
+	}
+	return nil
+}
+
+// ChecksumFinding is one migration ledger row whose recorded checksum no
+// longer matches the file this binary has embedded, or whose file has
+// disappeared from the binary entirely.
+type ChecksumFinding struct {
+	File   string
+	Detail string
+}
+
+// VerifyMigrationChecksums compares every ledger row's recorded checksum
+// against the currently embedded copy of that file and reports any mismatch.
+//
+// A NULL checksum (every row recorded before this feature existed) is
+// backfilled from the CURRENTLY embedded file content on this call, not
+// treated as a mismatch - this cannot prove a file was never touched between
+// its original application and the moment this code first ran, only that it
+// has not changed since. That is stated here rather than implied, because a
+// weaker guarantee dressed up as a stronger one is worse than an honest gap:
+// from this point forward, any further edit to an already-applied migration
+// file is caught on the very next boot.
+//
+// Called from engines/security_baseline.go (SB-024) alongside the other
+// database-backed findings, so this never needs its own call site in Run().
+func VerifyMigrationChecksums() ([]ChecksumFinding, error) {
+	if DB == nil {
+		return nil, fmt.Errorf("database connection is not initialized")
+	}
+	rows, err := DB.Query(`SELECT migration_file, checksum FROM public.schema_migrations ORDER BY migration_file`)
+	if err != nil {
+		// A database that predates this column (or the ledger itself)
+		// records no drift - there is nothing yet to compare.
+		return nil, nil
+	}
+	defer rows.Close()
+
+	type row struct {
+		file     string
+		checksum *string
+	}
+	var recorded []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.file, &r.checksum); err != nil {
+			return nil, err
+		}
+		recorded = append(recorded, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var findings []ChecksumFinding
+	for _, r := range recorded {
+		body, err := migrationFiles.ReadFile(r.file)
+		if err != nil {
+			findings = append(findings, ChecksumFinding{
+				File:   r.file,
+				Detail: "recorded as applied in the ledger, but this binary no longer embeds this file",
+			})
+			continue
+		}
+		current := checksumOf(body)
+		if r.checksum == nil || *r.checksum == "" {
+			// First observation: adopt the currently embedded content as the
+			// baseline going forward (see doc comment above).
+			if _, err := DB.Exec(`UPDATE public.schema_migrations SET checksum = $1 WHERE migration_file = $2`, current, r.file); err != nil {
+				return findings, fmt.Errorf("could not backfill checksum for %s: %w", r.file, err)
+			}
+			continue
+		}
+		if *r.checksum != current {
+			findings = append(findings, ChecksumFinding{
+				File:   r.file,
+				Detail: "this file's content has changed since it was applied - migrations in this codebase are additive and never edited after shipping",
+			})
+		}
+	}
+	return findings, nil
 }
 
 // PendingMigrations lists the migration files that ApplyPendingMigrations

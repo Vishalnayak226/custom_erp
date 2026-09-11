@@ -138,6 +138,12 @@ func CompletePasswordReset(tenantID, token, newPassword string) error {
 // verify the new address before storing it, matching this stage's own scope
 // (reauthentication, not building an email-verification subsystem).
 func SendRecoveryEmailChangedNotice(tenantID, oldEmail, username, newEmail string) {
+	// 49.7.6: same sandbox guarantee as sendPasswordResetEmail below - this
+	// function landed after that fix (49.2.4) and had the identical gap.
+	if isSandbox, _ := IsSandboxTenant(tenantID); isSandbox {
+		log.Printf("[EMAIL-CHANGED] sandbox tenant %s - simulating notice to %s (no real email sent)", tenantID, username)
+		return
+	}
 	if oldEmail == "" {
 		return
 	}
@@ -197,6 +203,19 @@ func maskedResetLink(link string) string {
 }
 
 func sendPasswordResetEmail(tenantID, toEmail, username, resetLink string) {
+	// 49.7.6: a sandbox tenant (Stage 38.7) must never reach a real side
+	// effect, the same guarantee engines/webhook.go's deliverWebhook already
+	// gives outbound webhooks. This call site took tenantID from the start
+	// but never actually checked it - a sandbox tenant on a production
+	// binary (where ExternalSideEffectsEnabled() is true server-wide) would
+	// have a real password-reset email land in a real inbox, which is
+	// exactly the "sandbox reaches a real side effect" failure 49.7.6 exists
+	// to close. Checked before SMTP_HOST/ExternalSideEffectsEnabled below,
+	// same ordering deliverWebhook uses (sandbox is the more specific gate).
+	if isSandbox, _ := IsSandboxTenant(tenantID); isSandbox {
+		log.Printf("[PASSWORD-RESET] sandbox tenant %s - simulating delivery to %s (no real email sent)", tenantID, username)
+		return
+	}
 	if toEmail == "" {
 		// NOTIFI-0171 (Stage 25.5): "Email recipient missing" - logged, not
 		// surfaced to the HTTP caller, since RequestPasswordReset's own
@@ -261,6 +280,12 @@ func sendPasswordResetEmail(tenantID, toEmail, username, resetLink string) {
 // runs, and RequestPasswordReset's own generic-response contract forbids
 // a reset from ever branching client-visible behavior on email delivery.
 func SendPasswordChangedNotice(tenantID, toEmail, username, viaWhat string) {
+	// 49.7.6: same sandbox guarantee as sendPasswordResetEmail above - this
+	// function landed after that fix (49.2.4) and had the identical gap.
+	if isSandbox, _ := IsSandboxTenant(tenantID); isSandbox {
+		log.Printf("[PASSWORD-CHANGED] sandbox tenant %s - simulating notice to %s (no real email sent)", tenantID, username)
+		return
+	}
 	if toEmail == "" {
 		log.Printf("[PASSWORD-CHANGED] (user has no email on file - notice not sent) for %s", username)
 		return

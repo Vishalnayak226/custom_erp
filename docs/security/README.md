@@ -128,7 +128,11 @@ The operator procedure, with every command and what it refuses, is
   the tenant it describes.
 - `tenantctl db-privilege` reports whether the app connects as a database superuser.
   Fixing that is deployment state and belongs to 49.7.4; reporting it is what keeps
-  the gap visible.
+  the gap visible. `deploy/postgres_harden.sql` (49.7.1/49.7.4) is that fix for the
+  migration and backup identities; the runtime identity's fix is documented as open
+  in `deploy/README.md` Part A2.5 and risk_register.md R-07 - two existing HTTP
+  tenant/sandbox-provisioning routes need schema-creation rights through the same
+  connection ordinary requests use.
 
 ## Data classification, keys and secrets (49.6)
 

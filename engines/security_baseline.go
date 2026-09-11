@@ -486,6 +486,35 @@ func storedConnectorCredentialFindings() []BaselineFinding {
 	}}
 }
 
+// migrationChecksumFindings is the 49.7.5 half of the migration-safety item:
+// db.VerifyMigrationChecksums reports any already-applied migration file
+// whose content has since changed, or that has vanished from this binary.
+// Both are exactly the "no hand-edited mystery state" the security
+// constitution names - this codebase's migrations are meant to be additive
+// and immutable once applied, never edited after the fact.
+func migrationChecksumFindings() []BaselineFinding {
+	if db.DB == nil {
+		return nil
+	}
+	drift, err := db.VerifyMigrationChecksums()
+	if err != nil || len(drift) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(drift))
+	for _, d := range drift {
+		names = append(names, d.File)
+	}
+	sort.Strings(names)
+	return []BaselineFinding{{
+		ID: "SB-024", Severity: blockInProd(IsProductionEnv()),
+		Title: "an already-applied migration file no longer matches what this database recorded",
+		Detail: fmt.Sprintf(
+			"%d migration file(s) changed content (or disappeared from this binary) after being applied: %s - either the file was edited after shipping, or this binary was built from a history that does not match what actually ran against this database",
+			len(drift), strings.Join(names, ", ")),
+		Remedy: "never edit a migration file after it has shipped - add a new additive file instead; investigate how the mismatched file's content diverged from what this database's ledger recorded before trusting this database further",
+	}}
+}
+
 // --- Entry points ---------------------------------------------------------
 
 // ProductionSecurityBaseline returns every finding for this process,
@@ -495,6 +524,7 @@ func ProductionSecurityBaseline() []BaselineFinding {
 	findings := configurationFindings()
 	findings = append(findings, seededCredentialFindings()...)
 	findings = append(findings, storedConnectorCredentialFindings()...)
+	findings = append(findings, migrationChecksumFindings()...)
 	sort.SliceStable(findings, func(i, j int) bool { return findings[i].ID < findings[j].ID })
 	return findings
 }

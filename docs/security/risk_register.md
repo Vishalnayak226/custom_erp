@@ -191,8 +191,22 @@ data breach and a total one.
 - **Treatment:** 49.7.1 — separate least-privilege PostgreSQL roles for runtime,
   migration and backup, and separate OS identities where the deployment allows.
 - **Owner:** infrastructure/SRE.
-- **Evidence:** `deploy/erp.service`, `deploy/erp.env.example`, `deploy/backup.sh`.
-- **Review:** at 49.7.1 closure.
+- **Evidence:** `deploy/erp.service`, `deploy/erp.env.example`, `deploy/backup.sh`,
+  `deploy/postgres_harden.sql` (2026-09-11, Stage 49.7.1/49.7.4). The role split
+  itself is built and verified end-to-end against a scratch database:
+  `erp_migrate` (schema owner, used by `migrate.sh`/`tenantctl`) and `erp_backup`
+  (SELECT-only, used by `backup.sh`) are ready to adopt now and fully close the
+  backup/migration half of this risk. The runtime half is **not** closed: two
+  existing Super-Admin-gated HTTP routes (`handleProvisionTenant`,
+  `handleProvisionSandboxTenant`) call `engines.ProvisionTenantSchema` - a
+  `CREATE SCHEMA` - through the server's own connection, so `erp-server`'s
+  `DATABASE_URL` cannot move to the DML-only `erp_app` role until those routes
+  get a separately-scoped connection (or are retired in favour of `tenantctl`
+  only, which docs/security/README.md already states as the intended design).
+  See `deploy/README.md` Part A2.5 for the exact caveat and options.
+- **Review:** at 49.7.1 closure (partial: backup/migration identity split
+  closed 2026-09-11; runtime identity split remains open pending the
+  provisioning-route decision above).
 
 ### R-08 — No governed break-glass or support-access evidence path
 

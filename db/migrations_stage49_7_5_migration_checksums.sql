@@ -1,0 +1,19 @@
+-- Stage 49.7.5 (Migration safety/security): a checksum column on the
+-- migration ledger itself.
+--
+-- Before this, public.schema_migrations recorded only migration_file and
+-- applied_at - proof a file's NAME was applied, never proof its CONTENT was
+-- what actually ran or has not changed since. This repo's own convention is
+-- that a migration, once applied anywhere, is never edited again (only new
+-- additive files are added) - but nothing enforced that. db/migrate.go now
+-- computes a SHA-256 of each file's body at apply time and stores it here;
+-- VerifyMigrationChecksums (same file) compares it against the currently
+-- embedded copy on every boot via the 49.1.3 security baseline (SB-023),
+-- and backfills any historic NULL row from whatever is currently embedded
+-- the first time it is observed - see that function's doc comment for why
+-- that is an honest, not retroactive, guarantee.
+--
+-- Additive and backward compatible: existing rows keep working with a NULL
+-- checksum (nothing reads this column outside VerifyMigrationChecksums,
+-- which treats NULL as "not yet backfilled", not as a mismatch).
+ALTER TABLE public.schema_migrations ADD COLUMN IF NOT EXISTS checksum VARCHAR(64);
