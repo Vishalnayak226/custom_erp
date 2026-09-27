@@ -68,7 +68,7 @@ What is **not** automatically enforced, and why:
   a license-scanning dependency to check it would violate the "no new
   dependency" rule this project holds itself to. The ledger records each
   license by hand; a human reviews it when the entry is added or changed.
-- **OS container image digests.** `postgres:16`, `golang:1.22-bookworm` and
+- **OS container image digests.** `postgres:16`, `golang:1.27-bookworm` and
   `gcr.io/distroless/static-debian12` are recorded with floating tags, not
   digests — see the `note` field on each entry in the ledger for why
   (ephemeral CI-only fixture, or a dormant build path, in both cases lower

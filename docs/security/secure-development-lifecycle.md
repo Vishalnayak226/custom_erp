@@ -199,7 +199,7 @@ after `build-and-test` passes, on a `v*` tag push or manual dispatch):
   refuses to build if go.mod/go.sum don't already describe every import,
   `-trimpath` removes the build machine's absolute file paths from the
   binary (removing one common source of non-reproducibility).
-- Locked toolchain: `actions/setup-go` pinned to an exact patch (`1.22.12`,
+- Locked toolchain: `actions/setup-go` pinned to an exact patch (`1.27.1`,
   matching `go.mod`'s `go` directive exactly) via a pinned action commit.
 - Locked modules: `go.sum` already pins every module's content hash; `go mod
   verify` checks it.

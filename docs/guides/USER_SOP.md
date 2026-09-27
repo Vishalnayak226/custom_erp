@@ -49,8 +49,9 @@ A few things work the same way everywhere in this system. Learn them once here i
 
 ## 2. Where you land after signing in
 
-1. Signing in takes you to **Reports** (§14), whose first tab is a dashboard of live figures — stale approvals, failed syncs, negative stock and a sales trend. From the second visit onward you land back on whichever screen you were last using instead, so you can pick up where you left off.
-2. There is no separate Dashboard screen. The one that used to sit at the top of the sidebar only held derived counts and shortcuts to admin/config tools (**Database Schema Design**, **Dynamic Labels**, **Prefix Configs**, **Activity Log**), all of which are in the **Settings** module — see **[ADMIN_SOP.md](ADMIN_SOP.md)**. It was removed in August 2026 rather than kept as a second front door to the same screens.
+1. Signing in takes you to **Home**, at the top of the sidebar. It shows only what your own role actually does day to day: a grid of quick-action tiles straight to your real screens (POS for a cashier, Purchase Orders for buying, the Warehouse Cockpit for a floor operator, Finance / GL for an accountant, and so on — a tile is simply absent if your role cannot use it, never shown greyed out), how many approvals are waiting on you, the records you most recently touched, and — while your company is still setting up — a "Get started" panel naming the first master record you need to create. From the second visit onward you land back on whichever screen you were last using instead, so you can pick up where you left off.
+2. **Reports** (§14) is still one click away in the sidebar, and its first tab is the same dashboard of live figures — stale approvals, failed syncs, negative stock and a sales trend — it always was.
+3. There is no separate admin-shortcuts Dashboard screen. The one that used to sit at the top of the sidebar only held derived counts and shortcuts to admin/config tools (**Database Schema Design**, **Dynamic Labels**, **Prefix Configs**, **Activity Log**), all of which are in the **Settings** module — see **[ADMIN_SOP.md](ADMIN_SOP.md)**. It was removed in August 2026 rather than kept as a second front door to the same screens; Home does not bring it back — it links only to real task screens, never a Settings/admin one.
 
 ---
 

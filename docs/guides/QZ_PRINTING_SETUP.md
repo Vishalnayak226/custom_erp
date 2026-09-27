@@ -140,7 +140,7 @@ Go to **Masters → Printer** and create one record per printer:
 | **Printer Code** | Short code, e.g. `LABEL-01` |
 | **Printer Name** | Friendly name operators see, e.g. `Packing Bench Label Printer` |
 | **OS Printer Name** | The exact name you copied from Detect Printers |
-| **Default For** | `Shipping Label`, `Invoice`, `Sticker`, `Receipt` or `General` |
+| **Default For** | `Shipping Label`, `Invoice`, `Sticker`, `Receipt`, `Purchase Order` or `General` |
 | **Printer Language** | See the table below |
 | **Label Width / Height (mm)** | For 4x6 labels: `101.6` x `152.4` |
 | **Printer DPI** | Usually `203` for thermal, `300` for higher-end |
@@ -173,11 +173,13 @@ should come out with no dialog.
 
 | To print | Do this | Uses the printer that is Default For |
 |---|---|---|
-| **Barcode stickers** | Sticker Printing → add SKUs → **Print Stickers** | `Sticker` |
+| **Barcode stickers (manual)** | Sticker Printing → Print tab → add SKUs → **Print Stickers** | `Sticker` |
+| **Barcode stickers (from a GRN/Transfer Order)** | Sticker Printing → Print tab → **Print from Transaction** → pick the document → **Print Selected** (or **Print** on one line) | `Sticker` |
 | **A marketplace label or invoice** (Myntra, or any channel PDF) | Sticker Printing → Print Setup → choose the file → **Print** | `Shipping Label` |
 | **An ERP shipping label** | Marketplace → Logistics Bookings → **Print Label** on the row | `Shipping Label` |
 | **A POS receipt** | Point of Sale → complete the sale → answer **Yes** to "Print receipt?" | `Receipt` |
 | **A sales invoice** | Sales Invoice → **Print** on the row | `Invoice` |
+| **A purchase order** | Purchase Orders → **Print** on the row | `Purchase Order` |
 
 Marketplace PDFs are printed **exactly as the channel issued them** — the file
 is passed to the printer untouched, so carrier barcodes are never re-rendered
@@ -205,6 +207,58 @@ for a posted tax invoice. Post the invoice first if you need the real thing.
 
 Every job is recorded, so a disputed reprint can be traced to an operator and a
 time.
+
+---
+
+## Category-based sticker templates
+
+By default every SKU prints the same simple label (name, barcode, SKU). If
+different product categories should look different — a small earring tag
+next to a bigger necklace tag, say — design a template per category instead.
+
+### 1. Design a template
+
+1. Go to **Sticker Printing → Templates → New Template**.
+2. Fill in a **Template Code** and **Name**, then list the **Categories**
+   this template applies to, comma-separated — these must match exactly
+   what is typed into the **Category** field on the matching Item Masters
+   (there is no separate category list to pick from; it is free text on
+   the Item, and this is a plain text match against it, not case-sensitive).
+3. Set the **Label Width/Height (mm)** to match the physical label stock
+   you print this category on.
+4. Click a field button (**SKU**, **Name**, **Barcode**, **HSN**,
+   **Category**, **Batch/Lot**, **Expiry**, **Qty**, **Source Doc #**, or
+   **+ Static Text** for your own fixed wording, e.g. a "Handmade in
+   India" line) to drop it onto the label. Drag it into place; drag the
+   small square at its bottom-right corner to resize it. Click a field to
+   edit its font size, bold, alignment, or (for a Static Text field) its
+   wording in the panel on the right, or to delete it.
+5. Optionally tick **Default (unmapped categories)** on one template — that
+   one template is then used for any item whose category matches nothing
+   else you have configured, instead of the plain built-in label.
+6. Click **Save Template**.
+
+The canvas is a true preview: what you see there is what prints, both on a
+thermal label printer and on the browser print-fallback sheet.
+
+### 2. Print from a GRN or Transfer Order
+
+1. Go to **Sticker Printing → Print → Print from Transaction**.
+2. Pick **Goods Receipt (GRN)** or **Transfer Order** from the **Module**
+   dropdown, then search for the document by its number in the field next
+   to it.
+3. The line list shows every stickerable line — its SKU, name, category,
+   which template it will use (or "Default layout" if none is configured
+   for that category), and how many copies (defaulting to the accepted/
+   transfer quantity — edit the number if you want a different count).
+4. Either untick the lines you don't want and click **Print Selected**, or
+   click **Print** on a single line to print just that one.
+
+A GRN prints only against **accepted** quantity — a rejected or fully
+damaged line does not get a sticker, since there is nothing sellable to
+label. If a document mixes categories, each line prints with its own
+category's template, and the whole run comes off the printer grouped by
+category so it can be torn into separate stacks.
 
 ---
 
@@ -272,4 +326,9 @@ QZ Tray isn't installed, isn't running, or is missing `override.crt`.
 - **The signing endpoint** only ever signs a single SHA-256 digest, and only
   for an authenticated user, so it cannot be used to sign arbitrary content.
 - **Print history** is in `print_job_log`; barcode stickers additionally keep
-  their existing `sticker_print_log` history on the Sticker Printing screen.
+  their existing `sticker_print_log` history on the Sticker Printing screen —
+  a print made from a GRN/Transfer Order also records which document and
+  which template it used, alongside every other row.
+- **Who can design templates.** `StickerTemplate` follows the same
+  permission shape as the other print/config masters: HR/Admin has full
+  control, Store Manager can create/edit (not delete), Cashier is read-only.

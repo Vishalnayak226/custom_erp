@@ -2,10 +2,10 @@
 title: Finding your way around
 section: Getting Started
 order: 3
-summary: The sidebar's eleven entries, the two search boxes that do different things, and the shape every list screen shares.
+summary: The sidebar's twelve entries, the two search boxes that do different things, and the shape every list screen shares.
 audience: everyone
-last_verified: 2026-08-17
-screens: [reports, doctype-table, inventory]
+last_verified: 2026-09-24
+screens: [home, reports, doctype-table, inventory]
 doc_id: DOC-D4BCCBCC10
 type: procedure
 status: draft
@@ -33,17 +33,18 @@ For task instructions and error recovery, see [Find help for your task](using-ta
 
 ## The sidebar
 
-Eleven top-level entries. Most are module groups - hover one and its screens
+Twelve top-level entries. Most are module groups - hover one and its screens
 slide out to the right, or click it if you are on a touchscreen or using the
-keyboard. **Reports**, **Manufacturing** and **PIM** have no flyout and open
-straight away.
+keyboard. **Home**, **Reports**, **Manufacturing** and **PIM** have no flyout
+and open straight away.
 
 | Entry | What is inside |
 |---|---|
+| **Home** | Opens directly. Where you land when you first sign in: your own quick actions (only the day-to-day screens your role can actually use), anything waiting on you, what you last touched, and - on a tenant that is still mostly empty - a "Get started" nudge toward the first master record to set up. |
 | **POS** | POS / Billing · POS Profiles · Offline Sync Review · Offline Queue Gaps |
 | **Financial Accounting** | Finance / GL · Approvals · Vendor Invoice · Payment Proposals · Bank Reconciliation · Debit / Credit Notes · Sales Invoice |
 | **Sales & Marketplace** | Order Management · Fulfillment · Marketplace · Customer |
-| **Reports** | Opens directly. Also where you land when you first sign in - its first tab is a dashboard of live figures. |
+| **Reports** | Opens directly. Its first tab is a dashboard of live figures. |
 | **Procurement** | Purchase Requisitions · Purchase Order · ASN · Goods Receipt · Vendors · RFQ / Quotes |
 | **Stock** | Inventory · Stock Transfer · Bin · Putaway · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · Cycle Count · Sticker Printing |
 | **HRM** | HR · Fixed Assets · Expenses |

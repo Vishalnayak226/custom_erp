@@ -133,8 +133,19 @@
              (2026-08-01): everything it showed was either derived counts or
              shortcut tiles into screens the Settings module already lists, so
              it was a second front door to configuration rather than a screen
-             of its own. Reports is the landing view now - see DEFAULT_VIEW in
-             app.js. -->
+             of its own. Reports was the landing view from then until
+             BLD-033 (2026-09-24) added Home back, deliberately narrower than
+             the retired Dashboard: Home links only to day-to-day TASK
+             screens this session can actually reach (never a Settings/admin
+             screen - the sidebar already owns those), plus approvals
+             awaiting this session, a "recent" panel for the first reachable
+             task doctype, and scope-led setup guidance when the tenant is
+             still empty. See DEFAULT_VIEW/renderHomeView in app.js. -->
+        <li class="menu-item-container">
+          <a class="menu-item" id="menu-home">
+            <span>Home</span>
+          </a>
+        </li>
 
         <!-- Module: POS (2026-07-26: renamed to "POS" per final SaaS naming decision; internal id left as module-pos) -->
         <li class="menu-item-container has-flyout">
@@ -412,6 +423,11 @@
             <option value="semiconductor">Semiconductors</option>
             <option value="agriculture">Agriculture & Perishable Goods</option>
           </select>
+          <!-- Stage 51.3: shown only once the industry profile is locked
+               (see applyIndustryLockUI/engines.SwitchIndustryProfile's lock
+               row) - the select above is disabled at that point, since a
+               plain change there would just be rejected server-side. -->
+          <button class="btn btn-outline btn-sm hidden" id="industry-override-btn" title="This tenant's industry profile is locked - click to override" style="margin-right: 8px;">Override</button>
           <button class="btn btn-outline" id="sync-btn" title="Refresh local data store">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
@@ -432,7 +448,7 @@
       </header>
 
       <!-- View injection point -->
-      <div class="page-container" id="view-root"></div>
+      <div class="page-container" id="view-root" tabindex="-1"></div>
     </main>
   </div>
 
@@ -630,7 +646,7 @@
 
   <!-- Custom Alert & Confirm Overlay Dialog -->
   <div id="custom-dialog-container" class="custom-dialog-backdrop hidden">
-    <div class="custom-dialog-box">
+    <div class="custom-dialog-box" role="alertdialog" aria-modal="true" aria-labelledby="custom-dialog-title" aria-describedby="custom-dialog-message">
       <div class="custom-dialog-header">
         <h3 id="custom-dialog-title">Confirm Action</h3>
         <button id="custom-dialog-close-btn" class="custom-dialog-close-x">&times;</button>

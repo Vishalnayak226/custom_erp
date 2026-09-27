@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "updated": "2026-09-06",
+  "updated": "2026-09-17",
   "entries": [
     {
       "name": "github.com/lib/pq",
-      "type": "go_module_indirect",
+      "type": "go_module_direct",
       "version": "v1.12.3",
       "checksum": "h1:tTWxr2YLKwIvK90ZXEw8GP7UFHtcbTtty8zsI+YjrfQ=",
       "owner": "infrastructure (database access layer, db/ and engines/)",
@@ -14,9 +14,9 @@
     },
     {
       "name": "golang.org/x/crypto",
-      "type": "go_module_indirect",
-      "version": "v0.25.0",
-      "checksum": "h1:ypSNr+bnYL2YhwoMt2zPxHFmbAN1KZs/njMG3hxUp30=",
+      "type": "go_module_direct",
+      "version": "v0.57.0",
+      "checksum": "h1:3ZVCjf8Ggz7zneR/EHRVx68Ctf+2pmIMP2UFhh9cC6M=",
       "owner": "security (engines/security_baseline.go, auth handlers)",
       "purpose": "golang.org/x/crypto/bcrypt for password hashing; this is the only cryptographic primitive the application does not implement itself.",
       "license": "BSD-3-Clause",
@@ -25,13 +25,13 @@
     {
       "name": "go",
       "type": "go_toolchain",
-      "version": "1.22.12",
+      "version": "1.27.1",
       "checksum": "n/a - toolchain integrity is verified by GOSUMDB during `go install`/toolchain download, not a single static hash recorded here",
       "owner": "infrastructure",
       "purpose": "Compiler and stdlib used to build, vet and test the application, and to build cmd/releasemanifest itself.",
       "license": "BSD-3-Clause",
       "provenance": "go.dev official distribution. CI installs this exact patch via a pinned actions/setup-go (see below); deploy.ps1 uses a pinned go-portable install on the operator's machine (CLAUDE.md / deploy/README.md).",
-      "note": "The one place this ledger cannot yet prove a match by itself: nothing currently fails CI if the operator's local go-portable install and CI's actions/setup-go version drift apart. cmd/releasemanifest records go_version (runtime.Version(), i.e. what actually compiled a given build) in every release manifest, which is how a drift would be caught after the fact rather than never."
+      "note": "The one place this ledger cannot yet prove a match by itself: nothing currently fails CI if the operator's local go-portable install and CI's actions/setup-go version drift apart. cmd/releasemanifest records go_version (runtime.Version(), i.e. what actually compiled a given build) in every release manifest, which is how a drift would be caught after the fact rather than never. KNOWN DRIFT as of 2026-09-17/BLD-014: go.mod, CI (.github/workflows/ci.yml, documentation-health.yml) and the Dockerfile were bumped 1.22.12 -> 1.27.1 (govulncheck: 6 reachable stdlib CVEs on 1.26.5 -> 0 on 1.27.1) this pass; deploy.ps1's operator-machine go-portable install at %USERPROFILE%/go-portable/go was deliberately NOT touched (still 1.22.12) since it is the real production build toolchain and this pass only verified the change with local builds/vet/govulncheck, not a full deploy - upgrading it is the next operator action before the next real deploy, tracked in micro_checklist.md Stage 50/BLD-014."
     },
     {
       "name": "actions/checkout",
@@ -49,7 +49,7 @@
       "version": "v5.6.0",
       "checksum": "40f1582b2485089dde7abd97c1529aa768e1baff",
       "owner": "CI/infrastructure",
-      "purpose": "Installs the pinned Go toolchain (go-version: 1.22.12, matching go.mod's `go` directive exactly) for build/vet/test.",
+      "purpose": "Installs the pinned Go toolchain (go-version: 1.27.1, matching go.mod's `go` directive exactly) for build/vet/test.",
       "license": "MIT",
       "provenance": "Official actions/ GitHub org. Pinned to a full commit SHA."
     },

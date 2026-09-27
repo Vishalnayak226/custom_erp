@@ -15,19 +15,21 @@ Maturity is scoped to the configurations below. Source and test-file links are i
 
 ## Capability status
 
-| Capability | Maturity / configuration | Owner | Limits / remaining gates |
-|---|---|---|---|
-| CAP-POS — Point of sale | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | store-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
-| CAP-RET — Returns and refunds | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | store-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
-| CAP-WMS — Warehouse operations | Experimental / REF-RETAIL-IN, REF-WAREHOUSE-IN | warehouse-process-owner | Single-owner-per-warehouse guard implemented; mixed-owner operation explicitly unsupported. Physical device, deployment and qualified release acceptance remain open. |
-| CAP-OMS — Order management | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | order-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
-| CAP-PIM — Product and master data | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | data-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
-| CAP-BUY — Procurement | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | procurement-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
-| CAP-INV — Inventory and transfers | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | inventory-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
-| CAP-FIN — Finance and tax | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | finance-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
-| CAP-CRM — Customer relationship and loyalty | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | customer-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
-| CAP-HR — People and payroll | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | hr-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
-| CAP-MFG — Manufacturing and planning | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | manufacturing-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
-| CAP-SRV — Projects and service | Experimental / REF-RETAIL-IN, REF-WAREHOUSE-IN | service-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
-| CAP-API — Platform and integrations | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | engineering-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
-| CAP-KB — Knowledge Center | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | documentation-maintainer | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
+Module keys link this product register to the executable module catalog. The registry schema version and release label identify the mapping version; source checks derive DocTypes, role vocabulary, routes, screens, workers, reports, exports and core dependencies from their existing declarations.
+
+| Capability | Module keys | Maturity / configuration | Owner | Limits / remaining gates |
+|---|---|---|---|---|
+| CAP-POS — Point of sale | sales | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | store-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
+| CAP-RET — Returns and refunds | sales, oms | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | store-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
+| CAP-WMS — Warehouse operations | wms, stickers, inventory | Experimental / REF-RETAIL-IN, REF-WAREHOUSE-IN | warehouse-process-owner | Single-owner-per-warehouse guard implemented; mixed-owner operation explicitly unsupported. Physical device, deployment and qualified release acceptance remain open. |
+| CAP-OMS — Order management | oms | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | order-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
+| CAP-PIM — Product and master data | pim, master_data | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | data-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
+| CAP-BUY — Procurement | procurement, rfq | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | procurement-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
+| CAP-INV — Inventory and transfers | inventory | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | inventory-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
+| CAP-FIN — Finance and tax | finance, assets, expenses | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | finance-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
+| CAP-CRM — Customer relationship and loyalty | crm_loyalty | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | customer-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
+| CAP-HR — People and payroll | hr | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | hr-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
+| CAP-MFG — Manufacturing and planning | manufacturing, quality | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | manufacturing-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
+| CAP-SRV — Projects and service | service | Experimental / REF-RETAIL-IN, REF-WAREHOUSE-IN | service-process-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
+| CAP-API — Platform and integrations | core, integrations, reports | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | engineering-owner | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |
+| CAP-KB — Knowledge Center | core | Preview / REF-RETAIL-IN, REF-WAREHOUSE-IN | documentation-maintainer | Source/test locations available; no approved deployment-specific release/UAT evidence attached. Stage gates remain authoritative. |

@@ -34,6 +34,27 @@
         { "fieldname": "name", "label": "Color Name", "fieldtype": "Data", "mandatory": true, "display_order": 2 },
         { "fieldname": "purity_karat", "label": "Purity (Karat)", "fieldtype": "Select", "options": "14k,18k,22k,24k", "mandatory": true, "display_order": 3 }
       ]
+    },
+    {
+      "name": "Item",
+      "module": "Inventory",
+      "document_type": "Master",
+      "fields": [
+        { "fieldname": "sub_category", "label": "Sub Category", "fieldtype": "Data", "mandatory": false, "display_order": 15 },
+        { "fieldname": "type", "label": "Type", "fieldtype": "Data", "mandatory": false, "display_order": 16 },
+        { "fieldname": "brand", "label": "Brand", "fieldtype": "Link", "options": "Brand", "mandatory": false, "display_order": 17 },
+        { "fieldname": "color", "label": "Color", "fieldtype": "Data", "mandatory": false, "display_order": 18 },
+        { "fieldname": "polish", "label": "Polish / Plating", "fieldtype": "Data", "mandatory": false, "display_order": 19 },
+        { "fieldname": "metal_type", "label": "Metal Type", "fieldtype": "Select", "options": "Gold,Silver,Platinum,Brass", "mandatory": false, "display_order": 20 },
+        { "fieldname": "purity_karat", "label": "Purity (Karat)", "fieldtype": "Select", "options": "14k,18k,22k,24k", "mandatory": false, "display_order": 21 },
+        { "fieldname": "gross_weight", "label": "Gross Weight (g)", "fieldtype": "Number", "mandatory": false, "display_order": 22 },
+        { "fieldname": "net_weight", "label": "Net Weight (g)", "fieldtype": "Number", "mandatory": false, "display_order": 23 },
+        { "fieldname": "stone_type", "label": "Stone Type", "fieldtype": "Data", "mandatory": false, "display_order": 24 },
+        { "fieldname": "stone_weight", "label": "Stone Weight (ct)", "fieldtype": "Number", "mandatory": false, "display_order": 25 },
+        { "fieldname": "making_charge_type", "label": "Making Charge Type", "fieldtype": "Select", "options": "Percentage,PerGram,Fixed", "mandatory": false, "display_order": 26 },
+        { "fieldname": "making_charge_value", "label": "Making Charge Value", "fieldtype": "Number", "mandatory": false, "display_order": 27 },
+        { "fieldname": "size", "label": "Size", "fieldtype": "Data", "mandatory": false, "display_order": 28 }
+      ]
     }
   ],
   "labels": {

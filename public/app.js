@@ -161,13 +161,19 @@ async function getErrorDetails(res, fallback) {
         userAction: data.user_action || '',
         code: data.code || '',
         displayStyle: data.display_style || '',
+        // BLD-037: apierror.go's own comment already promises this is "the
+        // correlation_id shown to the user" (server-side logs are keyed by
+        // it too), but nothing here ever read it off the envelope - so no
+        // error surface could ever actually show it. Optional: most
+        // responses carry one, a pre-envelope call site never will.
+        correlationId: data.correlation_id || '',
       };
     }
   } catch (e) {
     // Body wasn't JSON (a call site not yet migrated to the standardized
     // envelope) - fall through to the fallback message.
   }
-  return { message: fallback, detail: '', userAction: '', code: '', displayStyle: '' };
+  return { message: fallback, detail: '', userAction: '', code: '', displayStyle: '', correlationId: '' };
 }
 
 // Joins the headline with whichever of detail/user_action came back, for the
@@ -190,16 +196,18 @@ async function getErrorMessage(res, fallback) {
 // fallback) are unaffected.
 async function showApiError(res, fallback, title = 'Error') {
   const details = await getErrorDetails(res, fallback);
-  const { message, detail, userAction, code, displayStyle } = details;
+  const { message, detail, userAction, code, displayStyle, correlationId } = details;
   if (code) console.debug(`[API error] ${code}`);
   if (displayStyle === 'Toast') {
+    // Toast is transient (a few seconds) - too short-lived for a reference
+    // worth writing down, unlike the two persistent surfaces below.
     showToast(composeErrorText(details), { variant: 'warning' });
     return;
   }
   if (displayStyle === 'Page banner') {
     const container = document.getElementById('view-root');
     if (container) {
-      renderPageBanner(container, composeErrorText(details));
+      renderPageBanner(container, composeErrorText(details), { correlationId });
       return;
     }
   }
@@ -208,14 +216,14 @@ async function showApiError(res, fallback, title = 'Error') {
   // Before this, a missing HSN code read only "Tax configuration is missing
   // for this transaction. Please contact administrator." with no indication
   // of which item or which field, to an administrator.
-  await showCustomAlert(composeErrorLines(message, detail, userAction), title);
+  await showCustomAlert(composeErrorLines(message, detail, userAction, correlationId), title);
 }
 
 // Builds the modal body for showApiError. Returns a DOM node when there is
 // more than the headline to show, and a plain string otherwise, so the
 // single-line case renders byte-for-byte as it always has.
-function composeErrorLines(message, detail, userAction) {
-  if (!detail && !userAction) return message;
+function composeErrorLines(message, detail, userAction, correlationId) {
+  if (!detail && !userAction && !correlationId) return message;
   const wrap = document.createElement('div');
   wrap.style.display = 'flex';
   wrap.style.flexDirection = 'column';
@@ -239,6 +247,16 @@ function composeErrorLines(message, detail, userAction) {
     a.style.fontSize = '13px';
     a.style.fontWeight = '600';
     wrap.appendChild(a);
+  }
+  if (correlationId) {
+    // BLD-037: the one thing worth quoting to support on an error a user
+    // can't self-resolve - server logs and the audit trail are both keyed
+    // by this same id (apierror.go).
+    const ref = document.createElement('div');
+    ref.textContent = `Reference: ${correlationId}`;
+    ref.style.fontSize = '11px';
+    ref.style.color = 'var(--text-muted)';
+    wrap.appendChild(ref);
   }
   return wrap;
 }
@@ -285,6 +303,12 @@ function showToast(message, opts = {}) {
 
   const toast = document.createElement('div');
   toast.className = `toast toast-${variant}`;
+  // BLD-038: this is the one place every toast in the app renders through, so
+  // an assistive-tech announcement belongs here rather than at any call site.
+  // "assertive" only for danger/warning - an "info"/"success" toast is not
+  // worth interrupting whatever the user is doing to announce.
+  toast.setAttribute('role', variant === 'danger' || variant === 'warning' ? 'alert' : 'status');
+  toast.setAttribute('aria-live', variant === 'danger' || variant === 'warning' ? 'assertive' : 'polite');
   if (opts.title) {
     const titleEl = document.createElement('div');
     titleEl.className = 'toast-title';
@@ -317,7 +341,17 @@ const COPY_ICON_DONE_SVG = '<svg width="13" height="13" viewBox="0 0 24 24" fill
 
 function copyableCell(displayValue, rawValue) {
   const raw = rawValue === undefined || rawValue === null ? '' : String(rawValue);
-  if (raw === '') return displayValue === undefined || displayValue === null ? '' : String(displayValue);
+  // Stage 50/AUD-01: this is the one place every record-list cell in the app
+  // renders through (roughly 30 call sites), so it is also the one place a
+  // stored value can turn into executable markup if it is trusted instead of
+  // escaped - a Vendor-only clerk's saved name reached a Super Admin's
+  // browser this way. displayValue is always plain cell text here, never
+  // caller-built HTML (checked every call site before making this the
+  // choke point), so escaping it unconditionally is safe. Callers that used
+  // to pre-escape their own displayValue before calling this now pass the
+  // raw value instead - escaping twice would double-encode "&" into
+  // "&amp;amp;" and show up wrong on screen.
+  if (raw === '') return displayValue === undefined || displayValue === null ? '' : escapeHTMLText(displayValue);
   // 30.5.8: this one helper renders every copy chip in the app - roughly 30
   // per record list - so the accessible name is attached here rather than at
   // any call site. It names the value, not the action: a screen reader
@@ -325,7 +359,7 @@ function copyableCell(displayValue, rawValue) {
   // which row it is on. `title` alone is only a last-resort accessible name
   // and several screen readers skip it, so aria-label is what makes these
   // reachable rather than merely hoverable.
-  return `<span class="copyable-cell"><span>${displayValue}</span><button type="button" class="copy-chip" title="Copy" aria-label="Copy ${escapeHTMLText(raw)}" data-copy-value="${encodeURIComponent(raw)}" onclick="event.stopPropagation(); copyValueToClipboard(this)">${COPY_ICON_SVG}</button></span>`;
+  return `<span class="copyable-cell"><span>${escapeHTMLText(displayValue)}</span><button type="button" class="copy-chip" title="Copy" aria-label="Copy ${escapeHTMLText(raw)}" data-copy-value="${encodeURIComponent(raw)}" onclick="event.stopPropagation(); copyValueToClipboard(this)">${COPY_ICON_SVG}</button></span>`;
 }
 
 window.copyValueToClipboard = async function(btn) {
@@ -369,10 +403,27 @@ function renderPageBanner(container, message, opts = {}) {
 
   const banner = document.createElement('div');
   banner.className = `page-banner page-banner-${variant}`;
+  // BLD-038: same reasoning as showToast's role/aria-live above - the one
+  // choke point every page-banner-styled API error renders through.
+  banner.setAttribute('role', 'alert');
+  banner.setAttribute('aria-live', 'assertive');
 
+  const body = document.createElement('span');
+  body.className = 'page-banner-body';
   const msgEl = document.createElement('span');
   msgEl.textContent = message;
-  banner.appendChild(msgEl);
+  body.appendChild(msgEl);
+  if (opts.correlationId) {
+    // BLD-037: Page banner is this app's single most common error surface
+    // (152 of 302 catalog rows) and, unlike a toast, stays on screen until
+    // dismissed - the right place for the same support-reference line the
+    // modal path (composeErrorLines) shows.
+    const ref = document.createElement('span');
+    ref.className = 'page-banner-ref';
+    ref.textContent = `Ref: ${opts.correlationId}`;
+    body.appendChild(ref);
+  }
+  banner.appendChild(body);
 
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
@@ -403,10 +454,8 @@ let state = {
   // create/update/delete (30.5.7) mirror `doctypes`, which holds read grants.
   // Same "show everything until loaded" default as the rest of this block.
   permissions: { isAdmin: true, doctypes: new Set(), create: new Set(), update: new Set(), delete: new Set(), capabilities: new Set(), loaded: false },
-  // Stage 27: same "show everything until loaded" default as permissions
-  // above - enabled: null means "unknown yet," which isMenuModuleVisible
-  // treats as visible; moduleGate on the server is the real enforcement
-  // point regardless of what the sidebar shows.
+  // Unknown entitlements hide module navigation until the server confirms
+  // them. Direct views and the server's moduleGate also fail closed.
   modules: { enabled: null, solePackage: null, ownedPackages: [], loaded: false },
   // Stage 41. setupStatus is "how many records exist per Master record
   // type", loaded once per session from GET /api/v1/setup/status and refreshed
@@ -424,15 +473,29 @@ let state = {
 
 // The screen the app opens on when there is nothing saved to restore. It was
 // the Dashboard until the user retired that screen (2026-08-01) - everything
-// it showed was derived counts and shortcut tiles into Settings screens.
-// Reports is the replacement because it is the one destination every role and
-// every tenant can reach (MENU_PERMISSION_MAP marks it `open`, and it carries
-// no MENU_MODULE_MAP entitlement gate), and its first tab is the executive
-// dashboard, which shows real figures rather than configuration links.
-const DEFAULT_VIEW = 'reports';
+// it showed was derived counts and shortcut tiles into Settings screens -
+// then Reports (same reasoning: reachable by every role/tenant, no
+// MENU_MODULE_MAP gate) until BLD-033 (2026-09-24). Home is now the
+// landing view: like Reports it is reachable by every role and tenant
+// (MENU_PERMISSION_MAP marks it `open`, MENU_MODULE_MAP gates it on the
+// always-on 'core' module), but unlike the retired Dashboard it links only
+// to actual task screens this session can reach, never a Settings/admin
+// screen - see renderHomeView's own comment for the full reasoning.
+const DEFAULT_VIEW = 'home';
 
 let currentView = DEFAULT_VIEW;
 let currentDoctype = '';
+// quickCreateReturn (2026-09-22 fix): { forDoctype, view, label } set by
+// openSetupDoctype() whenever a "create the missing master" shortcut is
+// launched from inside another screen (a typeahead's empty-state "create
+// one" link, a setup hint) - renderView never pushes browser history (see
+// saveNavState's own comment on that decision), so without this the
+// shortcut was a one-way trip: e.g. GRN's Item picker -> create Item -> no
+// way back to the GRN workbench. Consumed once, by renderDocTableView's
+// "Back to X" button or by a successful save in handleDynamicFormSubmit -
+// and invalidated by renderViewContent the moment navigation strays
+// anywhere else, so a later, unrelated save can never see a stale target.
+let quickCreateReturn = null;
 let posCart = []; // { sku, available, qty, salePrice, referencePrice, priceSource, overrideId, unpriced } - Stage 47.2: prices are the server's, not the till's
 let posLocation = '';
 let posOpenSessionId = ''; // Stage 20.7: '' means no open cashier session at posLocation
@@ -748,7 +811,7 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     if (isEmpty) {
       const row = document.createElement('div');
       row.className = 'typeahead-item typeahead-item-empty';
-      row.innerHTML = `No matching ${getTranslatedLabel(doctype)} &mdash; <a href="#" class="empty-state-link">create one</a>`;
+      row.innerHTML = `No matching ${getDoctypeLabel(doctype)} &mdash; <a href="#" class="empty-state-link">create one</a>`;
       // The menu is a child of <body>, not of the input's container, so it
       // has to be torn down explicitly before navigating away or it is left
       // floating over the next screen.
@@ -1190,6 +1253,25 @@ function escapeHTMLText(s) {
     .replace(/'/g, '&#39;');
 }
 
+// makeClickable turns a plain <div>-with-a-click-listener tile into something
+// a keyboard/screen-reader user can actually reach and activate. Found during
+// the BLD-038 accessibility sweep: several existing "clickable stat-card"
+// tiles (exec dashboard, OMS tiles, Home's approvals count) only ever bound a
+// 'click' listener to a bare <div>, so they had no tab stop and no way to
+// activate them without a mouse. Applies role/tabindex/keydown once so future
+// tiles of the same shape get it for free instead of repeating this by hand.
+function makeClickable(el, handler) {
+  el.setAttribute('role', 'button');
+  el.setAttribute('tabindex', '0');
+  el.addEventListener('click', handler);
+  el.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handler(e);
+    }
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Field formats (Stage 40.2)
 //
@@ -1418,17 +1500,33 @@ window.openSetupDoctype = function (doctype) {
   const setupMenu = document.getElementById('menu-master-definition');
   if (setupMenu) setupMenu.classList.add('active');
   closeSubmenus();
+  // Every call site of this function is a "create the missing master"
+  // shortcut surfaced from inside another screen - none of them are the
+  // sidebar's own Setup-menu navigation (that has its own separate click
+  // handler in renderSidebarSubmenu()). Capture where we're leaving from so
+  // the list this opens can offer a way back - see quickCreateReturn.
+  const originTitle = document.querySelector('.page-title')?.textContent || null;
+  quickCreateReturn = { forDoctype: doctype, view: currentView, label: originTitle };
   currentDoctype = doctype;
   currentSearchQuery = '';
   currentTablePage = 1;
   renderView('doctype-table');
 };
 
+// returnFromQuickCreate is the "Back to X" button's handler - one-shot,
+// consuming quickCreateReturn so a later visit to this same list (not
+// reached via another shortcut) shows no button.
+window.returnFromQuickCreate = function () {
+  const target = quickCreateReturn;
+  quickCreateReturn = null;
+  if (target) renderView(target.view);
+};
+
 // setupLink renders "Setup » Brand" as a real link into that list. Uses an
 // inline onclick like the DocType Builder's own module flyout does, rather
 // than introducing a second delegation scheme for one link.
 function setupLink(doctype, label) {
-  const text = label || `Setup &raquo; ${getTranslatedLabel(doctype)}`;
+  const text = label || `Setup &raquo; ${getDoctypeLabel(doctype)}`;
   return `<a href="#" class="empty-state-link" onclick="event.preventDefault(); openSetupDoctype('${doctype}')">${text}</a>`;
 }
 
@@ -1444,7 +1542,7 @@ function emptyHint(next, { asLink = false } = {}) {
 // <select> or typeahead whose target list is empty. Rendered by the caller
 // right after the control, so it inherits the form-group's own spacing.
 function emptyPickerHint(doctype, label) {
-  return `<div class="empty-state-hint">No ${getTranslatedLabel(label || doctype)} records exist yet &mdash; ${setupLink(doctype, 'create one first')}.</div>`;
+  return `<div class="empty-state-hint">No ${getDoctypeLabel(label || doctype)} records exist yet &mdash; ${setupLink(doctype, 'create one first')}.</div>`;
 }
 
 // ===========================================================================
@@ -1527,7 +1625,22 @@ async function navigateToDeepLink(link) {
   if (link.kind === 'setup') {
     const known = state.activeDoctypes.some(d => d.name === link.doctype);
     if (!known || !canReadDoctype(link.doctype)) return false;
-    openSetupDoctype(link.doctype);
+    // BLD-037: plain navigation, not openSetupDoctype() - that function is
+    // the "create the missing master" shortcut, and unconditionally sets
+    // quickCreateReturn for its own "Back to X" button. A deep link arriving
+    // cold (a refresh, a bookmark, a shared/new-tab URL - restoreLastView's
+    // own comment above) has no real prior screen to go back to in this tab;
+    // routing it through openSetupDoctype anyway picked up currentView's
+    // still-default 'home' as a bogus origin, showing a nonsensical,
+    // untranslated "Back to home" link on every refreshed doctype-table
+    // screen. restoreActiveMenuState is the same sidebar-highlight logic
+    // openSetupDoctype's active-class toggling duplicated, already built for
+    // exactly this "arrived cold" case.
+    currentDoctype = link.doctype;
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    await renderView('doctype-table');
+    restoreActiveMenuState('doctype-table', link.doctype);
     return true;
   }
   if (link.kind === 'view') {
@@ -1589,7 +1702,7 @@ function isDoctypeSetUp(doctype) {
 // normal click doesn't also push a fragment onto the history stack.
 function setupOpenLinks(doctype, inlineLabel) {
   const href = deepLinkForDoctype(doctype);
-  const label = getTranslatedLabel(doctype);
+  const label = getDoctypeLabel(doctype);
   return `<a href="${href}" class="empty-state-link" onclick="event.preventDefault(); openSetupDoctype('${doctype}')">${inlineLabel}</a>` +
     `<a href="${href}" target="_blank" rel="noopener" class="setup-hint-newtab" title="Open ${label} setup in a new tab" aria-label="Open ${label} setup in a new tab">` +
     `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">` +
@@ -1601,7 +1714,7 @@ function setupOpenLinks(doctype, inlineLabel) {
 // `mode` is 'missing' (nothing exists) or 'addMore' (records exist, this is
 // the quiet nudge).
 function setupHintHTML(doctype, mode) {
-  const label = getTranslatedLabel(doctype);
+  const label = getDoctypeLabel(doctype);
   if (!canCreateDoctype(doctype)) {
     // The no-access sentence is shown for a missing master (the user needs to
     // know why they are stuck) but not for addMore - telling someone who
@@ -1844,18 +1957,69 @@ function showApp() {
   document.getElementById('login-screen').classList.add('hidden');
   document.getElementById('app-root').classList.remove('hidden');
   updateSidebarUserInfo();
-  restoreIndustrySelector();
+  applyIndustryLockUI();
 }
 
-// There's no backend "current industry" endpoint to read back - the industry
-// switch is a one-time overlay operation, not stored state. This is just
-// client-side memory of the last profile this browser switched to, same
-// tier of persistence as erp_tenant_id.
-function restoreIndustrySelector() {
-  const saved = localStorage.getItem('erp_industry_code');
+// Stage 51.3: the industry-profile switch is now locked server-side after
+// the first successful switch (engines.SwitchIndustryProfile's industry_lock
+// row) - this reads that real state via GET /api/v1/admin/industry/lock and
+// disables the selector with an Override affordance, replacing the old
+// client-only localStorage memory ("There's no backend 'current industry'
+// endpoint to read back" was true before this Stage; it no longer is).
+async function applyIndustryLockUI() {
   const sel = document.getElementById('industry-selector');
-  if (sel && saved && Array.from(sel.options).some(o => o.value === saved)) {
-    sel.value = saved;
+  const overrideBtn = document.getElementById('industry-override-btn');
+  if (!sel) return;
+  const res = await apiFetch('/api/v1/admin/industry/lock');
+  if (!res || !res.ok) {
+    // Not a Super Admin (403), or the check itself failed - fall back to the
+    // old per-browser memory rather than showing nothing, and leave the
+    // selector enabled since we can't confirm a lock either way.
+    const saved = localStorage.getItem('erp_industry_code');
+    if (saved && Array.from(sel.options).some(o => o.value === saved)) sel.value = saved;
+    return;
+  }
+  const lock = await res.json();
+  if (lock.locked) {
+    const optionValue = (lock.industry_code || '').toLowerCase();
+    if (Array.from(sel.options).some(o => o.value === optionValue)) sel.value = optionValue;
+    sel.disabled = true;
+    sel.title = `Locked to ${lock.industry_code} by ${lock.set_by} on ${new Date(lock.set_at).toLocaleDateString()}`;
+    if (overrideBtn) overrideBtn.classList.remove('hidden');
+  } else {
+    sel.disabled = false;
+    sel.title = '';
+    if (overrideBtn) overrideBtn.classList.add('hidden');
+  }
+}
+
+// switchIndustryProfile posts the switch, transparently retrying with an
+// explicit override + reason if the server reports the tenant is already
+// locked (409) - so the override path works whether the user got here via
+// the (disabled, once locked) selector directly or the Override button.
+async function switchIndustryProfile(code) {
+  if (!(await showCustomConfirm(`Switch to active industry profile: ${code}? This will re-load preset table field configurations.`))) return;
+  let res = await apiFetch('/api/v1/admin/industry', {
+    method: 'POST',
+    body: JSON.stringify({ industry_code: code })
+  });
+  if (res && res.status === 409) {
+    const reason = await showCustomPrompt("This tenant's industry profile is already locked. Enter a reason to override and change it anyway:", '');
+    if (!reason || !reason.trim()) return;
+    res = await apiFetch('/api/v1/admin/industry', {
+      method: 'POST',
+      body: JSON.stringify({ industry_code: code, override: true, override_reason: reason.trim() })
+    });
+  }
+  if (res && res.ok) {
+    localStorage.setItem('erp_industry_code', code);
+    await showCustomAlert('Industry configuration updated successfully!', 'Success');
+    await fetchLabels();
+    await fetchRegisteredDoctypes();
+    renderView(currentView);
+    await applyIndustryLockUI();
+  } else if (res) {
+    await showApiError(res, 'Failed to switch industry profile.');
   }
 }
 
@@ -2250,12 +2414,50 @@ async function fetchAndRenderEnvironmentBanner() {
     if (notices.length > 0) {
       parts.push(`Conditionally supported: ${notices.join(' · ')}`);
     }
+    const fullText = parts.join('  |  ');
+
     const banner = document.createElement('div');
     banner.id = 'environment-banner';
-    banner.title = parts.join('\n');
-    banner.textContent = parts.join('  |  ');
+
+    const textEl = document.createElement('span');
+    textEl.className = 'env-banner-text';
+    textEl.textContent = fullText;
+    banner.appendChild(textEl);
+
+    // BLD-037: a real <button>, not the whole strip made clickable - this
+    // message is read, not acted on, so only the explicit toggle needs a
+    // keyboard/AX target (a native button gets that for free, no
+    // makeClickable() role/tabindex retrofit needed).
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'env-banner-toggle';
+    toggle.textContent = 'Show more';
+    toggle.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+    banner.appendChild(toggle);
     document.body.appendChild(banner);
     document.body.classList.add('env-banner-active');
+
+    const syncBannerHeight = () => {
+      document.body.style.paddingTop = `${banner.offsetHeight}px`;
+    };
+    // Only the collapsed single line can actually overflow - once expanded
+    // the toggle always stays visible (as "Show less"), so this only needs
+    // to re-measure while collapsed.
+    const checkTruncation = () => {
+      if (banner.classList.contains('env-banner-expanded')) return;
+      toggle.hidden = textEl.scrollWidth <= textEl.clientWidth + 1;
+      syncBannerHeight();
+    };
+    toggle.addEventListener('click', () => {
+      const expanded = banner.classList.toggle('env-banner-expanded');
+      toggle.textContent = expanded ? 'Show less' : 'Show more';
+      toggle.setAttribute('aria-expanded', String(expanded));
+      toggle.hidden = false;
+      syncBannerHeight();
+    });
+    checkTruncation();
+    window.addEventListener('resize', checkTruncation);
   } catch (e) {
     // Non-critical - never block the app on this.
   }
@@ -2304,6 +2506,7 @@ async function fetchLabels() {
 // role matches current server behavior exactly, not a new restriction).
 // Any menu id not listed here defaults open the same way.
 const MENU_PERMISSION_MAP = {
+  'menu-home': { open: true },
   'menu-pos': { open: true },
   'menu-pos-profiles': { doctypes: ['POSProfile'] },
   'menu-pos-offline-sync': { doctypes: ['POSOfflineSyncVariance'] },
@@ -2408,48 +2611,374 @@ const MENU_PERMISSION_MAP = {
   'menu-tenant-usage': { adminOnly: true }
 };
 
-// Stage 27 (Modular Product Packaging): which module_key gates each sidebar
-// item, mirroring MENU_PERMISSION_MAP's own shape and reasoning exactly -
-// only items with a genuine moduleGate(...) on their backing route are
-// listed (see internal/server/routes.go). Anything not listed here belongs
-// to an is_core module (master_data/inventory/sales/finance/core) that's
-// permanently enabled for every tenant, so it never needs hiding by this
-// mechanism - same "absence means always-visible" convention
-// MENU_PERMISSION_MAP already uses. menu-fulfillment/menu-marketplace map
-// to 'wms'/'oms' respectively because their backing routes
-// (handleFulfillmentTaskTransition / handleMarketplaceReconcile+
-// handleLogisticsBook) were re-gated with moduleGate("wms"/"oms", ...) in
-// Stage 27 alongside the older featureGate integration flags.
+// Module navigation registry: sidebar entries and direct screen entry share
+// one module declaration. @ entries are programmatic views without a menu.
+// Generic record views resolve their module from server DocType metadata.
+// BLD-021 source checks compare every dispatched screen with this registry.
+// BLD-021: this object literal is machine-parsed as strict JSON by
+// internal/server/module_manifest_test.go (TestModuleManifestCatalog) to
+// cross-check the navigation registry against the real module manifest -
+// no comments, trailing commas or other JS-only syntax inside it.
+//
+// menu-home's "core" module_key (is_core = TRUE, see
+// migrations_stage39_9_help_feedback.sql's comment) is never disableable,
+// same as "reports" below - Home must never go dark just because some
+// unrelated module toggle is off.
 const MENU_MODULE_MAP = {
-  'menu-putaway': 'wms',
-  'menu-warehouse-cockpit': 'wms',
-  'menu-place-hold': 'wms',
-  'menu-bin-conditions': 'wms',
-  'menu-cycle-count': 'wms',
-  'menu-lpn': 'wms',
-  'menu-bin-replenishment': 'wms',
-  'menu-wave-picking': 'wms',
-  'menu-fulfillment': 'wms',
-  'menu-marketplace': 'oms',
-	'menu-oms': 'oms',
-  'menu-returns': 'oms',
-  'menu-rf-traceability': 'wms',
-
-  'menu-purchase-requisitions': 'procurement',
-  'menu-purchase-orders': 'procurement',
-  'menu-grn': 'procurement',
-  'menu-asn': 'procurement',
-  'menu-vendors': 'procurement',
-  'menu-rfq': 'rfq',
-
-  'menu-stickers': 'stickers',
-
-  'menu-hr': 'hr',
-  'menu-assets': 'assets',
-  'menu-expenses': 'expenses',
-
-  'menu-manufacturing': 'manufacturing',
-  'menu-pim': 'pim'
+  "menu-home": {
+    "module": "core",
+    "views": [
+      "home"
+    ]
+  },
+  "menu-putaway": {
+    "module": "wms",
+    "views": [
+      "putaway"
+    ]
+  },
+  "menu-warehouse-cockpit": {
+    "module": "wms",
+    "views": [
+      "warehouse-cockpit"
+    ]
+  },
+  "menu-place-hold": {
+    "module": "wms",
+    "views": [
+      "place-hold"
+    ]
+  },
+  "menu-bin-conditions": {
+    "module": "wms",
+    "views": [
+      "bin-conditions"
+    ]
+  },
+  "menu-cycle-count": {
+    "module": "wms",
+    "views": [
+      "cycle-count"
+    ]
+  },
+  "menu-lpn": {
+    "module": "wms",
+    "views": [
+      "lpn"
+    ]
+  },
+  "menu-bin-replenishment": {
+    "module": "wms",
+    "views": [
+      "bin-replenishment"
+    ]
+  },
+  "menu-wave-picking": {
+    "module": "wms",
+    "views": [
+      "wave-picking"
+    ]
+  },
+  "menu-fulfillment": {
+    "module": "wms",
+    "views": [
+      "fulfillment"
+    ]
+  },
+  "menu-marketplace": {
+    "module": "oms",
+    "views": [
+      "marketplace"
+    ]
+  },
+  "menu-oms": {
+    "module": "oms",
+    "views": [
+      "oms"
+    ]
+  },
+  "menu-returns": {
+    "module": "oms",
+    "views": [
+      "returns"
+    ]
+  },
+  "menu-rf-traceability": {
+    "module": "wms",
+    "views": [
+      "rf-traceability"
+    ]
+  },
+  "menu-purchase-requisitions": {
+    "module": "procurement",
+    "views": []
+  },
+  "menu-purchase-orders": {
+    "module": "procurement",
+    "views": [
+      "purchase-orders"
+    ]
+  },
+  "menu-grn": {
+    "module": "procurement",
+    "views": [
+      "grn"
+    ]
+  },
+  "menu-asn": {
+    "module": "procurement",
+    "views": [
+      "asn"
+    ]
+  },
+  "menu-vendors": {
+    "module": "procurement",
+    "views": []
+  },
+  "menu-rfq": {
+    "module": "rfq",
+    "views": [
+      "rfq"
+    ]
+  },
+  "menu-stickers": {
+    "module": "stickers",
+    "views": [
+      "stickers"
+    ]
+  },
+  "menu-hr": {
+    "module": "hr",
+    "views": [
+      "hr"
+    ]
+  },
+  "menu-assets": {
+    "module": "assets",
+    "views": [
+      "assets"
+    ]
+  },
+  "menu-expenses": {
+    "module": "expenses",
+    "views": [
+      "expenses"
+    ]
+  },
+  "menu-manufacturing": {
+    "module": "manufacturing",
+    "views": [
+      "manufacturing"
+    ]
+  },
+  "menu-pim": {
+    "module": "pim",
+    "views": [
+      "pim"
+    ]
+  },
+  "menu-pos": {
+    "module": "sales",
+    "views": [
+      "pos"
+    ]
+  },
+  "menu-finance": {
+    "module": "finance",
+    "views": [
+      "finance"
+    ]
+  },
+  "menu-appointments": {
+    "module": "wms",
+    "views": [
+      "appointment-calendar"
+    ]
+  },
+  "menu-yard-board": {
+    "module": "wms",
+    "views": [
+      "yard-board"
+    ]
+  },
+  "menu-rf-receiving": {
+    "module": "wms",
+    "views": [
+      "rf-receiving"
+    ]
+  },
+  "menu-sortation": {
+    "module": "wms",
+    "views": [
+      "sortation"
+    ]
+  },
+  "menu-loading": {
+    "module": "wms",
+    "views": [
+      "loading-dock"
+    ]
+  },
+  "asn-create-btn": {
+    "module": "core",
+    "views": []
+  },
+  "@mobile-picking": {
+    "module": "wms",
+    "views": [
+      "mobile-picking"
+    ]
+  },
+  "menu-approvals": {
+    "module": "core",
+    "views": [
+      "approvals"
+    ]
+  },
+  "menu-reports": {
+    "module": "reports",
+    "views": [
+      "reports"
+    ]
+  },
+  "@doctype-table": {
+    "module": "core",
+    "views": [
+      "doctype-table"
+    ]
+  },
+  "menu-doctype-builder": {
+    "module": "core",
+    "views": [
+      "doctype-builder"
+    ]
+  },
+  "@prefix-configs": {
+    "module": "core",
+    "views": [
+      "prefix-configs"
+    ]
+  },
+  "@approval-rules": {
+    "module": "core",
+    "views": [
+      "approval-rules"
+    ]
+  },
+  "@dynamic-labels": {
+    "module": "core",
+    "views": [
+      "dynamic-labels"
+    ]
+  },
+  "hook-register-btn": {
+    "module": "core",
+    "views": [
+      "extension-hooks"
+    ]
+  },
+  "@extension-hook-log": {
+    "module": "core",
+    "views": [
+      "extension-hook-log"
+    ]
+  },
+  "custom-dialog-close-btn": {
+    "module": "core",
+    "views": [
+      "audit-logs"
+    ]
+  },
+  "@system-status": {
+    "module": "core",
+    "views": [
+      "system-status"
+    ]
+  },
+  "config-save-btn": {
+    "module": "core",
+    "views": [
+      "configuration"
+    ]
+  },
+  "@tenant-entitlements": {
+    "module": "core",
+    "views": [
+      "tenant-entitlements"
+    ]
+  },
+  "@tenant-usage": {
+    "module": "core",
+    "views": [
+      "tenant-usage"
+    ]
+  },
+  "account-menu-profile-btn": {
+    "module": "core",
+    "views": [
+      "profile"
+    ]
+  },
+  "menu-knowledge-center": {
+    "module": "core",
+    "views": [
+      "help"
+    ]
+  },
+  "transfer-create-btn": {
+    "module": "inventory",
+    "views": [
+      "transfers"
+    ]
+  },
+  "dashboard-save-btn": {
+    "module": "inventory",
+    "views": [
+      "inventory"
+    ]
+  },
+  "mfa-newdevice-btn": {
+    "module": "core",
+    "views": [
+      "users"
+    ]
+  },
+  "grant-save-btn": {
+    "module": "core",
+    "views": [
+      "roles"
+    ]
+  },
+  "menu-vendor-invoices": {
+    "module": "procurement",
+    "views": [
+      "vendor-invoices"
+    ]
+  },
+  "menu-payment-proposals": {
+    "module": "finance",
+    "views": [
+      "payment-proposals"
+    ]
+  },
+  "menu-bank-reconciliation": {
+    "module": "finance",
+    "views": [
+      "bank-reconciliation"
+    ]
+  },
+  "menu-finance-notes": {
+    "module": "finance",
+    "views": [
+      "finance-notes"
+    ]
+  },
+  "menu-sales-invoices": {
+    "module": "sales",
+    "views": [
+      "sales-invoices"
+    ]
+  }
 };
 
 function canReadDoctype(doctype) {
@@ -2518,12 +3047,11 @@ function applySidebarPermissions() {
 
 // isMenuModuleVisible mirrors isMenuRuleVisible: an item with no
 // MENU_MODULE_MAP entry (an is_core module, or no module gate at all) is
-// always visible; state.modules.enabled === null means the real entitlement
-// set hasn't loaded yet, so default to visible (see state's own comment on
-// why a brief full-menu flash beats a brief empty one).
+// always visible; an unverified entitlement set hides gated navigation until
+// the server confirms it. Direct views use the same fail-closed rule.
 function isMenuModuleVisible(moduleKey) {
   if (!moduleKey) return true;
-  if (state.modules.enabled === null) return true;
+  if (state.modules.enabled === null) return false;
   return state.modules.enabled.has(moduleKey);
 }
 
@@ -2541,7 +3069,7 @@ function applyModuleEntitlements() {
     if (!el) return;
     const item = el.closest('li');
     if (!item) return;
-    item.classList.toggle('module-hidden', !isMenuModuleVisible(MENU_MODULE_MAP[id]));
+    item.classList.toggle('module-hidden', !isMenuModuleVisible(MENU_MODULE_MAP[id].module));
   });
 
   document.querySelectorAll('.has-flyout').forEach(container => {
@@ -2689,7 +3217,7 @@ function renderSidebarSubmenu() {
   const matches = d =>
     !needle ||
     d.name.toLowerCase().includes(needle) ||
-    String(getTranslatedLabel(d.name)).toLowerCase().includes(needle) ||
+    String(getDoctypeLabel(d.name)).toLowerCase().includes(needle) ||
     String(d.module || '').toLowerCase().includes(needle);
 
   // The filter row is a <li> so it is a legal child of the <ul>, but it holds
@@ -2728,10 +3256,10 @@ function renderSidebarSubmenu() {
       heading.textContent = mod;
       sub.appendChild(heading);
       byModule[mod]
-        .sort((a, b) => String(getTranslatedLabel(a.name)).localeCompare(String(getTranslatedLabel(b.name))))
+        .sort((a, b) => String(getDoctypeLabel(a.name)).localeCompare(String(getDoctypeLabel(b.name))))
         .forEach(d => {
           const li = document.createElement('li');
-          li.innerHTML = `<a class="submenu-item" data-view="${d.name}">${getTranslatedLabel(d.name)}</a>`;
+          li.innerHTML = `<a class="submenu-item" data-view="${d.name}">${getDoctypeLabel(d.name)}</a>`;
           sub.appendChild(li);
         });
     });
@@ -2851,6 +3379,30 @@ function closeNavDrawer() {
   setNavDrawer(false);
 }
 
+// Found during the BLD-038 accessibility sweep: every `.modal-overlay`
+// dialog hides itself with `opacity: 0; pointer-events: none;`, not
+// `display: none`. That leaves a closed dialog fully in the tab order and
+// the accessibility tree - a keyboard user tabbing through ANY screen lands
+// on 50+ invisible controls belonging to whichever dialogs happen to be
+// closed, confirmed live via a 120-press Tab walk from Home. The real
+// open/close functions (openDynamicModal/closeDynamicModal,
+// openFieldModal/closeAddFieldModal, openImportModal/closeImportModal) each
+// now set `.inert` explicitly alongside `.open` - a MutationObserver-based
+// version of this was tried first, but at least one of them
+// (openFieldModal) calls .focus() on a field INSIDE the modal in the same
+// synchronous call that opens it, and a MutationObserver callback is a
+// microtask that had not yet run by then, so the un-inerting lost the race
+// and the focus() call silently failed. This one-time pass only has to
+// cover what those functions do not: #edit-prefix-modal/#add-label-modal,
+// two more `.modal-overlay`s confirmed dead - no classList reference to
+// their ids anywhere in this file - left over from before those flows moved
+// to prompt()/inline rows, so nothing ever opens or closes them.
+function initModalInertSync() {
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.inert = !overlay.classList.contains('open');
+  });
+}
+
 function initNavDrawer() {
   const toggle = document.getElementById('nav-toggle');
   const scrim = document.getElementById('nav-scrim');
@@ -2897,8 +3449,16 @@ function initNavDrawer() {
 function setupEventListeners() {
   // Stage 47.6.3: the operator-width navigation drawer.
   initNavDrawer();
+  initModalInertSync();
 
   // Main Navigation links
+  document.getElementById('menu-home').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-home');
+    closeSubmenus();
+    renderView('home');
+  });
+
   document.getElementById('menu-doctype-builder').addEventListener('click', (e) => {
     e.preventDefault();
     setActiveMenu('menu-doctype-builder');
@@ -3193,21 +3753,15 @@ function setupEventListeners() {
     indSelector.addEventListener('change', async (e) => {
       const code = e.target.value;
       if (!code) return;
-      if (await showCustomConfirm(`Switch to active industry profile: ${code}? This will re-load preset table field configurations.`)) {
-        const res = await apiFetch('/api/v1/admin/industry', {
-          method: 'POST',
-          body: JSON.stringify({ industry_code: code })
-        });
-        if (res && res.ok) {
-          localStorage.setItem('erp_industry_code', code);
-          await showCustomAlert('Industry configuration updated successfully!', 'Success');
-          await fetchLabels();
-          await fetchRegisteredDoctypes();
-          renderView(currentView);
-        } else if (res) {
-          await showApiError(res, 'Failed to switch industry profile.');
-        }
-      }
+      await switchIndustryProfile(code);
+    });
+  }
+  const industryOverrideBtn = document.getElementById('industry-override-btn');
+  if (industryOverrideBtn) {
+    industryOverrideBtn.addEventListener('click', async () => {
+      const code = await showCustomPrompt('Industry code to switch to (jewelry, food_bev, auto, clothing, pharma, metal, construction, medical, semiconductor, agriculture):', indSelector ? indSelector.value : '');
+      if (!code || !code.trim()) return;
+      await switchIndustryProfile(code.trim());
     });
   }
 
@@ -3695,12 +4249,12 @@ function buildGlobalSearchIndex() {
     // A record type the sidebar already lists as a screen (the Setup module's
     // Master Definition submenu lists many) would otherwise appear twice
     // under the same name - keep the screen, which navigates the same place.
-    if (seen.has('label:' + getTranslatedLabel(d.name).toLowerCase())) return;
+    if (seen.has('label:' + getDoctypeLabel(d.name).toLowerCase())) return;
     if (seen.has(key)) return;
     seen.add(key);
     entries.push({
       kind: 'Record type',
-      label: getTranslatedLabel(d.name),
+      label: getDoctypeLabel(d.name),
       context: d.module || '',
       doctype: d.name,
       raw: d.name
@@ -3833,6 +4387,7 @@ function setupGlobalSearchSuggest(inputEl) {
 // restoring the correct highlighted item after a refresh. doctype-table is
 // handled separately below since it points at a submenu item, not a top-level one.
 const STATIC_VIEW_MENU_IDS = {
+  home: 'menu-home',
   pos: 'menu-pos',
   finance: 'menu-finance',
   fulfillment: 'menu-fulfillment',
@@ -4065,6 +4620,31 @@ async function renderView(view) {
 }
 
 async function renderViewContent(view, root) {
+  // Invalidate a pending quick-create return target the moment navigation
+  // strays anywhere other than the new master's own list or back to the
+  // screen the shortcut was launched from - otherwise a later, unrelated
+  // save could still see it and redirect somewhere stale (e.g. abandon a
+  // GRN item quick-create, browse to Vendors instead, save a new Vendor
+  // there, land back on GRN uninvited). See quickCreateReturn's declaration.
+  if (quickCreateReturn) {
+    const stillRelevant = view === quickCreateReturn.view ||
+      (view === 'doctype-table' && currentDoctype === quickCreateReturn.forDoctype);
+    if (!stillRelevant) quickCreateReturn = null;
+  }
+
+  // BLD-021: direct links and restored navigation obey the same registry as
+  // sidebar visibility. The server independently enforces the entitlement.
+  const entry = Object.values(MENU_MODULE_MAP).find(item => item.views.includes(view));
+  if (!state.modules.loaded) await fetchAndApplyModules();
+  const moduleKey = view === 'doctype-table'
+    ? (state.activeDoctypes.find(item => item.name === currentDoctype) || {}).module_key
+    : entry && entry.module;
+  if (!moduleKey || !isMenuModuleVisible(moduleKey)) {
+    currentView = view;
+    document.body.classList.remove('rf-shell');
+    root.innerHTML = '<div class="table-panel" role="status"><h2>Unavailable</h2><p>This page is not available for your current modules. Contact your administrator if you need access.</p></div>';
+    return;
+  }
   currentView = view;
   saveNavState();
 
@@ -4074,7 +4654,9 @@ async function renderViewContent(view, root) {
   // which is how a screen ends up permanently chromeless after one bad exit.
   document.body.classList.toggle('rf-shell', view === 'rf-traceability');
 
-  if (view === 'pos') {
+  if (view === 'home') {
+    await renderHomeView(root);
+  } else if (view === 'pos') {
     renderPOSView(root);
   } else if (view === 'finance') {
     await renderFinanceView(root);
@@ -4205,6 +4787,25 @@ function translateDOM() {
   });
 }
 
+// BLD-037: humanizes a raw PascalCase/camelCase identifier ("PurchaseOrder",
+// "POSCart") into spaced words ("Purchase Order", "POS Cart"). No migration
+// ever seeds a tenant's custom_labels, so any doctype nobody has explicitly
+// relabeled - the common case - used to reach the caller as the bare
+// internal name, wherever getTranslatedLabel is called (page titles, the
+// Setup sidebar, dialog headings, ~30 call sites). Idempotent: an
+// already-spaced string or a standalone all-caps acronym ("Sales Invoice",
+// "GRN") has no lower-to-upper or upper-run-to-upper+lower transition to
+// anchor on, so it passes through unchanged.
+function humanizeIdentifier(text) {
+  return text
+    // an acronym run right before a capitalized word: "GSTReturn" -> "GST Return".
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
+    // a lowercase letter or digit directly followed by an uppercase: "PurchaseOrder" -> "Purchase Order"
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    // a letter directly followed by a digit: "Item2" -> "Item 2"
+    .replace(/([A-Za-z])([0-9])/g, '$1 $2');
+}
+
 function getTranslatedLabel(text) {
   if (!text) return '';
   const clean = text.toLowerCase();
@@ -4214,6 +4815,19 @@ function getTranslatedLabel(text) {
     }
   }
   return text;
+}
+
+// getDoctypeLabel is getTranslatedLabel plus the identifier humanizer above,
+// for the specific call sites that render a DOCTYPE NAME as a heading -
+// never for translateDOM()'s blind whole-page sweep (above), which calls
+// getTranslatedLabel directly on arbitrary leaf text (banners, table cells,
+// numbers...) and depends on its untouched-when-no-match behavior to stay a
+// safe no-op - humanizing there mangled real strings like "3PL" -> "3 PL"
+// and "/api/v1/" -> "/api/v 1/" (found live, reverted before shipping).
+// Already-humanized text never matches translateDOM's later re-scan (its
+// raw doctype-name keys have no space), so the two passes cannot conflict.
+function getDoctypeLabel(name) {
+  return humanizeIdentifier(getTranslatedLabel(name));
 }
 
 // My Profile (Stage 21): self-service account view - read-only account
@@ -4925,6 +5539,226 @@ async function saveRoleGrant() {
     return;
   }
   renderView('roles');
+}
+
+// ===========================================================================
+// Home (BLD-033: task-oriented role navigation and onboarding)
+//
+// DEFAULT_VIEW's own comment has the short version. The longer one: the
+// retired Dashboard (2026-08-01) failed because it was a second, generic
+// front door into screens the sidebar already listed - "derived counts and
+// shortcut tiles into Settings screens" was the user's own verdict. Home is
+// deliberately NOT that:
+//   - It links only to day-to-day TASK screens (POS, Purchase Orders,
+//     Warehouse Cockpit, Finance...), never a Settings/admin/config screen -
+//     an Administrator's sidebar already has every one of those, unchanged,
+//     one click away; duplicating that list here is exactly the mistake
+//     that got the old screen removed.
+//   - Every tile is real, permission-derived navigation the visitor can
+//     already reach some other way (the same MENU_PERMISSION_MAP/
+//     MENU_MODULE_MAP rules the sidebar itself is gated by), never a static
+//     list shown regardless of role - a permission-limited tenant simply
+//     sees fewer tiles, never a disabled one.
+//   - It surfaces STATE (approvals waiting, what you last touched, whether
+//     the tenant has anything set up yet) rather than only being a link
+//     farm - the thing a generic sidebar structurally cannot do.
+//
+// HOME_QUICK_ACTIONS is deliberately NOT keyed by role name: state.permissions
+// (fetchAndApplyPermissions' own comment) already made that call for the
+// exact same reason - a role-name branch can't see a tenant's custom role or
+// a template edit, a doctype/module/capability check always can. Each entry
+// reuses the SAME menuId its sidebar item is gated by, so Home can never
+// show a tile the sidebar itself would hide, and a future MENU_PERMISSION_MAP/
+// MENU_MODULE_MAP edit is picked up here for free.
+const HOME_QUICK_ACTIONS = [
+  { id: 'pos', label: 'Point of Sale', desc: 'Ring up sales, take payment, handle receipted returns.', view: 'pos', menuId: 'menu-pos' },
+  { id: 'warehouse-cockpit', label: 'Warehouse Cockpit', desc: 'Open tasks, exceptions, waves and inbound for one location.', view: 'warehouse-cockpit', menuId: 'menu-warehouse-cockpit' },
+  { id: 'purchase-orders', label: 'Purchase Orders', desc: 'Raise and track orders to vendors.', view: 'doctype-table', doctype: 'PurchaseOrder', menuId: 'menu-purchase-orders' },
+  { id: 'purchase-requisitions', label: 'Purchase Requisitions', desc: 'Requests waiting to become a purchase order.', view: 'doctype-table', doctype: 'PurchaseRequisition', menuId: 'menu-purchase-requisitions' },
+  { id: 'grn', label: 'Goods Receipt (GRN)', desc: 'Receive against open purchase orders.', view: 'doctype-table', doctype: 'GRN', menuId: 'menu-grn' },
+  { id: 'vendor-invoices', label: 'Vendor Invoices', desc: 'Match and process what the company owes.', view: 'doctype-table', doctype: 'VendorInvoice', menuId: 'menu-vendor-invoices' },
+  { id: 'payment-proposals', label: 'Payment Proposals', desc: 'Review and release vendor payments.', view: 'doctype-table', doctype: 'PaymentProposal', menuId: 'menu-payment-proposals' },
+  { id: 'vendors', label: 'Vendors', desc: 'Vendor master records.', view: 'doctype-table', doctype: 'Vendor', menuId: 'menu-vendors' },
+  { id: 'finance', label: 'Finance / GL', desc: 'Journals, period close, tax and the statements that come out of them.', view: 'finance', menuId: 'menu-finance' },
+  { id: 'approvals', label: 'Approvals', desc: 'Documents waiting on your sign-off.', view: 'approvals', menuId: 'menu-approvals' },
+  { id: 'sales-invoices', label: 'Sales Invoices', desc: 'What customers owe the company.', view: 'sales-invoices', menuId: 'menu-sales-invoices' },
+  { id: 'customers', label: 'Customers', desc: 'Customer master records.', view: 'doctype-table', doctype: 'Customer', menuId: 'menu-customers' },
+  { id: 'oms', label: 'Order Management', desc: 'Track orders across every channel.', view: 'oms', menuId: 'menu-oms' },
+  { id: 'fulfillment', label: 'Fulfillment', desc: 'Pick, pack and ship open orders.', view: 'fulfillment', menuId: 'menu-fulfillment' },
+  { id: 'returns', label: 'Returns', desc: 'Process customer returns and exceptions.', view: 'returns', menuId: 'menu-returns' },
+  { id: 'hr', label: 'HR & People', desc: 'Employee records, leave, attendance.', view: 'hr', menuId: 'menu-hr' }
+];
+
+// isHomeActionVisible reuses the exact predicates the sidebar itself is
+// gated by (isMenuRuleVisible/canReadDoctype/isMenuModuleVisible) - no
+// second definition of "can this session actually get there" to drift from
+// the real one.
+function isHomeActionVisible(action) {
+  const permRule = MENU_PERMISSION_MAP[action.menuId];
+  if (permRule && !isMenuRuleVisible(permRule)) return false;
+  if (action.doctype && !canReadDoctype(action.doctype)) return false;
+  const moduleEntry = MENU_MODULE_MAP[action.menuId];
+  if (moduleEntry && !isMenuModuleVisible(moduleEntry.module)) return false;
+  return true;
+}
+
+function navigateHomeAction(action) {
+  setActiveMenu(action.menuId);
+  closeSubmenus();
+  if (action.view === 'doctype-table') {
+    currentDoctype = action.doctype;
+    currentSearchQuery = '';
+    currentTablePage = 1;
+  }
+  renderView(action.view);
+}
+
+// navigateHomeRecent opens the doctype-table list for one "recent" record,
+// pre-filtered to it by id/code - reuses the well-tested doctype-table view
+// rather than driving the edit modal from a screen it wasn't written for.
+function navigateHomeRecent(doctype, recordID) {
+  setActiveMenu((HOME_QUICK_ACTIONS.find(a => a.doctype === doctype) || {}).menuId);
+  closeSubmenus();
+  currentDoctype = doctype;
+  currentSearchQuery = recordID;
+  currentTablePage = 1;
+  renderView('doctype-table');
+}
+
+async function renderHomeView(container) {
+  const visible = HOME_QUICK_ACTIONS.filter(isHomeActionVisible);
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Home</h1>
+      <p class="page-subtitle">Your quick actions, what needs attention and what you last touched.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  if (visible.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'table-panel';
+    empty.style.padding = '24px';
+    empty.innerHTML = `<p>No screens are set up for your role yet. Contact your administrator for access.</p>`;
+    container.appendChild(empty);
+    return;
+  }
+
+  // Today's work: approvals waiting on this session. ListPendingApprovals is
+  // already scoped server-side to the caller's own role/location (see
+  // renderApprovalsView's comment) - a safe, cheap call for anyone, since
+  // Approvals (menu-approvals) is open to every role already.
+  const statsRow = document.createElement('div');
+  // BLD-037: plain .dashboard-stats-row (shared with Finance/exec-dashboard/
+  // System Status/Tenant Usage, which all reliably render 3-4+ cards that
+  // fill the row) stretches a LONE card to the full row width via its
+  // auto-fit/1fr grid - Home only ever renders this one approvals-count
+  // card, so it read as a half-empty panel. home-stats-row caps card width
+  // here only, same scoped-override precedent as .oms-tile above.
+  statsRow.className = 'dashboard-stats-row home-stats-row';
+  container.appendChild(statsRow);
+  if (isHomeActionVisible({ menuId: 'menu-approvals' })) {
+    try {
+      const res = await apiFetch('/api/v1/approval/pending');
+      if (res && res.ok) {
+        const pending = await res.json();
+        const card = document.createElement('div');
+        card.className = 'stat-card';
+        card.style.cursor = 'pointer';
+        card.innerHTML = `
+          <div class="stat-info">
+            <span class="stat-val">${pending.length}</span>
+            <span class="stat-label">Approval${pending.length === 1 ? '' : 's'} waiting on you</span>
+          </div>
+        `;
+        makeClickable(card, () => navigateHomeAction({ view: 'approvals', menuId: 'menu-approvals' }));
+        statsRow.appendChild(card);
+      }
+    } catch (e) {
+      // Best-effort, same as every other dashboard tile - a failed count
+      // must never block the rest of Home from rendering.
+    }
+  }
+
+  // Quick actions grid.
+  const actionsPanel = document.createElement('div');
+  actionsPanel.className = 'table-panel';
+  actionsPanel.style.padding = '20px';
+  actionsPanel.style.marginBottom = '24px';
+  actionsPanel.innerHTML = `<h2 class="card-title" style="margin-bottom: 12px;">Your quick actions</h2>`;
+  const grid = document.createElement('div');
+  grid.className = 'home-action-grid';
+  visible.forEach(action => {
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'home-action-card';
+    tile.innerHTML = `
+      <span class="card-title">${escapeHTMLText(action.label)}</span>
+      <span class="card-desc">${escapeHTMLText(action.desc)}</span>
+    `;
+    tile.addEventListener('click', () => navigateHomeAction(action));
+    grid.appendChild(tile);
+  });
+  actionsPanel.appendChild(grid);
+  container.appendChild(actionsPanel);
+
+  // Scope-led setup: only the masters behind what THIS session can actually
+  // reach - not a blanket "set up everything" nag. Reuses the exact same
+  // setupHintHTML/isDoctypeSetUp Stage 41 already built for per-field hints.
+  const missingMasters = [];
+  visible.forEach(action => {
+    if (!action.doctype) return;
+    if (!state.setupStatus.byDoctype[action.doctype]) return; // not a Master, no hint to give
+    if (!isDoctypeSetUp(action.doctype) && !missingMasters.includes(action.doctype)) {
+      missingMasters.push(action.doctype);
+    }
+  });
+  if (missingMasters.length > 0) {
+    const setupPanel = document.createElement('div');
+    setupPanel.className = 'table-panel setup-banner';
+    setupPanel.style.marginBottom = '24px';
+    setupPanel.innerHTML = `
+      <div class="setup-banner-body">
+        <strong>Get started</strong>
+        <ul class="setup-banner-list">
+          ${missingMasters.map(dt => `<li>${setupHintHTML(dt, 'missing')}</li>`).join('')}
+        </ul>
+      </div>
+    `;
+    container.appendChild(setupPanel);
+  }
+
+  // Recent: the first visible task with a doctype of its own - "what did I
+  // touch last" for the thing this session actually does day to day.
+  const recentSource = visible.find(a => a.doctype);
+  if (recentSource) {
+    const res = await apiFetch(`/api/v1/doc/${recentSource.doctype}?sort=recent&limit=5`).catch(() => null);
+    if (res && res.ok) {
+      const rows = await res.json();
+      if (rows.length > 0) {
+        const recentPanel = document.createElement('div');
+        recentPanel.className = 'table-panel';
+        recentPanel.style.padding = '20px';
+        recentPanel.innerHTML = `<h2 class="card-title" style="margin-bottom: 12px;">Recent ${escapeHTMLText(getDoctypeLabel(recentSource.doctype))}</h2>`;
+        const list = document.createElement('div');
+        list.className = 'home-recent-list';
+        rows.forEach(row => {
+          const item = document.createElement('button');
+          item.type = 'button';
+          item.className = 'home-recent-item';
+          const label = row.code || row.name || row.id;
+          item.innerHTML = `<span>${escapeHTMLText(String(label))}</span><span class="card-desc">${escapeHTMLText(String(row.status || ''))}</span>`;
+          item.addEventListener('click', () => navigateHomeRecent(recentSource.doctype, row.id));
+          list.appendChild(item);
+        });
+        recentPanel.appendChild(list);
+        container.appendChild(recentPanel);
+      }
+    }
+  }
 }
 
 // POS / Billing screen - cashier/barcode-scan-to-sell UI against the
@@ -10330,7 +11164,7 @@ async function loadOMSTiles() {
     </div>`).join('');
   // A tile is a shortcut into its own report, not a dead number.
   host.querySelectorAll('.oms-tile').forEach(tile => {
-    tile.addEventListener('click', () => execDashboardOpenReport(tile.getAttribute('data-report')));
+    makeClickable(tile, () => execDashboardOpenReport(tile.getAttribute('data-report')));
   });
 }
 
@@ -10420,7 +11254,7 @@ function renderOMSOrderTable(result) {
             const age = o.age_minutes < 60 ? `${o.age_minutes}m` : o.age_minutes < 1440 ? `${Math.floor(o.age_minutes / 60)}h` : `${Math.floor(o.age_minutes / 1440)}d`;
             return `<tr>
               <td><input type="checkbox" class="oms-row-select" data-order="${escapeHTMLText(o.order_id)}"${omsConsoleState.selected.has(o.order_id) ? ' checked' : ''}></td>
-              <td style="font-family:monospace;">${copyableCell(escapeHTMLText(o.order_id), o.order_id)}${o.priority === 'Expedite' ? '<div class="badge badge-warning oms-expedite">Expedite</div>' : ''}</td>
+              <td style="font-family:monospace;">${copyableCell(o.order_id, o.order_id)}${o.priority === 'Expedite' ? '<div class="badge badge-warning oms-expedite">Expedite</div>' : ''}</td>
               <td>${source}</td>
               <td>${escapeHTMLText(o.customer_name || '—')}${o.customer_phone ? `<div class="oms-channel-ref">${escapeHTMLText(o.customer_phone)}</div>` : ''}</td>
               <td>${omsStatusBadge(o.status, o.hold_reason)}</td>
@@ -11759,7 +12593,7 @@ async function renderPurchaseOrdersView(container) {
       ? `<div class="po-sent-stamp" title="Sent ${escapeHTMLText(po.sent_to_vendor_at)}">Sent to vendor</div>` : '';
     html += `
       <tr>
-        <td style="font-family: monospace;">${copyableCell(escapeHTMLText(poNumber), poNumber)}</td>
+        <td style="font-family: monospace;">${copyableCell(poNumber, poNumber)}</td>
         <td>${escapeHTMLText(po.vendor || '')}</td>
         <td>${escapeHTMLText(po.location || '')}</td>
         <td>${lineCount === 0 ? '<span class="po-no-lines" title="This PO was raised before line items existed, or was created through the API without them.">No lines</span>' : `${lineCount} item${lineCount === 1 ? '' : 's'}`}</td>
@@ -12189,12 +13023,14 @@ window.amendPurchaseOrder = async function(poId) {
 // have to fetch the vendor, the legal entity and every item and stitch them
 // together itself - and so MRP is stripped before it ever reaches the page.
 // ---------------------------------------------------------------------------
-// Deliberately no qzTryPrint() attempt first, unlike printSalesInvoice:
-// handlers_qz_print.go has no builder for a PO (its job_type switch covers
-// Shipping Label / Sticker / Receipt / Invoice), so asking would be a request
-// we already know 422s. The browser sheet is the path; a QZ builder is a
-// separate piece of work if silent A4 PO printing is ever wanted.
+// Stage 40.10: silent-prints via QZ first (job_type 'Purchase Order', quiet -
+// a tenant with no QZ printer configured for POs is the normal case, not an
+// error). Falls back to the existing browser @media print sheet exactly like
+// printSalesInvoice, so nobody is blocked when QZ Tray or a mapped printer
+// isn't present.
 window.printPurchaseOrder = async function(poId) {
+  if (await qzTryPrint('Purchase Order', { documentRef: poId, quiet: true })) return;
+
   const res = await apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(poId)}/print`);
   if (!res) return;
   if (!res.ok) {
@@ -13526,7 +14362,7 @@ async function renderExecDashboardBody(panel) {
       <span class="stat-val" style="color:${value > 0 ? '#dc2626' : '#10b981'};">${value}</span>
       <span data-remove-tile="${i}" title="Remove tile" style="position:absolute; top:4px; right:8px; color:var(--text-muted); font-size:14px; line-height:1;">&times;</span>
     `;
-    card.addEventListener('click', (e) => {
+    makeClickable(card, (e) => {
       if (e.target.closest('[data-remove-tile]')) return;
       execDashboardOpenReport(t.report_id);
     });
@@ -14614,7 +15450,7 @@ async function qzLogJob(entry) {
  * One-click print. Asks the server what to print (and on which printer),
  * hands it to QZ Tray, and records the outcome.
  *
- * @param jobType 'Shipping Label' | 'Sticker' | 'Receipt' | 'Invoice' | 'Document'
+ * @param jobType 'Shipping Label' | 'Sticker' | 'Receipt' | 'Invoice' | 'Purchase Order' | 'Document'
  * @param opts    { documentRef, printerCode, copies, skus, reprintReason,
  *                  dataBase64, docFormat, quiet }
  *
@@ -14641,7 +15477,13 @@ async function qzTryPrint(jobType, opts = {}) {
       skus: opts.skus || [],
       reprint_reason: opts.reprintReason || '',
       data_base64: opts.dataBase64 || '',
-      doc_format: opts.docFormat || ''
+      doc_format: opts.docFormat || '',
+      // Stage 52: bulk print from a GRN/Transfer Order - source_doctype +
+      // source_doc_id tell the server to resolve the document's own lines
+      // (engines.PrintStickersForDocument) instead of requiring skus.
+      source_doctype: opts.sourceDoctype || '',
+      source_doc_id: opts.sourceDocId || '',
+      copies_override: opts.copiesOverride || undefined
     })
   });
   if (!res) return false;
@@ -14852,26 +15694,71 @@ async function qzPrintPickedDocument() {
 // barcodes - typed/scanned as text, e.g. the POS screen's SKU input).
 let stickerSKUs = [];
 
+// Stage 52: bulk print from a GRN/Transfer Order, and the category-based
+// StickerTemplate designer. Adding a third source doctype later is one more
+// entry here plus one more case in engines.ResolveDocumentStickerLines - not
+// a redesign.
+const BULK_STICKER_SOURCE_DOCTYPES = [
+  { doctype: 'GRN', label: 'Goods Receipt (GRN)' },
+  { doctype: 'TransferOrder', label: 'Transfer Order' }
+];
+let currentStickerTab = 'print';
+const STICKER_TABS = [
+  { id: 'print', label: 'Print' },
+  { id: 'templates', label: 'Templates' }
+];
+let stickerSourceDoctype = BULK_STICKER_SOURCE_DOCTYPES[0].doctype;
+let stickerSourceDocId = '';
+let stickerSourceLines = [];    // last GET /api/v1/stickers/preview response
+let stickerSourceSelected = {}; // sku -> bool, defaults to all-selected on load
+let stickerSourceCopies = {};   // sku -> int, defaults to the line's own qty
+
 async function renderStickersView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Sticker Printing</h1>
+      <p class="page-subtitle">Print item labels (barcode, name, HSN), print from a GRN/Transfer Order, and configure category-based label templates.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const tabBar = document.createElement('div');
+  tabBar.style.display = 'flex';
+  tabBar.style.gap = '8px';
+  tabBar.style.marginBottom = '16px';
+  tabBar.innerHTML = STICKER_TABS.map(t =>
+    `<button class="btn ${t.id === currentStickerTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-sticker-tab="${t.id}">${t.label}</button>`
+  ).join('');
+  container.appendChild(tabBar);
+  tabBar.querySelectorAll('[data-sticker-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentStickerTab = btn.getAttribute('data-sticker-tab');
+      renderView('stickers');
+    });
+  });
+
+  if (currentStickerTab === 'templates') {
+    await renderStickerTemplatesTab(container);
+    return;
+  }
+  await renderStickerPrintTab(container);
+}
+
+async function renderStickerPrintTab(container) {
   const [printersRes, historyRes] = await Promise.all([
     apiFetch('/api/v1/doc/Printer'),
     apiFetch('/api/v1/stickers/history')
   ]);
   if (!printersRes || !historyRes) return;
 
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Sticker Printing</h1>
-      <p class="page-subtitle">Print item labels (barcode, name, HSN) and track print history.</p>
-    </div>
-  `;
-  container.appendChild(header);
   renderQZSetupPanel(container);
 
   const printers = printersRes.ok ? await printersRes.json() : [];
   const history = historyRes.ok ? await historyRes.json() : [];
+
+  renderStickerSourcePanel(container, printers);
 
   const formPanel = document.createElement('div');
   formPanel.className = 'table-panel';
@@ -14944,6 +15831,178 @@ async function renderStickersView(container) {
   renderStickerSKUList();
 }
 
+// Stage 52: "Print from Transaction" - load a GRN/Transfer Order's own lines
+// instead of scanning SKUs by hand. Shares the Printer/Copies/Reprint Reason
+// inputs from the manual panel below it (one printer choice for the whole
+// screen), and shares printStickers'/qzTryPrint's silent-then-fallback path.
+function renderStickerSourcePanel(container, printers) {
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.style.marginBottom = '24px';
+  panel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 4px;">Print from Transaction</h2>
+    <p class="page-subtitle" style="margin: 0 0 16px;">Load a GRN or Transfer Order's own lines - print the whole document, or just one line.</p>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="sticker-source-doctype">Module</label>
+        <select id="sticker-source-doctype" class="form-input" style="width: 200px;">
+          ${BULK_STICKER_SOURCE_DOCTYPES.map(d => `<option value="${d.doctype}">${d.label}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+        <label class="form-label" for="sticker-source-doc">Document</label>
+        <input type="text" id="sticker-source-doc" class="form-input" placeholder="Search by number..." autocomplete="off">
+      </div>
+      <button class="btn btn-outline" id="sticker-source-load-btn" type="button">Load</button>
+    </div>
+    <div id="sticker-source-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <div id="sticker-source-lines"></div>
+  `;
+  container.appendChild(panel);
+
+  const doctypeSelect = document.getElementById('sticker-source-doctype');
+  doctypeSelect.value = stickerSourceDoctype;
+  const docInput = document.getElementById('sticker-source-doc');
+  const attachSourcePicker = () => {
+    attachLinkTypeahead(docInput, doctypeSelect.value, { noSetupHint: true });
+  };
+  attachSourcePicker();
+
+  doctypeSelect.addEventListener('change', () => {
+    stickerSourceDoctype = doctypeSelect.value;
+    docInput.value = '';
+    stickerSourceLines = [];
+    document.getElementById('sticker-source-lines').innerHTML = '';
+    attachSourcePicker();
+  });
+  docInput.addEventListener('change', loadStickerSourcePreview);
+  document.getElementById('sticker-source-load-btn').addEventListener('click', loadStickerSourcePreview);
+}
+
+async function loadStickerSourcePreview() {
+  const errorEl = document.getElementById('sticker-source-error');
+  errorEl.classList.add('hidden');
+  const doctype = document.getElementById('sticker-source-doctype').value;
+  const docId = document.getElementById('sticker-source-doc').value.trim();
+  stickerSourceDoctype = doctype;
+  stickerSourceDocId = docId;
+  if (!docId) return;
+
+  const res = await apiFetch(`/api/v1/stickers/preview?source_doctype=${encodeURIComponent(doctype)}&source_doc_id=${encodeURIComponent(docId)}`);
+  if (!res) return;
+  if (!res.ok) {
+    errorEl.textContent = await getErrorMessage(res, 'Could not load that document.');
+    errorEl.classList.remove('hidden');
+    stickerSourceLines = [];
+    renderStickerSourceLines();
+    return;
+  }
+  stickerSourceLines = await res.json();
+  if (stickerSourceLines.length === 0) {
+    errorEl.textContent = 'That document has no stickerable lines (nothing accepted, or every line was rejected/damaged).';
+    errorEl.classList.remove('hidden');
+  }
+  stickerSourceSelected = {};
+  stickerSourceCopies = {};
+  stickerSourceLines.forEach(l => {
+    stickerSourceSelected[l.sku] = true;
+    stickerSourceCopies[l.sku] = l.qty;
+  });
+  renderStickerSourceLines();
+}
+
+function renderStickerSourceLines() {
+  const el = document.getElementById('sticker-source-lines');
+  if (!el) return;
+  if (stickerSourceLines.length === 0) {
+    el.innerHTML = '';
+    return;
+  }
+  el.innerHTML = `
+    <table style="margin-top: 4px;">
+      <thead><tr><th></th><th>SKU</th><th>Name</th><th>Category</th><th>Template</th><th>Copies</th><th></th></tr></thead>
+      <tbody>
+        ${stickerSourceLines.map(l => `
+          <tr>
+            <td><input type="checkbox" data-source-select="${l.sku}" ${stickerSourceSelected[l.sku] ? 'checked' : ''}></td>
+            <td style="font-family: monospace;">${l.sku}</td>
+            <td>${l.name || ''}</td>
+            <td>${l.category || ''}</td>
+            <td>${l.template_name}</td>
+            <td><input type="number" min="1" data-source-copies="${l.sku}" class="form-input" style="width: 70px;" value="${stickerSourceCopies[l.sku] ?? l.qty}"></td>
+            <td><button class="action-btn" data-source-print-one="${l.sku}">Print</button></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+    <button class="btn btn-primary" id="sticker-source-print-btn" style="margin-top: 12px;">Print Selected</button>
+  `;
+  el.querySelectorAll('[data-source-select]').forEach(cb => {
+    cb.addEventListener('change', () => {
+      stickerSourceSelected[cb.getAttribute('data-source-select')] = cb.checked;
+    });
+  });
+  el.querySelectorAll('[data-source-copies]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      const n = parseInt(inp.value, 10);
+      stickerSourceCopies[inp.getAttribute('data-source-copies')] = n > 0 ? n : 1;
+    });
+  });
+  el.querySelectorAll('[data-source-print-one]').forEach(btn => {
+    btn.addEventListener('click', () => printStickerSourceLines([btn.getAttribute('data-source-print-one')]));
+  });
+  document.getElementById('sticker-source-print-btn').addEventListener('click', () => {
+    const selected = stickerSourceLines.map(l => l.sku).filter(sku => stickerSourceSelected[sku]);
+    printStickerSourceLines(selected);
+  });
+}
+
+async function printStickerSourceLines(skus) {
+  const errorEl = document.getElementById('sticker-source-error');
+  errorEl.classList.add('hidden');
+  if (!skus || skus.length === 0) {
+    errorEl.textContent = 'Select at least one line first.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const printerCode = document.getElementById('sticker-printer').value;
+  if (!printerCode) {
+    errorEl.textContent = 'Select a printer first.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const reprintReason = document.getElementById('sticker-reprint-reason').value.trim();
+  const copiesOverride = {};
+  skus.forEach(sku => { copiesOverride[sku] = stickerSourceCopies[sku] || 1; });
+
+  const opts = {
+    printerCode, reprintReason, skus,
+    sourceDoctype: stickerSourceDoctype, sourceDocId: stickerSourceDocId, copiesOverride
+  };
+  if (await qzTryPrint('Sticker', opts)) {
+    renderView('stickers');
+    return;
+  }
+
+  const res = await apiFetch('/api/v1/stickers/print', {
+    method: 'POST',
+    body: JSON.stringify({
+      skus, printer_code: printerCode, reprint_reason: reprintReason,
+      source_doctype: stickerSourceDoctype, source_doc_id: stickerSourceDocId, copies_override: copiesOverride
+    })
+  });
+  if (!res) return;
+  const data = await res.json();
+  if (!res.ok) {
+    errorEl.textContent = data.error || 'Failed to print stickers.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  renderPrintSheet(data, 1);
+  renderView('stickers');
+}
+
 function addStickerSKU() {
   const input = document.getElementById('sticker-sku-input');
   const sku = input.value.trim();
@@ -15013,24 +16072,488 @@ async function printStickers() {
   renderView('stickers');
 }
 
+// Stage 52: the value a template element's `field` reads off a resolved
+// label - mirrors engines.StickerFieldText (engines/stickers.go) exactly, so
+// the designer canvas, the print-preview sheet, and the ZPL a thermal
+// printer actually produces all agree on what a given field prints as.
+function stickerFieldText(field, textLiteral, label) {
+  switch (field) {
+    case 'static': return textLiteral || '';
+    case 'sku': return label.sku || '';
+    case 'name': return label.name || '';
+    case 'hsn_code': return label.hsn_code || '';
+    case 'category': return label.category || '';
+    case 'batch_no': return label.batch_no || '';
+    case 'expiry_date': return label.expiry_date || '';
+    case 'mfg_date': return label.mfg_date || '';
+    case 'qty': return label.qty ? String(label.qty) : '';
+    case 'source_doc': return label.source_doc_id || '';
+    case 'barcode': return label.barcode || '';
+    default: return '';
+  }
+}
+
+// Renders one StickerElement as an absolutely-positioned, mm-sized child -
+// shared between the live print sheet (renderPrintSheet) and the designer
+// canvas's own preview mode, so "what you designed" and "what prints" use
+// literally the same markup function.
+function renderStickerElementHTML(el, label) {
+  const baseStyle = `position:absolute; left:${el.x_mm || 0}mm; top:${el.y_mm || 0}mm; width:${el.w_mm || 0}mm; height:${el.h_mm || 0}mm; overflow:hidden;`;
+  if (el.field === 'barcode') {
+    const content = label.barcode_svg || escapeHTMLText(label.barcode || '');
+    return `<div class="sticker-el sticker-el-barcode" style="${baseStyle}">${content}</div>`;
+  }
+  const text = stickerFieldText(el.field, el.text, label);
+  if (!text) return '';
+  const align = el.align === 'center' ? 'center' : el.align === 'right' ? 'right' : 'left';
+  const style = `${baseStyle} font-size:${el.font_size_mm || 3.5}mm; text-align:${align}; font-weight:${el.bold ? 700 : 400};`;
+  return `<div class="sticker-el" style="${style}">${escapeHTMLText(text)}</div>`;
+}
+
+// renderPrintSheet is the browser @media print fallback for both the manual
+// SKU-scan flow (a flat `copies` applies to every label) and the Stage 52
+// document-driven flow (each label carries its own resolved `qty`, which
+// wins when present - mirrors BuildStickerPayload's identical precedence in
+// engines/qz_payload.go). A label with no resolved template (template
+// unconfigured for its category, or none at all) still gets the original
+// fixed 3-line layout untouched. Labels arrive pre-sorted by category
+// (PrintStickersForDocument), so marking the last copy of each category run
+// with a page break is enough to make a mixed-category batch tear apart as
+// separate per-category stacks.
 function renderPrintSheet(labels, copies) {
   const area = document.getElementById('sticker-print-area');
   let html = '';
-  labels.forEach(label => {
-    for (let i = 0; i < copies; i++) {
-      html += `
-        <div class="sticker-label">
-          <div class="sticker-name">${label.name || label.sku}</div>
-          <div class="sticker-barcode">${label.barcode_svg || label.barcode}</div>
-          <div class="sticker-meta">SKU: ${label.sku}${label.hsn_code ? ' &nbsp;|&nbsp; HSN: ' + label.hsn_code : ''}</div>
-        </div>
-      `;
+  labels.forEach((label, idx) => {
+    const labelCopies = label.qty > 0 ? label.qty : copies;
+    const nextCategory = idx < labels.length - 1 ? (labels[idx + 1].category || '') : null;
+    const isLastOfCategoryGroup = nextCategory === null || nextCategory !== (label.category || '');
+    let elements = [];
+    if (label.template_elements) {
+      try { elements = JSON.parse(label.template_elements); } catch (e) { elements = []; }
+    }
+    for (let i = 0; i < labelCopies; i++) {
+      const breakClass = (i === labelCopies - 1 && isLastOfCategoryGroup) ? ' sticker-label-group-end' : '';
+      if (elements.length > 0 && label.label_width_mm && label.label_height_mm) {
+        html += `
+          <div class="sticker-label sticker-label-templated${breakClass}" style="width:${label.label_width_mm}mm; height:${label.label_height_mm}mm;">
+            ${elements.map(el => renderStickerElementHTML(el, label)).join('')}
+          </div>
+        `;
+      } else {
+        html += `
+          <div class="sticker-label${breakClass}">
+            <div class="sticker-name">${escapeHTMLText(label.name || label.sku)}</div>
+            <div class="sticker-barcode">${label.barcode_svg || escapeHTMLText(label.barcode || '')}</div>
+            <div class="sticker-meta">SKU: ${escapeHTMLText(label.sku)}${label.hsn_code ? ' &nbsp;|&nbsp; HSN: ' + escapeHTMLText(label.hsn_code) : ''}</div>
+          </div>
+        `;
+      }
     }
   });
   area.innerHTML = html;
   area.classList.add('printing');
   window.print();
   setTimeout(() => area.classList.remove('printing'), 500);
+}
+
+// ---------------------------------------------------------------------------
+// Stage 52: StickerTemplate designer - a drag-and-drop canvas mapping one or
+// more free-text Item categories to a label layout. This is the first
+// pointer-drag UI in this app (no existing canvas/floor-plan editor to
+// pattern-match), kept deliberately small: mousedown/mousemove/mouseup on
+// plain positioned <div>s, no library. The canvas IS the live preview - it
+// renders through the exact same renderStickerElementHTML used at actual
+// print time, so there is nothing to keep in sync between "what you designed"
+// and "what prints".
+// ---------------------------------------------------------------------------
+const STICKER_DESIGNER_SCALE = 4; // px per mm
+const STICKER_DESIGNER_FIELDS = [
+  { field: 'sku', label: 'SKU', w: 30, h: 6 },
+  { field: 'name', label: 'Name', w: 36, h: 7 },
+  { field: 'barcode', label: 'Barcode', w: 40, h: 14 },
+  { field: 'hsn_code', label: 'HSN', w: 24, h: 5 },
+  { field: 'category', label: 'Category', w: 28, h: 5 },
+  { field: 'batch_no', label: 'Batch/Lot', w: 28, h: 5 },
+  { field: 'expiry_date', label: 'Expiry', w: 24, h: 5 },
+  { field: 'mfg_date', label: 'Mfg Date', w: 24, h: 5 },
+  { field: 'qty', label: 'Qty', w: 16, h: 5 },
+  { field: 'source_doc', label: 'Source Doc #', w: 30, h: 5 },
+  { field: 'static', label: '+ Static Text', w: 30, h: 5 }
+];
+
+let currentStickerTemplateId = null; // null = creating a new template
+let stickerDesignerElements = [];
+let stickerDesignerSelectedElId = null;
+let stickerDesignerLabelW = 50;
+let stickerDesignerLabelH = 30;
+
+async function renderStickerTemplatesTab(container) {
+  if (stickerDesignerActive) {
+    renderStickerTemplateDesigner(container);
+    return;
+  }
+  const res = await apiFetch('/api/v1/doc/StickerTemplate');
+  if (!res) return;
+  if (!res.ok) { renderErrorPanel(container, 'Failed to load sticker templates.', () => renderView('stickers')); return; }
+  const templates = await res.json();
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <div>
+        <h2 style="font-size: 16px; font-weight: 700; margin: 0 0 4px;">Sticker Templates</h2>
+        <p class="page-subtitle" style="margin: 0;">Map one or more categories to a label layout - printing from a GRN/Transfer Order uses each item's category to pick its template automatically.</p>
+      </div>
+      <button class="btn btn-primary" id="sticker-template-new-btn">New Template</button>
+    </div>
+    <table>
+      <thead><tr><th>Code</th><th>Name</th><th>Categories</th><th>Default</th><th>Size (mm)</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        ${templates.length === 0
+          ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No templates yet. Items without a matching category use the built-in default layout. Click <b>New Template</b> to design one.</td></tr>`
+          : templates.map(t => `
+            <tr>
+              <td style="font-family: monospace;">${escapeHTMLText(t.code || t.id)}</td>
+              <td>${escapeHTMLText(t.name || '')}</td>
+              <td>${escapeHTMLText(t.categories || '')}</td>
+              <td>${t.is_default ? '<span class="badge badge-secondary">Default</span>' : ''}</td>
+              <td>${t.label_width_mm || '?'} &times; ${t.label_height_mm || '?'}</td>
+              <td><span class="badge ${t.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${t.status || 'Active'}</span></td>
+              <td><button class="action-btn" data-edit-template="${t.id}">Edit</button></td>
+            </tr>
+          `).join('')}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(panel);
+
+  document.getElementById('sticker-template-new-btn').addEventListener('click', () => openStickerTemplateDesigner(null));
+  panel.querySelectorAll('[data-edit-template]').forEach(btn => {
+    btn.addEventListener('click', () => openStickerTemplateDesigner(btn.getAttribute('data-edit-template')));
+  });
+}
+
+let stickerDesignerActive = false;
+
+async function openStickerTemplateDesigner(templateId) {
+  currentStickerTemplateId = templateId;
+  stickerDesignerElements = [];
+  stickerDesignerSelectedElId = null;
+  stickerDesignerLabelW = 50;
+  stickerDesignerLabelH = 30;
+  stickerDesignerActive = true;
+
+  if (templateId) {
+    const res = await apiFetch(`/api/v1/doc/StickerTemplate/${templateId}`);
+    if (res && res.ok) {
+      const t = await res.json();
+      stickerDesignerLabelW = Number(t.label_width_mm) || 50;
+      stickerDesignerLabelH = Number(t.label_height_mm) || 30;
+      try { stickerDesignerElements = JSON.parse(t.elements || '[]'); } catch (e) { stickerDesignerElements = []; }
+      stickerDesignerTemplateData = t;
+    }
+  } else {
+    stickerDesignerTemplateData = null;
+  }
+  renderView('stickers');
+}
+
+let stickerDesignerTemplateData = null;
+
+function closeStickerTemplateDesigner() {
+  stickerDesignerActive = false;
+  currentStickerTemplateId = null;
+  renderView('stickers');
+}
+
+function renderStickerTemplateDesigner(container) {
+  const t = stickerDesignerTemplateData || {};
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+      <h2 style="font-size: 16px; font-weight: 700; margin: 0;">${currentStickerTemplateId ? 'Edit' : 'New'} Sticker Template</h2>
+      <button class="btn btn-outline" id="sticker-designer-cancel-btn">Back to List</button>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="std-code">Template Code</label>
+        <input type="text" id="std-code" class="form-input" style="width: 160px;" value="${escapeHTMLText(t.code || '')}" ${currentStickerTemplateId ? 'readonly' : ''}>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="std-name">Template Name</label>
+        <input type="text" id="std-name" class="form-input" style="width: 200px;" value="${escapeHTMLText(t.name || '')}">
+      </div>
+      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 220px;">
+        <label class="form-label" for="std-categories">Categories (comma-separated)</label>
+        <input type="text" id="std-categories" class="form-input" value="${escapeHTMLText(t.categories || '')}" placeholder="e.g. Earrings, Studs">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="std-default">
+          <input type="checkbox" id="std-default" ${t.is_default ? 'checked' : ''}> Default (unmapped categories)
+        </label>
+      </div>
+    </div>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="std-width">Label Width (mm)</label>
+        <input type="number" id="std-width" class="form-input" style="width: 100px;" min="5" value="${stickerDesignerLabelW}">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="std-height">Label Height (mm)</label>
+        <input type="number" id="std-height" class="form-input" style="width: 100px;" min="5" value="${stickerDesignerLabelH}">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="std-status">Status</label>
+        <select id="std-status" class="form-input" style="width: 110px;">
+          <option value="Active" ${(t.status || 'Active') === 'Active' ? 'selected' : ''}>Active</option>
+          <option value="Inactive" ${t.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
+        </select>
+      </div>
+    </div>
+    <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;">
+      ${STICKER_DESIGNER_FIELDS.map(f => `<button class="btn btn-outline btn-sm" data-add-field="${f.field}">${f.label}</button>`).join('')}
+    </div>
+    <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
+      <div id="sticker-designer-canvas-wrap" style="border: 1px solid var(--border-color); background: #fafafa; overflow: auto; padding: 12px;"></div>
+      <div id="sticker-designer-props" style="min-width: 220px; max-width: 260px;"></div>
+    </div>
+    <div id="sticker-designer-error" class="login-error hidden" style="margin: 16px 0;"></div>
+    <button class="btn btn-primary" id="sticker-designer-save-btn" style="margin-top: 16px;">Save Template</button>
+  `;
+  container.appendChild(panel);
+
+  document.getElementById('sticker-designer-cancel-btn').addEventListener('click', closeStickerTemplateDesigner);
+  document.getElementById('std-width').addEventListener('change', (e) => {
+    stickerDesignerLabelW = Math.max(5, Number(e.target.value) || 50);
+    redrawStickerDesignerCanvas();
+  });
+  document.getElementById('std-height').addEventListener('change', (e) => {
+    stickerDesignerLabelH = Math.max(5, Number(e.target.value) || 30);
+    redrawStickerDesignerCanvas();
+  });
+  panel.querySelectorAll('[data-add-field]').forEach(btn => {
+    btn.addEventListener('click', () => addStickerDesignerElement(btn.getAttribute('data-add-field')));
+  });
+  document.getElementById('sticker-designer-save-btn').addEventListener('click', saveStickerTemplate);
+
+  redrawStickerDesignerCanvas();
+}
+
+function addStickerDesignerElement(field) {
+  const spec = STICKER_DESIGNER_FIELDS.find(f => f.field === field) || { w: 30, h: 6 };
+  const id = 'el' + Date.now() + Math.floor(Math.random() * 1000);
+  const el = {
+    id, field, x_mm: 2, y_mm: 2, w_mm: Math.min(spec.w, stickerDesignerLabelW - 4), h_mm: spec.h,
+    font_size_mm: 3.5, bold: false, align: 'left'
+  };
+  if (field === 'static') el.text = 'Text';
+  stickerDesignerElements.push(el);
+  stickerDesignerSelectedElId = id;
+  redrawStickerDesignerCanvas();
+}
+
+function deleteStickerDesignerElement(id) {
+  stickerDesignerElements = stickerDesignerElements.filter(e => e.id !== id);
+  if (stickerDesignerSelectedElId === id) stickerDesignerSelectedElId = null;
+  redrawStickerDesignerCanvas();
+}
+
+// A dummy label used purely so the canvas can render placeholder text for
+// each field via the exact same renderStickerElementHTML the real print
+// sheet uses - what you see while designing is what the field would show.
+const STICKER_DESIGNER_SAMPLE_LABEL = {
+  sku: 'SKU-0001', name: 'Sample Item Name', barcode: '1234567890123',
+  hsn_code: '7113', category: 'Category', batch_no: 'LOT-1', expiry_date: '2027-01-01',
+  mfg_date: '2026-01-01', qty: 1, source_doc_id: 'GRN-0001',
+  barcode_svg: '<svg viewBox="0 0 100 30" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;"><rect width="100" height="30" fill="#fff"/><text x="50" y="20" font-size="8" text-anchor="middle" font-family="monospace">||| barcode |||</text></svg>'
+};
+
+function redrawStickerDesignerCanvas() {
+  const wrap = document.getElementById('sticker-designer-canvas-wrap');
+  if (!wrap) return;
+  const widthPx = stickerDesignerLabelW * STICKER_DESIGNER_SCALE;
+  const heightPx = stickerDesignerLabelH * STICKER_DESIGNER_SCALE;
+  wrap.innerHTML = `<div id="sticker-designer-canvas" style="position: relative; width: ${widthPx}px; height: ${heightPx}px; background: #fff; border: 1px dashed #999;"></div>`;
+  const canvas = document.getElementById('sticker-designer-canvas');
+
+  stickerDesignerElements.forEach(el => {
+    const box = document.createElement('div');
+    box.className = 'sticker-designer-el' + (el.id === stickerDesignerSelectedElId ? ' selected' : '');
+    box.style.left = (el.x_mm * STICKER_DESIGNER_SCALE) + 'px';
+    box.style.top = (el.y_mm * STICKER_DESIGNER_SCALE) + 'px';
+    box.style.width = (el.w_mm * STICKER_DESIGNER_SCALE) + 'px';
+    box.style.height = (el.h_mm * STICKER_DESIGNER_SCALE) + 'px';
+    box.innerHTML = renderStickerElementHTML(el, STICKER_DESIGNER_SAMPLE_LABEL) ||
+      `<div style="font-size: 10px; color: #999; padding: 2px;">${escapeHTMLText(el.field)}</div>`;
+    const handle = document.createElement('div');
+    handle.className = 'sticker-designer-resize-handle';
+    box.appendChild(handle);
+    canvas.appendChild(box);
+
+    box.addEventListener('mousedown', (e) => {
+      if (e.target === handle) return;
+      e.preventDefault();
+      stickerDesignerSelectedElId = el.id;
+      renderStickerDesignerProps();
+      panel_highlightSelected();
+      const startX = e.clientX, startY = e.clientY;
+      const startXmm = el.x_mm, startYmm = el.y_mm;
+      function onMove(ev) {
+        const dxMm = (ev.clientX - startX) / STICKER_DESIGNER_SCALE;
+        const dyMm = (ev.clientY - startY) / STICKER_DESIGNER_SCALE;
+        el.x_mm = Math.max(0, Math.round((startXmm + dxMm) * 10) / 10);
+        el.y_mm = Math.max(0, Math.round((startYmm + dyMm) * 10) / 10);
+        box.style.left = (el.x_mm * STICKER_DESIGNER_SCALE) + 'px';
+        box.style.top = (el.y_mm * STICKER_DESIGNER_SCALE) + 'px';
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        // The props panel's X/Y/W/H inputs were rendered with the pre-drag
+        // values when the drag/resize started - refresh them now so they
+        // show where the element actually ended up, without needing a
+        // second click to re-select it.
+        renderStickerDesignerProps();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+
+    handle.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      stickerDesignerSelectedElId = el.id;
+      renderStickerDesignerProps();
+      panel_highlightSelected();
+      const startX = e.clientX, startY = e.clientY;
+      const startWmm = el.w_mm, startHmm = el.h_mm;
+      function onMove(ev) {
+        const dwMm = (ev.clientX - startX) / STICKER_DESIGNER_SCALE;
+        const dhMm = (ev.clientY - startY) / STICKER_DESIGNER_SCALE;
+        el.w_mm = Math.max(2, Math.round((startWmm + dwMm) * 10) / 10);
+        el.h_mm = Math.max(2, Math.round((startHmm + dhMm) * 10) / 10);
+        box.style.width = (el.w_mm * STICKER_DESIGNER_SCALE) + 'px';
+        box.style.height = (el.h_mm * STICKER_DESIGNER_SCALE) + 'px';
+      }
+      function onUp() {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        // The props panel's X/Y/W/H inputs were rendered with the pre-drag
+        // values when the drag/resize started - refresh them now so they
+        // show where the element actually ended up, without needing a
+        // second click to re-select it.
+        renderStickerDesignerProps();
+      }
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+
+  function panel_highlightSelected() {
+    canvas.querySelectorAll('.sticker-designer-el').forEach(b => b.classList.remove('selected'));
+  }
+
+  renderStickerDesignerProps();
+}
+
+function renderStickerDesignerProps() {
+  const props = document.getElementById('sticker-designer-props');
+  if (!props) return;
+  const el = stickerDesignerElements.find(e => e.id === stickerDesignerSelectedElId);
+  if (!el) {
+    props.innerHTML = '<p class="page-subtitle">Click an element on the canvas to edit it, or add one from the buttons above.</p>';
+    return;
+  }
+  props.innerHTML = `
+    <div class="form-group">
+      <label class="form-label">Field: ${escapeHTMLText(el.field)}</label>
+    </div>
+    ${el.field === 'static' ? `
+      <div class="form-group">
+        <label class="form-label" for="stdp-text">Text</label>
+        <input type="text" id="stdp-text" class="form-input" value="${escapeHTMLText(el.text || '')}">
+      </div>` : ''}
+    ${el.field !== 'barcode' ? `
+      <div class="form-group">
+        <label class="form-label" for="stdp-font">Font Size (mm)</label>
+        <input type="number" id="stdp-font" class="form-input" step="0.5" min="1" value="${el.font_size_mm || 3.5}">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="stdp-align">Align</label>
+        <select id="stdp-align" class="form-input">
+          <option value="left" ${(!el.align || el.align === 'left') ? 'selected' : ''}>Left</option>
+          <option value="center" ${el.align === 'center' ? 'selected' : ''}>Center</option>
+          <option value="right" ${el.align === 'right' ? 'selected' : ''}>Right</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label"><input type="checkbox" id="stdp-bold" ${el.bold ? 'checked' : ''}> Bold</label>
+      </div>` : ''}
+    <div class="form-group">
+      <label class="form-label">Position / Size (mm)</label>
+      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+        <input type="number" id="stdp-x" class="form-input" style="width: 60px;" value="${el.x_mm}" title="X">
+        <input type="number" id="stdp-y" class="form-input" style="width: 60px;" value="${el.y_mm}" title="Y">
+        <input type="number" id="stdp-w" class="form-input" style="width: 60px;" value="${el.w_mm}" title="Width">
+        <input type="number" id="stdp-h" class="form-input" style="width: 60px;" value="${el.h_mm}" title="Height">
+      </div>
+    </div>
+    <button class="action-btn action-btn-danger" id="stdp-delete-btn">Delete Element</button>
+  `;
+  const redraw = () => redrawStickerDesignerCanvas();
+  const bindNum = (id, key) => {
+    const inp = document.getElementById(id);
+    if (inp) inp.addEventListener('change', () => { el[key] = Number(inp.value) || 0; redraw(); });
+  };
+  const stdpText = document.getElementById('stdp-text');
+  if (stdpText) stdpText.addEventListener('change', () => { el.text = stdpText.value; redraw(); });
+  bindNum('stdp-font', 'font_size_mm');
+  const stdpAlign = document.getElementById('stdp-align');
+  if (stdpAlign) stdpAlign.addEventListener('change', () => { el.align = stdpAlign.value; redraw(); });
+  const stdpBold = document.getElementById('stdp-bold');
+  if (stdpBold) stdpBold.addEventListener('change', () => { el.bold = stdpBold.checked; redraw(); });
+  bindNum('stdp-x', 'x_mm');
+  bindNum('stdp-y', 'y_mm');
+  bindNum('stdp-w', 'w_mm');
+  bindNum('stdp-h', 'h_mm');
+  document.getElementById('stdp-delete-btn').addEventListener('click', () => deleteStickerDesignerElement(el.id));
+}
+
+async function saveStickerTemplate() {
+  const errorEl = document.getElementById('sticker-designer-error');
+  errorEl.classList.add('hidden');
+  const code = document.getElementById('std-code').value.trim();
+  const name = document.getElementById('std-name').value.trim();
+  if (!code || !name) {
+    errorEl.textContent = 'Template Code and Name are required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const body = {
+    code, name,
+    categories: document.getElementById('std-categories').value.trim(),
+    is_default: document.getElementById('std-default').checked,
+    label_width_mm: stickerDesignerLabelW,
+    label_height_mm: stickerDesignerLabelH,
+    status: document.getElementById('std-status').value,
+    elements: JSON.stringify(stickerDesignerElements)
+  };
+  const url = currentStickerTemplateId ? `/api/v1/doc/StickerTemplate/${currentStickerTemplateId}` : '/api/v1/doc/StickerTemplate';
+  const res = await apiFetch(url, { method: 'POST', body: JSON.stringify(body) });
+  if (!res) return;
+  if (!res.ok) {
+    errorEl.textContent = await getErrorMessage(res, 'Failed to save the template.');
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  showToast('Template saved.', { variant: 'success' });
+  stickerDesignerActive = false;
+  currentStickerTemplateId = null;
+  renderView('stickers');
 }
 
 // HR Foundation (Stage 13.13a, MB 16.3) - Employee is a Master-type doctype
@@ -18956,7 +20479,7 @@ async function renderDocTableView(container) {
     const metaRes = await apiFetch(`/api/v1/doc/${currentDoctype}/meta`);
     if (!metaRes) return;
     if (!metaRes.ok) {
-      const msg = await getErrorMessage(metaRes, `Failed to load schema for ${getTranslatedLabel(currentDoctype)}.`);
+      const msg = await getErrorMessage(metaRes, `Failed to load schema for ${getDoctypeLabel(currentDoctype)}.`);
       renderErrorPanel(container, msg, () => renderView('doctype-table'));
       return;
     }
@@ -18965,7 +20488,7 @@ async function renderDocTableView(container) {
     const dataRes = await apiFetch(`/api/v1/doc/${currentDoctype}`);
     if (!dataRes) return;
     if (!dataRes.ok) {
-      const msg = await getErrorMessage(dataRes, `Failed to load records for ${getTranslatedLabel(currentDoctype)}.`);
+      const msg = await getErrorMessage(dataRes, `Failed to load records for ${getDoctypeLabel(currentDoctype)}.`);
       renderErrorPanel(container, msg, () => renderView('doctype-table'));
       return;
     }
@@ -18981,12 +20504,26 @@ async function renderDocTableView(container) {
     renderPIMShellHeader(container);
   }
 
+  // Stage 2026-09-22: shown only when this list was reached via a
+  // "create the missing master" shortcut from inside another screen (e.g.
+  // GRN's Item picker) - see quickCreateReturn's declaration.
+  const showQuickCreateBack = quickCreateReturn && quickCreateReturn.forDoctype === currentDoctype;
+
+  // BLD-037: this subtitle used to read literally "Pluggable module
+  // metadata records database" for every doctype - an internal/technical
+  // phrase with no real per-doctype description behind it (doctype_meta has
+  // no description column - engines/doctype.go's GetDocTypes), left over
+  // from whenever this generic list view was first built. Every
+  // purpose-built screen's own subtitle (Home's quick actions, POS,
+  // Finance/GL, ...) is a plain-language one-liner; this generic fallback
+  // path had drifted from that convention.
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
-      <h1 class="page-title">${getTranslatedLabel(currentDoctype)}</h1>
-      <p class="page-subtitle">Pluggable module metadata records database</p>
+      ${showQuickCreateBack ? `<a href="#" class="empty-state-link" style="display:inline-block; margin-bottom:6px;" onclick="event.preventDefault(); returnFromQuickCreate()">&larr; Back to ${escapeHTMLText(quickCreateReturn.label || getTranslatedLabel(quickCreateReturn.view))}</a>` : ''}
+      <h1 class="page-title">${getDoctypeLabel(currentDoctype)}</h1>
+      <p class="page-subtitle">View and manage these records.</p>
     </div>
     <div style="display:flex; gap: 8px;">
       ${canCreateDoctype(currentDoctype) ? `
@@ -18996,7 +20533,7 @@ async function renderDocTableView(container) {
       </button>
       <button class="btn btn-primary" onclick="openDynamicModal()">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-        <span>New ${getTranslatedLabel(currentDoctype)}</span>
+        <span>New ${getDoctypeLabel(currentDoctype)}</span>
       </button>` : `
       <span class="page-header-note" title="Your role has read access to this record type but not create access. Ask an administrator to grant it under Admin &raquo; Roles.">Read-only for your role</span>`}
     </div>
@@ -19069,7 +20606,7 @@ function renderDocTable() {
     // and "No records found." was equally uninformative whether the list was
     // genuinely empty or the user had simply typed a search that matched
     // nothing. Those are different problems with different next steps.
-    const label = getTranslatedLabel(currentDoctype);
+    const label = getDoctypeLabel(currentDoctype);
     const emptyMsg = currentSearchQuery
       ? `No ${label} records match &ldquo;${escapeHTMLText(currentSearchQuery)}&rdquo;. Clear the search box above to see all of them.`
       : `No ${label} records yet. Use <b>New ${label}</b> above to create the first one, or <b>Bulk Import</b> to load a CSV.`;
@@ -19084,7 +20621,7 @@ function renderDocTable() {
         const val = row[f.fieldname] || '';
         if (f.fieldname === 'status') {
           const cls = val === 'Active' ? 'badge-success' : 'badge-secondary';
-          tableHTML += `<td><span class="badge ${cls}">${val}</span></td>`;
+          tableHTML += `<td><span class="badge ${cls}">${escapeHTMLText(val)}</span></td>`;
         } else {
           tableHTML += `<td>${copyableCell(val, val)}</td>`;
         }
@@ -19327,7 +20864,7 @@ window.viewTaxonomyHistory = async function(id) {
     : entries.map(e => `<tr><td>${e.created_at || ''}</td><td>${e.user_id || ''}</td><td>${e.details || ''}</td></tr>`).join('');
   overlay.innerHTML = `
     <div class="modal-container">
-      <div class="modal-header"><h3 class="modal-title">History: ${getTranslatedLabel(currentDoctype)} ${id}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <div class="modal-header"><h3 class="modal-title">History: ${getDoctypeLabel(currentDoctype)} ${id}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
       <div class="modal-body"><div class="table-wrapper"><table><thead><tr><th>When</th><th>User</th><th>Change</th></tr></thead><tbody>${rows}</tbody></table></div></div>
       <div class="modal-footer"><button type="button" class="btn btn-secondary">Close</button></div>
     </div>`;
@@ -19579,7 +21116,7 @@ window.openPIMBulkEditModal = function() {
   overlay.id = 'pim-bulk-edit-modal';
   overlay.innerHTML = `
     <div class="modal-container">
-      <div class="modal-header"><h3 class="modal-title">Edit ${bulkSelectedDocIDs.size} selected ${getTranslatedLabel(currentDoctype)} record${bulkSelectedDocIDs.size === 1 ? '' : 's'}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
+      <div class="modal-header"><h3 class="modal-title">Edit ${bulkSelectedDocIDs.size} selected ${getDoctypeLabel(currentDoctype)} record${bulkSelectedDocIDs.size === 1 ? '' : 's'}</h3><button type="button" class="modal-close" aria-label="Close">×</button></div>
       <form><div class="modal-body"><div class="form-group"><label class="form-label">Field</label><select class="form-select" id="pim-bulk-field"></select></div><div class="form-group"><label class="form-label" id="pim-bulk-value-label">New value</label><div id="pim-bulk-value"></div></div><p class="text-muted" style="font-size:13px; margin:0;">Preview: this change will update all ${bulkSelectedDocIDs.size} selected records. Approved records are returned to Pending Approval when their doctype is approval-gated.</p></div><div class="modal-footer"><button type="button" class="btn btn-secondary">Cancel</button><button type="submit" class="btn btn-primary">Confirm bulk edit</button></div></form>
     </div>`;
   document.body.appendChild(overlay);
@@ -19627,7 +21164,7 @@ window.openPIMBulkEditModal = function() {
     const value = field.fieldtype === 'Number' ? Number(input.value) : input.value;
     if (field.mandatory && String(input.value).trim() === '') return;
     const count = bulkSelectedDocIDs.size;
-    if (!await showCustomConfirm(`Update ${count} selected ${getTranslatedLabel(currentDoctype)} record${count === 1 ? '' : 's'}?`, 'Confirm Bulk Edit')) return;
+    if (!await showCustomConfirm(`Update ${count} selected ${getDoctypeLabel(currentDoctype)} record${count === 1 ? '' : 's'}?`, 'Confirm Bulk Edit')) return;
     const res = await apiFetch('/api/v1/pim/bulk-edit', { method: 'POST', body: JSON.stringify({ doctype: currentDoctype, ids: [...bulkSelectedDocIDs], field: field.fieldname, value }) });
     if (!res) return;
     if (!res.ok) {
@@ -19659,17 +21196,57 @@ window.deleteDocRecord = async function(id) {
   }
 };
 
+// Stage 50/AUD-09: after a successful save (or Cancel, or the X button),
+// document.activeElement was left on the dialog's own Save/Cancel/close
+// button, now hidden by modal.classList.remove('open') - a keyboard or
+// screen-reader user's next Tab/interaction went nowhere visible, since
+// focus was sitting inside a display:none subtree. These two helpers are a
+// shared choke point rather than a per-modal fix: capture whatever had
+// focus right before a modal opened (almost always the button that
+// triggered it - "+ New Vendor", a row's "Edit" action, etc.), and restore
+// focus there when it closes. If that element is gone - the common case
+// BLD-011 calls out explicitly: the record's own row/trigger was removed
+// (deleted, or the list re-rendered) - fall back to #view-root, given
+// `tabindex="-1"` in index.html for exactly this, rather than leaving focus
+// on a now-invisible element or letting it silently fall back to <body>.
+let modalReturnFocusEl = null;
+function captureFocusForModalReturn() {
+  modalReturnFocusEl = document.activeElement;
+}
+function restoreFocusAfterModalClose() {
+  const target = modalReturnFocusEl;
+  modalReturnFocusEl = null;
+  if (target && document.body.contains(target) && typeof target.focus === 'function') {
+    target.focus();
+    return;
+  }
+  document.getElementById('view-root')?.focus();
+}
+
+// Stage 50/BLD-011 follow-up: live-verifying AUD-09's Done bar ("cover ...
+// save/cancel/Escape") found Escape did nothing at all here - Save and
+// Cancel both already ran through closeDynamicModal() (the modal's own
+// buttons), but there was no keyboard equivalent, unlike this app's other
+// Escape-closable surfaces (nav drawer, account menu, submenus). One
+// document-level handler covers it without touching the modal's own markup.
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('dynamic-modal')?.classList.contains('open')) {
+    closeDynamicModal();
+  }
+});
+
 // Open Dynamic Creation Modal. Pass an existing record (as returned by
 // GET /api/v1/doc/{doctype}/{id}) to switch into edit mode instead of
 // create - see editDocRecord below, the only caller that does this.
 window.openDynamicModal = async function(existingRecord) {
+  captureFocusForModalReturn();
   const modal = document.getElementById('dynamic-modal');
   const title = document.getElementById('dynamic-modal-title');
   const body = document.getElementById('dynamic-modal-body');
   if (!modal) return;
 
   const isEdit = !!existingRecord;
-  title.textContent = `${isEdit ? 'Edit' : 'New'} ${getTranslatedLabel(currentDoctype)}`;
+  title.textContent = `${isEdit ? 'Edit' : 'New'} ${getDoctypeLabel(currentDoctype)}`;
   body.innerHTML = '';
 
   const activeDoc = state.activeDoctypes.find(d => d.name === currentDoctype);
@@ -19696,11 +21273,21 @@ window.openDynamicModal = async function(existingRecord) {
 
     const fg = document.createElement('div');
     fg.className = 'form-group';
-    fg.innerHTML = `<label class="form-label">${getTranslatedLabel(f.label)}${f.mandatory && !isCodeField ? '<span class="required">*</span>' : ''}</label>`;
+    // Stage 50/AUD-08: every field this builder renders shared one sibling
+    // <label> with no `for` and no matching control `id` - a screen reader
+    // announced ten fields on the Vendor dialog alone as unnamed controls,
+    // reachable only by guessing from surrounding visual layout. doctype+
+    // fieldname is already the unique key this form's own submit handler
+    // reads fields back by ([name="<fieldname>"]), so it is also a safe,
+    // stable id here - one association point for every field type below,
+    // rather than a per-branch fix that a new fieldtype could miss.
+    const fieldId = `dyn-field-${currentDoctype}-${f.fieldname}`;
+    fg.innerHTML = `<label class="form-label" for="${fieldId}">${getTranslatedLabel(f.label)}${f.mandatory && !isCodeField ? '<span class="required">*</span>' : ''}</label>`;
 
     if (f.fieldtype === 'Select') {
       const select = document.createElement('select');
       select.className = 'form-select';
+      select.id = fieldId;
       select.name = f.fieldname;
       select.required = f.mandatory;
       select.innerHTML = '<option value="" disabled selected>— Select Option —</option>';
@@ -19713,6 +21300,7 @@ window.openDynamicModal = async function(existingRecord) {
     } else if (f.fieldtype === 'Link') {
       const select = document.createElement('select');
       select.className = 'form-select';
+      select.id = fieldId;
       select.name = f.fieldname;
       select.required = f.mandatory;
       select.innerHTML = '<option value="" disabled selected>— Loading Lookups —</option>';
@@ -19732,7 +21320,7 @@ window.openDynamicModal = async function(existingRecord) {
           // so attaching the affordance here covers all of them at once
           // (10 of the 18 core master lists were empty at audit time).
           if (!data || data.length === 0) {
-            select.innerHTML = `<option value="" disabled selected>— No ${getTranslatedLabel(f.options)} records yet —</option>`;
+            select.innerHTML = `<option value="" disabled selected>— No ${getDoctypeLabel(f.options)} records yet —</option>`;
             fg.insertAdjacentHTML('beforeend', emptyPickerHint(f.options));
             return;
           }
@@ -19762,6 +21350,7 @@ window.openDynamicModal = async function(existingRecord) {
     } else if (f.fieldtype === 'Number') {
       const input = document.createElement('input');
       input.className = 'form-input';
+      input.id = fieldId;
       input.type = 'number';
       input.name = f.fieldname;
       input.required = f.mandatory;
@@ -19770,6 +21359,7 @@ window.openDynamicModal = async function(existingRecord) {
     } else {
       const input = document.createElement('input');
       input.className = 'form-input';
+      input.id = fieldId;
       input.type = 'text';
       input.name = f.fieldname;
       if (isCodeField) {
@@ -19870,6 +21460,7 @@ window.openDynamicModal = async function(existingRecord) {
   // live (Customer, Vendor, Employee, Location).
   applyPhoneRulesIn(body);
 
+  modal.inert = false;
   modal.classList.add('open');
 };
 
@@ -19896,10 +21487,12 @@ window.closeDynamicModal = function() {
   const modal = document.getElementById('dynamic-modal');
   if (modal) {
     modal.classList.remove('open');
+    modal.inert = true;
     document.getElementById('dynamic-modal-form').reset();
   }
   editingDocID = null;
   editingDocVersion = null;
+  restoreFocusAfterModalClose();
 };
 
 window.handleDynamicFormSubmit = async function(e) {
@@ -19910,6 +21503,14 @@ window.handleDynamicFormSubmit = async function(e) {
   const activeDoc = state.activeDoctypes.find(d => d.name === currentDoctype);
   const isMaster = activeDoc && activeDoc.document_type === 'Master';
   const isPurchaseRequisition = currentDoctype === 'PurchaseRequisition';
+  // Stage 51.5: an Item linked to a parent design (family) gets its
+  // Combination ID/SKU generated server-side from that design plus its
+  // variant attributes (engines.PrepareItemVariantCode) - the client must
+  // not pre-fill code via the admin-only /api/v1/sequence endpoint below in
+  // that case, or the server would never see an empty code to generate one
+  // for. A standalone Item (no family selected) is unaffected and keeps its
+  // ordinary sequence-numbered code.
+  const itemFamilyValue = currentDoctype === 'Item' ? (form.querySelector('[name="family"]')?.value || '').trim() : '';
   let codeFieldname = null;
 
   state.activeDocFields.forEach(f => {
@@ -19923,7 +21524,8 @@ window.handleDynamicFormSubmit = async function(e) {
     // admin-only /api/v1/sequence endpoint below (a Store Manager creating a
     // PO would get a 403 from it) and must not be sent at all - a supplied id
     // is treated as an upsert, which would turn a create into an overwrite.
-    const isServerNumbered = f.auto_generated || (isPurchaseRequisition && f.fieldname.toLowerCase() === 'code');
+    const isServerNumbered = f.auto_generated || (isPurchaseRequisition && f.fieldname.toLowerCase() === 'code') ||
+      (currentDoctype === 'Item' && f.fieldname.toLowerCase() === 'code' && itemFamilyValue !== '');
     const isCodeField = isServerNumbered || (isMaster && f.fieldname.toLowerCase() === 'code');
     const input = form.querySelector(`[name="${f.fieldname}"]`);
     if (input) {
@@ -19976,7 +21578,31 @@ window.handleDynamicFormSubmit = async function(e) {
     // the user lands on is already correct. Awaited rather than fired off,
     // because the render below reads the result.
     await refreshSetupStatus();
-    renderView('doctype-table');
+    // 2026-09-22: a create reached via the "create the missing master"
+    // shortcut (openSetupDoctype, e.g. GRN's Item picker) returns straight
+    // to the screen the shortcut was launched from, instead of always
+    // landing on the new master's own list - see quickCreateReturn's
+    // declaration. Scoped to create (not edit) - editing an unrelated
+    // existing record from a shortcut-opened list is just browsing, not
+    // the flow the shortcut exists for.
+    const returnTo = (!isEdit && quickCreateReturn && quickCreateReturn.forDoctype === currentDoctype) ? quickCreateReturn : null;
+    quickCreateReturn = null;
+    renderView(returnTo ? returnTo.view : 'doctype-table');
+    // Stage 50/AUD-09 follow-up: closeDynamicModal() just above correctly
+    // restored focus to the "+ New"/row "Edit" button that opened this modal
+    // (captureFocusForModalReturn/restoreFocusAfterModalClose) - but
+    // renderView('doctype-table') then rebuilds the whole list, which
+    // REMOVES that exact button from the document and replaces it with a
+    // fresh one. Removing the currently-focused element resets focus to
+    // <body> (browser default, not this app's choice), so a keyboard or
+    // screen-reader user's next Tab/interaction silently landed at the very
+    // top of the document instead of anywhere near the record they just
+    // saved - found live-verifying AUD-09 with Playwright (activeElement was
+    // BODY after every successful save, never the button or #view-root).
+    // Land on the same #view-root fallback restoreFocusAfterModalClose()
+    // already uses when its own target is gone, since the just-rebuilt
+    // button is exactly that case one render tick later.
+    document.getElementById('view-root')?.focus();
   } else if (res) {
     await showApiError(res, isEdit ? 'Failed to save changes - someone else may have edited this record, refresh and try again.' : 'Failed to save record.');
   }
@@ -20151,6 +21777,7 @@ function openFieldModal(doctypeName, existing) {
   const err = document.getElementById('add-field-error');
   err.classList.add('hidden');
   err.textContent = '';
+  modal.inert = false;
   modal.classList.add('open');
   document.getElementById('add-field-name').focus();
 }
@@ -20170,6 +21797,7 @@ window.closeAddFieldModal = function() {
   const modal = document.getElementById('add-field-modal');
   if (!modal) return;
   modal.classList.remove('open');
+  modal.inert = true;
   document.getElementById('add-field-form').reset();
   document.getElementById('add-field-id').value = '';
 };
@@ -20254,8 +21882,12 @@ async function renderPrefixConfigsView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Prefix Configurations</h1>
-      <p class="page-subtitle">Number series for every transaction document. Purchase orders, goods receipts, transfers, claims and the rest draw their number from here when they are saved - nobody types one in.</p>
+      <p class="page-subtitle">Number series for every transaction document, and for master records like Vendor and Item. Purchase orders, goods receipts, transfers, claims, vendor codes, item codes and the rest draw their number from here when they are saved - nobody types one in.</p>
     </div>
+    <button class="btn btn-primary" onclick="addPrefixConfig()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+      <span>New Series</span>
+    </button>
   `;
   container.appendChild(header);
 
@@ -20298,8 +21930,25 @@ async function renderPrefixConfigsView(container) {
   container.appendChild(panel);
 }
 
-window.editPrefixConfig = async function(docType) {
-  const c = state.prefixConfigs.find(x => x.doc_type === docType);
+// addPrefixConfig (Stage 51.4): the record types with no row here yet
+// (Vendor, Item, or any future one) were still being auto-numbered - the
+// engine falls back to sane defaults when no row exists, see
+// engines/numbering.go's GenerateSequence - just not editably, since this
+// screen could only edit a row that already existed. Reuses the exact same
+// upsert endpoint and sequential-prompt flow as editPrefixConfig, with one
+// extra prompt up front for the record type itself.
+window.addPrefixConfig = async function() {
+  const docType = await showCustomPrompt('Record Type (must match the doctype name exactly, e.g. Vendor, Item):', '');
+  if (!docType) return;
+  if (state.prefixConfigs.some(x => x.doc_type === docType.trim())) {
+    await showCustomAlert(`"${docType}" already has a series - use its Edit button instead.`);
+    return;
+  }
+  await editPrefixConfig(docType.trim(), { prefix: docType.trim(), separator: '/', padding_width: 6, reset_frequency: 'ANNUAL', include_store: true });
+};
+
+window.editPrefixConfig = async function(docType, newDefaults) {
+  const c = state.prefixConfigs.find(x => x.doc_type === docType) || newDefaults;
   if (!c) return;
 
   const prefix = await showCustomPrompt('Enter Prefix:', c.prefix);
@@ -21863,6 +23512,7 @@ function renderMockModuleView(container, view) {
 window.openImportModal = function() {
   const modal = document.getElementById('import-modal');
   if (modal) {
+    modal.inert = false;
     modal.classList.add('open');
     document.getElementById('import-result-summary').style.display = 'none';
   }
@@ -21872,6 +23522,7 @@ window.closeImportModal = function() {
   const modal = document.getElementById('import-modal');
   if (modal) {
     modal.classList.remove('open');
+    modal.inert = true;
     document.getElementById('import-modal-form').reset();
   }
 };

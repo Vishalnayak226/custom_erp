@@ -10,7 +10,7 @@
   "outputs": [
     {
       "path": "docs/generated/capability-catalog.md",
-      "sha256": "6b08b570ffac2597f82a8436e6ce0ea53e799610d27e6bafdade06b46150fa1a",
+      "sha256": "cf9b0989ca00d112a1de5a3ee33cde23b318c712f32f1afb2350249dee6b06ec",
       "sources": [
         "docs/product/capability-register.json",
         "docs/requirements/*.md",

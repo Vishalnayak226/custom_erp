@@ -402,6 +402,7 @@
       "match": [
         "engines/pim*.go",
         "engines/stickers.go",
+        "engines/sticker_document_source.go",
         "internal/server/handlers_pim_groups.go",
         "internal/server/handlers_pim_tasks.go",
         "internal/server/handlers_pim_transform.go",
@@ -574,6 +575,7 @@
       "match": [
         "engines/logs.go",
         "engines/audit_evidence.go",
+        "engines/audit_archive.go",
         "engines/alerting.go",
         "engines/notifications.go",
         "engines/scale.go",
@@ -645,8 +647,16 @@
       "role": "Stage 49's security program spine. security_baseline.go is the fail-fast startup validator (findings SB-001..SB-022) called from Run() next to the 20.6 UTF-8 and 24.27 seed-admin gates: it logs every configuration finding at every ENV and refuses to start on a blocking one when ENV=production, and its findings never echo the value they complain about. internal/securityscan derives the attack-surface inventory (49.1.1) and the no-bypass scan (49.1.4) from source rather than from a runtime registry, so it is imported only by its own tests and by cmd/surfacescan and adds nothing to the production binary; docs/security/attack_surface.json is the approved profile the 49.1.6 drift gate compares against. static_fileserver.go wraps the static root so a directory with no index.html 404s instead of returning a generated file listing, and (49.1.7) refuses any HTTP method but GET/HEAD so the file server itself can't be the one route in the app that answers TRACE/PUT/DELETE. cmd/edgecheck is the 49.1.7 outside-in verification tool - read-only HTTP/TCP probes run from a real external network against a deployed instance, reusable for every future release rather than a one-off manual pass.",
       "match": [
         "engines/security_baseline.go",
+        "engines/data_classification.go",
+        "engines/privacy_rights.go",
+        "engines/secret_keyring.go",
+        "engines/telemetry_redaction.go",
         "internal/securityscan/*.go",
+        "internal/supplychain/*.go",
+        "internal/server/handlers_privacy_rights.go",
         "internal/server/static_fileserver.go",
+        "cmd/releasemanifest/*",
+        "SECURITY.md",
         "cmd/surfacescan/*",
         "cmd/edgecheck/*"
       ]

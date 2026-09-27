@@ -33,10 +33,11 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 3. **Some screens are known to be unfinished placeholders, not bugs** — they're marked ⚠️ **Known limitation** below. Seeing "Module Setup Pending" on those specific screens is a *pass*, not a fail. If you see that message anywhere *not* marked with ⚠️ below, that's worth reporting.
 4. **Some actions will correctly refuse you** depending on which user you're logged in as — that's the security/role system working, not a bug. See "Role Access Notes" under each section, and the master notes in [Prerequisites](#0-prerequisites).
 5. Re-run this checklist after any significant change to `public/app.js`, `public/index.html`, or the database schema — it's meant to be reusable, not one-time.
-6. **The sidebar has eleven top-level entries**, most of them module groups with hover flyouts rather than direct links. Hover a module name (or click it, for keyboard/touch) to reveal its screens. Every section below names the module and the screen. The groups, as they read in the app today — use these exact names, older docs and screenshots show earlier ones:
+6. **The sidebar has twelve top-level entries**, most of them module groups with hover flyouts rather than direct links. Hover a module name (or click it, for keyboard/touch) to reveal its screens. Every section below names the module and the screen. The groups, as they read in the app today — use these exact names, older docs and screenshots show earlier ones:
 
    | Module group | Screens inside |
    |---|---|
+   | **Home** | Opens directly - no flyout. The landing screen - see §2. |
    | **POS** | POS / Billing · POS Profiles · Offline Sync Review · Offline Queue Gaps |
    | **Financial Accounting** | Finance / GL · Approvals · Vendor Invoice · Payment Proposals · Bank Reconciliation · Debit / Credit Notes · Sales Invoice |
    | **Sales & Marketplace** | Order Management · Fulfillment · Marketplace · Customer |
@@ -49,7 +50,7 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
    | **Setup** | A dynamic flyout of every Master record type in your tenant — 53 in a default install, grouped by module, with a filter box and an **Advanced** divider holding 15 system-internal lists |
    | **Settings** | Users · Roles · Prefix Configs · Approval Rules · Dynamic Labels · Database Schema Design · Extension Hooks · Activity Log · Configuration · System Status · Tenant Entitlements · Tenant Usage |
 
-   **Reports**, **Manufacturing** and **PIM** are direct links with no flyout.
+   **Home**, **Reports**, **Manufacturing** and **PIM** are direct links with no flyout.
 
 ---
 
@@ -74,7 +75,7 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 
 - [ ] **1.1 Login screen loads** with Username/Password fields and a "Sign In" button.
 - [ ] **1.2 Wrong password** shows an error message and does not let you in.
-- [ ] **1.3 Correct login (non-MFA user, e.g. `manager1` or `cashier1`)** takes you straight to **Reports**, the default landing screen (or back to whichever screen that browser was last on).
+- [ ] **1.3 Correct login (non-MFA user, e.g. `manager1` or `cashier1`)** takes you straight to **Home**, the default landing screen (or back to whichever screen that browser was last on).
 - [ ] **1.4 Correct login (MFA user, `admin`/`system`)** prompts for a 6-digit authenticator code after the password, and only lets you in with the correct one.
 - [ ] **1.5 Sidebar shows your name/role** in the bottom-left account area once logged in.
 - [ ] **1.6 Sign out** (account menu, bottom-left → Sign Out) returns you to the login screen and you can't get back in by pressing the browser Back button.
@@ -84,9 +85,12 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 
 ## 2. Landing screen
 
-- [ ] **No Dashboard entry in the sidebar.** The Dashboard screen was retired in August 2026 (everything on it was derived counts and shortcuts into Settings screens). Seeing one means you are testing an older build.
-- [ ] **Reports loads as the landing screen** with no error on a fresh browser profile (clear `localStorage` first, or use a private window), showing its **Dashboard** tab — four KPI cards plus a 7-day trend chart.
-- [ ] **Last screen is remembered**: navigate to another screen, refresh (F5), and you return to that screen rather than to Reports.
+- [ ] **No Dashboard entry in the sidebar.** The old Dashboard screen was retired in August 2026 (everything on it was derived counts and shortcuts into Settings screens). Seeing one means you are testing an older build.
+- [ ] **Home loads as the landing screen** with no error on a fresh browser profile (clear `localStorage` first, or use a private window). It is not the retired Dashboard: it links only to real task screens (never a Settings/admin one), and its tiles are role-derived - see the next three checks.
+- [ ] **Home's quick-action tiles match what this login can actually do.** As `cashier1`: **Point of Sale** is present; **Purchase Orders**/**Finance / GL**'s own doctype tiles are not. As `admin`: most tiles are present. A tile you cannot use is simply absent - never shown greyed out or disabled.
+- [ ] **A tile reaches its screen in one click** - e.g. click **Point of Sale** on Home and you land on POS / Billing directly.
+- [ ] **On a tenant with little or no data yet**, Home shows a **"Get started"** panel naming the first missing master (e.g. Vendor, Item) with a link to create one, instead of an empty grid with no explanation.
+- [ ] **Last screen is remembered**: navigate to another screen, refresh (F5), and you return to that screen rather than to Home.
 
 ---
 

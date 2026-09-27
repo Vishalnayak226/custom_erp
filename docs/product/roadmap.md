@@ -20,6 +20,11 @@ superseded_by: none
 The [live checklist](../micro_checklist.md) owns implementation tasks. This roadmap owns
 outcomes and order; the [capability register](capability-register.json) owns scoped maturity.
 
+The [ERP maturity build checklist](erp-build-checklist.md) supplies Stage 50's detailed
+execution and acceptance queue: demonstrated defects first, then reliable verification,
+sellable modules, usable UI, measured operating budgets and approved customer journeys.
+It preserves the original Stage IDs and separates later domain decisions from defects.
+
 | Order | Outcome | Gate |
 |---|---|---|
 | 1 | Trust sale, return and authorization outcomes | Deployment/tenant evidence for 47.1-47.4; preserve adversarial regressions |

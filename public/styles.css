@@ -862,6 +862,27 @@ body {
   color: var(--text-muted);
 }
 
+/* A .stat-card only becomes interactive when JS wires it up via
+   makeClickable(), which sets role="button" - scoping the focus/hover state
+   to that attribute keeps every purely-informational stat-card (the large
+   majority) untouched. */
+.stat-card[role="button"]:hover,
+.stat-card[role="button"]:focus-visible {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(68, 84, 106, 0.15);
+}
+
+/* box-shadow is not repainted under forced-colors (Windows High Contrast) -
+   verified live: a plain <div role="button"> (unlike a real <button>, which
+   gets its own UA-level forced-colors focus treatment) then shows no visible
+   difference at all between focused and unfocused. An explicit outline is the
+   one focus-indicator property forced-colors mode does remap to a system
+   colour, so it stays the real fallback here rather than only cosmetic. */
+.stat-card[role="button"]:focus-visible {
+  outline: 2px solid var(--primary-color);
+  outline-offset: 1px;
+}
+
 /* Glowing Pulsing status dot */
 .pulse-dot {
   width: 10px;
@@ -903,6 +924,91 @@ body {
   font-size: 13px;
   color: var(--text-muted);
   line-height: 1.5;
+}
+
+/* Home (BLD-033) stats row - scoped override of the shared .dashboard-stats-row
+   grid above (Finance/exec-dashboard/System Status/Tenant Usage all keep the
+   unmodified version). Home only ever renders one stat-card (the pending-
+   approvals count), and the shared grid's auto-fit/1fr columns stretch a
+   lone card to the full row width - a mostly-empty panel reads as more
+   important than "1". Capped here only, same precedent as .oms-tile below. */
+.home-stats-row .stat-card {
+  max-width: 280px;
+}
+
+/* Home (BLD-033) quick-action tiles - a NEW grid, deliberately not named
+   .dashboard-grid/.dashboard-card (the retired Dashboard's own classes,
+   removed 2026-08-01 with that screen - see app.js's DEFAULT_VIEW comment
+   for why this is not the same thing). Reuses .card-title/.card-desc above
+   and the .table-panel/border/shadow tokens every other panel already uses. */
+.home-action-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.home-action-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  cursor: pointer;
+  font: inherit;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.home-action-card:hover,
+.home-action-card:focus-visible {
+  border-color: var(--primary-color);
+  box-shadow: var(--shadow-sm);
+  outline: none;
+}
+
+.home-recent-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.home-recent-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border-color);
+  padding: 10px 4px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text-main);
+}
+
+.home-recent-item:first-child {
+  border-top: none;
+}
+
+.home-recent-item:hover,
+.home-recent-item:focus-visible {
+  color: var(--primary-color);
+  outline: none;
+}
+
+/* A text-color change alone is not a visible focus indicator for keyboard
+   users (WCAG 2.4.7/1.4.11) - found during the BLD-038 sweep of this new
+   (BLD-033) surface. box-shadow alone does not survive forced-colors
+   (Windows High Contrast - verified live, same as .stat-card[role="button"]
+   above), so this pairs it with a real outline rather than relying on the
+   ring for both cases. */
+.home-recent-item:focus-visible {
+  box-shadow: inset 0 0 0 2px rgba(68, 84, 106, 0.35);
+  outline: 2px solid var(--primary-color);
+  outline-offset: -2px;
+  border-radius: 4px;
 }
 
 /* Data Table Panel */
@@ -1848,6 +1954,65 @@ pre {
   color: #555;
 }
 
+/* Stage 52: a label that resolved a category StickerTemplate is sized to its
+   own mm dimensions (overriding the fixed 260px default above) and becomes a
+   positioning context for its absolutely-positioned .sticker-el children -
+   the same mm coordinates the designer canvas and the printed ZPL agree on. */
+.sticker-label.sticker-label-templated {
+  display: inline-block;
+  position: relative;
+  width: auto;
+  padding: 0;
+  vertical-align: top;
+}
+
+.sticker-el {
+  font-family: var(--font-family);
+  line-height: 1.15;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.sticker-el-barcode svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Marks the last copy of each category run (labels arrive pre-sorted by
+   category) so a mixed-category batch tears apart as separate stacks. */
+.sticker-label-group-end {
+  page-break-after: always;
+  break-after: page;
+}
+
+/* Stage 52 template designer canvas - a to-scale (4px/mm), draggable/
+   resizable positioning surface. First pointer-drag UI in this app; kept
+   deliberately plain (no library). */
+.sticker-designer-el {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px dashed #94a3b8;
+  background: rgba(59, 130, 246, 0.06);
+  cursor: move;
+  overflow: hidden;
+}
+
+.sticker-designer-el.selected {
+  border: 2px solid var(--primary-color, #2563eb);
+  background: rgba(37, 99, 235, 0.1);
+}
+
+.sticker-designer-resize-handle {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 10px;
+  height: 10px;
+  background: var(--primary-color, #2563eb);
+  border-radius: 2px;
+  cursor: nwse-resize;
+}
+
 @media print {
   body > *:not(#sticker-print-area):not(#receipt-print-area):not(#invoice-print-area):not(#bol-print-area) {
     display: none !important;
@@ -2091,6 +2256,24 @@ pre {
   color: var(--warning-strong);
   background-color: var(--warning-soft-bg);
   border: 1px solid var(--warning-soft-border);
+}
+
+/* BLD-037: groups the message with its optional correlation reference so
+   justify-content: space-between on .page-banner still pushes only the
+   close button to the far side, not the reference along with it. */
+.page-banner-body {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+}
+
+.page-banner-ref {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.75;
+  white-space: nowrap;
 }
 
 .page-banner-close {
@@ -2984,15 +3167,27 @@ td.num {
    mistakes a SIMULATED (external side effects off) instance for a real one -
    fixed to the viewport rather than the sidebar layout so it appears
    identically regardless of which view is on screen. body.env-banner-active
-   (set by renderEnvironmentBanner in app.js) pushes content down by the same
-   height so the banner never overlaps the sidebar/topbar. */
+   (set by fetchAndRenderEnvironmentBanner in app.js) gets a JS-computed
+   padding-top matching the banner's real height (not a hardcoded value) so
+   the banner never overlaps the sidebar/topbar in either state below.
+
+   BLD-037: the message grew a second clause (the 3PL/WMS single-owner-per-
+   warehouse notice) after this was built single-line/ellipsis-only with the
+   rest reachable only via the `title` hover tooltip - on a touch device
+   (no hover) or a support screenshot, most of the text was simply
+   unreadable. The .env-banner-text/.env-banner-toggle split below keeps the
+   default compact (one line, ellipsis) but makes the full text a genuine
+   tap/keyboard target, not a hover-only escape hatch. */
 #environment-banner {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 9999;
-  display: block;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
   padding: 6px 12px;
   font-size: 12px;
   font-weight: 600;
@@ -3000,15 +3195,42 @@ td.num {
   border-bottom: 1px solid var(--warning-soft-border);
   background-color: var(--warning-soft-bg);
   color: var(--warning-strong);
+}
+
+.env-banner-text {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  text-align: center;
-  cursor: default;
 }
 
-body.env-banner-active {
-  padding-top: 28px;
+#environment-banner.env-banner-expanded {
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+#environment-banner.env-banner-expanded .env-banner-text {
+  white-space: normal;
+  overflow: visible;
+  text-align: left;
+  line-height: 1.5;
+}
+
+.env-banner-toggle {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  color: inherit;
+  cursor: pointer;
+}
+
+.env-banner-toggle:focus-visible {
+  outline: 2px solid var(--warning-strong);
+  outline-offset: 2px;
 }
 
 .setup-banner {

@@ -1,5 +1,5 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "status": "draft",
   "owner": "product-owner",
   "release": "0.1.0 development tree; not released support",
@@ -80,6 +80,9 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "sales"
       ]
     },
     {
@@ -134,6 +137,10 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "sales",
+        "oms"
       ]
     },
     {
@@ -192,6 +199,11 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "wms",
+        "stickers",
+        "inventory"
       ]
     },
     {
@@ -247,6 +259,9 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "oms"
       ]
     },
     {
@@ -303,6 +318,10 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "pim",
+        "master_data"
       ]
     },
     {
@@ -358,6 +377,10 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "procurement",
+        "rfq"
       ]
     },
     {
@@ -413,6 +436,9 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "inventory"
       ]
     },
     {
@@ -469,6 +495,11 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "finance",
+        "assets",
+        "expenses"
       ]
     },
     {
@@ -524,6 +555,9 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "crm_loyalty"
       ]
     },
     {
@@ -580,6 +614,9 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "hr"
       ]
     },
     {
@@ -635,6 +672,10 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "manufacturing",
+        "quality"
       ]
     },
     {
@@ -692,6 +733,9 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "service"
       ]
     },
     {
@@ -749,6 +793,11 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "core",
+        "integrations",
+        "reports"
       ]
     },
     {
@@ -804,6 +853,9 @@
         "docs/requirements/control-requirements.md#data-002",
         "docs/requirements/control-requirements.md#ops-001",
         "docs/requirements/control-requirements.md#ops-002"
+      ],
+      "module_keys": [
+        "core"
       ]
     }
   ],

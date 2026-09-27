@@ -6,7 +6,7 @@
       "method": "ANY",
       "path": "/",
       "auth": "static",
-      "source": "internal/server/routes.go:1130",
+      "source": "internal/server/routes.go:1156",
       "note": "static file server; see static_roots"
     },
     {
@@ -14,7 +14,7 @@
       "path": "/api/public/v1/inventory",
       "auth": "integration-credential",
       "scope": "inventory:read",
-      "source": "internal/server/routes_public_api_v1.go:68",
+      "source": "internal/server/routes_public_api_v1.go:69",
       "note": "publicAPIMiddleware refuses registration of a route with no scope"
     },
     {
@@ -22,7 +22,7 @@
       "path": "/api/public/v1/items",
       "auth": "integration-credential",
       "scope": "items:read",
-      "source": "internal/server/routes_public_api_v1.go:46",
+      "source": "internal/server/routes_public_api_v1.go:47",
       "note": "publicAPIMiddleware refuses registration of a route with no scope"
     },
     {
@@ -30,7 +30,7 @@
       "path": "/api/public/v1/items/{code}",
       "auth": "integration-credential",
       "scope": "items:read",
-      "source": "internal/server/routes_public_api_v1.go:58",
+      "source": "internal/server/routes_public_api_v1.go:59",
       "note": "publicAPIMiddleware refuses registration of a route with no scope"
     },
     {
@@ -38,2899 +38,2941 @@
       "path": "/api/public/v1/orders/{id}/status",
       "auth": "integration-credential",
       "scope": "orders:read",
-      "source": "internal/server/routes_public_api_v1.go:79",
+      "source": "internal/server/routes_public_api_v1.go:80",
       "note": "publicAPIMiddleware refuses registration of a route with no scope"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/access-preview",
       "auth": "session",
-      "source": "internal/server/routes.go:306"
+      "source": "internal/server/routes.go:319"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/api-credentials",
       "auth": "session",
-      "source": "internal/server/routes.go:1018"
+      "source": "internal/server/routes.go:1034"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/api-credentials",
       "auth": "session",
-      "source": "internal/server/routes.go:1017"
+      "source": "internal/server/routes.go:1033"
     },
     {
       "method": "DELETE",
       "path": "/api/v1/admin/api-credentials/{id}",
       "auth": "session",
-      "source": "internal/server/routes.go:1020"
+      "source": "internal/server/routes.go:1036"
     },
     {
       "method": "PUT",
       "path": "/api/v1/admin/api-credentials/{id}/limits",
       "auth": "session",
-      "source": "internal/server/routes.go:1024"
+      "source": "internal/server/routes.go:1040"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/api-credentials/{id}/rotate",
       "auth": "session",
-      "source": "internal/server/routes.go:1019"
+      "source": "internal/server/routes.go:1035"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/api-credentials/{id}/traffic",
       "auth": "session",
-      "source": "internal/server/routes.go:1025"
+      "source": "internal/server/routes.go:1041"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/api-traffic",
       "auth": "session",
-      "source": "internal/server/routes.go:1026"
+      "source": "internal/server/routes.go:1042"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/audit-logs/archive",
+      "auth": "session",
+      "source": "internal/server/routes.go:1096"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/audit-logs/archives",
+      "auth": "session",
+      "source": "internal/server/routes.go:1097"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/audit-logs/archives/{id}",
+      "auth": "session",
+      "source": "internal/server/routes.go:1098"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/audit-logs/archives/{id}/export",
+      "auth": "session",
+      "source": "internal/server/routes.go:1099"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/audit-logs/archives/{id}/restore",
+      "auth": "session",
+      "source": "internal/server/routes.go:1100"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/audit-logs/checkpoint",
       "auth": "session",
-      "source": "internal/server/routes.go:1075"
+      "source": "internal/server/routes.go:1091"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/audit-logs/evidence",
       "auth": "session",
-      "source": "internal/server/routes.go:1074"
+      "source": "internal/server/routes.go:1090"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/audit-logs/verify",
       "auth": "session",
-      "source": "internal/server/routes.go:1070"
+      "source": "internal/server/routes.go:1086"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/extension/hooks",
       "auth": "session",
-      "source": "internal/server/routes.go:1009"
+      "source": "internal/server/routes.go:1025"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/extension/hooks",
       "auth": "session",
-      "source": "internal/server/routes.go:1008"
+      "source": "internal/server/routes.go:1024"
     },
     {
       "method": "DELETE",
       "path": "/api/v1/admin/extension/hooks/{id}",
       "auth": "session",
-      "source": "internal/server/routes.go:1010"
+      "source": "internal/server/routes.go:1026"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/extension/hooks/{id}/log",
       "auth": "session",
-      "source": "internal/server/routes.go:1011"
+      "source": "internal/server/routes.go:1027"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/extension/token",
       "auth": "session",
-      "source": "internal/server/routes.go:1012"
+      "source": "internal/server/routes.go:1028"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/industries",
       "auth": "session",
-      "source": "internal/server/routes.go:1085"
+      "source": "internal/server/routes.go:1110"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/industry",
       "auth": "session",
-      "source": "internal/server/routes.go:1086"
+      "source": "internal/server/routes.go:1111"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/industry/lock",
+      "auth": "session",
+      "source": "internal/server/routes.go:1112"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/modules",
       "auth": "session",
-      "source": "internal/server/routes.go:985"
+      "source": "internal/server/routes.go:1001"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/packages",
       "auth": "session",
-      "source": "internal/server/routes.go:990"
+      "source": "internal/server/routes.go:1006"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/patch/approve",
       "auth": "session",
-      "source": "internal/server/routes.go:1003"
+      "source": "internal/server/routes.go:1019"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/patch/proposals",
       "auth": "session",
-      "source": "internal/server/routes.go:1002"
+      "source": "internal/server/routes.go:1018"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/patch/reject",
       "auth": "session",
-      "source": "internal/server/routes.go:1004"
+      "source": "internal/server/routes.go:1020"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/privacy/legal-hold",
       "auth": "session",
-      "source": "internal/server/routes.go:1082"
+      "source": "internal/server/routes.go:1107"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/privacy/requests",
       "auth": "session",
-      "source": "internal/server/routes.go:1079"
+      "source": "internal/server/routes.go:1104"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/privacy/requests",
       "auth": "session",
-      "source": "internal/server/routes.go:1078"
+      "source": "internal/server/routes.go:1103"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/privacy/requests/{id}/decide",
       "auth": "session",
-      "source": "internal/server/routes.go:1080"
+      "source": "internal/server/routes.go:1105"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/privacy/requests/{id}/execute",
       "auth": "session",
-      "source": "internal/server/routes.go:1081"
+      "source": "internal/server/routes.go:1106"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/public-api/openapi.json",
       "auth": "session",
-      "source": "internal/server/routes.go:1029"
+      "source": "internal/server/routes.go:1045"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/role-permissions",
       "auth": "session",
-      "source": "internal/server/routes.go:294"
+      "source": "internal/server/routes.go:307"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/role-permissions",
       "auth": "session",
-      "source": "internal/server/routes.go:295"
+      "source": "internal/server/routes.go:308"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/role-templates",
       "auth": "session",
-      "source": "internal/server/routes.go:301"
+      "source": "internal/server/routes.go:314"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/role-templates/apply",
       "auth": "session",
-      "source": "internal/server/routes.go:303"
+      "source": "internal/server/routes.go:316"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/role-templates/migrations",
       "auth": "session",
-      "source": "internal/server/routes.go:305"
+      "source": "internal/server/routes.go:318"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/role-templates/plan",
       "auth": "session",
-      "source": "internal/server/routes.go:302"
+      "source": "internal/server/routes.go:315"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/role-templates/revert",
       "auth": "session",
-      "source": "internal/server/routes.go:304"
+      "source": "internal/server/routes.go:317"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/roles",
       "auth": "session",
-      "source": "internal/server/routes.go:293"
+      "source": "internal/server/routes.go:306"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/sandbox-tenants",
       "auth": "session",
-      "source": "internal/server/routes.go:972"
+      "source": "internal/server/routes.go:988"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/sandbox-tenants",
       "auth": "session",
-      "source": "internal/server/routes.go:971"
+      "source": "internal/server/routes.go:987"
     },
     {
       "method": "DELETE",
       "path": "/api/v1/admin/sandbox-tenants/{id}",
       "auth": "session",
-      "source": "internal/server/routes.go:974"
+      "source": "internal/server/routes.go:990"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/sandbox-tenants/{id}/reset",
       "auth": "session",
-      "source": "internal/server/routes.go:973"
+      "source": "internal/server/routes.go:989"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/scale-test",
       "auth": "session",
-      "source": "internal/server/routes.go:888"
+      "source": "internal/server/routes.go:904"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/settings",
       "auth": "session",
-      "source": "internal/server/routes.go:310"
+      "source": "internal/server/routes.go:323"
     },
     {
       "method": "PUT",
       "path": "/api/v1/admin/settings",
       "auth": "session",
-      "source": "internal/server/routes.go:311"
+      "source": "internal/server/routes.go:324"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/sod-conflicts",
       "auth": "session",
-      "source": "internal/server/routes.go:307"
+      "source": "internal/server/routes.go:320"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/tenant-usage",
       "auth": "session",
-      "source": "internal/server/routes.go:982"
+      "source": "internal/server/routes.go:998"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/tenant/feature-flag",
       "auth": "session",
-      "source": "internal/server/routes.go:978"
+      "source": "internal/server/routes.go:994"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/tenant/host-slug",
       "auth": "session",
-      "source": "internal/server/routes.go:995"
+      "source": "internal/server/routes.go:1011"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/tenant/module-entitlement",
       "auth": "session",
-      "source": "internal/server/routes.go:987"
+      "source": "internal/server/routes.go:1003"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/tenant/module-entitlements",
       "auth": "session",
-      "source": "internal/server/routes.go:986"
+      "source": "internal/server/routes.go:1002"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/tenant/package",
       "auth": "session",
-      "source": "internal/server/routes.go:991"
+      "source": "internal/server/routes.go:1007"
     },
     {
       "method": "POST",
       "path": "/api/v1/admin/tenant/provision",
       "auth": "session",
-      "source": "internal/server/routes.go:977"
+      "source": "internal/server/routes.go:993"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/tenant/version",
       "auth": "session",
-      "source": "internal/server/routes.go:998"
+      "source": "internal/server/routes.go:1014"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/tenants",
       "auth": "session",
-      "source": "internal/server/routes.go:980"
+      "source": "internal/server/routes.go:996"
     },
     {
       "method": "GET",
       "path": "/api/v1/admin/users",
-      "auth": "session",
-      "source": "internal/server/routes.go:276"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/admin/users",
-      "auth": "session",
-      "source": "internal/server/routes.go:277"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/admin/users/location",
-      "auth": "session",
-      "source": "internal/server/routes.go:279"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/admin/users/reset-mfa",
-      "auth": "session",
-      "source": "internal/server/routes.go:284"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/admin/users/reset-password",
       "auth": "session",
       "source": "internal/server/routes.go:289"
     },
     {
       "method": "POST",
-      "path": "/api/v1/admin/users/status",
+      "path": "/api/v1/admin/users",
       "auth": "session",
-      "source": "internal/server/routes.go:278"
+      "source": "internal/server/routes.go:290"
     },
     {
       "method": "POST",
-      "path": "/api/v1/admin/users/supplier",
+      "path": "/api/v1/admin/users/location",
       "auth": "session",
       "source": "internal/server/routes.go:292"
     },
     {
       "method": "POST",
+      "path": "/api/v1/admin/users/reset-mfa",
+      "auth": "session",
+      "source": "internal/server/routes.go:297"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/users/reset-password",
+      "auth": "session",
+      "source": "internal/server/routes.go:302"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/users/status",
+      "auth": "session",
+      "source": "internal/server/routes.go:291"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/users/supplier",
+      "auth": "session",
+      "source": "internal/server/routes.go:305"
+    },
+    {
+      "method": "POST",
       "path": "/api/v1/approval/bulk-decide",
       "auth": "session",
-      "source": "internal/server/routes.go:646"
+      "source": "internal/server/routes.go:659"
     },
     {
       "method": "POST",
       "path": "/api/v1/approval/decide",
       "auth": "session",
-      "source": "internal/server/routes.go:645"
+      "source": "internal/server/routes.go:658"
     },
     {
       "method": "GET",
       "path": "/api/v1/approval/log",
       "auth": "session",
-      "source": "internal/server/routes.go:647"
+      "source": "internal/server/routes.go:660"
     },
     {
       "method": "GET",
       "path": "/api/v1/approval/pending",
       "auth": "session",
-      "source": "internal/server/routes.go:648"
+      "source": "internal/server/routes.go:661"
     },
     {
       "method": "ANY",
       "path": "/api/v1/approval/rules",
       "auth": "session",
-      "source": "internal/server/routes.go:649"
+      "source": "internal/server/routes.go:662"
     },
     {
       "method": "POST",
       "path": "/api/v1/approval/submit",
       "auth": "session",
-      "source": "internal/server/routes.go:644"
+      "source": "internal/server/routes.go:657"
     },
     {
       "method": "POST",
       "path": "/api/v1/assets/capitalize",
       "auth": "session",
-      "source": "internal/server/routes.go:709"
+      "source": "internal/server/routes.go:725"
     },
     {
       "method": "POST",
       "path": "/api/v1/assets/dispose",
       "auth": "session",
-      "source": "internal/server/routes.go:711"
+      "source": "internal/server/routes.go:727"
     },
     {
       "method": "GET",
       "path": "/api/v1/assets/register",
       "auth": "session",
-      "source": "internal/server/routes.go:708"
+      "source": "internal/server/routes.go:724"
     },
     {
       "method": "POST",
       "path": "/api/v1/assets/transfer",
       "auth": "session",
-      "source": "internal/server/routes.go:710"
+      "source": "internal/server/routes.go:726"
     },
     {
       "method": "POST",
       "path": "/api/v1/auth/forgot-password",
       "auth": "public",
-      "source": "internal/server/routes.go:237"
+      "source": "internal/server/routes.go:250"
     },
     {
       "method": "POST",
       "path": "/api/v1/auth/mfa/activate",
       "auth": "session",
-      "source": "internal/server/routes.go:232"
+      "source": "internal/server/routes.go:245"
     },
     {
       "method": "POST",
       "path": "/api/v1/auth/mfa/enroll",
       "auth": "session",
-      "source": "internal/server/routes.go:231"
+      "source": "internal/server/routes.go:244"
     },
     {
       "method": "POST",
       "path": "/api/v1/auth/mfa/verify",
       "auth": "session",
-      "source": "internal/server/routes.go:233"
+      "source": "internal/server/routes.go:246"
     },
     {
       "method": "POST",
       "path": "/api/v1/auth/reset-password",
       "auth": "public",
-      "source": "internal/server/routes.go:238"
+      "source": "internal/server/routes.go:251"
     },
     {
       "method": "GET",
       "path": "/api/v1/availability",
       "auth": "session",
-      "source": "internal/server/routes.go:321"
+      "source": "internal/server/routes.go:334"
     },
     {
       "method": "POST",
       "path": "/api/v1/checkout",
       "auth": "session",
-      "source": "internal/server/routes.go:542"
+      "source": "internal/server/routes.go:555"
     },
     {
       "method": "GET",
       "path": "/api/v1/clevertap/credentials",
       "auth": "session",
-      "source": "internal/server/routes.go:954"
+      "source": "internal/server/routes.go:970"
     },
     {
       "method": "POST",
       "path": "/api/v1/clevertap/credentials",
       "auth": "session",
-      "source": "internal/server/routes.go:953"
+      "source": "internal/server/routes.go:969"
     },
     {
       "method": "GET",
       "path": "/api/v1/clevertap/logs",
       "auth": "session",
-      "source": "internal/server/routes.go:955"
+      "source": "internal/server/routes.go:971"
     },
     {
       "method": "POST",
       "path": "/api/v1/crm/customer/merge",
       "auth": "session",
-      "source": "internal/server/routes.go:731"
+      "source": "internal/server/routes.go:747"
     },
     {
       "method": "POST",
       "path": "/api/v1/crm/loyalty-redemption/initiate",
       "auth": "session",
-      "source": "internal/server/routes.go:728"
+      "source": "internal/server/routes.go:744"
     },
     {
       "method": "POST",
       "path": "/api/v1/crm/loyalty-redemption/verify",
       "auth": "session",
-      "source": "internal/server/routes.go:729"
+      "source": "internal/server/routes.go:745"
     },
     {
       "method": "ANY",
       "path": "/api/v1/crm/loyalty-tier-rules",
       "auth": "session",
-      "source": "internal/server/routes.go:725"
+      "source": "internal/server/routes.go:741"
     },
     {
       "method": "POST",
       "path": "/api/v1/crm/voucher/redeem",
       "auth": "session",
-      "source": "internal/server/routes.go:724"
+      "source": "internal/server/routes.go:740"
     },
     {
       "method": "POST",
       "path": "/api/v1/crm/voucher/validate",
       "auth": "session",
-      "source": "internal/server/routes.go:723"
+      "source": "internal/server/routes.go:739"
     },
     {
       "method": "GET",
       "path": "/api/v1/dashboards/layouts",
       "auth": "session",
-      "source": "internal/server/routes.go:674"
+      "source": "internal/server/routes.go:687"
     },
     {
       "method": "POST",
       "path": "/api/v1/dashboards/layouts",
       "auth": "session",
-      "source": "internal/server/routes.go:675"
+      "source": "internal/server/routes.go:688"
     },
     {
       "method": "DELETE",
       "path": "/api/v1/dashboards/layouts/{id}",
       "auth": "session",
-      "source": "internal/server/routes.go:676"
+      "source": "internal/server/routes.go:689"
     },
     {
       "method": "ANY",
       "path": "/api/v1/debug/panic",
       "auth": "session",
-      "source": "internal/server/routes.go:1096",
+      "source": "internal/server/routes.go:1122",
       "note": "registered only when ENV is not production (49.1.2)"
     },
     {
       "method": "ANY",
       "path": "/api/v1/doc/{doctype}",
       "auth": "session",
-      "source": "internal/server/routes.go:316"
+      "source": "internal/server/routes.go:329"
     },
     {
       "method": "GET",
       "path": "/api/v1/doc/{doctype}/meta",
       "auth": "session",
-      "source": "internal/server/routes.go:1054"
+      "source": "internal/server/routes.go:1070"
     },
     {
       "method": "ANY",
       "path": "/api/v1/doc/{doctype}/{id}",
       "auth": "session",
-      "source": "internal/server/routes.go:317"
+      "source": "internal/server/routes.go:330"
     },
     {
       "method": "POST",
       "path": "/api/v1/doc/{doctype}/{id}/reactivate",
       "auth": "session",
-      "source": "internal/server/routes.go:318"
+      "source": "internal/server/routes.go:331"
     },
     {
       "method": "POST",
       "path": "/api/v1/expenses/pay",
       "auth": "session",
-      "source": "internal/server/routes.go:715"
+      "source": "internal/server/routes.go:731"
     },
     {
       "method": "POST",
       "path": "/api/v1/expenses/verify",
       "auth": "session",
-      "source": "internal/server/routes.go:714"
+      "source": "internal/server/routes.go:730"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/bank-reconcile",
       "auth": "session",
-      "source": "internal/server/routes.go:570"
+      "source": "internal/server/routes.go:583"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/credit-note/{id}/post",
       "auth": "session",
-      "source": "internal/server/routes.go:580"
+      "source": "internal/server/routes.go:593"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/debit-note/{id}/post",
       "auth": "session",
-      "source": "internal/server/routes.go:579"
+      "source": "internal/server/routes.go:592"
     },
     {
       "method": "GET",
       "path": "/api/v1/finance/fx-revaluation",
       "auth": "session",
-      "source": "internal/server/routes.go:589"
+      "source": "internal/server/routes.go:602"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/fx-revaluation",
       "auth": "session",
-      "source": "internal/server/routes.go:590"
+      "source": "internal/server/routes.go:603"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/intercompany-transaction",
       "auth": "session",
-      "source": "internal/server/routes.go:609"
+      "source": "internal/server/routes.go:622"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/intercompany-transaction/{id}/retry-post",
       "auth": "session",
-      "source": "internal/server/routes.go:610"
+      "source": "internal/server/routes.go:623"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/journal-voucher",
       "auth": "session",
-      "source": "internal/server/routes.go:597"
+      "source": "internal/server/routes.go:610"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/journal-voucher/recurring",
       "auth": "session",
-      "source": "internal/server/routes.go:600"
+      "source": "internal/server/routes.go:613"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/journal-voucher/{id}/retry-post",
       "auth": "session",
-      "source": "internal/server/routes.go:599"
+      "source": "internal/server/routes.go:612"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/journal-voucher/{id}/reverse",
       "auth": "session",
-      "source": "internal/server/routes.go:598"
+      "source": "internal/server/routes.go:611"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/landed-cost-voucher",
       "auth": "session",
-      "source": "internal/server/routes.go:615"
+      "source": "internal/server/routes.go:628"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/landed-cost-voucher/{id}/apply",
       "auth": "session",
-      "source": "internal/server/routes.go:616"
+      "source": "internal/server/routes.go:629"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/payment-proposal",
       "auth": "session",
-      "source": "internal/server/routes.go:571"
+      "source": "internal/server/routes.go:584"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/payment-proposal/{id}/execute",
       "auth": "session",
-      "source": "internal/server/routes.go:572"
+      "source": "internal/server/routes.go:585"
     },
     {
       "method": "GET",
       "path": "/api/v1/finance/payment-proposal/{id}/payment-file",
       "auth": "session",
-      "source": "internal/server/routes.go:575"
+      "source": "internal/server/routes.go:588"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/payment-proposal/{id}/record-utr",
       "auth": "session",
-      "source": "internal/server/routes.go:576"
+      "source": "internal/server/routes.go:589"
     },
     {
       "method": "GET",
       "path": "/api/v1/finance/payment-proposal/{id}/utrs",
       "auth": "session",
-      "source": "internal/server/routes.go:577"
+      "source": "internal/server/routes.go:590"
     },
     {
       "method": "GET",
       "path": "/api/v1/finance/periods",
       "auth": "session",
-      "source": "internal/server/routes.go:562"
+      "source": "internal/server/routes.go:575"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/periods",
       "auth": "session",
-      "source": "internal/server/routes.go:563"
+      "source": "internal/server/routes.go:576"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/periods/{id}/close",
       "auth": "session",
-      "source": "internal/server/routes.go:564"
+      "source": "internal/server/routes.go:577"
     },
     {
       "method": "GET",
       "path": "/api/v1/finance/periods/{id}/close-checklist",
       "auth": "session",
-      "source": "internal/server/routes.go:565"
+      "source": "internal/server/routes.go:578"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/sales-invoice/{id}/post",
       "auth": "session",
-      "source": "internal/server/routes.go:581"
+      "source": "internal/server/routes.go:594"
     },
     {
       "method": "POST",
       "path": "/api/v1/finance/sales-invoice/{id}/settle",
       "auth": "session",
-      "source": "internal/server/routes.go:582"
+      "source": "internal/server/routes.go:595"
     },
     {
       "method": "GET",
       "path": "/api/v1/finance/trial-balance",
       "auth": "session",
-      "source": "internal/server/routes.go:561"
+      "source": "internal/server/routes.go:574"
     },
     {
       "method": "GET",
       "path": "/api/v1/finance/trial-balance/presentation",
       "auth": "session",
-      "source": "internal/server/routes.go:591"
+      "source": "internal/server/routes.go:604"
     },
     {
       "method": "POST",
       "path": "/api/v1/fulfillment/return",
       "auth": "session",
-      "source": "internal/server/routes.go:867"
+      "source": "internal/server/routes.go:883"
     },
     {
       "method": "POST",
       "path": "/api/v1/fulfillment/task/transition",
       "auth": "session",
-      "source": "internal/server/routes.go:866"
+      "source": "internal/server/routes.go:882"
     },
     {
       "method": "POST",
       "path": "/api/v1/gst/calculate",
       "auth": "session",
-      "source": "internal/server/routes.go:652"
+      "source": "internal/server/routes.go:665"
     },
     {
       "method": "GET",
       "path": "/api/v1/health",
       "auth": "public",
-      "source": "internal/server/routes.go:219"
+      "source": "internal/server/routes.go:232"
     },
     {
       "method": "GET",
       "path": "/api/v1/help/article/{slug}",
       "auth": "session",
-      "source": "internal/server/routes.go:1037"
+      "source": "internal/server/routes.go:1053"
     },
     {
       "method": "GET",
       "path": "/api/v1/help/index",
       "auth": "session",
-      "source": "internal/server/routes.go:1035"
+      "source": "internal/server/routes.go:1051"
     },
     {
       "method": "GET",
       "path": "/api/v1/help/public/article",
       "auth": "public",
-      "source": "internal/server/routes.go:1041"
+      "source": "internal/server/routes.go:1057"
     },
     {
       "method": "GET",
       "path": "/api/v1/help/public/index",
       "auth": "public",
-      "source": "internal/server/routes.go:1039"
+      "source": "internal/server/routes.go:1055"
     },
     {
       "method": "GET",
       "path": "/api/v1/help/public/search-index",
       "auth": "public",
-      "source": "internal/server/routes.go:1040"
+      "source": "internal/server/routes.go:1056"
     },
     {
       "method": "GET",
       "path": "/api/v1/help/search-index",
       "auth": "session",
-      "source": "internal/server/routes.go:1036"
+      "source": "internal/server/routes.go:1052"
     },
     {
       "method": "POST",
       "path": "/api/v1/hr/disburse-loan",
       "auth": "session",
-      "source": "internal/server/routes.go:704"
+      "source": "internal/server/routes.go:720"
     },
     {
       "method": "GET",
       "path": "/api/v1/hr/my-employee",
       "auth": "session",
-      "source": "internal/server/routes.go:705"
+      "source": "internal/server/routes.go:721"
     },
     {
       "method": "GET",
       "path": "/api/v1/hr/payroll-export",
       "auth": "session",
-      "source": "internal/server/routes.go:698"
+      "source": "internal/server/routes.go:714"
     },
     {
       "method": "POST",
       "path": "/api/v1/hr/post-payslip",
       "auth": "session",
-      "source": "internal/server/routes.go:703"
+      "source": "internal/server/routes.go:719"
     },
     {
       "method": "POST",
       "path": "/api/v1/hr/run-payroll",
       "auth": "session",
-      "source": "internal/server/routes.go:702"
+      "source": "internal/server/routes.go:718"
     },
     {
       "method": "GET",
       "path": "/api/v1/hr/salary-components",
       "auth": "session",
-      "source": "internal/server/routes.go:701"
+      "source": "internal/server/routes.go:717"
     },
     {
       "method": "POST",
       "path": "/api/v1/import/{doctype}",
       "auth": "session",
-      "source": "internal/server/routes.go:1089"
+      "source": "internal/server/routes.go:1115"
     },
     {
       "method": "GET",
       "path": "/api/v1/import/{doctype}/template",
       "auth": "session",
-      "source": "internal/server/routes.go:1090"
+      "source": "internal/server/routes.go:1116"
     },
     {
       "method": "POST",
       "path": "/api/v1/integration/bigcommerce/webhook/{channelCode}",
       "auth": "session",
-      "source": "internal/server/routes.go:852"
+      "source": "internal/server/routes.go:868"
     },
     {
       "method": "POST",
       "path": "/api/v1/integration/courier/{provider}/tracking",
       "auth": "session",
-      "source": "internal/server/routes.go:914"
+      "source": "internal/server/routes.go:930"
     },
     {
       "method": "GET",
       "path": "/api/v1/integration/logs",
       "auth": "session",
-      "source": "internal/server/routes.go:958"
+      "source": "internal/server/routes.go:974"
     },
     {
       "method": "POST",
       "path": "/api/v1/integration/retry",
       "auth": "session",
-      "source": "internal/server/routes.go:959"
+      "source": "internal/server/routes.go:975"
     },
     {
       "method": "POST",
       "path": "/api/v1/integration/shopify/order",
-      "auth": "session",
-      "source": "internal/server/routes.go:861"
+      "auth": "public",
+      "source": "internal/server/routes.go:877"
     },
     {
       "method": "POST",
       "path": "/api/v1/integration/shopify/product/map",
-      "auth": "session",
-      "source": "internal/server/routes.go:860"
+      "auth": "public",
+      "source": "internal/server/routes.go:876"
     },
     {
       "method": "POST",
       "path": "/api/v1/integrations/clevertap/segment-sync",
       "auth": "session",
-      "source": "internal/server/routes.go:732"
+      "source": "internal/server/routes.go:748"
     },
     {
       "method": "GET",
       "path": "/api/v1/jobs",
       "auth": "session",
-      "source": "internal/server/routes.go:966"
+      "source": "internal/server/routes.go:982"
     },
     {
       "method": "POST",
       "path": "/api/v1/jobs/{id}/cancel",
       "auth": "session",
-      "source": "internal/server/routes.go:968"
+      "source": "internal/server/routes.go:984"
     },
     {
       "method": "POST",
       "path": "/api/v1/jobs/{id}/retry",
       "auth": "session",
-      "source": "internal/server/routes.go:967"
+      "source": "internal/server/routes.go:983"
     },
     {
       "method": "ANY",
       "path": "/api/v1/labels",
       "auth": "session",
-      "source": "internal/server/routes.go:1066"
+      "source": "internal/server/routes.go:1082"
     },
     {
       "method": "GET",
       "path": "/api/v1/localization",
       "auth": "session",
-      "source": "internal/server/routes.go:258"
+      "source": "internal/server/routes.go:271"
     },
     {
       "method": "POST",
       "path": "/api/v1/login",
       "auth": "public",
-      "source": "internal/server/routes.go:212"
+      "source": "internal/server/routes.go:225"
     },
     {
       "method": "ANY",
       "path": "/api/v1/logs/audit",
       "auth": "session",
-      "source": "internal/server/routes.go:1069"
+      "source": "internal/server/routes.go:1085"
     },
     {
       "method": "ANY",
       "path": "/api/v1/logs/system",
       "auth": "session",
-      "source": "internal/server/routes.go:1091"
+      "source": "internal/server/routes.go:1117"
     },
     {
       "method": "GET",
       "path": "/api/v1/loyalty/ledger",
       "auth": "session",
-      "source": "internal/server/routes.go:719"
+      "source": "internal/server/routes.go:735"
     },
     {
       "method": "POST",
       "path": "/api/v1/loyalty/redeem",
       "auth": "session",
-      "source": "internal/server/routes.go:718"
+      "source": "internal/server/routes.go:734"
     },
     {
       "method": "POST",
       "path": "/api/v1/manufacturing/acknowledge-bom-variance",
       "auth": "session",
-      "source": "internal/server/routes.go:743"
+      "source": "internal/server/routes.go:759"
     },
     {
       "method": "GET",
       "path": "/api/v1/manufacturing/active-bom",
       "auth": "session",
-      "source": "internal/server/routes.go:746"
+      "source": "internal/server/routes.go:762"
     },
     {
       "method": "POST",
       "path": "/api/v1/manufacturing/complete",
       "auth": "session",
-      "source": "internal/server/routes.go:736"
+      "source": "internal/server/routes.go:752"
     },
     {
       "method": "POST",
       "path": "/api/v1/manufacturing/confirm-operation",
       "auth": "session",
-      "source": "internal/server/routes.go:742"
+      "source": "internal/server/routes.go:758"
     },
     {
       "method": "POST",
       "path": "/api/v1/manufacturing/issue-material",
       "auth": "session",
-      "source": "internal/server/routes.go:735"
+      "source": "internal/server/routes.go:751"
     },
     {
       "method": "GET",
       "path": "/api/v1/manufacturing/mrp-suggestions",
       "auth": "session",
-      "source": "internal/server/routes.go:745"
+      "source": "internal/server/routes.go:761"
     },
     {
       "method": "POST",
       "path": "/api/v1/manufacturing/partial-complete",
       "auth": "session",
-      "source": "internal/server/routes.go:739"
+      "source": "internal/server/routes.go:755"
     },
     {
       "method": "GET",
       "path": "/api/v1/manufacturing/production-schedule",
       "auth": "session",
-      "source": "internal/server/routes.go:748"
+      "source": "internal/server/routes.go:764"
     },
     {
       "method": "POST",
       "path": "/api/v1/manufacturing/record-actual-cost",
       "auth": "session",
-      "source": "internal/server/routes.go:744"
+      "source": "internal/server/routes.go:760"
     },
     {
       "method": "POST",
       "path": "/api/v1/manufacturing/rework",
       "auth": "session",
-      "source": "internal/server/routes.go:741"
+      "source": "internal/server/routes.go:757"
     },
     {
       "method": "POST",
       "path": "/api/v1/manufacturing/scrap",
       "auth": "session",
-      "source": "internal/server/routes.go:740"
+      "source": "internal/server/routes.go:756"
     },
     {
       "method": "POST",
       "path": "/api/v1/manufacturing/subcontract-order/receive",
       "auth": "session",
-      "source": "internal/server/routes.go:750"
+      "source": "internal/server/routes.go:766"
     },
     {
       "method": "POST",
       "path": "/api/v1/manufacturing/subcontract-order/send",
       "auth": "session",
-      "source": "internal/server/routes.go:749"
+      "source": "internal/server/routes.go:765"
     },
     {
       "method": "GET",
       "path": "/api/v1/marketplace/channels/{channel}/credentials",
       "auth": "session",
-      "source": "internal/server/routes.go:919"
+      "source": "internal/server/routes.go:935"
     },
     {
       "method": "POST",
       "path": "/api/v1/marketplace/channels/{channel}/credentials",
       "auth": "session",
-      "source": "internal/server/routes.go:920"
+      "source": "internal/server/routes.go:936"
     },
     {
       "method": "POST",
       "path": "/api/v1/marketplace/channels/{channel}/pull-orders",
       "auth": "session",
-      "source": "internal/server/routes.go:921"
+      "source": "internal/server/routes.go:937"
     },
     {
       "method": "POST",
       "path": "/api/v1/marketplace/channels/{channel}/push-status",
       "auth": "session",
-      "source": "internal/server/routes.go:923"
+      "source": "internal/server/routes.go:939"
     },
     {
       "method": "POST",
       "path": "/api/v1/marketplace/channels/{channel}/sync-inventory",
       "auth": "session",
-      "source": "internal/server/routes.go:922"
+      "source": "internal/server/routes.go:938"
     },
     {
       "method": "GET",
       "path": "/api/v1/marketplace/connectors",
       "auth": "session",
-      "source": "internal/server/routes.go:918"
+      "source": "internal/server/routes.go:934"
     },
     {
       "method": "GET",
       "path": "/api/v1/marketplace/connectors/health",
       "auth": "session",
-      "source": "internal/server/routes.go:927"
+      "source": "internal/server/routes.go:943"
     },
     {
       "method": "GET",
       "path": "/api/v1/marketplace/couriers/rates",
       "auth": "session",
-      "source": "internal/server/routes.go:913"
+      "source": "internal/server/routes.go:929"
     },
     {
       "method": "POST",
       "path": "/api/v1/marketplace/couriers/{provider}/awb",
       "auth": "session",
-      "source": "internal/server/routes.go:910"
+      "source": "internal/server/routes.go:926"
     },
     {
       "method": "POST",
       "path": "/api/v1/marketplace/couriers/{provider}/cancel",
       "auth": "session",
-      "source": "internal/server/routes.go:912"
+      "source": "internal/server/routes.go:928"
     },
     {
       "method": "GET",
       "path": "/api/v1/marketplace/couriers/{provider}/credentials",
       "auth": "session",
-      "source": "internal/server/routes.go:909"
+      "source": "internal/server/routes.go:925"
     },
     {
       "method": "POST",
       "path": "/api/v1/marketplace/couriers/{provider}/credentials",
-      "auth": "session",
-      "source": "internal/server/routes.go:908"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/marketplace/couriers/{provider}/pickup",
-      "auth": "session",
-      "source": "internal/server/routes.go:911"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/marketplace/logistics/book",
-      "auth": "session",
-      "source": "internal/server/routes.go:893"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/marketplace/logistics/label",
-      "auth": "session",
-      "source": "internal/server/routes.go:903"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/marketplace/logistics/label.pdf",
-      "auth": "session",
-      "source": "internal/server/routes.go:916"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/marketplace/logistics/manifest",
-      "auth": "session",
-      "source": "internal/server/routes.go:899"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/marketplace/logistics/manifest/handover",
-      "auth": "session",
-      "source": "internal/server/routes.go:900"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/marketplace/logistics/rto",
-      "auth": "session",
-      "source": "internal/server/routes.go:902"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/marketplace/logistics/serviceability",
-      "auth": "session",
-      "source": "internal/server/routes.go:898"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/marketplace/logistics/tracking",
-      "auth": "session",
-      "source": "internal/server/routes.go:901"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/marketplace/ndr/{id}/resolve",
-      "auth": "session",
-      "source": "internal/server/routes.go:915"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/marketplace/settlement/reconcile",
-      "auth": "session",
-      "source": "internal/server/routes.go:892"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/marketplace/sku-exceptions",
-      "auth": "session",
-      "source": "internal/server/routes.go:926"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/marketplace/sku-mappings",
       "auth": "session",
       "source": "internal/server/routes.go:924"
     },
     {
       "method": "POST",
-      "path": "/api/v1/marketplace/sku-mappings",
+      "path": "/api/v1/marketplace/couriers/{provider}/pickup",
       "auth": "session",
-      "source": "internal/server/routes.go:925"
+      "source": "internal/server/routes.go:927"
     },
     {
-      "method": "GET",
-      "path": "/api/v1/me",
-      "auth": "session",
-      "source": "internal/server/routes.go:241"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/v1/me",
-      "auth": "session",
-      "source": "internal/server/routes.go:242"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/me/change-password",
-      "auth": "session",
-      "source": "internal/server/routes.go:243"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/me/mfa/recovery-codes",
-      "auth": "session",
-      "source": "internal/server/routes.go:268"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/me/mfa/recovery-codes/regenerate",
-      "auth": "session",
-      "source": "internal/server/routes.go:269"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/me/mfa/reenroll",
-      "auth": "session",
-      "source": "internal/server/routes.go:270"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/me/mfa/reenroll/cancel",
-      "auth": "session",
-      "source": "internal/server/routes.go:272"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/me/mfa/reenroll/confirm",
-      "auth": "session",
-      "source": "internal/server/routes.go:271"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/me/modules",
-      "auth": "session",
-      "source": "internal/server/routes.go:251"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/me/permissions",
-      "auth": "session",
-      "source": "internal/server/routes.go:244"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/meta/doctypes",
-      "auth": "session",
-      "source": "internal/server/routes.go:1059"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/meta/doctypes",
-      "auth": "session",
-      "source": "internal/server/routes.go:1060"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/meta/field-formats",
-      "auth": "session",
-      "source": "internal/server/routes.go:1058"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/meta/{doctype}/fields",
-      "auth": "session",
-      "source": "internal/server/routes.go:1061"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/v1/meta/{doctype}/fields/{id}",
-      "auth": "session",
-      "source": "internal/server/routes.go:1063"
-    },
-    {
-      "method": "PUT",
-      "path": "/api/v1/meta/{doctype}/fields/{id}",
-      "auth": "session",
-      "source": "internal/server/routes.go:1062"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/oms/bundles/{sku}/availability",
-      "auth": "session",
-      "source": "internal/server/routes.go:929"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/oms/gate-passes",
-      "auth": "session",
-      "source": "internal/server/routes.go:371"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/gate-passes",
-      "auth": "session",
-      "source": "internal/server/routes.go:370"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/gate-passes/{id}/complete",
-      "auth": "session",
-      "source": "internal/server/routes.go:374"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/gate-passes/{id}/discard",
-      "auth": "session",
-      "source": "internal/server/routes.go:375"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/gate-passes/{id}/issue",
-      "auth": "session",
-      "source": "internal/server/routes.go:373"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/gate-passes/{id}/update",
-      "auth": "session",
-      "source": "internal/server/routes.go:372"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/oms/orders",
-      "auth": "session",
-      "source": "internal/server/routes.go:338"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/orders/bulk",
-      "auth": "session",
-      "source": "internal/server/routes.go:342"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/oms/orders/search",
-      "auth": "session",
-      "source": "internal/server/routes.go:339"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/oms/orders/{id}",
-      "auth": "session",
-      "source": "internal/server/routes.go:340"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/oms/pick-queue",
-      "auth": "session",
-      "source": "internal/server/routes.go:357"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/settlements/reconcile",
-      "auth": "session",
-      "source": "internal/server/routes.go:403"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/settlements/{id}/dispute",
-      "auth": "session",
-      "source": "internal/server/routes.go:404"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/settlements/{id}/resolve",
-      "auth": "session",
-      "source": "internal/server/routes.go:405"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/settlements/{id}/write-off",
-      "auth": "session",
-      "source": "internal/server/routes.go:406"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/oms/shipping-packages",
-      "auth": "session",
-      "source": "internal/server/routes.go:365"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/shipping-packages",
-      "auth": "session",
-      "source": "internal/server/routes.go:364"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/shipping-packages/{id}/cancel",
-      "auth": "session",
-      "source": "internal/server/routes.go:368"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/shipping-packages/{id}/invoice",
-      "auth": "session",
-      "source": "internal/server/routes.go:369"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/shipping-packages/{id}/split",
-      "auth": "session",
-      "source": "internal/server/routes.go:367"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/shipping-packages/{id}/update",
-      "auth": "session",
-      "source": "internal/server/routes.go:366"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/oms/tiles",
-      "auth": "session",
-      "source": "internal/server/routes.go:341"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/oms/views",
-      "auth": "session",
-      "source": "internal/server/routes.go:343"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/oms/views",
-      "auth": "session",
-      "source": "internal/server/routes.go:344"
-    },
-    {
-      "method": "DELETE",
-      "path": "/api/v1/oms/views/{id}",
-      "auth": "session",
-      "source": "internal/server/routes.go:345"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/ops/backup-status",
-      "auth": "session",
-      "source": "internal/server/routes.go:313"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/ops/deployment-status",
-      "auth": "session",
-      "source": "internal/server/routes.go:312"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/optimization/forecast",
-      "auth": "session",
-      "source": "internal/server/routes.go:935"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/optimization/replenishment-suggestions",
-      "auth": "session",
-      "source": "internal/server/routes.go:933"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/optimization/sla-breaches",
-      "auth": "session",
-      "source": "internal/server/routes.go:934"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/order-lines/{lineId}/hold",
-      "auth": "session",
-      "source": "internal/server/routes.go:355"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/order-lines/{lineId}/release-hold",
-      "auth": "session",
-      "source": "internal/server/routes.go:356"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/orders",
-      "auth": "session",
-      "source": "internal/server/routes.go:328"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/orders/{id}/cancel",
-      "auth": "session",
-      "source": "internal/server/routes.go:331"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/orders/{id}/credit-notes",
-      "auth": "session",
-      "source": "internal/server/routes.go:376"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/orders/{id}/edit",
-      "auth": "session",
-      "source": "internal/server/routes.go:351"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/orders/{id}/hold",
-      "auth": "session",
-      "source": "internal/server/routes.go:329"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/orders/{id}/priority",
-      "auth": "session",
-      "source": "internal/server/routes.go:353"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/orders/{id}/release-hold",
-      "auth": "session",
-      "source": "internal/server/routes.go:330"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/orders/{id}/split",
-      "auth": "session",
-      "source": "internal/server/routes.go:354"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/orders/{id}/switch-facility",
-      "auth": "session",
-      "source": "internal/server/routes.go:352"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/assignable-users",
-      "auth": "session",
-      "source": "internal/server/routes.go:773"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/barcode/generate",
-      "auth": "session",
-      "source": "internal/server/routes.go:835"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/bulk-edit",
-      "auth": "session",
-      "source": "internal/server/routes.go:758"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/catalog-share",
-      "auth": "public",
-      "source": "internal/server/routes.go:831"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/catalogs/{id}/rotate-share-token",
-      "auth": "session",
-      "source": "internal/server/routes.go:827"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/channels/{code}/credentials",
-      "auth": "session",
-      "source": "internal/server/routes.go:842"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/channels/{code}/pull-state",
-      "auth": "session",
-      "source": "internal/server/routes.go:839"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/completeness/{itemCode}",
-      "auth": "session",
-      "source": "internal/server/routes.go:781"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/content-assist-shapes",
-      "auth": "session",
-      "source": "internal/server/routes.go:833"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/content-assist/{itemCode}",
-      "auth": "session",
-      "source": "internal/server/routes.go:787"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/content/{id}/rollback",
-      "auth": "session",
-      "source": "internal/server/routes.go:849"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/content/{id}/versions",
-      "auth": "session",
-      "source": "internal/server/routes.go:848"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/dashboard",
-      "auth": "session",
-      "source": "internal/server/routes.go:755"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/export-templates/{id}/run",
-      "auth": "session",
-      "source": "internal/server/routes.go:826"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/import-jobs/{id}/errors.csv",
-      "auth": "session",
-      "source": "internal/server/routes.go:810"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/import-schedules",
-      "auth": "session",
-      "source": "internal/server/routes.go:817"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/import-schedules/{id}/rotate-hook-token",
-      "auth": "session",
-      "source": "internal/server/routes.go:818"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/import-templates",
-      "auth": "session",
-      "source": "internal/server/routes.go:813"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/import-templates/{id}/import",
-      "auth": "session",
-      "source": "internal/server/routes.go:816"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/import-templates/{id}/preview",
-      "auth": "session",
-      "source": "internal/server/routes.go:815"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/import-templates/{id}/preview-mapping",
-      "auth": "session",
-      "source": "internal/server/routes.go:814"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/import/hook",
-      "auth": "public",
-      "source": "internal/server/routes.go:822"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/import/{doctype}/preview",
-      "auth": "session",
-      "source": "internal/server/routes.go:809"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/media",
-      "auth": "session",
-      "source": "internal/server/routes.go:793"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/media/bulk-download",
-      "auth": "session",
-      "source": "internal/server/routes.go:801"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/media/bulk-upload",
-      "auth": "session",
-      "source": "internal/server/routes.go:800"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/media/search",
-      "auth": "session",
-      "source": "internal/server/routes.go:802"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/media/transform-presets",
-      "auth": "session",
-      "source": "internal/server/routes.go:798"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/media/upload",
-      "auth": "session",
-      "source": "internal/server/routes.go:789"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/media/{id}/deactivate",
-      "auth": "session",
-      "source": "internal/server/routes.go:794"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/media/{id}/file",
-      "auth": "session",
-      "source": "internal/server/routes.go:790"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/media/{id}/metadata",
-      "auth": "session",
-      "source": "internal/server/routes.go:792"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/media/{id}/thumbnail",
-      "auth": "session",
-      "source": "internal/server/routes.go:791"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/media/{id}/transform/{preset}",
-      "auth": "session",
-      "source": "internal/server/routes.go:799"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/product-groups/{id}/export.csv",
-      "auth": "session",
-      "source": "internal/server/routes.go:763"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/product-groups/{id}/members",
-      "auth": "session",
-      "source": "internal/server/routes.go:762"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/publish",
-      "auth": "session",
-      "source": "internal/server/routes.go:804"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/publish-log",
-      "auth": "session",
-      "source": "internal/server/routes.go:807"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/publish-preview",
-      "auth": "session",
-      "source": "internal/server/routes.go:805"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/publish/{jobID}",
-      "auth": "session",
-      "source": "internal/server/routes.go:806"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/related-products/{itemCode}",
-      "auth": "session",
-      "source": "internal/server/routes.go:834"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/reports/{name}",
-      "auth": "session",
-      "source": "internal/server/routes.go:759"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/search-feed.csv",
-      "auth": "session",
-      "source": "internal/server/routes.go:846"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/task-templates",
-      "auth": "session",
-      "source": "internal/server/routes.go:774"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/task-templates/{code}/instantiate",
-      "auth": "session",
-      "source": "internal/server/routes.go:775"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/tasks",
-      "auth": "session",
-      "source": "internal/server/routes.go:769"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/tasks",
-      "auth": "session",
-      "source": "internal/server/routes.go:770"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/tasks/bulk",
-      "auth": "session",
-      "source": "internal/server/routes.go:771"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/tasks/{id}/{action}",
-      "auth": "session",
-      "source": "internal/server/routes.go:772"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/taxonomy-history/{doctype}/{id}",
-      "auth": "session",
-      "source": "internal/server/routes.go:844"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/transform-rules",
-      "auth": "session",
-      "source": "internal/server/routes.go:784"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/translations/seed",
-      "auth": "session",
-      "source": "internal/server/routes.go:836"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/workbench",
-      "auth": "session",
-      "source": "internal/server/routes.go:760"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/workflow-runs",
-      "auth": "session",
-      "source": "internal/server/routes.go:778"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/workflow-runs/bulk",
-      "auth": "session",
-      "source": "internal/server/routes.go:779"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/workflow-runs/{id}/action",
-      "auth": "session",
-      "source": "internal/server/routes.go:780"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pim/workflows",
-      "auth": "session",
-      "source": "internal/server/routes.go:776"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pim/workflows/{code}/start",
-      "auth": "session",
-      "source": "internal/server/routes.go:777"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pinelabs/credentials",
-      "auth": "session",
-      "source": "internal/server/routes.go:947"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pinelabs/credentials",
-      "auth": "session",
-      "source": "internal/server/routes.go:946"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pinelabs/reconcile",
-      "auth": "session",
-      "source": "internal/server/routes.go:949"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pinelabs/transaction",
-      "auth": "session",
-      "source": "internal/server/routes.go:948"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pinelabs/transactions",
-      "auth": "session",
-      "source": "internal/server/routes.go:950"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pos/offers/preview",
-      "auth": "session",
-      "source": "internal/server/routes.go:549"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pos/offline-heartbeat",
-      "auth": "session",
-      "source": "internal/server/routes.go:546"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pos/payment/confirm",
-      "auth": "session",
-      "source": "internal/server/routes.go:559"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pos/payment/void",
-      "auth": "session",
-      "source": "internal/server/routes.go:560"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pos/price-override",
-      "auth": "session",
-      "source": "internal/server/routes.go:555"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pos/quote",
-      "auth": "session",
-      "source": "internal/server/routes.go:554"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pos/session/close",
-      "auth": "session",
-      "source": "internal/server/routes.go:544"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/pos/session/current",
-      "auth": "session",
-      "source": "internal/server/routes.go:545"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/pos/session/open",
-      "auth": "session",
-      "source": "internal/server/routes.go:543"
-    },
-    {
-      "method": "ANY",
-      "path": "/api/v1/prefix",
-      "auth": "session",
-      "source": "internal/server/routes.go:1068"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/print/qz/certificate",
-      "auth": "session",
-      "source": "internal/server/routes.go:690"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/print/qz/log",
-      "auth": "session",
-      "source": "internal/server/routes.go:694"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/print/qz/log",
-      "auth": "session",
-      "source": "internal/server/routes.go:695"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/print/qz/payload",
-      "auth": "session",
-      "source": "internal/server/routes.go:693"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/print/qz/printers",
-      "auth": "session",
-      "source": "internal/server/routes.go:692"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/print/qz/sign",
-      "auth": "session",
-      "source": "internal/server/routes.go:691"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/procurement/convert-requisition",
-      "auth": "session",
-      "source": "internal/server/routes.go:874"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/procurement/purchase-order/preview",
-      "auth": "session",
-      "source": "internal/server/routes.go:879"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/procurement/purchase-order/{id}/print",
-      "auth": "session",
-      "source": "internal/server/routes.go:880"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/procurement/purchase-order/{id}/send",
-      "auth": "session",
-      "source": "internal/server/routes.go:881"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/procurement/vendor-invoice/match",
-      "auth": "session",
-      "source": "internal/server/routes.go:884"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/procurement/vendor-invoice/pay",
-      "auth": "session",
-      "source": "internal/server/routes.go:885"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/procurement/vendor-invoice/pay-with-tds",
-      "auth": "session",
-      "source": "internal/server/routes.go:578"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/quality/coa",
-      "auth": "session",
-      "source": "internal/server/routes.go:632"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/quality/coa/{id}/reject",
-      "auth": "session",
-      "source": "internal/server/routes.go:634"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/quality/coa/{id}/release",
-      "auth": "session",
-      "source": "internal/server/routes.go:633"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/quality/maintenance-order/{id}/cancel",
-      "auth": "session",
-      "source": "internal/server/routes.go:641"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/quality/maintenance-order/{id}/complete",
-      "auth": "session",
-      "source": "internal/server/routes.go:640"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/quality/maintenance-order/{id}/start",
-      "auth": "session",
-      "source": "internal/server/routes.go:639"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/quality/ncr",
-      "auth": "session",
-      "source": "internal/server/routes.go:635"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/quality/ncr/{id}/close",
-      "auth": "session",
-      "source": "internal/server/routes.go:638"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/quality/ncr/{id}/investigate",
-      "auth": "session",
-      "source": "internal/server/routes.go:636"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/quality/ncr/{id}/plan-corrective-action",
-      "auth": "session",
-      "source": "internal/server/routes.go:637"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/refunds/{id}/approve",
-      "auth": "session",
-      "source": "internal/server/routes.go:395"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/refunds/{id}/process",
-      "auth": "session",
-      "source": "internal/server/routes.go:397"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/refunds/{id}/reject",
-      "auth": "session",
-      "source": "internal/server/routes.go:396"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/reports/catalog",
-      "auth": "session",
-      "source": "internal/server/routes.go:665"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/reports/current-stock",
-      "auth": "session",
-      "source": "internal/server/routes.go:655"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/reports/drilldown/{id}",
-      "auth": "session",
-      "source": "internal/server/routes.go:667"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/reports/export",
-      "auth": "session",
-      "source": "internal/server/routes.go:668"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/reports/export/{id}",
-      "auth": "session",
-      "source": "internal/server/routes.go:669"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/reports/gst-return-summary",
-      "auth": "session",
-      "source": "internal/server/routes.go:660"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/reports/payables-ageing",
-      "auth": "session",
-      "source": "internal/server/routes.go:658"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/reports/receivables-ageing",
-      "auth": "session",
-      "source": "internal/server/routes.go:659"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/reports/run/{id}",
-      "auth": "session",
-      "source": "internal/server/routes.go:666"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/reports/sales-register",
-      "auth": "session",
-      "source": "internal/server/routes.go:656"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/reports/vendor-ledger",
-      "auth": "session",
-      "source": "internal/server/routes.go:657"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/reserve",
-      "auth": "session",
-      "source": "internal/server/routes.go:322"
-    },
-    {
       "method": "POST",
-      "path": "/api/v1/returns",
+      "path": "/api/v1/marketplace/logistics/book",
       "auth": "session",
-      "source": "internal/server/routes.go:385"
+      "source": "internal/server/routes.go:909"
     },
     {
       "method": "GET",
-      "path": "/api/v1/returns/eligibility",
-      "auth": "session",
-      "source": "internal/server/routes.go:388"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/returns/{id}/approve",
-      "auth": "session",
-      "source": "internal/server/routes.go:389"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/returns/{id}/qc",
-      "auth": "session",
-      "source": "internal/server/routes.go:392"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/returns/{id}/receive",
-      "auth": "session",
-      "source": "internal/server/routes.go:391"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/returns/{id}/reject",
-      "auth": "session",
-      "source": "internal/server/routes.go:390"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/returns/{id}/reverse-pickup",
+      "path": "/api/v1/marketplace/logistics/label",
       "auth": "session",
-      "source": "internal/server/routes.go:394"
+      "source": "internal/server/routes.go:919"
     },
     {
       "method": "GET",
-      "path": "/api/v1/rfq/quotes",
-      "auth": "session",
-      "source": "internal/server/routes.go:679"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/rfq/select-quote",
-      "auth": "session",
-      "source": "internal/server/routes.go:680"
-    },
-    {
-      "method": "ANY",
-      "path": "/api/v1/sequence",
-      "auth": "session",
-      "source": "internal/server/routes.go:1067"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/service/ticket",
-      "auth": "session",
-      "source": "internal/server/routes.go:622"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/service/ticket/{id}/assign",
-      "auth": "session",
-      "source": "internal/server/routes.go:623"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/service/ticket/{id}/cancel",
-      "auth": "session",
-      "source": "internal/server/routes.go:627"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/service/ticket/{id}/close",
+      "path": "/api/v1/marketplace/logistics/label.pdf",
       "auth": "session",
-      "source": "internal/server/routes.go:626"
+      "source": "internal/server/routes.go:932"
     },
     {
       "method": "POST",
-      "path": "/api/v1/service/ticket/{id}/resolve",
+      "path": "/api/v1/marketplace/logistics/manifest",
       "auth": "session",
-      "source": "internal/server/routes.go:625"
+      "source": "internal/server/routes.go:915"
     },
     {
       "method": "POST",
-      "path": "/api/v1/service/ticket/{id}/start",
-      "auth": "session",
-      "source": "internal/server/routes.go:624"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/setup/status",
-      "auth": "session",
-      "source": "internal/server/routes.go:257"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/stickers/history",
+      "path": "/api/v1/marketplace/logistics/manifest/handover",
       "auth": "session",
-      "source": "internal/server/routes.go:684"
+      "source": "internal/server/routes.go:916"
     },
     {
       "method": "POST",
-      "path": "/api/v1/stickers/print",
+      "path": "/api/v1/marketplace/logistics/rto",
       "auth": "session",
-      "source": "internal/server/routes.go:683"
+      "source": "internal/server/routes.go:918"
     },
     {
       "method": "GET",
-      "path": "/api/v1/system/environment",
-      "auth": "session",
-      "source": "internal/server/routes.go:964"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/transfer/dispatch",
+      "path": "/api/v1/marketplace/logistics/serviceability",
       "auth": "session",
-      "source": "internal/server/routes.go:870"
+      "source": "internal/server/routes.go:914"
     },
     {
       "method": "POST",
-      "path": "/api/v1/transfer/receive",
-      "auth": "session",
-      "source": "internal/server/routes.go:871"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/unicommerce/credentials",
+      "path": "/api/v1/marketplace/logistics/tracking",
       "auth": "session",
-      "source": "internal/server/routes.go:940"
+      "source": "internal/server/routes.go:917"
     },
     {
       "method": "POST",
-      "path": "/api/v1/unicommerce/credentials",
-      "auth": "session",
-      "source": "internal/server/routes.go:939"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/unicommerce/inventory-syncs",
+      "path": "/api/v1/marketplace/ndr/{id}/resolve",
       "auth": "session",
-      "source": "internal/server/routes.go:943"
+      "source": "internal/server/routes.go:931"
     },
     {
       "method": "POST",
-      "path": "/api/v1/unicommerce/order",
+      "path": "/api/v1/marketplace/settlement/reconcile",
       "auth": "session",
-      "source": "internal/server/routes.go:941"
+      "source": "internal/server/routes.go:908"
     },
     {
       "method": "GET",
-      "path": "/api/v1/unicommerce/orders",
+      "path": "/api/v1/marketplace/sku-exceptions",
       "auth": "session",
       "source": "internal/server/routes.go:942"
     },
     {
       "method": "GET",
-      "path": "/api/v1/version",
-      "auth": "public",
-      "source": "internal/server/routes.go:216"
+      "path": "/api/v1/marketplace/sku-mappings",
+      "auth": "session",
+      "source": "internal/server/routes.go:940"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/marketplace/sku-mappings",
+      "auth": "session",
+      "source": "internal/server/routes.go:941"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/batch/allocation-preview",
+      "path": "/api/v1/me",
       "auth": "session",
-      "source": "internal/server/routes.go:463"
+      "source": "internal/server/routes.go:254"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/me",
+      "auth": "session",
+      "source": "internal/server/routes.go:255"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/batch/consume",
+      "path": "/api/v1/me/change-password",
       "auth": "session",
-      "source": "internal/server/routes.go:460"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/batch/expiry-sweep",
-      "auth": "session",
-      "source": "internal/server/routes.go:462"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/batch/putaway",
-      "auth": "session",
-      "source": "internal/server/routes.go:459"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/batch/status",
-      "auth": "session",
-      "source": "internal/server/routes.go:461"
+      "source": "internal/server/routes.go:256"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/billing/charges",
+      "path": "/api/v1/me/mfa/recovery-codes",
       "auth": "session",
-      "source": "internal/server/routes.go:534"
+      "source": "internal/server/routes.go:281"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/billing/charges",
+      "path": "/api/v1/me/mfa/recovery-codes/regenerate",
       "auth": "session",
-      "source": "internal/server/routes.go:535"
+      "source": "internal/server/routes.go:282"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/billing/invoices",
+      "path": "/api/v1/me/mfa/reenroll",
       "auth": "session",
-      "source": "internal/server/routes.go:536"
+      "source": "internal/server/routes.go:283"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/me/mfa/reenroll/cancel",
+      "auth": "session",
+      "source": "internal/server/routes.go:285"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/me/mfa/reenroll/confirm",
+      "auth": "session",
+      "source": "internal/server/routes.go:284"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/billing/storage",
+      "path": "/api/v1/me/modules",
       "auth": "session",
-      "source": "internal/server/routes.go:538"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/billing/storage/capture",
-      "auth": "session",
-      "source": "internal/server/routes.go:539"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/billing/storage/snapshot",
-      "auth": "session",
-      "source": "internal/server/routes.go:537"
+      "source": "internal/server/routes.go:264"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/bin-replenishment/demand-driven",
+      "path": "/api/v1/me/permissions",
       "auth": "session",
-      "source": "internal/server/routes.go:514"
+      "source": "internal/server/routes.go:257"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/bin-replenishment/dynamic-pickface",
+      "path": "/api/v1/meta/doctypes",
       "auth": "session",
-      "source": "internal/server/routes.go:516"
+      "source": "internal/server/routes.go:1075"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/bin-replenishment/dynamic-pickface/apply",
+      "path": "/api/v1/meta/doctypes",
       "auth": "session",
-      "source": "internal/server/routes.go:517"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/bin-replenishment/execute",
-      "auth": "session",
-      "source": "internal/server/routes.go:443"
+      "source": "internal/server/routes.go:1076"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/bin-replenishment/suggestions",
+      "path": "/api/v1/meta/field-formats",
       "auth": "session",
-      "source": "internal/server/routes.go:442"
+      "source": "internal/server/routes.go:1074"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/meta/{doctype}/fields",
+      "auth": "session",
+      "source": "internal/server/routes.go:1077"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/meta/{doctype}/fields/{id}",
+      "auth": "session",
+      "source": "internal/server/routes.go:1079"
+    },
+    {
+      "method": "PUT",
+      "path": "/api/v1/meta/{doctype}/fields/{id}",
+      "auth": "session",
+      "source": "internal/server/routes.go:1078"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/bin-replenishment/wave",
+      "path": "/api/v1/oms/bundles/{sku}/availability",
       "auth": "session",
-      "source": "internal/server/routes.go:515"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/bundles/{operation}",
-      "auth": "session",
-      "source": "internal/server/routes.go:930"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/cartonization/suggest",
-      "auth": "session",
-      "source": "internal/server/routes.go:448"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/cartonization/suggest-v2",
-      "auth": "session",
-      "source": "internal/server/routes.go:489"
+      "source": "internal/server/routes.go:945"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/cockpit",
+      "path": "/api/v1/oms/gate-passes",
       "auth": "session",
-      "source": "internal/server/routes.go:476"
+      "source": "internal/server/routes.go:384"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/condition-transition",
+      "path": "/api/v1/oms/gate-passes",
       "auth": "session",
-      "source": "internal/server/routes.go:419"
+      "source": "internal/server/routes.go:383"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/cross-dock/check",
+      "path": "/api/v1/oms/gate-passes/{id}/complete",
       "auth": "session",
-      "source": "internal/server/routes.go:437"
+      "source": "internal/server/routes.go:387"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/cross-dock/planned-putaway",
+      "path": "/api/v1/oms/gate-passes/{id}/discard",
       "auth": "session",
-      "source": "internal/server/routes.go:439"
+      "source": "internal/server/routes.go:388"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/cross-dock/putaway",
+      "path": "/api/v1/oms/gate-passes/{id}/issue",
       "auth": "session",
-      "source": "internal/server/routes.go:438"
+      "source": "internal/server/routes.go:386"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/oms/gate-passes/{id}/update",
+      "auth": "session",
+      "source": "internal/server/routes.go:385"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/cycle-count/abc-plan",
+      "path": "/api/v1/oms/orders",
       "auth": "session",
-      "source": "internal/server/routes.go:449"
+      "source": "internal/server/routes.go:351"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/oms/orders/bulk",
+      "auth": "session",
+      "source": "internal/server/routes.go:355"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/cycle-count/plan",
+      "path": "/api/v1/oms/orders/search",
       "auth": "session",
-      "source": "internal/server/routes.go:513"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/cycle-count/post-adjustment",
-      "auth": "session",
-      "source": "internal/server/routes.go:453"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/cycle-count/reconcile",
-      "auth": "session",
-      "source": "internal/server/routes.go:430"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/cycle-count/recount/request",
-      "auth": "session",
-      "source": "internal/server/routes.go:450"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/cycle-count/recount/submit",
-      "auth": "session",
-      "source": "internal/server/routes.go:451"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/cycle-count/variance-reason",
-      "auth": "session",
-      "source": "internal/server/routes.go:452"
+      "source": "internal/server/routes.go:352"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/facility/children",
+      "path": "/api/v1/oms/orders/{id}",
       "auth": "session",
-      "source": "internal/server/routes.go:518"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/facility/copy",
-      "auth": "session",
-      "source": "internal/server/routes.go:520"
+      "source": "internal/server/routes.go:353"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/facility/descendants",
+      "path": "/api/v1/oms/pick-queue",
       "auth": "session",
-      "source": "internal/server/routes.go:519"
+      "source": "internal/server/routes.go:370"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/hold/place",
+      "path": "/api/v1/oms/settlements/reconcile",
+      "auth": "session",
+      "source": "internal/server/routes.go:416"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/oms/settlements/{id}/dispute",
       "auth": "session",
       "source": "internal/server/routes.go:417"
     },
     {
-      "method": "GET",
-      "path": "/api/v1/wms/labor/plan",
-      "auth": "session",
-      "source": "internal/server/routes.go:533"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/wms/loading/bol",
-      "auth": "session",
-      "source": "internal/server/routes.go:497"
-    },
-    {
       "method": "POST",
-      "path": "/api/v1/wms/loading/complete",
-      "auth": "session",
-      "source": "internal/server/routes.go:495"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/loading/create",
-      "auth": "session",
-      "source": "internal/server/routes.go:493"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/loading/depart",
-      "auth": "session",
-      "source": "internal/server/routes.go:496"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/loading/scan",
-      "auth": "session",
-      "source": "internal/server/routes.go:494"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/lpn/assign",
-      "auth": "session",
-      "source": "internal/server/routes.go:440"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/wms/lpn/contents",
-      "auth": "session",
-      "source": "internal/server/routes.go:441"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/lpn/deconsolidate",
-      "auth": "session",
-      "source": "internal/server/routes.go:492"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/owner-stock/assign",
-      "auth": "session",
-      "source": "internal/server/routes.go:523"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/owner-stock/consume",
-      "auth": "session",
-      "source": "internal/server/routes.go:524"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/owner/assign-warehouse",
-      "auth": "session",
-      "source": "internal/server/routes.go:527"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/wms/owner/mixed-locations",
-      "auth": "session",
-      "source": "internal/server/routes.go:528"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/pack-complete",
-      "auth": "session",
-      "source": "internal/server/routes.go:429"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/pack-scan",
-      "auth": "session",
-      "source": "internal/server/routes.go:424"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/wms/pack-template/resolve",
-      "auth": "session",
-      "source": "internal/server/routes.go:491"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/wms/packing-validation",
-      "auth": "session",
-      "source": "internal/server/routes.go:490"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/physical-inventory/cancel",
-      "auth": "session",
-      "source": "internal/server/routes.go:512"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/physical-inventory/close",
-      "auth": "session",
-      "source": "internal/server/routes.go:511"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/physical-inventory/reconcile",
-      "auth": "session",
-      "source": "internal/server/routes.go:510"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/physical-inventory/start",
-      "auth": "session",
-      "source": "internal/server/routes.go:508"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/physical-inventory/submit-count",
-      "auth": "session",
-      "source": "internal/server/routes.go:509"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/wms/pick-list",
+      "path": "/api/v1/oms/settlements/{id}/resolve",
       "auth": "session",
       "source": "internal/server/routes.go:418"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/pick-scan",
+      "path": "/api/v1/oms/settlements/{id}/write-off",
       "auth": "session",
-      "source": "internal/server/routes.go:423"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/putaway",
-      "auth": "session",
-      "source": "internal/server/routes.go:416"
+      "source": "internal/server/routes.go:419"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/putaway/suggest-bin",
+      "path": "/api/v1/oms/shipping-packages",
       "auth": "session",
-      "source": "internal/server/routes.go:475"
+      "source": "internal/server/routes.go:378"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/robotics/event",
+      "path": "/api/v1/oms/shipping-packages",
       "auth": "session",
-      "source": "internal/server/routes.go:447"
+      "source": "internal/server/routes.go:377"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/serial/putaway",
+      "path": "/api/v1/oms/shipping-packages/{id}/cancel",
       "auth": "session",
-      "source": "internal/server/routes.go:467"
+      "source": "internal/server/routes.go:381"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/serial/status",
+      "path": "/api/v1/oms/shipping-packages/{id}/invoice",
       "auth": "session",
-      "source": "internal/server/routes.go:468"
+      "source": "internal/server/routes.go:382"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/short-pick",
+      "path": "/api/v1/oms/shipping-packages/{id}/split",
       "auth": "session",
-      "source": "internal/server/routes.go:425"
+      "source": "internal/server/routes.go:380"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/sortation/assign",
+      "path": "/api/v1/oms/shipping-packages/{id}/update",
       "auth": "session",
-      "source": "internal/server/routes.go:485"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/sortation/clear",
-      "auth": "session",
-      "source": "internal/server/routes.go:487"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/sortation/confirm",
-      "auth": "session",
-      "source": "internal/server/routes.go:486"
-    },
-    {
-      "method": "POST",
-      "path": "/api/v1/wms/sortation/provision-slots",
-      "auth": "session",
-      "source": "internal/server/routes.go:484"
+      "source": "internal/server/routes.go:379"
     },
     {
       "method": "GET",
-      "path": "/api/v1/wms/sortation/slots",
+      "path": "/api/v1/oms/tiles",
       "auth": "session",
-      "source": "internal/server/routes.go:488"
+      "source": "internal/server/routes.go:354"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/oms/views",
+      "auth": "session",
+      "source": "internal/server/routes.go:356"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/tasks/next",
+      "path": "/api/v1/oms/views",
       "auth": "session",
-      "source": "internal/server/routes.go:472"
+      "source": "internal/server/routes.go:357"
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/oms/views/{id}",
+      "auth": "session",
+      "source": "internal/server/routes.go:358"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/ops/backup-status",
+      "auth": "session",
+      "source": "internal/server/routes.go:326"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/ops/deployment-status",
+      "auth": "session",
+      "source": "internal/server/routes.go:325"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/tasks/transition",
+      "path": "/api/v1/optimization/forecast",
+      "auth": "session",
+      "source": "internal/server/routes.go:951"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/optimization/replenishment-suggestions",
+      "auth": "session",
+      "source": "internal/server/routes.go:949"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/optimization/sla-breaches",
+      "auth": "session",
+      "source": "internal/server/routes.go:950"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/order-lines/{lineId}/hold",
+      "auth": "session",
+      "source": "internal/server/routes.go:368"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/order-lines/{lineId}/release-hold",
+      "auth": "session",
+      "source": "internal/server/routes.go:369"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders",
+      "auth": "session",
+      "source": "internal/server/routes.go:341"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/{id}/cancel",
+      "auth": "session",
+      "source": "internal/server/routes.go:344"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/{id}/credit-notes",
+      "auth": "session",
+      "source": "internal/server/routes.go:389"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/{id}/edit",
+      "auth": "session",
+      "source": "internal/server/routes.go:364"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/{id}/hold",
+      "auth": "session",
+      "source": "internal/server/routes.go:342"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/{id}/priority",
+      "auth": "session",
+      "source": "internal/server/routes.go:366"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/{id}/release-hold",
+      "auth": "session",
+      "source": "internal/server/routes.go:343"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/{id}/split",
+      "auth": "session",
+      "source": "internal/server/routes.go:367"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders/{id}/switch-facility",
+      "auth": "session",
+      "source": "internal/server/routes.go:365"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/assignable-users",
+      "auth": "session",
+      "source": "internal/server/routes.go:789"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/barcode/generate",
+      "auth": "session",
+      "source": "internal/server/routes.go:851"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/bulk-edit",
+      "auth": "session",
+      "source": "internal/server/routes.go:774"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/catalog-share",
+      "auth": "public",
+      "source": "internal/server/routes.go:847"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/catalogs/{id}/rotate-share-token",
+      "auth": "session",
+      "source": "internal/server/routes.go:843"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/channels/{code}/credentials",
+      "auth": "session",
+      "source": "internal/server/routes.go:858"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/channels/{code}/pull-state",
+      "auth": "session",
+      "source": "internal/server/routes.go:855"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/completeness/{itemCode}",
+      "auth": "session",
+      "source": "internal/server/routes.go:797"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/content-assist-shapes",
+      "auth": "session",
+      "source": "internal/server/routes.go:849"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/content-assist/{itemCode}",
+      "auth": "session",
+      "source": "internal/server/routes.go:803"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/content/{id}/rollback",
+      "auth": "session",
+      "source": "internal/server/routes.go:865"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/content/{id}/versions",
+      "auth": "session",
+      "source": "internal/server/routes.go:864"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/dashboard",
+      "auth": "session",
+      "source": "internal/server/routes.go:771"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/export-templates/{id}/run",
+      "auth": "session",
+      "source": "internal/server/routes.go:842"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/import-jobs/{id}/errors.csv",
+      "auth": "session",
+      "source": "internal/server/routes.go:826"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/import-schedules",
+      "auth": "session",
+      "source": "internal/server/routes.go:833"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/import-schedules/{id}/rotate-hook-token",
+      "auth": "session",
+      "source": "internal/server/routes.go:834"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/import-templates",
+      "auth": "session",
+      "source": "internal/server/routes.go:829"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/import-templates/{id}/import",
+      "auth": "session",
+      "source": "internal/server/routes.go:832"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/import-templates/{id}/preview",
+      "auth": "session",
+      "source": "internal/server/routes.go:831"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/import-templates/{id}/preview-mapping",
+      "auth": "session",
+      "source": "internal/server/routes.go:830"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/import/hook",
+      "auth": "public",
+      "source": "internal/server/routes.go:838"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/import/{doctype}/preview",
+      "auth": "session",
+      "source": "internal/server/routes.go:825"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/media",
+      "auth": "session",
+      "source": "internal/server/routes.go:809"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/media/bulk-download",
+      "auth": "session",
+      "source": "internal/server/routes.go:817"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/media/bulk-upload",
+      "auth": "session",
+      "source": "internal/server/routes.go:816"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/media/search",
+      "auth": "session",
+      "source": "internal/server/routes.go:818"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/media/transform-presets",
+      "auth": "session",
+      "source": "internal/server/routes.go:814"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/media/upload",
+      "auth": "session",
+      "source": "internal/server/routes.go:805"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/media/{id}/deactivate",
+      "auth": "session",
+      "source": "internal/server/routes.go:810"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/media/{id}/file",
+      "auth": "session",
+      "source": "internal/server/routes.go:806"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/media/{id}/metadata",
+      "auth": "session",
+      "source": "internal/server/routes.go:808"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/media/{id}/thumbnail",
+      "auth": "session",
+      "source": "internal/server/routes.go:807"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/media/{id}/transform/{preset}",
+      "auth": "session",
+      "source": "internal/server/routes.go:815"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/product-groups/{id}/export.csv",
+      "auth": "session",
+      "source": "internal/server/routes.go:779"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/product-groups/{id}/members",
+      "auth": "session",
+      "source": "internal/server/routes.go:778"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/publish",
+      "auth": "session",
+      "source": "internal/server/routes.go:820"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/publish-log",
+      "auth": "session",
+      "source": "internal/server/routes.go:823"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/publish-preview",
+      "auth": "session",
+      "source": "internal/server/routes.go:821"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/publish/{jobID}",
+      "auth": "session",
+      "source": "internal/server/routes.go:822"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/related-products/{itemCode}",
+      "auth": "session",
+      "source": "internal/server/routes.go:850"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/reports/{name}",
+      "auth": "session",
+      "source": "internal/server/routes.go:775"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/search-feed.csv",
+      "auth": "session",
+      "source": "internal/server/routes.go:862"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/task-templates",
+      "auth": "session",
+      "source": "internal/server/routes.go:790"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/task-templates/{code}/instantiate",
+      "auth": "session",
+      "source": "internal/server/routes.go:791"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/tasks",
+      "auth": "session",
+      "source": "internal/server/routes.go:785"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/tasks",
+      "auth": "session",
+      "source": "internal/server/routes.go:786"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/tasks/bulk",
+      "auth": "session",
+      "source": "internal/server/routes.go:787"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/tasks/{id}/{action}",
+      "auth": "session",
+      "source": "internal/server/routes.go:788"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/taxonomy-history/{doctype}/{id}",
+      "auth": "session",
+      "source": "internal/server/routes.go:860"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/transform-rules",
+      "auth": "session",
+      "source": "internal/server/routes.go:800"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/translations/seed",
+      "auth": "session",
+      "source": "internal/server/routes.go:852"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/workbench",
+      "auth": "session",
+      "source": "internal/server/routes.go:776"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/workflow-runs",
+      "auth": "session",
+      "source": "internal/server/routes.go:794"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/workflow-runs/bulk",
+      "auth": "session",
+      "source": "internal/server/routes.go:795"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/workflow-runs/{id}/action",
+      "auth": "session",
+      "source": "internal/server/routes.go:796"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pim/workflows",
+      "auth": "session",
+      "source": "internal/server/routes.go:792"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pim/workflows/{code}/start",
+      "auth": "session",
+      "source": "internal/server/routes.go:793"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pinelabs/credentials",
+      "auth": "session",
+      "source": "internal/server/routes.go:963"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pinelabs/credentials",
+      "auth": "session",
+      "source": "internal/server/routes.go:962"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pinelabs/reconcile",
+      "auth": "session",
+      "source": "internal/server/routes.go:965"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pinelabs/transaction",
+      "auth": "session",
+      "source": "internal/server/routes.go:964"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pinelabs/transactions",
+      "auth": "session",
+      "source": "internal/server/routes.go:966"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pos/offers/preview",
+      "auth": "session",
+      "source": "internal/server/routes.go:562"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pos/offline-heartbeat",
+      "auth": "session",
+      "source": "internal/server/routes.go:559"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pos/payment/confirm",
+      "auth": "session",
+      "source": "internal/server/routes.go:572"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pos/payment/void",
+      "auth": "session",
+      "source": "internal/server/routes.go:573"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pos/price-override",
+      "auth": "session",
+      "source": "internal/server/routes.go:568"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pos/quote",
+      "auth": "session",
+      "source": "internal/server/routes.go:567"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pos/session/close",
+      "auth": "session",
+      "source": "internal/server/routes.go:557"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/pos/session/current",
+      "auth": "session",
+      "source": "internal/server/routes.go:558"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/pos/session/open",
+      "auth": "session",
+      "source": "internal/server/routes.go:556"
+    },
+    {
+      "method": "ANY",
+      "path": "/api/v1/prefix",
+      "auth": "session",
+      "source": "internal/server/routes.go:1084"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/print/qz/certificate",
+      "auth": "session",
+      "source": "internal/server/routes.go:706"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/print/qz/log",
+      "auth": "session",
+      "source": "internal/server/routes.go:710"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/print/qz/log",
+      "auth": "session",
+      "source": "internal/server/routes.go:711"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/print/qz/payload",
+      "auth": "session",
+      "source": "internal/server/routes.go:709"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/print/qz/printers",
+      "auth": "session",
+      "source": "internal/server/routes.go:708"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/print/qz/sign",
+      "auth": "session",
+      "source": "internal/server/routes.go:707"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/procurement/convert-requisition",
+      "auth": "session",
+      "source": "internal/server/routes.go:890"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/procurement/purchase-order/preview",
+      "auth": "session",
+      "source": "internal/server/routes.go:895"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/procurement/purchase-order/{id}/print",
+      "auth": "session",
+      "source": "internal/server/routes.go:896"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/procurement/purchase-order/{id}/send",
+      "auth": "session",
+      "source": "internal/server/routes.go:897"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/procurement/vendor-invoice/match",
+      "auth": "session",
+      "source": "internal/server/routes.go:900"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/procurement/vendor-invoice/pay",
+      "auth": "session",
+      "source": "internal/server/routes.go:901"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/procurement/vendor-invoice/pay-with-tds",
+      "auth": "session",
+      "source": "internal/server/routes.go:591"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/quality/coa",
+      "auth": "session",
+      "source": "internal/server/routes.go:645"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/quality/coa/{id}/reject",
+      "auth": "session",
+      "source": "internal/server/routes.go:647"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/quality/coa/{id}/release",
+      "auth": "session",
+      "source": "internal/server/routes.go:646"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/quality/maintenance-order/{id}/cancel",
+      "auth": "session",
+      "source": "internal/server/routes.go:654"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/quality/maintenance-order/{id}/complete",
+      "auth": "session",
+      "source": "internal/server/routes.go:653"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/quality/maintenance-order/{id}/start",
+      "auth": "session",
+      "source": "internal/server/routes.go:652"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/quality/ncr",
+      "auth": "session",
+      "source": "internal/server/routes.go:648"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/quality/ncr/{id}/close",
+      "auth": "session",
+      "source": "internal/server/routes.go:651"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/quality/ncr/{id}/investigate",
+      "auth": "session",
+      "source": "internal/server/routes.go:649"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/quality/ncr/{id}/plan-corrective-action",
+      "auth": "session",
+      "source": "internal/server/routes.go:650"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/refunds/{id}/approve",
+      "auth": "session",
+      "source": "internal/server/routes.go:408"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/refunds/{id}/process",
+      "auth": "session",
+      "source": "internal/server/routes.go:410"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/refunds/{id}/reject",
+      "auth": "session",
+      "source": "internal/server/routes.go:409"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/catalog",
+      "auth": "session",
+      "source": "internal/server/routes.go:678"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/current-stock",
+      "auth": "session",
+      "source": "internal/server/routes.go:668"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/drilldown/{id}",
+      "auth": "session",
+      "source": "internal/server/routes.go:680"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reports/export",
+      "auth": "session",
+      "source": "internal/server/routes.go:681"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/export/{id}",
+      "auth": "session",
+      "source": "internal/server/routes.go:682"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/gst-return-summary",
+      "auth": "session",
+      "source": "internal/server/routes.go:673"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/payables-ageing",
+      "auth": "session",
+      "source": "internal/server/routes.go:671"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/receivables-ageing",
+      "auth": "session",
+      "source": "internal/server/routes.go:672"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/run/{id}",
+      "auth": "session",
+      "source": "internal/server/routes.go:679"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/sales-register",
+      "auth": "session",
+      "source": "internal/server/routes.go:669"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/reports/vendor-ledger",
+      "auth": "session",
+      "source": "internal/server/routes.go:670"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/reserve",
+      "auth": "session",
+      "source": "internal/server/routes.go:335"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/returns",
+      "auth": "session",
+      "source": "internal/server/routes.go:398"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/returns/eligibility",
+      "auth": "session",
+      "source": "internal/server/routes.go:401"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/returns/{id}/approve",
+      "auth": "session",
+      "source": "internal/server/routes.go:402"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/returns/{id}/qc",
+      "auth": "session",
+      "source": "internal/server/routes.go:405"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/returns/{id}/receive",
+      "auth": "session",
+      "source": "internal/server/routes.go:404"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/returns/{id}/reject",
+      "auth": "session",
+      "source": "internal/server/routes.go:403"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/returns/{id}/reverse-pickup",
+      "auth": "session",
+      "source": "internal/server/routes.go:407"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/rfq/quotes",
+      "auth": "session",
+      "source": "internal/server/routes.go:692"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/rfq/select-quote",
+      "auth": "session",
+      "source": "internal/server/routes.go:693"
+    },
+    {
+      "method": "ANY",
+      "path": "/api/v1/sequence",
+      "auth": "session",
+      "source": "internal/server/routes.go:1083"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/service/ticket",
+      "auth": "session",
+      "source": "internal/server/routes.go:635"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/service/ticket/{id}/assign",
+      "auth": "session",
+      "source": "internal/server/routes.go:636"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/service/ticket/{id}/cancel",
+      "auth": "session",
+      "source": "internal/server/routes.go:640"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/service/ticket/{id}/close",
+      "auth": "session",
+      "source": "internal/server/routes.go:639"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/service/ticket/{id}/resolve",
+      "auth": "session",
+      "source": "internal/server/routes.go:638"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/service/ticket/{id}/start",
+      "auth": "session",
+      "source": "internal/server/routes.go:637"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/setup/status",
+      "auth": "session",
+      "source": "internal/server/routes.go:270"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stickers/history",
+      "auth": "session",
+      "source": "internal/server/routes.go:697"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/stickers/preview",
+      "auth": "session",
+      "source": "internal/server/routes.go:700"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/stickers/print",
+      "auth": "session",
+      "source": "internal/server/routes.go:696"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/system/environment",
+      "auth": "session",
+      "source": "internal/server/routes.go:980"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/transfer/dispatch",
+      "auth": "session",
+      "source": "internal/server/routes.go:886"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/transfer/receive",
+      "auth": "session",
+      "source": "internal/server/routes.go:887"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/unicommerce/credentials",
+      "auth": "session",
+      "source": "internal/server/routes.go:956"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/unicommerce/credentials",
+      "auth": "session",
+      "source": "internal/server/routes.go:955"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/unicommerce/inventory-syncs",
+      "auth": "session",
+      "source": "internal/server/routes.go:959"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/unicommerce/order",
+      "auth": "session",
+      "source": "internal/server/routes.go:957"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/unicommerce/orders",
+      "auth": "session",
+      "source": "internal/server/routes.go:958"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/version",
+      "auth": "public",
+      "source": "internal/server/routes.go:229"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/batch/allocation-preview",
+      "auth": "session",
+      "source": "internal/server/routes.go:476"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/batch/consume",
       "auth": "session",
       "source": "internal/server/routes.go:473"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/transfer/pack",
+      "path": "/api/v1/wms/batch/expiry-sweep",
       "auth": "session",
-      "source": "internal/server/routes.go:420"
+      "source": "internal/server/routes.go:475"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/vas/complete",
+      "path": "/api/v1/wms/batch/putaway",
       "auth": "session",
-      "source": "internal/server/routes.go:499"
+      "source": "internal/server/routes.go:472"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/vas/create",
+      "path": "/api/v1/wms/batch/status",
       "auth": "session",
-      "source": "internal/server/routes.go:498"
+      "source": "internal/server/routes.go:474"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/billing/charges",
+      "auth": "session",
+      "source": "internal/server/routes.go:547"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/wave/assign",
+      "path": "/api/v1/wms/billing/charges",
       "auth": "session",
-      "source": "internal/server/routes.go:444"
+      "source": "internal/server/routes.go:548"
     },
     {
       "method": "POST",
-      "path": "/api/v1/wms/wave/create",
+      "path": "/api/v1/wms/billing/invoices",
+      "auth": "session",
+      "source": "internal/server/routes.go:549"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/billing/storage",
+      "auth": "session",
+      "source": "internal/server/routes.go:551"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/billing/storage/capture",
+      "auth": "session",
+      "source": "internal/server/routes.go:552"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/billing/storage/snapshot",
+      "auth": "session",
+      "source": "internal/server/routes.go:550"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/bin-replenishment/demand-driven",
+      "auth": "session",
+      "source": "internal/server/routes.go:527"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/bin-replenishment/dynamic-pickface",
+      "auth": "session",
+      "source": "internal/server/routes.go:529"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/bin-replenishment/dynamic-pickface/apply",
+      "auth": "session",
+      "source": "internal/server/routes.go:530"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/bin-replenishment/execute",
+      "auth": "session",
+      "source": "internal/server/routes.go:456"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/bin-replenishment/suggestions",
+      "auth": "session",
+      "source": "internal/server/routes.go:455"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/bin-replenishment/wave",
+      "auth": "session",
+      "source": "internal/server/routes.go:528"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/bundles/{operation}",
+      "auth": "session",
+      "source": "internal/server/routes.go:946"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/cartonization/suggest",
+      "auth": "session",
+      "source": "internal/server/routes.go:461"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/cartonization/suggest-v2",
+      "auth": "session",
+      "source": "internal/server/routes.go:502"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/cockpit",
+      "auth": "session",
+      "source": "internal/server/routes.go:489"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/condition-transition",
+      "auth": "session",
+      "source": "internal/server/routes.go:432"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/cross-dock/check",
+      "auth": "session",
+      "source": "internal/server/routes.go:450"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/cross-dock/planned-putaway",
+      "auth": "session",
+      "source": "internal/server/routes.go:452"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/cross-dock/putaway",
+      "auth": "session",
+      "source": "internal/server/routes.go:451"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/cycle-count/abc-plan",
+      "auth": "session",
+      "source": "internal/server/routes.go:462"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/cycle-count/plan",
+      "auth": "session",
+      "source": "internal/server/routes.go:526"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/cycle-count/post-adjustment",
+      "auth": "session",
+      "source": "internal/server/routes.go:466"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/cycle-count/reconcile",
+      "auth": "session",
+      "source": "internal/server/routes.go:443"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/cycle-count/recount/request",
+      "auth": "session",
+      "source": "internal/server/routes.go:463"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/cycle-count/recount/submit",
+      "auth": "session",
+      "source": "internal/server/routes.go:464"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/cycle-count/variance-reason",
+      "auth": "session",
+      "source": "internal/server/routes.go:465"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/facility/children",
+      "auth": "session",
+      "source": "internal/server/routes.go:531"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/facility/copy",
+      "auth": "session",
+      "source": "internal/server/routes.go:533"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/facility/descendants",
+      "auth": "session",
+      "source": "internal/server/routes.go:532"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/hold/place",
+      "auth": "session",
+      "source": "internal/server/routes.go:430"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/labor/plan",
+      "auth": "session",
+      "source": "internal/server/routes.go:546"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/loading/bol",
+      "auth": "session",
+      "source": "internal/server/routes.go:510"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/loading/complete",
+      "auth": "session",
+      "source": "internal/server/routes.go:508"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/loading/create",
+      "auth": "session",
+      "source": "internal/server/routes.go:506"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/loading/depart",
+      "auth": "session",
+      "source": "internal/server/routes.go:509"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/loading/scan",
+      "auth": "session",
+      "source": "internal/server/routes.go:507"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/lpn/assign",
+      "auth": "session",
+      "source": "internal/server/routes.go:453"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/lpn/contents",
+      "auth": "session",
+      "source": "internal/server/routes.go:454"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/lpn/deconsolidate",
+      "auth": "session",
+      "source": "internal/server/routes.go:505"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/owner-stock/assign",
+      "auth": "session",
+      "source": "internal/server/routes.go:536"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/owner-stock/consume",
+      "auth": "session",
+      "source": "internal/server/routes.go:537"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/owner/assign-warehouse",
+      "auth": "session",
+      "source": "internal/server/routes.go:540"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/owner/mixed-locations",
+      "auth": "session",
+      "source": "internal/server/routes.go:541"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/pack-complete",
+      "auth": "session",
+      "source": "internal/server/routes.go:442"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/pack-scan",
+      "auth": "session",
+      "source": "internal/server/routes.go:437"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/pack-template/resolve",
+      "auth": "session",
+      "source": "internal/server/routes.go:504"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/packing-validation",
+      "auth": "session",
+      "source": "internal/server/routes.go:503"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/physical-inventory/cancel",
+      "auth": "session",
+      "source": "internal/server/routes.go:525"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/physical-inventory/close",
+      "auth": "session",
+      "source": "internal/server/routes.go:524"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/physical-inventory/reconcile",
+      "auth": "session",
+      "source": "internal/server/routes.go:523"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/physical-inventory/start",
+      "auth": "session",
+      "source": "internal/server/routes.go:521"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/physical-inventory/submit-count",
+      "auth": "session",
+      "source": "internal/server/routes.go:522"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/pick-list",
+      "auth": "session",
+      "source": "internal/server/routes.go:431"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/pick-scan",
+      "auth": "session",
+      "source": "internal/server/routes.go:436"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/putaway",
+      "auth": "session",
+      "source": "internal/server/routes.go:429"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/putaway/suggest-bin",
+      "auth": "session",
+      "source": "internal/server/routes.go:488"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/robotics/event",
+      "auth": "session",
+      "source": "internal/server/routes.go:460"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/serial/putaway",
       "auth": "session",
       "source": "internal/server/routes.go:480"
     },
     {
-      "method": "GET",
-      "path": "/api/v1/wms/wave/monitor",
-      "auth": "session",
-      "source": "internal/server/routes.go:483"
-    },
-    {
-      "method": "GET",
-      "path": "/api/v1/wms/wave/pick-list",
-      "auth": "session",
-      "source": "internal/server/routes.go:445"
-    },
-    {
       "method": "POST",
-      "path": "/api/v1/wms/wave/template/run",
+      "path": "/api/v1/wms/serial/status",
       "auth": "session",
       "source": "internal/server/routes.go:481"
     },
     {
       "method": "POST",
+      "path": "/api/v1/wms/short-pick",
+      "auth": "session",
+      "source": "internal/server/routes.go:438"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/sortation/assign",
+      "auth": "session",
+      "source": "internal/server/routes.go:498"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/sortation/clear",
+      "auth": "session",
+      "source": "internal/server/routes.go:500"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/sortation/confirm",
+      "auth": "session",
+      "source": "internal/server/routes.go:499"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/sortation/provision-slots",
+      "auth": "session",
+      "source": "internal/server/routes.go:497"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/sortation/slots",
+      "auth": "session",
+      "source": "internal/server/routes.go:501"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/tasks/next",
+      "auth": "session",
+      "source": "internal/server/routes.go:485"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/tasks/transition",
+      "auth": "session",
+      "source": "internal/server/routes.go:486"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/transfer/pack",
+      "auth": "session",
+      "source": "internal/server/routes.go:433"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/vas/complete",
+      "auth": "session",
+      "source": "internal/server/routes.go:512"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/vas/create",
+      "auth": "session",
+      "source": "internal/server/routes.go:511"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/wave/assign",
+      "auth": "session",
+      "source": "internal/server/routes.go:457"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/wave/create",
+      "auth": "session",
+      "source": "internal/server/routes.go:493"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/wave/monitor",
+      "auth": "session",
+      "source": "internal/server/routes.go:496"
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/wms/wave/pick-list",
+      "auth": "session",
+      "source": "internal/server/routes.go:458"
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/wms/wave/template/run",
+      "auth": "session",
+      "source": "internal/server/routes.go:494"
+    },
+    {
+      "method": "POST",
       "path": "/api/v1/wms/wave/transition",
       "auth": "session",
-      "source": "internal/server/routes.go:482"
+      "source": "internal/server/routes.go:495"
     },
     {
       "method": "GET",
       "path": "/help",
       "auth": "static",
-      "source": "internal/server/routes.go:1122",
+      "source": "internal/server/routes.go:1148",
       "note": "serves the SPA shell only"
     },
     {
       "method": "GET",
       "path": "/help/{rest...}",
       "auth": "static",
-      "source": "internal/server/routes.go:1123",
+      "source": "internal/server/routes.go:1149",
       "note": "serves the SPA shell only"
     },
     {
       "method": "GET",
       "path": "/internal/tls-ask",
       "auth": "none",
-      "source": "internal/server/routes.go:230",
+      "source": "internal/server/routes.go:243",
       "note": "registered with no middleware - handler is solely responsible for its own access control"
     },
     {
       "method": "GET",
       "path": "{prefix}",
       "auth": "static",
-      "source": "internal/server/routes.go:1115",
+      "source": "internal/server/routes.go:1141",
       "note": "expanded per engines.ProductPackages at registration; serves the SPA shell only"
     },
     {
       "method": "GET",
       "path": "{prefix}+\"/{rest...}\"",
       "auth": "static",
-      "source": "internal/server/routes.go:1116",
+      "source": "internal/server/routes.go:1142",
       "note": "expanded per engines.ProductPackages at registration; serves the SPA shell only"
     }
   ],
@@ -2963,6 +3005,11 @@
       "source": "internal/server/routes.go:154"
     },
     {
+      "starter": "StartAuditArchiveScheduler",
+      "interval": "24*time.Hour",
+      "source": "internal/server/routes.go:189"
+    },
+    {
       "starter": "StartAuditEvidenceScheduler",
       "interval": "1*time.Hour",
       "source": "internal/server/routes.go:183"
@@ -2975,7 +3022,7 @@
     {
       "starter": "StartCampaignWorker",
       "interval": "1*time.Hour",
-      "source": "internal/server/routes.go:188"
+      "source": "internal/server/routes.go:194"
     },
     {
       "starter": "StartChannelSyncWorker",
@@ -2990,7 +3037,7 @@
     {
       "starter": "StartCompetitorUndercutWorker",
       "interval": "1*time.Hour",
-      "source": "internal/server/routes.go:195"
+      "source": "internal/server/routes.go:201"
     },
     {
       "starter": "StartDashboardDigestWorker",
@@ -3055,7 +3102,7 @@
     {
       "starter": "StartPublicAPIRuntimeSweeper",
       "interval": "1*time.Hour",
-      "source": "internal/server/routes.go:209"
+      "source": "internal/server/routes.go:215"
     },
     {
       "starter": "StartPublishQueueWorker",
@@ -3080,7 +3127,7 @@
     {
       "starter": "StartReservationSweeper",
       "interval": "5*time.Minute",
-      "source": "internal/server/routes.go:203"
+      "source": "internal/server/routes.go:209"
     },
     {
       "starter": "StartScheduledReportWorker",
@@ -3154,16 +3201,30 @@
   ],
   "migrations": {
     "base_schema_file": "db/migration.sql",
-    "incremental_files": 158,
+    "incremental_files": 164,
     "newest": [
-      "migrations_stage49_2_2_password_hardening.sql",
-      "migrations_stage49_2_4_admin_password_reset.sql",
-      "migrations_stage49_6_privacy_rights.sql",
-      "migrations_stage49_7_5_migration_checksums.sql",
+      "migrations_stage51_3_industry_lock.sql",
+      "migrations_stage51_4_vendor_item_numbering.sql",
+      "migrations_stage51_5_design_numbering.sql",
+      "migrations_stage52_sticker_templates.sql",
       "migrations_stores_master_fields.sql"
     ]
   },
   "environment_flags": [
+    {
+      "name": "AUDIT_ARCHIVE_DIR",
+      "security_critical": false,
+      "read_by": [
+        "engines/audit_archive.go"
+      ]
+    },
+    {
+      "name": "AUDIT_ARCHIVE_KEY",
+      "security_critical": false,
+      "read_by": [
+        "engines/audit_archive.go"
+      ]
+    },
     {
       "name": "AUTH_STATE_CACHE_SECONDS",
       "security_critical": false,
@@ -3429,28 +3490,28 @@
     {
       "module": "github.com/lib/pq",
       "version": "v1.12.3",
-      "direct": false
+      "direct": true
     },
     {
       "module": "golang.org/x/crypto",
-      "version": "v0.25.0",
-      "direct": false
+      "version": "v0.57.0",
+      "direct": true
     }
   ],
   "totals": {
-    "background_jobs": 29,
+    "background_jobs": 30,
     "cli_commands": 13,
     "dependencies": 2,
-    "direct_dependencies": 0,
-    "environment_flags": 28,
+    "direct_dependencies": 2,
+    "environment_flags": 30,
     "environment_flags_security_critical": 12,
-    "incremental_migrations": 158,
+    "incremental_migrations": 164,
     "outbound_call_sites": 9,
-    "routes": 486,
+    "routes": 493,
     "routes_integration_credential": 4,
     "routes_none": 1,
-    "routes_public": 10,
-    "routes_session": 466,
+    "routes_public": 12,
+    "routes_session": 471,
     "routes_static": 5
   }
 }
