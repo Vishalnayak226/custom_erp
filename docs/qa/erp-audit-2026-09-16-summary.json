@@ -1,0 +1,2910 @@
+{
+  "schema_version": 1,
+  "audit_date": "2026-09-16",
+  "scope": "Frozen local source; synthetic fixtures; no production deployment or certification",
+  "source": {
+    "head": "82f5517a083b4318c7f1b38adf0f2d0815fcfc58",
+    "captured_utc": "2026-09-16T02:40:44.556836+00:00",
+    "files": 987,
+    "manifest_sha256": "1e2f1bdf16b1e0e61c624bf97a6170195ceaa1ef6970d97dac5a8f12f307ad3b",
+    "snapshot_unchanged": true,
+    "changed_files": []
+  },
+  "environment": {
+    "os": "Windows amd64",
+    "go": "1.26.5",
+    "compatibility_build_go": "1.22.12",
+    "postgres": "16.3",
+    "postgres_port": 5446,
+    "http_port": 8178,
+    "browser": "151.0.7922.34",
+    "cgo": false
+  },
+  "suite_prerequisite": "Fresh migration fails; prerequisite audit-evidence SQL explicitly applied in disposable fixtures before continuing unchanged migrations.",
+  "suites": [
+    {
+      "iteration": 1,
+      "counts": {
+        "pass": 1092,
+        "skip": 1,
+        "fail": 4
+      },
+      "failures": [
+        {
+          "package": "custom_erp/engines",
+          "test": "TestKnownModulesMatchTheTenantSchema"
+        },
+        {
+          "package": "custom_erp/internal/securityscan",
+          "test": "TestAttackSurfaceManifestIsCurrent"
+        },
+        {
+          "package": "custom_erp/internal/server",
+          "test": "TestStage472ApprovedOverridePricesTheSaleAndIsSpentByIt"
+        },
+        {
+          "package": "custom_erp/internal/server",
+          "test": "TestCheckoutToForecastIntegration"
+        }
+      ],
+      "skips": [
+        {
+          "package": "custom_erp/engines",
+          "test": "TestAuditArchiveRefusesUnsafeArchiveDir"
+        }
+      ],
+      "packages": {
+        "custom_erp/cmd/brainmap": "pass",
+        "custom_erp/cmd/doclint": "pass",
+        "custom_erp/cmd/edgecheck": "pass",
+        "custom_erp/cmd/gendocs": "pass",
+        "custom_erp/cmd/genkb": "pass",
+        "custom_erp/cmd/minttoken": "pass",
+        "custom_erp/cmd/qzcert": "pass",
+        "custom_erp/cmd/releasemanifest": "pass",
+        "custom_erp/cmd/reset_mfa": "pass",
+        "custom_erp/cmd/server": "pass",
+        "custom_erp/cmd/snapshot_tenant_config": "pass",
+        "custom_erp/cmd/surfacescan": "pass",
+        "custom_erp/cmd/tenantctl": "pass",
+        "custom_erp/db": "pass",
+        "custom_erp/engines": "fail",
+        "custom_erp/internal/docgen": "pass",
+        "custom_erp/internal/kb": "pass",
+        "custom_erp/internal/securityscan": "fail",
+        "custom_erp/internal/server": "fail",
+        "custom_erp/internal/supplychain": "pass"
+      },
+      "statement_coverage": {
+        "custom_erp/cmd/brainmap": 0.0,
+        "custom_erp/cmd/doclint": 52.3,
+        "custom_erp/cmd/edgecheck": 0.0,
+        "custom_erp/cmd/gendocs": 63.9,
+        "custom_erp/cmd/genkb": 0.0,
+        "custom_erp/cmd/minttoken": 0.0,
+        "custom_erp/cmd/qzcert": 0.0,
+        "custom_erp/cmd/releasemanifest": 0.0,
+        "custom_erp/cmd/reset_mfa": 0.0,
+        "custom_erp/cmd/server": 0.0,
+        "custom_erp/cmd/snapshot_tenant_config": 0.0,
+        "custom_erp/cmd/surfacescan": 0.0,
+        "custom_erp/cmd/tenantctl": 0.0,
+        "custom_erp/db": 37.3,
+        "custom_erp/engines": 52.7,
+        "custom_erp/internal/docgen": 61.3,
+        "custom_erp/internal/kb": 88.7,
+        "custom_erp/internal/securityscan": 89.8,
+        "custom_erp/internal/server": 11.2,
+        "custom_erp/internal/supplychain": 76.4
+      }
+    },
+    {
+      "iteration": 2,
+      "counts": {
+        "pass": 1092,
+        "skip": 1,
+        "fail": 4
+      },
+      "failures": [
+        {
+          "package": "custom_erp/engines",
+          "test": "TestKnownModulesMatchTheTenantSchema"
+        },
+        {
+          "package": "custom_erp/internal/securityscan",
+          "test": "TestAttackSurfaceManifestIsCurrent"
+        },
+        {
+          "package": "custom_erp/internal/server",
+          "test": "TestCheckoutToForecastIntegration"
+        },
+        {
+          "package": "custom_erp/internal/server",
+          "test": "TestStage472ApprovedOverridePricesTheSaleAndIsSpentByIt"
+        }
+      ],
+      "skips": [
+        {
+          "package": "custom_erp/engines",
+          "test": "TestAuditArchiveRefusesUnsafeArchiveDir"
+        }
+      ],
+      "packages": {
+        "custom_erp/cmd/brainmap": "skip",
+        "custom_erp/cmd/doclint": "pass",
+        "custom_erp/cmd/edgecheck": "skip",
+        "custom_erp/cmd/gendocs": "pass",
+        "custom_erp/cmd/genkb": "skip",
+        "custom_erp/cmd/minttoken": "skip",
+        "custom_erp/cmd/qzcert": "skip",
+        "custom_erp/cmd/releasemanifest": "skip",
+        "custom_erp/cmd/reset_mfa": "skip",
+        "custom_erp/cmd/server": "skip",
+        "custom_erp/cmd/snapshot_tenant_config": "skip",
+        "custom_erp/cmd/surfacescan": "skip",
+        "custom_erp/cmd/tenantctl": "skip",
+        "custom_erp/db": "pass",
+        "custom_erp/engines": "fail",
+        "custom_erp/internal/docgen": "pass",
+        "custom_erp/internal/kb": "pass",
+        "custom_erp/internal/securityscan": "fail",
+        "custom_erp/internal/server": "fail",
+        "custom_erp/internal/supplychain": "pass"
+      },
+      "statement_coverage": {}
+    },
+    {
+      "iteration": 3,
+      "counts": {
+        "pass": 1094,
+        "skip": 1,
+        "fail": 2
+      },
+      "failures": [
+        {
+          "package": "custom_erp/engines",
+          "test": "TestKnownModulesMatchTheTenantSchema"
+        },
+        {
+          "package": "custom_erp/internal/securityscan",
+          "test": "TestAttackSurfaceManifestIsCurrent"
+        }
+      ],
+      "skips": [
+        {
+          "package": "custom_erp/engines",
+          "test": "TestAuditArchiveRefusesUnsafeArchiveDir"
+        }
+      ],
+      "packages": {
+        "custom_erp/cmd/brainmap": "skip",
+        "custom_erp/cmd/doclint": "pass",
+        "custom_erp/cmd/edgecheck": "skip",
+        "custom_erp/cmd/gendocs": "pass",
+        "custom_erp/cmd/genkb": "skip",
+        "custom_erp/cmd/minttoken": "skip",
+        "custom_erp/cmd/qzcert": "skip",
+        "custom_erp/cmd/releasemanifest": "skip",
+        "custom_erp/cmd/reset_mfa": "skip",
+        "custom_erp/cmd/server": "skip",
+        "custom_erp/cmd/snapshot_tenant_config": "skip",
+        "custom_erp/cmd/surfacescan": "skip",
+        "custom_erp/cmd/tenantctl": "skip",
+        "custom_erp/db": "pass",
+        "custom_erp/engines": "fail",
+        "custom_erp/internal/docgen": "pass",
+        "custom_erp/internal/kb": "pass",
+        "custom_erp/internal/securityscan": "fail",
+        "custom_erp/internal/server": "pass",
+        "custom_erp/internal/supplychain": "pass"
+      },
+      "statement_coverage": {}
+    }
+  ],
+  "top_level_test_declarations": 517,
+  "go_fuzz_declarations": 0,
+  "go_benchmark_declarations": 0,
+  "overall_statement_coverage_percent": 42.9,
+  "browser": {
+    "contexts": [
+      "desktop-light",
+      "mobile-dark",
+      "tablet-keyboard"
+    ],
+    "observations": 162,
+    "unique_views": 54,
+    "document_overflows": 0,
+    "state_dependent_hook_log_failures": 3
+  },
+  "ui_tasks": [
+    {
+      "round": 1,
+      "errors": [],
+      "unnamedAXControls": [
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 733
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 737
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 741
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 745
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 756
+        },
+        {
+          "role": "combobox",
+          "backendDOMNodeId": 761
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 779
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 783
+        }
+      ],
+      "formLabels": [
+        {
+          "name": "code",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "name",
+          "labelCount": 0,
+          "aria": null,
+          "required": true,
+          "disabled": false
+        },
+        {
+          "name": "gstin",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "bank_account_number",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "bank_ifsc",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "contact_phone",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "contact_email",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "status",
+          "labelCount": 0,
+          "aria": null,
+          "required": true,
+          "disabled": false
+        },
+        {
+          "name": "address",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "state",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        }
+      ],
+      "initialFocus": {
+        "tag": "BUTTON",
+        "name": null
+      },
+      "invalidEmailRejected": false,
+      "saveStatus": 200,
+      "saveBody": {
+        "id": "fb1c91f1-9815-b2ce-5885-d21570f7fc87",
+        "status": "saved"
+      },
+      "modalClosed": true,
+      "storedXSSExecuted": true,
+      "nameVisible": false,
+      "returnFocus": {
+        "tag": "BUTTON",
+        "text": "Save"
+      },
+      "documentOverflow": false,
+      "serverRead": {
+        "status": 200,
+        "containsName": false
+      }
+    },
+    {
+      "round": 2,
+      "errors": [],
+      "unnamedAXControls": [
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 779
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 783
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 787
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 790
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 801
+        },
+        {
+          "role": "combobox",
+          "backendDOMNodeId": 806
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 824
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 828
+        }
+      ],
+      "formLabels": [
+        {
+          "name": "code",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "name",
+          "labelCount": 0,
+          "aria": null,
+          "required": true,
+          "disabled": false
+        },
+        {
+          "name": "gstin",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "bank_account_number",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "bank_ifsc",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "contact_phone",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "contact_email",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "status",
+          "labelCount": 0,
+          "aria": null,
+          "required": true,
+          "disabled": false
+        },
+        {
+          "name": "address",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "state",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        }
+      ],
+      "initialFocus": {
+        "tag": "BUTTON",
+        "name": null
+      },
+      "invalidEmailRejected": false,
+      "saveStatus": 200,
+      "saveBody": {
+        "id": "f8585690-24a4-1bfd-bb35-8f5bb57769ac",
+        "status": "saved"
+      },
+      "modalClosed": true,
+      "storedXSSExecuted": true,
+      "nameVisible": false,
+      "returnFocus": {
+        "tag": "BUTTON",
+        "text": "Save"
+      },
+      "documentOverflow": false,
+      "serverRead": {
+        "status": 200,
+        "containsName": false
+      }
+    },
+    {
+      "round": 3,
+      "errors": [],
+      "unnamedAXControls": [
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 820
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 824
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 828
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 832
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 843
+        },
+        {
+          "role": "combobox",
+          "backendDOMNodeId": 848
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 866
+        },
+        {
+          "role": "textbox",
+          "backendDOMNodeId": 870
+        }
+      ],
+      "formLabels": [
+        {
+          "name": "code",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "name",
+          "labelCount": 0,
+          "aria": null,
+          "required": true,
+          "disabled": false
+        },
+        {
+          "name": "gstin",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "bank_account_number",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "bank_ifsc",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "contact_phone",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "contact_email",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "status",
+          "labelCount": 0,
+          "aria": null,
+          "required": true,
+          "disabled": false
+        },
+        {
+          "name": "address",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        },
+        {
+          "name": "state",
+          "labelCount": 0,
+          "aria": null,
+          "required": false,
+          "disabled": false
+        }
+      ],
+      "initialFocus": {
+        "tag": "BUTTON",
+        "name": null
+      },
+      "invalidEmailRejected": false,
+      "saveStatus": 200,
+      "saveBody": {
+        "id": "07483f61-13ff-e3a6-4012-21192954a55b",
+        "status": "saved"
+      },
+      "modalClosed": true,
+      "storedXSSExecuted": true,
+      "nameVisible": false,
+      "returnFocus": {
+        "tag": "BUTTON",
+        "text": "Save"
+      },
+      "documentOverflow": false,
+      "serverRead": {
+        "status": 200,
+        "containsName": false
+      }
+    }
+  ],
+  "cross_role_xss": [
+    {
+      "round": 1,
+      "viewer": "Super Admin",
+      "viewerName": "admin",
+      "clerkPayloadExecuted": true,
+      "flag": 2,
+      "unicodePreserved": true,
+      "injectedImageCount": 6
+    },
+    {
+      "round": 2,
+      "viewer": "Super Admin",
+      "viewerName": "admin",
+      "clerkPayloadExecuted": true,
+      "flag": 2,
+      "unicodePreserved": true,
+      "injectedImageCount": 6
+    },
+    {
+      "round": 3,
+      "viewer": "Super Admin",
+      "viewerName": "admin",
+      "clerkPayloadExecuted": true,
+      "flag": 2,
+      "unicodePreserved": true,
+      "injectedImageCount": 6
+    }
+  ],
+  "http_checks": [
+    {
+      "round": 1,
+      "case": "anonymous-protected",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "round": 1,
+      "case": "invalid-token",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "round": 1,
+      "case": "token-overrides-tenant-header",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "round": 1,
+      "case": "forged-resolved-role",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "round": 1,
+      "case": "static-directory",
+      "status": 404,
+      "passed": true
+    },
+    {
+      "round": 1,
+      "case": "traversal",
+      "status": 404,
+      "passed": true
+    },
+    {
+      "round": 1,
+      "case": "static-write-method",
+      "status": 405,
+      "passed": true
+    },
+    {
+      "round": 1,
+      "case": "unknown-api",
+      "status": 404,
+      "passed": true
+    },
+    {
+      "round": 2,
+      "case": "anonymous-protected",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "round": 2,
+      "case": "invalid-token",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "round": 2,
+      "case": "token-overrides-tenant-header",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "round": 2,
+      "case": "forged-resolved-role",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "round": 2,
+      "case": "static-directory",
+      "status": 404,
+      "passed": true
+    },
+    {
+      "round": 2,
+      "case": "traversal",
+      "status": 404,
+      "passed": true
+    },
+    {
+      "round": 2,
+      "case": "static-write-method",
+      "status": 405,
+      "passed": true
+    },
+    {
+      "round": 2,
+      "case": "unknown-api",
+      "status": 404,
+      "passed": true
+    },
+    {
+      "round": 3,
+      "case": "anonymous-protected",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "round": 3,
+      "case": "invalid-token",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "round": 3,
+      "case": "token-overrides-tenant-header",
+      "status": 200,
+      "passed": true
+    },
+    {
+      "round": 3,
+      "case": "forged-resolved-role",
+      "status": 401,
+      "passed": true
+    },
+    {
+      "round": 3,
+      "case": "static-directory",
+      "status": 404,
+      "passed": true
+    },
+    {
+      "round": 3,
+      "case": "traversal",
+      "status": 404,
+      "passed": true
+    },
+    {
+      "round": 3,
+      "case": "static-write-method",
+      "status": 405,
+      "passed": true
+    },
+    {
+      "round": 3,
+      "case": "unknown-api",
+      "status": 404,
+      "passed": true
+    }
+  ],
+  "load_samples": [
+    {
+      "round": 1,
+      "case": "load",
+      "concurrency": 1,
+      "requests": 24,
+      "non_200": 0,
+      "p50_ms": 14.571,
+      "p95_ms": 77.063,
+      "p99_ms": 102.829
+    },
+    {
+      "round": 1,
+      "case": "load",
+      "concurrency": 4,
+      "requests": 24,
+      "non_200": 0,
+      "p50_ms": 18.613,
+      "p95_ms": 37.007,
+      "p99_ms": 40.072
+    },
+    {
+      "round": 1,
+      "case": "load",
+      "concurrency": 8,
+      "requests": 24,
+      "non_200": 0,
+      "p50_ms": 34.669,
+      "p95_ms": 103.2,
+      "p99_ms": 126.706
+    },
+    {
+      "round": 2,
+      "case": "load",
+      "concurrency": 1,
+      "requests": 24,
+      "non_200": 0,
+      "p50_ms": 14.131,
+      "p95_ms": 61.263,
+      "p99_ms": 63.306
+    },
+    {
+      "round": 2,
+      "case": "load",
+      "concurrency": 4,
+      "requests": 24,
+      "non_200": 0,
+      "p50_ms": 19.234,
+      "p95_ms": 43.725,
+      "p99_ms": 44.137
+    },
+    {
+      "round": 2,
+      "case": "load",
+      "concurrency": 8,
+      "requests": 24,
+      "non_200": 0,
+      "p50_ms": 35.454,
+      "p95_ms": 96.8,
+      "p99_ms": 136.327
+    },
+    {
+      "round": 3,
+      "case": "load",
+      "concurrency": 1,
+      "requests": 24,
+      "non_200": 0,
+      "p50_ms": 14.497,
+      "p95_ms": 57.49,
+      "p99_ms": 59.373
+    },
+    {
+      "round": 3,
+      "case": "load",
+      "concurrency": 4,
+      "requests": 24,
+      "non_200": 0,
+      "p50_ms": 19.309,
+      "p95_ms": 35.015,
+      "p99_ms": 60.082
+    },
+    {
+      "round": 3,
+      "case": "load",
+      "concurrency": 8,
+      "requests": 24,
+      "non_200": 0,
+      "p50_ms": 41.399,
+      "p95_ms": 93.171,
+      "p99_ms": 94.713
+    }
+  ],
+  "assets": [
+    {
+      "round": 1,
+      "path": "/",
+      "wire_bytes": 9114,
+      "decoded_bytes": 40671
+    },
+    {
+      "round": 1,
+      "path": "/app.js",
+      "wire_bytes": 256076,
+      "decoded_bytes": 1066509
+    },
+    {
+      "round": 1,
+      "path": "/db.js",
+      "wire_bytes": 865,
+      "decoded_bytes": 3228
+    },
+    {
+      "round": 1,
+      "path": "/styles.css",
+      "wire_bytes": 26666,
+      "decoded_bytes": 100642
+    },
+    {
+      "round": 1,
+      "path": "/components/erp-typeahead.js",
+      "wire_bytes": 3101,
+      "decoded_bytes": 8307
+    },
+    {
+      "round": 2,
+      "path": "/",
+      "wire_bytes": 9114,
+      "decoded_bytes": 40671
+    },
+    {
+      "round": 2,
+      "path": "/app.js",
+      "wire_bytes": 256076,
+      "decoded_bytes": 1066509
+    },
+    {
+      "round": 2,
+      "path": "/db.js",
+      "wire_bytes": 865,
+      "decoded_bytes": 3228
+    },
+    {
+      "round": 2,
+      "path": "/styles.css",
+      "wire_bytes": 26666,
+      "decoded_bytes": 100642
+    },
+    {
+      "round": 2,
+      "path": "/components/erp-typeahead.js",
+      "wire_bytes": 3101,
+      "decoded_bytes": 8307
+    },
+    {
+      "round": 3,
+      "path": "/",
+      "wire_bytes": 9114,
+      "decoded_bytes": 40671
+    },
+    {
+      "round": 3,
+      "path": "/app.js",
+      "wire_bytes": 256076,
+      "decoded_bytes": 1066509
+    },
+    {
+      "round": 3,
+      "path": "/db.js",
+      "wire_bytes": 865,
+      "decoded_bytes": 3228
+    },
+    {
+      "round": 3,
+      "path": "/styles.css",
+      "wire_bytes": 26666,
+      "decoded_bytes": 100642
+    },
+    {
+      "round": 3,
+      "path": "/components/erp-typeahead.js",
+      "wire_bytes": 3101,
+      "decoded_bytes": 8307
+    }
+  ],
+  "oversized_page_rows": [
+    1000,
+    1000,
+    1000
+  ],
+  "linux_builds": [
+    {
+      "iteration": 1,
+      "bytes": 19021986,
+      "sha256": "AEC3F38D0FF8C86C33446A32C2854A8C53CFEB9908E9DDB98DCEDF932774323C"
+    },
+    {
+      "iteration": 2,
+      "bytes": 19021986,
+      "sha256": "AEC3F38D0FF8C86C33446A32C2854A8C53CFEB9908E9DDB98DCEDF932774323C"
+    },
+    {
+      "iteration": 3,
+      "bytes": 19021986,
+      "sha256": "AEC3F38D0FF8C86C33446A32C2854A8C53CFEB9908E9DDB98DCEDF932774323C"
+    }
+  ],
+  "memory_samples": [
+    {
+      "sample": 1,
+      "captured": "2026-09-16T03:01:41.9076386Z",
+      "working_set_bytes": 38756352,
+      "private_bytes": 70959104,
+      "cpu_seconds": 3.359375,
+      "threads": 12,
+      "handles": 193
+    },
+    {
+      "sample": 2,
+      "captured": "2026-09-16T03:01:42.9444310Z",
+      "working_set_bytes": 38756352,
+      "private_bytes": 70959104,
+      "cpu_seconds": 3.359375,
+      "threads": 12,
+      "handles": 193
+    },
+    {
+      "sample": 3,
+      "captured": "2026-09-16T03:01:43.9835502Z",
+      "working_set_bytes": 38756352,
+      "private_bytes": 70959104,
+      "cpu_seconds": 3.359375,
+      "threads": 12,
+      "handles": 193
+    }
+  ],
+  "restore_drills": [
+    {
+      "iteration": 1,
+      "source": "erp_audit_repro1",
+      "target": "erp_audit_restore1",
+      "baseline": {
+        "table_count": 74,
+        "rows": 13020,
+        "sha256_of_table_fingerprints": "d5c780434f674758974076d5b3a899078fe535b90ec095880c4b362baf6baf7b"
+      },
+      "restored": {
+        "table_count": 74,
+        "rows": 13020,
+        "sha256_of_table_fingerprints": "d5c780434f674758974076d5b3a899078fe535b90ec095880c4b362baf6baf7b"
+      },
+      "matches": true,
+      "dump_bytes": 497916,
+      "dump_seconds": 0.478,
+      "restore_seconds": 1.489
+    },
+    {
+      "iteration": 2,
+      "source": "erp_audit_repro1",
+      "target": "erp_audit_restore2",
+      "baseline": {
+        "table_count": 74,
+        "rows": 13020,
+        "sha256_of_table_fingerprints": "d5c780434f674758974076d5b3a899078fe535b90ec095880c4b362baf6baf7b"
+      },
+      "restored": {
+        "table_count": 74,
+        "rows": 13020,
+        "sha256_of_table_fingerprints": "d5c780434f674758974076d5b3a899078fe535b90ec095880c4b362baf6baf7b"
+      },
+      "matches": true,
+      "dump_bytes": 497916,
+      "dump_seconds": 0.405,
+      "restore_seconds": 1.485
+    },
+    {
+      "iteration": 3,
+      "source": "erp_audit_repro1",
+      "target": "erp_audit_restore3",
+      "baseline": {
+        "table_count": 74,
+        "rows": 13020,
+        "sha256_of_table_fingerprints": "d5c780434f674758974076d5b3a899078fe535b90ec095880c4b362baf6baf7b"
+      },
+      "restored": {
+        "table_count": 74,
+        "rows": 13020,
+        "sha256_of_table_fingerprints": "d5c780434f674758974076d5b3a899078fe535b90ec095880c4b362baf6baf7b"
+      },
+      "matches": true,
+      "dump_bytes": 497916,
+      "dump_seconds": 0.405,
+      "restore_seconds": 2.112
+    }
+  ],
+  "package_checks": {
+    "normal_checks": 30,
+    "normal_passes": 30,
+    "fault_cases": [
+      {
+        "case": "disable-write-failure",
+        "error_returned": false,
+        "iteration": 1,
+        "pim_still_enabled": true,
+        "reported_error": "<nil>"
+      },
+      {
+        "case": "disable-write-failure",
+        "error_returned": false,
+        "iteration": 2,
+        "pim_still_enabled": true,
+        "reported_error": "<nil>"
+      },
+      {
+        "case": "disable-write-failure",
+        "error_returned": false,
+        "iteration": 3,
+        "pim_still_enabled": true,
+        "reported_error": "<nil>"
+      }
+    ]
+  },
+  "quota_failure_checks": [
+    {
+      "absent_limit_allowed": true,
+      "closed_database_rejected": false,
+      "configured_limit_rejects": true,
+      "error": "<nil>",
+      "iteration": 1
+    },
+    {
+      "absent_limit_allowed": true,
+      "closed_database_rejected": false,
+      "configured_limit_rejects": true,
+      "error": "<nil>",
+      "iteration": 2
+    },
+    {
+      "absent_limit_allowed": true,
+      "closed_database_rejected": false,
+      "configured_limit_rejects": true,
+      "error": "<nil>",
+      "iteration": 3
+    }
+  ],
+  "repository_vulnerability_ids": [
+    "GO-2026-6218",
+    "GO-2026-6091",
+    "GO-2026-6090",
+    "GO-2026-6089",
+    "GO-2026-5972",
+    "GO-2026-5026"
+  ],
+  "server_vulnerability_ids": [
+    "GO-2026-6218",
+    "GO-2026-6090",
+    "GO-2026-6089",
+    "GO-2026-5972",
+    "GO-2026-5026"
+  ],
+  "normalized_documentation_safety": [
+    {
+      "iteration": 1,
+      "checks": 13,
+      "passed": true
+    },
+    {
+      "iteration": 2,
+      "checks": 13,
+      "passed": true
+    },
+    {
+      "iteration": 3,
+      "checks": 13,
+      "passed": true
+    }
+  ],
+  "confirmed_defect_ids": [
+    "AUD-01",
+    "AUD-02",
+    "AUD-03",
+    "AUD-04",
+    "AUD-05",
+    "AUD-06",
+    "AUD-07",
+    "AUD-08",
+    "AUD-09"
+  ],
+  "unexecuted": [
+    "race detector without C compiler",
+    "Unix archive permissions",
+    "local process restart rejected by automatic approval review",
+    "production load",
+    "multi-day soak",
+    "real providers and physical devices",
+    "Firefox/WebKit",
+    "qualified legal/accounting/payroll and accessibility acceptance"
+  ],
+  "interpretation_notes": [
+    "Test counts include parent tests and subtests, not unique assertions.",
+    "Three full suites have test failures; do not report them as passed.",
+    "Initial HTTP overload results are separate from successful-request latency samples.",
+    "The original UI task raw-body string comparison mishandled JSON HTML escaping; parsed cross-role verification confirms Unicode persistence.",
+    "Git-less documentation inventory false positives are excluded; use the three Git-context lint logs.",
+    "Documentation safety passes only after normalizing generated files in a separate fixture; baseline freshness still fails.",
+    "Normal package convergence is not complete standalone-product acceptance."
+  ],
+  "evidence_files": [
+    {
+      "file": "browser-results.json",
+      "bytes": 170114,
+      "sha256": "d6b4cb0f3aa2c66f79153e058c5bb1323de60666456e1f25af0b299b731a20da"
+    },
+    {
+      "file": "build-server.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "ci-migration-migration.log",
+      "bytes": 2446,
+      "sha256": "1c89475e62ccda7fedb34e79ea962c5dd9f2b7920afb618292f27b89800e41cf"
+    },
+    {
+      "file": "ci-migration-migrations_phase3.log",
+      "bytes": 84,
+      "sha256": "47b4ca90cb6498d4b997fdfa75e1903fa98f73c9e9838f643089cbd7d3e4abb4"
+    },
+    {
+      "file": "ci-migration-migrations_stage14a_modules.log",
+      "bytes": 589,
+      "sha256": "0b3c77ea6406dd6c394f4a0c0c324a7f6d33ea05a18424e6fbba0623cc0c3cd2"
+    },
+    {
+      "file": "ci-migration-migrations_stage14b_versioning.log",
+      "bytes": 52,
+      "sha256": "30a928dcfbd9175a6794c8e169028232389150676c1125e530b67dc1d016b8dc"
+    },
+    {
+      "file": "ci-migration-migrations_stage14c_pipeline.log",
+      "bytes": 28,
+      "sha256": "5169f6678c5cd5adc7f0bde649bcf7f96de2afcae4469ff8a561a91ecf5c7a77"
+    },
+    {
+      "file": "ci-migration-migrations_stage14d_patchintake.log",
+      "bytes": 80,
+      "sha256": "2eddeb3b97a29dc6632045e4644ebde0c3ea0d6441090ff5da006926b80dab9c"
+    },
+    {
+      "file": "ci-migration-migrations_stage14e_extensions.log",
+      "bytes": 42,
+      "sha256": "f8807936d835f46654625848247d2b7a33fb86000f079250a2a441950be0e7da"
+    },
+    {
+      "file": "ci-migration-migrations_stage14f_security.log",
+      "bytes": 26,
+      "sha256": "d04ae05cf3265ceda17ff04409da74d903f9e23d274329a6e8863f687f7373c4"
+    },
+    {
+      "file": "ci-migration-migrations_stage16_field_permissions.log",
+      "bytes": 26,
+      "sha256": "e5d4dd09acbc286dc696c6730b9829a2a6febcf10bd3f8b75c1cb66ede6962e4"
+    },
+    {
+      "file": "ci-migration-migrations_stage17_soft_delete.log",
+      "bytes": 27,
+      "sha256": "0ee1cb7908c67a0307acf484d73fee647dcfd0521e4c744b01a3748accdf3feb"
+    },
+    {
+      "file": "ci-migration-migrations_stage17c_accounting_periods.log",
+      "bytes": 28,
+      "sha256": "5169f6678c5cd5adc7f0bde649bcf7f96de2afcae4469ff8a561a91ecf5c7a77"
+    },
+    {
+      "file": "ci-migration-migrations_stage17d_gst_accounts.log",
+      "bytes": 12,
+      "sha256": "da64f52ec38903405a0adcf646f8e64f91277e0ccc9a31a91e9064ecc05148b5"
+    },
+    {
+      "file": "ci-migration-migrations_stage17e_transfer_orders.log",
+      "bytes": 25,
+      "sha256": "c5bb79c7eacc51040b076b9b8091cca8df96c79397013ea5590ea0becbb41f1f"
+    },
+    {
+      "file": "ci-migration-migrations_stage17f_purchase_requisition.log",
+      "bytes": 60,
+      "sha256": "f5c6767386d953f2635c9b89ecf3304fc9ca9d39d4c76c6a8a21580e695d3092"
+    },
+    {
+      "file": "ci-migration-migrations_stage17g_vendor_invoice.log",
+      "bytes": 50,
+      "sha256": "2ce6529dbe57dec4122d4f754fc713187a83d89b8aabedbe488785bc586ec2a5"
+    },
+    {
+      "file": "ci-migration-migrations_stage17h_location_masters.log",
+      "bytes": 49,
+      "sha256": "3f97ab74534077905b102c06797e28eb4a0ae3caf4d54b9a076fa85c75d8b313"
+    },
+    {
+      "file": "ci-migration-migrations_stage18_core_module_fix.log",
+      "bytes": 16,
+      "sha256": "c56f8c1125466eff9c8fc75b308d7ffbedfcde05dbda3ab01992bd00e0eb5e32"
+    },
+    {
+      "file": "ci-migration-migrations_stage20_13_offline_pos_sync.log",
+      "bytes": 36,
+      "sha256": "283b81af8da75eb3fc33db29565045a83c391a8f91aff18952062d9935ef0f02"
+    },
+    {
+      "file": "ci-migration-migrations_stage20a_pos_maturity.log",
+      "bytes": 96,
+      "sha256": "98f1ccdb0d0334e5e3bc338b0bfda722f39215e4900910fb1f3e95fd12eac473"
+    },
+    {
+      "file": "ci-migration-migrations_stage20b_wms_maturity.log",
+      "bytes": 122,
+      "sha256": "ee0804b92509e8ffa519057eab2e937e41d12f23092539a57e39012c37eb5a43"
+    },
+    {
+      "file": "ci-migration-migrations_stage20c_finance_maturity.log",
+      "bytes": 254,
+      "sha256": "93e7a4f2f35c6436d255670c7418dbab40a5f0e568ce5afb1b6cf8c763bc0fe1"
+    },
+    {
+      "file": "ci-migration-migrations_stage20d_reports_engine.log",
+      "bytes": 72,
+      "sha256": "884d5f2a29e062ff0dde586e862d19ed1e118928a103e54e459c55624ebca0fb"
+    },
+    {
+      "file": "ci-migration-migrations_stage21_user_profile.log",
+      "bytes": 13,
+      "sha256": "06da046b5c3e2e31ef6c3f6a14f4458c5cafd9da169901ec8e1d1c81584a7be2"
+    },
+    {
+      "file": "ci-migration-migrations_stage24_addendum_data_integrity.log",
+      "bytes": 64,
+      "sha256": "79b03c101210235bf88825aefe6dbfcb54a28fb09a5120b0092cf5d5717cd6d4"
+    },
+    {
+      "file": "ci-migration-migrations_stage24_addendum_offline_heartbeat.log",
+      "bytes": 50,
+      "sha256": "0cfc937cdd93a1785f305caf5d4a876d6ac5617922fa4ce2b9d09986d0df62de"
+    },
+    {
+      "file": "ci-migration-migrations_stage24_security.log",
+      "bytes": 92,
+      "sha256": "2f456bbedeb2370c5da9c65ccc655566478ee3ff173fce32f63bd40d11feab2c"
+    },
+    {
+      "file": "ci-migration-migrations_stage24b_deferred_hardening.log",
+      "bytes": 39,
+      "sha256": "b2abc7f48b430a5a87dcc29f507ff9aeb9df6e7c75a1e0a10fbf6761f67ff7c7"
+    },
+    {
+      "file": "ci-migration-migrations_stage25_ops_status.log",
+      "bytes": 42,
+      "sha256": "5184e8c6dfafaa25a3f0355c9fede7a2f8471f8cd50cda150051984749e94dc7"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_10_1_stock_ledger.log",
+      "bytes": 22,
+      "sha256": "cc638d86d908471fc5abaa5ef3f7e252cc401f2e588a0f07466325ee725b8d5e"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_10_4_scheduled_reports.log",
+      "bytes": 37,
+      "sha256": "683f51871373b842b7b28f211102e6a1c5c7c32742191f9e047bc4f548c08cdd"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_10_7_report_perf.log",
+      "bytes": 36,
+      "sha256": "9c60fae317ed966bb2c1f4b43f43e279fbb0460152a7e5e7d68ff8a27e1cb79f"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_12_10_notifications.log",
+      "bytes": 37,
+      "sha256": "d08a0968eb3206e9e3f436729f3ed5efbcb7b360bd8c97d33d7aa242971c52e7"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_12_1_order_engine.log",
+      "bytes": 37,
+      "sha256": "689e80e7a5ef4eb2394630bcd0fd2afb799b4cce9169c1f1a67cd14d44656f81"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_12_2_allocation_sourcing.log",
+      "bytes": 12,
+      "sha256": "809df50270da73e52e1871caed0ad45a20f81501fb884794093806ce73696750"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_12_3_pick_pack.log",
+      "bytes": 10,
+      "sha256": "df0a32a7f0e509f178613faaa34b1ec9e49a2de6d9762f047117b2259d13e20b"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_12_4_shipment_manifest.log",
+      "bytes": 59,
+      "sha256": "39ccb9aac33659789ee7ca3c224be93c0fd61fe657154656b68918147b0f7c3c"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_12_5_returns_rto_qc_refund.log",
+      "bytes": 37,
+      "sha256": "3e5e133757da332d4ea3670224843d9166cfcbaab33d9ddcc349d559ad4aefe5"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_12_foundation.log",
+      "bytes": 89,
+      "sha256": "7535edee92bd328b52e048e6cfdc11437885833a6e104a2e2156ef603626db8f"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_4_10_supplier_portal.log",
+      "bytes": 66,
+      "sha256": "f8618b7e0cc114b4f43c32f2a187ee7e5573e78b59732a84020f40d1cf3cddc2"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_4_11_content_assist.log",
+      "bytes": 37,
+      "sha256": "2089d1a3ea8ce1438c22cd684acbb68d538e5228b4d7dc3acc3ac331e52a80c4"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_4_pim_maturity.log",
+      "bytes": 174,
+      "sha256": "93d27e10c2ad3cf628d940b87ad4b191c0bc8adff06764431081a8ab93e664a8"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_5_16_robotics.log",
+      "bytes": 36,
+      "sha256": "7b07e898918cc5c16300bfd85ee0c77d3020afff63b259a7a56a52f5fddf202d"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_5_wms_enterprise.log",
+      "bytes": 228,
+      "sha256": "16d0f9749cca9598f9310a72a7f25b93864ed025d57479d5c28665753adc0c61"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_5_wms_p2.log",
+      "bytes": 84,
+      "sha256": "4b88d0125efdea04dfb12c2078b8fcf03db1e663d81f2cad893c57b4ca57e95c"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_6_11_item_tax_treatment.log",
+      "bytes": 68,
+      "sha256": "748de4382b8f9de6c0ea301cdb8a01faa08315dd3123050e5eeaf6d1cb1c4fbc"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_6_5_payment_file.log",
+      "bytes": 14,
+      "sha256": "cfe9752ce1e97e227b60ec45d24a7005413a7822a9f8d7715221b445294ac14f"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_6_6_backdated_posting.log",
+      "bytes": 48,
+      "sha256": "c393e1c9063b105101736688edd4b6dc5eff20a911f0c9de66b96a633ad17c81"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_6_8_cost_center_postings.log",
+      "bytes": 50,
+      "sha256": "0108d4fc5a4ed8f75b56a5637b83441486f548a501dca13d14e9d292c1f4a362"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_6_finance_tax_close.log",
+      "bytes": 48,
+      "sha256": "168566761091e90dce4138d4cf377b728ef835f2a44be1cbb87924c58f8bde90"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_7_4_campaign.log",
+      "bytes": 75,
+      "sha256": "9bbc372e6cc9ad10a2b417bbec512479f7f0b1d4c57ce0dc2a08d4774cb01e95"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_7_4b_clevertap_tables_catchup.log",
+      "bytes": 410,
+      "sha256": "8a15e79aea2e78cf46b62a781997927361cd1b6cbab72e6e78bfa3b06df8a3b8"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_7_5_fraud_otp.log",
+      "bytes": 72,
+      "sha256": "1f21889e184de73acf77fdd95892718958ef89ce1523ab788c20d40c40db16b4"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_7_9_crm_analytics.log",
+      "bytes": 34,
+      "sha256": "eed360e1d22156c78cea9cb02bdfcce229d8859ef361e2b44cf88141ff7c4da6"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_7_crm_loyalty.log",
+      "bytes": 87,
+      "sha256": "aae9fea9a268e8f2af3b7af74cf0bab15b506e6ecd8ae3f41c9f8c1da5c70e42"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_8_hr_payroll.log",
+      "bytes": 74,
+      "sha256": "9d9392c7a1f47d3abfb18f3ab41cb97966efa1a2185fb218abafaaf2f26a7dbe"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_8_hr_process.log",
+      "bytes": 97,
+      "sha256": "c6fe75b7c68efe3e3694003e592c052f4fbdddae6af8baa38020db58a32a0a9c"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_9_10_scheduling_subcontract.log",
+      "bytes": 59,
+      "sha256": "51a5529c8187a1b227d2cd6f73bfb8981c977ca2d4807cc18ebf0c4aeb05ab17"
+    },
+    {
+      "file": "ci-migration-migrations_stage26_9_manufacturing_mrp.log",
+      "bytes": 83,
+      "sha256": "3daba33d494cf30673842eeb95939ceda4ffc9e0514583ca0312d89bacbe113b"
+    },
+    {
+      "file": "ci-migration-migrations_stage27_product_packaging.log",
+      "bytes": 28,
+      "sha256": "9f0375131964d49f7e3ca1cf22676ccee1f883dd80a7dd56406a38985c1050c2"
+    },
+    {
+      "file": "ci-migration-migrations_stage28_report_column_profiles.log",
+      "bytes": 36,
+      "sha256": "16e9e4983810d096792592413f29511a3ecd47ad858f7d5f14ffcc6c3eb58550"
+    },
+    {
+      "file": "ci-migration-migrations_stage28_system_settings.log",
+      "bytes": 14,
+      "sha256": "cfe9752ce1e97e227b60ec45d24a7005413a7822a9f8d7715221b445294ac14f"
+    },
+    {
+      "file": "ci-migration-migrations_stage28_user_theme.log",
+      "bytes": 13,
+      "sha256": "06da046b5c3e2e31ef6c3f6a14f4458c5cafd9da169901ec8e1d1c81584a7be2"
+    },
+    {
+      "file": "ci-migration-migrations_stage29_8_5_reversible_terminal_statuses.log",
+      "bytes": 16,
+      "sha256": "33e4110e6f7b2e2fc2eceb9aa87e9b860042acb9e0f66e8ad75b3e5479a7f3f0"
+    },
+    {
+      "file": "ci-migration-migrations_stage29_8_status_transition_map.log",
+      "bytes": 77,
+      "sha256": "2a452e2b47c65f775c15ab0febfcfcd76ece9bc077567f4ed1ffa162f19a6c59"
+    },
+    {
+      "file": "ci-migration-migrations_stage29_gl_postings_reporting_index.log",
+      "bytes": 18,
+      "sha256": "fc6fba01a8aff188f06ca13af977878bc6995f96378224428fc52dc854bddb5d"
+    },
+    {
+      "file": "ci-migration-migrations_stage29_purchase_requisition_catalog.log",
+      "bytes": 36,
+      "sha256": "6ad420ef2ad856df395c27e96756c86d69432e227418426df1f2b56dac7866e0"
+    },
+    {
+      "file": "ci-migration-migrations_stage30_1_2_item_tax_mandatory.log",
+      "bytes": 14,
+      "sha256": "67eb9e88cbe876f277bde588d6e2762ec509a39a5ce3ec0ebed3e121c28feafc"
+    },
+    {
+      "file": "ci-migration-migrations_stage30_2_1_grn_location.log",
+      "bytes": 16,
+      "sha256": "c56f8c1125466eff9c8fc75b308d7ffbedfcde05dbda3ab01992bd00e0eb5e32"
+    },
+    {
+      "file": "ci-migration-migrations_stage30_2_2_integration_tables_catchup.log",
+      "bytes": 1049,
+      "sha256": "d6e28fb4f2c0bb5673dcfa77be7d95093f03ad0925a502e165bfb7b7fbb2fd81"
+    },
+    {
+      "file": "ci-migration-migrations_stage30_2_5_loyalty_redemption_account.log",
+      "bytes": 16,
+      "sha256": "3362c751f534e31020d86313d24389499a34f40864ed9c8e3a034d33e5086e19"
+    },
+    {
+      "file": "ci-migration-migrations_stage30_5_3_json_line_editors.log",
+      "bytes": 64,
+      "sha256": "b1ac85061dc28d170c3d65c0e73e6ea05b53457cc330d681eeaa4c6611f19387"
+    },
+    {
+      "file": "ci-migration-migrations_stage30_5_4_setup_menu_advanced.log",
+      "bytes": 28,
+      "sha256": "730d95b3d9a28af8594fe491fd65a30b2d08ac5eeba04d5d10e71711e57b1489"
+    },
+    {
+      "file": "ci-migration-migrations_stage30_5_5_retire_stores.log",
+      "bytes": 32,
+      "sha256": "c649c7192b7edc4508292ba9fe81f5e269fe55e7775aa757db7fb528bd2baecc"
+    },
+    {
+      "file": "ci-migration-migrations_stage30_5_6_po_duplicate_field_labels.log",
+      "bytes": 24,
+      "sha256": "1cb81ac66c65327ef872524ce18b65af1809240b30c91bffe0bf001f0036911d"
+    },
+    {
+      "file": "ci-migration-migrations_stage30_6_auto_document_numbering.log",
+      "bytes": 240,
+      "sha256": "f37593bd14154a9795c20452b2e17711bd5e20fd4c5fed26f4f2eaf57f87177d"
+    },
+    {
+      "file": "ci-migration-migrations_stage30_7_pos_offers.log",
+      "bytes": 51,
+      "sha256": "04fdfb687b4c4b0850629ad8b00c0d11c6523a7c1ba59bd2d7a02b87665ce95c"
+    },
+    {
+      "file": "ci-migration-migrations_stage31_1_qz_print.log",
+      "bytes": 44,
+      "sha256": "8daa8e0b5f4d8cae0cc18438b4a594be88b192865453d6c357f4ed55ea383bc5"
+    },
+    {
+      "file": "ci-migration-migrations_stage32_5_mfa_recovery_codes.log",
+      "bytes": 45,
+      "sha256": "fdfda9c833788b63a019d5fc55497938eeea7d0ca7761590abdfcf3d932641c2"
+    },
+    {
+      "file": "ci-migration-migrations_stage34_1_competitor_price.log",
+      "bytes": 41,
+      "sha256": "5254705fe7fc3df0d96ad633981cc8ef40b4b190b28a3474897ac84e18006a24"
+    },
+    {
+      "file": "ci-migration-migrations_stage34_3_undercut_alert.log",
+      "bytes": 40,
+      "sha256": "61ef43f9af1b24ed8fb5815db78a899399347736a3445d8468fbaa47d314bd48"
+    },
+    {
+      "file": "ci-migration-migrations_stage35_2_oms_console.log",
+      "bytes": 210,
+      "sha256": "26cf72403ec0852e957d13826b959dd99fa898814ec1cabbf06dfc5ceb7a900c"
+    },
+    {
+      "file": "ci-migration-migrations_stage35_3_7_reservation_attribution.log",
+      "bytes": 77,
+      "sha256": "554cfb2b57378cbb39d927078498d1eb38c9af96b27e008b70a604c536449a49"
+    },
+    {
+      "file": "ci-migration-migrations_stage35_4_shipping_package.log",
+      "bytes": 168,
+      "sha256": "007621c7dbe04a60b15c3fed2a605716ff811a61afcf4b4cb19ad5a9cc1fdaf0"
+    },
+    {
+      "file": "ci-migration-migrations_stage35_5_courier_integration.log",
+      "bytes": 77,
+      "sha256": "1cce6e89be2836ef1d88329628292f515f960070431b535714ec1d33c729156e"
+    },
+    {
+      "file": "ci-migration-migrations_stage35_6_channel_breadth.log",
+      "bytes": 105,
+      "sha256": "5cfa571ba008658704b219d22f115a9117002b7318c5c0ceac4159a04301cfa3"
+    },
+    {
+      "file": "ci-migration-migrations_stage35_7_bundles_kits.log",
+      "bytes": 83,
+      "sha256": "cab9790516053d4d3b9642fb416f603abdf3fbd4f7a6305cef692e1491f12fee"
+    },
+    {
+      "file": "ci-migration-migrations_stage35_8_settlement_reconciliation.log",
+      "bytes": 91,
+      "sha256": "6302319f3487c05410aa94b48e429ed8f2d4495b0518c679cc0bcd0ee9e6cf0d"
+    },
+    {
+      "file": "ci-migration-migrations_stage36_1_product_groups.log",
+      "bytes": 55,
+      "sha256": "7cd7b4995403a903f1c11b3a1b7bce26c49faf07103ff0148d693939466a3dc6"
+    },
+    {
+      "file": "ci-migration-migrations_stage36_2_pim_tasks.log",
+      "bytes": 178,
+      "sha256": "ee09b6e4a209188d52080e3a6e75448304d288902be588d8054f866ffcb1c71e"
+    },
+    {
+      "file": "ci-migration-migrations_stage36_3_import_depth.log",
+      "bytes": 95,
+      "sha256": "cd29bc7513296f5b2a36940e88ed27ffe95be2a50d09757b25305e8b9b8d9778"
+    },
+    {
+      "file": "ci-migration-migrations_stage36_4_export_syndication.log",
+      "bytes": 121,
+      "sha256": "7d2d264e62ade7aba4df4666d8dda92a9471abac46c7b7afb6a7a73c29e357f2"
+    },
+    {
+      "file": "ci-migration-migrations_stage36_5_transform_rules.log",
+      "bytes": 66,
+      "sha256": "d821b7843fbe2d1907df552d4c58f751716835b5d4b8f2d777459d973171924e"
+    },
+    {
+      "file": "ci-migration-migrations_stage36_6_dam_depth.log",
+      "bytes": 16,
+      "sha256": "c56f8c1125466eff9c8fc75b308d7ffbedfcde05dbda3ab01992bd00e0eb5e32"
+    },
+    {
+      "file": "ci-migration-migrations_stage36_7_enrichment_quality.log",
+      "bytes": 16,
+      "sha256": "c56f8c1125466eff9c8fc75b308d7ffbedfcde05dbda3ab01992bd00e0eb5e32"
+    },
+    {
+      "file": "ci-migration-migrations_stage37_10_planning_depth.log",
+      "bytes": 54,
+      "sha256": "d4f55b586c2445ef19f03404a7f04211efc794946cd55ccb2fa7bf209cdd4670"
+    },
+    {
+      "file": "ci-migration-migrations_stage37_11_dashboards.log",
+      "bytes": 41,
+      "sha256": "08b744ecb8654811da302d01ca3c03fb9bb8f1943d7e871729d84316d277bff7"
+    },
+    {
+      "file": "ci-migration-migrations_stage37_1_2_multicurrency_documents.log",
+      "bytes": 328,
+      "sha256": "4aa4005c16e83cf9608a708a01d5d77fa2e09ce36cc55f9596413a69d5d71e94"
+    },
+    {
+      "file": "ci-migration-migrations_stage37_1_currency_foundation.log",
+      "bytes": 81,
+      "sha256": "f7b9bcd3ea0b8b13b3a23340b41623715f9b39f829570e3a6044e0cf85014fc1"
+    },
+    {
+      "file": "ci-migration-migrations_stage37_1_fx_revaluation.log",
+      "bytes": 16,
+      "sha256": "afcc0ebeb91aa2a5ac25880115e3a111d9bcd7cfcb182509ecc6164fa902ba9e"
+    },
+    {
+      "file": "ci-migration-migrations_stage37_2_multi_entity_intercompany.log",
+      "bytes": 112,
+      "sha256": "53fa9fe4e1e5bcad1e33f2e8ac2e234f1fa47367e7f5369f29769741561bd983"
+    },
+    {
+      "file": "ci-migration-migrations_stage37_3_costing_valuation.log",
+      "bytes": 66,
+      "sha256": "1d434c2e78eb0077d50ce3093b358f0c882e90f8e2f67ea839d1310cc38bbf0b"
+    },
+    {
+      "file": "ci-migration-migrations_stage37_4_budgeting_credit_dunning.log",
+      "bytes": 64,
+      "sha256": "2fdfe4347a44ec4833889d6aeb15b5408724fff9359be2c11763b99883edc4a9"
+    },
+    {
+      "file": "ci-migration-migrations_stage37_6_deferred_prepaid_recurring_pricelist.log",
+      "bytes": 112,
+      "sha256": "faff066f2f71f839e3b3e45f830a3b4c1ebd8586d1d49dc288b7422250762df9"
+    },
+    {
+      "file": "ci-migration-migrations_stage37_7_projects_job_costing.log",
+      "bytes": 79,
+      "sha256": "195a444d307aa52d004ce6808945352d042de514323740e24ea8b067c10a4b3b"
+    },
+    {
+      "file": "ci-migration-migrations_stage37_8_service_management.log",
+      "bytes": 53,
+      "sha256": "cbdda1002dc1157efbc1c791125a3885f78a1087d91f0ad57f682cf3d8dddb4a"
+    },
+    {
+      "file": "ci-migration-migrations_stage37_9_quality_maintenance.log",
+      "bytes": 116,
+      "sha256": "25942cdf3bdfa5677c05be79f99c16a58c3a788d8631524e7607252c2ac6ed6b"
+    },
+    {
+      "file": "ci-migration-migrations_stage38_2_api_credentials.log",
+      "bytes": 46,
+      "sha256": "3c31be517091c1e83df863ae059815f71268e442dad0a5acfb6d1b4503ed1717"
+    },
+    {
+      "file": "ci-migration-migrations_stage38_3_5_9_public_api_spine.log",
+      "bytes": 602,
+      "sha256": "f675704c509bed719689595c12efbb53d0e357ec764b69cfe6537be1d4ab85cc"
+    },
+    {
+      "file": "ci-migration-migrations_stage38_4_webhook_subscriptions.log",
+      "bytes": 64,
+      "sha256": "e4788d1ed2a9d8b8b33e5e18e98b2701c01fb47a1d6e9c307adec7d67e2ddbf9"
+    },
+    {
+      "file": "ci-migration-migrations_stage38_6_async_job_runner.log",
+      "bytes": 46,
+      "sha256": "3c31be517091c1e83df863ae059815f71268e442dad0a5acfb6d1b4503ed1717"
+    },
+    {
+      "file": "ci-migration-migrations_stage38_7_sandbox_tenants.log",
+      "bytes": 26,
+      "sha256": "d04ae05cf3265ceda17ff04409da74d903f9e23d274329a6e8863f687f7373c4"
+    },
+    {
+      "file": "ci-migration-migrations_stage39_9_help_feedback.log",
+      "bytes": 36,
+      "sha256": "f168168e27e5c3c76e6f9d2955aaf0a327e88951a9d60f12effca40f88372b99"
+    },
+    {
+      "file": "ci-migration-migrations_stage40_10_qz_po_print.log",
+      "bytes": 14,
+      "sha256": "62af22107731222c99ea14838b1eb6ed8d0081af2054b69aea392316737aba66"
+    },
+    {
+      "file": "ci-migration-migrations_stage40_1_po_line_items.log",
+      "bytes": 50,
+      "sha256": "6b6496e3f02f748dba80a77d5e44e3b5491b525c6f311e5641d3daf596f78b3d"
+    },
+    {
+      "file": "ci-migration-migrations_stage40_3_super_admin_role.log",
+      "bytes": 4,
+      "sha256": "c9f7e52bce630e4e248f1e211a7f770b1601565dedd4ab3e3e303997a643b1d0"
+    },
+    {
+      "file": "ci-migration-migrations_stage41_country_phone_setup.log",
+      "bytes": 50,
+      "sha256": "798a9d458e7db184b732428cf19ddb636480ffa7ad0cd44fc21b93059990bd92"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_1_10_uom.log",
+      "bytes": 60,
+      "sha256": "27916965b4cc738d305b6c3f5227eb3eba545e537e9f468a116a99131032c796"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_1_7_lottable.log",
+      "bytes": 36,
+      "sha256": "16e9e4983810d096792592413f29511a3ecd47ad858f7d5f14ffcc6c3eb58550"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_1_8_serial.log",
+      "bytes": 99,
+      "sha256": "c76b102855ef889e1a382c81c297a4b5f4378aa440de8592106879c4fee51089"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_1_traceability.log",
+      "bytes": 140,
+      "sha256": "c7991d31bcca013a96a1bdddfe3bce2071df9aeb34d2ae33dcf64b7695df91cf"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_2_1_warehouse_task.log",
+      "bytes": 50,
+      "sha256": "770ce456959056bc97e52e0de498c99340efcf69fbb9d4985c293588f3c75042"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_2_4_task_dispatch_strategy.log",
+      "bytes": 36,
+      "sha256": "f65300cfe43a88874d8202126697deb2891d76e35c1e10c6ef1e481877a7a832"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_2_5_zone.log",
+      "bytes": 48,
+      "sha256": "43873b97d09e8f0403facb47226bf05e959b9c75b987ec4e957a2b09f05b867c"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_2_6_bin_capacity.log",
+      "bytes": 12,
+      "sha256": "da64f52ec38903405a0adcf646f8e64f91277e0ccc9a31a91e9064ecc05148b5"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_2_7_putaway_strategy.log",
+      "bytes": 48,
+      "sha256": "4cbf440fe9b6de472fa60d73303c3fd01ec0d9a5edf01f1ab6ff87ffa14dea46"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_2_8_allocation_strategy.log",
+      "bytes": 36,
+      "sha256": "f65300cfe43a88874d8202126697deb2891d76e35c1e10c6ef1e481877a7a832"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_2_9_exception_codes.log",
+      "bytes": 34,
+      "sha256": "7b0e4c8dcc1bc61abcead8003df37f149f637cc2ccd8d5e5147d9c5ecc5a34a6"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_3_1_dockdoor.log",
+      "bytes": 36,
+      "sha256": "b995e3059da372da3aaf95e20b4dcacf1edcf43b986a7b9b4e66db75af334ada"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_3_2_appointment.log",
+      "bytes": 37,
+      "sha256": "45c564eb53e5a63d7b499b26af5b328d71e2d16b1ff2fcc5728058074a43b6a2"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_3_4_yard.log",
+      "bytes": 37,
+      "sha256": "be60e683a5421adce82130997081706d4fbfe9f324a4585eafd0dee4b4f537ad"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_3_5_holdcode.log",
+      "bytes": 62,
+      "sha256": "f8ee100535ab507b07e07fcb8bb83badad31f6a2ed6e3e8e71ce82b9b1c2c1b4"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_3_6_receipt_validation_rule.log",
+      "bytes": 36,
+      "sha256": "267b6f6ea8f45a705a47cb5af8207f7218a270556d3e3862c15fb2d5e06dc27a"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_3_7_catch_weight.log",
+      "bytes": 12,
+      "sha256": "809df50270da73e52e1871caed0ad45a20f81501fb884794093806ce73696750"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_3_8_crossdock_plan.log",
+      "bytes": 36,
+      "sha256": "b995e3059da372da3aaf95e20b4dcacf1edcf43b986a7b9b4e66db75af334ada"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_3_9_compliance_fields.log",
+      "bytes": 12,
+      "sha256": "b7c454803f23d0751c66f780435f2fbfe6783829231fe6e7ef5830fc62c19043"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_4_10_preship.log",
+      "bytes": 36,
+      "sha256": "16e9e4983810d096792592413f29511a3ecd47ad858f7d5f14ffcc6c3eb58550"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_4_11_vas.log",
+      "bytes": 12,
+      "sha256": "da64f52ec38903405a0adcf646f8e64f91277e0ccc9a31a91e9064ecc05148b5"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_4_1_wave.log",
+      "bytes": 49,
+      "sha256": "23e9759eac9a58fb4eb57e67b8e56b34a92f75022cff750338fba66df6b43883"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_4_3_sortation.log",
+      "bytes": 37,
+      "sha256": "ab7b721d80d89c443f31a408ab1d072335a581db1a7d665d07a802f156747e5e"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_4_4_cartonization_v2.log",
+      "bytes": 12,
+      "sha256": "b7c454803f23d0751c66f780435f2fbfe6783829231fe6e7ef5830fc62c19043"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_4_5_packstation.log",
+      "bytes": 37,
+      "sha256": "be60e683a5421adce82130997081706d4fbfe9f324a4585eafd0dee4b4f537ad"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_4_6_packing_validation.log",
+      "bytes": 36,
+      "sha256": "b995e3059da372da3aaf95e20b4dcacf1edcf43b986a7b9b4e66db75af334ada"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_4_8_loading.log",
+      "bytes": 49,
+      "sha256": "eacd4f3b5c77f61dbb15c311010a697437b5165f564f01060c1c872f421c10ad"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_5_5_owner_segregation.log",
+      "bytes": 42,
+      "sha256": "9992359e93369a41f460c40c578e6cbd852945d8f5836d302ffa8a4934093b5d"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_5_inventory_control_depth.log",
+      "bytes": 108,
+      "sha256": "ac7216f5bd0db274b280d3055d3ede6b1020463f3805988963934edda92cf93f"
+    },
+    {
+      "file": "ci-migration-migrations_stage42_6_labour_billing_depth.log",
+      "bytes": 51,
+      "sha256": "bccd29e11e76d2e27f6585b7bfb0e6ca885e1b2564eb2c4264e715f0a50ea903"
+    },
+    {
+      "file": "ci-migration-migrations_stage44_tenant_host_slug.log",
+      "bytes": 37,
+      "sha256": "cc0869bf1a06ab43cfd0c9ea289684815b77bff28b55180ae15689611e1174d7"
+    },
+    {
+      "file": "ci-migration-migrations_stage45_money_paise.log",
+      "bytes": 58,
+      "sha256": "a4b029be9904606a34b59aeac77b91cdecef353e2d9617a97f198d42805ffdb5"
+    },
+    {
+      "file": "ci-migration-migrations_stage47_1_role_templates.log",
+      "bytes": 46,
+      "sha256": "3c31be517091c1e83df863ae059815f71268e442dad0a5acfb6d1b4503ed1717"
+    },
+    {
+      "file": "ci-migration-migrations_stage47_2_server_authoritative_pricing.log",
+      "bytes": 135,
+      "sha256": "49563e6aedc5bce30a0bdaab1924c24b28ae17646a507a6e01cc0945c35ee1b8"
+    },
+    {
+      "file": "ci-migration-migrations_stage47_3_atomic_checkout.log",
+      "bytes": 82,
+      "sha256": "4967ff9356e1678148ae5a76d9acf0e861e67bca3cf30c900586df37938d1b8b"
+    },
+    {
+      "file": "ci-migration-migrations_stage47_5_single_owner_guard.log",
+      "bytes": 44,
+      "sha256": "3371309f2cc0a8442c18fab82165966d7e9b664dee08e1d1cf63239c68e5a87c"
+    },
+    {
+      "file": "ci-migration-migrations_stage47_6_rf_shell.log",
+      "bytes": 50,
+      "sha256": "4b5a46d4b1a81bcd2afe6addde0bb51ae902199fc1c184b1bf2dd546f3d3f663"
+    },
+    {
+      "file": "ci-migration-migrations_stage47_7_6_audit_archive.log",
+      "bytes": 222,
+      "sha256": "d760f0a009d2ce6123d89903c63f103bbb19870751f49936c3471fadbadd1d15"
+    },
+    {
+      "file": "command-results.json",
+      "bytes": 116155,
+      "sha256": "8e612243d7325ace16e4a601b0758b2e05656eb9b449b5ceeed4b231d9a054b2"
+    },
+    {
+      "file": "coverage-summary.log",
+      "bytes": 202618,
+      "sha256": "e8cbb9272e16b7aa071c7947a9355ad8b1a6b81672d4b81f2faa53c0c4eb644d"
+    },
+    {
+      "file": "coverage.out",
+      "bytes": 1504124,
+      "sha256": "e96f1593b5625d18f75e38b2067a3cafba5ffee7226b0dce20aba0cd23fae48d"
+    },
+    {
+      "file": "create-erp_audit_ci.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "create-erp_audit_pass1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "create-erp_audit_pass2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "create-erp_audit_pass3.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "deploy-mock-invalid-path-results.json",
+      "bytes": 6321,
+      "sha256": "0de4263ee0ce0b0a745c98a52bd6a898298ee82c409faea31bd6db716319756e"
+    },
+    {
+      "file": "deploy-mock-results.json",
+      "bytes": 5319,
+      "sha256": "b136ad962f39e23b7a6b9b0fed2ffb136c047ec3c2e4f889648e931cd117a876"
+    },
+    {
+      "file": "desktop-light-configuration.png",
+      "bytes": 110533,
+      "sha256": "b9e5b0a7c6b619c22cf48c318c4ecea64861ebdda521f57c16928c723e986171"
+    },
+    {
+      "file": "desktop-light-finance.png",
+      "bytes": 107904,
+      "sha256": "304f2bf0c11487f82ce2a76a073afe8b8e18821481128c1b817a954919ffd94d"
+    },
+    {
+      "file": "desktop-light-inventory.png",
+      "bytes": 67921,
+      "sha256": "c786c8f7fde5b4f8242e6b7b339f367bf9882db0ad6246f2ab7d726b1951c47c"
+    },
+    {
+      "file": "desktop-light-keyboard.json",
+      "bytes": 1195,
+      "sha256": "63d797ffe97e24e3d1db027af88db7e84138ba5075bafa0ece3e92e8cefabb3f"
+    },
+    {
+      "file": "desktop-light-pim.png",
+      "bytes": 85712,
+      "sha256": "b23a706e76b415ba3f7d7c43080f8dbc20338f9be6831fe36b66b9137156eaaf"
+    },
+    {
+      "file": "desktop-light-pos.png",
+      "bytes": 101883,
+      "sha256": "f17b25feeec97c5b6ebe5729830ec1ab3d8970fd2f14217f84944b300e94d0b5"
+    },
+    {
+      "file": "desktop-light-purchase-orders.png",
+      "bytes": 100134,
+      "sha256": "055f940beb3d05cf25c2c10eadae8ab8028f310bd4f7bc07aebc73d5c1774b47"
+    },
+    {
+      "file": "desktop-light-reports.png",
+      "bytes": 76033,
+      "sha256": "b20e071fc56e7a15b3eacb5342e92e016b32b1ee32460d1a5f4e75a213d5b527"
+    },
+    {
+      "file": "desktop-light-rf-traceability.png",
+      "bytes": 43764,
+      "sha256": "c43086185c82d4496d54c3ac0ddfaa5d92dd3f39958eeb5c7855205c8fa0c96f"
+    },
+    {
+      "file": "doclint-git-context-1.log",
+      "bytes": 911,
+      "sha256": "1cf0290cf14eed266c6ccfdbea8145f52544be98a2cdf16bb9ae88480c345ac2"
+    },
+    {
+      "file": "doclint-git-context-2.log",
+      "bytes": 911,
+      "sha256": "1cf0290cf14eed266c6ccfdbea8145f52544be98a2cdf16bb9ae88480c345ac2"
+    },
+    {
+      "file": "doclint-git-context-3.log",
+      "bytes": 911,
+      "sha256": "1cf0290cf14eed266c6ccfdbea8145f52544be98a2cdf16bb9ae88480c345ac2"
+    },
+    {
+      "file": "docs-safety-1.log",
+      "bytes": 1623,
+      "sha256": "b5010ca523ee3684fa2cb865664ad9a11b2255a91b305ee1f2c04252b664a58c"
+    },
+    {
+      "file": "docs-safety-2.log",
+      "bytes": 1623,
+      "sha256": "b5010ca523ee3684fa2cb865664ad9a11b2255a91b305ee1f2c04252b664a58c"
+    },
+    {
+      "file": "docs-safety-3.log",
+      "bytes": 1623,
+      "sha256": "b5010ca523ee3684fa2cb865664ad9a11b2255a91b305ee1f2c04252b664a58c"
+    },
+    {
+      "file": "docs-safety-normalize.log",
+      "bytes": 327,
+      "sha256": "babc64d4c6e5ca818a1de4558ab92b49677a21d6f52f8364efcf0efd2b90efcd"
+    },
+    {
+      "file": "docs-safety-normalized-1.log",
+      "bytes": 1078,
+      "sha256": "fe2f2841fff1a8ac138e74756ba30cf776a6b481c5f654e255d69ffe97b53cf6"
+    },
+    {
+      "file": "docs-safety-normalized-2.log",
+      "bytes": 1078,
+      "sha256": "fe2f2841fff1a8ac138e74756ba30cf776a6b481c5f654e255d69ffe97b53cf6"
+    },
+    {
+      "file": "docs-safety-normalized-3.log",
+      "bytes": 1078,
+      "sha256": "fe2f2841fff1a8ac138e74756ba30cf776a6b481c5f654e255d69ffe97b53cf6"
+    },
+    {
+      "file": "docs-safety-valid-1.log",
+      "bytes": 1276,
+      "sha256": "1fc605bee08084c2c444b1f0292e0be3e378d60a2f770cf69a024c995bcc2e31"
+    },
+    {
+      "file": "docs-safety-valid-2.log",
+      "bytes": 1276,
+      "sha256": "91ad2060a006ed37829bc5a2c1bb776a701e168730a629f86da0a94f567eb3ff"
+    },
+    {
+      "file": "docs-safety-valid-3.log",
+      "bytes": 1276,
+      "sha256": "3dcc2543d33d9bb9903adbf78252451c601a8c2a708ef6b33c05d7298f3e3623"
+    },
+    {
+      "file": "existing-open-backlog.json",
+      "bytes": 18615,
+      "sha256": "f0f2b4ddadc3f950661a4adb85739273b8e60a288902c0354939fb852046c6d1"
+    },
+    {
+      "file": "focused-1-create.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "focused-1-fixture-remove-rule.log",
+      "bytes": 10,
+      "sha256": "befd936d75e587bc7c401552e09ec792ebb6e4b005ee2b2cf705c1c01b32c32f"
+    },
+    {
+      "file": "focused-1-fresh.log",
+      "bytes": 8107,
+      "sha256": "6fa88cfab8e9bf420cf49fa1a6882f48033557a234ab4e687fde4182f0873ffd"
+    },
+    {
+      "file": "focused-1-prerequisite.log",
+      "bytes": 165,
+      "sha256": "9597069d78aafde2f6d85610bb834714fc3ebded824d912956edbdd717bcc92d"
+    },
+    {
+      "file": "focused-1-ready.log",
+      "bytes": 535,
+      "sha256": "da4d1abf938366684f39bdcf30863750185878f0dacdd06188a3834dbdf85e0f"
+    },
+    {
+      "file": "focused-1-role-catalog.log",
+      "bytes": 354,
+      "sha256": "dc292f6214c673816f585ac53dd73e711e416fb7444f70051cd4c05491626fb3"
+    },
+    {
+      "file": "focused-1-seeded-approval-tests.log",
+      "bytes": 1049,
+      "sha256": "62fccb8d638e18fbf51586846582c54efd3054ca560ca75206a6b509790a8e97"
+    },
+    {
+      "file": "focused-1-without-approval-tests.log",
+      "bytes": 592,
+      "sha256": "c1037b3c48fc46be15c10d021e5beab3b69ffc59b539a040ac340dd663c1ce67"
+    },
+    {
+      "file": "focused-2-create.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "focused-2-fixture-remove-rule.log",
+      "bytes": 10,
+      "sha256": "befd936d75e587bc7c401552e09ec792ebb6e4b005ee2b2cf705c1c01b32c32f"
+    },
+    {
+      "file": "focused-2-fresh.log",
+      "bytes": 8107,
+      "sha256": "15ad17eaa4110a65098a061f180b4e7c1d343f8f114fe0d3b2cbf56d04457aa1"
+    },
+    {
+      "file": "focused-2-prerequisite.log",
+      "bytes": 165,
+      "sha256": "9597069d78aafde2f6d85610bb834714fc3ebded824d912956edbdd717bcc92d"
+    },
+    {
+      "file": "focused-2-ready.log",
+      "bytes": 535,
+      "sha256": "7e2c983d904791fa65897dda1324217c2e89ee680a68f3ce6298bcbdfb3ebf6d"
+    },
+    {
+      "file": "focused-2-role-catalog.log",
+      "bytes": 354,
+      "sha256": "c7a89a325831922cf36c395bd2d7f32072a2b640967c6b692d4357fa3619d881"
+    },
+    {
+      "file": "focused-2-seeded-approval-tests.log",
+      "bytes": 1049,
+      "sha256": "c6451e5f5223fe3503a20e4f6f323f4ca4fdf8b84ee47657f49334af5c017845"
+    },
+    {
+      "file": "focused-2-without-approval-tests.log",
+      "bytes": 592,
+      "sha256": "dbae4f51e44d6bf103c45328549157b421abd17e7c1081558f6e759fc067df95"
+    },
+    {
+      "file": "focused-3-create.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "focused-3-fixture-remove-rule.log",
+      "bytes": 10,
+      "sha256": "befd936d75e587bc7c401552e09ec792ebb6e4b005ee2b2cf705c1c01b32c32f"
+    },
+    {
+      "file": "focused-3-fresh.log",
+      "bytes": 8107,
+      "sha256": "c689b7fc2d5466b1d5ea9b84fb6bc5cd1cf78b3e11ec4cd53827e62e408ed4be"
+    },
+    {
+      "file": "focused-3-prerequisite.log",
+      "bytes": 165,
+      "sha256": "9597069d78aafde2f6d85610bb834714fc3ebded824d912956edbdd717bcc92d"
+    },
+    {
+      "file": "focused-3-ready.log",
+      "bytes": 535,
+      "sha256": "55c33c1856a0056fa35e1c29ef2cc123b1878ef4a9a25a33e41138b53033f97e"
+    },
+    {
+      "file": "focused-3-role-catalog.log",
+      "bytes": 354,
+      "sha256": "aac56b1b64ab6de34bd16512b879910aeea46c8031f94ed4e8792dc6a9895969"
+    },
+    {
+      "file": "focused-3-seeded-approval-tests.log",
+      "bytes": 1049,
+      "sha256": "0fece45cc99c80170916e8afa6414cb9ddd51758c4ec410875bd390f6e328efc"
+    },
+    {
+      "file": "focused-3-without-approval-tests.log",
+      "bytes": 592,
+      "sha256": "133bfc04bf07ec28c90c77c664a3aa17a61adfe9d94b0e20f4e370e3037f8254"
+    },
+    {
+      "file": "focused-test-results.json",
+      "bytes": 1869,
+      "sha256": "b0146207dd910c870afdcd83701a255d0a54f80a31bcc4f55c011bc95e401921"
+    },
+    {
+      "file": "go-env.log",
+      "bytes": 25,
+      "sha256": "8f2897de85cfca65920043ea94b74323ca13037c3125c1bfca347afbcd07f0c8"
+    },
+    {
+      "file": "header-authority-results.json",
+      "bytes": 1029,
+      "sha256": "3d13a00df537929a9b2809ea5f52c3a2edb33e05123cf997141ea99056dcc220"
+    },
+    {
+      "file": "http-rate-stress-results.json",
+      "bytes": 330494,
+      "sha256": "216c9531f245aab92d254910c818bf08352e937da0b1fbae3252c68b881ede55"
+    },
+    {
+      "file": "http-results.json",
+      "bytes": 335925,
+      "sha256": "a15772b7e626cfb83d380e1ef5c709800e54c279bc327196aa655eae5e1fe946"
+    },
+    {
+      "file": "initdb.log",
+      "bytes": 960,
+      "sha256": "afa8dc188b37508fade00cb8ada1cff56dc53dd8fa336c726c1e22dea4781080"
+    },
+    {
+      "file": "iteration-1-browser-harness.log",
+      "bytes": 307,
+      "sha256": "e7d229797b3b1a2065b8ab2180857dd20952a7fa1c2528cb573d145995205451"
+    },
+    {
+      "file": "iteration-1-build.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-1-bypass.log",
+      "bytes": 1746,
+      "sha256": "7f984d05ece089db0468579896dd0bb4af1e1ac0fcded22a9b9906f9640e1e3f"
+    },
+    {
+      "file": "iteration-1-doclint.log",
+      "bytes": 1265,
+      "sha256": "2fa93d2db73152d6f4f475b9d51e4bd0a8d79ae443b67fab5737f8fade4836a6"
+    },
+    {
+      "file": "iteration-1-migrate-replay.log",
+      "bytes": 247,
+      "sha256": "83fb3de381519a3b75760289006de47fba901d62d36e6588b0c1cc2261892a64"
+    },
+    {
+      "file": "iteration-1-migrate-status.log",
+      "bytes": 447,
+      "sha256": "ec992eea881a97a4c60c929d4875c1a7fffad8b5795405fa2e2802c24f264795"
+    },
+    {
+      "file": "iteration-1-migrate.log",
+      "bytes": 8107,
+      "sha256": "b22d388a3e1f9f10edb334bb9b1f60db130f39f4ad63ff350316adc10a2aa494"
+    },
+    {
+      "file": "iteration-1-modules.log",
+      "bytes": 21,
+      "sha256": "b4537ed75f533f993f371954de47e42a793b8e5b0587577de7e27fb3e50696bd"
+    },
+    {
+      "file": "iteration-1-race.log",
+      "bytes": 60,
+      "sha256": "bcd3567ad97fdf5efa956a2d361fc3af77867bc977f4c224fc26d22ff130f817"
+    },
+    {
+      "file": "iteration-1-surface.log",
+      "bytes": 961,
+      "sha256": "4e11b1221df209c20f847db2d82e86bfc29f46e1e9e9beaad41ce5cfa2ec4791"
+    },
+    {
+      "file": "iteration-1-syntax-app.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-1-syntax-db.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-1-syntax-erp-typeahead.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-1-syntax-qz-print.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-1-vet.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-1-vulnerabilities.log",
+      "bytes": 3208,
+      "sha256": "90c5f4860165910a18c3d5c483c8050b0499bd1ee86563368dd8b885f39b4ebc"
+    },
+    {
+      "file": "iteration-2-browser-harness.log",
+      "bytes": 306,
+      "sha256": "7d8103506b0bb9d5e10f636f4622df6742c717f3815e596187b5eab089c2836d"
+    },
+    {
+      "file": "iteration-2-build.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-2-bypass.log",
+      "bytes": 1746,
+      "sha256": "7f984d05ece089db0468579896dd0bb4af1e1ac0fcded22a9b9906f9640e1e3f"
+    },
+    {
+      "file": "iteration-2-doclint.log",
+      "bytes": 1265,
+      "sha256": "2fa93d2db73152d6f4f475b9d51e4bd0a8d79ae443b67fab5737f8fade4836a6"
+    },
+    {
+      "file": "iteration-2-migrate-replay.log",
+      "bytes": 247,
+      "sha256": "d746b6c476aaedcca70b4b42f0b5387a5ae8ac1d17aeec160482f4ee8b721931"
+    },
+    {
+      "file": "iteration-2-migrate-status.log",
+      "bytes": 447,
+      "sha256": "5f1b07885de9c6b1d015eaefb6317d12598dfd1b05a4a8f05a639c62fbb39aac"
+    },
+    {
+      "file": "iteration-2-migrate.log",
+      "bytes": 8107,
+      "sha256": "0a647ad26f6914980b837fe45fe97d168a778d11e3e5d3eacd692ffac01f95e6"
+    },
+    {
+      "file": "iteration-2-modules.log",
+      "bytes": 21,
+      "sha256": "b4537ed75f533f993f371954de47e42a793b8e5b0587577de7e27fb3e50696bd"
+    },
+    {
+      "file": "iteration-2-race.log",
+      "bytes": 60,
+      "sha256": "bcd3567ad97fdf5efa956a2d361fc3af77867bc977f4c224fc26d22ff130f817"
+    },
+    {
+      "file": "iteration-2-surface.log",
+      "bytes": 961,
+      "sha256": "4e11b1221df209c20f847db2d82e86bfc29f46e1e9e9beaad41ce5cfa2ec4791"
+    },
+    {
+      "file": "iteration-2-syntax-app.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-2-syntax-db.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-2-syntax-erp-typeahead.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-2-syntax-qz-print.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-2-vet.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-2-vulnerabilities.log",
+      "bytes": 3208,
+      "sha256": "90c5f4860165910a18c3d5c483c8050b0499bd1ee86563368dd8b885f39b4ebc"
+    },
+    {
+      "file": "iteration-3-browser-harness.log",
+      "bytes": 307,
+      "sha256": "870a3f68a063cda5ae61f9ceb8b949d698b8201bde9cc636f1aa947c9e83e033"
+    },
+    {
+      "file": "iteration-3-build.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-3-bypass.log",
+      "bytes": 1746,
+      "sha256": "7f984d05ece089db0468579896dd0bb4af1e1ac0fcded22a9b9906f9640e1e3f"
+    },
+    {
+      "file": "iteration-3-doclint.log",
+      "bytes": 1265,
+      "sha256": "2fa93d2db73152d6f4f475b9d51e4bd0a8d79ae443b67fab5737f8fade4836a6"
+    },
+    {
+      "file": "iteration-3-migrate-replay.log",
+      "bytes": 247,
+      "sha256": "b88301dfff1942ad0e1c4b9278660fb30bc8214a3d52179b63511baaa924901b"
+    },
+    {
+      "file": "iteration-3-migrate-status.log",
+      "bytes": 447,
+      "sha256": "9a42b8071e1c11a7fb180d1de7e3fd4543d393064190aadfe7148d024cc46a38"
+    },
+    {
+      "file": "iteration-3-migrate.log",
+      "bytes": 8107,
+      "sha256": "a2b21ba63feca8c8692782453e1396653384542175fd3790a80aa7f10248fbad"
+    },
+    {
+      "file": "iteration-3-modules.log",
+      "bytes": 21,
+      "sha256": "b4537ed75f533f993f371954de47e42a793b8e5b0587577de7e27fb3e50696bd"
+    },
+    {
+      "file": "iteration-3-race.log",
+      "bytes": 60,
+      "sha256": "bcd3567ad97fdf5efa956a2d361fc3af77867bc977f4c224fc26d22ff130f817"
+    },
+    {
+      "file": "iteration-3-surface.log",
+      "bytes": 961,
+      "sha256": "4e11b1221df209c20f847db2d82e86bfc29f46e1e9e9beaad41ce5cfa2ec4791"
+    },
+    {
+      "file": "iteration-3-syntax-app.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-3-syntax-db.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-3-syntax-erp-typeahead.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-3-syntax-qz-print.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-3-vet.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "iteration-3-vulnerabilities.log",
+      "bytes": 3208,
+      "sha256": "90c5f4860165910a18c3d5c483c8050b0499bd1ee86563368dd8b885f39b4ebc"
+    },
+    {
+      "file": "linux-build-1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "linux-build-2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "linux-build-3.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "linux-build-results.json",
+      "bytes": 419,
+      "sha256": "e375b077085fd13241d4d85e38250260fdbe6109464df091fbd2fc246ebff9d0"
+    },
+    {
+      "file": "load-fixture.log",
+      "bytes": 24,
+      "sha256": "7ec647a0bb0a7615c0f5eb7dbd81a007a95cccee68f23165c9e76b12f5c90c56"
+    },
+    {
+      "file": "mobile-dark-configuration.png",
+      "bytes": 67448,
+      "sha256": "1ad3ce515ee59f163ea2ebd9fc117adce33bc0d232fe2eb94e8dde684723857b"
+    },
+    {
+      "file": "mobile-dark-finance.png",
+      "bytes": 48165,
+      "sha256": "18002eb8bfa3063a0c6c7684a808a21c510c2cdf3fd29b479e3cb39e7cb66a6e"
+    },
+    {
+      "file": "mobile-dark-inventory.png",
+      "bytes": 34751,
+      "sha256": "92874caabc1c900aad231d1207217d3ad05cc5ba8bd094fc85e32e0c88c106f3"
+    },
+    {
+      "file": "mobile-dark-keyboard.json",
+      "bytes": 1141,
+      "sha256": "9c31dc6785d75728c7ea56964d6bc2c1e40318833e878c09c7516e9c361ebda0"
+    },
+    {
+      "file": "mobile-dark-pim.png",
+      "bytes": 44754,
+      "sha256": "db7c53d267e2d1e8be4a6f5abebf97186acb7d1755528c69c91d0a9e7d1748eb"
+    },
+    {
+      "file": "mobile-dark-pos.png",
+      "bytes": 55331,
+      "sha256": "5fadd8bd56f76bcec4dce527614f87290c617f0f46a79fbd03a0808b986aaee9"
+    },
+    {
+      "file": "mobile-dark-purchase-orders.png",
+      "bytes": 48180,
+      "sha256": "818b43e153f8f149b9179d658bb13ddb37265037407dce2155965f9718773efd"
+    },
+    {
+      "file": "mobile-dark-reports.png",
+      "bytes": 52067,
+      "sha256": "4b401e9b2657028bc9d0c835ac0af964d0f785f6d4a9e1aa7cbc64387c148e67"
+    },
+    {
+      "file": "mobile-dark-rf-traceability.png",
+      "bytes": 34373,
+      "sha256": "e81d51e0a7d19801ec19f526f3b9c76956848af2ad8f56dfb5df60222b18eb1c"
+    },
+    {
+      "file": "package-probe-results.json",
+      "bytes": 5306,
+      "sha256": "7719643f10aed135f4eabdbdd8ac0c3980096dcd2067d236d0c1c58c40cb409c"
+    },
+    {
+      "file": "package-probe.log",
+      "bytes": 66,
+      "sha256": "78f6afdf397b0d023a22e8097e773b5da7bc1db7aee614dcef88d99b01e214f5"
+    },
+    {
+      "file": "pinned-go-build.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "pinned-go-version.log",
+      "bytes": 79,
+      "sha256": "acd607078db0a83dceca2ce405800e33c14f7f3d49a1683980dd1e14dd48d3fd"
+    },
+    {
+      "file": "postgres-version.log",
+      "bytes": 24,
+      "sha256": "c75ff557d913d7568c9ebad3bb206920f82206560a1d9cfbdac1b77aced4e4e9"
+    },
+    {
+      "file": "postgres.log",
+      "bytes": 72397,
+      "sha256": "b8a34feb02c88cfa0aa6dd1e592fb05ea0c21c0dd738306ea0718a4297b56523"
+    },
+    {
+      "file": "process-memory-after-browse.json",
+      "bytes": 653,
+      "sha256": "c8119e09d738fb84ce84c56ffc6fa428908bb5e6467299c1b643b676b0f0207b"
+    },
+    {
+      "file": "race-cgo-attempt.log",
+      "bytes": 139,
+      "sha256": "ca5ea674562ba5cfc711f6f8bf0b1741f8b25f5150812d6738925040b7491605"
+    },
+    {
+      "file": "restore-drill-1.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "restore-drill-2.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "restore-drill-3.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "restore-results.json",
+      "bytes": 1722,
+      "sha256": "cb2eb01336c4ee62c1cd4a7eaec29842fb8c2b7135d5f6bf80d761b277421e72"
+    },
+    {
+      "file": "safety-worktree.log",
+      "bytes": 2738,
+      "sha256": "c930d498945e4dd6075087b04b02096a937b66301889221013eedb13f915f81b"
+    },
+    {
+      "file": "server-vulnerabilities.log",
+      "bytes": 2704,
+      "sha256": "74092706eea216afaffba53437b1eb7c05e07137ef02c6391956142a3dd158fe"
+    },
+    {
+      "file": "source-manifest.json",
+      "bytes": 173336,
+      "sha256": "1e2f1bdf16b1e0e61c624bf97a6170195ceaa1ef6970d97dac5a8f12f307ad3b"
+    },
+    {
+      "file": "suite-1-create.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "suite-1-fixture-migrate.log",
+      "bytes": 535,
+      "sha256": "ebffeffa4bbdd18de073dbb629d8360da9df005c39a3ad6dd15c6e5612edd7ea"
+    },
+    {
+      "file": "suite-1-fixture-prerequisite.log",
+      "bytes": 165,
+      "sha256": "9597069d78aafde2f6d85610bb834714fc3ebded824d912956edbdd717bcc92d"
+    },
+    {
+      "file": "suite-1-fixture-replay.log",
+      "bytes": 113,
+      "sha256": "cfa50c4897011e8eeeecae0a077a7744aa42703e840f2c084789fd8a628bc0d2"
+    },
+    {
+      "file": "suite-1-fresh-migrate.log",
+      "bytes": 8107,
+      "sha256": "e4226ac92567069588a2c25544c460ee9ed3c70c1ed72883af601718684ddff9"
+    },
+    {
+      "file": "suite-1-tests.log",
+      "bytes": 1015268,
+      "sha256": "7c59e075c3e1b8c6a91cd59902847a761eabfff4ff1fd1c9eddbe3e3fd6a5f14"
+    },
+    {
+      "file": "suite-2-create.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "suite-2-fixture-migrate.log",
+      "bytes": 535,
+      "sha256": "32c0a0db540e895a1ee8808277e5d681362ff9d1627ed0571ed065e32cd468f0"
+    },
+    {
+      "file": "suite-2-fixture-prerequisite.log",
+      "bytes": 165,
+      "sha256": "9597069d78aafde2f6d85610bb834714fc3ebded824d912956edbdd717bcc92d"
+    },
+    {
+      "file": "suite-2-fixture-replay.log",
+      "bytes": 113,
+      "sha256": "f8d57e10e86d29c1aafeed21fc1839b35934a2a2ee968c758dffe0726cf8e155"
+    },
+    {
+      "file": "suite-2-fresh-migrate.log",
+      "bytes": 8107,
+      "sha256": "4352abba5a357a54c54e60c7db41924e84ccf266a357a1c2b745e1918f79140a"
+    },
+    {
+      "file": "suite-2-tests.log",
+      "bytes": 1014751,
+      "sha256": "78b1d4509d71519c79bcf0dd66d798fcb4f4a6bb1105158ca7cd7e78cb414478"
+    },
+    {
+      "file": "suite-3-create.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "suite-3-fixture-migrate.log",
+      "bytes": 535,
+      "sha256": "dcb31956db05cd2d35f15be8a89d378818f1b505841b9305eccb52439bfbcd09"
+    },
+    {
+      "file": "suite-3-fixture-prerequisite.log",
+      "bytes": 165,
+      "sha256": "9597069d78aafde2f6d85610bb834714fc3ebded824d912956edbdd717bcc92d"
+    },
+    {
+      "file": "suite-3-fixture-replay.log",
+      "bytes": 113,
+      "sha256": "87e0f06636a33668c37558ca470bddd41140f680eec7a301606a9d06296617d2"
+    },
+    {
+      "file": "suite-3-fresh-migrate.log",
+      "bytes": 8107,
+      "sha256": "185196db93c5b05b908f31baca82664f2121775355d3016d415df8c91183f11d"
+    },
+    {
+      "file": "suite-3-tests.log",
+      "bytes": 1016240,
+      "sha256": "2c13b9ad17c4be82bf61ae81eb673bcb9bf8a87b179ae94c16c0558ec9d5e679"
+    },
+    {
+      "file": "suite-command-results.json",
+      "bytes": 6049,
+      "sha256": "1b6f3653ffce9d6d6c29f5f3ec873cc8d16ca544cc1c20c073fca39cdfba8f59"
+    },
+    {
+      "file": "tablet-keyboard-configuration.png",
+      "bytes": 87710,
+      "sha256": "bb9750951a3dbbf718c22cad6ddf529aa71ca9e32191aeb78d7a9c7e62f9574d"
+    },
+    {
+      "file": "tablet-keyboard-finance.png",
+      "bytes": 85058,
+      "sha256": "49fb1663eedd63b7243189aa9657dbc1812cff6fe7349837c0ffe3207f0d6f43"
+    },
+    {
+      "file": "tablet-keyboard-inventory.png",
+      "bytes": 44851,
+      "sha256": "e0b34870ba479ebed3590afcab208882b07afdd2d1b2031db759c62adb2b9afe"
+    },
+    {
+      "file": "tablet-keyboard-keyboard.json",
+      "bytes": 1141,
+      "sha256": "9c31dc6785d75728c7ea56964d6bc2c1e40318833e878c09c7516e9c361ebda0"
+    },
+    {
+      "file": "tablet-keyboard-pim.png",
+      "bytes": 59529,
+      "sha256": "e947fe0784d3e89a66355744aa928a63a1e1020986c7e6ce18668532af167ce8"
+    },
+    {
+      "file": "tablet-keyboard-pos.png",
+      "bytes": 85620,
+      "sha256": "958eff6b5f1579922eb595e2b228aa4ad0a855c40a5a995e77921ddfdbdf6ef8"
+    },
+    {
+      "file": "tablet-keyboard-purchase-orders.png",
+      "bytes": 76564,
+      "sha256": "4b6f7be6c7beff459cdc002b3d7e760e52dfc97bce60831e9b2bfb7739e512ed"
+    },
+    {
+      "file": "tablet-keyboard-reports.png",
+      "bytes": 55133,
+      "sha256": "18e52c2ef475efb6315fb6e16305883d9303494d6ddb6cff65cc2226dd6994a2"
+    },
+    {
+      "file": "tablet-keyboard-rf-traceability.png",
+      "bytes": 38820,
+      "sha256": "8caaee153f765cc5f069af20839b9e416df4cabc6ab56adc8f3bccd8f6c099ee"
+    },
+    {
+      "file": "tenant-limit-probe.json",
+      "bytes": 407,
+      "sha256": "5a27e4c8bfb301fd20416536fa90cb0f76fade903e885e41cd9c39b27c6ea109"
+    },
+    {
+      "file": "tenant-limit-probe.log",
+      "bytes": 198,
+      "sha256": "8c9adfb2962c2b3502f1547f79a20fc8a80df9c0dcd1bee00d99e96f2e953329"
+    },
+    {
+      "file": "test-inventory.json",
+      "bytes": 58403,
+      "sha256": "5ccfc71d288f3c92e6875c671b9d8ecbe2309c329be83708e08ad614498b90c9"
+    },
+    {
+      "file": "toolchain.log",
+      "bytes": 34,
+      "sha256": "32548da15c96ca04063f71e04f4ad607e3ca4f142d12b4388704952d1f9d3012"
+    },
+    {
+      "file": "ui-fixture-migrate.log",
+      "bytes": 545,
+      "sha256": "0227f02d06418b4fd4f676a0b805b9e701b34b9d84a7f525ed1b5f32d1a17e4c"
+    },
+    {
+      "file": "ui-fixture-prerequisite.log",
+      "bytes": 165,
+      "sha256": "9597069d78aafde2f6d85610bb834714fc3ebded824d912956edbdd717bcc92d"
+    },
+    {
+      "file": "ui-fresh-migrate.log",
+      "bytes": 8262,
+      "sha256": "b03da260cbbffcb44ab09b4b54f6b0ff8d295c39fb4b04da96347c01cb4bc868"
+    },
+    {
+      "file": "ui-server-err.log",
+      "bytes": 39060,
+      "sha256": "a798dc02c6ef8d789d788419293c222de64ee0b15a47427e68029c42ce2d7672"
+    },
+    {
+      "file": "ui-server-out.log",
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "file": "ui-task-results.json",
+      "bytes": 7964,
+      "sha256": "8270e1968592d2119767bbfc58ff6a414d72724602ea2c249fbedfe129a7de6e"
+    },
+    {
+      "file": "vendor-form-1.png",
+      "bytes": 114722,
+      "sha256": "d2c019426163a24870fb81d2c5c2db7a00ffa588d2f8698fa9fb51f4af5b0d3f"
+    },
+    {
+      "file": "vendor-form-2.png",
+      "bytes": 39212,
+      "sha256": "3a81a19f81af377d483f779d7a9c0243ab55d761ed4a2b0e5c551473c37f93b8"
+    },
+    {
+      "file": "vendor-form-3.png",
+      "bytes": 117981,
+      "sha256": "0928557656d21f4067ad08dce4487853fead2579ca8143d862a0bfe153341ad2"
+    },
+    {
+      "file": "xss-admin-view-1.png",
+      "bytes": 77568,
+      "sha256": "3656222f7b4af61d68bbfa12cb5e5a129f8bfc0ebfa1370472df46e5838f2371"
+    },
+    {
+      "file": "xss-admin-view-2.png",
+      "bytes": 77568,
+      "sha256": "3656222f7b4af61d68bbfa12cb5e5a129f8bfc0ebfa1370472df46e5838f2371"
+    },
+    {
+      "file": "xss-admin-view-3.png",
+      "bytes": 77568,
+      "sha256": "3656222f7b4af61d68bbfa12cb5e5a129f8bfc0ebfa1370472df46e5838f2371"
+    },
+    {
+      "file": "xss-clerk-fixture.log",
+      "bytes": 24,
+      "sha256": "55ad548d8902383e8365bac505e302a2ccdd00112f7da123833de77af0805f48"
+    },
+    {
+      "file": "xss-cross-role-create.json",
+      "bytes": 509,
+      "sha256": "52935fd9f37acd03efe2817ee21b3d957504da873a0bea7433b047e482187cd3"
+    },
+    {
+      "file": "xss-cross-role-view.json",
+      "bytes": 566,
+      "sha256": "727d8a64e4ba903057540a7a572c812a266d0576fe328717ea3a7ea54c992762"
+    }
+  ]
+}
