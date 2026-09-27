@@ -49,52 +49,62 @@ Write-Host "Shipping binary, public/, and db/ to $Target`:$RemoteDir ..." -Foreg
 # half-copied binary in place of the running one.
 & scp $out "${Target}:$RemoteDir/erp-server.new"
 if ($LASTEXITCODE -ne 0) { throw "scp of binary failed" }
-& scp -r "$RepoRoot\public" "${Target}:$RemoteDir/"
+# Stage 50/BLD-005: this used to scp straight over the LIVE $RemoteDir/public,
+# overwriting the running frontend before remote_deploy.sh ever got a chance
+# to snapshot the pre-deploy one for rollback - its "pre-deploy snapshot" was
+# actually a snapshot of the NEW release, so a rollback never actually
+# restored the old frontend (confirmed via docs/qa/audit-deploy-mock.py:
+# release_consistent was false on every failure case). Ship to a staging
+# name instead, exactly like erp-server.new already does, so the real
+# activation - and the real snapshot before it - happens inside
+# remote_deploy.sh alongside the binary swap. A stale public.new from an
+# interrupted previous attempt is removed first so scp -r recreates it fresh
+# rather than nesting a copy inside it.
+& ssh $Target "rm -rf $RemoteDir/public.new"
+if ($LASTEXITCODE -ne 0) { throw "could not clear stale public.new on remote" }
+& scp -r "$RepoRoot\public" "${Target}:$RemoteDir/public.new"
 if ($LASTEXITCODE -ne 0) { throw "scp of public/ failed" }
 & scp -r "$RepoRoot\db" "${Target}:$RemoteDir/"
 if ($LASTEXITCODE -ne 0) { throw "scp of db/ failed" }
+# Shipped fresh every deploy, not assumed pre-installed like migrate.sh --
+# this carries the auto-rollback safety net itself, so a stale remote copy
+# missing a fix would silently defeat the whole point.
+& ssh $Target "mkdir -p $RemoteDir/deploy"
+if ($LASTEXITCODE -ne 0) { throw "could not create $RemoteDir/deploy on remote" }
+& scp "$RepoRoot\deploy\remote_deploy.sh" "${Target}:$RemoteDir/deploy/remote_deploy.sh"
+if ($LASTEXITCODE -ne 0) { throw "scp of deploy/remote_deploy.sh failed" }
 
-Write-Host "Migrating + swapping binary + restarting on the box..." -ForegroundColor Cyan
-# Migrations are run with the NEWLY uploaded binary, not the running one:
-# since Stage 30.2.2 the migration files are embedded in the binary
-# (db/migrate.go), so the old binary would apply the old set - exactly the
-# migrations that are already applied. Still before the swap, so the new
-# binary never serves a request against a schema it hasn't migrated.
+Write-Host "Migrating + swapping binary + health-checking + restarting on the box..." -ForegroundColor Cyan
+# The actual migrate/swap/restart/health-check/rollback logic lives in
+# deploy/remote_deploy.sh, not here -- see that file's header for why (in
+# short: bash logic inside a PowerShell here-string bit this script twice
+# already, via CRLF line endings and via `$var` being eaten by PowerShell
+# interpolation before bash ever saw it; a real LF-normalized file sidesteps
+# both). This wrapper only has to get two things right: `set -a` around the
+# env source (a systemd EnvironmentFile has no `export`, so a plain `source`
+# leaves DATABASE_URL as a shell variable the child process never inherits --
+# verified the hard way during the 2026-08-04 deploy) and forcing LF on what
+# little bash text remains here.
 $remote = @"
 set -e
-# `set -a` around the source is load-bearing: /etc/erp/erp.env is a systemd
-# EnvironmentFile, so its lines are bare KEY=value with no `export`. A plain
-# `source` therefore makes DATABASE_URL a shell variable that is NOT inherited
-# by migrate.sh (a child process), and migrate.sh dies on its own
-# `\${DATABASE_URL:?}` guard. Verified the hard way during the 2026-08-04 deploy.
 set -a; source /etc/erp/erp.env; set +a
-chmod +x $RemoteDir/erp-server.new
-ERP_BINARY=$RemoteDir/erp-server.new bash $RemoteDir/deploy/migrate.sh
-mv $RemoteDir/erp-server.new $RemoteDir/erp-server
-chmod +x $RemoteDir/erp-server
-sudo systemctl restart erp
-sleep 2
-systemctl is-active erp
-echo DEPLOY-OK
+REMOTE_DIR=$RemoteDir DEPLOY_COMMIT=$commit bash $RemoteDir/deploy/remote_deploy.sh
 "@
-# Force LF. A PowerShell here-string carries THIS FILE's line endings, and a
-# fresh git checkout on Windows gives it CRLF -- so every line arrives at bash
-# with a trailing \r and the whole block fails in ways that read like nonsense:
-# `set: -: invalid option`, `chmod: cannot access '/opt/erp/erp-server.new'$'\r'`,
-# `Failed to restart erp\x0d.service`. It never bit before because this repo's
-# working copy has always held LF (git only converts on checkout, and these
-# files were written, not checked out) -- it bit the first deploy run from a
-# clean worktree, 2026-08-15.
 $remote = $remote -replace "`r`n", "`n"
 
 $remoteOut = & ssh $Target $remote 2>&1
 $remoteOut | ForEach-Object { Write-Host $_ }
-if ($LASTEXITCODE -ne 0) { throw "remote migrate/restart failed" }
-# The exit code alone is not enough. The CRLF failure above exited 0 while
-# migrating nothing, swapping nothing and restarting nothing, and this script
-# then printed "Deployed" over the top of it -- a deploy that reports success
-# and changed nothing is worse than one that fails loudly. So the marker the
-# remote block prints last has to actually be there.
-if ($remoteOut -notcontains "DEPLOY-OK") { throw "remote block did not reach its end marker -- nothing was migrated or restarted. Output above." }
-
-Write-Host "Deployed $commit to $Target." -ForegroundColor Green
+# remote_deploy.sh's exit code is authoritative (ssh propagates it), but the
+# end-state marker it prints last is what tells us WHICH failure this was --
+# a deploy that reports success and changed nothing is worse than one that
+# fails loudly, so this branches on the marker rather than trusting a 0 exit
+# code alone.
+if ($remoteOut -contains "DEPLOY-OK") {
+    Write-Host "Deployed $commit to $Target." -ForegroundColor Green
+} elseif ($remoteOut -contains "DEPLOY-ROLLED-BACK") {
+    throw "Deploy of $commit FAILED its health check and was automatically rolled back -- $Target is back on the previous build and confirmed healthy. See the journalctl tail above for why the new build didn't come up."
+} elseif ($remoteOut -contains "DEPLOY-ROLLBACK-FAILED") {
+    throw "CRITICAL: deploy of $commit failed its health check AND the automatic rollback did not restore a healthy service on $Target. This needs a human on the box right now -- see output above."
+} else {
+    throw "remote deploy script did not reach any recognized end state (DEPLOY-OK / DEPLOY-ROLLED-BACK / DEPLOY-ROLLBACK-FAILED) -- nothing confirmed. Output above."
+}

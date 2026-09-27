@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 // The blanket per-field length cap applied when a field has no explicit
@@ -293,7 +294,7 @@ func GetDocTypes(tenantID string) ([]map[string]interface{}, error) {
 	// reached yet - everything simply reads as everyday, which is the safe
 	// direction (an extra entry, never a hidden one).
 	rows, err := db.DB.Query(fmt.Sprintf(
-		"SELECT name, module, COALESCE(document_type, 'Master'), COALESCE(setup_advanced, FALSE) FROM %s.doctype_meta ORDER BY name", schema))
+		"SELECT name, module, COALESCE(document_type, 'Master'), COALESCE(setup_advanced, FALSE), COALESCE(module_key, '') FROM %s.doctype_meta ORDER BY name", schema))
 	if err != nil {
 		return nil, err
 	}
@@ -301,9 +302,9 @@ func GetDocTypes(tenantID string) ([]map[string]interface{}, error) {
 
 	var list []map[string]interface{}
 	for rows.Next() {
-		var name, module, docType string
+		var name, module, docType, moduleKey string
 		var setupAdvanced bool
-		if err := rows.Scan(&name, &module, &docType, &setupAdvanced); err != nil {
+		if err := rows.Scan(&name, &module, &docType, &setupAdvanced, &moduleKey); err != nil {
 			return nil, err
 		}
 		list = append(list, map[string]interface{}{
@@ -311,6 +312,7 @@ func GetDocTypes(tenantID string) ([]map[string]interface{}, error) {
 			"module":         module,
 			"document_type":  docType,
 			"setup_advanced": setupAdvanced,
+			"module_key":     moduleKey,
 		})
 	}
 	return list, nil
@@ -531,8 +533,48 @@ type DocTypeOverride struct {
 	Fields       []FieldMeta `json:"fields"`
 }
 
-// SwitchIndustryProfile re-configures the dynamic doctypes, fields, and label translations based on an industry JSON configuration profile
-func SwitchIndustryProfile(tenantID string, profilePath string) error {
+// IndustryLockStatus reports whether a tenant has already chosen an industry
+// profile - once true, handleSwitchIndustry refuses a further switch unless
+// the caller passes an explicit override, so the UI can show who set it and
+// when instead of a bare "not allowed" error.
+type IndustryLockStatus struct {
+	Locked        bool      `json:"locked"`
+	IndustryCode  string    `json:"industry_code,omitempty"`
+	SetBy         string    `json:"set_by,omitempty"`
+	SetAt         time.Time `json:"set_at,omitempty"`
+	OverrideCount int       `json:"override_count,omitempty"`
+}
+
+// GetIndustryLock reads the current lock row (industry_lock is a
+// one-row-per-tenant-schema singleton, id always 1). No row yet means the
+// tenant has never switched industry, which is not an error.
+func GetIndustryLock(tenantID string) (*IndustryLockStatus, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	var status IndustryLockStatus
+	err = db.DB.QueryRow(fmt.Sprintf(
+		`SELECT industry_code, set_by, set_at, override_count FROM %s.industry_lock WHERE id = 1`, schema,
+	)).Scan(&status.IndustryCode, &status.SetBy, &status.SetAt, &status.OverrideCount)
+	if err == sql.ErrNoRows {
+		return &IndustryLockStatus{Locked: false}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	status.Locked = true
+	return &status, nil
+}
+
+// SwitchIndustryProfile re-configures the dynamic doctypes, fields, and label
+// translations based on an industry JSON configuration profile, and records
+// the lock (Stage 51.3). actingUser/isOverride/overrideReason exist purely
+// for the audit trail and the lock row - the caller (handleSwitchIndustry) is
+// responsible for having already refused this call when the tenant is locked
+// and isOverride is false; this function itself does not re-check that, so it
+// must never be called from anywhere else without the same guard.
+func SwitchIndustryProfile(tenantID string, profilePath string, actingUser string, isOverride bool, overrideReason string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
@@ -612,12 +654,35 @@ func SwitchIndustryProfile(tenantID string, profilePath string) error {
 		}
 	}
 
-	// 3. Log audit event
+	// 3. Record/refresh the lock row (Stage 51.3). A plain switch (no prior
+	// row) inserts fresh at override_count 0; an override increments the
+	// counter rather than resetting it, so the row keeps an honest count of
+	// how many times this tenant's industry has been forced to change.
+	who := actingUser
+	if who == "" {
+		who = "unknown"
+	}
+	lockQuery := fmt.Sprintf(`
+		INSERT INTO industry_lock (id, industry_code, set_by, set_at, override_count)
+		VALUES (1, $1, $2, CURRENT_TIMESTAMP, 0)
+		ON CONFLICT (id) DO UPDATE SET
+			industry_code = EXCLUDED.industry_code,
+			set_by = EXCLUDED.set_by,
+			set_at = EXCLUDED.set_at,
+			override_count = industry_lock.override_count + 1`)
+	if _, err = tx.Exec(lockQuery, prof.IndustryCode, who); err != nil {
+		return fmt.Errorf("failed to record industry lock: %w", err)
+	}
+
+	// 4. Log audit event
 	auditQuery := fmt.Sprintf(`
-		INSERT INTO audit_logs (user_id, action, status, details) 
+		INSERT INTO audit_logs (user_id, action, status, details)
 		VALUES ($1, $2, $3, $4)`)
 	auditDetails := fmt.Sprintf("Switched active industry profile to: %s (%s)", prof.IndustryName, prof.IndustryCode)
-	_, err = tx.Exec(auditQuery, "admin", "SWITCH_INDUSTRY", "SUCCESS", auditDetails)
+	if isOverride {
+		auditDetails += fmt.Sprintf(" [OVERRIDE of existing lock; reason: %s]", overrideReason)
+	}
+	_, err = tx.Exec(auditQuery, who, "SWITCH_INDUSTRY", "SUCCESS", auditDetails)
 	if err != nil {
 		return err
 	}

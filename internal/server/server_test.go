@@ -86,8 +86,19 @@ func TestCheckoutToForecastIntegration(t *testing.T) {
 		t.Fatalf("failed to seed inventory: %v", err)
 	}
 	// Stage 17.5: checkout now gates on the Item having hsn_code/gst_rate set.
+	// Stage 50/QA-DEF-01: sale_price/mrp are also required now - Stage 47.2's
+	// server-authoritative pricing (A-02) routes any line the server cannot
+	// price to Manager approval regardless of the checkout's own
+	// discount_pct, and Stage 20a's shipped default POSCart approval_rules
+	// row (real tenant configuration, not test residue - see
+	// stage47_a02_price_tamper_redteam_test.go) means that path is always
+	// live on this schema. This test exercises checkout-to-forecast, not the
+	// approval flow, so it needs a real reference price at the same value
+	// the checkout below submits (100) so the sale has zero measured
+	// discount and completes directly, the same way posPricingFixture
+	// (pos_pricing_stage47_2_test.go) seeds its own items.
 	if _, err := db.DB.Exec(`INSERT INTO tenant_default.documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')`,
-		sku, `{"name":"Integration Test Item","hsn_code":"6109","gst_rate":18}`); err != nil {
+		sku, `{"name":"Integration Test Item","hsn_code":"6109","gst_rate":18,"sale_price":100,"mrp":100}`); err != nil {
 		t.Fatalf("failed to seed test item: %v", err)
 	}
 
@@ -188,7 +199,17 @@ func TestCheckoutToForecastIntegration(t *testing.T) {
 		t.Fatalf("failed to read back created POSCart: %v", err)
 	}
 	if storedStatus != "Paid" {
-		t.Errorf("expected checkout to create a POSCart with status 'Paid', got %q", storedStatus)
+		// Stage 50/QA-DEF-01: HTTP 200 above only means the request was
+		// accepted - handleCheckout also returns 200 when it routes an
+		// unverifiable price to pending_approval (no approval rule is
+		// configured for this fixture's sale, so that would mean an
+		// approval_rules row leaked in from elsewhere). Decode the response
+		// body instead of assuming a 200 means "Paid", so a leak like that
+		// fails with a diagnosable message rather than just "got Pending".
+		var checkoutResp map[string]interface{}
+		_ = json.Unmarshal(checkoutRec.Body.Bytes(), &checkoutResp)
+		t.Errorf("expected checkout to create a POSCart with status 'Paid', got %q (response status=%v, body=%s) - check for an unexpected approval_rules row on this tenant/schema",
+			storedStatus, checkoutResp["status"], checkoutRec.Body.String())
 	}
 
 	// 4. Real forecast call via the real handler chain - the exact path that used to always

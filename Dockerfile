@@ -20,7 +20,7 @@
 # of whether the app itself runs in a container.
 # ---------------------------------------------------------------------------
 
-FROM golang:1.22-bookworm AS builder
+FROM golang:1.27-bookworm AS builder
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download

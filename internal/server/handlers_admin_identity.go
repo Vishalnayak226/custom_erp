@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -192,7 +193,12 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := engines.CheckTenantLimit(tenantID, "max_users", activeUserCount+1); err != nil {
-		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		// Stage 50/AUD-06: CheckTenantLimit now returns a *ValidationError
+		// (limit reached, handled as 422 above) or a wrapped operational
+		// error (lookup itself failed) - the 500 fallback only applies to
+		// the latter; writeEngineError still routes the ValidationError to
+		// 422 via its own type check.
+		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -489,4 +495,116 @@ func handleWriteAuditCheckpoint(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(cp)
+}
+
+// handleRunAuditArchive triggers 47.7.6's archive pass on demand - an
+// operator preparing for an auditor's visit or clearing a legacy backlog
+// need not wait for the daily scheduler. allow_large_windows, when true,
+// is the one way to process a window over maxRowsPerArchiveWindow: a
+// deliberate choice, never the schedule's default.
+func handleRunAuditArchive(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("Resolved-Role")
+	if !requireHRAdmin(w, r, role) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	var req struct {
+		AllowLargeWindows bool `json:"allow_large_windows"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil && err != io.EOF {
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	result, err := engines.RunAuditArchive(tenantID, req.AllowLargeWindows)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Archive pass failed: "+err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(result)
+}
+
+// handleListAuditArchives lists archive metadata for the audit-log screen's
+// archive tab - deliberately without row content, which ReadAuditArchive
+// (query) and ExportAuditArchive (download) exist to fetch on demand.
+func handleListAuditArchives(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("Resolved-Role")
+	if !requireHRAdmin(w, r, role) {
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	archives, err := engines.ListAuditArchives(tenantID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to list audit archives")
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"archives": archives})
+}
+
+// handleReadAuditArchive is the query endpoint: decrypts, verifies and
+// returns one archive's full content. The UI/caller filters client-side for
+// now - these windows are checkpoint-sized (bounded well below
+// maxRowsPerArchiveWindow for anything the automatic pass ever wrote), not
+// the unbounded exports 47.10 is about.
+func handleReadAuditArchive(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("Resolved-Role")
+	if !requireHRAdmin(w, r, role) {
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	archiveID := r.PathValue("id")
+	manifest, err := engines.ReadAuditArchive(tenantID, archiveID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "Could not read archive: "+err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(manifest)
+}
+
+// handleExportAuditArchive is the same verified read as handleReadAuditArchive,
+// returned as a downloadable file instead of an inline JSON body - the
+// distinct requirement export drills for, per 47.7.6.
+func handleExportAuditArchive(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("Resolved-Role")
+	if !requireHRAdmin(w, r, role) {
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	archiveID := r.PathValue("id")
+	manifest, err := engines.ReadAuditArchive(tenantID, archiveID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusNotFound, "Could not read archive: "+err.Error())
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=audit_archive_%s.json", archiveID))
+	_ = json.NewEncoder(w).Encode(manifest)
+}
+
+// handleRestoreAuditArchive is the restore drill's HTTP face - also the real
+// legal-recovery path. restoredBy is the authenticated caller, not a
+// client-supplied field: RestoreAuditArchive records it on the signed
+// restore-event audit row, so it must be the identity the request actually
+// authenticated as.
+func handleRestoreAuditArchive(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("Resolved-Role")
+	if !requireHRAdmin(w, r, role) {
+		return
+	}
+	if r.Method != http.MethodPost {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	archiveID := r.PathValue("id")
+	restoredBy := r.Header.Get("Resolved-User-ID")
+	result, err := engines.RestoreAuditArchive(tenantID, archiveID, restoredBy)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Restore failed: "+err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(result)
 }

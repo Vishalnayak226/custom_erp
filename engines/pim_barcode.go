@@ -1,7 +1,10 @@
 package engines
 
 import (
+	"custom_erp/db"
+	"database/sql"
 	"fmt"
+	"strings"
 )
 
 // Stage 36.7.4: UPC/EAN generation and check-digit validation. Implements
@@ -115,4 +118,54 @@ func GenerateEANBarcode(tenantID string) (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("%s%d", base, check), nil
+}
+
+// EnsureItemBarcodes (Stage 51.6) auto-generates a barcode for every
+// distinct Item received on a GRN that doesn't already have one, so goods
+// receipt is the point items get barcoded without a separate manual PIM
+// step (previously GenerateEANBarcode/handlePIMGenerateBarcode only ever
+// ran from a standalone, manually-triggered action, never from receiving).
+// Best-effort by design: a generation/save failure for one SKU is logged
+// and skipped rather than failing the receipt - stock has already posted by
+// the time this runs (see its call site in handlers_core_doc_engine.go), so
+// a missing barcode is a smaller problem than an inconsistent GRN, and one
+// bad SKU must not block barcoding the rest of the line items.
+func EnsureItemBarcodes(tenantID string, items []interface{}) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return
+	}
+	seen := map[string]bool{}
+	for _, raw := range items {
+		m, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		sku, _ := m["sku"].(string)
+		if sku == "" || seen[sku] {
+			continue
+		}
+		seen[sku] = true
+
+		var existing sql.NullString
+		if errQ := db.DB.QueryRow(fmt.Sprintf(
+			`SELECT data->>'barcode' FROM %s.documents WHERE doctype = 'Item' AND id = $1 AND deleted_at IS NULL`, schema), sku,
+		).Scan(&existing); errQ != nil {
+			continue // unknown/missing Item - nothing to barcode
+		}
+		if existing.Valid && strings.TrimSpace(existing.String) != "" {
+			continue // already has one
+		}
+
+		barcode, errGen := GenerateEANBarcode(tenantID)
+		if errGen != nil {
+			LogSystemError(tenantID, "", "ERROR", "EnsureItemBarcodes", fmt.Sprintf("could not auto-generate a barcode for Item %s at GRN receipt: %v", sku, errGen), "")
+			continue
+		}
+		if _, errUpd := db.DB.Exec(fmt.Sprintf(
+			`UPDATE %s.documents SET data = jsonb_set(data::jsonb, '{barcode}', to_jsonb($1::text), true), updated_at = CURRENT_TIMESTAMP WHERE doctype = 'Item' AND id = $2`, schema),
+			barcode, sku); errUpd != nil {
+			LogSystemError(tenantID, "", "ERROR", "EnsureItemBarcodes", fmt.Sprintf("could not save auto-generated barcode for Item %s: %v", sku, errUpd), "")
+		}
+	}
 }

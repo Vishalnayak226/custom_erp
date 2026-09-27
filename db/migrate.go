@@ -365,6 +365,20 @@ func migrationFileNames() ([]string, error) {
 // file builds on), which happens to fall out of the rules above anyway since
 // "migration." < "migrations" - it is asserted by the runner's test rather
 // than relied on by accident.
+//
+// Stage 50/AUD-02: a fresh install failed because
+// migrations_stage47_7_6_audit_archive.sql (depends on the
+// audit_checkpoints table) sorted BEFORE migrations_stage47_7_audit_evidence.sql
+// (creates it) - "_7_6_" vs "_7_a..." compares the digit '6' against the
+// letter 'a' as plain bytes, and every digit sorts below every letter in
+// ASCII, so the deeper-numbered sub-item file always won regardless of which
+// one actually has to run first. The general shape (an unnumbered
+// "foundation"/base file for stage N.M vs a numbered N.M.K sub-item of it)
+// recurs throughout db/*.sql; this fixes the rule everywhere it appears
+// rather than reordering just the one pair the audit happened to name, and a
+// full fresh-install `-migrate` against an empty database (this repo's own
+// verification convention) confirmed it end-to-end rather than by reasoning
+// about file names alone.
 func compareMigrationNames(a, b string) int {
 	i, j := 0, 0
 	for i < len(a) && j < len(b) {
@@ -387,6 +401,20 @@ func compareMigrationNames(a, b string) int {
 				return 1
 			}
 			continue
+		}
+		// Exactly one side is mid a digit run here: that side's numbered
+		// path goes deeper (another "_K" sub-item segment) while the other
+		// side's has already ended and moved into descriptive text at this
+		// same position - so the side than continues with digits is the
+		// more specific sub-item and must sort after, not be compared as a
+		// raw byte against the other side's letter (which every digit would
+		// lose, in ASCII, regardless of which one actually depends on the
+		// other).
+		if isDigit(a[i]) != isDigit(b[j]) {
+			if isDigit(a[i]) {
+				return 1
+			}
+			return -1
 		}
 		if a[i] != b[j] {
 			if a[i] < b[j] {

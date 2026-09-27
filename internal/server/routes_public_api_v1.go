@@ -31,6 +31,7 @@ type publicAPIRoute struct {
 	Method      string
 	Path        string
 	Scope       string
+	ModuleKey   string // entitlement, independent of the credential's scope
 	Summary     string
 	Description string
 	Params      []publicAPIParam
@@ -43,7 +44,7 @@ type publicAPIRoute struct {
 func publicAPIV1Routes() []publicAPIRoute {
 	return []publicAPIRoute{
 		{
-			Method: http.MethodGet, Path: "/api/public/v1/items", Scope: "items:read",
+			Method: http.MethodGet, Path: "/api/public/v1/items", Scope: "items:read", ModuleKey: "master_data",
 			Summary:     "List products",
 			Description: "One page of sellable products. Cancelled and deleted products are excluded. Use updated_since to poll for changes rather than re-reading the whole catalog.",
 			Params: []publicAPIParam{
@@ -55,7 +56,7 @@ func publicAPIV1Routes() []publicAPIRoute {
 			Handler:  handlePublicListItems,
 		},
 		{
-			Method: http.MethodGet, Path: "/api/public/v1/items/{code}", Scope: "items:read",
+			Method: http.MethodGet, Path: "/api/public/v1/items/{code}", Scope: "items:read", ModuleKey: "master_data",
 			Summary:     "Get one product",
 			Description: "Curated product identity for a single item code.",
 			Params: []publicAPIParam{
@@ -65,7 +66,7 @@ func publicAPIV1Routes() []publicAPIRoute {
 			Handler:  handlePublicGetItem,
 		},
 		{
-			Method: http.MethodGet, Path: "/api/public/v1/inventory", Scope: "inventory:read",
+			Method: http.MethodGet, Path: "/api/public/v1/inventory", Scope: "inventory:read", ModuleKey: "inventory",
 			Summary:     "Read availability for one SKU",
 			Description: "Available-to-sell quantity per location, computed with the same formula the order path enforces. A sku is required; there is no whole-catalog stock export on this surface.",
 			Params: []publicAPIParam{
@@ -76,7 +77,7 @@ func publicAPIV1Routes() []publicAPIRoute {
 			Handler:  handlePublicInventory,
 		},
 		{
-			Method: http.MethodGet, Path: "/api/public/v1/orders/{id}/status", Scope: "orders:read",
+			Method: http.MethodGet, Path: "/api/public/v1/orders/{id}/status", Scope: "orders:read", ModuleKey: "oms",
 			Summary:     "Track an order",
 			Description: "Order status with per-line status and any shipments. The path segment accepts either this system's order id or the channel order id the order was imported with.",
 			Params: []publicAPIParam{
@@ -97,7 +98,7 @@ type PublicInventoryResponse struct {
 
 func registerPublicAPIV1Routes() {
 	for _, route := range publicAPIV1Routes() {
-		http.HandleFunc(route.Method+" "+route.Path, publicAPIMiddleware(route.Scope, route.Handler))
+		http.HandleFunc(route.Method+" "+route.Path, publicAPIMiddleware(route.Scope, moduleGate(route.ModuleKey, route.Handler)))
 	}
 	// Anything else under the public prefix answers a JSON 404 rather than
 	// falling through to the static file server, which would hand an API client

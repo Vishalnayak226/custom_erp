@@ -95,14 +95,17 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		JobType     string   `json:"job_type"`
-		DocumentRef string   `json:"document_ref"`
-		PrinterCode string   `json:"printer_code"`
-		Copies      int      `json:"copies"`
-		SKUs        []string `json:"skus"`
-		Reprint     string   `json:"reprint_reason"`
-		DataBase64  string   `json:"data_base64"`
-		DocFormat   string   `json:"doc_format"`
+		JobType        string         `json:"job_type"`
+		DocumentRef    string         `json:"document_ref"`
+		PrinterCode    string         `json:"printer_code"`
+		Copies         int            `json:"copies"`
+		SKUs           []string       `json:"skus"`
+		Reprint        string         `json:"reprint_reason"`
+		DataBase64     string         `json:"data_base64"`
+		DocFormat      string         `json:"doc_format"`
+		SourceDoctype  string         `json:"source_doctype"`
+		SourceDocID    string         `json:"source_doc_id"`
+		CopiesOverride map[string]int `json:"copies_override"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -133,20 +136,31 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 		}
 
 	case "Sticker":
-		if len(req.SKUs) == 0 {
-			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'skus' is required for a sticker print")
-			return
+		// Routed through PrintStickers/PrintStickersForDocument so the
+		// existing SKU validation, DEVICE-0298 printer check and
+		// sticker_print_log audit trail all still run - QZ changes how a
+		// sticker reaches the printer, not the rules about what may be
+		// printed.
+		var labels []engines.StickerLabel
+		var sErr error
+		if req.SourceDoctype != "" && req.SourceDocID != "" {
+			// Stage 52: bulk print from a GRN/Transfer Order - req.SKUs (if
+			// any) narrows the document's lines to just those SKUs, which is
+			// what makes "print the whole document" and "print one line"
+			// the same request shape.
+			labels, sErr = engines.PrintStickersForDocument(tenantID, req.SourceDoctype, req.SourceDocID, printer.Code, userID, req.Reprint, req.SKUs, req.CopiesOverride)
+		} else {
+			if len(req.SKUs) == 0 {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'skus' is required for a sticker print")
+				return
+			}
+			labels, sErr = engines.PrintStickers(tenantID, req.SKUs, printer.Code, userID, req.Reprint, req.Copies)
 		}
-		// Routed through PrintStickers so the existing SKU validation,
-		// DEVICE-0298 printer check and sticker_print_log audit trail all
-		// still run - QZ changes how a sticker reaches the printer, not the
-		// rules about what may be printed.
-		labels, sErr := engines.PrintStickers(tenantID, req.SKUs, printer.Code, userID, req.Reprint, req.Copies)
 		if sErr != nil {
 			writeEngineError(w, r, sErr, http.StatusUnprocessableEntity)
 			return
 		}
-		payload = engines.BuildStickerPayload(labels, req.Copies, printer.Language)
+		payload = engines.BuildStickerPayload(labels, req.Copies, printer)
 		if payload == nil {
 			// Not a raw-command printer: let the browser fall back to the
 			// existing @media print sheet, which already renders these.
@@ -203,9 +217,24 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+	case "Purchase Order":
+		// Stage 40.10. document_ref is the PO's id or code; re-read and
+		// re-priced server-side via BuildPurchaseOrderPrint exactly like the
+		// browser fallback sheet, so a silent print cannot show a vendor a
+		// total the app itself would compute differently.
+		if req.DocumentRef == "" {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'document_ref' is required for a purchase order")
+			return
+		}
+		payload, err = engines.BuildPurchaseOrderQZPayload(tenantID, req.DocumentRef, printer)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+
 	default:
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity,
-			"Unknown job_type - expected 'Shipping Label', 'Sticker', 'Receipt', 'Invoice' or 'Document'")
+			"Unknown job_type - expected 'Shipping Label', 'Sticker', 'Receipt', 'Invoice', 'Purchase Order' or 'Document'")
 		return
 	}
 

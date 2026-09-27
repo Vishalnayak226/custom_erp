@@ -34,6 +34,7 @@ type Configuration struct {
 }
 type Capability struct {
 	ID              string   `json:"id"`
+	ModuleKeys      []string `json:"module_keys,omitempty"`
 	Title           string   `json:"title"`
 	Owner           string   `json:"owner"`
 	Maturity        string   `json:"maturity"`
@@ -74,11 +75,11 @@ func capabilityFiles(root string, now time.Time) (map[string][]byte, []Finding, 
 	for _, c := range register.Configurations {
 		fmt.Fprintf(&catalog, "| %s | %s / %s | %s / %s | %s | %s |\n", c.ID, c.Industry, c.Country, c.Deployment, c.Devices, c.OwnerModel, c.Limit)
 	}
-	catalog.WriteString("\n## Capability status\n\n| Capability | Maturity / configuration | Owner | Limits / remaining gates |\n|---|---|---|---|\n")
+	catalog.WriteString("\n## Capability status\n\nModule keys link this product register to the executable module catalog. The registry schema version and release label identify the mapping version; source checks derive DocTypes, role vocabulary, routes, screens, workers, reports, exports and core dependencies from their existing declarations.\n\n| Capability | Module keys | Maturity / configuration | Owner | Limits / remaining gates |\n|---|---|---|---|---|\n")
 	trace.WriteString(header + "# Requirements and evidence traceability\n\nThis projection links requirement, design, implementation work, tests, help and release evidence. Missing signed release evidence is explicitly shown as pending. Approval remains with the accountable product, process, security and QA owners.\n\n")
 	trace.WriteString("## Shared requirements\n\nThese requirements apply to every capability and configuration below: " + artifactLinks(register.CommonRequirements) + "\n\n")
 	for _, c := range register.Capabilities {
-		fmt.Fprintf(&catalog, "| %s — %s | %s / %s | %s | %s |\n", c.ID, c.Title, c.Maturity, strings.Join(c.Configurations, ", "), c.Owner, c.Limits)
+		fmt.Fprintf(&catalog, "| %s — %s | %s | %s / %s | %s | %s |\n", c.ID, c.Title, strings.Join(c.ModuleKeys, ", "), c.Maturity, strings.Join(c.Configurations, ", "), c.Owner, c.Limits)
 		fmt.Fprintf(&trace, "## %s — %s\n\n- Requirements: %s\n- Design/control: %s\n- Automated tests: %s\n- User help: %s\n- Work items: %s\n- Verification/review: %s / %s\n- Signed release evidence: %s\n\n", c.ID, c.Title, artifactLinks(c.Requirements), artifactLinks(c.Design), artifactLinks(c.Tests), artifactLinks(c.Help), strings.Join(c.Stages, ", "), c.LastVerified, c.ReviewBy, artifactLinks(c.ReleaseEvidence))
 		fmt.Fprintf(&trace, "- Business need: %s\n- Personas: %s\n- Processes: %s\n- Security/data/operations/legal control: %s\n\n", artifactLinks(c.BusinessNeeds), artifactLinks(c.Personas), artifactLinks(c.Processes), artifactLinks(c.Controls))
 	}
@@ -118,8 +119,26 @@ func validateCapabilities(root string, register CapabilityRegister, now time.Tim
 	add := func(id, message string) {
 		findings = append(findings, Finding{"docs/product/capability-register.json", "capability-evidence", id + ": " + message})
 	}
-	if (register.SchemaVersion != 1 && register.SchemaVersion != 2) || register.Owner == "" || register.Status == "" {
+	if (register.SchemaVersion != 1 && register.SchemaVersion != 2 && register.SchemaVersion != 3) || register.Owner == "" || register.Status == "" {
 		add("register", "schema, owner and status are required")
+	}
+	if register.SchemaVersion >= 3 {
+		moduleKeyPattern := regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
+		if register.Release == "" {
+			add("register", "module mapping version/release is required")
+		}
+		for _, c := range register.Capabilities {
+			seen := map[string]bool{}
+			if len(c.ModuleKeys) == 0 {
+				add(c.ID, "module_keys are required")
+			}
+			for _, key := range c.ModuleKeys {
+				if !moduleKeyPattern.MatchString(key) || seen[key] {
+					add(c.ID, "invalid or duplicate module key: "+key)
+				}
+				seen[key] = true
+			}
+		}
 	}
 	configs := map[string]bool{}
 	for _, c := range register.Configurations {
@@ -134,7 +153,7 @@ func validateCapabilities(root string, register CapabilityRegister, now time.Tim
 			add(c.ID, "duplicate or empty capability ID")
 		}
 		ids[c.ID] = true
-		if register.SchemaVersion == 2 && (len(c.BusinessNeeds) == 0 || len(c.Personas) == 0 || len(c.Processes) == 0 || len(c.Controls) == 0 || len(register.CommonRequirements) == 0) {
+		if register.SchemaVersion >= 2 && (len(c.BusinessNeeds) == 0 || len(c.Personas) == 0 || len(c.Processes) == 0 || len(c.Controls) == 0 || len(register.CommonRequirements) == 0) {
 			add(c.ID, "business, persona, process, control and shared requirement links are required")
 		}
 		if !contains([]string{"Experimental", "Preview", "Production", "Certified"}, c.Maturity) {

@@ -57,7 +57,7 @@ func StartOutboxWorker(ctx context.Context, interval time.Duration) {
 
 // listTenantSchemas returns every schema registered in the tenant registry, including
 // tenant_default (seeded there for tenant_id 'default') and any tenant provisioned since.
-func listTenantSchemas() ([]string, error) {
+func listTenantSchemas(moduleKeys ...string) ([]string, error) {
 	rows, err := db.DB.Query("SELECT DISTINCT schema_name FROM public.tenants")
 	if err != nil {
 		return nil, err
@@ -67,11 +67,28 @@ func listTenantSchemas() ([]string, error) {
 	var schemas []string
 	for rows.Next() {
 		var s string
-		if err := rows.Scan(&s); err == nil {
-			schemas = append(schemas, s)
+		if err := rows.Scan(&s); err != nil {
+			return nil, err
+		}
+		schemas = append(schemas, s)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	// Release the enumeration connection before checking entitlements, so
+	// a single-connection pool cannot deadlock. Core maintenance callers
+	// omit the filter; module-owned workers declare their key at the call.
+	rows.Close()
+	if len(moduleKeys) == 0 {
+		return schemas, nil
+	}
+	eligible := []string{}
+	for _, schema := range schemas {
+		if RequireModules(schema, moduleKeys...) == nil {
+			eligible = append(eligible, schema)
 		}
 	}
-	return schemas, nil
+	return eligible, nil
 }
 
 func processOutbox(schema string) {

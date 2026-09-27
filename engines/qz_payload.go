@@ -33,10 +33,10 @@ import (
 // QZDataItem is one entry in a QZ print request's `data` array. Field names
 // and values match what qz-tray.js sends, so the tray parses it identically.
 type QZDataItem struct {
-	Type   string            `json:"type"`             // "raw" | "pixel"
-	Format string            `json:"format"`           // "command" | "pdf" | "html" | "image"
-	Flavor string            `json:"flavor"`           // "plain" | "base64" | "file"
-	Data   string            `json:"data"`             // the payload itself
+	Type   string            `json:"type"`   // "raw" | "pixel"
+	Format string            `json:"format"` // "command" | "pdf" | "html" | "image"
+	Flavor string            `json:"flavor"` // "plain" | "base64" | "file"
+	Data   string            `json:"data"`   // the payload itself
 	Opts   map[string]string `json:"options,omitempty"`
 }
 
@@ -183,36 +183,126 @@ td{padding:2px 0;} td.k{font-weight:700;padding-right:10px;}
 </body></html>`
 }
 
+// defaultStickerZPL is the pre-Stage-52 hardcoded 3-line label (name,
+// barcode, SKU). Used whenever a label has no resolved StickerTemplate, or
+// one whose elements turned out empty/malformed - the fallback that keeps
+// every tenant who hasn't configured a category template unaffected.
+func defaultStickerZPL(label StickerLabel) string {
+	name := label.Name
+	if name == "" {
+		name = label.SKU
+	}
+	var b strings.Builder
+	b.WriteString("^XA\n^CI28\n")
+	b.WriteString("^FO20,20^A0N,32,32^FD" + zplEscape(truncateRunes(name, 30)) + "^FS\n")
+	if label.Barcode != "" {
+		b.WriteString("^FO20,60^BY2\n^BCN,90,Y,N,N\n^FD" + zplEscape(label.Barcode) + "^FS\n")
+	}
+	b.WriteString("^FO20,190^A0N,26,26^FDSKU: " + zplEscape(label.SKU) + "^FS\n")
+	b.WriteString("^XZ\n")
+	return b.String()
+}
+
+// mmToDots converts a millimetre measurement to printer dots at dpi.
+func mmToDots(mm, dpi float64) int {
+	return int(mm / 25.4 * dpi)
+}
+
+// zplStickerElement emits one StickerElement's ^FO/^FD (or barcode) commands
+// at dpi. Alignment/width-clipping is delegated to ZPL's own ^FB (Field
+// Block) command rather than an approximate character-count truncation -
+// the printer firmware wraps/clips to the box width itself.
+func zplStickerElement(el StickerElement, label StickerLabel, dpi float64) string {
+	x, y := mmToDots(el.XMM, dpi), mmToDots(el.YMM, dpi)
+	if el.Field == "barcode" {
+		if label.Barcode == "" {
+			return ""
+		}
+		h := mmToDots(el.HMM, dpi)
+		if h <= 0 {
+			h = mmToDots(14, dpi)
+		}
+		return fmt.Sprintf("^FO%d,%d^BY2\n^BCN,%d,Y,N,N\n^FD%s^FS\n", x, y, h, zplEscape(label.Barcode))
+	}
+
+	text := StickerFieldText(el, label)
+	if text == "" {
+		return ""
+	}
+	fontMM := el.FontSizeMM
+	if fontMM <= 0 {
+		fontMM = 3.5
+	}
+	fontDots := mmToDots(fontMM, dpi)
+	if fontDots <= 0 {
+		fontDots = 1
+	}
+
+	var fb string
+	if el.WMM > 0 {
+		justify := "L"
+		switch el.Align {
+		case "center":
+			justify = "C"
+		case "right":
+			justify = "R"
+		}
+		fb = fmt.Sprintf("^FB%d,1,0,%s,0", mmToDots(el.WMM, dpi), justify)
+	}
+	return fmt.Sprintf("^FO%d,%d^A0N,%d,%d%s^FD%s^FS\n", x, y, fontDots, fontDots, fb, zplEscape(text))
+}
+
 // BuildStickerPayload renders already-resolved sticker labels for a thermal
-// printer. Callers pass the labels PrintStickers returned, so the SKU
-// validation, print log and reprint-reason handling in engines/stickers.go
-// stay the single source of truth for what may be printed.
-func BuildStickerPayload(labels []StickerLabel, copies int, printerLanguage string) *QZPrintPayload {
+// printer. Callers pass the labels PrintStickers/PrintStickersForDocument
+// returned, so the SKU validation, print log and reprint-reason handling in
+// engines/stickers.go stay the single source of truth for what may be
+// printed.
+//
+// A label carrying no TemplateElements (no StickerTemplate resolved for its
+// category, or none configured at all) gets defaultStickerZPL untouched -
+// this keeps the feature purely additive. A label that did resolve a
+// template is rendered element-by-element, its mm positions converted to
+// dots at the printer's own DPI (falling back to 203, the value every
+// existing printer/label was already hardcoded to before this Stage).
+//
+// copies is the manual SKU-scan flow's flat per-SKU count; a label produced
+// by PrintStickersForDocument instead carries its own resolved Qty (the
+// document line's accepted/transfer quantity, or a caller override), which
+// takes precedence per-label so a GRN with different accepted quantities per
+// SKU prints the right count for each rather than one flat number for all.
+func BuildStickerPayload(labels []StickerLabel, copies int, printer QZPrinter) *QZPrintPayload {
 	if copies < 1 {
 		copies = 1
 	}
-	if !isRawLanguage(printerLanguage) {
+	if !isRawLanguage(printer.Language) {
 		return nil // caller falls back to the existing @media print sheet
+	}
+	dpi := parseMM(printer.DPI)
+	if dpi <= 0 {
+		dpi = 203
 	}
 
 	var b strings.Builder
 	for _, label := range labels {
-		for i := 0; i < copies; i++ {
-			name := label.Name
-			if name == "" {
-				name = label.SKU
+		labelCopies := copies
+		if label.Qty > 0 {
+			labelCopies = label.Qty
+		}
+		elements := ParseStickerElements(label.TemplateElements)
+		for i := 0; i < labelCopies; i++ {
+			if len(elements) == 0 {
+				b.WriteString(defaultStickerZPL(label))
+				continue
 			}
 			b.WriteString("^XA\n^CI28\n")
-			b.WriteString("^FO20,20^A0N,32,32^FD" + zplEscape(truncateRunes(name, 30)) + "^FS\n")
-			if label.Barcode != "" {
-				b.WriteString("^FO20,60^BY2\n^BCN,90,Y,N,N\n^FD" + zplEscape(label.Barcode) + "^FS\n")
+			for _, el := range elements {
+				b.WriteString(zplStickerElement(el, label, dpi))
 			}
-			b.WriteString("^FO20,190^A0N,26,26^FDSKU: " + zplEscape(label.SKU) + "^FS\n")
 			b.WriteString("^XZ\n")
 		}
 	}
 	return &QZPrintPayload{
-		Format: strings.ToUpper(printerLanguage),
+		Format: strings.ToUpper(printer.Language),
 		Items: []QZDataItem{{
 			Type:   "raw",
 			Format: "command",
@@ -685,3 +775,175 @@ table{border-collapse:collapse;} td{padding:4px 0;} td.k{font-weight:700;padding
 		}},
 	}, nil
 }
+
+// BuildPurchaseOrderQZPayload renders a Purchase Order for silent printing
+// (Stage 40.10). It reuses BuildPurchaseOrderPrint (Stage 40.1.5) unchanged -
+// the same party resolution and re-priced-from-lines totals the browser
+// fallback sheet (public/app.js renderPOPrintSheet) already uses - so the
+// silent copy and the browser copy can never disagree on what a vendor is
+// held to. Only the rendering is new.
+func BuildPurchaseOrderQZPayload(tenantID, poID string, printer QZPrinter) (*QZPrintPayload, error) {
+	po, err := BuildPurchaseOrderPrint(tenantID, poID)
+	if err != nil {
+		return nil, err
+	}
+	return renderPurchaseOrderPayload(po, printer), nil
+}
+
+func renderPurchaseOrderPayload(po POPrint, printer QZPrinter) *QZPrintPayload {
+	// Same rule as BuildInvoicePayload: a Draft PO is a legitimate document to
+	// print (e.g. for internal sign-off before sending), so it prints - but
+	// stamped, never mistaken for an issued one. Matches the ==
+	// "Approved" check the browser sheet uses (public/app.js renderPOPrintSheet).
+	draft := po.Status != "Approved"
+
+	if isESCPOS(printer.Language) {
+		cols := escposColumns(printer.WidthMM)
+		var b strings.Builder
+		b.WriteString(escInit)
+		b.WriteString(escAlignCenter)
+		b.WriteString(escBoldOn + escDoubleOn)
+		b.WriteString("Purchase Order\n")
+		b.WriteString(escDoubleOff + escBoldOff)
+		if draft {
+			b.WriteString(strings.ToUpper(po.Status) + "\n")
+		}
+		b.WriteString(escAlignLeft)
+		b.WriteString(strings.Repeat("-", cols) + "\n")
+		b.WriteString(escposRow("PO No", po.PONumber, cols))
+		if po.OrderDate != "" {
+			b.WriteString(escposRow("Date", po.OrderDate, cols))
+		}
+		b.WriteString(escposRow("Vendor", po.Vendor.Name, cols))
+		if po.ShipTo != "" {
+			b.WriteString(escposRow("Ship to", po.ShipTo, cols))
+		}
+		b.WriteString(strings.Repeat("-", cols) + "\n")
+		for _, l := range po.Lines {
+			label := l.SKU
+			if l.ItemName != "" {
+				label = l.ItemName
+			}
+			b.WriteString(escposRow(fmt.Sprintf("%dx %s", l.Qty, label), money(l.LineTotal), cols))
+		}
+		b.WriteString(strings.Repeat("-", cols) + "\n")
+		if po.Breakdown.Interstate {
+			b.WriteString(escposRow("IGST", money(po.Breakdown.IGST), cols))
+		} else {
+			b.WriteString(escposRow("CGST", money(po.Breakdown.CGST), cols))
+			b.WriteString(escposRow("SGST", money(po.Breakdown.SGST), cols))
+		}
+		b.WriteString(escBoldOn)
+		b.WriteString(escposRow("GRAND TOTAL", money(po.GrandTotal), cols))
+		b.WriteString(escBoldOff)
+		b.WriteString("\n\n\n")
+		b.WriteString(escCut)
+
+		return &QZPrintPayload{
+			Format: "ESC-POS",
+			Items: []QZDataItem{{
+				Type:   "raw",
+				Format: "command",
+				Flavor: "plain",
+				Data:   b.String(),
+			}},
+		}
+	}
+
+	watermark := ""
+	if draft {
+		watermark = `<div class="draft">` + html.EscapeString(strings.ToUpper(po.Status)) + `</div>`
+	}
+	metaRow := func(label, value string) string {
+		if value == "" {
+			return ""
+		}
+		return `<div><strong>` + html.EscapeString(label) + `:</strong> ` + html.EscapeString(value) + `</div>`
+	}
+	party := func(title string, p POParty) string {
+		out := `<div class="party"><div class="ptitle">` + html.EscapeString(title) + `</div>` +
+			`<div class="pname">` + html.EscapeString(firstNonEmpty(p.Name, "—")) + `</div>`
+		if p.Address != "" {
+			out += `<div>` + html.EscapeString(p.Address) + `</div>`
+		}
+		if p.GSTIN != "" {
+			out += `<div>GSTIN: ` + html.EscapeString(p.GSTIN) + `</div>`
+		}
+		if p.State != "" && p.State != "Not set" {
+			out += `<div>State: ` + html.EscapeString(p.State) + `</div>`
+		}
+		return out + `</div>`
+	}
+
+	var rows strings.Builder
+	for i, l := range po.Lines {
+		gst := "—"
+		if l.GSTRate > 0 {
+			gst = strconv.FormatFloat(l.GSTRate, 'f', -1, 64) + "%"
+		} else if l.Treatment != "" && l.Treatment != "Taxable" {
+			gst = html.EscapeString(l.Treatment)
+		}
+		item := html.EscapeString(l.SKU)
+		if l.ItemName != "" {
+			item += `<div class="iname">` + html.EscapeString(l.ItemName) + `</div>`
+		}
+		rows.WriteString(fmt.Sprintf(
+			`<tr><td>%d</td><td>%s</td><td>%s</td><td class="num">%d</td><td class="num">%s</td><td class="num">%s</td><td class="num">%s</td><td class="num">%s</td></tr>`,
+			i+1, item, html.EscapeString(l.HSNCode), l.Qty, money(l.Rate), gst, money(l.Taxable), money(l.LineTotal)))
+	}
+
+	// No MRP column, deliberately - same rule as the browser sheet: the
+	// server-computed POPrint never carried it in the first place, and the
+	// buying side's expected retail price is not the vendor's business.
+	taxRows := `<tr><td>Taxable value</td><td class="num">` + money(po.Breakdown.TaxableAmount) + `</td></tr>`
+	if po.Breakdown.Interstate {
+		taxRows += `<tr><td>IGST</td><td class="num">` + money(po.Breakdown.IGST) + `</td></tr>`
+	} else {
+		taxRows += `<tr><td>CGST</td><td class="num">` + money(po.Breakdown.CGST) + `</td></tr>` +
+			`<tr><td>SGST</td><td class="num">` + money(po.Breakdown.SGST) + `</td></tr>`
+	}
+
+	words := ""
+	if po.AmountInWords != "" {
+		words = `<div class="words">` + html.EscapeString(po.AmountInWords) + `</div>`
+	}
+
+	return &QZPrintPayload{
+		Format: "HTML",
+		Items: []QZDataItem{{
+			Type:   "pixel",
+			Format: "html",
+			Flavor: "plain",
+			Data: `<html><head><meta charset="utf-8"><style>` + poPrintCSS + `</style></head><body>
+<h1>Purchase Order</h1>` + watermark + `<hr>
+` + metaRow("PO No", po.PONumber) + metaRow("Date", po.OrderDate) + metaRow("Ship to", po.ShipTo) + `
+<div class="parties">` + party("Buyer", po.Buyer) + party("Vendor", po.Vendor) + `</div>
+<table><thead><tr><th>#</th><th>Item</th><th>HSN</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">GST%</th><th class="num">Taxable</th><th class="num">Amount</th></tr></thead>
+<tbody>` + rows.String() + `</tbody></table>
+<table class="totals">` + taxRows + `<tr class="grand"><td>Grand Total</td><td class="num">` + money(po.GrandTotal) + `</td></tr></table>` +
+				words + `
+<div class="foot"><div>Prices are <strong>` + html.EscapeString(po.GSTMode) + `</strong> of GST.</div><div>Authorised Signatory</div></div>
+</body></html>`,
+		}},
+	}
+}
+
+const poPrintCSS = `
+body{font-family:Arial,Helvetica,sans-serif;margin:0;padding:24px;font-size:12px;}
+h1{font-size:22px;margin:0 0 2px;}
+.draft{color:#b91c1c;font-size:14px;font-weight:700;letter-spacing:3px;margin-bottom:8px;}
+hr{border:0;border-top:2px solid #000;margin:10px 0;}
+.parties{display:flex;justify-content:space-between;margin:10px 0;}
+.party{max-width:48%;}
+.ptitle{font-weight:700;text-transform:uppercase;font-size:10px;color:#555;}
+.pname{font-weight:700;font-size:14px;}
+table{border-collapse:collapse;width:100%;margin-bottom:10px;}
+th,td{padding:4px 6px;border-bottom:1px solid #ddd;text-align:left;}
+td.num,th.num{text-align:right;}
+.iname{font-size:10px;color:#555;}
+.totals{width:260px;margin-left:auto;}
+.totals td{border:0;padding:2px 6px;}
+.grand td{font-weight:700;font-size:15px;border-top:2px solid #000;}
+.words{margin-top:6px;font-style:italic;font-size:11px;}
+.foot{margin-top:20px;display:flex;justify-content:space-between;font-size:11px;}
+`

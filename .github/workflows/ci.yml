@@ -41,7 +41,7 @@ jobs:
 
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0 (pinned; see above)
         with:
-          go-version: '1.22.12' # exact patch, matching go.mod's `go 1.22.12` directive - see docs/security/dependency-ledger.json's "go" entry
+          go-version: '1.27.1' # exact patch, matching go.mod's `go 1.27.1` directive - see docs/security/dependency-ledger.json's "go" entry
 
       - name: Verify module integrity
         # `go mod verify` re-hashes every downloaded module against go.sum -
@@ -49,26 +49,30 @@ jobs:
         # for each entry (Stage 49.9.4/49.9.6: locked, verified modules).
         run: go mod verify
 
+      - name: Build migration runner
+        # Stage 50/BLD-004: this step used to glob db/*.sql and pipe each file
+        # to psql in `sort` order - deliberately not a hand-maintained list
+        # (see git history for why), but plain `sort` is a byte-wise
+        # lexicographic order, NOT db/migrate.go's numeric-aware
+        # compareMigrationNames (every digit sorts below every letter in
+        # ASCII, so a numbered sub-item like migrations_stage47_7_6_*.sql
+        # always sorted before the unnumbered file it depends on,
+        # migrations_stage47_7_*.sql - exactly AUD-02's defect, reproduced
+        # independently here: `ls db/*.sql | sort` puts _7_6_ before _7_ for
+        # that exact pair). A second, drifted reimplementation of "what order
+        # do migrations run in" is precisely the failure mode this step's own
+        # prior comment warned about for a hand-maintained file list - it
+        # just didn't anticipate a second *ordering rule* drifting the same
+        # way. Building the real binary and running its own `-migrate` here
+        # removes the second implementation instead of re-deriving its
+        # ordering in shell: CI, deploy/migrate.sh and a local dev install now
+        # share the exact same runner, not three sort-compatible cousins of it.
+        run: go build -o /tmp/erp-server-ci ./cmd/server
+
       - name: Apply database schema
-        # Applies EVERY db/*.sql in filename order - deliberately a glob, not a
-        # hardcoded list. This step used to enumerate files by hand, and drifted
-        # twice: first at Stage 14 (missing 14a-14e), then again by Stage 29, at
-        # which point CI was applying 10 of 65 migrations and had been testing
-        # against a ~50-migration-stale schema. A hand-maintained list has to be
-        # updated by every future migration author to stay correct, so it will
-        # drift again; a glob cannot. Same ordering rule as deploy/migrate.sh and
-        # promote.ps1's Apply-PendingMigrations.
-        #
-        # ON_ERROR_STOP=1 + `set -e` make a failed migration fail the build. Without
-        # it psql exits 0 on SQL errors and CI goes green against a broken schema.
-        run: |
-          set -euo pipefail
-          for f in $(ls db/*.sql | sort); do
-            echo "--- applying $f"
-            psql -v ON_ERROR_STOP=1 -h localhost -p 5435 -U postgres -d custom_erp -f "$f"
-          done
+        run: /tmp/erp-server-ci -migrate
         env:
-          PGPASSWORD: ''
+          DATABASE_URL: postgres://postgres@localhost:5435/custom_erp?sslmode=disable
 
       - name: Verify schema is complete
         # Guards the step above: proves the migrations actually landed rather than
@@ -183,7 +187,7 @@ jobs:
 
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0 (pinned)
         with:
-          go-version: '1.22.12'
+          go-version: '1.27.1'
 
       - name: Verify module integrity
         run: go mod verify

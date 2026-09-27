@@ -19,6 +19,23 @@ func TestMigrationOrdering(t *testing.T) {
 			{"migration.sql", "migrations_phase3.sql"},
 			{"migrations_stage14a_modules.sql", "migrations_stage14b_versioning.sql"},
 			{"migrations_stage29_8_status_transition_map.sql", "migrations_stage30_1_2_item_tax_mandatory.sql"},
+			// Stage 50/AUD-02: an unnumbered "foundation" file for stage N.M
+			// must sort before a numbered N.M.K sub-item of it, even though
+			// plain byte comparison of a digit against the sub-item's own
+			// leading letter says otherwise (every digit is < every letter
+			// in ASCII, so the old rule got this backwards regardless of
+			// which file actually depends on the other). This is the exact
+			// pair a genuinely fresh `-migrate` failed against
+			// ("relation tenant_default.audit_checkpoints does not exist");
+			// live-verified end to end against a real empty scratch database
+			// after this fix - all 161 embedded migrations applied cleanly,
+			// re-running was a correct no-op, `go build`/`go vet` clean - see
+			// project_ledger.md for the full session record. Not turned into
+			// a permanent CREATE DATABASE integration test here: this
+			// package has no existing pattern for owning a scratch
+			// database's lifecycle inside `go test`, and inventing one is a
+			// separate, larger piece of test infrastructure.
+			{"migrations_stage47_7_audit_evidence.sql", "migrations_stage47_7_6_audit_archive.sql"},
 		} {
 			if got := compareMigrationNames(tc.a, tc.b); got >= 0 {
 				t.Errorf("expected %q to sort before %q, got %d", tc.a, tc.b, got)

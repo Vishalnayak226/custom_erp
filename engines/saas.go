@@ -183,6 +183,7 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		"api_idempotency_keys",
 		"api_request_log",
 		"async_jobs",
+		"industry_lock",
 	}
 
 	for _, table := range tables {
@@ -200,7 +201,7 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		// cloned like every other tenant-local table. Established core tables
 		// still fail loudly below exactly as before - that is the 26.11.2 bug
 		// this guard is deliberately narrow enough not to re-open.
-		if table == "api_credentials" || table == "api_idempotency_keys" || table == "api_request_log" || table == "bin_stock_batch" || table == "bin_stock_owner" || table == "async_jobs" {
+		if table == "api_credentials" || table == "api_idempotency_keys" || table == "api_request_log" || table == "bin_stock_batch" || table == "bin_stock_owner" || table == "async_jobs" || table == "industry_lock" {
 			var templateExists bool
 			if err = tx.QueryRow(`SELECT to_regclass('tenant_default.` + table + `') IS NOT NULL`).Scan(&templateExists); err != nil {
 				return "", fmt.Errorf("failed to inspect %s template: %v", table, err)

@@ -320,7 +320,7 @@ func StartWaveAutoCreationWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := listTenantSchemas("wms")
 				if err != nil {
 					log.Printf("[WAVE_AUTO_CREATE] failed to list tenant schemas: %v", err)
 					continue

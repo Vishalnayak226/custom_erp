@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // Module describes one row of the global public.modules catalog.
@@ -243,6 +244,11 @@ func ListProductPackages() []ProductPackage {
 // against an existing tenant's already-mutated state, where an enable
 // failure is worth surfacing rather than silently proceeding.
 func ApplyPackageSelection(tenantID string, packageKeys []string, grantedBy string) error {
+	for _, key := range packageKeys {
+		if _, ok := ProductPackages[key]; !ok {
+			return fmt.Errorf("unknown package: %s", key)
+		}
+	}
 	wanted := map[string]bool{}
 	for _, m := range ExpandPackagesToModules(packageKeys) {
 		wanted[m] = true
@@ -282,6 +288,17 @@ func ApplyPackageSelection(tenantID string, packageKeys []string, grantedBy stri
 		}
 		toDisable = stillFailing
 	}
+	// Stage 50/AUD-05: this used to fall through to `return nil` here
+	// regardless of whether toDisable actually converged to empty - so a
+	// module that refused to disable on every pass (the fixture-injected
+	// case, but also a real dependentsOf refusal) was reported as a
+	// successful plan change while the tenant kept a module the selection
+	// said it should not have. A partial success is not a success; the
+	// caller (handleSetTenantPackage) already surfaces this error to the
+	// operator as a 422 rather than the prior silent "updated".
+	if len(toDisable) > 0 {
+		return fmt.Errorf("could not disable module(s) still required by the tenant's configuration: %s", strings.Join(toDisable, ", "))
+	}
 	return nil
 }
 
@@ -294,7 +311,7 @@ func IsModuleEnabled(tenantID string, moduleKey string) (bool, error) {
 		return false, err
 	}
 
-	query := fmt.Sprintf("SELECT enabled FROM %s.module_entitlements WHERE module_key = $1", schema)
+	query := fmt.Sprintf("SELECT e.enabled FROM %s.module_entitlements e JOIN public.modules m ON m.module_key=e.module_key WHERE e.module_key = $1", schema)
 	var enabled bool
 	err = db.DB.QueryRow(query, moduleKey).Scan(&enabled)
 	if err != nil {
@@ -344,15 +361,15 @@ func SetModuleEntitlement(tenantID string, moduleKey string, enabled bool, grant
 		return err
 	}
 
+	var isCore bool
+	err = db.DB.QueryRow("SELECT is_core FROM public.modules WHERE module_key = $1", moduleKey).Scan(&isCore)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("unknown module_key: %s", moduleKey)
+	}
+	if err != nil {
+		return err
+	}
 	if !enabled {
-		var isCore bool
-		err = db.DB.QueryRow("SELECT is_core FROM public.modules WHERE module_key = $1", moduleKey).Scan(&isCore)
-		if err == sql.ErrNoRows {
-			return fmt.Errorf("unknown module_key: %s", moduleKey)
-		}
-		if err != nil {
-			return err
-		}
 		if isCore {
 			return fmt.Errorf("module '%s' is a core module and cannot be disabled", moduleKey)
 		}
@@ -397,8 +414,8 @@ func SetModuleEntitlement(tenantID string, moduleKey string, enabled bool, grant
 // ListModuleEntitlements returns the full module catalog joined with this
 // tenant's current entitlement state (a module with no row yet - e.g. a
 // tenant provisioned before this module was added to the catalog - falls
-// back to the catalog's default_enabled, matching how a never-set feature
-// flag already behaves elsewhere in this codebase).
+// back to disabled, matching IsModuleEnabled. Catalog defaults apply when
+// provisioning creates an entitlement, not when an entitlement is missing.
 func ListModuleEntitlements(tenantID string) ([]ModuleEntitlement, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -406,7 +423,7 @@ func ListModuleEntitlements(tenantID string) ([]ModuleEntitlement, error) {
 	}
 
 	query := fmt.Sprintf(`
-		SELECT m.module_key, m.display_name, m.is_core, COALESCE(e.enabled, m.default_enabled) AS enabled
+		SELECT m.module_key, m.display_name, m.is_core, COALESCE(e.enabled, FALSE) AS enabled
 		FROM public.modules m
 		LEFT JOIN %s.module_entitlements e ON e.module_key = m.module_key
 		ORDER BY m.module_key`, schema)
@@ -449,9 +466,9 @@ func ListModules() ([]Module, error) {
 // ModuleForDoctype resolves the module_key a given doctype belongs to, for
 // gating the generic doc CRUD route (internal/server/handlers_core_doc_engine.go's handleGenericDoc) where the
 // doctype is a runtime path parameter and can't be gated at route-
-// registration time the way the fixed module routes are. Returns "" (no
-// error) for a doctype with no module_key assigned - such doctypes are
-// treated as ungated/core, matching the additive nature of this migration.
+// registration time the way the fixed module routes are. Missing metadata
+// and unassigned modules fail closed; custom types use their explicit core
+// default from the existing schema rather than an implicit access bypass.
 func ModuleForDoctype(tenantID string, doctype string) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -462,10 +479,55 @@ func ModuleForDoctype(tenantID string, doctype string) (string, error) {
 	var moduleKey string
 	err = db.DB.QueryRow(query, doctype).Scan(&moduleKey)
 	if err == sql.ErrNoRows {
-		return "", nil
+		return "", &ValidationError{Code: "GLOBAL-0004", Message: "Unknown document type"}
 	}
 	if err != nil {
 		return "", err
 	}
+	if moduleKey == "" {
+		return "", &ValidationError{Code: "SAAS-0191", Message: "Document type has no registered module"}
+	}
 	return moduleKey, nil
+}
+
+// RequireModules is shared by dynamic entry points (reports, exports and
+// workers). Fixed HTTP routes continue to use moduleGate with the same check.
+func RequireModules(tenantID string, moduleKeys ...string) error {
+	for _, key := range moduleKeys {
+		enabled, err := IsModuleEnabled(tenantID, key)
+		if err != nil {
+			return err
+		}
+		if !enabled {
+			return &ValidationError{Code: "SAAS-0191", Message: "Module is unavailable for this tenant"}
+		}
+	}
+	return nil
+}
+
+// ModuleForReportCategory normalizes the report registry's existing business
+// vocabulary. Unrecognized categories remain unrecognized module keys and
+// are denied by RequireModules; catalog consistency tests catch new typos.
+func ModuleForReportCategory(category string) string {
+	switch category {
+	case "CRM":
+		return "crm_loyalty"
+	case "Admin", "BI", "Exceptions":
+		return "reports"
+	default:
+		return strings.ToLower(strings.ReplaceAll(category, " ", "_"))
+	}
+}
+
+// ModulePrerequisites combines the existing optional dependency declaration
+// with the core services already required by every package. No second SKU map.
+func ModulePrerequisites(moduleKey string, catalog []Module) []string {
+	keys := append([]string{}, moduleDependencies[moduleKey]...)
+	for _, m := range catalog {
+		if m.IsCore && m.ModuleKey != moduleKey {
+			keys = append(keys, m.ModuleKey)
+		}
+	}
+	sort.Strings(keys)
+	return keys
 }

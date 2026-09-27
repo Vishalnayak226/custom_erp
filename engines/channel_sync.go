@@ -451,7 +451,7 @@ func StartChannelSyncWorker(ctx context.Context, interval time.Duration) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				schemas, err := listTenantSchemas()
+				schemas, err := listTenantSchemas("oms")
 				if err != nil {
 					log.Printf("[CHANNEL-SYNC] list tenants: %v", err)
 					continue

@@ -1,10 +1,65 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"database/sql"
 	"fmt"
+	"hash/fnv"
+	"time"
 )
+
+// channelOrderLockKey derives a deterministic bigint advisory-lock key from
+// schema+channel+channel_order_id.
+func channelOrderLockKey(schema, channel, channelOrderID string) int64 {
+	h := fnv.New64a()
+	h.Write([]byte(schema + "\x00" + channel + "\x00" + channelOrderID))
+	return int64(h.Sum64())
+}
+
+// acquireChannelOrderLock serializes concurrent imports of the identical
+// channel+channel_order_id (BLD-031: a real channel redelivers webhooks at
+// least once - a timeout on the FIRST response is indistinguishable from a
+// lost request - so the identical channel_order_id arriving concurrently is
+// a normal case, not an edge case). The mapping lookup below and
+// CreateSalesOrder's own duplicate check are both plain SELECTs, not a lock;
+// without this, two concurrent deliveries can each observe "not found" and
+// each create a real SalesOrder, doubling the order's economics (reserved
+// stock, revenue, everything downstream). A session-level advisory lock is
+// used rather than a shared *sql.Tx because every statement below (including
+// deep inside CreateSalesOrder) takes its own connection from the pool - the
+// lock is enforced by Postgres itself, keyed by the same integer on
+// whichever connection asks for it, so it serializes them regardless.
+// pg_try_advisory_lock (not the blocking form) with a bounded retry means a
+// caller that loses the race waits briefly rather than risking an indefinite
+// hang if a prior holder's connection ever wedged - it fails with a clear
+// "try again" error instead.
+func acquireChannelOrderLock(schema, channel, channelOrderID string) (release func(), err error) {
+	key := channelOrderLockKey(schema, channel, channelOrderID)
+	conn, err := db.DB.Conn(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		var acquired bool
+		if err := conn.QueryRowContext(context.Background(), "SELECT pg_try_advisory_lock($1)", key).Scan(&acquired); err != nil {
+			conn.Close()
+			return nil, err
+		}
+		if acquired {
+			return func() {
+				_, _ = conn.ExecContext(context.Background(), "SELECT pg_advisory_unlock($1)", key)
+				conn.Close()
+			}, nil
+		}
+		if time.Now().After(deadline) {
+			conn.Close()
+			return nil, fmt.Errorf("channel order %s/%s is being imported by another request - please retry", channel, channelOrderID)
+		}
+		time.Sleep(25 * time.Millisecond)
+	}
+}
 
 // ChannelOrderInput is the normalized, transport-independent order shape
 // accepted from channel webhooks and pollers.  It deliberately feeds the
@@ -37,6 +92,13 @@ func ImportChannelSalesOrder(tenantID string, input ChannelOrderInput) (string, 
 	if err != nil {
 		return "", err
 	}
+
+	release, err := acquireChannelOrderLock(schema, input.Channel, input.ChannelOrderID)
+	if err != nil {
+		return "", err
+	}
+	defer release()
+
 	// The mapping row is only honoured when the order it names still exists
 	// (Stage 35.1.3). The retired importers wrote a mapping row pointing at a
 	// synthetic "ORD-<channel>-<id>" that was never created as a document, so

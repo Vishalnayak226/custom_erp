@@ -300,7 +300,7 @@ func allModules(level AccessLevel) map[string]AccessLevel {
 var knownModules = []string{
 	"CRM", "Core", "Finance", "HR", "Inbound", "Integrations", "Inventory",
 	"Manufacturing", "Master Data", "OMS", "PIM", "POS", "Procurement",
-	"Quality", "Reports", "Sales", "Service",
+	"Quality", "Reports", "Sales", "Service", "Store",
 }
 
 // RoleTemplates returns the templates in declaration order.

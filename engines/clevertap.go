@@ -200,7 +200,7 @@ func StartCleverTapWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := listTenantSchemas("crm_loyalty")
 				if err != nil {
 					log.Printf("[CLEVERTAP] Failed to list tenant schemas: %v", err)
 					continue

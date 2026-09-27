@@ -164,4 +164,39 @@ func TestLoyaltyRedemptionSecurity(t *testing.T) {
 			t.Fatalf("expected an expired challenge to be rejected")
 		}
 	})
+
+	// BLD-020 (2026-09-22): the wide 25-hour margin above proves rejection
+	// but can't tell an SQL-side comparison from an unrepaired ~5.5-hour Go
+	// vs Postgres skew - the margin swallows exactly the discrepancy the
+	// comment above describes. This pair proves the fix at a real boundary
+	// (seconds, not hours, but wide enough not to flake on process/network
+	// scheduling jitter between the seed and the verify call): a challenge
+	// that expired 10 seconds ago is rejected, and one expiring 10 seconds
+	// from now still succeeds - both fixtures computed by Postgres's own
+	// NOW() (interval arithmetic in the INSERT itself), never by Go's
+	// time.Now(), so the fixture itself carries none of the skew being
+	// tested for.
+	t.Run("expiry boundary is evaluated in SQL, not skewed by app-server-vs-database clock", func(t *testing.T) {
+		cleanup()
+		seedEarn(1000)
+		if _, err := db.DB.Exec(fmt.Sprintf(`
+			INSERT INTO %s.loyalty_redemption_otp_challenges (id, customer_id, points, reference_id, initiated_by, otp_hash, expires_at)
+			VALUES ($1, $2, $3, $4, $5, $6, NOW() - INTERVAL '10 seconds')`, schema),
+			"TEST-LRS-CH-BOUND-PAST", custID, 10, "TEST-LRS-REF", "manager1", hashOTP("111111")); err != nil {
+			t.Fatalf("seed just-expired challenge: %v", err)
+		}
+		if _, _, _, err := VerifyAndRedeemLoyaltyOTP(tenantID, "TEST-LRS-CH-BOUND-PAST", "111111"); err == nil {
+			t.Fatalf("counterexample: a challenge that expired 10 seconds ago (per Postgres's own clock) was accepted - the app-server-vs-database timezone skew this fix closes would show up here")
+		}
+
+		if _, err := db.DB.Exec(fmt.Sprintf(`
+			INSERT INTO %s.loyalty_redemption_otp_challenges (id, customer_id, points, reference_id, initiated_by, otp_hash, expires_at)
+			VALUES ($1, $2, $3, $4, $5, $6, NOW() + INTERVAL '10 seconds')`, schema),
+			"TEST-LRS-CH-BOUND-FUTURE", custID, 10, "TEST-LRS-REF", "manager1", hashOTP("222222")); err != nil {
+			t.Fatalf("seed not-yet-expired challenge: %v", err)
+		}
+		if _, _, _, err := VerifyAndRedeemLoyaltyOTP(tenantID, "TEST-LRS-CH-BOUND-FUTURE", "222222"); err != nil {
+			t.Fatalf("counterexample: a challenge expiring 10 seconds from now (per Postgres's own clock) was rejected as already expired: %v", err)
+		}
+	})
 }

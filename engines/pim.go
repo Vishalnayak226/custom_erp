@@ -649,3 +649,100 @@ func ValidateItemVariantUniqueness(tenantID, docID string, payload map[string]in
 	}
 	return rows.Err()
 }
+
+// itemVariantAttributeFields lists the Item fields recognized as
+// variant-differentiating attributes for automatic Combination ID/SKU
+// generation (Stage 51.5). Deliberately a small, generic set rather than
+// every field an industry profile might add to Item: a continuous/measured
+// value (weight, making charge) is a property of the physical unit, not a
+// choice that defines a distinct sellable combination, so including it here
+// would mint a new "combination" for every slightly different weight instead
+// of grouping them under the same SKU. A tenant that already types its own
+// variant_option_values keeps working unchanged - PrepareItemVariantCode
+// merges these in alongside whatever it already set, never replacing it.
+// color/polish added after a real client migration (fashion/imitation
+// jewellery, no karat/weight data at all) showed metal_type/purity_karat
+// alone don't cover every jewellery business model - a fine-jewellery
+// tenant's combinations differ by metal+purity, a fashion-jewellery
+// tenant's by color+polish/plating, and this list simply recognizes both.
+var itemVariantAttributeFields = []string{"metal_type", "purity_karat", "stone_type", "color", "polish", "size"}
+
+// PrepareItemVariantCode (Stage 51.5) auto-generates an Item's Combination
+// ID/SKU from its parent design and variant attributes, wiring up
+// GenerateVariantCode (engines/numbering.go) and normalizeVariantOptions
+// (this file) - both of which already existed, GenerateVariantCode with no
+// caller at all. A no-op unless this is a create with no explicit code and a
+// parent design set - a standalone Item (no family, no parent_product_code)
+// keeps using its ordinary sequence-numbered code, untouched.
+func PrepareItemVariantCode(tenantID string, isCreate bool, payload map[string]interface{}) error {
+	if !isCreate {
+		return nil
+	}
+	if code, _ := payload["code"].(string); strings.TrimSpace(code) != "" {
+		return nil
+	}
+
+	// The parent "Design" can be named two ways today: a proper Link to a
+	// ProductFamily master (auto-numbered like any other Master doctype -
+	// the closest thing this codebase has to a real "Design ID" record) or
+	// a bare parent_product_code string that ValidateItemVariantUniqueness
+	// already groups siblings by. If a family is linked and no
+	// parent_product_code was typed, bridge the two rather than asking the
+	// user to enter the same design identity twice.
+	family, _ := payload["family"].(string)
+	family = strings.TrimSpace(family)
+	parentCode, _ := payload["parent_product_code"].(string)
+	parentCode = strings.TrimSpace(parentCode)
+	if parentCode == "" && family != "" {
+		parentCode = family
+		payload["parent_product_code"] = parentCode
+	}
+	if parentCode == "" {
+		return nil
+	}
+
+	// Merge the recognized discrete variant attributes into whatever
+	// variant_option_values the caller already supplied, rather than
+	// requiring them to hand-type a "Key:Value;Key:Value" string that
+	// duplicates fields they already filled in on the form. An explicit
+	// value the caller set for a given key wins over the plain field.
+	kv := map[string]string{}
+	if existing, _ := payload["variant_option_values"].(string); existing != "" {
+		for _, p := range strings.Split(existing, ";") {
+			parts := strings.SplitN(p, ":", 2)
+			key := strings.TrimSpace(parts[0])
+			if key == "" {
+				continue
+			}
+			val := ""
+			if len(parts) == 2 {
+				val = strings.TrimSpace(parts[1])
+			}
+			kv[key] = val
+		}
+	}
+	for _, field := range itemVariantAttributeFields {
+		if v, ok := payload[field].(string); ok && strings.TrimSpace(v) != "" {
+			if _, already := kv[field]; !already {
+				kv[field] = strings.TrimSpace(v)
+			}
+		}
+	}
+	if len(kv) == 0 {
+		return nil
+	}
+
+	keys := make([]string, 0, len(kv))
+	for k := range kv {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, k+":"+kv[k])
+	}
+	payload["variant_option_values"] = strings.Join(parts, ";")
+
+	payload["code"] = GenerateVariantCode(tenantID, parentCode, "", kv)
+	return nil
+}

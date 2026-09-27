@@ -202,7 +202,7 @@ func VerifyAuditEvidence(tenantID string) (*AuditVerification, error) {
 func verifyCheckpoints(tenantID, schema string, out *AuditVerification) error {
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, from_seq, to_seq, row_count, unsigned_count, row_digest,
-		       COALESCE(prev_checkpoint_signature,''), signature, sig_version
+		       COALESCE(prev_checkpoint_signature,''), signature, sig_version, archive_id
 		  FROM %s.audit_checkpoints ORDER BY to_seq ASC`, schema))
 	if err != nil {
 		return err
@@ -214,12 +214,13 @@ func verifyCheckpoints(tenantID, schema string, out *AuditVerification) error {
 		fromSeq, toSeq               int64
 		rowCount, unsignedCount      int
 		digest, prevSig, sig, sigVer string
+		archiveID                    sql.NullString
 	}
 	var checkpoints []cp
 	for rows.Next() {
 		var c cp
 		if err := rows.Scan(&c.id, &c.fromSeq, &c.toSeq, &c.rowCount, &c.unsignedCount,
-			&c.digest, &c.prevSig, &c.sig, &c.sigVer); err != nil {
+			&c.digest, &c.prevSig, &c.sig, &c.sigVer, &c.archiveID); err != nil {
 			return err
 		}
 		checkpoints = append(checkpoints, c)
@@ -241,9 +242,28 @@ func verifyCheckpoints(tenantID, schema string, out *AuditVerification) error {
 		}
 		// ...and does the window still contain what it said it did? This is
 		// the deletion check a per-row signature cannot make on its own.
-		digest, count, unsigned, err := digestRange(schema, c.fromSeq, c.toSeq)
-		if err != nil {
-			return err
+		//
+		// 47.7.6: a window whose rows were moved to an integrity-checked
+		// archive and deleted from audit_logs would otherwise look exactly
+		// like a deletion attack to digestRange - so an archived checkpoint
+		// is verified against its archive instead, which still detects the
+		// archive itself being deleted, corrupted or swapped (see
+		// verifyArchivedWindow's own comment for why archive_id cannot be
+		// trusted merely because it is set).
+		var digest string
+		var count, unsigned int
+		if c.archiveID.Valid {
+			digest, count, unsigned, err = verifyArchivedWindow(tenantID, schema, c.id, c.archiveID.String)
+			if err != nil {
+				out.Intact = false
+				out.CheckpointsBad = append(out.CheckpointsBad, fmt.Sprintf("%s (archive: %v)", c.id, err))
+				continue
+			}
+		} else {
+			digest, count, unsigned, err = digestRange(schema, c.fromSeq, c.toSeq)
+			if err != nil {
+				return err
+			}
 		}
 		if digest != c.digest || count != c.rowCount || unsigned != c.unsignedCount {
 			out.Intact = false

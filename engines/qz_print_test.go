@@ -170,7 +170,7 @@ func TestZPLEscapingNeutralisesControlCharacters(t *testing.T) {
 func TestBuildStickerPayloadRawVersusFallback(t *testing.T) {
 	labels := []StickerLabel{{SKU: "SKU-1", Name: "Test Item", Barcode: "8901234567890"}}
 
-	zpl := BuildStickerPayload(labels, 2, "ZPL")
+	zpl := BuildStickerPayload(labels, 2, QZPrinter{Language: "ZPL"})
 	if zpl == nil {
 		t.Fatal("ZPL printer should get a raw payload")
 	}
@@ -186,8 +186,48 @@ func TestBuildStickerPayloadRawVersusFallback(t *testing.T) {
 
 	// A PDF/driver printer has no raw form; nil tells the caller to fall back
 	// to the existing browser print sheet rather than printing nothing.
-	if BuildStickerPayload(labels, 1, "PDF") != nil {
+	if BuildStickerPayload(labels, 1, QZPrinter{Language: "PDF"}) != nil {
 		t.Fatal("non-raw printer should return nil so the caller falls back")
+	}
+}
+
+// TestBuildStickerPayloadTemplateDrivenLayout (Stage 52) pins the mm-to-dots
+// conversion: a template element at x_mm=10,y_mm=5 must land at exactly the
+// dot coordinates 203dpi implies (10/25.4*203=79, 5/25.4*203=39), and a label
+// with no template must still fall back to the pre-Stage-52 hardcoded layout
+// untouched.
+func TestBuildStickerPayloadTemplateDrivenLayout(t *testing.T) {
+	elements := `[{"id":"e1","field":"name","x_mm":10,"y_mm":5,"w_mm":30,"h_mm":6,"font_size_mm":3,"align":"center"},` +
+		`{"id":"e2","field":"barcode","x_mm":2,"y_mm":12,"w_mm":36,"h_mm":10}]`
+	labels := []StickerLabel{
+		{SKU: "SKU-T1", Name: "Templated Item", Barcode: "1112223334445", Category: "Earrings",
+			TemplateID: "TMPL-1", TemplateElements: []byte(elements), Qty: 3},
+	}
+
+	payload := BuildStickerPayload(labels, 1, QZPrinter{Language: "ZPL"})
+	if payload == nil {
+		t.Fatal("ZPL printer should get a raw payload")
+	}
+	data := payload.Items[0].Data
+
+	if n := strings.Count(data, "^XA"); n != 3 {
+		t.Fatalf("label.Qty=3 should win over the flat copies=1 and emit 3 labels, got %d", n)
+	}
+	if !strings.Contains(data, "^FO79,39") {
+		t.Fatalf("expected the name element at dots (79,39) for 10mm/5mm @203dpi, got:\n%s", data)
+	}
+	if !strings.Contains(data, "^FB239,1,0,C,0") { // 30mm @203dpi = 239 dots, center-justified
+		t.Fatalf("expected a centered ^FB field block sized to the element width, got:\n%s", data)
+	}
+	if !strings.Contains(data, "^BCN,") || !strings.Contains(data, "1112223334445") {
+		t.Fatalf("expected a barcode command carrying the label's barcode value, got:\n%s", data)
+	}
+
+	// No template resolved at all -> exactly the pre-Stage-52 hardcoded layout.
+	plain := []StickerLabel{{SKU: "SKU-T2", Name: "Plain Item", Barcode: "999"}}
+	fallback := BuildStickerPayload(plain, 1, QZPrinter{Language: "ZPL"})
+	if fallback == nil || !strings.Contains(fallback.Items[0].Data, "^FO20,20^A0N,32,32^FDPlain Item^FS") {
+		t.Fatalf("expected the untouched hardcoded fallback layout, got:\n%v", fallback)
 	}
 }
 

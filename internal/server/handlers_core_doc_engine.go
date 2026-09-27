@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"custom_erp/db"
 	"custom_erp/engines"
@@ -84,6 +85,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	// Resolve parameters using Go 1.22 enhanced routing Value methods
 	doctype := r.PathValue("doctype")
 	id := r.PathValue("id")
+	// Export payloads have a second, report-specific entitlement. Their
+	// dedicated API rechecks it on download; generic CRUD must not expose
+	// or forge the stored CSV via the broader reports-module permission.
+	if doctype == "ReportExportJob" {
+		writeAPIError(w, r, "GLOBAL-0011", "")
+		return
+	}
 
 	// 26.4.10: a Supplier login is an OUTSIDE party. Doctype-level RBAC alone
 	// would let every supplier read every other supplier's submissions, so
@@ -178,18 +186,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// 1b. Module-wise access control (Stage 14.1). {doctype} is a runtime
-	// path param, so unlike the fixed module routes (moduleGate wraps those
-	// at registration time) this has to resolve module_key per-request here.
-	// A doctype with no module_key assigned (moduleKey == "") is treated as
-	// ungated/core - matches this migration's additive, fail-open-for-
-	// unmapped-doctypes design (existing doctypes keep working exactly as
-	// before until explicitly mapped).
-	if moduleKey, mErr := engines.ModuleForDoctype(tenantID, doctype); mErr == nil && moduleKey != "" {
-		if enabled, _ := engines.IsModuleEnabled(tenantID, moduleKey); !enabled {
-			writeAPIError(w, r, "SAAS-0191", "")
-			return
-		}
+	// Keep direct handler callers fail-closed as well as the middleware
+	// boundary shared with metadata/import/reactivation routes.
+	moduleKey, moduleErr := engines.ModuleForDoctype(tenantID, doctype)
+	if moduleErr != nil {
+		writeEngineError(w, r, moduleErr, http.StatusInternalServerError)
+		return
+	}
+	if moduleErr = engines.RequireModules(tenantID, moduleKey); moduleErr != nil {
+		writeEngineError(w, r, moduleErr, http.StatusServiceUnavailable)
+		return
 	}
 
 	switch r.Method {
@@ -267,7 +273,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		} else {
 			// Retrieve multiple documents (support search, location filtering, and custom query filters)
 			searchQuery := r.URL.Query().Get("q")
-			query := fmt.Sprintf("SELECT id, data, status FROM %s.documents WHERE doctype = $1 AND deleted_at IS NULL", schema)
+			// BLD-033: sort=recent is opt-in - default order (ORDER BY id below,
+			// unchanged) is what every existing caller gets; updated_at is only added
+			// to the response when this is set, so an existing caller's JSON shape
+			// stays untouched. The Home screen's "recent tasks" panel is the first
+			// caller that needs "what did I touch last" rather than a stable order.
+			sortRecent := r.URL.Query().Get("sort") == "recent"
+			query := fmt.Sprintf("SELECT id, data, status, updated_at FROM %s.documents WHERE doctype = $1 AND deleted_at IS NULL", schema)
 			var args []interface{}
 			args = append(args, doctype)
 			argIndex := 2
@@ -328,7 +340,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 
 			// Dynamic search parameter filters check (WMS/OMS query filters)
 			for key, vals := range r.URL.Query() {
-				if key == "q" || key == "tenant_id" || key == "limit" || key == "offset" || len(vals) == 0 {
+				if key == "q" || key == "tenant_id" || key == "limit" || key == "offset" || key == "sort" || len(vals) == 0 {
 					continue
 				}
 				if !safeFilterKeyRe.MatchString(key) {
@@ -362,7 +374,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					offset = parsed
 				}
 			}
-			query += fmt.Sprintf(" ORDER BY id LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+			if sortRecent {
+				query += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+			} else {
+				query += fmt.Sprintf(" ORDER BY id LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
+			}
 			args = append(args, limit, offset)
 
 			rows, err := db.DB.Query(query, args...)
@@ -377,7 +393,8 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				var docID string
 				var dataStr string
 				var status string
-				if err := rows.Scan(&docID, &dataStr, &status); err != nil {
+				var updatedAt time.Time
+				if err := rows.Scan(&docID, &dataStr, &status, &updatedAt); err != nil {
 					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 					return
 				}
@@ -392,6 +409,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				}
 				dataMap["id"] = docID
 				dataMap["status"] = status
+				if sortRecent {
+					dataMap["updated_at"] = updatedAt.Format(time.RFC3339)
+				}
 				if dataMap, err = engines.FilterFieldsForRole(tenantID, role, doctype, dataMap); err != nil {
 					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 					return
@@ -479,6 +499,20 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Stage 51.5: an Item under a parent design gets its Combination
+		// ID/SKU generated from that design's code plus its own variant
+		// attributes, instead of the plain sequence number every other Item
+		// gets. Same position/reason as the numbering call just above -
+		// code is a mandatory field, so it must be populated before the
+		// mandatory-field check runs. A no-op for a standalone Item (no
+		// family/parent_product_code) or on update.
+		if doctype == "Item" {
+			if err := engines.PrepareItemVariantCode(tenantID, id == "", payload); err != nil {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+				return
+			}
+		}
+
 		// Fill the derived half of any duplicate mandatory field pair
 		// (Stage 30.5.6 - PurchaseOrder's vendor/vendor_id). Same position and
 		// same reason as the numbering call above: both halves are mandatory,
@@ -496,6 +530,34 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			if err := engines.PrepareGRNReceipt(tenantID, payload); err != nil {
 				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve the receiving location from the purchase order")
 				return
+			}
+		}
+
+		// Master record id = code invariant (2026-09-22 fix). Every Master
+		// doctype's own identifying field is "code" (Vendor/Item/Customer/
+		// Employee/...), and a Link field pointing at one of them - e.g.
+		// PurchaseOrder.vendor - is submitted and validated by *id*
+		// (verifyDocumentExists checks WHERE id = $2), never by code. Master
+		// doctypes are never in documentNumberSeriesByDoctype, so
+		// PrepareDocumentNumber above is a no-op for them and nothing else on
+		// this path sets payload["id"]. Left alone, a freshly created Vendor
+		// gets a random UUID id disconnected from its code, and every Link
+		// field that points at it fails "record does not exist" forever, even
+		// though the record is right there - db/migrations_stage24_addendum_
+		// data_integrity.sql's own comment documents id=code as the assumed
+		// invariant those Link conversions depended on. Restored once, here,
+		// so every caller (UI, CSV import, API) gets it, not just the ones
+		// that happen to pass id explicitly.
+		if id == "" {
+			if _, hasID := payload["id"]; !hasID {
+				if codeVal, hasCode := payload["code"]; hasCode {
+					if codeStr := strings.TrimSpace(fmt.Sprintf("%v", codeVal)); codeStr != "" {
+						var masterDocType string
+						if errDT := db.DB.QueryRow(fmt.Sprintf("SELECT document_type FROM %s.doctype_meta WHERE name = $1", schema), doctype).Scan(&masterDocType); errDT == nil && masterDocType == "Master" {
+							payload["id"] = codeStr
+						}
+					}
+				}
 			}
 		}
 
@@ -897,6 +959,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("Goods receipt %s could not be posted to stock at %s, so it was cancelled and no stock was added. Check the location is active, then post the receipt again.", docID, locationCode))
 					return
 				}
+
+				// Stage 51.6: barcode a received Item automatically if it
+				// doesn't already have one - best-effort, see
+				// EnsureItemBarcodes's own comment for why this never fails
+				// the receipt itself.
+				engines.EnsureItemBarcodes(tenantID, items)
 			}
 
 			// Publish inventory transaction changed outbox event
@@ -1370,7 +1438,23 @@ func handleGetDocTypes(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	_ = json.NewEncoder(w).Encode(list)
+	entitlements, err := engines.ListModuleEntitlements(tenantID)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusServiceUnavailable)
+		return
+	}
+	enabled := map[string]bool{}
+	for _, module := range entitlements {
+		enabled[module.ModuleKey] = module.Enabled
+	}
+	visible := []map[string]interface{}{}
+	for _, meta := range list {
+		key, _ := meta["module_key"].(string)
+		if enabled[key] {
+			visible = append(visible, meta)
+		}
+	}
+	_ = json.NewEncoder(w).Encode(visible)
 }
 
 func handleSaveDocType(w http.ResponseWriter, r *http.Request) {
@@ -1472,9 +1556,12 @@ func handleSwitchIndustry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	userID := r.Header.Get("Resolved-User-ID")
 
 	var req struct {
-		IndustryCode string `json:"industry_code"`
+		IndustryCode   string `json:"industry_code"`
+		Override       bool   `json:"override"`
+		OverrideReason string `json:"override_reason"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
@@ -1485,12 +1572,49 @@ func handleSwitchIndustry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	profilePath := fmt.Sprintf("./public/profiles/%s.json", strings.ToLower(req.IndustryCode))
-	err := engines.SwitchIndustryProfile(tenantID, profilePath)
+	// Stage 51.3: once an industry profile has been set for this tenant it is
+	// locked, even for a Super Admin who already had to pass requireHRAdmin
+	// above just to reach this handler at all - changing it again needs the
+	// explicit override flag plus a logged reason, not just having the role.
+	lock, err := engines.GetIndustryLock(tenantID)
 	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if lock.Locked {
+		if !req.Override {
+			writeAPIErrorGeneric(w, r, http.StatusConflict, fmt.Sprintf(
+				"Industry profile is already set to %s (by %s on %s) and is locked. Use the override action with a reason to change it.",
+				lock.IndustryCode, lock.SetBy, lock.SetAt.Format("2006-01-02")))
+			return
+		}
+		if strings.TrimSpace(req.OverrideReason) == "" {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "A reason is required to override the industry profile lock")
+			return
+		}
+	}
+
+	profilePath := fmt.Sprintf("./public/profiles/%s.json", strings.ToLower(req.IndustryCode))
+	if err := engines.SwitchIndustryProfile(tenantID, profilePath, userID, lock.Locked && req.Override, req.OverrideReason); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, fmt.Sprintf("Failed to switch industry: %v", err))
 		return
 	}
 
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "message": "Industry configuration profile reloaded successfully"})
+}
+
+// handleGetIndustryLock (Stage 51.3) lets the UI show the current lock state
+// - who set it, when, and whether an override would be needed - before the
+// user attempts a switch that handleSwitchIndustry would just reject.
+func handleGetIndustryLock(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	lock, err := engines.GetIndustryLock(tenantID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(lock)
 }

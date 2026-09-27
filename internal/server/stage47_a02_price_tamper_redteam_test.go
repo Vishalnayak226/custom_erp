@@ -80,16 +80,33 @@ func TestA02DiscountApprovalBypassedByPriceTamperingInsteadOfDiscountPct(t *test
 	}
 	defer db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.documents WHERE id = $1 AND doctype = 'POSSession'`, schema), sessID)
 
-	// This test owns its own approval_rules row rather than relying on any
-	// tenant's real configuration - there is no default POSCart rule seeded
-	// by db/migration.sql at all (confirmed by inspection), so this mirrors
-	// what any tenant enabling Stage 20.10's discount-approval feature would
-	// configure: 10%+ needs Store Manager sign-off.
-	if _, err := db.DB.Exec(fmt.Sprintf(
-		`INSERT INTO %s.approval_rules (doctype, min_amount, max_amount, required_role) VALUES ('POSCart', 10, NULL, 'Store Manager') ON CONFLICT (doctype, min_amount) DO NOTHING`, schema)); err != nil {
+	// Stage 50/QA-DEF-01: this row is NOT test-only fixture data - Stage 20a
+	// (db/migrations_stage20a_pos_maturity.sql) ships this exact
+	// ('POSCart', 10, NULL, 'Store Manager') row as tenant_default's real
+	// default policy via the same ON CONFLICT DO NOTHING shape, so on any
+	// migrated schema this insert is always a no-op and the row already
+	// there is real shipped configuration, not something this test created.
+	// (The comment this replaced said db/migration.sql seeds no such row,
+	// which is true but irrelevant - it never checked the later migration.)
+	//
+	// Stage 50/QA-DEF-01: the ON CONFLICT DO NOTHING above means this insert
+	// is a no-op whenever a (POSCart, 10) rule already exists - a real
+	// tenant's own configuration, or another test's row left behind by an
+	// interrupted run. The unconditional DELETE that used to follow it threw
+	// that row away regardless of who created it, corrupting whatever policy
+	// was actually in force and producing exactly the order-sensitive
+	// failures the audit reproduced (this test's own tamperedResp assertion,
+	// and TestCheckoutToForecastIntegration's unrelated "Paid" assertion,
+	// both depend on whether a POSCart rule happens to be active). Only
+	// delete the row if this insert is the one that created it.
+	result, err := db.DB.Exec(fmt.Sprintf(
+		`INSERT INTO %s.approval_rules (doctype, min_amount, max_amount, required_role) VALUES ('POSCart', 10, NULL, 'Store Manager') ON CONFLICT (doctype, min_amount) DO NOTHING`, schema))
+	if err != nil {
 		t.Fatalf("failed to seed approval rule: %v", err)
 	}
-	defer db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.approval_rules WHERE doctype = 'POSCart' AND min_amount = 10`, schema))
+	if inserted, _ := result.RowsAffected(); inserted > 0 {
+		defer db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.approval_rules WHERE doctype = 'POSCart' AND min_amount = 10`, schema))
+	}
 
 	checkout := func(cartNumber string, discountPct float64) map[string]interface{} {
 		reqBody := map[string]interface{}{

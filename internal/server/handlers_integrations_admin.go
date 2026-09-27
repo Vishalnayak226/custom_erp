@@ -869,6 +869,19 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	stats := db.DB.Stats()
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status": "ok",
+		// Stage 50/BLD-006: deploy/remote_deploy.sh's wait_healthy polls this
+		// endpoint to decide whether a deploy succeeded - a 200 alone cannot
+		// tell it apart from the OLD process still answering because the
+		// restart that was supposed to bring up the new build silently
+		// failed (found via docs/qa/audit-deploy-mock.py's restart-fails
+		// case: DEPLOY-OK was reported while the new binary/public were
+		// never actually running). git_commit/build_time already exist as
+		// ldflags-injected build identity (middleware.go) for exactly this
+		// kind of "what is actually running" question; exposing them here
+		// lets the health check confirm the SPECIFIC deploy it is polling
+		// for, not just that something is alive.
+		"git_commit": gitCommit,
+		"build_time": buildTime,
 		"db_pool": map[string]interface{}{
 			"max_open_connections": stats.MaxOpenConnections,
 			"open_connections":     stats.OpenConnections,

@@ -380,9 +380,17 @@ func scanCLICommands(root string, s *Surface) error {
 		return nil
 	}
 	for _, e := range entries {
-		if e.IsDir() {
-			s.CLICommands = append(s.CLICommands, CLICommand{Name: e.Name(), Path: "cmd/" + e.Name()})
+		if !e.IsDir() {
+			continue
 		}
+		// Match the go tool's own "./..." rule: directories beginning with
+		// "_" or "." are not built, so they are not shipped commands. This
+		// is where per-session scratch programs (cmd/_scratch_*) live, and
+		// counting them made the manifest drift whenever one was deleted.
+		if strings.HasPrefix(e.Name(), "_") || strings.HasPrefix(e.Name(), ".") {
+			continue
+		}
+		s.CLICommands = append(s.CLICommands, CLICommand{Name: e.Name(), Path: "cmd/" + e.Name()})
 	}
 	return nil
 }

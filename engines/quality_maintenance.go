@@ -520,7 +520,7 @@ func StartMaintenanceSchedulingWorker(ctx context.Context, interval time.Duratio
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := listTenantSchemas("quality")
 				if err != nil {
 					log.Printf("[MAINTENANCE-SCHEDULE] Failed to list tenant schemas: %v", err)
 					continue

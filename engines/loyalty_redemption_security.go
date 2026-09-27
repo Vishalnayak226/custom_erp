@@ -126,18 +126,26 @@ func VerifyAndRedeemLoyaltyOTP(tenantID, challengeID, otpCode string) (result st
 
 	var customerID, referenceID, initiatedBy, otpHash string
 	var points int
-	var expiresAt time.Time
-	var verified bool
+	var expired, verified bool
+	// expired is computed in SQL (expires_at < NOW()) rather than scanned and
+	// compared in Go - the same fix handlers_auth.go's login lockout check
+	// already applies for the identical reason: expires_at is a tz-naive
+	// `timestamp` column, this app server's local clock is IST (UTC+5:30),
+	// and comparing time.Now() (local) against the scanned value directly
+	// skews by ~5.5 hours. The existing test for this function already
+	// worked around the skew with a 25-hour expiry margin instead of fixing
+	// it (see loyalty_redemption_security_test.go's own comment) - BLD-020's
+	// timezone-boundary pass found the root cause was never actually closed.
 	if err := db.DB.QueryRow(fmt.Sprintf(`
-		SELECT customer_id, points, COALESCE(reference_id, ''), initiated_by, otp_hash, expires_at, verified
+		SELECT customer_id, points, COALESCE(reference_id, ''), initiated_by, otp_hash, (expires_at < NOW()), verified
 		FROM %s.loyalty_redemption_otp_challenges WHERE id = $1`, schema), challengeID).
-		Scan(&customerID, &points, &referenceID, &initiatedBy, &otpHash, &expiresAt, &verified); err != nil {
+		Scan(&customerID, &points, &referenceID, &initiatedBy, &otpHash, &expired, &verified); err != nil {
 		return "", 0, "", fmt.Errorf("redemption challenge not found: %v", err)
 	}
 	if verified {
 		return "", 0, "", fmt.Errorf("this OTP challenge has already been used")
 	}
-	if time.Now().After(expiresAt) {
+	if expired {
 		return "", 0, "", fmt.Errorf("OTP has expired - initiate a new redemption")
 	}
 	if hashOTP(otpCode) != otpHash {

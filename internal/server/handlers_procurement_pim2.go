@@ -72,10 +72,13 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Skus          []string `json:"skus"`
-		PrinterCode   string   `json:"printer_code"`
-		ReprintReason string   `json:"reprint_reason"`
-		Copies        int      `json:"copies"`
+		Skus           []string       `json:"skus"`
+		PrinterCode    string         `json:"printer_code"`
+		ReprintReason  string         `json:"reprint_reason"`
+		Copies         int            `json:"copies"`
+		SourceDoctype  string         `json:"source_doctype"`
+		SourceDocID    string         `json:"source_doc_id"`
+		CopiesOverride map[string]int `json:"copies_override"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -85,13 +88,50 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'printer_code' is required")
 		return
 	}
-	labels, err := engines.PrintStickers(tenantID, req.Skus, req.PrinterCode, userID, req.ReprintReason, req.Copies)
+	var labels []engines.StickerLabel
+	var err error
+	if req.SourceDoctype != "" && req.SourceDocID != "" {
+		// Stage 52: the browser-print-fallback path for bulk printing from a
+		// GRN/Transfer Order - mirrors the QZ silent-print branch in
+		// handleQZPrintPayload so both paths accept the same request shape.
+		labels, err = engines.PrintStickersForDocument(tenantID, req.SourceDoctype, req.SourceDocID, req.PrinterCode, userID, req.ReprintReason, req.Skus, req.CopiesOverride)
+	} else {
+		labels, err = engines.PrintStickers(tenantID, req.Skus, req.PrinterCode, userID, req.ReprintReason, req.Copies)
+	}
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	engines.LogAuditEvent(tenantID, userID, "PRINT_STICKERS", "SUCCESS", fmt.Sprintf("Printed %d sticker(s) on %s", len(labels), req.PrinterCode))
 	_ = json.NewEncoder(w).Encode(labels)
+}
+
+// handlePreviewStickers (Stage 52) is the read-only precursor to a
+// document-driven sticker print: it resolves source_doctype/source_doc_id's
+// lines and shows which category/template each will use, writing nothing to
+// sticker_print_log, so the review table in the "Print from Transaction"
+// panel can be recomputed freely as the user edits copy counts or selection.
+func handlePreviewStickers(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	if r.Method != http.MethodGet {
+		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
+		return
+	}
+	sourceDoctype := r.URL.Query().Get("source_doctype")
+	sourceDocID := r.URL.Query().Get("source_doc_id")
+	if sourceDoctype == "" || sourceDocID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameters 'source_doctype' and 'source_doc_id' are required")
+		return
+	}
+	lines, err := engines.PreviewDocumentStickerLines(tenantID, sourceDoctype, sourceDocID)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	if lines == nil {
+		lines = []engines.StickerPreviewLine{}
+	}
+	_ = json.NewEncoder(w).Encode(lines)
 }
 
 func handlePrintHistory(w http.ResponseWriter, r *http.Request) {

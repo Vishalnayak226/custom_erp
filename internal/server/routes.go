@@ -181,6 +181,12 @@ func Run() {
 	// enough that an undetected deletion has a small blast radius while being
 	// long enough that the checkpoint table stays small.
 	engines.StartAuditEvidenceScheduler(workerCtx, 1*time.Hour)
+	// Start Audit Archive Scheduler (Stage 47.7.6) - a daily pass enqueuing
+	// RunAuditArchive per tenant. Daily rather than hourly: archiving acts on
+	// day-granularity retention windows (minArchiveAfterDays=30 floor), so a
+	// tighter cadence buys nothing. The scheduled job never overrides
+	// maxRowsPerArchiveWindow - see that constant's comment.
+	engines.StartAuditArchiveScheduler(workerCtx, 24*time.Hour)
 
 	// Start Campaign Worker (Stage 26.7.4) - daily-granularity scan for
 	// Active campaigns whose birthday/lapsed-customer trigger newly
@@ -208,6 +214,13 @@ func Run() {
 	// applied yet, so it is safe to ship ahead of the migration.
 	engines.StartPublicAPIRuntimeSweeper(workerCtx, 1*time.Hour)
 
+	registerRoutes()
+	runHTTPServer(cancelWorkers)
+}
+
+// registerRoutes is the production registration path, also exercised without
+// launching workers by the module-manifest and entitlement integration tests.
+func registerRoutes() {
 	// Authentication API
 	http.HandleFunc("POST /api/v1/login", apiMiddleware(handleLogin))
 
@@ -575,7 +588,7 @@ func Run() {
 	http.HandleFunc("GET /api/v1/finance/payment-proposal/{id}/payment-file", apiMiddleware(handleGeneratePaymentFile))
 	http.HandleFunc("POST /api/v1/finance/payment-proposal/{id}/record-utr", apiMiddleware(handleRecordPaymentUTR))
 	http.HandleFunc("GET /api/v1/finance/payment-proposal/{id}/utrs", apiMiddleware(handleListPaymentUTRs))
-	http.HandleFunc("POST /api/v1/procurement/vendor-invoice/pay-with-tds", apiMiddleware(handlePayVendorInvoiceWithTDS))
+	http.HandleFunc("POST /api/v1/procurement/vendor-invoice/pay-with-tds", apiMiddleware(moduleGate("procurement", handlePayVendorInvoiceWithTDS)))
 	http.HandleFunc("POST /api/v1/finance/debit-note/{id}/post", apiMiddleware(handlePostDebitNote))
 	http.HandleFunc("POST /api/v1/finance/credit-note/{id}/post", apiMiddleware(handlePostCreditNote))
 	http.HandleFunc("POST /api/v1/finance/sales-invoice/{id}/post", apiMiddleware(handlePostSalesInvoice))
@@ -619,26 +632,26 @@ func Run() {
 	// via the generic doc API - only ServiceTicket's dedicated lifecycle
 	// actions need routes. The SLA breach report needs no route either - a
 	// registered ReportDefinition served by the generic report catalog.
-	http.HandleFunc("POST /api/v1/service/ticket", apiMiddleware(handleCreateServiceTicket))
-	http.HandleFunc("POST /api/v1/service/ticket/{id}/assign", apiMiddleware(handleAssignServiceTicket))
-	http.HandleFunc("POST /api/v1/service/ticket/{id}/start", apiMiddleware(handleStartServiceTicket))
-	http.HandleFunc("POST /api/v1/service/ticket/{id}/resolve", apiMiddleware(handleResolveServiceTicket))
-	http.HandleFunc("POST /api/v1/service/ticket/{id}/close", apiMiddleware(handleCloseServiceTicket))
-	http.HandleFunc("POST /api/v1/service/ticket/{id}/cancel", apiMiddleware(handleCancelServiceTicket))
+	http.HandleFunc("POST /api/v1/service/ticket", apiMiddleware(moduleGate("service", handleCreateServiceTicket)))
+	http.HandleFunc("POST /api/v1/service/ticket/{id}/assign", apiMiddleware(moduleGate("service", handleAssignServiceTicket)))
+	http.HandleFunc("POST /api/v1/service/ticket/{id}/start", apiMiddleware(moduleGate("service", handleStartServiceTicket)))
+	http.HandleFunc("POST /api/v1/service/ticket/{id}/resolve", apiMiddleware(moduleGate("service", handleResolveServiceTicket)))
+	http.HandleFunc("POST /api/v1/service/ticket/{id}/close", apiMiddleware(moduleGate("service", handleCloseServiceTicket)))
+	http.HandleFunc("POST /api/v1/service/ticket/{id}/cancel", apiMiddleware(moduleGate("service", handleCancelServiceTicket)))
 
 	// Quality & maintenance (Stage 37.9). InspectionPlan/MaintenanceSchedule
 	// are read/list/create via the generic doc API - only lifecycle actions
 	// need routes here.
-	http.HandleFunc("POST /api/v1/quality/coa", apiMiddleware(handleCreateCertificateOfAnalysis))
-	http.HandleFunc("POST /api/v1/quality/coa/{id}/release", apiMiddleware(handleReleaseCertificateOfAnalysis))
-	http.HandleFunc("POST /api/v1/quality/coa/{id}/reject", apiMiddleware(handleRejectCertificateOfAnalysis))
-	http.HandleFunc("POST /api/v1/quality/ncr", apiMiddleware(handleCreateNonConformanceReport))
-	http.HandleFunc("POST /api/v1/quality/ncr/{id}/investigate", apiMiddleware(handleInvestigateNonConformanceReport))
-	http.HandleFunc("POST /api/v1/quality/ncr/{id}/plan-corrective-action", apiMiddleware(handlePlanCorrectiveAction))
-	http.HandleFunc("POST /api/v1/quality/ncr/{id}/close", apiMiddleware(handleCloseNonConformanceReport))
-	http.HandleFunc("POST /api/v1/quality/maintenance-order/{id}/start", apiMiddleware(handleStartMaintenanceOrder))
-	http.HandleFunc("POST /api/v1/quality/maintenance-order/{id}/complete", apiMiddleware(handleCompleteMaintenanceOrder))
-	http.HandleFunc("POST /api/v1/quality/maintenance-order/{id}/cancel", apiMiddleware(handleCancelMaintenanceOrder))
+	http.HandleFunc("POST /api/v1/quality/coa", apiMiddleware(moduleGate("quality", handleCreateCertificateOfAnalysis)))
+	http.HandleFunc("POST /api/v1/quality/coa/{id}/release", apiMiddleware(moduleGate("quality", handleReleaseCertificateOfAnalysis)))
+	http.HandleFunc("POST /api/v1/quality/coa/{id}/reject", apiMiddleware(moduleGate("quality", handleRejectCertificateOfAnalysis)))
+	http.HandleFunc("POST /api/v1/quality/ncr", apiMiddleware(moduleGate("quality", handleCreateNonConformanceReport)))
+	http.HandleFunc("POST /api/v1/quality/ncr/{id}/investigate", apiMiddleware(moduleGate("quality", handleInvestigateNonConformanceReport)))
+	http.HandleFunc("POST /api/v1/quality/ncr/{id}/plan-corrective-action", apiMiddleware(moduleGate("quality", handlePlanCorrectiveAction)))
+	http.HandleFunc("POST /api/v1/quality/ncr/{id}/close", apiMiddleware(moduleGate("quality", handleCloseNonConformanceReport)))
+	http.HandleFunc("POST /api/v1/quality/maintenance-order/{id}/start", apiMiddleware(moduleGate("quality", handleStartMaintenanceOrder)))
+	http.HandleFunc("POST /api/v1/quality/maintenance-order/{id}/complete", apiMiddleware(moduleGate("quality", handleCompleteMaintenanceOrder)))
+	http.HandleFunc("POST /api/v1/quality/maintenance-order/{id}/cancel", apiMiddleware(moduleGate("quality", handleCancelMaintenanceOrder)))
 
 	// Approval / Workflow Engine (maker-checker)
 	http.HandleFunc("POST /api/v1/approval/submit", apiMiddleware(handleSubmitApproval))
@@ -682,6 +695,9 @@ func Run() {
 	// Sticker / Barcode Printing (Stage 14.1: module-gated - "stickers")
 	http.HandleFunc("POST /api/v1/stickers/print", apiMiddleware(moduleGate("stickers", handlePrintStickers)))
 	http.HandleFunc("GET /api/v1/stickers/history", apiMiddleware(moduleGate("stickers", handlePrintHistory)))
+	// Stage 52: read-only preview of a GRN/Transfer Order's sticker lines
+	// (category + resolved template per line) before a bulk print is run.
+	http.HandleFunc("GET /api/v1/stickers/preview", apiMiddleware(moduleGate("stickers", handlePreviewStickers)))
 
 	// QZ Tray silent printing (Stage 31.1). Shares the "stickers" module key
 	// with the routes above because the Printer Master these all resolve
@@ -1073,6 +1089,15 @@ func Run() {
 	// checksum column, which these do not and should not reinterpret.
 	http.HandleFunc("GET /api/v1/admin/audit-logs/evidence", apiMiddleware(handleVerifyAuditEvidence))
 	http.HandleFunc("POST /api/v1/admin/audit-logs/checkpoint", apiMiddleware(handleWriteAuditCheckpoint))
+	// Stage 47.7.6 - the archive half: list/query/export/restore a checkpoint
+	// window that has been moved out of audit_logs, and a manual trigger for
+	// an operator to run outside the daily schedule (e.g. before an auditor's
+	// visit, or with allow_large_windows to process the legacy backlog).
+	http.HandleFunc("POST /api/v1/admin/audit-logs/archive", apiMiddleware(handleRunAuditArchive))
+	http.HandleFunc("GET /api/v1/admin/audit-logs/archives", apiMiddleware(handleListAuditArchives))
+	http.HandleFunc("GET /api/v1/admin/audit-logs/archives/{id}", apiMiddleware(handleReadAuditArchive))
+	http.HandleFunc("GET /api/v1/admin/audit-logs/archives/{id}/export", apiMiddleware(handleExportAuditArchive))
+	http.HandleFunc("POST /api/v1/admin/audit-logs/archives/{id}/restore", apiMiddleware(handleRestoreAuditArchive))
 
 	// Stage 49.6.8 - data-subject rights request lifecycle (engines/privacy_rights.go).
 	http.HandleFunc("POST /api/v1/admin/privacy/requests", apiMiddleware(handleCreateDataSubjectRequest))
@@ -1084,6 +1109,7 @@ func Run() {
 	// Industry Configuration & Preset Profiler
 	http.HandleFunc("GET /api/v1/admin/industries", apiMiddleware(handleGetIndustries))
 	http.HandleFunc("POST /api/v1/admin/industry", apiMiddleware(handleSwitchIndustry))
+	http.HandleFunc("GET /api/v1/admin/industry/lock", apiMiddleware(handleGetIndustryLock))
 
 	// Bulk CSV Import
 	http.HandleFunc("POST /api/v1/import/{doctype}", apiMiddleware(handleBulkImport))
@@ -1129,6 +1155,9 @@ func Run() {
 	fs := http.FileServer(noDirectoryListing(http.Dir("./public")))
 	http.Handle("/", onlyReadMethods(fs))
 
+}
+
+func runHTTPServer(cancelWorkers context.CancelFunc) {
 	// Stage 14.9: PORT is what lets dev/test/live (and any throwaway
 	// verification instance) run the exact same binary side by side on one
 	// machine. Defaults to 8080 so every existing deployment/doc/script that

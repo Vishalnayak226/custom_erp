@@ -72,3 +72,26 @@ func TestNewRequirementCannotDisappearFromReverseTrace(t *testing.T) {
 		t.Fatal(findings)
 	}
 }
+
+func TestModuleMappingSchemaKeepsTraceAndIdentityRequirements(t *testing.T) {
+	r := CapabilityRegister{SchemaVersion: 3, Status: "draft", Owner: "product", Capabilities: []Capability{{ID: "CAP-POS", ModuleKeys: []string{"sales", "sales", "Unknown module"}}}}
+	findings := validateCapabilities(t.TempDir(), r, time.Now())
+	var messages []string
+	for _, f := range findings {
+		messages = append(messages, f.Message)
+	}
+	joined := strings.Join(messages, "\n")
+	for _, required := range []string{"module mapping version/release is required", "invalid or duplicate module key: sales", "invalid or duplicate module key: Unknown module", "business, persona, process, control and shared requirement links are required", "owner, configuration, requirements and work item are required"} {
+		if !strings.Contains(joined, required) {
+			t.Errorf("missing validation %q: %s", required, joined)
+		}
+	}
+	r.Capabilities[0].ModuleKeys = nil
+	findings = validateCapabilities(t.TempDir(), r, time.Now())
+	for _, f := range findings {
+		if strings.Contains(f.Message, "module_keys are required") {
+			return
+		}
+	}
+	t.Fatal("schema 3 accepted missing module mapping")
+}

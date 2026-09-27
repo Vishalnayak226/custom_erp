@@ -38,6 +38,47 @@ func TestKnownModulesMatchTheTenantSchema(t *testing.T) {
 	}
 }
 
+// TestAdministratorAndAuditorCoverTheStoreModule is Stage 50/AUD-07: the
+// shipped "Stores" doctype's module ("Store") was missing from knownModules,
+// so allModules(...) silently left it out of both Administrator (Manage) and
+// Auditor (Read) - the exact gap TestKnownModulesMatchTheTenantSchema
+// catches structurally. This checks the same gap through actual resolved
+// role access (TemplateGrants against the live tenant_default schema)
+// instead of just the module-name-set comparison, and confirms Super Admin
+// (a legacy name for Administrator, not a separate grant) is unaffected.
+func TestAdministratorAndAuditorCoverTheStoreModule(t *testing.T) {
+	db.InitDB(testConnStr())
+
+	admin, ok := RoleTemplateFor("Administrator")
+	if !ok {
+		t.Fatal("Administrator has no template")
+	}
+	adminGrants, err := TemplateGrants("default", admin)
+	if err != nil {
+		t.Fatalf("TemplateGrants(Administrator): %v", err)
+	}
+	if adminGrants["Stores"] != AccessManage {
+		t.Errorf("Administrator's Stores grant = %s, want manage", adminGrants["Stores"])
+	}
+
+	auditor, ok := RoleTemplateFor("Auditor")
+	if !ok {
+		t.Fatal("Auditor has no template")
+	}
+	auditorGrants, err := TemplateGrants("default", auditor)
+	if err != nil {
+		t.Fatalf("TemplateGrants(Auditor): %v", err)
+	}
+	if auditorGrants["Stores"] != AccessRead {
+		t.Errorf("Auditor's Stores grant = %s, want read", auditorGrants["Stores"])
+	}
+
+	superAdmin, ok := RoleTemplateFor(RoleSuperAdmin)
+	if !ok || superAdmin.Name != "Administrator" {
+		t.Fatalf("RoleSuperAdmin must resolve to the Administrator template, got %q (ok=%v)", superAdmin.Name, ok)
+	}
+}
+
 func TestEveryTemplateIsWellFormed(t *testing.T) {
 	declared := map[string]bool{}
 	for _, module := range knownModules {

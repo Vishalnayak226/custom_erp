@@ -321,7 +321,16 @@ func TestStage472ApprovedOverridePricesTheSaleAndIsSpentByIt(t *testing.T) {
 		t.Errorf("discount_pct = %.2f, want 10.00", pct)
 	}
 
-	// The sale it was raised for is priced by it.
+	// The sale it was raised for is priced by it - but the item-level
+	// override and the cart-level POSCart discount-approval rule are two
+	// INDEPENDENT controls (product decision, 2026-09-18): an amount already
+	// covered by an approved override still counts toward the cart's own
+	// measured discount, so a 10% override on a single-item cart also trips
+	// the shipped default POSCart/10%/Store-Manager slab
+	// (db/migrations_stage20a_pos_maturity.sql) and the sale is not supposed
+	// to complete outright. Neither gate substitutes for the other: an item
+	// reviewed in isolation by one supervisor is not the same review as the
+	// whole basket's aggregate exposure.
 	status, checkoutResp := f.checkout(f.cashierToken, map[string]interface{}{
 		"cart_number": cart, "location": f.location, "payment_mode": "Cash",
 		"items": []map[string]interface{}{{"sku": f.sku, "qty": 1, "sale_price": 5}},
@@ -329,6 +338,49 @@ func TestStage472ApprovedOverridePricesTheSaleAndIsSpentByIt(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("checkout with an approved override failed (%d): %v", status, checkoutResp)
 	}
+	if checkoutResp["status"] != "pending_approval" {
+		t.Fatalf("expected the cart-level POSCart slab to also gate this sale (status=pending_approval), got %v: %v", checkoutResp["status"], checkoutResp)
+	}
+	if checkoutResp["required_role"] != "Store Manager" {
+		t.Errorf("required_role = %v, want %q (the shipped default POSCart slab)", checkoutResp["required_role"], "Store Manager")
+	}
+
+	// Nothing has been spent or posted yet - the sale is only claimed, not
+	// completed, while it waits on the cart-level decision.
+	var overrideStatus string
+	readOverrideStatus := func() string {
+		t.Helper()
+		var s string
+		if err := db.DB.QueryRow(fmt.Sprintf(
+			`SELECT status FROM %s.documents WHERE doctype = 'POSPriceOverride' AND data->>'cart_number' = $1`, f.schema),
+			cart).Scan(&s); err != nil {
+			t.Fatalf("failed to read the override back: %v", err)
+		}
+		return s
+	}
+	if overrideStatus = readOverrideStatus(); overrideStatus != "Approved" {
+		t.Errorf("the override is %q before the cart-level decision; it must stay Approved (not yet Consumed) until the sale actually completes", overrideStatus)
+	}
+	var cartStatus string
+	if err := db.DB.QueryRow(fmt.Sprintf(
+		`SELECT status FROM %s.documents WHERE doctype = 'POSCart' AND id = $1`, f.schema), cart).Scan(&cartStatus); err != nil {
+		t.Fatalf("failed to read the cart back: %v", err)
+	}
+	if cartStatus != "Pending Approval" {
+		t.Errorf("cart status = %q, want %q while the discount-approval decision is outstanding", cartStatus, "Pending Approval")
+	}
+
+	// A Store Manager (the fixture's own supervisor - the shipped slab's
+	// required role) decides the CART-level approval. This is what actually
+	// finalizes the sale (engines.FinalizePOSCheckout via handleDecideApproval),
+	// reusing the resolved 900.00 line the checkout already stored.
+	decideStatus, decideResp := f.post(handleDecideApproval, "/api/v1/approval/decide", f.superviserTok, map[string]interface{}{
+		"doctype": "POSCart", "document_id": cart, "decision": "Approved", "comment": "basket reviewed",
+	})
+	if decideStatus != http.StatusOK {
+		t.Fatalf("cart-level approval decision failed (%d): %v", decideStatus, decideResp)
+	}
+
 	line := f.firstStoredLine(cart)
 	if got, _ := line["sale_price"].(float64); got != 900 {
 		t.Errorf("the sale priced at %.2f; the approved override (900.00) must win over both the master price and the till's own 5.00", got)
@@ -339,15 +391,16 @@ func TestStage472ApprovedOverridePricesTheSaleAndIsSpentByIt(t *testing.T) {
 	if ref, _ := line["reference_price"].(float64); ref != 1000 {
 		t.Errorf("reference_price on the stored line = %.2f, want 1000.00 - the deviation must stay visible, not be absorbed into the price", ref)
 	}
+	if err := db.DB.QueryRow(fmt.Sprintf(
+		`SELECT status FROM %s.documents WHERE doctype = 'POSCart' AND id = $1`, f.schema), cart).Scan(&cartStatus); err != nil {
+		t.Fatalf("failed to read the cart back after approval: %v", err)
+	}
+	if cartStatus != "Paid" {
+		t.Errorf("cart status = %q after the cart-level approval, want %q", cartStatus, "Paid")
+	}
 
 	// And it is spent: a replay of the same cart number cannot re-use it.
-	var overrideStatus string
-	if err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT status FROM %s.documents WHERE doctype = 'POSPriceOverride' AND data->>'cart_number' = $1`, f.schema),
-		cart).Scan(&overrideStatus); err != nil {
-		t.Fatalf("failed to read the override back: %v", err)
-	}
-	if overrideStatus != "Consumed" {
+	if overrideStatus = readOverrideStatus(); overrideStatus != "Consumed" {
 		t.Errorf("the override is still %q after the sale completed; it must be Consumed so a replayed cart number cannot inherit the same authorisation", overrideStatus)
 	}
 }

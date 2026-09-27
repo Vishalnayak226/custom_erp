@@ -23,8 +23,12 @@ import (
 // returns the job id immediately - the point of "async" for a report heavy
 // enough that running it inline would block the request.
 func CreateReportExportJob(tenantID, reportID, role string, params map[string]string, userID string) (string, error) {
-	if _, ok := reportRegistry[reportID]; !ok {
+	def, ok := reportRegistry[reportID]
+	if !ok {
 		return "", fmt.Errorf("unknown report %q", reportID)
+	}
+	if err := RequireModules(tenantID, "reports", def.ModuleKey); err != nil {
+		return "", err
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -68,6 +72,14 @@ func GetReportExportJob(tenantID, jobID string) (status string, csvBytes []byte,
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
 		return "", nil, "", err
 	}
+	reportID, _ := data["report_id"].(string)
+	def, ok := reportRegistry[reportID]
+	if !ok {
+		return "", nil, "", fmt.Errorf("unknown report %q", reportID)
+	}
+	if err := RequireModules(tenantID, "reports", def.ModuleKey); err != nil {
+		return "", nil, "", err
+	}
 	status, _ = data["status"].(string)
 	code, _ = data["code"].(string)
 	if csvStr, ok := data["csv"].(string); ok {
@@ -91,7 +103,7 @@ func StartReportExportWorker(ctx context.Context, interval time.Duration) {
 				if db.DB == nil {
 					continue
 				}
-				schemas, err := listTenantSchemas()
+				schemas, err := listTenantSchemas("reports")
 				if err != nil {
 					log.Printf("[REPORT_EXPORT] Failed to list tenant schemas: %v", err)
 					continue

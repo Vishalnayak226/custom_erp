@@ -71,14 +71,27 @@ func validateWebhookURL(rawURL string) error {
 	if parsed.Scheme != "https" {
 		return fmt.Errorf("webhook url must use https, got %q", parsed.Scheme)
 	}
-	host := parsed.Hostname()
+	return resolvesToPublicAddressOnly(parsed.Hostname())
+}
+
+// resolvesToPublicAddressOnly reports an error unless every IP a hostname
+// resolves to is a genuine public address - no loopback, private,
+// link-local, unspecified or multicast target, which is what would let a
+// configured URL be used to probe this server's own internal network or
+// cloud metadata endpoint. Shared by validateWebhookURL (Stage 38.4 outbound
+// webhooks) and engines/extensions.go's validateHookTargetURL (extension
+// hooks) so the two outbound-HTTP-to-tenant-configured-URL mechanisms in
+// this codebase can't silently drift apart on what "safe" means - BLD-031
+// found they already had (extension hooks accepted any https hostname with
+// no resolution check at all, registration or delivery time).
+func resolvesToPublicAddressOnly(host string) error {
 	ips, err := net.LookupIP(host)
 	if err != nil || len(ips) == 0 {
-		return fmt.Errorf("webhook host %q does not resolve", host)
+		return fmt.Errorf("host %q does not resolve", host)
 	}
 	for _, ip := range ips {
 		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast() {
-			return fmt.Errorf("webhook host %q resolves to a non-public address (%s) - refused", host, ip)
+			return fmt.Errorf("host %q resolves to a non-public address (%s) - refused", host, ip)
 		}
 	}
 	return nil

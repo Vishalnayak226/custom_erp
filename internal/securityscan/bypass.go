@@ -101,6 +101,20 @@ var bypassPatterns = []bypassPattern{
 		pattern: regexp.MustCompile(`(?i)//.*\b(TODO|FIXME|HACK|XXX|for now|temporar\w+)\b`),
 		exts:    []string{".go"},
 	},
+	{
+		// Stage 47.16.5's technical half: "automated schema/log/attachment
+		// checks prohibit full PAN/CVV/PIN/track data." A field/column/struct
+		// name shaped like raw card data - not a masked/tokenized reference,
+		// which is what engines/pinelabs.go actually stores
+		// (transaction_id/terminal_id/amount/status/payment_mode, confirmed
+		// by 49.6.2's manual review; this makes that a durable regression
+		// instead of a one-time grep). Deliberately does NOT match bare
+		// "pan"/"pan_number" - engines/field_formats.go's panPattern is
+		// India's Income Tax PAN, a real and unrelated field this codebase
+		// legitimately stores in the clear.
+		category: "payment-card-data", severity: BypassBlock,
+		pattern: regexp.MustCompile(`(?i)\b(cvv2?|card_?pan|full_?pan|card_?number|cardnumber|track_?1|track_?2|track_?data|pin_?block|magstripe|primary_?account_?number)\b`),
+	},
 }
 
 // securityDecisionFiles are the files the unreviewed-marker pattern applies

@@ -20,7 +20,22 @@ func handleReportCatalog(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(engines.ListReportDefinitions())
+	catalog := []engines.ReportDefinition{}
+	entitlements, err := engines.ListModuleEntitlements(r.Header.Get("Resolved-Tenant-ID"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusServiceUnavailable)
+		return
+	}
+	enabled := map[string]bool{}
+	for _, module := range entitlements {
+		enabled[module.ModuleKey] = module.Enabled
+	}
+	for _, def := range engines.ListReportDefinitions() {
+		if enabled["reports"] && enabled[def.ModuleKey] {
+			catalog = append(catalog, def)
+		}
+	}
+	_ = json.NewEncoder(w).Encode(catalog)
 }
 
 func handleRunReport(w http.ResponseWriter, r *http.Request) {
@@ -73,8 +88,7 @@ func handleReportDrillDown(w http.ResponseWriter, r *http.Request) {
 	params := flattenQueryParams(r)
 	rows, err := engines.RunReportDrillDown(tenantID, reportID, role, rowKey, params)
 	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"rows": rows})
@@ -98,8 +112,7 @@ func handleCreateReportExport(w http.ResponseWriter, r *http.Request) {
 	}
 	jobID, err := engines.CreateReportExportJob(tenantID, req.ReportID, role, req.Params, userID)
 	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	// REPORT-0184 ("Export started", Info/non-blocking) - annotates the
@@ -118,8 +131,7 @@ func handleGetReportExport(w http.ResponseWriter, r *http.Request) {
 	jobID := r.PathValue("id")
 	status, csvBytes, code, err := engines.GetReportExportJob(tenantID, jobID)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		writeEngineError(w, r, err, http.StatusNotFound)
 		return
 	}
 	if status == "Completed" && r.URL.Query().Get("download") == "1" {

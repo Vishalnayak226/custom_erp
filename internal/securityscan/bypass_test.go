@@ -2,6 +2,7 @@ package securityscan
 
 import (
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"testing"
@@ -139,6 +140,53 @@ func TestBypassFindingsAreRedacted(t *testing.T) {
 	if !seen {
 		t.Fatal("no seeded-credential findings at all - the scanner is not reading db/migration.sql, so this test proves nothing")
 	}
+}
+
+// The payment-card-data pattern (47.16.5) is expected to find ZERO hits in
+// this real tree - that is the point, confirmed by 49.6.2's manual review
+// and unchanged since. Which means TestBypassScannerStillDetects below
+// cannot prove this particular pattern still works (a pattern that never
+// matches and a pattern that is silently broken look identical against a
+// clean tree). This proves it on a synthetic fixture instead, independent of
+// what this repository currently contains.
+func TestPaymentCardDataPatternDetectsRealShape(t *testing.T) {
+	dir := t.TempDir()
+	planted := "type CardCapture struct {\n\tCardNumber string `json:\"card_number\"`\n\tCVV        string `json:\"cvv\"`\n}\n"
+	if err := writeFile(t, dir+"/planted.go", planted); err != nil {
+		t.Fatal(err)
+	}
+	findings, err := ScanBypass(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var hits int
+	for _, f := range findings {
+		if f.Category == "payment-card-data" {
+			hits++
+		}
+	}
+	if hits == 0 {
+		t.Fatal("payment-card-data pattern found nothing in a fixture that plants card_number and cvv - the pattern has stopped working")
+	}
+
+	clean := "type PaymentReference struct {\n\tTransactionID string `json:\"transaction_id\"`\n\tPANNumber     string `json:\"pan_number\"`\n}\n"
+	if err := writeFile(t, dir+"/clean.go", clean); err != nil {
+		t.Fatal(err)
+	}
+	findings, err = ScanBypass(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range findings {
+		if f.Category == "payment-card-data" && strings.Contains(f.File, "clean.go") {
+			t.Fatalf("payment-card-data pattern matched India Income Tax PAN (pan_number) in clean.go - it must only catch card data, not the unrelated tax field engines/field_formats.go already handles: %s", f.Excerpt)
+		}
+	}
+}
+
+func writeFile(t *testing.T, path, content string) error {
+	t.Helper()
+	return os.WriteFile(path, []byte(content), 0o644)
 }
 
 // A scanner that matches nothing passes every allowlist test. This asserts it

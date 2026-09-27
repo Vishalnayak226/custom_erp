@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"database/sql"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 )
@@ -150,11 +151,19 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 // GenerateVariantCode constructs a variant/child identifier from the parent code and attribute values using a template format pattern
 func GenerateVariantCode(tenantID string, parentCode string, pattern string, attributes map[string]string) string {
 	if pattern == "" {
-		// Fallback default concatenation: ParentCode-AttrVal1-AttrVal2
-		var parts []string
-		parts = append(parts, parentCode)
-		for _, v := range attributes {
-			if v != "" {
+		// Fallback default concatenation: ParentCode-AttrVal1-AttrVal2.
+		// Keys are sorted before appending their values - Go map iteration
+		// order is randomized per-run, which would otherwise make the exact
+		// same attribute set produce a different-looking code on a later
+		// call (e.g. after a service restart) instead of a stable one.
+		keys := make([]string, 0, len(attributes))
+		for k := range attributes {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		parts := []string{parentCode}
+		for _, k := range keys {
+			if v := attributes[k]; v != "" {
 				parts = append(parts, v)
 			}
 		}

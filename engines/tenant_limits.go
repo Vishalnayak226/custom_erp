@@ -2,6 +2,8 @@ package engines
 
 import (
 	"custom_erp/db"
+	"database/sql"
+	"errors"
 	"fmt"
 )
 
@@ -28,9 +30,18 @@ func CheckTenantLimit(tenantID, limitKey string, currentUsage int) error {
 	err = db.DB.QueryRow(fmt.Sprintf(
 		`SELECT limit_value FROM %s.tenant_limits WHERE tenant_id = $1 AND limit_key = $2`, schema),
 		tenantID, limitKey).Scan(&limitValue)
-	if err != nil {
+	if errors.Is(err, sql.ErrNoRows) {
 		// No row = no limit configured for this tenant/key - not a failure.
 		return nil
+	}
+	if err != nil {
+		// Stage 50/AUD-06: a connection/timeout/permission/query failure is
+		// not "no limit configured" - the previous blanket `err != nil ->
+		// nil` treated every lookup failure as an absent limit, which
+		// silently authorized unlimited usage exactly when the limit check
+		// itself was broken. Propagate it so the caller can fail the request
+		// instead of the action it was meant to gate.
+		return fmt.Errorf("checking %s limit for tenant %s: %w", limitKey, tenantID, err)
 	}
 	if currentUsage > limitValue {
 		return &ValidationError{Code: "SAAS-0193", Message: fmt.Sprintf("%s limit of %d reached for this plan (currently %d)", limitKey, limitValue, currentUsage)}

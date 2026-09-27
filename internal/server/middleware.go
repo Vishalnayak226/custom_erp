@@ -110,7 +110,7 @@ func perTenantMaxConcurrentRequestsFor(tenantID string) int {
 }
 
 type tenantConcurrencyLimiter struct {
-	mu      sync.Mutex
+	mu       sync.Mutex
 	inFlight map[string]int
 }
 
@@ -292,7 +292,7 @@ var publicRoutes = map[string]bool{
 	// Stage 35.5: couriers cannot hold a human ERP bearer token. These two
 	// fixed provider endpoints are public only up to their handler's mandatory
 	// per-tenant HMAC verification; a missing or invalid signature is 401.
-	"/api/v1/integration/courier/delhivery/tracking": true,
+	"/api/v1/integration/courier/delhivery/tracking":  true,
 	"/api/v1/integration/courier/shiprocket/tracking": true,
 	// Stage 39.6: the Knowledge Center is authenticated by default. These three
 	// serve only articles whose own frontmatter says `public: true` - the
@@ -312,6 +312,17 @@ var publicRoutes = map[string]bool{
 	// carried as a query parameter instead of a header because this route
 	// has to be openable from a plain browser click.
 	"/api/v1/pim/catalog-share": true,
+	// BLD-031 (2026-09-23): Shopify itself cannot hold a human ERP bearer
+	// token either - the same reasoning as the courier routes above, missed
+	// when these two were added (Stage 14.21-14.24/16). Without this entry
+	// apiMiddleware's own "no token and not an explicit public route" gate
+	// (below) rejected every genuine Shopify webhook call with a 401 before
+	// verifyShopifyWebhookSignature ever ran, making the real inbound
+	// integration unreachable regardless of SHOPIFY_WEBHOOK_SECRET being
+	// configured correctly - found by the first HTTP-level test either route
+	// ever had. Public only up to that mandatory signature check.
+	"/api/v1/integration/shopify/order":       true,
+	"/api/v1/integration/shopify/product/map": true,
 }
 
 func loadCORSAllowlist() map[string]bool {
@@ -365,7 +376,16 @@ func securityHeaders(next http.Handler) http.Handler {
 		// found via a live browser check (CSP was silently blocking every
 		// media thumbnail/preview in the gallery until this was added).
 		"img-src 'self' data: blob:; " +
-		"connect-src 'self'; " +
+		// QZ Tray (Stage 31.1) is a local WebSocket bridge, not a third-party
+		// service - both hosts are loopback (localhost.qz.io is a public DNS
+		// name that resolves to 127.0.0.1, per public/qz-print.js's own
+		// comment; used only so an https:// page gets a certificate QZ Tray
+		// can present for a loopback socket). Found by a live browser check,
+		// the same way as the img-src exception above: without this,
+		// `connect-src 'self'` silently blocked all 8 of QZ Tray's candidate
+		// ports and one-click printing fell back to the browser dialog on
+		// every single job, with no visible error anywhere.
+		"connect-src 'self' ws://localhost:* wss://localhost.qz.io:*; " +
 		"object-src 'none'; " +
 		"base-uri 'self'; " +
 		"form-action 'self'; " +
@@ -833,6 +853,21 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				// GLOBAL-0011 "Permission denied" - exact scenario match,
 				// audited (AuditRequired: true in the catalog entry).
 				writeAPIError(w, r, "GLOBAL-0011", "")
+				return
+			}
+		}
+
+		// BLD-021: generic CRUD, metadata, reactivation and CSV routes all
+		// carry a doctype path parameter. Resolve its entitlement once at
+		// their common boundary, including scoped extension requests.
+		if doctype := r.PathValue("doctype"); doctype != "" {
+			moduleKey, err := engines.ModuleForDoctype(tenantID, doctype)
+			if err != nil {
+				writeEngineError(w, r, err, http.StatusInternalServerError)
+				return
+			}
+			if err := engines.RequireModules(tenantID, moduleKey); err != nil {
+				writeEngineError(w, r, err, http.StatusServiceUnavailable)
 				return
 			}
 		}

@@ -144,8 +144,15 @@ func CalculateGST(taxableAmount, gstRate float64, interstate bool) (GSTBreakdown
 	if interstate {
 		result.IGST = totalTax
 	} else {
+		// CGST alone is rounded; SGST absorbs whatever's left so CGST+SGST
+		// always equals totalTax exactly, the same remainder-absorption
+		// idiom ConvertPostingToFunctional/ApplyLandedCostVoucher/
+		// monthlyRecognitionPaise already use. Rounding both halves
+		// independently (the previous code) drifts CGST+SGST off totalTax
+		// by 1 paisa on any odd-paisa totalTax - roughly half of all real
+		// amounts - because 0.xx5 rounds away from zero on both legs at once.
 		result.CGST = round2(totalTax / 2)
-		result.SGST = round2(totalTax / 2)
+		result.SGST = totalTax - result.CGST
 	}
 	return result, nil
 }

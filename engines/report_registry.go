@@ -51,6 +51,7 @@ type ReportDefinition struct {
 	ID           string              `json:"id"`
 	Label        string              `json:"label"`
 	Category     string              `json:"category"`
+	ModuleKey    string              `json:"module_key"`
 	Columns      []ReportColumn      `json:"columns"`
 	Params       []ReportParam       `json:"params"`
 	HasDrillDown bool                `json:"has_drill_down"`
@@ -70,6 +71,9 @@ func RegisterReport(def ReportDefinition) {
 		panic(fmt.Sprintf("report %q already registered", def.ID))
 	}
 	def.HasDrillDown = def.DrillDown != nil
+	if def.ModuleKey == "" {
+		def.ModuleKey = ModuleForReportCategory(def.Category)
+	}
 	reportRegistry[def.ID] = def
 	reportRegistryOrder = append(reportRegistryOrder, def.ID)
 }
@@ -158,6 +162,9 @@ func RunReport(tenantID, reportID, role, userID string, params map[string]string
 	if !ok {
 		return nil, nil, false, fmt.Errorf("unknown report %q", reportID)
 	}
+	if err := RequireModules(tenantID, "reports", d.ModuleKey); err != nil {
+		return nil, nil, false, err
+	}
 	for _, p := range d.Params {
 		if p.Required && params[p.Key] == "" {
 			return nil, nil, false, fmt.Errorf("param %q is required", p.Key)
@@ -190,6 +197,9 @@ func RunReportDrillDown(tenantID, reportID, role, rowKey string, params map[stri
 	def, ok := reportRegistry[reportID]
 	if !ok {
 		return nil, fmt.Errorf("unknown report %q", reportID)
+	}
+	if err := RequireModules(tenantID, "reports", def.ModuleKey); err != nil {
+		return nil, err
 	}
 	if def.DrillDown == nil {
 		return nil, fmt.Errorf("report %q has no drill-down", reportID)

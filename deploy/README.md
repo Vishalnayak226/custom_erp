@@ -321,6 +321,46 @@ Every subsequent deploy is just:
 Build → ship → migrate → restart, same as `promote.ps1` does for the Windows
 `live` environment.
 
+**Every deploy is self-healing.** `deploy.ps1` ships the new binary to
+`erp-server.new` and the new frontend to `public.new` — staged names, never
+overwriting the live `erp-server`/`public/` directly (Stage 50/BLD-005: it
+used to scp straight over the live `public/`, which meant `remote_deploy.sh`'s
+own "pre-deploy" snapshot below was actually already a snapshot of the NEW
+release, so a rollback never really restored the old frontend — found via
+`docs/qa/audit-deploy-mock.py`, fixed by staging it the same way the binary
+already was). The actual swap/restart happens on the box via
+`deploy/remote_deploy.sh` (shipped fresh each run), which: snapshots the
+current `erp-server`/`public/` to `erp-server.prev`/`public.prev` before
+touching anything, applies migrations with the new binary, swaps both the
+binary and the frontend in and restarts, then polls (`systemctl is-active` +
+a real `curl` against `http://127.0.0.1:8080/`, up to 15 one-second retries)
+for the new build to actually come up healthy — and, for the initial
+activation, that the live `/api/v1/health` response's `git_commit` matches
+this deploy's own commit, not just that *something* answers 200 (Stage
+50/BLD-006: a `systemctl restart` failure used to either kill the whole
+script via `set -e` with no rollback attempted, or — if the old process was
+still up — get treated as a healthy new deploy when it was really the old
+one still answering). If the new build never comes up healthy under its own
+commit, the script **automatically restores `erp-server.prev`/`public.prev`
+and restarts** — no manual SSH rollback needed. `deploy.ps1` prints one of
+three end states:
+
+| Marker | Meaning |
+|---|---|
+| `Deployed <commit> to <target>.` | New build is live and healthy. |
+| `DEPLOY-ROLLED-BACK` (throws) | New build failed its health check; the box is back on the previous build and confirmed healthy. Check the `journalctl` tail printed above to see why the new one didn't come up. |
+| `DEPLOY-ROLLBACK-FAILED` (throws) | Worse — the new build failed AND the rollback didn't come back healthy either (or there was no `.prev` snapshot to restore, e.g. the very first deploy to a box). Needs a human on the box immediately. |
+
+The database schema is never rolled back — migrations are additive/backward
+compatible by design (see the repo's `CLAUDE.md`), so leaving the schema
+forward while reverting the binary/static files is always safe, exactly the
+posture used to recover by hand during the 2026-09-13 incident before this
+existed (`docs/ai_handover.md` §6, `docs/micro_checklist.md`'s "Production
+deploy blocker" section). If a deploy is refused before ever reaching the
+box — e.g. `engines/security_baseline.go`'s production fail-fast gate — fix
+the flagged finding first; the auto-rollback only ever recovers from that
+happening after the swap, not before.
+
 ---
 
 ## Part G — network boundary verification (49.7.3)
@@ -390,7 +430,8 @@ something, not a fresh guess.
 | Backup now | `set -a; . /etc/erp/erp.env; set +a; /opt/erp/deploy/backup.sh` |
 | Install nightly backup cron | `sudo bash /opt/erp/deploy/install_backup_cron.sh` |
 | Check the nightly backup ran | `ls -lt /opt/erp/backups/custom_erp_*.dump.enc \| head -3; tail -20 /var/log/erp-backup.log` |
-| Redeploy | `.\deploy\deploy.ps1 -Target deploy@<host>` |
+| Redeploy (auto-rollback on failed health check) | `.\deploy\deploy.ps1 -Target deploy@<host>` |
+| Inspect a deploy that auto-rolled-back | `ls /opt/erp/erp-server.failed-*` (the refused binary, kept for postmortem) |
 | Version running | `curl -s https://erp.yourdomain.com/api/v1/version` |
 | Harden database roles (once, 49.7.1/49.7.4) | `psql "$DATABASE_URL" -v current_owner=erp -v app_password=... -v migrate_password=... -v backup_password=... -f deploy/postgres_harden.sql` |
 | Check the app's own DB role posture | `tenantctl db-privilege` |

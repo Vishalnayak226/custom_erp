@@ -68,6 +68,21 @@ func generateExtensionSecret() (string, error) {
 // HTTP. Plain http:// stays allowed only for localhost/loopback so a hired
 // developer can register a hook against their own machine during local
 // development without needing a real TLS cert for that.
+//
+// BLD-031: the https branch used to return nil unconditionally, with no
+// check at all that the hostname doesn't resolve to a private/internal
+// address or the cloud metadata endpoint - unlike webhook.go's
+// validateWebhookURL (Stage 38.4's outbound webhooks), which has always done
+// this resolution check. A hostile or compromised extension could register
+// an ordinary-looking https hostname that resolves to an internal service,
+// and every document.before_save/after_save hook call would happily deliver
+// that tenant's document payload to it. Now reuses
+// resolvesToPublicAddressOnly, the same check, so the two mechanisms can't
+// drift apart again. This function is called both here at registration time
+// and again by callHookWithRecovery immediately before every delivery - DNS
+// can change between the two (the same TOCTOU reasoning validateWebhookURL's
+// own comment already states), so a create-time-only check would be a
+// classic bypass.
 func validateHookTargetURL(targetURL string) error {
 	if targetURL == "" {
 		return fmt.Errorf("target_url is required")
@@ -77,7 +92,7 @@ func validateHookTargetURL(targetURL string) error {
 		return fmt.Errorf("target_url is not a valid URL: %v", err)
 	}
 	if u.Scheme == "https" {
-		return nil
+		return resolvesToPublicAddressOnly(u.Hostname())
 	}
 	if u.Scheme == "http" {
 		host := u.Hostname()
@@ -248,6 +263,12 @@ func logHookCall(tenantID, hookID, payloadHash string, status int, latencyMs int
 // This is what makes it safe to call synchronously from a before_save path
 // that needs a real answer (proceed or block).
 func callHookWithRecovery(hook extensionHookRow, payload []byte) (status int, latencyMs int, err error) {
+	// BLD-031: re-validated immediately before every delivery, not only at
+	// RegisterExtensionHook time - see validateHookTargetURL's own comment.
+	if verr := validateHookTargetURL(hook.TargetURL); verr != nil {
+		return 0, 0, verr
+	}
+
 	type result struct {
 		status int
 		err    error
