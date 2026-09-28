@@ -1,8 +1,16 @@
 package db
 
 import (
+	"bytes"
 	"testing"
 )
+
+// bytesToCRLF simulates what core.autocrlf did to a checked-out LF file:
+// insert \r before every \n. Assumes body has no \r already, true of every
+// migration file in this tree (they are all LF as embedded).
+func bytesToCRLF(body []byte) []byte {
+	return bytes.ReplaceAll(body, []byte("\n"), []byte("\r\n"))
+}
 
 // Stage 49.7.5 tests for the migration ledger checksum. These need a live
 // Postgres (unlike the rest of migrate_test.go), so they live in their own
@@ -39,6 +47,48 @@ func TestVerifyMigrationChecksums(t *testing.T) {
 		}
 		if *checksum != checksumOf(body) {
 			t.Fatalf("backfilled checksum does not match the currently embedded file's own hash")
+		}
+	})
+
+	t.Run("a checksum recorded from CRLF bytes matches the LF-embedded file, not reported as drift", func(t *testing.T) {
+		// Reproduces the false positive found on the first real deploy after
+		// this feature shipped: core.autocrlf on the Windows dev machine had
+		// shipped CRLF bytes for a migration file at some past apply time
+		// (via `git rebase`'s internal checkouts), while every checkout
+		// since - including this binary's - is LF. checksumOf must treat
+		// both as the same content.
+		const target = "migrations_stage47_1_role_templates.sql"
+		body, err := migrationFiles.ReadFile(target)
+		if err != nil {
+			t.Fatalf("read embedded %s: %v", target, err)
+		}
+		crlfChecksum := checksumOf(bytesToCRLF(body))
+		lfChecksum := checksumOf(body)
+		if crlfChecksum != lfChecksum {
+			t.Fatalf("checksumOf disagrees between CRLF and LF forms of the same content: %s vs %s", crlfChecksum, lfChecksum)
+		}
+
+		var original string
+		if err := DB.QueryRow(`SELECT checksum FROM public.schema_migrations WHERE migration_file = $1`, target).Scan(&original); err != nil {
+			t.Fatalf("read original checksum for %s: %v (was it applied to this dev DB yet?)", target, err)
+		}
+		defer func() {
+			if _, err := DB.Exec(`UPDATE public.schema_migrations SET checksum = $1 WHERE migration_file = $2`, original, target); err != nil {
+				t.Errorf("failed to restore %s's real checksum after the test - the shared dev ledger may now be left tampered: %v", target, err)
+			}
+		}()
+		if _, err := DB.Exec(`UPDATE public.schema_migrations SET checksum = $1 WHERE migration_file = $2`, crlfChecksum, target); err != nil {
+			t.Fatalf("simulate a CRLF-era recorded checksum: %v", err)
+		}
+
+		findings, err := VerifyMigrationChecksums()
+		if err != nil {
+			t.Fatalf("VerifyMigrationChecksums: %v", err)
+		}
+		for _, f := range findings {
+			if f.File == target {
+				t.Fatalf("expected a CRLF-era checksum to match the LF-embedded file, got drift: %+v", f)
+			}
 		}
 	})
 

@@ -1,6 +1,7 @@
 package db
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
@@ -196,8 +197,19 @@ func BaselineMigrations() (int, error) {
 // checksumOf is the one place a migration file's content is hashed, so
 // ApplyPendingMigrations, BaselineMigrations and VerifyMigrationChecksums
 // cannot silently disagree about what a "checksum" means.
+//
+// Normalizes CRLF to LF first. Discovered the hard way on the first real
+// deploy after this feature shipped: core.autocrlf on the Windows dev
+// machine (via `git rebase`'s internal checkouts, not any deliberate edit)
+// had shipped CRLF bytes for ~138 pre-existing migration files at some past
+// apply time, while every checkout since - including the one this exact
+// binary was built from - is LF. `git diff` between the last real deploy's
+// commit and this one is byte-identical for every one of those files, so
+// the drift was 100% line-ending representation, not content. A real edit
+// to a shipped migration's actual SQL still changes this hash either way.
 func checksumOf(body []byte) string {
-	sum := sha256.Sum256(body)
+	normalized := bytes.ReplaceAll(body, []byte("\r\n"), []byte("\n"))
+	sum := sha256.Sum256(normalized)
 	return hex.EncodeToString(sum[:])
 }
 

@@ -1,0 +1,22 @@
+-- Stage 49.7.5b (follow-up to 49.7.5): re-baseline migration checksums
+-- after a CRLF/LF false positive in SB-024.
+--
+-- checksumOf (db/migrate.go) hashed raw file bytes with no line-ending
+-- normalization. The first real deploy attempt since 49.7.5 shipped found
+-- ~138 pre-existing migration files flagged as "changed content" - but
+-- `git diff` between the last real deploy's commit and this one is
+-- byte-identical for every one of them; the recorded checksums were taken
+-- from CRLF bytes core.autocrlf produced on the Windows dev machine at some
+-- past apply time (most likely during one of the recent `git rebase`s,
+-- which checks out each replayed commit), not from any edit to a shipped
+-- file. checksumOf now normalizes CRLF to LF before hashing so this cannot
+-- recur.
+--
+-- Resetting every recorded checksum to NULL lets VerifyMigrationChecksums'
+-- existing, documented "first observation" path (see its doc comment)
+-- adopt the now-consistently-normalized embedded content as the fresh
+-- baseline - the same mechanism that already handles a NULL checksum on
+-- any pre-49.7.5 row, not a new one. Safe here specifically because the
+-- git-diff check above was done first, not assumed: a genuine future edit
+-- to an already-applied file is still caught on its very next boot.
+UPDATE public.schema_migrations SET checksum = NULL WHERE checksum IS NOT NULL;
