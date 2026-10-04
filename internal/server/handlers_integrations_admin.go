@@ -838,9 +838,10 @@ func handleVersion(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{
-		"version":    currentAppVersion(),
-		"git_commit": gitCommit,
-		"build_time": buildTime,
+		"version":      currentAppVersion(),
+		"git_commit":   gitCommit,
+		"build_time":   buildTime,
+		"release_date": releaseDate(),
 	})
 }
 

@@ -5,7 +5,7 @@ order: 30
 summary: Turn a need into stock on the shelf — raise a requisition, shop it round vendors with an optional RFQ, commit to a fully tax-classified Purchase Order, and post the Goods Receipt that actually moves the stock.
 audience: procurement officer, store manager, admin
 last_verified: 2026-09-03
-screens: [purchase-orders, grn, rfq, doctype-table, vendor-invoices, reports, approvals, configuration]
+screens: [purchase-orders, purchase-requisitions, grn, rfq, doctype-table, vendor-invoices, reports, approvals, configuration]
 doc_id: DOC-7252AA9770
 type: procedure
 status: draft

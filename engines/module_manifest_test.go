@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"errors"
 	"slices"
@@ -143,7 +144,7 @@ func TestModuleBoundaryReportLifecycle(t *testing.T) {
 	assertDenied(err)
 	_, _, _, err = GetReportExportJob("default", job)
 	assertDenied(err)
-	processReportExportJobs("tenant_default")
+	processReportExportJobs(context.Background(), "tenant_default")
 	var status, csv string
 	if err := db.DB.QueryRow(`SELECT status,COALESCE(data->>'csv','') FROM tenant_default.documents WHERE doctype='ReportExportJob' AND id=$1`, job).Scan(&status, &csv); err != nil {
 		t.Fatal(err)

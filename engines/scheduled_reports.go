@@ -44,16 +44,38 @@ func StartScheduledReportWorker(ctx context.Context, interval time.Duration) {
 					continue
 				}
 				for _, schema := range schemas {
-					processScheduledReports(schema)
+					processScheduledReports(ctx, schema)
 				}
 			}
 		}
 	}()
 }
 
-func processScheduledReports(schema string) {
+// BLD-046: takes the worker's ctx so a shutting-down process abandons an
+// in-flight run instead of finishing one whose result nobody will collect.
+// The job/schedule row is left untouched and is reclaimed on the next tick.
+func processScheduledReports(ctx context.Context, schema string) {
+	// BLD-046: see report_export.go's processReportExportJobs for why this
+	// resolution (rather than passing schema itself into RunReport below)
+	// matters - same wrong-tenant bug, same fix.
+	tenantID, err := tenantIDForSchema(schema)
+	if err != nil {
+		log.Printf("[SCHEDULED_REPORT] could not resolve tenant for schema %s: %v", schema, err)
+		return
+	}
+	// BLD-046: the due-date filter moved into SQL (data->>'next_run_date' is
+	// a plain ISO 'YYYY-MM-DD' string, so lexicographic <= is a correct date
+	// comparison) so the new LIMIT bounds actually-due work per tick instead
+	// of bounding an arbitrary slice of every Active schedule regardless of
+	// whether it's due - the previous unbounded fetch-then-filter-in-Go
+	// shape would otherwise let a LIMIT here silently starve genuinely due
+	// schedules sorted after not-yet-due ones.
+	today := time.Now().Format("2006-01-02")
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, data FROM %s.documents WHERE doctype = 'ScheduledReport' AND status = 'Active'`, schema))
+		`SELECT id, data FROM %s.documents WHERE doctype = 'ScheduledReport' AND status = 'Active'
+		   AND data->>'next_run_date' IS NOT NULL AND data->>'next_run_date' != '' AND data->>'next_run_date' <= $1
+		 LIMIT $2`, schema),
+		today, asyncReportWorkerBatchSize)
 	if err != nil {
 		log.Printf("[SCHEDULED_REPORT] query failed for %s: %v", schema, err)
 		return
@@ -63,7 +85,6 @@ func processScheduledReports(schema string) {
 		data map[string]interface{}
 	}
 	var due []dueSchedule
-	today := time.Now().Format("2006-01-02")
 	for rows.Next() {
 		var id, dataStr string
 		if err := rows.Scan(&id, &dataStr); err != nil {
@@ -74,10 +95,7 @@ func processScheduledReports(schema string) {
 			log.Printf("[SCHEDULED_REPORT] corrupt ScheduledReport %s: %v", id, err)
 			continue
 		}
-		nextRun, _ := data["next_run_date"].(string)
-		if nextRun != "" && nextRun <= today {
-			due = append(due, dueSchedule{id: id, data: data})
-		}
+		due = append(due, dueSchedule{id: id, data: data})
 	}
 	rows.Close()
 
@@ -93,7 +111,7 @@ func processScheduledReports(schema string) {
 		}
 
 		runStatus := "Delivered"
-		def, resultRows, _, err := RunReport(schema, reportID, role, "", params)
+		def, resultRows, _, err := RunReportContext(ctx, tenantID, reportID, role, "", params)
 		if err != nil {
 			runStatus = "Failed: " + err.Error()
 		} else if csvText, cerr := reportRowsToCSV(*def, resultRows); cerr != nil {

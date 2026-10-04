@@ -37,6 +37,8 @@ func ValidateMasterDataRules(tenantID, docID, doctype string, payload map[string
 		return validateVendorMasterRules(payload)
 	case "Customer":
 		return validateCustomerMasterRules(tenantID, docID, payload)
+	case "Location":
+		return validateLocationMasterRules(payload)
 	case "ProductContent":
 		return validateProductContentDuplicate(tenantID, docID, payload)
 	case "Batch":
@@ -1180,6 +1182,37 @@ func validatePreShipValidationRuleMasterRules(tenantID, docID string, payload ma
 		}
 		return &ValidationError{Code: "MASTER-0053", Message: fmt.Sprintf(
 			"an Active pre-ship validation rule already applies to %s (%s) - deactivate it first", scope, existingID)}
+	}
+	return nil
+}
+
+// validateLocationMasterRules (Stage 53.1) stamps `sellable` when it was left
+// blank, deriving it from `type` exactly as LocationIsSellable would: a Store
+// sells, anything else does not.
+//
+// The field is deliberately optional (53.1's migration explains why - making
+// it mandatory would reject a save of every Location that predates it), which
+// leaves one loose end: a Location created afterwards by someone who skipped
+// the field would carry no value. Stamping it here, on the same save path
+// every Location write already goes through, closes that - so after 53.1 the
+// flag is real, visible data on every row rather than something half of them
+// only have by inference.
+//
+// That matters beyond tidiness: it is what lets the POS location picker filter
+// on `sellable=Yes` and get exactly the set the server would accept. A picker
+// that hid a location checkout would have allowed - or offered one it would
+// refuse - is the kind of drift this stamp exists to make impossible.
+//
+// An explicit value is never overwritten. A Warehouse with a trade counter is
+// a real thing, and a user who sets Sellable = Yes on one means it.
+func validateLocationMasterRules(payload map[string]interface{}) error {
+	if strField(payload, "sellable") != "" {
+		return nil
+	}
+	if strField(payload, "type") == "Store" {
+		payload["sellable"] = "Yes"
+	} else {
+		payload["sellable"] = "No"
 	}
 	return nil
 }

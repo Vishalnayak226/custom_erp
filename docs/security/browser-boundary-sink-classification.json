@@ -1,0 +1,1661 @@
+{
+  "totalSinks": 461,
+  "totalExprs": 637,
+  "classCounts": {
+    "safe-text": 192,
+    "no-interpolation": 115,
+    "data": 300,
+    "markup-loop": 43,
+    "trusted": 74,
+    "assembled-markup": 11,
+    "trusted-config": 17
+  },
+  "perFile": {
+    "app.js": {
+      "sinks": 52,
+      "safe-text": 16,
+      "no-interpolation": 18,
+      "data": 19,
+      "markup-loop": 7,
+      "trusted": 2
+    },
+    "view-admin.js": {
+      "sinks": 42,
+      "safe-text": 12,
+      "no-interpolation": 10,
+      "data": 20,
+      "markup-loop": 7,
+      "trusted": 1
+    },
+    "view-assets.js": {
+      "sinks": 3,
+      "no-interpolation": 1
+    },
+    "view-documents.js": {
+      "sinks": 23,
+      "data": 16,
+      "safe-text": 13,
+      "no-interpolation": 10,
+      "trusted": 4,
+      "assembled-markup": 1
+    },
+    "view-expenses.js": {
+      "sinks": 3,
+      "trusted": 2,
+      "no-interpolation": 1
+    },
+    "view-finance.js": {
+      "sinks": 24,
+      "data": 14,
+      "trusted-config": 2,
+      "trusted": 5,
+      "no-interpolation": 2,
+      "safe-text": 5,
+      "markup-loop": 5
+    },
+    "view-help.js": {
+      "sinks": 12,
+      "safe-text": 9,
+      "no-interpolation": 3,
+      "data": 6
+    },
+    "view-hr.js": {
+      "sinks": 17,
+      "data": 4,
+      "trusted-config": 2,
+      "trusted": 10,
+      "no-interpolation": 5,
+      "markup-loop": 3
+    },
+    "view-manufacturing.js": {
+      "sinks": 14,
+      "data": 1,
+      "trusted-config": 2,
+      "trusted": 1,
+      "markup-loop": 1,
+      "no-interpolation": 4
+    },
+    "view-oms.js": {
+      "sinks": 36,
+      "no-interpolation": 11,
+      "safe-text": 29,
+      "data": 46,
+      "trusted": 8,
+      "markup-loop": 3
+    },
+    "view-pim.js": {
+      "sinks": 47,
+      "data": 34,
+      "trusted-config": 2,
+      "markup-loop": 3,
+      "safe-text": 41,
+      "no-interpolation": 10,
+      "trusted": 6,
+      "assembled-markup": 1
+    },
+    "view-pos.js": {
+      "sinks": 18,
+      "safe-text": 15,
+      "data": 21,
+      "no-interpolation": 7,
+      "trusted": 11,
+      "markup-loop": 3,
+      "assembled-markup": 3
+    },
+    "view-printing.js": {
+      "sinks": 17,
+      "safe-text": 14,
+      "data": 17,
+      "trusted-config": 2,
+      "no-interpolation": 4,
+      "markup-loop": 2
+    },
+    "view-procurement.js": {
+      "sinks": 25,
+      "no-interpolation": 5,
+      "data": 26,
+      "safe-text": 14,
+      "trusted": 4
+    },
+    "view-reports.js": {
+      "sinks": 37,
+      "data": 24,
+      "trusted-config": 7,
+      "safe-text": 4,
+      "trusted": 11,
+      "no-interpolation": 7,
+      "markup-loop": 3
+    },
+    "view-returns.js": {
+      "sinks": 3,
+      "no-interpolation": 1,
+      "safe-text": 5,
+      "data": 1,
+      "trusted": 2,
+      "markup-loop": 1
+    },
+    "view-rf-traceability.js": {
+      "sinks": 3,
+      "safe-text": 7,
+      "data": 1
+    },
+    "view-transfers.js": {
+      "sinks": 5,
+      "trusted": 2,
+      "no-interpolation": 1,
+      "data": 1,
+      "safe-text": 1
+    },
+    "view-warehouse.js": {
+      "sinks": 80,
+      "no-interpolation": 15,
+      "data": 49,
+      "assembled-markup": 6,
+      "trusted": 5,
+      "safe-text": 7,
+      "markup-loop": 5
+    }
+  },
+  "dataFindings": [
+    {
+      "file": "app.js",
+      "line": 281,
+      "expr": "message"
+    },
+    {
+      "file": "app.js",
+      "line": 1453,
+      "expr": "unparseable ? `<div class=\"empty-state-hint\">This field holds a value the editor could not read. It is shown below as ra"
+    },
+    {
+      "file": "app.js",
+      "line": 1458,
+      "expr": "cols.length + 1"
+    },
+    {
+      "file": "app.js",
+      "line": 3777,
+      "expr": "expanded"
+    },
+    {
+      "file": "app.js",
+      "line": 3778,
+      "expr": "expanded ? '▾' : '▸'"
+    },
+    {
+      "file": "app.js",
+      "line": 5333,
+      "expr": "data.username"
+    },
+    {
+      "file": "app.js",
+      "line": 5334,
+      "expr": "data.role"
+    },
+    {
+      "file": "app.js",
+      "line": 5335,
+      "expr": "data.status === 'Active' ? 'badge-success' : 'badge-secondary'"
+    },
+    {
+      "file": "app.js",
+      "line": 5335,
+      "expr": "data.status"
+    },
+    {
+      "file": "app.js",
+      "line": 5336,
+      "expr": "employeeText"
+    },
+    {
+      "file": "app.js",
+      "line": 5337,
+      "expr": "data.mfa_enabled ? 'badge-success' : 'badge-secondary'"
+    },
+    {
+      "file": "app.js",
+      "line": 5337,
+      "expr": "data.mfa_enabled ? 'Enabled' : 'Not enabled'"
+    },
+    {
+      "file": "app.js",
+      "line": 5351,
+      "expr": "data.email || ''"
+    },
+    {
+      "file": "app.js",
+      "line": 5575,
+      "expr": "statusBadge"
+    },
+    {
+      "file": "app.js",
+      "line": 5576,
+      "expr": "statusNote"
+    },
+    {
+      "file": "app.js",
+      "line": 5577,
+      "expr": "pendingNote"
+    },
+    {
+      "file": "app.js",
+      "line": 5581,
+      "expr": "info.reenroll_in_progress ? '<button type=\"button\" class=\"btn btn-secondary\" id=\"mfa-cancel-reenroll-btn\">Cancel device "
+    },
+    {
+      "file": "app.js",
+      "line": 6140,
+      "expr": "pending.length === 1 ? '' : 's'"
+    },
+    {
+      "file": "app.js",
+      "line": 6819,
+      "expr": "view.charAt(0).toUpperCase() + view.slice(1).replace('-', ' ')"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 206,
+      "expr": "rule ? 'Edit' : 'New'"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 209,
+      "expr": "rule ? rule.doctype : ''"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 210,
+      "expr": "rule ? rule.min_amount : '0'"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 211,
+      "expr": "rule && rule.max_amount != null ? rule.max_amount : ''"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 212,
+      "expr": "roleOptions"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 691,
+      "expr": "auditLoadFailed ? `<p style=\"padding: 0 16px 12px; color: var(--danger-color); font-size: 13px;\">Failed to load audit lo"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 722,
+      "expr": "sysLoadFailed ? `<p style=\"padding: 0 16px 12px; color: var(--danger-color); font-size: 13px;\">Failed to load system log"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 753,
+      "expr": "intLoadFailed ? `<p style=\"padding: 0 16px 12px; color: var(--danger-color); font-size: 13px;\">Failed to load integratio"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 810,
+      "expr": "jobsLoadFailed ? `<p style=\"padding: 0 16px 12px; color: var(--danger-color); font-size: 13px;\">Failed to load async job"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 1289,
+      "expr": "w.code === 'DR-0214' ? 'badge-danger' : 'badge-warning'"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 1290,
+      "expr": "w.code"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 1290,
+      "expr": "w.message"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 1304,
+      "expr": "envCount"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 1308,
+      "expr": "backupOverdue ? 'badge-danger' : 'badge-success'"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 1308,
+      "expr": "backupData.last_backup_at || 'Never'"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 1312,
+      "expr": "drillOverdue ? 'badge-warning' : 'badge-success'"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 1312,
+      "expr": "backupData.last_restore_drill_at || 'Never'"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 1637,
+      "expr": "totalInFlight"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 1641,
+      "expr": "atCapCount > 0 ? 'badge-danger' : 'badge-success'"
+    },
+    {
+      "file": "view-admin.js",
+      "line": 1641,
+      "expr": "atCapCount"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 88,
+      "expr": "showQuickCreateBack ? `<a href=\"#\" id=\"quick-create-back\" class=\"empty-state-link\" style=\"display:inline-block; margin-b"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 93,
+      "expr": "canCreateDoctype(currentDoctype) ? ` <button class=\"btn btn-outline\" id=\"doc-import-button\"> <svg width=\"18\" height=\"18\""
+    },
+    {
+      "file": "view-documents.js",
+      "line": 124,
+      "expr": "currentDoctype === 'Item' ? `<button class=\"btn btn-outline\" id=\"pim-group-actions-btn\" title=\"Act on a saved Product Gr"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 125,
+      "expr": "isPIMBulkEditDoctype() ? `<div class=\"bulk-edit-bar hidden\" id=\"pim-bulk-edit-bar\"><span id=\"pim-bulk-selection-count\">0"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 385,
+      "expr": "total === 0 ? 0 : start + 1"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 385,
+      "expr": "end"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 385,
+      "expr": "docTableLoading ? ' — loading…' : ''"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 387,
+      "expr": "currentTablePage - 1"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 387,
+      "expr": "currentTablePage === 1 || docTableLoading ? 'disabled' : ''"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 388,
+      "expr": "currentTablePage + 1"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 388,
+      "expr": "currentTablePage === pages || docTableLoading ? 'disabled' : ''"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 538,
+      "expr": "id"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 706,
+      "expr": "ok"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 790,
+      "expr": "bulkSelectedDocIDs.size === 1 ? '' : 's'"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 962,
+      "expr": "fieldId"
+    },
+    {
+      "file": "view-documents.js",
+      "line": 962,
+      "expr": "f.mandatory && !isCodeField ? '<span class=\"required\">*</span>' : ''"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 49,
+      "expr": "t.id === currentFinanceTab ? 'btn-primary' : 'btn-outline'"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 77,
+      "expr": "financeTrialBalanceAsOf"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 118,
+      "expr": "data.balanced ? '#10b981' : '#ef4444'"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 119,
+      "expr": "data.balanced ? '#10b981' : '#ef4444'"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 119,
+      "expr": "data.status || ''"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 124,
+      "expr": "data.as_of || financeTrialBalanceAsOf"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 653,
+      "expr": "accounts.length === 0 ? `<p style=\"color:var(--text-muted);\">No bank accounts yet - use \"Manage Bank Accounts\" to add on"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 679,
+      "expr": "await getErrorMessage(reconRes, 'Reconciliation failed.')"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 685,
+      "expr": "result.matched"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 887,
+      "expr": "draft"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 890,
+      "expr": "row('Invoice', invoice.invoice_number || invoice.id)"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 891,
+      "expr": "row('Customer', invoice.customer)"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 892,
+      "expr": "row('Location', invoice.location)"
+    },
+    {
+      "file": "view-finance.js",
+      "line": 893,
+      "expr": "row('Status', status)"
+    },
+    {
+      "file": "view-help.js",
+      "line": 154,
+      "expr": "article.html"
+    },
+    {
+      "file": "view-help.js",
+      "line": 156,
+      "expr": "article.last_verified ? `<span class=\"text-muted\">Last verified ${escapeHTMLText(article.last_verified)}.</span>` : ''"
+    },
+    {
+      "file": "view-help.js",
+      "line": 157,
+      "expr": "helpFeedbackAlreadyGiven(slug) ? '<span class=\"text-muted\">Thanks for the feedback.</span>' : 'Was this helpful? <button"
+    },
+    {
+      "file": "view-help.js",
+      "line": 161,
+      "expr": "previous ? `<a href=\"#\" data-slug=\"${escapeHTMLText(previous.slug)}\">&larr; ${escapeHTMLText(previous.title)}</a>` : '<s"
+    },
+    {
+      "file": "view-help.js",
+      "line": 162,
+      "expr": "next ? `<a href=\"#\" data-slug=\"${escapeHTMLText(next.slug)}\">${escapeHTMLText(next.title)} &rarr;</a>` : '<span></span>'"
+    },
+    {
+      "file": "view-help.js",
+      "line": 250,
+      "expr": "article.html"
+    },
+    {
+      "file": "view-hr.js",
+      "line": 57,
+      "expr": "t.id === currentHRTab ? 'btn-primary' : 'btn-outline'"
+    },
+    {
+      "file": "view-hr.js",
+      "line": 660,
+      "expr": "employee.code || employee.id"
+    },
+    {
+      "file": "view-hr.js",
+      "line": 660,
+      "expr": "employee.name || ''"
+    },
+    {
+      "file": "view-hr.js",
+      "line": 781,
+      "expr": "myLeaves.length === 0 && myExpenses.length === 0 && myGrievances.length === 0 ? `<tr><td colspan=\"3\" style=\"text-align:c"
+    },
+    {
+      "file": "view-manufacturing.js",
+      "line": 64,
+      "expr": "t.id === currentMfgTab ? 'btn-primary' : 'btn-outline'"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 231,
+      "expr": "t.error ? '—' : escapeHTMLText(String(t.count))"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 232,
+      "expr": "t.error ? `<div class=\"oms-tile-error\" title=\"${escapeHTMLText(t.error)}\">unavailable</div>` : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 269,
+      "expr": "group('channel', 'Channel', facets.channel)"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 270,
+      "expr": "group('status', 'Status', facets.status)"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 271,
+      "expr": "group('hold_reason', 'Hold reason', facets.hold_reason)"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 272,
+      "expr": "group('location', 'Location', facets.location)"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 278,
+      "expr": "omsConsoleState.filter.sla_minutes == 60 ? ' selected' : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 279,
+      "expr": "omsConsoleState.filter.sla_minutes == 240 ? ' selected' : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 280,
+      "expr": "omsConsoleState.filter.sla_minutes == 1440 ? ' selected' : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 346,
+      "expr": "result.total === 0 ? 'No orders' : `Showing ${from}–${to} of ${result.total}`"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 348,
+      "expr": "result.offset === 0 ? ' disabled' : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 349,
+      "expr": "to >= result.total ? ' disabled' : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 560,
+      "expr": "order.channel_order_id ? `<div class=\"oms-channel-ref\">${escapeHTMLText(order.channel_order_id)}</div>` : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 561,
+      "expr": "order.customer_phone ? `<div class=\"oms-channel-ref\">${escapeHTMLText(order.customer_phone)}</div>` : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 569,
+      "expr": "status === 'On Hold' ? `<button class=\"btn btn-primary btn-sm\" data-action=\"release\">Release hold</button>` : `<button c"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 570,
+      "expr": "terminal ? ' disabled' : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 571,
+      "expr": "terminal ? ' disabled' : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 572,
+      "expr": "terminal ? ' disabled' : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 573,
+      "expr": "terminal ? ' disabled' : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 573,
+      "expr": "order.priority === 'Expedite' ? 'Set Normal' : 'Expedite'"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 574,
+      "expr": "terminal ? ' disabled' : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 575,
+      "expr": "terminal ? ' disabled' : ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 577,
+      "expr": "terminal ? `<p class=\"text-muted oms-detail-empty\">This order is ${escapeHTMLText(status)}, so its actions are closed. A"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 582,
+      "expr": "lineRows || `<tr><td colspan=\"7\" class=\"text-center text-muted\">No lines.</td></tr>`"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 585,
+      "expr": "section('Reservations', d.reservations || [], [{ key: 'sku', label: 'SKU' }, { key: 'location_code', label: 'Location' }"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 586,
+      "expr": "section('Fulfillment tasks', d.fulfillment_tasks || [], [{ key: 'id', label: 'Task' }, { key: 'status', label: 'Status' "
+    },
+    {
+      "file": "view-oms.js",
+      "line": 587,
+      "expr": "section('Shipments', d.shipments || [], [{ key: 'id', label: 'Booking' }, { key: 'status', label: 'Status' }, { key: 'de"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 588,
+      "expr": "section('Invoices', d.invoices || [], [{ key: 'id', label: 'Invoice' }, { key: 'status', label: 'Status' }, { key: 'deta"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 589,
+      "expr": "section('Returns', d.returns || [], [{ key: 'id', label: 'Return' }, { key: 'status', label: 'Status' }, { key: 'detail'"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 590,
+      "expr": "section('Refunds', d.refunds || [], [{ key: 'id', label: 'Refund' }, { key: 'status', label: 'Status' }, { key: 'detail'"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 591,
+      "expr": "section('Notifications', d.notifications || [], [{ key: 'id', label: 'Log' }, { key: 'status', label: 'Dispatch' }, { ke"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 592,
+      "expr": "section('Audit trail', d.audit_trail || [], [{ key: 'created_at', label: 'At' }, { key: 'user_id', label: 'User' }, { ke"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 805,
+      "expr": "i + 1"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 1164,
+      "expr": "r.line_id || ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 1165,
+      "expr": "r.channel || ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 1166,
+      "expr": "r.channel_order_id || ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 1167,
+      "expr": "r.order_id || ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 1168,
+      "expr": "r.settlement_batch_id || ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 1172,
+      "expr": "r.match_status === 'Disputed' ? 'badge-warning' : 'badge-danger'"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 1172,
+      "expr": "r.match_status || ''"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 1174,
+      "expr": "r.match_status === 'Variance' ? `<button class=\"action-btn\" ${actionAttrs('raiseSettlementDisputeUI', [r.line_id])}>Disp"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 1175,
+      "expr": "r.match_status === 'Disputed' ? `<button class=\"action-btn\" ${actionAttrs('resolveSettlementDisputeUI', [r.line_id])}>Re"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 1187,
+      "expr": "await getErrorMessage(res, 'Reconciliation pass failed.')"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 1192,
+      "expr": "result.scanned ?? 0"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 1468,
+      "expr": "bookingId"
+    },
+    {
+      "file": "view-oms.js",
+      "line": 1469,
+      "expr": "label"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 42,
+      "expr": "t.id === currentPIMTab ? 'btn-primary' : 'btn-outline'"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 162,
+      "expr": "m.tags ? escapeHTMLText(m.tags) : '<span class=\"text-muted\">No tags</span>'"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 222,
+      "expr": "ok"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 518,
+      "expr": "pimMyWorkState.filter.assignee === 'me' ? 'Switch Assignee to \"Everyone\" to see the whole queue.' : 'Run a task template"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 662,
+      "expr": "task.instructions ? `<p style=\"font-size:13px;\">${escapeHTMLText(task.instructions)}</p>` : ''"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 666,
+      "expr": "task.overdue ? ' <span class=\"badge badge-danger\">overdue</span>' : ''"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 667,
+      "expr": "task.workflow_run ? `<dt class=\"text-muted\">Workflow run</dt><dd style=\"margin:0;\">${escapeHTMLText(task.workflow_run)} "
+    },
+    {
+      "file": "view-pim.js",
+      "line": 668,
+      "expr": "task.completed_at ? `<dt class=\"text-muted\">Completed</dt><dd style=\"margin:0;\">${escapeHTMLText(task.completed_at)} by "
+    },
+    {
+      "file": "view-pim.js",
+      "line": 683,
+      "expr": "!terminal ? `<button type=\"button\" class=\"btn btn-outline\" id=\"pim-task-reassign\">Reassign</button>` : ''"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 684,
+      "expr": "!terminal ? `<button type=\"button\" class=\"btn btn-outline\" id=\"pim-task-block\">Block</button>` : ''"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 685,
+      "expr": "!terminal ? `<button type=\"button\" class=\"btn btn-outline\" id=\"pim-task-cancel-task\">Cancel task</button>` : ''"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 686,
+      "expr": "!terminal ? `<button type=\"button\" class=\"btn btn-primary\" id=\"pim-task-done\">Mark done</button>` : ''"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 687,
+      "expr": "terminal ? `<button type=\"button\" class=\"btn btn-primary\" id=\"pim-task-followup\">Create follow-up</button>` : ''"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 740,
+      "expr": "result.created_count"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 740,
+      "expr": "result.skipped_count > 0 ? `, <strong>${result.skipped_count}</strong> skipped (they already have an open task from this"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 843,
+      "expr": "contextLabel ? `, from ${escapeHTMLText(contextLabel)}` : ''"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1259,
+      "expr": "filled"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1259,
+      "expr": "filled === 1 ? '' : 's'"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1262,
+      "expr": "warnings ? `<ul style=\"margin: 6px 0 0 18px;\">${warnings}</ul>` : ''"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1263,
+      "expr": "marketplaceExtra"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1279,
+      "expr": "m.id"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1280,
+      "expr": "m.media_role"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1280,
+      "expr": "m.version_no || 1"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1281,
+      "expr": "m.id"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1281,
+      "expr": "m.alt_text || m.media_role"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1282,
+      "expr": "m.alt_text || 'No alt text'"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1282,
+      "expr": "m.expiry_date ? ` · expires ${m.expiry_date}` : ''"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1283,
+      "expr": "m.id"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1283,
+      "expr": "m.alt_text || ''"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1283,
+      "expr": "m.expiry_date || ''"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1284,
+      "expr": "m.id"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1408,
+      "expr": "preview.has_prior_snapshot ? 'Diff vs. last publish attempt' : 'Outbound payload (no prior publish attempt for this chan"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1448,
+      "expr": "logHTML"
+    },
+    {
+      "file": "view-pim.js",
+      "line": 1450,
+      "expr": "versionsHTML"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 90,
+      "expr": "posLocation"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 396,
+      "expr": "posLocation"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 494,
+      "expr": "ok ? 'var(--border-color)' : 'var(--warning-soft-border, var(--border-color))'"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 495,
+      "expr": "ok ? 'var(--bg-color)' : 'var(--warning-soft-bg, var(--bg-color))'"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 497,
+      "expr": "posReturnEligibility.sale_date ? `<span style=\"color:var(--text-muted);\"> Sold ${cfgEsc(posReturnEligibility.sale_date)}"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 508,
+      "expr": "line.sold"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 509,
+      "expr": "line.returned"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 928,
+      "expr": "line.name && line.name !== line.sku ? `<div style=\"font-size:11.5px; color:var(--text-muted);\">${cfgEsc(line.sku)}</div>"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 941,
+      "expr": "posCanOverridePrice() && !line.unpriced ? `<button class=\"action-btn\" ${actionAttrs('openPOSPriceOverride', [line.sku])}"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 1536,
+      "expr": "colour"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 1541,
+      "expr": "sale.note ? `<div style=\"font-size:13px; margin-bottom:10px;\">${cfgEsc(sale.note)}</div>` : ''"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 1544,
+      "expr": "sale.offerDiscount > 0 ? money('Offer discount', -sale.offerDiscount) : ''"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 1545,
+      "expr": "sale.loyaltyDiscount > 0 ? money(`Loyalty points applied${sale.loyaltyPoints ? ` (${sale.loyaltyPoints} pt)` : ''}`, -sa"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 1546,
+      "expr": "money(sale.status === 'paid' ? 'Collected' : 'Total', sale.amountDue, true)"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 1547,
+      "expr": "sale.tendered !== null && sale.tendered !== undefined ? money('Cash tendered', sale.tendered) : ''"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 1548,
+      "expr": "sale.changeDue !== null && sale.changeDue !== undefined ? money('Change due', sale.changeDue, true) : ''"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 1552,
+      "expr": "sale.canPrint ? '<button class=\"btn btn-outline\" id=\"pos-print-receipt-btn\" type=\"button\">Print Receipt</button>' : ''"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 1725,
+      "expr": "subtotalLine"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 1726,
+      "expr": "offerLine"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 1727,
+      "expr": "loyaltyLine"
+    },
+    {
+      "file": "view-pos.js",
+      "line": 1728,
+      "expr": "paymentMode"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 164,
+      "expr": "t.id === currentStickerTab ? 'btn-primary' : 'btn-outline'"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 362,
+      "expr": "anyBatch ? '<th>Batch/Lot</th>' : ''"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 663,
+      "expr": "currentStickerTemplateId ? 'Edit' : 'New'"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 669,
+      "expr": "currentStickerTemplateId ? 'readonly' : ''"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 681,
+      "expr": "t.is_default ? 'checked' : ''"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 688,
+      "expr": "stickerDesignerLabelW"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 692,
+      "expr": "stickerDesignerLabelH"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 697,
+      "expr": "(t.status || 'Active') === 'Active' ? 'selected' : ''"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 698,
+      "expr": "t.status === 'Inactive' ? 'selected' : ''"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 765,
+      "expr": "widthPx"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 765,
+      "expr": "heightPx"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 860,
+      "expr": "el.field === 'static' ? ` <div class=\"form-group\"> <label class=\"form-label\" for=\"stdp-text\">Text</label> <input type=\"t"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 865,
+      "expr": "el.field !== 'barcode' ? ` <div class=\"form-group\"> <label class=\"form-label\" for=\"stdp-font\">Font Size (mm)</label> <in"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 884,
+      "expr": "el.x_mm"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 885,
+      "expr": "el.y_mm"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 886,
+      "expr": "el.w_mm"
+    },
+    {
+      "file": "view-printing.js",
+      "line": 887,
+      "expr": "el.h_mm"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 257,
+      "expr": "editing ? `Amend ${escapeHTMLText(d.po_number || d.id)}` : 'New Purchase Order'"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 258,
+      "expr": "editing ? `<button class=\"btn btn-ghost btn-sm\" id=\"po-cancel-edit\">Cancel</button>` : ''"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 262,
+      "expr": "editing ? '' : autoNumberField('PO Number', 'PO', '100%')"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 279,
+      "expr": "d.gst_mode === 'Exclusive' ? ' selected' : ''"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 280,
+      "expr": "d.gst_mode === 'Inclusive' ? ' selected' : ''"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 315,
+      "expr": "editing ? 'Save Amendment' : 'Create Draft'"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 499,
+      "expr": "d.interstate ? 'checked' : ''"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 505,
+      "expr": "kind"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 505,
+      "expr": "tax"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 506,
+      "expr": "d.interstate_override ? 'checked' : ''"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 507,
+      "expr": "d.interstate_override ? `<label class=\"po-override\"><input type=\"checkbox\" id=\"po-interstate\" ${d.interstate ? 'checked'"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 538,
+      "expr": "row('Taxable value', b.taxable_amount)"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 539,
+      "expr": "nonTaxable ? row('Exempt / nil / zero-rated', nonTaxable) : ''"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 540,
+      "expr": "b.interstate ? row(`IGST`, b.igst) : row(`CGST`, b.cgst) + row(`SGST`, b.sgst)"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 541,
+      "expr": "row('Grand total', p.grand_total, 'po-total-grand')"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 724,
+      "expr": "po.status !== 'Approved' ? `<div class=\"invoice-draft\">${escapeHTMLText((po.status || '').toUpperCase())}</div>` : ''"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 727,
+      "expr": "po.order_date ? `<div><strong>Date:</strong> ${escapeHTMLText(po.order_date)}</div>` : ''"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 728,
+      "expr": "po.ship_to ? `<div><strong>Ship to:</strong> ${escapeHTMLText(po.ship_to)}</div>` : ''"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 731,
+      "expr": "party('Buyer', po.buyer || {})"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 732,
+      "expr": "party('Vendor', po.vendor || {})"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 752,
+      "expr": "b.interstate ? `<tr><td>IGST</td><td class=\"num\">${formatMoney(b.igst)}</td></tr>` : `<tr><td>CGST</td><td class=\"num\">$"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 757,
+      "expr": "po.amount_in_words ? `<div class=\"po-print-words\">${escapeHTMLText(po.amount_in_words)}</div>` : ''"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 758,
+      "expr": "po.place_of_supply && po.place_of_supply.derived ? `<div class=\"po-print-pos\">Place of supply: ${escapeHTMLText(po.place"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 1174,
+      "expr": "grnHasBatches ? '<th>Batch / Expiry</th>' : ''"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 1174,
+      "expr": "grnHasSerials ? '<th>Serials</th>' : ''"
+    },
+    {
+      "file": "view-procurement.js",
+      "line": 1411,
+      "expr": "shelfLife > 0 ? ` If you enter a manufacture date and leave Expiry blank, expiry is derived as manufacture + ${shelfLife"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 55,
+      "expr": "t.id === currentReportTab ? 'btn-primary' : 'btn-outline'"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 204,
+      "expr": "layoutOptions"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 207,
+      "expr": "dashboardSelectedLayoutId ? '' : 'disabled'"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 210,
+      "expr": "addTileOptions"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 214,
+      "expr": "trendHtml"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 233,
+      "expr": "value > 0 ? '#dc2626' : '#10b981'"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 233,
+      "expr": "value"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 315,
+      "expr": "bars"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 523,
+      "expr": "monthStart"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 527,
+      "expr": "today"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 543,
+      "expr": "await getErrorMessage(res, 'Failed to load GST return summary.')"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 567,
+      "expr": "s.transaction_count"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 569,
+      "expr": "nonTaxableRow"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 721,
+      "expr": "rows || '<p class=\"page-subtitle\" style=\"margin:0;\">This report has no columns.</p>'"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 723,
+      "expr": "smallBtn"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 724,
+      "expr": "smallBtn"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 725,
+      "expr": "smallBtn"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 840,
+      "expr": "p.type === 'date' ? 'date' : 'text'"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 841,
+      "expr": "p.required ? 'required' : ''"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 1029,
+      "expr": "await getErrorMessage(res, 'Failed to queue export.')"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 1033,
+      "expr": "job.id"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 1041,
+      "expr": "await getErrorMessage(res, 'Export job lookup failed.')"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 1209,
+      "expr": "rfqId"
+    },
+    {
+      "file": "view-reports.js",
+      "line": 1210,
+      "expr": "isClosed ? '' : ` <div style=\"display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px;\"> $"
+    },
+    {
+      "file": "view-returns.js",
+      "line": 142,
+      "expr": "qtySummary"
+    },
+    {
+      "file": "view-rf-traceability.js",
+      "line": 152,
+      "expr": "fields"
+    },
+    {
+      "file": "view-transfers.js",
+      "line": 119,
+      "expr": "line.sku"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 136,
+      "expr": "taskId"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 137,
+      "expr": "hasBatches ? '<th>Batch / Expiry</th>' : ''"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 305,
+      "expr": "data.matched_qty"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 330,
+      "expr": "data.staged"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 354,
+      "expr": "data.bin_code"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 354,
+      "expr": "data.reason"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 670,
+      "expr": "calendarDate"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 672,
+      "expr": "calendarWeekView ? 'Switch to Day' : 'Switch to Week'"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 683,
+      "expr": "calendarDate"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 946,
+      "expr": "doneLines"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 946,
+      "expr": "totalLines"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 960,
+      "expr": "rfReceivingLines.length === 0 ? 'disabled' : ''"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 993,
+      "expr": "qty"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1281,
+      "expr": "task.status"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1281,
+      "expr": "task.scanned_carton_count"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1281,
+      "expr": "task.expected_carton_count ? ' / ' + task.expected_carton_count + ' expected' : ''"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1283,
+      "expr": "(task.status === 'Planned' || task.status === 'Loading') ? ` <div class=\"form-group\" style=\"margin-bottom:0;\"> <label cl"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1291,
+      "expr": "task.status === 'Loaded' ? ` <div style=\"display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; margin-top:8px;\">"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1305,
+      "expr": "task.status === 'Departed' ? `<button class=\"btn btn-secondary\" id=\"load-print-bol-btn\" type=\"button\" style=\"margin-top:"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1368,
+      "expr": "task.doc_id"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1369,
+      "expr": "task.dock_door"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1370,
+      "expr": "task.trailer_no"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1371,
+      "expr": "task.status"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1372,
+      "expr": "task.pallet_exchange_out || 0"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1372,
+      "expr": "task.pallet_exchange_in || 0"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1737,
+      "expr": "lpnCode"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1791,
+      "expr": "location"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1957,
+      "expr": "mobilePickIndex + 1"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1958,
+      "expr": "line.sku"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1959,
+      "expr": "line.zone || '-'"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1959,
+      "expr": "line.aisle || '-'"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1959,
+      "expr": "line.rack || '-'"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1959,
+      "expr": "line.bin_code"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1960,
+      "expr": "line.batch_no ? `<div style=\"font-size:15px; margin-bottom:16px; line-height:1.7;\">Batch ${batchCellHTML(line)}</div>` :"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1961,
+      "expr": "line.pick_qty"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1961,
+      "expr": "line.shortfall ? ` <span class=\"badge badge-warning\" style=\"font-size:14px; vertical-align:middle;\">short ${line.shortfa"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1963,
+      "expr": "mobilePickIndex === 0 ? 'disabled' : ''"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1964,
+      "expr": "mobilePickIndex === mobilePickLines.length - 1 ? 'disabled' : ''"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 1966,
+      "expr": "speechSupported || listenSupported ? ` <div style=\"display:flex; gap:10px; justify-content:center; padding-top:14px; bor"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 2040,
+      "expr": "data.tagged"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 2040,
+      "expr": "waveId"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 2241,
+      "expr": "data.posted_no_variance || 0"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 2243,
+      "expr": "data.pending_approval || 0"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 2258,
+      "expr": "lineId"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 2271,
+      "expr": "lineId"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 2285,
+      "expr": "data.new_line_id"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 2301,
+      "expr": "countedQty"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 2301,
+      "expr": "lineId"
+    },
+    {
+      "file": "view-warehouse.js",
+      "line": 2313,
+      "expr": "location"
+    }
+  ]
+}

@@ -180,16 +180,16 @@ type AuditArchiveRow struct {
 // AuditArchiveManifest is the decrypted content of one archive file: the
 // checkpoint metadata it was built from, plus every row.
 type AuditArchiveManifest struct {
-	TenantSchema  string             `json:"tenant_schema"`
-	CheckpointID  string             `json:"checkpoint_id"`
-	FromSeq       int64              `json:"from_seq"`
-	ToSeq         int64              `json:"to_seq"`
-	RowCount      int                `json:"row_count"`
-	UnsignedCount int                `json:"unsigned_count"`
-	RowDigest     string             `json:"row_digest"`
-	SigVersion    string             `json:"sig_version"`
-	CreatedAt     time.Time          `json:"created_at"`
-	Rows          []AuditArchiveRow  `json:"rows"`
+	TenantSchema  string            `json:"tenant_schema"`
+	CheckpointID  string            `json:"checkpoint_id"`
+	FromSeq       int64             `json:"from_seq"`
+	ToSeq         int64             `json:"to_seq"`
+	RowCount      int               `json:"row_count"`
+	UnsignedCount int               `json:"unsigned_count"`
+	RowDigest     string            `json:"row_digest"`
+	SigVersion    string            `json:"sig_version"`
+	CreatedAt     time.Time         `json:"created_at"`
+	Rows          []AuditArchiveRow `json:"rows"`
 }
 
 // AuditArchiveSummary is one archive's metadata, for the list endpoint -
@@ -333,7 +333,7 @@ func archiveEligibleCheckpoints(schema string, cutoff time.Time) ([]archiveCandi
 		 WHERE c.archive_id IS NULL
 		   AND c.kind IN ('Periodic', 'Sealed')
 		   AND (SELECT MAX(a.created_at) FROM %s.audit_logs a
-		         WHERE a.seq >= c.from_seq AND a.seq <= c.to_seq) < $1
+		         WHERE a.seq >= c.from_seq AND a.seq <= c.to_seq) < ($1::timestamptz AT TIME ZONE current_setting('TimeZone'))
 		 ORDER BY c.to_seq ASC`, schema, schema), cutoff)
 	if err != nil {
 		return nil, err
@@ -885,7 +885,10 @@ func init() {
 	RegisterJobHandler(AuditArchiveJobType, runAuditArchiveJob)
 }
 
-func runAuditArchiveJob(schema string, job Job) (map[string]interface{}, error) {
+func runAuditArchiveJob(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	tenantID := schemaToTenantID(schema)
 	// false: the scheduled pass never overrides maxRowsPerArchiveWindow -
 	// see that constant's comment for why an unattended run must not process

@@ -7,18 +7,10 @@
   <!-- Absolute, not relative (Stage 39.4): the SPA is served for multi-segment
        URLs like /help/<article>, where a relative "styles.css" would resolve to
        /help/styles.css and be answered with the SPA shell itself. -->
-  <link rel="stylesheet" href="/styles.css?v=22">
-  <script>
-    // Stage 28.2: apply the saved theme before first paint to avoid a light-mode
-    // flash. 'system' (or unset) lets the CSS media query follow the OS;
-    // 'light'/'dark' force a choice. Reconciled with the server-stored per-user
-    // preference once /api/v1/me loads (fetchAndApplyProfile in app.js).
-    (function () {
-      try {
-        document.documentElement.setAttribute('data-theme', localStorage.getItem('erp-theme') || 'system');
-      } catch (e) {}
-    })();
-  </script>
+  <link rel="stylesheet" href="/styles.css?v=26">
+  <!-- Stage 28.2/47.8: external same-origin theme bootstrap avoids an inline
+       script exception in the strict CSP candidate. -->
+  <script src="/theme-boot.js?v=1"></script>
 </head>
 <body>
   <!-- Login Screen -->
@@ -380,6 +372,21 @@
             <button class="account-popover-item account-popover-item-danger" id="logout-btn" type="button">Sign Out</button>
           </div>
         </div>
+        <!-- Release identity, under the profile chip. The line shows the bare
+             version; hovering, focusing or tapping it opens a small popup with
+             the version and release date, nothing else. Filled by
+             loadAppVersion(); stays hidden until that resolves, so a failed
+             fetch shows nothing rather than an empty row. A <button> rather
+             than static text because it now opens a popup - that has to be
+             reachable by keyboard and by touch, which a title tooltip is not. -->
+        <div class="app-version" id="app-version">
+          <button type="button" class="app-version-line hidden" id="app-version-line"
+                  aria-expanded="false" aria-controls="app-version-pop"></button>
+          <div class="app-version-pop hidden" id="app-version-pop" role="tooltip">
+            <span class="app-version-pop-num" id="app-version-pop-num"></span>
+            <span class="app-version-pop-date" id="app-version-pop-date"></span>
+          </div>
+        </div>
       </div>
     </aside>
 
@@ -428,17 +435,34 @@
                row) - the select above is disabled at that point, since a
                plain change there would just be rejected server-side. -->
           <button class="btn btn-outline btn-sm hidden" id="industry-override-btn" title="This tenant's industry profile is locked - click to override" style="margin-right: 8px;">Override</button>
-          <button class="btn btn-outline" id="sync-btn" title="Refresh local data store">
+          <button class="btn btn-outline" id="sync-btn" title="Refresh: re-fetch labels and screen definitions, keeping everything you have open and everything cached">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"></path>
             </svg>
-            <span>Sync</span>
+            <span>Refresh</span>
+          </button>
+          <!-- Stage 53.17: Reset, deliberately a SEPARATE button from Refresh
+               rather than a stronger version of it. Refresh re-fetches and
+               keeps every cache and every half-finished screen; Reset throws
+               the cached copy away and rebuilds from the server. The two were
+               one button before, which is why a stale screen had no cure short
+               of a browser reload - and a browser reload restores from the same
+               caches, so it was not a cure either. -->
+          <button class="btn btn-outline" id="reset-btn" title="Reset: clear every cached copy and all unsaved on-screen work, then reload from the server" style="margin-left: 8px;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M3 12a9 9 0 1 0 3-6.7L3 8"></path><path d="M3 3v5h5"></path><path d="M12 8v5l3 2"></path>
+            </svg>
+            <span>Reset</span>
           </button>
           <!-- Stage 39.5: contextual help for the screen you are on. Opens a
                drawer over the current screen rather than navigating away, so
                half-entered work is never lost to reading the manual. -->
           <button class="btn btn-outline btn-icon" id="help-btn" title="Help for this screen" aria-label="Help for this screen" style="margin-left: 8px;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <!-- stroke-linecap="round" is load-bearing here, not cosmetic: the
+                 dot under the question mark is a zero-length <line>, which a
+                 butt cap draws as a 0.01-unit sliver (invisible at 16px) -
+                 leaving the glyph reading as a circle with a stray hook. -->
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
               <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
               <line x1="12" y1="17" x2="12.01" y2="17"></line>
@@ -454,19 +478,19 @@
 
   <!-- Unified Dynamic Modal overlay for dynamic component forms -->
   <div class="modal-overlay" id="dynamic-modal">
-    <div class="modal-container">
+    <div class="modal-container" role="dialog" aria-modal="true" aria-labelledby="dynamic-modal-title">
       <div class="modal-header">
         <h3 class="modal-title" id="dynamic-modal-title">New Document</h3>
-        <button type="button" class="modal-close" aria-label="Close dialog" onclick="closeDynamicModal()">
+        <button type="button" class="modal-close" aria-label="Close dialog" data-act="closeDynamicModal">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
-      <form id="dynamic-modal-form" onsubmit="handleDynamicFormSubmit(event)">
+      <form id="dynamic-modal-form" data-act="handleDynamicFormSubmit" data-act-on="submit" data-act-args="[&quot;$event&quot;]">
         <div class="modal-body" id="dynamic-modal-body">
           <!-- Dynamic field inputs injected here -->
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeDynamicModal()">Cancel</button>
+          <button type="button" class="btn btn-secondary" data-act="closeDynamicModal">Cancel</button>
           <button type="submit" class="btn btn-primary">Save</button>
         </div>
       </form>
@@ -483,11 +507,11 @@
     <div class="modal-container">
       <div class="modal-header">
         <h3 class="modal-title" id="add-field-modal-title">Add Field to Schema</h3>
-        <button type="button" class="modal-close" aria-label="Close dialog" onclick="closeAddFieldModal()">
+        <button type="button" class="modal-close" aria-label="Close dialog" data-act="closeAddFieldModal">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
-      <form id="add-field-form" onsubmit="submitAddField(event)">
+      <form id="add-field-form" data-act="submitAddField" data-act-on="submit" data-act-args="[&quot;$event&quot;]">
         <input type="hidden" id="add-field-doctype">
         <input type="hidden" id="add-field-id">
         <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
@@ -530,7 +554,7 @@
           <div class="login-error hidden" id="add-field-error"></div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeAddFieldModal()">Cancel</button>
+          <button type="button" class="btn btn-secondary" data-act="closeAddFieldModal">Cancel</button>
           <button type="submit" class="btn btn-primary" id="add-field-submit">Save Field</button>
         </div>
       </form>
@@ -542,11 +566,11 @@
     <div class="modal-container">
       <div class="modal-header">
         <h3 class="modal-title">Edit Prefix Configuration</h3>
-        <button type="button" class="modal-close" aria-label="Close dialog" onclick="closeEditPrefixModal()">
+        <button type="button" class="modal-close" aria-label="Close dialog" data-act="closeEditPrefixModal">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
-      <form id="edit-prefix-form" onsubmit="submitEditPrefix(event)">
+      <form id="edit-prefix-form" data-act="submitEditPrefix" data-act-on="submit" data-act-args="[&quot;$event&quot;]">
         <input type="hidden" id="edit-prefix-doctype">
         <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
           <div class="form-group">
@@ -571,7 +595,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeEditPrefixModal()">Cancel</button>
+          <button type="button" class="btn btn-secondary" data-act="closeEditPrefixModal">Cancel</button>
           <button type="submit" class="btn btn-primary">Save Configuration</button>
         </div>
       </form>
@@ -583,11 +607,11 @@
     <div class="modal-container">
       <div class="modal-header">
         <h3 class="modal-title">Add Label Translation</h3>
-        <button type="button" class="modal-close" aria-label="Close dialog" onclick="closeAddLabelModal()">
+        <button type="button" class="modal-close" aria-label="Close dialog" data-act="closeAddLabelModal">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
-      <form id="add-label-form" onsubmit="submitAddLabel(event)">
+      <form id="add-label-form" data-act="submitAddLabel" data-act-on="submit" data-act-args="[&quot;$event&quot;]">
         <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
           <div class="form-group">
             <label class="form-label" for="add-label-orig">Original Word/Label</label>
@@ -599,7 +623,7 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeAddLabelModal()">Cancel</button>
+          <button type="button" class="btn btn-secondary" data-act="closeAddLabelModal">Cancel</button>
           <button type="submit" class="btn btn-primary">Save Translation</button>
         </div>
       </form>
@@ -611,17 +635,17 @@
     <div class="modal-container">
       <div class="modal-header">
         <h3 class="modal-title">Bulk CSV Import</h3>
-        <button type="button" class="modal-close" aria-label="Close dialog" onclick="closeImportModal()">
+        <button type="button" class="modal-close" aria-label="Close dialog" data-act="closeImportModal">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </div>
-      <form id="import-modal-form" onsubmit="handleBulkImportSubmit(event)">
+      <form id="import-modal-form" data-act="handleBulkImportSubmit" data-act-on="submit" data-act-args="[&quot;$event&quot;]">
         <div class="modal-body">
           <p style="margin-bottom: 12px; font-size:13px; line-height: 1.5; color: var(--text-muted);">
             Download the structured CSV template containing header validation configurations, edit it with records data, and select/upload the file below.
           </p>
           <div style="margin-bottom: 16px;">
-            <button type="button" class="btn btn-secondary btn-sm" onclick="downloadImportTemplate()">
+            <button type="button" class="btn btn-secondary btn-sm" data-act="downloadImportTemplate">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Download Template CSV</span>
             </button>
@@ -635,8 +659,8 @@
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
-          <button type="button" class="btn btn-outline" onclick="handleBulkImportPreview()">Preview (no changes written)</button>
+          <button type="button" class="btn btn-secondary" data-act="closeImportModal">Cancel</button>
+          <button type="button" class="btn btn-outline" data-act="handleBulkImportPreview">Preview (no changes written)</button>
           <button type="submit" class="btn btn-primary">Process Import</button>
         </div>
       </form>
@@ -700,7 +724,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=26"></script>
+  <script src="/app.js?v=32"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=1"></script>

@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -22,6 +23,19 @@ import (
 func auditTestTenant(t *testing.T) string {
 	t.Helper()
 	db.InitDB(testConnStr())
+	return "default"
+}
+
+func auditTestTenantInTimeZone(t *testing.T, timeZone string) string {
+	t.Helper()
+	parsed, err := url.Parse(testConnStr())
+	if err != nil {
+		t.Fatalf("parse test database URL: %v", err)
+	}
+	query := parsed.Query()
+	query.Set("options", "-c TimeZone="+timeZone)
+	parsed.RawQuery = query.Encode()
+	db.InitDB(parsed.String())
 	return "default"
 }
 
@@ -221,7 +235,17 @@ func TestAuditKeyRotationIsNotMistakenForTampering(t *testing.T) {
 // verification that did not HAPPEN, not only on verification that failed.
 // Absence of a failure is not evidence of success.
 func TestAuditVerificationOverdueDetectsSilence(t *testing.T) {
-	tenantID := auditTestTenant(t)
+	// Force every pooled connection into a non-UTC session. A naive timestamp
+	// scanned as UTC is then 5.5 hours in the future on this host, making the
+	// age negative and hiding the exact silence this check is meant to detect.
+	tenantID := auditTestTenantInTimeZone(t, "Asia/Calcutta")
+	var sessionTimeZone string
+	if err := db.DB.QueryRow(`SHOW TIME ZONE`).Scan(&sessionTimeZone); err != nil {
+		t.Fatalf("read test session timezone: %v", err)
+	}
+	if sessionTimeZone != "Asia/Calcutta" {
+		t.Fatalf("test requires a non-UTC database session, got %q", sessionTimeZone)
+	}
 
 	// A zero tolerance makes any existing checkpoint overdue, which proves the
 	// age is genuinely measured rather than hardcoded to "fine".
@@ -233,6 +257,9 @@ func TestAuditVerificationOverdueDetectsSilence(t *testing.T) {
 		t.Errorf("nothing is reported overdue at a zero tolerance (last seal %v ago); the silence check is not measuring anything", since)
 	}
 
+	marker := "AUDIT-TZ-" + NewDocIDCompact("T")
+	t.Cleanup(func() { cleanupAuditMarker(t, tenantID, marker) })
+	LogAuditEvent(tenantID, "timezone-test", marker, "Success", "checkpoint age must be a real elapsed duration")
 	fresh, err := WriteAuditCheckpoint(tenantID, "Periodic")
 	if err != nil {
 		t.Fatalf("checkpoint failed: %v", err)
@@ -248,12 +275,15 @@ func TestAuditVerificationOverdueDetectsSilence(t *testing.T) {
 			db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.audit_checkpoints WHERE id = $1::uuid`, schema), fresh.ID)
 		})
 	}
-	overdue, _, err = AuditVerificationOverdue(tenantID, 24*time.Hour)
+	overdue, since, err = AuditVerificationOverdue(tenantID, 24*time.Hour)
 	if err != nil {
 		t.Fatalf("overdue check failed: %v", err)
 	}
 	if overdue {
 		t.Error("a freshly checkpointed tenant is reported overdue within a 24h tolerance")
+	}
+	if since < 0 || since > time.Minute {
+		t.Errorf("fresh checkpoint age must be a small non-negative elapsed duration, got %s", since)
 	}
 }
 

@@ -2,8 +2,11 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
+	"net"
 	"net/http"
 	"regexp"
+	"syscall"
 
 	"custom_erp/engines"
 )
@@ -180,6 +183,17 @@ func writeAPIErrorDetail(w http.ResponseWriter, r *http.Request, code string, su
 // assertion at every call site. fallbackStatus is used when err isn't a
 // precisely-coded *engines.ValidationError.
 func writeEngineError(w http.ResponseWriter, r *http.Request, err error, fallbackStatus int) {
+	// BLD-046: an abandoned request is not a failure of this server, so it is
+	// handled here - the one writer every engine-backed handler already funnels
+	// through - rather than at each report/export/import call site. Status 499
+	// ("Client Closed Request") is never actually read by anyone: the socket is
+	// already gone. What matters is that the error catalog, the system-error log
+	// and the 5xx alerting path are all skipped, so a user navigating away does
+	// not register as a server error or page an on-call responder.
+	if isAbandonedRequest(r, err) {
+		w.WriteHeader(clientClosedRequestStatus)
+		return
+	}
 	if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
 		// Stage 30.2.4: verr.Message - the engine's own specific reason - used
 		// to be discarded here in favour of the catalog's generic wording. It
@@ -191,6 +205,46 @@ func writeEngineError(w http.ResponseWriter, r *http.Request, err error, fallbac
 	}
 	writeAPIErrorGeneric(w, r, fallbackStatus, err.Error())
 }
+
+// isAbandonedRequest reports whether err means "the caller went away"
+// rather than "this request failed". BLD-046/BLD-052 both depend on the
+// distinction: an abandoned request must not be written to the system error
+// log, counted as a 5xx or allowed to page an on-call responder.
+//
+// Three signals, because a handler sees a different one depending on where
+// it was when the client left:
+//
+//   - a cancellation error, when the work itself noticed ctx first;
+//   - a done request context, which Go's http.Server cancels as soon as the
+//     connection drops - the portable signal, and the one that catches a
+//     streaming handler whose failure surfaced as a socket write error;
+//   - an explicit broken-pipe/reset/closed-connection error, for the case
+//     where the write failed before the context cancellation was observed.
+//
+// Deliberately NOT string-matching the platform's socket message
+// ("wsasend: An existing connection was forcibly closed by the remote
+// host." on Windows, "broken pipe" on Linux): that would be a different
+// predicate on every OS, and the request-context check already covers both.
+func isAbandonedRequest(r *http.Request, err error) bool {
+	if err == nil {
+		return false
+	}
+	if engines.IsCancellation(err) {
+		return true
+	}
+	if r != nil && r.Context().Err() != nil {
+		return true
+	}
+	return errors.Is(err, syscall.EPIPE) ||
+		errors.Is(err, syscall.ECONNRESET) ||
+		errors.Is(err, syscall.ECONNABORTED) ||
+		errors.Is(err, net.ErrClosed)
+}
+
+// clientClosedRequestStatus mirrors nginx's non-standard 499. There is no
+// RFC status for "the client went away", and returning 200 or 500 would both
+// be wrong in access logs.
+const clientClosedRequestStatus = 499
 
 // writeAPIErrorGeneric writes a standardized error envelope for a call site
 // that has no precise catalog scenario match yet. It keeps the caller's own

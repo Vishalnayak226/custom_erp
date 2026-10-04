@@ -107,7 +107,7 @@ func ListPublicItems(tenantID, updatedSince string, limit, offset int) (*PublicP
 			return nil, &ValidationError{Code: "GLOBAL-0002", SubFor: "updated_since", Message: "updated_since must be an RFC3339 timestamp, for example 2026-08-01T00:00:00Z"}
 		}
 		args = append(args, parsed.UTC())
-		clauses = append(clauses, fmt.Sprintf("updated_at >= $%d", len(args)))
+		clauses = append(clauses, fmt.Sprintf("updated_at >= ($%d::timestamptz AT TIME ZONE current_setting('TimeZone'))", len(args)))
 	}
 	// One extra row is fetched purely to answer has_more without a COUNT(*)
 	// over the whole table on every page.

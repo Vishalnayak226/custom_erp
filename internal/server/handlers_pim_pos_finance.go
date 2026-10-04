@@ -46,7 +46,7 @@ func handleBulkImport(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	res, err := engines.BulkImportCSV(tenantID, doctype, file, userID, role, false)
+	res, err := engines.BulkImportCSVContext(r.Context(), tenantID, doctype, file, userID, role, false)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
@@ -123,7 +123,7 @@ func handlePIMImportPreview(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	res, err := engines.BulkImportCSV(tenantID, doctype, file, userID, role, true)
+	res, err := engines.BulkImportCSVContext(r.Context(), tenantID, doctype, file, userID, role, true)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
@@ -506,6 +506,16 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Stage 53.2: a sale may only be rung up somewhere that sells. Checked
+	// here - above the quote, the offer evaluation and every other side effect
+	// - and not only at session-open, because an offline-queued sale replays
+	// through this handler without ever re-opening a session, and because a
+	// Location can be switched to Sellable = No while a session is still open.
+	if err := engines.ValidatePOSSellableLocation(tenantID, req.Location); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+
 	// Stage 47.2 - the single authoritative pricing step. ResolvePOSQuote
 	// prices every line from tenant master data (approved price list, item
 	// master, or an approved POSPriceOverride), computes GST from those
@@ -705,6 +715,10 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	storedPayload["items"] = resolvedItems
 	storedPayload["gst_breakdown"] = gstBreakdown
 	storedPayload["pos_session"] = sessionID
+	// Stage 53.12: who rang it up, stored for the same reason gst_breakdown and
+	// applied_offers are - so the receipt can be rebuilt from the cart alone.
+	// Taken from the resolved identity, never from the request body.
+	storedPayload["cashier"] = cashier
 	storedPayload["offline_synced"] = req.OfflineSynced
 	// Stage 30.7: persist which offers were applied and what each took off, so
 	// the receipt, the audit trail and any later dispute can all reconstruct
@@ -820,7 +834,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			// have been raised to for the unverified-price case - a cashier
 			// told "Discount of 10.0% requires approval" on a cart with no
 			// discount on it would reasonably think the till was broken.
-			"message": posApprovalMessage(measuredDiscountPct, requiredRole, quote.HasUnverifiedPrice),
+			"message":       posApprovalMessage(measuredDiscountPct, requiredRole, quote.HasUnverifiedPrice),
 			"quote_version": quote.Version,
 		})
 		// A cart waiting on approval has not posted anything, but it HAS
@@ -1116,7 +1130,16 @@ func handlePOSSessionOpen(w http.ResponseWriter, r *http.Request) {
 
 	id, err := engines.OpenPOSSession(tenantID, req.POSProfile, req.Location, cashier, userID, req.OpeningCash)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		// Stage 53.2: writeEngineError, not writeAPIErrorGeneric. The generic
+		// writer discards a *ValidationError's Code and flattens everything to
+		// GLOBAL-0002 ("Correct the field format."), which is both wrong advice
+		// for "this is not a selling location" and invisible to anything that
+		// keys on the catalog code. Caught by a live call against a scratch
+		// server, not by the engine test - the engine was returning the right
+		// error all along and the handler was throwing half of it away.
+		// Every other error this engine returns is a plain error and still
+		// lands on the same 422 as before, so nothing else changes.
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	engines.LogAuditEvent(tenantID, cashier, "POS_SESSION", "OPENED", fmt.Sprintf("Session %s opened at %s", id, req.Location))
@@ -1433,6 +1456,19 @@ func handleDecideApproval(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := map[string]interface{}{"status": "decided", "decision": req.Decision}
+	// BLD-035: req.Decision ("Approved"/"Rejected") is the maker-checker
+	// outcome, not necessarily the document's real resulting business status -
+	// approving a VendorInvoice override finalizes it straight to "Paid" above,
+	// and other doctypes' own finalize-on-approve hooks can move a document
+	// further than the bare decision. Report what's actually in the row
+	// (best-effort - a lookup failure here doesn't undo an already-recorded
+	// decision) so a caller doesn't render "Approved" over what's really Paid.
+	if schema, errSchema := db.GetTenantSchema(tenantID); errSchema == nil {
+		var docStatus string
+		if errStatus := db.DB.QueryRow(fmt.Sprintf(`SELECT status FROM %s.documents WHERE doctype = $1 AND id = $2`, schema), req.Doctype, req.DocumentID).Scan(&docStatus); errStatus == nil {
+			resp["document_status"] = docStatus
+		}
+	}
 	// 49.2.4: a PasswordResetRequest is not actually executed until it is
 	// Approved, and its result (a one-time password) may only ever reach the
 	// approver - never the requester - so it is surfaced here, in the

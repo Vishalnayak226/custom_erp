@@ -37,9 +37,20 @@ Jump straight to the thing you're trying to do.
 | Find a screen I can't see in the menu | §3 |
 | **Ring up a sale** | §4 — read the prerequisites box first |
 | Open or close the till for a shift | §4.0 |
+| Find a product when I don't have its barcode | §4.1 step 1 |
+| Attach a customer to a sale, or add one at the counter | §4.1 step 5 |
+| Work out a customer's change from cash | §4.1 step 8 |
+| Understand why the till froze after a sale, and start the next one | §4.1a |
 | Apply a coupon, or understand why an offer didn't appear | §4.2 |
 | Print a receipt, or make it print without a dialog | §4.3 |
-| Print a shipping label, a sales invoice, or barcode stickers | **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)** — "Day-to-day use" |
+| Change which shop this till sells from | §4.5 |
+| Understand why my shop isn't in the till's Store list | §4.0 step 2 |
+| Fix a screen showing old or wrong data (Refresh vs Reset) | §12.3 |
+| Print barcode stickers for everything on a GRN or a transfer | §7A.1 |
+| Make one product category's label look different | §7A.2 |
+| Re-print a single tag that fell off | §7A.3 |
+| See who printed which labels, and when | §7A.4 |
+| Print a shipping label or a sales invoice, or make labels print with no dialog | **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)** — "Day-to-day use" |
 | Take a return | [USER_SOP §3.3](USER_SOP.md) |
 | Check how much stock I have | §5 |
 | **Order stock from a supplier** | §6 |
@@ -47,18 +58,23 @@ Jump straight to the thing you're trying to do.
 | Print a purchase order and send it to the vendor | §6, step 7 |
 | Understand inclusive vs exclusive GST, or why a PO says IGST | §6.2 |
 | Record stock that has arrived | §6, step 9 |
+| Complete a missing barcode when receiving stock | §6.4 — existing/imported Items are covered automatically |
 | Understand where document numbers come from | §6.1 |
 | Move stock between locations | §7 |
 | Add a vendor, item, brand, location… | §8 |
 | Correct a record I got wrong | §8 — use the row's **Edit** icon |
+| Create a missing vendor/item mid-way through a document, then carry on | §8.1.1 |
+| **Set up jewellery Designs and their SKUs (Combination IDs)** | §8d |
+| Understand the extra jewellery fields on an Item | §8d.1 |
 | **Record what competitors charge, and see where I sit against them** | §8a, then the Competitor Price Gap report in §9 |
 | Run a report / find the right report | §9 and **[REPORT_CATALOG.md](REPORT_CATALOG.md)** |
 | **Place a customer order by hand (phone / walk-in / replacement)** | §9A.1 |
 | Check whether a marketplace or Unicommerce order reached the ERP | §9A.2 |
 | Process an order through to shipment and invoice | §9A.3 and §9A.4 |
-| Understand why a field says my GSTIN, email or phone number is wrong | §8.1 |
+| Understand why a field says my GSTIN, email or phone number is wrong | §8e |
 | Approve or reject something | §10 |
 | Change my own password or auto-logout | §11 |
+| Find out which version I am on, to report a problem | §11.1 |
 | **Understand an error message or code** | §12 and **[ERROR_CODES.md](ERROR_CODES.md)** |
 | **Set the whole thing up from scratch and make my first sale** | §13 — the full worked example |
 | Know what my role is allowed to do | **[PERMISSION_MATRIX.md](PERMISSION_MATRIX.md)** |
@@ -116,7 +132,7 @@ The sidebar has **twelve top-level entries**. Most are module groups: hover one 
 | **Sales & Marketplace** | Order Management · Fulfillment · Marketplace · Customer |
 | **Reports** | Opens directly (§9). Its first tab is a dashboard of live figures. |
 | **Procurement** | Purchase Requisitions · Purchase Order (§6) · ASN · **Goods Receipt** · Vendors · RFQ / Quotes |
-| **Stock** | Inventory (§5) · Stock Transfer (§7) · Bin · Putaway · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · Cycle Count · Sticker Printing |
+| **Stock** | Inventory (§5) · Stock Transfer (§7) · Bin · Putaway · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · Cycle Count · Sticker Printing (§7A) |
 | **HRM** | HR · Fixed Assets · Expenses |
 | **Manufacturing** | Opens directly. |
 | **PIM** | Opens directly. |
@@ -154,49 +170,56 @@ This is the screen a cashier uses most.
 
 > **Before your first sale — three things must already exist.** Skip any of them and the sale will be refused, with an error that only makes sense once you know this list.
 >
-> 1. **A Location to sell from.** Setup → Core → **Location**, with **Type = Store**.
+> 1. **A Location you are allowed to sell from.** Setup → Core → **Location**, with **Sellable = Yes**. A location with **Sellable = No** — a back warehouse, a head office — will not appear in the till's **Store** box at all, and both opening a session and completing a sale there are refused. See §4.0.
 > 2. **At least one Item, with its HSN Code and GST Rate filled in.** Setup → Inventory → **Item**. Both tax fields are required and the system will not let you save without them, because it cannot price a sale it can't tax. (If the item genuinely isn't taxed — produce, unbranded grain, exports — set its **Tax Treatment** instead of entering a 0 rate; see §9 Step 3.) Stock also has to exist: an Item on its own has a quantity of zero until a **Goods Receipt** brings some in (§6).
-> 3. **An open cashier session at that location.** This is the one people miss. Checkout refuses with *"Cash opening is required before billing"* until a session is open. Opening one is step 2 below.
+> 3. **An open cashier session at that store.** This is the one people miss. Checkout refuses with *"Cash opening is required before billing"* until a session is open. Opening one is step 3 below.
 
 ### 4.0 Open the till for the shift
 
 1. Click **POS / Billing** (under the **POS** module).
-2. Start typing your shop's **name** into **Location** and pick it from the list (the code and short code work too, if that is what you know it by). The bar above shows whether a session is open there.
-3. If it says *"No open session … open one before selling"*, click **Open Session**, type the **cash physically in the till right now**, and confirm. The bar changes to *"Session open at …"*.
-4. At the end of the shift, click **Close Session** and enter the cash you counted. The system shows what it expected, what you counted, and the difference — note it for your manager if it isn't zero.
+2. Start typing your shop's **name** into **Store** and pick it from the list (the code and short code work too, if that is what you know it by). The bar above shows whether a session is open there.
+   - **Only sellable locations appear here.** If the shop you expect is missing, it is almost certainly set to **Sellable = No** on its Location record — ask an administrator to change it. This is deliberate: it is what stops a sale being rung up against a warehouse or head office by accident.
+3. If the bar says *"No open session … open one before selling"*, click **Open Session**, type the **cash physically in the till right now**, and confirm. The bar changes to *"Session open at …"*.
+4. **The till is now bound to that store.** The **Store** box goes read-only and shows *"Bound to … for this session"* underneath. This is on purpose — it means you cannot drift onto another shop's stock halfway through a shift. To change it, see **Reset Terminal** in §4.5.
+5. At the end of the shift, click **Close Session** and enter the cash you counted. The system shows what it expected, what you counted, and the difference — note it for your manager if it isn't zero.
 
 You open a session once per shift, not once per sale.
-
 
 ![The POS / Billing screen, with the cashier-session bar across the top](img/pos-billing.png)
 
 ### 4.1 Ring it up
 
-1. With a location entered and a session open, type or scan the item's **barcode/SKU** into the box and click **Add to Cart** (or press Enter). The item appears in the cart with its price. You can use the item's **code**, its **barcode**, or its internal id — all three find the same item.
-2. Repeat for every item the customer is buying.
-3. If the customer is a returning/loyalty customer, type their code into **Customer Code**. **Redeem Points** spends their points on this sale — the discount comes off the amount to collect automatically, and the points are only actually deducted once the sale completes.
-4. **Any offers that apply appear on their own, above the total** — see §4.2. If the customer has a coupon, type it into the **Coupon code** box.
-5. Check the total — tax is calculated automatically, you don't need to work it out.
-6. Choose how they're paying and click **Complete Sale**.
-7. The sale is now recorded — stock goes down automatically, and the accounting entries are made automatically too. You don't need to tell any other screen about this sale; the system does it for you.
-8. A box asks **"Print receipt?"**. Say yes and the receipt prints. If your till has a receipt printer set up for silent printing it goes straight there with no dialog (see §4.3); otherwise your browser's normal print dialog opens.
+1. **Scan it, or search for it — same box.** Point the scanner at the barcode and it rings straight up, no extra keypress. If you have no barcode, type part of the **product's name** instead and press Enter:
+   - If what you typed is an exact **code** or **barcode**, the item is added immediately with no list.
+   - Otherwise a short list of matching products appears underneath. Click one, or walk the list with the **↑ ↓** arrow keys and press **Enter**. **Esc** closes it.
+   - If nothing matches you are told so plainly — *"No product matches …"* — rather than a blank line being added to the cart.
+2. Repeat for every item the customer is buying. Scanning the same item twice adds 2, it does not create a second line.
+3. **Adjust quantities with the − and + buttons** on the line, or type straight into the quantity box for a larger number. Pressing **−** on a quantity of 1 removes the line.
+4. **Read the Available column before you promise anything.** It shows the quantity you can actually sell at this store. If some of that item is held back — quarantined by QC, damaged, or blocked — a second line says so: *"3 not sellable (QC hold / damaged / blocked)"*. That stock is physically in the shop but must not be sold. If you ask for more than can be sold, the row turns red and says *"Only N can be sold here"*.
+5. **If the customer is a returning or loyalty customer**, type their **name** (or phone number, or code) into **Customer** and pick them from the list. The line beneath the box reads *"Walk-in — no customer attached"* until you do, so you always know which you are on.
+   - **The customer isn't in the system yet?** Click **+ New Customer**, enter their name and phone, and they are created and attached to this sale without leaving the till.
+   - **Check Points** shows their balance. **Redeem Points** spends points on this sale — the discount comes off the amount to collect automatically, and the points are only actually deducted once the sale completes.
+6. **Any offers that apply appear on their own, above the total** — see §4.2. If the customer has a coupon, type it into the **Coupon code** box.
+7. Check the total — tax is calculated automatically, you don't need to work it out.
+8. **Choose how they're paying.** If it is **Cash**, type what the customer handed you into **Cash tendered** and the screen shows **Change due** before you commit to anything (or *"Short by …"* if it isn't enough). Card and UPI are for the exact amount, so the box disappears for those.
+9. Click **Complete Sale**.
 
-### 4.3 Printing the receipt
+### 4.1a The sale is complete — the till freezes
 
-Nothing extra is needed to print — answering **Yes** to "Print receipt?" always works. What the setup below adds is the *one-click* part: the receipt goes straight to the till printer instead of opening a print dialog you have to click through on every sale.
+This is deliberate and is the biggest change from how this screen used to work.
 
-To get that, your administrator installs **QZ Tray** on the till PC and creates a **Printer** record whose **Default For** is `Receipt` — the full steps are in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**. If any of that isn't set up, the browser print dialog appears as before; nothing breaks and nothing is lost.
+When the sale goes through, **the till stops and shows the finished bill**: the bill number, the store, each line, the total collected, the cash tendered and the change due. Everything below it is hidden, and **nothing can be scanned onto it**.
 
-A few things worth knowing:
+- The bill stays there as long as you need it — read the change back to the customer, answer a question about a line, print the receipt.
+- When you are ready for the next customer, click **New Sale (Reset)**. The cart, customer, coupon, discount and tendered amount are all cleared for a clean start.
+- **The store stays bound.** You do not re-pick your shop between customers.
 
-- **The receipt shows what was actually collected.** Offers and loyalty points spent both appear as their own lines, so the printed total matches the cash in the drawer.
-- **A sale waiting on manager approval will not print a receipt.** The money hasn't been collected yet. Once the manager approves it from the **Approvals** screen the sale completes and can be printed.
-- **Reprinting later is safe.** The receipt is rebuilt from the recorded sale, not from whatever is on screen, so it always shows what was originally rung up.
-- **If a 58mm till roll prints text too wide**, tell your administrator to set **Label Width (mm)** to `58` on that Printer record.
+Why it works this way: before, the cart silently emptied behind a dialog and the screen looked exactly as it had a moment earlier — so the next customer's items could be scanned onto what you still believed was the previous sale. Now there is an unmistakable boundary between one bill and the next.
 
-**If something goes wrong mid-sale** (a barcode doesn't scan, the system shows an error), read the message on screen — it tells you exactly what's wrong (e.g. "this item is already sold" or "not enough stock") rather than just "error."
+**Two other outcomes freeze the till the same way**, so you always know where you stand:
 
-**If you applied a large discount**, the sale may not complete straight away: a dialog says it needs manager approval, and the sale sits as **Pending Approval** until a manager decides it from the **Approvals** screen. Nothing is charged until then.
+- **Waiting for manager approval.** A large discount does not complete the sale. The panel says so in orange and offers no receipt — the money has not been collected and **the goods must not be handed over**. The sale sits as **Pending Approval** until a manager decides it from the **Approvals** screen.
+- **Queued offline.** If the connection is down, the sale is saved on the till and syncs automatically when the connection returns. The panel tells you so and warns you **not to ring it up again**.
 
 ### 4.2 Offers and coupons at the till
 
@@ -208,6 +231,38 @@ You do not apply offers by hand. Whatever your head office has set up in the ERP
 - **The final say is the server's, not this screen's.** The panel is a preview; the discount is recalculated for real when you take payment. In normal use the two agree. If they ever don't, the amount charged is the correct one.
 - **The discount box is separate.** The **Discount %** field is still there for a manual, cashier-applied discount, and large manual discounts may still need a manager's approval. Offers are not manual discounts and don't need approval — they're the rules head office already signed off.
 
+### 4.3 Printing the receipt
+
+Click **Print Receipt** on the finished bill. You can click it more than once — a customer who said no and then changed their mind does not need the sale re-rung.
+
+If your till has a receipt printer set up for silent printing it goes straight there with no dialog (see below); otherwise your browser's normal print dialog opens. Nothing extra is needed to print — the button always works.
+
+To get the one-click version, your administrator installs **QZ Tray** on the till PC and creates a **Printer** record whose **Default For** is `Receipt` — the full steps are in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**. If any of that isn't set up, the browser print dialog appears as before; nothing breaks and nothing is lost.
+
+A few things worth knowing:
+
+- **The receipt says which shop sold it.** The header carries your company's name and GSTIN, the shop's name and code, the bill number, the date and time, and who was on the till. A customer holding the receipt can tell which branch of a chain they bought from — and it stands up as a tax document.
+- **The receipt shows what was actually collected.** Offers and loyalty points spent both appear as their own lines, so the printed total matches the cash in the drawer.
+- **A sale waiting on manager approval will not print a receipt.** The money hasn't been collected yet. Once the manager approves it from the **Approvals** screen the sale completes and can be printed.
+- **Reprinting later is safe.** The receipt is rebuilt from the recorded sale, not from whatever is on screen, so it always shows what was originally rung up.
+- **If a 58mm till roll prints text too wide**, tell your administrator to set **Label Width (mm)** to `58` on that Printer record.
+
+**If something goes wrong mid-sale** (a barcode doesn't scan, the system shows an error), read the message on screen — it tells you exactly what's wrong (e.g. "this item is already sold" or "not enough stock") rather than just "error."
+
+### 4.4 If prices changed while you were ringing up
+
+Occasionally the back office changes a price between the moment the cart was priced and the moment you press **Complete Sale**. The system never quietly charges either figure. It stops, shows you what changed and the new total, and asks you to confirm. Nothing is charged until you do.
+
+### 4.5 Reset Terminal — changing which shop the till sells from
+
+**Reset Terminal** is in the bar at the top, next to the session buttons. Use it when the till is bound to the wrong store, or when you are genuinely moving this till to a different shop.
+
+1. Click **Reset Terminal**. It tells you exactly what will happen — including how many cart lines will be thrown away — and asks you to confirm. **The cart is not saved.**
+2. If **no session is open**, the **Store** box unlocks and you can pick a different shop.
+3. If a **session is still open**, the cart is cleared but the store stays bound, and you are told why: a session is a cash-accountability record, so you must **Close Session** first. This is not a way to walk away from an open till.
+
+Day to day you will not need this button. Between customers, use **New Sale (Reset)** on the finished bill instead — that keeps the store binding, which is what you want.
+
 ## 5. Checking Stock
 
 1. Click **Inventory** in the sidebar.
@@ -215,6 +270,14 @@ You do not apply offers by hand. Whatever your head office has set up in the ERP
 3. The screen shows how much is available right now.
 
 If you need to know how much stock is *actually free to sell* (not already reserved for another order), that number accounts for anything already promised elsewhere — it's not just a raw count sitting in the warehouse.
+
+### 5.1 Entering a wave on Mobile Picking
+
+Open **Stock → Mobile Picking** and scan or type the existing **Wave ID** exactly as assigned.
+Letters and hyphens are part of the identifier: `WAVE-0001` must remain `WAVE-0001`, not `0001`.
+This is a warehouse code, not a phone number. Click **Load** for the chosen wave. The example is
+only a format example; use a wave that exists in your warehouse. An assigned-wave chooser is
+planned separately; this screen currently still requires the wave reference.
 
 ## 6. Ordering More Stock (Purchase Order)
 
@@ -238,6 +301,22 @@ If you need to know how much stock is *actually free to sell* (not already reser
 7. **Send it to the vendor.** On the order's row, **Print** opens a proper purchase order laid out for A4 — both parties' names, addresses and GSTINs, the item table with HSN and tax, the grand total, and the amount in words. **Send to Vendor** records the dispatch (the row shows "Sent to vendor") and opens a pre-filled email to the vendor's contact address. If your administrator has configured a notification channel, it goes out through that as well.
 8. **Amend** loads the order back into the same panel — including its items — so you can change quantities or prices. Amending an already-approved PO sends it back for re-approval, and the screen warns you before it does.
 9. When the stock physically arrives, record a **GRN** (Goods Receipt Note — "yes, this stock actually showed up") on **Procurement → Goods Receipt**. Click **Load Items from PO**, pick the order, adjust any quantity that arrived short, and click **Post Receipt**. **Only then does the stock count go up** — an order by itself never adds stock, only a confirmed receipt does. Check **Inventory** afterwards to confirm it moved.
+    Once it is posted, any Item on the receipt that still has no barcode gets one as a safety net — for example, an older or imported Item. A new Item made on screen requires a barcode before it can be saved. The GRN is also where you start printing its labels — see §7A.1.
+
+#### 6.4 Completing missing barcodes at receipt
+
+When you create an Item on screen, **Barcode** is required. Type an existing barcode, or use the **Generate** button beside the field to issue a valid EAN-13. Goods Receipt also has a safety net: **when you post a receipt, each distinct Item on it that still has no barcode gets one automatically**. This covers older, imported or API-created Items that pre-date the required on-screen field.
+
+What that means in practice:
+
+- **A new Item cannot normally be saved without a barcode.** The Item form marks Barcode with `*`; use **Generate** there if you do not already have a supplier barcode.
+- **A missing barcode on a received Item is completed after the receipt posts.** You can then print its labels from that GRN (§7A.1).
+- **An item that already has a barcode keeps it.** Receiving the same SKU again does not issue it a second barcode or change the one on your existing labels. This is safe to rely on: the same stock can be received any number of times and the barcode stays put.
+- **The barcodes are real EAN-13 numbers**, with a valid check digit, so an ordinary retail scanner reads them.
+- **It never blocks a receipt.** The missing-barcode safety net runs *after* the receipt has posted and the stock has moved. If generation fails, the receipt still stands and the Item remains unbarcoded; the failure is recorded in the system log for an administrator. You can use **Generate** on the Item form to retry.
+- **Where to see it**: open the **Item** record and look at its **Barcode** field.
+
+If you want to *print* at the moment of receipt, that is still a deliberate second step — post the receipt, then print its labels from the Sticker Printing screen (§7A.1). Posting a receipt does not send anything to a printer on its own.
 
 **An RFQ is optional.** If you want to compare vendor quotes first, raise a Purchase Requisition and convert it to an **RFQ** (Procurement → RFQ), collect quotes, then convert to a PO. If you already know who you're buying from — which is the normal case — go straight to a Purchase Order as above. Nothing requires an RFQ to exist first.
 
@@ -253,6 +332,8 @@ Two things worth knowing:
 
 - **Numbers can have gaps, and that's normal.** If a save fails validation after a number was drawn, that number isn't reused. A gap means "something was started and not completed", never "a document went missing".
 - **You can't reuse or choose a number.** This is deliberate. When people typed their own numbers, two colleagues creating a PO at the same time could pick the same one — and the second save would quietly overwrite the first, with no warning to either of them. Now that can't happen.
+
+**Master records are numbered the same way.** Vendors, Items, Customers, Employees and the other lists in §8 get their Code from a series on save (`Vendor/HQ/2026/000007`). In the on-screen form the Code field is read-only; for Items, a linked Product Family instead makes the save build a Combination ID (§8d). Your administrator can change the shape of a master series too, including for Vendor and Item (Admin Guide §B.3.2).
 
 ### 6.2 GST on a purchase order: inclusive vs exclusive, and inter-state
 
@@ -330,6 +411,70 @@ Together the last two are what a recall needs — the first tells you what to st
 5. Click **Dispatch** to move the stock out of the source location (it sits "in transit" until received).
 6. When it physically arrives, click **Receive** and confirm the quantity that actually showed up for each line — if less arrived than was dispatched, entering the lower number records that shortage rather than hiding it.
 
+## 7A. Printing Barcode Stickers and Labels
+
+**Stock → Sticker Printing.** This is where item labels come from — the small barcode tags that go on the product itself. The screen has two tabs: **Print** (do a print run) and **Templates** (decide what a label looks like).
+
+> **Before your first print run you need one Printer record.** Setup → Core → **Printer**, Active, one record per physical label printer. Without one, the Printer dropdown on this screen is empty and printing stops with "Select a printer first." (On this screen you always pick the printer yourself, so **Default For** = `Sticker` is not required here — it is what makes the *other* print screens one-click.) Getting labels to come out *silently* — straight to the thermal printer with no browser dialog — is a separate one-time per-PC setup covered in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**; until that is done, printing still works, it just opens the normal browser print dialog.
+
+### 7A.1 Print the labels for a GRN or a Transfer Order
+
+This is the normal way to print. You don't type SKUs — you point at the document the goods arrived on, and the system reads its own lines.
+
+1. Go to **Sticker Printing** (the **Print** tab opens by default).
+2. In the **Print from Transaction** panel, pick **Goods Receipt (GRN)** or **Transfer Order** in the **Module** dropdown.
+3. In **Document**, start typing the document number — a suggestion list appears; pick the one you want. (If you pasted or typed the full number, click **Load**.)
+4. The line list appears, one row per SKU (or per SKU-and-lot, if a SKU arrived on more than one lot):
+   - **Category** — what that item's Item Master says.
+   - **Template** — which label layout it will use, or **Default layout** if no template covers that category (§7A.2).
+   - **Batch/Lot** — shown only when at least one line on the document carries a lot number.
+   - **Copies** — pre-filled with that line's own quantity. Overtype it if you want a different number.
+5. Choose the **Printer** in the panel just below the line list, and type a **Reprint Reason** if this is a re-run of labels already printed once (optional, but it is recorded against the print).
+6. Then either:
+   - untick any rows you don't want and click **Print Selected** — the whole document in one run; or
+   - click **Print** on a single row — just that one line.
+
+Three things it does for you:
+
+- **A GRN prints against accepted quantity only.** If 100 arrived, 3 were rejected and 2 damaged, you get 95 labels — not 100. A line with nothing accepted doesn't appear at all, since there is nothing sellable to label.
+- **Lots stay separate.** If the same SKU came in on two different batch/lot numbers, it stays as two rows and a **Batch/Lot** column appears so you can tell them apart. Each row is selected, counted and printed on its own, and each label carries its own lot and expiry.
+- **Mixed categories come off grouped.** A GRN holding earrings and necklaces prints all the earring labels, then all the necklace labels, so the strip can be torn into one stack per category.
+
+If the document loads but says *"That document has no stickerable lines"*, the lines were all rejected/damaged, or (for a transfer) the quantities are zero.
+
+### 7A.2 Make one category's label look different (Templates)
+
+Out of the box, every SKU prints the same plain label — name, barcode, SKU. If an earring tag needs to be smaller and plainer than a necklace tag, define a template per category. You do this yourself; it needs no developer.
+
+1. **Sticker Printing → Templates → New Template**.
+2. Fill in **Template Code** and **Template Name** (any short identifiers of your own).
+3. **Categories (comma-separated)** — list the categories this layout applies to, e.g. `Earrings, Studs`. These are matched against the **Category** field on the Item Master. Category is free text on the Item, so it has to be spelled the same way (capitals don't matter, surrounding spaces don't matter). Nothing warns you about a typo — it simply won't match, and those items fall back to the default layout.
+4. **Label Width (mm)** / **Label Height (mm)** — the physical size of the label stock you load for this category. The canvas resizes to match.
+5. Leave **Status** on **Active**. A template saved as **Inactive** is ignored on every print run, which is the safe way to retire a layout without deleting it.
+6. Click the field buttons to drop content onto the label — **SKU**, **Name**, **Barcode**, **HSN**, **Category**, **Batch/Lot**, **Expiry**, **Mfg Date**, **Qty**, **Source Doc #**, or **+ Static Text** for your own fixed wording (a "Handmade in India" line, say).
+7. Arrange it: **drag** a field to move it, drag the small square at its **bottom-right corner** to resize it. **Click** a field to select it, and the panel on the right lets you set **Text** (static fields only), **Font Size (mm)**, **Align**, **Bold**, or the exact **Position / Size (mm)** if you'd rather type numbers than drag. **Delete Element** removes the selected field.
+8. Click **Save Template**. It appears in the Templates list and takes effect on the next print run.
+
+What you see on the canvas is what prints — the preview and the real label are drawn by the same code, so there is nothing to keep in sync.
+
+> **The default template.** Tick **Default (unmapped categories)** on one template to make it the catch-all for every item whose category matches no other template. Leave it unticked everywhere and unmatched items use the plain built-in label instead. Only one template needs this.
+
+To change a template later, click it in the Templates list, edit, and save again.
+
+### 7A.3 Print labels without a document (manual / re-print)
+
+For one-offs — a tag that fell off, a single item being re-tagged — use the panel below **Print from Transaction**:
+
+1. Choose the **Printer**, set **Copies per SKU**, and enter a **Reprint Reason** if it's a re-print.
+2. Type or scan into **Scan or Enter SKU** and press Enter (or click **Add**) for each item. Added SKUs are listed underneath with an **x** to remove one.
+3. Click **Print Stickers**.
+
+Category templates apply here exactly as they do to a document print — the layout follows the item's category either way.
+
+### 7A.4 What was printed, and by whom
+
+The table at the bottom of the **Print** tab is the print history: SKU, barcode, printer, who printed it, how many copies, the reprint reason, and when. Every print run — document-driven or manual — lands here, so a queried re-print can always be traced back to a person and a time. A run started from a GRN or Transfer Order additionally records which document and which template it used.
+
 ## 8. Managing Master Data (Vendors, Locations, Brands, and Similar Lists)
 
 "Master data" just means the reference lists everything else points to — your vendors, your locations, your items, and things like brands, colors or sizes. A few of the most-used ones also appear directly in a module (**Vendors** under Procurement, **Customer** under Sales & Marketplace), but **Setup** holds all of them.
@@ -341,11 +486,16 @@ The **Setup** flyout is **grouped by module** (Core, Master Data, Inventory, HR,
 Adding a new one always works the same way, no matter which list you're in:
 
 1. Click the list in the sidebar (or open it from **Setup**).
-2. Click the **New [thing]** button, top right.
+2. Click the **New [thing]** button, top right. The dialog title starts with **New** and opens with empty/default fields. A row's **Edit** action instead opens **Edit** with that record's saved values.
 3. Fill in the fields — anything marked with a **\*** is required, everything else is optional. A "Code" field usually says *"Auto-generated upon save"* — leave it blank and the system numbers it for you.
-4. Some fields are small tables rather than boxes — a recipe’s components, a routing’s operations. Use **+ Add Line** to add a row and **Remove** to take one out. You never have to type these in a technical format.
+4. Some fields are small tables rather than boxes — a recipe’s components, a routing’s operations. Use **+ Add Line** to add a row and **Remove** to take one out. These table editors build the stored format for you; other specialist fields still explicitly labelled JSON are not yet converted to table editors.
 5. If a dropdown is empty, it says so and offers a **create one first** link straight to the list you need. That is the normal way to find out you are missing a prerequisite.
 6. Click **Save**.
+
+**Using the keyboard:** opening a record form moves focus into it. **Tab** and **Shift+Tab**
+stay within the open dialog; **Escape** cancels it and returns focus to the button that opened
+it. Generated Code/Number fields remain read-only. After editing, **New** starts a separate
+record and does not reuse the edited record's identifier.
 
 > **Your shop can have a Short Code.** Optional, and nothing depends on it. It is there so staff can find a location by the two or three letters they actually say out loud ("BKC", "LDH2") while the **Location Name** stays the full name shown on screen and the **Location Code** stays the identifier the system uses. Searching a location box matches all three.
 
@@ -358,6 +508,23 @@ You should almost never have to work out *which* list you are missing. Three thi
 - **The ⧉ icon opens it in a new tab.** Every one of these links has one next to it. Use it when you do not want to lose what you are in the middle of — set the missing thing up in the second tab, come back to the first, and carry on. (The links are ordinary links, so **Ctrl+click** and **middle-click** work too.)
 
 **If it says you do not have access**, the message names what needs setting up and asks you to contact your administrator. That is not an error you can fix — send them the name of the list it mentions.
+
+#### 8.1.1 You are brought back to where you came from
+
+When you follow one of those links, the system remembers where you were and brings you back.
+
+Say you are part-way through a **Goods Receipt** and the item you received does not exist yet. You click the link to the Item list, and:
+
+- **A "← Back to Goods Receipt" link appears** at the top of the Item list, so you can change your mind and return without creating anything.
+- **Once you save the new Item, you land back on the Goods Receipt automatically.** You do not have to navigate back through the menu and you do not lose your place.
+
+Three details worth knowing, because they are deliberate:
+
+- **It returns you after creating something new, not after editing.** If you go to the Item list and edit an *existing* item, you stay on the Item list — you clearly came to do list work, not to unblock the receipt.
+- **It works from every one of these links, not just on Goods Receipt.** Any "create one first" link, any missing-setup panel link, anywhere in the app, behaves this way.
+- **It forgets if you wander off.** Abandon the trip, navigate somewhere unrelated, and the return is dropped. A Vendor you create an hour later on the Vendor screen will not suddenly fling you back to a Goods Receipt you had forgotten about.
+
+If you would rather not leave the screen at all, use the **⧉** icon to do the setup in a second tab instead (see above). Both approaches work; this one is for when you are happy to go and come back.
 
 ### 8.2 Phone numbers
 
@@ -483,7 +650,66 @@ Three reports come with this, under **Reports → Report Catalog**:
 - **PIM Overdue Tasks** — everything past its due date, oldest first, optionally for one person.
 - **PIM Stalled Workflow Runs** — runs that have stopped moving, either blocked or paused-and-forgotten. Worth checking weekly: a blocked run has *no* open tasks, so it will never appear in anybody's inbox on its own.
 
-### 8.1 Fields that check what you typed (GSTIN, email, phone, PAN, IFSC, PIN code)
+### 8d. Jewellery items: Designs, Combinations (SKUs) and the extra attribute fields
+
+This section only applies if your system is set to the **Jewellery** industry profile (an admin sets this once — Admin Guide §B.3.2.1). On that profile the **Item** record grows a set of jewellery-specific boxes, and you get an automatic way to number a design and its variations.
+
+#### 8d.1 The extra boxes on an Item
+
+Under the usual Item fields you get these. **Every one of them is optional** — fill in the ones your business actually records and leave the rest blank. Nothing is refused for being empty.
+
+| Field | What to put in it |
+|---|---|
+| **Sub Category** | The level below Category — "Jhumka" under "Earrings". |
+| **Type** | Your own further breakdown, if you use one. |
+| **Brand** | Picked from your Brand list (on this profile the Brand screen is labelled **Partner Brand**). |
+| **Gold Color (Color)** | The colour as the customer sees it — "Rose", "Oxidised Silver". |
+| **Polish / Plating** | The finish — "Gold Polish", "Rhodium", "Antique". |
+| **Metal Type** | Gold, Silver, Platinum or Brass. |
+| **Purity (Karat)** | 14k, 18k, 22k or 24k. |
+| **Gross Weight (g)** / **Net Weight (g)** | Weight with and without stones. |
+| **Stone Type** / **Stone Weight (ct)** | The stone and its carat weight. |
+| **Making Charge Type** / **Making Charge Value** | Percentage, PerGram or Fixed, and the number that goes with it. |
+| **Size** | Ring size, bangle size, chain length — whatever your sizing is. |
+
+The list deliberately covers **two different businesses**. If you sell fine/gold jewellery you will live in Metal Type, Purity, the weights and Making Charge. If you sell fashion or imitation jewellery you will live in Sub Category, Type, Brand, Color, Polish and Size, and never touch karat or weight at all. Both are normal — that is why none of them are compulsory.
+
+#### 8d.2 Designs and Combinations — what the two words mean here
+
+Two levels, and the difference matters:
+
+- A **Design** is the thing your designer drew. One design, one record. In this system a Design is a **Product Family** record, and it gets its own number automatically — a **Design ID** like `Design/HQ/2026/000014`.
+- A **Combination** (your **SKU**) is one orderable version of that design: this design *in rose gold, 18k, size 6*. Each combination is its own **Item** record, and it is what stock, pricing and barcodes attach to.
+
+So one design with three colours and two sizes is **one** Product Family record and **six** Item records.
+
+#### 8d.3 Creating a Design, then its Combinations
+
+**Step 1 — create the Design.**
+
+1. Go to the **Product Family** screen (**Setup → Product Family**).
+2. Leave **Family Code** alone. It is read-only and blank until save; the system issues the Design ID for you.
+3. Enter the required **Family Name**, leave **Description** blank if you do not need it, and choose the required **Status** (normally **Active**). Save and note the Design ID.
+
+**Step 2 — create each Combination as an Item.**
+
+1. Go to **Item** and start a new one.
+2. Set **Family** to the Design you just made. This is the important box — it is what tells the system this Item is a version of that design.
+3. Leave the read-only **Code** field alone. It is issued when you save; with a Family set, the system builds the Combination ID instead of a plain Item number.
+4. Enter the required core fields — **Name**, **Barcode**, **HSN Code** and **GST Rate**. For Barcode, type the supplier's value or use **Generate**. Then fill in the optional attributes that make this version different — Metal Type, Purity, Stone Type, Gold Color, Polish, Size, and any weights or making charges you track.
+5. Save. The system builds the Combination ID from the Design ID plus the variant attributes, joined with hyphens. For example, the live form produced `Design/HQ/2026/000002-Rose-Gold-18k-6-Diamond` for Rose color, Gold metal, 18k purity, size 6 and Diamond stone.
+6. Repeat for each version. Same Family, different attributes, and each one gets its own distinct SKU.
+
+#### 8d.4 Things worth knowing before you rely on it
+
+- **Six fields shape the SKU, and only six**: Metal Type, Purity (Karat), Stone Type, Color, Polish/Plating and Size. They are the ones that define a genuinely different sellable version.
+- **Weights and making charges deliberately do not.** Two rings of the same design, metal, purity and size are the *same* SKU even if one weighs 4.2g and the other 4.3g. If weight affected the SKU you would mint a new product code for every individual piece, which is not what a SKU is for. Record the weight on the piece; don't expect it in the code.
+- **The normal on-screen Code field is read-only.** It is generated on save. When an Item is imported or created through an API with an explicit Code, that supplied value is retained rather than rebuilt.
+- **Only on create.** Editing an existing Item never rewrites its code — a SKU that is already printed on labels and sitting in stock records does not change under you.
+- **The code is stable.** The same design and the same attributes always produce the same SKU, no matter when or on which machine it is saved.
+- **Bulk import works the same way.** Uploading Items by spreadsheet generates Design-based SKUs exactly as the on-screen form does: fill in the **family** column with the Design, and let the system build the code. You can leave the **code** column out of the file altogether. (This was *not* true before — a bulk-imported variation used to get a plain sequence number instead of a real SKU, so if you imported items previously, check whether their codes look like SKUs or like `Item/HQ/2026/000123`.)
+
+### 8e. Fields that check what you typed (GSTIN, email, phone, PAN, IFSC, PIN code)
 
 Some boxes know what kind of value belongs in them, and help you get it right.
 
@@ -632,6 +858,27 @@ If your role can approve things (e.g. a manager approving a purchase order), you
 
 Click your name at the bottom of the sidebar to open your account menu, then **My Profile**. From there you can see your role and (if set up) your linked employee record, change your own password, and set how long the system should wait before automatically signing you out if you step away — separate from the account-wide session limit your admin controls.
 
+### 11.1 Which version you are on
+
+At the **bottom of the sidebar, just under your name**, there is a small grey number:
+
+```
+0.1.0
+```
+
+That is the release of the system you are using. **Hover over it (or tap it on a phone)** and a small popup shows the same number with the date that release came out:
+
+```
+0.1.0
+4/10/26
+```
+
+The date is day/month/year — so `4/10/26` is 4 October 2026.
+
+**Why it matters:** if you ever report a problem, quote both lines. They tell whoever helps you exactly which release you were on, which is often the difference between "that was fixed last week" and a real bug. It updates by itself whenever your company deploys an update — there is nothing to refresh and nothing you can change here.
+
+If the popup says **`dev build`** instead of a date, you are on a test or development copy rather than a released one. On your company's live system it will always show a date.
+
 ## 12. If You Get Logged Out or See an Error
 
 - If you haven't used the system in a while, you may be logged out automatically for security (either the account-wide session limit, or your own shorter auto-logout timer from §11) — just log back in.
@@ -660,6 +907,28 @@ Underneath there's a **code** like `GLOBAL-0001` and a **correlation ID**. Look 
 | *"This sale requires manager approval"* | The discount is over your store's threshold. The sale waits in Approvals; nothing is charged yet. |
 | *"You do not have permission…"* | Your role can't do that. See **[PERMISSION_MATRIX.md](PERMISSION_MATRIX.md)**, then ask an admin. |
 | *"Too many requests"* | You've run reports faster than the limit allows. The message says how long to wait. |
+
+### 12.3 When a screen shows something that can't be right — Refresh vs Reset
+
+Two buttons sit together at the top right of every screen. They are not two strengths of the same thing, and picking the wrong one is why a stale screen sometimes seems incurable.
+
+| Button | What it does | Use it when |
+|---|---|---|
+| **Refresh** | Re-asks the server for labels and screen definitions. **Everything else is kept** — cached lists, and whatever you have half-finished on screen. | An administrator just renamed a field or added one, and you want it to appear. |
+| **Reset** | **Throws the cached copy away** and rebuilds from the server: cached lists, remembered sidebar sections, the screen code itself, and all unsaved on-screen work. | A screen is showing something you know is wrong — a record you deleted, an old name, a list that will not update. |
+
+**Reloading the page in your browser is not the same as Reset**, and this is the part that catches people out. Pressing F5 restarts the app against the *same* stored copies, so whatever was stale comes straight back. Reset is the only thing that drops those copies first.
+
+**What Reset never touches:**
+
+- **Your login.** You stay signed in. (To sign out, use the account menu.)
+- **Your theme.** Light/dark stays as you set it.
+- **Anything saved on the server.** Reset only clears what this browser is holding. No record, no sale and no document is deleted.
+- **Sales waiting to sync.** If any offline sales are still queued, **Reset refuses to run at all** and tells you so — those are completed sales that have not reached the server yet, not cached data, and clearing them would lose them. Let them sync first (§4.1a), then Reset.
+
+Reset will warn you before it runs, and it discards anything unsaved on screen — including a part-built POS cart. If you are mid-sale, finish or abandon it deliberately first.
+
+> **At the till specifically**, you usually want one of the POS screen's own buttons instead: **New Sale (Reset)** between customers (§4.1a), or **Reset Terminal** to change which shop the till sells from (§4.5). The header Reset is the bigger hammer, for when the application itself looks wrong.
 
 ---
 
@@ -716,11 +985,15 @@ Back as the first user: **Procurement → Goods Receipt**. Click **Load Items fr
 
 ### Step 7 — Open the till
 
-**POS → POS / Billing.** Start typing your shop name into **Location** and pick it from the list (typing the code `MAIN` finds it too), click **Open Session**, and enter the cash physically in the drawer.
+**POS → POS / Billing.** Start typing your shop name into **Store** and pick it from the list (typing the code `MAIN` finds it too), click **Open Session**, and enter the cash physically in the drawer. The Store box then locks to that shop for the shift (§4.0).
+
+> **Shop not in the list?** It is set to **Sellable = No**. Open Setup → Core → **Location**, find it, set **Sellable = Yes** and save. Only sellable locations can run a till — see §4.0 step 2.
 
 ### Step 8 — Sell something
 
-Scan or type your item's code, press Enter, choose a payment mode, and click **Complete Sale**. Say yes to the receipt if you want to see it — it prints straight to the till printer if one has been set up for that (§4.3), otherwise through the browser's print dialog.
+Scan the item, or type part of its **name** and press Enter and pick it from the list. Choose a payment mode — for **Cash**, type what the customer handed you into **Cash tendered** and read off the **Change due**. Click **Complete Sale**.
+
+The till now **freezes on the finished bill** (§4.1a): the bill number, the lines, the total collected and the change. Click **Print Receipt** to see it — it prints straight to the till printer if one has been set up for that (§4.3), otherwise through the browser's print dialog. Click **New Sale (Reset)** when you are ready for the next customer.
 
 ### Step 9 — Check that everything moved on its own
 
@@ -749,6 +1022,7 @@ That's the whole loop: buy → receive → sell → and the accounting follows b
 | **GRN** | Proof that ordered stock actually arrived — "Goods Receipt Note." |
 | **GL / Ledger** | The accounting record of every rupee moving in or out of the business. |
 | **SKU / Barcode** | The unique code identifying one specific product. |
+| **Sticker Template** | A label layout you design once for a product category, so those items' tags print with the right size and content (§7A.2). |
 | **MFA** | A second security check (a code from your phone) in addition to your password. |
 | **Approval / Maker-checker** | A rule that important actions need a second person to say yes, so no one person can make a big mistake (or fraud) alone. |
 | **Tenant** | Your business's own private copy of the system — other businesses using the same system can never see your data. |

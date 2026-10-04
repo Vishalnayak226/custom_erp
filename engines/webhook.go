@@ -2,6 +2,7 @@ package engines
 
 import (
 	"bytes"
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"custom_erp/db"
@@ -118,7 +119,11 @@ func matchEventPattern(pattern, eventName string) bool {
 // idempotency_key is eventID+subscriptionID, so a re-run of the same outbox
 // event (processOutbox retries a Failed row) never double-enqueues delivery
 // to the same subscription.
-func dispatchWebhooksForEvent(schema, eventID, eventName string, payload map[string]interface{}) {
+// dispatchWebhooksForEvent fans one outbox event out to every matching
+// subscription. correlationID comes off the outbox row (BLD-052) and is
+// stamped onto each delivery job, so a webhook that dead-letters is
+// traceable to the request that caused the event.
+func dispatchWebhooksForEvent(schema, eventID, eventName string, payload map[string]interface{}, correlationID string) {
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, COALESCE(data->>'url', ''), COALESCE(data->>'secret', ''), COALESCE(data->>'event_pattern', '')
 		FROM %s.documents WHERE doctype = 'WebhookSubscription' AND status = 'Active' AND deleted_at IS NULL`, schema))
@@ -143,7 +148,7 @@ func dispatchWebhooksForEvent(schema, eventID, eventName string, payload map[str
 		jobPayload := map[string]interface{}{
 			"url": s.url, "secret": s.secret, "event_name": eventName, "event_payload": payload,
 		}
-		if _, err := enqueueJobInSchema(schema, webhookDeliveryJobType, jobPayload, eventID+"-"+s.id); err != nil {
+		if _, err := enqueueJobInSchema(schema, webhookDeliveryJobType, jobPayload, eventID+"-"+s.id, correlationID); err != nil {
 			log.Printf("[WEBHOOK] failed to enqueue delivery for subscription %s: %v", s.id, err)
 		}
 	}
@@ -163,7 +168,10 @@ const webhookMaxResponseBodyBytes = 64 * 1024
 // A sandbox tenant (Stage 38.7) never makes a real outbound call - "all
 // external side effects off" for a sandbox is enforced right here, the one
 // real outbound HTTP call this whole feature makes.
-func deliverWebhook(schema string, job Job) (map[string]interface{}, error) {
+func deliverWebhook(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	rawURL, _ := job.Payload["url"].(string)
 	secret, _ := job.Payload["secret"].(string)
 	eventName, _ := job.Payload["event_name"].(string)
@@ -186,7 +194,7 @@ func deliverWebhook(schema string, job Job) (map[string]interface{}, error) {
 	if err := validateWebhookURL(rawURL); err != nil {
 		return nil, err
 	}
-	return sendWebhookHTTP(rawURL, secret, eventName, eventPayload, job.ID)
+	return sendWebhookHTTPContext(ctx, rawURL, secret, eventName, eventPayload, job.ID)
 }
 
 // sendWebhookHTTP is the actual HMAC-sign-and-POST mechanism, kept separate
@@ -195,6 +203,10 @@ func deliverWebhook(schema string, job Job) (map[string]interface{}, error) {
 // refuses 127.0.0.1 (loopback), which is exactly what a local test server
 // binds to.
 func sendWebhookHTTP(rawURL, secret, eventName string, eventPayload map[string]interface{}, jobID string) (map[string]interface{}, error) {
+	return sendWebhookHTTPContext(context.Background(), rawURL, secret, eventName, eventPayload, jobID)
+}
+
+func sendWebhookHTTPContext(ctx context.Context, rawURL, secret, eventName string, eventPayload map[string]interface{}, jobID string) (map[string]interface{}, error) {
 	bodyBytes, err := json.Marshal(map[string]interface{}{"event": eventName, "payload": eventPayload})
 	if err != nil {
 		return nil, err
@@ -203,7 +215,7 @@ func sendWebhookHTTP(rawURL, secret, eventName string, eventPayload map[string]i
 	mac.Write(bodyBytes)
 	signature := hex.EncodeToString(mac.Sum(nil))
 
-	req, err := http.NewRequest(http.MethodPost, rawURL, bytes.NewReader(bodyBytes))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, rawURL, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, err
 	}

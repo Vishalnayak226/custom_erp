@@ -38,16 +38,41 @@ func TestKnownModulesMatchTheTenantSchema(t *testing.T) {
 	}
 }
 
-// TestAdministratorAndAuditorCoverTheStoreModule is Stage 50/AUD-07: the
-// shipped "Stores" doctype's module ("Store") was missing from knownModules,
-// so allModules(...) silently left it out of both Administrator (Manage) and
-// Auditor (Read) - the exact gap TestKnownModulesMatchTheTenantSchema
-// catches structurally. This checks the same gap through actual resolved
-// role access (TemplateGrants against the live tenant_default schema)
-// instead of just the module-name-set comparison, and confirms Super Admin
-// (a legacy name for Administrator, not a separate grant) is unaffected.
-func TestAdministratorAndAuditorCoverTheStoreModule(t *testing.T) {
+// TestAdministratorAndAuditorCoverEveryShippedDoctype is Stage 50/AUD-07: a
+// shipped doctype's module was missing from knownModules, so allModules(...)
+// silently left it out of both Administrator (Manage) and Auditor (Read) -
+// the exact gap TestKnownModulesMatchTheTenantSchema catches structurally.
+// This checks the same gap through actual resolved role access
+// (TemplateGrants against the live tenant_default schema) instead of just the
+// module-name-set comparison, and confirms Super Admin (a legacy name for
+// Administrator, not a separate grant) is unaffected.
+//
+// Stage 51.8 (2026-10-04): this used to assert on the "Stores" doctype by
+// name, which `db/migrations_stage30_5_5_retire_stores.sql` permanently
+// retired into `Location` on 2026-08-02 - so the test was asserting a grant
+// on a doctype that no longer ships and could only ever fail. Rewritten to
+// sweep every doctype the live schema actually declares, which covers the
+// original finding without hardcoding any one doctype that a later migration
+// may retire.
+func TestAdministratorAndAuditorCoverEveryShippedDoctype(t *testing.T) {
 	db.InitDB(testConnStr())
+
+	rows, err := db.DB.Query(`SELECT name FROM tenant_default.doctype_meta`)
+	if err != nil {
+		t.Fatalf("read doctypes: %v", err)
+	}
+	defer rows.Close()
+	var doctypes []string
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			t.Fatalf("scan doctype: %v", err)
+		}
+		doctypes = append(doctypes, name)
+	}
+	if len(doctypes) == 0 {
+		t.Fatal("tenant_default.doctype_meta is empty - nothing to verify against")
+	}
 
 	admin, ok := RoleTemplateFor("Administrator")
 	if !ok {
@@ -56,9 +81,6 @@ func TestAdministratorAndAuditorCoverTheStoreModule(t *testing.T) {
 	adminGrants, err := TemplateGrants("default", admin)
 	if err != nil {
 		t.Fatalf("TemplateGrants(Administrator): %v", err)
-	}
-	if adminGrants["Stores"] != AccessManage {
-		t.Errorf("Administrator's Stores grant = %s, want manage", adminGrants["Stores"])
 	}
 
 	auditor, ok := RoleTemplateFor("Auditor")
@@ -69,8 +91,23 @@ func TestAdministratorAndAuditorCoverTheStoreModule(t *testing.T) {
 	if err != nil {
 		t.Fatalf("TemplateGrants(Auditor): %v", err)
 	}
-	if auditorGrants["Stores"] != AccessRead {
-		t.Errorf("Auditor's Stores grant = %s, want read", auditorGrants["Stores"])
+
+	for _, doctype := range doctypes {
+		if adminGrants[doctype] != AccessManage {
+			t.Errorf("Administrator's %s grant = %s, want manage - its module is likely missing from knownModules", doctype, adminGrants[doctype])
+		}
+		// Auditor deliberately declines the payroll register and a few other
+		// individually-sensitive records; those are declared overrides, not
+		// an accidental gap, so they are expected to resolve to none.
+		if level, overridden := auditor.Doctypes[doctype]; overridden && level == AccessNone {
+			if auditorGrants[doctype] != AccessNone {
+				t.Errorf("Auditor's %s grant = %s, want none - the deliberate sensitive-record override is not taking effect", doctype, auditorGrants[doctype])
+			}
+			continue
+		}
+		if auditorGrants[doctype] != AccessRead {
+			t.Errorf("Auditor's %s grant = %s, want read - its module is likely missing from knownModules", doctype, auditorGrants[doctype])
+		}
 	}
 
 	superAdmin, ok := RoleTemplateFor(RoleSuperAdmin)

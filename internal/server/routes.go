@@ -96,6 +96,10 @@ func Run() {
 	// engines.LogSystemError). No-ops until OPS_ALERT_WEBHOOK_URL is set -
 	// see engines/alerting.go.
 	engines.StartAlertMonitor(workerCtx, 1*time.Minute, 5*time.Minute, 20)
+	// BLD-052: alert when durable async work is building up beyond the
+	// tenant's configured depth/age thresholds; delivery follows the same
+	// webhook gate and bounded redaction rules.
+	engines.StartQueueSaturationMonitor(workerCtx, 30*time.Second)
 
 	// Start Backup Freshness Monitor (Stage 43.2) - hourly check that a
 	// nightly backup actually exists and is under 36h old. 36 rather than 24
@@ -114,6 +118,11 @@ func Run() {
 	// Start Report Export Worker (Stage 20.37) - polls for Pending
 	// ReportExportJob documents and runs them in the background.
 	engines.StartReportExportWorker(workerCtx, 10*time.Second)
+	// Start Report Export Retention Sweeper (BLD-046) - the
+	// StartJobRunnerRetentionSweeper precedent, keeping ReportExportJob
+	// documents (each carrying its own generated CSV) bounded instead of
+	// accumulating forever for an export nobody downloads.
+	engines.StartReportExportRetentionSweeper(workerCtx, 1*time.Hour)
 
 	// Start Scheduled Report Worker (Stage 26.10.4) - daily-granularity scan
 	// for Active ScheduledReport documents whose next_run_date has arrived.
@@ -221,6 +230,10 @@ func Run() {
 // registerRoutes is the production registration path, also exercised without
 // launching workers by the module-manifest and entitlement integration tests.
 func registerRoutes() {
+	// Stage 47.8: CSP reports are public browser beacons, size-capped by their
+	// handler and reduced to safe directive summaries before logging.
+	http.HandleFunc("POST /api/v1/security/csp-report", apiMiddleware(handleCSPReport))
+
 	// Authentication API
 	http.HandleFunc("POST /api/v1/login", apiMiddleware(handleLogin))
 
@@ -230,6 +243,9 @@ func registerRoutes() {
 	// Health check (24.14) - for a load balancer/process supervisor to poll;
 	// same public tier as /version, no bearer token required.
 	http.HandleFunc("GET /api/v1/health", apiMiddleware(handleHealth))
+	// BLD-052: readiness is a separate verdict from liveness - see
+	// handlers_readiness.go for why one endpoint cannot answer both.
+	http.HandleFunc("GET /api/v1/ready", apiMiddleware(handleReadiness))
 	// Stage 44: the gate behind Caddy's on_demand_tls "ask" directive - Caddy
 	// calls this before requesting a certificate for a hostname it has not
 	// seen, and issues only on a 2xx.
@@ -1210,6 +1226,10 @@ func runHTTPServer(cancelWorkers context.CancelFunc) {
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigCh
 		log.Printf("Received %v, shutting down gracefully...", sig)
+
+		// BLD-052: fail readiness first, so a load balancer stops sending new
+		// requests here before srv.Shutdown starts refusing them.
+		markShuttingDown()
 
 		cancelWorkers()
 

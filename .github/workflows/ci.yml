@@ -74,6 +74,23 @@ jobs:
         env:
           DATABASE_URL: postgres://postgres@localhost:5435/custom_erp?sslmode=disable
 
+      - name: Enforce release artifact budgets
+        # BLD-048: thresholds here are the canonical NFR-COST-001/NFR-DOC-001
+        # limits. Database/log/audit/backup sizes are also captured, but remain
+        # measurement-only until NFR-DATA-001 owners approve numeric capacity caps.
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/erp-release-budget
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags="-s -w" \
+            -o /tmp/erp-release-budget/erp-server ./cmd/server
+          go run ./cmd/releasebudget -root . \
+            -binary /tmp/erp-release-budget/erp-server \
+            -database-url "$DATABASE_URL" \
+            -out /tmp/erp-release-budget/report.json
+          cat /tmp/erp-release-budget/report.json
+        env:
+          DATABASE_URL: postgres://postgres@localhost:5435/custom_erp?sslmode=disable
+
       - name: Verify schema is complete
         # Guards the step above: proves the migrations actually landed rather than
         # trusting psql's exit code. Each sentinel below is created by a LATE
@@ -212,6 +229,9 @@ jobs:
               -ldflags="-s -w -X custom_erp/internal/server.gitCommit=${COMMIT:0:12} -X custom_erp/internal/server.buildTime=${BUILD_TIME}" \
               -o build/erp-server ./cmd/server
 
+      - name: Enforce and record release artifact budgets
+        run: go run ./cmd/releasebudget -root . -binary build/erp-server -out build/release_budget_report.json
+
       - name: Generate release manifest (SBOM, checksums, provenance)
         run: |
           set -euo pipefail
@@ -239,4 +259,5 @@ jobs:
             build/erp-server
             build/erp-server.sha256
             build/release_manifest.json
+            build/release_budget_report.json
           retention-days: 90

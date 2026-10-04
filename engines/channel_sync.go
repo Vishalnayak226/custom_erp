@@ -429,7 +429,7 @@ func RunScheduledChannelSyncs(ctx context.Context, tenantID string) {
 			continue
 		}
 		var lastRun sql.NullTime
-		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT MAX(created_at) FROM %s.documents WHERE doctype='ChannelSyncRun' AND data->>'channel'=$1`, schema), channel).Scan(&lastRun)
+		_ = db.DB.QueryRow(fmt.Sprintf(`SELECT MAX(created_at) AT TIME ZONE current_setting('TimeZone') FROM %s.documents WHERE doctype='ChannelSyncRun' AND data->>'channel'=$1`, schema), channel).Scan(&lastRun)
 		if lastRun.Valid && time.Since(lastRun.Time) < time.Duration(cfg.SyncIntervalMinutes)*time.Minute {
 			continue
 		}

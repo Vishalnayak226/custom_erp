@@ -241,7 +241,7 @@ func ageingBucketDrillDown(tenantID, doctype, status, amountField, bucketLabel s
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, data, COALESCE((data->>$1)::numeric, 0), created_at
+		SELECT id, data, COALESCE((data->>$1)::numeric, 0), created_at AT TIME ZONE current_setting('TimeZone')
 		FROM %s.documents WHERE doctype = $2 AND status = $3`, schema), amountField, doctype, status)
 	if err != nil {
 		return nil, err

@@ -152,7 +152,7 @@ func GetCustomerLifetimeValue(tenantID string, churnDays int) ([]CustomerLifetim
 			SELECT data->>'customer' AS customer_id, COALESCE((data->>'total_amount')::numeric, 0) AS amount, created_at
 			FROM %s.documents WHERE doctype = 'SalesInvoice' AND COALESCE(data->>'customer', '') != ''
 		)
-		SELECT customer_id, SUM(amount), COUNT(*), MIN(created_at), MAX(created_at)
+		SELECT customer_id, SUM(amount), COUNT(*), MIN(created_at) AT TIME ZONE current_setting('TimeZone'), MAX(created_at) AT TIME ZONE current_setting('TimeZone')
 		FROM orders GROUP BY customer_id ORDER BY SUM(amount) DESC`, schema, schema))
 	if err != nil {
 		return nil, err

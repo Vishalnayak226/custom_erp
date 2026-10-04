@@ -445,7 +445,10 @@ func init() {
 	RegisterJobHandler(AuditVerifyJobType, runAuditVerifyJob)
 }
 
-func runAuditCheckpointJob(schema string, job Job) (map[string]interface{}, error) {
+func runAuditCheckpointJob(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	tenantID := schemaToTenantID(schema)
 	cp, err := WriteAuditCheckpoint(tenantID, "Periodic")
 	if err != nil {
@@ -466,7 +469,10 @@ func runAuditCheckpointJob(schema string, job Job) (map[string]interface{}, erro
 // silent in exactly the scenario an attacker wants - the verifier not running
 // at all. So a failure to verify is escalated as loudly as a failed
 // verification, and AuditVerificationOverdue reports the silence itself.
-func runAuditVerifyJob(schema string, job Job) (map[string]interface{}, error) {
+func runAuditVerifyJob(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	tenantID := schemaToTenantID(schema)
 	result, err := VerifyAuditEvidence(tenantID)
 	if err != nil {
@@ -499,7 +505,13 @@ func AuditVerificationOverdue(tenantID string, tolerance time.Duration) (overdue
 	}
 	var last sql.NullTime
 	if err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT MAX(created_at) FROM %s.audit_checkpoints`, schema)).Scan(&last); err != nil {
+		// created_at is TIMESTAMP WITHOUT TIME ZONE. PostgreSQL stores the
+		// session-local wall time for CURRENT_TIMESTAMP in that column, while
+		// lib/pq scans a bare timestamp as UTC. Restore the session's zone here
+		// before Go compares it with time.Now(); pinning every pool connection
+		// to UTC would also move this application's intentional local calendar
+		// boundaries (digest dates, attendance and business-day cutoffs).
+		`SELECT MAX(created_at) AT TIME ZONE current_setting('TimeZone') FROM %s.audit_checkpoints`, schema)).Scan(&last); err != nil {
 		return false, 0, err
 	}
 	if !last.Valid {

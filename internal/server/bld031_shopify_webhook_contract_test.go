@@ -239,4 +239,3 @@ func cleanupShopifyOrder(schema, orderID, sku string) {
 	db.DB.Exec("DELETE FROM "+schema+".inventory_availability WHERE sku = $1", sku)
 	db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", "ITEM-"+sku)
 }
-

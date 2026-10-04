@@ -11,18 +11,29 @@ import (
 	"custom_erp/db"
 )
 
-// PublishEvent queues an event in the outbox table within a transaction
+// PublishEvent queues an event in the outbox table within a transaction.
+// Kept for the callers that run with no request identity (background
+// schedulers, tests); it delegates with an empty correlation.
 func PublishEvent(tx *sql.Tx, schema, eventName string, payload map[string]interface{}) error {
+	return PublishEventContext(context.Background(), tx, schema, eventName, payload)
+}
+
+// PublishEventContext is the BLD-052 correlation-aware form: the outbox row
+// carries the correlation id of the request whose transaction published it.
+// This is the middle hop of the request -> transaction -> outbox -> job
+// trace: processOutbox reads the id back off the row and hands it to the
+// webhook delivery job it enqueues, so the whole chain shares one id.
+func PublishEventContext(ctx context.Context, tx *sql.Tx, schema, eventName string, payload map[string]interface{}) error {
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 
 	query := fmt.Sprintf(`
-		INSERT INTO %s.integration_event_outbox (event_name, payload, status) 
-		VALUES ($1, $2, 'Pending')`, schema)
+		INSERT INTO %s.integration_event_outbox (event_name, payload, status, correlation_id) 
+		VALUES ($1, $2, 'Pending', $3)`, schema)
 
-	_, err = tx.Exec(query, eventName, payloadBytes)
+	_, err = tx.Exec(query, eventName, payloadBytes, SafeCorrelationID(CorrelationIDFromContext(ctx)))
 	return err
 }
 
@@ -94,7 +105,7 @@ func listTenantSchemas(moduleKeys ...string) ([]string, error) {
 func processOutbox(schema string) {
 	// Query pending/failed events
 	query := fmt.Sprintf(`
-		SELECT id, event_name, payload, attempts 
+		SELECT id, event_name, payload, attempts, correlation_id 
 		FROM %s.integration_event_outbox 
 		WHERE status IN ('Pending', 'Failed') AND attempts < 5 
 		ORDER BY created_at LIMIT 10`, schema)
@@ -106,16 +117,17 @@ func processOutbox(schema string) {
 	defer rows.Close()
 
 	type Event struct {
-		ID        string
-		EventName string
-		Payload   string
-		Attempts  int
+		ID            string
+		EventName     string
+		Payload       string
+		Attempts      int
+		CorrelationID string
 	}
 
 	var events []Event
 	for rows.Next() {
 		var ev Event
-		if err := rows.Scan(&ev.ID, &ev.EventName, &ev.Payload, &ev.Attempts); err == nil {
+		if err := rows.Scan(&ev.ID, &ev.EventName, &ev.Payload, &ev.Attempts, &ev.CorrelationID); err == nil {
 			events = append(events, ev)
 		}
 	}
@@ -127,7 +139,7 @@ func processOutbox(schema string) {
 		errMsg := ""
 
 		// Simulate event dispatching to integrations (Shopify, WMS, OMS)
-		log.Printf("[OUTBOX] Dispatching event %s (%s) - Attempt %d", ev.EventName, ev.ID, nextAttempts)
+		log.Printf("[OUTBOX] Dispatching event %s (%s) correlation=%s - Attempt %d", ev.EventName, ev.ID, ev.CorrelationID, nextAttempts)
 
 		// Stage 38.4: fan out to any WebhookSubscription whose event_pattern
 		// matches this event, on every attempt (not just the first) - the
@@ -136,7 +148,7 @@ func processOutbox(schema string) {
 		// same subscription, so re-dispatching here on a retry is safe.
 		var webhookPayloadMap map[string]interface{}
 		if err := json.Unmarshal([]byte(ev.Payload), &webhookPayloadMap); err == nil {
-			dispatchWebhooksForEvent(schema, ev.ID, ev.EventName, webhookPayloadMap)
+			dispatchWebhooksForEvent(schema, ev.ID, ev.EventName, webhookPayloadMap, ev.CorrelationID)
 		}
 
 		if ev.EventName == "report.scheduled_delivery" {

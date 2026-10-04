@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 	"time"
 )
 
@@ -48,9 +49,22 @@ type Job struct {
 // marks the job Failed (and retried with backoff, or DeadLettered once
 // MaxAttempts is reached); returning nil marks it Succeeded with result
 // stored alongside.
-type JobHandlerFunc func(schema string, job Job) (result map[string]interface{}, err error)
+type JobHandlerFunc func(ctx context.Context, schema string, job Job) (result map[string]interface{}, err error)
 
 var jobHandlers = map[string]JobHandlerFunc{}
+
+type runningJobKey struct{ schema, id string }
+
+type runningJob struct {
+	cancel context.CancelFunc
+}
+
+var runningJobs = struct {
+	sync.Mutex
+	byKey map[runningJobKey]runningJob
+}{byKey: make(map[runningJobKey]runningJob)}
+
+const jobCancellationPollInterval = time.Second
 
 // RegisterJobHandler adds a handler to the registry - the RegisterReport
 // precedent (engines/report_registry.go). Called only from this package's
@@ -79,14 +93,23 @@ var jobWorkerIdentity = fmt.Sprintf("pid-%d", os.Getpid())
 // the same "the unique index is the lock" guarantee Stage 38.5's public API
 // idempotency already established, applied here to job enqueueing.
 func EnqueueJob(tenantID, jobType string, payload map[string]interface{}, idempotencyKey string) (string, error) {
+	return EnqueueJobContext(context.Background(), tenantID, jobType, payload, idempotencyKey)
+}
+
+// EnqueueJobContext is the BLD-052 correlation-aware form: the job row is
+// stamped with the correlation id carried by ctx, so an async failure can be
+// traced back to the request that queued it. A ctx with no correlation (a
+// background sweep, a test) stores an empty string, which is the column's
+// own default.
+func EnqueueJobContext(ctx context.Context, tenantID, jobType string, payload map[string]interface{}, idempotencyKey string) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
 	}
-	return enqueueJobInSchema(schema, jobType, payload, idempotencyKey)
+	return enqueueJobInSchema(schema, jobType, payload, idempotencyKey, SafeCorrelationID(CorrelationIDFromContext(ctx)))
 }
 
-func enqueueJobInSchema(schema, jobType string, payload map[string]interface{}, idempotencyKey string) (string, error) {
+func enqueueJobInSchema(schema, jobType string, payload map[string]interface{}, idempotencyKey, correlationID string) (string, error) {
 	if jobType == "" {
 		return "", fmt.Errorf("a job needs a job_type")
 	}
@@ -99,10 +122,10 @@ func enqueueJobInSchema(schema, jobType string, payload map[string]interface{}, 
 	}
 	jobID := NewDocID("JOB")
 	_, err = db.DB.Exec(fmt.Sprintf(`
-		INSERT INTO %s.async_jobs (id, job_type, payload, idempotency_key)
-		VALUES ($1, $2, $3, $4)
+		INSERT INTO %s.async_jobs (id, job_type, payload, idempotency_key, correlation_id)
+		VALUES ($1, $2, $3, $4, $5)
 		ON CONFLICT (job_type, idempotency_key) WHERE idempotency_key <> '' DO NOTHING`, schema),
-		jobID, jobType, payloadBytes, idempotencyKey)
+		jobID, jobType, payloadBytes, idempotencyKey, correlationID)
 	if err != nil {
 		return "", err
 	}
@@ -143,7 +166,10 @@ func StartJobRunnerWorker(ctx context.Context, interval time.Duration) {
 					continue
 				}
 				for _, schema := range schemas {
-					runClaimedJobs(schema)
+					if ctx.Err() != nil {
+						return
+					}
+					runClaimedJobsContext(ctx, schema)
 				}
 			}
 		}
@@ -151,19 +177,65 @@ func StartJobRunnerWorker(ctx context.Context, interval time.Duration) {
 }
 
 func runClaimedJobs(schema string) {
+	runClaimedJobsContext(context.Background(), schema)
+}
+
+func runClaimedJobsContext(ctx context.Context, schema string) {
+	if ctx.Err() != nil {
+		return
+	}
 	jobs, err := claimJobs(schema, jobClaimBatchSize)
 	if err != nil {
 		log.Printf("[JOBRUNNER] claim failed for %s: %v", schema, err)
 		return
 	}
 	for _, job := range jobs {
+		if ctx.Err() != nil {
+			// Leave unstarted leases untouched. They are reclaimed after the
+			// normal lease timeout, so graceful shutdown does not lose accepted work.
+			return
+		}
 		handler, ok := jobHandlers[job.JobType]
 		if !ok {
 			finishJob(schema, job, nil, fmt.Errorf("no handler registered for job_type %q", job.JobType))
 			continue
 		}
-		result, err := handler(schema, job)
+		jobCtx, cancel := context.WithCancel(ctx)
+		key := runningJobKey{schema: schema, id: job.ID}
+		runningJobs.Lock()
+		runningJobs.byKey[key] = runningJob{cancel: cancel}
+		runningJobs.Unlock()
+		watchDone := make(chan struct{})
+		go watchJobCancellation(jobCtx, schema, job.ID, cancel, watchDone)
+		result, err := handler(jobCtx, schema, job)
+		cancel()
+		<-watchDone
+		runningJobs.Lock()
+		delete(runningJobs.byKey, key)
+		runningJobs.Unlock()
 		finishJob(schema, job, result, err)
+	}
+}
+
+// watchJobCancellation observes the durable Cancelled state so an operator
+// request routed to a different app process still interrupts the lease owner.
+// The local runningJobs map makes same-process cancellation immediate; this
+// bounded one-second poll is the cross-process fallback without a broker.
+func watchJobCancellation(ctx context.Context, schema, jobID string, cancel context.CancelFunc, done chan<- struct{}) {
+	defer close(done)
+	ticker := time.NewTicker(jobCancellationPollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			var status string
+			if err := db.DB.QueryRowContext(ctx, fmt.Sprintf(`SELECT status FROM %s.async_jobs WHERE id = $1`, schema), jobID).Scan(&status); err == nil && status == "Cancelled" {
+				cancel()
+				return
+			}
+		}
 	}
 }
 
@@ -238,7 +310,7 @@ func finishJob(schema string, job Job, result map[string]interface{}, jobErr err
 		}
 		_, err := db.DB.Exec(fmt.Sprintf(`
 			UPDATE %s.async_jobs SET status = 'Succeeded', result = $1, last_error = '', updated_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP
-			WHERE id = $2`, schema), resultBytes, job.ID)
+			WHERE id = $2 AND status = 'Leased'`, schema), resultBytes, job.ID)
 		if err != nil {
 			log.Printf("[JOBRUNNER] failed to mark job %s succeeded: %v", job.ID, err)
 		}
@@ -253,7 +325,7 @@ func finishJob(schema string, job Job, result map[string]interface{}, jobErr err
 	if nextAttempts >= job.MaxAttempts {
 		_, err := db.DB.Exec(fmt.Sprintf(`
 			UPDATE %s.async_jobs SET status = 'DeadLettered', attempts = $1, last_error = $2, updated_at = CURRENT_TIMESTAMP, completed_at = CURRENT_TIMESTAMP
-			WHERE id = $3`, schema), nextAttempts, errMsg, job.ID)
+			WHERE id = $3 AND status = 'Leased'`, schema), nextAttempts, errMsg, job.ID)
 		if err != nil {
 			log.Printf("[JOBRUNNER] failed to dead-letter job %s: %v", job.ID, err)
 		}
@@ -267,7 +339,7 @@ func finishJob(schema string, job Job, result map[string]interface{}, jobErr err
 	backoff := jobBaseBackoff * time.Duration(1<<uint(nextAttempts-1))
 	_, err := db.DB.Exec(fmt.Sprintf(`
 		UPDATE %s.async_jobs SET status = 'Pending', attempts = $1, last_error = $2, next_attempt_at = CURRENT_TIMESTAMP + $3, updated_at = CURRENT_TIMESTAMP
-		WHERE id = $4`, schema), nextAttempts, errMsg, fmt.Sprintf("%d seconds", int(backoff.Seconds())), job.ID)
+		WHERE id = $4 AND status = 'Leased'`, schema), nextAttempts, errMsg, fmt.Sprintf("%d seconds", int(backoff.Seconds())), job.ID)
 	if err != nil {
 		log.Printf("[JOBRUNNER] failed to reschedule job %s: %v", job.ID, err)
 	}
@@ -304,6 +376,13 @@ func CancelJob(tenantID, jobID string) error {
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
 		return fmt.Errorf("job %s not found, or already in a terminal state", jobID)
+	}
+	key := runningJobKey{schema: schema, id: jobID}
+	runningJobs.Lock()
+	running := runningJobs.byKey[key]
+	runningJobs.Unlock()
+	if running.cancel != nil {
+		running.cancel()
 	}
 	return nil
 }

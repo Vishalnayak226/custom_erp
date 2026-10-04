@@ -48,6 +48,18 @@ func currentAppVersion() string {
 	return strings.TrimSpace(embeddedVersion)
 }
 
+// releaseDate is the calendar day the running binary was built, derived from
+// the ldflags-injected buildTime rather than stored separately - one stamped
+// value cannot drift from itself. Returns "" for an unstamped `go build`
+// (buildTime == "unknown"), which the UI renders as a development build.
+func releaseDate() string {
+	t, err := time.Parse(time.RFC3339, buildTime)
+	if err != nil {
+		return ""
+	}
+	return t.UTC().Format("2006-01-02")
+}
+
 // RequestContext holds basic metadata for tracking execution
 type RequestContext struct {
 	TenantID      string
@@ -167,9 +179,17 @@ func rateLimitCategory(path, method string) (category string, limit int) {
 		// both are exactly the kind of low-frequency, high-sensitivity
 		// action that needs the tightest budget, not the 60/min default.
 		return "login", 5
-	case strings.HasPrefix(path, "/api/v1/import/"):
+	case strings.HasPrefix(path, "/api/v1/import/") ||
+		(strings.HasPrefix(path, "/api/v1/pim/import-templates/") && (strings.HasSuffix(path, "/preview") || strings.HasSuffix(path, "/import"))):
 		// Bulk Upload API: file processing is the heaviest per-request cost
 		// in this codebase, so it gets the tightest non-login budget.
+		// BLD-046: the templated PIM import path (RunPIMImportTemplate) does
+		// the same CSV parse/validate/write work as the plain /api/v1/import/
+		// path below but previously fell through to the generic 60/min
+		// "default" bucket - 6x looser for equivalent per-request cost, just
+		// because its route doesn't share the /api/v1/import/ prefix.
+		// preview-mapping (a lightweight template lookup, no file upload) is
+		// deliberately not included here.
 		return "bulk-upload", 10
 	case strings.HasPrefix(path, "/api/v1/reports/") || strings.HasSuffix(path, "/finance/trial-balance"):
 		// Report API: SEC-V2 asks these be restricted/queued as "heavy".
@@ -284,9 +304,15 @@ func verifyShopifyWebhookSignature(r *http.Request, body []byte) bool {
 // than a path-prefix rule, so adding a new public route is always a
 // one-line, reviewable decision.
 var publicRoutes = map[string]bool{
-	"/api/v1/login":                true,
-	"/api/v1/version":              true,
-	"/api/v1/health":               true,
+	"/api/v1/login":   true,
+	"/api/v1/version": true,
+	"/api/v1/health":  true,
+	// BLD-052: same tier as /health - a load balancer deciding whether to
+	// send traffic here cannot hold a bearer token. Reports only this
+	// repository's own migration filenames and build identity, never
+	// tenant data.
+	"/api/v1/ready":                true,
+	"/api/v1/security/csp-report":  true,
 	"/api/v1/auth/forgot-password": true,
 	"/api/v1/auth/reset-password":  true,
 	// Stage 35.5: couriers cannot hold a human ERP bearer token. These two
@@ -351,13 +377,31 @@ func generateUUID() string {
 // static assets and API alike - by wrapping the whole mux once, rather than
 // depending on every future route remembering to add apiMiddleware.
 //
-// script-src/style-src include 'unsafe-inline': public/index.html and
-// public/app.js render onclick="..." attribute handlers throughout the UI
-// (21 occurrences today), and CSP treats those the same as inline <script>
-// tags. Dropping 'unsafe-inline' would break every button in the app until
-// those are refactored to addEventListener - a separate frontend task, not
-// part of this header change. frame-ancestors 'none' (plus X-Frame-Options
-// for older browsers) still gives real clickjacking protection regardless.
+// 47.8.2: script-src is now enforced as 'self' with no inline exception. The
+// migration that made this possible removed all 126 inline event-handler
+// attributes (109 in app.js/view-*.js, 17 in index.html) in favour of the
+// delegated data-act dispatcher in public/app.js; index.html already carried
+// no inline <script> blocks, every script being an external file.
+//
+// No nonce and no hash list, deliberately. A nonce exists to permit inline
+// <script> elements, and there are none - it would add a per-request value to
+// generate, thread into the HTML and defeat static caching of index.html, to
+// permit something this app does not do. Worth noting a nonce would not have
+// helped with the actual blocker either: script-src nonces do not whitelist
+// inline event-handler ATTRIBUTES (that needs 'unsafe-hashes', which is a
+// weaker position than removing them). 'self' with zero inline script is the
+// strictest and simplest of the three.
+//
+// Verified before flipping: a browser sweep of all 29 views against the
+// report-only candidate reported zero violations of any directive and zero
+// page errors; every one of the 128 data-act reference sites resolves to a
+// real function.
+//
+// style-src keeps 'unsafe-inline': the templates still set style="..."
+// attributes in many places, and that is a separate migration with no
+// script-execution consequence. The report-only header stays, now as the
+// next candidate (strict style-src), so the same mechanism carries the next
+// step. frame-ancestors 'none' keeps clickjacking protection.
 func securityHeaders(next http.Handler) http.Handler {
 	// Stage 40.4: style-src/font-src used to carve out Google Fonts, because
 	// public/styles.css @imported fonts.googleapis.com. That import is gone -
@@ -366,7 +410,7 @@ func securityHeaders(next http.Handler) http.Handler {
 	// is both faster (no third-party round trip on the critical path) and
 	// strictly tighter: nothing outside this origin can be fetched at all.
 	const csp = "default-src 'self'; " +
-		"script-src 'self' 'unsafe-inline'; " +
+		"script-src 'self'; " +
 		"style-src 'self' 'unsafe-inline'; " +
 		"font-src 'self'; " +
 		// blob: (not just data:) is required for the PIM media gallery
@@ -390,6 +434,18 @@ func securityHeaders(next http.Handler) http.Handler {
 		"base-uri 'self'; " +
 		"form-action 'self'; " +
 		"frame-ancestors 'none'"
+	// The report-only candidate moves on to the next exception to retire:
+	// inline style attributes. Reported, not enforced, for exactly the reason
+	// script-src was reported first - the violations have to be seen in real
+	// browser journeys before the policy can refuse them.
+	const cspReportOnly = "default-src 'self'; " +
+		"script-src 'self'; " +
+		"style-src 'self'; " +
+		"font-src 'self'; " +
+		"img-src 'self' data: blob:; " +
+		"connect-src 'self' ws://localhost:* wss://localhost.qz.io:*; " +
+		"object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; " +
+		"report-uri /api/v1/security/csp-report"
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
@@ -398,6 +454,7 @@ func securityHeaders(next http.Handler) http.Handler {
 		// only takes effect once served over TLS - safe to set unconditionally.
 		w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
 		w.Header().Set("Content-Security-Policy", csp)
+		w.Header().Set("Content-Security-Policy-Report-Only", cspReportOnly)
 		// Set here rather than on the reverse proxy (Stage 26.1.3) so the
 		// guarantee holds whether or not Caddy is in front - the tunnel-only
 		// access path today bypasses the proxy entirely.
@@ -607,6 +664,11 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		// writeAPIErrorGeneric can read it from any rejection point below,
 		// including ones that fire before tenant/auth resolution.
 		r.Header.Set("Resolved-Correlation-ID", correlationID)
+		// BLD-052: also carried on the request context, so the durable async
+		// work this request queues (async_jobs, integration_event_outbox) is
+		// stamped with the same id without every enqueue call site having to
+		// accept and forward a header value. See engines/correlation.go.
+		r = r.WithContext(engines.WithCorrelationID(r.Context(), correlationID))
 
 		// 1. CORS Headers (explicit allowlist - never reflect an arbitrary Origin)
 		origin := r.Header.Get("Origin")
@@ -615,6 +677,12 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Tenant-ID")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+			// BLD-034: X-Total-Count (the generic doc-list endpoint's real
+			// result count) isn't one of the CORS-safelisted response headers
+			// a cross-origin fetch() can read by default - without this, a
+			// separately-hosted frontend origin would see the header on the
+			// wire but response.headers.get() would always return null.
+			w.Header().Set("Access-Control-Expose-Headers", "X-Total-Count")
 		}
 
 		if r.Method == "OPTIONS" {

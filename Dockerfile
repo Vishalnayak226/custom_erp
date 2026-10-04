@@ -25,7 +25,15 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/erp-server ./cmd/server
+# Build identity, same ldflags shape every other build path uses
+# (manage.ps1, deploy/deploy.ps1, promote.ps1, CI) so a container build shows
+# the same version/release date in the UI as a native one. Both default to the
+# unstamped values, so a bare `docker build` still works.
+ARG GIT_COMMIT=dev
+ARG BUILD_TIME=unknown
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath \
+    -ldflags="-s -w -X custom_erp/internal/server.gitCommit=${GIT_COMMIT} -X custom_erp/internal/server.buildTime=${BUILD_TIME}" \
+    -o /out/erp-server ./cmd/server
 
 FROM gcr.io/distroless/static-debian12
 WORKDIR /app

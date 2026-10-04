@@ -187,16 +187,32 @@ func StartDashboardDigestWorker(ctx context.Context, interval time.Duration) {
 					continue
 				}
 				for _, schema := range schemas {
-					processDashboardDigests(schema)
+					processDashboardDigests(ctx, schema)
 				}
 			}
 		}
 	}()
 }
 
-func processDashboardDigests(schema string) {
+// BLD-046: takes the worker's ctx so a shutting-down process abandons an
+// in-flight run instead of finishing one whose result nobody will collect.
+// The job/schedule row is left untouched and is reclaimed on the next tick.
+func processDashboardDigests(ctx context.Context, schema string) {
+	// BLD-046: see report_export.go's processReportExportJobs for the
+	// wrong-tenant bug (RunReport(schema,...) below used to pass schema
+	// itself as tenantID) and scheduled_reports.go for why the due-date
+	// filter moved into SQL alongside the new per-tick LIMIT.
+	tenantID, err := tenantIDForSchema(schema)
+	if err != nil {
+		log.Printf("[DASHBOARD_DIGEST] could not resolve tenant for schema %s: %v", schema, err)
+		return
+	}
+	today := time.Now().Format("2006-01-02")
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, data FROM %s.documents WHERE doctype = 'DashboardDigest' AND status = 'Active'`, schema))
+		`SELECT id, data FROM %s.documents WHERE doctype = 'DashboardDigest' AND status = 'Active'
+		   AND data->>'next_run_date' IS NOT NULL AND data->>'next_run_date' != '' AND data->>'next_run_date' <= $1
+		 LIMIT $2`, schema),
+		today, asyncReportWorkerBatchSize)
 	if err != nil {
 		log.Printf("[DASHBOARD_DIGEST] query failed for %s: %v", schema, err)
 		return
@@ -206,7 +222,6 @@ func processDashboardDigests(schema string) {
 		data map[string]interface{}
 	}
 	var due []dueDigest
-	today := time.Now().Format("2006-01-02")
 	for rows.Next() {
 		var id, dataStr string
 		if err := rows.Scan(&id, &dataStr); err != nil {
@@ -217,10 +232,7 @@ func processDashboardDigests(schema string) {
 			log.Printf("[DASHBOARD_DIGEST] corrupt DashboardDigest %s: %v", id, err)
 			continue
 		}
-		nextRun, _ := data["next_run_date"].(string)
-		if nextRun != "" && nextRun <= today {
-			due = append(due, dueDigest{id: id, data: data})
-		}
+		due = append(due, dueDigest{id: id, data: data})
 	}
 	rows.Close()
 
@@ -238,7 +250,7 @@ func processDashboardDigests(schema string) {
 			var combinedCSV strings.Builder
 			totalRows := 0
 			for _, tile := range tiles {
-				def, resultRows, _, rerr := RunReport(schema, tile.ReportID, role, "", nil)
+				def, resultRows, _, rerr := RunReportContext(ctx, tenantID, tile.ReportID, role, "", nil)
 				combinedCSV.WriteString("## " + tile.Title + "\n")
 				if rerr != nil {
 					combinedCSV.WriteString("(failed: " + rerr.Error() + ")\n\n")

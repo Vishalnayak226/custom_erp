@@ -320,7 +320,7 @@ func getOrderAgingReport(tenantID string, params map[string]string) ([]map[strin
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT COALESCE((data->>'total_amount')::numeric, 0), created_at FROM %s.documents
+		SELECT COALESCE((data->>'total_amount')::numeric, 0), created_at AT TIME ZONE current_setting('TimeZone') FROM %s.documents
 		WHERE doctype = 'SalesOrder' AND deleted_at IS NULL AND status NOT IN ('Delivered', 'Cancelled', 'Closed')`, schema))
 	if err != nil {
 		return nil, err
@@ -351,7 +351,7 @@ func orderAgingDrillDown(tenantID, rowKey string, params map[string]string) ([]m
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, COALESCE((data->>'total_amount')::numeric, 0), status, created_at FROM %s.documents
+		SELECT id, COALESCE((data->>'total_amount')::numeric, 0), status, created_at AT TIME ZONE current_setting('TimeZone') FROM %s.documents
 		WHERE doctype = 'SalesOrder' AND deleted_at IS NULL AND status NOT IN ('Delivered', 'Cancelled', 'Closed')`, schema))
 	if err != nil {
 		return nil, err
@@ -487,7 +487,7 @@ func getReturnAgingReport(tenantID string, params map[string]string) ([]map[stri
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT created_at FROM %s.documents WHERE doctype = 'ReturnRequest' AND deleted_at IS NULL
+		SELECT created_at AT TIME ZONE current_setting('TimeZone') FROM %s.documents WHERE doctype = 'ReturnRequest' AND deleted_at IS NULL
 		  AND status NOT IN ('Closed', 'Rejected')`, schema))
 	if err != nil {
 		return nil, err
@@ -515,7 +515,7 @@ func returnAgingDrillDown(tenantID, rowKey string, params map[string]string) ([]
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, COALESCE(data->>'request_type', ''), status, created_at FROM %s.documents
+		SELECT id, COALESCE(data->>'request_type', ''), status, created_at AT TIME ZONE current_setting('TimeZone') FROM %s.documents
 		WHERE doctype = 'ReturnRequest' AND deleted_at IS NULL AND status NOT IN ('Closed', 'Rejected')`, schema))
 	if err != nil {
 		return nil, err

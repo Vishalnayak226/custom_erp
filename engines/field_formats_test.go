@@ -46,6 +46,18 @@ func TestDetectFieldFormat(t *testing.T) {
 	}
 }
 
+func TestTypeSuffixOnlyExcludesFormattedCompanions(t *testing.T) {
+	if !IsDerivedCompanionField("phone_type") {
+		t.Fatal("phone_type should remain a derived format companion")
+	}
+	if IsDerivedCompanionField("stone_type") {
+		t.Fatal("stone_type is an editable jewelry attribute, not a derived companion")
+	}
+	if _, ok := DetectFieldFormat("stone_type"); ok {
+		t.Fatal("stone_type must not inherit a phone/email format")
+	}
+}
+
 // The central promise: an empty value is always valid, for every format.
 // Nothing this stage added may turn an optional field into a required one.
 func TestEmptyValueIsAlwaysValid(t *testing.T) {

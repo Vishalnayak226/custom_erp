@@ -160,6 +160,18 @@ func main() {
 }
 func die(err error) { fmt.Fprintln(os.Stderr, "doclint:", err); os.Exit(1) }
 
+func isWorkRegister(path string, metadata map[string]string) bool {
+	if metadata["format"] != "work-register" {
+		return false
+	}
+	switch path {
+	case "docs/micro_checklist.md", "docs/product/erp-build-checklist.md":
+		return true
+	default:
+		return false
+	}
+}
+
 func inspect(root string, rules []Rule, now time.Time) (Register, Report, error) {
 	reg := Register{SchemaVersion: 1, SourceCommit: git(root, "rev-parse", "HEAD"), CapturedOn: now.Format("2006-01-02"), Scope: "working tree; provisional owners; not a release approval or pre-migration baseline"}
 	report := Report{Counts: map[string]int{}, Findings: []Finding{}}
@@ -306,9 +318,10 @@ func inspect(root string, rules []Rule, now time.Time) (Register, Report, error)
 				if len(missing) > 0 {
 					add(path, "metadata", "missing "+strings.Join(missing, ", ")+"; disposition="+d.Disposition)
 				}
-				// The existing work register is an index of open work across stages,
-				// not a reader-facing article. Its bytes remain in the health report.
-				if len(body) > 120*1024 && !(path == "docs/micro_checklist.md" && meta["format"] == "work-register") {
+				// Declared project work registers are indexes of open work across
+				// stages, not reader-facing articles. Their bytes remain in the
+				// health report; ordinary reference documents keep the 120 KiB cap.
+				if len(body) > 120*1024 && !isWorkRegister(path, meta) {
 					add(path, "article-budget", "exceeds 120 KiB raw")
 				}
 			}

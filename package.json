@@ -2,9 +2,5 @@
   "name": "custom-erp",
   "version": "1.0.0",
   "description": "Custom ERP Rebuilt Modules",
-  "main": "index.html",
-  "scripts": {
-    "start": "npx http-server -p 8080",
-    "build": "npx -y esbuild public/app.js --bundle --minify --outfile=public/dist/app.min.js && npx -y esbuild public/db.js --minify --outfile=public/dist/db.min.js"
-  }
+  "main": "index.html"
 }

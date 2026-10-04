@@ -54,6 +54,13 @@ func OpenPOSSession(tenantID, posProfile, location, cashier, userID string, open
 	if openingCash < 0 {
 		return "", errors.New("opening cash cannot be negative")
 	}
+	// Stage 53.2: refuse to bind a till to a place that does not sell. Checked
+	// here rather than at the handler so the engine is the thing that holds the
+	// rule - the same reason cashier identity is resolved here and not taken
+	// from the request body.
+	if err := ValidatePOSSellableLocation(tenantID, location); err != nil {
+		return "", err
+	}
 
 	var existing string
 	err = db.DB.QueryRow(fmt.Sprintf(`

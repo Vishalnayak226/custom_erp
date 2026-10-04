@@ -234,7 +234,7 @@ func TestPrintStickersForDocumentGroupsByCategoryAndLogsSource(t *testing.T) {
 		"code": grnID, "location": "TEST52-LOC", "received_items": string(receivedJSON),
 	})
 
-	labels, err := PrintStickersForDocument(tenantID, "GRN", grnID, printerCode, "system", "", nil, nil)
+	labels, err := PrintStickersForDocument(tenantID, "GRN", grnID, printerCode, "system", "", nil)
 	if err != nil {
 		t.Fatalf("PrintStickersForDocument: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestPrintStickersForDocumentGroupsByCategoryAndLogsSource(t *testing.T) {
 
 	// Selecting a single SKU is the "print one line" path - same function,
 	// a length-1 selection.
-	single, err := PrintStickersForDocument(tenantID, "GRN", grnID, printerCode, "system", "", []string{earringSKU}, nil)
+	single, err := PrintStickersForDocument(tenantID, "GRN", grnID, printerCode, "system", "", SKUSelections([]string{earringSKU}, nil))
 	if err != nil {
 		t.Fatalf("PrintStickersForDocument (single SKU): %v", err)
 	}
@@ -273,11 +273,97 @@ func TestPrintStickersForDocumentGroupsByCategoryAndLogsSource(t *testing.T) {
 	}
 
 	// copyOverrides takes precedence over the document's own accepted qty.
-	overridden, err := PrintStickersForDocument(tenantID, "GRN", grnID, printerCode, "system", "", []string{earringSKU}, map[string]int{earringSKU: 9})
+	overridden, err := PrintStickersForDocument(tenantID, "GRN", grnID, printerCode, "system", "", SKUSelections([]string{earringSKU}, map[string]int{earringSKU: 9}))
 	if err != nil {
 		t.Fatalf("PrintStickersForDocument (override): %v", err)
 	}
 	if len(overridden) != 1 || overridden[0].Qty != 9 {
 		t.Fatalf("expected the copy override (9) to win over accepted_qty (5), got %+v", overridden)
+	}
+}
+
+// Stage 52.8 regression: a SKU received on two lots is two lines, so a
+// selection has to address one of them. Before this, selection and copy
+// overrides were keyed on SKU alone - picking either row printed both lots,
+// and a copy override hit both.
+func TestPrintStickersForDocumentSelectsOneLotOfASKU(t *testing.T) {
+	db.InitDB(testConnStr())
+	tenantID := "default"
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+
+	const (
+		sku         = "TEST52-LOT-SKU"
+		grnID       = "TEST52-GRN-LOTS"
+		printerCode = "TEST52-PRINTER-LOTS"
+	)
+	ids := []string{sku, grnID, printerCode}
+	stickerTestCleanup(schema, ids)
+	defer stickerTestCleanup(schema, ids)
+
+	stickerTestInsert(t, schema, sku, "Item", map[string]interface{}{"code": sku, "name": "Dated Item", "category": "Earrings"})
+	stickerTestInsert(t, schema, printerCode, "Printer", map[string]interface{}{"code": printerCode, "name": "Lot Printer", "status": "Active", "printer_language": "ZPL"})
+
+	receivedJSON, _ := json.Marshal([]map[string]interface{}{
+		{"sku": sku, "qty": 4, "accepted_qty": 4, "batch_no": "LOT-A"},
+		{"sku": sku, "qty": 6, "accepted_qty": 6, "batch_no": "LOT-B"},
+	})
+	stickerTestInsert(t, schema, grnID, "GRN", map[string]interface{}{
+		"code": grnID, "location": "TEST52-LOC", "received_items": string(receivedJSON),
+	})
+
+	// No selection = both lots, each with its own accepted qty.
+	all, err := PrintStickersForDocument(tenantID, "GRN", grnID, printerCode, "system", "", nil)
+	if err != nil {
+		t.Fatalf("PrintStickersForDocument (all): %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("expected both lots, got %d: %+v", len(all), all)
+	}
+
+	// One lot's line only - this is the per-row Print button.
+	one, err := PrintStickersForDocument(tenantID, "GRN", grnID, printerCode, "system", "", []StickerLineSelection{{SKU: sku, BatchNo: "LOT-B"}})
+	if err != nil {
+		t.Fatalf("PrintStickersForDocument (one lot): %v", err)
+	}
+	if len(one) != 1 {
+		t.Fatalf("expected exactly LOT-B's line, got %d: %+v", len(one), one)
+	}
+	if one[0].BatchNo != "LOT-B" || one[0].Qty != 6 {
+		t.Errorf("expected LOT-B qty=6, got batch=%q qty=%d", one[0].BatchNo, one[0].Qty)
+	}
+
+	// A copy override applies to the lot it was asked for, not to the SKU.
+	mixed, err := PrintStickersForDocument(tenantID, "GRN", grnID, printerCode, "system", "", []StickerLineSelection{
+		{SKU: sku, BatchNo: "LOT-A", Copies: 11},
+		{SKU: sku, BatchNo: "LOT-B"},
+	})
+	if err != nil {
+		t.Fatalf("PrintStickersForDocument (mixed): %v", err)
+	}
+	if len(mixed) != 2 {
+		t.Fatalf("expected both lots, got %d: %+v", len(mixed), mixed)
+	}
+	byLot := map[string]int{}
+	for _, l := range mixed {
+		byLot[l.BatchNo] = l.Qty
+	}
+	if byLot["LOT-A"] != 11 {
+		t.Errorf("expected LOT-A to take the override (11), got %d", byLot["LOT-A"])
+	}
+	if byLot["LOT-B"] != 6 {
+		t.Errorf("expected LOT-B to keep its own accepted qty (6), got %d", byLot["LOT-B"])
+	}
+
+	// A SKU-only selection still means "every lot of this SKU", which is what
+	// keeps the manual flow and any older API client working unchanged.
+	legacy, err := PrintStickersForDocument(tenantID, "GRN", grnID, printerCode, "system", "", SKUSelections([]string{sku}, nil))
+	if err != nil {
+		t.Fatalf("PrintStickersForDocument (SKU-only): %v", err)
+	}
+	if len(legacy) != 2 {
+		t.Fatalf("expected a SKU-only selection to still cover both lots, got %d: %+v", len(legacy), legacy)
 	}
 }

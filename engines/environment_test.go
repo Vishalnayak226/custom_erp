@@ -56,14 +56,14 @@ func TestQuarantineStaleExternalDispatchJobs(t *testing.T) {
 		t.Fatalf("schema: %v", err)
 	}
 
-	jobID, err := enqueueJobInSchema(schema, webhookDeliveryJobType, map[string]interface{}{"url": "https://example.invalid/hook"}, "")
+	jobID, err := enqueueJobInSchema(schema, webhookDeliveryJobType, map[string]interface{}{"url": "https://example.invalid/hook"}, "", "")
 	if err != nil {
 		t.Fatalf("enqueueJobInSchema: %v", err)
 	}
 	defer db.DB.Exec("DELETE FROM "+schema+".async_jobs WHERE id = $1", jobID)
 
 	// A job of a different type must not be touched by the sweep.
-	otherID, err := enqueueJobInSchema(schema, "test-4700-unrelated", map[string]interface{}{}, "")
+	otherID, err := enqueueJobInSchema(schema, "test-4700-unrelated", map[string]interface{}{}, "", "")
 	if err != nil {
 		t.Fatalf("enqueueJobInSchema (unrelated): %v", err)
 	}

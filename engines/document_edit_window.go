@@ -79,7 +79,7 @@ func documentCreatedAt(tenantID, doctype, docID string) (time.Time, error) {
 	}
 	var createdAt time.Time
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT created_at FROM %s.documents WHERE doctype = $1 AND id = $2`, schema), doctype, docID).Scan(&createdAt)
+		`SELECT created_at AT TIME ZONE current_setting('TimeZone') FROM %s.documents WHERE doctype = $1 AND id = $2`, schema), doctype, docID).Scan(&createdAt)
 	if err == sql.ErrNoRows {
 		return time.Time{}, nil
 	}

@@ -191,7 +191,7 @@ func GetCampaignROIReport(tenantID string) ([]CampaignROIRow, error) {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT id, COALESCE(data->>'name', ''), COALESCE((data->>'cost')::numeric, 0), created_at
+		SELECT id, COALESCE(data->>'name', ''), COALESCE((data->>'cost')::numeric, 0), created_at AT TIME ZONE current_setting('TimeZone')
 		FROM %s.documents WHERE doctype = 'Campaign'`, schema))
 	if err != nil {
 		return nil, err
@@ -221,7 +221,7 @@ func GetCampaignROIReport(tenantID string) ([]CampaignROIRow, error) {
 		var revenue float64
 		if err := db.DB.QueryRow(fmt.Sprintf(`
 			SELECT COALESCE(SUM((data->>'amount_paid')::numeric), 0) FROM %s.documents
-			WHERE doctype = 'POSCart' AND status = 'Paid' AND created_at >= $1
+			WHERE doctype = 'POSCart' AND status = 'Paid' AND created_at >= ($1::timestamptz AT TIME ZONE current_setting('TimeZone'))
 			  AND data->>'customer_id' IN (SELECT DISTINCT customer_id FROM %s.clevertap_event_log WHERE campaign_id = $2)`,
 			schema, schema), c.createdAt, c.id).Scan(&revenue); err != nil {
 			return nil, err

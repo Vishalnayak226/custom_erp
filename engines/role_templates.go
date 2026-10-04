@@ -297,10 +297,18 @@ func allModules(level AccessLevel) map[string]AccessLevel {
 // knownModules is doctype_meta.module's full set as shipped. The completeness
 // test compares it against the live tenant schema, so a module added by a
 // later migration fails the build until Administrator/Auditor are considered.
+//
+// Stage 51.8: "Store" was removed (user decision, 2026-10-04). It existed only
+// for the `Stores` master, which `db/migrations_stage30_5_5_retire_stores.sql`
+// permanently retired into `Location` on 2026-08-02 - no shipped doctype has
+// used the module since, so the entry was stale and tripped the completeness
+// test's own stale-entry arm. Location carries Stores' four former fields and
+// sits under "Master Data", which is still covered here, so no role lost
+// access to anything by this removal.
 var knownModules = []string{
 	"CRM", "Core", "Finance", "HR", "Inbound", "Integrations", "Inventory",
 	"Manufacturing", "Master Data", "OMS", "PIM", "POS", "Procurement",
-	"Quality", "Reports", "Sales", "Service", "Store",
+	"Quality", "Reports", "Sales", "Service",
 }
 
 // RoleTemplates returns the templates in declaration order.

@@ -18,7 +18,7 @@ superseded_by: none
 # Developer setup and verification
 
 Use an isolated checkout and development database. Read the current
-[handover §6](../ai_handover.md#6-version-control--handover-status) for shared-tree state;
+[current handover state](../ai_handover.md#current-repository-state) for shared-tree state;
 this procedure contains stable steps without workstation credentials.
 
 1. Install the Go version required by `go.mod`, PostgreSQL 16-compatible tooling, Git and

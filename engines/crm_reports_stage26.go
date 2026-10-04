@@ -84,7 +84,7 @@ func GetRFMSegmentation(tenantID string) ([]RFMCustomerSegment, error) {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT data->>'customer_id' AS customer_id, MAX(created_at) AS last_txn,
+		SELECT data->>'customer_id' AS customer_id, MAX(created_at) AT TIME ZONE current_setting('TimeZone') AS last_txn,
 		       COUNT(*) AS frequency, COALESCE(SUM((data->>'amount_paid')::numeric), 0) AS monetary
 		FROM %s.documents
 		WHERE doctype = 'POSCart' AND status = 'Paid' AND COALESCE(data->>'customer_id', '') <> ''
@@ -203,7 +203,7 @@ func GetCustomer360(tenantID, customerID string) (*Customer360Profile, error) {
 
 	var lastPurchase sql.NullTime
 	if err := db.DB.QueryRow(fmt.Sprintf(`
-		SELECT COUNT(*), COALESCE(SUM((data->>'amount_paid')::numeric), 0), MAX(created_at)
+		SELECT COUNT(*), COALESCE(SUM((data->>'amount_paid')::numeric), 0), MAX(created_at) AT TIME ZONE current_setting('TimeZone')
 		FROM %s.documents WHERE doctype = 'POSCart' AND status = 'Paid' AND data->>'customer_id' = $1`, schema), customerID).
 		Scan(&profile.POSPurchaseCount, &profile.POSTotalSpend, &lastPurchase); err != nil {
 		return nil, err

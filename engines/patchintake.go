@@ -175,7 +175,7 @@ func intakeSchemaErrors(schema, tenantID string, since time.Time, rules []patchP
 	query := fmt.Sprintf(`
 		SELECT module_source, error_message
 		FROM %s.system_error_logs
-		WHERE created_at > $1 AND severity IN ('ERROR', 'PANIC')`, schema)
+		WHERE created_at > ($1::timestamptz AT TIME ZONE current_setting('TimeZone')) AND severity IN ('ERROR', 'PANIC')`, schema)
 	rows, err := db.DB.Query(query, since)
 	if err != nil {
 		return err

@@ -42,6 +42,22 @@ func readPublicAsset(t *testing.T, name string) string {
 	return string(body)
 }
 
+// BLD-041: lists every lazy-loaded view chunk's filename (public/view-*.js),
+// for checks that need to search wherever a given screen's code currently
+// lives rather than assuming it is still in app.js.
+func publicViewChunkNames(t *testing.T) []string {
+	t.Helper()
+	matches, err := filepath.Glob(filepath.Join("..", "..", "public", "view-*.js"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	names := make([]string, len(matches))
+	for i, m := range matches {
+		names[i] = filepath.Base(m)
+	}
+	return names
+}
+
 // --- contrast (WCAG 2.1 SC 1.4.3, carried forward into 2.2) ----------------
 
 type rgb struct{ r, g, b float64 }
@@ -310,7 +326,15 @@ func TestApplicationShellInputsAreLabelled(t *testing.T) {
 // six outcomes because an operator has to tell them apart without reading, and
 // collapsing any two of them back into a single "error" is the regression.
 func TestRFOutcomeVocabularyIsComplete(t *testing.T) {
+	// BLD-041: RF_OUTCOMES itself now lives in whichever lazy-loaded view
+	// module exports the RF screens (view-rf-traceability.js as of this
+	// writing), not necessarily app.js - search the shell plus every lazy
+	// view chunk rather than hardcoding one file, so a future chunk reshuffle
+	// doesn't silently defeat this check the way the app.js-only read did.
 	js := readPublicAsset(t, "app.js")
+	for _, chunk := range publicViewChunkNames(t) {
+		js += "\n" + readPublicAsset(t, chunk)
+	}
 	css := readPublicAsset(t, "styles.css")
 
 	for _, outcome := range []string{"ok", "duplicate", "wrong_item", "owner_mismatch", "hold", "error", "offline"} {

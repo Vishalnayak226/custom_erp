@@ -1,6 +1,6 @@
 {
   "generated_on": "2026-09-10",
-  "snapshot_sha256": "d8efb92702e82cf5fd61cb9b57b2e5c9ed107ae116352deacc2f20b0a0cb3393",
+  "snapshot_sha256": "c2367646ab6d5121e5fdfc40082f24c9c6ae9823c3b96d32a9d3023e12c9267b",
   "registry": {
     "schema_version": 1,
     "captured_on": "2026-09-09",
@@ -17248,6 +17248,7 @@
       "id": "budget-variance",
       "label": "Budget vs Actual",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "cost_center",
@@ -17295,6 +17296,7 @@
       "id": "dunning-queue",
       "label": "Dunning Queue",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "invoice_id",
@@ -17339,6 +17341,7 @@
       "id": "cash-flow-forecast",
       "label": "Cash Flow Forecast",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "date",
@@ -17381,6 +17384,7 @@
       "id": "campaign-roi",
       "label": "Campaign ROI",
       "category": "CRM",
+      "module_key": "crm_loyalty",
       "columns": [
         {
           "key": "campaign_id",
@@ -17420,6 +17424,7 @@
       "id": "inventory-valuation",
       "label": "Inventory Valuation",
       "category": "Inventory",
+      "module_key": "inventory",
       "columns": [
         {
           "key": "sku",
@@ -17454,6 +17459,7 @@
       "id": "customer-lifetime-value",
       "label": "Customer Lifetime Value",
       "category": "CRM",
+      "module_key": "crm_loyalty",
       "columns": [
         {
           "key": "customer_id",
@@ -17500,6 +17506,7 @@
       "id": "cohort-retention",
       "label": "Cohort Retention",
       "category": "CRM",
+      "module_key": "crm_loyalty",
       "columns": [
         {
           "key": "cohort_month",
@@ -17529,6 +17536,7 @@
       "id": "rfm-segmentation",
       "label": "RFM Customer Segmentation",
       "category": "CRM",
+      "module_key": "crm_loyalty",
       "columns": [
         {
           "key": "customer_id",
@@ -17578,6 +17586,7 @@
       "id": "points-liability",
       "label": "Loyalty Points Liability",
       "category": "CRM",
+      "module_key": "crm_loyalty",
       "columns": [
         {
           "key": "total_outstanding_points",
@@ -17602,6 +17611,7 @@
       "id": "customer-360",
       "label": "Customer 360",
       "category": "CRM",
+      "module_key": "crm_loyalty",
       "columns": [
         {
           "key": "customer_id",
@@ -17653,6 +17663,7 @@
       "id": "fx-open-item-exposure",
       "label": "Open FX Exposure",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "doctype",
@@ -17735,6 +17746,7 @@
       "id": "fx-gain-loss-register",
       "label": "FX Gain/Loss Register",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "posted_at",
@@ -17818,6 +17830,7 @@
       "id": "trial-balance-presentation-currency",
       "label": "Trial Balance in Presentation Currency",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "account_code",
@@ -17886,6 +17899,7 @@
       "id": "deferred-revenue-roll-forward",
       "label": "Deferred Revenue Roll-Forward",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "schedule_id",
@@ -17935,6 +17949,7 @@
       "id": "prepaid-expense-roll-forward",
       "label": "Prepaid Expense Roll-Forward",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "schedule_id",
@@ -17984,6 +17999,7 @@
       "id": "profit-and-loss",
       "label": "Profit \u0026 Loss",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "account_code",
@@ -18044,6 +18060,7 @@
       "id": "balance-sheet",
       "label": "Balance Sheet",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "account_code",
@@ -18098,6 +18115,7 @@
       "id": "cash-flow-statement",
       "label": "Cash Flow Statement",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "activity",
@@ -18140,6 +18158,7 @@
       "id": "gl-drilldown",
       "label": "GL Drill-down (by Account)",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "document_type",
@@ -18186,6 +18205,7 @@
       "id": "customer-ledger",
       "label": "Customer Ledger",
       "category": "Sales",
+      "module_key": "sales",
       "columns": [
         {
           "key": "id",
@@ -18232,6 +18252,7 @@
       "id": "tax-ledger",
       "label": "Tax Ledger",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "account_code",
@@ -18289,6 +18310,7 @@
       "id": "statutory-gl-export",
       "label": "Statutory Audit Export (Full GL)",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "posting_id",
@@ -18356,6 +18378,7 @@
       "id": "cost-center-pl",
       "label": "Cost Center P\u0026L",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "cost_center",
@@ -18393,6 +18416,7 @@
       "id": "department-pl",
       "label": "Department P\u0026L",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "department",
@@ -18430,6 +18454,7 @@
       "id": "help-article-feedback",
       "label": "Knowledge Center Feedback",
       "category": "Admin",
+      "module_key": "reports",
       "columns": [
         {
           "key": "article",
@@ -18469,6 +18494,7 @@
       "id": "entity-trial-balance",
       "label": "Entity Trial Balance",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "entity",
@@ -18521,6 +18547,7 @@
       "id": "intercompany-reconciliation",
       "label": "Intercompany Reconciliation",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "from_entity",
@@ -18572,6 +18599,7 @@
       "id": "consolidated-trial-balance",
       "label": "Consolidated Trial Balance",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "account_code",
@@ -18623,6 +18651,7 @@
       "id": "production_cost_variance",
       "label": "Production Cost Variance",
       "category": "Manufacturing",
+      "module_key": "manufacturing",
       "columns": [
         {
           "key": "order_id",
@@ -18672,6 +18701,7 @@
       "id": "competitor-price-gap",
       "label": "Competitor Price Gap",
       "category": "Sales",
+      "module_key": "sales",
       "columns": [
         {
           "key": "sku",
@@ -18768,6 +18798,7 @@
       "id": "oms-exception-queue",
       "label": "OMS Exception Queue",
       "category": "OMS",
+      "module_key": "oms",
       "columns": [
         {
           "key": "event_id",
@@ -18807,6 +18838,7 @@
       "id": "oms-reconciliation-variance",
       "label": "OMS Reconciliation Variance",
       "category": "OMS",
+      "module_key": "oms",
       "columns": [
         {
           "key": "order_id",
@@ -18841,6 +18873,7 @@
       "id": "order-aging",
       "label": "Order Aging",
       "category": "OMS",
+      "module_key": "oms",
       "columns": [
         {
           "key": "bucket",
@@ -18865,6 +18898,7 @@
       "id": "sla-breach",
       "label": "SLA Breach",
       "category": "OMS",
+      "module_key": "oms",
       "columns": [
         {
           "key": "task_id",
@@ -18911,6 +18945,7 @@
       "id": "allocation-pending",
       "label": "Allocation Pending",
       "category": "OMS",
+      "module_key": "oms",
       "columns": [
         {
           "key": "order_id",
@@ -18945,6 +18980,7 @@
       "id": "stock-mismatch",
       "label": "Stock Mismatch",
       "category": "OMS",
+      "module_key": "oms",
       "columns": [
         {
           "key": "sku",
@@ -19009,6 +19045,7 @@
       "id": "return-aging",
       "label": "Return Aging",
       "category": "OMS",
+      "module_key": "oms",
       "columns": [
         {
           "key": "bucket",
@@ -19028,6 +19065,7 @@
       "id": "reserved-stock",
       "label": "Reserved Stock",
       "category": "OMS",
+      "module_key": "oms",
       "columns": [
         {
           "key": "sku",
@@ -19067,6 +19105,7 @@
       "id": "courier-performance",
       "label": "Courier Performance",
       "category": "OMS",
+      "module_key": "oms",
       "columns": [
         {
           "key": "carrier",
@@ -19106,6 +19145,7 @@
       "id": "orphaned-channel-orders",
       "label": "Orphaned Channel Orders (pre-35.1 intake)",
       "category": "OMS",
+      "module_key": "oms",
       "columns": [
         {
           "key": "source",
@@ -19140,6 +19180,7 @@
       "id": "pim-product-group-readiness",
       "label": "PIM Product Group Readiness",
       "category": "PIM",
+      "module_key": "pim",
       "columns": [
         {
           "key": "item_code",
@@ -19186,6 +19227,7 @@
       "id": "pim-task-workload",
       "label": "PIM Task Workload by Assignee",
       "category": "PIM",
+      "module_key": "pim",
       "columns": [
         {
           "key": "assignee",
@@ -19225,6 +19267,7 @@
       "id": "pim-task-overdue",
       "label": "PIM Overdue Tasks",
       "category": "PIM",
+      "module_key": "pim",
       "columns": [
         {
           "key": "task_id",
@@ -19281,6 +19324,7 @@
       "id": "pim-workflow-stalled",
       "label": "PIM Stalled Workflow Runs",
       "category": "PIM",
+      "module_key": "pim",
       "columns": [
         {
           "key": "run_id",
@@ -19330,6 +19374,7 @@
       "id": "demand-forecast",
       "label": "Demand Forecast (Trend)",
       "category": "Inventory",
+      "module_key": "inventory",
       "columns": [
         {
           "key": "sku",
@@ -19373,6 +19418,7 @@
       "id": "reorder-suggestions",
       "label": "Reorder Suggestions (Configured)",
       "category": "Inventory",
+      "module_key": "inventory",
       "columns": [
         {
           "key": "sku",
@@ -19441,6 +19487,7 @@
       "id": "pegged-demand-supply",
       "label": "Pegged Demand \u0026 Supply",
       "category": "Inventory",
+      "module_key": "inventory",
       "columns": [
         {
           "key": "kind",
@@ -19488,6 +19535,7 @@
       "id": "production-capacity-schedule",
       "label": "Production Capacity Schedule",
       "category": "Manufacturing",
+      "module_key": "manufacturing",
       "columns": [
         {
           "key": "order_id",
@@ -19532,6 +19580,7 @@
       "id": "pos-sale-reconciliation",
       "label": "POS Sale Reconciliation",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "cart_number",
@@ -19624,6 +19673,7 @@
       "id": "project-pl",
       "label": "Project P\u0026L (Job Costing)",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "project",
@@ -19661,6 +19711,7 @@
       "id": "current-stock",
       "label": "Current Stock",
       "category": "Inventory",
+      "module_key": "inventory",
       "columns": [
         {
           "key": "sku",
@@ -19705,6 +19756,7 @@
       "id": "sales-register",
       "label": "Sales Register",
       "category": "Sales",
+      "module_key": "sales",
       "columns": [
         {
           "key": "cart_number",
@@ -19749,6 +19801,7 @@
       "id": "vendor-ledger",
       "label": "Vendor Ledger",
       "category": "Procurement",
+      "module_key": "procurement",
       "columns": [
         {
           "key": "id",
@@ -19795,6 +19848,7 @@
       "id": "payables-ageing",
       "label": "Payables Ageing",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "bucket",
@@ -19819,6 +19873,7 @@
       "id": "receivables-ageing",
       "label": "Receivables Ageing",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "bucket",
@@ -19843,6 +19898,7 @@
       "id": "gst-return-summary",
       "label": "GST Return Summary",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "start_date",
@@ -19925,6 +19981,7 @@
       "id": "grn-register",
       "label": "GRN Register",
       "category": "Procurement",
+      "module_key": "procurement",
       "columns": [
         {
           "key": "id",
@@ -19959,6 +20016,7 @@
       "id": "cash-book",
       "label": "Cash Book",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "created_at",
@@ -19998,6 +20056,7 @@
       "id": "bank-book",
       "label": "Bank Book",
       "category": "Finance",
+      "module_key": "finance",
       "columns": [
         {
           "key": "created_at",
@@ -20044,6 +20103,7 @@
       "id": "asset-register",
       "label": "Asset Register",
       "category": "Assets",
+      "module_key": "assets",
       "columns": [
         {
           "key": "id",
@@ -20098,6 +20158,7 @@
       "id": "loyalty-summary",
       "label": "Loyalty Ledger Summary",
       "category": "CRM",
+      "module_key": "crm_loyalty",
       "columns": [
         {
           "key": "customer_id",
@@ -20132,6 +20193,7 @@
       "id": "production-order-status",
       "label": "Production Order Status",
       "category": "Manufacturing",
+      "module_key": "manufacturing",
       "columns": [
         {
           "key": "id",
@@ -20171,6 +20233,7 @@
       "id": "rfq-comparison",
       "label": "RFQ Comparison Export",
       "category": "Procurement",
+      "module_key": "procurement",
       "columns": [
         {
           "key": "id",
@@ -20207,6 +20270,7 @@
       "id": "stock-ledger",
       "label": "Stock Ledger",
       "category": "Inventory",
+      "module_key": "inventory",
       "columns": [
         {
           "key": "created_at",
@@ -20307,6 +20371,7 @@
       "id": "exception-stale-approvals",
       "label": "Stale Approvals",
       "category": "Exceptions",
+      "module_key": "reports",
       "columns": [
         {
           "key": "doctype",
@@ -20343,6 +20408,7 @@
       "id": "exception-failed-syncs",
       "label": "Failed Syncs",
       "category": "Exceptions",
+      "module_key": "reports",
       "columns": [
         {
           "key": "id",
@@ -20372,6 +20438,7 @@
       "id": "attendance-summary",
       "label": "Attendance Summary",
       "category": "HR",
+      "module_key": "hr",
       "columns": [
         {
           "key": "employee_id",
@@ -20449,6 +20516,7 @@
       "id": "exception-negative-stock",
       "label": "Negative Stock Flags",
       "category": "Exceptions",
+      "module_key": "reports",
       "columns": [
         {
           "key": "id",
@@ -20493,6 +20561,7 @@
       "id": "report-performance",
       "label": "Report Performance",
       "category": "BI",
+      "module_key": "reports",
       "columns": [
         {
           "key": "report_id",
@@ -20545,6 +20614,7 @@
       "id": "serial-inquiry",
       "label": "Serial Number Inquiry",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "sku",
@@ -20614,6 +20684,7 @@
       "id": "serial-movement-history",
       "label": "Serial Movement History",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "moved_at",
@@ -20681,6 +20752,7 @@
       "id": "service-sla-breaches",
       "label": "Service SLA Breaches",
       "category": "Service",
+      "module_key": "service",
       "columns": [
         {
           "key": "ticket_id",
@@ -20720,6 +20792,7 @@
       "id": "oms-unsettled-settlements",
       "label": "Unsettled Marketplace Orders",
       "category": "OMS",
+      "module_key": "oms",
       "columns": [
         {
           "key": "order_id",
@@ -20754,6 +20827,7 @@
       "id": "oms-settlement-variance",
       "label": "Settlement Variance Queue",
       "category": "OMS",
+      "module_key": "oms",
       "columns": [
         {
           "key": "line_id",
@@ -20813,6 +20887,7 @@
       "id": "batch-near-expiry",
       "label": "Batch Near-Expiry Watchlist",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "sku",
@@ -20864,6 +20939,7 @@
       "id": "batch-stock-inquiry",
       "label": "Batch Stock Inquiry",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "sku",
@@ -20937,6 +21013,7 @@
       "id": "batch-movement-history",
       "label": "Batch Movement History (Recall)",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "moved_at",
@@ -21009,6 +21086,7 @@
       "id": "3pl-storage-billing",
       "label": "3PL Storage \u0026 Handling Billing",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "owner_id",
@@ -21087,6 +21165,7 @@
       "id": "cross-facility-stock",
       "label": "Cross-Facility Inventory Inquiry",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "sku",
@@ -21128,6 +21207,7 @@
       "id": "facility-rollup",
       "label": "Facility Roll-Up Inventory Inquiry",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "sku",
@@ -21169,6 +21249,7 @@
       "id": "labor-enterprise-productivity",
       "label": "Labour Enterprise Productivity",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "enterprise",
@@ -21216,6 +21297,7 @@
       "id": "labor-facility-performance",
       "label": "Labour Facility Performance",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "location",
@@ -21263,6 +21345,7 @@
       "id": "labor-task-productivity",
       "label": "Labour Task Productivity",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "task_type",
@@ -21310,6 +21393,7 @@
       "id": "labor-user-performance",
       "label": "Labour User Performance",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "user",
@@ -21357,6 +21441,7 @@
       "id": "labor-standards-audit",
       "label": "Labour Standards Audit",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "standard_code",
@@ -21396,6 +21481,7 @@
       "id": "labor-cost",
       "label": "Labour Cost",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "location",
@@ -21443,6 +21529,7 @@
       "id": "storage-billing-v2",
       "label": "3PL Storage Billing v2",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "rate_code",
@@ -21516,6 +21603,7 @@
       "id": "owner-stock-inquiry",
       "label": "Owner Stock Inquiry (3PL)",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "owner_id",
@@ -21574,6 +21662,7 @@
       "id": "labor-productivity",
       "label": "Labor Productivity",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "user_id",
@@ -21626,6 +21715,7 @@
       "id": "slotting-suggestions",
       "label": "Slotting / Re-Slotting Suggestions",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "sku",
@@ -21682,6 +21772,7 @@
       "id": "unslotting-suggestions",
       "label": "Unslotting Suggestions (discontinued items)",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "sku",
@@ -21728,6 +21819,7 @@
       "id": "consolidation-suggestions",
       "label": "Clean-Location Consolidation Suggestions",
       "category": "WMS",
+      "module_key": "wms",
       "columns": [
         {
           "key": "sku",

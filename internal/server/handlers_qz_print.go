@@ -95,17 +95,18 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		JobType        string         `json:"job_type"`
-		DocumentRef    string         `json:"document_ref"`
-		PrinterCode    string         `json:"printer_code"`
-		Copies         int            `json:"copies"`
-		SKUs           []string       `json:"skus"`
-		Reprint        string         `json:"reprint_reason"`
-		DataBase64     string         `json:"data_base64"`
-		DocFormat      string         `json:"doc_format"`
-		SourceDoctype  string         `json:"source_doctype"`
-		SourceDocID    string         `json:"source_doc_id"`
-		CopiesOverride map[string]int `json:"copies_override"`
+		JobType        string                         `json:"job_type"`
+		DocumentRef    string                         `json:"document_ref"`
+		PrinterCode    string                         `json:"printer_code"`
+		Copies         int                            `json:"copies"`
+		SKUs           []string                       `json:"skus"`
+		Reprint        string                         `json:"reprint_reason"`
+		DataBase64     string                         `json:"data_base64"`
+		DocFormat      string                         `json:"doc_format"`
+		SourceDoctype  string                         `json:"source_doctype"`
+		SourceDocID    string                         `json:"source_doc_id"`
+		CopiesOverride map[string]int                 `json:"copies_override"`
+		Lines          []engines.StickerLineSelection `json:"lines"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -144,11 +145,12 @@ func handleQZPrintPayload(w http.ResponseWriter, r *http.Request) {
 		var labels []engines.StickerLabel
 		var sErr error
 		if req.SourceDoctype != "" && req.SourceDocID != "" {
-			// Stage 52: bulk print from a GRN/Transfer Order - req.SKUs (if
-			// any) narrows the document's lines to just those SKUs, which is
-			// what makes "print the whole document" and "print one line"
-			// the same request shape.
-			labels, sErr = engines.PrintStickersForDocument(tenantID, req.SourceDoctype, req.SourceDocID, printer.Code, userID, req.Reprint, req.SKUs, req.CopiesOverride)
+			// Stage 52: bulk print from a GRN/Transfer Order - the selection
+			// (if any) narrows the document's lines, which is what makes
+			// "print the whole document" and "print one line" the same
+			// request shape. Resolved by the same stickerSelections helper
+			// the browser-fallback handler uses.
+			labels, sErr = engines.PrintStickersForDocument(tenantID, req.SourceDoctype, req.SourceDocID, printer.Code, userID, req.Reprint, stickerSelections(req.Lines, req.SKUs, req.CopiesOverride))
 		} else {
 			if len(req.SKUs) == 0 {
 				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'skus' is required for a sticker print")

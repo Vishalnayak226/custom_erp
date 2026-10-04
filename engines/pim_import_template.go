@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
@@ -282,12 +283,20 @@ func pimVariantParentPreflight(tenantID string, docRows []map[string]interface{}
 // screen (or a hook minted for one doctype) and have it silently import
 // into a different one.
 func RunPIMImportTemplate(tenantID, templateID string, r io.Reader, userID, role string, dryRun bool) (*ImportResult, error) {
+	return RunPIMImportTemplateContext(context.Background(), tenantID, templateID, r, userID, role, dryRun)
+}
+
+// RunPIMImportTemplateContext is the BLD-046 cancellation-aware form. It
+// shares readCSVRecordsContext and runDocDataImportContext with the plain
+// CSV path, so the templated upload gets the same two cancellation points
+// without a second implementation of either.
+func RunPIMImportTemplateContext(ctx context.Context, tenantID, templateID string, r io.Reader, userID, role string, dryRun bool) (*ImportResult, error) {
 	_, targetDoctype, mappings, err := fetchPIMImportTemplate(tenantID, templateID)
 	if err != nil {
 		return nil, err
 	}
 
-	records, err := readCSVRecords(r)
+	records, err := readCSVRecordsContext(ctx, tenantID, r)
 	if err != nil {
 		return nil, err
 	}
@@ -348,5 +357,5 @@ func RunPIMImportTemplate(tenantID, templateID string, r io.Reader, userID, role
 		}
 	}
 
-	return runDocDataImport(tenantID, targetDoctype, userID, role, dryRun, docRows, preErrors)
+	return runDocDataImportContext(ctx, tenantID, targetDoctype, userID, role, dryRun, docRows, preErrors)
 }

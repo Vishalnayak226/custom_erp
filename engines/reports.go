@@ -184,7 +184,7 @@ func GetPayablesAgeingReport(tenantID string) ([]PayablesAgeingBucket, error) {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT COALESCE((data->>'total_amount')::numeric, 0), created_at
+		SELECT COALESCE((data->>'total_amount')::numeric, 0), created_at AT TIME ZONE current_setting('TimeZone')
 		FROM %s.documents WHERE doctype = 'PurchaseOrder' AND status = 'Approved'`, schema))
 	if err != nil {
 		return nil, err
@@ -245,7 +245,7 @@ func GetReceivablesAgeingReport(tenantID string) ([]PayablesAgeingBucket, error)
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT COALESCE((data->>'total_amount')::numeric, 0), created_at, COALESCE(data->>'due_date', '')
+		SELECT COALESCE((data->>'total_amount')::numeric, 0), created_at AT TIME ZONE current_setting('TimeZone'), COALESCE(data->>'due_date', '')
 		FROM %s.documents WHERE doctype = 'SalesInvoice' AND status = 'Approved'`, schema))
 	if err != nil {
 		return nil, err
@@ -270,7 +270,7 @@ func GetReceivablesAgeingReport(tenantID string) ([]PayablesAgeingBucket, error)
 		}
 		ageFrom := createdAt
 		if dueDateStr != "" {
-			if parsed, perr := time.Parse("2006-01-02", dueDateStr); perr == nil {
+			if parsed, perr := time.ParseInLocation("2006-01-02", dueDateStr, time.Local); perr == nil {
 				ageFrom = parsed
 			}
 		}

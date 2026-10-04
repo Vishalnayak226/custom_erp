@@ -438,6 +438,11 @@ body {
   cursor: pointer;
   text-align: left;
   font-family: var(--font-family);
+  /* A <button> inherits the UA default button colour, not the page text
+     colour, so without this the username inside rendered pure black - fine
+     on white, but 1.35:1 against the dark-mode sidebar, i.e. unreadable.
+     .user-role escaped it only because it sets its own colour. */
+  color: var(--text-main);
   transition: background-color var(--transition-fast) ease;
 }
 
@@ -1151,6 +1156,16 @@ td {
   color: var(--text-main);
   vertical-align: middle;
   background-color: var(--panel-bg);
+  /* BLD-034/MC-083: table-layout stays auto (a fixed layout would force
+     every column to the same width regardless of content), so nothing
+     otherwise stops one long unbroken value - a long SKU, a URL, a CJK/
+     Arabic string with no spaces - from stretching its column arbitrarily
+     wide and squeezing every other column in the row down to near nothing.
+     max-width only caps growth (short content is unaffected); overflow-wrap
+     lets a value that hits the cap wrap instead of getting clipped by the
+     page container's overflow-x:hidden. */
+  max-width: 320px;
+  overflow-wrap: break-word;
 }
 
 tr:last-child td {
@@ -3685,7 +3700,28 @@ body.rf-shell #view-root {
   /* The status line is fixed to the bottom, so the body needs room under it. */
 }
 
-.rf-header { margin-bottom: 18px; }
+.rf-header { margin-bottom: 18px; position: relative; padding-right: 76px; }
+
+.rf-help-btn {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 60px;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 2px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--panel-bg);
+  color: var(--text-color);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.rf-help-btn:focus-visible {
+  outline: 3px solid var(--primary-color);
+  outline-offset: 2px;
+}
 
 .rf-title {
   font-size: 24px;
@@ -4034,4 +4070,72 @@ body.rf-shell #view-root {
 @media (max-height: 480px) and (max-width: 900px) {
   .app-header { position: static; }
   .page-header { margin-bottom: 8px; }
+}
+
+/* Release identity in the sidebar footer, under the profile chip.
+
+   The line itself is the bare version number and nothing else. It is a real
+   <button> (it opens the popup below) styled back down to plain text, so it
+   keeps keyboard focus and touch activation without looking like a control.
+
+   10px rather than the 11px of the role line above, so it recedes a step
+   further into the chrome. The colour deliberately stays on --text-muted and
+   is NOT lightened: #64748b on white is 4.76:1, already close to the 4.5:1
+   floor WCAG AA sets for body text at any size, so one step lighter would
+   fail. "Quieter" is bought with size here, never with contrast. */
+.app-version {
+  position: relative;
+  margin: 8px 8px 0;
+}
+
+.app-version-line {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: var(--font-family);
+  font-size: 10px;
+  line-height: 1.4;
+  letter-spacing: 0.01em;
+  color: var(--text-muted);
+  cursor: default;
+  text-align: left;
+}
+
+.app-version-line:hover,
+.app-version-line:focus-visible {
+  color: var(--text-main);
+}
+
+/* The popup. Deliberately tiny: two numeric lines, no labels, no heading, no
+   actions. It opens upward because this sits at the very bottom of the
+   sidebar, and is positioned relative to .app-version so it travels with the
+   line rather than needing measured coordinates. */
+.app-version-pop {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 6px;
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--panel-bg);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-family);
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: nowrap;
+}
+
+.app-version-pop-num {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.app-version-pop-date {
+  color: var(--text-muted);
 }

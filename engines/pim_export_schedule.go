@@ -75,8 +75,16 @@ func StartPIMExportScheduleWorker(ctx context.Context, interval time.Duration) {
 }
 
 func processPIMExportSchedules(schema string) {
+	// BLD-046: due-date filter moved into SQL alongside a new per-tick LIMIT
+	// (asyncReportWorkerBatchSize, report_export.go) - same fix shape as
+	// scheduled_reports.go/dashboard.go, so a LIMIT bounds actually-due
+	// schedules instead of an arbitrary slice of every Active one.
+	today := time.Now().Format("2006-01-02")
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, data FROM %s.documents WHERE doctype = 'PIMExportSchedule' AND status = 'Active' AND deleted_at IS NULL`, schema))
+		`SELECT id, data FROM %s.documents WHERE doctype = 'PIMExportSchedule' AND status = 'Active' AND deleted_at IS NULL
+		   AND data->>'next_run_date' IS NOT NULL AND data->>'next_run_date' != '' AND data->>'next_run_date' <= $1
+		 LIMIT $2`, schema),
+		today, asyncReportWorkerBatchSize)
 	if err != nil {
 		log.Printf("[PIM_EXPORT_SCHEDULE] query failed for %s: %v", schema, err)
 		return
@@ -86,7 +94,6 @@ func processPIMExportSchedules(schema string) {
 		data map[string]interface{}
 	}
 	var candidates []due
-	today := time.Now().Format("2006-01-02")
 	for rows.Next() {
 		var id, raw string
 		if sErr := rows.Scan(&id, &raw); sErr != nil {
@@ -96,9 +103,7 @@ func processPIMExportSchedules(schema string) {
 		if uErr := json.Unmarshal([]byte(raw), &data); uErr != nil {
 			continue
 		}
-		if nextRun := pimString(data["next_run_date"]); nextRun != "" && nextRun <= today {
-			candidates = append(candidates, due{id: id, data: data})
-		}
+		candidates = append(candidates, due{id: id, data: data})
 	}
 	rows.Close()
 	if len(candidates) == 0 {

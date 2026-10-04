@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "source_commit": "2c4bec64d238623cea222e5d11e8fda014abc66b",
-  "captured_on": "2026-09-11",
+  "source_commit": "afaf419d561fe7950276141ccc0bc0d9455ae9ef",
+  "captured_on": "2026-10-04",
   "scope": "working tree; provisional owners; not a release approval or pre-migration baseline",
   "documents": [
     {
@@ -19,7 +19,7 @@
       "review_by": "2026-10-09",
       "superseded_by": "none",
       "last_verified": "2026-09-09",
-      "last_commit": "9a35230 2026-09-11",
+      "last_commit": "c6fadc8 2026-09-11",
       "worktree_status": "clean",
       "bytes": 1648,
       "sha256": "54339cff0b8f1310218296e24fb584b7c349b2ff57f27bb4011a3ff77b7ab4e3",
@@ -56,10 +56,10 @@
       "authority": "source",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "9a35230 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 11162,
-      "sha256": "71f1501ff59bb680eb12f52e4f80ffde71003db6dea967c0b361b587cdb518ac",
+      "last_commit": "693a337 2026-09-27",
+      "worktree_status": "modified",
+      "bytes": 12455,
+      "sha256": "c8761b72802d4303f1279ecd9411aeacf3e4d86f59b1877d0c617a3ba5ddbc0c",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -80,9 +80,9 @@
       "superseded_by": "none",
       "last_verified": "2026-09-09",
       "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 8308,
-      "sha256": "1fa8d5727809f76807cf55cd011de13f2fcb1171aab2e41d27257a9e1840418b",
+      "worktree_status": "modified",
+      "bytes": 8374,
+      "sha256": "6c63d6527a7d7b61971ab6b0f2f94c179a01c88497e4a6786d2680fd3117c0f9",
       "inbound_links": [
         "docs/architecture/decisions/2026-09-07-existing-topology.md",
         "docs/brain/BRAIN.md"
@@ -106,6 +106,49 @@
       }
     },
     {
+      "path": "SECURITY.md",
+      "doc_id": "DOC-SECURITYMD001",
+      "title": "Security Policy",
+      "type": "reference",
+      "status": "draft",
+      "owner": "security-owner",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[maintainers, security-owner, external researchers]",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "review_by": "2026-10-13",
+      "superseded_by": "none",
+      "last_verified": "2026-09-13",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
+      "bytes": 5140,
+      "sha256": "a8362e0083104220fee4a1bc9a78b4ca80d0499a7fc3d7ad723ff702759b5f0e",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/security/README.md",
+        "docs/security/assurance-evidence-handling.md",
+        "docs/security/customer-security-pack.md",
+        "docs/security/vulnerability-disclosure-lifecycle.md"
+      ],
+      "metadata": {
+        "applies_to": "source release 0.1.0; configuration-specific acceptance required",
+        "approvers": "[documentation-maintainer, security-owner]",
+        "audience": "[maintainers, security-owner, external researchers]",
+        "authority": "proposed-policy",
+        "confidentiality": "internal",
+        "doc_id": "DOC-SECURITYMD001",
+        "last_verified": "2026-09-13",
+        "owner": "security-owner",
+        "review_by": "2026-10-13",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "Security Policy",
+        "type": "reference"
+      }
+    },
+    {
       "path": "cmd/brainmap/brain.tmpl.html",
       "title": "brain.tmpl.html",
       "type": "reference",
@@ -118,8 +161,8 @@
       "disposition": "keep",
       "last_commit": "c345b12 2026-08-01",
       "worktree_status": "clean",
-      "bytes": 26284,
-      "sha256": "407b4d6916995f0444f0c217d79a077ab18cca2473f1008a98f7ead49126b8d3",
+      "bytes": 25641,
+      "sha256": "0754ad2be001655b1606cac8c1a74b1fcad323b3d50a5a354bfde923e3bdfdbb",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -137,8 +180,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 39458,
-      "sha256": "e4c9261c13b19fe79a4e9c019ea3d796491d47babb70c59c14e8a66458195212",
+      "bytes": 38218,
+      "sha256": "8ab8a8e2f53b6582b9152424ef33dd07e1018c2ac09c96031f9fc18fca00d42e",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -154,10 +197,10 @@
       "authority": "source",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_commit": "693a337 2026-09-27",
       "worktree_status": "clean",
-      "bytes": 12103,
-      "sha256": "92922d76f77e3940676fa9f4888b76f2f990e0c2d35420851660b8c524a9ceee",
+      "bytes": 12813,
+      "sha256": "5c79103fc34b7338c5aba0ea3a71368a498d323e1d30711c436825c93b323df4",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -173,10 +216,10 @@
       "authority": "source",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_commit": "693a337 2026-09-27",
       "worktree_status": "clean",
-      "bytes": 3970,
-      "sha256": "2cbd34ea9033a1b01e2b2b697584b486d2f6b829e7b4a5e5f7d4d7878f04b08f",
+      "bytes": 5048,
+      "sha256": "4b69c874ba0a6ae2f4defd3159e9bcb7eedc83132a72d9b2142db3be46ea8b97",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -194,8 +237,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 6352,
-      "sha256": "e5a5aa041a2712d5aa996d381f60c6cce8c9eb444521fe9700d52a063dfe276c",
+      "bytes": 6146,
+      "sha256": "1f16c628b403ef724eae3026caa7773ec718799bbb9f7c851fd046a25f485470",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -213,8 +256,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 1123,
-      "sha256": "c499fbb91caf130b4a0bd39657748e7d8b3919b64719f9062896369308b24125",
+      "bytes": 1091,
+      "sha256": "43593804d1d9098cc8c4cf5ca55d8784d43a7fbb32e6168a24b54439118f0218",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -231,9 +274,9 @@
       "confidentiality": "internal",
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 23540,
-      "sha256": "b007753ea971ac1ddaf4ffbda510445e24b3b9ebdb7f9ddcc3abe4ebaa0a1bde",
+      "worktree_status": "modified",
+      "bytes": 23144,
+      "sha256": "1c29f7b092acfefcd63044c81c29cc11d94e31dab3610fb3cf44532d082b2fc9",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -250,9 +293,9 @@
       "confidentiality": "internal",
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 3073,
-      "sha256": "1ab50071143c944c1ea1c9c0a599144e5fc6952fa2767ef63b79c1619fe4dd1a",
+      "worktree_status": "modified",
+      "bytes": 6695,
+      "sha256": "31dc32c53bb43f3e5841704fc3901564fa92d22e812d6d777993e136a7f96d22",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -270,8 +313,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 11658,
-      "sha256": "3f6bd300eb9e17df17bf5808cb9ac25d93c2b30b06cc9eb9ed6a8db457aa0e4d",
+      "bytes": 11437,
+      "sha256": "3895a3c6c78b39a38c39b4a9790101fc3e3afe966a6d5a969ef181219e9f6521",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -289,8 +332,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 2767,
-      "sha256": "4a53169e5ee5ac2b9437ff5afc27ab1d2e988f718c5431e9ebfdbd062d702135",
+      "bytes": 2699,
+      "sha256": "85174f9119408d4d1b931e898ed5f91c7bd7c78ce795fe206b7cdbb6f7c6c27c",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -308,8 +351,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 12136,
-      "sha256": "355b815777edb3e99b4cac7d288ef30b25274a78f736cac34c20ec18d6aff4fe",
+      "bytes": 11867,
+      "sha256": "583000c7f9fd2906473e420b418105ac8fca66e8e5152431d2363c57ec59946e",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -327,8 +370,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 15396,
-      "sha256": "25830e33d1768760cf54a5e4e38d208a3e9f46d37c3dd6fd941c30748dbed4f1",
+      "bytes": 14963,
+      "sha256": "acafc6c0d40d804a58b6d093913e3cd6cd562bd1dbeda5b162c6655f6b3d60b0",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -346,8 +389,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 1576,
-      "sha256": "20a61b92c94cad20c8d366b5a26454a193c5c0beabe8df878bc754534404d47a",
+      "bytes": 1524,
+      "sha256": "e91f9b872e82e0c8a76b12a943765fb6dd8507ad7a82f78b17c90fa28a33953b",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -365,8 +408,8 @@
       "disposition": "keep",
       "last_commit": "4b7328a 2026-09-06",
       "worktree_status": "clean",
-      "bytes": 5071,
-      "sha256": "e4ae9f7ac3c40b704f839e163220bb1104e9a185afa74df985a81aea3b74ffbd",
+      "bytes": 4936,
+      "sha256": "a7edfa5781cd60efe67de4d8a04620f1a6d7b49b869a857ba90741b8e1126df2",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -384,8 +427,8 @@
       "disposition": "keep",
       "last_commit": "fed51b4 2026-09-07",
       "worktree_status": "clean",
-      "bytes": 1370,
-      "sha256": "2bd4f1ab10c27511976c40fbfbf46de1d83dc699899c71b18e8745b02805bfc6",
+      "bytes": 1333,
+      "sha256": "0ad879137aa6353837f7ed3d2e19fd688837361e139994eaf0eb01ba4c7c7b87",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -403,8 +446,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 4652,
-      "sha256": "cd50e416e8170c9f708ead76c512047b2f47730d0e6c9431a472eff3afdd055a",
+      "bytes": 4534,
+      "sha256": "1e3217b2570bc9325c58cddc489b42f636f2d0ad0f90a1e016372f45bed4f3c1",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -424,10 +467,10 @@
       "review_by": "2026-10-09",
       "superseded_by": "none",
       "last_verified": "2026-09-09",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_commit": "693a337 2026-09-27",
       "worktree_status": "clean",
-      "bytes": 10144,
-      "sha256": "1b0f80c1946a23ed73460cf0848b95358b71ab81c9398da8ec303b1db2d3c0cf",
+      "bytes": 21531,
+      "sha256": "650b6a62dd8425a9e4ad5e68ddd2418137845f3865a76f323ff93fc45623092a",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md",
@@ -594,9 +637,9 @@
       "superseded_by": "none",
       "last_verified": "2026-09-06",
       "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 7211,
-      "sha256": "48011f28afe50d351cfcbbe47fa6c4642826b377e88e19de7e1553a46c9e87a9",
+      "worktree_status": "modified",
+      "bytes": 7210,
+      "sha256": "c221d58f56506022d012034da2c33e64cdb3bc0b5b821df817a5bc798de539fd",
       "inbound_links": [
         "README.md",
         "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md",
@@ -652,13 +695,13 @@
       "authority": "canonical",
       "confidentiality": "internal",
       "disposition": "rebuild",
-      "review_by": "2026-10-10",
+      "review_by": "2026-10-18",
       "superseded_by": "none",
-      "last_verified": "2026-09-10",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_verified": "2026-10-04",
+      "last_commit": "8bed150 2026-09-27",
       "worktree_status": "modified",
-      "bytes": 44424,
-      "sha256": "1887da2bdc6c569ace34ef414a86dcb89d33073bb259f3b0185504dca54d1281",
+      "bytes": 16969,
+      "sha256": "513aa2c7c7c7ad7189df9cfbb163f627254a60e7e84c12da00d89f8c0b54109f",
       "inbound_links": [
         "README.md",
         "SECURITY.md",
@@ -680,12 +723,12 @@
         "authority": "canonical",
         "confidentiality": "internal",
         "doc_id": "DOC-HANDOVER",
-        "last_verified": "2026-09-10",
+        "last_verified": "2026-10-04",
         "owner": "engineering-owner",
-        "review_by": "2026-10-10",
+        "review_by": "2026-10-18",
         "status": "active",
         "superseded_by": "none",
-        "supersedes": "historical handover captured 2026-09-09",
+        "supersedes": "historical handover captured 2026-09-10",
         "title": "Current developer handover",
         "type": "reference"
       }
@@ -743,8 +786,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 18791,
-      "sha256": "b31bd7955d68675f1f764ba74acb70ecde88eca537601cb19586c3eead20755a",
+      "bytes": 18148,
+      "sha256": "c057c3671fcb70b854f4e7d361f2cca47c072944d7741a0764d063ebb1b146b6",
       "inbound_links": [
         "docs/README.md",
         "docs/api/overview.md",
@@ -768,8 +811,8 @@
       "last_verified": "2026-09-07",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 2369,
-      "sha256": "593c6c2e1a9fece9764cb64b61d042d56bb7e8a68a4b1056b046a75ddeeadff0",
+      "bytes": 2349,
+      "sha256": "a8357f684272f5f81588625e84351d82e8d797ee218747d994f56c0bff2df05d",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md"
@@ -835,7 +878,6 @@
       "sha256": "5aa2e42fc3f27b26cf38ed117597101c6b99c54a084675c368ee478ce9a5ae34",
       "inbound_links": [
         "docs/README.md",
-        "docs/ai_handover.md",
         "docs/architecture/data-and-runtime-views.md",
         "docs/architecture/decisions/2026-09-07-existing-topology.md",
         "docs/brain/BRAIN.md",
@@ -879,7 +921,6 @@
       "sha256": "5e17137cb5c9dcaf405f90e902267f4dc04c673a819067996b28176cf939cbcb",
       "inbound_links": [
         "docs/README.md",
-        "docs/ai_handover.md",
         "docs/brain/BRAIN.md"
       ],
       "metadata": {
@@ -960,7 +1001,6 @@
       "bytes": 5202,
       "sha256": "03e3afb1205df58691a7e49f02cd853598f587267322553d30417fdf96ea2b3b",
       "inbound_links": [
-        "docs/ai_handover.md",
         "docs/architecture/data-and-runtime-views.md",
         "docs/brain/BRAIN.md"
       ],
@@ -1039,10 +1079,49 @@
       "bytes": 499414,
       "sha256": "3a549031b1bbd98161a1e5b2f10de6974b2b52d5e003c22093f948ca64ad6741",
       "inbound_links": [
-        "docs/ai_handover.md",
         "docs/assurance/stage48-verification-2026-09-09.md",
         "docs/brain/BRAIN.md"
       ]
+    },
+    {
+      "path": "docs/archive/ai-handover-2026-10-03.txt",
+      "doc_id": "DOC-HANDOVER-ARCHIVE-20261003",
+      "title": "Archived developer handover (2026-10-03)",
+      "type": "record",
+      "status": "archived",
+      "owner": "engineering-owner",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[developers, maintainers]",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "review_by": "2026-10-10",
+      "superseded_by": "none",
+      "last_verified": "2026-09-10",
+      "last_commit": "uncommitted",
+      "worktree_status": "untracked",
+      "bytes": 145165,
+      "sha256": "dadd5ea97406402319fb5014506ed3cc5a463b9df3977a8db0e98e01f99ebfdf",
+      "inbound_links": [
+        "docs/ai_handover.md",
+        "docs/brain/BRAIN.md"
+      ],
+      "metadata": {
+        "applies_to": "shared development tree; verify state before editing",
+        "approvers": "[engineering-owner]",
+        "audience": "[developers, maintainers]",
+        "authority": "historical",
+        "confidentiality": "internal",
+        "doc_id": "DOC-HANDOVER-ARCHIVE-20261003",
+        "last_verified": "2026-09-10",
+        "owner": "engineering-owner",
+        "review_by": "2026-10-10",
+        "status": "archived",
+        "superseded_by": "none",
+        "supersedes": "historical handover captured 2026-09-09",
+        "title": "Archived developer handover (2026-10-03)",
+        "type": "record"
+      }
     },
     {
       "path": "docs/archive/micro_checklist_closed_stages.md",
@@ -1055,10 +1134,10 @@
       "authority": "historical",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "bd51fc4 2026-09-01",
-      "worktree_status": "clean",
-      "bytes": 209839,
-      "sha256": "50291c3e03110fd7a7bd92fc014e3d3688dbd5fa88f284e8963a5dacd9cfce71",
+      "last_commit": "8bed150 2026-09-27",
+      "worktree_status": "modified",
+      "bytes": 649546,
+      "sha256": "aa6ad48ac7471bad7a10f50af5e6310af72335ed1301d61a81393399674ba0e2",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/micro_checklist.md"
@@ -1099,13 +1178,14 @@
       "review_by": "2026-10-16",
       "superseded_by": "none",
       "last_verified": "2026-09-16",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
       "bytes": 20352,
       "sha256": "47325c7b19b64a3b1c6932ca413c61535fc745cfff68d89eecd6dfdc3fe4dd4e",
       "inbound_links": [
-        "docs/ai_handover.md",
+        "docs/brain/BRAIN.md",
         "docs/micro_checklist.md",
+        "docs/product/erp-build-checklist.md",
         "docs/product/erp-maturity-roadmap-2026-09-16.md",
         "docs/project_ledger.md",
         "docs/qa/erp-audit-reproduction.md",
@@ -1129,6 +1209,128 @@
       }
     },
     {
+      "path": "docs/assurance/erp-usability-observations-2026-10-04.json",
+      "title": "erp-usability-observations-2026-10-04.json",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "worktree_status": "untracked",
+      "bytes": 2438696,
+      "sha256": "7fadd3ff2d053ca50f459134e5c8f7d3e443487cf019aa89963664ed80304e1e",
+      "inbound_links": [
+        "docs/assurance/erp-usability-screen-register-2026-10-04.md",
+        "docs/brain/BRAIN.md",
+        "docs/product/erp-module-usability-plan-2026-10-04.md"
+      ]
+    },
+    {
+      "path": "docs/assurance/erp-usability-screen-register-2026-10-04.md",
+      "doc_id": "DOC-ASSURANCE-USABILITY-SCREENS-20261004",
+      "title": "ERP screen-by-screen usability observation register",
+      "type": "record",
+      "status": "draft",
+      "owner": "qa-owner",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[product, design, engineering, QA]",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "review_by": "2026-11-04",
+      "superseded_by": "none",
+      "last_verified": "2026-10-04",
+      "last_commit": "uncommitted",
+      "worktree_status": "untracked",
+      "bytes": 89843,
+      "sha256": "97d00c9e2d0251aabd7e1b380ef9ac29304814c15034184c25e07ca4190c84d5",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/micro_checklist.md",
+        "docs/product/erp-build-checklist.md",
+        "docs/product/erp-module-usability-plan-2026-10-04.md",
+        "docs/project_ledger.md"
+      ],
+      "metadata": {
+        "applies_to": "source release 0.1.0; browser audit on 2026-10-04",
+        "approvers": "[product-owner, engineering-owner]",
+        "audience": "[product, design, engineering, QA]",
+        "authority": "historical",
+        "confidentiality": "internal",
+        "doc_id": "DOC-ASSURANCE-USABILITY-SCREENS-20261004",
+        "last_verified": "2026-10-04",
+        "owner": "qa-owner",
+        "review_by": "2026-11-04",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "ERP screen-by-screen usability observation register",
+        "type": "record"
+      }
+    },
+    {
+      "path": "docs/assurance/release-budget-evidence-2026-10-04.md",
+      "doc_id": "DOC-ASSURANCE-RELEASE-BUDGET-20261004",
+      "title": "Release artifact and cost budget evidence, 4 October 2026",
+      "type": "record",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[engineering, operations, QA]",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "review_by": "2026-11-04",
+      "superseded_by": "none",
+      "last_verified": "2026-10-04",
+      "last_commit": "uncommitted",
+      "worktree_status": "untracked",
+      "bytes": 7638,
+      "sha256": "5572122c1fd1e6899d042357ad2392a09d99e2f6d8154f4f1c8b2f6dde8e9906",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ],
+      "metadata": {
+        "applies_to": "working tree at afaf419 plus the uncommitted Stage 50.14/BLD-048 batch",
+        "approvers": "[engineering-owner, operations-owner]",
+        "audience": "[engineering, operations, QA]",
+        "authority": "historical",
+        "confidentiality": "internal",
+        "doc_id": "DOC-ASSURANCE-RELEASE-BUDGET-20261004",
+        "last_verified": "2026-10-04",
+        "owner": "engineering-owner",
+        "review_by": "2026-11-04",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "Release artifact and cost budget evidence, 4 October 2026",
+        "type": "record"
+      }
+    },
+    {
+      "path": "docs/assurance/release-budget-report-2026-10-04.json",
+      "title": "release-budget-report-2026-10-04.json",
+      "type": "record",
+      "status": "archived",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "historical",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "worktree_status": "untracked",
+      "bytes": 2943,
+      "sha256": "3c5998410144218d5d3527d2c983efaf3356bac6cb3ced7b4a7f30bdf67cd9a5",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
       "path": "docs/assurance/stage48-baseline-2026-09-09.json",
       "title": "stage48-baseline-2026-09-09.json",
       "type": "record",
@@ -1144,7 +1346,6 @@
       "bytes": 134913,
       "sha256": "62846c158cb52d9ab9814aacd0d83de6ee960b9134a56a34afc82fe0cb43abb2",
       "inbound_links": [
-        "docs/ai_handover.md",
         "docs/assurance/stage48-verification-2026-09-09.md",
         "docs/brain/BRAIN.md",
         "docs/governance/migration-and-retention-register.md",
@@ -1164,8 +1365,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 3735,
-      "sha256": "fd1d76661399be60f721f41b055ce5db2c9b4c0e97d2f2f71945ec05be9634c7",
+      "bytes": 3618,
+      "sha256": "b4af67431bd23c64af8328dd456959ddcbb5b725932cfaa40683903ba341e4e6",
       "inbound_links": [
         "docs/assurance/stage48-verification-2026-09-09.md",
         "docs/brain/BRAIN.md"
@@ -1184,8 +1385,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 14857,
-      "sha256": "777ac4863a1bdbf7e861602e58e1d007c4b851260f5d4b259f0abeb5d39593d4",
+      "bytes": 14367,
+      "sha256": "d4884dbdb584225525def1ed291509fff4e70d8302f5f0236d1dd06fcd75aa1c",
       "inbound_links": [
         "docs/assurance/stage48-verification-2026-09-09.md",
         "docs/brain/BRAIN.md"
@@ -1208,8 +1409,8 @@
       "last_verified": "2026-09-09",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 6644,
-      "sha256": "28cf76b5243bffee7f47019cbb755d0f29632e290bb775bdcbc4e9d6787cbdbd",
+      "bytes": 6642,
+      "sha256": "e51ff01b03afc68d40f7b454275166390dec2138b528dbc54ecda4f1a5c93370",
       "inbound_links": [
         "docs/assurance/stage48-verification-2026-09-10.md",
         "docs/brain/BRAIN.md"
@@ -1252,7 +1453,6 @@
       "sha256": "c76867480d1d97aff2946d50e74602b024d7b097a4793be35cc299a85e98f25b",
       "inbound_links": [
         "docs/README.md",
-        "docs/ai_handover.md",
         "docs/brain/BRAIN.md",
         "docs/micro_checklist.md",
         "docs/project_ledger.md"
@@ -1287,8 +1487,8 @@
       "disposition": "archive",
       "last_commit": "0e79425 2026-09-04",
       "worktree_status": "clean",
-      "bytes": 52959,
-      "sha256": "150989f6eef68ac33f631fee0487efa41804600da6d12166525e4c8c5b67243f",
+      "bytes": 52159,
+      "sha256": "f5435e8fbec31124cc497e644155f21895394bb94439b87a42ae71351ed70fcf",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md",
@@ -1307,9 +1507,9 @@
       "confidentiality": "internal",
       "disposition": "archive",
       "last_commit": "0e79425 2026-09-04",
-      "worktree_status": "clean",
-      "bytes": 52048,
-      "sha256": "f46b6c15131d85d095ea8e888cb4929bb00ec133c6dd346e68938bed73d60098",
+      "worktree_status": "modified",
+      "bytes": 51800,
+      "sha256": "b4ad269b4c88b1774d1d7df7a11efc753f9b86f522b7b80f54c1db76ce1b4022",
       "inbound_links": [
         "docs/README.md",
         "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md",
@@ -1333,8 +1533,8 @@
       "disposition": "archive",
       "last_commit": "0e79425 2026-09-04",
       "worktree_status": "clean",
-      "bytes": 39467,
-      "sha256": "dd5e76ed691724a3826ab535ffcd37e3d120db04ed03b2823820c936ce1c741a",
+      "bytes": 38977,
+      "sha256": "cc6030c9de1849ff7853bfcc812e32a9fc69f6e2c0334dfa78c8eac3a39cc297",
       "inbound_links": [
         "docs/README.md",
         "docs/audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md",
@@ -1356,8 +1556,8 @@
       "disposition": "archive",
       "last_commit": "0e79425 2026-09-04",
       "worktree_status": "clean",
-      "bytes": 29040,
-      "sha256": "4aaece8c1b046944d2c8d44decfba540fe0481d9b5e1fce528bd70779f433777",
+      "bytes": 28891,
+      "sha256": "eaa1589d69a933b4fc0e07a3ed0f0462964200f5b41112139a03743284c4e9c8",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/micro_checklist.md"
@@ -1374,10 +1574,10 @@
       "authority": "projection",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 182642,
-      "sha256": "e0f6663102b32ea6e5bd27c20afae011f5bf47f1098a7e548620f28cdea86a45",
+      "last_commit": "8bed150 2026-09-27",
+      "worktree_status": "modified",
+      "bytes": 192402,
+      "sha256": "6de23e0e19d6b3b3996675d43f4f4c3187f926d937af5253f21d5df712dc9fbb",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/brain/README.md"
@@ -1404,7 +1604,6 @@
       "sha256": "6cdc1faa04f3a71ecf8a914634176594eba21206fa4126ce059de2fe0e0a939c",
       "inbound_links": [
         "docs/README.md",
-        "docs/ai_handover.md",
         "docs/brain/BRAIN.md"
       ],
       "metadata": {
@@ -1436,10 +1635,10 @@
       "authority": "projection",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 137015,
-      "sha256": "961eba1aefd5bb0be81eabb17bb79e90f3c7f9bb9f336eb7fa9918f04b8bca45",
+      "last_commit": "8bed150 2026-09-27",
+      "worktree_status": "modified",
+      "bytes": 143146,
+      "sha256": "63f75e4f69b81c2964816aaca2a54ef38f83afbb5db065d71e8b395a5f623c47",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/brain/README.md"
@@ -1456,10 +1655,10 @@
       "authority": "navigation",
       "confidentiality": "internal",
       "disposition": "rebuild",
-      "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 40928,
-      "sha256": "04084519f6f75fa0353e73a9dd1936a6d01ac174b8d4b9cb6ace05c21a5c60fc",
+      "last_commit": "8bed150 2026-09-27",
+      "worktree_status": "modified",
+      "bytes": 41654,
+      "sha256": "45d877de02a2a147fdc4e02fa1ec2950b366fd538d868a11fdb7f6c4f6170d7f",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/brain/README.md"
@@ -1478,8 +1677,8 @@
       "disposition": "rebuild",
       "last_commit": "4b7328a 2026-09-06",
       "worktree_status": "clean",
-      "bytes": 612,
-      "sha256": "564686b0aa1a7916cf23903074e6e54acd285466cabbd9277137d037d0a419dc",
+      "bytes": 597,
+      "sha256": "b99d63fdbbdddabe500c1c10a260c52f61cb9ca490bbf47a763357578e9e48a7",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/brain/README.md"
@@ -1498,8 +1697,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 1948,
-      "sha256": "cb1b804ffee65e08c35fd68092df9eee5f250492f72d8781a5eea7f43a768fb4",
+      "bytes": 1926,
+      "sha256": "ad0af93567d28e3e74fe6224ec88760612d4eb6c54119a2328143af9276a8e76",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/data/dictionary-workflow.md"
@@ -1564,8 +1763,8 @@
       "last_verified": "2026-09-09",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 3006,
-      "sha256": "84b52dfc96da441e4527d859d6aeaad3dd550b7a43916fe3644761b0470f69f7",
+      "bytes": 2947,
+      "sha256": "3f4624233b8cf63098dd4f0a2ccf2e7744c4840cdf68221880173214afdb87ff",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/data/generated/dictionary.md",
@@ -1599,10 +1798,10 @@
       "authority": "projection",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_commit": "c6fadc8 2026-09-11",
       "worktree_status": "clean",
       "bytes": 531439,
-      "sha256": "b33849417e546fe0843ae06fb71c9e8c669af62c78247ef8ebe7ebba8ceee147",
+      "sha256": "a8ff7aab406c505a5354290d786fc2d8cb2ad1adab9161c7c302f56ce594e4af",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/data/generated/dictionary.md"
@@ -1619,13 +1818,12 @@
       "authority": "projection",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_commit": "c6fadc8 2026-09-11",
       "worktree_status": "clean",
       "bytes": 31054,
-      "sha256": "908125c7686ddc77b561088938341d31cce73a69381782f9f5c2e85ebfd03e33",
+      "sha256": "9323cbeae656c10c1c0aa28e865a236f57022c2ff7dec4b442ebabdd9c649435",
       "inbound_links": [
         "docs/README.md",
-        "docs/ai_handover.md",
         "docs/architecture/data-and-runtime-views.md",
         "docs/brain/BRAIN.md",
         "docs/data/dictionary-workflow.md",
@@ -1727,8 +1925,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 379551,
-      "sha256": "d8efb92702e82cf5fd61cb9b57b2e5c9ed107ae116352deacc2f20b0a0cb3393",
+      "bytes": 362682,
+      "sha256": "c2367646ab6d5121e5fdfc40082f24c9c6ae9823c3b96d32a9d3023e12c9267b",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -1753,7 +1951,6 @@
       "bytes": 2359,
       "sha256": "21ca017e7047f16a11b4ba88130d2dbebd52e6223fedf8fb8234b7d2c3ac84ab",
       "inbound_links": [
-        "docs/ai_handover.md",
         "docs/brain/BRAIN.md",
         "docs/engineering/developer-setup.md"
       ],
@@ -1790,9 +1987,9 @@
       "superseded_by": "none",
       "last_verified": "2026-09-07",
       "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 2628,
-      "sha256": "917dfb5cac2192cf06e579447701ae58156c59cc766c1b548591b0fef2f0fb30",
+      "worktree_status": "modified",
+      "bytes": 2627,
+      "sha256": "320245baf288424c518f500d20625b1fdcfff641a083a935e0e916453f3de23f",
       "inbound_links": [
         "docs/README.md",
         "docs/ai_handover.md",
@@ -1867,10 +2064,10 @@
       "authority": "projection",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 1019,
-      "sha256": "2c3066cc2dfb3de8d0bdf8ca9d0384f3aa383e4d291ccdf5006fbf1009ab43de",
+      "last_commit": "8bed150 2026-09-27",
+      "worktree_status": "modified",
+      "bytes": 1018,
+      "sha256": "6d078ea91f9ebb2419369a2df159b7a74789699a831b22fc21c68e2d6539b210",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -1886,10 +2083,10 @@
       "authority": "projection",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_commit": "8bed150 2026-09-27",
       "worktree_status": "clean",
-      "bytes": 4853,
-      "sha256": "937ab2dbe63a7ed7059754529991a40df03a3971bc04021b964b69206af86f67",
+      "bytes": 5358,
+      "sha256": "cf9b0989ca00d112a1de5a3ee33cde23b318c712f32f1afb2350249dee6b06ec",
       "inbound_links": [
         "docs/ERP_BLUEPRINT.md",
         "docs/README.md",
@@ -1944,10 +2141,10 @@
       "authority": "projection",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_commit": "8bed150 2026-09-27",
       "worktree_status": "clean",
-      "bytes": 1021,
-      "sha256": "8be586f37d2b22d8f3421ad8595142382baa340b1c832986ba1d4af16a9042d3",
+      "bytes": 1020,
+      "sha256": "e8e9bc4ad6ca0272d094dac455399a3a14f6c55d852da752adb5904ac1c92532",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -1963,10 +2160,10 @@
       "authority": "projection",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_commit": "c6fadc8 2026-09-11",
       "worktree_status": "clean",
       "bytes": 4717,
-      "sha256": "0c499b3971dbd8c9aa84f9b34ce569459d71c11bc213e218f14c1e9949ffdf77",
+      "sha256": "9585d5e050dc2a2eb32e83b8ef3f1777b660b3cec12c86844ea407cb4f3e6023",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -1984,8 +2181,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 14761,
-      "sha256": "b62d1e617ac4f48027d0faab08cbdb29d5ec16eea894ecd9da383113d0d7da13",
+      "bytes": 14760,
+      "sha256": "8a913f63df7e074a6369967ad55af2028ae85c80d166599013921926213632bd",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -2003,8 +2200,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 1010,
-      "sha256": "c8dae40e86c17b83687a627420771223eb631d4e21c53987b6e886a12d8ca668",
+      "bytes": 1009,
+      "sha256": "1e4c4c6bb7be2125d708ddf93589b765ad70933c38719295aabf8ceb65a75cda",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -2022,8 +2219,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 45546,
-      "sha256": "b62a0c9850f9faf57bbb54d61a9d38d1fcf129f6d7dea42fa1387837ed11df06",
+      "bytes": 45249,
+      "sha256": "cddcd55602e8859e783b866839694e3186b44f438710f022c3d6aad86b7ea294",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md",
@@ -2201,7 +2398,7 @@
       "confidentiality": "internal",
       "disposition": "keep",
       "last_commit": "self-inventory",
-      "worktree_status": "clean",
+      "worktree_status": "modified",
       "bytes": 0,
       "inbound_links": [
         "docs/README.md",
@@ -2291,7 +2488,6 @@
       "sha256": "566da1504edb139f171b8ae753ddae3f8e6dfaf7c4d24bf05f1016e139f58247",
       "inbound_links": [
         "docs/README.md",
-        "docs/ai_handover.md",
         "docs/assurance/stage48-verification-2026-09-09.md",
         "docs/brain/BRAIN.md"
       ],
@@ -2353,7 +2549,6 @@
       "sha256": "44cdf99da10f3e1b03e665830a87ed44818876117a037a3c869a72c6519c1e1d",
       "inbound_links": [
         "docs/README.md",
-        "docs/ai_handover.md",
         "docs/brain/BRAIN.md",
         "docs/governance/migration-review.md"
       ],
@@ -2416,7 +2611,6 @@
       "sha256": "0e96eef3899c13a9ff3b55491964a38b6691b3845bb0b035e9f3114d79b36b27",
       "inbound_links": [
         "docs/README.md",
-        "docs/ai_handover.md",
         "docs/assurance/stage48-verification-2026-09-09.md",
         "docs/brain/BRAIN.md",
         "docs/governance/migration-and-retention-register.md",
@@ -2453,8 +2647,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 14712,
-      "sha256": "7f33ad14be063e1376d46c48fb7ae4fee2049d53dec3a272781847f013a36645",
+      "bytes": 14703,
+      "sha256": "703e8a5ed36f235d314f21cfae5d0b13f90dcc0a2abe803e6d77c82165005cd2",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/governance/documentation-standard.md"
@@ -2525,8 +2719,8 @@
       "last_verified": "2026-09-08",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 4241,
-      "sha256": "a2b17383ccab1bb82a13af39a4219ef43b4cd55b15eace8650dc9d72af951075",
+      "bytes": 4235,
+      "sha256": "c2de478686f95b3ce9a96f018f6f00ac9aac3584642a0e430aeea29404eadfd5",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/governance/documentation-standard.md",
@@ -2565,14 +2759,15 @@
       "superseded_by": "none",
       "last_verified": "2026-09-09",
       "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 64374,
-      "sha256": "040b81e922862905fb674d5eaa7cff9ebe00e30d2f7627598fe591527084b64d",
+      "worktree_status": "modified",
+      "bytes": 89852,
+      "sha256": "cc75a733479bdeb3d7a5fec576f09ff5930d825947424be70618ba6cbda78943",
       "inbound_links": [
         "README.md",
         "docs/brain/BRAIN.md",
         "docs/governance/migration-review.md",
         "docs/guides/ADMIN_SOP.md",
+        "docs/guides/QZ_PRINTING_SETUP.md",
         "docs/guides/UAT_CHECKLIST.md",
         "docs/guides/USER_SOP.md",
         "docs/requirements/BRD.md",
@@ -2655,8 +2850,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 59657,
-      "sha256": "32c9bc0433bd3d28d894de5282fed307df47fc358b70b7920e78b723661ce777",
+      "bytes": 59067,
+      "sha256": "2a5e0e24986b1195e430deae1f1320cfe3f6d05afa0c56a42b59ce028883fc38",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md",
@@ -2700,14 +2895,15 @@
       "review_by": "2026-10-09",
       "superseded_by": "none",
       "last_verified": "2026-09-09",
-      "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 11644,
-      "sha256": "0bfa3f316072d1e591bacc2342e8fb78f1f1f7d6a477cbbb022fdd7bebf56507",
+      "last_commit": "8bed150 2026-09-27",
+      "worktree_status": "modified",
+      "bytes": 15168,
+      "sha256": "99a12d621d434ad5d5809e122aa1c6d1b1127fa811212388f53d4d94cce09e59",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/guides/ADMIN_GUIDE.md",
-        "docs/guides/USER_GUIDE.md"
+        "docs/guides/USER_GUIDE.md",
+        "docs/security/human-operations-and-social-engineering.md"
       ],
       "metadata": {
         "applies_to": "source documentation; scoped release acceptance required",
@@ -2740,8 +2936,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 30617,
-      "sha256": "8e8ed0ce746c4d334bc36d45f9d148ed89266f5d7921c0632ad37b2ce8351e40",
+      "bytes": 29447,
+      "sha256": "a7b0daa168c7f1372ce0da40a62001c9a263561c774dddfe5d3c8369a5d6a9fd",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md",
@@ -2764,10 +2960,10 @@
       "review_by": "2026-10-09",
       "superseded_by": "none",
       "last_verified": "2026-09-09",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_commit": "8bed150 2026-09-27",
       "worktree_status": "clean",
-      "bytes": 38245,
-      "sha256": "1597104c96076c54eaa8ef6c7b2aaf8050e843b23db2594959ebb87573f09499",
+      "bytes": 39052,
+      "sha256": "f877750ba22696321cd89b07b34653963b23320f3200836a91429f510f5e27c7",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md",
@@ -2808,16 +3004,17 @@
       "review_by": "2026-10-09",
       "superseded_by": "none",
       "last_verified": "2026-09-09",
-      "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 69953,
-      "sha256": "5db837937c0594b71b56c0f567faee48bec29471f93f48d412392c938683a03a",
+      "last_commit": "8bed150 2026-09-27",
+      "worktree_status": "modified",
+      "bytes": 98236,
+      "sha256": "bca23b9066d6479bda74b3e6a6ed36ea8521f83147093354054e9a76cbfb3693",
       "inbound_links": [
         "README.md",
         "docs/brain/BRAIN.md",
         "docs/governance/migration-review.md",
         "docs/guides/ADMIN_GUIDE.md",
         "docs/guides/ERROR_CODES.md",
+        "docs/guides/QZ_PRINTING_SETUP.md",
         "docs/guides/UAT_CHECKLIST.md",
         "docs/guides/USER_SOP.md",
         "docs/requirements/BRD.md",
@@ -2856,10 +3053,10 @@
       "review_by": "2026-10-09",
       "superseded_by": "none",
       "last_verified": "2026-09-09",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_commit": "8bed150 2026-09-27",
       "worktree_status": "clean",
-      "bytes": 52610,
-      "sha256": "970b5aab316150983d052b9efe43fbfeeb068458e7a0f235da8f028c26e4f365",
+      "bytes": 53364,
+      "sha256": "907a7bb0432920949f35832771346b32976dbc8f1dc7984db463296cc717cba6",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md",
@@ -2899,8 +3096,8 @@
       "disposition": "rebuild",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 13056,
-      "sha256": "d8987592795934494b5ef07145d88f643c7d1892828e239d8586eed8fbdd680a",
+      "bytes": 12893,
+      "sha256": "8bf48166e7f9d1c8afe3f98bc9eae571a4df20ca6141657e2bb4a2d710f298bd",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/governance/screenshot-capture.md"
@@ -2919,8 +3116,8 @@
       "disposition": "rebuild",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 5965,
-      "sha256": "c3c022792d6af1bb0e1149c9ebf1edfb46ffdfad569b304e9d69b9193f42e2c7",
+      "bytes": 5887,
+      "sha256": "db62ba7fe46435fb819664c94842d7e177a4afae180844d0514619e2da06957d",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -2942,8 +3139,8 @@
       "last_verified": "2026-09-09",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 2975,
-      "sha256": "218847ca7c41d1cc7a8fad77d4981698dec34453efaf39dca53436f9c8aeeaaf",
+      "bytes": 2968,
+      "sha256": "7071cbfdcf006a9b375b0e5969969532526947c6c3d79289f6cab5858ca5d6d6",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ],
@@ -3248,8 +3445,8 @@
       "disposition": "rebuild",
       "last_commit": "4b7328a 2026-09-06",
       "worktree_status": "clean",
-      "bytes": 217,
-      "sha256": "307d4648ca19692b123c44e7790949473301e842c5686f174a8ae7ce900a71e9",
+      "bytes": 213,
+      "sha256": "bbca9f12b2bdb22e480f010080f684adba06fee0f27256154cadfb88c23ddc14",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -3492,11 +3689,11 @@
       "disposition": "rebuild",
       "review_by": "2026-10-09",
       "superseded_by": "none",
-      "last_verified": "2026-08-17",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_verified": "2026-09-24",
+      "last_commit": "8bed150 2026-09-27",
       "worktree_status": "clean",
-      "bytes": 6067,
-      "sha256": "20ccc01e4fd582e318337d0add5f6cb9c70c76e838ed7b3ac6f2f9ee33abfd4c",
+      "bytes": 6349,
+      "sha256": "60bb122434fd85123fe8ed115a83cd1a5e64c2e9b9b5c2f5ce14811999b830ee",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/generated/requirements-traceability.md",
@@ -3509,16 +3706,16 @@
         "authority": "canonical",
         "confidentiality": "internal",
         "doc_id": "DOC-D4BCCBCC10",
-        "last_verified": "2026-08-17",
+        "last_verified": "2026-09-24",
         "module": "platform",
         "order": "3",
         "owner": "documentation-maintainer",
         "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
         "review_by": "2026-10-09",
-        "screens": "[reports, doctype-table, inventory]",
+        "screens": "[home, reports, doctype-table, inventory]",
         "section": "Getting Started",
         "status": "draft",
-        "summary": "The sidebar's eleven entries, the two search boxes that do different things, and the shape every list screen shares.",
+        "summary": "The sidebar's twelve entries, the two search boxes that do different things, and the shape every list screen shares.",
         "superseded_by": "none",
         "supersedes": "none",
         "task": "Finding your way around",
@@ -4093,8 +4290,8 @@
       "last_verified": "2026-09-03",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 12194,
-      "sha256": "9550f8baafaafbb050c3afb960d7f642e6392dcf416f35714cb0f8ac0ac20a85",
+      "bytes": 12189,
+      "sha256": "c6034a049aa88953691b90bbd27327f8e1ef217a558d4f9f4d103892abc0ef9e",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/generated/requirements-traceability.md",
@@ -4193,8 +4390,8 @@
       "last_verified": "2026-09-03",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 30076,
-      "sha256": "44139340b7ce821b58c83ffa990bc665aa84fc1672b78c55fa006dcacb0b9c76",
+      "bytes": 30072,
+      "sha256": "d50f614fcdf9449b13a6ad592a5467d645afeec916e118d037165166a1253089",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/generated/requirements-traceability.md"
@@ -4590,9 +4787,9 @@
       "superseded_by": "none",
       "last_verified": "2026-09-03",
       "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 26693,
-      "sha256": "ce51a2972d19dd10e0452c91caaa9cec18cc1e07851d65c2fd475d3de68f6f75",
+      "worktree_status": "modified",
+      "bytes": 26715,
+      "sha256": "9a74df63109234441bf9ed8f10654f8aa5c4ef21e0b5b06498cb82e1e77140f9",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/generated/requirements-traceability.md",
@@ -4611,7 +4808,7 @@
         "owner": "documentation-maintainer",
         "prerequisites": "Signed-in account with permission for the described task; observe the article prerequisites",
         "review_by": "2026-10-09",
-        "screens": "[purchase-orders, grn, rfq, doctype-table, vendor-invoices, reports, approvals, configuration]",
+        "screens": "[purchase-orders, purchase-requisitions, grn, rfq, doctype-table, vendor-invoices, reports, approvals, configuration]",
         "section": "Module Handbooks",
         "status": "draft",
         "summary": "Turn a need into stock on the shelf — raise a requisition, shop it round vendors with an optional RFQ, commit to a fully tax-classified Purchase Order, and post the Goods Receipt that actually moves the stock.",
@@ -4992,8 +5189,8 @@
       "last_verified": "2026-09-10",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 5924,
-      "sha256": "30731a3b1b21e80f0678235a19cb7960fd8eba9e1df8b2ef41d57f7d7251788b",
+      "bytes": 5801,
+      "sha256": "d5e86eed701fca706e6cd2270a2c6486d4be7a80084a5a29cce2644d7a5474ef",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/kb/role-journeys/journey-admin.md",
@@ -5225,8 +5422,8 @@
       "last_verified": "2026-09-10",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 44698,
-      "sha256": "afb005d8146f661f1fe7717494bd78d3ab5ad707d0487367c56c806609f5083f",
+      "bytes": 44279,
+      "sha256": "8d96f3ef8ccddfcc680ea129bf6d7105816c54257dbdeaed3a08063ca1f1b6b3",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ],
@@ -5260,8 +5457,8 @@
       "last_verified": "2026-09-10",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 30831,
-      "sha256": "7c679df23c5430e1a96aba53cad78308e46084885c2a421eb549047c8f584e59",
+      "bytes": 29663,
+      "sha256": "2deeb93571e8ee33d90db46e89608472ec1b0b997a08eb5aa0f604a86a9b95dd",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/generated/requirements-traceability.md",
@@ -5652,8 +5849,8 @@
       "last_verified": "2026-09-10",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 59698,
-      "sha256": "46f02ddd422345886b1a0bde16c35f3dbc585d059451f820da9c8ba6ddd04b0f",
+      "bytes": 59098,
+      "sha256": "06bee1346ae1edbfd0d58b567923d91e40139158c4226687904975800d055620",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/kb/role-journeys/journey-admin.md",
@@ -5795,8 +5992,8 @@
       "disposition": "rebuild",
       "last_commit": "4b7328a 2026-09-06",
       "worktree_status": "clean",
-      "bytes": 212,
-      "sha256": "837ebedf9c6a01bafaf1fbd955713dc50334733ba008f6981ced834b10db01e6",
+      "bytes": 208,
+      "sha256": "45aa8a182f153292503f3f543fca0e154095abad8fe65f44e1bea497c1343df7",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -5898,10 +6095,10 @@
       "review_by": "2026-10-09",
       "superseded_by": "none",
       "last_verified": "2026-09-09",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_commit": "8bed150 2026-09-27",
       "worktree_status": "modified",
-      "bytes": 616358,
-      "sha256": "3e93834368ac990d465261e5cce2ba37eaea060eb9d78a190e1b4877ae31b01b",
+      "bytes": 315552,
+      "sha256": "6b678b6f4f46f3a44c1e8697bd34e60bb14300d97ef2a9a78610f994f37c6b10",
       "inbound_links": [
         "README.md",
         "docs/README.md",
@@ -6059,8 +6256,8 @@
       "last_verified": "2026-09-09",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 49964,
-      "sha256": "0cc65cc9d6f2b8b0f03e05cef4a2534052ac306d964aab03c25bbcd41b2e981e",
+      "bytes": 49960,
+      "sha256": "91e0e8a3a2c6563a5577d648e1effddcf610bcc192ec685befa91b97a0ece395",
       "inbound_links": [
         "deploy/README.md",
         "docs/README.md",
@@ -6259,9 +6456,9 @@
       "superseded_by": "none",
       "last_verified": "2026-09-09",
       "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 9891,
-      "sha256": "97766b60aa14f3efc3f53a2e24e21924401709398116863c6fb88f319fea9e0b",
+      "worktree_status": "modified",
+      "bytes": 10122,
+      "sha256": "f892518cea891b1bced325d0a1d1ecfc523270bfa31f62fcd94fb87e2fc9a801",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/operations/go_live_decisions.md"
@@ -6297,8 +6494,8 @@
       "disposition": "archive",
       "last_commit": "a410c42 2026-08-08",
       "worktree_status": "clean",
-      "bytes": 11456,
-      "sha256": "86d787e79c6c190472e007b3d3f4e53736b38fb7eeaa107f7bb043064483b9c7",
+      "bytes": 11368,
+      "sha256": "a2316ea8a3f92bcd3ad7fbf79ede98736c86fd34f46ef3de1fb132480eb04d41",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md",
@@ -6415,7 +6612,6 @@
       "sha256": "5cc6d6808439a927b7961d8cc3c2f27431ea9fd9b37f994c98e08961a1e57899",
       "inbound_links": [
         "docs/README.md",
-        "docs/ai_handover.md",
         "docs/brain/BRAIN.md",
         "docs/product/releases/0.1.0-development.md"
       ],
@@ -6437,6 +6633,47 @@
       }
     },
     {
+      "path": "docs/product/bld-002-test-configuration-inventory.md",
+      "doc_id": "DOC-PRODUCT-BLD-002-INVENTORY",
+      "title": "BLD-002 reference-configuration inventory (READY half)",
+      "type": "reference",
+      "status": "draft",
+      "owner": "product-owner",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[product, engineering, QA]",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "review_by": "2026-10-18",
+      "superseded_by": "none",
+      "last_verified": "2026-09-18",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
+      "bytes": 19046,
+      "sha256": "1e7a056a21438db26cac9d5c7912b86bd741bbe7146c9dd6fff3506a50cde90b",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/product/erp-build-checklist.md",
+        "docs/project_ledger.md"
+      ],
+      "metadata": {
+        "applies_to": "docs/product/erp-build-checklist.md BLD-002",
+        "approvers": "[product-owner, qa-owner]",
+        "audience": "[product, engineering, QA]",
+        "authority": "source",
+        "confidentiality": "internal",
+        "doc_id": "DOC-PRODUCT-BLD-002-INVENTORY",
+        "last_verified": "2026-09-18",
+        "owner": "product-owner",
+        "review_by": "2026-10-18",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "BLD-002 reference-configuration inventory (READY half)",
+        "type": "reference"
+      }
+    },
+    {
       "path": "docs/product/capability-register.json",
       "title": "capability-register.json",
       "type": "normative",
@@ -6447,12 +6684,13 @@
       "authority": "canonical",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_commit": "8bed150 2026-09-27",
       "worktree_status": "clean",
-      "bytes": 30023,
-      "sha256": "46a4f648a23535a40ab833e7d8cbefc8c9ac9da179117607634db171b95a7c34",
+      "bytes": 30958,
+      "sha256": "1d02a4b185f0532d76345b7975d5d203f4b96e8fade7cd330384ca7f3bd0c3e0",
       "inbound_links": [
         "docs/brain/BRAIN.md",
+        "docs/product/erp-maturity-roadmap-2026-09-16.md",
         "docs/product/roadmap.md",
         "docs/requirements/control-requirements.md"
       ]
@@ -6472,13 +6710,15 @@
       "review_by": "2026-10-17",
       "superseded_by": "none",
       "last_verified": "2026-09-17",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
-      "bytes": 58124,
-      "sha256": "f2a25fd092826c4a736c3eda14d28caf9511c246236caf84dd9859378c1a618a",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "modified",
+      "bytes": 178003,
+      "sha256": "dc8b1778ab34dbf691cb1169d76262485500dfdd8620ae862ce2566150ad5679",
       "inbound_links": [
         "docs/ai_handover.md",
+        "docs/brain/BRAIN.md",
         "docs/micro_checklist.md",
+        "docs/product/bld-002-test-configuration-inventory.md",
         "docs/product/erp-maturity-roadmap-2026-09-16.md",
         "docs/product/roadmap.md",
         "docs/project_ledger.md",
@@ -6491,6 +6731,7 @@
         "authority": "source",
         "confidentiality": "internal",
         "doc_id": "DOC-PRODUCT-ERP-BUILD-CHECKLIST",
+        "format": "work-register",
         "last_verified": "2026-09-17",
         "owner": "engineering-owner",
         "review_by": "2026-10-17",
@@ -6517,13 +6758,13 @@
       "review_by": "2026-10-16",
       "superseded_by": "none",
       "last_verified": "2026-09-16",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
       "bytes": 17890,
       "sha256": "8b5e3970cb8d37bf78299f3ef52413ccb3a93705333fde9ba39f13584b5d8298",
       "inbound_links": [
-        "docs/ai_handover.md",
         "docs/assurance/erp-independent-audit-2026-09-16.md",
+        "docs/brain/BRAIN.md",
         "docs/micro_checklist.md",
         "docs/product/erp-build-checklist.md",
         "docs/project_ledger.md",
@@ -6547,6 +6788,51 @@
       }
     },
     {
+      "path": "docs/product/erp-module-usability-plan-2026-10-04.md",
+      "doc_id": "DOC-PRODUCT-MODULE-USABILITY-20261004",
+      "title": "Every-module usability audit and phased improvement plan",
+      "type": "reference",
+      "status": "draft",
+      "owner": "engineering-owner",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[product, design, engineering, QA, implementation]",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "review_by": "2026-11-04",
+      "superseded_by": "none",
+      "last_verified": "2026-10-04",
+      "last_commit": "uncommitted",
+      "worktree_status": "untracked",
+      "bytes": 35919,
+      "sha256": "038a520a9c683ec65185ad488519e89859701e585417103cb2e33d99e6df9213",
+      "inbound_links": [
+        "docs/assurance/erp-usability-screen-register-2026-10-04.md",
+        "docs/brain/BRAIN.md",
+        "docs/micro_checklist.md",
+        "docs/product/erp-build-checklist.md",
+        "docs/project_ledger.md"
+      ],
+      "metadata": {
+        "applies_to": "source release 0.1.0; shared uncommitted tree reviewed on 2026-10-04",
+        "approvers": "[product-owner, qa-owner]",
+        "audience": "[product, design, engineering, QA, implementation]",
+        "authority": "proposed-policy",
+        "confidentiality": "internal",
+        "doc_id": "DOC-PRODUCT-MODULE-USABILITY-20261004",
+        "format": "work-register",
+        "last_verified": "2026-10-04",
+        "owner": "engineering-owner",
+        "review_by": "2026-11-04",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "Every-module usability audit and phased improvement plan",
+        "type": "reference",
+        "verification_scope": "browser inspection and implementation planning, not business acceptance or certification"
+      }
+    },
+    {
       "path": "docs/product/releases/0.1.0-development.md",
       "doc_id": "REL-0-1-0-DEV",
       "title": "Development release review notes",
@@ -6563,8 +6849,8 @@
       "last_verified": "2026-09-09",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 2916,
-      "sha256": "7f0ca7cac73c3db68e6af8467b73ef05bae9de450507524090c9e8e5990e7c74",
+      "bytes": 2858,
+      "sha256": "8bd4e9aefa13a714870c43c7e0fe0fd86a8a109d3b1c81700b4921aeb728e736",
       "inbound_links": [
         "docs/api/overview.md",
         "docs/brain/BRAIN.md"
@@ -6601,8 +6887,8 @@
       "review_by": "2026-10-07",
       "superseded_by": "none",
       "last_verified": "2026-09-07",
-      "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "modified",
+      "last_commit": "8bed150 2026-09-27",
+      "worktree_status": "clean",
       "bytes": 2318,
       "sha256": "886154e0f04883794a640e26d307d7a1d246647727e49c54f2ec5af9a2c0aa5d",
       "inbound_links": [
@@ -6695,10 +6981,10 @@
       "authority": "historical",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "7f5fadf 2026-09-11",
+      "last_commit": "8bed150 2026-09-27",
       "worktree_status": "modified",
-      "bytes": 405918,
-      "sha256": "1922b20537b6505452d2106ff3850c58d7bb876c9b6da07712103a6d94a9d63e",
+      "bytes": 672738,
+      "sha256": "1134be01872cd137ce6a01e23dbba5488af4ab12b857546cef1086091463b49d",
       "inbound_links": [
         "README.md",
         "docs/README.md",
@@ -6720,11 +7006,13 @@
       "authority": "canonical",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
       "bytes": 6720,
       "sha256": "f3488011907d30ea9daba7aa6d8d476268a9f4e9d4e40f75f19e5a4bee35d7c4",
-      "inbound_links": []
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
     },
     {
       "path": "docs/qa/audit-deploy-mock.py",
@@ -6737,11 +7025,13 @@
       "authority": "canonical",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
-      "bytes": 3883,
-      "sha256": "2e765911fff23f8126dd658e670b7d067a504794c69c8f5c529d167f9bbe9548",
-      "inbound_links": []
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
+      "bytes": 6897,
+      "sha256": "5a458809aaea8174f72a6183b2d30a9c1fa313013b95452b0dd9364b50848e8b",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
     },
     {
       "path": "docs/qa/audit-http.py",
@@ -6754,11 +7044,13 @@
       "authority": "canonical",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
       "bytes": 4824,
       "sha256": "f119b1cea40e8173556f1f305624f2085c2fccb40b7b62f2016f47f800c03da0",
-      "inbound_links": []
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
     },
     {
       "path": "docs/qa/audit-restore.py",
@@ -6771,11 +7063,13 @@
       "authority": "canonical",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
       "bytes": 3539,
       "sha256": "03d10506c60ca64b93d16d092817e160011fd0d5f71ef4494a3202b9faed1ad1",
-      "inbound_links": []
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
     },
     {
       "path": "docs/qa/audit-ui-tasks.cjs",
@@ -6788,11 +7082,70 @@
       "authority": "canonical",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
       "bytes": 4273,
       "sha256": "fb4aea661157f89284c365c5628b1b17b5298cbf4bbd355bd26f11909ef02205",
-      "inbound_links": []
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/qa/bld041-lazy-view-audit.cjs",
+      "title": "bld041-lazy-view-audit.cjs",
+      "type": "reference",
+      "status": "draft",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "worktree_status": "untracked",
+      "bytes": 20034,
+      "sha256": "a596cae2de7e3abd5bd913af65826b5979ee51a75fd7fccfcd6fdb07321aa177",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/qa/browser-xss-action-boundary.cjs",
+      "title": "browser-xss-action-boundary.cjs",
+      "type": "reference",
+      "status": "draft",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "worktree_status": "untracked",
+      "bytes": 12169,
+      "sha256": "56aa6d4a1d20564b6812d3eae852a7e133db3ab98a336e3fa8414b16dcc94b33",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/qa/browser-xss-boundary.cjs",
+      "title": "browser-xss-boundary.cjs",
+      "type": "reference",
+      "status": "draft",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "worktree_status": "untracked",
+      "bytes": 9619,
+      "sha256": "af7c9fc3c7a93aba9acb6977f9ea96302576180c95b3f7ef7a70d3b22ea25b5e",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
     },
     {
       "path": "docs/qa/control-and-device-matrix.md",
@@ -6845,12 +7198,13 @@
       "authority": "canonical",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
       "bytes": 90145,
       "sha256": "5e25dc4458f42cebf7ddbddacee327833896fb5fc0016fb8da4c45ab3180ac79",
       "inbound_links": [
         "docs/assurance/erp-independent-audit-2026-09-16.md",
+        "docs/brain/BRAIN.md",
         "docs/micro_checklist.md",
         "docs/qa/erp-audit-reproduction.md",
         "docs/qa/erp-maturity-checklist.md"
@@ -6871,12 +7225,13 @@
       "review_by": "2026-10-16",
       "superseded_by": "none",
       "last_verified": "2026-09-16",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
       "bytes": 7818,
       "sha256": "de1a25078a775fbc5f74c61624cc3119da8ba415b39973fe18f648970965e964",
       "inbound_links": [
         "docs/assurance/erp-independent-audit-2026-09-16.md",
+        "docs/brain/BRAIN.md",
         "docs/micro_checklist.md",
         "docs/qa/erp-maturity-checklist.md"
       ],
@@ -6912,13 +7267,13 @@
       "review_by": "2026-10-16",
       "superseded_by": "none",
       "last_verified": "2026-09-16",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
       "bytes": 25305,
       "sha256": "b1d154cdb801ca6b99f774430924c186bc17562e07b1945238ff95b93857c136",
       "inbound_links": [
-        "docs/ai_handover.md",
         "docs/assurance/erp-independent-audit-2026-09-16.md",
+        "docs/brain/BRAIN.md",
         "docs/micro_checklist.md",
         "docs/product/erp-build-checklist.md",
         "docs/project_ledger.md"
@@ -6941,6 +7296,25 @@
       }
     },
     {
+      "path": "docs/qa/module-manifest-ui.cjs",
+      "title": "module-manifest-ui.cjs",
+      "type": "reference",
+      "status": "draft",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
+      "bytes": 5518,
+      "sha256": "547e0a496b743b1d8d9936c4f97acaca41501820e673fa925998b928d53abd6d",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
       "path": "docs/qa/run-maturity-audit.py",
       "title": "run-maturity-audit.py",
       "type": "reference",
@@ -6951,11 +7325,13 @@
       "authority": "canonical",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
       "bytes": 5335,
       "sha256": "7d6a73342cb59b6a7c9ccc6912b540c093a5a80e79355bf7aafe49de2eb99e7a",
-      "inbound_links": []
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
     },
     {
       "path": "docs/qa/run-maturity-suites.py",
@@ -6968,11 +7344,32 @@
       "authority": "canonical",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
       "bytes": 3576,
       "sha256": "476bf3becfefe8a83b4f49bb6f9384760e4a986ca9ed4f079b0b12df58e08e51",
-      "inbound_links": []
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/qa/stage55-shared-correctness.cjs",
+      "title": "stage55-shared-correctness.cjs",
+      "type": "reference",
+      "status": "draft",
+      "owner": "qa-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "canonical",
+      "confidentiality": "internal",
+      "disposition": "keep",
+      "last_commit": "uncommitted",
+      "worktree_status": "untracked",
+      "bytes": 15430,
+      "sha256": "92a81103a12cba60f8f3b719315e0657e4936e8dccea7ed1800586a8d6d234c9",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
     },
     {
       "path": "docs/qa/summarize-maturity-audit.py",
@@ -6985,11 +7382,13 @@
       "authority": "canonical",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "uncommitted",
-      "worktree_status": "untracked",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
       "bytes": 7040,
       "sha256": "0e7d1647ce5b4ecef2f3c3bd25ca1722e3ef75ed5fae5b1957d345a020b11b4e",
-      "inbound_links": []
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
     },
     {
       "path": "docs/qa/verification-strategy.md",
@@ -7142,7 +7541,6 @@
       "bytes": 3281,
       "sha256": "fc0a4bd8caf74292855e58a13e80bd9cc8f55024a453194297de99ccdf179447",
       "inbound_links": [
-        "docs/ai_handover.md",
         "docs/brain/BRAIN.md",
         "docs/generated/requirements-traceability.md",
         "docs/legal/privacy-applicability.md"
@@ -7893,14 +8291,18 @@
       "review_by": "2026-10-09",
       "superseded_by": "none",
       "last_verified": "2026-09-09",
-      "last_commit": "9a35230 2026-09-11",
+      "last_commit": "8bed150 2026-09-27",
       "worktree_status": "clean",
-      "bytes": 8317,
-      "sha256": "b19cb5241530e1c4681e51eb553c67186276154608283f432ee0ec2d9e92bbce",
+      "bytes": 15709,
+      "sha256": "f08c45dc40d1f76821e00ddd5843718baf077548c99399f979e833c0369e3749",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md",
-        "docs/governance/authority-matrix.md"
+        "docs/governance/authority-matrix.md",
+        "docs/security/customer-security-pack.md",
+        "docs/security/human-operations-and-social-engineering.md",
+        "docs/security/verification-standards-matrix.md",
+        "docs/security/vulnerability-disclosure-lifecycle.md"
       ],
       "metadata": {
         "applies_to": "source documentation; scoped release acceptance required",
@@ -7962,6 +8364,46 @@
       }
     },
     {
+      "path": "docs/security/assurance-evidence-handling.md",
+      "doc_id": "DOC-ASSUREVID01",
+      "title": "Assurance evidence handling",
+      "type": "reference",
+      "status": "draft",
+      "owner": "security-owner",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[maintainers, security-owner]",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "review_by": "2026-10-16",
+      "superseded_by": "none",
+      "last_verified": "2026-09-16",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
+      "bytes": 5356,
+      "sha256": "6848c2c9f16ce27c77d6168848bd269aee3026fcbfc161099ec0865e4e90fc93",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/security/README.md"
+      ],
+      "metadata": {
+        "applies_to": "source release 0.1.0; configuration-specific acceptance required",
+        "approvers": "[documentation-maintainer, security-owner]",
+        "audience": "[maintainers, security-owner]",
+        "authority": "proposed-policy",
+        "confidentiality": "internal",
+        "doc_id": "DOC-ASSUREVID01",
+        "last_verified": "2026-09-16",
+        "owner": "security-owner",
+        "review_by": "2026-10-16",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "Assurance evidence handling",
+        "type": "reference"
+      }
+    },
+    {
       "path": "docs/security/attack_surface.json",
       "title": "attack_surface.json",
       "type": "generated",
@@ -7972,10 +8414,10 @@
       "authority": "projection",
       "confidentiality": "internal",
       "disposition": "keep",
-      "last_commit": "9a35230 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 92813,
-      "sha256": "1ad5a7fe8adb9b16b26d5706f386d2992e9bbc5923a5b3a28da8542a9ff45ae3",
+      "last_commit": "8bed150 2026-09-27",
+      "worktree_status": "modified",
+      "bytes": 92285,
+      "sha256": "66c5c94a0bb18600847a733bd7026f1828f5b56ad0b766d07c5aff1012c414b5",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/security/README.md",
@@ -7999,8 +8441,8 @@
       "last_verified": "2026-09-09",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 3122,
-      "sha256": "d28b007e4c4a7e0593024edea1476efe2efca6d2184fc6be5c5a9cdb5b08e8c4",
+      "bytes": 3111,
+      "sha256": "da494e103abbb61b90d86b1a3d807a4c4c74b27ad65767b56b68187407ed0dac",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md"
@@ -8023,6 +8465,108 @@
       }
     },
     {
+      "path": "docs/security/browser-boundary-inventory.md",
+      "doc_id": "DOC-BROWSER-BOUNDARY-INVENTORY",
+      "title": "Browser boundary inventory",
+      "type": "reference",
+      "status": "draft",
+      "owner": "security-owner",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[security, engineering, QA]",
+      "authority": "source",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "review_by": "2026-10-18",
+      "superseded_by": "none",
+      "last_verified": "2026-10-04",
+      "last_commit": "uncommitted",
+      "worktree_status": "untracked",
+      "bytes": 12768,
+      "sha256": "5bdde5b24ce4042a6f6af33440acec0405b85f707cf9f656f87cf9b9b3283761",
+      "inbound_links": [
+        "docs/ai_handover.md",
+        "docs/brain/BRAIN.md",
+        "docs/operations/pentest_scope.md"
+      ],
+      "metadata": {
+        "applies_to": "native browser shell and lazy view modules",
+        "approvers": "[security-owner, engineering-owner]",
+        "audience": "[security, engineering, QA]",
+        "authority": "source",
+        "confidentiality": "internal",
+        "doc_id": "DOC-BROWSER-BOUNDARY-INVENTORY",
+        "last_verified": "2026-10-04",
+        "owner": "security-owner",
+        "review_by": "2026-10-18",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "Browser boundary inventory",
+        "type": "reference"
+      }
+    },
+    {
+      "path": "docs/security/browser-boundary-sink-classification.json",
+      "title": "browser-boundary-sink-classification.json",
+      "type": "reference",
+      "status": "draft",
+      "owner": "security-owner",
+      "ownership": "provisional-role",
+      "audience": "maintainers",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "last_commit": "uncommitted",
+      "worktree_status": "untracked",
+      "bytes": 42066,
+      "sha256": "872731413d3936468db55744ee865efb3276b0f30c84601ff4a7863ea2cf3320",
+      "inbound_links": [
+        "docs/brain/BRAIN.md"
+      ]
+    },
+    {
+      "path": "docs/security/customer-security-pack.md",
+      "doc_id": "DOC-CUSTSECPACK01",
+      "title": "Customer security pack",
+      "type": "reference",
+      "status": "draft",
+      "owner": "security-owner",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[customers, prospective customers, security-owner]",
+      "authority": "proposed-policy",
+      "confidentiality": "customer",
+      "disposition": "rebuild",
+      "review_by": "2026-10-16",
+      "superseded_by": "none",
+      "last_verified": "2026-09-16",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
+      "bytes": 8999,
+      "sha256": "cd294c6060800efc660b6d1fca64ce66210d20eec4f289f2a94974100711eafb",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/security/README.md",
+        "docs/security/assurance-evidence-handling.md",
+        "docs/security/human-operations-and-social-engineering.md"
+      ],
+      "metadata": {
+        "applies_to": "source release 0.1.0; configuration-specific acceptance required",
+        "approvers": "[documentation-maintainer, security-owner]",
+        "audience": "[customers, prospective customers, security-owner]",
+        "authority": "proposed-policy",
+        "confidentiality": "customer",
+        "doc_id": "DOC-CUSTSECPACK01",
+        "last_verified": "2026-09-16",
+        "owner": "security-owner",
+        "review_by": "2026-10-16",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "Customer security pack",
+        "type": "reference"
+      }
+    },
+    {
       "path": "docs/security/dependency-inventory.md",
       "doc_id": "DOC-SUPCHAIN0004",
       "title": "Dependency inventory and verification",
@@ -8037,13 +8581,15 @@
       "review_by": "2026-10-11",
       "superseded_by": "none",
       "last_verified": "2026-09-11",
-      "last_commit": "9a35230 2026-09-11",
+      "last_commit": "8bed150 2026-09-27",
       "worktree_status": "clean",
       "bytes": 7237,
-      "sha256": "dd1bf71294dbd67243d93aa646444dd97bbdbfed54d7697db62c64b16f521757",
+      "sha256": "f1d8f96b9f5cb1ab3589a48a7681a2dfb0e793882ec1b2718d2da431358d34c5",
       "inbound_links": [
+        "docs/brain/BRAIN.md",
         "docs/security/README.md",
-        "docs/security/secure-development-lifecycle.md"
+        "docs/security/secure-development-lifecycle.md",
+        "docs/security/third-party-risk-register.md"
       ],
       "metadata": {
         "applies_to": "source release 0.1.0; configuration-specific acceptance required",
@@ -8073,15 +8619,56 @@
       "authority": "proposed-policy",
       "confidentiality": "internal",
       "disposition": "rebuild",
-      "last_commit": "9a35230 2026-09-11",
+      "last_commit": "8bed150 2026-09-27",
       "worktree_status": "clean",
-      "bytes": 8264,
-      "sha256": "e3340d758b93d1f9133ea3c1c93414fd306f32871aba5acde7128df00e56489f",
+      "bytes": 9421,
+      "sha256": "cf6635b8baaea0efeb99700829ec0e5b2555311c01d3d6d5dc68cca92e9614aa",
       "inbound_links": [
+        "docs/brain/BRAIN.md",
         "docs/security/README.md",
         "docs/security/dependency-inventory.md",
         "docs/security/secure-development-lifecycle.md"
       ]
+    },
+    {
+      "path": "docs/security/human-operations-and-social-engineering.md",
+      "doc_id": "DOC-HUMANOPS0001",
+      "title": "Secure human operations, support, devices and anti-social-engineering controls",
+      "type": "reference",
+      "status": "draft",
+      "owner": "security-owner",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[maintainers, security-owner]",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "review_by": "2026-10-16",
+      "superseded_by": "none",
+      "last_verified": "2026-09-16",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
+      "bytes": 13617,
+      "sha256": "cb3e00587ed35eff6e04b8f9ead5f5803b2892f0fe02359945274ce738fbd27e",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/security/README.md"
+      ],
+      "metadata": {
+        "applies_to": "source release 0.1.0; configuration-specific acceptance required",
+        "approvers": "[documentation-maintainer, security-owner]",
+        "audience": "[maintainers, security-owner]",
+        "authority": "proposed-policy",
+        "confidentiality": "internal",
+        "doc_id": "DOC-HUMANOPS0001",
+        "last_verified": "2026-09-16",
+        "owner": "security-owner",
+        "review_by": "2026-10-16",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "Secure human operations, support, devices and anti-social-engineering controls",
+        "type": "reference"
+      }
     },
     {
       "path": "docs/security/outside_in_verification_2026-09-08.md",
@@ -8096,8 +8683,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 5633,
-      "sha256": "8c01579ed8b3c370c8ab2e3e9e2698b4a73872891c3f46db90a8abec1fd13359",
+      "bytes": 5541,
+      "sha256": "0c278ec90c8df6549c135e9bfbe097bb87304c181d151d0605af2494372a87dd",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -8117,18 +8704,23 @@
       "review_by": "2026-10-09",
       "superseded_by": "none",
       "last_verified": "2026-09-09",
-      "last_commit": "9a35230 2026-09-11",
+      "last_commit": "ea87cc0 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 22680,
-      "sha256": "78a2a5790dc287edd075f557439233a2a249ace43a7e22a3b4b093055afdb4bb",
+      "bytes": 26024,
+      "sha256": "5d461141043ebeccbfe417b4b8c45d0180ff04e772384aac4936fc48df488c03",
       "inbound_links": [
+        "SECURITY.md",
         "docs/architecture/current-architecture.md",
         "docs/brain/BRAIN.md",
         "docs/security/README.md",
         "docs/security/access-control-policy.md",
+        "docs/security/assurance-evidence-handling.md",
         "docs/security/audit-and-logging-policy.md",
+        "docs/security/human-operations-and-social-engineering.md",
         "docs/security/secure-development-lifecycle.md",
-        "docs/security/threat_model.md"
+        "docs/security/threat_model.md",
+        "docs/security/verification-standards-matrix.md",
+        "docs/security/vulnerability-disclosure-lifecycle.md"
       ],
       "metadata": {
         "applies_to": "source documentation; scoped release acceptance required",
@@ -8163,13 +8755,18 @@
       "review_by": "2026-10-11",
       "superseded_by": "none",
       "last_verified": "2026-09-11",
-      "last_commit": "9a35230 2026-09-11",
+      "last_commit": "8bed150 2026-09-27",
       "worktree_status": "clean",
-      "bytes": 22549,
-      "sha256": "eb7106ba892109168523d8bb2316de775464bd9ceeba1531058d581bfe1c5c65",
+      "bytes": 22548,
+      "sha256": "14b95ab8c615fa233b12f134e487d9d22764f76bac32ba9f8c64cb0e43f6fbda",
       "inbound_links": [
+        "SECURITY.md",
+        "docs/brain/BRAIN.md",
         "docs/security/README.md",
-        "docs/security/dependency-inventory.md"
+        "docs/security/dependency-inventory.md",
+        "docs/security/third-party-risk-register.md",
+        "docs/security/verification-standards-matrix.md",
+        "docs/security/vulnerability-disclosure-lifecycle.md"
       ],
       "metadata": {
         "applies_to": "source release 0.1.0; configuration-specific acceptance required",
@@ -8230,6 +8827,47 @@
       }
     },
     {
+      "path": "docs/security/third-party-risk-register.md",
+      "doc_id": "DOC-THIRDPARTY01",
+      "title": "Third-party risk register",
+      "type": "reference",
+      "status": "draft",
+      "owner": "security-owner",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[maintainers, security-owner]",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "review_by": "2026-10-16",
+      "superseded_by": "none",
+      "last_verified": "2026-09-16",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
+      "bytes": 8311,
+      "sha256": "14707adbb5a8c418c6383aaf5e7cdb0a4f7dcd662e566df3d2f7dab86158625b",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/security/README.md",
+        "docs/security/customer-security-pack.md"
+      ],
+      "metadata": {
+        "applies_to": "source release 0.1.0; configuration-specific acceptance required",
+        "approvers": "[documentation-maintainer, security-owner]",
+        "audience": "[maintainers, security-owner]",
+        "authority": "proposed-policy",
+        "confidentiality": "internal",
+        "doc_id": "DOC-THIRDPARTY01",
+        "last_verified": "2026-09-16",
+        "owner": "security-owner",
+        "review_by": "2026-10-16",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "Third-party risk register",
+        "type": "reference"
+      }
+    },
+    {
       "path": "docs/security/threat_model.md",
       "doc_id": "DOC-13177E8D20",
       "title": "Security charter and threat model",
@@ -8244,18 +8882,25 @@
       "review_by": "2026-10-09",
       "superseded_by": "none",
       "last_verified": "2026-09-09",
-      "last_commit": "9a35230 2026-09-11",
+      "last_commit": "c6fadc8 2026-09-11",
       "worktree_status": "clean",
       "bytes": 27753,
       "sha256": "3ac9c52f7286fcc713083bad0db2e64ad9824c0600893dc8f3a327fabfc1be41",
       "inbound_links": [
+        "SECURITY.md",
         "docs/architecture/current-architecture.md",
         "docs/brain/BRAIN.md",
         "docs/security/README.md",
         "docs/security/access-control-policy.md",
+        "docs/security/assurance-evidence-handling.md",
         "docs/security/audit-and-logging-policy.md",
+        "docs/security/customer-security-pack.md",
+        "docs/security/human-operations-and-social-engineering.md",
         "docs/security/risk_register.md",
-        "docs/security/secure-development-lifecycle.md"
+        "docs/security/secure-development-lifecycle.md",
+        "docs/security/third-party-risk-register.md",
+        "docs/security/verification-standards-matrix.md",
+        "docs/security/vulnerability-disclosure-lifecycle.md"
       ],
       "metadata": {
         "applies_to": "source documentation; scoped release acceptance required",
@@ -8273,6 +8918,94 @@
         "title": "Security charter and threat model",
         "type": "reference",
         "verification_scope": "metadata and lifecycle classification; domain acceptance pending"
+      }
+    },
+    {
+      "path": "docs/security/verification-standards-matrix.md",
+      "doc_id": "DOC-VERIFMATRIX01",
+      "title": "Version-pinned verification matrix",
+      "type": "reference",
+      "status": "draft",
+      "owner": "security-owner",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[maintainers, security-owner]",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "review_by": "2026-10-13",
+      "superseded_by": "none",
+      "last_verified": "2026-09-13",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
+      "bytes": 13027,
+      "sha256": "1468b7ce2732804ce696f06e0bae67a1daeb00197bda66e9174767445e27f1c8",
+      "inbound_links": [
+        "docs/brain/BRAIN.md",
+        "docs/qa/erp-maturity-checklist.md",
+        "docs/security/README.md",
+        "docs/security/customer-security-pack.md",
+        "docs/security/third-party-risk-register.md"
+      ],
+      "metadata": {
+        "applies_to": "source release 0.1.0; configuration-specific acceptance required",
+        "approvers": "[documentation-maintainer, security-owner]",
+        "audience": "[maintainers, security-owner]",
+        "authority": "proposed-policy",
+        "confidentiality": "internal",
+        "doc_id": "DOC-VERIFMATRIX01",
+        "last_verified": "2026-09-13",
+        "owner": "security-owner",
+        "review_by": "2026-10-13",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "Version-pinned verification matrix",
+        "type": "reference"
+      }
+    },
+    {
+      "path": "docs/security/vulnerability-disclosure-lifecycle.md",
+      "doc_id": "DOC-VULNDISC0001",
+      "title": "Vulnerability disclosure, triage, remediation and security-update lifecycle",
+      "type": "reference",
+      "status": "draft",
+      "owner": "security-owner",
+      "ownership": "authored-role; acceptance not implied",
+      "audience": "[maintainers, security-owner]",
+      "authority": "proposed-policy",
+      "confidentiality": "internal",
+      "disposition": "rebuild",
+      "review_by": "2026-10-13",
+      "superseded_by": "none",
+      "last_verified": "2026-09-13",
+      "last_commit": "702d2a2 2026-09-27",
+      "worktree_status": "clean",
+      "bytes": 14624,
+      "sha256": "841577de8235cc6c8cf2dd6294be096f56c47a6d95bb003700c2a7fec98a4518",
+      "inbound_links": [
+        "SECURITY.md",
+        "docs/brain/BRAIN.md",
+        "docs/security/README.md",
+        "docs/security/assurance-evidence-handling.md",
+        "docs/security/customer-security-pack.md",
+        "docs/security/human-operations-and-social-engineering.md",
+        "docs/security/verification-standards-matrix.md"
+      ],
+      "metadata": {
+        "applies_to": "source release 0.1.0; configuration-specific acceptance required",
+        "approvers": "[documentation-maintainer, security-owner]",
+        "audience": "[maintainers, security-owner]",
+        "authority": "proposed-policy",
+        "confidentiality": "internal",
+        "doc_id": "DOC-VULNDISC0001",
+        "last_verified": "2026-09-13",
+        "owner": "security-owner",
+        "review_by": "2026-10-13",
+        "status": "draft",
+        "superseded_by": "none",
+        "supersedes": "none",
+        "title": "Vulnerability disclosure, triage, remediation and security-update lifecycle",
+        "type": "reference"
       }
     },
     {
@@ -8332,9 +9065,9 @@
       "superseded_by": "none",
       "last_verified": "2026-09-09",
       "last_commit": "7f5fadf 2026-09-11",
-      "worktree_status": "clean",
-      "bytes": 8491,
-      "sha256": "a4e85fff5aff8ba534310619e324a99b1cee3a6e8fcba6abc8d14dcc2f280166",
+      "worktree_status": "modified",
+      "bytes": 8493,
+      "sha256": "5fcbe759c4df77cbe946cd5bfa027567689bdff66ba5b1e36f90393339ee8a91",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/requirements/BRD.md"
@@ -8480,8 +9213,8 @@
       "disposition": "keep",
       "last_commit": "20a8878 2026-08-13",
       "worktree_status": "clean",
-      "bytes": 18791,
-      "sha256": "b31bd7955d68675f1f764ba74acb70ecde88eca537601cb19586c3eead20755a",
+      "bytes": 18148,
+      "sha256": "c057c3671fcb70b854f4e7d361f2cca47c072944d7741a0764d063ebb1b146b6",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/governance/authority-matrix.md",
@@ -8630,8 +9363,8 @@
       "disposition": "rebuild",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 4720,
-      "sha256": "7664007c4387bb6ce41fd5e559ee5b209c43b233adcf894cb1c74fee0114aee2",
+      "bytes": 4648,
+      "sha256": "129047ff9fe1892f7d306c8edd03c6c619bf62a0a6c59eaf741b992b013c4091",
       "inbound_links": [
         "docs/brain/BRAIN.md",
         "docs/engineering/developer-setup.md"
@@ -8650,8 +9383,8 @@
       "disposition": "rebuild",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 12256,
-      "sha256": "6d97481f8698f67391cf4188460fd0b5908c8f6ee3599f22014cf501096dec4b",
+      "bytes": 12057,
+      "sha256": "0854a35fb4d6287f2400f06c4922c139243496e5c3187890316abba41bcee6df",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md"
@@ -8711,8 +9444,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 92909,
-      "sha256": "a4fe9f21bbcabd68a5acae7f5b93c6e5534599828cdc906a3a5a40e522a53888",
+      "bytes": 92603,
+      "sha256": "a5c31a902e1c8c2b63eb4de8c30666c19e6fbb3d006054548fe3fb2a260cbc1a",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md",
@@ -8733,8 +9466,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 163401,
-      "sha256": "c94eaca2032b95743fb109cc47612d067a8a2cf68c7a76868915fa649f9185bf",
+      "bytes": 162711,
+      "sha256": "24c361f1b908034881fbec99b30da3fe8ef6a392a36546d2e913a4ad51265d7a",
       "inbound_links": [
         "docs/README.md",
         "docs/brain/BRAIN.md",
@@ -8796,8 +9529,8 @@
       "disposition": "keep",
       "last_commit": "4b7328a 2026-09-06",
       "worktree_status": "clean",
-      "bytes": 2028,
-      "sha256": "486d388e8d0f7a92ddacdc9ad8533dc298624394e202f9a04c77f6dee9c88187",
+      "bytes": 1959,
+      "sha256": "ff4a9fb57bbbe534751ef3b4bfe390eb8335d43d7efbc374a783b40af71da86a",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -8815,8 +9548,8 @@
       "disposition": "keep",
       "last_commit": "4b7328a 2026-09-06",
       "worktree_status": "clean",
-      "bytes": 1666,
-      "sha256": "98b0bc255d01d33ee4fedf1bc2e7642ea0c18d772287db8e69bfdd9f234e9261",
+      "bytes": 1611,
+      "sha256": "419f842ad6d4d45f6fa4efd83bf9e5660f746d67a28debcd11cc9e17ec41f1ce",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -8834,8 +9567,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 7134,
-      "sha256": "7003c9f1b6410eaf280d71a1b2173b6d9f15a2b5e42e7392040323ff0fbb1847",
+      "bytes": 7121,
+      "sha256": "d76ee8563e3b7366a44066eba3cc58b460f93f9c5b70c8d66f8ca5ddf173ccc1",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -8853,8 +9586,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 1872,
-      "sha256": "3356f4dc8f817bb3e3b4c56815d444b007ad59158514de7a783a719a047b1b48",
+      "bytes": 1864,
+      "sha256": "14e81816c0deb6e6061fc970bc282e1905695d77720cf894e718fd0c278fa9d9",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -8872,8 +9605,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 2202,
-      "sha256": "e37dd0f9d44d925c5249a638a0a24b1e4909a51d5f6b929f8eaebe603bb2805c",
+      "bytes": 2194,
+      "sha256": "056f551c4e5a5fbcd53aa34d65ca342548d8c8c4b35dd7667a8731e7c51775de",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -8891,8 +9624,8 @@
       "disposition": "keep",
       "last_commit": "0e79425 2026-09-04",
       "worktree_status": "clean",
-      "bytes": 8138,
-      "sha256": "3fc33ba86d36a2fbfa387bd714c5b92814c7512dd9d3e9db3509a03930223856",
+      "bytes": 8107,
+      "sha256": "03cd29c6a926eb621ade410cb94c8657affc6e62e681bbb1e8777c97e5363bbd",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -8910,8 +9643,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 24559,
-      "sha256": "3c7b564fc30fb1e3c1ab009f8838b4dce66447ed63c08bb91cc315f892b6d47c",
+      "bytes": 24495,
+      "sha256": "dfab12da05ed5cde94a9fa3e13d5f4f56f7f1a7bd8af8f1f9ea9b2c52d19cac3",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -8929,8 +9662,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 9792,
-      "sha256": "691d9891d4ca448f43662c99d48ce5ee9258b6985369b9dd0a41cac5bd4f6856",
+      "bytes": 9778,
+      "sha256": "9aa8c90e19f5c38e9a6a01c6a5d96081b8b4bbf833206583aef59acac2b85b2f",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -8948,8 +9681,8 @@
       "disposition": "keep",
       "last_commit": "0e79425 2026-09-04",
       "worktree_status": "clean",
-      "bytes": 16407,
-      "sha256": "a135f679bbd427569b2dac5fa833b936ba7a11aa6c2a46ec35c4f358db8c4214",
+      "bytes": 16353,
+      "sha256": "f5a143842852e757839f9a5a88cce8f728bea2308b94f677ef56b31db5462f69",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -8967,8 +9700,8 @@
       "disposition": "keep",
       "last_commit": "0e79425 2026-09-04",
       "worktree_status": "clean",
-      "bytes": 14650,
-      "sha256": "aa078d80c11eedccb1e1de7a2d1ce0345aeb3047ff20ae730ce0facd2d3ef020",
+      "bytes": 14608,
+      "sha256": "41d0c56fb4633110f8597d15d875a38dc8ef048f749f6de2c7e8a839d3793e23",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -8986,8 +9719,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 84140,
-      "sha256": "bf8bdd21d50b843061808df55a6b44334a2594f705e91309a8d4d5156d5d5e3a",
+      "bytes": 84047,
+      "sha256": "2a480ecea9fe810ae4331c31dfce211ccaaec751dc73057f0d40e5bd0579d1f5",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9005,8 +9738,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 3400,
-      "sha256": "ddff3ae001b9743b8218f51bc8e47bdae82846e15c2e6edb1334bdc0cad7641b",
+      "bytes": 3382,
+      "sha256": "4fe144eb7c09807300d3ae02e39bfa6fb073d09fc35d6c8ff5d226b62b274df4",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9024,8 +9757,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 2322,
-      "sha256": "1cdc80433739d4db86ab7f069991a91865144cee118d95bfcfc86588b6408db1",
+      "bytes": 2313,
+      "sha256": "b4d1df8f6db92777bf967be6a90e88ed296cd1c5ebc512a3a8877c7faf14160e",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9043,8 +9776,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 9126,
-      "sha256": "1ca9dc57f3735af0736b57e5f7ab75b41c8304547bc3ab5a6e42af76446bff1a",
+      "bytes": 9081,
+      "sha256": "e64b2cd5050217b918cd3b98ecce6bf8bec4ab4f6b8771af34d077ad11e4e99a",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9062,8 +9795,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 14478,
-      "sha256": "0ab0e5bfb102ed29e23b99dd096b569a8cafe98b1370d818d9bf9b217a078104",
+      "bytes": 14426,
+      "sha256": "851bd94570d732dfa4fb7fb8ec5d33b6ce3ffc80cd37c664170c7850ea78df25",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9081,8 +9814,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 7149,
-      "sha256": "2ea612eb15f02b24762cf54dac9b463cba566294a086e39c37d5b05062a98012",
+      "bytes": 7114,
+      "sha256": "555daef998e398bcfa76a0ebc5af34f93ec9b27fbe0c80675a6813e7fea94267",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9100,8 +9833,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 2875,
-      "sha256": "e84f85a94123df6c78ee9cdd2d64ce09853bad7e29d93890faa7a53d4b39d83d",
+      "bytes": 2857,
+      "sha256": "bfa255d5fe4853bdd63fe7d2f9646fc453b8fc0795166f2feebdfe1079e7608a",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9119,8 +9852,8 @@
       "disposition": "keep",
       "last_commit": "20a8878 2026-08-13",
       "worktree_status": "clean",
-      "bytes": 3645,
-      "sha256": "7f879e44b4968907333cff8a874ea845d81d09549a8e3b555ddd86351abff51c",
+      "bytes": 3624,
+      "sha256": "5fccdced04fec1a00ffbad1dd55cb66eb8e1b55df423f9df63174380ad35515e",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9138,8 +9871,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 8729,
-      "sha256": "5d694819071049d780abb5ea1540a68f7481d2af6b75d2b2cedeba7672f47a13",
+      "bytes": 8677,
+      "sha256": "9491257265ca0d9850176bed8486460ec8c4bdfdd58d9452784cf0b776ea7bd7",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9157,8 +9890,8 @@
       "disposition": "keep",
       "last_commit": "0e79425 2026-09-04",
       "worktree_status": "clean",
-      "bytes": 15874,
-      "sha256": "39ed2407dd235ef2c0cc1e1c0842f0b4d368583b33001480bc3bad83582e7ff2",
+      "bytes": 15815,
+      "sha256": "f685249ba3068756d9ea69a93459a3d819187c8a15c840253f5a65efbaf8eb6d",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9176,8 +9909,8 @@
       "disposition": "keep",
       "last_commit": "0e79425 2026-09-04",
       "worktree_status": "clean",
-      "bytes": 7468,
-      "sha256": "95b5cfccd3c0669dad50aea916648b2a6d502001bd30404606a281cf6d83a854",
+      "bytes": 7440,
+      "sha256": "08e310beaf06768626bcb537326a5c423ec7fa34ee0de2e5584067381f09b6e2",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9195,8 +9928,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 38105,
-      "sha256": "92f6324b1de4e1264a83be0a02598d599f12462c29e5c48d4edeeec0f016499f",
+      "bytes": 37964,
+      "sha256": "9f23fca59e327e9d9d8288af0f577e40ef1c6b9759e636bcb7dbe498aecafeba",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9214,8 +9947,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 6848,
-      "sha256": "cf525c586327aaa5c62e4fe323ed63f5660dfec2934b55ba26024b38f13eb2da",
+      "bytes": 6814,
+      "sha256": "e85d376eeeed6f431c57077c2a7113bb50c0277750b16a81b24e0f0b2bda9075",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9233,8 +9966,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 6803,
-      "sha256": "d2739279da487ec30bcf4c62df2467e038b1aa49c13cddff9649f263482cfbc7",
+      "bytes": 6757,
+      "sha256": "cb3ccee41ac06f74173e0afc4b141de2a0466154456bb8e23135c88cbf6ecf05",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9252,8 +9985,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 6224,
-      "sha256": "83c7cfd6c8b54f7012fdf87572abdb7a9a98bbc67eadd5469e392c29be2eb2bf",
+      "bytes": 6197,
+      "sha256": "76e1e357a71cf76e91a523a2baa52105e8dcac1d638839d9df5482208c126ef4",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9271,8 +10004,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 6749,
-      "sha256": "310056615890b8e990cb755955238dd747734b694ec78eefd4245c3357c1a9ee",
+      "bytes": 6711,
+      "sha256": "6a54d2dcb54a8a472d39949928b18d169ca1bb69b79dafe4d963ac6c1a5ad991",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9290,8 +10023,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 6773,
-      "sha256": "2aeedcfff73d6877b04a6b086c8e501afb054a7711aaeeba4988be898714041d",
+      "bytes": 6739,
+      "sha256": "1cecc9981cfb21b3ca1ea68e2c113ee5840c6087d73ba4e2fbc6f0c5b0e45a42",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9309,8 +10042,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 5639,
-      "sha256": "44a184a86069ab705bfe09b998b051cafff04dea05ad7869be7a6896d11b07fd",
+      "bytes": 5603,
+      "sha256": "808b0255f00259b67a5baff1338377932c72c51e7fd809defa476f9aed09d900",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9328,8 +10061,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 2359,
-      "sha256": "811d60dea8e023b1f29edd5403bb1d03d8a2a4333bc18144bbaeec81a19348a2",
+      "bytes": 2351,
+      "sha256": "1d259574f04ec40aad0dc3ce779476285e5a22154d7289827a61cbc06cc469a6",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9347,8 +10080,8 @@
       "disposition": "keep",
       "last_commit": "0e79425 2026-09-04",
       "worktree_status": "clean",
-      "bytes": 17603,
-      "sha256": "7aef754436ef246c6a3fbe7ed8151d74228edfa1cc8c86277e6469cc9b6d2067",
+      "bytes": 17536,
+      "sha256": "bfad45ab54bb65a07ffc8735143697e873bc994275b2b4b6ad45165b438703a9",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9366,8 +10099,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 13596,
-      "sha256": "40b60f99a0c8b8d13d4981e269354b46b52b11128f6edbd945417b6998fb248b",
+      "bytes": 13544,
+      "sha256": "e122e641b0feeb96de0be366ddcb27d6f498e36103559d18b96d411b03d6332e",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9385,8 +10118,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 7872,
-      "sha256": "3e08edb4836e79a48d25697c5a41fbe2e19562e4559552cdb8be437598643d3c",
+      "bytes": 7831,
+      "sha256": "bea9fd8db01df9f0ec24430e2875faf92c8fb426c93021047e362554c1ff969f",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9404,8 +10137,8 @@
       "disposition": "keep",
       "last_commit": "20a8878 2026-08-13",
       "worktree_status": "clean",
-      "bytes": 3933,
-      "sha256": "fd1a97cc1eff8f37a7d1f9f216b0ecc39b6b6061b7df2d3b02e1675a207bebc9",
+      "bytes": 3913,
+      "sha256": "9ef5584ba67e61b7260bc3d452e56cf42ee6374f05638e2921c1c340e33fb1df",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9423,8 +10156,8 @@
       "disposition": "keep",
       "last_commit": "0e79425 2026-09-04",
       "worktree_status": "clean",
-      "bytes": 13253,
-      "sha256": "80e91de21c53e87f6ce959841078ba4de077e38368a74d4ec568050260649bd6",
+      "bytes": 13219,
+      "sha256": "ba8b62f38963219a0d967320f89c02fc544c6e6f474bc875acb1275705cc6637",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9442,8 +10175,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 2002,
-      "sha256": "8936f569c321643b5f05b07ed468cf5fcf6f423936b9fa59cb318bd0d1e79769",
+      "bytes": 1994,
+      "sha256": "0efb74e1b04f4b93170a331774c66ae737d5229db0427237ac9dde222e6d3d15",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9461,8 +10194,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 23604,
-      "sha256": "196d5cd2da504f56a4013d23184e222e1d8d74b91160e9bc300515111582b3ea",
+      "bytes": 23503,
+      "sha256": "8c706e4067534793e7a2206ecedb6bc67320ad01b122aa2f53c9eb9cbe91af01",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9480,8 +10213,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 33406,
-      "sha256": "6795d88255a32bbacfbe1d4371f6f76c76d6d8fbb87e45e6d9c7e60cfac8bd41",
+      "bytes": 33310,
+      "sha256": "4d61de2c2c94d2bf5789ff4f67b7f46584540721c518a7f30259b01dc091cb04",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9499,8 +10232,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 4299,
-      "sha256": "fe3482452b6381e170f3ad4fb8fab985ffe228592744af2c7e76ee007511f66b",
+      "bytes": 4270,
+      "sha256": "dc6647843956ab2bd17aec4c71b23be15e1877402077a7a00caa00f801058fbe",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9518,8 +10251,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 3727,
-      "sha256": "79810cc6f0fad5214a39eb8e0b36d3778f2376e43cd3f0d22cf361cc8c0f052c",
+      "bytes": 3704,
+      "sha256": "e207391542d691e125d7c62b942cb675a3b33d230cdbba794c7eab80be8b215f",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9537,8 +10270,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 53431,
-      "sha256": "45599bee1063b9c26cd3810c245f4191762039be1d01c7334cd7ddecb6aeb46e",
+      "bytes": 53230,
+      "sha256": "a93a34ef000113696064f95690bbc48043e369a2b8c301e6e29e02f695534b5a",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9556,8 +10289,8 @@
       "disposition": "keep",
       "last_commit": "4b7328a 2026-09-06",
       "worktree_status": "clean",
-      "bytes": 56697,
-      "sha256": "23b9e2c1580a3fec4620ed0f19cfcddc811ea5bae498468bc36cbf807551eb34",
+      "bytes": 56160,
+      "sha256": "fe9147bedecb243bab8dff91cdb0d8b500df8038444376cd47fa8abef36e838a",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9575,8 +10308,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 5895,
-      "sha256": "88dce6490c01e8b1ba32afc417339d16fb5aa2505835084716ec91a50c4908c6",
+      "bytes": 5863,
+      "sha256": "33c589f5e10c1f2b7141200944cf3cf10d000c47e54acc56e242973adad89f9b",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9594,8 +10327,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 3113,
-      "sha256": "d4fdd9e585920608b4b65018828c6b1d3b46a54998fe1f740545e44f99944d38",
+      "bytes": 3102,
+      "sha256": "59de4a9c234b3ae7c6883e896c7d04c89fcf63756c17909cfaabc9b5e05ef6d1",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9613,8 +10346,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 3495,
-      "sha256": "8759cbd77711def51e12a97ad70e5519cf107b765ab74b821c67dc8d15c8fff1",
+      "bytes": 3484,
+      "sha256": "b4e9d4075c72cf3267eee993663810e102dd63142f0122824a48e33379b9198a",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9632,8 +10365,8 @@
       "disposition": "keep",
       "last_commit": "0e79425 2026-09-04",
       "worktree_status": "clean",
-      "bytes": 29899,
-      "sha256": "9e86fe245557b5d21d008f12774787c004817b2bef9f80fbcc650097f1031cf7",
+      "bytes": 29806,
+      "sha256": "406a2707a50209bd2c0ca3cf7d3ff1b396e003b2cd236561b6a25851f5f05289",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9651,8 +10384,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 2169,
-      "sha256": "86361aa409e497f4eaf71fc05b2fce3a196f46a69f5d18dc7ba97c0fb68dde63",
+      "bytes": 2161,
+      "sha256": "ab4a02dba46d971b3bd6b4b1f3f5962f8d3ecd91341fd4c85c061b1a5683569a",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9670,8 +10403,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 15546,
-      "sha256": "f79c0f99173edca84a09b5071b766f1c151f244a1ec87c3f13f88513d8d1ecca",
+      "bytes": 15484,
+      "sha256": "17ba15adb972900f6690c3f837585a5dab04af8eb9f0f158cdffda3eb21c8985",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9689,8 +10422,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 18800,
-      "sha256": "6b72f95639dc4da38576762cca721b45c2ef968b2d3e42d588754bb1d5f3701e",
+      "bytes": 18769,
+      "sha256": "c7c1a8c20dfaffcfe081b6c1f1566fe924724f80462e4bc7732b0ef7495d1cd1",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9708,8 +10441,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 1984,
-      "sha256": "9b4656f88715c288f55e4ac281058f7239d86dea413eedae37674be32434c4e7",
+      "bytes": 1976,
+      "sha256": "69c51f683a4bbe4c546f72d39a161a49203c273ad41496a8384417cbaea8c9ac",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9727,8 +10460,8 @@
       "disposition": "keep",
       "last_commit": "c57b830 2026-08-17",
       "worktree_status": "clean",
-      "bytes": 4397,
-      "sha256": "6f7dc4ab329497e477d5f2d47e084718afd6310b23db0000614df1b66b3be492",
+      "bytes": 4375,
+      "sha256": "7cdc4ab29bc6ad4219321b93750f175c52c694df63a375793cb92f589e1eca4d",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9746,8 +10479,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 2012,
-      "sha256": "118b24ad5db2c956e8af19f5d2e08172d93b3e9bdf17cd9c78a836b0835978eb",
+      "bytes": 2004,
+      "sha256": "06873e1f064d25dac6d8168abeb682bf38860f88ff240ed50ad39541624af480",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9765,8 +10498,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 136572,
-      "sha256": "08589fbc7e3499162a5b203c7351bfb8fcac6f7cb58679702abc472ddb610545",
+      "bytes": 132474,
+      "sha256": "dba7631f01be2d35e73567ff9feaa61e102668d6f1745912fcd96e34543dbb17",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]
@@ -9784,8 +10517,8 @@
       "disposition": "keep",
       "last_commit": "7f5fadf 2026-09-11",
       "worktree_status": "clean",
-      "bytes": 150154,
-      "sha256": "47ac0edfac7111fb27b2bedfbc6a4b097cf58676da92353c5caed6ae1fbd34a3",
+      "bytes": 150153,
+      "sha256": "8a1ae7d2cdc8d55c11b5aeff0fe019413425090f242daf4b0ea1cb62b8a4e788",
       "inbound_links": [
         "docs/brain/BRAIN.md"
       ]

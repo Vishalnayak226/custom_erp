@@ -37,13 +37,16 @@ type slackWebhookPayload struct {
 // runs in its own goroutine so a slow or unreachable webhook never adds
 // latency to the request or worker tick that triggered it.
 func SendOpsAlert(severity, source, message string) {
+	severity = redactAndBoundLogField(severity, 32)
+	source = redactAndBoundLogField(source, 160)
+	message = truncateForAlert(redactAndBoundLogField(message, 4*1024))
 	webhookURL := os.Getenv("OPS_ALERT_WEBHOOK_URL")
 	if webhookURL == "" {
 		// OBS-0215 (Stage 25.5): "Alert webhook missing" - exactly this
 		// no-op path. Log-only (there's no HTTP request/tenant context at
 		// the point most callers of SendOpsAlert fire from - background
 		// workers, panic recovery - to attach a coded API response to).
-		log.Printf("[OBS-0215] (no OPS_ALERT_WEBHOOK_URL configured, not sent) [%s] %s: %s", severity, source, message)
+		log.Printf("[OBS-0215] (no %s configured, not sent) [%s] %s: %s%s", OpsAlertWebhookEnv, severity, source, message, opsAlertResponderSuffix())
 		return
 	}
 	if !ExternalSideEffectsEnabled() {
@@ -53,8 +56,66 @@ func SendOpsAlert(severity, source, message string) {
 		log.Printf("[OPS-ALERT] (external side effects OFF - not sent) [%s] %s: %s", severity, source, truncateForAlert(message))
 		return
 	}
-	text := fmt.Sprintf(":rotating_light: [%s] %s: %s", severity, source, truncateForAlert(message))
+	text := fmt.Sprintf(":rotating_light: [%s] %s: %s%s", severity, source, message, opsAlertResponderSuffix())
 	go postOpsAlert(webhookURL, text)
+}
+
+// OpsAlertResponderEnv and OpsAlertWebhookEnv are the two variables that turn
+// local alerting into delivered alerting (BLD-052). Named constants rather
+// than inline strings so the admin guide, the drill and the readiness-style
+// status readout below cannot drift from what the code actually reads.
+const (
+	OpsAlertWebhookEnv   = "OPS_ALERT_WEBHOOK_URL"
+	OpsAlertResponderEnv = "OPS_ALERT_RESPONDER"
+)
+
+// opsAlertResponderSuffix names the accountable responder on every alert.
+//
+// BLD-052's Done bar is about an incident reaching an *intended responder*,
+// not merely reaching a channel. An alert posted into a room nobody owns is
+// the failure mode this guards: when OPS_ALERT_RESPONDER is unset the alert
+// says so in its own text, so an unowned alerting setup is visible in the
+// channel itself rather than discovered during an incident.
+func opsAlertResponderSuffix() string {
+	responder := redactAndBoundLogField(strings.TrimSpace(os.Getenv(OpsAlertResponderEnv)), 120)
+	if responder == "" {
+		return " | responder: UNASSIGNED (set " + OpsAlertResponderEnv + ")"
+	}
+	return " | responder: " + responder
+}
+
+// OpsAlertDelivery describes whether alerts can actually reach anyone. Used
+// by the local drill to assert the one-variable claim, and safe to surface to
+// an operator: it reports whether a URL is configured, never the URL itself
+// (a Slack/Teams webhook URL is a bearer credential).
+type OpsAlertDelivery struct {
+	WebhookConfigured     bool     `json:"webhook_configured"`
+	ResponderConfigured   bool     `json:"responder_configured"`
+	Responder             string   `json:"responder,omitempty"`
+	ExternalEffectsOn     bool     `json:"external_side_effects_enabled"`
+	DeliveryWouldBeSent   bool     `json:"delivery_would_be_sent"`
+	UnconfiguredVariables []string `json:"unconfigured_variables,omitempty"`
+}
+
+// OpsAlertDeliveryStatus reports the current delivery posture.
+func OpsAlertDeliveryStatus() OpsAlertDelivery {
+	webhook := strings.TrimSpace(os.Getenv(OpsAlertWebhookEnv))
+	responder := redactAndBoundLogField(strings.TrimSpace(os.Getenv(OpsAlertResponderEnv)), 120)
+	external := ExternalSideEffectsEnabled()
+	status := OpsAlertDelivery{
+		WebhookConfigured:   webhook != "",
+		ResponderConfigured: responder != "",
+		Responder:           responder,
+		ExternalEffectsOn:   external,
+		DeliveryWouldBeSent: webhook != "" && external,
+	}
+	if webhook == "" {
+		status.UnconfiguredVariables = append(status.UnconfiguredVariables, OpsAlertWebhookEnv)
+	}
+	if responder == "" {
+		status.UnconfiguredVariables = append(status.UnconfiguredVariables, OpsAlertResponderEnv)
+	}
+	return status
 }
 
 func truncateForAlert(s string) string {
@@ -95,6 +156,88 @@ var alertMonitorState = struct {
 	sync.Mutex
 	lastAlertAt map[string]time.Time
 }{lastAlertAt: map[string]time.Time{}}
+
+var queueAlertState = struct {
+	sync.Mutex
+	lastAlertAt map[string]time.Time
+}{lastAlertAt: map[string]time.Time{}}
+
+const queueAlertCooldown = 5 * time.Minute
+
+// StartQueueSaturationMonitor watches durable async job backlog per tenant.
+// Thresholds come from the existing per-tenant settings registry; the monitor
+// adds no service, queue or external dependency. Delivery stays behind the
+// same OPS_ALERT_WEBHOOK_URL / external-side-effects gate as all other alerts.
+func StartQueueSaturationMonitor(ctx context.Context, pollInterval time.Duration) {
+	if pollInterval <= 0 {
+		pollInterval = time.Minute
+	}
+	ticker := time.NewTicker(pollInterval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if db.DB == nil {
+					continue
+				}
+				schemas, err := listTenantSchemas()
+				if err != nil {
+					log.Printf("[QUEUE-MONITOR] failed to list tenant schemas: %v", redactAndBoundLogField(err.Error(), maxSystemErrorMessageBytes))
+					continue
+				}
+				for _, schema := range schemas {
+					if ctx.Err() != nil {
+						return
+					}
+					checkJobQueueSaturation(schema)
+				}
+			}
+		}
+	}()
+}
+
+func queueSaturationMessage(pending int, oldestReadyAge time.Duration, depthLimit int, waitLimit time.Duration) string {
+	if pending < depthLimit && oldestReadyAge < waitLimit {
+		return ""
+	}
+	return fmt.Sprintf("async-job queue backlog: %d pending; oldest ready job %.0fs (limits %d jobs / %s). Inspect Async Jobs for failed or leased work and restore worker/database capacity.",
+		pending, oldestReadyAge.Seconds(), depthLimit, waitLimit)
+}
+
+func checkJobQueueSaturation(schema string) {
+	depthLimit := GetSettingIntForSchema(schema, "ops.async_job_queue_depth_alert")
+	waitLimit := time.Duration(GetSettingIntForSchema(schema, "ops.async_job_queue_wait_seconds_alert")) * time.Second
+	if depthLimit <= 0 || waitLimit <= 0 {
+		return
+	}
+	var pending int
+	var oldestSeconds float64
+	err := db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COUNT(*)::int,
+		       COALESCE(EXTRACT(EPOCH FROM CURRENT_TIMESTAMP - MIN(next_attempt_at)), 0)
+		FROM %s.async_jobs
+		WHERE status = 'Pending' AND next_attempt_at <= CURRENT_TIMESTAMP`, schema)).Scan(&pending, &oldestSeconds)
+	if err != nil {
+		log.Printf("[QUEUE-MONITOR] unable to inspect tenant queue %s: %s", schema, redactAndBoundLogField(err.Error(), maxSystemErrorMessageBytes))
+		return
+	}
+	message := queueSaturationMessage(pending, time.Duration(oldestSeconds*float64(time.Second)), depthLimit, waitLimit)
+	queueAlertState.Lock()
+	last := queueAlertState.lastAlertAt[schema]
+	shouldAlert := message != "" && (last.IsZero() || time.Since(last) >= queueAlertCooldown)
+	if shouldAlert {
+		queueAlertState.lastAlertAt[schema] = time.Now()
+	} else if message == "" {
+		delete(queueAlertState.lastAlertAt, schema)
+	}
+	queueAlertState.Unlock()
+	if shouldAlert {
+		SendOpsAlert("QUEUE_BACKLOG", schema, message)
+	}
+}
 
 // StartAlertMonitor polls system_error_logs per tenant schema and alerts
 // once per cooldown window if the row count within `window` reaches
@@ -240,7 +383,15 @@ func checkBackupAge(maxAge time.Duration) {
 	var message string
 	switch {
 	case !fresh.Found:
-		message = fmt.Sprintf("no nightly backup found in %s at all - the backup cron is not producing files", fresh.Dir)
+		// BLD-052: deliberately does NOT interpolate fresh.Dir. This message
+		// is delivered to an external chat webhook, and the backup directory
+		// is an absolute host path (found by the incident drill, which caught
+		// the full "C:\Users\...\AppData\Local\Temp\..." path arriving in the
+		// payload). The responder configured BACKUP_DIR and does not learn
+		// anything from being told it back; a third party reading the channel
+		// learns the host's filesystem layout. The path is still available
+		// locally via CheckBackupFreshness for anyone diagnosing on the box.
+		message = "no nightly backup found in the configured backup directory at all - the backup cron is not producing files"
 	case time.Since(fresh.Newest) > maxAge:
 		message = fmt.Sprintf("newest nightly backup is %.1fh old (limit %s), taken %s", fresh.AgeHours, maxAge, fresh.Newest.UTC().Format(time.RFC3339))
 	default:
@@ -262,7 +413,7 @@ func checkBackupAge(maxAge time.Duration) {
 func checkErrorRate(schema string, window time.Duration, threshold int) {
 	cutoff := time.Now().Add(-window)
 	var count int
-	err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.system_error_logs WHERE created_at > $1`, schema), cutoff).Scan(&count)
+	err := db.DB.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.system_error_logs WHERE created_at > ($1::timestamptz AT TIME ZONE current_setting('TimeZone'))`, schema), cutoff).Scan(&count)
 	if err != nil || count < threshold {
 		return
 	}

@@ -32,15 +32,42 @@ func TestSendOpsAlertPostsToWebhook(t *testing.T) {
 	os.Setenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS", "1")
 	defer os.Setenv("ERP_ENABLE_EXTERNAL_SIDE_EFFECTS", oldEffects)
 
-	SendOpsAlert("PANIC", "test-module", "something broke")
+	SendOpsAlert("PANIC", "test-module", "something broke password=hunter2")
 
 	select {
 	case text := <-received:
 		if !strings.Contains(text, "PANIC") || !strings.Contains(text, "test-module") || !strings.Contains(text, "something broke") {
 			t.Fatalf("webhook payload missing expected fields: %q", text)
 		}
+		if strings.Contains(text, "hunter2") || !strings.Contains(text, "[REDACTED]") {
+			t.Fatalf("webhook payload leaked a secret instead of redacting it: %q", text)
+		}
 	case <-time.After(2 * time.Second):
 		t.Fatal("webhook was never called")
+	}
+}
+
+func TestQueueSaturationThresholdAndRecoveryMessages(t *testing.T) {
+	if got := queueSaturationMessage(0, 0, 100, 10*time.Minute); got != "" {
+		t.Fatalf("empty queue should not alert, got %q", got)
+	}
+	if got := queueSaturationMessage(99, 9*time.Minute, 100, 10*time.Minute); got != "" {
+		t.Fatalf("queue below both thresholds should not alert, got %q", got)
+	}
+	for _, tc := range []struct {
+		name string
+		jobs int
+		age  time.Duration
+	}{
+		{name: "depth", jobs: 100, age: time.Minute},
+		{name: "age", jobs: 1, age: 10 * time.Minute},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := queueSaturationMessage(tc.jobs, tc.age, 100, 10*time.Minute)
+			if got == "" || !strings.Contains(got, "Async Jobs") || !strings.Contains(got, "worker/database capacity") {
+				t.Fatalf("expected actionable queue alert, got %q", got)
+			}
+		})
 	}
 }
 

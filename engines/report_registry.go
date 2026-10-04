@@ -1,7 +1,9 @@
 package engines
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -128,9 +130,18 @@ func maskSensitiveColumns(columns []ReportColumn, rows []map[string]interface{},
 // maxSyncReportRows (REPORT-0161, Stage 25.5) caps how many rows a
 // synchronous report run (handleRunReport) will return inline - a report
 // this heavy should go through the existing async export job
-// (CreateReportExportJob) instead, which has no such cap since it doesn't
-// block a request. Chosen generously (an ordinary report screen render is
-// nowhere near this) rather than tuned to any real observed slowdown.
+// (CreateReportExportJob) instead. Chosen generously (an ordinary report
+// screen render is nowhere near this) rather than tuned to any real observed
+// slowdown.
+//
+// BLD-046 correction: RunReport applies this cap unconditionally (see
+// below), including to the async export/scheduled-report/dashboard-digest
+// callers - it does not actually exempt them the way an earlier version of
+// this comment claimed. That is deliberate as of this pass (an async export
+// over the cap fails with a clear REPORT-0285/"Failed: ..." rather than
+// silently materializing an unbounded row set), not a bug to fix; a report
+// that legitimately needs more rows than this needs a narrower filter or a
+// dedicated bulk-export path, not an unbounded one.
 const maxSyncReportRows = 5000
 
 // reportMasked reports whether maskSensitiveColumns would actually redact
@@ -157,7 +168,31 @@ func reportMasked(columns []ReportColumn, role string) bool {
 // prerequisite 26.10.6 (dedicated BI data mart/read replica) was itself
 // deferred pending, since that item's own gate is "only once real
 // report-query load is measured," not a decision that's already been made.
+// RunReport is the pre-BLD-046 entry point, kept so the many callers that
+// legitimately have no request to abandon (startup warmers, tests) stay
+// unchanged. It delegates to RunReportContext with a background context.
 func RunReport(tenantID, reportID, role, userID string, params map[string]string) (def *ReportDefinition, rows []map[string]interface{}, masked bool, err error) {
+	return RunReportContext(context.Background(), tenantID, reportID, role, userID, params)
+}
+
+// RunReportContext is the BLD-046 cancellation-aware form. When ctx is
+// cancelled - an abandoned HTTP request, a cancelled async job, a shutting
+// down worker - it returns ctx.Err() promptly instead of finishing the run.
+//
+// Deliberately NOT implemented by threading ctx through ReportRunFunc: that
+// would change the signature of all 97 registered reports while their own
+// db.DB.Query calls still ignored it, so it would add churn across the
+// catalog without cancelling a single statement. Instead the one choke
+// point every report already runs through races the run against ctx, so the
+// caller is released immediately and - the dominant cost for a large report
+// - the row cap check, masking and JSON serialization of a payload nobody
+// is waiting for are all skipped. The abandoned run's own query is left to
+// finish on its pooled connection and its result is discarded; it is
+// time-bounded by reportRunHardTimeout rather than running forever.
+func RunReportContext(ctx context.Context, tenantID, reportID, role, userID string, params map[string]string) (def *ReportDefinition, rows []map[string]interface{}, masked bool, err error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, false, err
+	}
 	d, ok := reportRegistry[reportID]
 	if !ok {
 		return nil, nil, false, fmt.Errorf("unknown report %q", reportID)
@@ -171,7 +206,12 @@ func RunReport(tenantID, reportID, role, userID string, params map[string]string
 		}
 	}
 	start := time.Now()
-	rows, err = d.Run(tenantID, params)
+	rows, err = runReportRaced(ctx, d, tenantID, params)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		// The caller is gone. No run log and no REPORT-0162 wrapping: this is
+		// not the report failing, it is nobody waiting for it any more.
+		return nil, nil, false, err
+	}
 	if err != nil {
 		// REPORT-0162 (Stage 25.5): "Report generation failed" - distinct
 		// from the unknown-report-id/missing-param checks above (those are
@@ -189,6 +229,86 @@ func RunReport(tenantID, reportID, role, userID string, params map[string]string
 	masked = reportMasked(d.Columns, role)
 	rows = maskSensitiveColumns(d.Columns, rows, role)
 	return &d, rows, masked, nil
+}
+
+// reportRunHardTimeout caps how long a single report run may occupy a
+// goroutine and a pooled connection. It exists so an abandoned run (whose
+// caller has already been released by RunReportContext) cannot leak
+// indefinitely, and so a pathological report still fails instead of hanging
+// a worker forever. Generous on purpose: this is a backstop against a
+// runaway query, not the row/time budget a report is expected to meet -
+// platform.max_sync_report_rows remains the user-facing bound.
+const reportRunHardTimeout = 5 * time.Minute
+
+// runReportRaced runs def.Run on its own goroutine and returns as soon as
+// either the run finishes or ctx is done, whichever comes first. The
+// goroutine is never blocked on the send (buffered channel of 1), so an
+// abandoned run always finishes, releases its connection and exits rather
+// than parking forever on an unread channel.
+func runReportRaced(ctx context.Context, def ReportDefinition, tenantID string, params map[string]string) ([]map[string]interface{}, error) {
+	type runOutcome struct {
+		rows []map[string]interface{}
+		err  error
+	}
+	done := make(chan runOutcome, 1)
+	go func() {
+		defer func() {
+			// A panic in one report must not take the process down through a
+			// goroutine nobody is recovering on, which is a new failure mode
+			// introduced by running it off the caller's stack.
+			if p := recover(); p != nil {
+				done <- runOutcome{nil, fmt.Errorf("report %s panicked: %v", def.ID, p)}
+			}
+		}()
+		rows, err := def.Run(tenantID, params)
+		done <- runOutcome{rows, err}
+	}()
+	timeout := time.NewTimer(reportRunHardTimeout)
+	defer timeout.Stop()
+	select {
+	case out := <-done:
+		return out.rows, out.err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-timeout.C:
+		return nil, context.DeadlineExceeded
+	}
+}
+
+// IsCancellation reports whether err is an abandoned-caller signal rather
+// than a real failure. The one predicate every BLD-046 path (report, export,
+// import, job) and the HTTP error writers share, so none of them logs a
+// client walking away as a server error or burns a retry attempt on it.
+func IsCancellation(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
+// RunReportDrillDownContext is the cancellation-aware form of
+// RunReportDrillDown, racing the drill-down the same way RunReportContext
+// races the main run.
+func RunReportDrillDownContext(ctx context.Context, tenantID, reportID, role, rowKey string, params map[string]string) ([]map[string]interface{}, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	def, ok := reportRegistry[reportID]
+	if !ok {
+		return nil, fmt.Errorf("unknown report %q", reportID)
+	}
+	if err := RequireModules(tenantID, "reports", def.ModuleKey); err != nil {
+		return nil, err
+	}
+	if def.DrillDown == nil {
+		return nil, fmt.Errorf("report %q has no drill-down", reportID)
+	}
+	wrapped := def
+	wrapped.Run = func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
+		return def.DrillDown(tenantID, rowKey, params)
+	}
+	rows, err := runReportRaced(ctx, wrapped, tenantID, params)
+	if err != nil {
+		return nil, err
+	}
+	return maskSensitiveColumns(def.Columns, rows, role), nil
 }
 
 // RunReportDrillDown runs a registered report's drill-down function (Stage

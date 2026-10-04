@@ -181,7 +181,25 @@ func IsDerivedCompanionField(fieldname string) bool {
 	f := strings.ToLower(strings.TrimSpace(fieldname))
 	for _, suf := range fieldFormatExcludedSuffixes {
 		if strings.HasSuffix(f, suf) {
+			// `_type` is only a derived companion when the name also contains
+			// one of the format tokens it describes (e.g. phone_type). Plain
+			// domain attributes such as jewelry's stone_type are real inputs,
+			// not server-derived companions.
+			if suf == "_type" && !containsFieldFormatToken(f) {
+				continue
+			}
 			return true
+		}
+	}
+	return false
+}
+
+func containsFieldFormatToken(fieldname string) bool {
+	for _, spec := range fieldFormats {
+		for _, token := range spec.Tokens {
+			if token != "" && strings.Contains(fieldname, token) {
+				return true
+			}
 		}
 	}
 	return false

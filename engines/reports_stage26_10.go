@@ -240,7 +240,7 @@ func GetStaleApprovals(tenantID string, thresholdHours float64) ([]StaleApproval
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT doctype, id, updated_at FROM %s.documents WHERE status = 'Pending Approval'`, schema))
+		`SELECT doctype, id, updated_at AT TIME ZONE current_setting('TimeZone') FROM %s.documents WHERE status = 'Pending Approval'`, schema))
 	if err != nil {
 		return nil, err
 	}

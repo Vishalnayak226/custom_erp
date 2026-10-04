@@ -441,7 +441,7 @@ func getUnsettledMarketplaceOrdersReport(tenantID string, params map[string]stri
 		thresholdDays = 7
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT so.id, COALESCE(so.data->>'channel',''), so.status, so.updated_at
+		SELECT so.id, COALESCE(so.data->>'channel',''), so.status, so.updated_at AT TIME ZONE current_setting('TimeZone')
 		FROM %s.documents so
 		WHERE so.doctype = 'SalesOrder' AND so.deleted_at IS NULL AND so.status IN ('Shipped','Delivered')
 		  AND COALESCE(so.data->>'channel','') <> ''

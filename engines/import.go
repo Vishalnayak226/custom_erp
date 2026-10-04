@@ -2,6 +2,7 @@ package engines
 
 import (
 	"bytes"
+	"context"
 	"custom_erp/db"
 	"encoding/csv"
 	"encoding/json"
@@ -59,6 +60,31 @@ func sanitizeCSVCell(value string) string {
 // guarantee Stage 15.2 established holds unchanged across batch boundaries.
 const importBatchRows = 500
 
+// csvCancelCheckRows is how often readCSVRecordsContext consults ctx while
+// parsing an upload (BLD-046).
+const csvCancelCheckRows = 256
+
+// maxImportErrorsRecorded (BLD-046) bounds how many individual row errors
+// accumulate in one ImportResult/ImportJob. A large, mostly-invalid file
+// would otherwise add one error entry per row with no cap, inflating both
+// the JSON response and the error_csv blob RecordImportJob stores in the
+// ImportJob document without bound. Rows past this count still fail and
+// count toward FailedRows; only the itemized detail is capped, with one
+// summary entry appended once (see runDocDataImport).
+const maxImportErrorsRecorded = 1000
+
+// recordImportError is the one place importBatch appends a row failure -
+// the shared choke point that applies maxImportErrorsRecorded to every
+// failure reason (pre-check, permission, validation, marshal, DB write)
+// instead of needing the cap checked at each call site individually.
+func recordImportError(result *ImportResult, rowNumber int, message string) {
+	result.FailedRows++
+	if len(result.Errors) >= maxImportErrorsRecorded {
+		return
+	}
+	result.Errors = append(result.Errors, RowValidationError{RowNumber: rowNumber, Message: message})
+}
+
 // BulkImportCSV parses a CSV body, validates constraints, and inserts valid
 // records in batched transactions (24.32). dryRun=true (Stage 15.2) runs the
 // exact same validation/existence-check logic per row but every batch is
@@ -66,7 +92,16 @@ const importBatchRows = 500
 // (create/update/reject) with zero risk of a partial write, without a
 // second parsing codepath.
 func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID, role string, dryRun bool) (*ImportResult, error) {
-	records, err := readCSVRecords(r)
+	return BulkImportCSVContext(context.Background(), tenantID, doctype, r, userID, role, dryRun)
+}
+
+// BulkImportCSVContext is the BLD-046 cancellation-aware form. Cancellation
+// is honoured at two points: while the upload is still being read (so an
+// abandoned oversized file stops being buffered) and between committed
+// batches (so an abandoned import stops doing work without ever tearing up
+// a batch that already committed).
+func BulkImportCSVContext(ctx context.Context, tenantID string, doctype string, r io.Reader, userID, role string, dryRun bool) (*ImportResult, error) {
+	records, err := readCSVRecordsContext(ctx, tenantID, r)
 	if err != nil {
 		return nil, err
 	}
@@ -93,18 +128,55 @@ func BulkImportCSV(tenantID string, doctype string, r io.Reader, userID, role st
 		// how the file's columns happened to be named.
 		preErrors = pimVariantParentPreflight(tenantID, docRows)
 	}
-	return runDocDataImport(tenantID, doctype, userID, role, dryRun, docRows, preErrors)
+	return runDocDataImportContext(ctx, tenantID, doctype, userID, role, dryRun, docRows, preErrors)
 }
 
 // readCSVRecords is the one CSV-parsing entry point BulkImportCSV and Stage
 // 36.3's RunPIMImportTemplate both go through, so the empty-file check
-// (DATAIM-0163) is enforced identically for a plain upload and a templated
-// one instead of drifting into two slightly different messages.
-func readCSVRecords(r io.Reader) ([][]string, error) {
+// (DATAIM-0163) and the row cap below are enforced identically for a plain
+// upload and a templated one instead of drifting into two slightly
+// different behaviors.
+//
+// BLD-046: reads row-by-row (reader.Read() in a loop) instead of
+// reader.ReadAll(), and rejects the file as soon as its data-row count
+// crosses platform.max_import_rows rather than after first parsing the
+// whole thing into memory. Before this, the only thing bounding a bulk
+// import's memory use was the incidental global 2MB request-body cap
+// (middleware.go) - not a deliberate row bound, so raising that byte cap (a
+// plausible ask on its own, since 2MB is a small CSV) would have had no
+// mitigation left underneath it.
+func readCSVRecords(tenantID string, r io.Reader) ([][]string, error) {
+	return readCSVRecordsContext(context.Background(), tenantID, r)
+}
+
+// readCSVRecordsContext adds the BLD-046 cancellation check to the parse
+// loop. Checked every csvCancelCheckRows rows rather than every row: the
+// check is cheap but not free, and a batch of a few hundred rows is already
+// a fine granularity for abandoning a parse.
+func readCSVRecordsContext(ctx context.Context, tenantID string, r io.Reader) ([][]string, error) {
+	maxRows := GetSettingInt(tenantID, "platform.max_import_rows")
 	reader := csv.NewReader(r)
-	records, err := reader.ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("failed to read CSV: %w", err)
+	var records [][]string
+	for {
+		if len(records)%csvCancelCheckRows == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read CSV: %w", err)
+		}
+		records = append(records, record)
+		if maxRows > 0 && len(records)-1 > maxRows {
+			// -1 excludes the header row from the data-row count. Bails
+			// immediately rather than continuing to read/buffer the rest of
+			// an oversized file that is going to be rejected regardless.
+			return nil, &ValidationError{Code: "DATAIM-0189", Message: fmt.Sprintf("uploaded file has more than %d data rows - split it into smaller files and import them separately", maxRows)}
+		}
 	}
 	if len(records) < 2 {
 		// DATAIM-0163 (Stage 25.5): "Excel template invalid" - a file with
@@ -144,6 +216,13 @@ func csvRowsToDocData(headers []string, rows [][]string) []map[string]interface{
 // without ever being passed to ValidateDocument, while every row after it
 // keeps the same row number it would have had either way.
 func runDocDataImport(tenantID, doctype, userID, role string, dryRun bool, docRows []map[string]interface{}, preErrors []string) (*ImportResult, error) {
+	return runDocDataImportContext(context.Background(), tenantID, doctype, userID, role, dryRun, docRows, preErrors)
+}
+
+// runDocDataImportContext is the one batching core both the plain-CSV and
+// the templated import go through, so the cancellation point below covers
+// both without either path checking for itself.
+func runDocDataImportContext(ctx context.Context, tenantID, doctype, userID, role string, dryRun bool, docRows []map[string]interface{}, preErrors []string) (*ImportResult, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -169,6 +248,14 @@ func runDocDataImport(tenantID, doctype, userID, role string, dryRun bool, docRo
 		batchRows = 1
 	}
 	for batchStart := 0; batchStart < len(docRows); batchStart += batchRows {
+		// Checked between batches, never inside one. importBatch owns its own
+		// transaction, so stopping here leaves every already-committed batch
+		// committed and the current one untouched - the retry contract is
+		// unchanged, because re-importing the same file re-runs the same
+		// per-row existence check and updates instead of duplicating.
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		batchEnd := batchStart + batchRows
 		if batchEnd > len(docRows) {
 			batchEnd = len(docRows)
@@ -177,6 +264,19 @@ func runDocDataImport(tenantID, doctype, userID, role string, dryRun bool, docRo
 			docRows[batchStart:batchEnd], preErrors[batchStart:batchEnd], batchStart+2, result, seenIDs); err != nil {
 			return nil, err
 		}
+	}
+
+	// BLD-046: recordImportError stopped itemizing individual failures once
+	// maxImportErrorsRecorded was reached, but kept counting FailedRows - one
+	// honest summary entry replaces the silently-dropped detail so the
+	// response accounts for every failed row instead of undercounting what
+	// Errors shows.
+	if result.FailedRows > len(result.Errors) {
+		result.Errors = append(result.Errors, RowValidationError{
+			RowNumber: 0,
+			Message: fmt.Sprintf("%d additional row(s) also failed and are not itemized here (capped at %d) - fix the errors shown, re-run, and repeat for any rows still failing",
+				result.FailedRows-len(result.Errors), maxImportErrorsRecorded),
+		})
 	}
 
 	return result, nil
@@ -210,6 +310,19 @@ func missingMandatoryColumns(tenantID, doctype string, headers []string) []strin
 		if f.Fieldname == "id" || f.Fieldname == "status" {
 			continue
 		}
+		// Stage 51.8: `code` is server-generated for an Item import that
+		// carries a `family` column, exactly as it is on the single-record
+		// form (view-documents.js treats code as server-numbered the moment
+		// a family is set), so demanding the column here contradicts the one
+		// flow whose entire purpose is to have the SKU generated. Narrow on
+		// purpose: for every other doctype, and for an Item import with no
+		// family column, `code` stays mandatory - a plain Master row with no
+		// code has nothing for ValidateDocument or the id = code invariant to
+		// work from, and rejecting the file once up front is far better than
+		// failing every row individually.
+		if f.Fieldname == "code" && doctype == "Item" && present["family"] {
+			continue
+		}
 		if f.Mandatory && !present[strings.ToLower(f.Fieldname)] {
 			missing = append(missing, f.Fieldname)
 		}
@@ -241,11 +354,7 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		rowNumber := firstRowNumber + i
 
 		if preErr := preErrors[i]; preErr != "" {
-			result.FailedRows++
-			result.Errors = append(result.Errors, RowValidationError{
-				RowNumber: rowNumber,
-				Message:   preErr,
-			})
+			recordImportError(result, rowNumber, preErr)
 			continue
 		}
 
@@ -260,11 +369,36 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		// find zero rows for a role named "".
 		if role != "" {
 			if permErr := RejectRestrictedFieldWrites(tenantID, role, doctype, docData); permErr != nil {
-				result.FailedRows++
-				result.Errors = append(result.Errors, RowValidationError{
-					RowNumber: rowNumber,
-					Message:   permErr.Error(),
-				})
+				recordImportError(result, rowNumber, permErr.Error())
+				continue
+			}
+		}
+
+		// Is this row a create, or does it target an existing record by id?
+		// Computed exactly the way the id-generation block below does it (an
+		// "id" column that is present but blank counts as absent), because
+		// the two Stage 51.8 passes immediately after this both have to make
+		// the same call and must agree with it.
+		rowIsCreate := true
+		if existingID, hasID := docData["id"]; hasID && strings.TrimSpace(fmt.Sprintf("%v", existingID)) != "" {
+			rowIsCreate = false
+		}
+
+		// Stage 51.8: an imported Item under a parent design gets its
+		// Combination ID/SKU generated from that design's code plus its own
+		// variant attributes, exactly as the single-record save path does.
+		// Stage 51.9 found this unreachable from bulk import -
+		// PrepareItemVariantCode had one caller, handleGenericDoc - so every
+		// bulk-imported variant got a plain sequence number instead of a real
+		// SKU, and the only migration that needed one had to pre-compute all
+		// 34 codes by hand in a transform script. Positioned before
+		// ValidateDocument for the same reason as on the save path: code is a
+		// mandatory field, so it must be populated before the mandatory check
+		// runs. A no-op for a standalone Item, for any other doctype, and for
+		// a row that already carries an explicit code.
+		if doctype == "Item" {
+			if err := PrepareItemVariantCode(tenantID, rowIsCreate, docData); err != nil {
+				recordImportError(result, rowNumber, err.Error())
 				continue
 			}
 		}
@@ -272,11 +406,23 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		// Perform field structure validation
 		valErr := ValidateDocument(tenantID, doctype, docData)
 		if valErr != nil {
-			result.FailedRows++
-			result.Errors = append(result.Errors, RowValidationError{
-				RowNumber: rowNumber,
-				Message:   valErr.Error(),
-			})
+			recordImportError(result, rowNumber, valErr.Error())
+			continue
+		}
+
+		// Stage 51.8: restore the Master id = code invariant on this path too.
+		// Stage 51.1 fixed it at handleGenericDoc and its comment claimed to
+		// cover "every caller (UI, CSV import, API)", but CSV import does not
+		// go through that handler - it lands here, where a row with no
+		// explicit id falls through to GenerateSequence below and draws a
+		// *separate* number from the same series its code came from. The
+		// result is a bulk-imported Vendor/Item/Customer whose id and code
+		// disagree, so every Link field pointing at it fails "record does
+		// not exist" forever - 51.1's exact bug, on the one caller 51.1
+		// believed it had already fixed. Runs after ValidateDocument so a
+		// Master's mandatory `code` is already guaranteed present.
+		if _, invErr := ApplyMasterIDCodeInvariant(tenantID, doctype, rowIsCreate, docData); invErr != nil {
+			recordImportError(result, rowNumber, fmt.Sprintf("could not resolve whether %s is a Master doctype: %v", doctype, invErr))
 			continue
 		}
 
@@ -290,11 +436,7 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 			// in the database (that's a legitimate update, tracked via
 			// UpdatedIDs below), this is the file contradicting itself.
 			if seenIDs[id] {
-				result.FailedRows++
-				result.Errors = append(result.Errors, RowValidationError{
-					RowNumber: rowNumber,
-					Message:   fmt.Sprintf("duplicate id %q also appears earlier in this file", id),
-				})
+				recordImportError(result, rowNumber, fmt.Sprintf("duplicate id %q also appears earlier in this file", id))
 				continue
 			}
 			seenIDs[id] = true
@@ -326,11 +468,7 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		// Marshall data column
 		marshaled, mErr := json.Marshal(docData)
 		if mErr != nil {
-			result.FailedRows++
-			result.Errors = append(result.Errors, RowValidationError{
-				RowNumber: rowNumber,
-				Message:   fmt.Sprintf("Failed to marshal JSON payload: %v", mErr),
-			})
+			recordImportError(result, rowNumber, fmt.Sprintf("Failed to marshal JSON payload: %v", mErr))
 			continue
 		}
 
@@ -346,11 +484,7 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 			ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = CURRENT_TIMESTAMP`
 		_, execErr := tx.Exec(query, id, doctype, marshaled, "Active", userID)
 		if execErr != nil {
-			result.FailedRows++
-			result.Errors = append(result.Errors, RowValidationError{
-				RowNumber: rowNumber,
-				Message:   fmt.Sprintf("Database write error: %v", execErr),
-			})
+			recordImportError(result, rowNumber, fmt.Sprintf("Database write error: %v", execErr))
 			continue
 		}
 

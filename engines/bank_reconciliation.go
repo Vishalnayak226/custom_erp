@@ -92,7 +92,7 @@ func ReconcileBankStatement(tenantID, bankAccountID, userID string) (*BankReconc
 			log.Printf("[BANK-RECONCILE] corrupt BankStatementLine %s: %v", id, err)
 			continue
 		}
-		txnDate, _ := time.Parse("2006-01-02", fmt.Sprintf("%v", d["txn_date"]))
+		txnDate, _ := time.ParseInLocation("2006-01-02", fmt.Sprintf("%v", d["txn_date"]), time.Local)
 		amount := numFromInterface(d["amount"])
 		drCr, _ := d["dr_cr"].(string)
 		lines = append(lines, bankStatementLineRow{ID: id, TxnDate: txnDate, Amount: amount, DrCr: drCr})
@@ -101,7 +101,7 @@ func ReconcileBankStatement(tenantID, bankAccountID, userID string) (*BankReconc
 
 	// Load every not-yet-matched gl_posting on this account.
 	postingRows, err := tx.Query(fmt.Sprintf(`
-		SELECT posting_id, debit, credit, created_at FROM %s.gl_postings
+		SELECT posting_id, debit, credit, created_at AT TIME ZONE current_setting('TimeZone') FROM %s.gl_postings
 		WHERE account_code = $1 AND matched_statement_line_id IS NULL`, schema), glAccountCode)
 	if err != nil {
 		return nil, err

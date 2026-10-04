@@ -108,7 +108,9 @@
         "public/app.js",
         "public/index.html",
         "public/styles.css",
-        "public/components/*"
+        "public/components/*",
+        "public/view-*.js",
+        "public/theme-boot.js"
       ]
     },
     {
@@ -140,6 +142,7 @@
         "internal/server/middleware.go",
         "internal/server/middleware_compress.go",
         "internal/server/tenant_host.go",
+        "internal/server/handlers_csp.go",
         "internal/server/VERSION",
         "cmd/server/main.go"
       ]
@@ -571,16 +574,18 @@
       "id": "observability",
       "lobe": "autonomic",
       "name": "Logging, Alerting & Notifications",
-      "role": "Audit log, system error log (a PANIC alerts immediately), the ops alert monitor that watches error rates per tenant schema, user/ops notifications, the ops status surface, and the concurrency scale simulator.",
+      "role": "Audit log, system error log (a PANIC alerts immediately), the ops alert monitor that watches error rates and async-job queue depth per tenant schema, the request-to-outbox-to-job correlation id, the liveness and readiness probes, user/ops notifications, the ops status surface, and the concurrency scale simulator.",
       "match": [
         "engines/logs.go",
         "engines/audit_evidence.go",
         "engines/audit_archive.go",
         "engines/alerting.go",
+        "engines/correlation.go",
         "engines/notifications.go",
         "engines/scale.go",
         "internal/server/handlers_ops_status.go",
-        "internal/server/handlers_operations.go"
+        "internal/server/handlers_operations.go",
+        "internal/server/handlers_readiness.go"
       ]
     },
     {
@@ -637,7 +642,8 @@
         ".gitignore",
         ".gitattributes",
         "cmd/minttoken/*",
-        "cmd/snapshot_tenant_config/*"
+        "cmd/snapshot_tenant_config/*",
+        "cmd/releasebudget/*"
       ]
     },
     {

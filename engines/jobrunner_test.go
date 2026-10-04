@@ -1,10 +1,12 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 )
 
 func TestStage386JobRunner(t *testing.T) {
@@ -62,11 +64,11 @@ func TestStage386JobRunner(t *testing.T) {
 			t.Fatalf("lower max_attempts: %v", err)
 		}
 
-		RegisterJobHandler("test-3860-ok", func(schema string, job Job) (map[string]interface{}, error) {
+		RegisterJobHandler("test-3860-ok", func(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
 			return map[string]interface{}{"echoed": true}, nil
 		})
 		attemptCount := 0
-		RegisterJobHandler("test-3860-fail", func(schema string, job Job) (map[string]interface{}, error) {
+		RegisterJobHandler("test-3860-fail", func(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
 			attemptCount++
 			return nil, errors.New("deliberate test failure")
 		})
@@ -149,6 +151,59 @@ func TestStage386JobRunner(t *testing.T) {
 		}
 		if status != "Pending" || attempts != 0 {
 			t.Fatalf("expected the replayed job to be Pending with attempts reset to 0, got status=%s attempts=%d", status, attempts)
+		}
+	})
+
+	t.Run("CancelJob interrupts a running handler without converting cancellation into a retry", func(t *testing.T) {
+		const jobType = "test-3860-cancel-running"
+		id, err := EnqueueJob(tenantID, jobType, map[string]interface{}{}, "")
+		if err != nil {
+			t.Fatalf("EnqueueJob: %v", err)
+		}
+		defer cleanup(id)
+		if _, err := db.DB.Exec("UPDATE "+schema+".async_jobs SET next_attempt_at = CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE id = $1", id); err != nil {
+			t.Fatalf("make job due: %v", err)
+		}
+
+		started := make(chan struct{})
+		interrupted := make(chan struct{})
+		RegisterJobHandler(jobType, func(ctx context.Context, schema string, job Job) (map[string]interface{}, error) {
+			close(started)
+			<-ctx.Done()
+			close(interrupted)
+			return nil, ctx.Err()
+		})
+		done := make(chan struct{})
+		go func() {
+			runClaimedJobs(schema)
+			close(done)
+		}()
+		select {
+		case <-started:
+		case <-time.After(3 * time.Second):
+			t.Fatal("job handler did not start")
+		}
+		if err := CancelJob(tenantID, id); err != nil {
+			t.Fatalf("CancelJob running job: %v", err)
+		}
+		select {
+		case <-interrupted:
+		case <-time.After(3 * time.Second):
+			t.Fatal("running handler did not observe cancellation")
+		}
+		select {
+		case <-done:
+		case <-time.After(3 * time.Second):
+			t.Fatal("job worker did not return after cancellation")
+		}
+
+		var status string
+		var attempts int
+		if err := db.DB.QueryRow("SELECT status, attempts FROM "+schema+".async_jobs WHERE id = $1", id).Scan(&status, &attempts); err != nil {
+			t.Fatalf("reload cancelled job: %v", err)
+		}
+		if status != "Cancelled" || attempts != 0 {
+			t.Fatalf("cancellation must remain terminal and must not consume a retry: status=%s attempts=%d", status, attempts)
 		}
 	})
 

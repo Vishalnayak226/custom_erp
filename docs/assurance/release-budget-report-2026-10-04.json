@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "units": "byte; KiB=1024 bytes; MiB=1024*1024 bytes; gzip assets are independently compressed per HTTP resource",
+  "metrics": {
+    "application_log_files_bytes": {
+      "value": 1810927,
+      "unit": "bytes",
+      "status": "measured_no_numeric_policy",
+      "note": "measurement only; no approved byte cap is defined in NFR-DATA-001"
+    },
+    "audit_archive_relation_bytes": {
+      "value": 3211264,
+      "unit": "bytes",
+      "status": "measured_no_numeric_policy",
+      "note": "measurement only; NFR-DATA-001 has no approved numeric cap; capture workload/window before comparing"
+    },
+    "backup_artifacts_bytes": {
+      "value": 5496929,
+      "unit": "bytes",
+      "status": "measured_no_numeric_policy",
+      "note": "measurement only; no approved byte cap is defined in NFR-DATA-001"
+    },
+    "binary_stripped_bytes": {
+      "value": 16990368,
+      "unit": "bytes",
+      "limit": 26214400,
+      "status": "within_budget",
+      "note": "NFR-COST-001; build with -ldflags '-s -w'"
+    },
+    "cold_core_gzip_bytes": {
+      "value": 151744,
+      "unit": "bytes",
+      "limit": 184320,
+      "status": "within_budget",
+      "note": "NFR-COST-001; initial shell files compressed individually"
+    },
+    "embedded_kb_raw_bytes": {
+      "value": 924297,
+      "unit": "bytes",
+      "limit": 2097152,
+      "status": "within_budget",
+      "note": "NFR-DOC-001; raw bytes embedded in the server"
+    },
+    "initial_js_gzip_bytes": {
+      "value": 113817,
+      "unit": "bytes",
+      "limit": 122880,
+      "status": "within_budget",
+      "note": "NFR-COST-001; startup JavaScript compressed individually"
+    },
+    "kb_largest_topic_raw_bytes": {
+      "value": 84047,
+      "unit": "bytes",
+      "limit": 122880,
+      "status": "within_budget",
+      "note": "NFR-DOC-001 ordinary-topic cap; largest single article is error-code-reference.html"
+    },
+    "kb_search_index_raw_bytes": {
+      "value": 150153,
+      "unit": "bytes",
+      "limit": 256000,
+      "status": "within_budget",
+      "note": "NFR-DOC-001; raw generated search index"
+    },
+    "postgres_database_bytes": {
+      "value": 35615203,
+      "unit": "bytes",
+      "status": "measured_no_numeric_policy",
+      "note": "measurement only; NFR-DATA-001 has no approved numeric cap; capture workload/window before comparing"
+    },
+    "system_error_log_relation_bytes": {
+      "value": 516096,
+      "unit": "bytes",
+      "status": "measured_no_numeric_policy",
+      "note": "measurement only; NFR-DATA-001 has no approved numeric cap; capture workload/window before comparing"
+    },
+    "tenant_relation_bytes": {
+      "value": 11214848,
+      "unit": "bytes",
+      "status": "measured_no_numeric_policy",
+      "note": "measurement only; NFR-DATA-001 has no approved numeric cap; capture workload/window before comparing"
+    }
+  },
+  "retention_days": {
+    "whole_database_backups": "14"
+  }
+}

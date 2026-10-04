@@ -56,6 +56,27 @@ func fieldPermissions(tenantID, role, doctype string) (map[string]FieldPermissio
 	return result, nil
 }
 
+// HiddenFieldsForRole (BLD-034) returns just the field names this role
+// cannot read for this doctype - the same set FilterFieldsForRole deletes
+// from a document's data, but resolved once up front instead of per row.
+// The generic list endpoint's SQL-side free-text search needs this so a
+// search term can never surface whether a role-hidden field (payroll, a
+// connector secret, ...) contains it: a document must not become findable
+// by searching on a value the response itself would redact.
+func HiddenFieldsForRole(tenantID, role, doctype string) ([]string, error) {
+	permissions, err := fieldPermissions(tenantID, role, doctype)
+	if err != nil {
+		return nil, err
+	}
+	hidden := make([]string, 0, len(permissions))
+	for field, permission := range permissions {
+		if !permission.AllowRead {
+			hidden = append(hidden, field)
+		}
+	}
+	return hidden, nil
+}
+
 func FilterFieldsForRole(tenantID, role, doctype string, data map[string]interface{}) (map[string]interface{}, error) {
 	permissions, err := fieldPermissions(tenantID, role, doctype)
 	if err != nil {

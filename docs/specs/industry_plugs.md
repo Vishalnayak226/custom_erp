@@ -1,6 +1,6 @@
 ---
 doc_id: DOC-E4BD05A9FC
-title: In-House ERP: Multi-Industry Schema & Configuration Specification
+title: "In-House ERP: Multi-Industry Schema & Configuration Specification"
 type: reference
 status: draft
 owner: product-owner

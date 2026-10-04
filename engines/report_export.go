@@ -19,6 +19,19 @@ import (
 // JSONB document - the same "no new file-storage mechanism" trick
 // Stage 15.2's ImportJob.error_csv already uses.
 
+// asyncReportWorkerBatchSize (BLD-046) bounds how many due items one
+// schema's tick of a bespoke report-shaped worker (this file,
+// scheduled_reports.go, dashboard.go, pim_export_schedule.go) processes at
+// once. Without it, one tenant with a large backlog can make its own single
+// tick take arbitrarily long before the loop moves on to the next schema -
+// this doesn't add real concurrency (each of these workers still runs
+// strictly sequentially, one goroutine, matching every existing ticker in
+// this codebase - see StartOutboxWorker et al.), it bounds worst-case work
+// per tick so no schema can starve the others for more than one batch's
+// worth of processing time. Matches jobrunner.go's jobClaimBatchSize
+// precedent; the rest still accumulates and gets picked up next tick.
+const asyncReportWorkerBatchSize = 25
+
 // CreateReportExportJob queues a report to run in the background and
 // returns the job id immediately - the point of "async" for a report heavy
 // enough that running it inline would block the request.
@@ -109,16 +122,35 @@ func StartReportExportWorker(ctx context.Context, interval time.Duration) {
 					continue
 				}
 				for _, schema := range schemas {
-					processReportExportJobs(schema)
+					processReportExportJobs(ctx, schema)
 				}
 			}
 		}
 	}()
 }
 
-func processReportExportJobs(schema string) {
+// BLD-046: takes the worker's ctx so a shutting-down process abandons an
+// in-flight run instead of finishing one whose result nobody will collect.
+// The job/schedule row is left untouched and is reclaimed on the next tick.
+func processReportExportJobs(ctx context.Context, schema string) {
+	// BLD-046: resolved once per tick, before touching any job, so a
+	// resolution failure skips this schema's whole tick rather than running
+	// every job against the wrong (tenant_default) settings/entitlements -
+	// see the same fix in scheduled_reports.go/dashboard.go, all three of
+	// which previously passed schema itself as tenantID into RunReport.
+	// GetTenantSchema(schema) would find zero rows (schema is never a valid
+	// tenant_id) and silently fall back to tenant_default, so every async
+	// report export/scheduled report/dashboard digest was checking
+	// tenant_default's row cap and module entitlements regardless of which
+	// tenant actually queued the job.
+	tenantID, err := tenantIDForSchema(schema)
+	if err != nil {
+		log.Printf("[REPORT_EXPORT] could not resolve tenant for schema %s: %v", schema, err)
+		return
+	}
 	rows, err := db.DB.Query(fmt.Sprintf(
-		`SELECT id, data FROM %s.documents WHERE doctype = 'ReportExportJob' AND status = 'Pending'`, schema))
+		`SELECT id, data FROM %s.documents WHERE doctype = 'ReportExportJob' AND status = 'Pending' ORDER BY created_at LIMIT $1`, schema),
+		asyncReportWorkerBatchSize)
 	if err != nil {
 		log.Printf("[REPORT_EXPORT] query failed for %s: %v", schema, err)
 		return
@@ -160,7 +192,7 @@ func processReportExportJobs(schema string) {
 
 		newStatus := "Completed"
 		csvText := ""
-		def, resultRows, _, err := RunReport(schema, reportID, role, "", params)
+		def, resultRows, _, err := RunReportContext(ctx, tenantID, reportID, role, "", params)
 		if err != nil {
 			// REPORT-0285 ("Export job failed") is this async path's own
 			// distinct catalog code, deliberately separate from REPORT-0162
@@ -222,4 +254,71 @@ func reportRowsToCSV(def ReportDefinition, rows []map[string]interface{}) (strin
 	}
 	w.Flush()
 	return buf.String(), nil
+}
+
+// SweepReportExportJobRetention (BLD-046) deletes terminal (Completed/
+// Failed) ReportExportJob documents older than the retention window -
+// mirrors SweepJobRunnerRetention (jobrunner.go). A ReportExportJob's
+// generated CSV lives inside its own JSONB document (this file's own top
+// comment: "no new file-storage mechanism"), and nothing previously swept
+// it - an export a tenant never downloads sat there forever, growing the
+// documents table without bound.
+func SweepReportExportJobRetention(tenantID string) (int64, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return 0, err
+	}
+	retentionDays := GetSettingInt(tenantID, "platform.report_export_retention_days")
+	if retentionDays <= 0 {
+		retentionDays = 7
+	}
+	result, err := db.DB.Exec(fmt.Sprintf(`
+		DELETE FROM %s.documents
+		WHERE doctype = 'ReportExportJob' AND status IN ('Completed', 'Failed')
+		  AND updated_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval`, schema), retentionDays)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := result.RowsAffected()
+	return n, nil
+}
+
+// StartReportExportRetentionSweeper keeps ReportExportJob documents bounded
+// - same hourly cadence as StartJobRunnerRetentionSweeper. Does not attempt
+// lease-based crash recovery for a job stuck mid-run (unlike jobrunner.go) -
+// processReportExportJobs always transitions a claimed job to Completed or
+// Failed in the same tick, so the only way one stays Pending indefinitely is
+// a process crash between claim and write-back, a narrow window this
+// bespoke ticker accepts rather than rebuilding jobrunner.go's lease
+// machinery for it; migrating this worker onto jobrunner.go (47.11.4) is
+// the real fix for that, not a surgical addition here.
+func StartReportExportRetentionSweeper(ctx context.Context, interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	go func() {
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if db.DB == nil {
+					continue
+				}
+				schemas, err := listTenantSchemas("reports")
+				if err != nil {
+					log.Printf("[REPORT_EXPORT-SWEEP] Failed to list tenant schemas: %v", err)
+					continue
+				}
+				for _, schema := range schemas {
+					tenantID, idErr := tenantIDForSchema(schema)
+					if idErr != nil {
+						continue
+					}
+					if _, err := SweepReportExportJobRetention(tenantID); err != nil {
+						log.Printf("[REPORT_EXPORT-SWEEP] sweep failed for %s: %v", schema, err)
+					}
+				}
+			}
+		}
+	}()
 }

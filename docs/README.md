@@ -39,7 +39,7 @@ including provisional ownership, review status, replacements and historical reco
 
 | I need to… | Start here | Audience / authority |
 |---|---|---|
-| Resume development | [Developer setup](engineering/developer-setup.md), [handover §6](ai_handover.md#6-version-control--handover-status) | Developer; stable procedure and shared-tree state |
+| Resume development | [Developer setup](engineering/developer-setup.md), [current handover state](ai_handover.md#current-repository-state) | Developer; stable procedure and shared-tree state |
 | Locate a subsystem | [Current architecture](architecture/current-architecture.md), [project brain](brain/README.md) | Engineer; verify graph inferences in source |
 | Understand data and runtime boundaries | [Data/runtime views](architecture/data-and-runtime-views.md), [generated dictionary](data/generated/dictionary.md) | Engineer/data steward; scoped source facts |
 | Integrate through the API | [API overview](api/overview.md), [generated OpenAPI](api/generated/public-v1.json) | Integrator; generated contract plus authored usage |

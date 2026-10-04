@@ -77,3 +77,88 @@ func TestSecretAndScopeRules(t *testing.T) {
 		t.Fatal(got)
 	}
 }
+
+func TestOnlyDeclaredProjectWorkRegistersExemptArticleByteBudget(t *testing.T) {
+	metadata := map[string]string{"format": "work-register"}
+	for _, path := range []string{"docs/micro_checklist.md", "docs/product/erp-build-checklist.md"} {
+		if !isWorkRegister(path, metadata) {
+			t.Errorf("declared work register not recognized: %s", path)
+		}
+	}
+	for _, path := range []string{"docs/ai_handover.md", "docs/product/other.md"} {
+		if isWorkRegister(path, metadata) {
+			t.Errorf("unapproved path exempted from article byte budget: %s", path)
+		}
+	}
+}
+
+// --- BLD-055: recoverable-failure safety ------------------------------------
+//
+// The safety rounds this item asks for have two halves: the checks are
+// read-only (covered by
+// TestLintFindsBrokenLinksExpiredReviewAndDuplicateIDsWithoutWriting above,
+// and re-proved against the real tree by hashing docs/ before and after three
+// strict runs), and a failure is recoverable - it reports the problem and
+// leaves the tree exactly as it found it, rather than half-writing an
+// inventory. The tests below cover the second half.
+
+func TestCorruptRegisterIsReportedWithoutDamagingTheTree(t *testing.T) {
+	root := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, "docs/governance"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	page := "---\ndoc_id: DOC-OK\nowner: docs\n---\n# Fine\n"
+	pagePath := filepath.Join(root, "docs/a.md")
+	if err := os.WriteFile(pagePath, []byte(page), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	registerPath := filepath.Join(root, "docs/governance/document-register.json")
+	corrupt := []byte("{ not json at all")
+	if err := os.WriteFile(registerPath, corrupt, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pageBefore, _ := os.Stat(pagePath)
+
+	rules := []Rule{{Type: "reference", Status: "active", Owner: "docs", Authority: "canonical", Disposition: "rebuild"}}
+	_, _, err := inspect(root, rules, time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC))
+	if err == nil {
+		t.Fatal("a corrupt register must be reported, not silently treated as an empty one - that would mark every document unregistered and invite a destructive 'refresh'")
+	}
+	if !strings.Contains(err.Error(), "register") {
+		t.Errorf("the error must name the register as the problem, got %v", err)
+	}
+
+	// Recoverable: the corrupt file is left exactly as-is for an operator to
+	// fix or restore, and no source page was touched.
+	after, readErr := os.ReadFile(registerPath)
+	if readErr != nil {
+		t.Fatalf("the register must be left in place for recovery: %v", readErr)
+	}
+	if string(after) != string(corrupt) {
+		t.Errorf("the corrupt register was rewritten; recovery must be the operator's choice, got %q", string(after))
+	}
+	pageAfter, _ := os.Stat(pagePath)
+	if !pageBefore.ModTime().Equal(pageAfter.ModTime()) {
+		t.Error("a failed run touched a source page")
+	}
+}
+
+func TestMissingRegisterIsNotAFailure(t *testing.T) {
+	// A tree with no register yet must still lint - that is the bootstrap
+	// case, and it is distinct from a register that exists but is unreadable.
+	root := t.TempDir()
+	if err := os.Mkdir(filepath.Join(root, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "docs/a.md"), []byte("---\ndoc_id: DOC-OK\nowner: docs\n---\n# Fine\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rules := []Rule{{Type: "reference", Status: "active", Owner: "docs", Authority: "canonical", Disposition: "rebuild"}}
+	_, report, err := inspect(root, rules, time.Date(2026, 10, 4, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("a missing register must lint cleanly as the bootstrap case: %v", err)
+	}
+	if report.Counts["unregistered"] == 0 {
+		t.Error("with no register, every document should be reported unregistered")
+	}
+}

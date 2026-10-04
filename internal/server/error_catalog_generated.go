@@ -5466,4 +5466,3 @@ var errorCatalog = map[string]CatalogEntry{
 		RequirementLevel: "Mature ERP",
 	},
 }
-

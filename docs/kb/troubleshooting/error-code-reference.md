@@ -19,8 +19,8 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **304** of them,
-across **43** areas. This page is produced from the running catalog, so it
+Every refusal in this application carries a code. There are **306** of them,
+across **44** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
 Search is usually faster than scrolling: type the code into the search box
@@ -41,7 +41,7 @@ to read the dialog it appears in, start with
 - [Backup / DR](#backup-dr) - 4 codes
 - [Channel Connectors](#channel-connectors) - 5 codes
 - [Customer / CRM](#customer-crm) - 3 codes
-- [Data Import / Excel Upload](#data-import-excel-upload) - 5 codes
+- [Data Import / Excel Upload](#data-import-excel-upload) - 6 codes
 - [Deployment / Release](#deployment-release) - 7 codes
 - [DocType / Dynamic Metadata](#doctype-dynamic-metadata) - 8 codes
 - [Expense Management](#expense-management) - 3 codes
@@ -62,6 +62,7 @@ to read the dialog it appears in, start with
 - [Omnichannel / OMS](#omnichannel-oms) - 5 codes
 - [Order Management](#order-management) - 2 codes
 - [PIM / Product Publishing](#pim-product-publishing) - 8 codes
+- [POS / Billing](#pos-billing) - 1 codes
 - [POS / Offline & Cash Drawer](#pos-offline-cash-drawer) - 8 codes
 - [Patch / Bug Governance](#patch-bug-governance) - 3 codes
 - [Payments](#payments) - 7 codes
@@ -145,6 +146,7 @@ to read the dialog it appears in, start with
 | `DATAIM-0165` | Excel row validation failed | Some rows have validation errors. Please download the error file and correct them. | Correct details or retry. Contact admin if repeated. | Medium | 503 |
 | `DATAIM-0166` | Duplicate rows in upload | Duplicate rows found in uploaded file. Please remove duplicates and upload again. | Correct details or retry. Contact admin if repeated. | Medium | 409 |
 | `DATAIM-0187` | Partial upload | File uploaded with validation errors. Please download the error file and correct failed rows. | Download error file. | Medium | 200 |
+| `DATAIM-0189` | Uploaded file exceeds the maximum import row count | This file has too many rows to import in one go. | Split the file into smaller batches and import them one at a time. | Medium | 422 |
 
 ## Deployment / Release
 
@@ -411,6 +413,12 @@ to read the dialog it appears in, start with
 | `PIM-0234` | Field edit permission denied | You cannot edit this product field. Please contact administrator. | Request access or ask authorized user. | High | 403 |
 | `PIM-0235` | Bulk edit partially failed | Some products could not be updated. Please download the error file. | Download error file and correct failed rows. | Medium | 200 |
 | `PIM-0236` | Product already queued or published | This product already has an active publish job. Current status: {status}. | Review existing publish job. | Medium | 200 |
+
+## POS / Billing
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `POSOFF-0245` | POS session or sale attempted at a location that is not a selling location | This location is not a selling location, so a till cannot sell from it. | Choose the store you are selling from, or ask an administrator to set Sellable = Yes on this Location. | High | 422 |
 
 ## POS / Offline & Cash Drawer
 

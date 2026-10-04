@@ -227,7 +227,8 @@ next to a bigger necklace tag, say — design a template per category instead.
 3. Set the **Label Width/Height (mm)** to match the physical label stock
    you print this category on.
 4. Click a field button (**SKU**, **Name**, **Barcode**, **HSN**,
-   **Category**, **Batch/Lot**, **Expiry**, **Qty**, **Source Doc #**, or
+   **Category**, **Batch/Lot**, **Expiry**, **Mfg Date**, **Qty**,
+   **Source Doc #**, or
    **+ Static Text** for your own fixed wording, e.g. a "Handmade in
    India" line) to drop it onto the label. Drag it into place; drag the
    small square at its bottom-right corner to resize it. Click a field to
@@ -238,6 +239,12 @@ next to a bigger necklace tag, say — design a template per category instead.
    else you have configured, instead of the plain built-in label.
 6. Click **Save Template**.
 
+Leave **Status** on **Active** — a template saved as **Inactive** is skipped
+on every print run, which is how you retire a layout without deleting it.
+Fuller end-user walkthrough: [USER_GUIDE.md](USER_GUIDE.md) §7A.2;
+administrator notes (permissions, DPI, category-matching pitfalls):
+[ADMIN_GUIDE.md](ADMIN_GUIDE.md) §B.3.4.
+
 The canvas is a true preview: what you see there is what prints, both on a
 thermal label printer and on the browser print-fallback sheet.
 
@@ -247,7 +254,8 @@ thermal label printer and on the browser print-fallback sheet.
 2. Pick **Goods Receipt (GRN)** or **Transfer Order** from the **Module**
    dropdown, then search for the document by its number in the field next
    to it.
-3. The line list shows every stickerable line — its SKU, name, category,
+3. The line list shows every stickerable line — its SKU, name, lot (when
+   the document carries one), category,
    which template it will use (or "Default layout" if none is configured
    for that category), and how many copies (defaulting to the accepted/
    transfer quantity — edit the number if you want a different count).

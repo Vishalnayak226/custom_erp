@@ -335,6 +335,18 @@ func registerStage282Settings() {
 		Description: "Row count above which a report must be exported rather than rendered synchronously (REPORT-0161).",
 	})
 	RegisterSetting(SettingDefinition{
+		Key: "platform.max_import_rows", Module: "Platform",
+		Label: "Maximum CSV import rows", Type: SettingTypeInt, Default: "20000", Unit: "rows",
+		Min: settingBound(100), Max: settingBound(1000000),
+		Description: "Row count above which a bulk CSV/template import is rejected outright rather than partially processed (DATAIM-0189).",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "platform.report_export_retention_days", Module: "Platform",
+		Label: "Report export job retention", Type: SettingTypeInt, Default: "7", Unit: "days",
+		Min: settingBound(1), Max: settingBound(365),
+		Description: "How long a completed or failed report export job's stored CSV is kept before being swept, so an export nobody downloads doesn't grow the documents table forever.",
+	})
+	RegisterSetting(SettingDefinition{
 		Key: "platform.field_max_length", Module: "Platform",
 		Label: "Default maximum field length", Type: SettingTypeInt, Default: "10000", Unit: "characters",
 		Min: settingBound(100), Max: settingBound(1000000),
@@ -434,6 +446,22 @@ func registerStage282Settings() {
 		Label: "Dunning escalation threshold", Type: SettingTypeInt, Default: "30", Unit: "days",
 		Min:         settingBound(1),
 		Description: "An Approved SalesInvoice this many days past due_date gets an Escalation notification instead of a Reminder.",
+	})
+
+	// BLD-052: queue saturation thresholds are tenant-tunable operational
+	// guardrails. Defaults are intentionally conservative and affect alerts
+	// only; they never reject accepted work or alter retry/idempotency behavior.
+	RegisterSetting(SettingDefinition{
+		Key: "ops.async_job_queue_depth_alert", Module: "Platform",
+		Label: "Async job queue alert depth", Type: SettingTypeInt, Default: "100", Unit: "ready jobs",
+		Min: settingBound(1), Max: settingBound(100000),
+		Description: "Alert operations when this tenant has at least this many due, pending async jobs.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "ops.async_job_queue_wait_seconds_alert", Module: "Platform",
+		Label: "Async job queue oldest-age alert", Type: SettingTypeInt, Default: "600", Unit: "seconds",
+		Min: settingBound(30), Max: settingBound(86400),
+		Description: "Alert operations when the oldest due, pending async job has waited this many seconds.",
 	})
 
 	registerLocalizationSettings()

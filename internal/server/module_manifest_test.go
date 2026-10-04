@@ -213,6 +213,17 @@ func TestModuleManifestCatalog(t *testing.T) {
 	for _, m := range regexp.MustCompile(`view === '([^']+)'`).FindAllStringSubmatch(dispatch, -1) {
 		seen[m[1]] = true
 	}
+	// BLD-041: most screens are no longer literal `view === '...'` branches -
+	// they dispatch through the LAZY_VIEW_MODULES lookup table (native
+	// import() per view module) instead, so every key declared there counts
+	// as dispatched too.
+	lazy := regexp.MustCompile(`(?s)const LAZY_VIEW_MODULES = (\{.*?\n\});`).FindStringSubmatch(app)
+	if lazy == nil {
+		t.Fatal("lazy view module registry extraction failed")
+	}
+	for _, m := range regexp.MustCompile(`(?m)^\s*'?([\w-]+)'?:\s*\[`).FindAllStringSubmatch(lazy[1], -1) {
+		seen[m[1]] = true
+	}
 	for view := range seen {
 		if screens[view] != 1 {
 			t.Errorf("dispatched view %s has %d module declarations", view, screens[view])

@@ -96,6 +96,7 @@ Add `-Env test` or `-Env live` to target an environment other than the default (
   - **My Profile → Two-Factor Recovery** lets them move their authenticator to a new phone (confirming with their password, not a code, since the old device may be gone) and generate a fresh set of codes. It also shows how many codes they have left.
   - Only a scrambled fingerprint of each code is stored, so **you cannot look up a user's codes for them** — if they have lost them, the choice is regenerate (if they can still sign in) or Reset 2FA (if they can't).
 - **Resetting a user's password (Stage 49.2.4).** The same **Users** screen row also has a **Reset Password** action, for someone locked out who cannot reach their own **My Profile → Change Password** (forgotten password) or the emailed **Forgot Password** link (no working email on file). You'll be asked for a reason.
+  - **Password Reset Request** under Setup is the history of that workflow, not a form to create or edit a reset manually. Its **Open Users for password reset** button takes authorized administrators to Users. Choose the named user's **Reset Password** action; cancel the reason prompt if you do not intend to proceed. Other roles must contact an administrator. History no longer offers generic New, Bulk Import, Edit or Delete controls; the existing server permissions and dual-approval rules remain unchanged.
   - For an ordinary account, the reset happens immediately: a one-time password is shown to you once (it is never emailed, and never shown again) — read or relay it to the user through a channel you already trust is really them, such as a phone call, not chat/email. It replaces their password immediately and signs out every session already open on that account.
   - **If the target is itself a Super Admin account, one admin acting alone cannot do this.** The request instead appears on the **Approvals** screen, where a *different* Super Admin (never the one who requested it) must approve it before anything changes — and the reason you gave is what they see when deciding. Only the approving admin ever sees the generated one-time password, in the approval decision's own confirmation dialog; the requester does not. This is deliberate: a single compromised or malicious admin account must not be able to both request and learn a privileged credential. You cannot use this action to reset your own password — use **My Profile** instead.
 - **Worth doing before you need it: keep a second Super Admin account, enrolled on a different device.** With a single admin account, a lost phone plus lost codes means nobody left in the tenant can perform the reset, and recovery drops back to server shell access. It is also now a functional requirement for password recovery specifically: **with only one Super Admin account, that account's own forgotten password can only be recovered through the emailed reset link or server/database access** — there is no second admin available to approve a helpdesk reset.
@@ -111,9 +112,10 @@ Several things are configurable through the app's admin screens, not by editing 
 - **Operational settings, module by module** (return windows, tolerances, timeouts, limits, offer-free thresholds) — the **Configuration** screen. This is the main one; see §B.3.0. If you are looking for "where do I change *that number*", start here.
 - **Document number formats** (invoice numbers, PO numbers, etc.) — **Prefix Configurations** screen. This is where every transaction number comes from; see §B.3.2, it has more to it than the name suggests.
 - **Renaming terms** to match your industry's vocabulary (e.g. "Design Number" instead of "SKU") — **Dynamic Labels** screen.
+- **The industry profile** (which industry's extra fields are overlaid onto the standard record types) — the **"Select Industry"** dropdown in the top bar. **This locks itself after the first time you set it** and needs a reasoned override to change afterwards; see §B.3.2.1.
 - **Adding new record types or custom fields** — **Database Schema Design** screen (this is the same "metadata-driven" engine described in `../architecture/framework_architecture.md` — new master/transaction types don't need a code change). This is different from adding an actual *record* of an existing type (a new Vendor, a new Brand, etc.) — that's a business-user task, see [User Guide](USER_GUIDE.md) §8.
 - **Turning modules on/off per tenant** — module entitlements, admin-only.
-- **Silent printing** (labels, barcode stickers, POS receipts, sales invoices going straight to the right printer with no browser dialog) — a **Printer** record per physical printer, plus QZ Tray on each PC that prints. Full steps in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**. The field that makes it one-click is **Default For** (`Shipping Label` / `Invoice` / `Sticker` / `Receipt` / `General`) — the server resolves the job to the printer holding that role, so operators never pick a printer. **Nothing depends on this being set up**: with no Printer records, or with QZ Tray not running, every one of those screens falls back to the browser print dialog exactly as before.
+- **Silent printing** (labels, barcode stickers, POS receipts, sales invoices going straight to the right printer with no browser dialog) — a **Printer** record per physical printer, plus QZ Tray on each PC that prints. Full steps in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**. The field that makes it one-click is **Default For** (`Shipping Label` / `Invoice` / `Sticker` / `Receipt` / `General`) — the server resolves the job to the printer holding that role, so operators never pick a printer. **Nothing depends on QZ Tray being set up**: with no Printer records, or with QZ Tray not running, every one of those screens falls back to the browser print dialog exactly as before. The one exception is **Sticker Printing**, which needs at least one Printer record even for the browser fallback, because the print is logged against a printer — see §B.3.4.
 - **Which status changes a document is allowed to make** — **Status Transition Rules** screen (a normal master, Super Admin to edit). Each row says: for this record type (**Entity / Doctype**), moving from **From Status** to **To Status** is **Allowed** yes/no, and optionally **Requires Reason Code**. See §B.3.1 below — this one has a rule about how it fails that's worth understanding before you edit it.
 
 #### B.3.0 Configuration — every operational setting, in one place
@@ -161,6 +163,77 @@ What lives where (37 settings across 13 modules):
 - **Changing the home country does not rewrite existing records.** Numbers already stored keep their stored value and their country stamp. The new setting applies from the next save onwards.
 
 The country list covers 54 countries. If one you need is missing, that is a one-line addition to the table in `engines/phone.go` — the settings dropdown, the validation, and the browser's typing limit are all generated from it.
+
+#### B.3.0.4 Which locations a till may sell from (`Location.sellable`, Stage 53)
+
+Every **Location** record carries a **Sellable** flag (`Yes` / `No`), next to its Type. It answers one question: *may a POS till ring up a sale here?*
+
+It is deliberately **not** the same question as **Type**. A warehouse with a trade counter does sell; a shop being fitted out does not. Type is what the place *is*; Sellable is what it may *do*. Set them independently.
+
+**What it gates — three places, all of them:**
+
+| Where | Behaviour when `Sellable = No` |
+|---|---|
+| The POS screen's **Store** picker | The location does not appear at all. It cannot be typed in either — keying the code and tabbing away clears the box rather than committing it. |
+| **Open Session** | Refused, with error `POSOFF-0245`: *"… is not a selling location — a POS till cannot sell from it."* |
+| **Complete Sale** | Refused with the same error, independently of the session check. |
+
+Checkout is checked separately from session-open on purpose. An **offline-queued sale replays through checkout without ever re-opening a session**, and a Location can be switched to `No` while a session is still open — neither case would be caught by a session-time check alone.
+
+**How an existing location got its value.** The Stage 53.1 migration backfilled every Location that had no value:
+
+1. A location that has **demonstrably sold before** — a `POSCart` or `POSSession` exists against it — was set to **Yes**.
+2. Otherwise, a location typed **Store** was set to **Yes**.
+3. Everything else was set to **No**.
+
+Rule 1 exists because of a trap worth understanding before you audit this. The Stage 17.9 migration seeded a Location row for every location code already in use with a **hardcoded Type of `Warehouse`** — so on a tenant whose shops were never re-typed by hand, *every* Location is a "Warehouse". A naive "Store sells, nothing else does" backfill would have left such a tenant with **zero sellable locations and every till refusing every sale**. Rule 1 is what makes the migration a no-op for any till that was working the day before it ran.
+
+> **Check this after the migration, do not assume it.** Run through Setup → Core → **Location** and confirm each shop you actually trade from reads `Sellable = Yes`. The backfill is evidence-based, not clairvoyant: a **newly opened shop that has never rung a sale and was typed `Warehouse`** comes out as `No` and will refuse to open a till until you change it. That is a one-field edit, and it is the correct direction to be wrong in — a refused sale is visible and fixable in seconds, whereas a sale silently booked against head office is neither.
+
+**Three more things to know:**
+
+- **An unregistered location code still sells.** A location code that has no `Location` record at all is permitted. Location is still a free-text column on most doctypes (Stage 17.9 deliberately declined to convert them to Link fields), so refusing unregistered codes would break tenants that never populated the master. Only an explicit `No` — or a `Location` record that resolves to "not sellable" — refuses.
+- **A blank flag is derived, not ignored.** The field is optional (making it mandatory would have rejected a save of every pre-existing Location the next time anyone edited one). A Location saved without it is **stamped on save** — `Store` → `Yes`, anything else → `No` — so in practice every row carries a real value. That is also what lets the POS picker filter on `sellable=Yes` and get exactly the set the server would accept; a picker that offered a location checkout would refuse is precisely the drift the stamp prevents.
+- **An explicit value is never overwritten.** If you set `Yes` on a warehouse, it stays `Yes`.
+
+#### B.3.0.5 What a POS receipt says about your business (Stage 53)
+
+The receipt header is built from **two master records**, not from anything typed at the till:
+
+- **Location** → the shop's name and code.
+- **Location → Legal Entity → LegalEntity** → the company name, **GSTIN** and state.
+
+Plus the bill number, the date and time, and the cashier's username (taken from their resolved identity at checkout, never from the browser).
+
+**Fill in the Legal Entity to get a tax-compliant receipt.** Setup → Core → **LegalEntity**, set `name`, `gstin` and `state`, then set **Legal Entity** on each selling Location. Until you do, the receipt prints the shop name and bill details but carries **no company name and no GSTIN**.
+
+This degrades rather than failing, deliberately: a missing Location record, a Location with no legal entity, or an entity with no GSTIN each simply leave that line off. A receipt must always print — the alternative is a cashier holding a paid sale and no paper.
+
+Both print paths build the same header: the server-side ESC-POS/HTML rebuild (`engines/qz_payload.go`, used whenever QZ Tray and a Receipt printer are configured) and the browser fallback. If you ever see them disagree, that is a defect — report it.
+
+#### B.3.0.6 Refresh and Reset — what each one actually clears (Stage 53.17)
+
+These are the two buttons at the top right of the shell, and support calls go wrong when they are treated as the same button at two strengths. They are not.
+
+**Refresh** (`sync-btn`) re-fetches labels and the registered-doctype list, then re-renders. Nothing else is touched. It is the right answer to *"I renamed a field and cannot see it"*.
+
+**Reset** (`reset-btn`) clears, in this order:
+
+1. Every `erp_swr_*` entry in **sessionStorage** — the stale-while-revalidate cache behind every record list and field-metadata read. This is the cache that actually makes a screen lie.
+2. `erp_nav_state` in localStorage, so the sidebar rebuilds from the fresh doctype list rather than a remembered shape that may name retired screens.
+3. The in-memory `state` caches (doctypes, field metadata, fetched rows, labels, permissions), re-fetched immediately afterwards.
+4. The POS till's in-memory state, via `clearPOSTillState()` — called through `window` because `view-pos.js` is lazy-loaded (BLD-041) and may not be present at all.
+5. **The lazy view modules themselves** — the registry is cleared *and* a `reset=<timestamp>` param is added to the next `import()`, because clearing the registry alone would re-fetch the identical URL straight out of the browser's HTTP cache.
+
+**Tell users plainly that a browser reload is not a substitute.** F5 re-runs the app against the same sessionStorage and localStorage, so the stale copy is read straight back in. Reset is the only path that drops those copies before rebuilding.
+
+**Three deliberate non-actions**, each of which has been asked about:
+
+- **It does not sign the user out.** The token, role and username in localStorage are untouched. Resetting a screen must not eject a cashier mid-shift; that is what Sign Out is for.
+- **It does not reset the theme.** A personal preference is not stale data.
+- **It refuses to run while offline POS sales are queued.** `erp_pos_offline_queue` holds *completed sales that have not reached the server*. They are not cache, and clearing them would destroy them, so Reset blocks with a message naming the count rather than proceeding — the same posture `closePOSSessionFlow` already takes. Let them sync, then Reset.
+
+> **Deploy note.** Lazy view modules are versioned by `VIEW_MODULE_VERSION` in `public/app.js`, which must be kept **in step with `index.html`'s `app.js?v=N`** on every release. Before Stage 53.17 the lazy modules had no cache-busting at all, so the shell could update while the screens a user actually looks at kept running the previous deploy's code. If you bump one, bump the other.
 
 #### B.3.0.1 Setting up POS offers
 
@@ -244,6 +317,51 @@ Things to understand before you change one:
 - **Gaps in a series are normal.** A number is drawn before the document is fully validated, so a rejected save leaves a gap. That is standard behaviour for a sequence counter and is not data loss.
 - **Deactivating a series stops the documents that use it.** Anyone creating that record type gets "numbering configuration is inactive" (`ADMINC-0030`) and cannot save. Deactivate only when you intend to block the record type.
 - **Don't give two series the same prefix.** Document numbers are unique across *every* record type, not just within one, so overlapping prefixes will eventually collide and cause failed saves.
+
+##### Adding a series for a record type that isn't listed yet (New Series)
+
+The table only ever showed record types that already had a series row. Master records — Vendor, Item, Customer, Employee and the rest — were *always* auto-numbered (the engine falls back to sensible defaults when no row exists), but with no row on this screen there was nothing to edit, so their prefix and padding were invisible and unchangeable.
+
+**Vendor, Item and ProductFamily now ship with explicit rows**, so they appear in the table like any other series and are editable straight away. Their shipped settings are deliberately identical to the defaults the engine was already using, so **no code that has already been issued changes shape** — an existing `Item/HQ/2026/000002` stays exactly as it is.
+
+For anything else, use **New Series** (the plus-icon button) at the top of the screen:
+
+1. Click **New Series**.
+2. **Record Type** — type the record type's name **exactly as the system spells it**: `Vendor`, `Item`, `Customer`, `PurchaseOrder`. This is the internal doctype name, not the friendly label, and it is case-sensitive. If you get it wrong you create a series that nothing will ever draw from — harmless, but it does nothing. Check the spelling on the **Database Schema Design** screen if you are unsure.
+3. If that record type already has a series, you are told so and sent to its **Edit** button instead — you cannot create a second series for the same record type.
+4. The rest is the **same five prompts as Edit** (Prefix, Separator, Padding Width, Reset Interval, include the store code), pre-filled with sensible defaults: prefix = the record type's own name, separator `/`, padding `6`, `ANNUAL`, store segment on.
+5. Save. The new row appears in the table, and the **next** record of that type is numbered from it.
+
+Two cautions, both the same ones that apply to editing an existing series:
+
+- **It applies to the next record only.** Records already created keep their numbers. Adding a series for a record type that has been auto-numbering for months does **not** renumber the existing ones, and the counter starts from 1 — so pick a prefix that cannot collide with what has already been issued, or you will get failed saves when the new series catches up with the old numbers. If in doubt, keep the default prefix (which is what the engine was already using) rather than inventing a new one.
+- **Document numbers are unique system-wide.** The "don't give two series the same prefix" rule above applies to a series you add here just as much as to one that shipped.
+
+#### B.3.2.1 Locking the industry profile
+
+The **"Select Industry"** dropdown sits in the **top bar** of the app, to the left of the **Sync** button — not under Settings. Choosing an industry profile (Jewelry, Food & Beverage, Clothing, Pharmaceuticals and the rest) overlays that industry's extra fields onto the standard record types — see §B.3.0.3 and User Guide §8d. It is a wide-reaching change: it rewrites field definitions across the system and reloads preset table configurations.
+
+Because of that, **the profile locks itself the first time it is set.**
+
+**Setting it the first time:** pick an industry from the dropdown, confirm the "Switch to active industry profile" prompt, and it applies. From that moment the dropdown is **disabled** and an **Override** button appears beside it. Hover the disabled dropdown and it tells you what it is locked to, **who** set it and **when**.
+
+The lock is real server-side state, not a browser setting — clearing your browser, using another machine, or signing in as a different admin will not unlock it.
+
+**To change a locked profile:**
+
+1. Click **Override** next to the disabled dropdown.
+2. **Type the industry code** you want. This step is a typed prompt, not a dropdown, and it lists the valid codes for you: `jewelry`, `food_bev`, `auto`, `clothing`, `pharma`, `metal`, `construction`, `medical`, `semiconductor`, `agriculture`. It is pre-filled with the current one. Type it exactly — an unrecognised code does nothing.
+3. **Confirm** the "Switch to active industry profile … This will re-load preset table field configurations" prompt.
+4. **Enter a reason.** This is where the override is actually authorised, and it is **mandatory** — cancelling, or entering nothing, abandons the change and the profile stays as it was. Write why the profile is genuinely changing ("client confirmed they sell apparel, not jewellery"), because this text is what an auditor reads later.
+
+The system then records **who** overrode it, **when**, **why**, and increments an override counter.
+
+Notes:
+
+- **Only a Super Admin / HR-Admin can switch or override the profile**, exactly as before the lock existed. The lock is an extra barrier on top of that permission, not a replacement for it. A non-admin does not get the lock treatment at all — the dropdown stays enabled for them, and the server refuses the switch if they try it.
+- **The counter is never reset.** Repeated overrides accumulate, so a profile that has been changed five times cannot later be presented as having been set once.
+- **An override is not a rollback.** Switching profiles overlays the new industry's fields; it does not remove data already captured in the old industry's fields. Treat it as a forward change, and expect to tidy up now-unused fields on **Database Schema Design** afterwards.
+- **Decide the profile before go-live if you can.** The lock exists precisely because this is not a setting to experiment with on a tenant that already holds real catalog data.
 
 #### Competitor undercut alerts
 
@@ -346,6 +464,68 @@ Two configurations are refused when you save, because both are silently unusable
 
 **One limitation worth knowing before you roll this out.** Turning on batch tracking for an item that *already* has stock on the shelves does not retroactively give that stock a lot — it can't, because nobody recorded one. FEFO will then only offer the stock that does carry a lot, and report the rest as short. That is the correct refusal (issuing untraceable units is what batch tracking exists to prevent), but it means **you should either switch an item over when its stock is low, or assign lots to the existing stock first** via `POST /api/v1/wms/batch/putaway`. The **Batch Stock Inquiry** report shows you exactly what has been assigned so far.
 
+#### B.3.3.1 Barcodes generated automatically at goods receipt
+
+**There is nothing to switch on** — this is how receiving behaves, for every tenant.
+
+The on-screen **Item** form requires **Barcode** and offers a **Generate** button for a valid EAN-13. Receipt-time generation is a safety net for older, imported or API-created Items that still have no barcode; it does not replace that create-time requirement.
+
+When a goods receipt is posted, every distinct SKU on it that has **no** barcode yet is issued one, as a valid **EAN-13** (correct check digit, so ordinary retail scanners read it). An item that already has a barcode is left untouched. It is idempotent: receiving the same SKU again, or the same SKU twice on one receipt, issues exactly one barcode and never changes an existing one.
+
+What you need to know as the administrator:
+
+- **It runs after the receipt has already posted, deliberately.** Stock movement is never held up or reversed by barcode generation. If generation fails, the receipt still stands and the item is simply left without a barcode. That failure is written to the **system error log** (§B.4) rather than shown to the receiving clerk, who cannot act on it anyway.
+- **So check the log, not the user.** A clerk will not report this. If an item is mysteriously unlabelled, look for its entry in the system log, then generate the barcode by hand from the PIM screen.
+- **It does not print.** Generation and printing are separate on purpose — nothing is sent to a printer by posting a receipt. Printing is the operator's explicit second step (§B.3.4, User Guide §7A.1).
+- **Barcodes you have already assigned are safe.** If you imported your own barcodes, or your supplier's, receiving will not overwrite them.
+- **This closed a real gap**: before it, a newly received item had no barcode, so its label had nothing to print and someone had to remember to generate one manually first.
+
+#### B.3.3.2 Bulk import: Master codes and Design-based SKUs
+
+Two things about CSV import that are worth knowing before you run a large load, both corrected as of Stage 51.8:
+
+- **A Master record imported with a blank `id` now takes its `code` as its id.** Every Link field in this system resolves by *id*, so a master whose id and code disagree can never be selected by any Link field — an imported Vendor that exists but which no Purchase Order can reference. Import now applies the same id = code rule the on-screen save path does. **If you imported masters before this**, audit them with `scripts/audit_master_id_code_drift.sql` (read-only, see its header for how to run it); it reports how many rows are affected per record type, whether a fix would collide with anything, and how many transactions already point at the old ids.
+- **An imported Item under a Design now gets a real SKU.** Give the file a `family` column naming the Product Family (Design), and import builds the Combination ID/SKU from that design plus the variant attributes exactly as the form does. Previously this only worked on the single-record screen, so bulk-imported variants got plain sequence numbers (`Item/HQ/2026/000123`) instead of SKUs. See User Guide §8d for what the resulting codes look like.
+  **You can leave the `code` column out of the file entirely** in this case — normally an Item upload with no `code` column is rejected up front, but when a `family` column is present the server is generating the code, so it is no longer demanded. That exception is deliberately this narrow: an Item file *without* a family column, and every other record type, still requires `code`.
+
+**Re-importing a Master by code now updates it rather than duplicating it**, which follows from the first point: the code resolves to the same id, so the row is matched and updated. Keep that in mind for a repeated load — it is usually what you want, but it does mean a second upload of the same file overwrites rather than being rejected.
+
+#### B.3.4 Category-based sticker templates (Stage 52)
+
+By default every item's barcode label uses one fixed built-in layout (name, barcode, SKU). A tenant that wants different categories to print differently defines a **StickerTemplate** per category instead — a drag-and-drop layout the business designs itself, no code change and no developer. The end-user steps are in [User Guide](USER_GUIDE.md) §7A.2; this subsection is what you need to know as the administrator.
+
+**Nothing changes until someone configures a template.** With no `StickerTemplate` records, label output is byte-identical to before Stage 52 — the resolver returns "no template" and the printer gets the old hardcoded layout. This is deliberate: no tenant is forced through a design step to keep printing.
+
+**Who can design them.** `StickerTemplate` is an ordinary Master (module key `stickers`, enabled by default for a tenant and also granted by the `pim`, `wms` and `erp_full` packages; the doctype appears under **Inventory** in the Setup flyout), so the usual permission matrix applies:
+
+| Role | Read | Create | Edit | Delete |
+| --- | --- | --- | --- | --- |
+| HR/Admin | ✓ | ✓ | ✓ | ✓ |
+| Store Manager | ✓ | ✓ | ✓ | — |
+| Cashier | ✓ | — | — | — |
+
+**How a label picks its template**, in order:
+
+1. The item's **Category** is matched against each Active template's comma-separated `categories` list — case-insensitive, surrounding spaces ignored, but otherwise an exact string match.
+2. Failing that, the one template flagged **Default (unmapped categories)** is used, if there is one.
+3. Failing that, the built-in layout.
+
+Three consequences worth telling your users about before they design anything:
+
+- **`Item.category` is free text.** There is no category master or taxonomy behind it, so there is nothing to Link a template to and nothing to validate a typo against — a template naming `Earings` simply never matches, silently, and those items quietly fall back to the default layout. If categories matter operationally, standardising the spelling on the Item Masters is the fix.
+- **`Status = Inactive` is the retire switch.** An Inactive template is skipped by the resolver entirely, which is the safe way to park a layout without deleting it (and without losing the audit rows that reference it).
+- **Only one template should carry the default flag.** Nothing stops two, and the resolver takes the first one the database hands back — i.e. effectively arbitrary. Treat it as a single-occupancy flag.
+
+**Physical sizing and DPI.** `label_width_mm`/`label_height_mm` on the template are the label stock's real dimensions; element positions and sizes are stored in millimetres too. At print time, a ZPL printer gets those millimetres converted to dots using **that Printer record's own `Printer DPI` field** (Setup → Printer), defaulting to 203 when it is blank — so a 300dpi printer needs its DPI filled in or every element lands at roughly two-thirds scale. Text clipping and justification are delegated to ZPL's own field-block command rather than guessed at by character count, so the printer firmware does the wrapping.
+
+**A Printer record is required on this screen**, unlike receipts and invoices: the Sticker Printing screen refuses to print with "Select a printer first" even when it is going to fall back to the browser dialog, because the print is logged against a printer. Any one Active Printer record is enough — this screen passes the chosen printer explicitly, so it does not depend on **Default For** being set.
+
+**Audit trail.** `sticker_print_log` keeps every run (SKU, barcode, printer, user, copies, reprint reason, timestamp) and, for a run started from a document, additionally which `source_doctype`/`source_doc_id` it came from and which `template_id` rendered it. The **Print** tab's own history table shows this; `print_job_log` separately records the QZ job itself.
+
+**Selecting one lot of a SKU.** A document's lines are unique by SKU *and* lot, so a SKU received on two lots is two rows, each selected, counted and printed independently; the review table shows a **Batch/Lot** column whenever that applies. Over the API, `POST /api/v1/stickers/print` and the QZ payload endpoint take this as a `lines` array of `{sku, batch_no, copies}`. The older `skus` + `copies_override` pair is still accepted and still means "every lot of this SKU", so existing callers and the manual scan flow are unaffected.
+
+**Adding a third source document.** Printing from a transaction currently supports GRN and Transfer Order. A Purchase Order or Sales Order source is a small code change, not a redesign — one more `case` in `engines.ResolveDocumentStickerLines` and one more entry in `BULK_STICKER_SOURCE_DOCTYPES` in `public/view-printing.js`. It is tracked as an open item (52.7) rather than built speculatively.
+
 ### B.4 Where to Look When Something Seems Wrong
 
 1. **`.\manage.ps1 logs`** — the fastest first check. Shows the server's own output and error logs, plus the database log.
@@ -371,6 +551,37 @@ This system can run up to three independent copies side by side, sharing the sam
 ### C.2 Deployment Pipeline
 
 See §D for the full deployment procedure. In short: a change is tested in `dev`, promoted to `test`, verified, then promoted to `live` — never edited directly in `live`.
+
+#### C.2.1 The version number users see, and how to bump it
+
+Every signed-in user sees a small grey number under their name at the bottom of the sidebar — **`0.1.0`** and nothing else. Hovering, focusing or tapping it opens a small popup carrying the version and the release date in `D/M/YY` form (**`0.1.0`** / **`4/10/26`**), so the date is one hover or one tap away without competing with the username above it. The same values are available unauthenticated at **`GET /api/v1/version`**:
+
+```json
+{"version":"0.1.0","release_date":"2026-10-04","build_time":"2026-10-04T03:23:45Z","git_commit":"afaf419"}
+```
+
+The UI deliberately surfaces only `version` and `release_date`. `git_commit` and `build_time` stay on the endpoint for you and for health checks — they are what tells you *which* build is actually on a box, which is the question that matters after a deploy that may or may not have restarted cleanly.
+
+**The two halves come from different places, and only one of them is hand-maintained:**
+
+| Shown as | Comes from | Who updates it |
+|---|---|---|
+| `v0.1.0` | `internal/server/VERSION`, compiled into the binary with `go:embed` | **You**, by editing that file |
+| `Oct 4, 2026` | the `buildTime` value stamped in at build with `-ldflags` | Automatic — every build stamps it |
+
+So **a deploy always refreshes the date on its own**; nobody has to remember anything. Bumping the *number* is a deliberate release decision:
+
+1. Edit `internal/server/VERSION` — one line, just the number (`0.2.0`). No `v`, no date.
+2. Deploy normally (`.\deploy\deploy.ps1`, `.\promote.ps1`, or CI). The embed picks it up at compile time, so there is no config to change and no migration.
+3. Confirm with `curl -s https://<host>/api/v1/version` before telling anyone it shipped.
+
+**Things worth knowing:**
+
+- **Never set the version by hand anywhere else.** It is embedded at compile time precisely so it cannot drift from the binary that reports it. A number typed into a config file or a database row would eventually lie.
+- **`dev build` instead of a date in the popup** means the binary was built with a plain `go build`, with no ldflags. That is correct and expected on a developer's machine; on a server it means someone built it outside the normal scripts, and you should not trust that deploy — rebuild it with `deploy/deploy.ps1`, `manage.ps1 release`, `promote.ps1` or CI, all of which stamp it.
+- **The release date is derived from the build timestamp, not stored separately**, so the two can never disagree.
+- **A user reporting a bug should be asked for this line first.** It is the cheapest way to find out whether they are on the build you think they are.
+- Roughly 47 documents under `docs/` carry `applies_to: source release 0.1.0` in their frontmatter. They are documentation metadata, not read by the app, and `cmd/doclint` only checks that the key is present — so they will not break a build if left behind, but they are worth sweeping in the same change as a version bump so the docs and the product agree.
 
 ### C.3 Backup and Restore
 

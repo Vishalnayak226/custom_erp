@@ -279,7 +279,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// stays untouched. The Home screen's "recent tasks" panel is the first
 			// caller that needs "what did I touch last" rather than a stable order.
 			sortRecent := r.URL.Query().Get("sort") == "recent"
-			query := fmt.Sprintf("SELECT id, data, status, updated_at FROM %s.documents WHERE doctype = $1 AND deleted_at IS NULL", schema)
+			whereClause := " WHERE doctype = $1 AND deleted_at IS NULL"
 			var args []interface{}
 			args = append(args, doctype)
 			argIndex := 2
@@ -311,19 +311,19 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 						// not be resolved (no linked Employee record, no
 						// owner) sees no row of this doctype rather than
 						// every row of it.
-						query += " AND FALSE"
+						whereClause += " AND FALSE"
 						continue
 					}
 					if c.AllowMissing {
-						query += fmt.Sprintf(" AND (%s = $%d OR %s IS NULL)", expr, argIndex, expr)
+						whereClause += fmt.Sprintf(" AND (%s = $%d OR %s IS NULL)", expr, argIndex, expr)
 					} else {
-						query += fmt.Sprintf(" AND %s = $%d", expr, argIndex)
+						whereClause += fmt.Sprintf(" AND %s = $%d", expr, argIndex)
 					}
 					args = append(args, c.Value)
 					argIndex++
 				}
 			} else if !engines.IsSuperAdmin(role) {
-				query += fmt.Sprintf(" AND (COALESCE(data->>'location', data->>'location_code') = $%d OR COALESCE(data->>'location', data->>'location_code') IS NULL)", argIndex)
+				whereClause += fmt.Sprintf(" AND (COALESCE(data->>'location', data->>'location_code') = $%d OR COALESCE(data->>'location', data->>'location_code') IS NULL)", argIndex)
 				args = append(args, location)
 				argIndex++
 			}
@@ -333,32 +333,89 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// doctype with no supplier_code (Item) stays fully listable, a
 			// doctype that has one is narrowed to this supplier's own rows.
 			if supplierCode != "" {
-				query += fmt.Sprintf(" AND (data->>'%s' = $%d OR data->>'%s' IS NULL)", supplierScopeField, argIndex, supplierScopeField)
+				whereClause += fmt.Sprintf(" AND (data->>'%s' = $%d OR data->>'%s' IS NULL)", supplierScopeField, argIndex, supplierScopeField)
 				args = append(args, supplierCode)
 				argIndex++
 			}
 
 			// Dynamic search parameter filters check (WMS/OMS query filters)
 			for key, vals := range r.URL.Query() {
-				if key == "q" || key == "tenant_id" || key == "limit" || key == "offset" || key == "sort" || len(vals) == 0 {
+				if key == "q" || key == "tenant_id" || key == "limit" || key == "offset" || key == "sort" || key == "count" || len(vals) == 0 {
 					continue
 				}
 				if !safeFilterKeyRe.MatchString(key) {
 					writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Invalid filter parameter name: %q", key))
 					return
 				}
-				query += fmt.Sprintf(" AND data->>'%s' = $%d", key, argIndex)
+				whereClause += fmt.Sprintf(" AND data->>'%s' = $%d", key, argIndex)
 				args = append(args, vals[0])
 				argIndex++
 			}
 
+			// BLD-034: the free-text search box now filters in SQL, over every
+			// top-level field value (jsonb_each_text mirrors the old in-memory
+			// "for _, val := range dataMap" loop's semantics - values, not
+			// keys), instead of only against whatever LIMIT/OFFSET window the
+			// pagination below happened to fetch. The previous approach could
+			// silently miss a real match sitting past the current page - fine
+			// at the small row counts this endpoint used to see, a correctness
+			// bug now that BLD-034's dense-table work lets a caller page all
+			// the way through a 100k+ row table.
+			//
+			// Fields this role cannot read are excluded from the scan, not
+			// just from the response: the old in-memory search ran AFTER
+			// FilterFieldsForRole redacted the row, so it never matched on a
+			// hidden field either. Searching the raw column without this
+			// exclusion would turn "does this document show up for this
+			// search term" into an oracle for a redacted field's content.
+			if searchQuery != "" {
+				hiddenFields, hiddenErr := engines.HiddenFieldsForRole(tenantID, role, doctype)
+				if hiddenErr != nil {
+					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, hiddenErr.Error())
+					return
+				}
+				keyExclusion := ""
+				if len(hiddenFields) > 0 {
+					placeholders := make([]string, len(hiddenFields))
+					for i, f := range hiddenFields {
+						placeholders[i] = fmt.Sprintf("$%d", argIndex)
+						args = append(args, f)
+						argIndex++
+					}
+					keyExclusion = fmt.Sprintf("kv.key NOT IN (%s) AND ", strings.Join(placeholders, ","))
+				}
+				whereClause += fmt.Sprintf(" AND EXISTS (SELECT 1 FROM jsonb_each_text(data) kv WHERE %skv.value ILIKE $%d)", keyExclusion, argIndex)
+				args = append(args, "%"+searchQuery+"%")
+				argIndex++
+			}
+
+			// BLD-034: an exact total (over every filter above, before
+			// LIMIT/OFFSET) is what lets the frontend show "X-Y of Z" and
+			// disable "Next" correctly instead of guessing from the size of
+			// whatever page it just fetched. Sent as a response header, not a
+			// new field on the JSON array body, so this stays additive - every
+			// existing caller of this endpoint (Link-field typeaheads,
+			// reports, dropdowns, ...) keeps getting a bare array.
+			//
+			// Opt-in via count=true, like sort=recent above: the COUNT(*) is a
+			// second real query (measured ~70ms on a 250k-row doctype even
+			// index-assisted) that only the dense-table screen's own
+			// pagination footer needs. Running it unconditionally would tax
+			// every one of this endpoint's ~13 other callers - Link-field
+			// typeaheads firing on every keystroke chief among them - for a
+			// number none of them read.
+			if r.URL.Query().Get("count") == "true" {
+				countQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s.documents%s", schema, whereClause)
+				var totalCount int
+				if err := db.DB.QueryRow(countQuery, args...).Scan(&totalCount); err != nil {
+					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+					return
+				}
+				w.Header().Set("X-Total-Count", strconv.Itoa(totalCount))
+			}
+
 			// Pagination: bounds the response even when the caller doesn't ask for a
 			// specific page, so this endpoint can never return an unbounded result set.
-			// Note: when a search term (q) is active, the limit/offset bound the SQL-level
-			// candidate set that gets fetched *before* the in-memory search filter below -
-			// a search could miss a match sitting past the current page's window. Moving
-			// search into SQL would remove that edge case but is a larger change than this
-			// item calls for.
 			limit := defaultListLimitFor(tenantID)
 			if v := r.URL.Query().Get("limit"); v != "" {
 				if parsed, err := strconv.Atoi(v); err == nil && parsed > 0 {
@@ -374,6 +431,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					offset = parsed
 				}
 			}
+			query := fmt.Sprintf("SELECT id, data, status, updated_at FROM %s.documents%s", schema, whereClause)
 			if sortRecent {
 				query += fmt.Sprintf(" ORDER BY updated_at DESC LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
 			} else {
@@ -415,20 +473,6 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				if dataMap, err = engines.FilterFieldsForRole(tenantID, role, doctype, dataMap); err != nil {
 					writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 					return
-				}
-
-				// Local search match
-				if searchQuery != "" {
-					matched := false
-					for _, val := range dataMap {
-						if strings.Contains(strings.ToLower(fmt.Sprintf("%v", val)), strings.ToLower(searchQuery)) {
-							matched = true
-							break
-						}
-					}
-					if !matched {
-						continue
-					}
 				}
 
 				docs = append(docs, dataMap)
@@ -548,17 +592,17 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// invariant those Link conversions depended on. Restored once, here,
 		// so every caller (UI, CSV import, API) gets it, not just the ones
 		// that happen to pass id explicitly.
-		if id == "" {
-			if _, hasID := payload["id"]; !hasID {
-				if codeVal, hasCode := payload["code"]; hasCode {
-					if codeStr := strings.TrimSpace(fmt.Sprintf("%v", codeVal)); codeStr != "" {
-						var masterDocType string
-						if errDT := db.DB.QueryRow(fmt.Sprintf("SELECT document_type FROM %s.doctype_meta WHERE name = $1", schema), doctype).Scan(&masterDocType); errDT == nil && masterDocType == "Master" {
-							payload["id"] = codeStr
-						}
-					}
-				}
-			}
+		//
+		// Stage 51.8: the body of this moved into
+		// engines.ApplyMasterIDCodeInvariant so the bulk CSV import path -
+		// which the paragraph above claimed to cover, but which goes through
+		// BulkImportCSV/importBatch and never reached this handler - runs the
+		// identical rule rather than a second copy of it. A lookup failure is
+		// deliberately not fatal: it leaves ids exactly as they were, which
+		// is the pre-51.1 behavior, not a new failure mode for a save that
+		// would otherwise succeed.
+		if _, errInv := engines.ApplyMasterIDCodeInvariant(tenantID, doctype, id == "", payload); errInv != nil {
+			engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "WARN", r.URL.Path, fmt.Sprintf("could not resolve document_type for %s, left id as-is: %v", doctype, errInv), "")
 		}
 
 		// 2. Server-side metadata validation engine check
@@ -857,6 +901,14 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			if gated, errGate := engines.IsApprovalGated(tenantID, doctype); errGate == nil && gated {
 				if errReset := engines.ResetToPendingOnEdit(tenantID, doctype, docID, userID, role, payload); errReset != nil {
 					engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "APPROVAL_RESET_FAILED", r.URL.Path, errReset.Error(), "")
+				} else {
+					// BLD-035: the row's real stored status just moved to
+					// "Pending Approval" underneath statusVal (ResetToPendingOnEdit
+					// writes it directly, not through the upsert above) - keep the
+					// value this handler is about to report back in sync with it,
+					// so the response below doesn't claim the pre-edit status while
+					// the document actually dropped back into the approval queue.
+					statusVal = "Pending Approval"
 				}
 			}
 		}
@@ -978,8 +1030,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				_ = tx.Commit()
 			}
 		}
+		// BLD-035: this used to always report the literal "saved" regardless of
+		// what the document's real resulting status was - a caller (the generic
+		// dynamic form chief among them) had no truthful signal to distinguish a
+		// plain Draft save from a save that quietly reset an edited Approved
+		// document back to Pending Approval, and could never render an actual
+		// business outcome like "Paid" from this response. statusVal already
+		// tracks the value actually persisted above (including the Pending
+		// Approval reassignment just above when a re-approval-on-edit reset ran).
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"status": "saved",
+			"status": statusVal,
 			"id":     docID,
 		})
 

@@ -33,6 +33,11 @@ const StaleAfter = 180 * 24 * time.Hour
 
 var (
 	viewIDPattern = regexp.MustCompile(`view\s*===\s*'([a-z0-9-]+)'`)
+	// BLD-041's native lazy-module split moved a number of dispatched view ids
+	// into the LAZY_VIEW_MODULES object instead of leaving one explicit
+	// `view === 'id'` branch per screen. Keep help drift checks tied to that
+	// authoritative route table too.
+	lazyViewIDPattern = regexp.MustCompile(`(?m)^\s*(?:'([a-z0-9-]+)'|([a-z0-9-]+))\s*:\s*\[`)
 	// The method group is optional: a handful of routes (the generic doc API
 	// chief among them) are registered with no method prefix at all - Go's
 	// mux then matches every method, so an empty capture here is stored as a
@@ -223,6 +228,13 @@ func extractViewIDs(path string) (map[string]bool, error) {
 	ids := map[string]bool{}
 	for _, match := range viewIDPattern.FindAllStringSubmatch(string(data), -1) {
 		ids[match[1]] = true
+	}
+	for _, match := range lazyViewIDPattern.FindAllStringSubmatch(string(data), -1) {
+		id := match[1]
+		if id == "" {
+			id = match[2]
+		}
+		ids[id] = true
 	}
 	return ids, nil
 }

@@ -60,6 +60,22 @@ func handleSelectWinningQuote(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "selected"})
 }
 
+// stickerSelections resolves a bulk-print request's line selection, shared by
+// both print paths (browser-fallback and QZ silent) so they can never disagree
+// about what a request selected.
+//
+// Stage 52.8 added the per-line `lines` shape (SKU + batch + copies) because a
+// SKU received on two lots is two lines, which the original `skus` /
+// `copies_override` pair cannot tell apart - selecting either row printed both.
+// When `lines` is absent the older shape is used unchanged, so existing callers
+// (the manual scan flow, any script) behave exactly as before.
+func stickerSelections(lines []engines.StickerLineSelection, skus []string, copyOverrides map[string]int) []engines.StickerLineSelection {
+	if len(lines) > 0 {
+		return lines
+	}
+	return engines.SKUSelections(skus, copyOverrides)
+}
+
 // Sticker / Barcode Printing (Stage 13.15). Printer master creation/listing
 // go through the existing generic doc endpoint like Vendor/Customer/RFQ did;
 // these two handlers cover the print action and history, which need logic
@@ -72,13 +88,14 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		Skus           []string       `json:"skus"`
-		PrinterCode    string         `json:"printer_code"`
-		ReprintReason  string         `json:"reprint_reason"`
-		Copies         int            `json:"copies"`
-		SourceDoctype  string         `json:"source_doctype"`
-		SourceDocID    string         `json:"source_doc_id"`
-		CopiesOverride map[string]int `json:"copies_override"`
+		Skus           []string                       `json:"skus"`
+		PrinterCode    string                         `json:"printer_code"`
+		ReprintReason  string                         `json:"reprint_reason"`
+		Copies         int                            `json:"copies"`
+		SourceDoctype  string                         `json:"source_doctype"`
+		SourceDocID    string                         `json:"source_doc_id"`
+		CopiesOverride map[string]int                 `json:"copies_override"`
+		Lines          []engines.StickerLineSelection `json:"lines"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -94,7 +111,7 @@ func handlePrintStickers(w http.ResponseWriter, r *http.Request) {
 		// Stage 52: the browser-print-fallback path for bulk printing from a
 		// GRN/Transfer Order - mirrors the QZ silent-print branch in
 		// handleQZPrintPayload so both paths accept the same request shape.
-		labels, err = engines.PrintStickersForDocument(tenantID, req.SourceDoctype, req.SourceDocID, req.PrinterCode, userID, req.ReprintReason, req.Skus, req.CopiesOverride)
+		labels, err = engines.PrintStickersForDocument(tenantID, req.SourceDoctype, req.SourceDocID, req.PrinterCode, userID, req.ReprintReason, stickerSelections(req.Lines, req.Skus, req.CopiesOverride))
 	} else {
 		labels, err = engines.PrintStickers(tenantID, req.Skus, req.PrinterCode, userID, req.ReprintReason, req.Copies)
 	}
@@ -602,22 +619,33 @@ func handlePIMTaxonomyHistory(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(results)
 }
 
-// handlePIMSearchFeedExport (Stage 26.4.9) streams the search/discovery
-// feed CSV - see engines.GetSearchFeedExportCSV.
+// handlePIMSearchFeedExport (Stage 26.4.9) genuinely streams the whole-
+// catalog search/discovery feed CSV row by row - see
+// engines.StreamSearchFeedExportCSV (BLD-046). Headers are written before
+// any row, per the normal streaming-response tradeoff: once the first byte
+// is flushed the status is committed, so a mid-stream query error can only
+// truncate the response and get logged server-side, not turn into a
+// different HTTP status - the alternative (buffering the whole catalog
+// first so a failure could still become a clean 500) is exactly the
+// unbounded-memory behavior this fix removes.
 func handlePIMSearchFeedExport(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	if r.Method != http.MethodGet {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
-	csvBytes, err := engines.GetSearchFeedExportCSV(tenantID)
-	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
-		return
-	}
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", "attachment; filename=pim_search_feed.csv")
-	_, _ = w.Write(csvBytes)
+	// BLD-046: a streaming handler cannot use writeEngineError once the first
+	// byte is flushed, so the abandoned-request check it would have applied is
+	// made here instead. Without it every client that closed the tab mid-
+	// download was recorded as PIM_SEARCH_FEED_EXPORT_FAILED - verified live
+	// against a 40k-row catalog, where six aborted downloads produced six
+	// system-error rows ("context canceled", and the platform's own socket
+	// write error) for what is ordinary user behaviour, not a fault.
+	if err := engines.StreamSearchFeedExportCSVContext(r.Context(), tenantID, w); err != nil && !isAbandonedRequest(r, err) {
+		engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "PIM_SEARCH_FEED_EXPORT_FAILED", r.URL.Path, err.Error(), "")
+	}
 }
 
 // Fixed Asset Management (Stage 13.13b). Asset creation/listing use the

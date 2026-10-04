@@ -1,11 +1,12 @@
 package engines
 
 import (
-	"bytes"
+	"context"
 	"custom_erp/db"
 	"database/sql"
 	"encoding/csv"
 	"fmt"
+	"io"
 	"strconv"
 )
 
@@ -151,21 +152,97 @@ func GetPIMDashboard(tenantID string) (*PIMDashboard, error) {
 // PDF's own §6.1 note draws. Scoped to the "en" default locale content only,
 // same simplification BuildChannelPayload/CalculateCompleteness already
 // make elsewhere for a single-locale-per-call shape.
-func GetSearchFeedExportCSV(tenantID string) ([]byte, error) {
-	rows, err := fetchSearchFeedRows(tenantID, nil)
+// StreamSearchFeedExportCSV (BLD-046, formerly GetSearchFeedExportCSV)
+// writes the whole-catalog search/discovery feed directly to w, one product
+// row at a time, instead of materializing the entire catalog into a
+// []searchFeedRow slice and then a second full in-memory CSV buffer first.
+// This export has no natural row cap - a partial search/discovery feed
+// would be a wrong feed, not a safely bounded one - so streaming, not
+// capping, is the fix that keeps peak memory bounded for a large catalog.
+// handlePIMSearchFeedExport is the only caller; it writes straight to the
+// HTTP response, which is where the old double-buffering actually cost live
+// request memory.
+//
+// Query/scan intentionally duplicates fetchSearchFeedRows's shape rather
+// than reusing it: that function is shared by three other callers
+// (pim_catalog.go, pim_export_template.go, pim_product_groups.go) which all
+// pass a bounded, non-nil itemCodes and are not the unbounded case this
+// exists to fix - changing its signature to stream would touch all three
+// for no benefit to them.
+func StreamSearchFeedExportCSV(tenantID string, w io.Writer) error {
+	return StreamSearchFeedExportCSVContext(context.Background(), tenantID, w)
+}
+
+// StreamSearchFeedExportCSVContext is the BLD-046 cancellation-aware form.
+// This is the one export path where cancellation is complete rather than
+// merely prompt: the query itself runs through QueryContext, so abandoning
+// the request cancels the statement on the PostgreSQL backend instead of
+// leaving a whole-catalog scan running for a client that has gone away.
+func StreamSearchFeedExportCSVContext(ctx context.Context, tenantID string, w io.Writer) error {
+	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	var buf bytes.Buffer
-	writer := csv.NewWriter(&buf)
-	_ = writer.Write([]string{"item_code", "name", "title", "short_desc", "tags", "family", "category", "completeness_score", "has_main_image"})
-	for _, row := range rows {
-		_ = writer.Write([]string{row.ItemCode, row.Name, row.Title, row.ShortDesc, row.Tags, row.Family, row.Category,
-			strconv.FormatFloat(row.CompletenessScore, 'f', 1, 64), strconv.FormatBool(row.HasMainImage)})
+	rows, err := db.DB.QueryContext(ctx, fmt.Sprintf(`
+		SELECT
+			item.id AS item_code,
+			COALESCE(item.data->>'name','') AS name,
+			COALESCE(content.data->>'title','') AS title,
+			COALESCE(content.data->>'short_desc','') AS short_desc,
+			COALESCE(content.data->>'tags','') AS tags,
+			COALESCE(item.data->>'family','') AS family,
+			COALESCE(item.data->>'category','') AS category,
+			COALESCE(NULLIF(profile.data->>'completeness_score','')::numeric, 0) AS completeness_score,
+			EXISTS (
+				SELECT 1 FROM %s.documents media
+				WHERE media.doctype = 'ProductMedia' AND media.status = 'Active'
+					AND media.data->>'item' = item.id AND media.data->>'media_role' = 'Main Image'
+			) AS has_main_image
+		FROM %s.documents item
+		LEFT JOIN %s.documents profile ON profile.doctype = 'PIMProductProfile' AND profile.id = item.id || '::profile'
+		LEFT JOIN %s.documents content ON content.doctype = 'ProductContent' AND content.data->>'product_id' = item.id AND content.data->>'language' = 'en' AND content.status = 'Approved'
+		WHERE item.doctype = 'Item' AND item.status != 'Cancelled'
+		ORDER BY item.id`, schema, schema, schema, schema))
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	writer := csv.NewWriter(w)
+	if err := writer.Write([]string{"item_code", "name", "title", "short_desc", "tags", "family", "category", "completeness_score", "has_main_image"}); err != nil {
+		return err
+	}
+	var row searchFeedRow
+	written := 0
+	for rows.Next() {
+		// Checked per chunk, not per row: rows.Next itself already fails once
+		// QueryContext's context is cancelled, so this only needs to stop the
+		// CSV writing promptly in the window before that surfaces.
+		if written%streamExportCancelCheckRows == 0 {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+		written++
+		if err := rows.Scan(&row.ItemCode, &row.Name, &row.Title, &row.ShortDesc, &row.Tags,
+			&row.Family, &row.Category, &row.CompletenessScore, &row.HasMainImage); err != nil {
+			return err
+		}
+		if err := writer.Write([]string{row.ItemCode, row.Name, row.Title, row.ShortDesc, row.Tags, row.Family, row.Category,
+			strconv.FormatFloat(row.CompletenessScore, 'f', 1, 64), strconv.FormatBool(row.HasMainImage)}); err != nil {
+			return err
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
 	}
 	writer.Flush()
-	return buf.Bytes(), writer.Error()
+	return writer.Error()
 }
+
+// streamExportCancelCheckRows is how often a streaming export consults ctx
+// while writing rows (BLD-046).
+const streamExportCancelCheckRows = 256
 
 // searchFeedRow is one product's export-shaped view of its own PIM data.
 type searchFeedRow struct {

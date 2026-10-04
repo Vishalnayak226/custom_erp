@@ -31,6 +31,10 @@ func driftFixtureSources(t *testing.T) (dir string, sources DriftSources) {
 	} else if (view === 'reports') {
 		z();
 	}
+	const LAZY_VIEW_MODULES = {
+	  'lazy-module-view': ['view-example.js', 'renderExample', 'Example'],
+	  inventory: ['view-inventory.js', 'renderInventory', 'Inventory'],
+	};
 	`)
 
 	errorCatalog := filepath.Join(dir, "error_catalog_generated.go")
@@ -71,6 +75,19 @@ func hasWarningContaining(warnings []string, substr string) bool {
 		}
 	}
 	return false
+}
+
+func TestExtractViewIDsIncludesLazyModuleRegistry(t *testing.T) {
+	_, sources := driftFixtureSources(t)
+	ids, err := extractViewIDs(sources.AppJSPath)
+	if err != nil {
+		t.Fatalf("extractViewIDs: %v", err)
+	}
+	for _, id := range []string{"pos", "lazy-module-view", "inventory"} {
+		if !ids[id] {
+			t.Errorf("lazy/inline route %q missing from view inventory: %v", id, ids)
+		}
+	}
 }
 
 func TestDriftGuardsStaleLastVerified(t *testing.T) {
@@ -241,12 +258,15 @@ Body text.
 	}
 	warnings := DriftGuards(result.Articles, sources, time.Now())
 
-	// The fixture app.js has 3 real screens (pos, oms, reports); only pos is mapped.
-	if !hasWarningContaining(warnings, "2 of 3 screens have no Knowledge Center article mapped") {
+	// The fixture app.js has 5 real screens (pos, oms, reports, and two lazy
+	// module entries); only pos is mapped.
+	if !hasWarningContaining(warnings, "4 of 5 screens have no Knowledge Center article mapped") {
 		t.Errorf("expected an unmapped-screens summary warning, got: %v", warnings)
 	}
-	if !hasWarningContaining(warnings, "oms") || !hasWarningContaining(warnings, "reports") {
-		t.Errorf("expected the summary to name oms and reports, got: %v", warnings)
+	for _, screen := range []string{"oms", "reports", "lazy-module-view", "inventory"} {
+		if !hasWarningContaining(warnings, screen) {
+			t.Errorf("expected the summary to name %s, got: %v", screen, warnings)
+		}
 	}
 }
 

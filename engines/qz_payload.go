@@ -524,6 +524,13 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 	location, _ := data["location"].(string)
 	paymentMode, _ := data["payment_mode"].(string)
 	customer, _ := data["customer_id"].(string)
+	// Stage 53.12: which shop, and which company. Before this the header was
+	// the bare location code and nothing else - a customer could not tell
+	// which branch of a chain had sold to them, and it would not stand up as a
+	// tax document. ReceiptStoreHeader degrades rather than failing, so an
+	// incompletely configured store still prints a receipt.
+	store := ReceiptStoreHeader(tenantID, location)
+	cashier, _ := data["cashier"].(string)
 
 	var totals receiptTotals
 	type receiptLine struct {
@@ -586,11 +593,29 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 		b.WriteString(escInit)
 		b.WriteString(escAlignCenter)
 		b.WriteString(escBoldOn + escDoubleOn)
-		b.WriteString("Sales Receipt\n")
-		b.WriteString(escDoubleOff + escBoldOff)
+		// The legal entity is the name the bill is FROM, so it takes the
+		// double-height line when there is one; "Sales Receipt" drops to a
+		// normal line beneath it rather than being lost.
+		if store.EntityName != "" {
+			b.WriteString(store.EntityName + "\n")
+			b.WriteString(escDoubleOff + escBoldOff)
+			b.WriteString("Sales Receipt\n")
+		} else {
+			b.WriteString("Sales Receipt\n")
+			b.WriteString(escDoubleOff + escBoldOff)
+		}
+		b.WriteString(store.Line() + "\n")
+		if store.GSTIN != "" {
+			b.WriteString("GSTIN " + store.GSTIN + "\n")
+		}
+		if store.State != "" {
+			b.WriteString(store.State + "\n")
+		}
 		b.WriteString(cartNumber + "\n")
-		b.WriteString(location + "\n")
 		b.WriteString(createdAt.Format("02 Jan 2006 15:04") + "\n")
+		if cashier != "" {
+			b.WriteString("Cashier: " + cashier + "\n")
+		}
 		if customer != "" {
 			b.WriteString("Customer: " + customer + "\n")
 		}
@@ -658,6 +683,26 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 	if customer != "" {
 		customerLine = "<div>Customer: " + html.EscapeString(customer) + "</div>"
 	}
+	// Stage 53.12: the same header the ESC-POS branch above builds. Kept
+	// deliberately in step - a receipt that reads differently depending on
+	// which printer it reached is the defect 31.1.9 already found once.
+	var storeHeader strings.Builder
+	if store.EntityName != "" {
+		storeHeader.WriteString(`<div class="t">` + html.EscapeString(store.EntityName) + `</div><div>Sales Receipt</div>`)
+	} else {
+		storeHeader.WriteString(`<div class="t">Sales Receipt</div>`)
+	}
+	storeHeader.WriteString(`<div>` + html.EscapeString(store.Line()) + `</div>`)
+	if store.GSTIN != "" {
+		storeHeader.WriteString(`<div>GSTIN ` + html.EscapeString(store.GSTIN) + `</div>`)
+	}
+	if store.State != "" {
+		storeHeader.WriteString(`<div>` + html.EscapeString(store.State) + `</div>`)
+	}
+	cashierLine := ""
+	if cashier != "" {
+		cashierLine = "<div>Cashier: " + html.EscapeString(cashier) + "</div>"
+	}
 	return &QZPrintPayload{
 		Format: "HTML",
 		Items: []QZDataItem{{
@@ -671,10 +716,9 @@ hr{border:0;border-top:1px dashed #000;margin:6px 0;}
 table{width:100%;border-collapse:collapse;} td{padding:1px 0;} td.r{text-align:right;}
 .total td{font-weight:700;font-size:15px;padding-top:4px;}
 </style></head><body>
-<div class="c"><div class="t">Sales Receipt</div>
+<div class="c">` + storeHeader.String() + `
 <div>` + html.EscapeString(cartNumber) + `</div>
-<div>` + html.EscapeString(location) + `</div>
-<div>` + createdAt.Format("02 Jan 2006 15:04") + `</div>` + customerLine + `</div><hr>
+<div>` + createdAt.Format("02 Jan 2006 15:04") + `</div>` + cashierLine + customerLine + `</div><hr>
 <table>` + rows.String() + `<tr class="total"><td>TOTAL (` + html.EscapeString(paymentMode) + `)</td>
 <td class="r">` + money(totals.amountDue) + `</td></tr></table><hr>
 <div class="c">Thank you</div>

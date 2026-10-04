@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"encoding/json"
 	"testing"
@@ -146,7 +147,7 @@ func TestStage3711Dashboards(t *testing.T) {
 			t.Fatalf("seed DashboardDigest: %v", err)
 		}
 
-		processDashboardDigests(schema)
+		processDashboardDigests(context.Background(), schema)
 
 		var dataStr string
 		if err := db.DB.QueryRow("SELECT data FROM "+schema+".documents WHERE id = $1", digestID).Scan(&dataStr); err != nil {

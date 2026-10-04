@@ -192,7 +192,7 @@ func TestBLD020RoleTenantSizeEntitlementMatrix(t *testing.T) {
 			t.Fatalf("seed max_users=%d limit: %v", activeUserCount, err)
 		}
 		t.Cleanup(func() {
-			_, _ = db.DB.Exec("DELETE FROM "+schema+".tenant_limits WHERE tenant_id = 'default' AND limit_key = 'max_users'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".tenant_limits WHERE tenant_id = 'default' AND limit_key = 'max_users'")
 		})
 
 		bodyAt := func(username string) []byte {
@@ -207,7 +207,7 @@ func TestBLD020RoleTenantSizeEntitlementMatrix(t *testing.T) {
 			t.Fatalf("counterexample: user creation at the exact max_users limit (%d active, limit %d) got %d (want 422), body=%s",
 				activeUserCount, activeUserCount, r.Code, r.Body.String())
 		}
-		defer db.DB.Exec("DELETE FROM " + schema + ".users WHERE username = $1", blocked)
+		defer db.DB.Exec("DELETE FROM "+schema+".users WHERE username = $1", blocked)
 
 		// Raise the limit by exactly one; the identical request now succeeds.
 		if _, err := db.DB.Exec("UPDATE "+schema+".tenant_limits SET limit_value = $1 WHERE tenant_id = 'default' AND limit_key = 'max_users'", activeUserCount+1); err != nil {
@@ -219,6 +219,6 @@ func TestBLD020RoleTenantSizeEntitlementMatrix(t *testing.T) {
 			t.Fatalf("counterexample: user creation one over the previous limit (now %d active, limit %d) was refused: %d %s",
 				activeUserCount, activeUserCount+1, r2.Code, r2.Body.String())
 		}
-		defer db.DB.Exec("DELETE FROM " + schema + ".users WHERE username = $1", allowed)
+		defer db.DB.Exec("DELETE FROM "+schema+".users WHERE username = $1", allowed)
 	})
 }

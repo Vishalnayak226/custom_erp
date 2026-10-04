@@ -59,7 +59,7 @@ A metadata-driven, pluggable, ledger-backed Enterprise Resource Planning (ERP) s
 │   ├── operations/                # backup_restore.md, incident_runbook.md, connector_live_verification.md, hardening_roadmap.md
 │   ├── requirements/               # BRD.md, PRD.md
 │   └── guides/                    # USER_GUIDE.md (client-facing), ADMIN_GUIDE.md (operator manual)
-└── package.json                   # Frontend build script (esbuild bundling of public/app.js)
+└── package.json                   # Project metadata only; no frontend scripts or dependencies
 ```
 
 ## Getting Started
@@ -87,8 +87,8 @@ go build -o erp-server.exe ./cmd/server
 ```
 This serves both the API and the `public/` static frontend on `http://localhost:8080`. You'll land on a login screen — dev credentials are in `DEV_CREDENTIALS.local.txt` at the project root (gitignored; regenerate via a throwaway bcrypt script and update `db/migration.sql` + the live `users` table if it's missing).
 
-### Frontend build (optional)
-`npm run build` bundles and minifies `public/app.js` via esbuild into `public/dist/`. Not required to run the app — `public/app.js` is loaded directly by `index.html`.
+### Frontend build
+There is no frontend build step. The Go server serves the browser assets directly from `public/`; the shell loads native ES-module screen chunks on demand. No bundler, transpiler, generated `public/dist/`, or npm install is required to run the app.
 
 ## Technical Reference & Architecture
 

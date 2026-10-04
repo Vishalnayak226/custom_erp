@@ -242,7 +242,7 @@ func handleCartonizationSuggest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		CartonType string                       `json:"carton_type"`
+		CartonType string                      `json:"carton_type"`
 		Items      []engines.CartonizationItem `json:"items"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.CartonType == "" || len(req.Items) == 0 {

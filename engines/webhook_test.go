@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"custom_erp/db"
@@ -94,7 +95,7 @@ func TestStage384WebhookSubscriptions(t *testing.T) {
 		insertSub(nonMatchID, "Active", "somethingelse.*")
 
 		eventID := "TEST3840-EVENT"
-		dispatchWebhooksForEvent(schema, eventID, "test3840.fired", map[string]interface{}{"x": 1})
+		dispatchWebhooksForEvent(schema, eventID, "test3840.fired", map[string]interface{}{"x": 1}, "")
 
 		var jobIDs []string
 		var count int
@@ -124,7 +125,7 @@ func TestStage384WebhookSubscriptions(t *testing.T) {
 
 		// Re-dispatch the same event (simulating processOutbox retrying a
 		// Failed row) - must not create a second job for the same subscription.
-		dispatchWebhooksForEvent(schema, eventID, "test3840.fired", map[string]interface{}{"x": 1})
+		dispatchWebhooksForEvent(schema, eventID, "test3840.fired", map[string]interface{}{"x": 1}, "")
 		if err := db.DB.QueryRow("SELECT count(*) FROM "+schema+".async_jobs WHERE idempotency_key = $1", eventID+"-"+activeID).Scan(&count); err != nil {
 			t.Fatalf("count jobs for active sub after re-dispatch: %v", err)
 		}
@@ -187,7 +188,7 @@ func TestStage384WebhookSubscriptions(t *testing.T) {
 			db.DB.Exec("DELETE FROM public.tenants WHERE tenant_id = $1", sandboxTenantID)
 		}()
 
-		result, err := deliverWebhook(sandboxSchema, Job{
+		result, err := deliverWebhook(context.Background(), sandboxSchema, Job{
 			ID: "JOB-TEST-SANDBOX",
 			Payload: map[string]interface{}{
 				"url": canary.URL, "secret": "s3cr3t", "event_name": "test3840.event", "event_payload": map[string]interface{}{},

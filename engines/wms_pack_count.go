@@ -231,7 +231,7 @@ func GetABCCycleCountPlan(tenantID, locationCode string, tierAIntervalDays, tier
 
 		var lastCounted sql.NullTime
 		_ = db.DB.QueryRow(fmt.Sprintf(`
-			SELECT MAX(created_at) FROM %s.documents
+			SELECT MAX(created_at) AT TIME ZONE current_setting('TimeZone') FROM %s.documents
 			WHERE doctype = 'CycleCountLine' AND status = 'Posted' AND data->>'sku' = $1 AND data->>'location' = $2`, schema),
 			sv.Sku, locationCode).Scan(&lastCounted)
 
@@ -533,7 +533,7 @@ func GetCycleCountPlan(tenantID, locationCode string) ([]ABCCycleCountSuggestion
 		}
 		var lastCounted sql.NullTime
 		_ = db.DB.QueryRow(fmt.Sprintf(`
-			SELECT MAX(created_at) FROM %s.documents
+			SELECT MAX(created_at) AT TIME ZONE current_setting('TimeZone') FROM %s.documents
 			WHERE doctype = 'CycleCountLine' AND status = 'Posted' AND data->>'sku' = $1 AND data->>'location' = $2`, schema),
 			sv.Sku, locationCode).Scan(&lastCounted)
 		daysSince := -1

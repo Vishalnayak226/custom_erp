@@ -343,7 +343,7 @@ WITH new_obs AS (
      WHERE doctype = 'CompetitorPrice' AND deleted_at IS NULL
        AND COALESCE(status,'') = 'Active'
        AND COALESCE(data->>'our_item','') <> ''
-       AND created_at > $1
+       AND created_at > ($1::timestamptz AT TIME ZONE current_setting('TimeZone'))
 ),`+competitorOurPriceCTE+`,
 cheapest AS (
     SELECT DISTINCT ON (data->>'our_item')

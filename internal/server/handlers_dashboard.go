@@ -29,8 +29,8 @@ func handleDashboardLayouts(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"layouts": layouts})
 	case http.MethodPost:
 		var req struct {
-			Name  string                     `json:"name"`
-			Role  string                     `json:"role"`
+			Name  string                      `json:"name"`
+			Role  string                      `json:"role"`
 			Tiles []engines.DashboardTileSpec `json:"tiles"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

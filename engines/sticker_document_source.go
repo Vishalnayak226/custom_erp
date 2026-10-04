@@ -119,22 +119,60 @@ func resolveTransferOrderStickerLines(tenantID, transferOrderID string) ([]DocSt
 	return lines, nil
 }
 
-// filterStickerLines keeps only the lines whose SKU is in selectedSKUs. An
-// empty selection means "every line" - this is what makes printing the whole
-// document and printing one line the same code path, just a different
-// selection size.
-func filterStickerLines(lines []DocStickerLine, selectedSKUs []string) []DocStickerLine {
-	if len(selectedSKUs) == 0 {
-		return lines
+// StickerLineSelection identifies one line of a document's sticker run.
+//
+// A document's lines are unique by SKU *and* batch (ResolveDocumentStickerLines
+// merges two receipt lines only when they share a lot), so a selection keyed on
+// SKU alone cannot address a SKU that arrived on two lots - picking either row
+// would print both. BatchNo disambiguates: empty means "every line of this SKU"
+// (which is what a SKU-only caller, e.g. the manual scan flow or an older API
+// client, still gets), a value means that one lot's line only.
+//
+// Copies overrides the line's default copy count (its accepted/transfer qty);
+// zero or less means "use the line's own quantity".
+type StickerLineSelection struct {
+	SKU     string `json:"sku"`
+	BatchNo string `json:"batch_no"`
+	Copies  int    `json:"copies"`
+}
+
+// SKUSelections adapts a plain SKU list to []StickerLineSelection, carrying
+// the pre-Stage-52.8 per-SKU copy overrides. Both of the HTTP handlers accept
+// the older `skus`/`copies_override` shape as well as the newer per-line one,
+// so this is what keeps every existing caller behaving exactly as before.
+func SKUSelections(skus []string, copyOverrides map[string]int) []StickerLineSelection {
+	selections := make([]StickerLineSelection, 0, len(skus))
+	for _, sku := range skus {
+		selections = append(selections, StickerLineSelection{SKU: sku, Copies: copyOverrides[sku]})
 	}
-	allowed := make(map[string]bool, len(selectedSKUs))
-	for _, s := range selectedSKUs {
-		allowed[s] = true
+	return selections
+}
+
+// matchStickerLine reports whether sel addresses line, and how many copies it
+// asks for. A selection with no BatchNo matches every lot of its SKU.
+func matchStickerLine(sel StickerLineSelection, line DocStickerLine) bool {
+	return sel.SKU == line.SKU && (sel.BatchNo == "" || sel.BatchNo == line.BatchNo)
+}
+
+// filterStickerLines keeps only the lines addressed by selections, and applies
+// each selection's copy count to the line it matched. An empty selection means
+// "every line" - this is what makes printing the whole document and printing
+// one line the same code path, just a different selection size.
+func filterStickerLines(lines []DocStickerLine, selections []StickerLineSelection) []DocStickerLine {
+	if len(selections) == 0 {
+		return lines
 	}
 	filtered := make([]DocStickerLine, 0, len(lines))
 	for _, l := range lines {
-		if allowed[l.SKU] {
+		for _, sel := range selections {
+			if !matchStickerLine(sel, l) {
+				continue
+			}
+			if sel.Copies > 0 {
+				l.Qty = sel.Copies
+			}
 			filtered = append(filtered, l)
+			break // one line prints once even if two selections name it
 		}
 	}
 	return filtered
@@ -147,11 +185,11 @@ func filterStickerLines(lines []DocStickerLine, selectedSKUs []string) []DocStic
 // own StickerTemplate still renders its own label, this only orders the
 // batch so a mixed-category GRN prints as separable stacks per category.
 //
-// selectedSKUs narrows the run to just those SKUs (nil/empty = every line -
-// "print the whole GRN"; a single SKU - "print this one line"). copyOverrides
-// lets the caller override a line's default copy count (its accepted/transfer
-// qty) per SKU, e.g. after the user edits the review table.
-func PrintStickersForDocument(tenantID, sourceDoctype, sourceDocID, printerCode, printedBy, reprintReason string, selectedSKUs []string, copyOverrides map[string]int) ([]StickerLabel, error) {
+// selections narrows the run to just those lines (nil/empty = every line -
+// "print the whole GRN"; one selection - "print this one line"), and carries
+// each line's copy count, e.g. after the user edits the review table. See
+// StickerLineSelection for why a line is addressed by SKU *and* batch.
+func PrintStickersForDocument(tenantID, sourceDoctype, sourceDocID, printerCode, printedBy, reprintReason string, selections []StickerLineSelection) ([]StickerLabel, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -164,17 +202,16 @@ func PrintStickersForDocument(tenantID, sourceDoctype, sourceDocID, printerCode,
 	if err != nil {
 		return nil, err
 	}
-	lines = filterStickerLines(lines, selectedSKUs)
+	lines = filterStickerLines(lines, selections)
 	if len(lines) == 0 {
 		return nil, fmt.Errorf("no stickerable lines found on %s %s", sourceDoctype, sourceDocID)
 	}
 
 	labels := make([]StickerLabel, 0, len(lines))
 	for _, line := range lines {
+		// filterStickerLines has already applied the selection's own copy count
+		// to line.Qty, so a line reaching here always carries its final count.
 		copies := line.Qty
-		if override, ok := copyOverrides[line.SKU]; ok && override > 0 {
-			copies = override
-		}
 		if copies <= 0 {
 			copies = 1
 		}

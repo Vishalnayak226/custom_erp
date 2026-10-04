@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"context"
 	"custom_erp/db"
 	"encoding/json"
 	"testing"
@@ -203,7 +204,7 @@ func TestReportsStage26_10(t *testing.T) {
 			t.Fatalf("failed to seed ScheduledReport fixture: %v", err)
 		}
 
-		processScheduledReports(schema)
+		processScheduledReports(context.Background(), schema)
 
 		var dataStr string
 		if err := db.DB.QueryRow("SELECT data FROM "+schema+".documents WHERE id = $1", scheduleID).Scan(&dataStr); err != nil {
@@ -231,7 +232,7 @@ func TestReportsStage26_10(t *testing.T) {
 		}
 
 		// A second tick before the (now-advanced) next_run_date must be a no-op.
-		processScheduledReports(schema)
+		processScheduledReports(context.Background(), schema)
 		if err := db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".integration_event_outbox WHERE event_name = 'report.scheduled_delivery'").Scan(&eventCount); err != nil {
 			t.Fatalf("failed to re-count outbox events: %v", err)
 		}

@@ -157,7 +157,7 @@ Bearer tokens are kept in `localStorage`; logout removes the browser copy but th
 | A-29 | P1 | `pg_stat_statements` is not available in the tested environment | Measured | Slow-query prioritization depends on anecdotes instead of workload evidence. |
 | A-30 | P1 | Legal retention, erasure, legal hold, and export rules are not one data-lifecycle policy | Docs/legal | Privacy deletion and statutory retention can conflict or be handled inconsistently. |
 | A-31 | P2 | One 1 MB JavaScript file supplies almost the whole UI | Measured | Parsing/compilation and change invalidation tax every role for modules they never use. |
-| A-32 | P2 | Optional `npx -y esbuild` guidance conflicts with the no-build design | Docs | Reproducibility and air-gapped installs can gain an implicit network/toolchain dependency. |
+| A-32 | P2 | Optional `npx -y esbuild` guidance conflicts with the no-build design | Docs | Reproducibility and air-gapped installs can gain an implicit network/toolchain dependency. **Resolved 2026-10-03:** removed the npm `build`/`npx` scripts and documented the direct-to-`public/` native-module runtime in `README.md`; no frontend toolchain path remains. |
 | A-33 | P2 | Reports expose internal stage identifiers and raw engineering concepts | Observed | Users see implementation status instead of business language and actions. |
 | A-34 | P2 | Dashboard KPI “327 SLA breaches” lacks timeframe, owner, and action | Observed | An alarming number is not operationally useful and erodes trust. |
 | A-35 | P2 | Raw UUIDs and internal type names appear in operational setup and GRN views | Observed | Novices cannot recognize records; support errors and wrong selection increase. |

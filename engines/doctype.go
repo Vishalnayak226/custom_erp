@@ -689,3 +689,73 @@ func SwitchIndustryProfile(tenantID string, profilePath string, actingUser strin
 
 	return tx.Commit()
 }
+
+// IsMasterDoctype reports whether a doctype is registered as a Master (its
+// doctype_meta.document_type), as opposed to a Transaction or Setup record.
+//
+// Stage 51.8 (2026-10-04): extracted so the "Master record id = code"
+// invariant has exactly one definition of "is this a Master". It was
+// previously an inline query in handleGenericDoc's POST path only, and the
+// bulk CSV import path - which its own comment claimed to cover - never
+// asked the question at all. An unknown doctype reads as not-a-Master rather
+// than erroring, since every caller's safe fallback is to leave ids alone.
+func IsMasterDoctype(tenantID, doctype string) (bool, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return false, err
+	}
+	var documentType string
+	err = db.DB.QueryRow(fmt.Sprintf("SELECT COALESCE(document_type, '') FROM %s.doctype_meta WHERE name = $1", schema), doctype).Scan(&documentType)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return documentType == "Master", nil
+}
+
+// ApplyMasterIDCodeInvariant restores the id = code invariant for a Master
+// record that is being created without an explicit id.
+//
+// Why this exists (Stage 51.1, generalized in 51.8): every Master doctype's
+// own identifying field is "code" (Vendor/Item/Customer/Employee/...), but a
+// Link field pointing at one of them - PurchaseOrder.vendor, say - is
+// submitted and validated by *id* (verifyDocumentExists checks WHERE id =
+// $2), never by code. Master doctypes are never in
+// documentNumberSeriesByDoctype, so the document-numbering pass is a no-op
+// for them and nothing else populates id. Left alone, a freshly created
+// Vendor gets an id disconnected from its code, and every Link field that
+// points at it fails "record does not exist" forever even though the record
+// is right there. db/migrations_stage24_addendum_data_integrity.sql's own
+// comment documents id = code as the invariant its Link-field conversions
+// depended on.
+//
+// isCreate is false on an update, where an existing row's id must never be
+// rewritten. Returns the id to use, or "" to mean "caller's own id
+// generation applies" - a no-op for a non-Master, an update, a row with an
+// explicit id, or a Master row with no usable code.
+func ApplyMasterIDCodeInvariant(tenantID, doctype string, isCreate bool, payload map[string]interface{}) (string, error) {
+	if !isCreate || payload == nil {
+		return "", nil
+	}
+	if existing, hasID := payload["id"]; hasID {
+		if strings.TrimSpace(fmt.Sprintf("%v", existing)) != "" {
+			return "", nil
+		}
+	}
+	codeVal, hasCode := payload["code"]
+	if !hasCode {
+		return "", nil
+	}
+	code := strings.TrimSpace(fmt.Sprintf("%v", codeVal))
+	if code == "" {
+		return "", nil
+	}
+	isMaster, err := IsMasterDoctype(tenantID, doctype)
+	if err != nil || !isMaster {
+		return "", err
+	}
+	payload["id"] = code
+	return code, nil
+}

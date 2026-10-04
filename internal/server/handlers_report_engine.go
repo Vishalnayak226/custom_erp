@@ -48,7 +48,7 @@ func handleRunReport(w http.ResponseWriter, r *http.Request) {
 	}
 	reportID := r.PathValue("id")
 	params := flattenQueryParams(r)
-	def, rows, masked, err := engines.RunReport(tenantID, reportID, role, userID, params)
+	def, rows, masked, err := engines.RunReportContext(r.Context(), tenantID, reportID, role, userID, params)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
@@ -86,7 +86,7 @@ func handleReportDrillDown(w http.ResponseWriter, r *http.Request) {
 	reportID := r.PathValue("id")
 	rowKey := r.URL.Query().Get("row")
 	params := flattenQueryParams(r)
-	rows, err := engines.RunReportDrillDown(tenantID, reportID, role, rowKey, params)
+	rows, err := engines.RunReportDrillDownContext(r.Context(), tenantID, reportID, role, rowKey, params)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return

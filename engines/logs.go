@@ -6,8 +6,40 @@ import (
 	"encoding/hex"
 	"fmt"
 	"log"
+	"regexp"
 	"time"
+	"unicode/utf8"
 )
+
+var (
+	secretAssignmentPattern = regexp.MustCompile(`(?i)\b(password|token|secret|api[_-]?key|authorization)\b(\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;]+)`)
+	bearerSecretPattern     = regexp.MustCompile(`(?i)(\bbearer\s+)[A-Za-z0-9._~+/-]+=*`)
+)
+
+const (
+	maxSystemErrorMessageBytes = 4 * 1024
+	maxSystemErrorStackBytes   = 32 * 1024
+)
+
+func redactAndBoundLogField(value string, maxBytes int) string {
+	value = bearerSecretPattern.ReplaceAllString(value, "${1}[REDACTED]")
+	value = secretAssignmentPattern.ReplaceAllString(value, "$1$2[REDACTED]")
+	if len(value) <= maxBytes {
+		return value
+	}
+	// Keep the stored string valid UTF-8 when a multibyte character falls on
+	// the byte boundary. Log fields are diagnostic excerpts, not payloads.
+	const marker = "…[truncated]"
+	limit := maxBytes - len(marker)
+	if limit < 0 {
+		limit = 0
+	}
+	value = value[:limit]
+	for len(value) > 0 && !utf8.ValidString(value) {
+		value = value[:len(value)-1]
+	}
+	return value + marker
+}
 
 // auditChecksum (24.24) hashes one row's content together with the
 // immediately preceding row's checksum, so altering or deleting any row
@@ -133,6 +165,11 @@ func VerifyAuditLogChain(tenantID string) (intact bool, brokenAt *AuditChainBrea
 
 // LogSystemError writes a system exception/panic trace for the specified tenant
 func LogSystemError(tenantID string, correlationID string, severity, moduleSource, message, stackTrace string) {
+	severity = redactAndBoundLogField(severity, 32)
+	moduleSource = redactAndBoundLogField(moduleSource, 200)
+	message = redactAndBoundLogField(message, maxSystemErrorMessageBytes)
+	stackTrace = redactAndBoundLogField(stackTrace, maxSystemErrorStackBytes)
+	correlationID = redactAndBoundLogField(correlationID, 100)
 	log.Printf("[%s] System Error in module %s: %s", severity, moduleSource, message)
 
 	// Panics alert immediately, ahead of/independent from the DB insert below

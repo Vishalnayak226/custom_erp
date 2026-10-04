@@ -31,7 +31,7 @@ func resolveOriginalSale(tenantID, orderID string) (lines []transferLine, saleDa
 	var dataStr string
 	var createdAt time.Time
 	if errQ := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT data, created_at FROM %s.documents WHERE doctype = 'POSCart' AND id = $1 AND status = 'Paid'`, schema),
+		`SELECT data, created_at AT TIME ZONE current_setting('TimeZone') FROM %s.documents WHERE doctype = 'POSCart' AND id = $1 AND status = 'Paid'`, schema),
 		orderID).Scan(&dataStr, &createdAt); errQ == nil {
 		var cart struct {
 			Items []transferLine `json:"items"`
@@ -42,7 +42,7 @@ func resolveOriginalSale(tenantID, orderID string) (lines []transferLine, saleDa
 		return lines, createdAt, true, nil
 	}
 	if errQ := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT created_at FROM %s.documents WHERE doctype = 'SalesInvoice' AND id = $1`, schema),
+		`SELECT created_at AT TIME ZONE current_setting('TimeZone') FROM %s.documents WHERE doctype = 'SalesInvoice' AND id = $1`, schema),
 		orderID).Scan(&createdAt); errQ == nil {
 		return nil, createdAt, true, nil
 	}

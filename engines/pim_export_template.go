@@ -13,7 +13,7 @@ import (
 // Stage 36.4.1/36.4.3: PIMExportTemplate lets an operator choose which
 // columns leave the building, in what order, under what header names (or no
 // header row at all), and whether a variant collapses under its parent -
-// rather than every export being the fixed shape GetSearchFeedExportCSV/
+// rather than every export being the fixed shape StreamSearchFeedExportCSV/
 // ExportPIMProductGroupCSV already produce. A blank `channel` exports the
 // same raw ERP fields those two read; a set `channel` exports through
 // BuildChannelPayload, so the columns on offer are that channel's own
