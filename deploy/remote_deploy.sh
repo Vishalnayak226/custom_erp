@@ -32,7 +32,18 @@ set -euo pipefail
 
 REMOTE_DIR="${REMOTE_DIR:?set REMOTE_DIR, e.g. /opt/erp}"
 DEPLOY_COMMIT="${DEPLOY_COMMIT:-unknown}"
-HEALTH_URL="http://127.0.0.1:8080/"
+# Stage 50/BLD-006 shipped the two halves of the expected-commit health check
+# out of step, and the 2026-10-05 deploy of 4847ce6 is what surfaced it: this
+# pointed at "/", which http.Dir serves index.html from, so the body
+# wait_healthy searched for "git_commit":"<commit>" was HTML and the match
+# could never succeed. Every deploy therefore burned all 15 attempts and
+# auto-rolled back a binary that had in fact started cleanly, while the
+# rollback's own check passed because it is called with no expected commit
+# and a 200 from "/" was enough. handleHealth - the endpoint whose own
+# comment says wait_healthy polls it - is the one that actually echoes
+# git_commit, and it pings the DB rather than just proving a static file
+# can be served, so it is the correct target for both calls.
+HEALTH_URL="http://127.0.0.1:8080/api/v1/health"
 HEALTH_RETRIES=15
 HEALTH_INTERVAL=1
 
