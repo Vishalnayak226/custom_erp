@@ -320,6 +320,9 @@ func registerRoutes() {
 	// it a supplier account cannot be finished from inside the app.
 	http.HandleFunc("POST /api/v1/admin/users/supplier", apiMiddleware(handleSetUserSupplier))
 	http.HandleFunc("GET /api/v1/admin/roles", apiMiddleware(handleListRoles))
+	// Stage 57.17: create a role before anyone holds it, so an admin can set
+	// up "Purchase Clerk" and its permissions first and then assign people.
+	http.HandleFunc("POST /api/v1/admin/roles", apiMiddleware(handleCreateRole))
 	http.HandleFunc("GET /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))
 	http.HandleFunc("POST /api/v1/admin/role-permissions", apiMiddleware(handleRolePermissions))
 

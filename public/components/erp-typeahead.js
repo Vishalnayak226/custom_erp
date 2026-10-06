@@ -81,6 +81,8 @@ class ErpTypeahead extends HTMLElement {
     root.appendChild(this._input);
 
     this._input.addEventListener('input', () => {
+      this._code = null; // typing starts a new value (Stage 57.1)
+      this._input.title = '';
       clearTimeout(this._debounceTimer);
       const q = this._input.value.trim();
       this._debounceTimer = setTimeout(() => this._search(q), 250);
@@ -107,8 +109,29 @@ class ErpTypeahead extends HTMLElement {
     if (name === 'disabled') this._input.disabled = newVal !== null;
   }
 
-  get value() { return this._input.value; }
-  set value(v) { this._input.value = v == null ? '' : v; }
+  // Stage 57.1, as attachLinkTypeahead's pickers: the box shows the picked
+  // record's NAME while .value still returns its code, which is what every
+  // caller reads and saves. A set value shows its code until the name is
+  // looked up through the shell's cached lookupLinkDoc.
+  get value() {
+    if (!this._input.value) return '';
+    return this._code != null ? this._code : this._input.value;
+  }
+  set value(v) {
+    const code = v == null ? '' : String(v);
+    this._code = code || null;
+    this._input.value = code;
+    this._input.title = '';
+    if (code && typeof window.lookupLinkDoc === 'function') {
+      window.lookupLinkDoc(this.doctype, code).then(doc => { if (doc && this._code === code) this._show(doc, code); });
+    }
+  }
+  _show(doc, code) {
+    this._code = code;
+    const name = doc.name || '';
+    this._input.value = name || code;
+    this._input.title = name && name !== code ? code : '';
+  }
 
   get doctype() { return this.getAttribute('doctype') || ''; }
   get limit() { return parseInt(this.getAttribute('limit'), 10) || 8; }
@@ -164,7 +187,7 @@ class ErpTypeahead extends HTMLElement {
     for (const f of this.valueFields) {
       if (doc[f] !== undefined && doc[f] !== null && doc[f] !== '') { val = doc[f]; break; }
     }
-    this._input.value = val;
+    this._show(doc, String(val));
     this._closeMenuKeepFocus();
     this.dispatchEvent(new CustomEvent('change', { bubbles: true, composed: true, detail: { value: val, record: doc } }));
   }

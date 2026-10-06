@@ -72,6 +72,16 @@ func ResolveItemBySKU(tenantID, sku string) (*ResolvedItem, error) {
 		              ELSE 2 END
 		LIMIT 1`, schema), sku).Scan(&id, &status, &dataStr, &matchedOn)
 	if err == sql.ErrNoRows {
+		// Stage 57.7: a receipt-date barcode (ItemBarcode register) scans as
+		// its SKU too. Only consulted when nothing matched directly, so it can
+		// never shadow a code, barcode or id.
+		if itemID := resolveRegisteredBarcode(schema, sku); itemID != "" && itemID != sku {
+			resolved, errReg := ResolveItemBySKU(tenantID, itemID)
+			if errReg == nil {
+				resolved.MatchedOn = "registered_barcode"
+			}
+			return resolved, errReg
+		}
 		return nil, ErrItemNotFound
 	}
 	if err != nil {

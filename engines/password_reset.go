@@ -112,7 +112,7 @@ func CompletePasswordReset(tenantID, token, newPassword string) error {
 		return err
 	}
 	if _, err := db.DB.Exec(fmt.Sprintf(
-		`UPDATE %s.users SET password_hash = $1, reset_token_hash = NULL, reset_token_expires_at = NULL, failed_login_count = 0, locked_until = NULL, credential_version = credential_version + 1 WHERE id = $2`, schema),
+		`UPDATE %s.users SET password_hash = $1, reset_token_hash = NULL, reset_token_expires_at = NULL, failed_login_count = 0, locked_until = NULL, credential_version = credential_version + 1, must_change_password = FALSE WHERE id = $2`, schema),
 		string(newHash), userID); err != nil {
 		return err
 	}

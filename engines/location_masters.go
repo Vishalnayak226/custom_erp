@@ -16,27 +16,52 @@ import (
 // mechanism would silently change behavior for every other existing Link
 // field (Vendor, Customer, etc.) - out of scope here.
 func ValidateLocationReference(tenantID, locationCode string) error {
-	if locationCode == "" {
-		return nil
+	_, err := ResolveLocationReference(tenantID, locationCode)
+	return err
+}
+
+// ResolveLocationReference validates a location reference and returns the
+// Location record's canonical id - the value every transaction has always
+// stored, since this check used to accept only the id.
+//
+// It used to match `id` alone, but every location picker submits the
+// record's CODE first (attachTypeahead's valueFields: code, name, id). For
+// any Location whose id and code differ - every record created before the
+// Stage 51.1 id = code invariant, where the id came from the document series
+// - the picker's own pick was then refused as "not a registered Location".
+// Reported live on a Transfer Order: 'Location/HQ/2026/000001' rejected.
+//
+// So it now accepts the id, the code, or the exact name (case-insensitive),
+// preferring the id. The caller writes the returned id back into the
+// payload, so what gets stored is unchanged from before and stock ledger
+// rows keyed on the id keep matching.
+func ResolveLocationReference(tenantID, ref string) (string, error) {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return "", nil
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return err
+		return "", err
 	}
-	var status string
+	var id, status string
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT status FROM %s.documents WHERE doctype = 'Location' AND id = $1 AND deleted_at IS NULL`, schema),
-		locationCode).Scan(&status)
+		`SELECT id, status FROM %s.documents
+		 WHERE doctype = 'Location' AND deleted_at IS NULL
+		   AND (id = $1 OR data->>'code' = $1 OR lower(data->>'name') = lower($1))
+		 ORDER BY (id = $1) DESC, (data->>'code' = $1) DESC, id
+		 LIMIT 1`, schema),
+		ref).Scan(&id, &status)
 	if err == sql.ErrNoRows {
-		return fmt.Errorf("location '%s' is not a registered Location", locationCode)
+		return "", fmt.Errorf("location '%s' is not a registered Location", ref)
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	if status != "Active" {
-		return fmt.Errorf("location '%s' is not Active", locationCode)
+		return "", fmt.Errorf("location '%s' is not Active", ref)
 	}
-	return nil
+	return id, nil
 }
 
 // ---------------------------------------------------------------------------

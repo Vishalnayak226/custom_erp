@@ -41,6 +41,30 @@
         <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="login-submit-btn">Sign In</button>
       </form>
 
+      <!-- Stage 57.17: set your own password - first sign-in, or after an
+           administrator reset it. The server allows nothing else until done. -->
+      <form id="password-change-form" class="hidden" novalidate>
+        <p class="login-subtitle">Set your own password</p>
+        <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+          The password you signed in with was set by an administrator. Choose your own to continue.
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="pwchange-current">Password you signed in with</label>
+          <input type="password" id="pwchange-current" class="form-input" autocomplete="current-password" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pwchange-new">New password</label>
+          <input type="password" id="pwchange-new" class="form-input" autocomplete="new-password" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pwchange-confirm">Confirm new password</label>
+          <input type="password" id="pwchange-confirm" class="form-input" autocomplete="new-password" required>
+        </div>
+        <div id="pwchange-error" class="login-error hidden" role="alert"></div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;" id="pwchange-submit">Set password and continue</button>
+        <button type="button" class="btn btn-secondary" style="width: 100%; justify-content: center; margin-top: 8px;" id="pwchange-signout">Sign out</button>
+      </form>
+
       <!-- First-time MFA enrollment (HR/Admin only - SEC-V2 12) -->
       <div id="mfa-enroll-screen" class="hidden">
         <p class="login-subtitle">Set up two-factor authentication</p>
@@ -165,7 +189,8 @@
           </a>
           <ul class="menu-flyout">
             <li><a class="menu-item" id="menu-finance"><span>Finance / GL</span></a></li>
-            <li><a class="menu-item" id="menu-approvals"><span>Approvals</span></a></li>
+            <!-- Stage 57.17: cross-module (approvers exist in every module), so it never keeps this flyout visible on its own; Home's "waiting on you" card always reaches it. -->
+            <li data-cross-module><a class="menu-item" id="menu-approvals"><span>Approvals</span></a></li>
             <li><a class="menu-item" id="menu-vendor-invoices"><span>Vendor Invoice</span></a></li>
             <li><a class="menu-item" id="menu-payment-proposals"><span>Payment Proposals</span></a></li>
             <li><a class="menu-item" id="menu-bank-reconciliation"><span>Bank Reconciliation</span></a></li>
@@ -235,8 +260,13 @@
             </svg>
           </a>
           <ul class="menu-flyout">
+            <!-- Stage 57 (user QA): Stock holds the stock itself and moving it
+                 between locations; every warehouse-operations screen sits
+                 under its own WMS heading below. Headings hide themselves when
+                 a role can see none of their entries (syncFlyoutHeadings). -->
             <li><a class="menu-item" id="menu-inventory"><span>Inventory</span></a></li>
             <li><a class="menu-item" id="menu-transfers"><span>Stock Transfer</span></a></li>
+            <li class="submenu-group-label" role="presentation">WMS</li>
             <li><a class="menu-item" id="menu-bins"><span>Bin</span></a></li>
             <li><a class="menu-item" id="menu-putaway"><span>Putaway</span></a></li>
             <li><a class="menu-item" id="menu-warehouse-cockpit"><span>Warehouse Cockpit</span></a></li>

@@ -218,6 +218,13 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		"role": engines.CanonicalRole(u.Role),
 		"user": u.Username,
 	}
+	// Stage 57.17: an administrator chose this password, so the shell goes
+	// straight to "set your own password" instead of the app. apiMiddleware
+	// enforces the same thing on every other call; this just saves the user
+	// a failed screen load first.
+	if live, liveErr := engines.ResolveLiveUserState(tenantID, u.ID); liveErr == nil && live.MustChangePassword {
+		resp["password_change_required"] = "true"
+	}
 	// 49.1.5: still on the one-time provisioning credential. The session is
 	// issued - refusing it outright would strand a tenant whose only account is
 	// this one - but the caller is told, and told when it stops working.

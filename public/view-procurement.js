@@ -356,12 +356,29 @@ function renderPOComposer(panel) {
 // columns (HSN, GST %, tax) all change together when the preview comes back,
 // and the row count is small enough - a PO with hundreds of lines is a CSV
 // import, not something typed here.
+let poLinesRebuilding = false;
 function renderPOLines() {
   const body = document.getElementById('po-lines-body');
   if (!body) return;
   const d = poDraft;
   const previewLines = (poPreview && poPreview.lines) || [];
+  // Stage 57 (SOP recording): a price preview can land while someone is
+  // typing in a line, and this rebuilds every row - which destroyed the box
+  // being typed in, cutting the text off mid-word. Keep the focused line
+  // field's typed text, caret and focus across the rebuild.
+  const focused = body.contains(document.activeElement) ? document.activeElement : null;
+  const keep = focused && focused.matches('[data-po-field]') ? {
+    line: focused.closest('[data-po-line]')?.getAttribute('data-po-line'),
+    field: focused.getAttribute('data-po-field'),
+    text: typedTextOf(focused),
+    start: focused.selectionStart,
+    end: focused.selectionEnd
+  } : null;
 
+  // The rebuild below removes the focused input, which fires its blur; that
+  // blur must not commit, or it re-prices, re-renders and blurs again - a loop
+  // that ran every few hundred ms while someone typed.
+  poLinesRebuilding = true;
   body.innerHTML = d.lines.map((line, i) => {
     const p = previewLines[i] || {};
     const err = p.error ? `<div class="po-line-error">${escapeHTMLText(p.error)}</div>` : '';
@@ -393,6 +410,7 @@ function renderPOLines() {
     tr.querySelectorAll('[data-po-field]').forEach(input => {
       const field = input.getAttribute('data-po-field');
       const commit = () => {
+        if (poLinesRebuilding || !input.isConnected) return;
         const v = input.value.trim();
         if (poDraft.lines[i][field] === v) return;
         poDraft.lines[i][field] = v;
@@ -402,6 +420,23 @@ function renderPOLines() {
       input.addEventListener('blur', commit);
     });
   });
+
+  poLinesRebuilding = false;
+
+  if (keep) {
+    const again = body.querySelector(`[data-po-line="${keep.line}"] [data-po-field="${keep.field}"]`);
+    if (again) {
+      // Restore what is visibly typed, not the committed value: the user is
+      // still mid-entry, and the typeahead searches from the visible text.
+      const native = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+      if (typedTextOf(again) !== keep.text) {
+        native.set.call(again, keep.text);
+        again.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      again.focus();
+      try { if (keep.start !== null) again.setSelectionRange(keep.start, keep.end); } catch (e) { /* number inputs have no caret */ }
+    }
+  }
 
   body.querySelectorAll('[data-po-remove]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1458,10 +1493,15 @@ window.removeGRNLine = function(idx) {
 // loadGRNItemsFromPO pre-fills lines from the PO's own "items" JSON (Received
 // Qty defaulting to the ordered qty - the common case where everything
 // ordered showed up intact; the maker adjusts Received/Rejected per line for
-// any actual variance before posting). Most POs today still have no item
-// lines at all (Stage 26.3.1 audit: the PO create screen only ever saves
-// items: '[]', 26.3.6 is the open item to fix that) - that's not an error
-// here, just falls through to manual line entry below.
+// any actual variance before posting). A PO with no item lines at all is not
+// an error here, it just falls through to manual line entry below - but that
+// is now the exception rather than the rule: Stage 40.1 rebuilt the PO
+// composer to save real lines (poDraftPayload sends items: JSON.stringify
+// (lines), and savePurchaseOrder refuses a PO with none), so only POs raised
+// before 40.1, or created through the API without lines, arrive empty. The
+// note this comment used to carry - "the PO create screen only ever saves
+// items: '[]'" - described the pre-40.1 screen and was left stale; it cost a
+// later session a wrong first hypothesis, hence this correction.
 // Reentrancy-guarded: this fires from both the PO field's own 'change'
 // event (typeahead pick, or tabbing off a typed value) and the explicit
 // "Load Items from PO" button, so a user picking a PO and immediately

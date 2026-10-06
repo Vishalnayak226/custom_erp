@@ -44,6 +44,147 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 197. Stage 57 — user QA round: names not codes, create-in-place, roles and users, defect batch (2026-10-04 → 06; code + docs, uncommitted)
+
+The user operated the deployed build, submitted real transactions and reported ~30 items plus,
+mid-round, a roles/users requirement. Triage, verbatim reports and answers:
+[user QA round](product/erp-user-qa-2026-10-04.md); full item detail and verification in
+`micro_checklist.md` Stage 57 (and the Stage 55 note for the six defects filed there).
+
+Built, all verified live: names instead of series codes in every picker and table
+(`installNameDisplay` keeps `.value` = code, so no reader changed); create-in-place for any
+missing master from any picker, plus a setup detour that closes and later reopens the form with
+its values (browser Back included); Status defaults to Active; one shared date picker app-wide
+(which also exposed an IST date bug in the Appointment Calendar); an HSN catalogue with a picker
+on Item; Transfer Order locations resolved by id, code or name; RFQ invited vendors and status
+moves; Bin zones picked or created inline; Debit Note's Reference PO as a real PO picker; PIM tab
+strip keeps its place; sticky row actions on wide lists; Knowledge Center no longer prints
+generator comments, "Contents" heading; Stock/WMS menu grouping. Roles and users: roles created
+before anyone holds them, whole-module grants, a forced and server-enforced "set your own
+password" at first sign-in and after an admin reset, and menus that follow grants (18 module
+screens had been shown to every role). Two defects found along the way: CSP reports starving the
+per-IP rate-limit bucket (the likely source of the user's Rate Limit question), and typeahead
+menus stranded under the environment banner (what blocked §196's PO chapter). Guides, a PIM
+setup walkthrough and the six "what is…" answers written. One additive, idempotent migration for
+all tenants (`migrations_stage57_qa_round.sql`).
+
+The user's own video SOP (§196) was reviewed against these changes and left unchanged at their
+instruction. Verified on two disposable databases (shared `custom_erp_test` untouched); the
+release budget gate was tripped and brought back under by moving widgets into a lazy module.
+Open, needing the user: the deploy question (two reported bugs are already fixed but undeployed),
+barcode-at-variant design, non-sellable assets, "Location Movement", offer targeting,
+recovery-code intent, Purchase Return build-or-retract. No commit, push or deploy.
+
+## 196. Stage 57.12 modular ERP SOP video — first playable chapter (2026-10-06; partial)
+
+User approved the previously deferred full-ERP walkthrough and clarified the required form:
+each process is a self-contained, human-paced SOP that repeats its configuration prerequisites;
+shared setup clips are referenced in multiple chapters so one changed portion is recorded once,
+then existing footage is reassembled rather than all processes re-recorded. Built
+[docs/sop-video](sop-video/readme.md) as an open, text-editable project: JSON scene/chapter
+manifest, human narration/caption source, coverage register, local outline player with step
+jumps, loopback-only Chromium recorder, WebM assembler and validation/browser tests. No new ERP
+runtime dependency, account credential or recovery code was put in the repository.
+
+Against the isolated `custom_erp_org_20261005` training DB on scratch port 8111, recorded five
+real UI segments: Department, Vendor and Item creation/readback; receiving Location check; and
+Purchase Requisition create/readback. The first complete chapter (Department prerequisite →
+Purchase Requisition) is a seekable 1280×720, about 55-second silent WebM in
+`docs/sop-video/output/all-ready.webm`. Its rendered start and end frames were inspected; the
+player/range/manifest tests pass. Human voice and business-owner review remain future gates.
+
+Attempted the PO scene through the same UI, but the Item suggestion was intercepted by the
+environment banner. Recording stopped; no broken workaround was published. PO, GRN and the
+remaining ERP chapters are therefore open, as is 57.12 overall. The player explicitly marks
+them pending. The server and DB were isolated; no production action, source bug fix, commit,
+push or deploy occurred. The master is assembled from saved clips, not a monolithic capture.
+
+## 195. Stage 55.0F first organizational UI execution (2026-10-05; audit only, no fix or commit)
+
+At the user's direction, performed a first business-function audit now while deferring bug repair
+until ERP build completion. A fresh `custom_erp_org_20261005` tenant on loopback Postgres and a
+scratch server on port 8111 kept the concurrent dirty tree and other session fixtures intact.
+The scratch server was stopped afterward; the isolated database and evidence were retained.
+Chromium used visible forms, buttons, dialogs and lists; one tester applied operator,
+supervisor/finance and engineering/security lenses. Ten master records saved/read back, followed
+by a requisition, approved PO, partial/rejected GRN, draft supplier invoice and match, transfer
+draft, and OMS manual order with same-reference retry. A scoped Store Manager approved the PO;
+the admin's self-approval was correctly refused. The duplicate OMS intake returned the same ID.
+
+The [dated assurance record](assurance/erp-functional-audit-2026-10-05.md) preserves six repair
+findings: tax/partial-bill mismatch math blocks valid AP; Transfer **Mark Approved** returns 405
+and its direct status-edit design lacks a maker-checker rule; Reserved OMS order has no visible
+release-to-fulfillment path; Zone/Item/Location pickers demand or expose technical IDs; stock
+labels obscure accepted/rejected/reserved amounts; and several outcomes give misleading advice.
+It also distinguishes browser-harness timeouts from real product defects. No production/vendor
+result, month-end stock/GL reconciliation, 199-type classification, all-module acceptance,
+independent user study or full Go suite is claimed. 55.0F and 55.22 remain open. Only audit
+documentation was written; no source repair, stage, commit, push or deploy.
+
+**2026-10-05 follow-up:** At the user's request, the future UI functional review now separates
+the Account Head (operational books, control and close) from the qualified CA (applicable
+statutory/tax and audit challenge). The operating plan, 55.0F/55.22 gates and assurance
+limitations were updated. Neither reviewer participated in the browser run; no sign-off or
+new functional result is claimed. No application code changed or commit made.
+
+## 194. Stage 55 scope correction — full-organization functional verification plan (2026-10-04; plan only)
+
+The user clarified that “industry standard and easy” means **business operations actually
+work**, not merely that every screen renders or looks tidy. The Stage 55.0 browser register
+is re-labelled a screen inventory, and a separate [functional verification plan](product/erp-functional-verification-plan-2026-10-04.md)
+now defines the open 55.0F gate. It maps all 20 entitlement owners to a real UI journey and
+requires create/readback, server-owned number scope/uniqueness, linked source/successor records,
+stock/GL/payment effects, negative cases, least privilege and guide-following. All 199 metadata
+types must be classified; an editable type needs save/readback evidence, while an internal or
+retired type needs a reason. The plan includes a month of operations for a representative
+head-office/DC/store/workshop/online organization, with named actors and concrete quantity
+reconciliations. Stage 55.22 remains the real-user and domain-owner acceptance gate.
+
+Evidence is **partial, not a completed functional audit**: Stage 55.1 saved/edited one Department;
+the user's separate QA round proved one local PO line readback and GRN line load, while reporting
+deployed and other workflow defects. No full organizational month, 199-type save matrix, stock/GL
+reconciliation or real multi-role acceptance was run in this plan-only pass. Official Microsoft,
+Odoo and ERPNext documentation informs comparators, not a claim of identical policy or compliance.
+No production data, source code, commit, deployment or shared fixture was changed here.
+
+## 193. Stage 55.1 shared UI correctness closed (2026-10-04; code, Chromium, Go and docs; no commit)
+
+The user continued building after the every-module audit. We took the first full phase, 55.1, without
+expanding into the planned domain phases. The shared document New handler no longer receives a click
+event as an existing record; edit mode now requires an actual record identity. This removes the
+incorrect Edit title and Item Type's `click` default. New dialogs receive initial focus, contain
+Tab navigation and return focus on Escape. Five HR and two Manufacturing secondary tabs now await
+the shared lazy document-table module, preserving the existing entitlement and Retry path. The
+phone decorator respects field semantics so a Wave ID (and comparable scan identifiers) is not
+normalized as a phone number; genuine phone fields still normalize. Password-reset history uses
+the supported Users/reset entry point instead of an unsupported generic User lookup, without
+opening identity administration to a restricted role. USER_GUIDE and ADMIN_GUIDE examples now match.
+
+[Sanitized verification](assurance/stage55-shared-correctness-2026-10-04.json) records **20 distinct
+passing Chromium checks** across fresh contexts: the seven originally failing cold tabs, all **54**
+secondary panels across seven parent screens, chunk failure and Retry, desktop/390px Wave and phone
+typing, nine shared New form shapes with keyboard handling, password-reset cancellation, a Store
+Manager permission denial, and actual Department create/edit against disposable `custom_erp_t1`
+(`Department/HQ/2026/000001`). The first Department save wait timed out because the browser harness
+blocked `POST /api/v1/sequence`; narrowly allowing that test fixture call made create/edit pass.
+This was a harness correction, not a production fix. The initial long inventory's navigation timing
+outliers were likewise not counted as application errors. The browser result does not assert 198
+end-to-end saves or real-user/device acceptance.
+
+Four new structural Go tripwires, password-reset and timezone/role-template targeted tests, `go vet
+./internal/server`, the scratch `go build ./cmd/server`, and JavaScript syntax checks passed. The
+full `go test ./... -p 1 -count=1` reached completion but failed **only**
+`TestAuditDeletedRowIsDetectedByCheckpoint`, which encounters the previously preserved stale
+checkpoint `311b63f0-4f1b-40ac-bd6f-b4421838d3f9`; `internal/server` passed. The security
+surface check passed at 495 routes and 32 jobs. This failure is reported, not silently made green.
+
+The 55.1 Done bar is checked in the plan and both checklists. **Still open:** 55.2–55.22; BLD-041's
+conditional print verification; BLD-045's performance budgets; PIM phone tab overlap; external
+acceptance. New audit and QA artifacts were registered; graph and brain publications were refreshed
+locally. This work did not stage, commit, push, deploy or mutate a shared/production database.
+During the final documentation pass a separate session advanced HEAD to `fe97416`; shared source
+fixes were already present in that commit, while this verification record remained uncommitted.
+
 ## 192. Stage 55 usability audit and complete module plan (2026-10-04; implementation tracked separately)
 
 Read-only Chromium walkthrough of the disposable `custom_erp_t1` server on 8101: 20 entitlement

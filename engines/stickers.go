@@ -259,6 +259,13 @@ func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode,
 		if v, ok := item["barcode"].(string); ok {
 			label.Barcode = v
 		}
+		// Stage 57.7: a receipt's stickers carry that receipt's dated
+		// barcode when the tenant issues one per receipt date.
+		if sourceDoctype == "GRN" {
+			if dated := ReceiptBarcodeFor(tenantID, resolved.ID, sourceDocID); dated != "" {
+				label.Barcode = dated
+			}
+		}
 		if v, ok := item["hsn_code"].(string); ok {
 			label.HSNCode = v
 		}

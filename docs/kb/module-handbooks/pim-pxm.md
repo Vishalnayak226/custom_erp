@@ -37,6 +37,45 @@ products for bulk action is its own article,
 covered in the User Guide's "Handing out PIM work" section and the PIM
 dashboard's own **My Work** tab.
 
+## Setting up PIM, in order
+
+PIM has 21 tabs, but you only need a few of them, in this order. Each step
+depends on the one before it; skip the ones marked optional until you need
+them.
+
+1. **Items first.** Every product is an ordinary Item (Setup → Item), with
+   its HSN code and GST rate. PIM enriches Items; it does not create them.
+2. **Product Families** tab — create one family per kind of product you
+   sell ("Rings", "T-Shirts", "Fabric"). A family is what an item's
+   completeness is scored against, so an item with no family cannot be
+   scored at all.
+3. **Attribute Definitions** tab — create the reusable fields that describe
+   your products ("Metal Purity", "Fabric", "Sleeve Length"). One definition
+   can serve many families.
+4. **Attribute Groups** tab *(optional)* — group related attributes for
+   display ("Physical Specifications"). Purely presentational.
+5. **Family Attributes** tab — link each attribute to the families it
+   belongs to and set **Mandatory for Completeness** to Yes for the ones a product must have before
+   it is ready. This list is exactly what completeness checks.
+6. **Put each item in its family** — open the Item (Setup → Item, Edit) and
+   set its **Product Family**.
+7. **Workbench** tab — pick an item and fill it in: its attribute values,
+   its descriptive content (submit it for approval; only Approved content
+   counts as complete) and its images (here, or in bulk from the **Media
+   Library** tab).
+8. **Dashboard** and **Reports** tabs — see which items are complete and,
+   for the rest, exactly which required values are missing.
+9. **Selling online** *(optional)* — **Channels** (one per marketplace or
+   web shop), then **Category Mapping** and **Field Mapping** for each
+   channel, then **Validation Rules** for what that channel insists on.
+   Publish from the item's section on the Workbench.
+10. **Working as a team** *(optional)* — Product Groups (bulk work on a set
+    of products), **Task Templates** and **Workflows** (handing out work,
+    see **My Work**), and the Import/Export templates and Catalogs tabs for
+    bulk data in and out.
+
+If you sell only through your own shops (POS), steps 1–8 are all you need.
+
 ## Items
 
 The Item master is the one record every other module in this system reads

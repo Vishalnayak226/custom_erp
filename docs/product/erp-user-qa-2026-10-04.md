@@ -29,6 +29,33 @@ this round surfaces defects the browser audit could not.
 **Read the verdict first.** These are not all bugs: several are questions with real
 answers, and one rests on a misreading of a screen rather than a defect.
 
+## Status, 2026-10-05/06
+
+Everything that did not need a decision is **built and verified** (API checks plus 17
+browser checks, no page errors; full record in `micro_checklist.md` Stage 57's verification
+block):
+
+- **Section A:** A1, A2, A4 (RFQ vendors + status), A6 (Bin zone), A7 (PIM tab strip), A8
+  (row actions hidden off-screen on wide lists), A9, A10 — fixed. A3 and A5 do not reproduce
+  in the tree (deploy question, below).
+- **Section B:** B1–B6 all built (names not codes everywhere; inline create and the setup
+  detour that returns to your form; Status = Active; "Contents"; one shared date picker —
+  which also exposed and fixed a real IST date bug in the Appointment Calendar).
+- **Section C:** C3 regroup done except "Location Movement" (no such screen — needs your
+  meaning). C5 written as a PIM setup walkthrough. **C6 — the user had already built the
+  video SOP (`docs/sop-video`)**; reviewed against these changes, no change required, left
+  as is. C1, C2, C4, C7 still need decisions.
+- **Section D:** all six answered in the User and Admin guides; Purchase Return documented
+  truthfully (decision on building it still open).
+- **Added mid-round — roles and users:** create a role first, grant it a whole module, a
+  user sees only those modules, password-only sign-in for ordinary roles, forced
+  "set your own password" at first sign-in and after an admin reset, admin reset and
+  disable. Built and verified (Stage 57.17).
+
+Still needing the user: the deploy question (A3/A5), C1 barcode model, C2 non-sellable
+assets, C3 "Location Movement", C4 offer targeting, C7 recovery-code intent, and the
+Purchase Return build-or-retract call.
+
 ## How this is filed
 
 | Where | What goes there |
@@ -43,7 +70,7 @@ answers, and one rests on a misreading of a screen rather than a defect.
 | --- | --- | --- | --- |
 | A1 | "Why it is asking authorization while bulk download template?" | **Confirmed and fixed this pass.** `GET /api/v1/import/{doctype}/template` is wrapped in `apiMiddleware` (`internal/server/routes.go:1132`), so it requires the bearer token. `downloadImportTemplate` built a plain anchor `href`, which sends no `Authorization` header; the browser answered the 401 with its own credential prompt. It now fetches through `apiFetch` and saves a blob. | done |
 | A2 | `field "from_warehouse": location 'Location/HQ/2026/000001' is not a registered Location` in TO | **Confirmed.** `engines/location_masters.go:31` validates against the Location **code**, but the UI submits the **document id** (`Location/HQ/2026/000001`). Same id-vs-code family as Stage 51.1. The fix belongs at the shared validator, not per-form. | 55.6 |
-| A3 | "I have item and GRN is showing no item. Loading item from PO not working." | Not yet root-caused. Breaks the core procurement chain, so it outranks most of this list. | 55.4 |
+| A3 | "I have item and GRN is showing no item. Loading item from PO not working." | **Does not reproduce in the current tree — verified live, see §Verification.** PO `items` round-trips correctly, "Load Items from PO" loads and renders the line, and the GRN SKU typeahead does suggest the item. Almost certainly a **deployed-build-only** symptom, same family as A5. | 55.4 / deploy |
 | A4 | "Unable to change status of RFQ" / "How to assign to vendors RFQ?" | No vendor-assignment flow on RFQ; status is consequently stuck. 55.4 already owns "source-linked requisition → quote → PO". | 55.4 |
 | A5 | "I created vendor but not poping up or suggesting in PO creation" | Previously reported and fixed in-tree as **Stage 51.1** (master `id`/`code` invariant) — but **Stage 51 is deliberately undeployed**, so the deployed build still shows it. Verify against the tree before writing any new code. | 51 (verify) |
 | A6 | "Unable to create bin as no zone. It should ask to create zone or create automatically." | Bin creation hard-blocks with no path to create the missing Zone. Same shape as the Department case (B2). | 55.7 |
@@ -94,12 +121,74 @@ finding: these belong in the guides, per the repo's second principle.
 | "WHat is webhokk subscription - How to achieve this" | How an external system subscribes to ERP events. Internally: a business transaction calls `PublishEvent` inside its own DB transaction, which queues a row in the **outbox** (`engines/outbox.go`); `processOutbox` then enqueues a delivery job that POSTs to the subscribed URL, carrying the originating request's correlation id. The transactional outbox is what guarantees an event is never published for a transaction that rolled back. | Guide |
 | "WHt is rate limit?" | A server-side throttle on request volume. What was seen is the `Rate Limit` toast (`public/app.js:869`) — the server rejected a burst and the UI surfaced it. It protects login and API endpoints from brute-force and runaway clients. Nothing is broken; it means slow down. | Guide |
 
+## Verification — the GRN/PO chain, driven live (2026-10-04)
+
+Scratch server on `:8099` against the shared portable Postgres (`custom_erp_test`, `:5490`),
+scratch token via `cmd/minttoken`, real Chromium via Playwright. **A3 does not reproduce.**
+
+What was checked, and what it showed:
+
+1. **PO `items` persists and round-trips.** Created `PO/HO/26-27/000002` with one line
+   (`QA1004-SKU1`, qty 5, rate 100). `GET /api/v1/doc/PurchaseOrder/{id}` — the exact call
+   `loadGRNItemsFromPO` makes — returns `"items":"[{\"sku\":\"QA1004-SKU1\",\"qty\":5,\"rate\":100}]"`.
+   The server also derived the GST breakdown correctly (12% → CGST 30 / SGST 30, grand total 560).
+2. **"Load Items from PO" works.** In a real browser the GRN workbench reported
+   *"Loaded 1 line(s) from PO PO/HO/26-27/000002"* and rendered the line in full —
+   SKU, barcode, ordered 5, received 5, accepted 5.
+3. **The GRN SKU typeahead does suggest existing items.** Typing `QA` surfaced
+   `QA1004-SKU1 — QA1004 Test Widget`.
+4. **Item and Vendor search both work server-side**, case-insensitively, on name and code.
+
+So the code in this tree is correct on both sides. The in-code comment at
+`public/view-procurement.js:1462` claiming "the PO create screen only ever saves `items: '[]'`"
+is **stale** — Stage 40.1 rebuilt that screen to save real lines, and Stage 40.1 *is* in the
+deployed commit. That comment should be corrected so it stops misdirecting the next reader.
+
+**What this points at.** The user's build is missing Stage 51, which is deliberately held back
+from deployment, and Stage 51.1's own description is "Vendor records unusable in Purchase Orders
+immediately after creation" — A5's exact symptom. Stage 51.1 established the master `id` = `code`
+invariant (`engines.ApplyMasterIDCodeInvariant`). Records created on the deployed build still
+drift: this test database still holds a pre-invariant row, `Item` `{code: SKU-SV2-DEAD, id:
+ITEM-SKU-SV2-DEAD}`. A PO line stores a `sku`, and the GRN resolves it back through
+`/api/v1/doc/Item/{sku}` — so a record whose id and code disagree is exactly the shape that
+breaks this chain.
+
+**This is not proven for A3 specifically** — the id/code drift was not reproduced end-to-end into
+a failing GRN, because the current tree's invariant prevents creating a drifted record through the
+API. What is proven is that the tree is correct and the deployed build lacks the fix. The cheap
+decisive test is to read one of the user's own PO/Item rows out of production and compare `id`
+against `code`, before writing any new code.
+
+### Incidental findings from the same run
+
+- **The boot sequence trips the rate limiter.** Loading the app produced a sustained run of HTTP
+  **429 Too Many Requests** in the browser console. This is very likely what prompted the user's
+  "What is rate limit?" question — so that question may be reporting a real defect, not only asking
+  for a definition. Worth its own look: a normal single page load should not exhaust a throttle.
+- **Barcode is a required field on Item.** Creating an Item fails with *"Required value is missing.
+  Please enter Barcode"* until one is supplied — direct confirmation of the user's C1 complaint that
+  barcode is demanded at Item level.
+- **Test data left in `custom_erp_test`** (a disposable fixture shared with another session, not
+  production): Item `QA1004-SKU1` and PO `PO/HO/26-27/000002`. Left in place deliberately rather
+  than deleted, since another session is using the same database.
+
 ## Recommended order
 
-1. **A3** (GRN not loading PO items) — it breaks the core procurement chain.
-2. **B1** (name not code) — one choke point, closes the most visible class, and is the display half of A2/A10.
-3. **B2 + B3** (missing-prerequisite takeover + inline quick-create) — together these unblock Department, Zone (A6), Item, Vendor and HSN under one pattern.
-4. **A2 + A10** (id-vs-code at the validator) — likely one fix for both.
-5. **A5** — verify against the tree first; it may need no code at all, only a deploy.
+**Revised after live verification.** A3 was the intended first target; it does not reproduce in the
+tree, which moves the deployment question to the front.
+
+1. **Settle the deploy question first.** A3 and A5 are both clean in this tree and both are
+   Stage 51-shaped, and Stage 51 is deliberately undeployed. Writing code for either before
+   confirming that is likely to be wasted work. Cheapest decisive check: compare `id` against
+   `code` on one of the user's own production Item/Vendor/PO rows.
+2. **B1** (name not code) — one choke point, closes the most visible class, and is the display half
+   of A2/A10. `attachCodeNamePicker` (Stage 41, `public/app.js`) already implements exactly this
+   split — visible name, submitted code — and its own comment says it was built to be adopted
+   screen by screen. This is adoption, not new invention.
+3. **B2 + B3** (missing-prerequisite takeover + inline quick-create) — together these unblock
+   Department, Zone (A6), Item, Vendor and HSN under one pattern.
+4. **A2 + A10** (id-vs-code at the shared validator) — likely one fix for both.
+5. **The 429 storm on boot** (see Verification) — a normal page load exhausting the rate limiter is
+   a real defect and cheap to confirm.
 6. The remaining section A items, then the section C decisions.
 7. **D** — fold all six answers into the guides, and resolve the Purchase Return contradiction.

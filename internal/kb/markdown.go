@@ -37,6 +37,27 @@ func RenderMarkdown(source string) string {
 			continue
 		}
 
+		// Stage 57 (user QA): an HTML comment is a note to whoever edits the
+		// file - the generator's "GENERATED ARTICLE - DO NOT EDIT BY HAND"
+		// banner - never page content. Raw HTML is escaped rather than passed
+		// through, so without this the note was printed on the page verbatim.
+		// An unterminated comment skips only its own line, so a stray "<!--"
+		// can never swallow the rest of an article.
+		if strings.HasPrefix(line, "<!--") {
+			end := -1
+			for j := i; j < len(lines); j++ {
+				if strings.Contains(lines[j], "-->") {
+					end = j
+					break
+				}
+			}
+			if end >= 0 {
+				i = end + 1
+			} else {
+				i++
+			}
+			continue
+		}
 		if strings.HasPrefix(line, "```") {
 			language := safeLanguage(strings.TrimSpace(strings.TrimPrefix(line, "```")))
 			i++

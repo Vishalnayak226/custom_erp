@@ -171,6 +171,7 @@
         "engines/document_mirror_fields.go",
         "engines/numbering.go",
         "engines/master_data_validation.go",
+        "engines/hsn_catalog.go",
         "engines/transactional_validation.go",
         "engines/status_transition.go",
         "engines/field_formats.go",

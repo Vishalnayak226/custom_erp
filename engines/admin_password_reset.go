@@ -88,7 +88,7 @@ func executePasswordReset(tenantID, targetUserID, targetUsername, targetEmail st
 	// use - a password an admin just had to reset is exactly the situation
 	// where any standing session (possibly the attacker's) must not survive.
 	if _, err := db.DB.Exec(fmt.Sprintf(
-		`UPDATE %s.users SET password_hash = $1, credential_version = credential_version + 1 WHERE id = $2`, schema),
+		`UPDATE %s.users SET password_hash = $1, credential_version = credential_version + 1, must_change_password = TRUE WHERE id = $2`, schema),
 		string(hash), targetUserID); err != nil {
 		return "", err
 	}

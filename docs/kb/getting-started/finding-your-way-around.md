@@ -46,7 +46,7 @@ and open straight away.
 | **Sales & Marketplace** | Order Management · Fulfillment · Marketplace · Customer |
 | **Reports** | Opens directly. Its first tab is a dashboard of live figures. |
 | **Procurement** | Purchase Requisitions · Purchase Order · ASN · Goods Receipt · Vendors · RFQ / Quotes |
-| **Stock** | Inventory · Stock Transfer · Bin · Putaway · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · Cycle Count · Sticker Printing |
+| **Stock** | Inventory · Stock Transfer, then under a **WMS** heading every warehouse-operations screen (Bin, Putaway, Warehouse Cockpit, Picking, Cycle Count, Dock Doors, Appointment Calendar, Yard Board, Holds, Sortation, Loading, Sticker Printing and the rest) |
 | **HRM** | HR · Fixed Assets · Expenses |
 | **Manufacturing** | Opens directly. |
 | **PIM** | Opens directly. |

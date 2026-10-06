@@ -783,7 +783,7 @@ function saveNavState() {
     const target = currentView === 'doctype-table' && currentDoctype
       ? deepLinkForDoctype(currentDoctype, { page: currentTablePage, search: currentSearchQuery })
       : deepLinkForView(currentView);
-    if (window.location.hash !== target) history.replaceState(null, '', target);
+    if (window.location.hash !== target) history.replaceState(history.state, '', target); // keeps a setup detour's marker (Stage 57.2)
   } catch (e) {
     // file:// or a sandboxed frame - navigation still works, it just isn't
     // addressable. Not worth failing the render over.
@@ -865,6 +865,12 @@ async function apiFetch(url, options = {}) {
     logout(await getErrorMessage(response, 'Session expired. Please log in again.'));
     return null;
   }
+  // Stage 57.17: the server refuses everything but setting a new password
+  // while the account is on one an administrator issued.
+  if (response.status === 403 && response.headers.get('X-Password-Change-Required') === '1') {
+    showPasswordChangeScreen();
+    return null;
+  }
   if (response.status === 429) {
     showToast(await getErrorMessage(response, 'Rate limit exceeded. Please throttle your requests.'), { variant: 'warning', title: 'Rate Limit' });
     return null;
@@ -907,6 +913,12 @@ async function apiUpload(url, formData, timeoutMs = DEFAULT_UPLOAD_TIMEOUT_MS) {
   }
   if (response.status === 401) {
     logout(await getErrorMessage(response, 'Session expired. Please log in again.'));
+    return null;
+  }
+  // Stage 57.17: the server refuses everything but setting a new password
+  // while the account is on one an administrator issued.
+  if (response.status === 403 && response.headers.get('X-Password-Change-Required') === '1') {
+    showPasswordChangeScreen();
     return null;
   }
   if (response.status === 429) {
@@ -1016,6 +1028,44 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
   function removeMenuElement() {
     if (menu) { menu.remove(); menu = null; }
     document.removeEventListener('mousedown', onDocMouseDown, true);
+    window.removeEventListener('scroll', placeMenu, true);
+    window.removeEventListener('resize', placeMenu);
+    cancelAnimationFrame(trackFrame);
+    trackFrame = 0;
+  }
+
+  // While a list is open, follow its box through layout shifts too (a banner
+  // or preview above it changing height), not only scroll/resize - checked
+  // once per frame, and only while a list is open.
+  let trackFrame = 0;
+  let trackedAt = '';
+  function trackBox() {
+    if (!menu) { trackFrame = 0; return; }
+    const r = inputEl.getBoundingClientRect();
+    const at = `${r.top},${r.left}`;
+    if (at !== trackedAt) { trackedAt = at; placeMenu(); }
+    trackFrame = requestAnimationFrame(trackBox);
+  }
+
+  // placeMenu (Stage 57): opens upward when there is no room below, keeps clear
+  // of the fixed environment banner, follows its box on scroll and closes when
+  // the box leaves the screen (a stale fixed position put rows under the banner).
+  function placeMenu(e) {
+    if (!menu) return;
+    if (e && e.type === 'scroll' && e.target && menu.contains(e.target)) return;
+    const rect = inputEl.getBoundingClientRect();
+    const banner = document.getElementById('environment-banner');
+    const topLimit = (banner ? banner.getBoundingClientRect().bottom : 0) + 4;
+    if (rect.bottom < topLimit || rect.top > window.innerHeight) { closeMenu(); return; }
+    menu.style.left = `${Math.max(4, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 4))}px`;
+    const below = window.innerHeight - rect.bottom - 8;
+    const above = rect.top - topLimit - 4;
+    const natural = Math.min(menu.scrollHeight, 220);
+    const openUp = below < natural && above > below;
+    const room = Math.max(80, openUp ? above : below);
+    menu.style.maxHeight = `${Math.min(220, room)}px`;
+    const h = Math.min(natural, room);
+    menu.style.top = `${openUp ? Math.max(topLimit, rect.top - h - 4) : rect.bottom + 4}px`;
   }
 
   function closeMenu() {
@@ -1042,7 +1092,10 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
       inputEl.focus();
       return;
     }
-    inputEl.value = val;
+    // Stage 57.1: a name-display field shows the record's name and keeps the
+    // code as its value - see installNameDisplay.
+    if (inputEl._nameDisplay) inputEl._nameDisplay.commit(doc, val);
+    else inputEl.value = val;
     closeMenu();
     inputEl.dispatchEvent(new Event('change', { bubbles: true }));
     inputEl.focus();
@@ -1077,18 +1130,33 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     if (isEmpty) {
       const row = document.createElement('div');
       row.className = 'typeahead-item typeahead-item-empty';
-      row.innerHTML = `No matching ${getDoctypeLabel(doctype)} &mdash; <a href="#" class="empty-state-link">create one</a>`;
-      // The menu is a child of <body>, not of the input's container, so it
-      // has to be torn down explicitly before navigating away or it is left
-      // floating over the next screen.
-      row.querySelector('a').addEventListener('mousedown', (e) => {
-        e.preventDefault();
-        closeMenu();
-        openSetupDoctype(doctype);
-      });
+      // Stage 57.2: create it here, seeded with the typed text (fallback: full form).
+      const typed = typedTextOf(inputEl).trim();
+      const label = getDoctypeLabel(doctype);
+      if (opts.noQuickCreate) {
+        row.innerHTML = `No matching ${label}`;
+      } else if (!canCreateDoctype(doctype)) {
+        row.innerHTML = `No matching ${label}. ${SETUP_MSG.missingNoAccess(label).replace(/^No [^.]*\. /, '')}`;
+      } else {
+        row.innerHTML = `No matching ${label} &mdash; <a href="#" class="empty-state-link"></a>`;
+        row.querySelector('a').textContent = typed ? `Create “${typed}”` : `Create a new ${label}`;
+        // The menu is a child of <body>, not of the input's container, so it
+        // has to be torn down explicitly before the dialog opens or it is left
+        // floating over it.
+        row.querySelector('a').addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          closeMenu();
+          // Committed through pick(), so a field storing something other
+          // than the code (valueFields - the HSN number) gets the right value.
+          openQuickCreate(doctype, typed).then(doc => { if (doc && inputEl.isConnected) pick(doc); });
+        });
+      }
       menu.appendChild(row);
       document.body.appendChild(menu);
       document.addEventListener('mousedown', onDocMouseDown, true);
+      placeMenu();
+      window.addEventListener('scroll', placeMenu, true);
+      window.addEventListener('resize', placeMenu); if (!trackFrame) { trackedAt = ''; trackFrame = requestAnimationFrame(trackBox); }
       return;
     }
     // Grouping reorders `items` itself rather than only reordering the DOM,
@@ -1127,6 +1195,9 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     }
     document.body.appendChild(menu);
     document.addEventListener('mousedown', onDocMouseDown, true);
+    placeMenu();
+    window.addEventListener('scroll', placeMenu, true);
+    window.addEventListener('resize', placeMenu); if (!trackFrame) { trackedAt = ''; trackFrame = requestAnimationFrame(trackBox); }
   }
 
   // Stage 53.3: opts.filters narrows the picker to a subset of the doctype,
@@ -1159,7 +1230,9 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
   inputEl.setAttribute('autocomplete', 'off');
   inputEl.addEventListener('input', () => {
     clearTimeout(debounceTimer);
-    const q = inputEl.value.trim();
+    // What the user typed - on a name-display field .value is the committed
+    // code, which is not what they are searching for.
+    const q = typedTextOf(inputEl).trim();
     debounceTimer = setTimeout(() => search(q), 250);
   });
   if (showAllOnFocus) {
@@ -1264,6 +1337,13 @@ const TYPEAHEAD_DOCTYPE_OPTS = {
 
 function attachLinkTypeahead(inputEl, doctype, opts = {}) {
   if (!inputEl) return;
+  inputEl.dataset.linkDoctype = doctype;
+  // Stage 57.1: name shown, code stored. Installed before the typeahead's own
+  // listeners; skipped where the caller owns the split (onPick) or the value
+  // (valueFields).
+  if (typeof opts.onPick !== 'function' && !opts.valueFields && !opts.keepCode) {
+    installNameDisplay(inputEl, doctype);
+  }
   attachTypeahead(inputEl, doctype, { ...(TYPEAHEAD_DOCTYPE_OPTS[doctype] || {}), ...opts });
   // Stage 41: the setup hint rides along here rather than at each of the
   // ~45 call sites. This function was already the single door every picker
@@ -1355,6 +1435,293 @@ function attachCodeNamePicker(displayEl, hiddenEl, doctype, opts = {}) {
       });
     });
   }
+}
+
+// ---------------------------------------------------------------------------
+// Names, not codes (Stage 57.1): the box shows the name while `.value`, which
+// every caller reads, still returns the code. Code on hover (title).
+// ---------------------------------------------------------------------------
+const NATIVE_INPUT_VALUE = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+
+// linkDocCache memoises reference -> record lookups for the session, so
+// showing names does not turn every re-render into another burst of
+// requests against the per-session rate limit.
+const linkDocCache = new Map();
+
+function linkDisplayName(doc) {
+  if (!doc) return '';
+  return String(doc.name || doc.code || doc.id || '');
+}
+
+function linkCodeOf(doc) {
+  if (!doc) return '';
+  return String(doc.code || doc.name || doc.id || '');
+}
+
+function rememberLinkDoc(doctype, doc) {
+  if (!doctype || !doc) return;
+  const p = Promise.resolve(doc);
+  [doc.id, doc.code].filter(Boolean).forEach(ref => linkDocCache.set(`${doctype}|${ref}`, p));
+}
+
+// lookupLinkDoc: by id, then exact code (pre-51.1 records).
+function lookupLinkDoc(doctype, ref) {
+  ref = String(ref == null ? '' : ref).trim();
+  if (!doctype || !ref) return Promise.resolve(null);
+  const key = `${doctype}|${ref}`;
+  if (linkDocCache.has(key)) return linkDocCache.get(key);
+  const pending = (async () => {
+    const byId = await apiFetch(`/api/v1/doc/${encodeURIComponent(doctype)}/${encodeURIComponent(ref)}`);
+    if (byId && byId.ok) return byId.json();
+    const search = await apiFetch(`/api/v1/doc/${encodeURIComponent(doctype)}?q=${encodeURIComponent(ref)}&limit=10`);
+    if (!search || !search.ok) return null;
+    const lower = ref.toLowerCase();
+    return ((await search.json()) || []).find(d =>
+      String(d.code || '').toLowerCase() === lower || String(d.id || '').toLowerCase() === lower) || null;
+  })().catch(() => null);
+  linkDocCache.set(key, pending);
+  return pending;
+}
+
+// typedTextOf is what is visibly in the box - what the user typed, or the
+// name being shown - as opposed to .value, which on a name-display field is
+// the committed code.
+function typedTextOf(inputEl) {
+  return inputEl && inputEl._nameDisplay ? inputEl._nameDisplay.typedText() : (inputEl ? inputEl.value : '');
+}
+
+function installNameDisplay(inputEl, doctype) {
+  if (!inputEl || inputEl._nameDisplay || !(inputEl instanceof HTMLInputElement) || !NATIVE_INPUT_VALUE) return;
+  const nativeGet = () => NATIVE_INPUT_VALUE.get.call(inputEl);
+  const nativeSet = v => NATIVE_INPUT_VALUE.set.call(inputEl, v);
+  let committed = null; // the code callers read; null = the box holds free text
+  let seq = 0;          // invalidates a lookup the user has since typed over
+
+  const show = (code, doc) => {
+    committed = code;
+    const name = linkDisplayName(doc);
+    nativeSet(name || code);
+    inputEl.title = name && name !== code ? code : '';
+  };
+
+  Object.defineProperty(inputEl, 'value', {
+    configurable: true,
+    get() {
+      // An emptied box is empty whatever was committed before - covers
+      // form.reset() and anything else that clears the field natively.
+      if (nativeGet() === '') return '';
+      return committed !== null ? committed : nativeGet();
+    },
+    set(v) {
+      const code = v == null ? '' : String(v);
+      const mySeq = ++seq;
+      nativeSet(code);
+      inputEl.title = '';
+      committed = code === '' ? null : code;
+      if (!code) return;
+      // Programmatic fills show the code briefly, then the name.
+      lookupLinkDoc(doctype, code).then(doc => {
+        if (mySeq !== seq || !doc || nativeGet() !== code) return;
+        show(code, doc);
+      });
+    }
+  });
+
+  // Typing starts a new free-text value; what was committed no longer is.
+  inputEl.addEventListener('input', () => { seq++; committed = null; inputEl.title = ''; });
+
+  // Exact name/code typed and tabbed away: resolve it (unambiguous matches only).
+  inputEl.addEventListener('blur', () => setTimeout(async () => {
+    if (committed !== null || !inputEl.isConnected) return;
+    const text = nativeGet().trim();
+    if (!text) return;
+    const mySeq = ++seq;
+    const res = await apiFetch(`/api/v1/doc/${encodeURIComponent(doctype)}?q=${encodeURIComponent(text)}&limit=10`);
+    if (!res || !res.ok || mySeq !== seq) return;
+    const lower = text.toLowerCase();
+    const exact = ((await res.json()) || []).filter(d =>
+      [d.code, d.id, d.name, d.short_code].some(v => String(v || '').toLowerCase() === lower));
+    if (exact.length !== 1 || nativeGet().trim() !== text) return;
+    const code = linkCodeOf(exact[0]);
+    rememberLinkDoc(doctype, exact[0]);
+    show(code, exact[0]);
+    if (code !== text) inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+  }, 200));
+
+  inputEl._nameDisplay = {
+    commit(doc, code) { ++seq; rememberLinkDoc(doctype, doc); show(code || linkCodeOf(doc), doc); },
+    typedText: nativeGet
+  };
+  // A field filled before this was attached (an edit form, a restored
+  // screen) resolves its name too.
+  const initial = nativeGet();
+  if (initial) inputEl.value = initial;
+}
+
+// List half: names swapped in for data-link-ref cells and whole-cell master
+// series codes "<RecordType>/..." (document numbers are not record types).
+const linkNameMapCache = new Map();
+function linkNameMap(doctype) {
+  if (!linkNameMapCache.has(doctype)) {
+    linkNameMapCache.set(doctype, (async () => {
+      const res = await apiFetch(`/api/v1/doc/${encodeURIComponent(doctype)}?limit=1000`);
+      const map = new Map();
+      if (res && res.ok) {
+        ((await res.json()) || []).forEach(d => {
+          if (d.name) [d.id, d.code].filter(Boolean).forEach(k => map.set(String(k), String(d.name)));
+        });
+      }
+      return map;
+    })().catch(() => new Map()));
+    setTimeout(() => linkNameMapCache.delete(doctype), 60000);
+  }
+  return linkNameMapCache.get(doctype);
+}
+
+const SERIES_CODE_RE = /^([A-Z][A-Za-z]+)\/[A-Za-z0-9-]+(?:\/[A-Za-z0-9-]+)*$/;
+function seriesDoctypeOf(text) {
+  const m = SERIES_CODE_RE.exec(text);
+  return m && state.activeDoctypes.some(d => d.name === m[1]) ? m[1] : null;
+}
+
+async function sweepLinkNames(root) {
+  if (!root) return;
+  const targets = [];
+  root.querySelectorAll('[data-link-ref]:not([data-link-swept])').forEach(el => {
+    el.dataset.linkSwept = '1';
+    const host = el.querySelector(':scope > .copyable-cell > span:first-child') || el;
+    targets.push({ el: host, doctype: el.dataset.linkDoctype, ref: el.dataset.linkRef });
+  });
+  root.querySelectorAll('td:not([data-link-swept])').forEach(td => {
+    td.dataset.linkSwept = '1';
+    const host = td.children.length === 0 ? td : td.querySelector(':scope > .copyable-cell > span:first-child');
+    if (!host || host.children.length) return;
+    const text = host.textContent.trim();
+    const doctype = text && seriesDoctypeOf(text);
+    // A master's own list keeps its Code column: there the code is the
+    // record's identity, shown beside its name, not a reference to decode.
+    if (doctype && !(currentView === 'doctype-table' && currentDoctype === doctype)) targets.push({ el: host, doctype, ref: text });
+  });
+  if (!targets.length) return;
+  const byDoctype = {};
+  targets.forEach(t => { if (t.doctype && t.ref) (byDoctype[t.doctype] = byDoctype[t.doctype] || []).push(t); });
+  for (const [doctype, list] of Object.entries(byDoctype)) {
+    const map = await linkNameMap(doctype);
+    for (const t of list) {
+      let name = map.get(t.ref);
+      // Past the first 1000 records of a type, fall back to a single lookup -
+      // bounded by what is on screen, at most a page of rows.
+      if (!name) name = linkDisplayName(await lookupLinkDoc(doctype, t.ref));
+      if (name && name !== t.ref && t.el.isConnected) {
+        t.el.textContent = name;
+        t.el.title = t.ref;
+      }
+    }
+  }
+}
+
+// Installed once; debounced so a table rendering row by row is swept once.
+let linkNameObserver = null;
+function startLinkNameSweep() {
+  const root = document.getElementById('view-root');
+  if (!root || linkNameObserver) return;
+  let timer = null;
+  linkNameObserver = new MutationObserver(() => {
+    clearTimeout(timer);
+    timer = setTimeout(() => sweepLinkNames(root), 120);
+  });
+  linkNameObserver.observe(root, { childList: true, subtree: true });
+  sweepLinkNames(root);
+}
+
+// localISODate is a Date's LOCAL day as YYYY-MM-DD. toISOString() converts
+// to UTC first, so in India local midnight became the previous day - the
+// Appointment Calendar's next-day arrow did nothing (Stage 57).
+function localISODate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// ---------------------------------------------------------------------------
+// One date picker for every date field (Stage 57.6). The native input and its
+// YYYY-MM-DD value stay; only the picker is replaced, by view-pickers.js,
+// loaded on first open (NFR-COST-001). One observer marks every date input.
+// ---------------------------------------------------------------------------
+function loadPickers() {
+  return loadViewModule('/view-pickers.js?v=1');
+}
+
+function enhanceDateInput(input) {
+  if (!input || input.dataset.datePicker === '1' || input.readOnly || input.disabled) return;
+  input.dataset.datePicker = '1';
+  // A click opens it beside the box and leaves focus in the box, so typing a
+  // date still works; Alt+Down or F4 opens it and moves focus into it.
+  input.addEventListener('click', (e) => { e.preventDefault(); loadPickers().then(m => m.openDatePicker(input, false)); });
+  input.addEventListener('keydown', (e) => {
+    if ((e.altKey && e.key === 'ArrowDown') || e.key === 'F4') { e.preventDefault(); loadPickers().then(m => m.openDatePicker(input, true)); }
+  });
+}
+
+let datePickerObserver = null;
+function startDatePickerEnhancer() {
+  if (datePickerObserver) return;
+  const sweep = () => document.querySelectorAll('input[type="date"]:not([data-date-picker])').forEach(enhanceDateInput);
+  let timer = null;
+  datePickerObserver = new MutationObserver(() => { clearTimeout(timer); timer = setTimeout(sweep, 60); });
+  datePickerObserver.observe(document.body, { childList: true, subtree: true });
+  sweep();
+}
+
+// ---------------------------------------------------------------------------
+// Inline quick-create (Stage 57.2): a missing master is created in a small
+// dialog over the current form (required fields only, same /meta rules as the
+// full form) and dropped into the field that needed it. Dialog: view-pickers.js.
+async function openQuickCreate(doctype, seedText) {
+  return (await loadPickers()).openQuickCreateDialog(doctype, seedText);
+}
+
+// quickCreateIntoInput runs a quick-create for one field and, on success,
+// fills that field with the new record exactly as a pick would.
+async function quickCreateIntoInput(inputEl, doctype, seedText) {
+  const doc = await openQuickCreate(doctype, seedText);
+  if (!doc || !inputEl || !inputEl.isConnected) return doc;
+  const code = linkCodeOf(doc);
+  if (inputEl._nameDisplay) inputEl._nameDisplay.commit(doc, code);
+  else inputEl.value = code;
+  inputEl.dispatchEvent(new Event('change', { bubbles: true }));
+  inputEl.focus();
+  return doc;
+}
+
+// defaultSelectValue (Stage 57.4): a new record's Status starts on Active.
+function defaultSelectValue(field, options) {
+  if (field && String(field.fieldname).toLowerCase() === 'status' && options.includes('Active')) return 'Active';
+  return '';
+}
+
+// attachHSNPicker (Stage 57.3): HSN catalogue picker with inline create; fills
+// an empty GST rate. The box keeps the plain number (engines/hsn_catalog.go).
+function attachHSNPicker(hsnInput, gstInput) {
+  if (!hsnInput || hsnInput.dataset.hsnPicker === '1') return;
+  hsnInput.dataset.hsnPicker = '1';
+  attachLinkTypeahead(hsnInput, 'HSNCode', {
+    valueFields: ['hsn'],
+    labelFn: doc => {
+      const parts = [doc.hsn || doc.code];
+      if (doc.description) parts.push(doc.description);
+      if (doc.gst_rate !== undefined && doc.gst_rate !== null && doc.gst_rate !== '') parts.push(`GST ${doc.gst_rate}%`);
+      return parts.join(' — ');
+    }
+  });
+  hsnInput.addEventListener('change', async () => {
+    if (!gstInput || gstInput.value !== '') return;
+    const hsn = hsnInput.value.trim();
+    if (!hsn) return;
+    const doc = await lookupLinkDoc('HSNCode', `HSN-${hsn.replace(/[\s.]/g, '')}`);
+    if (doc && doc.gst_rate !== undefined && doc.gst_rate !== null && doc.gst_rate !== '' && gstInput.value === '') {
+      gstInput.value = doc.gst_rate;
+      gstInput.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -1981,20 +2348,93 @@ window.openSetupDoctype = function (doctype) {
   // handler in renderSidebarSubmenu()). Capture where we're leaving from so
   // the list this opens can offer a way back - see quickCreateReturn.
   const originTitle = document.querySelector('.page-title')?.textContent || null;
-  quickCreateReturn = { forDoctype: doctype, view: currentView, label: originTitle };
+  // Stage 57.2: close an open new-record form first (keeping its values) and
+  // reopen it on return; one history entry so browser Back returns.
+  const modal = document.getElementById('dynamic-modal');
+  let reopenForm = null;
+  if (modal && modal.classList.contains('open') && !editingDocID) {
+    reopenForm = { doctype: currentDoctype, values: snapshotFormValues(document.getElementById('dynamic-modal-form')) };
+    if (typeof window.closeDynamicModal === 'function') window.closeDynamicModal();
+  }
+  quickCreateReturn = {
+    forDoctype: doctype, view: currentView, label: originTitle,
+    originDoctype: currentView === 'doctype-table' ? currentDoctype : null,
+    reopenForm,
+    hash: window.location.hash,
+    pushed: false
+  };
+  // One history entry for the detour, so the browser's Back button returns
+  // to where the user came from. Normal navigation stays on replaceState
+  // (saveNavState) - this is the one place a Back press has a clear meaning.
+  try {
+    history.pushState({ erpSetupDetour: true }, '', window.location.href);
+    quickCreateReturn.pushed = true;
+  } catch (e) { /* not addressable here - the Back to X link still works */ }
   currentDoctype = doctype;
   currentSearchQuery = '';
   currentTablePage = 1;
   renderView('doctype-table');
 };
 
-// returnFromQuickCreate is the "Back to X" button's handler - one-shot,
-// consuming quickCreateReturn so a later visit to this same list (not
-// reached via another shortcut) shows no button.
-window.returnFromQuickCreate = function () {
+// snapshot/restoreFormValues: carry a half-filled form across a detour; a select
+// whose options are not loaded yet keeps the value in data-pending-value.
+function snapshotFormValues(form) {
+  const values = {};
+  if (!form) return values;
+  form.querySelectorAll('[name]').forEach(el => {
+    if (el.type === 'checkbox') values[el.name] = el.checked;
+    else if (el.type !== 'file' && el.value !== '') values[el.name] = el.value;
+  });
+  return values;
+}
+
+function restoreFormValues(form, values) {
+  if (!form || !values) return;
+  Object.entries(values).forEach(([name, value]) => {
+    const el = form.querySelector(`[name="${CSS.escape(name)}"]`);
+    if (!el || el.readOnly) return;
+    if (el.type === 'checkbox') { el.checked = !!value; return; }
+    if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === value)) { el.dataset.pendingValue = value; return; }
+    el.value = value;
+  });
+}
+
+// performQuickCreateReturn: back to the origin view and list, reopening a
+// new-record form with its values and the just-created record filled in.
+async function performQuickCreateReturn(target, createdId) {
+  if (target.originDoctype) {
+    currentDoctype = target.originDoctype;
+    currentSearchQuery = '';
+    currentTablePage = 1;
+  }
+  await renderView(target.view);
+  if (!target.reopenForm || typeof window.openDynamicModal !== 'function') return;
+  currentDoctype = target.reopenForm.doctype;
+  await window.openDynamicModal();
+  const form = document.getElementById('dynamic-modal-form');
+  restoreFormValues(form, target.reopenForm.values);
+  if (createdId && form) {
+    const waiting = [...form.querySelectorAll(`[data-link-doctype="${CSS.escape(target.forDoctype)}"]`)]
+      .find(el => !el.value);
+    if (waiting) {
+      if (waiting.tagName === 'SELECT' && ![...waiting.options].some(o => o.value === createdId)) waiting.dataset.pendingValue = createdId;
+      else waiting.value = createdId;
+    }
+  }
+}
+
+// returnFromQuickCreate: "Back to X" and post-save return, one-shot. A pushed
+// detour entry is unwound with history.back(); hashchange finishes the return.
+window.returnFromQuickCreate = function (createdId) {
   const target = quickCreateReturn;
+  if (!target) return;
+  if (createdId) target.createdId = createdId;
+  if (target.pushed && history.state && history.state.erpSetupDetour) {
+    history.back();
+    return;
+  }
   quickCreateReturn = null;
-  if (target) renderView(target.view);
+  performQuickCreateReturn(target, target.createdId);
 };
 
 // setupLink renders "Setup » Brand" as a real link into that list. Uses an
@@ -2161,6 +2601,15 @@ async function navigateToDeepLink(link) {
 // tab navigates too - not only a fresh tab. Guarded on being signed in.
 window.addEventListener('hashchange', () => {
   if (!localStorage.getItem('erp_token')) return;
+  // Stage 57.2: Back from a setup detour lands on the entry it pushed from -
+  // finish the return there (reopening the form the user was in) rather
+  // than as a plain deep link, which would only show the list.
+  if (quickCreateReturn && quickCreateReturn.pushed && window.location.hash === quickCreateReturn.hash) {
+    const target = quickCreateReturn;
+    quickCreateReturn = null;
+    performQuickCreateReturn(target, target.createdId);
+    return;
+  }
   const link = parseDeepLink();
   if (link) navigateToDeepLink(link);
 });
@@ -2268,6 +2717,16 @@ function attachSetupHint(inputEl, doctype) {
     hint.innerHTML = html;
     hint.classList.toggle('visible', !!html);
     hint.classList.toggle('setup-hint-missing', missing);
+    // Stage 57.2: a field hint creates the record inline and fills the field.
+    const primary = hint.querySelector('a.empty-state-link');
+    if (primary) {
+      ['data-act', 'data-act-args', 'data-act-prevent'].forEach(a => primary.removeAttribute(a));
+      primary.addEventListener('mousedown', (e) => e.preventDefault()); // keep focus, so blur does not repaint it away
+      primary.addEventListener('click', (e) => {
+        e.preventDefault();
+        quickCreateIntoInput(inputEl, doctype, typedTextOf(inputEl).trim());
+      });
+    }
   };
 
   paint(false);
@@ -2454,6 +2913,9 @@ function showLoginScreen() {
   // left over from a previous, unfinished login attempt.
   pendingMFAToken = null;
   pendingSessionData = null;
+  passwordChangeShowing = false;
+  document.getElementById('password-change-form')?.classList.add('hidden');
+  document.querySelectorAll('.login-card > .login-subtitle').forEach(el => el.classList.remove('hidden'));
   document.getElementById('login-form').classList.remove('hidden');
   document.getElementById('mfa-enroll-screen').classList.add('hidden');
   document.getElementById('mfa-challenge-screen').classList.add('hidden');
@@ -2467,6 +2929,57 @@ function showLoginScreen() {
 // otherwise a refresh mid-screen would enter the app and the codes would be
 // lost for good (the server keeps only their hashes).
 let pendingSessionData = null;
+
+// showPasswordChangeScreen (Stage 57.17): forced "set your own password" after
+// an administrator chose it. apiMiddleware enforces the same on every call.
+let passwordChangeShowing = false;
+function showPasswordChangeScreen() {
+  if (passwordChangeShowing) return;
+  passwordChangeShowing = true;
+  document.getElementById('app-root').classList.add('hidden');
+  document.getElementById('login-screen').classList.remove('hidden');
+  ['login-form', 'mfa-enroll-screen', 'mfa-challenge-screen'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
+  document.querySelectorAll('.login-card > .login-subtitle').forEach(el => el.classList.add('hidden'));
+  const form = document.getElementById('password-change-form');
+  form.reset();
+  document.getElementById('pwchange-error').classList.add('hidden');
+  form.classList.remove('hidden');
+  document.getElementById('pwchange-current').focus();
+}
+
+async function handlePasswordChangeSubmit(event) {
+  event.preventDefault();
+  const errorEl = document.getElementById('pwchange-error');
+  const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
+  errorEl.classList.add('hidden');
+  const current = document.getElementById('pwchange-current').value;
+  const next = document.getElementById('pwchange-new').value;
+  const confirm = document.getElementById('pwchange-confirm').value;
+  if (!current || !next) return fail('Enter the password you signed in with and a new one.');
+  if (next !== confirm) return fail('The two new passwords do not match.');
+  if (next === current) return fail('Choose a password different from the one you were given.');
+  const btn = document.getElementById('pwchange-submit');
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('/api/v1/me/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password: current, new_password: next })
+    });
+    if (!res) return;
+    if (!res.ok) return fail(await getErrorMessage(res, 'Could not set the new password.'));
+    const data = await res.json().catch(() => ({}));
+    if (data.token) localStorage.setItem('erp_token', data.token);
+    passwordChangeShowing = false;
+    document.getElementById('password-change-form').classList.add('hidden');
+    document.querySelectorAll('.login-card > .login-subtitle').forEach(el => el.classList.remove('hidden'));
+    document.getElementById('login-form').classList.remove('hidden');
+    showApp();
+    init();
+    showToast('Your new password is set.', { variant: 'success' });
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 function showApp() {
   document.getElementById('login-screen').classList.add('hidden');
@@ -2675,6 +3188,11 @@ function completeLogin(data) {
   document.getElementById('mfa-enroll-form').reset();
   document.getElementById('mfa-challenge-form').reset();
   setRecoveryCodeMode(false);
+  // Stage 57.17: an administrator chose this password - set your own first.
+  if (data.password_change_required === 'true') {
+    showPasswordChangeScreen();
+    return;
+  }
   showApp();
   init();
 
@@ -2862,6 +3380,13 @@ function bootstrap() {
   document.getElementById('login-form').addEventListener('submit', handleLoginSubmit);
   document.getElementById('mfa-enroll-form').addEventListener('submit', handleMFAEnrollSubmit);
   document.getElementById('mfa-challenge-form').addEventListener('submit', handleMFAChallengeSubmit);
+  document.getElementById('password-change-form').addEventListener('submit', handlePasswordChangeSubmit);
+  document.getElementById('pwchange-signout').addEventListener('click', () => {
+    passwordChangeShowing = false;
+    document.getElementById('password-change-form').classList.add('hidden');
+    document.querySelectorAll('.login-card > .login-subtitle').forEach(el => el.classList.remove('hidden'));
+    logout();
+  });
   bindRecoveryCodeScreen();
 
   if (localStorage.getItem('erp_token')) {
@@ -3023,12 +3548,12 @@ async function fetchLabels() {
 // Any menu id not listed here defaults open the same way.
 const MENU_PERMISSION_MAP = {
   'menu-home': { open: true },
-  'menu-pos': { open: true },
+  'menu-pos': { doctypes: ['POSCart', 'POSSession'] },
   'menu-pos-profiles': { doctypes: ['POSProfile'] },
   'menu-pos-offline-sync': { doctypes: ['POSOfflineSyncVariance'] },
   'menu-pos-offline-gaps': { doctypes: ['POSOfflineQueueGap'] },
 
-  'menu-finance': { open: true },
+  'menu-finance': { modules: ['Finance'] },
   'menu-approvals': { open: true },
   'menu-vendor-invoices': { doctypes: ['VendorInvoice'] },
   'menu-payment-proposals': { doctypes: ['PaymentProposal', 'VendorInvoice'] },
@@ -3036,10 +3561,13 @@ const MENU_PERMISSION_MAP = {
   'menu-finance-notes': { doctypes: ['DebitNote', 'CreditNote'] },
   'menu-sales-invoices': { doctypes: ['SalesInvoice'] },
 
-  'menu-fulfillment': { open: true },
-  'menu-marketplace': { open: true },
-	'menu-oms': { open: true },
+  'menu-fulfillment': { modules: ['OMS'] },
+  'menu-marketplace': { modules: ['OMS', 'PIM'] },
+	'menu-oms': { modules: ['OMS'] },
   'menu-customers': { doctypes: ['Customer'] },
+  // Stage 57.17: these two had no rule at all, so every role saw them.
+  'menu-returns': { doctypes: ['SalesReturn'] },
+  'menu-rf-traceability': { modules: ['Inventory'] },
 
   'menu-reports': { open: true },
 
@@ -3049,30 +3577,30 @@ const MENU_PERMISSION_MAP = {
   'menu-vendors': { doctypes: ['Vendor'] },
   'menu-rfq': { doctypes: ['RFQ'] },
 
-  'menu-inventory': { open: true },
+  'menu-inventory': { modules: ['Inventory'] },
   'menu-transfers': { doctypes: ['TransferOrder'] },
   'menu-bins': { doctypes: ['Bin'] },
   // handlers_wms.go has no role_permissions check today (its own header
   // comment: "All role-open... a warehouse operator role doesn't exist
   // separately from Store Manager/Cashier/HR-Admin") - { open: true } here
   // matches that actual server behavior rather than inventing a UI-only gate.
-  'menu-putaway': { open: true },
+  'menu-putaway': { modules: ['Inventory'] },
   // Stage 42.2.10: same role-open convention as the rest of the WMS
   // floor-ops screens (handlers_warehouse_task.go's cockpit route has no
   // role_permissions check either).
-  'menu-warehouse-cockpit': { open: true },
-  'menu-bin-conditions': { open: true },
-  'menu-cycle-count': { open: true },
+  'menu-warehouse-cockpit': { modules: ['Inventory'] },
+  'menu-bin-conditions': { modules: ['Inventory'] },
+  'menu-cycle-count': { modules: ['Inventory'] },
   // Stage 26.5: same role-open convention as the rest of the WMS floor-ops
   // screens above (handlers_wms_enterprise.go has no role_permissions check
   // either) - menu-asn is the exception, gated by the ASN doctype itself
   // since it goes through the generic /api/v1/doc/ASN endpoint.
   'menu-asn': { doctypes: ['ASN'] },
-  'menu-lpn': { open: true },
-  'menu-bin-replenishment': { open: true },
-  'menu-wave-picking': { open: true },
-  'menu-mobile-picking': { open: true },
-  'menu-stickers': { open: true },
+  'menu-lpn': { modules: ['Inventory'] },
+  'menu-bin-replenishment': { modules: ['Inventory'] },
+  'menu-wave-picking': { modules: ['Inventory'] },
+  'menu-mobile-picking': { modules: ['Inventory'] },
+  'menu-stickers': { modules: ['Inventory', 'PIM'] },
   // Stage 42.3: DockDoor/Trailer/HoldCode/Hold/HoldReleaseRequest all ride
   // the generic doctype-table screen, gated by the doctype's own
   // role_permissions exactly like menu-bins/menu-asn above. Appointment and
@@ -3085,7 +3613,7 @@ const MENU_PERMISSION_MAP = {
   'menu-trailers': { doctypes: ['Trailer'] },
   'menu-hold-codes': { doctypes: ['HoldCode'] },
   'menu-holds': { doctypes: ['Hold'] },
-  'menu-place-hold': { open: true },
+  'menu-place-hold': { modules: ['Inventory'] },
   'menu-hold-release-requests': { doctypes: ['HoldReleaseRequest'] },
   'menu-crossdock-plans': { doctypes: ['CrossDockPlan'] },
   'menu-rf-receiving': { doctypes: ['GRN'] },
@@ -3097,11 +3625,11 @@ const MENU_PERMISSION_MAP = {
   'menu-loading': { doctypes: ['LoadingTask'] },
 
   'menu-hr': { doctypes: ['Employee'] },
-  'menu-assets': { open: true },
+  'menu-assets': { doctypes: ['Asset'] },
   'menu-expenses': { doctypes: ['ExpenseClaim'] },
 
   'menu-manufacturing': { doctypes: ['BOM', 'ProductionOrder'] },
-  'menu-pim': { open: true },
+  'menu-pim': { modules: ['PIM'] },
 
   'menu-users': { adminOnly: true },
   'menu-roles': { adminOnly: true },
@@ -3521,6 +4049,12 @@ function isMenuRuleVisible(rule) {
   if (!rule || rule.open) return true;
   if (rule.adminOnly) return state.permissions.isAdmin;
   if (rule.doctypes) return state.permissions.isAdmin || rule.doctypes.some(canReadDoctype);
+  // Stage 57.17: a module screen shows once the role can read anything in it
+  // (these were `open` to every role).
+  if (rule.modules) {
+    return state.permissions.isAdmin ||
+      state.activeDoctypes.some(d => rule.modules.includes(d.module) && canReadDoctype(d.name));
+  }
   return true;
 }
 
@@ -3555,10 +4089,11 @@ function applySidebarPermissions() {
     // all. The vacuous-true case is preserved deliberately: zero real entries
     // still means hide (see the comment above).
     const items = Array.from(container.querySelectorAll('.menu-flyout > li'))
-      .filter(li => li.querySelector('.submenu-item[data-view], .menu-item'));
+      .filter(li => li.querySelector('.submenu-item[data-view], .menu-item') && !li.hasAttribute('data-cross-module'));
     const allHidden = items.every(li => li.classList.contains('perm-hidden'));
     container.classList.toggle('perm-hidden', allHidden);
   });
+  syncFlyoutHeadings();
 }
 
 // isMenuModuleVisible mirrors isMenuRuleVisible: an item with no
@@ -3589,9 +4124,29 @@ function applyModuleEntitlements() {
   });
 
   document.querySelectorAll('.has-flyout').forEach(container => {
-    const items = container.querySelectorAll('.menu-flyout > li');
-    const allHidden = items.length > 0 && Array.from(items).every(li => li.classList.contains('module-hidden'));
+    // Section headings (Stage 57) are never module-hidden themselves, so
+    // they must not count or an empty flyout could never collapse.
+    const items = Array.from(container.querySelectorAll('.menu-flyout > li')).filter(li => !li.classList.contains('submenu-group-label') && !li.hasAttribute('data-cross-module'));
+    const allHidden = items.length > 0 && items.every(li => li.classList.contains('module-hidden'));
     container.classList.toggle('module-hidden', allHidden);
+  });
+  syncFlyoutHeadings();
+}
+
+// syncFlyoutHeadings hides a static flyout's section heading (the Stock
+// menu's "WMS", Stage 57) when every entry under it is hidden for this role
+// or tenant, so a heading never sits over nothing. Setup's own dynamically
+// built headings are left to renderSidebarSubmenu.
+function syncFlyoutHeadings() {
+  document.querySelectorAll('.has-flyout > .menu-flyout > li.submenu-group-label').forEach(heading => {
+    if (heading.closest('#menu-master-definition-submenu, .submenu')) return;
+    let sibling = heading.nextElementSibling;
+    let anyVisible = false;
+    while (sibling && !sibling.classList.contains('submenu-group-label')) {
+      if (sibling.querySelector('.menu-item') && !sibling.classList.contains('perm-hidden') && !sibling.classList.contains('module-hidden')) { anyVisible = true; break; }
+      sibling = sibling.nextElementSibling;
+    }
+    heading.classList.toggle('hidden', !anyVisible);
   });
 }
 
@@ -5337,6 +5892,11 @@ async function renderView(view) {
     // explanation matters most.
     renderSetupBanner(view);
     applyPhoneRulesIn(root);
+    // Stage 57.1: names instead of stored codes in every table, this view and
+    // whatever it renders later (installed once, then self-sustaining).
+    startLinkNameSweep();
+    // Stage 57.6: the shared date picker, same once-installed pattern.
+    startDatePickerEnhancer();
   }
 }
 
@@ -5988,6 +6548,9 @@ async function createUserInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  // Stage 57.17: the password just typed is the administrator's, so the
+  // server will ask the user to choose their own at first sign-in.
+  showToast(`User ${username} created. Give them this password - they will be asked to set their own when they first sign in.`, { variant: 'success' });
   renderView('users');
 }
 
@@ -6108,33 +6671,71 @@ async function renderRolesView(container) {
   const roles = rolesRes.ok ? await rolesRes.json() : [];
   const doctypeOptions = state.activeDoctypes.map(d => d.name).sort();
 
+  // Stage 57.17: roles are created here before anyone holds one, and a role
+  // can be given a whole module at once - "the user sees that module only".
+  const moduleOptions = [...new Set(state.activeDoctypes.map(d => d.module).filter(Boolean))].sort();
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Roles</h1>
-      <p class="page-subtitle">What each role can see and do, per record type. Super Admin can always do everything; this only governs the other roles.</p>
+      <p class="page-subtitle">What each role can see and do. A role sees a module in the menu once it can read that module's records. Super Admin can always do everything; this only governs the other roles.</p>
     </div>
   `;
   container.appendChild(header);
+
+  const createPanel = document.createElement('div');
+  createPanel.className = 'table-panel';
+  createPanel.style.padding = '24px';
+  createPanel.style.marginBottom = '24px';
+  createPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 4px;">Create a Role</h2>
+    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 16px;">A new role can see nothing until you grant it access below. Then assign it to users on the Users screen.</p>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="new-role-name">Role name</label>
+        <input type="text" id="new-role-name" class="form-input" style="width: 200px;" placeholder="e.g. Purchase Clerk" maxlength="60">
+      </div>
+      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+        <label class="form-label" for="new-role-description">Description (optional)</label>
+        <input type="text" id="new-role-description" class="form-input" placeholder="What this role is for">
+      </div>
+      <button class="btn btn-primary" id="new-role-btn" type="button">Create Role</button>
+    </div>
+    <div id="new-role-error" class="login-error hidden" style="margin-top: 12px;"></div>
+  `;
+  container.appendChild(createPanel);
 
   const formPanel = document.createElement('div');
   formPanel.className = 'table-panel';
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Add or Update a Grant</h2>
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Add or Update Access</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="grant-role">Role</label>
-        <select id="grant-role" class="form-select" style="width: 150px;">
-          ${roles.map(r => `<option value="${r}">${r}</option>`).join('')}
+        <select id="grant-role" class="form-select" style="width: 170px;">
+          ${roles.filter(r => !isAdminRoleName(r)).map(r => `<option value="${escapeHTMLText(r)}" ${r === rolesScreenSelectedRole ? 'selected' : ''}>${escapeHTMLText(r)}</option>`).join('')}
         </select>
       </div>
       <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grant-scope">Grant on</label>
+        <select id="grant-scope" class="form-select" style="width: 170px;">
+          <option value="module">A whole module</option>
+          <option value="doctype">One record type</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;" id="grant-module-group">
+        <label class="form-label" for="grant-module">Module</label>
+        <select id="grant-module" class="form-select" style="width: 190px;">
+          ${moduleOptions.map(m => `<option value="${escapeHTMLText(m)}">${escapeHTMLText(m)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group hidden" style="margin-bottom: 0;" id="grant-doctype-group">
         <label class="form-label" for="grant-doctype">Record Type</label>
         <select id="grant-doctype" class="form-select" style="width: 190px;">
-          ${doctypeOptions.map(d => `<option value="${d}">${d}</option>`).join('')}
+          ${doctypeOptions.map(d => `<option value="${escapeHTMLText(d)}">${escapeHTMLText(getDoctypeLabel(d))}</option>`).join('')}
         </select>
       </div>
       <label style="display:flex; align-items:center; gap:6px; font-size:13.5px;"><input type="checkbox" id="grant-read" checked> Read</label>
@@ -6170,26 +6771,71 @@ async function renderRolesView(container) {
   container.appendChild(listPanel);
 
   document.getElementById('grant-save-btn').addEventListener('click', saveRoleGrant);
+  document.getElementById('new-role-btn').addEventListener('click', createRole);
+  const scopeSel = document.getElementById('grant-scope');
+  scopeSel.addEventListener('change', () => {
+    const whole = scopeSel.value === 'module';
+    document.getElementById('grant-module-group').classList.toggle('hidden', !whole);
+    document.getElementById('grant-doctype-group').classList.toggle('hidden', whole);
+  });
+}
+
+// The role the Roles screen should have selected after a re-render - the
+// one just created, so its first grant is one click away.
+let rolesScreenSelectedRole = '';
+
+function isAdminRoleName(name) {
+  return ['superadmin', 'hr/admin', 'hradmin'].includes(String(name || '').toLowerCase().replace(/\s+/g, ''));
+}
+
+async function createRole() {
+  const nameEl = document.getElementById('new-role-name');
+  const errorEl = document.getElementById('new-role-error');
+  errorEl.classList.add('hidden');
+  const name = nameEl.value.trim();
+  if (!name) { errorEl.textContent = 'Enter a role name.'; errorEl.classList.remove('hidden'); nameEl.focus(); return; }
+  const res = await apiFetch('/api/v1/admin/roles', {
+    method: 'POST',
+    body: JSON.stringify({ name, description: document.getElementById('new-role-description').value.trim() })
+  });
+  if (!res) return;
+  if (!res.ok) {
+    errorEl.textContent = await getErrorMessage(res, 'Failed to create the role.');
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const data = await res.json().catch(() => ({}));
+  rolesScreenSelectedRole = data.name || name;
+  showToast(`Role "${rolesScreenSelectedRole}" created. Grant it a module below, then assign it to users.`, { variant: 'success' });
+  renderView('roles');
 }
 
 async function saveRoleGrant() {
   const role = document.getElementById('grant-role').value;
-  const doctypeName = document.getElementById('grant-doctype').value;
-  const res = await apiFetch('/api/v1/admin/role-permissions', {
-    method: 'POST',
-    body: JSON.stringify({
-      role, doctype_name: doctypeName,
-      allow_read: document.getElementById('grant-read').checked,
-      allow_create: document.getElementById('grant-create').checked,
-      allow_update: document.getElementById('grant-update').checked,
-      allow_delete: document.getElementById('grant-delete').checked
-    })
-  });
+  if (!role) { await showCustomAlert('Create a role first.', 'No role selected'); return; }
+  const whole = document.getElementById('grant-scope').value === 'module';
+  const body = {
+    role,
+    allow_read: document.getElementById('grant-read').checked,
+    allow_create: document.getElementById('grant-create').checked,
+    allow_update: document.getElementById('grant-update').checked,
+    allow_delete: document.getElementById('grant-delete').checked
+  };
+  if (whole) {
+    const mod = document.getElementById('grant-module').value;
+    body.doctype_names = state.activeDoctypes.filter(d => d.module === mod).map(d => d.name);
+    if (body.doctype_names.length === 0) { await showCustomAlert('That module has no record types.', 'Nothing to grant'); return; }
+  } else {
+    body.doctype_name = document.getElementById('grant-doctype').value;
+  }
+  const res = await apiFetch('/api/v1/admin/role-permissions', { method: 'POST', body: JSON.stringify(body) });
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Failed to save grant.');
     return;
   }
+  rolesScreenSelectedRole = role;
+  showToast(whole ? `${role} now has access to ${body.doctype_names.length} record types.` : `${role}'s access saved.`, { variant: 'success' });
   renderView('roles');
 }
 
@@ -6516,6 +7162,12 @@ async function checkoutOnlineOrQueue(payload) {
   }
   if (response.status === 401) {
     logout(await getErrorMessage(response, 'Session expired. Please log in again.'));
+    return null;
+  }
+  // Stage 57.17: the server refuses everything but setting a new password
+  // while the account is on one an administrator issued.
+  if (response.status === 403 && response.headers.get('X-Password-Change-Required') === '1') {
+    showPasswordChangeScreen();
     return null;
   }
   if (response.status === 429) {

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -119,23 +121,118 @@ func handleListRoles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT DISTINCT role FROM %s.users ORDER BY role`, schema))
+	roles, err := tenantRoleNames(schema)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
-	defer rows.Close()
+	_ = json.NewEncoder(w).Encode(roles)
+}
 
+// tenantRoleNames is every role the tenant knows about. It used to be
+// DISTINCT users.role alone, so a role did not exist until someone held it -
+// an admin could not set up "Purchase Clerk" and its permissions first and
+// assign people afterwards (Stage 57.17). It is now the union of the role
+// registry, the roles that have permissions, and the roles users hold. The
+// registry is read separately and tolerantly, so this keeps answering on a
+// schema the Stage 57 migration has not reached yet.
+func tenantRoleNames(schema string) ([]string, error) {
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT role FROM %[1]s.users
+		UNION SELECT role FROM %[1]s.role_permissions`, schema))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	seen := map[string]bool{}
 	roles := []string{}
-	for rows.Next() {
-		var roleName string
-		if err := rows.Scan(&roleName); err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+	add := func(name string) {
+		name = strings.TrimSpace(name)
+		if name == "" || seen[strings.ToLower(name)] {
 			return
 		}
-		roles = append(roles, roleName)
+		seen[strings.ToLower(name)] = true
+		roles = append(roles, name)
 	}
-	_ = json.NewEncoder(w).Encode(roles)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		add(name)
+	}
+	if regRows, regErr := db.DB.Query(fmt.Sprintf(`SELECT name FROM %s.roles`, schema)); regErr == nil {
+		for regRows.Next() {
+			var name string
+			if regRows.Scan(&name) == nil {
+				add(name)
+			}
+		}
+		regRows.Close()
+	}
+	sort.Strings(roles)
+	return roles, nil
+}
+
+// roleNamePattern keeps role names to what reads well on a screen and in an
+// audit line: letters, digits, spaces and a few separators, 2-60 characters.
+var roleNamePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 &/_.-]{1,59}$`)
+
+// handleCreateRole registers a new role (Stage 57.17). A role starts with no
+// permissions at all - it can see nothing until the Roles screen grants it
+// record types - which is the safe default for something an admin is still
+// setting up.
+func handleCreateRole(w http.ResponseWriter, r *http.Request) {
+	role := r.Header.Get("Resolved-Role")
+	if !requireHRAdmin(w, r, role) {
+		return
+	}
+	var req struct {
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+		return
+	}
+	name := strings.Join(strings.Fields(req.Name), " ")
+	if !roleNamePattern.MatchString(name) {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Role name must be 2-60 characters: letters, numbers, spaces and & / _ . -")
+		return
+	}
+	// A name that normalises to the administrator role would silently grant
+	// full admin rights (engines.IsSuperAdmin matches on the normalised key),
+	// so it can never be created through this door.
+	if engines.IsSuperAdmin(name) {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("%q is the built-in administrator role and cannot be created again.", name))
+		return
+	}
+
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	existing, err := tenantRoleNames(schema)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	for _, e := range existing {
+		if strings.EqualFold(e, name) {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("A role named %q already exists.", e))
+			return
+		}
+	}
+	if _, err := db.DB.Exec(fmt.Sprintf(
+		`INSERT INTO %s.roles (name, description, created_by) VALUES ($1, $2, $3)`, schema),
+		name, strings.TrimSpace(req.Description), r.Header.Get("Resolved-Username")); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to create role.")
+		return
+	}
+	engines.LogAuditEvent(tenantID, r.Header.Get("Resolved-Username"), "USER_MANAGEMENT", "ROLE_CREATED", fmt.Sprintf("Created role %s", name))
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "name": name})
 }
 
 func handleCreateUser(w http.ResponseWriter, r *http.Request) {
@@ -162,6 +259,8 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "username and role are required")
 		return
 	}
+	req.Username = strings.TrimSpace(req.Username)
+	req.Role = strings.TrimSpace(req.Role)
 	// 24.1: defaults to "HO" (the column's own DEFAULT) when omitted,
 	// matching every existing user's behavior before this field existed.
 	if req.LocationCode == "" {
@@ -174,6 +273,27 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	// Stage 57.17: the role must be one the tenant has (built-in, or created
+	// on the Roles screen). A typo used to create a user holding a role with
+	// no permissions at all - a login that sees an empty app. The stored name
+	// is the registered spelling, so "purchase clerk" lands as "Purchase Clerk".
+	if knownRoles, roleErr := tenantRoleNames(schema); roleErr == nil {
+		matched := ""
+		for _, k := range knownRoles {
+			if strings.EqualFold(k, req.Role) {
+				matched = k
+				break
+			}
+		}
+		if matched == "" && !engines.IsSuperAdmin(req.Role) {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("Role %q does not exist yet - create it on the Roles screen first.", req.Role))
+			return
+		}
+		if matched != "" {
+			req.Role = matched
+		}
 	}
 
 	// 49.2.2: the shared baseline applies to an admin-chosen initial
@@ -213,7 +333,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	// the Profile screen afterwards. Falls back to the column DEFAULT behavior
 	// (30) via the setting's own registered default.
 	_, err = db.DB.Exec(fmt.Sprintf(
-		`INSERT INTO %s.users (id, username, password_hash, email, role, status, location_code, idle_timeout_minutes) VALUES ($1, $1, $2, $3, $4, 'Active', $5, $6)`, schema),
+		`INSERT INTO %s.users (id, username, password_hash, email, role, status, location_code, idle_timeout_minutes, must_change_password) VALUES ($1, $1, $2, $3, $4, 'Active', $5, $6, TRUE)`, schema),
 		req.Username, string(hash), req.Email, req.Role, req.LocationCode, engines.GetSettingInt(tenantID, "security.default_idle_timeout_minutes"))
 	if err != nil {
 		msg := "Failed to create user."
@@ -406,30 +526,57 @@ func handleRolePermissions(w http.ResponseWriter, r *http.Request) {
 		var req struct {
 			Role        string `json:"role"`
 			DoctypeName string `json:"doctype_name"`
-			AllowRead   bool   `json:"allow_read"`
-			AllowCreate bool   `json:"allow_create"`
-			AllowUpdate bool   `json:"allow_update"`
-			AllowDelete bool   `json:"allow_delete"`
+			// DoctypeNames (Stage 57.17) grants the same rights on several
+			// record types in one call - how the Roles screen gives a role a
+			// whole module ("this user sees Procurement only") without a
+			// request per record type.
+			DoctypeNames []string `json:"doctype_names"`
+			AllowRead    bool     `json:"allow_read"`
+			AllowCreate  bool     `json:"allow_create"`
+			AllowUpdate  bool     `json:"allow_update"`
+			AllowDelete  bool     `json:"allow_delete"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Role == "" || req.DoctypeName == "" {
-			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'role' and 'doctype_name' are required")
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
 			return
 		}
-		_, err := db.DB.Exec(fmt.Sprintf(`
-			INSERT INTO %s.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete)
-			VALUES ($1, $2, $3, $4, $5, $6)
-			ON CONFLICT (role, doctype_name) DO UPDATE SET
-				allow_read = EXCLUDED.allow_read, allow_create = EXCLUDED.allow_create,
-				allow_update = EXCLUDED.allow_update, allow_delete = EXCLUDED.allow_delete`, schema),
-			req.Role, req.DoctypeName, req.AllowRead, req.AllowCreate, req.AllowUpdate, req.AllowDelete)
+		req.Role = strings.TrimSpace(req.Role)
+		names := req.DoctypeNames
+		if req.DoctypeName != "" {
+			names = append([]string{req.DoctypeName}, names...)
+		}
+		if req.Role == "" || len(names) == 0 {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'role' and 'doctype_name' (or 'doctype_names') are required")
+			return
+		}
+		tx, err := db.DB.Begin()
 		if err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			return
+		}
+		defer tx.Rollback()
+		for _, name := range names {
+			if _, err := tx.Exec(fmt.Sprintf(`
+				INSERT INTO %s.role_permissions (role, doctype_name, allow_read, allow_create, allow_update, allow_delete)
+				VALUES ($1, $2, $3, $4, $5, $6)
+				ON CONFLICT (role, doctype_name) DO UPDATE SET
+					allow_read = EXCLUDED.allow_read, allow_create = EXCLUDED.allow_create,
+					allow_update = EXCLUDED.allow_update, allow_delete = EXCLUDED.allow_delete`, schema),
+				req.Role, name, req.AllowRead, req.AllowCreate, req.AllowUpdate, req.AllowDelete); err != nil {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("%s: %v", name, err))
+				return
+			}
+		}
+		if err := tx.Commit(); err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
 		actorUsername := r.Header.Get("Resolved-Username")
-		engines.LogAuditEvent(tenantID, actorUsername, "ROLE_PERMISSIONS", "GRANT_UPDATED",
-			fmt.Sprintf("Set %s permissions on %s: read=%v create=%v update=%v delete=%v", req.Role, req.DoctypeName, req.AllowRead, req.AllowCreate, req.AllowUpdate, req.AllowDelete))
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+		for _, name := range names {
+			engines.LogAuditEvent(tenantID, actorUsername, "ROLE_PERMISSIONS", "GRANT_UPDATED",
+				fmt.Sprintf("Set %s permissions on %s: read=%v create=%v update=%v delete=%v", req.Role, name, req.AllowRead, req.AllowCreate, req.AllowUpdate, req.AllowDelete))
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "success", "granted": len(names)})
 
 	default:
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")

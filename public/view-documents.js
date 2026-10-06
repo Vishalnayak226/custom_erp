@@ -236,7 +236,7 @@ function renderDocTable() {
         <tr>
           ${bulkEditingEnabled ? `<th style="width: 42px;"><input type="checkbox" aria-label="Select all visible records" data-pim-select-page ${items.length > 0 && items.every(item => bulkSelectedDocIDs.has(item.id)) ? 'checked' : ''}></th>` : ''}
           ${state.activeDocFields.map(f => `<th>${escapeHTMLText(getTranslatedLabel(f.label))}</th>`).join('')}
-          <th style="text-align: right;">Actions</th>
+          <th class="row-actions-cell" style="text-align: right;">Actions</th>
         </tr>
       </thead>
       <tbody>
@@ -264,6 +264,10 @@ function renderDocTable() {
         if (f.fieldname === 'status') {
           const cls = val === 'Active' ? 'badge-success' : 'badge-secondary';
           tableHTML += `<td><span class="badge ${cls}">${escapeHTMLText(val)}</span></td>`;
+        } else if (f.fieldtype === 'Link' && val && f.options) {
+          // Stage 57.1: marked as a reference, so the shell's name sweep shows
+          // the record's name here (the copy chip still copies the code).
+          tableHTML += `<td data-link-doctype="${escapeHTMLText(f.options)}" data-link-ref="${escapeHTMLText(val)}">${copyableCell(val, val)}</td>`;
         } else {
           tableHTML += `<td>${copyableCell(val, val)}</td>`;
         }
@@ -337,7 +341,7 @@ function renderDocTable() {
            </button>`
         : '';
       tableHTML += `
-        <td style="text-align: right;">
+        <td class="row-actions-cell" style="text-align: right;">
           ${showHistory ? `<button class="action-btn" title="History" aria-label="History for ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="taxonomy-history" data-doc-id="${escapeHTMLText(row.id)}">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </button>` : ''}
@@ -1002,6 +1006,11 @@ window.openDynamicModal = async function(existingRecord) {
         select.innerHTML += `<option value="${o.trim()}">${o.trim()}</option>`;
       });
       if (existingVal !== undefined && existingVal !== null) select.value = existingVal;
+      // Stage 57.4: a new record's Status starts on Active (defaultSelectValue).
+      else if (!isEdit) {
+        const preset = defaultSelectValue(f, opts.map(o => o.trim()));
+        if (preset) select.value = preset;
+      }
       fg.appendChild(select);
     } else if (f.fieldtype === 'Link') {
       const select = document.createElement('select');
@@ -1009,8 +1018,40 @@ window.openDynamicModal = async function(existingRecord) {
       select.id = fieldId;
       select.name = f.fieldname;
       select.required = f.mandatory;
+      select.dataset.linkDoctype = f.options;
       select.innerHTML = '<option value="" disabled selected>— Loading Lookups —</option>';
       fg.appendChild(select);
+
+      // Stage 57.2: the last option creates a new record inline, fills this
+      // select with it and leaves the form open - instead of the user having
+      // to abandon the form to go and set the master up.
+      const CREATE_OPTION = '__quick_create__';
+      const appendCreateOption = () => {
+        if (!canCreateDoctype(f.options) || select.querySelector(`option[value="${CREATE_OPTION}"]`)) return;
+        const opt = document.createElement('option');
+        opt.value = CREATE_OPTION;
+        opt.textContent = `+ Create new ${getDoctypeLabel(f.options)}…`;
+        select.appendChild(opt);
+      };
+      let lastLinkValue = '';
+      select.addEventListener('focus', () => { lastLinkValue = select.value === CREATE_OPTION ? '' : select.value; });
+      select.addEventListener('change', async () => {
+        if (select.value !== CREATE_OPTION) { lastLinkValue = select.value; return; }
+        select.value = lastLinkValue;
+        const doc = await openQuickCreate(f.options, '');
+        if (!doc) return;
+        const id = doc.id == null ? '' : String(doc.id);
+        if (![...select.options].some(o => o.value === id)) {
+          const opt = document.createElement('option');
+          opt.value = id;
+          opt.textContent = doc.name || doc.code || id;
+          select.insertBefore(opt, select.querySelector(`option[value="${CREATE_OPTION}"]`));
+        }
+        select.value = id;
+        lastLinkValue = id;
+        fg.querySelector('.empty-state-hint')?.remove();
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      });
 
       // Fetch target link options asynchronously
       apiFetch(`/api/v1/doc/${f.options}`).then(res => {
@@ -1027,7 +1068,10 @@ window.openDynamicModal = async function(existingRecord) {
           // (10 of the 18 core master lists were empty at audit time).
           if (!data || data.length === 0) {
             select.innerHTML = `<option value="" disabled selected>— No ${getDoctypeLabel(f.options)} records yet —</option>`;
-            fg.insertAdjacentHTML('beforeend', emptyPickerHint(f.options));
+            appendCreateOption();
+            // With inline create on offer the select itself is the way out;
+            // the navigate-away hint stays only for a user who cannot create.
+            if (!canCreateDoctype(f.options)) fg.insertAdjacentHTML('beforeend', emptyPickerHint(f.options));
             return;
           }
           select.innerHTML = '<option value="" disabled selected>— Select Reference —</option>';
@@ -1044,6 +1088,10 @@ window.openDynamicModal = async function(existingRecord) {
             select.appendChild(option);
           });
           if (existingVal !== undefined && existingVal !== null) select.value = existingVal;
+          // Stage 57.2: a value carried across a setup detour, applied now the
+          // options it names exist (restoreFormValues).
+          else if (select.dataset.pendingValue && [...select.options].some(o => o.value === select.dataset.pendingValue)) select.value = select.dataset.pendingValue;
+          appendCreateOption();
         });
       });
     } else if (f.fieldtype === 'JSONTable' || f.fieldtype === 'JSONMap') {
@@ -1134,6 +1182,8 @@ window.openDynamicModal = async function(existingRecord) {
       // Scoped to this exact field rather than every text input, since no
       // other field has a generator behind it.
       if (currentDoctype === 'Item' && f.fieldname === 'barcode' && !isCodeField) {
+        // Stage 57.7: optional - issued by the barcode policy when left blank.
+        if (!input.value) input.placeholder = 'Optional - leave blank to have one issued';
         const row = document.createElement('div');
         row.style.display = 'flex';
         row.style.gap = '8px';
@@ -1181,6 +1231,21 @@ window.openDynamicModal = async function(existingRecord) {
       });
     }
     if (departmentInput) attachLinkTypeahead(departmentInput, 'Department');
+  }
+
+  // Stage 57.3: "HSN Code* - ask to create the master in New Item". The HSN
+  // box becomes a picker over the HSN catalogue with inline create, and a
+  // chosen code's default GST rate fills an empty rate field.
+  if (currentDoctype === 'Item') {
+    attachHSNPicker(body.querySelector('[name="hsn_code"]'), body.querySelector('[name="gst_rate"]'));
+  }
+
+  // Stage 55.7: a Bin's zone must be an existing Zone's code, which is
+  // auto-numbered - so it is picked (showing the zone's name), and a zone
+  // that does not exist yet is created right here from the picker.
+  if (currentDoctype === 'Bin') {
+    const zoneInput = body.querySelector('[name="zone"]');
+    if (zoneInput && zoneInput.tagName === 'INPUT') attachLinkTypeahead(zoneInput, 'Zone', { showAllOnFocus: true });
   }
 
   // Stage 33: only the long forms get the wide, multi-column dialog. Item
@@ -1351,8 +1416,11 @@ async function handleDynamicFormSubmitInner(form) {
     // existing record from a shortcut-opened list is just browsing, not
     // the flow the shortcut exists for.
     const returnTo = (!isEdit && quickCreateReturn && quickCreateReturn.forDoctype === currentDoctype) ? quickCreateReturn : null;
-    quickCreateReturn = null;
-    renderView(returnTo ? returnTo.view : 'doctype-table');
+    // Stage 57.2: the shared return restores the origin list, reopens the
+    // form that was open there with what had been typed, and fills in the
+    // record just created - and unwinds the detour's history entry.
+    if (returnTo) returnFromQuickCreate(savedData && savedData.id);
+    else { quickCreateReturn = null; renderView('doctype-table'); }
     // Stage 50/AUD-09 follow-up: closeDynamicModal() just above correctly
     // restored focus to the "+ New"/row "Edit" button that opened this modal
     // (captureFocusForModalReturn/restoreFocusAfterModalClose) - but

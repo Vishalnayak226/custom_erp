@@ -64,6 +64,11 @@ type LiveUserState struct {
 	Role              string
 	LocationCode      string
 	CredentialVersion int
+	// MustChangePassword (Stage 57.17) is set when an administrator chose
+	// this password - a new account, or an admin-issued reset - and cleared
+	// when the user sets their own. apiMiddleware refuses everything but the
+	// change-password call until then.
+	MustChangePassword bool
 }
 
 type authStateEntry struct {
@@ -122,10 +127,16 @@ func ResolveLiveUserState(tenantID, userID string) (LiveUserState, error) {
 		return LiveUserState{}, err
 	}
 
+	// must_change_password is read through to_jsonb so this per-request query
+	// keeps working on a schema the Stage 57 migration has not reached yet -
+	// a missing column here would otherwise fail every session, not just one
+	// feature.
 	var state LiveUserState
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT role, location_code, credential_version FROM %s.users WHERE id = $1 AND status = 'Active'`, schema),
-		userID).Scan(&state.Role, &state.LocationCode, &state.CredentialVersion)
+		`SELECT role, location_code, credential_version,
+		        COALESCE((to_jsonb(u)->>'must_change_password')::boolean, FALSE)
+		   FROM %s.users u WHERE id = $1 AND status = 'Active'`, schema),
+		userID).Scan(&state.Role, &state.LocationCode, &state.CredentialVersion, &state.MustChangePassword)
 
 	switch {
 	case err == sql.ErrNoRows:

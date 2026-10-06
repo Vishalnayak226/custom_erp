@@ -646,7 +646,7 @@ window.checkOutYardTrailer = async function(id) {
 // CSS flex positioning - no calendar library, per the plan). Week view
 // trades the timeline for a door x day grid of chips, since positioning by
 // time-of-day stops being legible at 7-day zoom.
-let calendarDate = new Date().toISOString().slice(0, 10);
+let calendarDate = localISODate(new Date());
 let calendarWeekView = false;
 
 async function renderAppointmentCalendarView(container) {
@@ -681,8 +681,8 @@ async function renderAppointmentCalendarView(container) {
       <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-carrier">Carrier</label><input type="text" id="cal-carrier" class="form-input" style="width:120px;" autocomplete="off"></div>
       <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-trailer">Trailer No</label><input type="text" id="cal-trailer" class="form-input" style="width:120px;" autocomplete="off"></div>
       <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-appt-date">Date</label><input type="date" id="cal-appt-date" class="form-input" style="width:150px;" value="${calendarDate}"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-start">Start (HH:MM)</label><input type="text" id="cal-start" class="form-input" style="width:90px;" placeholder="09:00"></div>
-      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-end">End (HH:MM)</label><input type="text" id="cal-end" class="form-input" style="width:90px;" placeholder="10:00"></div>
+      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-start">Start</label><input type="time" id="cal-start" class="form-input" style="width:120px;" value="09:00"></div>
+      <div class="form-group" style="margin-bottom: 0;"><label class="form-label" for="cal-end">End</label><input type="time" id="cal-end" class="form-input" style="width:120px;" value="10:00"></div>
       <button class="btn btn-primary" id="cal-save-btn" type="button">Save</button>
     </div>
     <div id="cal-form-error" class="login-error hidden" style="margin-top: 12px;"></div>
@@ -707,7 +707,7 @@ async function renderAppointmentCalendarView(container) {
 function shiftCalendarDate(days) {
   const d = new Date(calendarDate + 'T00:00:00');
   d.setDate(d.getDate() + days);
-  calendarDate = d.toISOString().slice(0, 10);
+  calendarDate = localISODate(d);
   document.getElementById('cal-date').value = calendarDate;
   loadAppointmentCalendar();
 }
@@ -717,7 +717,7 @@ function calendarWeekDates() {
   d.setDate(d.getDate() - d.getDay());
   const out = [];
   for (let i = 0; i < 7; i++) {
-    out.push(d.toISOString().slice(0, 10));
+    out.push(localISODate(d));
     d.setDate(d.getDate() + 1);
   }
   return out;

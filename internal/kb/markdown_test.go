@@ -120,3 +120,22 @@ func TestHeadingSlugMatchesRenderedAnchor(t *testing.T) {
 		}
 	}
 }
+
+// Stage 57 (user QA): a generated article's "do not edit" banner is an HTML
+// comment, and was printed on the page as escaped text.
+func TestRenderMarkdownDropsHTMLComments(t *testing.T) {
+	source := "# Title\n\n<!-- GENERATED ARTICLE - DO NOT EDIT BY HAND.\nRegenerate: go run ./cmd/gendocs -->\n\nBody text.\n\n<!-- one-line note -->\n\nMore."
+	out := RenderMarkdown(source)
+	for _, leaked := range []string{"GENERATED", "Regenerate", "one-line note", "&lt;!--"} {
+		if strings.Contains(out, leaked) {
+			t.Fatalf("comment text %q leaked into rendered HTML:\n%s", leaked, out)
+		}
+	}
+	if !strings.Contains(out, "Body text.") || !strings.Contains(out, "More.") {
+		t.Fatalf("content around the comments was lost:\n%s", out)
+	}
+	// An unterminated comment must not swallow the rest of the article.
+	if out := RenderMarkdown("<!-- stray\n\nStill here."); !strings.Contains(out, "Still here.") {
+		t.Fatalf("unterminated comment swallowed following content:\n%s", out)
+	}
+}

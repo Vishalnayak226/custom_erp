@@ -1,5 +1,28 @@
 <h1 id="product-information-management">Product Information Management <a class="kb-anchor" href="#product-information-management" aria-label="Copy link to this section">#</a></h1>
 <p>The PIM screen is one shell (<strong>Dashboard</strong>, <strong>Workbench</strong>, <strong>Reports</strong>, <strong>My Work</strong>, <strong>Media Library</strong>, plus a row of doctype-backed tabs for every taxonomy and channel-mapping record type) built entirely on the generic document machinery — every tab that isn&#39;t a bespoke screen is a plain doctype table with create/list/edit/RBAC/audit/CSV-import for free. This article covers items, categories/attributes and price lists; grouping products for bulk action is its own article, <a href="/help/pim-product-groups">Product Groups</a>; day-to-day task/workflow handout is covered in the User Guide&#39;s &#34;Handing out PIM work&#34; section and the PIM dashboard&#39;s own <strong>My Work</strong> tab.</p>
+<h2 id="setting-up-pim-in-order">Setting up PIM, in order <a class="kb-anchor" href="#setting-up-pim-in-order" aria-label="Copy link to this section">#</a></h2>
+<p>PIM has 21 tabs, but you only need a few of them, in this order. Each step depends on the one before it; skip the ones marked optional until you need them.</p>
+<ol><li><strong>Items first.</strong> Every product is an ordinary Item (Setup → Item), with</li></ol>
+<p>its HSN code and GST rate. PIM enriches Items; it does not create them.</p>
+<ol><li><strong>Product Families</strong> tab — create one family per kind of product you</li></ol>
+<p>sell (&#34;Rings&#34;, &#34;T-Shirts&#34;, &#34;Fabric&#34;). A family is what an item&#39;s completeness is scored against, so an item with no family cannot be scored at all.</p>
+<ol><li><strong>Attribute Definitions</strong> tab — create the reusable fields that describe</li></ol>
+<p>your products (&#34;Metal Purity&#34;, &#34;Fabric&#34;, &#34;Sleeve Length&#34;). One definition can serve many families.</p>
+<ol><li><strong>Attribute Groups</strong> tab <em>(optional)</em> — group related attributes for</li></ol>
+<p>display (&#34;Physical Specifications&#34;). Purely presentational.</p>
+<ol><li><strong>Family Attributes</strong> tab — link each attribute to the families it</li></ol>
+<p>belongs to and set <strong>Mandatory for Completeness</strong> to Yes for the ones a product must have before it is ready. This list is exactly what completeness checks.</p>
+<ol><li><strong>Put each item in its family</strong> — open the Item (Setup → Item, Edit) and</li></ol>
+<p>set its <strong>Product Family</strong>.</p>
+<ol><li><strong>Workbench</strong> tab — pick an item and fill it in: its attribute values,</li></ol>
+<p>its descriptive content (submit it for approval; only Approved content counts as complete) and its images (here, or in bulk from the <strong>Media Library</strong> tab).</p>
+<ol><li><strong>Dashboard</strong> and <strong>Reports</strong> tabs — see which items are complete and,</li></ol>
+<p>for the rest, exactly which required values are missing.</p>
+<ol><li><strong>Selling online</strong> <em>(optional)</em> — <strong>Channels</strong> (one per marketplace or</li></ol>
+<p>web shop), then <strong>Category Mapping</strong> and <strong>Field Mapping</strong> for each channel, then <strong>Validation Rules</strong> for what that channel insists on. Publish from the item&#39;s section on the Workbench.</p>
+<ol><li><strong>Working as a team</strong> <em>(optional)</em> — Product Groups (bulk work on a set</li></ol>
+<p>of products), <strong>Task Templates</strong> and <strong>Workflows</strong> (handing out work, see <strong>My Work</strong>), and the Import/Export templates and Catalogs tabs for bulk data in and out.</p>
+<p>If you sell only through your own shops (POS), steps 1–8 are all you need.</p>
 <h2 id="items">Items <a class="kb-anchor" href="#items" aria-label="Copy link to this section">#</a></h2>
 <p>The Item master is the one record every other module in this system reads from — its <strong>HSN Code</strong> and <strong>GST Rate</strong> are what makes it sellable through POS/OMS/Procurement, both already covered in <a href="/help/pos-operations">Point of Sale</a> and <a href="/help/procurement">Procurement</a>. This article&#39;s job is what PIM adds on top of that core record: categorisation, enrichment content, locale/channel-aware attributes, and completeness scoring.</p>
 <h2 id="categories-and-attributes-taxonomy">Categories and attributes (taxonomy) <a class="kb-anchor" href="#categories-and-attributes-taxonomy" aria-label="Copy link to this section">#</a></h2>

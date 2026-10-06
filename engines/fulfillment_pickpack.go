@@ -155,6 +155,17 @@ func resolveScanToItem(schema, scan string) (sku, name string, found bool, err e
 	} else if err != sql.ErrNoRows {
 		return "", "", false, err
 	}
+	// Stage 57.7: a receipt-date barcode from the ItemBarcode register.
+	if itemID := resolveRegisteredBarcode(schema, scan); itemID != "" {
+		err = db.DB.QueryRow(fmt.Sprintf(
+			`SELECT data->>'code', data->>'name' FROM %s.documents WHERE doctype = 'Item' AND id = $1 AND deleted_at IS NULL LIMIT 1`, schema),
+			itemID).Scan(&sku, &name)
+		if err == nil {
+			return sku, name, true, nil
+		} else if err != sql.ErrNoRows {
+			return "", "", false, err
+		}
+	}
 	err = db.DB.QueryRow(fmt.Sprintf(
 		`SELECT data->>'code', data->>'name' FROM %s.documents WHERE doctype = 'Item' AND data->>'code' = $1 AND deleted_at IS NULL LIMIT 1`, schema),
 		scan).Scan(&sku, &name)

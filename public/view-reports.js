@@ -164,7 +164,7 @@ async function renderExecDashboardBody(panel) {
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(d.getDate() - i);
-      days.push(d.toISOString().slice(0, 10));
+      days.push(localISODate(d));
     }
     const totalsByDay = Object.fromEntries(days.map(d => [d, 0]));
     const countsByDay = Object.fromEntries(days.map(d => [d, 0]));
@@ -515,7 +515,7 @@ async function renderReceivablesAgeingReport(panel) {
 async function renderGSTReturnSummaryReport(panel) {
   const now = new Date();
   const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-  const today = now.toISOString().slice(0, 10);
+  const today = localISODate(now);
   panel.innerHTML = `
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; padding: 16px;">
       <div class="form-group" style="margin-bottom: 0;">
@@ -1140,8 +1140,12 @@ async function renderRFQView(container) {
           <td>${r.description || ''}</td>
           <td>${r.quantity ?? ''}</td>
           <td>${r.target_date || ''}</td>
-          <td><span class="badge ${r.status === 'Closed' ? 'badge-success' : 'badge-secondary'}">${r.status}</span></td>
-          <td><button class="action-btn" ${actionAttrs('viewRFQQuotes', [r.id])}>View Quotes</button></td>
+          <td><span class="badge ${r.status === 'Closed' ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(r.status || '')}</span></td>
+          <td style="white-space: nowrap;">
+            <button class="action-btn" ${actionAttrs('viewRFQQuotes', [r.id])}>${r.status === 'Closed' ? 'View Quotes' : 'Vendors &amp; Quotes'}</button>
+            ${r.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('setRFQStatus', [r.id, 'Sent'])}>Mark as Sent</button>` : ''}
+            ${r.status === 'Sent' ? `<button class="action-btn" ${actionAttrs('setRFQStatus', [r.id, 'Closed'])}>Close</button>` : ''}
+          </td>
         </tr>
       `).join('');
   listHtml += `</tbody></table>`;
@@ -1196,17 +1200,125 @@ function viewRFQQuotes(rfqId) {
   renderView('rfq');
 }
 
+// Stage 55.4: "Unable to change status of RFQ / how to assign vendors to an
+// RFQ?" The status had no control at all on this screen, and an RFQ had no
+// record of who it was sent to. Status moves along the transitions the
+// server already enforces (Draft -> Sent -> Closed; selecting a winning quote
+// also closes it), and the invited vendors are kept on the RFQ itself.
+
+// rfqInvitedVendors reads the stored list; tolerant of an empty or
+// hand-edited value so a malformed field never breaks the screen.
+function rfqInvitedVendors(rfq) {
+  try {
+    const list = JSON.parse((rfq && rfq.invited_vendors) || '[]');
+    return Array.isArray(list) ? list.map(String).filter(Boolean) : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// saveRFQ writes the whole record back - the generic update replaces a
+// document's data rather than merging into it - with its version, so a
+// concurrent edit is refused instead of silently overwritten.
+async function saveRFQ(rfqId, changes) {
+  const loaded = await apiFetch(`/api/v1/doc/RFQ/${encodeURIComponent(rfqId)}`);
+  if (!loaded) return false;
+  if (!loaded.ok) { await showApiError(loaded, 'Could not load the RFQ.'); return false; }
+  const { id, ...rfq } = await loaded.json();
+  const payload = { ...rfq, ...changes };
+  if (typeof rfq.version === 'number') payload.expected_version = rfq.version;
+  const res = await apiFetch(`/api/v1/doc/RFQ/${encodeURIComponent(rfqId)}`, { method: 'POST', body: JSON.stringify(payload) });
+  if (!res) return false;
+  if (!res.ok) { await showApiError(res, 'Could not update the RFQ.'); return false; }
+  return true;
+}
+
+async function setRFQStatus(rfqId, status) {
+  if (status === 'Sent') {
+    const loaded = await apiFetch(`/api/v1/doc/RFQ/${encodeURIComponent(rfqId)}`);
+    const rfq = loaded && loaded.ok ? await loaded.json() : null;
+    if (rfq && rfqInvitedVendors(rfq).length === 0 &&
+        !await showCustomConfirm('No vendors are invited to this RFQ yet. Mark it as sent anyway?', 'Mark RFQ as Sent')) return;
+  }
+  if (status === 'Closed' &&
+      !await showCustomConfirm('Close this RFQ without choosing a winning quote? No further quotes can be recorded against it.', 'Close RFQ')) return;
+  if (await saveRFQ(rfqId, { status })) {
+    showToast(`RFQ marked ${status}.`, { variant: 'success' });
+    renderView('rfq');
+  }
+}
+
+async function inviteRFQVendor(rfqId) {
+  const input = document.getElementById('rfq-invite-vendor');
+  const code = input ? input.value.trim() : '';
+  if (!code) { input?.focus(); return; }
+  const loaded = await apiFetch(`/api/v1/doc/RFQ/${encodeURIComponent(rfqId)}`);
+  if (!loaded || !loaded.ok) return;
+  const list = rfqInvitedVendors(await loaded.json());
+  if (list.some(v => v.toLowerCase() === code.toLowerCase())) {
+    showToast('That vendor is already invited.', { variant: 'warning' });
+    return;
+  }
+  if (await saveRFQ(rfqId, { invited_vendors: JSON.stringify([...list, code]) })) renderView('rfq');
+}
+
+async function removeRFQVendor(rfqId, code) {
+  const loaded = await apiFetch(`/api/v1/doc/RFQ/${encodeURIComponent(rfqId)}`);
+  if (!loaded || !loaded.ok) return;
+  const list = rfqInvitedVendors(await loaded.json()).filter(v => v !== code);
+  if (await saveRFQ(rfqId, { invited_vendors: JSON.stringify(list) })) renderView('rfq');
+}
+
+window.setRFQStatus = setRFQStatus;
+window.inviteRFQVendor = inviteRFQVendor;
+window.removeRFQVendor = removeRFQVendor;
+
 async function renderRFQQuotesPanel(container, rfqId, rfq) {
   const res = await apiFetch(`/api/v1/rfq/quotes?rfq_id=${encodeURIComponent(rfqId)}`);
   if (!res) return;
   const quotes = res.ok ? await res.json() : [];
   const isClosed = rfq && rfq.status === 'Closed';
 
+  // Stage 55.4: who this RFQ went to. Invite while it is open; a quote from a
+  // vendor who was never invited still records, and invites them on the way.
+  const invited = rfqInvitedVendors(rfq);
+  const vendorsPanel = document.createElement('div');
+  vendorsPanel.className = 'table-panel';
+  vendorsPanel.style.padding = '24px';
+  vendorsPanel.style.marginBottom = '16px';
+  vendorsPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 4px;">Invited vendors</h2>
+    <p style="font-size: 13px; color: var(--text-muted); margin-bottom: 12px;">
+      ${isClosed ? 'This RFQ is closed.' : 'Add the vendors you are asking for a quote. Mark the RFQ as <b>Sent</b> once you have sent it to them.'}
+    </p>
+    <div class="rfq-vendor-chips" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:${isClosed ? '0' : '12px'};">
+      ${invited.length === 0 ? '<span style="color: var(--text-muted); font-size: 13px;">No vendors invited yet.</span>' :
+        invited.map(v => `<span class="badge badge-secondary" style="display:inline-flex; align-items:center; gap:6px;">
+            <span data-link-doctype="Vendor" data-link-ref="${escapeHTMLText(v)}">${escapeHTMLText(v)}</span>
+            ${isClosed ? '' : `<button type="button" class="copy-chip" aria-label="Remove ${escapeHTMLText(v)}" title="Remove" ${actionAttrs('removeRFQVendor', [rfqId, v])}>&times;</button>`}
+          </span>`).join('')}
+    </div>
+    ${isClosed ? '' : `
+      <div style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="rfq-invite-vendor">Vendor</label>
+          <input type="text" id="rfq-invite-vendor" class="form-input" style="width: 220px;" autocomplete="off">
+        </div>
+        <button class="btn btn-outline" id="rfq-invite-btn" type="button">Invite vendor</button>
+      </div>`}
+  `;
+  container.appendChild(vendorsPanel);
+  const inviteInput = document.getElementById('rfq-invite-vendor');
+  if (inviteInput) {
+    attachLinkTypeahead(inviteInput, 'Vendor');
+    document.getElementById('rfq-invite-btn').addEventListener('click', () => inviteRFQVendor(rfqId));
+  }
+
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.padding = '24px';
   panel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Quotes for ${rfqId}</h2>
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Quotes for ${escapeHTMLText((rfq && rfq.code) || rfqId)}</h2>
     ${isClosed ? '' : `
       <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px;">
         ${autoNumberField('Quote Number', 'QTN', '160px')}
@@ -1284,6 +1396,15 @@ async function submitVendorQuoteInner(rfqId) {
     errorEl.textContent = data.error || 'Failed to submit quote.';
     errorEl.classList.remove('hidden');
     return;
+  }
+  // A quote from a vendor who was not on the invite list puts them on it,
+  // so the list stays a true record of who is in this RFQ.
+  const loaded = await apiFetch(`/api/v1/doc/RFQ/${encodeURIComponent(rfqId)}`);
+  if (loaded && loaded.ok) {
+    const list = rfqInvitedVendors(await loaded.json());
+    if (!list.some(v => v.toLowerCase() === vendor.toLowerCase())) {
+      await saveRFQ(rfqId, { invited_vendors: JSON.stringify([...list, vendor]) });
+    }
   }
   renderView('rfq');
 }

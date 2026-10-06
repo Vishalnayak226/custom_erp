@@ -125,13 +125,60 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-06 Stage 57 user QA round (ledger §197, checklist Stage 57 + Stage 55 note):** built
+  and verified the non-decision items — names-not-codes (`installNameDisplay`, view sweep),
+  create-in-place (`public/view-pickers.js`, lazy; also the shared date picker), setup detour
+  with form restore, Status=Active, HSN catalogue (`engines/hsn_catalog.go`), TO location
+  resolution, RFQ vendors/status, Bin zone picker, DebitNote PO Link, PIM tab scroll, sticky row
+  actions, KB comment fix + regen, Stock/WMS menu, roles/users (create role, module grants,
+  server-enforced first-login password change via `users.must_change_password`, menu rules by
+  module), CSP-report rate-limit bucket, typeahead `placeMenu` (unblocks the SOP PO chapter).
+  Migration `db/migrations_stage57_qa_round.sql` (additive, idempotent, all tenants). **Not
+  committed, not deployed.** Disposable DBs `erp_qa57_20261004` / `erp_qa57_live_20261004` on
+  :5490 (shared `custom_erp_test` untouched); scratch server stopped. NFR-COST-001 cold core has
+  only ~1.4 KB headroom — expect the next sizeable `app.js` addition to trip it. Three
+  fresh-schema-only engine/server test failures are pre-existing (`Stores` doctype, module
+  "Store"). The user's `docs/sop-video` was reviewed and deliberately left unchanged; **never
+  delete anything without asking** (user, 2026-10-06).
+- **2026-10-06 Stage 57.12 first SOP video edition:** `docs/sop-video/` has five recorded
+  UI clips, a 55-second seekable Department → Purchase Requisition master WebM, editable
+  manifest/script, segment-level recorder/assembler, outlined player and tests. PO/GRN were
+  deliberately not published: the PO Item typeahead is intercepted by the environment banner.
+  All other ERP chapters, human voice and business-owner review remain open; 57.12 stays `[ ]`.
+  The isolated training DB is `custom_erp_org_20261005` and scratch server used 8111;
+  browser login state remains private under `.codex/scratchpad`, never in the repo. No commit,
+  push, deploy or application code change from the video task. Ledger §196 has details.
+- **2026-10-05 finance review scope addendum:** The functional plan and 55.0F/55.22 gates now
+  require separate Account Head operational reconciliation/close and qualified CA review of
+  applicable statutory/tax treatment and audit evidence. Neither reviewed the first UI run;
+  do not describe it as finance or statutory acceptance. No app code, commit or deploy.
+- **2026-10-05 Stage 55.0F first functional UI run, audit only:** See ledger §195 and
+  `docs/assurance/erp-functional-audit-2026-10-05.md`. Fresh disposable
+  `custom_erp_org_20261005` and scratch port 8111; Chromium saved/read back ten masters,
+  PR → manager-approved PO → partial/rejected GRN → draft supplier invoice and failed match,
+  plus a Transfer draft and one idempotent manual OMS order. Six findings include AP
+  three-way tax/partial math, Transfer approval HTTP 405, and Reserved OMS order with no
+  visible fulfillment progression. **No bug fixes now at user's request; 55.0F remains open.**
+  This is one reviewer, not three independent organizational users; no full module/month-end
+  acceptance, production mutation or Go suite was claimed. The browser state in scratch is
+  sensitive and must never be copied into docs. No commit, push or deploy from this pass.
 - Stage 55 audit/plan: 20 module owners, 56 routes, 199 record types, 70 tab/config panels and 92
   report parameter screens. See ledger §192 and `docs/product/erp-module-usability-plan-2026-10-04.md`.
-  User subsequently authorized building 55.1 (shared New/Edit, cold tabs, Wave input, focus, User lookup).
-  All domain redesign/real-user acceptance remains planned; do not confuse audit coverage with acceptance.
+  **55.1 is now closed locally** (ledger §193, `docs/assurance/stage55-shared-correctness-2026-10-04.json`):
+  20 Chromium checks pass across seven cold HR/Manufacturing tabs, all 54 secondary panels,
+  New/Edit and real Department save, Wave input at 390px, modal focus, password-reset path and
+  restricted-role denial. `public/app.js` and `public/index.html` now use matching asset version 32;
+  keep them paired. Full Go suite still fails only on the known stale audit checkpoint; server tests
+  pass. **User scope correction (ledger §194):** Stage 55.0 was a screen inventory, not functional
+  acceptance. Open 55.0F and `docs/product/erp-functional-verification-plan-2026-10-04.md` now
+  require a full-organization UI operating month, save/readback/number/stock/GL/lineage evidence
+  for every applicable module and classification of 199 types. Prioritize those business defects
+  before 55.2 visual work. The operating month has **not** been executed; real-user acceptance
+  remains open.
 - The current tree is intentionally uncommitted and contains parallel-session changes. Preserve
   unrelated work; never stage everything, and do not commit, push or deploy unless explicitly
-  asked in the active request.
+  asked in the active request. A separate session advanced HEAD to `fe97416` during 55.1 closeout;
+  this pass did not commit, and its assurance/checklist documentation remains uncommitted.
 - Ordered batch: BLD-036 closed with its accepted section-refresh residual. BLD-045 remains open:
   final Chromium rerun has LCP p75 1.808 s (1.5 s budget), cached-navigation p95 270.5 ms (250 ms
   budget), max CLS 0.08346 and longest task 567 ms; INP, keyboard/focus and browser errors pass.

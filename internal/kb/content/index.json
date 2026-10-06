@@ -95,14 +95,15 @@
           "title": "Finding your way around",
           "section": "Getting Started",
           "order": 3,
-          "summary": "The sidebar's eleven entries, the two search boxes that do different things, and the shape every list screen shares.",
+          "summary": "The sidebar's twelve entries, the two search boxes that do different things, and the shape every list screen shares.",
           "audience": "everyone",
           "screens": [
+            "home",
             "reports",
             "doctype-table",
             "inventory"
           ],
-          "last_verified": "2026-08-17",
+          "last_verified": "2026-09-24",
           "owner": "documentation-maintainer",
           "status": "draft",
           "topic_type": "tutorial",
@@ -1150,6 +1151,7 @@
           "audience": "procurement officer, store manager, admin",
           "screens": [
             "purchase-orders",
+            "purchase-requisitions",
             "grn",
             "rfq",
             "doctype-table",
@@ -1543,6 +1545,11 @@
           "applies_to": "source documentation; scoped release acceptance required",
           "source_path": "module-handbooks/pim-pxm.md",
           "headings": [
+            {
+              "level": 2,
+              "text": "Setting up PIM, in order",
+              "slug": "setting-up-pim-in-order"
+            },
             {
               "level": 2,
               "text": "Items",
@@ -3161,6 +3168,91 @@
           "headings": [
             {
               "level": 2,
+              "text": "2026-10-03",
+              "slug": "2026-10-03"
+            },
+            {
+              "level": 2,
+              "text": "2026-10-02",
+              "slug": "2026-10-02"
+            },
+            {
+              "level": 2,
+              "text": "2026-10-01",
+              "slug": "2026-10-01"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-30",
+              "slug": "2026-09-30"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-29",
+              "slug": "2026-09-29"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-28",
+              "slug": "2026-09-28"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-27",
+              "slug": "2026-09-27"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-25",
+              "slug": "2026-09-25"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-24",
+              "slug": "2026-09-24"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-23",
+              "slug": "2026-09-23"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-22",
+              "slug": "2026-09-22"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-18",
+              "slug": "2026-09-18"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-17",
+              "slug": "2026-09-17"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-16",
+              "slug": "2026-09-16"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-13",
+              "slug": "2026-09-13"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-12",
+              "slug": "2026-09-12"
+            },
+            {
+              "level": 2,
+              "text": "2026-09-11",
+              "slug": "2026-09-11"
+            },
+            {
+              "level": 2,
               "text": "2026-09-09",
               "slug": "2026-09-09"
             },
@@ -3756,6 +3848,11 @@
             },
             {
               "level": 2,
+              "text": "POS / Billing",
+              "slug": "pos-billing"
+            },
+            {
+              "level": 2,
               "text": "POS / Offline \u0026 Cash Drawer",
               "slug": "pos-offline-cash-drawer"
             },
@@ -3941,6 +4038,9 @@
     "help": [
       "using-task-help"
     ],
+    "home": [
+      "finding-your-way-around"
+    ],
     "hr": [
       "hr-payroll"
     ],
@@ -4007,6 +4107,9 @@
       "open-a-shop-and-make-your-first-sale",
       "procurement",
       "troubleshooting-index"
+    ],
+    "purchase-requisitions": [
+      "procurement"
     ],
     "putaway": [
       "inventory-wms-operations",

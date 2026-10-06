@@ -25,6 +25,10 @@ verification_scope: metadata and lifecycle classification; domain acceptance pen
 
 *Need literal click-by-click steps for a screen not walked through in depth below? See **[USER_SOP.md](USER_SOP.md)** — the same plain-language style, one section per screen, covering every module.*
 
+*Prefer to watch? The [editable process-video library](../sop-video/readme.md) currently has a
+complete Purchase Requisition training chapter, including Department setup and a saved-number
+check. Other video chapters are explicitly pending; use this written guide for those tasks.*
+
 ---
 
 ## How do I…?
@@ -34,6 +38,7 @@ Jump straight to the thing you're trying to do.
 | I want to… | Go to |
 |---|---|
 | Log in for the first time | §2 |
+| Watch a step-by-step Purchase Requisition example | [Process-video library](../sop-video/readme.md) |
 | Find a screen I can't see in the menu | §3 |
 | **Ring up a sale** | §4 — read the prerequisites box first |
 | Open or close the till for a shift | §4.0 |
@@ -90,8 +95,9 @@ Think of this system as one big digital notebook that your whole business shares
 1. Open the app in your web browser. You'll see a **login screen**.
 2. Type in your **username** and **password** (your manager or admin gives these to you).
 3. Click **Login**.
-4. If you have a role that needs extra security (like an Admin), you may be asked for a **6-digit code** from an authenticator app on your phone. This is called **MFA** (Multi-Factor Authentication) — it's an extra lock on the door, on top of your password.
-5. If you type your password wrong too many times in a row, the system will temporarily lock your account to keep it safe. Wait a bit and try again, or ask an admin for help.
+4. **The first time you sign in** — and the first time after an administrator has reset your password — you are asked to **Set your own password**: type the password you were given, then your new one twice. Nothing else in the system opens until you have done this, so the password your administrator knows never stays in use. If you forget your password later, ask your administrator to reset it; you will be asked to choose a new one again.
+5. Only administrator accounts (Super Admin / HR/Admin) are asked for a **6-digit code** from an authenticator app on their phone. This is called **MFA** (Multi-Factor Authentication) — an extra lock on the door, on top of the password. Everyone else signs in with username and password only.
+6. If you type your password wrong too many times in a row, the system will temporarily lock your account to keep it safe. Wait a bit and try again, or ask an admin for help.
 
 ### If your role uses MFA: your recovery codes
 
@@ -132,7 +138,7 @@ The sidebar has **twelve top-level entries**. Most are module groups: hover one 
 | **Sales & Marketplace** | Order Management · Fulfillment · Marketplace · Customer |
 | **Reports** | Opens directly (§9). Its first tab is a dashboard of live figures. |
 | **Procurement** | Purchase Requisitions · Purchase Order (§6) · ASN · **Goods Receipt** · Vendors · RFQ / Quotes |
-| **Stock** | Inventory (§5) · Stock Transfer (§7) · Bin · Putaway · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · Cycle Count · Sticker Printing (§7A) |
+| **Stock** | Inventory (§5) · Stock Transfer (§7), then under the **WMS** heading every warehouse-operations screen: Bin · Putaway · Warehouse Cockpit · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · RF Lot & Serial · Cycle Count · Dock Doors · Appointment Calendar · Yard Board · Trailers · Holds · Cross-Dock Plans · RF Receiving · Waves · Sortation · Loading · Sticker Printing (§7A) |
 | **HRM** | HR · Fixed Assets · Expenses |
 | **Manufacturing** | Opens directly. |
 | **PIM** | Opens directly. |
@@ -142,7 +148,11 @@ The sidebar has **twelve top-level entries**. Most are module groups: hover one 
 
 ![The sidebar, showing its twelve top-level entries](img/sidebar.png)
 
-**You only see what your role can use.** If a module or a screen isn't in your menu, your role doesn't have access to it — that's the system working, not something missing. Ask your administrator if you need it.
+**You only see what your role can use.** If a module or a screen isn't in your menu, your role doesn't have access to it — that's the system working, not something missing. Ask your administrator if you need it. **Home**, **Reports** and the **Knowledge Center** are there for everyone; if you approve documents, your queue is on **Home** ("waiting on you") even when you have no Finance menu.
+
+**Names, not codes.** Wherever you pick or see a record — a department, a warehouse, a vendor — the screen shows its **name**. The system's own reference (for example `Department/HQ/2026/000001`) is still what gets stored; hover over the box or cell to see it, and the copy button next to a list value still copies it.
+
+**Dates.** Click any date box to open a calendar: the arrows change month, clicking the month name lets you jump by month or year, **Today** fills in today and **Clear** empties the box. You can still type a date straight into the box. From the keyboard, **Alt+↓** opens the calendar, the arrow keys move a day or a week, **Page Up/Down** a month, **Enter** picks and **Esc** closes.
 
 ### Home, your landing screen
 
@@ -402,6 +412,22 @@ If that means there isn't enough to fulfil the order, the pick list says **short
 
 Together the last two are what a recall needs — the first tells you what to stop shipping, the second tells you who already received it.
 
+### 6.4 Asking vendors for quotes (RFQ)
+
+**Procurement → RFQ / Quotes.** Use it when you want prices from several suppliers before you raise a Purchase Order.
+
+1. **Create the RFQ**: describe what you need, the quantity and (optionally) a target date, then **Create RFQ**. It starts as **Draft**.
+2. **Invite vendors**: on the RFQ's row choose **Vendors & Quotes**. Under **Invited vendors**, pick each supplier you are asking and **Invite vendor**. Remove one with its **×** while the RFQ is open.
+3. **Mark as Sent** once you have actually sent the request to them (by email, phone or in person — the system records who it went to; it does not send the request itself).
+4. **Record each quote** as it comes in: vendor, quoted price and lead time, then **Submit Quote**. A quote from a supplier you had not invited still records, and adds them to the invited list.
+5. **Choose the winner**: **Select as Winner** on the best quote. The other quotes are rejected and the RFQ closes. If you decide to buy from nobody, use **Close** on the RFQ instead.
+
+The status only moves forward — Draft → Sent → Closed.
+
+### 6.5 Sending goods back to a supplier
+
+There is **no separate Purchase Return screen yet.** Today, when you send goods back or a supplier overcharged you, record the money side with a **Debit Note** (Financial Accounting → Debit / Credit Notes): pick the supplier and the **Reference PO** from its list, the amount and the reason. Moving the returned stock itself out of your inventory is not yet a guided flow — ask your administrator how your business handles it until it is.
+
 ## 7. Moving Stock Between Locations (Stock Transfer)
 
 1. Click **Stock Transfer** in the sidebar.
@@ -487,9 +513,9 @@ Adding a new one always works the same way, no matter which list you're in:
 
 1. Click the list in the sidebar (or open it from **Setup**).
 2. Click the **New [thing]** button, top right. The dialog title starts with **New** and opens with empty/default fields. A row's **Edit** action instead opens **Edit** with that record's saved values.
-3. Fill in the fields — anything marked with a **\*** is required, everything else is optional. A "Code" field usually says *"Auto-generated upon save"* — leave it blank and the system numbers it for you.
+3. Fill in the fields — anything marked with a **\*** is required, everything else is optional. A "Code" field usually says *"Auto-generated upon save"* — leave it blank and the system numbers it for you. **Status** starts on **Active** for a new record; change it only if you are deliberately setting up something not yet in use.
 4. Some fields are small tables rather than boxes — a recipe’s components, a routing’s operations. Use **+ Add Line** to add a row and **Remove** to take one out. These table editors build the stored format for you; other specialist fields still explicitly labelled JSON are not yet converted to table editors.
-5. If a dropdown is empty, it says so and offers a **create one first** link straight to the list you need. That is the normal way to find out you are missing a prerequisite.
+5. If what you need is not in a dropdown, choose **+ Create new …** at the bottom of it: a small form opens on top, asking only what that record needs, and the new record is selected for you when you save — your half-filled form stays open underneath. See §8.1.
 6. Click **Save**.
 
 **Using the keyboard:** opening a record form moves focus into it. **Tab** and **Shift+Tab**
@@ -503,7 +529,9 @@ record and does not reuse the edited record's identifier.
 
 You should almost never have to work out *which* list you are missing. Three things do it for you, and they all say the same thing the same way:
 
-- **Under a search box.** Pick a vendor on a Purchase Order and, if no vendors exist yet, the box says so and offers a link straight to the Vendor list. If vendors *do* exist, the line only appears while you are in the box, and reads *"Can't find the Vendor you need? Add a Vendor"* — so it helps when you are stuck and stays out of the way when you are not.
+- **Under a search box.** Pick a department on a Purchase Requisition and, if none exist yet, the box says *"No Department has been set up yet. Set up Department"*. If departments *do* exist, the line only appears while you are in the box, and reads *"Can't find the Department you need? Add a Department"* — so it helps when you are stuck and stays out of the way when you are not.
+- **In the search results.** Type a name that does not exist yet and the list offers **Create "what you typed"**.
+- **Either way, you create it right there (Stage 57).** A small form opens **on top of** the one you are working in, already holding the name you typed, and asking only for what that record needs. Save it and it is filled into your box; your own form never closed, so nothing you typed is lost. This works everywhere a record is picked — a vendor or item on a purchase order, a department on a requisition, a zone on a new Bin, a location on a transfer. Inside the small form, a missing record can itself be created the same way (an Item's HSN code, for example). If your role is not allowed to create that kind of record, it says so and tells you who to ask instead.
 - **At the top of a screen.** Open a screen that needs something you have not set up and a short panel lists what is missing, each with its own link. Close it with the **×** if you already know; it stays closed for the rest of your visit and comes back next time you sign in — deliberately, so a half-finished setup does not stay half-finished.
 - **The ⧉ icon opens it in a new tab.** Every one of these links has one next to it. Use it when you do not want to lose what you are in the middle of — set the missing thing up in the second tab, come back to the first, and carry on. (The links are ordinary links, so **Ctrl+click** and **middle-click** work too.)
 
@@ -511,7 +539,7 @@ You should almost never have to work out *which* list you are missing. Three thi
 
 #### 8.1.1 You are brought back to where you came from
 
-When you follow one of those links, the system remembers where you were and brings you back.
+The panel at the top of a screen ("This screen needs some setup first") takes you to the full list instead, for setups that need more than a small form. When you follow one of those links, the system remembers where you were and brings you back. If you were in the middle of a new record's form, it is closed first (so the list is all you see), and when you come back it **opens again with what you had typed**, with the record you just created already filled in. The browser's **Back** button does the same thing.
 
 Say you are part-way through a **Goods Receipt** and the item you received does not exist yet. You click the link to the Item list, and:
 
@@ -525,6 +553,16 @@ Three details worth knowing, because they are deliberate:
 - **It forgets if you wander off.** Abandon the trip, navigate somewhere unrelated, and the return is dropped. A Vendor you create an hour later on the Vendor screen will not suddenly fling you back to a Goods Receipt you had forgotten about.
 
 If you would rather not leave the screen at all, use the **⧉** icon to do the setup in a second tab instead (see above). Both approaches work; this one is for when you are happy to go and come back.
+
+#### 8.1.2 HSN codes on an Item
+
+The **HSN Code** box on an Item is a picker over your **HSN Code** list (Setup → Core → HSN Code). Type a few digits: codes already in use appear, each with its description and default GST rate, and picking one fills an empty **GST Rate** for you. A code that is not on the list yet can be created from the picker. The list also fills itself: every Item saved with a valid HSN adds that code. An HSN or SAC code is **4, 6 or 8 digits**; spaces and dots are removed for you. The Item stores the plain number, so GST, e-invoices and reports read it exactly as before.
+
+**Barcodes on an Item** are optional to type: leave the box blank and one is issued for that SKU (when, depends on your administrator's barcode settings). Scan or type your own if you have one — it is kept. The **Generate** button makes one on the spot.
+
+#### 8.1.3 Bins and zones
+
+A Bin's **Zone** is picked from your Zone list, showing each zone's name. If the zone does not exist yet ("Cold Room"), choose **Create "Cold Room"** in the picker and save the small form — then save the Bin. You never need to know or type a zone's code.
 
 ### 8.2 Phone numbers
 
@@ -906,6 +944,7 @@ Underneath there's a **code** like `GLOBAL-0001` and a **correlation ID**. Look 
 | *"…requires a reason_code"* | You're reversing a decision (revoking an approved leave, un-selecting a vendor quote). Give a reason and it will go through. |
 | *"This sale requires manager approval"* | The discount is over your store's threshold. The sale waits in Approvals; nothing is charged yet. |
 | *"You do not have permission…"* | Your role can't do that. See **[PERMISSION_MATRIX.md](PERMISSION_MATRIX.md)**, then ask an admin. |
+| A **Rate Limit** message | The server is protecting itself from too many requests in a short time — from a script, a stuck key, or clicking very fast through many reports or imports. Nothing is broken and nothing was lost. Wait up to a minute and carry on. If you see it during ordinary work, tell your administrator which screen you were on. |
 | *"Too many requests"* | You've run reports faster than the limit allows. The message says how long to wait. |
 
 ### 12.3 When a screen shows something that can't be right — Refresh vs Reset
@@ -1027,6 +1066,14 @@ That's the whole loop: buy → receive → sell → and the accounting follows b
 | **Approval / Maker-checker** | A rule that important actions need a second person to say yes, so no one person can make a big mistake (or fraud) alone. |
 | **Tenant** | Your business's own private copy of the system — other businesses using the same system can never see your data. |
 | **Role** | What kind of user you are (Cashier, Manager, Super Admin, etc.) — it decides what you can see and do. |
+| **Sales Invoice** | The bill **you** give a customer — money owed **to** you. |
+| **Vendor Invoice** | The bill a **supplier** gives you — money **you** owe. It is checked against the Purchase Order (what you ordered) and the Goods Receipt (what arrived) before it is paid: the "three-way match". |
+| **Debit Note** | Sent **to a supplier** to reduce what you owe them — goods returned, or they overcharged. |
+| **Credit Note** | Given **to a customer** to reduce what they owe you — a return or a cancelled sale. Easy way to remember: debit note → supplier, credit note → customer. |
+| **POS Profile** | The settings for one till (which shop it sells from and its defaults), so a cashier can open the till without re-entering them. |
+| **RFQ** | "Request for Quotation" — asking several suppliers for a price before you order (§6.4). |
+| **HSN / SAC code** | The government's number for a kind of goods (HSN) or service (SAC); it decides the GST rate. 4, 6 or 8 digits (§8.1.2). |
+| **Rate limit** | A ceiling on how many requests the server accepts per minute, to protect it. See §12.2. |
 | **Correlation ID** | A tracking code shown when something goes wrong, so support can find exactly what happened. |
 
 ---

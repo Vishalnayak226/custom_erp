@@ -1,6 +1,9 @@
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
+// Where the PIM tab bar was scrolled to, kept across re-renders (Stage 57).
+let pimTabBarScrollLeft = 0;
+
 function renderPIMShellHeader(container) {
   const header = document.createElement('div');
   header.className = 'page-header';
@@ -42,8 +45,38 @@ function renderPIMShellHeader(container) {
     `<button class="btn ${t.id === currentPIMTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-pim-tab="${t.id}">${t.label}</button>`
   ).join('');
   container.appendChild(tabBar);
+  // Stage 57 (user QA): every tab click re-renders the whole screen, which
+  // rebuilt this bar scrolled back to its first tab - so picking Catalog
+  // (far right) snapped the strip to the start and hid the tab just chosen.
+  // The bar's scroll position is carried across the re-render, then nudged
+  // only if the active tab would otherwise be out of view.
+  // The screen is built off-page and settles over several layouts (attached
+  // at a 1px width first), so the position is re-applied each time the bar
+  // reaches a real width, until the user scrolls it themselves - and a
+  // position read from a collapsed bar is never remembered.
+  const REAL_WIDTH = 40;
+  let userMovedBar = false;
+  const restoreTabScroll = () => {
+    if (userMovedBar || !tabBar.isConnected || tabBar.clientWidth < REAL_WIDTH) return;
+    tabBar.scrollLeft = pimTabBarScrollLeft;
+    const active = tabBar.querySelector('.btn-primary');
+    if (active) {
+      const left = active.offsetLeft - tabBar.offsetLeft;
+      const right = left + active.offsetWidth;
+      if (left < tabBar.scrollLeft) tabBar.scrollLeft = Math.max(0, left - 16);
+      else if (right > tabBar.scrollLeft + tabBar.clientWidth) tabBar.scrollLeft = right - tabBar.clientWidth + 16;
+    }
+  };
+  restoreTabScroll();
+  new ResizeObserver(restoreTabScroll).observe(tabBar);
+  ['wheel', 'pointerdown', 'touchstart', 'keydown'].forEach(type =>
+    tabBar.addEventListener(type, () => { userMovedBar = true; }, { passive: true }));
+  tabBar.addEventListener('scroll', () => {
+    if (tabBar.clientWidth >= REAL_WIDTH) pimTabBarScrollLeft = tabBar.scrollLeft;
+  }, { passive: true });
   tabBar.querySelectorAll('[data-pim-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
+      pimTabBarScrollLeft = tabBar.scrollLeft;
       const tab = PIM_TABS.find(t => t.id === btn.getAttribute('data-pim-tab'));
       setActiveMenu('menu-pim');
       closeSubmenus();

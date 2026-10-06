@@ -150,7 +150,7 @@ async function renderHelpArticle(slug) {
       <span>/</span><span>${escapeHTMLText(article.section || '')}</span>
       <span>/</span><span>${escapeHTMLText(article.title || '')}</span>
     </nav>
-    ${toc.length > 1 ? `<details class="kb-toc"><summary>On this page</summary><ul>${toc.map(h => `<li><a href="#${escapeHTMLText(h.slug)}">${escapeHTMLText(h.text)}</a></li>`).join('')}</ul></details>` : ''}
+    ${toc.length > 1 ? `<details class="kb-toc" open><summary>Contents</summary><ul>${toc.map(h => `<li><a href="#${escapeHTMLText(h.slug)}">${escapeHTMLText(h.text)}</a></li>`).join('')}</ul></details>` : ''}
     <div class="kb-body">${article.html}</div>
     <footer class="kb-footer">
       ${article.last_verified ? `<span class="text-muted">Last verified ${escapeHTMLText(article.last_verified)}.</span>` : ''}

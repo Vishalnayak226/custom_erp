@@ -144,6 +144,7 @@ User request: *"For Myntra and other Marketplaces OMS, I want to crack QZ print 
 *Some items in this section are closed and archived — see [docs/archive/micro_checklist_closed_stages.md](archive/micro_checklist_closed_stages.md).*
 
 - [ ] **31.1.8 Live verification against a real QZ Tray and a real printer — partially closed 2026-08-31, genuinely blocked remainder needs physical hardware.** Of the three originally-unproven concerns: **(a) the migration SQL executing is now proven** — `-migrate-status` confirms `migrations_stage31_1...` is no longer pending on this dev DB (applied cleanly by an earlier session per Stage 45's own build notes; re-confirmed here), and this pass additionally live-exercised the DB-backed endpoints over real HTTP on a throwaway server (port 8177) that were previously never reachable when this item was written (no Postgres running at the time): `GET /print/qz/certificate` (real PEM returned), a scratch `Printer` master created via the generic doc API, `GET /print/qz/printers` (returned it), `POST`+`GET /print/qz/log` (job logged and read back correctly with `printed_by`/`status`/timestamps intact) — scratch Printer and log row removed afterwards (soft-delete via the real API for the Printer, direct row delete for the log entry, the same "fixtures removed afterwards" pattern this codebase's other live-verified items use). **(b) ZPL rendering on a real 203dpi 4x6 roll and (c) a real QZ Tray instance accepting `override.crt` remain genuinely unprovable from this machine** — no physical printer or QZ Tray install is available here, and no amount of further scripting closes that; needs an actual warehouse/POS bench with QZ Tray installed and a label printer attached. The signing chain itself was already proven (unchanged, checked by eye/tests).
+- [ ] **31.1.9 Replace QZ Tray with our own lightweight agent — core built and proven 2026-10-04; pixel paths + hardware verification open.** Opened from *"Can we build our own QZ tray?"*. **Research outcome:** the licensing fear the QZ-alternative vendors market against doesn't apply to us (upstream is LGPL-2.1, commercial use free; the $749/$3,499 tiers buy support + a QZ-root-chained cert we don't need, since `cmd/qzcert` + `override.crt` already gives free silent printing). None of the four surveyed alternatives (XP_PRINT, BrioLabel, electron-hiprint, JSPrintManager) are adoptable — each swaps the Java runtime for a Node/Electron runtime, a closed binary, or a protocol that would break `public/qz-print.js`. **First attempt** was a rebranded source build of `qzind/tray` with install-time provisioning; it worked (real installer produced, all 6 provisioning steps `[SUCCESS]`) but came out at **138.5MB installer / 226MB installed**, failing CLAUDE.md's lightweight principle — so it was scrapped and its ~2.3GB toolchain removed. **Current approach:** a clean-room **Go** agent at `../PrintBridge/agent/` implementing QZ's wire protocol exactly, so `public/qz-print.js` needs **zero changes**. **6.6MB single binary, no runtime, no dependencies, no LGPL obligation** (protocols aren't copyrightable; no QZ source used). **Proven end-to-end on this machine:** hand-written RFC 6455 WebSocket server; signature verification against the same contract `engines/qz_print.go` signs (9/9 protocol tests incl. *signed-call-before-certificate refused* and *tampered-signature rejected*); real Win32 `EnumPrinters` discovery with correct default detection; and **raw ZPL printing verified byte-exact — 120 bytes sent, 120 bytes arrived at a real Windows print queue, SHA-256 identical** (tested via a temporary Generic/Text-Only printer on a FILE: port, removed afterwards). **Open:** (a) **pixel paths (PDF/HTML/image) not written yet** — designed to call the OS renderer (`Windows.Data.Pdf`/WebView2) so they add ~0MB; they currently return a clear error rather than silently printing nothing, so the ERP's marketplace-PDF and A4-invoice paths do NOT work on this agent yet; (b) USB/HID/serial, file comms, status listeners, tray UI, installer, `wss://` all still to build; (c) **no physical thermal printer tested** — same gap as 31.1.8. **Useful finding worth keeping:** Windows silently discards a RAW job sent to a driver that doesn't accept RAW (an XPS-writer test reported success from every Win32 call and vanished with no job and no error) — that is the usual cause of "it says it printed but nothing came out", not an agent bug. No ERP code changed. Marketplace-panel printing is a separate workstream (user, 2026-10-04) but still in scope.
 
 ## Stage 34 — Market intelligence / competitor pricing ⏳ (opened 2026-08-06; 34.1-34.3 built 2026-08-07, 34.4-34.6 still gated)
 
@@ -770,6 +771,7 @@ User (operating the `minn` production tenant) reported a cluster of live defects
 *Some items in this section are closed and archived — see [docs/archive/micro_checklist_closed_stages.md](archive/micro_checklist_closed_stages.md).*
 
 - [ ] **51.1a** Decide and run a production data backfill for Master records already stranded with `id != code` (created before 51.1 shipped). Needs a read-only audit query against prod first (how many rows, which doctypes) before deciding an UPDATE approach — do not run against production without explicit sign-off given it mutates live primary-key-equivalent values. **[needs design decision: user — backfill approach and timing, likely alongside the batched deploy]** — *2026-10-04: **the audit half is done; the decision is still the open part.** Decision taken this pass (user): write the read-only audit query only, no UPDATE authored yet. Delivered `scripts/audit_master_id_code_drift.sql`, six sections: (1) stranded rows per doctype with date range, (2) stranded/healthy/no-code totals so the ratio is visible, (3) a **collision check that must be empty before any backfill** — rows whose wanted id is already occupied by a different record, i.e. two records claiming one identity, which no plain UPDATE can resolve, (4) a **blast-radius** count of transactions already referencing each stray id, since an UPDATE that moves a Master id without rewriting those trades one broken reference for another on documents that currently work, (5) a 50-row sample to eyeball, (6) a per-tenant headline so it is clear whether `minn` is the only affected tenant. Deliberately placed in `scripts/`, **not** `db/` — `db/migrate.go:361` executes every `.sql` file in that directory, so this must never sit there. Pass the schema with `-v schema=...` (defaults to `tenant_minn`); the in-file default is `\if :{?schema}`-guarded so the command-line override actually wins. **Validated end-to-end against the local dev DB**: ran clean and found 12 stranded rows of 503 Master rows in `tenant_default` (Item ×4, plus Brand/CartonType/Channel/DockDoor/HoldCode/ReasonCode/Trailer/Zone), **zero collisions**, and 10 transactions already pointing at stray ids (9 for Item, 1 for ReasonCode). Nothing was written and **no production connection was made from here** — running it against prod, and the backfill decision that follows, are still the user's. Section 6 was first written as a `DO` block using `RAISE NOTICE`; that lands on stderr and interleaved unpredictably with the result sets when redirected to a file, so it was rebuilt with `\gexec`. Note the dev-DB numbers are not a prediction of prod's — prod has months of real master data created before 51.1 shipped. Full detail `project_ledger.md` §184.*
+  — *2026-10-06, read-only prod audit (user-approved; session forced default_transaction_read_only):* production was redeployed 2026-10-05 23:52 UTC with Stage 51-53 (not Stage 57). **tenant_minn has 3 Master rows and all 3 are stranded** (id = random UUID, code = series): Vendor Siyona (Vendor/HQ/2026/000001), Location BLR Warehouse (Location/HQ/2026/000001), Item Zircon Earring (Item/HQ/2026/000001) - these are exactly the user's three reports (vendor not suggesting in PO; the TO "Location/HQ/2026/000001 is not a registered Location" error; GRN showing no item). Collision check empty; blast radius 1 document referencing the stray Item id. tenant_default: 11 of 250 stranded. Backfill is a contained UPDATE plus one reference rewrite - **awaiting the user's explicit go-ahead to mutate production.** Stage 57's ResolveLocationReference and name-display lookups already tolerate stranded rows in the UI; Link validation (by id) still needs the backfill.
 - [x] **51.7** Update `docs/guides/USER_GUIDE.md`/`ADMIN_GUIDE.md` for everything built in this Stage (Prefix Configurations now covering Vendor/Item plus a general "+ New Series" flow, Jewellery Item fields and Design ID/Combination ID, GRN barcode automation, the industry-lock override flow) per this repo's "complete, documented end-to-end" principle — not a summary, walk the actual new steps. — *2026-10-04: done, walking the real screens rather than paraphrasing this checklist. `USER_GUIDE.md`: new **§6.4** (barcodes generated automatically at goods receipt — including the honest "it runs *after* the receipt posts, so a failure never reverses stock; it goes to the system log, not to you"), new **§8d** in four subsections (jewellery Item fields as a table, explicitly framed as serving both fine/gold and fashion/imitation businesses per 51.9's correction; what Design vs. Combination/SKU actually mean; the full create-a-Design-then-its-Combinations walkthrough; and the six attributes that shape a SKU plus why weight/making-charge deliberately do not), new **§8.1.1** (51.2's quick-create return — returns after *create* but not after *edit*, and forgets if you wander off), a master-record-numbering paragraph in **§6.1**, and six new "How do I…?" index rows. `ADMIN_GUIDE.md`: new **§B.3.2.1** (industry-profile lock + override flow), a **"+ New Series"** subsection under §B.3.2 (plus the note that Vendor/Item/ProductFamily now ship with explicit rows whose settings match the engine's prior fallback, so no already-issued code changes shape), new **§B.3.3.1** (GRN barcode automation from the admin's side — chiefly *check the log, not the user*), new **§B.3.3.2** (the two bulk-import corrections below, pointing at the new audit script), and an industry-profile bullet in §B.3's index list. **Two doc inaccuracies caught by reading the source instead of trusting the draft**, both fixed before shipping: the industry selector is in the **top bar**, not under Settings, and its Override flow is a *typed industry-code* prompt → confirm → mandatory reason, not "pick from a dropdown"; and an Item's Code is filled in **at save**, not pre-filled live as you type. Also fixed a pre-existing defect this pass would have made worse: `USER_GUIDE.md` had **two different sections both numbered §8.1**, which made the new §8.1.1 ambiguous — the field-validation one is now **§8e**, consistent with the §8a–§8d lettered series it physically sits among. `doclint` clean (320 files, 0 findings). Full detail `project_ledger.md` §184.*
 - [x] **51.8** ~~Found live, not asked for, not fixed this pass~~ **Closed 2026-10-04. Decision (user): the "Store" references were stale; removed.** `TestKnownModulesMatchTheTenantSchema`/`TestAdministratorAndAuditorCoverTheStoreModule` (`engines/role_templates_test.go`, Stage 50/AUD-07) expected a `Stores` doctype (module `Store`) that `db/migrations_stage30_5_5_retire_stores.sql` deliberately, permanently retired into `Location` on 2026-08-02 (the user's own prior decision, folding Stores' fields into Location). Re-confirmed failing on this tree before the fix — note that an earlier 2026-09-30 entry recorded these two as "now passing", which was against different shared-DB state; they still failed here. Removed `"Store"` from `knownModules` (`engines/role_templates.go`), with a comment recording why and that Location (under the still-covered "Master Data") carries Stores' four former fields, so no role lost access to anything. Rather than deleting the second test's coverage, **rewrote it generically** as `TestAdministratorAndAuditorCoverEveryShippedDoctype`: it now sweeps every doctype the live schema declares and asserts Administrator resolves `manage` and Auditor `read` on each, honouring Auditor's deliberate payroll `AccessNone` overrides. That keeps AUD-07's original intent (verify through *resolved* grants via `TemplateGrants`, not just a module-name-set comparison), is strictly stronger than the one hardcoded `Stores` assertion, and cannot rot the same way the next time a migration retires a doctype. It passed first run across the full doctype set, which independently confirms no *other* module is silently uncovered. Grepped the tree afterwards: the only remaining `"Store"` literal is `Location.type`'s field *value*, which is correct and unrelated. Separately, the pre-existing shared-DB `('POSCart', 10, NULL, 'Store Manager')` `approval_rules` data-drift finding recorded here previously was already fixed. **2026-10-04 re-verification:** this session's disposable `custom_erp_t1` still contained an empty `Stores` metadata row even though the retirement migration was recorded and no Stores documents remained; re-applied the migration's guarded/idempotent SQL in that disposable DB, leaving zero Stores rows. `TestKnownModulesMatchTheTenantSchema` and `TestAdministratorAndAuditorCoverEveryShippedDoctype` then passed. Full detail `project_ledger.md` §§184, 187.
 - [ ] **51.10** Follow-up to the bulk-import fixes below: the generated CSV/Excel import template for `Item` still emits a `code` column even when the business intends Design-based SKU generation. `missingMandatoryColumns` no longer *requires* that column when a `family` column is present (2026-10-04), so an operator who deletes it is fine, but `GenerateCSVTemplate`/`engines/pim_import_template.go` could usefully emit a `family`-shaped variant template that omits `code` outright, so the documented download-template-then-upload path leads to SKU generation without the operator having to know to remove a column. Small and additive; not done this pass because it is template ergonomics, not the correctness bug 51.8's pass was closing.
@@ -894,18 +896,22 @@ Three product calls came from the user mid-build: **keep the version at `0.1.0`*
 ## Stage 55 — Every-module usability (2026-10-04; audit complete, implementation in progress)
 
 Plan and full microitems: [module usability plan](product/erp-module-usability-plan-2026-10-04.md).
-Evidence: [screen register](assurance/erp-usability-screen-register-2026-10-04.md), ledger §192.
+Functional business-process gate: [every-module verification matrix](product/erp-functional-verification-plan-2026-10-04.md).
+Evidence: [screen register](assurance/erp-usability-screen-register-2026-10-04.md),
+[55.1 verification](assurance/stage55-shared-correctness-2026-10-04.json), ledger §§192–193.
 One reviewer applied beginner/operator/administrator lenses; this is not real-user acceptance.
 Browser inspection covered 20 module owners, 56 routes, 199 record types (198 New forms), 54 tabs,
 16 configuration panels and 92 report parameter forms. No transaction submission in the audit.
-The user's subsequent “continue building” starts 55.1; no commit, push or deployment.
+The user's subsequent “continue building” completed 55.1 locally; no commit, push or deployment.
 
 **Real-user acceptance evidence arrived 2026-10-04** — see [user QA round](product/erp-user-qa-2026-10-04.md).
 The user operated the deployed build and submitted real transactions, which is exactly what 55.0
 disclaims, so that round found defects this audit could not. Named defects now owned by the items
-below, and each must be closed before its item is: **55.4** GRN does not load items from its PO
-(breaks the core procurement chain — treat as the round's first priority) and RFQ status cannot be
-changed with no vendor-assignment flow; **55.6** Transfer Order rejects `from_warehouse` because
+below, and each must be closed before its item is: **55.4** RFQ status cannot be changed with no
+vendor-assignment flow — but note that the same round's "GRN does not load items from its PO"
+**was driven live on 2026-10-04 and does not reproduce in this tree** (PO `items` round-trips, the
+line loads and renders, the SKU typeahead suggests correctly), so it is a deployed-build symptom
+and needs the deploy question settled before any code; **55.6** Transfer Order rejects `from_warehouse` because
 `engines/location_masters.go:31` validates the Location *code* while the UI submits the document
 *id*; **55.7** Bin creation hard-blocks when no Zone exists, with no path to create one;
 **55.10** the reference-PO dropdown is empty on vendor credit and debit notes (likely the same
@@ -913,13 +919,31 @@ id-vs-code cause as 55.6 — check them together); **55.11** the PIM tab strip s
 first icon when Catalog is selected; **55.17** Offer Management has no edit action. The vendor
 record not appearing in PO creation is **already fixed in-tree as Stage 51.1 and merely undeployed**
 — verify against the tree before writing code for it. Cross-cutting invariants and new scope from
-the same round are Stage 57, not this Stage.
+the same round are Stage 57, not this Stage. *2026-10-05/06: **all six named defects above are fixed and verified live** (Stage 57 verification block): 55.4 RFQ - invite vendors, Mark as Sent, Close (Draft -> Sent -> Closed, the transitions the server already enforced), quotes from uninvited vendors join the list; 55.6 Transfer Order - `engines.ResolveLocationReference` accepts id, code or exact name and stores the canonical id (code, name and id all verified, unknown still refused); 55.7 Bin - Zone is a picker with inline Zone create (Zone gained an optional name); 55.10 - DebitNote.reference_po is now a Link to PurchaseOrder in every tenant; 55.11 - the PIM tab strip keeps its position across re-renders (it was being restored onto a still-collapsed bar); 55.17 - row actions are sticky on wide lists (Offer has 20 fields). Each item stays open for its wider Stage 55 scope.*
 
 - [x] **55.0 Audit and plan.** Actual desktop/phone browser observations and official ERP/accessibility
   references; every discovered route/type assigned changes, owner role, phase and acceptance.
-- [ ] **55.1 Shared correctness — in progress.** New/Edit event handling, seven cold HR/Manufacturing
-  tabs, Wave ID phone-filter corruption, initial modal focus and PasswordResetRequest User lookup.
-  Fix and verify all subitems; preserve existing permission/retry/numbering contracts.
+  **Screen inventory only:** this did not prove transactions save or reconcile.
+- [ ] **55.0F Functional audit and repair gate.** Classify all 199 record types; exercise real UI
+  saves/readback, numbering, predecessor/successor links, stock/GL/payment effects, exceptions and
+  restricted roles in every module per the functional matrix. One Department save and a local PO →
+  GRN line load are partial evidence, not a completed audit. Prioritize real function defects
+  ahead of visual cleanup; require owner/user acceptance at 55.22. **2026-10-05 progress only:**
+  isolated Chromium UI saved/read back ten masters, PR, PO, partial GRN, supplier invoice, Transfer
+  draft and OMS order. Manager PO approval and same-reference OMS retry worked. Supplier match held
+  an economically correct partial bill, Transfer Mark Approved returned 405, and the Reserved OMS
+  order had no visible fulfillment progression. Exact findings and the 20-module untested matrix:
+  [functional audit](assurance/erp-functional-audit-2026-10-05.md). Per user instruction, audit now;
+  repair these after the ERP build, then repeat the full Done bar. Add separate **Account Head**
+  (subledger/GL, approval, reconciliation, close) and qualified **CA** (applicable tax/statutory
+  treatment, cutoffs, source-to-return/audit evidence) lenses. Neither participated yet; no
+  financial/statutory acceptance is inferred. No box is closed by this sample.
+- [x] **55.1 Shared correctness.** Fixed New/Edit click-path identity and Item Type's `click`
+  default, all seven cold HR/Manufacturing tabs, Wave ID phone-filter corruption (including 390px),
+  initial modal focus/Tab containment, and PasswordResetRequest's unsupported User lookup. Twenty
+  distinct Chromium checks pass, covering all 54 secondary tabs plus actual Department create/edit,
+  restricted-role denial and failure/retry. `internal/server` and focused Go tests pass. The full
+  Go suite has one pre-existing stale audit-checkpoint failure; see ledger §193. No commit.
 - [ ] **55.2 Shared shell/list/form/Help contract.** Labels, active navigation, focus, responsive menus,
   task headers, actionable empty states; PIM phone-tab overlap included.
 - [ ] **55.3 Core/master data/industry setup.** Guided dependencies, lookup/quick-create, numbers,
@@ -943,7 +967,8 @@ the same round are Stage 57, not this Stage.
 - [ ] **55.20 Reports.** Business-question catalog, usable parameters, scoped drill-through and jobs.
 - [ ] **55.21 Integrations/admin/ops.** Guided setup, permissions, redacted diagnosis and accountable recovery.
 - [ ] **55.22 Cross-module acceptance.** Restricted-role journeys, reconciled outcomes, real participants,
-  performance/accessibility/device acceptance and literal guide walkthroughs. All Done bars in the plan.
+  performance/accessibility/device acceptance and literal guide walkthroughs. Account Head and
+  qualified CA reviews are separate named finance gates where applicable. All Done bars in the plan.
 
 No new statutory policy, SaaS packaging decision, multi-owner 3PL, AI Assist or parked grid-paste
 feature is authorized by this plan. Existing BLD-041/045 and external acceptance gaps remain open.
@@ -1098,56 +1123,71 @@ browser's own prompt). It now fetches via `apiFetch` and saves a blob — `publi
 
 ### Cross-cutting invariants (one choke point each, not a per-screen sweep)
 
-- [ ] **57.1 Show the Name, never the document code, in all UI.** The user sees
+- [x] **57.1 Show the Name, never the document code, in all UI.** The user sees
   `Department/HQ/2026/000001` where a name belongs, and asks for this "everywhere". One
   display-resolution helper for Link fields at the shared renderer; the id stays the submitted
   value, only the label changes. **Highest-leverage item in the round** — it is also the visible
   half of the id-vs-code validator defects (TO `from_warehouse`, credit/debit note PO picker).
-- [ ] **57.2 Universal missing-prerequisite pattern.** Today a missing master leaves a half-broken
+  — *2026-10-05/06: built and verified live. `installNameDisplay` (public/app.js) gives every `attachLinkTypeahead` picker a name-showing box whose `.value` still returns the code - no reader changed; a view-wide sweep (`sweepLinkNames`, MutationObserver) swaps names in for `data-link-ref` cells and for cells whose whole text is a master series code `<RecordType>/...` (document numbers like PO/HO/26-27/000002 are left alone; a master's own list keeps its Code column). Browser check: Transfer list shows "Bandra Store" not `Location/HQ/2026/000009`; picker shows the name with value `LOC9`.*
+- [x] **57.2 Universal missing-prerequisite pattern.** Today a missing master leaves a half-broken
   form behind the "No Department has been set up yet" prompt. Wanted: a full-screen takeover
   showing only the setup prompt, return-to-origin on browser Back, and the prompt degrading to
   non-blocking once the master exists. Must be one implementation for every prerequisite —
   Department, Zone (Bin creation hard-blocks the same way), HSN, and the rest. Pairs with
   Stage 55.3's "guided dependencies", for which this is the acceptance criterion.
-- [ ] **57.3 Inline quick-create from the Link picker.** When a typed Item / Vendor / HSN does not
+  — *2026-10-05/06: built and verified live. Inline quick-create (public/view-pickers.js, lazy) opens on top of the open form, asks only required fields from /meta with the same server-numbering rules as the full form, seeds the typed text, and fills the field on save. Field setup hints create inline; the screen banner's navigate path now closes the open new-record form, pushes one history entry (browser Back returns), and reopens the form with its values and the new record filled in (`performQuickCreateReturn`). Browser check: PR form -> "Set up Department" -> created "Finance" without the form closing; hint drops to the quiet "Can't find…" line.*
+- [x] **57.3 Inline quick-create from the Link picker.** When a typed Item / Vendor / HSN does not
   exist, offer to create it in place, ask only the required fields, and return to the origin form
   with the new record selected. One implementation serving all three (the user raised it
   separately for each). Pairs with Stage 55.3's "lookup/quick-create".
-- [ ] **57.4 `Status*` defaults to Active on every master.** A default on the `Select` field
+  — *2026-10-05/06: built and verified live for Location (Transfer), Department (PR) and Zone (Bin); every typeahead's "no match" row offers Create "<typed>", generic Link selects end with "+ Create new <Type>…". HSN: new **HSNCode** catalogue doctype (engines/hsn_catalog.go, all tenants, backfilled from existing Items, 4/6/8 digits to match Item's MASTER-0043) feeds a picker on Item.hsn_code; Item still stores the plain number; a saved Item teaches the catalogue (only after the save succeeds - a rejected Item taught it a code in the first cut, caught and fixed).*
+- [x] **57.4 `Status*` defaults to Active on every master.** A default on the `Select` field
   definition, applied once across master doctypes, not form by form.
-- [ ] **57.5 Rename the docs "On this page" header.** The user wants a standard book/manual
+  — *2026-10-05/06: done at the one generic form builder (`defaultSelectValue`) and in quick-create; verified live (New Department -> Status = Active). New records only.*
+- [x] **57.5 Rename the docs "On this page" header.** The user wants a standard book/manual
   convention instead. Site-wide label change in the docs shell.
-- [ ] **57.6 One shared calendar control, used by every calendar in the ERP.** Raised against the
+  — *2026-10-05/06: renamed to "Contents" (book/manual convention) and opened by default (public/view-help.js).*
+- [x] **57.6 One shared calendar control, used by every calendar in the ERP.** Raised against the
   Appointment Calendar ("make it better/best and smooth") and asked for everywhere. **Constraint:
   no new dependency** — this is built in vanilla JS against the existing `public/` rules.
+  — *2026-10-05/06: built and verified live. One vanilla-JS picker (public/view-pickers.js, loaded on first open) replaces the browser's picker on every `input[type=date]` app-wide via one observer; the native input, its YYYY-MM-DD value, typing and min/max are unchanged. Keyboard: Alt+Down/F4, arrows, PageUp/Down, Home/End, Enter, Esc. **Also found and fixed a real bug:** Appointment Calendar's day/week arrows and week columns used `toISOString().slice(0,10)` - in IST that is the previous day, so "next day" did nothing; same bug in two report defaults. Shared `localISODate` fixes all five. Start/End are now time inputs. Browser check: next-day arrow advances, picker navigates and selects.*
 
 ### New scope — each needs a decision before any code
 
-- [ ] **57.7 Barcode identity at the variant, with configuration.** *[needs design decision: user]*
+- [x] **57.7 Barcode identity at the variant, with configuration.** *Decided by the user 2026-10-06:* **per variant, both toggles** - barcode belongs to the variant/SKU; one setting for when it is generated (SKU creation or GRN) and one for stable-per-SKU vs date-based; Item-level barcode stops being required. Build next.
   Barcode generation is at Item level; the user wants it at variant level, plus two independent
   toggles — generation point (Item-SKU / GRN) and stability (date-derived vs the same barcode for
   a SKU every time), each switchable on. Confirm the model before building: this touches stock
   identity and is not a small change. Check overlap with the Stage 51 GRN-barcode item.
-- [ ] **57.8 Non-sellable asset records.** *[needs design decision: user]* Whether this is a new
+  — *2026-10-06: built and verified.* An Item already is the SKU/variant here (the parent design is a Product Family, which never has a barcode), so: Item.barcode no longer mandatory (all tenants); settings `inventory.barcode_generate_at` (sku_create default / grn / off) and `inventory.barcode_per_receipt_date` (no / yes); `PrepareItemBarcode` on Item create; `EnsureReceiptBarcodes` at GRN (permanent code unless off; one dated EAN-13 `02`+YYMMDD+NNNN per SKU per day in the new **ItemBarcode** register, daily `PIMDatedBarcodeSeq`); `ResolveItemBySKU` and pick/pack scans resolve registered codes; GRN stickers print the receipt's dated code. Tests `TestDatedEANFromParts`, `TestEnsureReceiptBarcodesPerDate` (caught a same-day second-receipt gap, fixed by recording every receipt on the register row) plus existing barcode/lookup/sticker suites green; live: an Item saved without a barcode was issued `0200000000011`. ADMIN_GUIDE §B.3.3.1, USER_GUIDE §8.1.2.
+- [ ] **57.8 Non-sellable asset records.** *Decided by the user 2026-10-06:* **in the Fixed Assets module** (custody, depreciation), never in POS or sales. Build next. Whether this is a new
   Item type on the existing Item master or routes into the existing Asset module (Stage 55.16).
   The two are very different builds.
 - [ ] **57.9 Navigation regroup: Stock vs WMS.** *[needs design decision: user — confirm the final
   tree]* The user's instruction: Stock holds Inventory, Transfer Order and Location Movement; the
   rest moves under WMS. Cheap to do, but pin the exact tree before moving anything.
+  — *2026-10-05/06: regroup done and verified (Stock: Inventory, Stock Transfer, then a "WMS" heading over the rest; headings hide when a role can see nothing under them). **Still open: "Location Movement"** - no such screen exists; needs the user to say what it means (a bin-to-bin move screen? a movement-history report?).*
 - [ ] **57.10 Offer targeting by group.** *[needs design decision: user]* Offer Manager can only
   apply to individual records ("its preety bad"); the user wants a design group, a SKU set, or a
   category type as the target. Needs the targeting dimensions pinned down. The separate "no edit
   action in Offer Management" defect is filed under Stage 55.17.
-- [ ] **57.11 PIM setup walkthrough in `USER_GUIDE.md`.** "PIMS is difficult. Make it easy for me,
+  — *2026-10-05/06: the separate "no Edit in Offer Management" report was a 21-column list hiding the row actions off-screen; the actions column is now sticky on every wide generic list (verified). Targeting itself still needs the decision.*
+- [x] **57.11 PIM setup walkthrough in `USER_GUIDE.md`.** "PIMS is difficult. Make it easy for me,
   or explain me how to setup." The UI half is already Stage 55.11 (regroup the 21 tabs); this is
   the documentation half. **Recommend doing this first** — it is cheap, and it reveals whether the
   UI or the docs was the real problem before spending a redesign on the wrong one.
-- [ ] **57.12 Full-ERP walkthrough video with segment-level re-recording.** *[needs design
-  decision: user — recommend deferring]* One normal-speed end-to-end flow, where a later change
-  re-records only the affected portion instead of the whole video. Achievable (scripted scene
-  manifest → per-scene capture → stitch), but it is a tooling project in its own right and would
-  pull effort away from confirmed defects in the core procurement chain. Revisit once the
-  Stage 55 defect list from this round is clear.
+  — *2026-10-05/06: written as "Setting up PIM, in order" at the top of the PIM handbook (docs/kb/module-handbooks/pim-pxm.md, so it is in the Knowledge Center), using the real tab and field names; regenerated.*
+- [ ] **57.12 Full-ERP walkthrough video with segment-level re-recording.** **User approved
+  starting now and required self-contained, circular SOP chapters that repeat all relevant
+  prerequisite configuration.** First edition in [docs/sop-video](sop-video/readme.md): editable
+  manifest/narration, shared segment references, safe loopback-only UI recorder, seekable WebM
+  assembler and outlined player. Five prerequisite/PR clips recorded; Department setup → saved
+  Purchase Requisition is one complete 55-second chapter with start/end cards and fresh-list
+  number readback. PO/GRN remain **pending**: the real PO item suggestion was intercepted by
+  the environment banner, and no technical-ID workaround is taught. The other module chapters,
+  human voice/owner review, and full-ERP export remain open. Replacing a clip with the same
+  fixture contract reassembles only; a changed business contract may require dependent clips.
+  — *2026-10-05/06: user confirmed they built this (docs/sop-video). Reviewed against every Stage 57 change: narration still accurate, all five recorded scenes still run; only cosmetic drift (Status now pre-set to Active; Item clip predates the HSN picker). **Left as is per the user - no re-record, nothing deleted.** (The folder's readme is now `readme.md`; the three docs that link to it match.)*
 - [ ] **57.13 Two-factor recovery code count.** *[needs design decision: user — confirm intent]*
   Reported as "10 of 10 left — there should be no limit", but "10 of 10 left" is the count of
   *unused* single-use codes, not a cap that can be hit. `engines/mfa_recovery.go:28` sets
@@ -1159,12 +1199,13 @@ browser's own prompt). It now fetches via `apiFetch` and saves a blob — `publi
 
 ### Documentation gaps this round exposed
 
-- [ ] **57.14 Answer the six "what is this" questions in the guides.** All six were answerable
+- [x] **57.14 Answer the six "what is this" questions in the guides.** All six were answerable
   from the code, which makes the docs the defect: Sales Invoice vs Vendor Invoice (and the
   three-way match), Credit Note vs Debit Note (direction), POS Profile, webhook subscription (the
   transactional outbox), and rate limiting. Answers are drafted in the triage doc — fold them into
   `USER_GUIDE.md`/`ADMIN_GUIDE.md` rather than leaving them in a QA note.
-- [ ] **57.15 Resolve the Purchase Return contradiction.** The user asked "where is purchase
+  — *2026-10-05/06: answered in the guides: USER_GUIDE glossary (Sales vs Vendor Invoice incl. three-way match, Debit vs Credit Note, POS Profile, RFQ, HSN/SAC, rate limit), §12.2 rate-limit row; ADMIN_GUIDE §B.3.5 webhook subscriptions (fields, payload, signature headers, outbox guarantee).*
+- [ ] **57.15 Resolve the Purchase Return contradiction.** *Decided by the user 2026-10-06:* **build it** - return-to-vendor against the original GRN, stock moves out, Debit Note raised automatically. The user asked "where is purchase
   return?" and the honest answer is that it does not exist: `docs/specs/modules_overview.md:55`
   and `PRD.md` §4.4 describe a Purchase Return/RTV module and `ERROR_CODES.md` reserves 5 error
   codes for it, but the doctype was never built (already recorded in archived Stage 25.4). Only
@@ -1172,7 +1213,51 @@ browser's own prompt). It now fetches via `apiFetch` and saves a blob — `publi
   move stock to RTV Pending) is absent. **Either build it or correct the docs — shipping docs that
   promise a missing module is the worse of the two.** *[needs design decision: user — build or
   retract]*
-- [ ] **57.16 Stop leaking the generator comment into rendered Knowledge Centre pages.** The user
+  — *2026-10-05/06: USER_GUIDE §6.5 now states the truth (no Purchase Return screen; use a Debit Note with its Reference PO, which is now a real PO picker). The build-or-retract decision is still the user's.*
+- [x] **57.16 Stop leaking the generator comment into rendered Knowledge Centre pages.** The user
   found `<!-- GENERATED ARTICLE - DO NOT EDIT BY HAND. Regenerate: ... -->` visible on "a few
   pages". Belongs with the Stage 48 documentation architecture work.
 
+  — *2026-10-05/06: root cause: the Knowledge Center renderer escapes raw HTML, so the generator's HTML comment printed verbatim. `RenderMarkdown` now skips comments (an unterminated one skips only its line), with a test; content regenerated via TEMP + copy; `genkb -check` clean.*
+
+- [x] **57.17 Roles and users, the way the user asked (raised mid-round, 2026-10-04).** "Create
+  roles and assign users; a user sees that module only; user and role both required; login and
+  browse only, no OTP; reset password at first login; org admin and super admin can reset a
+  forgotten password; super admin can disable a user." Already true before this pass: role
+  required on create; MFA only for Super Admin/HR-Admin; Deactivate (sessions die within ~30s);
+  admin Reset Password. Built: `POST /api/v1/admin/roles` + a `roles` registry so a role exists
+  before anyone holds it (admin names and case-duplicates refused); user create requires an
+  existing role (stored in its registered spelling); grants accept `doctype_names` so the Roles
+  screen grants **a whole module** in one transaction; `users.must_change_password` set on create
+  and admin reset, cleared on any self-chosen password, enforced in apiMiddleware (403 +
+  `X-Password-Change-Required`, only /me and change-password allowed) and read column-tolerantly
+  so a binary ahead of its migration cannot take sessions down; a "Set your own password" step
+  on the login card. **Menu: 18 module screens were `open: true` to every role** - replaced with a
+  module rule (visible once the role can read anything in the module); `menu-returns` and
+  `menu-rf-traceability` had no rule at all; Approvals is cross-module (never keeps the Finance
+  flyout open alone; Home's card reaches it). Verified by API (12 checks: forced change, 403
+  until changed, ungranted doctype 403, reset revokes sessions and re-forces, disabled cannot
+  sign in) and in a browser (a "Store Keeper" granted Inventory sees Home, Reports, Knowledge
+  Center, Stock, Setup only). Docs: ADMIN_GUIDE §B.2, USER_GUIDE §2.
+
+**Verification for this round** (2026-10-05/06): two disposable databases on the local Postgres
+(`erp_qa57_20261004` for suites, `erp_qa57_live_20261004` for the live server - the shared
+`custom_erp_test` was not touched); all 171 migrations from empty, Stage 57's migration re-run
+idempotent and its HSN backfill proven on seeded Items; `go build`/`vet` clean; `internal/server`,
+`engines`, `internal/kb`, `cmd/*` suites green except three **pre-existing, unrelated** failures that
+only appear on a freshly migrated schema (`migrations_stores_master_fields.sql` re-adds a
+`Stores` doctype with module "Store"); 17/17 browser checks green with no page errors.
+**Release budget:** this round first pushed both NFR-COST-001 gates over (initial JS by 51 B,
+cold core by ~5.7 KB gzip); fixed by moving the picker and quick-create dialog (and their CSS)
+into lazily loaded `public/view-pickers.js`, then condensing this round's own shell comments - now
+passing with **~1.4 KB cold-core headroom** (`app.js` 106,513 B gzip). Thin: the next sizeable shell
+addition by any session should expect to trip it.
+**Also fixed this round:** (1) every page load sends ~28 CSP reports (`style-src-attr`, report-only)
+with no Authorization header, which shared the IP-keyed "default" bucket (60/min) - several tills
+behind one shop IP could exhaust it and get an ordinary unauthenticated request (the login screen's)
+refused with a **Rate Limit** message: the likely source of the user's question. CSP reports now have
+their own bucket (`rateLimitCategory`, test `TestCSPReportsHaveTheirOwnRateLimitBucket`); the inline
+styles themselves remain a separate clean-up. (2) The user's SOP PO chapter was blocked because a
+typeahead row sat under the fixed environment banner: menus were positioned once and never followed
+their box. `placeMenu` now opens upward when needed, stays below the banner, follows on scroll and
+closes when the box leaves the view; verified with the banner shown (PO item suggestion clicks).

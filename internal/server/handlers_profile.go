@@ -361,7 +361,7 @@ func handleChangePassword(w http.ResponseWriter, r *http.Request) {
 	// engines.CompletePasswordReset.
 	var newCredentialVersion int
 	if err := db.DB.QueryRow(fmt.Sprintf(
-		`UPDATE %s.users SET password_hash = $1, credential_version = credential_version + 1 WHERE id = $2 RETURNING credential_version`, schema),
+		`UPDATE %s.users SET password_hash = $1, credential_version = credential_version + 1, must_change_password = FALSE WHERE id = $2 RETURNING credential_version`, schema),
 		string(newHash), userID).Scan(&newCredentialVersion); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to set new password")
 		return

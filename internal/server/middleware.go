@@ -170,8 +170,26 @@ func (l *tenantConcurrencyLimiter) snapshot() map[string]int {
 // explicitly), and POS Offline Sync (no offline-sync feature exists).
 // Webhook signature/timestamp validation is tracked separately
 // (micro_checklist Stage 9.2) - this function only assigns its rate budget.
+// passwordChangeAllowedPaths are the only calls a session holding an
+// administrator-issued password may make (Stage 57.17): setting a new one,
+// and reading who it is so the forced-change screen can greet the user.
+var passwordChangeAllowedPaths = map[string]bool{
+	"/api/v1/me/change-password": true,
+	"/api/v1/me":                 true,
+}
+
 func rateLimitCategory(path, method string) (category string, limit int) {
 	switch {
+	case path == "/api/v1/security/csp-report":
+		// Stage 57: a browser posts one report per violation - ~28 per page
+		// load today (report-only style-src-attr) - with no Authorization
+		// header, so these landed in the IP-keyed "default" bucket. Several
+		// tills behind one shop IP then used up 60/min on reports alone and
+		// the next ordinary unauthenticated request (the login screen's own
+		// calls) was refused with a Rate Limit message. Reports get their own
+		// bucket so this noise can never starve a real request. Each report
+		// is one log line, so a generous ceiling is still a ceiling.
+		return "csp-report", 600
 	case strings.HasSuffix(path, "/login") || strings.HasSuffix(path, "/mfa/verify") || strings.HasSuffix(path, "/mfa/activate") ||
 		strings.HasSuffix(path, "/forgot-password") || strings.HasSuffix(path, "/reset-password"):
 		// Login API: also covers MFA code submission (brute-forceable
@@ -866,6 +884,18 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 						tokenCV, cvErr := strconv.Atoi(claims["cv"])
 						if cvErr != nil || tokenCV != live.CredentialVersion {
 							writeAPIError(w, r, "GLOBAL-0009", "")
+							return
+						}
+						// Stage 57.17: an administrator chose this password (a
+						// new account, or an admin-issued reset), so until the
+						// user sets their own, the only thing the session may do
+						// is set it. Enforced here rather than only in the
+						// browser, so the temporary password cannot be used to
+						// work through the API either. The header is the stable
+						// marker the shell keys its forced-change screen on.
+						if live.MustChangePassword && !passwordChangeAllowedPaths[r.URL.Path] {
+							w.Header().Set("X-Password-Change-Required", "1")
+							writeAPIErrorGeneric(w, r, http.StatusForbidden, "Set a new password to continue - the one you signed in with was issued by an administrator.")
 							return
 						}
 					}

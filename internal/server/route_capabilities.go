@@ -299,6 +299,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/admin/patch/approve":                              {LevelAdmin, "admin.patch"},
 	"POST /api/v1/admin/patch/reject":                               {LevelAdmin, "admin.patch"},
 	"POST /api/v1/admin/role-permissions":                           {LevelAdmin, "admin.role-permissions"},
+	"POST /api/v1/admin/roles":                                      {LevelAdmin, "admin.roles"},
 	"POST /api/v1/admin/sandbox-tenants":                            {LevelAdmin, "admin.sandbox-tenants"},
 	"POST /api/v1/admin/sandbox-tenants/{id}/reset":                 {LevelAdmin, "admin.sandbox-tenants"},
 	"POST /api/v1/admin/scale-test":                                 {LevelAdmin, "admin.scale-test"},

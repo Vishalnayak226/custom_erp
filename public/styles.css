@@ -4139,3 +4139,35 @@ body.rf-shell #view-root {
 .app-version-pop-date {
   color: var(--text-muted);
 }
+
+/* Stage 57 (user QA round, 2026-10-04) --------------------------------------
+   Row actions stay in view on wide lists. A master with ~20 fields (Offer,
+   Item) pushed Edit/Delete into a last column the user had to scroll right to
+   find - reported as "I don't see edit in offer management". The cell sticks
+   to the right edge and stays opaque so the row scrolls underneath it. */
+td.row-actions-cell {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  background-color: var(--panel-bg);
+  box-shadow: inset 1px 0 0 var(--border-color);
+}
+th.row-actions-cell {
+  right: 0;
+  z-index: 17;
+  box-shadow: inset 1px 0 0 var(--border-color), inset 0 -1px 0 var(--border-color);
+}
+
+/* Shared date picker (57.6): the date input itself. The picker and the inline
+   quick-create dialog style themselves from view-pickers.js. The native input keeps its value and typing;
+   only the browser's own picker is swapped for this one. */
+input[type="date"][data-date-picker="1"] {
+  cursor: pointer;
+  padding-right: 34px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='18' rx='2'/%3E%3Cline x1='16' y1='2' x2='16' y2='6'/%3E%3Cline x1='8' y1='2' x2='8' y2='6'/%3E%3Cline x1='3' y1='10' x2='21' y2='10'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  background-size: 16px 16px;
+}
+input[type="date"][data-date-picker="1"]::-webkit-calendar-picker-indicator { display: none; }
+

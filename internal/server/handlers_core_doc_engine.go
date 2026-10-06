@@ -527,6 +527,14 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		// Stage 57.3: an HSN catalogue record's code (and id) is derived from
+		// its number, for the same before-validation reason as PR's above.
+		if doctype == "HSNCode" {
+			if err := engines.PrepareHSNCode(id == "", payload); err != nil {
+				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+				return
+			}
+		}
 
 		// Server-generated document numbers (Stage 30.6). Same contract as
 		// PreparePurchaseRequisition just above, for the rest of the doctypes
@@ -555,6 +563,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 				return
 			}
+			// Stage 57.7: a new SKU gets its barcode now when the tenant issues
+			// barcodes at SKU creation (engines/barcode_policy.go).
+			engines.PrepareItemBarcode(tenantID, id == "", payload)
 		}
 
 		// Fill the derived half of any duplicate mandatory field pair
@@ -754,10 +765,14 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			if locCode == "" {
 				continue
 			}
-			if err := engines.ValidateLocationReference(tenantID, locCode); err != nil {
+			canonical, err := engines.ResolveLocationReference(tenantID, locCode)
+			if err != nil {
 				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("field %q: %v", field, err))
 				return
 			}
+			// The picker may have sent the code or name; store the id,
+			// which is what every earlier transaction stored.
+			payload[field] = canonical
 		}
 
 		// Setup Document ID and attributes
@@ -1016,7 +1031,9 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				// doesn't already have one - best-effort, see
 				// EnsureItemBarcodes's own comment for why this never fails
 				// the receipt itself.
-				engines.EnsureItemBarcodes(tenantID, items)
+				// Stage 57.7: the tenant's barcode policy - the permanent barcode
+				// unless generation is off, plus a receipt-date barcode when on.
+				engines.EnsureReceiptBarcodes(tenantID, docID, items)
 			}
 
 			// Publish inventory transaction changed outbox event
@@ -1028,6 +1045,17 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					"location": locationCode,
 				})
 				_ = tx.Commit()
+			}
+		}
+		// Stage 57.3: a saved Item's HSN teaches the HSN catalogue, so the next
+		// New Item can pick it. Here, after the save has succeeded, so a rejected
+		// Item never teaches it a code; and non-fatal - unlike the PR
+		// description, the catalogue is never a reason an Item save fails.
+		if doctype == "Item" {
+			hsn, _ := payload["hsn_code"].(string)
+			rate, _ := strconv.ParseFloat(fmt.Sprintf("%v", payload["gst_rate"]), 64)
+			if errHSN := engines.EnsureHSNCode(tenantID, hsn, rate); errHSN != nil {
+				engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "WARN", r.URL.Path, fmt.Sprintf("could not learn HSN %q into the catalogue: %v", hsn, errHSN), "")
 			}
 		}
 		// BLD-035: this used to always report the literal "saved" regardless of
