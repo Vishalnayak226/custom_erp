@@ -137,6 +137,15 @@ for checking the current source and worktree.
   supplier invoice, OMS order, finance, PIM, stickers, manufacturing, quality, HR, expenses, assets,
   CRM, service, reports; then the clean-DB pass. Recorded-but-uncopied clips are in the previous
   session's `scratchpad\sop\out`.
+- **2026-10-07 PUSHED + DEPLOYED `480de79`** (origin/main now includes 8e37706..480de79; push
+  worked this time). Pre-deploy encrypted backup `/opt/erp/backups/custom_erp_20261007T033948Z.dump.enc`.
+  One migration applied (`migrations_stage57_cashier_location_read.sql`); service active, health 200,
+  `/api/v1/version` = 480de79, assets v=33; Cashier has Location+LegalEntity read in tenant_default
+  and tenant_minn. **Deployed from a clean `git worktree` of the commit under %TEMP%, not the live
+  tree** - `deploy.ps1` builds whatever is on disk, and another session's uncommitted
+  `engines/stickers.go` / untracked `public/sticker-engine.js` were sitting there. Do the same next
+  time while the tree is shared. `backup.sh` run via `sudo -u erp` must `cd /opt/erp` first or its
+  retention `find` fails on /root (the dump is still written).
 - **2026-10-07 redeployed `c88b9e8`** (frontend fixes found while recording the SOP: FA-02 transfer approval 405, unencoded record ids, transfer item picker). Local commits are still unpushed (push refused by the permission classifier).
 - **2026-10-06 DEPLOYED `8e37706` (Stage 57 + barcode policy) to production at the user's request** for a client demo. Pre-deploy encrypted backup `/opt/erp/backups/custom_erp_20261006T004730Z.dump.enc`; `migrations_stage57_qa_round.sql` applied to all tenants; health OK; verified read-only on tenant_default and tenant_minn (no user forced to reset - existing passwords untouched). **`git push` was refused by the local permission classifier - the commit is local-only until the user pushes** (`git push origin main`). The 3 stranded tenant_minn masters were then repaired with the user's go-ahead (backup `custom_erp_20261006T034651Z.dump.enc` first; minn now 0 stranded). tenant_default still has 11 - not approved, untouched. SOP training server still running on :8111 (`erp_sop_training_20261006`).
 
