@@ -1055,7 +1055,7 @@ assumptions, and both are now cheap to take since the plan is already paid for.
   cap — so "₹3,000/year vs ₹500/month" is not yet a like-for-like comparison and must not be
   treated as one. Run 56.1-56.6 live for five days with real clicking, then read Railway's own
   usage dashboard for actual ₹/month at this workload. Costs nothing extra (the year is paid) and
-  replaces an estimate with a fact. Record the number here.
+  replaces an estimate with a fact. Record the number here. **Plan confirmed 2026-10-07: Railway Pro** — per-seat fee plus metered usage, so the which-plan question in this item is closed and the metered half is the only number still open.
 - [ ] **56.8 Measure India latency.** Railway has no India region; nearest is Singapore, against
   the droplet's Bangalore. go_live_decisions.md:180 weighted India latency deliberately for
   GST/e-invoice/Pine Labs. Measure p50/p95 on a POS add-line and a receipt print from an Indian
@@ -1220,6 +1220,7 @@ browser's own prompt). It now fetches via `apiFetch` and saves a blob — `publi
 
   — *2026-10-05/06: root cause: the Knowledge Center renderer escapes raw HTML, so the generator's HTML comment printed verbatim. `RenderMarkdown` now skips comments (an unterminated one skips only its line), with a test; content regenerated via TEMP + copy; `genkb -check` clean.*
 
+- [x] **57.18 Functional audit FA-20261005-02 (transfer approval 405) - fixed and deployed (`c88b9e8`, 2026-10-07).** Root cause: `approveTransferOrder` posted to `/api/v1/doc/TransferOrder/<id>` unencoded; transfer numbers contain slashes, so the request hit another route (405). The same bug sat in Sticker Template edit/save, Report Filter Preset and Yard Check-In - all encoded; no unencoded record-id URL remains in `public/`. Also: the transfer line item became a real picker, Approvals shows readable record types, non-admins no longer call the admin-only industry-lock endpoint. Proven by recording the full transfer create/approve/dispatch/receive for the SOP with no API errors. (The audit file itself belongs to another session and is left unedited.)
 - [x] **57.17 Roles and users, the way the user asked (raised mid-round, 2026-10-04).** "Create
   roles and assign users; a user sees that module only; user and role both required; login and
   browse only, no OTP; reset password at first login; org admin and super admin can reset a

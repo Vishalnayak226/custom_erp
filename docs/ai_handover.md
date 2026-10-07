@@ -125,6 +125,7 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-07 redeployed `c88b9e8`** (frontend fixes found while recording the SOP: FA-02 transfer approval 405, unencoded record ids, transfer item picker). Local commits are still unpushed (push refused by the permission classifier).
 - **2026-10-06 DEPLOYED `8e37706` (Stage 57 + barcode policy) to production at the user's request** for a client demo. Pre-deploy encrypted backup `/opt/erp/backups/custom_erp_20261006T004730Z.dump.enc`; `migrations_stage57_qa_round.sql` applied to all tenants; health OK; verified read-only on tenant_default and tenant_minn (no user forced to reset - existing passwords untouched). **`git push` was refused by the local permission classifier - the commit is local-only until the user pushes** (`git push origin main`). The 3 stranded tenant_minn masters were then repaired with the user's go-ahead (backup `custom_erp_20261006T034651Z.dump.enc` first; minn now 0 stranded). tenant_default still has 11 - not approved, untouched. SOP training server still running on :8111 (`erp_sop_training_20261006`).
 
 - **2026-10-06 Stage 57 user QA round (ledger §197, checklist Stage 57 + Stage 55 note):** built
