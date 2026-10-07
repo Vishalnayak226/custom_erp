@@ -631,7 +631,7 @@ async function openStickerTemplateDesigner(templateId) {
   stickerDesignerActive = true;
 
   if (templateId) {
-    const res = await apiFetch(`/api/v1/doc/StickerTemplate/${templateId}`);
+    const res = await apiFetch(`/api/v1/doc/StickerTemplate/${encodeURIComponent(templateId)}`);
     if (res && res.ok) {
       const t = await res.json();
       stickerDesignerLabelW = Number(t.label_width_mm) || 50;
@@ -927,7 +927,7 @@ async function saveStickerTemplate() {
     status: document.getElementById('std-status').value,
     elements: JSON.stringify(stickerDesignerElements)
   };
-  const url = currentStickerTemplateId ? `/api/v1/doc/StickerTemplate/${currentStickerTemplateId}` : '/api/v1/doc/StickerTemplate';
+  const url = currentStickerTemplateId ? `/api/v1/doc/StickerTemplate/${encodeURIComponent(currentStickerTemplateId)}` : '/api/v1/doc/StickerTemplate';
   const res = await apiFetch(url, { method: 'POST', body: JSON.stringify(body) });
   if (!res) return;
   if (!res.ok) {

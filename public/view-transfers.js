@@ -105,6 +105,9 @@ async function renderTransfersView(container) {
   document.getElementById('transfer-create-btn').addEventListener('click', createTransferOrder);
   attachLinkTypeahead(document.getElementById('transfer-from'), 'Location');
   attachLinkTypeahead(document.getElementById('transfer-to'), 'Location');
+  // Stage 57: the line's item was a bare text box - people had to type the
+  // exact code. It picks by name now and still stores the code.
+  attachLinkTypeahead(document.getElementById('transfer-line-sku'), 'Item');
 }
 
 function renderTransferLinesList() {
@@ -116,7 +119,7 @@ function renderTransferLinesList() {
   }
   el.innerHTML = transferLineItems.map((line, idx) => `
     <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 13.5px;">
-      <span style="font-family: monospace;">${line.sku}</span>
+      <span data-link-doctype="Item" data-link-ref="${escapeHTMLText(line.sku)}">${escapeHTMLText(line.sku)}</span>
       <span>qty ${line.qty}</span>
       <button class="action-btn action-btn-danger" type="button" ${actionAttrs('removeTransferLine', [idx])}>Remove</button>
     </div>
@@ -293,7 +296,7 @@ async function packTransferOrderWithCartonization(id) {
 async function approveTransferOrder(id) {
   const row = state.docData.find(t => t.id === id);
   if (!row) return;
-  const res = await apiFetch(`/api/v1/doc/TransferOrder/${id}`, {
+  const res = await apiFetch(`/api/v1/doc/TransferOrder/${encodeURIComponent(id)}`, {
     method: 'POST',
     body: JSON.stringify({ ...row, status: 'Approved' })
   });

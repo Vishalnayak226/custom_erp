@@ -978,7 +978,7 @@ async function loadReportCatalogSavedFilters() {
 
 function applyReportCatalogSavedFilter(presetId) {
   if (!presetId) return;
-  apiFetch(`/api/v1/doc/ReportFilterPreset/${presetId}`).then(async (res) => {
+  apiFetch(`/api/v1/doc/ReportFilterPreset/${encodeURIComponent(presetId)}`).then(async (res) => {
     if (!res || !res.ok) return;
     const preset = await res.json();
     let params = {};

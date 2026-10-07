@@ -53,7 +53,7 @@ async function renderApprovalsView(container) {
     const loc = item.location || item.location_code || '';
     html += `
       <tr>
-        <td>${item.doctype}</td>
+        <td>${escapeHTMLText(getDoctypeLabel(item.doctype))}</td>
         <td style="font-family: monospace;">${item.id}</td>
         <td>${amount !== '' ? Number(amount).toLocaleString() : ''}</td>
         <td>${loc}</td>

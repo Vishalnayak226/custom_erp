@@ -2998,7 +2998,9 @@ async function applyIndustryLockUI() {
   const sel = document.getElementById('industry-selector');
   const overrideBtn = document.getElementById('industry-override-btn');
   if (!sel) return;
-  const res = await apiFetch('/api/v1/admin/industry/lock');
+  // Admin-only endpoint: other roles take the fallback below without asking
+  // (it used to log a 403 for every non-admin session at startup).
+  const res = isAdminRoleName(localStorage.getItem('erp_role')) ? await apiFetch('/api/v1/admin/industry/lock') : null;
   if (!res || !res.ok) {
     // Not a Super Admin (403), or the check itself failed - fall back to the
     // old per-browser memory rather than showing nothing, and leave the

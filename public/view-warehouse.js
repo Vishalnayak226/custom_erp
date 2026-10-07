@@ -608,7 +608,7 @@ async function submitYardCheckInInner() {
 // current record first and patch it, rather than posting just the two
 // fields that changed, which would silently blank every other field.
 async function patchYardCheckIn(id, patch) {
-  const getRes = await apiFetch(`/api/v1/doc/YardCheckIn/${id}`);
+  const getRes = await apiFetch(`/api/v1/doc/YardCheckIn/${encodeURIComponent(id)}`);
   if (!getRes) return null;
   if (!getRes.ok) {
     await showApiError(getRes, 'Failed to load yard check-in record.');
@@ -616,7 +616,7 @@ async function patchYardCheckIn(id, patch) {
   }
   const record = await getRes.json();
   Object.assign(record, patch);
-  return apiFetch(`/api/v1/doc/YardCheckIn/${id}`, { method: 'POST', body: JSON.stringify(record) });
+  return apiFetch(`/api/v1/doc/YardCheckIn/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify(record) });
 }
 
 window.assignYardDoor = async function(id) {
