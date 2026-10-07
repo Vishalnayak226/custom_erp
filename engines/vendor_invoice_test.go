@@ -193,6 +193,76 @@ func TestVendorInvoice3WayMatchAndPayment(t *testing.T) {
 		}
 	})
 
+	// FA-20261005-01: the audit's own fixture. PO 100 @ 10 + 18% GST
+	// (total_amount 1000, grand_total 1180); GRN received 80, accepted 75.
+	// The supplier's correct bill is 75 x 10 x 1.18 = 885 - it used to be
+	// held because it was compared with the whole PO and with an untaxed GRN.
+	seedTaxedPOAndPartialGRN := func() {
+		poItems, _ := json.Marshal([]map[string]interface{}{{"sku": sku, "qty": 100, "rate": 10}})
+		poBytes, _ := json.Marshal(map[string]interface{}{"id": poID, "code": poID, "total_amount": 1000, "grand_total": 1180, "items": string(poItems), "status": "Approved"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'PurchaseOrder', $2, 'Approved', 'system')", poID, poBytes); err != nil {
+			t.Fatalf("seed PO: %v", err)
+		}
+		grnItems, _ := json.Marshal([]map[string]interface{}{{"sku": sku, "ordered_qty": 100, "qty": 80, "accepted_qty": 75, "rejected_qty": 5}})
+		grnBytes, _ := json.Marshal(map[string]interface{}{"id": grnID, "code": grnID, "po_id": poID, "received_items": string(grnItems), "status": "Approved"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'GRN', $2, 'Approved', 'system')", grnID, grnBytes); err != nil {
+			t.Fatalf("seed GRN: %v", err)
+		}
+	}
+
+	t.Run("FA-01: a tax-inclusive bill for the accepted part of a partial receipt matches", func(t *testing.T) {
+		cleanup()
+		seedTaxedPOAndPartialGRN()
+		seedInvoice("TEST-VI-INV7", 885, "VEND01", "INV-007", "TEST-FY")
+		// No PO/GRN passed: the invoice's own references are used.
+		m, err := MatchVendorInvoice(tenantID, "TEST-VI-INV7", "", "", 2.0)
+		if err != nil {
+			t.Fatalf("MatchVendorInvoice: %v", err)
+		}
+		if !m.Matched || m.Status != "Matched" {
+			t.Fatalf("expected 885 to match 75 accepted x 10 x 1.18, got %s: %v", m.Status, m.Reasons)
+		}
+	})
+
+	t.Run("FA-01: billing received-but-rejected goods holds, with a reason", func(t *testing.T) {
+		cleanup()
+		seedTaxedPOAndPartialGRN()
+		seedInvoice("TEST-VI-INV8", 944, "VEND01", "INV-008", "TEST-FY") // 80 x 10 x 1.18
+		m, err := MatchVendorInvoice(tenantID, "TEST-VI-INV8", "", "", 2.0)
+		if err != nil {
+			t.Fatalf("MatchVendorInvoice: %v", err)
+		}
+		if m.Matched || len(m.Reasons) == 0 {
+			t.Fatalf("expected a hold with a reason for billing 5 rejected units, got matched=%v reasons=%v", m.Matched, m.Reasons)
+		}
+	})
+
+	t.Run("FA-01: a second bill for the same GRN holds even at the right amount", func(t *testing.T) {
+		cleanup()
+		seedTaxedPOAndPartialGRN()
+		seedInvoice("TEST-VI-INV9A", 885, "VEND01", "INV-009A", "TEST-FY")
+		seedInvoice("TEST-VI-INV9B", 885, "VEND01", "INV-009B", "TEST-FY")
+		if m, err := MatchVendorInvoice(tenantID, "TEST-VI-INV9A", "", "", 2.0); err != nil || !m.Matched {
+			t.Fatalf("first bill should match: %v %v", err, m.Reasons)
+		}
+		m, err := MatchVendorInvoice(tenantID, "TEST-VI-INV9B", "", "", 2.0)
+		if err != nil {
+			t.Fatalf("MatchVendorInvoice: %v", err)
+		}
+		if m.Matched {
+			t.Fatalf("expected the duplicate bill for the same goods to be held")
+		}
+	})
+
+	t.Run("FA-01: a PO/GRN that disagrees with the invoice's own is refused", func(t *testing.T) {
+		cleanup()
+		seedTaxedPOAndPartialGRN()
+		seedInvoice("TEST-VI-INV10", 885, "VEND01", "INV-010", "TEST-FY")
+		if _, err := MatchVendorInvoice(tenantID, "TEST-VI-INV10", "TEST-VI-OTHER-PO", "", 2.0); err == nil {
+			t.Fatalf("expected a mismatched PO reference to be refused")
+		}
+	})
+
 	t.Run("duplicate vendor+invoice_number+financial_year is rejected at the database level", func(t *testing.T) {
 		cleanup()
 		seedPOAndGRN(1000, 10)

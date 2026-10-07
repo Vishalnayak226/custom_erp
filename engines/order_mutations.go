@@ -59,7 +59,21 @@ func orderMutationAllowed(tenantID, orderStatus, mutation string) error {
 	if allowed, isTerminal := orderMutationDefaults[orderStatus]; isTerminal && !allowed {
 		return fmt.Errorf("%s is not allowed while the order is %s", mutation, orderStatus)
 	}
+	if orderStatus == OrderStatusReleased && releasedOrderBlockedMutations[mutation] {
+		return fmt.Errorf("%s is not allowed once the order is released to fulfillment - its pick tasks are already with the warehouse", mutation)
+	}
 	return nil
+}
+
+// releasedOrderBlockedMutations are the changes that would leave a released
+// order's pick tasks picking the wrong lines or location (FA-20261005-03).
+// Edit (address/contact) and Set Priority stay allowed - the picker reads
+// priority live. A StatusTransitionRule row still overrides either way.
+var releasedOrderBlockedMutations = map[string]bool{
+	"Switch Facility": true,
+	"Split":           true,
+	"Hold Line":       true,
+	"Hold":            true,
 }
 
 // fetchOrderLine reads one SalesOrderLine and the order it belongs to.

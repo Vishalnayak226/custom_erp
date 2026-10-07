@@ -85,6 +85,146 @@ func CreateFulfillmentTasks(tenantID string, orderID string, locationCode string
 	return taskID, err
 }
 
+// OrderStatusReleased is a SalesOrder handed to the warehouse: its pick tasks
+// exist. Stock stays reserved (lines keep line_status Reserved) until the task
+// is Dispatched, which is where TransitionTaskStatus deducts it.
+const OrderStatusReleased = "Released"
+
+// ReleaseOrderToFulfillment is the operator's next step for a Reserved order
+// (FA-20261005-03). Before it, nothing in the product ever created a
+// FulfillmentTask for an order - CreateFulfillmentTasks above had only test
+// callers - so a manual or channel order sat at Reserved with an empty
+// Fulfillment screen and no action that moved it.
+//
+// One task per sourcing location (each line already carries the location its
+// stock was reserved at), created in one transaction with the order's move to
+// Released, so a failure leaves neither. Idempotent: releasing an order that is
+// already Released returns its existing tasks and creates nothing.
+func ReleaseOrderToFulfillment(tenantID, orderID, actor string) (taskIDs []string, created bool, err error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, false, err
+	}
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return nil, false, err
+	}
+	defer tx.Rollback()
+
+	var orderStr string
+	if err := tx.QueryRow(fmt.Sprintf(
+		`SELECT data FROM %s.documents WHERE doctype = 'SalesOrder' AND id = $1 AND deleted_at IS NULL FOR UPDATE`, schema),
+		orderID).Scan(&orderStr); err != nil {
+		return nil, false, &ValidationError{Code: "GLOBAL-0004", Message: fmt.Sprintf("order %s not found", orderID)}
+	}
+	var order map[string]interface{}
+	if err := json.Unmarshal([]byte(orderStr), &order); err != nil {
+		return nil, false, err
+	}
+	status, _ := order["order_status"].(string)
+
+	existing := func() ([]string, error) {
+		rows, err := tx.Query(fmt.Sprintf(
+			`SELECT id FROM %s.documents WHERE doctype = 'FulfillmentTask' AND data->>'order_id' = $1 AND deleted_at IS NULL ORDER BY created_at, id`, schema), orderID)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+		var ids []string
+		for rows.Next() {
+			var id string
+			if err := rows.Scan(&id); err != nil {
+				return nil, err
+			}
+			ids = append(ids, id)
+		}
+		return ids, rows.Err()
+	}
+	if status == OrderStatusReleased {
+		ids, err := existing()
+		return ids, false, err
+	}
+	if status != "Reserved" {
+		return nil, false, &ValidationError{Code: "GLOBAL-0019", Message: fmt.Sprintf("only a Reserved order can be released to fulfillment; order %s is %s", orderID, status)}
+	}
+
+	rows, err := tx.Query(fmt.Sprintf(
+		`SELECT id, data FROM %s.documents WHERE doctype = 'SalesOrderLine' AND data->>'order_id' = $1 AND deleted_at IS NULL ORDER BY id`, schema), orderID)
+	if err != nil {
+		return nil, false, err
+	}
+	byLocation := map[string][]interface{}{}
+	var locations []string
+	for rows.Next() {
+		var lineID, lineStr string
+		if err := rows.Scan(&lineID, &lineStr); err != nil {
+			rows.Close()
+			return nil, false, err
+		}
+		var line map[string]interface{}
+		if err := json.Unmarshal([]byte(lineStr), &line); err != nil {
+			rows.Close()
+			return nil, false, err
+		}
+		if ls, _ := line["line_status"].(string); ls != "Reserved" {
+			continue // held, cancelled or already moved lines are not picked
+		}
+		loc, _ := line["location_code"].(string)
+		if loc == "" {
+			rows.Close()
+			return nil, false, &ValidationError{Code: "GLOBAL-0019", Message: fmt.Sprintf("line %s has no sourcing location; reallocate the order first", lineID)}
+		}
+		if _, seen := byLocation[loc]; !seen {
+			locations = append(locations, loc)
+		}
+		byLocation[loc] = append(byLocation[loc], map[string]interface{}{
+			"sku": line["sku"], "qty": int(numFromInterface(line["qty"])), "line_id": lineID,
+		})
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+	if len(locations) == 0 {
+		return nil, false, &ValidationError{Code: "GLOBAL-0019", Message: fmt.Sprintf("order %s has no reserved lines to release", orderID)}
+	}
+
+	for _, loc := range locations {
+		taskID := NewDocID("TSK")
+		taskBytes, err := json.Marshal(map[string]interface{}{
+			"code": taskID, "order_id": orderID, "location_code": loc, "status": "Pending", "items": byLocation[loc],
+		})
+		if err != nil {
+			return nil, false, err
+		}
+		if _, err := tx.Exec(fmt.Sprintf(
+			`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'FulfillmentTask', $2, 'Pending', 'system')`, schema),
+			taskID, taskBytes); err != nil {
+			return nil, false, err
+		}
+		taskIDs = append(taskIDs, taskID)
+	}
+
+	order["order_status"] = OrderStatusReleased
+	order["released_at"] = time.Now().UTC().Format(time.RFC3339)
+	order["released_by"] = actor
+	orderBytes, err := json.Marshal(order)
+	if err != nil {
+		return nil, false, err
+	}
+	if _, err := tx.Exec(fmt.Sprintf(
+		`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'SalesOrder' AND id = $3`, schema),
+		orderBytes, OrderStatusReleased, orderID); err != nil {
+		return nil, false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, false, err
+	}
+	LogAuditEvent(tenantID, actor, "ORDER_RELEASED_TO_FULFILLMENT", "SUCCESS",
+		fmt.Sprintf("Order %s released: %d pick task(s) %v", orderID, len(taskIDs), taskIDs))
+	return taskIDs, true, nil
+}
+
 // TransitionTaskStatus handles status workflows for picking and dispatches
 func TransitionTaskStatus(tenantID string, taskID string, newStatus string) error {
 	schema, err := db.GetTenantSchema(tenantID)

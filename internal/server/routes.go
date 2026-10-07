@@ -361,6 +361,7 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/orders/{id}/hold", apiMiddleware(moduleGate("oms", handlePlaceOrderHold)))
 	http.HandleFunc("POST /api/v1/orders/{id}/release-hold", apiMiddleware(moduleGate("oms", handleReleaseOrderHold)))
 	http.HandleFunc("POST /api/v1/orders/{id}/cancel", apiMiddleware(moduleGate("oms", handleCancelOrder)))
+	http.HandleFunc("POST /api/v1/orders/{id}/release-to-fulfillment", apiMiddleware(moduleGate("oms", handleReleaseOrderToFulfillment)))
 
 	// Stage 35.2: the OMS Console. Read endpoints for the faceted list, the
 	// one-call order detail, the report-backed tiles and global search, plus

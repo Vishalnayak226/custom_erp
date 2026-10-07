@@ -428,6 +428,17 @@ The status only moves forward — Draft → Sent → Closed.
 
 There is **no separate Purchase Return screen yet.** Today, when you send goods back or a supplier overcharged you, record the money side with a **Debit Note** (Financial Accounting → Debit / Credit Notes): pick the supplier and the **Reference PO** from its list, the amount and the reason. Moving the returned stock itself out of your inventory is not yet a guided flow — ask your administrator how your business handles it until it is.
 
+### 6.6 Paying the supplier's bill (Vendor Invoice and the three-way match)
+
+When the supplier's bill arrives, record it and let the system check it before anyone pays it.
+
+1. Go to **Financial Accounting → Vendor Invoice** and click **+ New Vendor Invoice**.
+2. Enter the supplier's **Invoice Number**, pick the **Vendor**, the **PO Reference** and the **GRN Reference** (the goods receipt this bill is for), and the **Invoice Amount** exactly as printed on the bill — **including GST**. Save. It starts as **Draft**.
+3. Click **Match** on its row. You are not asked for the PO or GRN again — the invoice already names them.
+   - **Matched** — the bill agrees with what you actually accepted: accepted quantity × the PO rate, plus the PO's GST, within the tolerance your administrator set (2% by default). A **partial delivery billed for what arrived matches** — you do not have to wait for the whole PO. Goods you **rejected** at receipt are not owed, so they are not counted.
+   - **On hold (MismatchHold)** — a message tells you exactly what disagreed: the bill differs from the accepted goods' value, or that GRN or PO has **already been billed** (a duplicate bill for the same goods is caught). Correct the amount with the supplier, or use **Override & Pay** with a written reason — that goes to a manager for approval rather than paying straight away.
+4. A **Matched** invoice shows **Pay** (and **Pay w/ TDS** where TDS sections are set up). Paying it posts the entry to the accounts.
+
 ## 7. Moving Stock Between Locations (Stock Transfer)
 
 1. Click **Stock Transfer** in the sidebar.
@@ -806,7 +817,7 @@ Use this for a phone order, a walk-in wholesale order, a replacement, or anythin
    - **Customer name** and **Customer phone** — both optional, but they're what makes an order findable later. The phone box only accepts digits, `+`, `-`, `(`, `)` and spaces; it won't let you type letters.
    - **Source** — defaults to "Manual". Change it if you want the order tagged as coming from somewhere specific (a phone line, a trade counter, a particular salesperson).
    - **Reference** — optional, but useful. It's your own order number for this order. If you send the **same reference twice, you get the same order back rather than a duplicate** — so a double-click or a retried entry can't create two orders.
-   - **Payment** — Confirmed (paid), Pending, or Cash on delivery.
+   - **Payment** — Confirmed (paid), Pending, or Cash on delivery. **Confirmed** and **Cash on delivery** go straight through; **Pending** puts the order On Hold (*PAYMENT_PENDING*) until you edit it to Confirmed once the money arrives.
    - **Shipping address** — **required.** The order engine has to know where it's going.
 3. Add items with **+ Add item**: search for the item, set the quantity and the unit price.
 4. Click **Create Order**.
@@ -837,6 +848,7 @@ Across the top of that page is the action bar:
 
 | Action | What it does |
 | --- | --- |
+| **Release to Fulfillment** | The next step for a **Reserved** order: sends it to the warehouse. One pick task is created per location holding its stock, the order becomes **Released**, and the tasks appear on the **Fulfillment** screen. Clicking it twice does not create a second set. Only shown while the order is Reserved. |
 | **Release hold** | Clears a hold and re-allocates. Only shown while the order is On Hold. |
 | **Hold** | Stops the order. Asks for an active Hold reason code, which is recorded. |
 | **Edit** | Change the customer, phone, shipping/billing address or payment status. **Saving re-runs the same checks a new order goes through** — so if your edit leaves the order unfulfillable (an address with no PIN code, say) the order is placed On Hold with the reason, rather than saved silently broken. |
@@ -850,19 +862,22 @@ Across the top of that page is the action bar:
 
 If an action is greyed out, the order has reached a status that closes it (Shipped, Delivered, Closed, Cancelled). An administrator can reopen any of these by configuring a Status Transition Rule.
 
+**Once an order is Released**, the warehouse is already picking it, so **Hold**, **Hold line**, **Switch facility**, **Split** and **Cancel** are refused with a message saying so. **Edit** (address, contact) and **Expedite** still work. If the location cannot fulfil it, **Reject** the task on the Fulfillment screen; the system re-routes it to the next best location with stock.
+
 **Acting on many orders at once:** tick the checkboxes in the Orders table — the header checkbox selects the whole page — and a bar appears with **Release Hold**, **Hold** and **Cancel**. Each order is still checked individually, so a mixed selection does what it can and tells you exactly which orders refused and why (an order that has already shipped can't be cancelled, and says so).
 
 ### 9A.4 The full order-to-cash walkthrough
 
 1. **Order arrives** (channel, middleware, or the manual panel above). Stock is reserved automatically.
 2. **Clear any hold.** An order sitting On Hold does not progress. Open it, read the reason, fix it, click **Release hold**. Working a backlog? Filter the queue by **Status = On Hold**, or by the specific **Hold reason**, tick the ones you've resolved and release them together.
-3. **Pick and pack.** Go to **Fulfillment** — the task for this order is routed to the location holding the stock. Work it through pick → pack. Anything you marked **Expedite** appears at the top of the picking worklist. (Warehouses using wave picking or mobile picking do the same thing from those screens.)
-4. **Book the shipment.** Under **Marketplace & Logistics**, book the courier and print the shipping label. The Shipment column starts reporting the booking's state.
-5. **Hand over.** Once the courier has it, the order moves to Shipped and the shipment to In-Transit.
-6. **Invoice.** The linked invoice appears in the Invoice column. Open it and settle it when the customer has paid.
-7. **Delivered.** Delivery events move the order to Delivered.
+3. **Release to the warehouse.** Open the order (now **Reserved**) and click **Release to Fulfillment**. The order becomes **Released**.
+4. **Pick and pack.** Go to **Fulfillment** — the task for this order is routed to the location holding the stock. Work it through pick → pack. Anything you marked **Expedite** appears at the top of the picking worklist. (Warehouses using wave picking or mobile picking do the same thing from those screens.)
+5. **Book the shipment.** Under **Marketplace & Logistics**, book the courier and print the shipping label. The Shipment column starts reporting the booking's state.
+6. **Hand over.** Once the courier has it, the order moves to Shipped and the shipment to In-Transit.
+7. **Invoice.** The linked invoice appears in the Invoice column. Open it and settle it when the customer has paid.
+8. **Delivered.** Delivery events move the order to Delivered.
 
-If you're comparing this to how Unicommerce or a similar OMS describes the same flow: their "sale order → inventory allocation → picklist → invoice → manifest/dispatch" maps onto steps 1–6 above. The vocabulary differs; the sequence doesn't.
+If you're comparing this to how Unicommerce or a similar OMS describes the same flow: their "sale order → inventory allocation → picklist → invoice → manifest/dispatch" maps onto steps 1–7 above. The vocabulary differs; the sequence doesn't.
 
 ### 9A.5 Invoicing a customer in a foreign currency
 

@@ -122,6 +122,22 @@ func handleReleaseOrderHold(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// handleReleaseOrderToFulfillment is the Reserved order's next step
+// (FA-20261005-03): it creates the pick tasks. Idempotent - a repeat returns
+// the existing tasks with created=false, so the UI can say so honestly.
+func handleReleaseOrderToFulfillment(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	orderID := r.PathValue("id")
+	taskIDs, created, err := engines.ReleaseOrderToFulfillment(tenantID, orderID, r.Header.Get("Resolved-User-ID"))
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"order_id": orderID, "order_status": engines.OrderStatusReleased, "task_ids": taskIDs, "created": created,
+	})
+}
+
 // handleCancelOrder enforces the stage-gated cancellation matrix - see
 // engines.CancelOrder's own doc comment.
 func handleCancelOrder(w http.ResponseWriter, r *http.Request) {

@@ -566,6 +566,7 @@ window.openOMSOrderDetail = async function(orderID) {
         <div class="oms-detail-address"><span class="stat-label">Ship to</span><div>${escapeHTMLText(order.shipping_address || '—')}</div></div>
 
         <div class="oms-action-bar">
+          ${status === 'Reserved' ? `<button class="btn btn-primary btn-sm" data-action="fulfil" title="Create the pick tasks for this order at its sourcing location(s)">Release to Fulfillment</button>` : ''}
           ${status === 'On Hold' ? `<button class="btn btn-primary btn-sm" data-action="release">Release hold</button>` : `<button class="btn btn-outline btn-sm" data-action="hold"${terminal ? ' disabled' : ''}>Hold</button>`}
           <button class="btn btn-outline btn-sm" data-action="edit"${terminal ? ' disabled' : ''}>Edit</button>
           <button class="btn btn-outline btn-sm" data-action="reallocate"${terminal ? ' disabled' : ''}>Reallocate</button>
@@ -617,6 +618,9 @@ window.openOMSOrderDetail = async function(orderID) {
     const action = btn.getAttribute('data-action');
     const path = `/api/v1/orders/${encodeURIComponent(orderID)}`;
     if (action === 'release') return omsPost(`${path}/release-hold`, {}, 'Failed to release the hold.', after);
+    // FA-20261005-03: the Reserved order's next step - creates its pick
+    // tasks, which then appear on the Fulfillment screen.
+    if (action === 'fulfil') return omsPost(`${path}/release-to-fulfillment`, {}, 'Failed to release this order to fulfillment.', after);
     if (action === 'hold') {
       const reasonCode = await showCustomPrompt('Active Hold reason-code:', '', 'Hold Order');
       if (reasonCode === null || !reasonCode.trim()) return;

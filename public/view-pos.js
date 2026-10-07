@@ -1639,13 +1639,12 @@ async function printCompletedPOSSale() {
 }
 
 // posStoreLabel is how the store reads to a human - the resolved name the
-// picker is showing, falling back to the code. Used on the frozen bill and on
-// the browser-printed receipt, so both say the same thing.
+// picker is showing, falling back to the code only before it resolves. Used on
+// the frozen bill and on the browser-printed receipt, so both say the same
+// thing. Name only (Stage 57.1): the code no longer rides along in brackets.
 function posStoreLabel() {
   const shown = (document.getElementById('pos-location-display') || {}).value || '';
-  if (!shown) return posLocation || '';
-  if (shown === posLocation) return posLocation;
-  return `${shown} (${posLocation})`;
+  return shown || posLocation || '';
 }
 
 // --- Stage 53.12: who the bill is from --------------------------------------

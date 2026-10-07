@@ -428,19 +428,30 @@ function renderVendorInvoiceActions(v) {
   return '';
 }
 
+// FA-20261005-01/06: the invoice already names its PO and GRN, so Match no
+// longer asks for them again, and a hold now says what did not agree.
 async function matchVendorInvoice(invoiceId) {
-  const poId = await showCustomPrompt('Enter the PO ID/number this invoice matches:', '', 'Match Invoice');
-  if (poId === null) return;
-  const grnId = await showCustomPrompt('Enter the GRN ID/number this invoice matches:', '', 'Match Invoice');
-  if (grnId === null) return;
   const res = await apiFetch('/api/v1/procurement/vendor-invoice/match', {
     method: 'POST',
-    body: JSON.stringify({ invoice_id: invoiceId, po_id: poId, grn_id: grnId })
+    body: JSON.stringify({ invoice_id: invoiceId })
   });
   if (!res) return;
   if (!res.ok) {
     await showApiError(res, 'Match failed.');
     return;
+  }
+  const data = await res.json();
+  const d = data.match_details || {};
+  const fmt = (n) => Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const lines = [
+    `Invoice amount: ${fmt(d.invoice_amount)}`,
+    `Accepted goods value (incl. tax): ${fmt(d.grn_value)}`,
+    `PO total (incl. tax): ${fmt(d.po_amount)}${d.already_billed_po ? ` - already billed ${fmt(d.already_billed_po)}` : ''}`,
+  ];
+  if (data.matched) {
+    await showCustomAlert(`Matched. The invoice can now be paid.\n\n${lines.join('\n')}`, 'Invoice Matched');
+  } else {
+    await showCustomAlert(`On hold - correct the invoice amount, or use Override & Pay with a reason.\n\n${(data.reasons || []).join('\n')}\n\n${lines.join('\n')}`, 'Invoice On Hold');
   }
   renderView('vendor-invoices');
 }

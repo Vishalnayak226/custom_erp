@@ -24,63 +24,130 @@ type poItemLine struct {
 type grnItemLine struct {
 	Sku string `json:"sku"`
 	Qty int    `json:"qty"`
+	// AcceptedQty is what passed inspection. Pointer so a GRN written before
+	// accept/reject existed (qty only) is told apart from one that accepted 0.
+	AcceptedQty *int `json:"accepted_qty"`
 }
 
-// Match3Way compares a PurchaseOrder's ordered amount, the value of what a
-// GRN actually received (received qty x the PO's own per-sku rate - GRN
-// itself carries no pricing, only quantities), and a VendorInvoice's billed
-// amount, all within tolerancePercent of the PO amount. Sets the invoice to
-// Matched or MismatchHold and stores the comparison for audit/review.
-// tolerancePercent <= 0 falls back to a 2% system default.
+// billableVendorInvoiceStatuses are the invoices already standing against a
+// PO/GRN: matched, approved, awaiting an override decision, or paid. Draft and
+// MismatchHold are not - neither has been accepted as owed.
+const billableVendorInvoiceStatuses = `'Matched', 'Approved', 'Pending Approval', 'Paid'`
+
+// VendorInvoiceMatch is the outcome of a 3-way match, with the comparison
+// behind it, so a hold can say what to correct rather than only "mismatch".
+type VendorInvoiceMatch struct {
+	Matched bool                   `json:"matched"`
+	Status  string                 `json:"status"`
+	POID    string                 `json:"po_id"`
+	GRNID   string                 `json:"grn_id"`
+	Details map[string]interface{} `json:"match_details"`
+	Reasons []string               `json:"reasons"`
+}
+
+// Match3Way is MatchVendorInvoice reduced to the matched flag, for callers
+// that only need that.
 func Match3Way(tenantID, poID, grnID, invoiceID string, tolerancePercent float64) (matched bool, err error) {
+	m, err := MatchVendorInvoice(tenantID, invoiceID, poID, grnID, tolerancePercent)
+	return m.Matched, err
+}
+
+// MatchVendorInvoice 3-way matches a VendorInvoice against its PurchaseOrder
+// and GRN and sets it to Matched or MismatchHold.
+//
+// FA-20261005-01 (functional audit 2026-10-05) - what was wrong before: the
+// invoice had to equal the WHOLE PO, and separately equal received qty x the
+// untaxed PO rate. A supplier bills tax-inclusive for what was delivered, so a
+// correct bill for a partial receipt could never satisfy both, and even a full
+// one failed whenever the PO carried GST. The rules now:
+//
+//  1. Expected bill = accepted qty (not received - rejected goods are not
+//     owed) x the PO line rate x the PO's own tax ratio (grand_total /
+//     total_amount; 1 for a PO saved before GST was split out). The invoice
+//     must be within tolerancePercent of that.
+//  2. Overbilling stays held: this invoice plus every other invoice already
+//     standing against the same GRN may not exceed that GRN's expected bill,
+//     and against the same PO may not exceed the PO's tax-inclusive total.
+//     That is what replaces "must equal the PO" - partial bills are fine,
+//     billing the same goods twice is not.
+//
+// poID/grnID may be empty: the invoice's own po_id/grn_id are used. If given,
+// they must agree with the invoice. tolerancePercent <= 0 falls back to the
+// tenant setting.
+func MatchVendorInvoice(tenantID, invoiceID, poID, grnID string, tolerancePercent float64) (VendorInvoiceMatch, error) {
+	var out VendorInvoiceMatch
 	if tolerancePercent <= 0 {
 		tolerancePercent = defaultVendorInvoiceTolerancePercentFor(tenantID)
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return false, err
+		return out, err
 	}
 
 	tx, err := db.DB.Begin()
 	if err != nil {
-		return false, err
+		return out, err
 	}
 	defer tx.Rollback()
 	if err := db.SetSearchPath(tx, schema); err != nil {
-		return false, err
+		return out, err
 	}
 
 	var invDataStr, invStatus string
 	if err := tx.QueryRow(fmt.Sprintf(
 		`SELECT data, status FROM %s.documents WHERE doctype = 'VendorInvoice' AND id = $1 FOR UPDATE`, schema),
 		invoiceID).Scan(&invDataStr, &invStatus); err != nil {
-		return false, fmt.Errorf("vendor invoice not found: %v", err)
+		return out, fmt.Errorf("vendor invoice not found: %v", err)
 	}
 	var invData map[string]interface{}
 	if err := json.Unmarshal([]byte(invDataStr), &invData); err != nil {
-		return false, err
+		return out, err
 	}
-	invoiceAmount, _ := invData["invoice_amount"].(float64)
+	invoiceAmount := numFromInterface(invData["invoice_amount"])
+
+	resolveRef := func(given, field, label string) (string, error) {
+		own, _ := invData[field].(string)
+		switch {
+		case given == "" && own == "":
+			return "", fmt.Errorf("invoice %s has no %s to match against", invoiceID, label)
+		case given == "":
+			return own, nil
+		case own != "" && own != given:
+			return "", fmt.Errorf("invoice %s is for %s %s, not %s", invoiceID, label, own, given)
+		}
+		return given, nil
+	}
+	if poID, err = resolveRef(poID, "po_id", "PO"); err != nil {
+		return out, err
+	}
+	if grnID, err = resolveRef(grnID, "grn_id", "GRN"); err != nil {
+		return out, err
+	}
 
 	var poDataStr string
 	if err := tx.QueryRow(fmt.Sprintf(
 		`SELECT data FROM %s.documents WHERE doctype = 'PurchaseOrder' AND id = $1`, schema), poID).Scan(&poDataStr); err != nil {
-		return false, fmt.Errorf("purchase order not found: %v", err)
+		return out, fmt.Errorf("purchase order not found: %v", err)
 	}
 	var poData map[string]interface{}
 	if err := json.Unmarshal([]byte(poDataStr), &poData); err != nil {
-		return false, err
+		return out, err
 	}
-	poAmount, _ := poData["total_amount"].(float64)
+	poNet := numFromInterface(poData["total_amount"])
+	poGross := numFromInterface(poData["grand_total"])
+	taxRatio := 1.0
+	if poGross > 0 && poNet > 0 {
+		taxRatio = poGross / poNet
+	} else {
+		poGross = poNet
+	}
 	poItemsStr, _ := poData["items"].(string)
 	var poItems []poItemLine
 	rateBySku := map[string]float64{}
 	if poItemsStr != "" {
-		// 24.18: read-only below; a malformed poItemsStr degrades to
-		// rateBySku staying empty, which rateDataMissing (below) already
-		// treats as a real, handled case (skip the GRN-value cross-check,
-		// match on PO delta alone) - logged so that degrade path is
-		// traceable instead of silent.
+		// 24.18: a malformed poItemsStr leaves rateBySku empty, which
+		// rateDataMissing (below) treats as a real, handled case - logged so
+		// that degrade path is traceable instead of silent.
 		if err := json.Unmarshal([]byte(poItemsStr), &poItems); err != nil {
 			log.Printf("[VENDOR-INVOICE] corrupt PO items for %s: %v", poID, err)
 		}
@@ -92,26 +159,22 @@ func Match3Way(tenantID, poID, grnID, invoiceID string, tolerancePercent float64
 	var grnDataStr string
 	if err := tx.QueryRow(fmt.Sprintf(
 		`SELECT data FROM %s.documents WHERE doctype = 'GRN' AND id = $1`, schema), grnID).Scan(&grnDataStr); err != nil {
-		return false, fmt.Errorf("GRN not found: %v", err)
+		return out, fmt.Errorf("GRN not found: %v", err)
 	}
 	var grnData map[string]interface{}
 	if err := json.Unmarshal([]byte(grnDataStr), &grnData); err != nil {
-		return false, err
+		return out, err
 	}
 	if grnPOID, _ := grnData["po_id"].(string); grnPOID != poID {
-		return false, fmt.Errorf("GRN %s does not reference PO %s", grnID, poID)
+		return out, fmt.Errorf("GRN %s does not reference PO %s", grnID, poID)
 	}
 	receivedStr, _ := grnData["received_items"].(string)
 	var receivedItems []grnItemLine
 	rateDataMissing := len(rateBySku) == 0
-	grnValue := 0.0
+	acceptedNet := 0.0
 	if receivedStr != "" {
-		// 24.18: a malformed receivedStr leaves receivedItems empty, so
-		// grnValue stays 0 - grnDelta then reads as the full invoiceAmount,
-		// which fails the tolerance check (MismatchHold) rather than a
-		// false-positive Matched. Fails closed either way; logged so the
-		// underlying corruption is traceable rather than showing up only
-		// as an unexplained mismatch.
+		// 24.18: a malformed receivedStr leaves the expected bill at 0, which
+		// holds the invoice rather than matching it - fails closed, logged.
 		if err := json.Unmarshal([]byte(receivedStr), &receivedItems); err != nil {
 			log.Printf("[VENDOR-INVOICE] corrupt GRN received_items for %s: %v", grnID, err)
 		}
@@ -121,47 +184,99 @@ func Match3Way(tenantID, poID, grnID, invoiceID string, tolerancePercent float64
 				rateDataMissing = true
 				continue
 			}
-			grnValue += rate * float64(line.Qty)
+			qty := line.Qty
+			if line.AcceptedQty != nil {
+				qty = *line.AcceptedQty
+			}
+			acceptedNet += rate * float64(qty)
 		}
 	}
+	expected := acceptedNet * taxRatio
 
-	tolerance := poAmount * tolerancePercent / 100
-	poDelta := math.Abs(poAmount - invoiceAmount)
-	grnDelta := math.Abs(grnValue - invoiceAmount)
-
-	matched = poDelta <= tolerance
-	if !rateDataMissing {
-		matched = matched && grnDelta <= tolerance
+	// Invoices already standing against the same GRN / PO (this one excluded).
+	billedAgainst := func(field, ref string) (float64, error) {
+		var total float64
+		err := tx.QueryRow(fmt.Sprintf(`
+			SELECT COALESCE(SUM(NULLIF(data->>'invoice_amount', '')::numeric), 0)::float8
+			FROM %s.documents
+			WHERE doctype = 'VendorInvoice' AND id <> $1 AND deleted_at IS NULL
+			  AND status IN (%s) AND data->>'%s' = $2`, schema, billableVendorInvoiceStatuses, field),
+			invoiceID, ref).Scan(&total)
+		return total, err
 	}
+	priorOnGRN, err := billedAgainst("grn_id", grnID)
+	if err != nil {
+		return out, err
+	}
+	priorOnPO, err := billedAgainst("po_id", poID)
+	if err != nil {
+		return out, err
+	}
+
+	round2 := func(v float64) float64 { return math.Round(v*100) / 100 }
+	var reasons []string
+	if rateDataMissing {
+		// No PO rate to value the receipt with, so the receipt cannot be
+		// priced: the invoice must equal the PO total, as before this change.
+		// Fails closed - a partial bill holds for review rather than matching.
+		if math.Abs(invoiceAmount-poGross) > poGross*tolerancePercent/100 {
+			reasons = append(reasons, fmt.Sprintf(
+				"The PO has no rate for every received item, so the receipt cannot be valued; the invoice %.2f must equal the PO total %.2f.",
+				invoiceAmount, round2(poGross)))
+		}
+	} else {
+		expectedTol := expected * tolerancePercent / 100
+		if math.Abs(invoiceAmount-expected) > expectedTol {
+			reasons = append(reasons, fmt.Sprintf(
+				"Invoice amount %.2f differs from the accepted goods' value %.2f (accepted qty x PO rate, incl. tax) by more than %.2f%%.",
+				invoiceAmount, round2(expected), tolerancePercent))
+		}
+		if priorOnGRN > 0 && priorOnGRN+invoiceAmount > expected+expectedTol {
+			reasons = append(reasons, fmt.Sprintf(
+				"GRN %s is already billed %.2f; with this invoice that exceeds its value %.2f.",
+				grnID, round2(priorOnGRN), round2(expected)))
+		}
+	}
+	poTol := poGross * tolerancePercent / 100
+	if priorOnPO+invoiceAmount > poGross+poTol {
+		reasons = append(reasons, fmt.Sprintf(
+			"PO %s total is %.2f incl. tax; already billed %.2f, so this invoice would overbill it.",
+			poID, round2(poGross), round2(priorOnPO)))
+	}
+	matched := len(reasons) == 0
 
 	newStatus := "MismatchHold"
 	if matched {
 		newStatus = "Matched"
 	}
-	invData["status"] = newStatus
-	invData["match_details"] = map[string]interface{}{
-		"po_amount":         poAmount,
-		"grn_value":         grnValue,
-		"invoice_amount":    invoiceAmount,
-		"po_delta":          poDelta,
-		"grn_delta":         grnDelta,
-		"tolerance_percent": tolerancePercent,
-		"rate_data_missing": rateDataMissing,
+	details := map[string]interface{}{
+		"po_amount":          round2(poGross),
+		"po_tax_ratio":       math.Round(taxRatio*10000) / 10000,
+		"grn_value":          round2(expected),
+		"invoice_amount":     invoiceAmount,
+		"already_billed_po":  round2(priorOnPO),
+		"already_billed_grn": round2(priorOnGRN),
+		"grn_delta":          round2(math.Abs(invoiceAmount - expected)),
+		"tolerance_percent":  tolerancePercent,
+		"rate_data_missing":  rateDataMissing,
+		"reasons":            reasons,
 	}
+	invData["status"] = newStatus
+	invData["match_details"] = details
 	updatedBytes, _ := json.Marshal(invData)
 	if _, err := tx.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'VendorInvoice' AND id = $3`, schema),
 		updatedBytes, newStatus, invoiceID); err != nil {
-		return false, err
+		return out, err
 	}
 
 	if err := tx.Commit(); err != nil {
-		return false, err
+		return out, err
 	}
 	LogAuditEvent(tenantID, "system", "MATCH_3WAY_VENDOR_INVOICE", "SUCCESS",
-		fmt.Sprintf("3-way match for invoice %s (PO %s, GRN %s): %s (po_delta=%.2f grn_delta=%.2f tolerance=%.2f%%)",
-			invoiceID, poID, grnID, newStatus, poDelta, grnDelta, tolerancePercent))
-	return matched, nil
+		fmt.Sprintf("3-way match for invoice %s (PO %s, GRN %s): %s (expected=%.2f invoice=%.2f billed_po=%.2f tolerance=%.2f%%)",
+			invoiceID, poID, grnID, newStatus, expected, invoiceAmount, priorOnPO, tolerancePercent))
+	return VendorInvoiceMatch{Matched: matched, Status: newStatus, POID: poID, GRNID: grnID, Details: details, Reasons: reasons}, nil
 }
 
 // PayVendorInvoice settles a VendorInvoice's GRN Suspense liability. Allowed

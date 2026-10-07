@@ -407,6 +407,7 @@
         "engines/pim*.go",
         "engines/stickers.go",
         "engines/sticker_document_source.go",
+        "engines/barcode_policy.go",
         "internal/server/handlers_pim_groups.go",
         "internal/server/handlers_pim_tasks.go",
         "internal/server/handlers_pim_transform.go",

@@ -431,6 +431,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/orders/{id}/hold":                                 {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/orders/{id}/priority":                             {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/orders/{id}/release-hold":                         {LevelAuthenticated, "oms.default"},
+	"POST /api/v1/orders/{id}/release-to-fulfillment":               {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/orders/{id}/split":                                {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/orders/{id}/switch-facility":                      {LevelAuthenticated, "oms.default"},
 	"POST /api/v1/pim/barcode/generate":                             {LevelAuthenticated, "pim.default"},

@@ -50,7 +50,10 @@ const (
 // (Stage 26.12.9) overrides it, so the cancellation matrix is usable out of
 // the box before any admin has populated that master.
 var orderCancelBlockedStatuses = map[string]bool{
-	"Shipped":   true,
+	// FA-20261005-03: once released, the warehouse holds pick tasks for it;
+	// cancelling would leave them picking for an order that no longer exists.
+	OrderStatusReleased: true,
+	"Shipped":           true,
 	"Delivered": true,
 	"Closed":    true,
 	"Cancelled": true,
@@ -87,8 +90,11 @@ func validateOrderChain(tenantID string, shippingAddress, paymentStatus string, 
 		return HoldAddressInvalid, nil
 	}
 
-	// 3. Payment: must be confirmed before reservation (prepaid gate).
-	if paymentStatus != "Confirmed" {
+	// 3. Payment: must be confirmed before reservation (prepaid gate). Cash on
+	// delivery passes: nothing is owed up front - the courier collects it - and
+	// the manual-order form offers COD, so holding it was a dead end (releasing
+	// the hold re-runs this same check, found with FA-20261005-03).
+	if paymentStatus != "Confirmed" && paymentStatus != "COD" {
 		return HoldPaymentPending, nil
 	}
 
@@ -398,6 +404,13 @@ func PlaceOrderHold(tenantID, orderID, reasonCode, owner string) error {
 	}
 	if err := requireActiveReasonCode(tenantID, reasonCode, "Hold"); err != nil {
 		return err
+	}
+	// The same gate every other order mutation uses: a terminal order, or a
+	// released one whose pick tasks are already out, cannot be put on hold.
+	if current, _ := orderData["order_status"].(string); current != "" {
+		if err := orderMutationAllowed(tenantID, current, "Hold"); err != nil {
+			return err
+		}
 	}
 
 	orderData["order_status"] = "On Hold"

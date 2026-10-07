@@ -44,6 +44,27 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 198. Stage 57 — defects exposed by the SOP video: cashier till access, AP three-way match, OMS release (2026-10-07; code + docs)
+
+Recording the module SOP chapters against a training database surfaced three business blockers;
+each was fixed at its one shared choke point. Full detail in `micro_checklist.md` 57.19-57.21.
+
+- **57.19** A Cashier could not open a till: no `Location`/`LegalEntity` read grant since the
+  Stage 53.3 picker. Additive migration `migrations_stage57_cashier_location_read.sql`. Receipt
+  shows the store name only. Asset version 32 → 33 (the last two deploys had not bumped it).
+- **57.20 (FA-20261005-01)** `MatchVendorInvoice` matches the supplier's tax-inclusive bill against
+  accepted qty × PO rate × the PO's tax ratio, allows partial bills, and still holds overbilling
+  of a GRN or PO across invoices; the Match action no longer re-asks PO/GRN and a hold explains
+  itself. New USER_GUIDE §6.6.
+- **57.21 (FA-20261005-03)** Nothing ever created fulfillment tasks for an order. New
+  **Release to Fulfillment** action (idempotent, one task per sourcing location, order →
+  Released, mutations that would orphan tasks refused). Cash-on-delivery orders no longer dead-end
+  On Hold.
+
+Verified by Go tests on a disposable DB, live API calls and Chromium on the training server
+(:8111). The POS clips were re-recorded and frame-reviewed; the SOP recorder now centres the
+highlighted field above the caption bar.
+
 ## 197. Stage 57 — user QA round: names not codes, create-in-place, roles and users, defect batch (2026-10-04 → 06; code + docs, uncommitted)
 
 The user operated the deployed build, submitted real transactions and reported ~30 items plus,

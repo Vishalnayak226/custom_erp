@@ -534,20 +534,22 @@ func handleMatchVendorInvoice(w http.ResponseWriter, r *http.Request) {
 		GRNID            string  `json:"grn_id"`
 		TolerancePercent float64 `json:"tolerance_percent"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.InvoiceID == "" || req.POID == "" || req.GRNID == "" {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'invoice_id', 'po_id', and 'grn_id' are required")
+	// po_id/grn_id are optional (FA-20261005-01/06): the invoice already
+	// carries both, and asking the user to type them again was the second
+	// half of that finding. If sent, they must agree with the invoice.
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.InvoiceID == "" {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'invoice_id' is required")
 		return
 	}
-	matched, err := engines.Match3Way(tenantID, req.POID, req.GRNID, req.InvoiceID, req.TolerancePercent)
+	m, err := engines.MatchVendorInvoice(tenantID, req.InvoiceID, req.POID, req.GRNID, req.TolerancePercent)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	status := "MismatchHold"
-	if matched {
-		status = "Matched"
-	}
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{"invoice_id": req.InvoiceID, "matched": matched, "status": status})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"invoice_id": req.InvoiceID, "matched": m.Matched, "status": m.Status,
+		"po_id": m.POID, "grn_id": m.GRNID, "match_details": m.Details, "reasons": m.Reasons,
+	})
 }
 
 func handlePayVendorInvoice(w http.ResponseWriter, r *http.Request) {
