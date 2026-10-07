@@ -44,6 +44,7 @@ DEPLOY_COMMIT="${DEPLOY_COMMIT:-unknown}"
 # git_commit, and it pings the DB rather than just proving a static file
 # can be served, so it is the correct target for both calls.
 HEALTH_URL="http://127.0.0.1:8080/api/v1/health"
+UI_URL="http://127.0.0.1:8080/"
 HEALTH_RETRIES=15
 HEALTH_INTERVAL=1
 
@@ -99,6 +100,13 @@ wait_healthy() {
     if [ "$code" != "200" ]; then
       continue
     fi
+    # The API being up is not the app being up: the 2026-10-07 outage had
+    # health at 200 while every page was 403 (unreadable public/). Require
+    # the frontend to be served too, for the deploy and the rollback alike.
+    ui_code="$(curl -s -o /dev/null -w '%{http_code}' -m 3 "$UI_URL" || true)"
+    if [ "$ui_code" != "200" ]; then
+      continue
+    fi
     if [ -z "$expected_commit" ]; then
       return 0
     fi
@@ -120,6 +128,20 @@ if [ -f erp-server ]; then
 fi
 if [ -d public ]; then
   cp -a public public.prev
+fi
+
+# 2026-10-07 outage: public.new arrives via `scp -r` as the ssh user (root)
+# with the Windows-side directory mode (drwx------), and nothing reset it, so
+# after activation the service user could not read the frontend - every page
+# returned 403 while /api/v1/health stayed 200 and the deploy reported OK.
+# Give the staged frontend to whoever owns REMOTE_DIR (the service user) with
+# world-readable modes BEFORE anything is swapped, so a failure here aborts the
+# deploy with the old release untouched.
+if [ -d public.new ]; then
+  owner="$(stat -c '%U:%G' "$REMOTE_DIR")"
+  chown -R "$owner" public.new
+  find public.new -type d -exec chmod 755 {} +
+  find public.new -type f -exec chmod 644 {} +
 fi
 
 chmod +x erp-server.new

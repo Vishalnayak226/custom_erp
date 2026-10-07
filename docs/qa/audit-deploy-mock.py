@@ -23,7 +23,7 @@ def main():
         raise RuntimeError('Fixture must be a direct TEMP child')
     results = []
     for iteration in range(1, 4):
-        for case in ('healthy', 'unhealthy', 'restart-fails', 'migration-fails'):
+        for case in ('healthy', 'unhealthy', 'restart-fails', 'migration-fails', 'ui-forbidden'):
             box = (root/f'{iteration}-{case}').resolve()
             if box.parent != root:
                 raise RuntimeError('Fixture escaped scratch root')
@@ -68,6 +68,10 @@ def main():
                     'exit 0\n'
                 ),
                 'sleep': 'exit 0\n',
+                # Ownership is a Linux-only fact (Git Bash reports the group as
+                # UNKNOWN); the box's real chown is verified there, this
+                # fixture only proves the flow around it.
+                'chown': 'exit 0\n',
                 'journalctl': 'echo synthetic-journal\n',
                 # Stage 50/BLD-006: remote_deploy.sh's wait_healthy now reads
                 # git_commit out of the health response body (not just the
@@ -84,6 +88,9 @@ def main():
                     'if [ "$AUDIT_CASE" = "unhealthy" ] && [ "$running" = "$DEPLOY_COMMIT" ]; then\n'
                     '  status=503\n'
                     'fi\n'
+                    # 2026-10-07 outage: API healthy but the frontend unreadable
+                    # (403 on /). wait_healthy must treat that as unhealthy.
+                    'case "$*" in *":8080/") if [ "$AUDIT_CASE" = "ui-forbidden" ] && [ "$running" = "$DEPLOY_COMMIT" ]; then status=403; fi ;; esac\n'
                     'case "$*" in\n'
                     '  *"-o /dev/null"*) printf "%s" "$status" ;;\n'
                     '  *) printf "{\\"status\\":\\"ok\\",\\"git_commit\\":\\"%s\\"}" "$running" ;;\n'

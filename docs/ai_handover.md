@@ -125,6 +125,11 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-07 OUTAGE FIXED (checklist 57.22):** app.wholeops.in returned 403 on every page after the
+  02:49 and 03:41 deploys - `public/` was root-owned 700, unreadable by the `erp` service. Fixed on the
+  box by chown/chmod; `deploy/remote_deploy.sh` now normalizes ownership before the swap and its health
+  gate requires `GET /` = 200 as well as `/api/v1/health`. **After any deploy, check
+  `https://app.wholeops.in/` returns 200 - the API health alone does not prove the site works.**
 - **2026-10-07 Stage 57.19-57.21 (ledger §198):** cashier till access (migration
   `migrations_stage57_cashier_location_read.sql`), FA-01 AP three-way match, FA-03 OMS Release to
   Fulfillment + COD hold fix, asset version 33. Committed, pushed and deployed at the user's request
