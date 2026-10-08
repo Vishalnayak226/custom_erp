@@ -44,6 +44,28 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 200. Stage 57 decisions built: GST credit, order shipping postings, Location Movement, offer group targeting (2026-10-08; code + docs)
+
+The user answered the four open questions (57.9 bin-to-bin move, 57.10 Product Group + Category
++ SKU List, 57.13 keep 10 recovery codes, GST: build standard Input Tax Credit) and asked for the
+open items to be built. Detail in `micro_checklist.md` 57.9, 57.10, 57.13, 57.23, 57.24.
+
+- **GST (57.23).** Supplier bills: GST recorded at match, paid to 1500 GST Input Credit, TDS on the
+  ex-GST value. Credit sales: order invoices carry GST and posting books it to output GST. The GST
+  Return Summary shows Input Tax Credit and Net GST Payable.
+- **Order shipping (57.24).** Dispatch is locked and single-shot; it ships what was picked,
+  consumes the line's reservation, posts COGS and writes the stock ledger; rejection keeps the
+  order's reservation attached; the shipped order's draft invoice bills what shipped.
+- **Location Movement (57.9).** One `MoveBinStock` routine for every shelf move, with destination
+  checks replenishment never had, plus a Stock-menu screen.
+- **Offer targeting (57.10).** Product Group and SKU List scopes; the Offer form's Scope Value
+  follows the chosen scope.
+
+Code commit `2065ff4` (staged around three concurrent sessions' uncommitted work; built and tested
+from the exported staged tree because the live tree was mid-edit). Verified by Go tests and live on
+the training server (:8111): a 12-unit bin move, all five offer scopes, a 1,180 bill paid as
+1,000 goods + 180 input GST, GST summary ITC 180.
+
 ## 198. Stage 57 — defects exposed by the SOP video: cashier till access, AP three-way match, OMS release (2026-10-07; code + docs)
 
 Recording the module SOP chapters against a training database surfaced three business blockers;

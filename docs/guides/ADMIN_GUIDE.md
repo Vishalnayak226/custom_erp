@@ -253,7 +253,17 @@ Fill in the name, pick the **Offer Type**, set **Applies To**, and set **Status*
 | Buy X Get Y | Buy Qty, Free Qty | "Buy 2 get 1 free". The **cheapest** qualifying units are the free ones |
 | Bundle Price | Bundle Qty, Bundle Price | "Any 3 for ₹999". The **most expensive** qualifying units are bundled first |
 
-**Applies To** is *Bill* (the whole sale), *Item* (put the SKU in **Scope Value**), or *Category* (put the category name in **Scope Value**).
+**Applies To** decides which part of the sale the offer works on, and the **Scope Value** box changes to match as soon as you pick it:
+
+| Applies To | Scope Value | The offer covers |
+|---|---|---|
+| Bill | (not used) | The whole sale |
+| Item | Pick the item | That one SKU |
+| Category | Pick from the categories already on your items | Every item whose **Category** is that value |
+| Product Group | Pick a PIM **Product Group** | Every product in the group. A *Dynamic* group follows its rules, so products joining or leaving the group join or leave the offer automatically |
+| SKU List | Type the SKU codes, separated by commas or one per line | Exactly those SKUs |
+
+Set up a Product Group first under **PIM → Product Groups** if you want to target one. If a group is later deactivated or deleted, offers pointing at it simply stop applying (they never spread to the whole bill).
 
 Everything else is an optional condition, and they all have to be true at once:
 
@@ -394,6 +404,14 @@ Most items are taxable and need a GST Rate above 0 — the system rejects a bare
 - **Why they exist:** the **GST Return Summary** report reads `4100`'s balance as the period's *taxable* value. Without the reclass, exempt turnover would sit in `4100` and be reported as taxable — overstating GSTR-3B 3.1(a) and understating 3.1(c). The report now also shows Exempt / Nil-Rated / Zero-Rated / Total Non-Taxable, which is the split GSTR-1's nil-and-exempt table and GSTR-3B 3.1(b)/(c) are filed from. Those four figures are hidden on the screen when they are all zero.
 - **Exempt and Nil-Rated are deliberately not merged**, and neither is Zero-Rated, because the returns report them in different boxes. If you are reconciling by hand, do not add them together before filing.
 - **Zero-Rated here means the LUT/bond route** — exports supplied *without* payment of tax. The export-with-payment-then-claim-refund route is not modelled; the refund claim would need a workflow this system does not have.
+
+#### GST on purchases (Input Tax Credit) and on credit sales
+
+- **Supplier bills.** When a Vendor Invoice is matched, the system works out how much of the bill is GST, using the GST on the Purchase Order it matches (CGST/SGST or IGST in the PO's proportions), and stores it on the invoice. Paying the invoice posts the goods value to `2100` GRN Suspense and the GST to `1500` GST Input Credit Account. That holds for Pay, Pay w/ TDS and an approved Override & Pay alike. A foreign-currency bill, or one matched against a PO without GST, posts the whole amount to `2100` as before.
+- **TDS** on a bill whose GST is recorded is deducted on the value **excluding** GST (CBDT Circular 23/2017). The supplier still receives the full bill less TDS.
+- **Credit and online sales.** A Sales Invoice drafted for a shipped order now carries its CGST/SGST/IGST, worked out the same way package invoices are. Posting it books the tax to `2200`/`2201`/`2202` GST Output Payable and only the rest to `4100` Sales Revenue, the same split a POS sale makes. Before this, credit sales put their whole value in revenue, so their GST never reached the GST return.
+- **GST Return Summary** shows **Input Tax Credit** (the period's movement on `1500`, which includes GST on expense claims) and **Net GST Payable** (output tax minus input credit; a negative figure is credit carried forward).
+- These follow standard Indian GST treatment. Have your CA confirm eligibility rules (blocked credits under Section 17(5), reversals) for your business; the system records all input GST as claimable.
 
 #### Currency and exchange-rate setup (Stage 37 foundation)
 

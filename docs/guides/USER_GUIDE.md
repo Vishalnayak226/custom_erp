@@ -437,7 +437,7 @@ When the supplier's bill arrives, record it and let the system check it before a
 3. Click **Match** on its row. You are not asked for the PO or GRN again — the invoice already names them.
    - **Matched** — the bill agrees with what you actually accepted: accepted quantity × the PO rate, plus the PO's GST, within the tolerance your administrator set (2% by default). A **partial delivery billed for what arrived matches** — you do not have to wait for the whole PO. Goods you **rejected** at receipt are not owed, so they are not counted.
    - **On hold (MismatchHold)** — a message tells you exactly what disagreed: the bill differs from the accepted goods' value, or that GRN or PO has **already been billed** (a duplicate bill for the same goods is caught). Correct the amount with the supplier, or use **Override & Pay** with a written reason — that goes to a manager for approval rather than paying straight away.
-4. A **Matched** invoice shows **Pay** (and **Pay w/ TDS** where TDS sections are set up). Paying it posts the entry to the accounts.
+4. A **Matched** invoice shows **Pay** (and **Pay w/ TDS** where TDS sections are set up). Paying it posts the entry to the accounts: the GST in the bill goes to **GST Input Credit**, so you can claim it back, and the rest clears the goods. With TDS, the deduction is worked out on the value before GST.
 
 ## 7. Moving Stock Between Locations (Stock Transfer)
 
@@ -447,6 +447,17 @@ When the supplier's bill arrives, record it and let the system check it before a
 4. Once it's ready to go, click **Mark Approved**.
 5. Click **Dispatch** to move the stock out of the source location (it sits "in transit" until received).
 6. When it physically arrives, click **Receive** and confirm the quantity that actually showed up for each line — if less arrived than was dispatched, entering the lower number records that shortage rather than hiding it.
+
+### 7.1 Moving stock between bins in the same location (Location Movement)
+
+Use this to re-slot stock inside one warehouse or store, for example moving a fast seller to a bin near the packing table. The stock stays at the same location, so nothing changes in what you can sell. Only where it sits changes.
+
+1. Go to **Stock → Location Movement** and pick the **Location** by name. A table lists every bin that holds stock there, with the item and quantity.
+2. Click **Move** on the row you want to move from.
+3. Enter the **Quantity**, pick the **To Bin** (only bins at this location are offered), and optionally a **Reason**. If the bin holds more than one batch of the item, choose the **Batch** too.
+4. Click **Move Stock**. The table refreshes with the new quantities.
+
+The move is refused, with the reason shown, if the destination bin is inactive, Blocked, Full or being counted, would go over its capacity, is in a zone that cannot take that item, or is at a different location. Every move is recorded in the stock ledger with both bins.
 
 ## 7A. Printing Barcode Stickers and Labels
 
@@ -873,8 +884,8 @@ If an action is greyed out, the order has reached a status that closes it (Shipp
 3. **Release to the warehouse.** Open the order (now **Reserved**) and click **Release to Fulfillment**. The order becomes **Released**.
 4. **Pick and pack.** Go to **Fulfillment** — the task for this order is routed to the location holding the stock. Work it through pick → pack. Anything you marked **Expedite** appears at the top of the picking worklist. (Warehouses using wave picking or mobile picking do the same thing from those screens.)
 5. **Book the shipment.** Under **Marketplace & Logistics**, book the courier and print the shipping label. The Shipment column starts reporting the booking's state.
-6. **Hand over.** Once the courier has it, the order moves to Shipped and the shipment to In-Transit.
-7. **Invoice.** The linked invoice appears in the Invoice column. Open it and settle it when the customer has paid.
+6. **Hand over.** Once the courier has it, the order moves to Shipped and the shipment to In-Transit. At that moment the stock leaves the location's books, and the cost of the goods is posted to the accounts. If the picker short-picked something, only what was actually picked leaves stock.
+7. **Invoice.** A draft invoice appears in the Invoice column, for what was actually shipped (short-picked units are not billed) and with its GST worked out. Open it, post it, and settle it when the customer has paid.
 8. **Delivered.** Delivery events move the order to Delivered.
 
 If you're comparing this to how Unicommerce or a similar OMS describes the same flow: their "sale order → inventory allocation → picklist → invoice → manifest/dispatch" maps onto steps 1–7 above. The vocabulary differs; the sequence doesn't.

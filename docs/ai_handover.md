@@ -125,6 +125,14 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-08 Stage 57 decisions built (ledger §200, checklist 57.9/57.10/57.13/57.23/57.24):** GST
+  input credit + output GST on credit sales, order-shipping postings, Location Movement, offer
+  group targeting. Code `2065ff4` + a docs commit; **asset version is now 34** (`app.js`/`index.html`)
+  - the Stage 58 Sticker Studio work (uncommitted, another session) must bump to **35** when it
+  ships, and erp-d1's Stage 59 bin allocation after it. New migrations:
+  `migrations_stage57_offer_group_targeting.sql`. Training server on :8111 now runs from a clean
+  worktree `%TEMP%\erp_verify_head` (the live tree was mid-edit by another session); logins
+  re-minted 2026-10-08.
 - **2026-10-07 OUTAGE FIXED (checklist 57.22):** app.wholeops.in returned 403 on every page after the
   02:49 and 03:41 deploys - `public/` was root-owned 700, unreadable by the `erp` service. Fixed on the
   box by chown/chmod; `deploy/remote_deploy.sh` now normalizes ownership before the swap and its health
