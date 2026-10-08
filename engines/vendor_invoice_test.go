@@ -254,6 +254,61 @@ func TestVendorInvoice3WayMatchAndPayment(t *testing.T) {
 		}
 	})
 
+	glSum := func(doc, account, side string) int64 {
+		var v int64
+		db.DB.QueryRow("SELECT COALESCE(SUM("+side+"),0) FROM "+schema+".gl_postings WHERE document_id=$1 AND account_code=$2", doc, account).Scan(&v)
+		return v
+	}
+
+	t.Run("ITC: paying a GST bill clears goods to 2100 and the GST to 1500 Input Credit", func(t *testing.T) {
+		cleanup()
+		seedTaxedPOAndPartialGRN()
+		seedInvoice("TEST-VI-INV11", 885, "VEND01", "INV-011", "TEST-FY")
+		m, err := MatchVendorInvoice(tenantID, "TEST-VI-INV11", "", "", 2.0)
+		if err != nil || !m.Matched {
+			t.Fatalf("match: %v %v", err, m.Reasons)
+		}
+		if _, _, err := PayVendorInvoice(tenantID, "TEST-VI-INV11", "system", "HR/Admin", ""); err != nil {
+			t.Fatalf("pay: %v", err)
+		}
+		// 885 = 750 taxable + 135 GST (18%).
+		if got := glSum("TEST-VI-INV11", "2100", "debit"); got != 75000 {
+			t.Fatalf("2100 debit = %d paise, want 75000 (taxable value only)", got)
+		}
+		if got := glSum("TEST-VI-INV11", "1500", "debit"); got != 13500 {
+			t.Fatalf("1500 GST Input Credit debit = %d paise, want 13500", got)
+		}
+		if got := glSum("TEST-VI-INV11", "1100", "credit"); got != 88500 {
+			t.Fatalf("1100 cash credit = %d paise, want 88500 (the whole bill)", got)
+		}
+	})
+
+	t.Run("ITC: TDS is deducted on the value excluding GST", func(t *testing.T) {
+		cleanup()
+		db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = 'TEST-VI-194C'")
+		defer db.DB.Exec("DELETE FROM " + schema + ".documents WHERE id = 'TEST-VI-194C'")
+		sec, _ := json.Marshal(map[string]interface{}{"section_code": "TEST-VI-194C", "rate_percent": 2, "threshold_amount": 0})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ('TEST-VI-194C', 'TDSSection', $1, 'Active', 'system')", sec); err != nil {
+			t.Fatalf("seed TDS section: %v", err)
+		}
+		seedTaxedPOAndPartialGRN()
+		seedInvoice("TEST-VI-INV12", 885, "VEND01", "INV-012", "TEST-FY")
+		if m, err := MatchVendorInvoice(tenantID, "TEST-VI-INV12", "", "", 2.0); err != nil || !m.Matched {
+			t.Fatalf("match: %v", err)
+		}
+		net, tds, err := PayVendorInvoiceWithTDS(tenantID, "TEST-VI-INV12", "TEST-VI-194C", "system")
+		if err != nil {
+			t.Fatalf("pay with TDS: %v", err)
+		}
+		// 2% of 750 (not of 885) = 15; supplier receives 885 - 15 = 870.
+		if tds != 15 || net != 870 {
+			t.Fatalf("tds=%d net=%d, want tds=15 net=870", tds, net)
+		}
+		if got := glSum("TEST-VI-INV12", "1500", "debit"); got != 13500 {
+			t.Fatalf("1500 debit = %d, want 13500", got)
+		}
+	})
+
 	t.Run("FA-01: a PO/GRN that disagrees with the invoice's own is refused", func(t *testing.T) {
 		cleanup()
 		seedTaxedPOAndPartialGRN()

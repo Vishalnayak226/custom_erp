@@ -316,7 +316,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '33';
+const VIEW_MODULE_VERSION = '34';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -361,6 +361,7 @@ const LAZY_VIEW_MODULES = {
   asn: ['view-procurement.js', 'renderASNView', 'Advance Shipment Notices'],
   lpn: ['view-warehouse.js', 'renderLPNView', 'License Plates'],
   'bin-replenishment': ['view-warehouse.js', 'renderBinReplenishmentView', 'Bin Replenishment'],
+  'location-movement': ['view-warehouse.js', 'renderLocationMovementView', 'Location Movement'],
   'wave-picking': ['view-warehouse.js', 'renderWavePickingView', 'Wave Picking'],
   'mobile-picking': ['view-warehouse.js', 'renderMobilePickingView', 'Mobile Picking'],
   marketplace: ['view-oms.js', 'renderMarketplaceView', 'Marketplace'],
@@ -2758,6 +2759,7 @@ const VIEW_SETUP_PREREQS = {
   'cycle-count': ['Location', 'Bin'],
   'lpn': ['Bin'],
   'bin-replenishment': ['Location', 'Bin'],
+  'location-movement': ['Location', 'Bin'],
   'wave-picking': ['Location'],
   'marketplace': ['Item'],
   'oms': ['Item', 'Location'],
@@ -3581,6 +3583,7 @@ const MENU_PERMISSION_MAP = {
 
   'menu-inventory': { modules: ['Inventory'] },
   'menu-transfers': { doctypes: ['TransferOrder'] },
+  'menu-location-movement': { modules: ['Inventory'] },
   'menu-bins': { doctypes: ['Bin'] },
   // handlers_wms.go has no role_permissions check today (its own header
   // comment: "All role-open... a warehouse operator role doesn't exist
@@ -3717,6 +3720,12 @@ const MENU_MODULE_MAP = {
     "module": "wms",
     "views": [
       "bin-replenishment"
+    ]
+  },
+  "menu-location-movement": {
+    "module": "wms",
+    "views": [
+      "location-movement"
     ]
   },
   "menu-wave-picking": {
@@ -4785,7 +4794,7 @@ function setupEventListeners() {
   // Offline Queue Gaps (24.36) - same generic doctype-table pattern as Offline Sync Review above.
   document.getElementById('menu-pos-offline-gaps').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-gaps'); closeSubmenus(); currentDoctype = 'POSOfflineQueueGap'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-transfers', 'menu-putaway', 'menu-warehouse-cockpit', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
+  ['menu-inventory', 'menu-transfers', 'menu-location-movement', 'menu-putaway', 'menu-warehouse-cockpit', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -5696,6 +5705,7 @@ const STATIC_VIEW_MENU_IDS = {
   grn: 'menu-grn',
   inventory: 'menu-inventory',
   transfers: 'menu-transfers',
+  'location-movement': 'menu-location-movement',
   putaway: 'menu-putaway',
   'warehouse-cockpit': 'menu-warehouse-cockpit',
   'bin-conditions': 'menu-bin-conditions',

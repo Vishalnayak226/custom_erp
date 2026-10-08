@@ -221,6 +221,7 @@ func TestWarehouseTaskRetrofit(t *testing.T) {
 		cleanup := func() {
 			_, _ = db.DB.Exec("DELETE FROM " + schema + ".bin_stock WHERE sku = '" + sku + "'")
 			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'WarehouseTask' AND data->>'location_code' = '" + loc + "'")
+			_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE doctype = 'Bin' AND id = 'BIN-WTRETRO-REPLEN-TO-DOC'")
 		}
 		cleanup()
 		defer cleanup()
@@ -229,6 +230,12 @@ func TestWarehouseTaskRetrofit(t *testing.T) {
 			"INSERT INTO "+schema+".bin_stock (bin_code, sku, location_code, condition, qty) VALUES ($1, $2, $3, 'Good', $4)",
 			fromBin, sku, loc, 20); err != nil {
 			t.Fatalf("seed bin_stock: %v", err)
+		}
+		// Stage 57.9: replenishment validates its destination (MoveBinStock),
+		// so the to-bin needs the Bin master a real bin always has.
+		toBinDoc, _ := json.Marshal(map[string]interface{}{"bin_code": toBin, "location": loc, "status": "Active"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ('BIN-WTRETRO-REPLEN-TO-DOC', 'Bin', $1, 'Active', 'system')", toBinDoc); err != nil {
+			t.Fatalf("seed to-bin: %v", err)
 		}
 		if err := ExecuteBinReplenishment(tenantID, fromBin, toBin, sku, 5, "system"); err != nil {
 			t.Fatalf("ExecuteBinReplenishment: %v", err)

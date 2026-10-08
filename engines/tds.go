@@ -79,10 +79,20 @@ func PayVendorInvoiceWithTDS(tenantID, invoiceID, sectionCode, userID string) (n
 	if amount <= 0 {
 		return 0, 0, fmt.Errorf("invoice_amount must be positive to pay")
 	}
-	tdsF, netF, err := CalculateTDS(tenantID, sectionCode, amount)
+	// Input Tax Credit (2026-10-07): when the bill's GST was recorded at match
+	// time, TDS is deducted on the value EXCLUDING GST (CBDT Circular 23/2017,
+	// GST shown separately on the invoice) and the GST goes to 1500 GST Input
+	// Credit rather than clearing goods in 2100. The supplier is still paid
+	// the full bill less TDS.
+	gst := numFromInterface(data["gst_amount"])
+	if gst <= 0 || gst >= amount {
+		gst = 0
+	}
+	tdsF, _, err := CalculateTDS(tenantID, sectionCode, amount-gst)
 	if err != nil {
 		return 0, 0, err
 	}
+	netF := amount - tdsF
 	tdsAmount = int(tdsF)
 	netPaid = int(netF)
 
@@ -90,7 +100,10 @@ func PayVendorInvoiceWithTDS(tenantID, invoiceID, sectionCode, userID string) (n
 	// GL posted before the status flip commits, so a posting failure leaves
 	// the invoice untouched (this tx rolls back) rather than marked Paid
 	// with no posting behind it.
-	debits := map[string]int64{"2100": RupeesToPaise(amount)}
+	debits := map[string]int64{"2100": RupeesToPaise(amount - gst)}
+	if gst > 0 {
+		debits["1500"] = RupeesToPaise(gst)
+	}
 	credits := map[string]int64{"1100": RupeesToPaise(netF), "2300": RupeesToPaise(tdsF)}
 	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, debits, credits, "", fmt.Sprintf("VendorInvoice:%s:PAY_TDS", invoiceID)); err != nil {
 		return 0, 0, fmt.Errorf("GL posting failed, invoice not marked Paid: %v", err)

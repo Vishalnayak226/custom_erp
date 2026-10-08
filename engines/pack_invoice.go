@@ -286,9 +286,16 @@ func resolvePackInterstate(tenantID, schema string, p *ShippingPackage, opts Pac
 	if opts.Interstate != nil {
 		return *opts.Interstate, "operator override"
 	}
-	buyerState, err := shipToStateCode(schema, p.OrderID)
+	return resolveOrderInterstate(tenantID, schema, p.OrderID, p.LocationCode)
+}
+
+// resolveOrderInterstate is the derived half of resolvePackInterstate, shared
+// with order-level invoices (CreateSalesInvoiceFromOrder) so a package and a
+// whole-order invoice can never decide CGST+SGST vs IGST differently.
+func resolveOrderInterstate(tenantID, schema, orderID, locationCode string) (bool, string) {
+	buyerState, err := shipToStateCode(schema, orderID)
 	if err == nil && buyerState != "" {
-		sellerState, errS := buyerStateCode(tenantID, p.LocationCode)
+		sellerState, errS := buyerStateCode(tenantID, locationCode)
 		if errS == nil && sellerState != "" {
 			return buyerState != sellerState, fmt.Sprintf("derived: ship-to %s vs dispatch %s", StateLabel(buyerState), StateLabel(sellerState))
 		}

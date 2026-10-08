@@ -225,30 +225,43 @@ func ReleaseOrderToFulfillment(tenantID, orderID, actor string) (taskIDs []strin
 	return taskIDs, true, nil
 }
 
-// TransitionTaskStatus handles status workflows for picking and dispatches
+// taskItemQty reads one task item's quantity whatever JSON number type it
+// arrived as.
+func taskItemQty(item map[string]interface{}) int {
+	return int(numFromInterface(item["qty"]))
+}
+
+// itemStandardCostRupees is the COGS fallback for an item with no receipt
+// history yet: its master's standard_cost, or 0.
+func itemStandardCostRupees(tenantID, sku string) float64 {
+	item, err := ResolveItemBySKU(tenantID, sku)
+	if err != nil || item == nil {
+		return 0
+	}
+	return numFromInterface(item.Data["standard_cost"])
+}
+
+// TransitionTaskStatus handles status workflows for picking and dispatches.
+//
+// 2026-10-07 (FA-20261005-03 follow-through, once Release to Fulfillment made
+// this path reachable from the product):
+//   - The task row is read and locked INSIDE the transaction, and a task that
+//     is already Dispatched or Rejected is refused - before, a second
+//     "Dispatched" (the generic transition route has no guard of its own)
+//     deducted the stock a second time.
+//   - Dispatched now does what a sale does at POS: consumes the order line's
+//     reservation row (it used to stay behind as a phantom the sweeper could
+//     later release a second time), marks the line Dispatched, posts COGS
+//     (Dr 5100 / Cr 1200 at the moving-average cost, standard cost as the
+//     fallback) in the same transaction, and writes the stock ledger.
+//   - Rejected re-reserves at the next node ATTRIBUTED to the order line and
+//     moves the line there; it used to create an unattributed row the sweeper
+//     dropped at TTL while the order still needed the stock.
 func TransitionTaskStatus(tenantID string, taskID string, newStatus string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
 	}
-
-	// 1. Fetch current task document
-	var docDataBytes []byte
-	err = db.DB.QueryRow(fmt.Sprintf(`
-		SELECT data FROM %s.documents 
-		WHERE id = $1 AND doctype = 'FulfillmentTask'`, schema), taskID).Scan(&docDataBytes)
-	if err != nil {
-		return fmt.Errorf("task %s not found: %v", taskID, err)
-	}
-
-	var task map[string]interface{}
-	if err := json.Unmarshal(docDataBytes, &task); err != nil {
-		return err
-	}
-
-	orderID, _ := task["order_id"].(string)
-	locationCode, _ := task["location_code"].(string)
-	itemsRaw, _ := task["items"].([]interface{})
 
 	tx, err := db.DB.Begin()
 	if err != nil {
@@ -260,80 +273,95 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 		return err
 	}
 
+	// 1. Fetch and lock the current task document
+	var docDataBytes []byte
+	var currentStatus string
+	err = tx.QueryRow(fmt.Sprintf(`
+		SELECT data, status FROM %s.documents
+		WHERE id = $1 AND doctype = 'FulfillmentTask' FOR UPDATE`, schema), taskID).Scan(&docDataBytes, &currentStatus)
+	if err != nil {
+		return fmt.Errorf("task %s not found: %v", taskID, err)
+	}
+	if currentStatus == "Dispatched" || currentStatus == "Rejected" {
+		return &ValidationError{Code: "GLOBAL-0019", Message: fmt.Sprintf("task %s is already %s", taskID, currentStatus)}
+	}
+
+	var task map[string]interface{}
+	if err := json.Unmarshal(docDataBytes, &task); err != nil {
+		return err
+	}
+
+	orderID, _ := task["order_id"].(string)
+	locationCode, _ := task["location_code"].(string)
+	itemsRaw, _ := task["items"].([]interface{})
+
+	setLine := func(lineID string, fields map[string]interface{}, status string) error {
+		patch, _ := json.Marshal(fields)
+		_, err := tx.Exec(fmt.Sprintf(`
+			UPDATE %s.documents SET data = data || $1::jsonb, status = COALESCE(NULLIF($2, ''), status), updated_at = CURRENT_TIMESTAMP
+			WHERE doctype = 'SalesOrderLine' AND id = $3`, schema), string(patch), status, lineID)
+		return err
+	}
+
+	var ledgerLines []PostedStockLine
+
 	if newStatus == "Rejected" {
-		// A. Cancel reservations at current location
+		// A. Release this node's hold: the availability count and, for an
+		// attributed line, its reservation row.
+		var sourcingItems []map[string]interface{}
 		for _, itemVal := range itemsRaw {
 			item, ok := itemVal.(map[string]interface{})
 			if !ok {
 				continue
 			}
 			sku, _ := item["sku"].(string)
-			qty := 0
-			if q, exists := item["qty"]; exists {
-				switch v := q.(type) {
-				case float64:
-					qty = int(v)
-				case int:
-					qty = v
-				}
-			}
+			qty := taskItemQty(item)
+			lineID, _ := item["line_id"].(string)
 
-			// Release reserved stock from availability count
-			_, err = tx.Exec(fmt.Sprintf(`
-				UPDATE %s.inventory_availability 
-				SET reserved = GREATEST(0, reserved - $1), updated_at = CURRENT_TIMESTAMP 
-				WHERE sku = $2 AND location_code = $3`, schema), qty, sku, locationCode)
-			if err != nil {
+			if _, err = tx.Exec(fmt.Sprintf(`
+				UPDATE %s.inventory_availability
+				SET reserved = GREATEST(0, reserved - $1), updated_at = CURRENT_TIMESTAMP
+				WHERE sku = $2 AND location_code = $3`, schema), qty, sku, locationCode); err != nil {
 				return err
 			}
+			if lineID != "" {
+				if _, err := tx.Exec(fmt.Sprintf(
+					`DELETE FROM %s.inventory_reservation WHERE line_id = $1 AND location_code = $2`, schema), lineID, locationCode); err != nil {
+					return err
+				}
+			}
+			sourcingItems = append(sourcingItems, map[string]interface{}{"sku": sku, "qty": qty, "line_id": lineID})
 		}
 
 		// B. Trigger re-routing rules to find next best node
-		var sourcingItems []map[string]interface{}
-		for _, itemVal := range itemsRaw {
-			item, _ := itemVal.(map[string]interface{})
-			sku, _ := item["sku"].(string)
-			qty := 0
-			if q, exists := item["qty"]; exists {
-				switch v := q.(type) {
-				case float64:
-					qty = int(v)
-				case int:
-					qty = v
-				}
-			}
-			sourcingItems = append(sourcingItems, map[string]interface{}{
-				"sku": sku,
-				"qty": qty,
-			})
-		}
-
 		nextLocation, errRoute := FindBestFulfillmentNode(tenantID, sourcingItems)
 		if errRoute == nil && nextLocation != "" && nextLocation != locationCode {
-			// Create reservations at the new location node
+			expiresAt := time.Now().Add(time.Duration(GetSettingInt(tenantID, "inventory.reservation_ttl_seconds")) * time.Second)
 			for _, item := range sourcingItems {
 				sku := item["sku"].(string)
 				qty := item["qty"].(int)
-				// Create new reservation (Stage 28: tenant-configured hold TTL;
-				// inline here rather than via CreateReservation because this runs
-				// inside the caller's existing transaction tx).
-				expiresAt := time.Now().Add(time.Duration(GetSettingInt(tenantID, "inventory.reservation_ttl_seconds")) * time.Second)
-				_, errRes := tx.Exec(fmt.Sprintf(`
-					INSERT INTO %s.inventory_reservation (sku, location_code, quantity, reservation_type, expires_at) 
-					VALUES ($1, $2, $3, 'Online', $4)`, schema), sku, nextLocation, qty, expiresAt)
-				if errRes != nil {
+				lineID, _ := item["line_id"].(string)
+				// Inline rather than via CreateReservation because this runs
+				// inside this transaction; attributed to the order line when
+				// there is one, so the sweeper keeps it while the line lives.
+				if _, errRes := tx.Exec(fmt.Sprintf(`
+					INSERT INTO %s.inventory_reservation (sku, location_code, quantity, reservation_type, expires_at, order_id, line_id)
+					VALUES ($1, $2, $3, 'Online', $4, NULLIF($5, ''), NULLIF($6, ''))`, schema),
+					sku, nextLocation, qty, expiresAt, orderID, lineID); errRes != nil {
 					return errRes
 				}
-
-				// Update reservation count in availability read model
-				_, errResAvail := tx.Exec(fmt.Sprintf(`
-					INSERT INTO %s.inventory_availability (sku, location_code, on_hand, available, reserved) 
-					VALUES ($1, $2, 0, 0, $3) 
-					ON CONFLICT (sku, location_code) DO UPDATE SET 
-						reserved = %s.inventory_availability.reserved + EXCLUDED.reserved, 
-						updated_at = CURRENT_TIMESTAMP`, schema, schema), sku, nextLocation, qty)
-				if errResAvail != nil {
+				if _, errResAvail := tx.Exec(fmt.Sprintf(`
+					INSERT INTO %s.inventory_availability (sku, location_code, on_hand, available, reserved)
+					VALUES ($1, $2, 0, 0, $3)
+					ON CONFLICT (sku, location_code) DO UPDATE SET
+						reserved = %s.inventory_availability.reserved + EXCLUDED.reserved,
+						updated_at = CURRENT_TIMESTAMP`, schema, schema), sku, nextLocation, qty); errResAvail != nil {
 					return errResAvail
+				}
+				if lineID != "" {
+					if err := setLine(lineID, map[string]interface{}{"location_code": nextLocation}, ""); err != nil {
+						return err
+					}
 				}
 			}
 
@@ -347,42 +375,62 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 				"items":         itemsRaw,
 			}
 			newMarshaled, _ := json.Marshal(newDocData)
-			_, errTask := tx.Exec(fmt.Sprintf(`
-				INSERT INTO %s.documents (id, doctype, data, status, created_by) 
-				VALUES ($1, 'FulfillmentTask', $2, 'Pending', 'system')`, schema), newTaskID, newMarshaled)
-			if errTask != nil {
+			if _, errTask := tx.Exec(fmt.Sprintf(`
+				INSERT INTO %s.documents (id, doctype, data, status, created_by)
+				VALUES ($1, 'FulfillmentTask', $2, 'Pending', 'system')`, schema), newTaskID, newMarshaled); errTask != nil {
 				return errTask
 			}
 		}
 
 	} else if newStatus == "Dispatched" {
-		// Finalize stock reduction (deduct physical on-hand and release reservation)
+		var cogsPaise int64
 		for _, itemVal := range itemsRaw {
 			item, ok := itemVal.(map[string]interface{})
 			if !ok {
 				continue
 			}
 			sku, _ := item["sku"].(string)
-			qty := 0
-			if q, exists := item["qty"]; exists {
-				switch v := q.(type) {
-				case float64:
-					qty = int(v)
-				case int:
-					qty = v
-				}
+			qty := taskItemQty(item)
+			lineID, _ := item["line_id"].(string)
+			// A short-picked unit never left the building: only what was
+			// actually shipped leaves stock, while the line's whole
+			// reservation is released either way.
+			shipped := qty - int(numFromInterface(item["short_qty"]))
+			if shipped < 0 {
+				shipped = 0
 			}
 
 			// Deduct stock and release reserve
-			_, err = tx.Exec(fmt.Sprintf(`
-				UPDATE %s.inventory_availability 
-				SET on_hand = GREATEST(0, on_hand - $1), 
-				    available = GREATEST(0, available - $1), 
-				    reserved = GREATEST(0, reserved - $1), 
-				    updated_at = CURRENT_TIMESTAMP 
-				WHERE sku = $2 AND location_code = $3`, schema), qty, sku, locationCode)
-			if err != nil {
+			if _, err = tx.Exec(fmt.Sprintf(`
+				UPDATE %s.inventory_availability
+				SET on_hand = GREATEST(0, on_hand - $1),
+				    available = GREATEST(0, available - $1),
+				    reserved = GREATEST(0, reserved - $4),
+				    updated_at = CURRENT_TIMESTAMP
+				WHERE sku = $2 AND location_code = $3`, schema), shipped, sku, locationCode, qty); err != nil {
 				return err
+			}
+			if lineID != "" {
+				// The reservation is now fulfilled, not released: the
+				// availability update above already took it out of reserved.
+				if _, err := tx.Exec(fmt.Sprintf(
+					`DELETE FROM %s.inventory_reservation WHERE line_id = $1 AND location_code = $2`, schema), lineID, locationCode); err != nil {
+					return err
+				}
+				if err := setLine(lineID, map[string]interface{}{"line_status": "Dispatched", "shipped_qty": shipped}, "Dispatched"); err != nil {
+					return err
+				}
+			}
+			if shipped > 0 {
+				ledgerLines = append(ledgerLines, PostedStockLine{SKU: sku, Qty: -shipped})
+				cogsPaise += int64(shipped) * ResolveCOGSUnitCostPaise(tenantID, sku, itemStandardCostRupees(tenantID, sku))
+			}
+		}
+		if cogsPaise > 0 {
+			if err := PostDoubleEntryTx(tx, tenantID, schema, "FulfillmentTask", taskID,
+				map[string]int64{"5100": cogsPaise}, map[string]int64{"1200": cogsPaise}, "",
+				fmt.Sprintf("FulfillmentTask:%s:DISPATCH_COGS", taskID)); err != nil {
+				return fmt.Errorf("COGS posting failed, task not dispatched: %v", err)
 			}
 		}
 	}
@@ -394,15 +442,21 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 		return err
 	}
 
-	_, err = tx.Exec(fmt.Sprintf(`
-		UPDATE %s.documents 
-		SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP 
-		WHERE id = $3 AND doctype = 'FulfillmentTask'`, schema), updatedBytes, newStatus, taskID)
-	if err != nil {
+	if _, err = tx.Exec(fmt.Sprintf(`
+		UPDATE %s.documents
+		SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $3 AND doctype = 'FulfillmentTask'`, schema), updatedBytes, newStatus, taskID); err != nil {
 		return err
 	}
 
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	// Post-commit and idempotency-keyed, exactly as POS checkout does it.
+	if len(ledgerLines) > 0 {
+		WriteStockLedgerLines(tenantID, locationCode, "FulfillmentTask", taskID, "", ledgerLines)
+	}
+	return nil
 }
 
 // ProcessReturnAnywhere is RETIRED as of Stage 47.4.1 (audit finding A-04).

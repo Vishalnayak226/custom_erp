@@ -158,6 +158,13 @@ func TestWMSEnterprise(t *testing.T) {
 		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Bin', $2, 'Active', 'system')", "BIN-WMSENT-RSV-DOC", reserveBinDoc); err != nil {
 			t.Fatalf("Failed to seed reserve Bin document: %v", err)
 		}
+		// Stage 57.9: replenishment now validates its destination like any
+		// bin move (MoveBinStock), so the pick face needs the Bin master a
+		// real bin always has - the cleanup above already expected this doc.
+		pickFaceBinDoc, _ := json.Marshal(map[string]interface{}{"bin_code": pickFace, "location": location, "status": "Active", "bin_type": "Pick Face"})
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Bin', $2, 'Active', 'system')", "BIN-WMSENT-PF-DOC", pickFaceBinDoc); err != nil {
+			t.Fatalf("Failed to seed pick-face Bin document: %v", err)
+		}
 		ruleData, _ := json.Marshal(map[string]interface{}{"bin_code": pickFace, "sku": sku, "min_qty": 5, "max_qty": 20})
 		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'BinReplenishmentRule', $2, 'Active', 'system')", "BRR-WMSENT-1", ruleData); err != nil {
 			t.Fatalf("Failed to seed BinReplenishmentRule: %v", err)

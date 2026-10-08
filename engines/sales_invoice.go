@@ -86,12 +86,39 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 	}
 	debits := map[string]int{"1300": amount}
 	credits := map[string]int{revenueAccount: amount}
-	if err := PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),
-		postingOptionsFor(position, position.Rate, debits, credits, map[string]float64{
-			"1300":         position.TransactionAmount,
-			revenueAccount: position.TransactionAmount,
-		})); err != nil {
-		return 0, fmt.Errorf("GL posting failed, invoice not marked Approved: %v", err)
+	// Output GST (2026-10-07): an invoice that carries its tax split
+	// (package invoices since 35.4, order invoices since this change) books
+	// that tax to 2200/2201/2202 GST Output Payable and only the rest to
+	// revenue - the same split POS checkout makes (PostSalesGSTBooking). It
+	// used to credit the whole tax-inclusive amount to 4100, so no credit
+	// sale's GST ever reached the GST return. Domestic, non-deferred only;
+	// anything else posts exactly as before.
+	var postErr error
+	split := false
+	if taxCredits := outputGSTCreditsPaise(data); len(taxCredits) > 0 && !position.Foreign && !deferred {
+		totalPaise := RupeesToPaise(float64(amount))
+		var taxPaise int64
+		for _, v := range taxCredits {
+			taxPaise += v
+		}
+		if taxPaise < totalPaise {
+			paiseCredits := map[string]int64{revenueAccount: totalPaise - taxPaise}
+			for account, v := range taxCredits {
+				paiseCredits[account] = v
+			}
+			postErr = PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, map[string]int64{"1300": totalPaise}, paiseCredits, "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID))
+			split = true
+		}
+	}
+	if !split {
+		postErr = PostDoubleEntry(tenantID, "SalesInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("SalesInvoice:%s:POST", invoiceID),
+			postingOptionsFor(position, position.Rate, debits, credits, map[string]float64{
+				"1300":         position.TransactionAmount,
+				revenueAccount: position.TransactionAmount,
+			}))
+	}
+	if postErr != nil {
+		return 0, fmt.Errorf("GL posting failed, invoice not marked Approved: %v", postErr)
 	}
 
 	data["status"] = "Approved"
@@ -127,6 +154,20 @@ func PostSalesInvoice(tenantID, invoiceID, userID string) (amount int, err error
 		}
 	}
 	return amount, nil
+}
+
+// outputGSTCreditsPaise reads the tax split an invoice stored when it was
+// generated (cgst/sgst/igst, rupees) as GST Output Payable credits in paise.
+// Empty when the invoice carries no tax - every invoice created before its
+// generator computed GST, which then posts exactly as it always did.
+func outputGSTCreditsPaise(data map[string]interface{}) map[string]int64 {
+	out := map[string]int64{}
+	for field, account := range map[string]string{"cgst": "2200", "sgst": "2201", "igst": "2202"} {
+		if v := RupeesToPaise(numFromInterface(data[field])); v > 0 {
+			out[account] = v
+		}
+	}
+	return out
 }
 
 // SettleSalesInvoice moves an Approved SalesInvoice to Paid once the

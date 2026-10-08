@@ -564,6 +564,8 @@ async function renderGSTReturnSummaryReport(panel) {
         <div class="stat-card"><span class="stat-label">Output SGST</span><span class="stat-val">${s.output_sgst.toLocaleString()}</span></div>
         <div class="stat-card"><span class="stat-label">Output IGST</span><span class="stat-val">${s.output_igst.toLocaleString()}</span></div>
         <div class="stat-card"><span class="stat-label">Total Tax Liability</span><span class="stat-val">${s.total_tax_liability.toLocaleString()}</span></div>
+        <div class="stat-card"><span class="stat-label">Input Tax Credit</span><span class="stat-val">${(s.input_tax_credit || 0).toLocaleString()}</span></div>
+        <div class="stat-card"><span class="stat-label">Net GST Payable</span><span class="stat-val">${(s.net_tax_payable ?? s.total_tax_liability).toLocaleString()}</span></div>
         <div class="stat-card"><span class="stat-label">Transactions</span><span class="stat-val">${s.transaction_count}</span></div>
       </div>
       ${nonTaxableRow}

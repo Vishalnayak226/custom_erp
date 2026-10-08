@@ -331,6 +331,12 @@ type GSTReturnSummary struct {
 	ZeroRatedValue    float64 `json:"zero_rated_value"`
 	NonTaxableValue   float64 `json:"non_taxable_value"`
 	TransactionCount  int     `json:"transaction_count"`
+	// InputTaxCredit is the GST paid on purchases and expenses in the period
+	// (net debit of 1500 GST Input Credit - supplier bills since 2026-10-07,
+	// expense claims since Stage 20), and NetTaxPayable what is left to pay
+	// after setting it off. Negative means credit carried forward.
+	InputTaxCredit float64 `json:"input_tax_credit"`
+	NetTaxPayable  float64 `json:"net_tax_payable"`
 }
 
 // glAccountNetBalance returns rupees. gl_postings.debit/credit store paise
@@ -389,6 +395,13 @@ func GetGSTReturnSummary(tenantID, startDate, endDate string) (*GSTReturnSummary
 	if err != nil {
 		return nil, err
 	}
+	// 1500 is an asset: its net is debit-minus-credit, the negative of
+	// glAccountNetBalance's credit-minus-debit.
+	itcNet, err := glAccountNetBalance(schema, "1500", startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+	inputTaxCredit := -itcNet
 
 	// Counted on 4100 rather than the exempt accounts too: every sale credits
 	// 4100 (PostSalesFinanceBooking books full revenue there before anything
@@ -409,5 +422,7 @@ func GetGSTReturnSummary(tenantID, startDate, endDate string) (*GSTReturnSummary
 		ExemptValue:       exemptValue, NilRatedValue: nilRatedValue, ZeroRatedValue: zeroRatedValue,
 		NonTaxableValue:  exemptValue + nilRatedValue + zeroRatedValue,
 		TransactionCount: txnCount,
+		InputTaxCredit:   inputTaxCredit,
+		NetTaxPayable:    cgst + sgst + igst - inputTaxCredit,
 	}, nil
 }

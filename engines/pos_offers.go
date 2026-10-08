@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // Stage 30.7: the POS offer evaluator. Offers are configured in the ERP as
@@ -27,6 +29,11 @@ const (
 	offerScopeBill     = "Bill"
 	offerScopeItem     = "Item"
 	offerScopeCategory = "Category"
+	// Stage 57.10 (user decision 2026-10-07): target a group of products, not
+	// only one item or one category. A PIM Product Group (static or dynamic,
+	// resolved live) or an explicit list of SKUs.
+	offerScopeProductGroup = "Product Group"
+	offerScopeSKUList      = "SKU List"
 
 	offerTypePercentage  = "Percentage Off"
 	offerTypeFlat        = "Flat Off"
@@ -95,6 +102,10 @@ type offerRule struct {
 	validTo           string
 	priority          float64
 	stackable         bool
+	// skuSet is the resolved membership of a Product Group or SKU List
+	// rule (upper-cased SKU codes and item ids), filled once per evaluation by
+	// resolveOfferSKUSets. Nil for every other scope.
+	skuSet map[string]bool
 }
 
 // EvaluatePOSOffers resolves every Active Offer against a cart and returns the
@@ -117,6 +128,9 @@ func EvaluatePOSOffers(tenantID string, input OfferEvaluationInput) (*OfferEvalu
 	result := &OfferEvaluation{Applied: []AppliedOffer{}, GrossAmount: gross, NetAmount: gross}
 
 	rules, err := loadActiveOffers(tenantID)
+	if err == nil {
+		resolveOfferSKUSets(tenantID, rules)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -330,7 +344,7 @@ func offerQualifyingUnitPrices(rule offerRule, lines []OfferCartLine) []float64 
 // offerScopedAmount is the rupee value of the part of the cart a rule applies
 // to - the whole bill for a Bill-scoped offer, otherwise just its lines.
 func offerScopedAmount(rule offerRule, lines []OfferCartLine, gross float64) float64 {
-	if rule.scope == offerScopeBill || rule.scopeValue == "" {
+	if rule.scope == offerScopeBill || (rule.scopeValue == "" && rule.skuSet == nil) {
 		return gross
 	}
 	sum := 0.0
@@ -343,7 +357,7 @@ func offerScopedAmount(rule offerRule, lines []OfferCartLine, gross float64) flo
 }
 
 func offerQualifyingQty(rule offerRule, lines []OfferCartLine) int {
-	if rule.scope == offerScopeBill || rule.scopeValue == "" {
+	if rule.scope == offerScopeBill || (rule.scopeValue == "" && rule.skuSet == nil) {
 		total := 0
 		for _, l := range lines {
 			total += l.Qty
@@ -371,6 +385,8 @@ func offerLineMatches(rule offerRule, line OfferCartLine) bool {
 		return strings.EqualFold(strings.TrimSpace(rule.scopeValue), strings.TrimSpace(line.Sku))
 	case offerScopeCategory:
 		return strings.EqualFold(strings.TrimSpace(rule.scopeValue), strings.TrimSpace(line.category))
+	case offerScopeProductGroup, offerScopeSKUList:
+		return rule.skuSet[strings.ToUpper(strings.TrimSpace(line.Sku))]
 	}
 	return false
 }
@@ -381,8 +397,78 @@ func offerScopeLabel(rule offerRule) string {
 		return "item " + rule.scopeValue
 	case offerScopeCategory:
 		return "category " + rule.scopeValue
+	case offerScopeProductGroup:
+		return "product group " + rule.scopeValue
+	case offerScopeSKUList:
+		return fmt.Sprintf("%d selected SKU(s)", len(rule.skuSet))
 	}
 	return "the bill"
+}
+
+// splitSKUList reads a SKU List offer's scope_value: SKUs separated by
+// commas, semicolons or new lines, blanks ignored.
+func splitSKUList(v string) []string {
+	var out []string
+	for _, f := range strings.FieldsFunc(v, func(r rune) bool { return r == ',' || r == ';' || r == '\n' || r == '\r' }) {
+		if f = strings.TrimSpace(f); f != "" {
+			out = append(out, f)
+		}
+	}
+	return out
+}
+
+// resolveOfferSKUSets fills skuSet for every Product Group / SKU List rule.
+// A group's members are Item document ids, while a till line carries the SKU
+// code, so both are put in the set (one query maps ids to codes). A group
+// that no longer resolves (deleted, inactive) leaves an empty set: the offer
+// then matches nothing, which is the safe failure - it is logged, never
+// widened to the whole bill.
+func resolveOfferSKUSets(tenantID string, rules []offerRule) {
+	for i := range rules {
+		var members []string
+		switch rules[i].scope {
+		case offerScopeSKUList:
+			members = splitSKUList(rules[i].scopeValue)
+		case offerScopeProductGroup:
+			ids, err := ResolvePIMProductGroupItemCodes(tenantID, strings.TrimSpace(rules[i].scopeValue))
+			if err != nil {
+				LogSystemError(tenantID, "", "WARN", "EvaluatePOSOffers", fmt.Sprintf("offer %s: product group %q did not resolve, offer skipped: %v", rules[i].name, rules[i].scopeValue, err), "")
+			}
+			members = append(members, ids...)
+			members = append(members, itemCodesForIDs(tenantID, ids)...)
+		default:
+			continue
+		}
+		set := map[string]bool{}
+		for _, m := range members {
+			set[strings.ToUpper(strings.TrimSpace(m))] = true
+		}
+		rules[i].skuSet = set
+	}
+}
+
+// itemCodesForIDs maps Item document ids to their SKU codes in one query.
+func itemCodesForIDs(tenantID string, ids []string) []string {
+	if len(ids) == 0 {
+		return nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT COALESCE(data->>'code', '') FROM %s.documents WHERE doctype = 'Item' AND id = ANY($1) AND deleted_at IS NULL`, schema), pq.Array(ids))
+	if err != nil {
+		return nil
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var code string
+		if rows.Scan(&code) == nil && code != "" {
+			out = append(out, code)
+		}
+	}
+	return out
 }
 
 // offerIsLive checks an offer's validity window against today's date. Blank

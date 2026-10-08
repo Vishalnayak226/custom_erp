@@ -580,72 +580,15 @@ func GetBinReplenishmentSuggestions(tenantID, locationCode string) ([]BinRepleni
 // TransitionBinStockCondition, which changes sellability; this doesn't -
 // the stock was already Good and available before and after).
 func ExecuteBinReplenishment(tenantID, fromBin, toBin, sku string, qty int, userID string) error {
-	if qty <= 0 {
-		return errors.New("qty must be positive")
-	}
-	if fromBin == toBin {
-		return errors.New("from and to bin must differ")
-	}
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return err
-	}
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if err := db.SetSearchPath(tx, schema); err != nil {
-		return err
-	}
-
-	var locationCode string
-	var have int
-	err = tx.QueryRow(fmt.Sprintf(
-		`SELECT location_code, qty FROM %s.bin_stock WHERE bin_code = $1 AND sku = $2 AND condition = 'Good' FOR UPDATE`, schema),
-		fromBin, sku).Scan(&locationCode, &have)
-	if err == sql.ErrNoRows {
-		return fmt.Errorf("no Good-condition stock for SKU %s in bin %s", sku, fromBin)
-	} else if err != nil {
-		return err
-	}
-	if have < qty {
-		return fmt.Errorf("only %d units of %s in bin %s, cannot move %d", have, sku, fromBin, qty)
-	}
-
-	if _, err := tx.Exec(fmt.Sprintf(
-		`UPDATE %s.bin_stock SET qty = qty - $1, updated_at = CURRENT_TIMESTAMP WHERE bin_code = $2 AND sku = $3 AND condition = 'Good'`, schema),
-		qty, fromBin, sku); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(fmt.Sprintf(`
-		INSERT INTO %s.bin_stock (bin_code, sku, location_code, condition, qty)
-		VALUES ($1, $2, $3, 'Good', $4)
-		ON CONFLICT (bin_code, sku, condition) DO UPDATE SET
-			qty = %s.bin_stock.qty + EXCLUDED.qty, updated_at = CURRENT_TIMESTAMP`, schema, schema),
-		toBin, sku, locationCode, qty); err != nil {
-		return err
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	// 26.10.1: a pure bin-to-bin shelf move - on_hand/available are
-	// unaffected (see this function's own doc comment), so Qty is 0; the
-	// from/to bin codes are what make this entry meaningful.
-	if lerr := WriteStockLedgerEntry(tenantID, StockLedgerEntry{
-		ItemID: sku, WarehouseID: locationCode, Qty: 0,
-		VoucherType: "BinReplenishment", VoucherID: fmt.Sprintf("%s-%s", fromBin, toBin), UserID: userID,
-		FromLocationID: fromBin, ToLocationID: toBin,
-	}); lerr != nil {
-		LogSystemError(tenantID, "", "WARN", "ExecuteBinReplenishment", fmt.Sprintf("stock ledger write failed for %s: %v", sku, lerr), "")
-	}
-	LogAuditEvent(tenantID, userID, "WMS_BIN_REPLENISH", "SUCCESS",
-		fmt.Sprintf("Moved %d x %s from bin %s to bin %s", qty, sku, fromBin, toBin))
-	// Stage 42.2.2: additive WarehouseTask retrofit.
-	LogCompletedWarehouseTask(tenantID, NewWarehouseTask{
-		TaskType: "Replenish", LocationCode: locationCode, FromBin: fromBin, ToBin: toBin, Item: sku, Qty: float64(qty),
-	}, userID)
-	return nil
+	// Stage 57.9: the move itself is MoveBinStock (engines/wms_bin_move.go),
+	// shared with the Location Movement screen - which also gives this path
+	// the destination checks it never had (bin exists, Active, not
+	// Blocked/Full/Counting, same location, hazmat zone, capacity) and moves
+	// the lot breakdown with the stock.
+	return MoveBinStock(tenantID, BinMoveInput{
+		FromBin: fromBin, ToBin: toBin, SKU: sku, Qty: qty, UserID: userID,
+		VoucherType: "BinReplenishment", TaskType: "Replenish",
+	})
 }
 
 // ------------------------------------------------------------------

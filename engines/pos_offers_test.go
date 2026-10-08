@@ -74,6 +74,52 @@ func TestPOSOffers(t *testing.T) {
 		}
 	})
 
+	// Stage 57.10: offers targeted at a group of products.
+	t.Run("SKU List scope discounts only the listed SKUs", func(t *testing.T) {
+		clearOffers()
+		seedOffer(t, "SKULIST", map[string]interface{}{
+			"name": "B list", "offer_type": "Percentage Off", "scope": "SKU List",
+			"scope_value": "SKU-B; SKU-Z\nsku-q", "discount_pct": 10, "stackable": "No",
+		})
+		eval := evaluate(t, baseCart(), "", nil)
+		if eval.TotalDiscount != 20 {
+			t.Fatalf("expected 10%% of SKU-B's 200 = 20, got %v", eval.TotalDiscount)
+		}
+	})
+
+	t.Run("Product Group scope follows the group's members by code or id", func(t *testing.T) {
+		clearOffers()
+		db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.documents WHERE id LIKE $1 AND doctype IN ('Item', 'PIMProductGroup')`, schema), idPrefix+"%")
+		item, _ := json.Marshal(map[string]interface{}{"code": "SKU-A", "name": "Offer Test A", "status": "Active"})
+		if _, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'Item', $2, 'Active', 'system')`, schema), idPrefix+"ITEM-A", string(item)); err != nil {
+			t.Fatalf("seed item: %v", err)
+		}
+		members, _ := json.Marshal([]map[string]string{{"item_code": idPrefix + "ITEM-A"}})
+		group, _ := json.Marshal(map[string]interface{}{"code": idPrefix + "PG", "name": "Offer Group", "group_type": "Static", "members": string(members)})
+		if _, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'PIMProductGroup', $2, 'Active', 'system')`, schema), idPrefix+"PG", string(group)); err != nil {
+			t.Fatalf("seed group: %v", err)
+		}
+		seedOffer(t, "GROUP", map[string]interface{}{
+			"name": "Group deal", "offer_type": "Percentage Off", "scope": "Product Group",
+			"scope_value": idPrefix + "PG", "discount_pct": 10, "stackable": "No",
+		})
+		// The till line carries the SKU code "SKU-A"; the group member is the
+		// Item id - the code must still match.
+		eval := evaluate(t, baseCart(), "", nil)
+		if eval.TotalDiscount != 100 {
+			t.Fatalf("expected 10%% of SKU-A's 1000 = 100, got %v", eval.TotalDiscount)
+		}
+
+		clearOffers()
+		seedOffer(t, "GROUPGONE", map[string]interface{}{
+			"name": "Missing group", "offer_type": "Percentage Off", "scope": "Product Group",
+			"scope_value": "NO-SUCH-GROUP", "discount_pct": 10, "stackable": "No",
+		})
+		if eval := evaluate(t, baseCart(), "", nil); eval.TotalDiscount != 0 {
+			t.Fatalf("an offer whose group does not resolve must discount nothing, got %v", eval.TotalDiscount)
+		}
+	})
+
 	t.Run("percentage off the whole bill", func(t *testing.T) {
 		clearOffers()
 		seedOffer(t, "PCT", map[string]interface{}{

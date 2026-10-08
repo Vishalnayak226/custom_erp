@@ -102,6 +102,8 @@ func init() {
 			{Key: "output_sgst", Label: "Output SGST", Sensitive: true},
 			{Key: "output_igst", Label: "Output IGST", Sensitive: true},
 			{Key: "total_tax_liability", Label: "Total Tax Liability", Sensitive: true},
+			{Key: "input_tax_credit", Label: "Input Tax Credit", Sensitive: true},
+			{Key: "net_tax_payable", Label: "Net GST Payable", Sensitive: true},
 			// Stage 26.6.11: the non-taxable buckets GSTR-1's nil/exempt table
 			// and GSTR-3B 3.1(b)/(c) are filed from. Sensitive alongside the
 			// taxable figures - they are turnover either way.

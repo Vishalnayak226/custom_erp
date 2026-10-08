@@ -474,6 +474,8 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/wms/lpn/contents", apiMiddleware(moduleGate("wms", handleLPNContents)))
 	http.HandleFunc("GET /api/v1/wms/bin-replenishment/suggestions", apiMiddleware(moduleGate("wms", handleBinReplenishmentSuggestions)))
 	http.HandleFunc("POST /api/v1/wms/bin-replenishment/execute", apiMiddleware(moduleGate("wms", handleBinReplenishmentExecute)))
+	http.HandleFunc("GET /api/v1/wms/bin-contents", apiMiddleware(moduleGate("wms", handleBinContents)))
+	http.HandleFunc("POST /api/v1/wms/bin-move", apiMiddleware(moduleGate("wms", handleBinMove)))
 	http.HandleFunc("POST /api/v1/wms/wave/assign", apiMiddleware(moduleGate("wms", handleWaveAssign)))
 	http.HandleFunc("GET /api/v1/wms/wave/pick-list", apiMiddleware(moduleGate("wms", handleWavePickList)))
 	// 26.5.16 (P2, go-ahead 2026-07-27): robotics/conveyor/scale inbound integration

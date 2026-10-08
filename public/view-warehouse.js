@@ -1823,6 +1823,148 @@ window.executeBinReplenishmentRow = async function(idx) {
   fetchBinReplenishmentSuggestions();
 };
 
+// --- Stage 57.9: Location Movement ------------------------------------------
+//
+// Bin-to-bin moves inside one location (user decision 2026-10-07). Lists what
+// each bin holds, then moves part of it to another bin at the same location
+// through POST /api/v1/wms/bin-move - the same MoveBinStock the replenishment
+// screen uses, so both refuse the same destinations (missing, inactive,
+// Blocked/Full/Counting, another location, hazmat zone, over capacity).
+let locMoveRows = [];
+
+async function renderLocationMovementView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Location Movement</h1>
+      <p class="page-subtitle">Move stock from one bin to another inside the same warehouse or store. To move stock to a different location, use Stock Transfer.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  panel.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="locmove-location">Location</label>
+        <input type="text" id="locmove-location" class="form-input" style="width: 220px;" autocomplete="off" placeholder="Search by name">
+      </div>
+      <button class="btn btn-primary" id="locmove-load-btn" type="button">Show Bin Stock</button>
+    </div>
+    <div id="locmove-form" class="hidden" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 16px;"></div>
+    <div id="locmove-result"><p style="color: var(--text-muted);">Choose a location to see what each bin holds.</p></div>
+  `;
+  container.appendChild(panel);
+  attachLinkTypeahead(document.getElementById('locmove-location'), 'Location');
+  document.getElementById('locmove-load-btn').addEventListener('click', loadLocationMovementStock);
+  document.getElementById('locmove-location').addEventListener('change', loadLocationMovementStock);
+}
+
+async function loadLocationMovementStock() {
+  const resultEl = document.getElementById('locmove-result');
+  const formEl = document.getElementById('locmove-form');
+  const location = document.getElementById('locmove-location').value.trim();
+  if (!location) return;
+  formEl.classList.add('hidden');
+  const res = await apiFetch(`/api/v1/wms/bin-contents?location_code=${encodeURIComponent(location)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to load bin stock.', 'Load Failed'); return; }
+  locMoveRows = await res.json();
+  if (locMoveRows.length === 0) {
+    resultEl.innerHTML = `<p style="color: var(--text-muted);">No bin at this location holds any stock yet. Stock gets into bins through Putaway.</p>`;
+    return;
+  }
+  resultEl.innerHTML = `
+    <table>
+      <thead><tr><th>Bin</th><th>Item</th><th class="num">Qty</th><th>Batches</th><th></th></tr></thead>
+      <tbody>
+        ${locMoveRows.map((r, idx) => `
+          <tr>
+            <td>${escapeHTMLText(r.bin_code)}</td>
+            <td>${escapeHTMLText(r.item_name || r.sku)}<div style="font-size: 11.5px; color: var(--text-muted);">${escapeHTMLText(r.sku)}</div></td>
+            <td class="num">${r.qty}</td>
+            <td>${(r.batches || []).map(escapeHTMLText).join(', ') || '&mdash;'}</td>
+            <td><button class="action-btn" data-locmove-idx="${idx}">Move</button></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+  resultEl.querySelectorAll('[data-locmove-idx]').forEach(btn =>
+    btn.addEventListener('click', () => openLocationMoveForm(Number(btn.dataset.locmoveIdx))));
+}
+
+function openLocationMoveForm(idx) {
+  const r = locMoveRows[idx];
+  if (!r) return;
+  const location = document.getElementById('locmove-location').value.trim();
+  const formEl = document.getElementById('locmove-form');
+  const batches = r.batches || [];
+  formEl.innerHTML = `
+    <h3 style="margin: 0 0 12px; font-size: 16px;">Move ${escapeHTMLText(r.item_name || r.sku)} out of bin ${escapeHTMLText(r.bin_code)} (${r.qty} here)</h3>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      ${batches.length ? `
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="locmove-batch">Batch</label>
+        <select id="locmove-batch" class="form-input" style="width: 150px;">
+          ${batches.length > 1 ? '<option value="">Choose a batch</option>' : ''}
+          ${batches.map(b => `<option value="${escapeHTMLText(b)}">${escapeHTMLText(b)}</option>`).join('')}
+        </select>
+      </div>` : ''}
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="locmove-qty">Quantity</label>
+        <input type="number" id="locmove-qty" class="form-input" style="width: 110px;" min="1" max="${r.qty}" value="${r.qty}">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="locmove-to-bin">To Bin</label>
+        <input type="text" id="locmove-to-bin" class="form-input" style="width: 200px;" autocomplete="off" placeholder="Bin at this location">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="locmove-reason">Reason (optional)</label>
+        <input type="text" id="locmove-reason" class="form-input" style="width: 220px;" placeholder="e.g. re-slotting, damaged shelf">
+      </div>
+      <button class="btn btn-primary" id="locmove-submit-btn" type="button">Move Stock</button>
+      <button class="btn btn-outline" id="locmove-cancel-btn" type="button">Cancel</button>
+    </div>
+  `;
+  formEl.classList.remove('hidden');
+  attachLinkTypeahead(document.getElementById('locmove-to-bin'), 'Bin', {
+    valueFields: ['bin_code'],
+    labelFn: d => d.bin_code || d.id,
+    filters: { location },
+    showAllOnFocus: true,
+  });
+  document.getElementById('locmove-cancel-btn').addEventListener('click', () => formEl.classList.add('hidden'));
+  document.getElementById('locmove-submit-btn').addEventListener('click', () => submitLocationMove(r));
+  formEl.scrollIntoView({ block: 'nearest' });
+}
+
+async function submitLocationMove(r) {
+  const qty = parseInt(document.getElementById('locmove-qty').value, 10);
+  const toBin = document.getElementById('locmove-to-bin').value.trim();
+  const batchEl = document.getElementById('locmove-batch');
+  const batchNo = batchEl ? batchEl.value : '';
+  const reason = document.getElementById('locmove-reason').value.trim();
+  if (!toBin) { await showCustomAlert('Choose the bin to move the stock into.', 'To Bin Required'); return; }
+  if (!(qty > 0)) { await showCustomAlert('Enter a quantity of at least 1.', 'Quantity Required'); return; }
+  const btn = document.getElementById('locmove-submit-btn');
+  btn.disabled = true;
+  try {
+    const res = await apiFetch('/api/v1/wms/bin-move', {
+      method: 'POST',
+      body: JSON.stringify({ from_bin_code: r.bin_code, to_bin_code: toBin, sku: r.sku, qty, batch_no: batchNo, reason })
+    });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'The stock could not be moved.', 'Move Failed'); return; }
+    showToast(`Moved ${qty} x ${r.item_name || r.sku} from ${r.bin_code} to ${toBin}.`);
+    await loadLocationMovementStock();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // Stage 26.5.6: wave/batch pick-list grouping - tag a batch of open
 // FulfillmentTasks into a wave, then generate one consolidated,
 // zone-then-bin-sorted pick list covering every order in it.
@@ -2361,4 +2503,4 @@ const FULFILLMENT_STATUS_BADGE = {
   Rejected: 'badge-danger'
 };
 
-export { renderFulfillmentView, renderFulfillmentActions, transitionFulfillmentTask, renderPutawayView, submitPlannedCrossDockPutaway, checkCrossDockOpportunity, submitCrossDockPutaway, suggestPutawayBin, submitPutaway, renderPlaceHoldView, submitPlaceHold, renderYardBoardView, loadYardBoard, submitYardCheckIn, submitYardCheckInInner, patchYardCheckIn, renderAppointmentCalendarView, shiftCalendarDate, calendarWeekDates, loadAppointmentCalendar, timeToMinutes, apptChip, submitNewAppointment, submitNewAppointmentInner, renderRFReceivingView, loadRFReceivingASN, renderRFReceivingBody, confirmRFScan, postRFReceipt, renderSortationView, loadSortationSlots, sortationAssignSlot, renderLoadingDockView, createLoadingDockTask, createLoadingDockTaskInner, loadLoadingDock, renderBOLPrintSheet, renderWarehouseCockpitView, loadWarehouseCockpit, renderBinConditionsView, submitBinConditionTransition, renderLPNView, submitLPNAssign, lookupLPNContents, renderBinReplenishmentView, fetchBinReplenishmentSuggestions, renderWavePickingView, renderMobilePickingView, loadMobilePickList, renderMobilePickCard, speakMobilePickLine, toggleMobilePickListening, submitWaveAssign, submitWavePickList, renderCycleCountView, submitCycleCountReconcile, submitCycleCountVarianceReason, submitRetryCycleCountPost, submitRequestRecount, submitRecountValue, fetchABCCycleCountPlan };
+export { renderFulfillmentView, renderFulfillmentActions, transitionFulfillmentTask, renderPutawayView, submitPlannedCrossDockPutaway, checkCrossDockOpportunity, submitCrossDockPutaway, suggestPutawayBin, submitPutaway, renderPlaceHoldView, submitPlaceHold, renderYardBoardView, loadYardBoard, submitYardCheckIn, submitYardCheckInInner, patchYardCheckIn, renderAppointmentCalendarView, shiftCalendarDate, calendarWeekDates, loadAppointmentCalendar, timeToMinutes, apptChip, submitNewAppointment, submitNewAppointmentInner, renderRFReceivingView, loadRFReceivingASN, renderRFReceivingBody, confirmRFScan, postRFReceipt, renderSortationView, loadSortationSlots, sortationAssignSlot, renderLoadingDockView, createLoadingDockTask, createLoadingDockTaskInner, loadLoadingDock, renderBOLPrintSheet, renderWarehouseCockpitView, loadWarehouseCockpit, renderBinConditionsView, submitBinConditionTransition, renderLPNView, submitLPNAssign, lookupLPNContents, renderBinReplenishmentView, fetchBinReplenishmentSuggestions, renderLocationMovementView, loadLocationMovementStock, renderWavePickingView, renderMobilePickingView, loadMobilePickList, renderMobilePickCard, speakMobilePickLine, toggleMobilePickListening, submitWaveAssign, submitWavePickList, renderCycleCountView, submitCycleCountReconcile, submitCycleCountVarianceReason, submitRetryCycleCountPost, submitRequestRecount, submitRecountValue, fetchABCCycleCountPlan };

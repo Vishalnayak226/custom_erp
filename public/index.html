@@ -266,6 +266,8 @@
                  a role can see none of their entries (syncFlyoutHeadings). -->
             <li><a class="menu-item" id="menu-inventory"><span>Inventory</span></a></li>
             <li><a class="menu-item" id="menu-transfers"><span>Stock Transfer</span></a></li>
+            <!-- Stage 57.9 (user decision 2026-10-07): bin-to-bin moves inside one location. -->
+            <li><a class="menu-item" id="menu-location-movement"><span>Location Movement</span></a></li>
             <li class="submenu-group-label" role="presentation">WMS</li>
             <li><a class="menu-item" id="menu-bins"><span>Bin</span></a></li>
             <li><a class="menu-item" id="menu-putaway"><span>Putaway</span></a></li>
@@ -754,7 +756,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=33"></script>
+  <script src="/app.js?v=34"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=1"></script>

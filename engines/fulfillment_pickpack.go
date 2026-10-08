@@ -48,27 +48,37 @@ type fulfillmentTaskItem struct {
 	PickedQty int
 	PackedQty int
 	ShortQty  int
+	// LineID is the SalesOrderLine this item fulfils (set by
+	// ReleaseOrderToFulfillment). Carried through every pick/pack save:
+	// dropping it cost the dispatch its link to the line's reservation.
+	LineID string
 }
 
 func fulfillmentItemFromMap(m map[string]interface{}) fulfillmentTaskItem {
 	sku, _ := m["sku"].(string)
+	lineID, _ := m["line_id"].(string)
 	return fulfillmentTaskItem{
 		SKU:       sku,
 		Qty:       int(numFromInterface(m["qty"])),
 		PickedQty: int(numFromInterface(m["picked_qty"])),
 		PackedQty: int(numFromInterface(m["packed_qty"])),
 		ShortQty:  int(numFromInterface(m["short_qty"])),
+		LineID:    lineID,
 	}
 }
 
 func (it fulfillmentTaskItem) toMap() map[string]interface{} {
-	return map[string]interface{}{
+	m := map[string]interface{}{
 		"sku":        it.SKU,
 		"qty":        it.Qty,
 		"picked_qty": it.PickedQty,
 		"packed_qty": it.PackedQty,
 		"short_qty":  it.ShortQty,
 	}
+	if it.LineID != "" {
+		m["line_id"] = it.LineID
+	}
+	return m
 }
 
 // pickPackTask is a FulfillmentTask loaded for pick/pack mutation - data

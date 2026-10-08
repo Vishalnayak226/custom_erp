@@ -187,6 +187,44 @@ func handleBinReplenishmentExecute(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }
 
+// handleBinContents lists what each bin at a location holds - the Location
+// Movement screen's source table (Stage 57.9).
+func handleBinContents(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	rows, err := engines.GetBinContents(tenantID, r.URL.Query().Get("location_code"))
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	_ = json.NewEncoder(w).Encode(rows)
+}
+
+// handleBinMove is one bin-to-bin move inside a location (Stage 57.9), through
+// the same engines.MoveBinStock replenishment uses.
+func handleBinMove(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.Header.Get("Resolved-Tenant-ID")
+	var req struct {
+		FromBinCode string `json:"from_bin_code"`
+		ToBinCode   string `json:"to_bin_code"`
+		Sku         string `json:"sku"`
+		Qty         int    `json:"qty"`
+		BatchNo     string `json:"batch_no"`
+		Reason      string `json:"reason"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request body")
+		return
+	}
+	if err := engines.MoveBinStock(tenantID, engines.BinMoveInput{
+		FromBin: req.FromBinCode, ToBin: req.ToBinCode, SKU: req.Sku, Qty: req.Qty,
+		BatchNo: req.BatchNo, Reason: req.Reason, UserID: r.Header.Get("Resolved-User-ID"),
+	}); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
 func handleWaveAssign(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")

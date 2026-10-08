@@ -45,6 +45,32 @@ type VendorInvoiceMatch struct {
 	Reasons []string               `json:"reasons"`
 }
 
+// inputGSTDebits is the debit side of paying a vendor invoice: the goods part
+// clears 2100 GRN Suspense (credited at the taxable value when the GRN posted)
+// and the GST part goes to 1500 GST Input Credit, as recorded on the invoice
+// at match time. Both payment paths (plain and override-approved) use it so
+// they cannot drift. A foreign-currency invoice, or one with no GST recorded,
+// clears the whole carrying amount to 2100 exactly as before - an import's
+// IGST is paid at customs, not on the supplier's bill.
+func inputGSTDebits(data map[string]interface{}, position DocumentFXPosition) map[string]int {
+	debits := map[string]int{"2100": position.CarryingAmount}
+	if position.Foreign {
+		return debits
+	}
+	invoice := numFromInterface(data["invoice_amount"])
+	gst := numFromInterface(data["gst_amount"])
+	if invoice <= 0 || gst <= 0 || gst >= invoice {
+		return debits
+	}
+	gstPart := int(math.Round(float64(position.CarryingAmount) * gst / invoice))
+	if gstPart <= 0 {
+		return debits
+	}
+	debits["2100"] = position.CarryingAmount - gstPart
+	debits["1500"] = gstPart
+	return debits
+}
+
 // Match3Way is MatchVendorInvoice reduced to the matched flag, for callers
 // that only need that.
 func Match3Way(tenantID, poID, grnID, invoiceID string, tolerancePercent float64) (matched bool, err error) {
@@ -261,6 +287,29 @@ func MatchVendorInvoice(tenantID, invoiceID, poID, grnID string, tolerancePercen
 		"rate_data_missing":  rateDataMissing,
 		"reasons":            reasons,
 	}
+	// Input Tax Credit (user decision 2026-10-07): the GST inside the bill,
+	// at the PO's own tax ratio, recorded here so every payment path posts it
+	// to 1500 GST Input Credit instead of clearing it against goods in 2100
+	// (GRN receipt credited 2100 at the TAXABLE value, so paying the gross
+	// left the GST as a stray debit there). Split CGST/SGST/IGST in the PO's
+	// proportions for the GST return. A PO without GST records nothing.
+	gstPart := 0.0
+	if taxRatio > 1 && invoiceAmount > 0 {
+		gstPart = round2(invoiceAmount - invoiceAmount/taxRatio)
+	}
+	invData["taxable_amount"] = round2(invoiceAmount - gstPart)
+	invData["gst_amount"] = gstPart
+	if bd, ok := poData["gst_breakdown"].(map[string]interface{}); ok && gstPart > 0 {
+		if total := numFromInterface(bd["total_tax"]); total > 0 {
+			invData["gst_split"] = map[string]interface{}{
+				"cgst": round2(gstPart * numFromInterface(bd["cgst"]) / total),
+				"sgst": round2(gstPart * numFromInterface(bd["sgst"]) / total),
+				"igst": round2(gstPart * numFromInterface(bd["igst"]) / total),
+			}
+		}
+	}
+	details["taxable_amount"] = invData["taxable_amount"]
+	details["gst_amount"] = gstPart
 	invData["status"] = newStatus
 	invData["match_details"] = details
 	updatedBytes, _ := json.Marshal(invData)
@@ -412,7 +461,7 @@ func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 	}
 	amountInt = settlement.SettlementAmount
 
-	debits := map[string]int{"2100": position.CarryingAmount}      // clear GRN Suspense liability
+	debits := inputGSTDebits(data, position)                       // clear GRN Suspense (goods) + input GST
 	credits := map[string]int{"1100": settlement.SettlementAmount} // Cash/Bank paid out
 	applyRealisedFXLine(debits, credits, settlement.RealisedGainLoss)
 	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), settlement.PostingDate(), fmt.Sprintf("VendorInvoice:%s:PAY", invoiceID),
@@ -486,7 +535,7 @@ func FinalizeVendorInvoiceOverridePayment(tenantID, invoiceID, userID string, op
 	}
 	amountInt := settlement.SettlementAmount
 
-	debits := map[string]int{"2100": position.CarryingAmount}
+	debits := inputGSTDebits(data, position)
 	credits := map[string]int{"1100": settlement.SettlementAmount}
 	applyRealisedFXLine(debits, credits, settlement.RealisedGainLoss)
 	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, PaiseMap(debits), PaiseMap(credits), settlement.PostingDate(), fmt.Sprintf("VendorInvoice:%s:PAY_OVERRIDE", invoiceID),

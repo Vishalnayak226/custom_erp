@@ -1248,6 +1248,9 @@ window.openDynamicModal = async function(existingRecord) {
     if (zoneInput && zoneInput.tagName === 'INPUT') attachLinkTypeahead(zoneInput, 'Zone', { showAllOnFocus: true });
   }
 
+  // Stage 57.10: an Offer's Scope Value follows its Scope.
+  if (currentDoctype === 'Offer') wireOfferScopeValue(body);
+
   // Stage 33: only the long forms get the wide, multi-column dialog. Item
   // renders ~20 fields and was taller than any screen in one column; a
   // 3-field master in the same 920px box would just be empty space. The
@@ -1269,6 +1272,80 @@ window.openDynamicModal = async function(existingRecord) {
   const firstInput = body.querySelector('input:not([type="hidden"]):not([readonly]):not([disabled]), select:not([disabled]), textarea:not([disabled])');
   (firstInput || modal.querySelector('.modal-close'))?.focus();
 };
+
+// Stage 57.10 (user decision 2026-10-07): offers target a single Item, a
+// Category, a PIM Product Group or a list of SKUs. scope_value used to be one
+// bare text box whatever the scope, so the user had to know and type exact
+// codes ("its preety bad"). The box is rebuilt for the chosen scope - a fresh
+// element each time, so no picker's listeners outlive the scope they were for
+// - and keeps its name/id, so the form's own save reads it unchanged.
+let offerCategoryList = null;
+function wireOfferScopeValue(body) {
+  const scopeEl = body.querySelector('[name="scope"]');
+  let valueEl = body.querySelector('[name="scope_value"]');
+  if (!scopeEl || !valueEl) return;
+  const hint = document.createElement('div');
+  hint.style.cssText = 'font-size: 12px; color: var(--text-muted); margin-top: 4px;';
+  valueEl.insertAdjacentElement('afterend', hint);
+
+  const rebuild = async (keepValue) => {
+    const scope = scopeEl.value;
+    const isList = scope === 'SKU List';
+    const fresh = document.createElement(isList ? 'textarea' : 'input');
+    if (!isList) fresh.type = 'text';
+    fresh.className = 'form-input';
+    fresh.id = valueEl.id;
+    fresh.name = valueEl.name;
+    fresh.autocomplete = 'off';
+    if (isList) fresh.rows = 3;
+    fresh.value = keepValue ? valueEl.value : '';
+    valueEl.replaceWith(fresh);
+    valueEl = fresh;
+    hint.textContent = '';
+
+    if (scope === 'Item') {
+      fresh.placeholder = 'Search the item';
+      attachLinkTypeahead(fresh, 'Item');
+    } else if (scope === 'Product Group') {
+      fresh.placeholder = 'Choose a PIM product group';
+      attachLinkTypeahead(fresh, 'PIMProductGroup', { showAllOnFocus: true });
+      hint.textContent = 'Every product in the group gets the offer - a dynamic group follows its rules as products change.';
+    } else if (scope === 'SKU List') {
+      fresh.placeholder = 'SKU codes, separated by commas or one per line';
+      hint.textContent = 'Only these SKUs get the offer.';
+    } else if (scope === 'Category') {
+      fresh.placeholder = 'Category, as set on the items';
+      // The categories already in use, offered as suggestions. Item.category
+      // is free text, so there is no master to pick from; reading the items
+      // once per session is enough to stop typos.
+      if (!offerCategoryList) {
+        offerCategoryList = [];
+        const res = await apiFetch('/api/v1/doc/Item?limit=1000');
+        if (res && res.ok) {
+          const seen = new Set();
+          for (const it of await res.json()) {
+            const c = String(it.category || '').trim();
+            if (c && !seen.has(c.toLowerCase())) { seen.add(c.toLowerCase()); offerCategoryList.push(c); }
+          }
+          offerCategoryList.sort((a, b) => a.localeCompare(b));
+        }
+      }
+      let list = document.getElementById('offer-category-options');
+      if (!list) {
+        list = document.createElement('datalist');
+        list.id = 'offer-category-options';
+        document.body.appendChild(list);
+      }
+      list.replaceChildren(...offerCategoryList.map(c => Object.assign(document.createElement('option'), { value: c })));
+      if (valueEl === fresh) fresh.setAttribute('list', list.id);
+    } else {
+      fresh.readOnly = true;
+      fresh.placeholder = 'Not used - the offer applies to the whole bill';
+    }
+  };
+  rebuild(true);
+  scopeEl.addEventListener('change', () => rebuild(false));
+}
 
 // 21.9 QA-follow-up: the generic record-list screens (Vendors,
 // Bin Master, everything under Master Definition, etc.) had a Delete

@@ -56,15 +56,78 @@ func CreateSalesInvoiceFromOrder(tenantID, orderID, userID string) (string, erro
 		return "", err
 	}
 	total := numFromInterface(orderData["total_amount"])
+	// 2026-10-07: bill what shipped, with its GST. Dispatch records
+	// shipped_qty on each line; a short-picked unit never left, so its value
+	// comes off the draft (lines dispatched before that carry no shipped_qty
+	// and are billed in full, as before). The billed lines then go through the
+	// same ComputeGSTForLines + reconcileInvoiceAmounts a package invoice uses,
+	// so PostSalesInvoice can book the tax to GST Output Payable.
+	shortValue := 0.0
+	var gstLines []GSTLineInput
+	var location string
+	if lineRows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT data FROM %s.documents
+		WHERE doctype = 'SalesOrderLine' AND data->>'order_id' = $1 AND deleted_at IS NULL
+		ORDER BY id`, schema), orderID); err == nil {
+		for lineRows.Next() {
+			var raw []byte
+			if lineRows.Scan(&raw) != nil {
+				continue
+			}
+			var line map[string]interface{}
+			if json.Unmarshal(raw, &line) != nil {
+				continue
+			}
+			if st, _ := line["line_status"].(string); st == "Cancelled" {
+				continue
+			}
+			if location == "" {
+				location, _ = line["location_code"].(string)
+			}
+			qty := numFromInterface(line["qty"])
+			billed := qty
+			if _, has := line["shipped_qty"]; has {
+				billed = numFromInterface(line["shipped_qty"])
+				if short := qty - billed; short > 0 {
+					shortValue += short * numFromInterface(line["unit_price"])
+				}
+			}
+			sku, _ := line["sku"].(string)
+			if billed > 0 && sku != "" {
+				gstLines = append(gstLines, GSTLineInput{Sku: sku, Qty: int(billed), UnitRate: numFromInterface(line["unit_price"])})
+			}
+		}
+		lineRows.Close()
+	}
+	total = round2(total - shortValue)
 	if total <= 0 {
 		return "", fmt.Errorf("sales order %s has no invoiceable total", orderID)
 	}
-	var location string
-	_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'location_code', '') FROM %s.documents WHERE doctype = 'SalesOrderLine' AND data->>'order_id' = $1 AND deleted_at IS NULL ORDER BY id LIMIT 1`, schema), orderID).Scan(&location)
 	invoiceData := map[string]interface{}{
 		"code": orderID, "invoice_number": invoiceID, "sales_order_id": orderID,
 		"customer": orderData["customer_name"], "location": location,
 		"total_amount": total, "status": "Draft",
+	}
+	if shortValue > 0 {
+		invoiceData["short_shipped_value"] = shortValue
+	}
+	if len(gstLines) > 0 {
+		interstate, basis := resolveOrderInterstate(tenantID, schema, orderID, location)
+		if breakdown, gerr := ComputeGSTForLines(tenantID, gstLines, interstate); gerr == nil && breakdown.TotalAmount > 0 {
+			amounts := reconcileInvoiceAmounts(breakdown, total, interstate)
+			invoiceData["taxable_amount"] = amounts.Taxable
+			invoiceData["non_taxable"] = amounts.NonTaxable
+			invoiceData["cgst"] = amounts.CGST
+			invoiceData["sgst"] = amounts.SGST
+			invoiceData["igst"] = amounts.IGST
+			invoiceData["total_tax"] = amounts.TotalTax
+			invoiceData["interstate"] = interstate
+			invoiceData["gst_basis"] = basis
+		} else if gerr != nil {
+			// Never block the shipment cascade on tax data: the draft is
+			// still created, says why it carries no GST, and posts as before.
+			invoiceData["gst_note"] = "GST not computed: " + gerr.Error()
+		}
 	}
 	encoded, err := json.Marshal(invoiceData)
 	if err != nil {
