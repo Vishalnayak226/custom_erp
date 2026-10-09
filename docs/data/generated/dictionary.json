@@ -19936,6 +19936,16 @@
           "sensitive": true
         },
         {
+          "key": "input_tax_credit",
+          "label": "Input Tax Credit",
+          "sensitive": true
+        },
+        {
+          "key": "net_tax_payable",
+          "label": "Net GST Payable",
+          "sensitive": true
+        },
+        {
           "key": "exempt_value",
           "label": "Exempt Value",
           "sensitive": true

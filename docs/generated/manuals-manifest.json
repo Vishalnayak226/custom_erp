@@ -10,7 +10,7 @@
   "outputs": [
     {
       "path": "docs/user/tenant-admin-manual.html",
-      "sha256": "a5c31a902e1c8c2b63eb4de8c30666c19e6fbb3d006054548fe3fb2a260cbc1a",
+      "sha256": "ded6526b215297cb39324dae7fc75bf527cd91e48772a9c7ceadcf18bf68649c",
       "sources": [
         "docs/governance/manual-selection.json",
         "docs/kb/**/*.md",
@@ -21,7 +21,7 @@
     },
     {
       "path": "docs/user/user-manual.html",
-      "sha256": "24c361f1b908034881fbec99b30da3fe8ef6a392a36546d2e913a4ad51265d7a",
+      "sha256": "e9b9dd47e94f0488c5466bee63923f6162d89bdee9171d59e341104535fa3430",
       "sources": [
         "docs/governance/manual-selection.json",
         "docs/kb/**/*.md",

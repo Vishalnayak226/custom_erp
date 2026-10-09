@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **306** codes. Each row says what the user is shown, what to do about
+There are **307** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -32,7 +32,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Expense Management](#expense-management) - 3 codes
 - [Extension Hooks / Customization](#extension-hooks--customization) - 3 codes
 - [Finance & Accounting](#finance--accounting) - 14 codes
-- [Fixed Assets](#fixed-assets) - 3 codes
+- [Fixed Assets](#fixed-assets) - 4 codes
 - [Global / Common](#global--common) - 25 codes
 - [Goods Receipt](#goods-receipt) - 2 codes
 - [Goods Receipt / GRN](#goods-receipt--grn) - 8 codes
@@ -202,6 +202,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `ASSET-0270` | Asset not capitalized | Asset must be capitalized before depreciation, transfer, or disposal. | Capitalize asset first. | High | 422 |
 | `ASSET-0271` | Depreciation calculation missing | Depreciation cannot be calculated because useful life or capitalization date is missing. | Update asset financial details. | High | 422 |
 | `ASSET-0272` | Asset physical verification overdue | Asset physical verification is overdue. Please complete verification. | Complete verification or mark exception. | Medium | 200 |
+| `ASSET-0273` | A Fixed Asset item was put on a sale, order or invoice | This item is a fixed asset, not stock for sale, so it cannot be sold, ordered or invoiced. | Remove it from the sale. Fixed assets are managed under HRM -> Fixed Assets. | High | 422 |
 
 ## Global / Common
 
