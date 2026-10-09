@@ -347,6 +347,7 @@ const LAZY_VIEW_MODULES = {
   'bank-reconciliation': ['view-finance.js', 'renderBankReconciliationView', 'Bank Reconciliation'],
   'finance-notes': ['view-finance.js', 'renderFinanceNotesView', 'Finance Notes'],
   'sales-invoices': ['view-finance.js', 'renderSalesInvoicesView', 'Sales Invoices'],
+  'journal-vouchers': ['view-journal.js', 'renderJournalVouchersView', 'Journal Vouchers'],
   fulfillment: ['view-warehouse.js', 'renderFulfillmentView', 'Fulfillment'],
   putaway: ['view-warehouse.js', 'renderPutawayView', 'Putaway'],
   'warehouse-cockpit': ['view-warehouse.js', 'renderWarehouseCockpitView', 'Warehouse Cockpit'],
@@ -3566,6 +3567,7 @@ const MENU_PERMISSION_MAP = {
   'menu-bank-reconciliation': { doctypes: ['BankAccount', 'BankStatementLine'] },
   'menu-finance-notes': { doctypes: ['DebitNote', 'CreditNote'] },
   'menu-sales-invoices': { doctypes: ['SalesInvoice'] },
+  'menu-journal-vouchers': { doctypes: ['JournalVoucher'] },
 
   'menu-fulfillment': { modules: ['OMS'] },
   'menu-marketplace': { modules: ['OMS', 'PIM'] },
@@ -4035,6 +4037,12 @@ const MENU_MODULE_MAP = {
     "module": "finance",
     "views": [
       "finance-notes"
+    ]
+  },
+  "menu-journal-vouchers": {
+    "module": "finance",
+    "views": [
+      "journal-vouchers"
     ]
   },
   "menu-sales-invoices": {
@@ -4812,7 +4820,7 @@ function setupEventListeners() {
   // Offline Queue Gaps (24.36) - same generic doctype-table pattern as Offline Sync Review above.
   document.getElementById('menu-pos-offline-gaps').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-gaps'); closeSubmenus(); currentDoctype = 'POSOfflineQueueGap'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-transfers', 'menu-location-movement', 'menu-putaway', 'menu-warehouse-cockpit', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
+  ['menu-inventory', 'menu-journal-vouchers', 'menu-transfers', 'menu-location-movement', 'menu-putaway', 'menu-warehouse-cockpit', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -5750,7 +5758,8 @@ const STATIC_VIEW_MENU_IDS = {
   'payment-proposals': 'menu-payment-proposals',
   'bank-reconciliation': 'menu-bank-reconciliation',
   'finance-notes': 'menu-finance-notes',
-  'sales-invoices': 'menu-sales-invoices'
+  'sales-invoices': 'menu-sales-invoices',
+  'journal-vouchers': 'menu-journal-vouchers'
 };
 
 // Only called once, from restoreLastView() below, when the app first loads
@@ -6911,6 +6920,7 @@ const HOME_QUICK_ACTIONS = [
   { id: 'finance', label: 'Finance / GL', desc: 'Journals, period close, tax and the statements that come out of them.', view: 'finance', menuId: 'menu-finance' },
   { id: 'approvals', label: 'Approvals', desc: 'Documents waiting on your sign-off.', view: 'approvals', menuId: 'menu-approvals' },
   { id: 'sales-invoices', label: 'Sales Invoices', desc: 'What customers owe the company.', view: 'sales-invoices', menuId: 'menu-sales-invoices' },
+  { id: 'journal-vouchers', label: 'Journal Vouchers', desc: 'Manual entries: accruals, corrections, opening balances.', view: 'journal-vouchers', menuId: 'menu-journal-vouchers' },
   { id: 'customers', label: 'Customers', desc: 'Customer master records.', view: 'doctype-table', doctype: 'Customer', menuId: 'menu-customers' },
   { id: 'oms', label: 'Order Management', desc: 'Track orders across every channel.', view: 'oms', menuId: 'menu-oms' },
   { id: 'fulfillment', label: 'Fulfillment', desc: 'Pick, pack and ship open orders.', view: 'fulfillment', menuId: 'menu-fulfillment' },
