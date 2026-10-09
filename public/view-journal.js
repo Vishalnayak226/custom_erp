@@ -130,8 +130,8 @@ async function openJournalVoucherForm() {
     </div>
   `;
   panel.classList.remove('hidden');
-  attachLinkTypeahead(document.getElementById('jv-cost-center'), 'CostCenter');
-  attachLinkTypeahead(document.getElementById('jv-department'), 'Department');
+  attachLinkTypeahead(document.getElementById('jv-cost-center'), 'CostCenter', { noSetupHint: true });
+  attachLinkTypeahead(document.getElementById('jv-department'), 'Department', { noSetupHint: true });
   document.getElementById('jv-add-line').addEventListener('click', () => { jvLines.push({ account: '', debit: '', credit: '' }); renderJournalVoucherLines(); });
   document.getElementById('jv-cancel-btn').addEventListener('click', () => panel.classList.add('hidden'));
   document.getElementById('jv-save-btn').addEventListener('click', () => guardAgainstDoubleSubmit(document.getElementById('jv-save-btn'), 'Saving...', saveJournalVoucher));
