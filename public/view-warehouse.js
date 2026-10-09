@@ -23,6 +23,16 @@ async function renderFulfillmentView(container) {
   }
 
   const tasks = await res.json();
+  // 2026-10-09: a picker identifies an order by who it is for, not by its
+  // generated id - one read of the orders, mapped by id, labels every row
+  // (the id stays, small, for anyone who needs to quote it).
+  const orderInfo = {};
+  if ((tasks || []).some(t => t.order_id)) {
+    const ordersRes = await apiFetch('/api/v1/doc/SalesOrder?limit=500');
+    if (ordersRes && ordersRes.ok) {
+      for (const o of await ordersRes.json()) orderInfo[o.code || o.id] = o;
+    }
+  }
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   let html = `
@@ -30,7 +40,7 @@ async function renderFulfillmentView(container) {
       <thead>
         <tr>
           <th>Task ID</th>
-          <th>Order ID</th>
+          <th>Order</th>
           <th>Location</th>
           <th>Status</th>
           <th>Actions</th>
@@ -46,7 +56,7 @@ async function renderFulfillmentView(container) {
     html += `
       <tr>
         <td style="font-family: monospace;">${t.code || t.id}</td>
-        <td>${t.order_id || ''}</td>
+        <td>${fulfillmentOrderLabel(t.order_id, orderInfo[t.order_id])}</td>
         <td>${t.location_code || ''}</td>
         <td><span class="badge ${badgeClass}">${t.status}</span></td>
         <td>${renderFulfillmentActions(t)}</td>
@@ -56,6 +66,14 @@ async function renderFulfillmentView(container) {
   html += `</tbody></table>`;
   panel.innerHTML = html;
   container.appendChild(panel);
+}
+
+function fulfillmentOrderLabel(orderID, order) {
+  if (!orderID) return '';
+  if (!order) return escapeHTMLText(orderID);
+  const who = order.customer_name || '';
+  const ref = order.channel_order_id ? ` · ${order.channel_order_id}` : '';
+  return `${escapeHTMLText(who || orderID)}<div style="font-size: 11.5px; color: var(--text-muted);">${escapeHTMLText((order.channel || 'Manual') + ref)}</div><div style="font-size: 11px; color: var(--text-muted); font-family: monospace;">${escapeHTMLText(orderID)}</div>`;
 }
 
 function renderFulfillmentActions(task) {
