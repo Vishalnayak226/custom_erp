@@ -991,10 +991,14 @@ function attachEmployeePicker(id) {
 // free-text columns - this keeps that same call for the same reason).
 function attachTypeahead(inputEl, doctype, opts = {}) {
   const valueFields = opts.valueFields || ['code', 'name', 'id'];
+  // 2026-10-09: name first, code second (Stage 57.1, names not codes). With
+  // the code leading, a long series code such as Employee/HQ/2026/000001
+  // filled the row and the name was cut off - the person picking could not
+  // see who they were picking. Location already did this (Stage 41).
   const labelFn = opts.labelFn || (doc => {
     const code = doc.code || doc.id || '';
     const name = doc.name || '';
-    return name && name !== code ? `${code} — ${name}` : (code || name);
+    return name && name !== code ? `${name} — ${code}` : (code || name);
   });
   const limit = opts.limit || 8;
   // Stage 30.5.8. Two opt-in behaviours, both added for the consistency
