@@ -194,37 +194,89 @@ async function capitalizeAsset(assetId, usefulLifeYears) {
   renderView('assets');
 }
 
-async function promptTransferAsset(assetId) {
-  const newLocation = await showCustomPrompt('New location:');
-  if (!newLocation) return;
-  const newCustodian = (await showCustomPrompt('New custodian (optional):')) || '';
+// 2026-10-09: Transfer and Dispose used plain text prompts - "New location:",
+// "New custodian (optional):", "Disposal type (Sale, Scrap, or WriteOff):" -
+// so the user had to type a location code, an employee code and an exact
+// spelling from memory (Stage 57.1, names not codes). They now open one small
+// panel above the register with name pickers and a fixed list; the requests
+// they send are unchanged.
+function openAssetActionPanel(title, bodyHTML, onConfirm) {
+  document.getElementById('asset-action-panel')?.remove();
+  const panel = document.createElement('div');
+  panel.id = 'asset-action-panel';
+  panel.className = 'table-panel';
+  panel.style.cssText = 'padding: 20px 24px; margin-bottom: 24px;';
+  panel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 12px;">${escapeHTMLText(title)}</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      ${bodyHTML}
+      <button class="btn btn-primary" id="asset-action-confirm" type="button">Confirm</button>
+      <button class="btn btn-outline" id="asset-action-cancel" type="button">Cancel</button>
+    </div>
+    <div id="asset-action-error" class="login-error hidden" style="margin-top: 12px;"></div>
+  `;
+  const anchor = document.getElementById('asset-create-btn')?.closest('.table-panel');
+  if (anchor) anchor.after(panel); else document.getElementById('view-root').prepend(panel);
+  panel.querySelector('#asset-action-cancel').addEventListener('click', () => panel.remove());
+  const confirmBtn = panel.querySelector('#asset-action-confirm');
+  confirmBtn.addEventListener('click', () => guardAgainstDoubleSubmit(confirmBtn, 'Working...', onConfirm));
+  panel.scrollIntoView({ block: 'nearest' });
+  return panel;
+}
 
-  const res = await apiFetch('/api/v1/assets/transfer', {
-    method: 'POST',
-    body: JSON.stringify({ asset_id: assetId, new_location: newLocation, new_custodian: newCustodian })
+function assetActionError(message) {
+  const el = document.getElementById('asset-action-error');
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove('hidden');
+}
+
+async function promptTransferAsset(assetId) {
+  const panel = openAssetActionPanel(`Transfer asset ${assetId}`, `
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label" for="asset-transfer-location">New Location<span class="required">*</span></label>
+      <input type="text" id="asset-transfer-location" class="form-input" style="width: 220px;" autocomplete="off" placeholder="Search by name">
+    </div>
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label" for="asset-transfer-custodian">New Custodian</label>
+      <input type="text" id="asset-transfer-custodian" class="form-input" style="width: 220px;" autocomplete="off" placeholder="Optional - who is responsible">
+    </div>
+  `, async () => {
+    const newLocation = document.getElementById('asset-transfer-location').value.trim();
+    const newCustodian = document.getElementById('asset-transfer-custodian').value.trim();
+    if (!newLocation) { assetActionError('Choose the location the asset is moving to.'); return; }
+    const res = await apiFetch('/api/v1/assets/transfer', {
+      method: 'POST',
+      body: JSON.stringify({ asset_id: assetId, new_location: newLocation, new_custodian: newCustodian })
+    });
+    if (!res) return;
+    if (!res.ok) { assetActionError(await getErrorMessage(res, 'Failed to transfer asset.')); return; }
+    renderView('assets');
   });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'Failed to transfer asset.', 'Transfer Failed');
-    return;
-  }
-  renderView('assets');
+  attachLinkTypeahead(panel.querySelector('#asset-transfer-location'), 'Location');
+  attachLinkTypeahead(panel.querySelector('#asset-transfer-custodian'), 'Employee', { noSetupHint: true });
+  panel.querySelector('#asset-transfer-location').focus();
 }
 
 async function promptDisposeAsset(assetId) {
-  const confirmed = await showCustomConfirm('This will write off the asset\'s remaining net book value and close it out. Continue?', 'Dispose Asset');
-  if (!confirmed) return;
-  const disposalType = await showCustomPrompt('Disposal type (Sale, Scrap, or WriteOff):', 'Scrap');
-  if (!disposalType) return;
-
-  const res = await apiFetch('/api/v1/assets/dispose', {
-    method: 'POST',
-    body: JSON.stringify({ asset_id: assetId, disposal_type: disposalType })
+  openAssetActionPanel(`Dispose of asset ${assetId}`, `
+    <div class="form-group" style="margin-bottom: 0;">
+      <label class="form-label" for="asset-dispose-type">How is it leaving?<span class="required">*</span></label>
+      <select id="asset-dispose-type" class="form-input" style="width: 200px;">
+        <option value="Sale">Sold</option>
+        <option value="Scrap" selected>Scrapped</option>
+        <option value="WriteOff">Written off (lost, stolen)</option>
+      </select>
+    </div>
+    <p style="margin: 0; font-size: 13px; color: var(--text-muted); max-width: 360px;">The remaining book value is written off and the asset is closed. This cannot be undone.</p>
+  `, async () => {
+    const disposalType = document.getElementById('asset-dispose-type').value;
+    const res = await apiFetch('/api/v1/assets/dispose', {
+      method: 'POST',
+      body: JSON.stringify({ asset_id: assetId, disposal_type: disposalType })
+    });
+    if (!res) return;
+    if (!res.ok) { assetActionError(await getErrorMessage(res, 'Failed to dispose asset.')); return; }
+    renderView('assets');
   });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'Failed to dispose asset.', 'Disposal Failed');
-    return;
-  }
-  renderView('assets');
 }
