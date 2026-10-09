@@ -1977,7 +1977,7 @@ async function loadPurchaseReturnLines(grnID) {
     return;
   }
   linesEl.innerHTML = `
-    <div style="margin-bottom: 8px;">Vendor <b>${escapeHTMLText(prtContext.vendor_id || '-')}</b>, returning from <b>${escapeHTMLText(prtContext.location || '-')}</b>. Enter the quantity going back on each line.</div>
+    <div style="margin-bottom: 8px;">Vendor <b data-link-doctype="Vendor" data-link-ref="${escapeHTMLText(prtContext.vendor_id || '')}">${escapeHTMLText(prtContext.vendor_id || '-')}</b>, returning from <b data-link-doctype="Location" data-link-ref="${escapeHTMLText(prtContext.location || '')}">${escapeHTMLText(prtContext.location || '-')}</b>. Enter the quantity going back on each line.</div>
     <table>
       <thead><tr><th>SKU</th><th>Lot</th><th>Stock</th><th>Received</th><th>Returned</th><th>On open returns</th><th>Can return</th><th>Unit cost (ex-GST)</th><th>Return qty</th></tr></thead>
       <tbody>
