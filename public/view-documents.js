@@ -361,12 +361,22 @@ function renderDocTable() {
 
   tableHTML += `</tbody></table>`;
   wrapper.innerHTML = tableHTML;
+  const DOC_ACTIONS_IN_PROCUREMENT = new Set(['submit-quality-inspection', 'send-subcontract-order', 'receive-subcontract-order', 'merge-customer', 'submit-document']);
   if (!wrapper.dataset.actionListenersBound) {
     wrapper.dataset.actionListenersBound = 'true';
-    wrapper.addEventListener('click', event => {
+    wrapper.addEventListener('click', async event => {
       const button = event.target.closest('[data-doc-action]');
       if (!button) return;
       const id = button.dataset.docId;
+      // 2026-10-09: these handlers live in view-procurement.js, which is only
+      // loaded once someone opens a Procurement screen. Reached first from
+      // Manufacturing (Quality Inspections, Subcontracting) or Setup
+      // (Customers), the button called an undefined function through ?.()
+      // and silently did nothing. Load the module first.
+      if (DOC_ACTIONS_IN_PROCUREMENT.has(button.dataset.docAction)) {
+        try { await loadViewModule('/view-procurement.js?v=1'); }
+        catch (error) { console.error('Could not load the procurement actions', error); }
+      }
       switch (button.dataset.docAction) {
         case 'submit-requisition': window.submitRequisitionForApproval?.(id); break;
         case 'convert-requisition': window.convertRequisition?.(id, button.dataset.target); break;
