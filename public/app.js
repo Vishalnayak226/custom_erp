@@ -1466,7 +1466,9 @@ const linkDocCache = new Map();
 
 function linkDisplayName(doc) {
   if (!doc) return '';
-  return String(doc.name || doc.code || doc.id || '');
+  // 2026-10-09: some masters are named by `label` (Product Attribute
+  // Definition) or `title`, not `name` - those showed their code.
+  return String(doc.name || doc.label || doc.title || doc.code || doc.id || '');
 }
 
 function linkCodeOf(doc) {
@@ -1584,7 +1586,8 @@ function linkNameMap(doctype) {
       const map = new Map();
       if (res && res.ok) {
         ((await res.json()) || []).forEach(d => {
-          if (d.name) [d.id, d.code].filter(Boolean).forEach(k => map.set(String(k), String(d.name)));
+          const name = d.name || d.label || d.title;
+          if (name) [d.id, d.code].filter(Boolean).forEach(k => map.set(String(k), String(name)));
         });
       }
       return map;

@@ -1094,7 +1094,7 @@ window.openDynamicModal = async function(existingRecord) {
             // silently breaking the Link constraint it was meant to enforce.
             const option = document.createElement('option');
             option.value = item.id == null ? '' : String(item.id);
-            option.textContent = item.name || item.code || item.id || '';
+            option.textContent = item.name || item.label || item.title || item.code || item.id || '';
             select.appendChild(option);
           });
           if (existingVal !== undefined && existingVal !== null) select.value = existingVal;
