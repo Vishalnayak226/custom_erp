@@ -485,6 +485,26 @@ func HandoverManifest(tenantID, manifestID, userID string) error {
 	return nil
 }
 
+// EvaluateTaskOrderShipment runs the order-closure rule below for the order a
+// FulfillmentTask belongs to. HandoverManifest already does this for every
+// booking it hands over; this is the same check for a task dispatched straight
+// from the Fulfillment screen (own delivery, store pickup), which before
+// 2026-10-09 left its order at Released forever with no draft invoice.
+// A task with no order, or an order that is not a SalesOrder, is a no-op.
+func EvaluateTaskOrderShipment(tenantID, taskID, userID string) error {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	var orderID string
+	if err := db.DB.QueryRow(fmt.Sprintf(
+		`SELECT COALESCE(data->>'order_id', '') FROM %s.documents WHERE doctype = 'FulfillmentTask' AND id = $1`, schema),
+		taskID).Scan(&orderID); err != nil || orderID == "" {
+		return nil
+	}
+	return evaluateOrderShipmentClosure(tenantID, schema, orderID, userID)
+}
+
 // evaluateOrderShipmentClosure implements the design note's (§12)
 // split-shipment-aware SalesOrder closure rule: Shipped only once every
 // FulfillmentTask under orderID has reached Dispatched, otherwise Partially

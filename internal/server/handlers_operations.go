@@ -397,6 +397,15 @@ func handleFulfillmentTaskTransition(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
+	// A task dispatched here (not via a courier manifest) still has to move
+	// its order to Shipped and draft the invoice - the same closure rule
+	// HandoverManifest applies. The dispatch itself has committed, so a
+	// closure failure is logged rather than reported as a failed dispatch.
+	if req.Status == "Dispatched" {
+		if cerr := engines.EvaluateTaskOrderShipment(tenantID, req.TaskID, r.Header.Get("Resolved-User-ID")); cerr != nil {
+			engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "ERROR", r.URL.Path, fmt.Sprintf("task %s dispatched but order closure failed: %v", req.TaskID, cerr), "")
+		}
+	}
 
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status":     "transitioned",
