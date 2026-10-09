@@ -106,6 +106,9 @@ type offerRule struct {
 	// rule (upper-cased SKU codes and item ids), filled once per evaluation by
 	// resolveOfferSKUSets. Nil for every other scope.
 	skuSet map[string]bool
+	// scopeName is what the till shows for the target - a product group's
+	// name rather than its generated code (Stage 57.1 names, not codes).
+	scopeName string
 }
 
 // EvaluatePOSOffers resolves every Active Offer against a cart and returns the
@@ -398,6 +401,9 @@ func offerScopeLabel(rule offerRule) string {
 	case offerScopeCategory:
 		return "category " + rule.scopeValue
 	case offerScopeProductGroup:
+		if rule.scopeName != "" {
+			return "product group " + rule.scopeName
+		}
 		return "product group " + rule.scopeValue
 	case offerScopeSKUList:
 		return fmt.Sprintf("%d selected SKU(s)", len(rule.skuSet))
@@ -430,9 +436,15 @@ func resolveOfferSKUSets(tenantID string, rules []offerRule) {
 		case offerScopeSKUList:
 			members = splitSKUList(rules[i].scopeValue)
 		case offerScopeProductGroup:
-			ids, err := ResolvePIMProductGroupItemCodes(tenantID, strings.TrimSpace(rules[i].scopeValue))
+			var ids []string
+			resolved, err := ResolvePIMProductGroup(tenantID, strings.TrimSpace(rules[i].scopeValue))
 			if err != nil {
 				LogSystemError(tenantID, "", "WARN", "EvaluatePOSOffers", fmt.Sprintf("offer %s: product group %q did not resolve, offer skipped: %v", rules[i].name, rules[i].scopeValue, err), "")
+			} else {
+				rules[i].scopeName = resolved.Name
+				for _, m := range resolved.Members {
+					ids = append(ids, m.ItemCode)
+				}
 			}
 			members = append(members, ids...)
 			members = append(members, itemCodesForIDs(tenantID, ids)...)

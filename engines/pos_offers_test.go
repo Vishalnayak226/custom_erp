@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -108,6 +109,10 @@ func TestPOSOffers(t *testing.T) {
 		eval := evaluate(t, baseCart(), "", nil)
 		if eval.TotalDiscount != 100 {
 			t.Fatalf("expected 10%% of SKU-A's 1000 = 100, got %v", eval.TotalDiscount)
+		}
+		// The till names the group, not its generated code.
+		if len(eval.Applied) != 1 || !strings.Contains(eval.Applied[0].Description, "Offer Group") {
+			t.Fatalf("expected the applied offer to name the product group, got %+v", eval.Applied)
 		}
 
 		clearOffers()
