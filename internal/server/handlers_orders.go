@@ -59,7 +59,9 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 		Lines:           lines,
 	})
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		// writeEngineError keeps a coded refusal's own code (Stage 57.8's
+		// ASSET-0273) and is the generic 422 for everything else, as before.
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"order_id": orderID})

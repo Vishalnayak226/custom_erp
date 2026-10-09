@@ -584,13 +584,21 @@ func GetImportJobErrorCSV(tenantID, jobID string) ([]byte, error) {
 
 // GenerateCSVTemplate returns a dummy CSV buffer containing the headers for a doctype schema
 func GenerateCSVTemplate(tenantID string, doctype string) ([]byte, error) {
+	headers, err := importTemplateHeaders(tenantID, doctype)
+	if err != nil {
+		return nil, err
+	}
+	return writeImportTemplateCSV(headers)
+}
+
+// importTemplateHeaders is GenerateCSVTemplate's header row, split out so
+// the Stage 51.10 Item family template (pim_import_template.go) derives its
+// columns from the same doctype meta instead of keeping a second list.
+func importTemplateHeaders(tenantID string, doctype string) ([]string, error) {
 	fields, err := GetDocTypeMeta(tenantID, doctype)
 	if err != nil {
 		return nil, err
 	}
-
-	var buf bytes.Buffer
-	writer := csv.NewWriter(&buf)
 
 	var headers []string
 	// Append ID always as the first column indicator
@@ -601,11 +609,17 @@ func GenerateCSVTemplate(tenantID string, doctype string) ([]byte, error) {
 		}
 		headers = append(headers, f.Fieldname)
 	}
-	for i := range headers {
-		headers[i] = sanitizeCSVCell(headers[i])
-	}
+	return headers, nil
+}
 
-	if err := writer.Write(headers); err != nil {
+func writeImportTemplateCSV(headers []string) ([]byte, error) {
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+	row := make([]string, len(headers))
+	for i := range headers {
+		row[i] = sanitizeCSVCell(headers[i])
+	}
+	if err := writer.Write(row); err != nil {
 		return nil, err
 	}
 	writer.Flush()

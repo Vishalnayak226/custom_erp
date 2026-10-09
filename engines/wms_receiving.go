@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -68,6 +69,9 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 		info SerialInfo
 	}
 	var receivedSerials []receivedSerial
+	// Stage 57.8: Fixed Asset items never become stock - their accepted units
+	// are raised as Draft Assets once the rest of the receipt has posted.
+	var assetLines []assetReceiptLine
 
 	for _, raw := range items {
 		m, ok := raw.(map[string]interface{})
@@ -96,6 +100,32 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 		}
 		if accepted < 0 {
 			accepted = 0
+		}
+
+		// Stage 57.8: a Fixed Asset item's accepted units go to the Fixed
+		// Assets module, not to available stock, 1200 Inventory, or the batch
+		// and serial registers. Units QC set aside still land in qc_hold /
+		// damaged below, so a rejected asset can go back on a Purchase Return.
+		isAsset, err := isFixedAssetSKU(tenantID, sku)
+		if err != nil {
+			return nil, err
+		}
+		if isAsset {
+			if accepted > 0 {
+				line := assetReceiptLine{SKU: sku, Accepted: int(math.Round(accepted))}
+				if raw, ok := m["serial_numbers"].([]interface{}); ok {
+					for _, v := range raw {
+						if s, ok := v.(string); ok && strings.TrimSpace(s) != "" {
+							line.Serials = append(line.Serials, strings.TrimSpace(s))
+						}
+					}
+				}
+				assetLines = append(assetLines, line)
+			}
+			if rejected > 0 || damaged > 0 {
+				qcSplits = append(qcSplits, qcSplit{sku: sku, rejected: rejected, damaged: damaged})
+			}
+			continue
 		}
 
 		// 42.1.4: batch capture. The gate itself is ValidateReceiptBatchLine,
@@ -282,6 +312,16 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 		if _, err := RegisterSerial(tenantID, rs.info, locationCode, "GRN", grnID, userID); err != nil {
 			LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC",
 				fmt.Sprintf("serial %s of %s could not be registered from GRN %s: %v", rs.info.SerialNo, rs.info.Item, grnID, err), "")
+		}
+	}
+
+	// Stage 57.8: logged, not returned, for the same reason as the two loops
+	// above - the rest of the receipt has posted, and failing here would
+	// cancel it. The ERROR names the GRN so the asset can be entered by hand.
+	if len(assetLines) > 0 {
+		if _, err := createAssetsFromReceipt(tenantID, schema, grnID, locationCode, userID, assetLines); err != nil {
+			LogSystemError(tenantID, "", "ERROR", "PostGRNReceiptWithQC",
+				fmt.Sprintf("GRN %s: fixed asset(s) could not be raised in the Fixed Assets module: %v", grnID, err), "")
 		}
 	}
 

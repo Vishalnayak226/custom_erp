@@ -144,6 +144,7 @@ let stickerSourceDocId = '';
 let stickerSourceLines = [];    // last GET /api/v1/stickers/preview response
 let stickerSourceSelected = {}; // line index -> bool, defaults to all-selected on load
 let stickerSourceCopies = {};   // line index -> int, defaults to the line's own qty
+let stickerPrinters = [];       // Printer records, for the engine's language/DPI/agent name
 
 async function renderStickersView(container) {
   const header = document.createElement('div');
@@ -188,6 +189,7 @@ async function renderStickerPrintTab(container) {
   renderQZSetupPanel(container);
 
   const printers = printersRes.ok ? await printersRes.json() : [];
+  stickerPrinters = printers;
   const history = historyRes.ok ? await historyRes.json() : [];
 
   renderStickerSourcePanel(container, printers);
@@ -231,11 +233,11 @@ async function renderStickerPrintTab(container) {
   historyPanel.className = 'table-panel';
   let historyHtml = `
     <table>
-      <thead><tr><th>SKU</th><th>Barcode</th><th>Printer</th><th>Printed By</th><th>Copies</th><th>Reprint Reason</th><th>Date</th></tr></thead>
+      <thead><tr><th>SKU</th><th>Barcode</th><th>Printer</th><th>Printed By</th><th>Copies</th><th>Source</th><th>Lot</th><th>Reprint Reason</th><th>Date</th></tr></thead>
       <tbody>
   `;
   historyHtml += history.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No print history yet. Add SKUs above and use <b>Print Stickers</b>.</td></tr>`
+    ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No print history yet. Add SKUs above and use <b>Print Stickers</b>.</td></tr>`
     : history.map(h => `
         <tr>
           <td style="font-family: monospace;">${escapeHTMLText(h.sku)}</td>
@@ -243,6 +245,8 @@ async function renderStickerPrintTab(container) {
           <td>${escapeHTMLText(h.printer_code)}</td>
           <td>${escapeHTMLText(h.printed_by)}</td>
           <td>${escapeHTMLText(h.copies)}</td>
+          <td>${escapeHTMLText(h.source_doc_id ? `${h.source_doctype} ${h.source_doc_id}` : '')}</td>
+          <td style="font-family: monospace;">${escapeHTMLText(h.batch_no || '')}</td>
           <td>${escapeHTMLText(h.reprint_reason || '')}</td>
           <td>${escapeHTMLText(new Date(h.printed_at).toLocaleString())}</td>
         </tr>
@@ -266,7 +270,8 @@ async function renderStickerPrintTab(container) {
 // Stage 52: "Print from Transaction" - load a GRN/Transfer Order's own lines
 // instead of scanning SKUs by hand. Shares the Printer/Copies/Reprint Reason
 // inputs from the manual panel below it (one printer choice for the whole
-// screen), and shares printStickers'/qzTryPrint's silent-then-fallback path.
+// screen), and shares printStickers' printStickerRun path (silent thermal print,
+// else the browser print dialog).
 function renderStickerSourcePanel(container, printers) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -425,15 +430,6 @@ async function printStickerSourceLines(indexes) {
       copies: stickerSourceCopies[indexes[n]] || l.qty || 1
     }));
 
-  const opts = {
-    printerCode, reprintReason, lines,
-    sourceDoctype: stickerSourceDoctype, sourceDocId: stickerSourceDocId
-  };
-  if (await qzTryPrint('Sticker', opts)) {
-    renderView('stickers');
-    return;
-  }
-
   const res = await apiFetch('/api/v1/stickers/print', {
     method: 'POST',
     body: JSON.stringify({
@@ -448,7 +444,7 @@ async function printStickerSourceLines(indexes) {
     errorEl.classList.remove('hidden');
     return;
   }
-  renderPrintSheet(data, 1);
+  await printStickerRun(data, { printerCode, copies: 1, jobRef: stickerSourceDocId });
   renderView('stickers');
 }
 
@@ -497,16 +493,9 @@ async function printStickers() {
     return;
   }
 
-  // 31.1: prefer the silent path. The server-side payload builder calls the
-  // same engines.PrintStickers this endpoint does, so SKU validation, the
-  // DEVICE-0298 printer check and the sticker_print_log audit trail run
-  // identically either way - only the delivery to the printer differs.
-  if (await qzTryPrint('Sticker', { printerCode, copies, skus: stickerSKUs, reprintReason })) {
-    stickerSKUs = [];
-    renderView('stickers');
-    return;
-  }
-
+  // Stage 58: one request validates the SKUs, runs the DEVICE-0298 printer
+  // check and writes the sticker print log; the engine then decides whether
+  // the labels go silently to a thermal printer or to the print dialog.
   const res = await apiFetch('/api/v1/stickers/print', {
     method: 'POST',
     body: JSON.stringify({ skus: stickerSKUs, printer_code: printerCode, reprint_reason: reprintReason, copies })
@@ -519,7 +508,7 @@ async function printStickers() {
     return;
   }
 
-  renderPrintSheet(data, copies);
+  await printStickerRun(data, { printerCode, copies });
   stickerSKUs = [];
   renderView('stickers');
 }
@@ -572,373 +561,27 @@ function renderStickerElementHTML(el, label) {
 // (PrintStickersForDocument), so marking the last copy of each category run
 // with a page break is enough to make a mixed-category batch tear apart as
 // separate per-category stacks.
+// Stage 58: the Templates tab is the Sticker Studio gallery (public/sticker-studio.js);
+// the studio itself opens full-screen over the app. Both are imported with this
+// module's own ?v= query so a deploy refreshes them together with this screen.
+const PRINTING_MODULE_QUERY = new URL(import.meta.url).search;
+function loadStickerStudio() { return import('./sticker-studio.js' + PRINTING_MODULE_QUERY); }
+function loadStickerEngine() { return import('./sticker-engine.js' + PRINTING_MODULE_QUERY); }
+
 async function renderStickerTemplatesTab(container) {
-  if (stickerDesignerActive) {
-    renderStickerTemplateDesigner(container);
-    return;
-  }
-  const res = await apiFetch('/api/v1/doc/StickerTemplate');
-  if (!res) return;
-  if (!res.ok) { renderErrorPanel(container, 'Failed to load sticker templates.', () => renderView('stickers')); return; }
-  const templates = await res.json();
-
-  const panel = document.createElement('div');
-  panel.className = 'table-panel';
-  panel.style.padding = '24px';
-  panel.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-      <div>
-        <h2 style="font-size: 16px; font-weight: 700; margin: 0 0 4px;">Sticker Templates</h2>
-        <p class="page-subtitle" style="margin: 0;">Map one or more categories to a label layout - printing from a GRN/Transfer Order uses each item's category to pick its template automatically.</p>
-      </div>
-      <button class="btn btn-primary" id="sticker-template-new-btn">New Template</button>
-    </div>
-    <table>
-      <thead><tr><th>Code</th><th>Name</th><th>Categories</th><th>Default</th><th>Size (mm)</th><th>Status</th><th></th></tr></thead>
-      <tbody>
-        ${templates.length === 0
-          ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No templates yet. Items without a matching category use the built-in default layout. Click <b>New Template</b> to design one.</td></tr>`
-          : templates.map(t => `
-            <tr>
-              <td style="font-family: monospace;">${escapeHTMLText(t.code || t.id)}</td>
-              <td>${escapeHTMLText(t.name || '')}</td>
-              <td>${escapeHTMLText(t.categories || '')}</td>
-              <td>${t.is_default ? '<span class="badge badge-secondary">Default</span>' : ''}</td>
-              <td>${escapeHTMLText(t.label_width_mm || '?')} &times; ${escapeHTMLText(t.label_height_mm || '?')}</td>
-              <td><span class="badge ${t.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(t.status || 'Active')}</span></td>
-              <td><button class="action-btn" data-edit-template="${escapeHTMLText(t.id)}">Edit</button></td>
-            </tr>
-          `).join('')}
-      </tbody>
-    </table>
-  `;
-  container.appendChild(panel);
-
-  document.getElementById('sticker-template-new-btn').addEventListener('click', () => openStickerTemplateDesigner(null));
-  panel.querySelectorAll('[data-edit-template]').forEach(btn => {
-    btn.addEventListener('click', () => openStickerTemplateDesigner(btn.getAttribute('data-edit-template')));
-  });
+  const { renderStickerTemplateGallery } = await loadStickerStudio();
+  await renderStickerTemplateGallery(container);
 }
 
-let stickerDesignerActive = false;
-
-async function openStickerTemplateDesigner(templateId) {
-  currentStickerTemplateId = templateId;
-  stickerDesignerElements = [];
-  stickerDesignerSelectedElId = null;
-  stickerDesignerLabelW = 50;
-  stickerDesignerLabelH = 30;
-  stickerDesignerActive = true;
-
-  if (templateId) {
-    const res = await apiFetch(`/api/v1/doc/StickerTemplate/${encodeURIComponent(templateId)}`);
-    if (res && res.ok) {
-      const t = await res.json();
-      stickerDesignerLabelW = Number(t.label_width_mm) || 50;
-      stickerDesignerLabelH = Number(t.label_height_mm) || 30;
-      try { stickerDesignerElements = JSON.parse(t.elements || '[]'); } catch (e) { stickerDesignerElements = []; }
-      stickerDesignerTemplateData = t;
-    }
-  } else {
-    stickerDesignerTemplateData = null;
-  }
-  renderView('stickers');
-}
-
-let stickerDesignerTemplateData = null;
-
-function closeStickerTemplateDesigner() {
-  stickerDesignerActive = false;
-  currentStickerTemplateId = null;
-  renderView('stickers');
-}
-
-function renderStickerTemplateDesigner(container) {
-  const t = stickerDesignerTemplateData || {};
-  const panel = document.createElement('div');
-  panel.className = 'table-panel';
-  panel.style.padding = '24px';
-  panel.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
-      <h2 style="font-size: 16px; font-weight: 700; margin: 0;">${currentStickerTemplateId ? 'Edit' : 'New'} Sticker Template</h2>
-      <button class="btn btn-outline" id="sticker-designer-cancel-btn">Back to List</button>
-    </div>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="std-code">Template Code</label>
-        <input type="text" id="std-code" class="form-input" style="width: 160px;" value="${escapeHTMLText(t.code || '')}" ${currentStickerTemplateId ? 'readonly' : ''}>
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="std-name">Template Name</label>
-        <input type="text" id="std-name" class="form-input" style="width: 200px;" value="${escapeHTMLText(t.name || '')}">
-      </div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 220px;">
-        <label class="form-label" for="std-categories">Categories (comma-separated)</label>
-        <input type="text" id="std-categories" class="form-input" value="${escapeHTMLText(t.categories || '')}" placeholder="e.g. Earrings, Studs">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="std-default">
-          <input type="checkbox" id="std-default" ${t.is_default ? 'checked' : ''}> Default (unmapped categories)
-        </label>
-      </div>
-    </div>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="std-width">Label Width (mm)</label>
-        <input type="number" id="std-width" class="form-input" style="width: 100px;" min="5" value="${stickerDesignerLabelW}">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="std-height">Label Height (mm)</label>
-        <input type="number" id="std-height" class="form-input" style="width: 100px;" min="5" value="${stickerDesignerLabelH}">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="std-status">Status</label>
-        <select id="std-status" class="form-input" style="width: 110px;">
-          <option value="Active" ${(t.status || 'Active') === 'Active' ? 'selected' : ''}>Active</option>
-          <option value="Inactive" ${t.status === 'Inactive' ? 'selected' : ''}>Inactive</option>
-        </select>
-      </div>
-    </div>
-    <div style="display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px;">
-      ${STICKER_DESIGNER_FIELDS.map(f => `<button class="btn btn-outline btn-sm" data-add-field="${f.field}">${f.label}</button>`).join('')}
-    </div>
-    <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
-      <div id="sticker-designer-canvas-wrap" style="border: 1px solid var(--border-color); background: #fafafa; overflow: auto; padding: 12px;"></div>
-      <div id="sticker-designer-props" style="min-width: 220px; max-width: 260px;"></div>
-    </div>
-    <div id="sticker-designer-error" class="login-error hidden" style="margin: 16px 0;"></div>
-    <button class="btn btn-primary" id="sticker-designer-save-btn" style="margin-top: 16px;">Save Template</button>
-  `;
-  container.appendChild(panel);
-
-  document.getElementById('sticker-designer-cancel-btn').addEventListener('click', closeStickerTemplateDesigner);
-  document.getElementById('std-width').addEventListener('change', (e) => {
-    stickerDesignerLabelW = Math.max(5, Number(e.target.value) || 50);
-    redrawStickerDesignerCanvas();
-  });
-  document.getElementById('std-height').addEventListener('change', (e) => {
-    stickerDesignerLabelH = Math.max(5, Number(e.target.value) || 30);
-    redrawStickerDesignerCanvas();
-  });
-  panel.querySelectorAll('[data-add-field]').forEach(btn => {
-    btn.addEventListener('click', () => addStickerDesignerElement(btn.getAttribute('data-add-field')));
-  });
-  document.getElementById('sticker-designer-save-btn').addEventListener('click', saveStickerTemplate);
-
-  redrawStickerDesignerCanvas();
-}
-
-function addStickerDesignerElement(field) {
-  const spec = STICKER_DESIGNER_FIELDS.find(f => f.field === field) || { w: 30, h: 6 };
-  const id = 'el' + Date.now() + Math.floor(Math.random() * 1000);
-  const el = {
-    id, field, x_mm: 2, y_mm: 2, w_mm: Math.min(spec.w, stickerDesignerLabelW - 4), h_mm: spec.h,
-    font_size_mm: 3.5, bold: false, align: 'left'
-  };
-  if (field === 'static') el.text = 'Text';
-  stickerDesignerElements.push(el);
-  stickerDesignerSelectedElId = id;
-  redrawStickerDesignerCanvas();
-}
-
-function deleteStickerDesignerElement(id) {
-  stickerDesignerElements = stickerDesignerElements.filter(e => e.id !== id);
-  if (stickerDesignerSelectedElId === id) stickerDesignerSelectedElId = null;
-  redrawStickerDesignerCanvas();
-}
-
-// A dummy label used purely so the canvas can render placeholder text for
-// each field via the exact same renderStickerElementHTML the real print
-// sheet uses - what you see while designing is what the field would show.
-const STICKER_DESIGNER_SAMPLE_LABEL = {
-  sku: 'SKU-0001', name: 'Sample Item Name', barcode: '1234567890123',
-  hsn_code: '7113', category: 'Category', batch_no: 'LOT-1', expiry_date: '2027-01-01',
-  mfg_date: '2026-01-01', qty: 1, source_doc_id: 'GRN-0001',
-  barcode_svg: '<svg viewBox="0 0 100 30" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;"><rect width="100" height="30" fill="#fff"/><text x="50" y="20" font-size="8" text-anchor="middle" font-family="monospace">||| barcode |||</text></svg>'
-};
-
-function redrawStickerDesignerCanvas() {
-  const wrap = document.getElementById('sticker-designer-canvas-wrap');
-  if (!wrap) return;
-  const widthPx = stickerDesignerLabelW * STICKER_DESIGNER_SCALE;
-  const heightPx = stickerDesignerLabelH * STICKER_DESIGNER_SCALE;
-  wrap.innerHTML = `<div id="sticker-designer-canvas" style="position: relative; width: ${widthPx}px; height: ${heightPx}px; background: #fff; border: 1px dashed #999;"></div>`;
-  const canvas = document.getElementById('sticker-designer-canvas');
-
-  stickerDesignerElements.forEach(el => {
-    const box = document.createElement('div');
-    box.className = 'sticker-designer-el' + (el.id === stickerDesignerSelectedElId ? ' selected' : '');
-    box.style.left = (el.x_mm * STICKER_DESIGNER_SCALE) + 'px';
-    box.style.top = (el.y_mm * STICKER_DESIGNER_SCALE) + 'px';
-    box.style.width = (el.w_mm * STICKER_DESIGNER_SCALE) + 'px';
-    box.style.height = (el.h_mm * STICKER_DESIGNER_SCALE) + 'px';
-    box.innerHTML = renderStickerElementHTML(el, STICKER_DESIGNER_SAMPLE_LABEL) ||
-      `<div style="font-size: 10px; color: #999; padding: 2px;">${escapeHTMLText(el.field)}</div>`;
-    const handle = document.createElement('div');
-    handle.className = 'sticker-designer-resize-handle';
-    box.appendChild(handle);
-    canvas.appendChild(box);
-
-    box.addEventListener('mousedown', (e) => {
-      if (e.target === handle) return;
-      e.preventDefault();
-      stickerDesignerSelectedElId = el.id;
-      renderStickerDesignerProps();
-      panel_highlightSelected();
-      const startX = e.clientX, startY = e.clientY;
-      const startXmm = el.x_mm, startYmm = el.y_mm;
-      function onMove(ev) {
-        const dxMm = (ev.clientX - startX) / STICKER_DESIGNER_SCALE;
-        const dyMm = (ev.clientY - startY) / STICKER_DESIGNER_SCALE;
-        el.x_mm = Math.max(0, Math.round((startXmm + dxMm) * 10) / 10);
-        el.y_mm = Math.max(0, Math.round((startYmm + dyMm) * 10) / 10);
-        box.style.left = (el.x_mm * STICKER_DESIGNER_SCALE) + 'px';
-        box.style.top = (el.y_mm * STICKER_DESIGNER_SCALE) + 'px';
-      }
-      function onUp() {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        // The props panel's X/Y/W/H inputs were rendered with the pre-drag
-        // values when the drag/resize started - refresh them now so they
-        // show where the element actually ended up, without needing a
-        // second click to re-select it.
-        renderStickerDesignerProps();
-      }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-
-    handle.addEventListener('mousedown', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      stickerDesignerSelectedElId = el.id;
-      renderStickerDesignerProps();
-      panel_highlightSelected();
-      const startX = e.clientX, startY = e.clientY;
-      const startWmm = el.w_mm, startHmm = el.h_mm;
-      function onMove(ev) {
-        const dwMm = (ev.clientX - startX) / STICKER_DESIGNER_SCALE;
-        const dhMm = (ev.clientY - startY) / STICKER_DESIGNER_SCALE;
-        el.w_mm = Math.max(2, Math.round((startWmm + dwMm) * 10) / 10);
-        el.h_mm = Math.max(2, Math.round((startHmm + dhMm) * 10) / 10);
-        box.style.width = (el.w_mm * STICKER_DESIGNER_SCALE) + 'px';
-        box.style.height = (el.h_mm * STICKER_DESIGNER_SCALE) + 'px';
-      }
-      function onUp() {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        // The props panel's X/Y/W/H inputs were rendered with the pre-drag
-        // values when the drag/resize started - refresh them now so they
-        // show where the element actually ended up, without needing a
-        // second click to re-select it.
-        renderStickerDesignerProps();
-      }
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
-    });
-  });
-
-  function panel_highlightSelected() {
-    canvas.querySelectorAll('.sticker-designer-el').forEach(b => b.classList.remove('selected'));
-  }
-
-  renderStickerDesignerProps();
-}
-
-function renderStickerDesignerProps() {
-  const props = document.getElementById('sticker-designer-props');
-  if (!props) return;
-  const el = stickerDesignerElements.find(e => e.id === stickerDesignerSelectedElId);
-  if (!el) {
-    props.innerHTML = '<p class="page-subtitle">Click an element on the canvas to edit it, or add one from the buttons above.</p>';
-    return;
-  }
-  props.innerHTML = `
-    <div class="form-group">
-      <label class="form-label">Field: ${escapeHTMLText(el.field)}</label>
-    </div>
-    ${el.field === 'static' ? `
-      <div class="form-group">
-        <label class="form-label" for="stdp-text">Text</label>
-        <input type="text" id="stdp-text" class="form-input" value="${escapeHTMLText(el.text || '')}">
-      </div>` : ''}
-    ${el.field !== 'barcode' ? `
-      <div class="form-group">
-        <label class="form-label" for="stdp-font">Font Size (mm)</label>
-        <input type="number" id="stdp-font" class="form-input" step="0.5" min="1" value="${el.font_size_mm || 3.5}">
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="stdp-align">Align</label>
-        <select id="stdp-align" class="form-input">
-          <option value="left" ${(!el.align || el.align === 'left') ? 'selected' : ''}>Left</option>
-          <option value="center" ${el.align === 'center' ? 'selected' : ''}>Center</option>
-          <option value="right" ${el.align === 'right' ? 'selected' : ''}>Right</option>
-        </select>
-      </div>
-      <div class="form-group">
-        <label class="form-label"><input type="checkbox" id="stdp-bold" ${el.bold ? 'checked' : ''}> Bold</label>
-      </div>` : ''}
-    <div class="form-group">
-      <label class="form-label">Position / Size (mm)</label>
-      <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-        <input type="number" id="stdp-x" class="form-input" style="width: 60px;" value="${el.x_mm}" title="X">
-        <input type="number" id="stdp-y" class="form-input" style="width: 60px;" value="${el.y_mm}" title="Y">
-        <input type="number" id="stdp-w" class="form-input" style="width: 60px;" value="${el.w_mm}" title="Width">
-        <input type="number" id="stdp-h" class="form-input" style="width: 60px;" value="${el.h_mm}" title="Height">
-      </div>
-    </div>
-    <button class="action-btn action-btn-danger" id="stdp-delete-btn">Delete Element</button>
-  `;
-  const redraw = () => redrawStickerDesignerCanvas();
-  const bindNum = (id, key) => {
-    const inp = document.getElementById(id);
-    if (inp) inp.addEventListener('change', () => { el[key] = Number(inp.value) || 0; redraw(); });
-  };
-  const stdpText = document.getElementById('stdp-text');
-  if (stdpText) stdpText.addEventListener('change', () => { el.text = stdpText.value; redraw(); });
-  bindNum('stdp-font', 'font_size_mm');
-  const stdpAlign = document.getElementById('stdp-align');
-  if (stdpAlign) stdpAlign.addEventListener('change', () => { el.align = stdpAlign.value; redraw(); });
-  const stdpBold = document.getElementById('stdp-bold');
-  if (stdpBold) stdpBold.addEventListener('change', () => { el.bold = stdpBold.checked; redraw(); });
-  bindNum('stdp-x', 'x_mm');
-  bindNum('stdp-y', 'y_mm');
-  bindNum('stdp-w', 'w_mm');
-  bindNum('stdp-h', 'h_mm');
-  document.getElementById('stdp-delete-btn').addEventListener('click', () => deleteStickerDesignerElement(el.id));
-}
-
-async function saveStickerTemplate() {
-  const errorEl = document.getElementById('sticker-designer-error');
-  errorEl.classList.add('hidden');
-  const code = document.getElementById('std-code').value.trim();
-  const name = document.getElementById('std-name').value.trim();
-  if (!code || !name) {
-    errorEl.textContent = 'Template Code and Name are required.';
-    errorEl.classList.remove('hidden');
-    return;
-  }
-  const body = {
-    code, name,
-    categories: document.getElementById('std-categories').value.trim(),
-    is_default: document.getElementById('std-default').checked,
-    label_width_mm: stickerDesignerLabelW,
-    label_height_mm: stickerDesignerLabelH,
-    status: document.getElementById('std-status').value,
-    elements: JSON.stringify(stickerDesignerElements)
-  };
-  const url = currentStickerTemplateId ? `/api/v1/doc/StickerTemplate/${encodeURIComponent(currentStickerTemplateId)}` : '/api/v1/doc/StickerTemplate';
-  const res = await apiFetch(url, { method: 'POST', body: JSON.stringify(body) });
-  if (!res) return;
-  if (!res.ok) {
-    errorEl.textContent = await getErrorMessage(res, 'Failed to save the template.');
-    errorEl.classList.remove('hidden');
-    return;
-  }
-  showToast('Template saved.', { variant: 'success' });
-  stickerDesignerActive = false;
-  currentStickerTemplateId = null;
-  renderView('stickers');
+// Every sticker print ends here: the labels came back from
+// POST /api/v1/stickers/print (validated and written to the print log), and the
+// engine draws them with the same renderer the studio shows - silently to a
+// TSC/Zebra printer through the print agent when it can, else the browser
+// print dialog (roll pages or an A4 sticker sheet).
+async function printStickerRun(labels, { printerCode, copies = 1, jobRef = '' } = {}) {
+  const { printStickerLabels } = await loadStickerEngine();
+  const printer = stickerPrinters.find(p => (p.code || p.id) === printerCode) || null;
+  await printStickerLabels(labels, { printer, copies, apiFetch, jobRef });
 }
 
 // HR Foundation (Stage 13.13a, MB 16.3) - Employee is a Master-type doctype
@@ -947,4 +590,4 @@ async function saveStickerTemplate() {
 // aren't master data and need their own UI.
 
 
-export { renderQZSetupPanel, qzRefreshStatus, qzDetectPrinters, qzTestPrint, qzPrintPickedDocument, renderStickersView, renderStickerPrintTab, renderStickerSourcePanel, loadStickerSourcePreview, renderStickerSourceLines, printStickerSourceLines, addStickerSKU, removeStickerSKU, renderStickerSKUList, printStickers, stickerFieldText, renderStickerElementHTML, renderStickerTemplatesTab, openStickerTemplateDesigner, closeStickerTemplateDesigner, renderStickerTemplateDesigner, addStickerDesignerElement, deleteStickerDesignerElement, redrawStickerDesignerCanvas, renderStickerDesignerProps, saveStickerTemplate };
+export { renderQZSetupPanel, qzRefreshStatus, qzDetectPrinters, qzTestPrint, qzPrintPickedDocument, renderStickersView, renderStickerPrintTab, renderStickerSourcePanel, loadStickerSourcePreview, renderStickerSourceLines, printStickerSourceLines, addStickerSKU, removeStickerSKU, renderStickerSKUList, printStickers, stickerFieldText, renderStickerElementHTML, renderStickerTemplatesTab, printStickerRun };

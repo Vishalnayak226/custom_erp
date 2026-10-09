@@ -260,14 +260,29 @@ func handleGetImportTemplate(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	doctype := r.PathValue("doctype")
 
-	templateBytes, err := engines.GenerateCSVTemplate(tenantID, doctype)
+	// Stage 51.10: ?variant=family is the Item template with no id/code
+	// columns, for SKUs generated from the Design. Item only.
+	variant := r.URL.Query().Get("variant")
+	filename := doctype + "_template.csv"
+	var templateBytes []byte
+	var err error
+	switch {
+	case variant == "":
+		templateBytes, err = engines.GenerateCSVTemplate(tenantID, doctype)
+	case variant == engines.ImportTemplateVariantFamily && doctype == "Item":
+		templateBytes, err = engines.GenerateItemFamilyCSVTemplate(tenantID)
+		filename = "Item_family_template.csv"
+	default:
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("template variant %q is not available for %s", variant, doctype))
+		return
+	}
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s_template.csv", doctype))
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	_, _ = w.Write(templateBytes)
 }
 

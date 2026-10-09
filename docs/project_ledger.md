@@ -44,6 +44,31 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 201. Five-item pass: Item family template, lot-level sticker log, Purchase Return, asset records, release (2026-10-08; code + docs, in progress)
+
+The user set five items to be done in order, each verified before the next. Detail in
+`micro_checklist.md` 51.10, 52.9, 57.15, 57.8, 58.8.
+
+- **Item family import template (51.10).** Bulk Import on Item offers a second template with no
+  `id`/`code` and `family` first, so following the documented download-then-upload path produces
+  Design-based SKUs. The plain template is unchanged. Live: two rows under one Design created
+  `LIVE51RING-S`/`-M`.
+- **Lot on the sticker print log (52.9).** User decision: record the batch/lot. Additive `batch_no`
+  column on `sticker_print_log` (all tenants), written by `resolveAndLogSticker`, shown with the
+  source document in the Print tab history. Live: one GRN, one SKU, two lots -> two history rows.
+- **Purchase Return (57.15).** User decision: build it. New PurchaseReturn doctype raised against
+  the original GRN, capped at received less already returned (per SKU, lot, accepted/rejected/
+  damaged), refused on a cancelled GRN, optionally approval-gated. Posting moves the stock out,
+  books Dr 5150 / Cr 1200 and raises and posts a Debit Note through the existing PostDebitNote
+  (Dr 2100 / Cr 5150), so the GRN's own booking is reversed exactly. Found and fixed on the way:
+  AP three-way match did not net returns. New screen Procurement -> Purchase Return. Live: 8
+  accepted + 2 rejected, return 3 + 2 -> stock 5, Debit Note 300 posted, 2100 and 1200 net 500.
+- **Fixed Asset items (57.8).** Model approved by the user: Item Type Stock / Fixed Asset. A Fixed
+  Asset item's GRN raises Draft Assets in the existing Fixed Assets module instead of stock;
+  Capitalise asks for the useful life. Never sellable, enforced once at the sale-side GST choke
+  point and OMS order intake (ASSET-0273). Live: 2 laptops received -> 2 Draft assets, stock 0;
+  POS and order refused.
+
 ## 200. Stage 57 decisions built: GST credit, order shipping postings, Location Movement, offer group targeting (2026-10-08; code + docs)
 
 The user answered the four open questions (57.9 bin-to-bin move, 57.10 Product Group + Category
@@ -65,6 +90,28 @@ Code commit `2065ff4` (staged around three concurrent sessions' uncommitted work
 from the exported staged tree because the live tree was mid-edit). Verified by Go tests and live on
 the training server (:8111): a 12-unit bin move, all five offer scopes, a 1,180 bill paid as
 1,000 goods + 180 input GST, GST summary ITC 180.
+
+## 199. Stage 58 — Sticker Studio: full label designer with exact-look TSPL/ZPL/A4 printing (2026-10-07; code + docs, uncommitted)
+
+The user asked for sticker printing at least as flexible as another ERP's label designer, but
+with a better UI of our own. Decisions: TSC (TSPL), Zebra (ZPL) and A4 sheets; text rendered at
+printer DPI ("exact look"). Full detail in `micro_checklist.md` 58.1-58.8.
+
+- **58.1** `public/sticker-engine.js` is the single renderer (canvas, thumbnails, print dialog,
+  thermal). Labels become 1-bit TSPL `BITMAP` / compressed ZPL `^GFA` at the printer's DPI;
+  hand-written Code 128 (auto subset), EAN-13 and QR encoders, independently decode-verified.
+- **58.2** `public/sticker-studio.js`: full-screen studio — insert rail, Item-field drawer,
+  rulers, smart guides, multi-select, quick bar, Printer view, Element/Label/Layers inspector,
+  presets incl. jewellery tail tags and multi-up rolls, real-item preview, test print, undo.
+  Templates tab became a thumbnail gallery.
+- **58.3** Labels carry every Item field; custom text with `{field}` tokens and prefix/suffix
+  in both renderers; blank values leave the element off.
+- **58.4** Print tab routed through the engine. Fixed: TSC printers used to receive ZPL.
+  No new route or migration; Stage-52 templates open and print unchanged. Assets v34 / CSS v27.
+
+Verified by Go tests, decoder checks and Chrome on a scratch server (:8147); eight UI defects
+found and fixed during the live pass (58.5). Open: a physical TSC/Zebra test print (58.7) and
+release (58.8).
 
 ## 198. Stage 57 — defects exposed by the SOP video: cashier till access, AP three-way match, OMS release (2026-10-07; code + docs)
 

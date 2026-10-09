@@ -316,7 +316,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '34';
+const VIEW_MODULE_VERSION = '35';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -369,6 +369,7 @@ const LAZY_VIEW_MODULES = {
   approvals: ['view-procurement.js', 'renderApprovalsView', 'Approvals'],
   'purchase-orders': ['view-procurement.js', 'renderPurchaseOrdersView', 'Purchase Orders'],
   grn: ['view-procurement.js', 'renderGRNWorkbenchView', 'Goods Receipt'],
+  'purchase-returns': ['view-procurement.js', 'renderPurchaseReturnsView', 'Purchase Return'],
   reports: ['view-reports.js', 'renderReportsView', 'Reports'],
   inventory: ['view-reports.js', 'renderInventoryView', 'Inventory'],
   rfq: ['view-reports.js', 'renderRFQView', 'Request for Quotation'],
@@ -2751,6 +2752,7 @@ const VIEW_SETUP_PREREQS = {
   'purchase-orders': ['Vendor', 'Item'],
   'purchase-requisitions': ['Item'],
   'grn': ['Vendor', 'Location'],
+  'purchase-returns': ['Vendor'],
   'asn': ['Vendor', 'Location'],
   'rfq': ['Vendor', 'Item'],
   'fulfillment': ['Location'],
@@ -3578,6 +3580,7 @@ const MENU_PERMISSION_MAP = {
   'menu-purchase-requisitions': { doctypes: ['PurchaseRequisition'] },
   'menu-purchase-orders': { doctypes: ['PurchaseOrder'] },
   'menu-grn': { doctypes: ['GRN'] },
+  'menu-purchase-returns': { doctypes: ['PurchaseReturn'] },
   'menu-vendors': { doctypes: ['Vendor'] },
   'menu-rfq': { doctypes: ['RFQ'] },
 
@@ -3778,6 +3781,12 @@ const MENU_MODULE_MAP = {
     "module": "procurement",
     "views": [
       "grn"
+    ]
+  },
+  "menu-purchase-returns": {
+    "module": "procurement",
+    "views": [
+      "purchase-returns"
     ]
   },
   "menu-asn": {
@@ -4746,6 +4755,15 @@ function setupEventListeners() {
     renderView('grn');
   });
 
+  // Purchase Return (Stage 57.15) - dedicated screen for the same reason as
+  // the GRN Workbench: its lines come from the GRN, not from hand-typed JSON.
+  document.getElementById('menu-purchase-returns').addEventListener('click', (e) => {
+    e.preventDefault();
+    setActiveMenu('menu-purchase-returns');
+    closeSubmenus();
+    renderView('purchase-returns');
+  });
+
   // "Vendors" is a real doctype now (Stage 13.9) - point it at the same
   // generic doctype-table view the Master Definition submenu already uses,
   // rather than a bespoke screen.
@@ -5703,6 +5721,7 @@ const STATIC_VIEW_MENU_IDS = {
   stores: 'menu-stores',
   'purchase-orders': 'menu-purchase-orders',
   grn: 'menu-grn',
+  'purchase-returns': 'menu-purchase-returns',
   inventory: 'menu-inventory',
   transfers: 'menu-transfers',
   'location-movement': 'menu-location-movement',
@@ -7495,36 +7514,9 @@ function renderPrintSheet(labels, copies) {
   setTimeout(() => area.classList.remove('printing'), 500);
 }
 
-// ---------------------------------------------------------------------------
-// Stage 52: StickerTemplate designer - a drag-and-drop canvas mapping one or
-// more free-text Item categories to a label layout. This is the first
-// pointer-drag UI in this app (no existing canvas/floor-plan editor to
-// pattern-match), kept deliberately small: mousedown/mousemove/mouseup on
-// plain positioned <div>s, no library. The canvas IS the live preview - it
-// renders through the exact same renderStickerElementHTML used at actual
-// print time, so there is nothing to keep in sync between "what you designed"
-// and "what prints".
-// ---------------------------------------------------------------------------
-const STICKER_DESIGNER_SCALE = 4; // px per mm
-const STICKER_DESIGNER_FIELDS = [
-  { field: 'sku', label: 'SKU', w: 30, h: 6 },
-  { field: 'name', label: 'Name', w: 36, h: 7 },
-  { field: 'barcode', label: 'Barcode', w: 40, h: 14 },
-  { field: 'hsn_code', label: 'HSN', w: 24, h: 5 },
-  { field: 'category', label: 'Category', w: 28, h: 5 },
-  { field: 'batch_no', label: 'Batch/Lot', w: 28, h: 5 },
-  { field: 'expiry_date', label: 'Expiry', w: 24, h: 5 },
-  { field: 'mfg_date', label: 'Mfg Date', w: 24, h: 5 },
-  { field: 'qty', label: 'Qty', w: 16, h: 5 },
-  { field: 'source_doc', label: 'Source Doc #', w: 30, h: 5 },
-  { field: 'static', label: '+ Static Text', w: 30, h: 5 }
-];
-
-let currentStickerTemplateId = null; // null = creating a new template
-let stickerDesignerElements = [];
-let stickerDesignerSelectedElId = null;
-let stickerDesignerLabelW = 50;
-let stickerDesignerLabelH = 30;
+// Stage 58: the sticker template designer is public/sticker-studio.js (its
+// state lives there); stickerFieldText/renderStickerElementHTML used by
+// renderPrintSheet above come from view-printing.js.
 
 
 // BLD-041: asset, transfer, expense, manufacturing, HR and printing screens
@@ -7697,6 +7689,9 @@ window.openImportModal = function() {
     modal.inert = false;
     modal.classList.add('open');
     document.getElementById('import-result-summary').style.display = 'none';
+    // Stage 51.10: the SKU-from-Design template only exists for Item.
+    const familyBtn = document.getElementById('import-family-template-btn');
+    if (familyBtn) familyBtn.style.display = currentDoctype === 'Item' ? '' : 'none';
   }
 };
 
@@ -7714,9 +7709,10 @@ window.closeImportModal = function() {
 // answers the resulting 401 with its own credential prompt - hence fetch it
 // through apiFetch and hand the browser a blob it can save locally, the same
 // object-URL approach the recovery-code and report exports already take.
-window.downloadImportTemplate = async function() {
+window.downloadImportTemplate = async function(variant) {
   const tenantID = localStorage.getItem('erp_tenant_id') || 'default';
-  const url = `/api/v1/import/${currentDoctype}/template?tenant_id=${tenantID}`;
+  const variantParam = typeof variant === 'string' && variant ? `&variant=${encodeURIComponent(variant)}` : '';
+  const url = `/api/v1/import/${currentDoctype}/template?tenant_id=${tenantID}${variantParam}`;
 
   let blob;
   try {
@@ -7735,7 +7731,7 @@ window.downloadImportTemplate = async function() {
   const objectURL = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = objectURL;
-  link.download = `${currentDoctype}_template.csv`;
+  link.download = variantParam ? `${currentDoctype}_${variant}_template.csv` : `${currentDoctype}_template.csv`;
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);

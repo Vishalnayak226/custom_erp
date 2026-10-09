@@ -7,7 +7,7 @@
   <!-- Absolute, not relative (Stage 39.4): the SPA is served for multi-segment
        URLs like /help/<article>, where a relative "styles.css" would resolve to
        /help/styles.css and be answered with the SPA shell itself. -->
-  <link rel="stylesheet" href="/styles.css?v=26">
+  <link rel="stylesheet" href="/styles.css?v=27">
   <!-- Stage 28.2/47.8: external same-origin theme bootstrap avoids an inline
        script exception in the strict CSP candidate. -->
   <script src="/theme-boot.js?v=1"></script>
@@ -246,6 +246,7 @@
             <li><a class="menu-item" id="menu-purchase-orders"><span>Purchase Order</span></a></li>
             <li><a class="menu-item" id="menu-asn"><span>ASN (Advance Shipment)</span></a></li>
             <li><a class="menu-item" id="menu-grn"><span>Goods Receipt</span></a></li>
+            <li><a class="menu-item" id="menu-purchase-returns"><span>Purchase Return</span></a></li>
             <li><a class="menu-item" id="menu-vendors"><span>Vendors</span></a></li>
             <li><a class="menu-item" id="menu-rfq"><span>RFQ / Quotes</span></a></li>
           </ul>
@@ -681,6 +682,10 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Download Template CSV</span>
             </button>
+            <button type="button" class="btn btn-secondary btn-sm" id="import-family-template-btn" style="display:none; margin-left: 6px;" data-act="downloadImportTemplate" data-act-args="[&quot;family&quot;]" title="No code column: each row's SKU is generated from its Product Family (Design) and variant attributes">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 6px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download Template (SKU from Design)</span>
+            </button>
           </div>
           <div class="form-group">
             <label class="form-label" for="import-file-input">Select CSV Document File<span class="required">*</span></label>
@@ -756,7 +761,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=34"></script>
+  <script src="/app.js?v=35"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=1"></script>

@@ -247,3 +247,98 @@ func TestBulkImportCSVStillRequiresCodeWithoutAFamilyColumn(t *testing.T) {
 		})
 	}
 }
+
+// TestItemImportTemplates is Stage 51.10: the plain Item template is
+// unchanged (id first, every meta field but status, code included), and the
+// family template drops id/code, leads with family, and - filled in and
+// uploaded exactly as downloaded - produces Design-based SKUs.
+func TestItemImportTemplates(t *testing.T) {
+	db.InitDB(testConnStr())
+	schema, err := db.GetTenantSchema("default")
+	if err != nil {
+		t.Fatalf("resolve default tenant schema: %v", err)
+	}
+
+	fields, err := GetDocTypeMeta("default", "Item")
+	if err != nil {
+		t.Fatalf("Item meta: %v", err)
+	}
+	want := []string{"id"}
+	for _, f := range fields {
+		if f.Fieldname != "id" && f.Fieldname != "status" {
+			want = append(want, f.Fieldname)
+		}
+	}
+
+	plain, err := GenerateCSVTemplate("default", "Item")
+	if err != nil {
+		t.Fatalf("GenerateCSVTemplate: %v", err)
+	}
+	if got := strings.TrimSpace(string(plain)); got != strings.Join(want, ",") {
+		t.Errorf("plain Item template changed:\n got %s\nwant %s", got, strings.Join(want, ","))
+	}
+
+	family, err := GenerateItemFamilyCSVTemplate("default")
+	if err != nil {
+		t.Fatalf("GenerateItemFamilyCSVTemplate: %v", err)
+	}
+	header := strings.Split(strings.TrimSpace(string(family)), ",")
+	if header[0] != "family" {
+		t.Errorf("family template should lead with family, got %q", header[0])
+	}
+	inFamily := map[string]bool{}
+	for _, h := range header {
+		if h == "id" || h == "code" {
+			t.Errorf("family template must not carry %q", h)
+		}
+		if inFamily[h] {
+			t.Errorf("family template repeats %q", h)
+		}
+		inFamily[h] = true
+	}
+	for _, h := range want {
+		if h != "id" && h != "code" && !inFamily[h] {
+			t.Errorf("family template dropped %q", h)
+		}
+	}
+
+	// Fill the downloaded header in as an operator would and upload it.
+	const designCode = "TPL-FAMILY-DESIGN"
+	cleanup := func() {
+		_, _ = db.DB.Exec("DELETE FROM " + schema + ".documents WHERE id LIKE '" + designCode + "%' OR data->>'family' = '" + designCode + "'")
+	}
+	cleanup()
+	defer cleanup()
+	familyEncoded, _ := json.Marshal(map[string]interface{}{"code": designCode, "name": "Template Family Design"})
+	if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'ProductFamily', $2, 'Active', 'system')", designCode, familyEncoded); err != nil {
+		t.Fatalf("insert fixture design: %v", err)
+	}
+	row := func(values map[string]string) string {
+		cells := make([]string, len(header))
+		for i, h := range header {
+			cells[i] = values[h]
+		}
+		return strings.Join(cells, ",")
+	}
+	upload := string(family) +
+		row(map[string]string{"family": designCode, "name": "Tpl Small", "barcode": "8901234500101", "hsn_code": "7117", "gst_rate": "3", "variant_option_values": "size:S"}) + "\n" +
+		row(map[string]string{"family": designCode, "name": "Tpl Large", "barcode": "8901234500118", "hsn_code": "7117", "gst_rate": "3", "variant_option_values": "size:L"}) + "\n"
+
+	res, err := BulkImportCSV("default", "Item", strings.NewReader(upload), "system", "HR/Admin", false)
+	if err != nil {
+		t.Fatalf("BulkImportCSV with the family template: %v", err)
+	}
+	if res.SuccessRows != 2 || res.FailedRows != 0 {
+		t.Fatalf("expected 2 success / 0 failures, got %d/%d (%v)", res.SuccessRows, res.FailedRows, res.Errors)
+	}
+	for _, size := range []string{"S", "L"} {
+		var n int
+		if err := db.DB.QueryRow("SELECT COUNT(*) FROM "+schema+".documents WHERE doctype = 'Item' AND id = data->>'code' AND id LIKE $1 AND id LIKE $2",
+			designCode+"-%", "%-"+size).Scan(&n); err != nil {
+			t.Fatalf("count generated SKU: %v", err)
+		}
+		if n != 1 {
+			t.Errorf("size %s: want 1 Design-based SKU %s-...-%s, found %d", size, designCode, size, n)
+		}
+	}
+}

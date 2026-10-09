@@ -2,6 +2,7 @@ package engines
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"custom_erp/db"
@@ -57,6 +58,10 @@ func TestPrintStickersBarcodeSVG(t *testing.T) {
 	if l.Barcode != "BC-"+sku {
 		t.Errorf("expected barcode=BC-%s, got %q", sku, l.Barcode)
 	}
+	// Stage 58: the whole Item record rides along for the sticker studio.
+	if l.Fields["gst_rate"] != "5" || l.Fields["tax_treatment"] != "Taxable" {
+		t.Errorf("expected Item fields on the label, got %v", l.Fields)
+	}
 	if l.BarcodeSVG == "" {
 		t.Error("expected a non-empty BarcodeSVG for an encodable barcode value")
 	}
@@ -71,4 +76,65 @@ func TestPrintStickersBarcodeSVG(t *testing.T) {
 		t.Errorf("expected the unregistered SKU to fall back to itself as a rendered barcode, got %+v", unregLabels)
 	}
 	_, _ = db.DB.Exec("DELETE FROM " + schema + ".sticker_print_log WHERE sku = 'SKU-STICKER-UNREGISTERED'")
+}
+
+// Stage 58: any scalar Item field reaches the label (so the studio can print
+// weight/purity/size/MRP), nested values and oversized text do not, and an
+// element naming such a field reads it through StickerFieldText.
+func TestStickerItemFieldsAndFieldFallback(t *testing.T) {
+	fields := stickerItemFields(map[string]interface{}{
+		"gross_weight":  38.505,
+		"purity_karat":  "925",
+		"is_hallmarked": true,
+		"empty":         "",
+		"variants":      []interface{}{"a"},
+		"huge":          strings.Repeat("x", 501),
+	})
+	want := map[string]string{"gross_weight": "38.505", "purity_karat": "925", "is_hallmarked": "true"}
+	if len(fields) != len(want) {
+		t.Fatalf("fields = %v, want %v", fields, want)
+	}
+	for k, v := range want {
+		if fields[k] != v {
+			t.Errorf("fields[%q] = %q, want %q", k, fields[k], v)
+		}
+	}
+	label := StickerLabel{SKU: "S1", Fields: fields}
+	if got := StickerFieldText(StickerElement{Field: "gross_weight"}, label); got != "38.505" {
+		t.Errorf("StickerFieldText(gross_weight) = %q", got)
+	}
+	if got := StickerFieldText(StickerElement{Field: "sku"}, label); got != "S1" {
+		t.Errorf("StickerFieldText(sku) = %q", got)
+	}
+	if got := StickerFieldText(StickerElement{Field: "no_such_field"}, label); got != "" {
+		t.Errorf("unknown field should print empty, got %q", got)
+	}
+}
+
+// Stage 58: the server-side ZPL path (kept for API clients) understands the
+// studio's text elements - custom text with {field} placeholders, prefix and
+// suffix around a bound field - prints kind=barcode from any field, and skips
+// kinds only the browser engine can draw instead of misprinting them.
+func TestZPLStickerElementStage58Kinds(t *testing.T) {
+	label := StickerLabel{SKU: "RNG-1", Barcode: "8901234567890", Fields: map[string]string{"gross_weight": "38.505"}}
+	if got := StickerFieldText(StickerElement{Field: "custom", Text: "W:{gross_weight} gm / {sku}"}, label); got != "W:38.505 gm / RNG-1" {
+		t.Errorf("custom text = %q", got)
+	}
+	if got := StickerFieldText(StickerElement{Field: "gross_weight", Prefix: "W:", Suffix: " gm"}, label); got != "W:38.505 gm" {
+		t.Errorf("prefix/suffix = %q", got)
+	}
+	if got := StickerFieldText(StickerElement{Field: "custom", Text: "W:{net_weight} gm"}, label); got != "" {
+		t.Errorf("custom text whose only field is blank should print nothing, got %q", got)
+	}
+	if got := StickerFieldText(StickerElement{Field: "purity", Prefix: "P:"}, label); got != "" {
+		t.Errorf("blank field with prefix should print nothing, got %q", got)
+	}
+	if z := zplStickerElement(StickerElement{Kind: "barcode", Field: "sku", HMM: 8}, label, 203); !strings.Contains(z, "^FDRNG-1^FS") {
+		t.Errorf("kind=barcode from sku: %q", z)
+	}
+	for _, kind := range []string{"qr", "line", "box", "image"} {
+		if z := zplStickerElement(StickerElement{Kind: kind, Field: "sku", WMM: 10, HMM: 10}, label, 203); z != "" {
+			t.Errorf("kind %s should be skipped on the server path, got %q", kind, z)
+		}
+	}
 }

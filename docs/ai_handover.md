@@ -125,6 +125,51 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-08 five-item pass (ledger §201; checklist 51.10, 52.9, 57.15, 57.8, 58.8) - in progress,
+  NOT committed, NOT deployed.** Nothing is committed until the release step (58.8) has the user's
+  file-list OK. Done so far: **51.10** Item family import template, in `engines/import.go` (header
+  helper split out; plain template output unchanged), `engines/pim_import_template.go`
+  (`GenerateItemFamilyCSVTemplate`), `engines/import_master_invariant_test.go`
+  (`TestItemImportTemplates`), `internal/server/handlers_pim_pos_finance.go` (`?variant=family`),
+  `public/app.js` (`openImportModal`/`downloadImportTemplate`; **`VIEW_MODULE_VERSION` 34 → 35**),
+  `public/index.html` (second template button; **`app.js?v=35`**), and USER_GUIDE §8d.5. Asset
+  version 35 also covers the uncommitted Stage 58 view-printing/sticker modules. **52.9** lot on the
+  sticker print log: new migration `db/migrations_stage52_9_sticker_print_batch.sql` (applied to the
+  local :5490 DB; **must run on prod at release**), hunks in `engines/stickers.go` (insert + history)
+  and `public/view-printing.js` (Source/Lot columns) on top of Stage 58's uncommitted changes, test in
+  `engines/sticker_document_source_test.go`, USER_GUIDE §7A. **57.15** Purchase Return: new
+  `db/migrations_stage57_15_purchase_return.sql` (applied locally; **must run on prod before the new
+  binary serves** - the doctype, grants and PRT/DN series), new `engines/purchase_return.go` + test,
+  new `internal/server/handlers_purchase_return.go`, hunks in `engines/transactional_validation.go`
+  (one case), `engines/document_numbering.go` (PRT series), `engines/scope_policy.go` (one entry),
+  `engines/vendor_invoice.go` (match nets posted returns), `internal/server/routes.go` +
+  `route_capabilities.go` (2 routes), `public/view-procurement.js` (screen + exports),
+  `public/app.js` (view registry, prereqs, menu maps, click handler), `public/index.html` (menu
+  item), the two guides, `docs/specs/modules_overview.md`, `docs/requirements/PRD.md`, and the
+  brain map (Procurement region claims the two new files; BRAIN.md/brain.html/brain-manifest.json
+  regenerated, which also carries Stage 58's pending map edit). **57.8** Fixed Asset items (model
+  approved 2026-10-09): new `db/migrations_stage57_8_fixed_asset_items.sql` (applied locally; **must
+  run on prod**), new `engines/asset_items.go` + `asset_items_test.go`, hunks in
+  `engines/wms_receiving.go` (asset lines -> Draft Assets), `engines/gst.go` (`ComputeGSTForLines`
+  guard), `engines/orders.go` (`validateOrderChain` guard), `engines/assets.go`
+  (`CapitalizeAssetWithLife`, register source fields), `internal/server/handlers_operations.go`
+  (capitalise takes `useful_life_years`), `internal/server/handlers_orders.go` (`writeEngineError`),
+  `internal/server/error_catalog_extensions.go` (ASSET-0273), `public/view-assets.js`, brain map
+  (assets region claims `asset_items.go`), USER_GUIDE §6.7, ADMIN_GUIDE. **Concurrent-session note:**
+  the Stage 55 session is editing `public/view-procurement.js`, `view-finance.js`,
+  `view-documents.js`, `engines/reports.go` and more in the same tree - stage only this pass's hunks.
+  **Release prep (2026-10-09):** full `go test ./... -p 1` found (a) PurchaseReturn's scope entry
+  marked location-mandatory while the seed field is not (moved to the optional block - the server
+  fills it from the GRN) and (b) the cold-core release budget over (188,002/184,320 gzip bytes) because
+  Stage 58 appended its `.stk-*` block to `styles.css`. Fixed by moving that block, unchanged, to new
+  `public/sticker-studio.css`, linked on demand by `sticker-engine.js` (`stickerStylesReady`, awaited
+  by the studio and before `window.print()`); `styles.css` is back to HEAD. Browser re-check: studio
+  and gallery styled, print sheet pages positioned. Still red and not from this pass:
+  `TestAuditDeletedRowIsDetectedByCheckpoint` (fails at clean HEAD too) and the attack-surface manifest
+  (regenerated in the release worktree). Stays out of erp-d1's
+  Stage 59 files (`engines/fulfillment*.go`, `wms.go`, `wms_picking.go`, `traceability.go`).
+  Scratch server :8147 (binary in `%TEMP%\erp-scratch.exe`) against local Postgres **:5490**.
+
 - **2026-10-08 Stage 57 decisions built (ledger §200, checklist 57.9/57.10/57.13/57.23/57.24):** GST
   input credit + output GST on credit sales, order-shipping postings, Location Movement, offer
   group targeting. Code `2065ff4` + a docs commit; **asset version is now 34** (`app.js`/`index.html`)
@@ -133,6 +178,17 @@ for checking the current source and worktree.
   `migrations_stage57_offer_group_targeting.sql`. Training server on :8111 now runs from a clean
   worktree `%TEMP%\erp_verify_head` (the live tree was mid-edit by another session); logins
   re-minted 2026-10-08.
+- **2026-10-07 Stage 58 Sticker Studio (ledger §199, checklist 58.1-58.8) - built and verified, NOT
+  committed, NOT deployed.** Files that are this stage's and only this stage's:
+  `public/sticker-engine.js`, `public/sticker-studio.js` (both new), `public/view-printing.js`,
+  `public/styles.css` (appended `.stk-*` block only), `public/app.js` (removed old designer state;
+  `VIEW_MODULE_VERSION` 33 → 34), `public/index.html` (`app.js?v=34`, `styles.css?v=27`),
+  `engines/stickers.go`, `engines/stickers_test.go`, `engines/qz_payload.go`, the three guides
+  (`docs/guides/USER_GUIDE.md` §7A, `ADMIN_GUIDE.md` §B.3.4, `QZ_PRINTING_SETUP.md`), and the Stage 58
+  hunk at the end of `docs/micro_checklist.md` (the other hunk there is another session's). No
+  migration, no new route. Open: a physical TSC/Zebra test print (58.7) and the release (58.8; KB
+  release notes not regenerated because `genkb -check` already shows unrelated drift). Scratch server
+  :8147 stopped; local Postgres is on **5490** (`TEST_DATABASE_URL`/`DATABASE_URL` must point there).
 - **2026-10-07 OUTAGE FIXED (checklist 57.22):** app.wholeops.in returned 403 on every page after the
   02:49 and 03:41 deploys - `public/` was root-owned 700, unreadable by the `erp` service. Fixed on the
   box by chown/chmod; `deploy/remote_deploy.sh` now normalizes ownership before the swap and its health

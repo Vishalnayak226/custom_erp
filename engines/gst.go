@@ -268,6 +268,17 @@ type GSTLineInput struct {
 // price to back out, and the value would land in TaxableAmount, which is a
 // filed figure on GSTR-3B 3.1(a).
 func ComputeGSTForLines(tenantID string, lines []GSTLineInput, interstate bool) (GSTBreakdown, error) {
+	// Stage 57.8: every sale-side tax computation runs through here (the PO
+	// path calls ComputeGSTForLinesMode directly), so this is where a Fixed
+	// Asset item is refused from POS, order and pack invoices and returns.
+	for _, line := range lines {
+		if line.Qty <= 0 {
+			continue
+		}
+		if err := RejectNonSellableItem(tenantID, line.Sku); err != nil {
+			return GSTBreakdown{}, err
+		}
+	}
 	return ComputeGSTForLinesMode(tenantID, lines, interstate, GSTModeInclusive)
 }
 

@@ -163,6 +163,7 @@ var doctypeScopes = map[string]DoctypeScope{
 	"PackStation":           locScope("location_code", false),
 	"PreShipValidationRule": locScope("location_code", false),
 	"Printer":               locScope("location", false),
+	"PurchaseReturn":        locScope("location", false),
 	"PutawayStrategy":       locScope("location_code", false),
 	"SalesOrderLine":        locScope("location_code", false),
 	"SerialNumber":          locScope("location_code", false),

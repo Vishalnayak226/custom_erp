@@ -78,7 +78,7 @@ async function renderAssetsView(container) {
     ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No assets yet. Use <b>Create</b> above to capitalise your first fixed asset.</td></tr>`
     : assets.map(a => `
         <tr>
-          <td style="font-family: monospace;">${escapeHTMLText(a.code || a.id)}</td>
+          <td style="font-family: monospace;">${escapeHTMLText(a.code || a.id)}${a.source_grn ? `<div style="font-family: inherit; font-size: 12px; color: var(--text-muted);">${escapeHTMLText(a.item_code || '')} from GRN ${escapeHTMLText(a.source_grn)}</div>` : ''}</td>
           <td>${escapeHTMLText(a.category || '')}</td>
           <td>${escapeHTMLText(a.location || '')}</td>
           <td>${escapeHTMLText(a.custodian || '')}</td>
@@ -96,7 +96,7 @@ async function renderAssetsView(container) {
     const button = event.target.closest('[data-asset-action]');
     if (!button) return;
     const assetID = button.dataset.assetId;
-    if (button.dataset.assetAction === 'capitalize') capitalizeAsset(assetID);
+    if (button.dataset.assetAction === 'capitalize') capitalizeAsset(assetID, Number(button.dataset.assetLife) || 0);
     else if (button.dataset.assetAction === 'transfer') promptTransferAsset(assetID);
     else if (button.dataset.assetAction === 'dispose') promptDisposeAsset(assetID);
   });
@@ -108,7 +108,7 @@ async function renderAssetsView(container) {
 
 function renderAssetActions(asset) {
   if (asset.status === 'Draft') {
-    return `<button class="action-btn" data-asset-action="capitalize" data-asset-id="${escapeHTMLText(asset.id)}">Capitalise</button>`;
+    return `<button class="action-btn" data-asset-action="capitalize" data-asset-id="${escapeHTMLText(asset.id)}" data-asset-life="${Number(asset.useful_life_years) || 0}">Capitalise</button>`;
   }
   if (asset.status === 'Capitalised') {
     return `
@@ -169,10 +169,22 @@ export {
   promptDisposeAsset
 };
 
-async function capitalizeAsset(assetId) {
+async function capitalizeAsset(assetId, usefulLifeYears) {
+  // Stage 57.8: an asset raised from a goods receipt has no useful life yet,
+  // and depreciation cannot be worked out without one - ask for it here.
+  let life = Number(usefulLifeYears) || 0;
+  if (life <= 0) {
+    const answer = await showCustomPrompt('Useful life in years (needed to work out depreciation):', '5');
+    if (answer === null || answer === undefined || answer === '') return;
+    life = Number(answer);
+    if (!(life > 0)) {
+      showToast('Enter the useful life as a number of years, for example 5.', { variant: 'error', title: 'Not capitalised' });
+      return;
+    }
+  }
   const res = await apiFetch('/api/v1/assets/capitalize', {
     method: 'POST',
-    body: JSON.stringify({ asset_id: assetId })
+    body: JSON.stringify({ asset_id: assetId, useful_life_years: life })
   });
   if (!res) return;
   if (!res.ok) {

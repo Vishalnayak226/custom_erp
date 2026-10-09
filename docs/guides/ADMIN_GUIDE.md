@@ -312,7 +312,7 @@ Two shipped judgement calls you may want to change: an **approved Leave** and a 
 
 #### B.3.2 Prefix Configurations — the number series behind every transaction
 
-Nobody types a document number in this system. Purchase Orders, Goods Receipts, ASNs, RFQs, Vendor Quotes, Stock Transfers, Expense Claims, Leave, Employee Loans, Grievances, Production Orders and Attendance all draw their number from a **series** defined on this screen, at the moment the document is saved. The user sees a greyed-out box reading "Auto (PO series)" until then.
+Nobody types a document number in this system. Purchase Orders, Goods Receipts, Purchase Returns (`PRT`, and the Debit Notes they raise, `DN`), Fixed Assets raised from a goods receipt (`AST`), ASNs, RFQs, Vendor Quotes, Stock Transfers, Expense Claims, Leave, Employee Loans, Grievances, Production Orders and Attendance all draw their number from a **series** defined on this screen, at the moment the document is saved. The user sees a greyed-out box reading "Auto (PO series)" until then.
 
 Each row is one series. The table shows a **Next Number Looks Like** column so you can see the effect of a change before anyone lives with it. **Edit** walks you through the settings:
 
@@ -404,6 +404,34 @@ Most items are taxable and need a GST Rate above 0 — the system rejects a bare
 - **Why they exist:** the **GST Return Summary** report reads `4100`'s balance as the period's *taxable* value. Without the reclass, exempt turnover would sit in `4100` and be reported as taxable — overstating GSTR-3B 3.1(a) and understating 3.1(c). The report now also shows Exempt / Nil-Rated / Zero-Rated / Total Non-Taxable, which is the split GSTR-1's nil-and-exempt table and GSTR-3B 3.1(b)/(c) are filed from. Those four figures are hidden on the screen when they are all zero.
 - **Exempt and Nil-Rated are deliberately not merged**, and neither is Zero-Rated, because the returns report them in different boxes. If you are reconciling by hand, do not add them together before filing.
 - **Zero-Rated here means the LUT/bond route** — exports supplied *without* payment of tax. The export-with-payment-then-claim-refund route is not modelled; the refund claim would need a workflow this system does not have.
+
+#### Purchase Returns (return to vendor) — setup and accounting
+
+**Procurement → Purchase Return** (User Guide §6.5) sends goods back against the GRN they arrived on. Nothing has to be configured for it to work. These are the settings you may want to change, and what posting a return does to the books.
+
+1. **Who can use it.** The `PurchaseReturn` record type ships with full rights for HR/Admin and read/create/update for Store Manager. Role templates that grant the Procurement module cover it the same way they cover Goods Receipt. Change it under **Settings → Roles**. Posting a return needs *update* rights on `PurchaseReturn`. Location-scoped users only see and post returns for their own location.
+2. **Requiring approval (optional).** To make returns go through maker-checker, open **Settings → Approval Rules** and add a rule for `PurchaseReturn`. The amount slab is matched against the return's value before GST (`total_amount`). From then on a Draft return shows **Submit for approval** instead of **Post**. Someone other than the submitter approves it in **Approvals**, and only an Approved return can be posted. Delete the rule to go back to direct posting.
+3. **Numbering.** Returns draw from the `PRT` series and the Debit Notes they raise from the `DN` series (B.3.2). Both are shipped per tenant by `migrations_stage57_15_purchase_return.sql` and can be edited like any other series. A Debit Note entered by hand still takes the note number you type.
+4. **What the stock does.** Accepted units leave *available* at the GRN's receiving location through the same floor-checked posting as every outbound movement. If they have already been sold, the post is refused. Units QC set aside at receipt (rejected → QC hold, damaged → damaged) leave those buckets instead. Every movement is in the stock ledger with voucher type `PurchaseReturn`. The item's moving-average cost has the returned receipt taken back out. The return does **not** touch WMS bin quantities: if the stock was put away into bins, adjust the bin as you would for any other non-WMS outbound movement.
+5. **What the books do.** A Goods Receipt books Dr `1200` Inventory / Cr `2100` GRN Suspense at the PO's ex-GST rate for the accepted units. Posting a return reverses exactly that for the units returned, in two entries:
+   - the return posts Dr `5150` Purchase Returns / Cr `1200` Inventory;
+   - its Debit Note posts Dr `2100` / Cr `5150` through the same Post a hand-made Debit Note uses.
+
+   `5150` nets to zero, and both what you hold and what you owe drop by the returned value. Live example: 8 accepted at ₹100 booked ₹800. Returning 3 left `2100` at Cr ₹500 and `1200` at Dr ₹500. Rejected or damaged units were never booked as owed, so returning them posts no GL entry and raises no Debit Note.
+6. **The supplier's bill.** The Vendor Invoice three-way match values a GRN at its accepted units **less units on posted returns**. A bill for the units actually kept matches, and one still charging for returned units goes to MismatchHold. If the bill was paid before the return, the posted Debit Note leaves `2100` in debit by the returned value: the supplier owes you that amount.
+7. **If the Debit Note cannot be posted** (for example its accounting period is closed), the return still posts, because the goods have physically gone back. The Debit Note is left as a Draft, and the poster is told `PURCHA-0120` with the note number. Post it from **Financial Accounting → Debit / Credit Notes** once the cause is fixed.
+8. **GST on the returned goods** is not reversed automatically. If input credit was already claimed on the supplier's bill for the returned units, your accountant reverses it in the return period. The Debit Note carries the value before GST.
+
+Error codes: `PURCHA-0116` (no reason), `PURCHA-0117` (more than can be returned, or a line the GRN never received), `PURCHA-0118` (no GRN, or a cancelled one whose stock never posted), `PURCHA-0119` (already on another return, or already posted), `PURCHA-0120` (Debit Note raised but not posted).
+
+#### Fixed Asset items — bought on a PO, never sold (Stage 57.8)
+
+An Item whose **Item Type** is **Fixed Asset** is equipment the business keeps, not stock it sells. User Guide §6.7 has the day-to-day steps. What an administrator should know:
+
+1. **Turning an Item into a fixed asset** is the **Item Type** field on the Item (Setup → Item; blank means Stock, so every existing Item is unchanged). Change it before the item is received. Stock already on hand from earlier receipts stays as stock, and that stock still cannot be sold once the type is Fixed Asset.
+2. **Receiving.** When its GRN posts, the accepted units do not enter stock and nothing is booked to `1200` Inventory. Each unit becomes a **Draft** asset in HRM → Fixed Assets, numbered from the `AST` series (B.3.2; the location is the store segment), costed at the PO's rate before GST, and carrying the Item, GRN, PO, vendor, location and serial number. Units QC rejected or damaged go to QC hold / damaged as for any item. If an asset cannot be raised, the receipt still posts and an ERROR naming the GRN is written to the system error log, so the asset can be entered by hand.
+3. **Accounting.** Capitalise books Dr `1400` Fixed Assets / Cr `2100` GRN Suspense, the same entry a hand-entered asset has always made. The supplier's bill is matched and paid against the GRN as usual, and paying it clears `2100`. Capitalise asks for the useful life when the asset has none, and stores it on the asset.
+4. **Never sellable.** One check refuses a Fixed Asset item on every sale path: the server's sale-side tax computation, which POS quote and checkout, order and pack invoices and customer returns all use, and OMS order intake, both when an order is created and when a hold is released. The refusal is `ASSET-0273`. Picking needs an order line and stock, and a Fixed Asset item has neither.
 
 #### GST on purchases (Input Tax Credit) and on credit sales
 
@@ -514,6 +542,8 @@ What you need to know as the administrator:
 
 #### B.3.3.2 Bulk import: Master codes and Design-based SKUs
 
+**Stage 51.10:** on **Setup → Item → Bulk Import** there are two template buttons. **Download Template CSV** is the full Item template, unchanged, with `id` and `code`. **Download Template (SKU from Design)** has no `id` or `code` column and puts `family` first, so a user who fills it in as downloaded gets Design-based SKUs. Variation goes in `variant_option_values` (`size:S`) unless the tenant's Items carry the jewellery attribute fields. Uploading a row for a SKU that already exists updates that Item (see the last paragraph below). User Guide §8d.5 has the steps.
+
 Two things about CSV import that are worth knowing before you run a large load, both corrected as of Stage 51.8:
 
 - **A Master record imported with a blank `id` now takes its `code` as its id.** Every Link field in this system resolves by *id*, so a master whose id and code disagree can never be selected by any Link field — an imported Vendor that exists but which no Purchase Order can reference. Import now applies the same id = code rule the on-screen save path does. **If you imported masters before this**, audit them with `scripts/audit_master_id_code_drift.sql` (read-only, see its header for how to run it); it reports how many rows are affected per record type, whether a fix would collide with anything, and how many transactions already point at the old ids.
@@ -522,11 +552,11 @@ Two things about CSV import that are worth knowing before you run a large load, 
 
 **Re-importing a Master by code now updates it rather than duplicating it**, which follows from the first point: the code resolves to the same id, so the row is matched and updated. Keep that in mind for a repeated load — it is usually what you want, but it does mean a second upload of the same file overwrites rather than being rejected.
 
-#### B.3.4 Category-based sticker templates (Stage 52)
+#### B.3.4 Category-based sticker templates and the Sticker Studio (Stages 52, 58)
 
-By default every item's barcode label uses one fixed built-in layout (name, barcode, SKU). A tenant that wants different categories to print differently defines a **StickerTemplate** per category instead — a drag-and-drop layout the business designs itself, no code change and no developer. The end-user steps are in [User Guide](USER_GUIDE.md) §7A.2; this subsection is what you need to know as the administrator.
+By default every item's barcode label uses one fixed built-in layout (name, barcode, SKU). A tenant that wants different categories to print differently defines a **StickerTemplate** per category instead — designed by the business itself in the full-screen **Sticker Studio** (Stage 58), no code change and no developer. The end-user steps are in [User Guide](USER_GUIDE.md) §7A.2; this subsection is what you need to know as the administrator.
 
-**Nothing changes until someone configures a template.** With no `StickerTemplate` records, label output is byte-identical to before Stage 52 — the resolver returns "no template" and the printer gets the old hardcoded layout. This is deliberate: no tenant is forced through a design step to keep printing.
+**Nothing has to be configured.** With no `StickerTemplate` records the resolver returns "no template" and every label prints the built-in 50 × 25 mm layout — the same content as always (name, barcode, SKU, HSN). Since Stage 58 it is drawn by the same engine as designed templates, so it now also prints correctly on a TSC (TSPL) printer, which previously received Zebra commands. No tenant is forced through a design step to keep printing.
 
 **Who can design them.** `StickerTemplate` is an ordinary Master (module key `stickers`, enabled by default for a tenant and also granted by the `pim`, `wms` and `erp_full` packages; the doctype appears under **Inventory** in the Setup flyout), so the usual permission matrix applies:
 
@@ -539,7 +569,7 @@ By default every item's barcode label uses one fixed built-in layout (name, barc
 **How a label picks its template**, in order:
 
 1. The item's **Category** is matched against each Active template's comma-separated `categories` list — case-insensitive, surrounding spaces ignored, but otherwise an exact string match.
-2. Failing that, the one template flagged **Default (unmapped categories)** is used, if there is one.
+2. Failing that, the one template flagged **Default for categories with no template of their own** (`is_default`) is used, if there is one.
 3. Failing that, the built-in layout.
 
 Three consequences worth telling your users about before they design anything:
@@ -548,11 +578,19 @@ Three consequences worth telling your users about before they design anything:
 - **`Status = Inactive` is the retire switch.** An Inactive template is skipped by the resolver entirely, which is the safe way to park a layout without deleting it (and without losing the audit rows that reference it).
 - **Only one template should carry the default flag.** Nothing stops two, and the resolver takes the first one the database hands back — i.e. effectively arbitrary. Treat it as a single-occupancy flag.
 
-**Physical sizing and DPI.** `label_width_mm`/`label_height_mm` on the template are the label stock's real dimensions; element positions and sizes are stored in millimetres too. At print time, a ZPL printer gets those millimetres converted to dots using **that Printer record's own `Printer DPI` field** (Setup → Printer), defaulting to 203 when it is blank — so a 300dpi printer needs its DPI filled in or every element lands at roughly two-thirds scale. Text clipping and justification are delegated to ZPL's own field-block command rather than guessed at by character count, so the printer firmware does the wrapping.
+**How labels are rendered (Stage 58).** Every label — designed or built-in — is drawn in the browser by `public/sticker-engine.js`, the same code the studio canvas uses, so what was designed is what prints:
+
+- **Thermal printers (TSPL or ZPL).** Each row of labels is drawn at the printer's DPI, turned into a 1-bit bitmap and sent as one TSPL `BITMAP` or ZPL `^GFA` graphic, with the page size (`SIZE`/`GAP`, `^PW`/`^LL`), darkness, speed and 180° flip from the template's **Label** settings. Fonts therefore never depend on what is installed in the printer. Barcodes (Code 128 with automatic numeric compaction, EAN-13) and QR codes are encoded by the engine and drawn with every bar a whole number of printer dots; the studio's scan check warns below 2 dots. Identical consecutive rows go as one image with a copy count, and jobs are sent in batches of 50 rows, well inside the print agent's 32 MB message cap.
+- **Anything else** (a PDF/HTML printer, or no print agent reachable on that PC): the browser print dialog opens with the labels as images at 300 dpi or more — either **roll pages** (one row of labels per page, page sized to the roll, for a thermal printer driven by its Windows driver) or an **A4 sticker sheet** grid, per the template's **Office printer / PDF** setting.
+- **DPI.** Dots are computed from the **Printer record's `Printer DPI`** when it is set, else the template's own DPI, else 203. Set it on every Printer record: a 300-dpi printer treated as 203 still prints at the right size (sizes are in mm), but bars may lose their scan margin.
+- **Item data.** Each label carries every scalar field of its Item (`fields` on the `/api/v1/stickers/print` response), which is what lets the studio print weight, purity, size, MRP or any custom/industry field without code changes. Values longer than 500 characters and nested JSON are not included.
+- **API clients** that still call the QZ payload endpoint with `job_type: "Sticker"` get the older server-built ZPL. It prints a template's text and barcode elements (including custom text, prefix/suffix and `{field}` tokens) and skips QR, line, box and logo elements, which only the browser engine draws.
+
+**Storage limits.** A template's layout lives in its `elements` field (one JSON array) and its settings and logos in `design` (`{v: 2, settings, assets}`). `elements` is subject to `platform.field_max_length` (10,000 characters by default): the studio stores elements compactly, warns in its status line from 90% and refuses to save over the cap with an explanation. Logos are limited to 400 KB on upload and down-scaled to 800 px; unused logos are dropped on save.
 
 **A Printer record is required on this screen**, unlike receipts and invoices: the Sticker Printing screen refuses to print with "Select a printer first" even when it is going to fall back to the browser dialog, because the print is logged against a printer. Any one Active Printer record is enough — this screen passes the chosen printer explicitly, so it does not depend on **Default For** being set.
 
-**Audit trail.** `sticker_print_log` keeps every run (SKU, barcode, printer, user, copies, reprint reason, timestamp) and, for a run started from a document, additionally which `source_doctype`/`source_doc_id` it came from and which `template_id` rendered it. The **Print** tab's own history table shows this; `print_job_log` separately records the QZ job itself.
+**Audit trail.** `sticker_print_log` keeps every run (SKU, barcode, printer, user, copies, reprint reason, timestamp) and, for a run started from a document, additionally which `source_doctype`/`source_doc_id` it came from and which `template_id` rendered it. The **Print** tab's own history table shows this; `print_job_log` separately records each silent thermal job sent through the print agent (status Submitted/Failed). A studio **Test print** writes neither — nothing real is being labelled.
 
 **Selecting one lot of a SKU.** A document's lines are unique by SKU *and* lot, so a SKU received on two lots is two rows, each selected, counted and printed independently; the review table shows a **Batch/Lot** column whenever that applies. Over the API, `POST /api/v1/stickers/print` and the QZ payload endpoint take this as a `lines` array of `{sku, batch_no, copies}`. The older `skus` + `copies_override` pair is still accepted and still means "every lot of this SKU", so existing callers and the manual scan flow are unaffected.
 

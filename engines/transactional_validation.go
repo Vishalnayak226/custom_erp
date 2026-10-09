@@ -58,6 +58,8 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return validateAttendanceRules(tenantID, payload)
 	case "PurchaseRequisition":
 		return validatePurchaseRequisitionEditRules(priorStatus, priorData)
+	case "PurchaseReturn":
+		return validatePurchaseReturnRules(tenantID, docID, priorStatus, priorData, payload)
 	}
 	return nil
 }

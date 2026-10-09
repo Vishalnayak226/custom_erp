@@ -43,13 +43,14 @@ func handleCapitalizeAsset(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		AssetID string `json:"asset_id"`
+		AssetID         string  `json:"asset_id"`
+		UsefulLifeYears float64 `json:"useful_life_years"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.AssetID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'asset_id' is required")
 		return
 	}
-	if err := engines.CapitalizeAsset(tenantID, req.AssetID); err != nil {
+	if err := engines.CapitalizeAssetWithLife(tenantID, req.AssetID, req.UsefulLifeYears); err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}

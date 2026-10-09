@@ -310,14 +310,16 @@
       "id": "procurement",
       "lobe": "business",
       "name": "Procurement & Vendors",
-      "role": "Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → GRN → three-way-matched Vendor Invoice → payment, with the requisition catalog and sourcing rules.",
+      "role": "Purchase Requisition → RFQ and vendor-quote comparison → Purchase Order → GRN → three-way-matched Vendor Invoice → payment, with the requisition catalog and sourcing rules. Also Purchase Return (Stage 57.15): return to vendor against the original GRN, stock out and an automatic Debit Note.",
       "match": [
         "engines/procurement.go",
         "engines/rfq.go",
         "engines/sourcing.go",
         "engines/purchase_requisition_catalog.go",
         "engines/purchase_order.go",
-        "internal/server/handlers_purchase_order.go"
+        "internal/server/handlers_purchase_order.go",
+        "engines/purchase_return.go",
+        "internal/server/handlers_purchase_return.go"
       ]
     },
     {
@@ -460,6 +462,7 @@
       "role": "Capitalize → straight-line depreciate → transfer → dispose, with the asset register and its GL postings; service tickets (Draft→Assigned→InProgress→Resolved→Closed) and AMC service contracts with visit-entitlement tracking against those assets; and quality/maintenance - inspection plans, certificates of analysis (with batch quarantine on rejection), non-conformance/CAPA, and preventive maintenance schedules against those same assets.",
       "match": [
         "engines/assets.go",
+        "engines/asset_items.go",
         "engines/service_management.go",
         "internal/server/handlers_service_management.go",
         "engines/quality_maintenance.go",
@@ -531,11 +534,14 @@
       "id": "printing",
       "lobe": "peripheral",
       "name": "Device Printing (QZ Tray)",
-      "role": "Silent one-click printing to named OS printers via a QZ Tray bridge on each packing PC. RSA request signing (the tray verifies SHA512withRSA over a SHA-256 hex string), the Printer Master's OS-name/role/language mapping, ZPL/TSPL/ESC-POS command generation, and byte-for-byte pass-through of marketplace-issued label PDFs.",
+      "role": "Silent one-click printing to named OS printers via a QZ Tray bridge on each packing PC. RSA request signing (the tray verifies SHA512withRSA over a SHA-256 hex string), the Printer Master's OS-name/role/language mapping, ZPL/TSPL/ESC-POS command generation, and byte-for-byte pass-through of marketplace-issued label PDFs. Also the Sticker Studio (Stage 58): the browser-side sticker engine that renders every label at printer DPI into TSPL/ZPL bitmaps or the print dialog, and the full-screen label designer.",
       "match": [
         "engines/qz_*.go",
         "internal/server/handlers_qz_*.go",
         "public/qz-print.js",
+        "public/sticker-engine.js",
+        "public/sticker-studio.js",
+        "public/sticker-studio.css",
         "cmd/qzcert/**"
       ]
     },

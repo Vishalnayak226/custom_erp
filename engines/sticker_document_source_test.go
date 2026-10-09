@@ -323,6 +323,39 @@ func TestPrintStickersForDocumentSelectsOneLotOfASKU(t *testing.T) {
 		t.Fatalf("expected both lots, got %d: %+v", len(all), all)
 	}
 
+	// Stage 52.9: the print log records each run's lot, so the two rows this
+	// GRN just wrote for one SKU can be told apart.
+	logRows, err := db.DB.Query("SELECT COALESCE(batch_no, ''), copies FROM "+schema+".sticker_print_log WHERE source_doc_id = $1 AND sku = $2", grnID, sku)
+	if err != nil {
+		t.Fatalf("read print log: %v", err)
+	}
+	loggedCopies := map[string]int{}
+	for logRows.Next() {
+		var batch string
+		var copies int
+		if err := logRows.Scan(&batch, &copies); err != nil {
+			t.Fatalf("scan print log: %v", err)
+		}
+		loggedCopies[batch] = copies
+	}
+	logRows.Close()
+	if len(loggedCopies) != 2 || loggedCopies["LOT-A"] != 4 || loggedCopies["LOT-B"] != 6 {
+		t.Errorf("expected one log row per lot (LOT-A x4, LOT-B x6), got %v", loggedCopies)
+	}
+	history, err := GetPrintHistory(tenantID)
+	if err != nil {
+		t.Fatalf("GetPrintHistory: %v", err)
+	}
+	historyLots := map[string]bool{}
+	for _, h := range history {
+		if h.SourceDocID == grnID {
+			historyLots[h.BatchNo] = true
+		}
+	}
+	if !historyLots["LOT-A"] || !historyLots["LOT-B"] {
+		t.Errorf("print history should carry both lots, got %v", historyLots)
+	}
+
 	// One lot's line only - this is the per-row Print button.
 	one, err := PrintStickersForDocument(tenantID, "GRN", grnID, printerCode, "system", "", []StickerLineSelection{{SKU: sku, BatchNo: "LOT-B"}})
 	if err != nil {

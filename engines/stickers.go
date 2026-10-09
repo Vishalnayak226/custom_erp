@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -53,6 +54,14 @@ type StickerLabel struct {
 	TemplateElements json.RawMessage `json:"template_elements,omitempty"`
 	LabelWidthMM     float64         `json:"label_width_mm,omitempty"`
 	LabelHeightMM    float64         `json:"label_height_mm,omitempty"`
+
+	// Stage 58: every scalar field on the resolved Item (gross/net weight,
+	// purity, size, MRP, sale price, any industry-profile or custom field),
+	// stringified. The sticker studio lets a template element print *any*
+	// Item field, including ones added after this code was written, so the
+	// label carries the whole record rather than a hand-picked list. Read
+	// through StickerFieldText's default branch.
+	Fields map[string]string `json:"fields,omitempty"`
 }
 
 // StickerTemplate is a tenant-configured label layout, mapped to one or more
@@ -156,6 +165,14 @@ type StickerElement struct {
 	FontSizeMM float64 `json:"font_size_mm,omitempty"`
 	Bold       bool    `json:"bold,omitempty"`
 	Align      string  `json:"align,omitempty"` // "left" (default) | "center" | "right"
+
+	// Stage 58 (sticker studio). Kind is "" for a Stage-52 element (Field
+	// "barcode" meant a barcode), else text|barcode|qr|line|box|image.
+	// Field "custom" prints Text with {field} placeholders filled in;
+	// Prefix/Suffix wrap a bound field's value when it is not blank.
+	Kind   string `json:"kind,omitempty"`
+	Prefix string `json:"prefix,omitempty"`
+	Suffix string `json:"suffix,omitempty"`
 }
 
 // ParseStickerElements unmarshals a StickerTemplate/StickerLabel's raw
@@ -180,9 +197,34 @@ func ParseStickerElements(raw json.RawMessage) []StickerElement {
 // same-shaped JSON the browser fallback receives) the print-preview sheet's
 // logic mirror.
 func StickerFieldText(el StickerElement, label StickerLabel) string {
+	if el.Field != "static" && el.Field != "custom" && (el.Prefix != "" || el.Suffix != "") {
+		bare := el
+		bare.Prefix, bare.Suffix = "", ""
+		if v := StickerFieldText(bare, label); v != "" {
+			return el.Prefix + v + el.Suffix
+		}
+		return ""
+	}
 	switch el.Field {
 	case "static":
 		return el.Text
+	case "custom":
+		// Same rule as the browser engine's elementText: when every {field}
+		// in the text is blank the element prints nothing, so an item with no
+		// weight never shows a stray "W: gm".
+		fields, filled := 0, 0
+		out := stickerPlaceholderRe.ReplaceAllStringFunc(el.Text, func(m string) string {
+			fields++
+			v := StickerFieldText(StickerElement{Field: m[1 : len(m)-1]}, label)
+			if v != "" {
+				filled++
+			}
+			return v
+		})
+		if fields > 0 && filled == 0 {
+			return ""
+		}
+		return out
 	case "sku":
 		return label.SKU
 	case "name":
@@ -207,8 +249,40 @@ func StickerFieldText(el StickerElement, label StickerLabel) string {
 	case "barcode":
 		return label.Barcode
 	default:
-		return ""
+		// Stage 58: any other Item field the sticker studio offers.
+		return label.Fields[el.Field]
 	}
+}
+
+// stickerPlaceholderRe matches a {field} token in a custom-text element.
+var stickerPlaceholderRe = regexp.MustCompile(`\{[a-zA-Z0-9_]+\}`)
+
+// stickerItemFields flattens an Item's data map into the string form a label
+// prints. Only scalars are kept (nested JSON - variant tables, media lists -
+// has no sensible single-line rendering), and over-long values are dropped so
+// one big description field cannot bloat every label in a large print run.
+func stickerItemFields(item map[string]interface{}) map[string]string {
+	out := make(map[string]string, len(item))
+	for k, v := range item {
+		var s string
+		switch t := v.(type) {
+		case string:
+			s = t
+		case float64:
+			s = strconv.FormatFloat(t, 'f', -1, 64)
+		case bool:
+			s = strconv.FormatBool(t)
+		case json.Number:
+			s = t.String()
+		default:
+			continue
+		}
+		if s == "" || len(s) > 500 {
+			continue
+		}
+		out[k] = s
+	}
+	return out
 }
 
 // checkPrinterActive is the DEVICE-0298 (Stage 25.5) printer-existence gate,
@@ -272,6 +346,7 @@ func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode,
 		if v, ok := item["category"].(string); ok {
 			label.Category = v
 		}
+		label.Fields = stickerItemFields(item)
 	}
 	// A SKU not found as a real Item still gets printed (matches MB
 	// 15.3's "Print by ... barcode range" case, where the barcode range
@@ -295,10 +370,12 @@ func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode,
 	}
 
 	if _, err := db.DB.Exec(fmt.Sprintf(`
-		INSERT INTO %s.sticker_print_log (sku, barcode, printer_code, printed_by, copies, reprint_reason, source_doctype, source_doc_id, template_id)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, schema),
+		INSERT INTO %s.sticker_print_log (sku, barcode, printer_code, printed_by, copies, reprint_reason, source_doctype, source_doc_id, template_id, batch_no)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`, schema),
 		sku, label.Barcode, printerCode, printedBy, copies, reprintReason,
-		nullableString(sourceDoctype), nullableString(sourceDocID), nullableString(label.TemplateID)); err != nil {
+		nullableString(sourceDoctype), nullableString(sourceDocID), nullableString(label.TemplateID),
+		// Stage 52.9: the lot, so two runs of one SKU on one GRN can be told apart.
+		nullableString(batchNo)); err != nil {
 		return label, fmt.Errorf("failed to log print for %s: %v", sku, err)
 	}
 	return label, nil
@@ -366,6 +443,7 @@ type PrintHistoryEntry struct {
 	SourceDoctype string    `json:"source_doctype,omitempty"`
 	SourceDocID   string    `json:"source_doc_id,omitempty"`
 	TemplateID    string    `json:"template_id,omitempty"`
+	BatchNo       string    `json:"batch_no,omitempty"`
 }
 
 // GetPrintHistory lists sticker print log entries, most recent first.
@@ -376,7 +454,7 @@ func GetPrintHistory(tenantID string) ([]PrintHistoryEntry, error) {
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT sku, COALESCE(barcode, ''), printer_code, printed_by, copies, COALESCE(reprint_reason, ''), printed_at,
-		       COALESCE(source_doctype, ''), COALESCE(source_doc_id, ''), COALESCE(template_id, '')
+		       COALESCE(source_doctype, ''), COALESCE(source_doc_id, ''), COALESCE(template_id, ''), COALESCE(batch_no, '')
 		FROM %s.sticker_print_log ORDER BY printed_at DESC LIMIT 200`, schema))
 	if err != nil {
 		return nil, err
@@ -387,7 +465,7 @@ func GetPrintHistory(tenantID string) ([]PrintHistoryEntry, error) {
 	for rows.Next() {
 		var e PrintHistoryEntry
 		if err := rows.Scan(&e.SKU, &e.Barcode, &e.PrinterCode, &e.PrintedBy, &e.Copies, &e.ReprintReason, &e.PrintedAt,
-			&e.SourceDoctype, &e.SourceDocID, &e.TemplateID); err != nil {
+			&e.SourceDoctype, &e.SourceDocID, &e.TemplateID, &e.BatchNo); err != nil {
 			return nil, err
 		}
 		results = append(results, e)

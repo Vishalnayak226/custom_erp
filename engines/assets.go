@@ -22,6 +22,8 @@ type AssetRegisterEntry struct {
 	UsefulLifeYears         int    `json:"useful_life_years"`
 	CapitalisationDate      string `json:"capitalisation_date"`
 	Status                  string `json:"status"`
+	ItemCode                string `json:"item_code,omitempty"`
+	SourceGRN               string `json:"source_grn,omitempty"`
 	AccumulatedDepreciation int    `json:"accumulated_depreciation"`
 	NetBlock                int    `json:"net_block"`
 }
@@ -91,6 +93,8 @@ func GetAssetRegister(tenantID string) ([]AssetRegisterEntry, error) {
 		if v, ok := data["capitalisation_date"].(string); ok {
 			entry.CapitalisationDate = v
 		}
+		entry.ItemCode, _ = data["item_code"].(string)
+		entry.SourceGRN, _ = data["source_grn"].(string)
 		cost := 0
 		if v, ok := data["cost"].(float64); ok {
 			cost = int(v)
@@ -156,6 +160,14 @@ func saveAssetData(tenantID, assetID, newStatus string, data map[string]interfac
 // entry (Debit Fixed Assets, Credit GRN Suspense - the same "goods/asset
 // received, payment tracked elsewhere" liability account GRNs already use).
 func CapitalizeAsset(tenantID, assetID string) error {
+	return CapitalizeAssetWithLife(tenantID, assetID, 0)
+}
+
+// CapitalizeAssetWithLife is CapitalizeAsset with a useful life supplied at
+// capitalisation (Stage 57.8): an asset raised from a GRN arrives without
+// one, and the Fixed Assets screen asks for it on Capitalise. A positive
+// usefulLifeYears is stored on the asset; zero keeps what the asset has.
+func CapitalizeAssetWithLife(tenantID, assetID string, usefulLifeYears float64) error {
 	data, status, err := fetchAssetData(tenantID, assetID)
 	if err != nil {
 		return fmt.Errorf("asset not found: %v", err)
@@ -174,6 +186,9 @@ func CapitalizeAsset(tenantID, assetID string) error {
 	// it, depreciation silently computes as zero forever (see that
 	// function's own usefulLifeYears <= 0 short-circuit) rather than
 	// erroring where the missing input actually is.
+	if usefulLifeYears > 0 {
+		data["useful_life_years"] = usefulLifeYears
+	}
 	usefulLife, _ := data["useful_life_years"].(float64)
 	if usefulLife <= 0 {
 		return &ValidationError{Code: "ASSET-0271", Message: "useful_life_years must be a positive number to capitalise - depreciation cannot be calculated without it"}

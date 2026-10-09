@@ -214,7 +214,23 @@ func mmToDots(mm, dpi float64) int {
 // the printer firmware wraps/clips to the box width itself.
 func zplStickerElement(el StickerElement, label StickerLabel, dpi float64) string {
 	x, y := mmToDots(el.XMM, dpi), mmToDots(el.YMM, dpi)
-	if el.Field == "barcode" {
+	// Stage 58: the studio adds QR/line/box/image elements, which only the
+	// browser-side engine (public/sticker-engine.js) renders. This server
+	// path is kept for API clients; it prints the text and barcode elements
+	// it understands and skips the rest rather than misprinting them.
+	switch el.Kind {
+	case "", "text":
+	case "barcode":
+		value := StickerFieldText(el, label)
+		if value == "" {
+			return ""
+		}
+		h := mmToDots(el.HMM, dpi)
+		return fmt.Sprintf("^FO%d,%d^BY2\n^BCN,%d,Y,N,N\n^FD%s^FS\n", x, y, h, zplEscape(value))
+	default:
+		return ""
+	}
+	if el.Kind == "" && el.Field == "barcode" {
 		if label.Barcode == "" {
 			return ""
 		}

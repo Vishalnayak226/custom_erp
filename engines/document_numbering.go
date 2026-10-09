@@ -48,6 +48,7 @@ var documentNumberSeriesByDoctype = map[string]documentNumberSeries{
 	"Grievance":       {SeriesKey: "GRV", NumberFields: []string{"code"}},
 	"ProductionOrder": {SeriesKey: "PRO", NumberFields: []string{"code"}},
 	"Attendance":      {SeriesKey: "ATT", NumberFields: []string{"code"}},
+	"PurchaseReturn":  {SeriesKey: "PRT", NumberFields: []string{"code"}},
 }
 
 // autoNumberedFields is the set of a doctype's fields the server fills in with

@@ -1848,4 +1848,222 @@ async function createASNInner() {
   renderView('asn');
 }
 
-export { renderApprovalsView, decideApproval, decideApprovalInner, newPODraft, renderPurchaseOrdersView, renderPOComposer, renderPOLines, schedulePOPreview, runPOPreview, poDraftPayload, renderPOSupplyBanner, renderPOTotals, savePurchaseOrder, savePurchaseOrderInner, renderPOPrintSheet, submitPOForApproval, submitDocForApproval, submitQualityInspectionForApproval, sendSubcontractOrder, receiveSubcontractOrder, mergeCustomerRow, renderGRNWorkbenchView, renderGRNLinesList, lookupGRNBarcode, addGRNLine, populateGRNBatchRow, loadGRNItemsFromPO, loadGRNItemsFromPOInner, loadGRNItemsFromASN, createGRN, createGRNInner, renderASNView, renderASNLinesList, addASNLine, createASN, createASNInner };
+// Purchase Return (Stage 57.15): return goods to the vendor against the GRN
+// they arrived on. The return is an ordinary PurchaseReturn document (saved
+// through the generic doc API, which checks it against the GRN); this screen
+// adds what that form cannot: the GRN's returnable lines, and Post, which
+// moves the stock out and raises the vendor's debit note.
+let prtContext = null;
+
+async function renderPurchaseReturnsView(container) {
+  const [listRes, ctxRes, grnRes] = await Promise.all([
+    apiFetch('/api/v1/doc/PurchaseReturn'),
+    apiFetch('/api/v1/procurement/purchase-returns/context'),
+    apiFetch('/api/v1/doc/GRN')
+  ]);
+  if (!listRes || !ctxRes || !grnRes) return;
+  if (!listRes.ok || !ctxRes.ok) {
+    renderErrorPanel(container, 'Failed to load purchase returns.', () => renderView('purchase-returns'));
+    return;
+  }
+  const returns = await listRes.json();
+  const approvalRequired = !!(await ctxRes.json()).approval_required;
+  const grns = grnRes.ok ? (await grnRes.json()).filter(g => g.status !== 'Cancelled') : [];
+  prtContext = null;
+
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Purchase Return</h1>
+      <p class="page-subtitle">Send goods back to the vendor against the GRN they arrived on. Posting takes the stock out and raises the vendor's debit note.</p>
+    </div>
+  `;
+  container.appendChild(header);
+
+  const formPanel = document.createElement('div');
+  formPanel.className = 'table-panel';
+  formPanel.style.padding = '24px';
+  formPanel.style.marginBottom = '24px';
+  formPanel.innerHTML = `
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Purchase Return</h2>
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="prt-grn">Goods Receipt (GRN)<span class="required">*</span></label>
+        <select id="prt-grn" class="form-input" style="min-width: 260px;">
+          <option value="">Choose the GRN the goods came in on</option>
+          ${grns.map(g => `<option value="${escapeHTMLText(g.id)}">${escapeHTMLText(g.id)}${g.vendor ? ' - ' + escapeHTMLText(g.vendor) : ''}${g.po_id ? ' (PO ' + escapeHTMLText(g.po_id) + ')' : ''}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 240px;">
+        <label class="form-label" for="prt-reason">Reason for Return<span class="required">*</span></label>
+        <input type="text" id="prt-reason" class="form-input" placeholder="e.g. wrong size supplied, QC rejected" autocomplete="off">
+      </div>
+    </div>
+    <div id="prt-lines" style="margin-bottom: 16px; font-size: 13px; color: var(--text-muted);">Choose a GRN to see what can be returned.</div>
+    <div id="prt-form-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <button class="btn btn-primary" id="prt-save-btn" disabled>Save Return</button>
+      <span style="font-size: 13px; color: var(--text-muted);">${approvalRequired
+        ? 'Returns need approval before they can be posted.'
+        : 'Saved as a Draft; nothing moves until you Post it.'}</span>
+    </div>
+  `;
+  container.appendChild(formPanel);
+
+  const badge = s => s === 'Posted' ? 'badge-success' : (s === 'Cancelled' || s === 'Rejected') ? 'badge-danger' : 'badge-secondary';
+  const actions = r => {
+    const out = [];
+    if ((r.status === 'Draft' && !approvalRequired) || r.status === 'Approved') {
+      out.push(`<button class="action-btn" ${actionAttrs('postPurchaseReturn', [r.id])}>Post</button>`);
+    }
+    if (r.status === 'Draft' && approvalRequired) {
+      out.push(`<button class="action-btn" ${actionAttrs('submitPurchaseReturnForApproval', [r.id])}>Submit for approval</button>`);
+    }
+    if (r.status === 'Draft' || r.status === 'Rejected') {
+      out.push(`<button class="action-btn" ${actionAttrs('cancelPurchaseReturn', [r.id])}>Cancel</button>`);
+    }
+    return out.join(' ');
+  };
+  const listPanel = document.createElement('div');
+  listPanel.className = 'table-panel';
+  listPanel.innerHTML = `
+    <table>
+      <thead><tr><th>Return #</th><th>GRN</th><th>Vendor</th><th>Reason</th><th>Value (ex-GST)</th><th>Debit Note</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${returns.length === 0
+          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No purchase returns yet. Choose a GRN above to raise one.</td></tr>`
+          : returns.map(r => `
+            <tr>
+              <td style="font-family: monospace;">${escapeHTMLText(r.code || r.id)}</td>
+              <td style="font-family: monospace;">${escapeHTMLText(r.grn_id || '')}</td>
+              <td>${escapeHTMLText(r.vendor_id || '')}</td>
+              <td>${escapeHTMLText(r.reason || '')}</td>
+              <td>${formatMoney(r.total_amount || 0)}</td>
+              <td style="font-family: monospace;">${escapeHTMLText(r.debit_note_id || '')}</td>
+              <td><span class="badge ${badge(r.status)}">${escapeHTMLText(r.status || '')}</span></td>
+              <td>${actions(r)}</td>
+            </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+  container.appendChild(listPanel);
+
+  document.getElementById('prt-grn').addEventListener('change', e => loadPurchaseReturnLines(e.target.value));
+  document.getElementById('prt-save-btn').addEventListener('click', savePurchaseReturn);
+}
+
+async function loadPurchaseReturnLines(grnID) {
+  const linesEl = document.getElementById('prt-lines');
+  const saveBtn = document.getElementById('prt-save-btn');
+  document.getElementById('prt-form-error').classList.add('hidden');
+  prtContext = null;
+  saveBtn.disabled = true;
+  if (!grnID) {
+    linesEl.textContent = 'Choose a GRN to see what can be returned.';
+    return;
+  }
+  linesEl.textContent = 'Loading...';
+  const res = await apiFetch(`/api/v1/procurement/purchase-returns/context?grn_id=${encodeURIComponent(grnID)}`);
+  if (!res) return;
+  if (!res.ok) {
+    linesEl.textContent = await getErrorMessage(res, 'Could not load that GRN.');
+    return;
+  }
+  prtContext = (await res.json()).returnable;
+  const lines = prtContext.lines || [];
+  if (!lines.some(l => l.returnable > 0)) {
+    linesEl.textContent = `Nothing left to return on ${grnID} - everything it received is already on a purchase return.`;
+    return;
+  }
+  linesEl.innerHTML = `
+    <div style="margin-bottom: 8px;">Vendor <b>${escapeHTMLText(prtContext.vendor_id || '-')}</b>, returning from <b>${escapeHTMLText(prtContext.location || '-')}</b>. Enter the quantity going back on each line.</div>
+    <table>
+      <thead><tr><th>SKU</th><th>Lot</th><th>Stock</th><th>Received</th><th>Returned</th><th>On open returns</th><th>Can return</th><th>Unit cost (ex-GST)</th><th>Return qty</th></tr></thead>
+      <tbody>
+        ${lines.map((l, i) => `
+          <tr>
+            <td style="font-family: monospace;">${escapeHTMLText(l.sku)}</td>
+            <td style="font-family: monospace;">${escapeHTMLText(l.batch_no || '')}</td>
+            <td>${escapeHTMLText(l.stock_bucket)}</td>
+            <td>${l.received}</td>
+            <td>${l.returned}</td>
+            <td>${l.on_open_returns}</td>
+            <td><b>${l.returnable}</b></td>
+            <td>${l.stock_bucket === 'Accepted' ? formatMoney(l.unit_cost) : '<span title="Set aside at receipt and never costed, so it carries no debit note value">-</span>'}</td>
+            <td><input type="number" class="form-input prt-qty" data-line="${i}" min="0" max="${l.returnable}" step="1" value="0" style="width: 90px;" ${l.returnable > 0 ? '' : 'disabled'} aria-label="Return quantity for ${escapeHTMLText(l.sku)}"></td>
+          </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+  saveBtn.disabled = false;
+}
+
+async function savePurchaseReturn() {
+  const errorEl = document.getElementById('prt-form-error');
+  errorEl.classList.add('hidden');
+  const showError = msg => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
+  if (!prtContext) { showError('Choose a GRN first.'); return; }
+  const reason = document.getElementById('prt-reason').value.trim();
+  if (!reason) { showError('Enter the reason the goods are going back.'); return; }
+  const items = [];
+  document.querySelectorAll('.prt-qty').forEach(input => {
+    const qty = Number(input.value);
+    if (qty > 0) {
+      const l = prtContext.lines[Number(input.dataset.line)];
+      items.push({ sku: l.sku, batch_no: l.batch_no || '', stock_bucket: l.stock_bucket, qty });
+    }
+  });
+  if (items.length === 0) { showError('Enter a return quantity on at least one line.'); return; }
+
+  const res = await apiFetch('/api/v1/doc/PurchaseReturn', {
+    method: 'POST',
+    body: JSON.stringify({ grn_id: prtContext.grn_id, reason, return_items: JSON.stringify(items), status: 'Draft' })
+  });
+  if (!res) return;
+  if (!res.ok) { showError(await getErrorMessage(res, 'Failed to save the purchase return.')); return; }
+  const saved = await res.json();
+  showToast(`Purchase return ${saved.id} saved as a draft.`, { variant: 'info' });
+  renderView('purchase-returns');
+}
+
+async function postPurchaseReturn(id) {
+  const confirmed = await showCustomConfirm(`Post purchase return ${id}? The stock leaves now and the vendor's debit note is raised and posted. This cannot be undone.`, 'Confirm Post');
+  if (!confirmed) return;
+  const res = await apiFetch(`/api/v1/procurement/purchase-returns/${encodeURIComponent(id)}/post`, { method: 'POST' });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to post the purchase return.'); return; }
+  const result = await res.json();
+  if (result.debit_note_warning) {
+    showToast(result.debit_note_warning, { variant: 'error', title: 'Debit note not posted' });
+  } else if (result.debit_note_id) {
+    showToast(`Posted. Debit note ${result.debit_note_id} for ${formatMoney(result.return_value)} raised and posted to the vendor.`, { variant: 'success' });
+  } else {
+    showToast('Posted. Only set-aside (rejected/damaged) stock went back, so no debit note was needed.', { variant: 'success' });
+  }
+  renderView('purchase-returns');
+}
+
+async function submitPurchaseReturnForApproval(id) {
+  const res = await apiFetch('/api/v1/approval/submit', { method: 'POST', body: JSON.stringify({ doctype: 'PurchaseReturn', document_id: id }) });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to submit for approval.'); return; }
+  showToast(`Purchase return ${id} submitted for approval.`, { variant: 'info' });
+  renderView('purchase-returns');
+}
+
+async function cancelPurchaseReturn(id) {
+  const confirmed = await showCustomConfirm(`Cancel purchase return ${id}? Its quantities become returnable again.`, 'Cancel Return');
+  if (!confirmed) return;
+  const getRes = await apiFetch(`/api/v1/doc/PurchaseReturn/${encodeURIComponent(id)}`);
+  if (!getRes) return;
+  if (!getRes.ok) { await showApiError(getRes, 'Failed to load the purchase return.'); return; }
+  const doc = await getRes.json();
+  doc.status = 'Cancelled';
+  const res = await apiFetch(`/api/v1/doc/PurchaseReturn/${encodeURIComponent(id)}`, { method: 'POST', body: JSON.stringify(doc) });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to cancel the purchase return.'); return; }
+  renderView('purchase-returns');
+}
+
+export { renderApprovalsView, decideApproval, decideApprovalInner, newPODraft, renderPurchaseOrdersView, renderPOComposer, renderPOLines, schedulePOPreview, runPOPreview, poDraftPayload, renderPOSupplyBanner, renderPOTotals, savePurchaseOrder, savePurchaseOrderInner, renderPOPrintSheet, submitPOForApproval, submitDocForApproval, submitQualityInspectionForApproval, sendSubcontractOrder, receiveSubcontractOrder, mergeCustomerRow, renderGRNWorkbenchView, renderGRNLinesList, lookupGRNBarcode, addGRNLine, populateGRNBatchRow, loadGRNItemsFromPO, loadGRNItemsFromPOInner, loadGRNItemsFromASN, createGRN, createGRNInner, renderASNView, renderASNLinesList, addASNLine, createASN, createASNInner, renderPurchaseReturnsView, loadPurchaseReturnLines, savePurchaseReturn, postPurchaseReturn, submitPurchaseReturnForApproval, cancelPurchaseReturn };

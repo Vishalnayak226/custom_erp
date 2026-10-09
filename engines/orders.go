@@ -83,6 +83,11 @@ func validateOrderChain(tenantID string, shippingAddress, paymentStatus string, 
 		} else if err != nil {
 			return "", err
 		}
+		// Stage 57.8: refused outright, not held - no hold release can make a
+		// fixed asset sellable.
+		if IsFixedAssetItem(item.Data) {
+			return "", RejectNonSellableItem(tenantID, l.SKU)
+		}
 	}
 
 	// 2. Address: non-empty and contains a pincode-shaped token.

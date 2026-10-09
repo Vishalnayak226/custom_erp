@@ -216,6 +216,21 @@ func MatchVendorInvoice(tenantID, invoiceID, poID, grnID string, tolerancePercen
 			}
 			acceptedNet += rate * float64(qty)
 		}
+		// Stage 57.15: accepted stock already sent back on a posted Purchase
+		// Return is not billable - the vendor's net invoice should match, and
+		// one still billing the returned units should hold.
+		returned, rerr := postedPurchaseReturnAcceptedQty(tx, schema, grnID)
+		if rerr != nil {
+			return out, rerr
+		}
+		for sku, qty := range returned {
+			if rate, ok := rateBySku[sku]; ok {
+				acceptedNet -= rate * qty
+			}
+		}
+		if acceptedNet < 0 {
+			acceptedNet = 0
+		}
 	}
 	expected := acceptedNet * taxRatio
 

@@ -52,7 +52,7 @@ Tracks goods procurement flows from internal requests to physical receipt.
 *   **Purchase Orders (PO)**: PO amendments, state-wise shipping splits, and PO status logs.
 *   **Quick PO Form**: A matrix input grid allowing cashiers to create POS orders rapidly.
 *   **GRN (Goods Receipt Note)**: Checks items received from vendors against purchase orders, flags MRP overrides, and generates barcode sequences.
-*   **Purchase Return (RTV)**: Processes vendor returns. Scans barcodes to verify original GRN, updates inventory to `RTV Pending`, and posts debit notes.
+*   **Purchase Return (RTV)**: Processes vendor returns against the original GRN, for at most what that GRN received less earlier returns (per SKU, lot and accepted/rejected/damaged stock). Posting moves the stock out of the GRN's location and raises and posts the vendor's debit note (Stage 57.15). There is no separate `RTV Pending` holding state: the stock leaves when the return is posted.
 
 ---
 

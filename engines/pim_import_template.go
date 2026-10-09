@@ -359,3 +359,31 @@ func RunPIMImportTemplateContext(ctx context.Context, tenantID, templateID strin
 
 	return runDocDataImportContext(ctx, tenantID, targetDoctype, userID, role, dryRun, docRows, preErrors)
 }
+
+// ImportTemplateVariantFamily selects GenerateItemFamilyCSVTemplate on
+// GET /api/v1/import/Item/template?variant=family.
+const ImportTemplateVariantFamily = "family"
+
+// GenerateItemFamilyCSVTemplate (Stage 51.10) is the Item import template
+// for SKUs generated from a Design: the same columns as GenerateCSVTemplate
+// minus `id` and `code`, with `family` first. missingMandatoryColumns
+// already drops the code requirement when a family column is present (51.8)
+// and the import builds the SKU from the Design plus the variant attributes,
+// but the plain template still emitted `code`, so following the documented
+// download-then-upload path meant either typing codes by hand or knowing to
+// delete the column. `id` goes too: with no code there is nothing for an
+// update row to address, and the id is set to the generated code.
+func GenerateItemFamilyCSVTemplate(tenantID string) ([]byte, error) {
+	headers, err := importTemplateHeaders(tenantID, "Item")
+	if err != nil {
+		return nil, err
+	}
+	out := []string{"family"}
+	for _, h := range headers {
+		if h == "id" || h == "code" || h == "family" {
+			continue
+		}
+		out = append(out, h)
+	}
+	return writeImportTemplateCSV(out)
+}

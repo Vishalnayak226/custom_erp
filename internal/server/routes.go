@@ -910,6 +910,9 @@ func registerRoutes() {
 
 	// Purchase requisition conversion (Stage 17.7)
 	http.HandleFunc("POST /api/v1/procurement/convert-requisition", apiMiddleware(moduleGate("procurement", handleConvertRequisition)))
+	// Stage 57.15: Purchase Return. Create/edit via /api/v1/doc/PurchaseReturn.
+	http.HandleFunc("GET /api/v1/procurement/purchase-returns/context", apiMiddleware(moduleGate("procurement", handlePurchaseReturnContext)))
+	http.HandleFunc("POST /api/v1/procurement/purchase-returns/{id}/post", apiMiddleware(moduleGate("procurement", handlePostPurchaseReturn)))
 
 	// Purchase Order lines: live pricing preview, the printed vendor copy, and
 	// dispatch to the vendor (Stage 40.1). All three keep HSN/GST resolution

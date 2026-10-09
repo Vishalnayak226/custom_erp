@@ -218,35 +218,35 @@ next to a bigger necklace tag, say — design a template per category instead.
 
 ### 1. Design a template
 
-1. Go to **Sticker Printing → Templates → New Template**.
-2. Fill in a **Template Code** and **Name**, then list the **Categories**
-   this template applies to, comma-separated — these must match exactly
-   what is typed into the **Category** field on the matching Item Masters
-   (there is no separate category list to pick from; it is free text on
-   the Item, and this is a plain text match against it, not case-sensitive).
-3. Set the **Label Width/Height (mm)** to match the physical label stock
-   you print this category on.
-4. Click a field button (**SKU**, **Name**, **Barcode**, **HSN**,
-   **Category**, **Batch/Lot**, **Expiry**, **Mfg Date**, **Qty**,
-   **Source Doc #**, or
-   **+ Static Text** for your own fixed wording, e.g. a "Handmade in
-   India" line) to drop it onto the label. Drag it into place; drag the
-   small square at its bottom-right corner to resize it. Click a field to
-   edit its font size, bold, alignment, or (for a Static Text field) its
-   wording in the panel on the right, or to delete it.
-5. Optionally tick **Default (unmapped categories)** on one template — that
-   one template is then used for any item whose category matches nothing
-   else you have configured, instead of the plain built-in label.
-6. Click **Save Template**.
+1. Go to **Sticker Printing → Templates → New template**. The **Sticker
+   Studio** opens full-screen and asks for the roll size (jewellery tail
+   tags, retail, multi-up and shipping sizes are listed).
+2. Name it, then add elements from the **Insert** rail: **Text** (with
+   `{field}` tokens such as `W: {weight} gm`), **Data** (any label or Item
+   field, including weight, purity, size and MRP), **Barcode** (Code 128 /
+   EAN-13), **QR**, **Line**, **Box** and **Logo**. Drag, resize, rotate and
+   align them; the right-hand inspector sets fonts, sizes and exact mm
+   positions.
+3. On the inspector's **Label** tab, set the **Printer DPI**, labels
+   **Across** the roll, the gaps, and under **Which items use it** the
+   **Item categories** (comma-separated, matched against the Item's free-text
+   **Category**, not case-sensitive) and, on one template only, **Default
+   for categories with no template of their own**.
+4. **Test print** one label, adjust **Printer tuning** (shift, darkness,
+   rotate 180°) if it lands off-centre, then **Save**.
 
-Leave **Status** on **Active** — a template saved as **Inactive** is skipped
-on every print run, which is how you retire a layout without deleting it.
-Fuller end-user walkthrough: [USER_GUIDE.md](USER_GUIDE.md) §7A.2;
-administrator notes (permissions, DPI, category-matching pitfalls):
+Leave **Status** on **Active** — an **Inactive** template is skipped on every
+print run, which is how you retire a layout without deleting it. The full
+walkthrough of every control: [USER_GUIDE.md](USER_GUIDE.md) §7A.2;
+administrator notes (permissions, rendering, DPI, storage limits):
 [ADMIN_GUIDE.md](ADMIN_GUIDE.md) §B.3.4.
 
-The canvas is a true preview: what you see there is what prints, both on a
-thermal label printer and on the browser print-fallback sheet.
+The studio canvas is a true preview: the canvas, its **Printer view**, the
+browser print dialog and the thermal printer are all drawn by the same code.
+For silent printing the Printer record's **Printer Language** must be
+**TSPL** (TSC and most Indian desktop label printers) or **ZPL** (Zebra);
+each label is sent as a bitmap at the printer's DPI, so any font and logo
+prints exactly as designed.
 
 ### 2. Print from a GRN or Transfer Order
 

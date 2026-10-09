@@ -53,6 +53,9 @@ Jump straight to the thing you're trying to do.
 | Fix a screen showing old or wrong data (Refresh vs Reset) | §12.3 |
 | Print barcode stickers for everything on a GRN or a transfer | §7A.1 |
 | Make one product category's label look different | §7A.2 |
+| Design a jewellery tag with weight, size, MRP and a QR code | §7A.2 |
+| Print 2 or 3 labels across a multi-up roll, or on an A4 sticker sheet | §7A.2 (*Label tab*) |
+| Fix labels that print off-centre, too light, or upside down | §7A.2 (*Label tab → Printer tuning*, then **Test print**) |
 | Re-print a single tag that fell off | §7A.3 |
 | See who printed which labels, and when | §7A.4 |
 | Print a shipping label or a sales invoice, or make labels print with no dialog | **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)** — "Day-to-day use" |
@@ -137,9 +140,9 @@ The sidebar has **twelve top-level entries**. Most are module groups: hover one 
 | **Financial Accounting** | Finance / GL · Approvals (§10) · Vendor Invoice · Payment Proposals · Bank Reconciliation · Debit / Credit Notes · Sales Invoice |
 | **Sales & Marketplace** | Order Management · Fulfillment · Marketplace · Customer |
 | **Reports** | Opens directly (§9). Its first tab is a dashboard of live figures. |
-| **Procurement** | Purchase Requisitions · Purchase Order (§6) · ASN · **Goods Receipt** · Vendors · RFQ / Quotes |
+| **Procurement** | Purchase Requisitions · Purchase Order (§6) · ASN · **Goods Receipt** · **Purchase Return** (§6.5) · Vendors · RFQ / Quotes |
 | **Stock** | Inventory (§5) · Stock Transfer (§7), then under the **WMS** heading every warehouse-operations screen: Bin · Putaway · Warehouse Cockpit · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · RF Lot & Serial · Cycle Count · Dock Doors · Appointment Calendar · Yard Board · Trailers · Holds · Cross-Dock Plans · RF Receiving · Waves · Sortation · Loading · Sticker Printing (§7A) |
-| **HRM** | HR · Fixed Assets · Expenses |
+| **HRM** | HR · Fixed Assets (§6.7) · Expenses |
 | **Manufacturing** | Opens directly. |
 | **PIM** | Opens directly. |
 | **Setup** | Every reference list the system knows about (§8) |
@@ -426,7 +429,31 @@ The status only moves forward — Draft → Sent → Closed.
 
 ### 6.5 Sending goods back to a supplier
 
-There is **no separate Purchase Return screen yet.** Today, when you send goods back or a supplier overcharged you, record the money side with a **Debit Note** (Financial Accounting → Debit / Credit Notes): pick the supplier and the **Reference PO** from its list, the amount and the reason. Moving the returned stock itself out of your inventory is not yet a guided flow — ask your administrator how your business handles it until it is.
+Use **Procurement → Purchase Return** when goods go back to the supplier. A return is always raised against the **goods receipt (GRN)** they arrived on, so the system knows the supplier, the PO, the location, the lot and the price.
+
+1. Go to **Procurement → Purchase Return**.
+2. In **Goods Receipt (GRN)**, choose the receipt the goods came in on. A table shows what that GRN can still send back, one row per item, lot and kind of stock:
+   - **Accepted** is stock that went on your shelves. It shows its **Unit cost** (the PO rate before GST), because the supplier owes you for it.
+   - **Rejected** and **Damaged** are what QC set aside when the goods were received on **Procurement → Goods Receipt**. The supplier was never owed for these, so they have no cost and no money changes hands for them.
+   - **Can return** is what the GRN received, less what earlier returns already sent back (**Returned**) and what other returns still waiting to be posted have claimed (**On open returns**).
+3. Enter the **Reason for Return** (required), and a **Return qty** on each line that is going back. You cannot enter more than **Can return**.
+4. Click **Save Return**. It is saved as a **Draft** and gets a number such as `PRT/HO/26-27/000004`. Nothing moves yet.
+5. Click **Post** on its row and confirm. In one step:
+   - the stock leaves: accepted units come off your available stock at the GRN's location, rejected or damaged units come off QC hold or damaged;
+   - a **Debit Note** is raised to the supplier for the accepted units' value and posted, so what you owe the supplier drops by that amount. It appears in the **Debit Note** column (for example `DN/HO/26-27/000002`) and under **Financial Accounting → Debit / Credit Notes**, already **Posted**.
+
+   If only rejected or damaged stock went back, no Debit Note is needed and none is raised.
+
+If your administrator requires approval for returns, the row shows **Submit for approval** instead of **Post**. A manager (not you) approves it in **Approvals**, and then **Post** appears. Use **Cancel** on a Draft you no longer need; its quantities become returnable again. A posted return cannot be changed or posted twice.
+
+Things the screen refuses, with the reason shown:
+- returning more than **Can return** ("RTV quantity cannot exceed rejected/returnable quantity");
+- a GRN that was cancelled because its stock never posted ("RTV must be created against a valid GRN");
+- a line already fully on another return ("RTV is already created ...").
+
+When the supplier's bill comes in after a return, bill only for what you kept. The Vendor Invoice match (§6.6) counts accepted units **less what you returned**, so a bill for the kept units matches. A bill that still charges for the returned units goes on hold. If you had already paid for the returned goods, the posted Debit Note is what the supplier now owes you.
+
+A supplier **overcharged you** and nothing physical went back? Then there is no return. Raise a **Debit Note** by hand in **Financial Accounting → Debit / Credit Notes**: pick the supplier and the **Reference PO**, the amount and the reason.
 
 ### 6.6 Paying the supplier's bill (Vendor Invoice and the three-way match)
 
@@ -438,6 +465,20 @@ When the supplier's bill arrives, record it and let the system check it before a
    - **Matched** — the bill agrees with what you actually accepted: accepted quantity × the PO rate, plus the PO's GST, within the tolerance your administrator set (2% by default). A **partial delivery billed for what arrived matches** — you do not have to wait for the whole PO. Goods you **rejected** at receipt are not owed, so they are not counted.
    - **On hold (MismatchHold)** — a message tells you exactly what disagreed: the bill differs from the accepted goods' value, or that GRN or PO has **already been billed** (a duplicate bill for the same goods is caught). Correct the amount with the supplier, or use **Override & Pay** with a written reason — that goes to a manager for approval rather than paying straight away.
 4. A **Matched** invoice shows **Pay** (and **Pay w/ TDS** where TDS sections are set up). Paying it posts the entry to the accounts: the GST in the bill goes to **GST Input Credit**, so you can claim it back, and the rest clears the goods. With TDS, the deduction is worked out on the value before GST.
+
+### 6.7 Buying equipment for the business (Fixed Assets)
+
+Laptops, furniture, machines and other things the business **uses** rather than sells are fixed assets. They are bought like stock but kept in **HRM → Fixed Assets**, where they carry a custodian and are depreciated. They never appear in POS, sales orders, invoices or sellable stock.
+
+1. **Set the Item up as a fixed asset once.** In **Setup → Item**, open (or create) the Item and set **Item Type** to **Fixed Asset**. It still needs its **HSN Code** and **GST Rate**, because the purchase is taxed. Leave **Item Type** blank or **Stock** for everything you sell.
+2. **Buy it the normal way.** Raise a Purchase Order (§6), get it approved, and receive it on **Procurement → Goods Receipt**.
+3. **What the receipt does.** The accepted units do **not** go into stock. Instead, each unit becomes its own asset in **HRM → Fixed Assets**, with status **Draft** and a number such as `AST/FAC-ROOT-TEST/26-27/000001`. The Asset # column shows what it was bought as and the GRN it came from, for example "LIVE578-LAPTOP from GRN GRN/HO/26-27/000025". The cost is the PO price before GST, and the vendor, location and date are filled in. If you typed serial numbers on the receipt, each asset carries one.
+4. **Capitalise it.** Click **Capitalise** on the asset. An asset that came from a receipt has no useful life yet, so you are asked for one, in years (for example `3` for a laptop). This starts depreciation and books the asset to the accounts.
+5. **Look after it.** A capitalised asset shows **Transfer**, to move it to another location or custodian, and **Dispose**, to sell, scrap or write it off. The register shows its accumulated depreciation and net book value as time passes.
+
+An asset you already own, or one bought without a PO, can still be added by hand with the **Create** form at the top of **HRM → Fixed Assets**.
+
+If someone tries to sell a Fixed Asset item, the POS, a sales order or an invoice refuses it with "This item is a fixed asset, not stock for sale, so it cannot be sold, ordered or invoiced." Units QC rejected on the receipt stay in QC hold and can go back to the supplier on a Purchase Return (§6.5).
 
 ## 7. Moving Stock Between Locations (Stock Transfer)
 
@@ -463,7 +504,7 @@ The move is refused, with the reason shown, if the destination bin is inactive, 
 
 **Stock → Sticker Printing.** This is where item labels come from — the small barcode tags that go on the product itself. The screen has two tabs: **Print** (do a print run) and **Templates** (decide what a label looks like).
 
-> **Before your first print run you need one Printer record.** Setup → Core → **Printer**, Active, one record per physical label printer. Without one, the Printer dropdown on this screen is empty and printing stops with "Select a printer first." (On this screen you always pick the printer yourself, so **Default For** = `Sticker` is not required here — it is what makes the *other* print screens one-click.) Getting labels to come out *silently* — straight to the thermal printer with no browser dialog — is a separate one-time per-PC setup covered in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**; until that is done, printing still works, it just opens the normal browser print dialog.
+> **Before your first print run you need one Printer record.** Setup → Core → **Printer**, Active, one record per physical label printer. Without one, the Printer dropdown on this screen is empty and printing stops with "Select a printer first." (On this screen you always pick the printer yourself, so **Default For** = `Sticker` is not required here — it is what makes the *other* print screens one-click.) Getting labels to come out *silently* — straight to a **TSC (TSPL)** or **Zebra (ZPL)** thermal printer with no browser dialog — is a separate one-time per-PC setup covered in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**; the Printer record needs its **Printer Language** (TSPL or ZPL), **Printer DPI** and **OS Printer Name** filled in. Until that is done, printing still works, it just opens the normal browser print dialog (as roll-sized pages or an A4 sticker sheet — §7A.2, *Label tab*).
 
 ### 7A.1 Print the labels for a GRN or a Transfer Order
 
@@ -490,24 +531,73 @@ Three things it does for you:
 
 If the document loads but says *"That document has no stickerable lines"*, the lines were all rejected/damaged, or (for a transfer) the quantities are zero.
 
-### 7A.2 Make one category's label look different (Templates)
+### 7A.2 Design your labels (Templates and the Sticker Studio)
 
-Out of the box, every SKU prints the same plain label — name, barcode, SKU. If an earring tag needs to be smaller and plainer than a necklace tag, define a template per category. You do this yourself; it needs no developer.
+Out of the box, every SKU prints the same plain 50 × 25 mm label — name, barcode, SKU and HSN. To get any other look (a jewellery tail tag with weight and a QR code, a smaller earring tag, a 2-up retail roll), design a **template** in the **Sticker Studio**. You do this yourself; it needs no developer.
 
-1. **Sticker Printing → Templates → New Template**.
-2. Fill in **Template Code** and **Template Name** (any short identifiers of your own).
-3. **Categories (comma-separated)** — list the categories this layout applies to, e.g. `Earrings, Studs`. These are matched against the **Category** field on the Item Master. Category is free text on the Item, so it has to be spelled the same way (capitals don't matter, surrounding spaces don't matter). Nothing warns you about a typo — it simply won't match, and those items fall back to the default layout.
-4. **Label Width (mm)** / **Label Height (mm)** — the physical size of the label stock you load for this category. The canvas resizes to match.
-5. Leave **Status** on **Active**. A template saved as **Inactive** is ignored on every print run, which is the safe way to retire a layout without deleting it.
-6. Click the field buttons to drop content onto the label — **SKU**, **Name**, **Barcode**, **HSN**, **Category**, **Batch/Lot**, **Expiry**, **Mfg Date**, **Qty**, **Source Doc #**, or **+ Static Text** for your own fixed wording (a "Handmade in India" line, say).
-7. Arrange it: **drag** a field to move it, drag the small square at its **bottom-right corner** to resize it. **Click** a field to select it, and the panel on the right lets you set **Text** (static fields only), **Font Size (mm)**, **Align**, **Bold**, or the exact **Position / Size (mm)** if you'd rather type numbers than drag. **Delete Element** removes the selected field.
-8. Click **Save Template**. It appears in the Templates list and takes effect on the next print run.
+**The Templates tab** shows every template as a card with a live preview of the label, its size, DPI, how many elements it has and the categories it covers. **Edit** (or clicking the preview) opens it in the studio; **Duplicate** opens a copy to start a variant from. With more than six templates a **Filter templates…** box appears.
 
-What you see on the canvas is what prints — the preview and the real label are drawn by the same code, so there is nothing to keep in sync.
+#### Start a template
 
-> **The default template.** Tick **Default (unmapped categories)** on one template to make it the catch-all for every item whose category matches no other template. Leave it unticked everywhere and unmatched items use the plain built-in label instead. Only one template needs this.
+1. **Sticker Printing → Templates → New template**. The studio opens full-screen.
+2. **Start a new label** asks for the size of the roll you print on. Pick one of the standard sizes — **Jewellery tags** (tail tags 92 × 12, 95 × 12, 100 × 15, small tag 70 × 10), **Retail** (38 × 25, 50 × 25, 50 × 38, 75 × 50), **Multi-up rolls** (2-up 38 × 25, 3-up 32 × 25), **Shipping** (100 × 50, 4 × 6 in) — or **Use the built-in retail layout (50 × 25)** to start from the default label, or **Blank 50 × 25**. Any size can be changed later.
+3. Type a name in **Name this template** at the top left (for example `Bridal silver tag`). It is the only thing you must fill in to save.
 
-To change a template later, click it in the Templates list, edit, and save again.
+#### Put things on the label
+
+The **Insert** rail on the left adds elements to the middle of the label:
+
+| Button | What it adds |
+|---|---|
+| **Text** | Your own wording. Type plain text, or mix in item data with `{field}` tokens — `W: {weight} gm`, `MRP ₹{mrp}`, `{metal_type} {purity_karat}`. **Insert field…** under the text box drops a token in for you. |
+| **Data** | Opens the **Data fields** drawer: every field on the label (**Item name**, **SKU**, **Barcode value**, **HSN code**, **Category**, **Batch / Lot**, **Expiry date**, **Mfg date**, **Qty**, **Source document no.**) and **every field on the Item record** — weight, purity, size, MRP, sale price, and any field your business added, including ones added later. Search it, then click a field to add it, or drag it onto the exact spot on the label. Each row shows the value it would print. |
+| **Barcode** | A barcode of the item's barcode value (or any other field, or custom text). **Code 128** takes any text; **EAN-13** is the 13-digit retail code (a value that isn't a valid EAN-13 prints as Code 128 instead, and the studio says so). |
+| **QR** | A QR code of any field or custom text — for example a product link `https://yourshop.in/p/{sku}`. |
+| **Line**, **Box** | Dividers and borders. A box can be **solid filled**. |
+| **Logo** | Upload a small PNG/JPG/SVG (up to 400 KB). Thermal printers print black or nothing, so tune **Ink threshold** with **Printer view** on. |
+
+**If an item has no value for a field, that element is left off the label entirely** — an item with no weight never shows a stray "W: gm". A text that combines several fields still prints whichever of them are present.
+
+#### Arrange it
+
+- **Drag** an element to move it; drag one of its eight **handles** to resize it (the size shows under it as you go). Pink **guide lines** appear when an edge or centre lines up with the label or another element, and it snaps there; with no guide in reach it snaps to a 0.5 mm grid. Hold **Alt** while dragging to place freely, **Shift** to move in one direction only.
+- **Select several**: Shift/Ctrl-click, or drag a box around them on an empty part of the canvas. The **align and distribute** buttons then appear in the bottom dock.
+- **The quick bar** above the label acts on the selection: **Rotate 90°**, **Duplicate**, **Bring to front**, **Send to back**, **Lock**, **Delete**.
+- **Keyboard**: arrow keys nudge 0.1 mm (Shift + arrow: 1 mm), **R** rotates, **Ctrl+D** duplicates, **Ctrl+C / Ctrl+V** copy and paste, **Del** deletes, **Ctrl+Z / Ctrl+Shift+Z** undo and redo, **Ctrl+S** saves, **Esc** deselects (pressed again, it leaves the studio). The **Keys** button at the bottom of the rail lists them all.
+- **The bottom dock**: zoom out / in, the zoom percentage (click it to fit the label to the screen again), **1:1** (actual size), **Grid**, **Snap**, and **Printer view**, which shows the label exactly as the printer will burn it, dot by dot, at the template's DPI.
+- **Rulers** along the top and left are in millimetres and highlight the selection; the line at the bottom shows the cursor position in mm.
+
+#### Fine-tune in the inspector (right-hand panel)
+
+**Element tab** — for the selected element:
+
+- **Content**: what it **Prints** (a field, or **Custom text / combine fields…**), and for a field, text to put **Before** and **After** it (`W:` … ` gm`), **Decimals** (or *As stored*), **1,23,456 grouping** for amounts.
+- **Type**: **Font** (or the template default), **Size** in mm (with the point size beside it), **B** bold, **I** italic, **AA** uppercase, left / centre / right, top / middle / bottom, and what to do with **Long values** — **Shrink to fit** (best for item names), **Wrap** onto more lines, or **Cut off**.
+- **Barcode / QR**: symbology, **Print the value under the bars**, **Keep a quiet zone** (leave it on unless space is very tight), QR **error correction** L / M / Q / H, and a **scan check** — green "Scannable" with the bar width in printer dots, or an amber warning when bars would be under 2 dots wide (make it wider or shorten the value).
+- **Placement**: exact **X / Y / W / H** in mm, **Rotate** 0° / 90° / 180° / 270° (rotating sideways keeps the element on the label), **White on black**, and one-click **Centre ↔**, **Centre ↕**, **Full width**.
+- The element's name at the top can be renamed; the lock and eye icons lock its position or hide it (hidden elements don't print).
+
+**Label tab** — the template itself:
+
+- **Size**: a **Standard size** list (changing it scales the existing layout to the new size), or exact **Width / Height**, and **Printer DPI** (203 / 300 / 600 — match your printer; it drives the scan checks and Printer view).
+- **Roll**: labels **Across** the roll (1 for a single-label roll, 2 or 3 for multi-up), the **Gap ↔** between labels across and **Gap ↕** between rows, and **Roll width** when the liner is wider than the labels. On a multi-up roll the other labels in the row show faded beside the one you're designing.
+- **Printer tuning**: **Shift → / Shift ↓** to correct a print that lands off-centre, **Darkness** (0–15) and **Speed**, and **Rotate the print 180°** if labels come out upside down. Blank darkness and speed keep the printer's own settings.
+- **Text**: the template's default **Font** (Arial, Arial Narrow, Segoe UI, Verdana, Tahoma, Trebuchet MS, Georgia, Times New Roman, Courier New, Consolas).
+- **Office printer / PDF**: how labels lay out when they go through the browser print dialog — **Roll - a page per row** (a thermal printer driven by its Windows driver) or **A4 sticker sheet** with margins and gaps; the studio tells you how many labels fit per page.
+- **Which items use it**: **Item categories** (comma-separated, matched against the Item's **Category** — spelling must match, capitals and spaces don't matter; a typo simply won't match and those items get the default layout), **Default for categories with no template of their own**, **Status** (an **Inactive** template is ignored — the safe way to retire a layout), and the **Template code** (made from the name when you first save; fixed after that).
+
+**Layers tab** — every element, front-most first, with forward / backward, lock and hide on each row. Click a row to select it.
+
+#### Check it with a real item, test, save
+
+- **Preview with** (top bar): search an item and the label redraws with that item's real data — the quickest way to catch a name that's too long or a missing weight. The **×** goes back to sample data.
+- The status line at the bottom right says **✓ Ready to print**, or warns about anything that runs off the label or won't scan.
+- **Test print** prints one label (one row on a multi-up roll) of the current design on the printer you choose — nothing is written to the print history. Use it to set **Shift**, **Darkness** and **Rotate 180°** before the real run.
+- **Save** (or **Ctrl+S**). An orange dot beside the name means there are unsaved changes; leaving the studio with unsaved changes asks first.
+
+What you see in the studio is what prints — the canvas, Printer view, the print dialog and the thermal printer all use the same drawing code.
+
+> **The default template.** Tick **Default for categories with no template of their own** on one template to make it the catch-all. Leave it unticked everywhere and unmatched items use the plain built-in label instead. Only one template should have it.
 
 ### 7A.3 Print labels without a document (manual / re-print)
 
@@ -521,7 +611,7 @@ Category templates apply here exactly as they do to a document print — the lay
 
 ### 7A.4 What was printed, and by whom
 
-The table at the bottom of the **Print** tab is the print history: SKU, barcode, printer, who printed it, how many copies, the reprint reason, and when. Every print run — document-driven or manual — lands here, so a queried re-print can always be traced back to a person and a time. A run started from a GRN or Transfer Order additionally records which document and which template it used.
+The table at the bottom of the **Print** tab is the print history: SKU, barcode, printer, who printed it, how many copies, the **Source** document, the **Lot**, the reprint reason, and when. Every print run — document-driven or manual — lands here, so a queried re-print can always be traced back to a person and a time. A run started from a GRN or Transfer Order also records which document it came from and which template it used. If that line carried a batch/lot, the run records the lot too. So when one SKU arrived on two lots in the same GRN and each lot's stickers were printed separately, the history shows two rows, one per lot (for example `LOT-JUL` ×3 and `LOT-AUG` ×5). A manual SKU scan has no lot, so that column stays blank for it, as it does for runs printed before this column existed.
 
 ## 8. Managing Master Data (Vendors, Locations, Brands, and Similar Lists)
 
@@ -767,7 +857,15 @@ So one design with three colours and two sizes is **one** Product Family record 
 - **The normal on-screen Code field is read-only.** It is generated on save. When an Item is imported or created through an API with an explicit Code, that supplied value is retained rather than rebuilt.
 - **Only on create.** Editing an existing Item never rewrites its code — a SKU that is already printed on labels and sitting in stock records does not change under you.
 - **The code is stable.** The same design and the same attributes always produce the same SKU, no matter when or on which machine it is saved.
-- **Bulk import works the same way.** Uploading Items by spreadsheet generates Design-based SKUs exactly as the on-screen form does: fill in the **family** column with the Design, and let the system build the code. You can leave the **code** column out of the file altogether. (This was *not* true before — a bulk-imported variation used to get a plain sequence number instead of a real SKU, so if you imported items previously, check whether their codes look like SKUs or like `Item/HQ/2026/000123`.)
+- **Bulk import works the same way.** Uploading Items by spreadsheet generates Design-based SKUs exactly as the on-screen form does: fill in the **family** column with the Design, and let the system build the code. (This was *not* true before — a bulk-imported variation used to get a plain sequence number instead of a real SKU, so if you imported items previously, check whether their codes look like SKUs or like `Item/HQ/2026/000123`.)
+
+#### 8d.5 Importing many Combinations at once
+
+1. Go to **Setup → Item** and click **Bulk Import**.
+2. Click **Download Template (SKU from Design)**. This template has no **id** or **code** column, and **family** is the first column. (The plain **Download Template CSV** button still gives the full template, with **code**, for when you already have your own SKUs.)
+3. Fill in one row per Combination: the Design ID in **family**, plus the required **name**, **barcode**, **hsn_code** and **gst_rate**. Add the attributes that make this version different. If your Items carry the jewellery boxes from 8d.1 (Metal Type, Size and so on), their columns are in the template. Otherwise, put them in **variant_option_values** as `Key:Value;Key:Value`, for example `size:S`. Leave every other column blank if you don't need it.
+4. Click **Preview (no changes written)** to check the file, then **Process Import**.
+5. The result lists the SKUs it created. For example, Design `LIVE51RING` with `size:S` and `size:M` produced `LIVE51RING-S` and `LIVE51RING-M`. The same Design with the same attributes always gives the same SKU, so uploading a row for a SKU that already exists **updates** that Item (the result counts it as updated, not created) instead of creating a duplicate. Check a re-used file before uploading it again, because its values overwrite what is on the Item now.
 
 ### 8e. Fields that check what you typed (GSTIN, email, phone, PAN, IFSC, PIN code)
 
@@ -1087,7 +1185,7 @@ That's the whole loop: buy → receive → sell → and the accounting follows b
 | **GRN** | Proof that ordered stock actually arrived — "Goods Receipt Note." |
 | **GL / Ledger** | The accounting record of every rupee moving in or out of the business. |
 | **SKU / Barcode** | The unique code identifying one specific product. |
-| **Sticker Template** | A label layout you design once for a product category, so those items' tags print with the right size and content (§7A.2). |
+| **Sticker Template** | A label layout you design once in the Sticker Studio for a product category, so those items' tags print with the right size and content (§7A.2). |
 | **MFA** | A second security check (a code from your phone) in addition to your password. |
 | **Approval / Maker-checker** | A rule that important actions need a second person to say yes, so no one person can make a big mistake (or fraud) alone. |
 | **Tenant** | Your business's own private copy of the system — other businesses using the same system can never see your data. |

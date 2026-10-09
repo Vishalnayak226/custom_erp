@@ -476,6 +476,8 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/print/qz/sign":                                    {LevelAuthenticated, "stickers.default"},
 	"POST /api/v1/procurement/convert-requisition":                  {LevelAuthenticated, "procurement.default"},
 	"POST /api/v1/procurement/purchase-order/preview":               {LevelAuthenticated, "procurement.default"},
+	"GET /api/v1/procurement/purchase-returns/context":              {LevelAuthenticated, "procurement.default"},
+	"POST /api/v1/procurement/purchase-returns/{id}/post":           {LevelAuthenticated, "procurement.default"},
 	"POST /api/v1/procurement/purchase-order/{id}/send":             {LevelAuthenticated, "procurement.default"},
 	"POST /api/v1/procurement/vendor-invoice/match":                 {LevelAuthenticated, "procurement.default"},
 	"POST /api/v1/procurement/vendor-invoice/pay":                   {LevelAuthenticated, "procurement.default"},
