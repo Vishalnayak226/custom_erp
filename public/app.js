@@ -1336,6 +1336,15 @@ const TYPEAHEAD_DOCTYPE_OPTS = {
   // (30.5.8) - without it, the conversion would have been a net loss for a
   // user who does not know the employee codes.
   Employee: { showAllOnFocus: true },
+  // 2026-10-09: a Bin record has no code or name - its human identifier is
+  // bin_code and its id is a generated UUID. With the defaults the picker
+  // listed and stored that UUID, so Putaway, Bin Conditions and LPN all sent
+  // a "bin" no engine could find ("bin ... not found"). bin_code is what the
+  // engines look a bin up by.
+  Bin: {
+    valueFields: ['bin_code'],
+    labelFn: doc => doc.bin_code || doc.id || '',
+  },
 };
 
 function attachLinkTypeahead(inputEl, doctype, opts = {}) {
@@ -1344,7 +1353,7 @@ function attachLinkTypeahead(inputEl, doctype, opts = {}) {
   // Stage 57.1: name shown, code stored. Installed before the typeahead's own
   // listeners; skipped where the caller owns the split (onPick) or the value
   // (valueFields).
-  if (typeof opts.onPick !== 'function' && !opts.valueFields && !opts.keepCode) {
+  if (typeof opts.onPick !== 'function' && !opts.valueFields && !opts.keepCode && !(TYPEAHEAD_DOCTYPE_OPTS[doctype] || {}).valueFields) {
     installNameDisplay(inputEl, doctype);
   }
   attachTypeahead(inputEl, doctype, { ...(TYPEAHEAD_DOCTYPE_OPTS[doctype] || {}), ...opts });
