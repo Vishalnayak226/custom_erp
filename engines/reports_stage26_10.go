@@ -13,12 +13,12 @@ import (
 // StockLedgerEntry actually being wired (see engines/inventory.go's
 // WriteStockLedgerEntry/PostInventoryLedgerWithVoucher, and the call sites
 // in wms.go/wms_putaway_ext.go/wms_receiving.go/transfer_orders.go/
-// pos_checkout.go). All params are optional filters; RunningBalance is only
-// meaningful (and only populated) when both Sku and LocationCode narrow the
-// result to a single item/warehouse card - it's a cumulative sum of Qty
-// across the filtered rows in ascending date order, not the item's true
-// all-time balance, unless Start is left empty so the sum starts from the
-// very first entry ever written.
+// pos_checkout.go). All params are optional filters. RunningBalance is the
+// item's balance at that location after the movement - summed over the whole
+// item/location card from its first entry, before the voucher-type and date
+// filters are applied, so a filtered view still shows true balances.
+// (2026-10-10: it used to be summed only when both Sku and LocationCode were
+// given, so the unfiltered report showed every balance as 0.)
 //
 // 26.10.5: exception queues (stale approvals, failed syncs, negative-stock
 // flags) as three catalog reports, reusing Stage 17.10's GetSLABreaches
@@ -152,10 +152,8 @@ func init() {
 }
 
 // GetStockLedgerReport returns StockLedgerEntry rows matching the given
-// optional filters, oldest first, with a cumulative RunningBalance computed
-// across exactly the rows returned (see this file's package doc comment for
-// why that's only a true all-time balance when both sku/locationCode are set
-// and start is empty).
+// optional filters, oldest first, each with the item's balance at that
+// location after the movement (see this file's package doc comment).
 type stockLedgerRow struct {
 	CreatedAt      time.Time `json:"created_at"`
 	ItemID         string    `json:"item_id"`
@@ -177,41 +175,45 @@ func GetStockLedgerReport(tenantID, sku, locationCode, voucherType, start, end s
 		return nil, err
 	}
 
+	// sku/location select whole cards, so they filter inside; voucher type
+	// and dates filter outside, after each card's balance is summed.
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT created_at,
-		       COALESCE(data->>'item_id', ''), COALESCE(data->>'warehouse_id', ''),
-		       COALESCE((data->>'qty')::numeric, 0),
-		       COALESCE(data->>'voucher_type', ''), COALESCE(data->>'voucher_id', ''),
-		       COALESCE(data->>'from_location_id', ''), COALESCE(data->>'to_location_id', ''),
-		       COALESCE(data->>'from_status', ''), COALESCE(data->>'to_status', ''),
-		       COALESCE(data->>'user_id', '')
-		FROM %s.documents
-		WHERE doctype = 'StockLedgerEntry'
-		  AND ($1 = '' OR data->>'item_id' = $1)
-		  AND ($2 = '' OR data->>'warehouse_id' = $2)
-		  AND ($3 = '' OR data->>'voucher_type' = $3)
+		WITH card AS (
+			SELECT id, created_at,
+			       COALESCE(data->>'item_id', '') AS item_id, COALESCE(data->>'warehouse_id', '') AS warehouse_id,
+			       COALESCE((data->>'qty')::numeric, 0) AS qty,
+			       SUM(COALESCE((data->>'qty')::numeric, 0)) OVER (
+			           PARTITION BY data->>'item_id', data->>'warehouse_id'
+			           ORDER BY created_at, id ROWS UNBOUNDED PRECEDING) AS running_balance,
+			       COALESCE(data->>'voucher_type', '') AS voucher_type, COALESCE(data->>'voucher_id', '') AS voucher_id,
+			       COALESCE(data->>'from_location_id', '') AS from_location_id, COALESCE(data->>'to_location_id', '') AS to_location_id,
+			       COALESCE(data->>'from_status', '') AS from_status, COALESCE(data->>'to_status', '') AS to_status,
+			       COALESCE(data->>'user_id', '') AS user_id
+			FROM %s.documents
+			WHERE doctype = 'StockLedgerEntry'
+			  AND ($1 = '' OR data->>'item_id' = $1)
+			  AND ($2 = '' OR data->>'warehouse_id' = $2)
+		)
+		SELECT created_at, item_id, warehouse_id, qty, running_balance, voucher_type, voucher_id,
+		       from_location_id, to_location_id, from_status, to_status, user_id
+		FROM card
+		WHERE ($3 = '' OR voucher_type = $3)
 		  AND ($4 = '' OR created_at >= $4::date)
 		  AND ($5 = '' OR created_at < ($5::date + interval '1 day'))
-		ORDER BY created_at ASC`, schema),
+		ORDER BY created_at ASC, id ASC`, schema),
 		sku, locationCode, voucherType, start, end)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	trackBalance := sku != "" && locationCode != ""
-	var runningBalance float64
 	out := []map[string]interface{}{}
 	for rows.Next() {
 		var r stockLedgerRow
-		if err := rows.Scan(&r.CreatedAt, &r.ItemID, &r.WarehouseID, &r.Qty,
+		if err := rows.Scan(&r.CreatedAt, &r.ItemID, &r.WarehouseID, &r.Qty, &r.RunningBalance,
 			&r.VoucherType, &r.VoucherID, &r.FromLocationID, &r.ToLocationID,
 			&r.FromStatus, &r.ToStatus, &r.UserID); err != nil {
 			continue
-		}
-		if trackBalance {
-			runningBalance += r.Qty
-			r.RunningBalance = runningBalance
 		}
 		out = append(out, map[string]interface{}{
 			"created_at": r.CreatedAt, "item_id": r.ItemID, "warehouse_id": r.WarehouseID,

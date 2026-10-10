@@ -60,6 +60,50 @@ func TestReportsStage26_10(t *testing.T) {
 		}
 	})
 
+	// 2026-10-10: the balance used to be summed only when both sku and
+	// location were given - any other run showed 0 on every row. It is now
+	// per item/location card, and a voucher-type filter keeps true balances.
+	t.Run("StockLedgerBalancePerCardWithoutFilters", func(t *testing.T) {
+		sku := "SKU-RPT2610-CARDS"
+		locA, locB := "WH-RPT2610-CA", "WH-RPT2610-CB"
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".inventory_availability WHERE sku = $1", sku)
+		_, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'StockLedgerEntry' AND data->>'item_id' = $1", sku)
+
+		post := func(location string, qty float64, voucherType, voucherID string) {
+			t.Helper()
+			items := []interface{}{map[string]interface{}{"sku": sku, "qty": qty}}
+			if _, err := PostInventoryLedgerWithVoucher(tenantID, location, items, false, voucherType, voucherID, "tester"); err != nil {
+				t.Fatalf("PostInventoryLedgerWithVoucher %s failed: %v", voucherID, err)
+			}
+		}
+		post(locA, 20, "GRN", "GRN-RPT2610-CA")
+		post(locB, 7, "GRN", "GRN-RPT2610-CB")
+		post(locA, -5, "POSInvoice", "POS-RPT2610-CA")
+
+		rows, err := GetStockLedgerReport(tenantID, sku, "", "", "", "")
+		if err != nil {
+			t.Fatalf("GetStockLedgerReport failed: %v", err)
+		}
+		want := map[string]float64{"GRN-RPT2610-CA": 20, "GRN-RPT2610-CB": 7, "POS-RPT2610-CA": 15}
+		if len(rows) != len(want) {
+			t.Fatalf("expected %d ledger rows, got %d", len(want), len(rows))
+		}
+		for _, r := range rows {
+			id, _ := r["voucher_id"].(string)
+			if r["running_balance"] != want[id] {
+				t.Errorf("%s: expected running_balance=%v, got %v", id, want[id], r["running_balance"])
+			}
+		}
+
+		sales, err := GetStockLedgerReport(tenantID, sku, "", "POSInvoice", "", "")
+		if err != nil {
+			t.Fatalf("GetStockLedgerReport (voucher filter) failed: %v", err)
+		}
+		if len(sales) != 1 || sales[0]["running_balance"] != 15.0 {
+			t.Errorf("expected the filtered sale row to keep its true balance 15, got %v", sales)
+		}
+	})
+
 	t.Run("StockLedgerConditionChangeAndPutaway", func(t *testing.T) {
 		sku := "SKU-RPT2610-COND"
 		binGood := "BIN-RPT2610-GOOD"

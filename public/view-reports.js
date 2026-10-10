@@ -878,6 +878,20 @@ async function runReportCatalogReport() {
   renderReportCatalogResultTable(resultsEl, result, params);
 }
 
+// 2026-10-10: report timestamps (Stock Ledger's Date, created/submitted
+// columns) showed as raw "2026-10-07T08:08:13.022073Z". A value that is a full
+// timestamp reads as a local date and time; plain dates and everything else
+// are shown as they are. The CSV export is unchanged.
+const REPORT_TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+function reportCellText(val) {
+  if (val === null || val === undefined) return '';
+  if (typeof val === 'string' && REPORT_TIMESTAMP_RE.test(val)) {
+    const d = new Date(val);
+    if (!isNaN(d)) return d.toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  }
+  return val;
+}
+
 function renderReportCatalogResultTable(container, result, params) {
   reportCatalogLastResult = result;
   reportCatalogLastParams = params;
@@ -903,8 +917,7 @@ function renderReportCatalogResultTable(container, result, params) {
   rows.forEach((row, idx) => {
     html += `<tr>`;
     columns.forEach(c => {
-      const val = row[c.key];
-      html += `<td>${escapeHTMLText(val === null || val === undefined ? '' : val)}</td>`;
+      html += `<td>${escapeHTMLText(reportCellText(row[c.key]))}</td>`;
     });
     if (result.has_drill_down) {
       const rowKeyVal = drillKey ? String(row[drillKey]) : '';
