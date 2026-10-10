@@ -1235,13 +1235,21 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
   }
 
   inputEl.setAttribute('autocomplete', 'off');
+  // 2026-10-10: a screen that switches the record type a box searches (Sticker
+  // Printing's Module: GRN / Transfer Order) attaches again. That stacked a
+  // second picker on the box - the first kept searching the old type, and its
+  // menu sat over the new one. Re-attaching now replaces the earlier picker.
+  inputEl._typeaheadListeners?.abort();
+  const listeners = new AbortController();
+  inputEl._typeaheadListeners = listeners;
+  listeners.signal.addEventListener('abort', () => { clearTimeout(debounceTimer); closeMenu(); });
   inputEl.addEventListener('input', () => {
     clearTimeout(debounceTimer);
     // What the user typed - on a name-display field .value is the committed
     // code, which is not what they are searching for.
     const q = typedTextOf(inputEl).trim();
     debounceTimer = setTimeout(() => search(q), 250);
-  });
+  }, { signal: listeners.signal });
   if (showAllOnFocus) {
     inputEl.addEventListener('focus', () => {
       // Only the empty case browses. Focusing a field that already holds a
@@ -1251,7 +1259,7 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
       if (inputEl.value.trim()) return;
       clearTimeout(debounceTimer);
       search('', { browse: true });
-    });
+    }, { signal: listeners.signal });
   }
   inputEl.addEventListener('keydown', (e) => {
     if (!menu || items.length === 0) return;
@@ -1270,7 +1278,7 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
       }
     }
     else if (e.key === 'Escape') { closeMenu(); }
-  });
+  }, { signal: listeners.signal });
 }
 
 // Grouping support for attachTypeahead's `groupBy` (Stage 30.5.8).
