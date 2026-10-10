@@ -130,7 +130,8 @@ for checking the current source and worktree.
   - Commits on `main` since prod (`f6e3961`): `bf21ee5` `407be5a` `691f5b7` `69ded6b`
     `f891ace` `46b751a` `680d1f0` `6261c5b` `61c6f2b` `fbdca9d` `f7c8789` `a5fefdf`
     `971a275` (Service Ticket buttons) `040455a` (Stock Ledger balances, report dates)
-    `dc4e365` (picker re-attach), plus this docs commit. Each was staged as HEAD + only its own
+    `dc4e365` (picker re-attach), `37b105b` (module-owned workers used tenant_default's module
+    switches for every tenant - affects prod `tenant_minn`), plus the docs commits. Each was staged as HEAD + only its own
     edits (`hash-object` + `update-index`), so the working tree still holds other sessions'
     uncommitted hunks in `app.js`, `view-pim.js`, `view-documents.js`, `view-reports.js`,
     USER_GUIDE, micro_checklist, ledger and this file - do not stage those files whole.
