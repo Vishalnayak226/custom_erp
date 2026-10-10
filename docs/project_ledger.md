@@ -44,6 +44,15 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 213. SOP video: a draft chapter for every module, and the defects recording them found (2026-10-08 → 10; docs + code)
+
+The user approved recording the SOP chapters for all modules (57.12). Detail in `micro_checklist.md` 57.12, 57.25, 57.26.
+
+- **Chapters.** 25 chapters / 64 replaceable segments in `docs/sop-video/project.json`, each recorded on the disposable training database and frame-reviewed; narration for every segment in `scripts.md`; `coverage.md` records what each domain has and lacks. Draft, not published: the clean pass on a fresh database, `media/`, assembly and owner review remain, and `campaign_roi` waits on the hourly campaign run.
+- **Defects found and fixed (57.25).** Names shown as codes on six screens; four dead ends (no journal-voucher screen, typed-code asset prompts, procurement-owned row buttons inert until Procurement was opened, Service Ticket lifecycle with no buttons); Stock Ledger balances always 0 unless fully filtered; raw ISO timestamps in catalog reports; pickers stacking on re-attach. Commits `bf21ee5` … `dc4e365`, each re-recorded clean.
+- **Guides.** USER_GUIDE gains §9B.1 (journal vouchers), §9C (service contracts and tickets) and §9D (CRM campaigns), and the asset Transfer/Dispose panel and Stock Ledger balance notes.
+- **Open (57.26).** Nine observations needing a decision, led by the generic Edit form being able to set a lifecycle Status directly.
+
 ## 201. Five-item pass: Item family template, lot-level sticker log, Purchase Return, asset records, release (2026-10-08; code + docs, in progress)
 
 The user set five items to be done in order, each verified before the next. Detail in

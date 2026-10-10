@@ -125,6 +125,27 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-10 SOP chapters for every module (ledger §213; checklist 57.12, 57.25, 57.26) -
+  committed locally, NOT pushed, NOT deployed.**
+  - Commits on `main` since prod (`f6e3961`): `bf21ee5` `407be5a` `691f5b7` `69ded6b`
+    `f891ace` `46b751a` `680d1f0` `6261c5b` `61c6f2b` `fbdca9d` `f7c8789` `a5fefdf`
+    `971a275` (Service Ticket buttons) `040455a` (Stock Ledger balances, report dates)
+    `dc4e365` (picker re-attach), plus this docs commit. Each was staged as HEAD + only its own
+    edits (`hash-object` + `update-index`), so the working tree still holds other sessions'
+    uncommitted hunks in `app.js`, `view-pim.js`, `view-documents.js`, `view-reports.js`,
+    USER_GUIDE, micro_checklist, ledger and this file - do not stage those files whole.
+  - SOP tooling is the user's untracked `docs/sop-video/`: 25 chapters / 64 segments in
+    `project.json`, scenes in `tools/scenes-modules.cjs`, narration `scripts.md`,
+    `coverage.md`. Clips are in the session scratchpad (`…/8c09269f…/scratchpad/sop/out`),
+    not yet in `media/`.
+  - Training server: `:8111` from the `%TEMP%\erp_verify_head` worktree (content = `dc4e365`),
+    DB `erp_sop_training_20261006` on Postgres 5490. Recording logins expire daily - refresh with
+    the scratchpad `refresh-tokens.ps1` (`cmd/minttoken`).
+  - **Next:** record `campaign_roi` after the hourly campaign run; clean pass on a fresh DB;
+    copy clips to `media/`, mark ready, `validate.cjs`, `assemble.cjs all-ready`. At the next
+    deploy: asset version (another session has 35 → 36 uncommitted), `attack_surface.json`
+    regen, brain redraw.
+
 - **2026-10-08 five-item pass (ledger §201; checklist 51.10, 52.9, 57.15, 57.8, 58.8) - in progress,
   NOT committed, NOT deployed.** Nothing is committed until the release step (58.8) has the user's
   file-list OK. Done so far: **51.10** Item family import template, in `engines/import.go` (header

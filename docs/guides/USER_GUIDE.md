@@ -81,6 +81,11 @@ Jump straight to the thing you're trying to do.
 | Process an order through to shipment and invoice | §9A.3 and §9A.4 |
 | Understand why a field says my GSTIN, email or phone number is wrong | §8e |
 | Approve or reject something | §10 |
+| Post an accrual, correction or opening balance (journal voucher) | §9B.1 |
+| **Log a customer's service call and work it to closure** | §9C |
+| Record a customer's maintenance contract (AMC) | §9C |
+| **Set up a birthday or lapsed-customer campaign, and see its return** | §9D |
+| Move or dispose of a fixed asset | §6.7 step 5 |
 | Change my own password or auto-logout | §11 |
 | Find out which version I am on, to report a problem | §11.1 |
 | **Understand an error message or code** | §12 and **[ERROR_CODES.md](ERROR_CODES.md)** |
@@ -475,6 +480,8 @@ Laptops, furniture, machines and other things the business **uses** rather than 
 3. **What the receipt does.** The accepted units do **not** go into stock. Instead, each unit becomes its own asset in **HRM → Fixed Assets**, with status **Draft** and a number such as `AST/FAC-ROOT-TEST/26-27/000001`. The Asset # column shows what it was bought as and the GRN it came from, for example "LIVE578-LAPTOP from GRN GRN/HO/26-27/000025". The cost is the PO price before GST, and the vendor, location and date are filled in. If you typed serial numbers on the receipt, each asset carries one.
 4. **Capitalise it.** Click **Capitalise** on the asset. An asset that came from a receipt has no useful life yet, so you are asked for one, in years (for example `3` for a laptop). This starts depreciation and books the asset to the accounts.
 5. **Look after it.** A capitalised asset shows **Transfer**, to move it to another location or custodian, and **Dispose**, to sell, scrap or write it off. The register shows its accumulated depreciation and net book value as time passes.
+   - **Transfer** opens a small panel above the register. Pick the **New Location** by name, and the **New Custodian** (optional) by name, then **Confirm**.
+   - **Dispose** opens the same panel with **How is it leaving?** — **Sold**, **Scrapped** or **Written off (lost, stolen)**. **Confirm** writes off the remaining book value and closes the asset. This cannot be undone.
 
 An asset you already own, or one bought without a PO, can still be added by hand with the **Create** form at the top of **HRM → Fixed Assets**.
 
@@ -907,6 +914,8 @@ If you save anyway with something malformed, the server refuses it and tells you
 **The Trial Balance asks for an "As Of Date"** and starts on today. It shows every posting up to and including that date, so setting it to a month-end gives you that month’s closing position. Every account is listed either way; a date before you started trading correctly shows all zeros.
 
 
+**Stock Ledger** (Report Catalog → Inventory) lists every stock movement — receipts, transfers, sales, putaways, bin moves — oldest first. **Running Balance** is that item's balance *at that location* after the movement, so it is correct even when you filter by voucher type or date. Report dates show as your local date and time; the CSV export keeps the full timestamp.
+
 ![The report catalog](img/reports.png)
 
 ## 9A. Order Management (OMS) — taking and processing customer orders
@@ -1011,6 +1020,52 @@ The difference between what you booked and what you actually received is recorde
 - **FX Gain/Loss Register** — every exchange gain and loss that has been recorded, and which document caused it.
 
 If your finance team runs a month-end revaluation, open balances get restated then too; that is described in the Admin Guide and is not something you need to do yourself.
+
+### 9B.1 Raising a journal voucher (accruals, corrections, opening balances)
+
+For an entry no other screen makes — a month-end accrual, a correction, an opening balance — use **Financial Accounting → Journal Vouchers**.
+
+1. Click **+ New Journal Voucher**. Enter the **Date** and a **Narration** an auditor will understand. **Cost Center** and **Department** are optional.
+2. Add one row per account with **+ Add line**: pick the **Account** (type its name or code), then a **Debit** or a **Credit**. The totals under the lines must match before you can save.
+3. **Save as Draft**, then **Submit for Approval** on its row. An approver — not you — decides on **Approvals** (§10); approval is what posts it to the accounts.
+4. A posted voucher is never edited. **Reverse** creates a new voucher with every debit and credit swapped, and it goes through approval like any other. If a voucher was approved but its posting failed, its row shows **Retry Post**.
+
+## 9C. Service — maintenance contracts and service tickets
+
+Use this when you service equipment for customers: a customer calls, someone is sent, the fix is recorded.
+
+**A maintenance contract (AMC), if the customer has one.** **Setup → Service Contract → + New Service Contract**. Enter the **Customer**, the **Asset** it covers (optional), the **Start** and **End Date**, and **Visits Included**. Leave **Visits Used** alone — the system counts it. Status **Active**. The contract number is generated on save.
+
+**Log the call.** **Setup → Service Ticket → + New Service Ticket**:
+
+1. **Ticket Number**, the **Customer**, and the **Asset** if it is on the register.
+2. **Description** — what is wrong, in the customer's words — and **Priority** (Low, Medium, High, Critical).
+3. **Respond By** and **Resolve By** — the dates you promised. A ticket past either date appears on the **Service SLA Breaches** report (§9).
+4. **Service Contract**, if the visit is covered by one.
+5. **Status Draft**. Leave the technician, resolution notes and cancellation reason empty — the buttons below fill them in. Save.
+
+**Work it.** Each step is a button on the ticket's row; only the next step is offered:
+
+| Status | Button | What it asks |
+|---|---|---|
+| Draft | **Assign** | The technician's username |
+| Assigned | **Start** (or **Reassign**) | — |
+| In progress | **Resolve** | What was done. A ticket cannot be resolved without it. |
+| Resolved | **Close** | A confirmation. If the ticket has a contract, one visit is used from it. |
+
+Until it is resolved, **Cancel** is also offered, and asks why. A closed or cancelled ticket has no further steps.
+
+## 9D. CRM — birthday and lapsed-customer campaigns
+
+A campaign is set up once and then sends by itself: every hour the system finds the customers it applies to and sends the message once a day per customer. Messages go out through your CleverTap connection; on a test system delivery is switched off, but each send is still logged.
+
+1. **Birthday campaigns need dates of birth.** On **Setup → Customer**, **Edit** the customer and fill **Date of Birth**. Only the day and month are used, so it repeats every year.
+2. **Setup → Campaign → + New Campaign**. Give it a **Campaign Name** and a **Trigger Type**:
+   - **Birthday** — customers whose birthday is today.
+   - **Lapsed Customer** — customers whose last purchase was more than **Lapsed After (days)** ago. Someone who has never bought is not "lapsed".
+3. **Message Template** — the text sent. `{{customer_name}}` is replaced with each customer's name, for example `Happy birthday {{customer_name}}! Enjoy 10% off in store this week.`
+4. **Campaign Cost** (optional) — what it costs you, so the report can show a return. **Status Active** to run it; **Inactive** pauses it.
+5. **See what it brought in:** **Reports → Report Catalog → Campaign ROI** (under CRM). Per campaign: customers reached, what those customers spent at the till since the campaign was created, the cost, and the return. It is a simple measure — every sale to a reached customer counts, whether or not the message caused it.
 
 ## 10. Approvals
 
