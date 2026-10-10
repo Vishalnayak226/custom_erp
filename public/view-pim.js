@@ -1001,7 +1001,7 @@ async function renderPIMWorkbenchTab(container) {
           <tr class="pim-workbench-row" data-item="${escapeHTMLText(e.item_code)}" style="cursor: pointer;">
             <td style="font-family: monospace;">${escapeHTMLText(e.item_code)}</td>
             <td>${escapeHTMLText(e.name || '')}</td>
-            <td>${escapeHTMLText(e.family || '')}</td>
+            <td ${e.family ? `data-link-ref="${escapeHTMLText(e.family)}" data-link-doctype="ProductFamily"` : ''}>${escapeHTMLText(e.family || '')}</td>
             <td><span class="badge badge-secondary">${escapeHTMLText(e.status || '')}</span></td>
             <td><span class="badge ${badgeClass}">${escapeHTMLText(e.score)}%</span></td>
             <td>${escapeHTMLText(e.missing_count)}</td>
@@ -1039,7 +1039,7 @@ async function renderPIMDetailPanel(container, itemCode) {
   panel.style.padding = '24px';
   panel.style.marginTop = '16px';
   panel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">${escapeHTMLText(itemCode)} - Completeness: ${escapeHTMLText(comp.score)}% <span class="badge badge-secondary" style="margin-left: 8px;">${escapeHTMLText(comp.enrichment_status || '')}</span></h2>
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;"><span data-link-ref="${escapeHTMLText(itemCode)}" data-link-doctype="Item">${escapeHTMLText(itemCode)}</span> - Completeness: ${escapeHTMLText(comp.score)}% <span class="badge badge-secondary" style="margin-left: 8px;">${escapeHTMLText(comp.enrichment_status || '')}</span></h2>
     <p style="color: var(--text-muted); margin-bottom: 16px;">
       Missing: ${comp.missing_fields && comp.missing_fields.length > 0 ? escapeHTMLText(comp.missing_fields.join(', ')) : 'Nothing - fully complete.'}
     </p>
