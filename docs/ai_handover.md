@@ -142,7 +142,8 @@ for checking the current source and worktree.
   - Training server: `:8111` from the `%TEMP%\erp_verify_head` worktree (content = `dc4e365`),
     DB `erp_sop_training_20261006` on Postgres 5490. Recording logins expire daily - refresh with
     the scratchpad `refresh-tokens.ps1` (`cmd/minttoken`).
-  - **Next:** record `campaign_roi` after the hourly campaign run; clean pass on a fresh DB;
+  - All 64 segments recorded (`campaign_roi` last, after the 06:55 UTC campaign run).
+  - **Next:** clean pass on a fresh DB;
     copy clips to `media/`, mark ready, `validate.cjs`, `assemble.cjs all-ready`. At the next
     deploy: asset version (another session has 35 → 36 uncommitted), `attack_surface.json`
     regen, brain redraw.
