@@ -339,6 +339,11 @@ function renderDocTable() {
         ? `<button class="action-btn" title="Share Link" aria-label="Get share link for catalog ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="share-pim-catalog" data-doc-id="${escapeHTMLText(row.id)}" data-doc-name="${escapeHTMLText(row.name || row.id)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
            </button>`
+        // 2026-10-10: Service Ticket (Stage 37.8) had its lifecycle routes
+        // but no button calling them, so every ticket stopped at Draft. One
+        // row action per status, through the dedicated endpoints.
+        : currentDoctype === 'ServiceTicket' && SERVICE_TICKET_NEXT[row.status]
+        ? serviceTicketActions(row)
         : '';
       tableHTML += `
         <td class="row-actions-cell" style="text-align: right;">
@@ -384,6 +389,7 @@ function renderDocTable() {
         case 'send-subcontract-order': window.sendSubcontractOrder?.(id); break;
         case 'receive-subcontract-order': window.receiveSubcontractOrder?.(id, button.dataset.expectedQty); break;
         case 'merge-customer': window.mergeCustomerRow?.(id); break;
+        case 'service-ticket': runServiceTicketStep(id, button.dataset.step, button); break;
         case 'submit-document': window.submitDocForApproval?.(button.dataset.doctype, id); break;
         case 'run-pim-export': window.runPIMExportTemplateRow?.(id); break;
         case 'share-pim-catalog': window.openPIMCatalogShareModal?.(id, button.dataset.docName); break;
@@ -506,6 +512,57 @@ window.submitRequisitionForApproval = async function(documentId) {
   }
   renderView('doctype-table');
 };
+
+// Service Ticket lifecycle: Draft -> Assigned -> InProgress -> Resolved ->
+// Closed, each step through its own endpoint so the checks there run (a
+// resolution note is required; closing uses a visit from the service
+// contract). Cancel is offered until the work is resolved.
+const SERVICE_TICKET_NEXT = {
+  Draft: ['assign', 'Assign'],
+  Assigned: ['start', 'Start'],
+  InProgress: ['resolve', 'Resolve'],
+  Resolved: ['close', 'Close'],
+};
+
+function serviceTicketActions(row) {
+  const [step, label] = SERVICE_TICKET_NEXT[row.status];
+  const button = (s, l) => `<button class="action-btn" title="${l}" aria-label="${l} service ticket ${escapeHTMLText(row.code || row.id)}" style="margin-right:4px;" data-doc-action="service-ticket" data-step="${s}" data-doc-id="${escapeHTMLText(row.id)}">${l}</button>`;
+  return button(step, label) +
+    (row.status === 'Assigned' ? button('assign', 'Reassign') : '') +
+    (row.status !== 'Resolved' ? button('cancel', 'Cancel') : '');
+}
+
+async function runServiceTicketStep(id, step, button) {
+  let body = {};
+  if (step === 'assign') {
+    const who = (await showCustomPrompt('Username of the technician who will do the work:', '', 'Assign Service Ticket') || '').trim();
+    if (!who) return;
+    body = { assigned_to: who };
+  } else if (step === 'resolve') {
+    const notes = (await showCustomPrompt('What was done to fix it?', '', 'Resolve Service Ticket') || '').trim();
+    if (!notes) return;
+    body = { resolution_notes: notes };
+  } else if (step === 'cancel') {
+    const reason = (await showCustomPrompt('Why is this ticket being cancelled?', '', 'Cancel Service Ticket') || '').trim();
+    if (!reason) return;
+    body = { cancellation_reason: reason };
+  } else if (step === 'close') {
+    if (!await showCustomConfirm('Close this ticket? If it is under a service contract, one visit is used.', 'Close Service Ticket')) return;
+  }
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    const res = await apiFetch(`/api/v1/service/ticket/${encodeURIComponent(id)}/${step}`, { method: 'POST', body: JSON.stringify(body) });
+    if (!res) return;
+    if (!res.ok) {
+      await showApiError(res, 'The service ticket could not be updated.');
+      return;
+    }
+    renderView('doctype-table');
+  } finally {
+    button.disabled = false;
+  }
+}
 
 // convertRequisition (Stage 26.3.2) is the frontend for
 // engines.ConvertRequisitionToOrder (Stage 17.7), which already existed and
