@@ -105,6 +105,43 @@ func TestModuleManifestEngineBoundaries(t *testing.T) {
 	}
 }
 
+// 2026-10-10: workers were filtered by tenant_default's switches for every
+// tenant - the schema name was passed where a tenant id belongs, and it
+// resolved to tenant_default. A tenant whose switch differs must follow its own.
+func TestWorkerEligibilityFollowsEachTenantsOwnSwitch(t *testing.T) {
+	db.InitDB(testConnStr())
+	tenantID, schemaName := uniqueLifecycleTenant(t)
+	defer dropLifecycleTenant(tenantID, schemaName)
+	if _, err := ProvisionTenantSchema(tenantID, schemaName, "0.1.0-test"); err != nil {
+		t.Fatalf("ProvisionTenantSchema: %v", err)
+	}
+	const key = "crm_loyalty"
+	var before bool
+	if err := db.DB.QueryRow(`SELECT enabled FROM tenant_default.module_entitlements WHERE module_key=$1`, key).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if _, err := db.DB.Exec(`UPDATE tenant_default.module_entitlements SET enabled=$1 WHERE module_key=$2`, before, key); err != nil {
+			t.Error(err)
+		}
+	})
+	for _, defaultOn := range []bool{true, false} {
+		if _, err := db.DB.Exec(`UPDATE tenant_default.module_entitlements SET enabled=$1 WHERE module_key=$2`, defaultOn, key); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := db.DB.Exec(`UPDATE `+schemaName+`.module_entitlements SET enabled=$1 WHERE module_key=$2`, !defaultOn, key); err != nil {
+			t.Fatal(err)
+		}
+		eligible, err := listTenantSchemas(key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if slices.Contains(eligible, "tenant_default") != defaultOn || slices.Contains(eligible, schemaName) != !defaultOn {
+			t.Errorf("default=%v, %s=%v: eligible %v", defaultOn, schemaName, !defaultOn, eligible)
+		}
+	}
+}
+
 func TestModuleBoundaryReportLifecycle(t *testing.T) {
 	db.InitDB(testConnStr())
 	for _, key := range []string{"hr", "reports"} {

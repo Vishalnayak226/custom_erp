@@ -69,19 +69,25 @@ func StartOutboxWorker(ctx context.Context, interval time.Duration) {
 // listTenantSchemas returns every schema registered in the tenant registry, including
 // tenant_default (seeded there for tenant_id 'default') and any tenant provisioned since.
 func listTenantSchemas(moduleKeys ...string) ([]string, error) {
-	rows, err := db.DB.Query("SELECT DISTINCT schema_name FROM public.tenants")
+	rows, err := db.DB.Query("SELECT schema_name, MIN(tenant_id) FROM public.tenants GROUP BY schema_name ORDER BY schema_name")
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	var schemas []string
+	// 2026-10-10: entitlements are looked up by tenant id. This used to pass
+	// the schema name, which GetTenantSchema does not find and silently
+	// resolves to tenant_default - so every tenant's module-owned workers
+	// followed tenant_default's switches, not their own.
+	tenantOf := map[string]string{}
 	for rows.Next() {
-		var s string
-		if err := rows.Scan(&s); err != nil {
+		var s, tenantID string
+		if err := rows.Scan(&s, &tenantID); err != nil {
 			return nil, err
 		}
 		schemas = append(schemas, s)
+		tenantOf[s] = tenantID
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -95,7 +101,7 @@ func listTenantSchemas(moduleKeys ...string) ([]string, error) {
 	}
 	eligible := []string{}
 	for _, schema := range schemas {
-		if RequireModules(schema, moduleKeys...) == nil {
+		if RequireModules(tenantOf[schema], moduleKeys...) == nil {
 			eligible = append(eligible, schema)
 		}
 	}
