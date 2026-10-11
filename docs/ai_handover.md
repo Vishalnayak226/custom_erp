@@ -130,7 +130,7 @@ for checking the current source and worktree.
   - Commits on `main` since prod (`f6e3961`): `bf21ee5` `407be5a` `691f5b7` `69ded6b`
     `f891ace` `46b751a` `680d1f0` `6261c5b` `61c6f2b` `fbdca9d` `f7c8789` `a5fefdf`
     `971a275` (Service Ticket buttons) `040455a` (Stock Ledger balances, report dates)
-    `dc4e365` (picker re-attach), `37b105b` (module-owned workers used tenant_default's module
+    `dc4e365` (picker re-attach), `7657453` (generic create: recreate-after-delete and cross-type overwrite), `37b105b` (module-owned workers used tenant_default's module
     switches for every tenant - affects prod `tenant_minn`), plus the docs commits. Each was staged as HEAD + only its own
     edits (`hash-object` + `update-index`), so the working tree still holds other sessions'
     uncommitted hunks in `app.js`, `view-pim.js`, `view-documents.js`, `view-reports.js`,
@@ -143,6 +143,8 @@ for checking the current source and worktree.
     DB `erp_sop_training_20261006` on Postgres 5490. Recording logins expire daily - refresh with
     the scratchpad `refresh-tokens.ps1` (`cmd/minttoken`).
   - All 64 segments recorded (`campaign_roi` last, after the 06:55 UTC campaign run).
+  - 2026-10-11: clips in `media/`, all 25 chapters assembled to `output/<chapter>.webm`; player
+    `node docs/sop-video/tools/serve.cjs` → http://127.0.0.1:8122/.
   - **Next:** clean pass on a fresh DB;
     copy clips to `media/`, mark ready, `validate.cjs`, `assemble.cjs all-ready`. At the next
     deploy: asset version (another session has 35 → 36 uncommitted), `attack_surface.json`
