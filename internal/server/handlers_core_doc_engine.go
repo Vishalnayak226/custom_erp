@@ -888,6 +888,14 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// blocks the write when the caller supplied an expected_version that
 		// no longer matches. NULL (no expected_version supplied) always
 		// passes, so this is a no-op for every caller that doesn't opt in.
+		//
+		// 2026-10-10, two guards on the conflict path (found recording the SOP
+		// BOM chapter): the existing row must be the same record type - ids
+		// are unique across ALL doctypes in this table, so a create whose id
+		// was another type's record used to overwrite that record's data; it
+		// is now refused. And a create that reuses the id of a deleted record
+		// brings it back with the new data - it used to report success while
+		// the row stayed deleted and never appeared anywhere.
 		query := fmt.Sprintf(`
 			INSERT INTO %s.documents (id, doctype, data, status, created_by, version)
 			VALUES ($1, $2, $3, $4, $5, 1)
@@ -895,15 +903,21 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				data = EXCLUDED.data,
 				status = EXCLUDED.status,
 				updated_at = CURRENT_TIMESTAMP,
-				version = %s.documents.version + 1
-			WHERE ($6::int IS NULL OR %s.documents.version = $6)`, schema, schema, schema)
-		result, err := db.DB.Exec(query, docID, doctype, payloadBytes, statusVal, userID, expectedVersion)
+				version = %s.documents.version + 1,
+				deleted_at = CASE WHEN $7::bool THEN NULL ELSE %s.documents.deleted_at END
+			WHERE %s.documents.doctype = EXCLUDED.doctype
+			  AND ($6::int IS NULL OR %s.documents.version = $6)`, schema, schema, schema, schema, schema)
+		result, err := db.DB.Exec(query, docID, doctype, payloadBytes, statusVal, userID, expectedVersion, id == "")
 		if err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 && expectedVersion != nil {
-			writeAPIErrorGeneric(w, r, http.StatusConflict, "This document was modified by someone else since you last loaded it - please refresh and try again")
+		if rowsAffected, _ := result.RowsAffected(); rowsAffected == 0 {
+			if expectedVersion != nil {
+				writeAPIErrorGeneric(w, r, http.StatusConflict, "This document was modified by someone else since you last loaded it - please refresh and try again")
+			} else {
+				writeAPIErrorGeneric(w, r, http.StatusConflict, fmt.Sprintf("%q is already used by a different kind of record. Use a different code.", docID))
+			}
 			return
 		}
 
