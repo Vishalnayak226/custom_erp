@@ -2,14 +2,14 @@
 
 <!-- GENERATED FILE - DO NOT EDIT BY HAND.
      Source: `internal/server`'s error catalog (`error_catalog_generated.go`)
-     Regenerate: `go run ./cmd/gendocs` -->
+     Regenerate: `pwsh docs/update-docs.ps1 -Group Content` -->
 
 > **Generated 2026-09-10.** This page is produced from `internal/server`'s error catalog (`error_catalog_generated.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **307** codes. Each row says what the user is shown, what to do about
+There are **313** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -33,6 +33,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 - [Extension Hooks / Customization](#extension-hooks--customization) - 3 codes
 - [Finance & Accounting](#finance--accounting) - 14 codes
 - [Fixed Assets](#fixed-assets) - 4 codes
+- [Global](#global) - 6 codes
 - [Global / Common](#global--common) - 25 codes
 - [Goods Receipt](#goods-receipt) - 2 codes
 - [Goods Receipt / GRN](#goods-receipt--grn) - 8 codes
@@ -203,6 +204,17 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `ASSET-0271` | Depreciation calculation missing | Depreciation cannot be calculated because useful life or capitalization date is missing. | Update asset financial details. | High | 422 |
 | `ASSET-0272` | Asset physical verification overdue | Asset physical verification is overdue. Please complete verification. | Complete verification or mark exception. | Medium | 200 |
 | `ASSET-0273` | A Fixed Asset item was put on a sale, order or invoice | This item is a fixed asset, not stock for sale, so it cannot be sold, ordered or invoiced. | Remove it from the sale. Fixed assets are managed under HRM -> Fixed Assets. | High | 422 |
+
+## Global
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `GLOBAL-0303` | Request method not allowed | This request method is not supported here. | Use GET to read and POST, PUT or DELETE to change data, as the API documentation shows. | Low | 405 |
+| `GLOBAL-0304` | Request content type or encoding not accepted | The request body is in a format this address does not accept. | Send JSON (Content-Type: application/json), or a file upload as multipart/form-data, without compression. | Low | 415 |
+| `GLOBAL-0305` | Request body too large | The request is too large to accept. | Send less data at once - split a large file or list into smaller parts. | Low | 413 |
+| `GLOBAL-0306` | Request headers too large | The request carries too many or too large headers. | Sign out and back in; if this persists, contact support - a browser extension or proxy may be adding headers. | Low | 431 |
+| `GLOBAL-0307` | Malformed, ambiguous or over-nested JSON request | The request data could not be accepted. | Check the request is one valid JSON value, with no field repeated in the same object. | Low | 400 |
+| `GLOBAL-0308` | Request exceeded its time limit | This took longer than the time a single request is allowed, so it was stopped. | Send less at once - split a large import file into smaller files, or narrow a report's filters and use background export. | Medium | 504 |
 
 ## Global / Common
 

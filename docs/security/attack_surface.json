@@ -3037,7 +3037,7 @@
         "components",
         "profiles"
       ],
-      "file_count": 41,
+      "file_count": 42,
       "source": "internal/server/routes.go (http.FileServer wrapped by noDirectoryListing)"
     }
   ],
@@ -3263,11 +3263,11 @@
   ],
   "migrations": {
     "base_schema_file": "db/migration.sql",
-    "incremental_files": 175,
+    "incremental_files": 178,
     "newest": [
-      "migrations_stage57_8_fixed_asset_items.sql",
-      "migrations_stage57_cashier_location_read.sql",
+      "migrations_stage57_credit_note_customer_link.sql",
       "migrations_stage57_offer_group_targeting.sql",
+      "migrations_stage57_offer_scope_value_label.sql",
       "migrations_stage57_qa_round.sql",
       "migrations_stores_master_fields.sql"
     ]
@@ -3288,6 +3288,13 @@
       ]
     },
     {
+      "name": "AUDIT_SIGNING_KEY",
+      "security_critical": true,
+      "read_by": [
+        "engines/security_baseline.go"
+      ]
+    },
+    {
       "name": "AUTH_STATE_CACHE_SECONDS",
       "security_critical": false,
       "read_by": [
@@ -3298,8 +3305,7 @@
       "name": "BACKUP_DIR",
       "security_critical": false,
       "read_by": [
-        "cmd/releasebudget/main.go",
-        "engines/alerting.go"
+        "cmd/releasebudget/main.go"
       ]
     },
     {
@@ -3574,9 +3580,9 @@
     "cli_commands": 14,
     "dependencies": 2,
     "direct_dependencies": 2,
-    "environment_flags": 31,
-    "environment_flags_security_critical": 12,
-    "incremental_migrations": 175,
+    "environment_flags": 32,
+    "environment_flags_security_critical": 13,
+    "incremental_migrations": 178,
     "outbound_call_sites": 9,
     "routes": 501,
     "routes_integration_credential": 4,

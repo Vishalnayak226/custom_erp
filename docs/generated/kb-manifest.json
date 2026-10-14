@@ -82,7 +82,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference.html",
-      "sha256": "9b065cebc98951db534dabed75a441ca0e5a4b154b67dc9c38e6a614997b65fd",
+      "sha256": "fc854bd3e2ae885994396908b2f2e6d8ce4d4f78a9cdc2c5bd6f8c3257bf2001",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -451,7 +451,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "87d5f528f72d861174ce30c4fa67cec645953952d47675d1729abcbbfe48e6a2",
+      "sha256": "754664ecafef2092e7a04da8763c4d8f6d77ce682225da883767cfa97a8f5b5a",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -460,7 +460,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "f5c507b2094bee4580aafffa0d172ff868b95affcfd5fc0cf79f264c9b7f2ec9",
+      "sha256": "858d6398fd1b8181ac6d92abe1eddc343fb6b4321b3e1db6a10124e4026d5a5e",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
