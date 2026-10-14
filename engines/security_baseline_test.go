@@ -72,6 +72,7 @@ func TestFullyConfiguredProductionBaselineIsClean(t *testing.T) {
 	t.Setenv("ENV", "production")
 	t.Setenv("JWT_SECRET", "6f1c0a9d4e7b23815ca6de90f3b47a2158ec6d0b9a4f7231")
 	t.Setenv("CHANNEL_CREDENTIAL_KEY", "0123456789abcdef0123456789abcdef")
+	t.Setenv("AUDIT_SIGNING_KEY", "fedcba9876543210fedcba9876543210")
 	t.Setenv("CORS_ALLOWED_ORIGINS", "https://erp.example.com,https://pos.example.com")
 	t.Setenv("TRUST_PROXY", "1")
 	t.Setenv("TRUSTED_PROXY_CIDRS", "127.0.0.1/32")
@@ -287,7 +288,7 @@ func TestSecurityCriticalEnvVarListIsSortedAndComplete(t *testing.T) {
 		t.Error("securityCriticalEnvVars must stay sorted so additions are readable in a diff")
 	}
 	want := map[string]bool{
-		"CHANNEL_CREDENTIAL_KEY": true, "CORS_ALLOWED_ORIGINS": true, "DATABASE_URL": true,
+		"AUDIT_SIGNING_KEY": true, "CHANNEL_CREDENTIAL_KEY": true, "CORS_ALLOWED_ORIGINS": true, "DATABASE_URL": true,
 		"ENV": true, "ERP_DISABLE_EXTERNAL_SIDE_EFFECTS": true, "ERP_ENABLE_EXTERNAL_SIDE_EFFECTS": true,
 		"HOST": true, "JWT_EXPIRY_HOURS": true, "JWT_SECRET": true, "SHOPIFY_WEBHOOK_SECRET": true,
 		"TRUSTED_PROXY_CIDRS": true, "TRUST_PROXY": true,

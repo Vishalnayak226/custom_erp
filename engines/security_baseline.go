@@ -85,6 +85,7 @@ func IsProductionEnv() bool {
 // the codebase, wired into a security decision, and then quietly never
 // validated.
 var securityCriticalEnvVars = []string{
+	"AUDIT_SIGNING_KEY",
 	"CHANNEL_CREDENTIAL_KEY",
 	"CORS_ALLOWED_ORIGINS",
 	"DATABASE_URL",
@@ -197,6 +198,20 @@ func configurationFindings() []BaselineFinding {
 			Title:  "connector credential encryption key looks like a placeholder",
 			Detail: "CHANNEL_CREDENTIAL_KEY matches a documentation/example placeholder pattern (a single repeated character, or a word like changeme/secret/example/test), so any reader of this project's docs can decrypt stored connector credentials",
 			Remedy: "replace CHANNEL_CREDENTIAL_KEY with 32 bytes of CSPRNG output and re-encrypt stored credentials (tenantctl reencrypt-channel-credentials) under the new key",
+		})
+	}
+
+	// --- Audit evidence signing key (2026-10-09) ---------------------------
+	// Warn, not block: unset, the key is generated into the OS user config
+	// dir and evidence still signs and verifies on this host. What is lost
+	// is portability - a database restored onto another host cannot verify
+	// the audit evidence it carries, and would report it as tampered.
+	if os.Getenv("AUDIT_SIGNING_KEY") == "" && !keyringSuffixConfigured("AUDIT_SIGNING_KEY") {
+		add(BaselineFinding{
+			ID: "SB-025", Severity: BaselineWarn,
+			Title:  "no explicit audit evidence signing key",
+			Detail: "AUDIT_SIGNING_KEY is unset, so the HMAC key signing audit rows and checkpoints is generated into the OS user config dir - a key no database backup captures, so evidence restored onto another host cannot be verified",
+			Remedy: "set AUDIT_SIGNING_KEY (or the AUDIT_SIGNING_KEY_<n> rotation keyring) to exactly 32 bytes and record it in the key inventory (49.6.5) alongside BACKUP_ENCRYPTION_KEY",
 		})
 	}
 
@@ -515,6 +530,26 @@ func migrationChecksumFindings() []BaselineFinding {
 	}}
 }
 
+// backupRecordFindings is 56.9's "no backup mechanism configured is loud in
+// production". Production only: a dev box has no backup job by design. Warn,
+// not block - a fresh install has no backup until its first nightly, and
+// refusing to start would stop the deploy that installs the job. The boot log
+// line here plus the monitor's hourly ops alert are the loud part.
+func backupRecordFindings() []BaselineFinding {
+	if !IsProductionEnv() {
+		return nil
+	}
+	if fresh := CheckBackupFreshness(); fresh.Found {
+		return nil
+	}
+	return []BaselineFinding{{
+		ID: "SB-026", Severity: BaselineWarn,
+		Title:  "no backup mechanism is recorded for this production database",
+		Detail: "public.backup_runs holds no successful whole-database backup, so either no backup job is installed, it has never completed, or it predates 56.9 and does not record its runs",
+		Remedy: "install deploy/backup.sh's cron with deploy/install_backup_cron.sh (or the PaaS backup job), run it once, and confirm a 'database'/'Success' row appears in public.backup_runs",
+	}}
+}
+
 // --- Entry points ---------------------------------------------------------
 
 // ProductionSecurityBaseline returns every finding for this process,
@@ -525,6 +560,7 @@ func ProductionSecurityBaseline() []BaselineFinding {
 	findings = append(findings, seededCredentialFindings()...)
 	findings = append(findings, storedConnectorCredentialFindings()...)
 	findings = append(findings, migrationChecksumFindings()...)
+	findings = append(findings, backupRecordFindings()...)
 	sort.SliceStable(findings, func(i, j int) bool { return findings[i].ID < findings[j].ID })
 	return findings
 }

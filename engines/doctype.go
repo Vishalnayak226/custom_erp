@@ -359,7 +359,26 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 	if err != nil {
 		return err
 	}
+	return validateDocumentWith(tenantID, doctype, docData, &docValidationLookups{fields: fields, fieldMaxLength: -1})
+}
 
+// docValidationLookups is what ValidateDocument reads from the database
+// besides the row itself. A single save builds one per call; an import
+// (49.4.4a) builds one per file and prefetches each batch's Link targets, so
+// a 20,000-row file does not repeat the same metadata, setting and link
+// lookups row after row - they were ~20 round trips per row.
+type docValidationLookups struct {
+	fields []FieldMeta
+	// fieldMaxLength is platform.field_max_length; -1 until first needed.
+	fieldMaxLength int
+	// linkExists holds prefetched Link answers: target doctype -> id ->
+	// exists. Every id that was looked up has an entry, found or not; an id
+	// with no entry falls back to verifyDocumentExists.
+	linkExists map[string]map[string]bool
+}
+
+func validateDocumentWith(tenantID string, doctype string, docData map[string]interface{}, lk *docValidationLookups) error {
+	fields := lk.fields
 	if len(fields) == 0 {
 		// META-0196 (Stage 25.5): "DocType not registered" - a doctype with
 		// zero doctype_fields rows (a typo'd doctype name from a client, or
@@ -415,7 +434,10 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 		// already falls back to a generic 422 with this message for
 		// exactly that case, the same as any other uncataloged scenario.
 		if valStr != "" {
-			limit := GetSettingInt(tenantID, "platform.field_max_length")
+			if lk.fieldMaxLength < 0 {
+				lk.fieldMaxLength = GetSettingInt(tenantID, "platform.field_max_length")
+			}
+			limit := lk.fieldMaxLength
 			if f.MaxLength != nil && *f.MaxLength > 0 {
 				limit = *f.MaxLength
 			}
@@ -449,9 +471,13 @@ func ValidateDocument(tenantID string, doctype string, docData map[string]interf
 				}
 			case "Link":
 				if f.Options != "" { // options store target Doctype
-					existsLink, err := verifyDocumentExists(tenantID, f.Options, valStr)
-					if err != nil {
-						return err
+					existsLink, known := lk.linkExists[f.Options][valStr]
+					if !known {
+						var err error
+						existsLink, err = verifyDocumentExists(tenantID, f.Options, valStr)
+						if err != nil {
+							return err
+						}
 					}
 					if !existsLink {
 						return &ValidationError{Code: "META-0198", SubFor: f.Label, Message: fmt.Sprintf("Linked %s record with ID %q does not exist", f.Options, valStr)}
@@ -736,6 +762,12 @@ func IsMasterDoctype(tenantID, doctype string) (bool, error) {
 // generation applies" - a no-op for a non-Master, an update, a row with an
 // explicit id, or a Master row with no usable code.
 func ApplyMasterIDCodeInvariant(tenantID, doctype string, isCreate bool, payload map[string]interface{}) (string, error) {
+	return applyMasterIDCodeInvariant(isCreate, payload, func() (bool, error) { return IsMasterDoctype(tenantID, doctype) })
+}
+
+// applyMasterIDCodeInvariant takes the Master check as a function so an
+// import can answer it once per file instead of once per row.
+func applyMasterIDCodeInvariant(isCreate bool, payload map[string]interface{}, isMasterDoctype func() (bool, error)) (string, error) {
 	if !isCreate || payload == nil {
 		return "", nil
 	}
@@ -752,7 +784,7 @@ func ApplyMasterIDCodeInvariant(tenantID, doctype string, isCreate bool, payload
 	if code == "" {
 		return "", nil
 	}
-	isMaster, err := IsMasterDoctype(tenantID, doctype)
+	isMaster, err := isMasterDoctype()
 	if err != nil || !isMaster {
 		return "", err
 	}

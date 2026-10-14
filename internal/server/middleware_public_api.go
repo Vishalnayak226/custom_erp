@@ -141,6 +141,14 @@ func publicAPIMiddleware(requiredScope string, next http.HandlerFunc) http.Handl
 			engines.RecordPublicAPIRequest(logTenant, entry)
 		}
 
+		// Stage 49.4.4: the same shared request envelope apiMiddleware applies.
+		r, cancelDeadline, ok := enforceRequestEnvelope(rec, r)
+		if !ok {
+			record("envelope_rejected")
+			return
+		}
+		defer cancelDeadline()
+
 		if tenantID == "" {
 			writeAPIErrorGeneric(rec, r, http.StatusUnauthorized, publicAPIAuthFailureMessage)
 			record("auth_failed")

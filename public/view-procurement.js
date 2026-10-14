@@ -2037,7 +2037,8 @@ async function postPurchaseReturn(id) {
   if (result.debit_note_warning) {
     showToast(result.debit_note_warning, { variant: 'error', title: 'Debit note not posted' });
   } else if (result.debit_note_id) {
-    showToast(`Posted. Debit note ${result.debit_note_id} for ${formatMoney(result.return_value)} raised and posted to the vendor.`, { variant: 'success' });
+    const gstNote = result.gst_reversed ? ` Input GST of ${formatMoney(result.gst_reversed)} already claimed on these goods was reversed.` : '';
+    showToast(`Posted. Debit note ${result.debit_note_id} for ${formatMoney(result.return_value)} raised and posted to the vendor.${gstNote}`, { variant: 'success' });
   } else {
     showToast('Posted. Only set-aside (rejected/damaged) stock went back, so no debit note was needed.', { variant: 'success' });
   }

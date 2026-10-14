@@ -42,7 +42,7 @@ func kbFrontmatter(title, section string, order int, summary, audience, stamp st
 	}
 	b.WriteString("---\n\n")
 	b.WriteString("<!-- GENERATED ARTICLE - DO NOT EDIT BY HAND.\n")
-	b.WriteString("     Regenerate: go run ./cmd/gendocs && go run ./cmd/genkb -->\n\n")
+	b.WriteString("     Regenerate: pwsh docs/update-docs.ps1 -Group Content -->\n\n")
 	return b.String()
 }
 

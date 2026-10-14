@@ -102,6 +102,14 @@ go run ./cmd/doclint -strict             # nonzero for any remaining finding
 go run ./cmd/doclint -fail-on broken-link,broken-anchor,kb-link,generated-drift,capability-evidence
 ```
 
+Every `-Check` only reads, whether it passes or fails. `pwsh docs/test-docs-safety.ps1`
+proves it: it runs each check entry point in a temporary copy of the tree and compares
+every file's length, timestamp and SHA-256 before and after. The checks covered are the four
+scripts, `gendocs`, `genkb`, the manuals, `brainmap` and `surfacescan`. `go run ./cmd/gendocs`
+refuses to write without an explicit `-out` staging root. `go run ./cmd/surfacescan -out
+<path under %TEMP%>` generates the attack-surface inventory outside the tree, for copying in
+where an in-place overwrite is blocked (Stage 47.15.1).
+
 The guides/KB/brain compatibility wrappers use the same transaction. Brain checks never
 run graphify. Refresh the ignored local graph explicitly before a write using
 `graphify update .`. CI checks the Content group because a clean checkout has no graph

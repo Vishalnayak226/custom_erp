@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"custom_erp/db"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -281,54 +282,61 @@ func StartAlertMonitor(ctx context.Context, pollInterval, window time.Duration, 
 // exported so a future authenticated admin screen can reuse the check rather
 // than reimplement it.
 type BackupFreshness struct {
-	// Configured is false when there is no backup directory on this machine -
-	// every dev box and CI runner. Callers must treat that as "not applicable"
-	// rather than "stale", or local runs report a permanent false alarm.
+	// Configured is false only outside ENV=production when no whole-database
+	// backup run has ever been recorded - every dev box and CI runner. Callers
+	// treat that as "not applicable" rather than "stale". In production it is
+	// always true: no recorded backup there is a finding, never silence (56.9).
 	Configured bool      `json:"configured"`
-	Dir        string    `json:"dir,omitempty"`
 	Newest     time.Time `json:"newest,omitempty"`
 	AgeHours   float64   `json:"age_hours,omitempty"`
 	Found      bool      `json:"found"`
+	SizeBytes  int64     `json:"size_bytes,omitempty"`
+	DurationMS int64     `json:"duration_ms,omitempty"`
+	// LastOutcome is the newest whole-database run's outcome, successful or
+	// not, so a stale alert can say the job is running and failing rather
+	// than not running at all.
+	LastOutcome string `json:"last_outcome,omitempty"`
+	// Err is set when the record could not be read (no backup_runs table, DB
+	// down). Reported as missing, never as fresh.
+	Err string `json:"error,omitempty"`
 }
 
-// backupDir resolves where deploy/backup.sh writes, using the same
-// BACKUP_DIR-or-/opt/erp/backups default the script itself uses so the two
-// cannot disagree about which directory is being watched.
-func backupDir() string {
-	if dir := os.Getenv("BACKUP_DIR"); dir != "" {
-		return dir
-	}
-	return "/opt/erp/backups"
-}
-
-// CheckBackupFreshness stats the newest nightly backup. It looks only at
-// `custom_erp_*.dump.enc` - the whole-database nightly - deliberately ignoring
-// on-demand `tenant_*` exports (26.1.6), since one tenant export does not mean
-// the nightly ran.
+// CheckBackupFreshness reads the newest successful whole-database run that
+// deploy/backup.sh recorded in public.backup_runs (Stage 56.9).
+//
+// It used to stat BACKUP_DIR, which treated a missing directory as "this
+// machine takes no backups" and went silent - and on a PaaS the app and the
+// backup job never share a disk, so monitoring switched itself off there.
+// A database row is visible to every service that can reach the database.
+//
+// Only scope 'database' counts: an on-demand tenant_* export (26.1.6) is
+// recorded with scope 'tenant' and does not mean the nightly ran.
 func CheckBackupFreshness() BackupFreshness {
-	dir := backupDir()
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		// No directory = not a machine that takes backups. Silent by design.
-		return BackupFreshness{Configured: false, Dir: dir}
+	result := BackupFreshness{Configured: IsProductionEnv()}
+	if db.DB == nil {
+		result.Err = "no database connection"
+		return result
 	}
-	result := BackupFreshness{Configured: true, Dir: dir}
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasPrefix(name, "custom_erp_") || !strings.HasSuffix(name, ".dump.enc") {
-			continue
-		}
-		info, errInfo := entry.Info()
-		if errInfo != nil {
-			continue
-		}
-		if !result.Found || info.ModTime().After(result.Newest) {
-			result.Found = true
-			result.Newest = info.ModTime()
-		}
-	}
-	if result.Found {
+	var size, duration sql.NullInt64
+	err := db.DB.QueryRow(`
+		SELECT finished_at, size_bytes, duration_ms FROM public.backup_runs
+		 WHERE scope = 'database' AND outcome = 'Success'
+		 ORDER BY finished_at DESC LIMIT 1`).Scan(&result.Newest, &size, &duration)
+	switch {
+	case err == sql.ErrNoRows:
+	case err != nil:
+		result.Err = "backup_runs could not be read"
+		return result
+	default:
+		result.Found, result.Configured = true, true
+		result.SizeBytes, result.DurationMS = size.Int64, duration.Int64
 		result.AgeHours = time.Since(result.Newest).Hours()
+	}
+	if err := db.DB.QueryRow(`
+		SELECT outcome FROM public.backup_runs WHERE scope = 'database'
+		 ORDER BY finished_at DESC LIMIT 1`).Scan(&result.LastOutcome); err == nil {
+		// A recorded run, even a failed one, means a backup job exists here.
+		result.Configured = true
 	}
 	return result
 }
@@ -344,13 +352,17 @@ func CheckBackupFreshness() BackupFreshness {
 // indistinguishable from success. Watching the artifact's age instead of the
 // job's exit status is what makes absence detectable.
 //
-// No-ops entirely where no backup directory exists, so dev machines and CI
-// stay quiet; and no-ops in delivery (logging only) until
-// OPS_ALERT_WEBHOOK_URL is set, matching SendOpsAlert.
+// Always runs: a backup job can start recording on a box that had none at
+// boot, and the per-tick check is one indexed SELECT. Dev machines and CI stay
+// quiet because CheckBackupFreshness reports them not applicable; under
+// ENV=production nothing recorded is alerted, never skipped (56.9). Delivery
+// still no-ops (logging only) until OPS_ALERT_WEBHOOK_URL is set, matching
+// SendOpsAlert.
 func StartBackupFreshnessMonitor(ctx context.Context, pollInterval, maxAge time.Duration) {
 	if fresh := CheckBackupFreshness(); !fresh.Configured {
-		log.Printf("[BACKUP-MONITOR] no backup directory at %s - monitor disabled on this machine", fresh.Dir)
-		return
+		log.Printf("[BACKUP-MONITOR] no backup run recorded on this non-production machine - not alerting until one is")
+	} else if !fresh.Found {
+		log.Printf("[BACKUP-MONITOR] ENV=production and no successful whole-database backup is recorded in backup_runs - see security baseline SB-026")
 	}
 	ticker := time.NewTicker(pollInterval)
 	go func() {
@@ -383,19 +395,17 @@ func checkBackupAge(maxAge time.Duration) {
 	var message string
 	switch {
 	case !fresh.Found:
-		// BLD-052: deliberately does NOT interpolate fresh.Dir. This message
-		// is delivered to an external chat webhook, and the backup directory
-		// is an absolute host path (found by the incident drill, which caught
-		// the full "C:\Users\...\AppData\Local\Temp\..." path arriving in the
-		// payload). The responder configured BACKUP_DIR and does not learn
-		// anything from being told it back; a third party reading the channel
-		// learns the host's filesystem layout. The path is still available
-		// locally via CheckBackupFreshness for anyone diagnosing on the box.
-		message = "no nightly backup found in the configured backup directory at all - the backup cron is not producing files"
+		// BLD-052: no host path, file name or database detail goes in this
+		// message - it is delivered to an external chat webhook, and a third
+		// party reading the channel should not learn the host's layout.
+		message = "no successful whole-database backup is recorded in backup_runs at all - no backup mechanism is configured, or it has never completed"
 	case time.Since(fresh.Newest) > maxAge:
 		message = fmt.Sprintf("newest nightly backup is %.1fh old (limit %s), taken %s", fresh.AgeHours, maxAge, fresh.Newest.UTC().Format(time.RFC3339))
 	default:
 		return
+	}
+	if fresh.LastOutcome == "Failed" {
+		message += " - the latest recorded run FAILED, so the job is running but not completing"
 	}
 
 	backupAlertState.Lock()

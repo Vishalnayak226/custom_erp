@@ -231,6 +231,68 @@ func TestAuditKeyRotationIsNotMistakenForTampering(t *testing.T) {
 	}
 }
 
+// TestAuditEvidenceSurvivesJWTKeyRotation: audit evidence must not be keyed to
+// the JWT session key. v1 was, so rotating JWT_SECRET (Stage 29.8) or one
+// process starting with a different one made every earlier row and checkpoint
+// fail verification - found as a dev-DB checkpoint written 2026-10-04 by a
+// server with a one-off JWT_SECRET. v1 evidence must also keep verifying.
+func TestAuditEvidenceSurvivesJWTKeyRotation(t *testing.T) {
+	tenantID := auditTestTenant(t)
+	schema, _ := db.GetTenantSchema(tenantID)
+	marker := "AUDITJWTROT-" + NewDocIDCompact("T")
+	t.Cleanup(func() { cleanupAuditMarker(t, tenantID, marker) })
+
+	LogAuditEvent(tenantID, "actor", marker, "Success", "signed under the audit key")
+	// A v1 row, signed the way every row was before v2: with the JWT key.
+	createdAt := time.Now().UTC().Truncate(time.Microsecond)
+	v1Sig := signAuditRowWith(auditSigVersionJWTKeyed, jwtSigningKey.secret, tenantID, "actor", marker, "Success",
+		"signed under the JWT key", "", "", "", createdAt)
+	if _, err := db.DB.Exec(fmt.Sprintf(`
+		INSERT INTO %s.audit_logs (user_id, action, status, details, created_at, signature, sig_version)
+		VALUES ('actor', $1, 'Success', 'signed under the JWT key', $2, $3, $4)`, schema),
+		marker, createdAt, v1Sig, auditSigVersionJWTKeyed); err != nil {
+		t.Fatalf("seed v1 row: %v", err)
+	}
+	cp, err := WriteAuditCheckpoint(tenantID, "Periodic")
+	if err != nil || cp == nil {
+		t.Fatalf("checkpoint: %v (nil=%v)", err, cp == nil)
+	}
+	t.Cleanup(func() {
+		db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.audit_checkpoints WHERE id = $1::uuid`, schema), cp.ID)
+	})
+	rows := auditRowsFor(t, tenantID, marker)
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 seeded rows, got %d", len(rows))
+	}
+
+	assertClean := func(when string) {
+		t.Helper()
+		result, err := VerifyAuditEvidence(tenantID)
+		if err != nil {
+			t.Fatalf("%s: verification failed: %v", when, err)
+		}
+		for _, r := range rows {
+			if containsID(result.TamperedRows, r.id) {
+				t.Errorf("%s: row %s is reported tampered", when, r.id)
+			}
+		}
+		for _, bad := range result.CheckpointsBad {
+			if strings.HasPrefix(bad, cp.ID) {
+				t.Errorf("%s: checkpoint failed verification: %s", when, bad)
+			}
+		}
+	}
+	assertClean("before rotation")
+
+	// Rotate: a new JWT signing key with the old one kept for verification,
+	// exactly as JWT_SECRET_<n> does mid-rotation.
+	oldKeys, oldSigning := jwtKeys, jwtSigningKey
+	t.Cleanup(func() { jwtKeys, jwtSigningKey = oldKeys, oldSigning })
+	jwtSigningKey = jwtKey{kid: "99", secret: []byte("rotated-jwt-key-for-audit-test")}
+	jwtKeys = append([]jwtKey{jwtSigningKey}, oldKeys...)
+	assertClean("after JWT rotation")
+}
+
 // TestAuditVerificationOverdueDetectsSilence is 47.7.7's subtle half: alert on
 // verification that did not HAPPEN, not only on verification that failed.
 // Absence of a failure is not evidence of success.

@@ -516,15 +516,26 @@ window.deleteExtensionHookRow = async function(hookId) {
   }
 };
 
+// The log belongs to one hook. The chosen hook is also kept for this tab, so
+// a reload of #/view/extension-hook-log (which restores the screen, not the
+// hook) still shows it; opened with no hook at all, the screen says how to
+// pick one instead of requesting /hooks//log (49.4.4a: a 404 in the sweep).
+const HOOK_LOG_KEY = 'erp_extension_hook_log_id';
+
 window.viewExtensionHookLog = function(hookId) {
   currentExtensionHookLogId = hookId;
+  try { sessionStorage.setItem(HOOK_LOG_KEY, hookId); } catch (e) { /* storage blocked - this visit still works */ }
   renderView('extension-hook-log');
 };
 
 async function renderExtensionHookLogView(container) {
-  const hookId = currentExtensionHookLogId;
-  const res = await apiFetch(`/api/v1/admin/extension/hooks/${hookId}/log`);
-  if (!res) return;
+  let hookId = currentExtensionHookLogId;
+  if (!hookId) {
+    try { hookId = sessionStorage.getItem(HOOK_LOG_KEY) || ''; } catch (e) { hookId = ''; }
+    currentExtensionHookLogId = hookId;
+  }
+  const res = hookId ? await apiFetch(`/api/v1/admin/extension/hooks/${encodeURIComponent(hookId)}/log`) : null;
+  if (hookId && !res) return;
 
   const header = document.createElement('div');
   header.className = 'page-header';
@@ -537,6 +548,13 @@ async function renderExtensionHookLogView(container) {
   `;
   container.appendChild(header);
 
+  if (!hookId) {
+    const empty = document.createElement('div');
+    empty.className = 'table-panel';
+    empty.innerHTML = `<p style="padding:16px; color:var(--text-muted);">No hook chosen. Open <strong>Extension Hooks</strong> and press <strong>View Log</strong> on the hook whose calls you want to see.</p>`;
+    container.appendChild(empty);
+    return;
+  }
   if (!res.ok) {
     renderErrorPanel(container, 'Failed to load hook log.', () => renderView('extension-hook-log'));
     return;
@@ -556,7 +574,7 @@ async function renderExtensionHookLogView(container) {
               <td>${e.called_at ? new Date(e.called_at).toLocaleString() : ''}</td>
               <td>${e.response_status != null ? `<span class="badge ${e.response_status >= 200 && e.response_status < 300 ? 'badge-success' : 'badge-danger'}">${e.response_status}</span>` : '<span class="badge badge-secondary">-</span>'}</td>
               <td>${e.latency_ms}ms</td>
-              <td style="color:var(--danger-color);">${e.error || ''}</td>
+              <td style="color:var(--danger-color);">${escapeHTMLText(e.error || '')}</td>
             </tr>
           `).join('')}
       </tbody>

@@ -95,6 +95,12 @@ func RejectRestrictedFieldWrites(tenantID, role, doctype string, data map[string
 	if err != nil {
 		return err
 	}
+	return rejectRestrictedFieldWritesIn(permissions, role, data)
+}
+
+// rejectRestrictedFieldWritesIn checks against an already-loaded permission
+// map, so an import loads it once per file rather than once per row.
+func rejectRestrictedFieldWritesIn(permissions map[string]FieldPermission, role string, data map[string]interface{}) error {
 	for field := range data {
 		if permission, exists := permissions[field]; exists && !permission.AllowWrite {
 			return fmt.Errorf("field %q is not writable for role %s", field, role)

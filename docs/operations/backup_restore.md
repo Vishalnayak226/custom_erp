@@ -87,6 +87,14 @@ ssh root@<box> 'ls -lt /opt/erp/backups/custom_erp_*.dump.enc | head -3; tail -2
 
 A healthy box shows a `custom_erp_<yesterday>T02*.dump.enc` at the top and a matching `backup complete:` line in the log. **An empty or stale log is itself the alarm** — a successful run appends one line per night, so no new line means the job did not run at all, which is a different failure from a run that errored.
 
+**Since Stage 56.9 every run also writes a row to `public.backup_runs`** (scope `database` or `tenant`, outcome `Success`/`Failed`, file name, size, duration, sha256, host). The server's hourly monitor reads the newest successful `database` row — not the backup folder — so it works even where the app and the backup job do not share a disk. Check it directly with:
+
+```bash
+psql "$DATABASE_URL" -c "SELECT finished_at, scope, outcome, file_name, size_bytes, duration_ms FROM public.backup_runs ORDER BY finished_at DESC LIMIT 5"
+```
+
+A run whose row could not be written (for example, the 56.9 migration not yet applied) still keeps its backup and posts a `BACKUP_RECORD_FAILED` alert; the monitor then sees no fresh row and reports the backup as stale. `deploy.ps1` re-ships `deploy/backup.sh` on every deploy, so the box never runs a pre-56.9 copy that records nothing.
+
 Prove a backup actually restores:
 
 This is the Linux counterpart of `manage.ps1 restore-drill`, which only ever existed on the Windows dev machine. It verifies the sha256 sidecar, restores the newest whole-database backup into a **throwaway** database, compares row counts against live, and drops the scratch database. It never writes to the live database.

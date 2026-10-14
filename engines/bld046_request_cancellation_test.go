@@ -273,26 +273,14 @@ func TestBLD046CancellationImportPath(t *testing.T) {
 		docRows, preErrors := buildRows(prefix)
 
 		// Cancelling after the first batch has committed is what an
-		// abandoned upload looks like from inside the loop. Driven off the
-		// observed committed-row count rather than a sleep so the test does
-		// not depend on how fast the batch happens to commit.
-		ctx, cancel := context.WithCancel(context.Background())
-		done := make(chan struct{})
-		go func() {
-			defer close(done)
-			deadline := time.Now().Add(blockedRunDuration)
-			for time.Now().Before(deadline) {
-				if countVendors(t, schema, prefix) >= batchSize {
-					cancel()
-					return
-				}
-				time.Sleep(10 * time.Millisecond)
-			}
-			cancel()
-		}()
+		// abandoned upload looks like from inside the loop. The context
+		// reports cancellation from the second between-batch check on, i.e.
+		// right after batch one committed. This used to be a goroutine polling
+		// the committed-row count every 10 ms, which stopped working once
+		// 49.4.4a made all three batches finish inside one polling interval.
+		ctx := &cancelAfterChecks{Context: context.Background(), allowed: 1}
 
 		_, err := runDocDataImportContext(ctx, tenantID, "Vendor", "system", "", false, docRows, preErrors)
-		<-done
 		if !errors.Is(err, context.Canceled) {
 			t.Fatalf("expected context.Canceled, got %v", err)
 		}
@@ -412,4 +400,20 @@ func TestBLD046IsCancellationClassifiesOnlyAbandonment(t *testing.T) {
 			t.Fatalf("expected %v NOT to classify as a cancellation", err)
 		}
 	}
+}
+
+// cancelAfterChecks is a context whose Err turns into context.Canceled after
+// the first `allowed` calls - a deterministic stand-in for a client that
+// leaves at a known point in a loop that checks ctx.Err between steps.
+type cancelAfterChecks struct {
+	context.Context
+	allowed int
+}
+
+func (c *cancelAfterChecks) Err() error {
+	if c.allowed > 0 {
+		c.allowed--
+		return nil
+	}
+	return context.Canceled
 }

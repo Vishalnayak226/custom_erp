@@ -69,39 +69,108 @@ type RequestContext struct {
 	LocationCode  string
 }
 
-// Simple sliding window rate limiter
+// RateLimiter is a sliding-window limiter keyed by caller (ip:category, plus
+// a session fingerprint when the caller holds a token this server signed).
+//
+// 47.11.1 - bounded state. Keys used to be deleted never: each new key (a
+// rotating IP, or before sessionFingerprint checked signatures, any junk
+// bearer token) stayed in the map for the life of the process, ~119 bytes a
+// key measured, so key churn grew memory without limit. Now:
+//   - keys whose newest hit is older than the window are swept, at most once
+//     every rateLimitSweepEvery;
+//   - the table never holds more than rateLimitMaxKeys keys. A new key that
+//     finds it full, after a forced sweep, is counted in a shared overflow
+//     bucket for its limit instead. Keys already in the table keep their own
+//     budgets, so a flood of new keys throttles newcomers, never existing
+//     callers. Overflow use is logged once per sweep.
+//
+// Memory is therefore at most rateLimitMaxKeys entries, each holding at most
+// its limit's worth of timestamps (refused requests are not stored).
+//
+// Replica semantics: this state is per process, on purpose. Behind N replicas
+// without sticky routing a caller can draw up to N x a category's budget; the
+// limiter damps abuse and protects each process's own capacity, it is not an
+// exact cross-replica quota. Security state that must hold across replicas is
+// already in PostgreSQL: account lockout (users.failed_login_count /
+// locked_until), MFA and reset tokens, sessions' credential_version.
 type RateLimiter struct {
-	mu       sync.Mutex
-	requests map[string][]time.Time
+	mu           sync.Mutex
+	requests     map[string][]time.Time
+	maxKeys      int
+	window       time.Duration // longest window any caller has asked for
+	lastSweep    time.Time
+	overflowHits int // since the last sweep, for the ops log line
+	clock        func() time.Time
 }
+
+const (
+	rateLimitMaxKeys    = 100000
+	rateLimitSweepEvery = 10 * time.Second
+	// A forced sweep (table full) is itself rate limited, so a flood of new
+	// keys cannot turn every request into a full scan.
+	rateLimitForcedSweepEvery = time.Second
+)
 
 func NewRateLimiter() *RateLimiter {
 	return &RateLimiter{
-		requests: make(map[string][]time.Time),
+		requests:  make(map[string][]time.Time),
+		maxKeys:   rateLimitMaxKeys,
+		lastSweep: time.Now(),
+		clock:     time.Now,
 	}
 }
 
-func (rl *RateLimiter) Allow(ip string, limit int, duration time.Duration) bool {
+func (rl *RateLimiter) Allow(key string, limit int, duration time.Duration) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
-	now := time.Now()
-	cutoff := now.Add(-duration)
+	now := rl.clock()
+	if duration > rl.window {
+		rl.window = duration
+	}
+	if now.Sub(rl.lastSweep) >= rateLimitSweepEvery {
+		rl.sweep(now)
+	}
+	if _, known := rl.requests[key]; !known && len(rl.requests) >= rl.maxKeys {
+		if now.Sub(rl.lastSweep) >= rateLimitForcedSweepEvery {
+			rl.sweep(now)
+		}
+		if len(rl.requests) >= rl.maxKeys {
+			rl.overflowHits++
+			key = fmt.Sprintf("\x00overflow:%d:%s", limit, duration)
+		}
+	}
 
+	cutoff := now.Add(-duration)
 	var valid []time.Time
-	for _, t := range rl.requests[ip] {
+	for _, t := range rl.requests[key] {
 		if t.After(cutoff) {
 			valid = append(valid, t)
 		}
 	}
 
 	if len(valid) >= limit {
-		rl.requests[ip] = valid
+		rl.requests[key] = valid
 		return false
 	}
 
-	rl.requests[ip] = append(valid, now)
+	rl.requests[key] = append(valid, now)
 	return true
+}
+
+// sweep drops every key with no hit inside the longest window. Caller holds mu.
+func (rl *RateLimiter) sweep(now time.Time) {
+	cutoff := now.Add(-rl.window)
+	for key, hits := range rl.requests {
+		if len(hits) == 0 || !hits[len(hits)-1].After(cutoff) {
+			delete(rl.requests, key)
+		}
+	}
+	if rl.overflowHits > 0 {
+		log.Printf("[RATE-LIMIT] key table full (%d keys); %d requests from new callers shared overflow budgets since the last sweep", len(rl.requests), rl.overflowHits)
+		rl.overflowHits = 0
+	}
+	rl.lastSweep = now
 }
 
 var globalLimiter = NewRateLimiter()
@@ -143,8 +212,14 @@ func (l *tenantConcurrencyLimiter) acquire(tenantID string) bool {
 func (l *tenantConcurrencyLimiter) release(tenantID string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.inFlight[tenantID] > 0 {
+	// 47.11.1: a tenant leaves the map when its last request ends, so the
+	// map holds only tenants with work in flight. It used to keep every
+	// tenant id it had ever seen at 0, and before authentication the id can
+	// be whatever a caller put in X-Tenant-ID or ?tenant_id=.
+	if l.inFlight[tenantID] > 1 {
 		l.inFlight[tenantID]--
+	} else {
+		delete(l.inFlight, tenantID)
 	}
 }
 
@@ -663,9 +738,20 @@ func clientIP(r *http.Request) string {
 // token returns "", which keeps the original IP-only bucket. The value never
 // leaves the process (it is a map key, never logged or returned), and the
 // truncated SHA-256 means a leaked limiter key can't reconstruct a token.
+//
+// 47.11.1: only a token this server signed, and that has not expired, gets
+// its own bucket. Anything else in the header used to as well, so rotating
+// junk tokens from one address got a fresh budget per request (200,000
+// requests, zero refusals, measured) and a new limiter key each time. Junk
+// now shares the address's own bucket. ParseToken is a signature and expiry
+// check against the in-memory keyring - no database read.
 func sessionFingerprint(r *http.Request) string {
 	auth := r.Header.Get("Authorization")
-	if auth == "" {
+	token, isBearer := strings.CutPrefix(auth, "Bearer ")
+	if !isBearer || token == "" {
+		return ""
+	}
+	if _, err := engines.ParseToken(token); err != nil {
 		return ""
 	}
 	sum := sha256.Sum256([]byte(auth))
@@ -708,8 +794,8 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// 2. Payload size limit (Max 2MB)
-		r.Body = http.MaxBytesReader(w, r.Body, 2<<20)
+		// 2. Payload size limit: now part of the shared request envelope
+		// (Stage 49.4.4), applied below once panic recovery is in place.
 
 		// 3. Rate Limiter - per-API-type budgets (Stage 13.14, SEC-V2 5).
 		// Keyed by ip+category rather than ip alone, so heavy traffic on one
@@ -763,6 +849,15 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 				})
 			}
 		}()
+
+		// 3.5 Shared request envelope (Stage 49.4.4): method, content type,
+		// body/header/JSON bounds, duplicate keys, and the request deadline
+		// every handler inherits through r.Context().
+		r, cancelDeadline, ok := enforceRequestEnvelope(w, r)
+		if !ok {
+			return
+		}
+		defer cancelDeadline()
 
 		// 4. Token & Tenant Resolution
 		//

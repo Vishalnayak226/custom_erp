@@ -290,7 +290,32 @@ Source of record: [`audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md`](audits/ERP_DEE
   - **Acceptance:** 1m-row fixtures return correct search/list results within budgets; cold core transfer ≤180 KiB and JS-before-interaction ≤120 KiB gzip; no accessibility regression or unbounded collection remains.
 
 - [ ] **47.11 Graceful request control, worker ownership and side-effect safety** — closes A-10/A-11/A-15/A-16/A-17/A-44; extends rather than duplicates Stage 38.6.
-  - [ ] **47.11.1** Bound/prune rate-limit and tenant-concurrency state; define replica-consistent semantics using PostgreSQL only where shared state is required. Unique invalid keys cannot grow memory indefinitely.
+  - [x] **47.11.1** Bound/prune rate-limit and tenant-concurrency state; define replica-consistent semantics using PostgreSQL only where shared state is required. Unique invalid keys cannot grow memory indefinitely.
+    — *Done 2026-10-11.* **Measured first** (200,000 requests each, old code): rotating IPs left
+    200,000 limiter keys (+22.2 MB), and rotating junk bearer tokens from one IP left 200,000
+    keys (+23.8 MB). None were ever freed, and the junk-token run was **never refused**: each junk
+    token got its own fresh budget, a full per-IP limit bypass. The tenant in-flight map kept
+    every tenant id it had seen at 0, and before auth that id can come from `X-Tenant-ID` or
+    `?tenant_id=`. **Fix, `internal/server/middleware.go` only:**
+    - `sessionFingerprint` gives a per-session bucket only to a token that passes
+      `engines.ParseToken` (signature + expiry, in-memory keyring, no DB), so junk shares the
+      address's budget.
+    - `RateLimiter` sweeps keys idle past the window (at most every 10 s) and caps its table at
+      100,000 keys (~11 MB). A new key that finds it full, after a forced sweep at most once a
+      second, counts in a shared overflow bucket per limit. Known callers keep their own budget,
+      and overflow is logged once per sweep.
+    - `tenantConcurrencyLimiter.release` deletes a tenant at 0.
+
+    **Replica semantics** (written in the code and ADMIN_GUIDE §D): both are per process by
+    design. Behind N replicas a caller can draw up to N× a budget, and the tenant cap protects
+    each process's own pool. State that must be shared is already in PostgreSQL (account lockout
+    `users.failed_login_count`/`locked_until`, MFA/reset tokens, `credential_version`), so no new
+    shared table was needed. **Tests** (`internal/server/rate_limit_bounds_test.go`): 300,000
+    rotating keys → 100,001 keys / +11.1 MB; sweep after the window; a full table keeps an
+    existing 5/min budget exact; 5,000 junk tenants leave an empty map with the cap intact;
+    through `apiMiddleware`, junk tokens hit the address's budget on request 101 and two signed
+    sessions behind one address keep separate budgets (Stage 30.5.9). The junk-token and tenant
+    tests are A/B-confirmed to fail on HEAD.
   - [ ] **47.11.2** Coalesce identical browser requests, cancel stale view work, define per-view initial-call budgets and return a specific retryable overload response/`Retry-After` instead of generic `GLOBAL-0010` for real overload.
   - [ ] **47.11.3** Reserve capacity for authentication/health/command completion so heavy reads/jobs cannot starve transaction finalization. Load-test the exact normal-screen burst that produced 8/30 failures.
   - [ ] **47.11.4** Complete **38.6** as one PostgreSQL job/outbox runner (`SKIP LOCKED`, lease/heartbeat, idempotency, progress/cancel, bounded payload/result retention, DLQ/replay). Migrate custom tickers incrementally; do not create a second runner in Stage 47.
@@ -332,7 +357,29 @@ Source of record: [`audits/ERP_DEEP_PERSONA_AUDIT_2026-09-01.md`](audits/ERP_DEE
   - **Acceptance:** CEO, normal user, floor worker and advanced user complete their reference tasks without internal vocabulary or ambiguous state; usability test findings are recorded by role, not asserted by developers.
 
 - [ ] **47.15 Executable documentation and in-product learning** — closes A-24-A-27/A-41 for the remediated product. The full repository-wide governance/rebuild/migration program is **Stage 48** below; this item is the customer-facing Stage 47 outcome gate and deliberately does not duplicate Stage 39 content tasks or Stage 48's folder/governance work.
-  - [ ] **47.15.1 Generator safety first.** Make all documentation `-Check` operations read-only and manifest-driven; `cmd/gendocs` cannot write live KB/OpenAPI paths behind a staged guides check, and brain `-Check` cannot rewrite outputs.
+  - [x] **47.15.1 Generator safety first.** Make all documentation `-Check` operations read-only and manifest-driven; `cmd/gendocs` cannot write live KB/OpenAPI paths behind a staged guides check, and brain `-Check` cannot rewrite outputs.
+    — *Done 2026-10-11.* **Found already built** (Stage 48, `7f5fadf`): `docs/update-docs.ps1`
+    stages every generator in `%TEMP%`, is manifest-driven (declared sets, orphan detection from
+    the previous `docs/generated/*-manifest.json`) and its `-Check` never copies. The four
+    wrappers route through it, and brain `-Check` never runs graphify. Every Go `-check`
+    (gendocs, genkb, manuals, brainmap, surfacescan) only diffs.
+    **Gaps closed:**
+    - `cmd/gendocs`'s `-out` still defaulted to `"."`, so a bare `go run ./cmd/gendocs` wrote the
+      live guide/KB/OpenAPI paths. Write mode now refuses without an explicit `-out`, and
+      generated headers say `pwsh docs/update-docs.ps1 -Group Content`.
+    - `docs/test-docs-safety.ps1` (the existing proof: it compares length, mtime and SHA-256 of
+      every file in a `%TEMP%` copy of the tree, where a write would succeed, before and after
+      each command) did not cover `surfacescan` or the full `-Check`. It also **failed for
+      everyone**, because `doclint` reports every capability's `review_by` 2026-10-09 as expired
+      (left for the user, not bumped). It now publishes `-Group KB` into its fixture first.
+      Pass cases must pass. `Content`/`All`/brain checks are asserted read-only with verdict not
+      asserted. Must-fail cases must name their reason, so they can't pass vacuously at
+      `doclint`. Added: bare gendocs refused, `surfacescan -out <%TEMP%>` works,
+      `surfacescan -check` passes and drifts read-only.
+
+    **Result:** 24/24 read-only assertions pass. `docs/governance/documentation-standard.md`
+    documents it. [needs user input: capability-register `review_by` dates expired 2026-10-09;
+    until reviewed, `update-docs.ps1 -Group Content/All` cannot publish]
   - [ ] **47.15.2** Complete **39.8** route/view/role/help drift guard and repair the orphaned Stage 42.7 traceability UI reference. Every user-facing screen has an owner, role, article, last-verified release and expected failure behavior. **Partially built 2026-09-04**: `internal/kb/drift.go`'s `DriftGuards` gained the "role" completeness gate — a screen-mapped article that declares no `audience` or no `last_verified` **at all** now warns, closing the actual gap in 39.8's original scope (the pre-existing staleness check only fires when `last_verified` is non-empty, so an article missing the field entirely produced zero warning before this). 3 new tests in `drift_test.go` (missing audience, missing last_verified, and confirming an unmapped article is correctly exempt from both); `go build`/`go vet ./internal/kb/...` clean, all 10 drift tests pass. Re-ran `go run ./cmd/genkb` against the live 39-article KB and got **zero new findings** — every existing article already declares both fields; the only warnings surfaced are the same pre-existing ones 39.8/39.13 already documented (the comma-list endpoint false-positive, the `GOODSR-0096`/`0097` catalog gap, the illustrative public-API example). Also repaired the dangling cross-reference itself: **39.13.10**'s "logged as new item 42.7 below" pointed at nothing, since Stage 42 had already closed/archived by the time that note was written — the real gap it described is now tracked as **47.6.7**. **Still open, [needs design/content decision]**: the "owner" and "expected failure behavior" columns in this item's own acceptance line have no existing frontmatter or registry to check mechanically — they would need a new schema decision (e.g. `owner:`/`failure_behavior:` frontmatter keys authored across all 39 articles) not made this session, and are a larger content-authoring pass, not a guard-code change.
   - [ ] **47.15.3** Rebuild the authoritative BRD/PRD/supported-configuration/capability/NFR documents per the documentation architecture plan; move dated audits to assurance without rewriting their findings.
   - [ ] **47.15.4** Complete Stage **39.13.1 POS**, **39.13.2 WMS**, **39.13.6 Finance** and **39.13.11 Security/Approvals** first, reflecting the remediated behavior—not the vulnerable pre-47 paths—then the remaining module handbooks.
@@ -561,7 +608,102 @@ Source of record: [`audits/DOCUMENTATION_ARCHITECTURE_PLAN_2026-09-01.md`](audit
   - [ ] **49.4.1 Session topology ADR.** Prefer secure `HttpOnly`, `Secure`, appropriately `SameSite` cookie sessions where compatible; otherwise justify bearer storage. Define idle/absolute lifetime, rotation, concurrent-session/device policy, logout/revocation, privileged reauthentication and browser-back/cache behavior.
   - [ ] **49.4.2 CSRF/cross-origin boundary.** If cookies authorize, use origin validation plus robust CSRF tokens for every state change; strict allowlisted CORS by exact scheme/host/port; reject `null`/wildcard credentialed origins and simple-content-type bypasses; test preflight/cache behavior.
   - [ ] **49.4.3 XSS and content boundary.** Complete **47.8**: contextual encoding, safe DOM APIs, no user/external HTML trust, nonce/hash strict CSP without unsafe inline/eval, Trusted-Types evaluation where supported, safe downloadable HTML/CSV and isolation of user files from the app origin.
-  - [ ] **49.4.4 Shared request envelope.** Allowlisted method/content type/encoding; bounded headers/body/multipart/decompression/JSON depth/array/string/numeric range; strict duplicate/ambiguous parameter handling; deadlines/cancellation; safe error catalog and correlation ID with no stack/SQL/path/secret leak.
+  - [x] **49.4.4 Shared request envelope.** Allowlisted method/content type/encoding; bounded headers/body/multipart/decompression/JSON depth/array/string/numeric range; strict duplicate/ambiguous parameter handling; deadlines/cancellation; safe error catalog and correlation ID with no stack/SQL/path/secret leak.
+    *Built 2026-10-09 (five-item pass, item 3), to the scope the user set.*
+    - **Where:** new `internal/server/request_envelope.go`, called once from `apiMiddleware`
+      and from `publicAPIMiddleware` (the second caller boundary). It replaces the bare 2 MB
+      `MaxBytesReader`.
+    - **Limits** (in ADMIN_GUIDE §D's table): methods allowlisted (405 `GLOBAL-0303`). JSON or
+      multipart only, plus per-route CSV/CSP types, and compressed bodies refused (415
+      `GLOBAL-0304`). Bodies 2 MB, or 10/16/100/5 MB on the upload and import routes (413
+      `GLOBAL-0305`). Headers 100 fields/32 KB (431 `GLOBAL-0306`). JSON is streamed and checked
+      for depth 32, lists of 50,000, strings of 1 MB (2 MB for StickerTemplate), exact duplicate
+      keys including escape-spelled ones, and trailing values (400 `GLOBAL-0307`). A 55 s
+      deadline flows through `r.Context()`; an expired one answers 504 `GLOBAL-0308` instead of
+      `writeEngineError`'s empty 499.
+    - **Measured first:** stored documents reach depth 3, arrays of 7 and strings of 654. A
+      sticker logo is ≤400 KB, about 546 KB as a data URL, and all of a design's logos share the
+      one `design` string. `max_import_rows` is 20,000. Measuring found that the old 2 MB cap
+      silently overrode every larger per-handler limit, because a nested `MaxBytesReader` cannot
+      raise an outer one: media upload, imports and the hook were all really capped at 2 MB.
+    - **Decisions:** case-variant keys are allowed, because `copies_override`, `dispositions` and
+      `exchange_for` are SKU/line-keyed maps. A body with no `Content-Type` is read as JSON and
+      fully bounded; the allowlist's real job is blocking preflight-free `text/plain`/form
+      bodies. Rejections are not logged (log-flood risk).
+    - **Tests:** `request_envelope_test.go` has one case per limit through `apiMiddleware`
+      (status, code, matching correlation id, no leak). Large legitimate payloads pass: a
+      3.0 MB 20,000-row multipart CSV, a 1.6 MB three-logo sticker design and a 2,000-line PO;
+      the first two are refused on a default route. Plus deadline-vs-abandoned.
+    - **Live on scratch :8147:**
+      - a real three-logo StickerTemplate save returned 200;
+      - a real 3.4 MB/20,000-row import preview passed the envelope;
+      - dup key → 400, TRACE → 405, text/plain → 415, each with its correlation id;
+      - a Playwright sweep of all 53 lazy views + 4 setup screens made 341 API calls with zero
+        envelope rejections.
+    - **Not done (follow-up 49.4.4a):** numeric range bounds and duplicate query-parameter
+      handling, which the user's scope did not include.
+  - [x] **49.4.4a Envelope remainder + import-preview speed (follow-ups found 2026-10-09).**
+    (All three parts done 2026-10-11; detail per part below, (a) after (c).)
+    - (a) Numeric-range bounds and duplicate query-parameter policy.
+    - [x] (b) Item import **preview runs ≈5.5 ms/row** (2,000 rows 10.8 s, 8,000 rows 45.7 s), so a
+      file over ~9,000 rows hits the 55 s deadline (and the server's 60 s WriteTimeout before
+      it). The 20,000-row `max_import_rows` cap is unreachable synchronously. Either batch the
+      per-row lookups in the preview or move large previews onto the async job runner.
+      — *Done 2026-10-11, synchronously (no job runner needed).* **Profiled first:** on any tenant
+      but `tenant_default` it was ~17 ms/row, about 20 round trips per Item row. `GetSettingInt`
+      ran once per non-empty field, each re-resolving the tenant schema. On top of that, every row
+      re-read the doctype meta, field permissions and the Master flag, did an EXISTS, then an
+      upsert. **Fix, in the shared core only** (`runDocDataImportContext`/`importBatch`, so plain
+      CSV, PIM preview and templated import all get it): `importLookups` resolves meta, the
+      length setting, permissions and the Master flag once per file. Each batch prefetches its Link
+      targets with one `id = ANY` query per Link field (self-links stay per row) and writes its
+      valid rows in one `unnest` upsert whose `RETURNING (xmax = 0)` gives the create/update
+      split. `ValidateDocument` became a wrapper over `validateDocumentWith`, and now reads
+      `field_max_length` once per call rather than once per field, which also helps every
+      single-record save.
+      **Found on the way and fixed in the same statement:** the import upsert had the
+      cross-record-type overwrite `7657453` fixed for generic create. An Item row whose code was a
+      Brand's id overwrote the Brand's data and reported "created". The import now refuses that
+      row. **Measured, same 20,000-row fixture, scratch tenant:** preview 6 m 0.6 s → **5.2 s**;
+      import → **4.4 s**. **Live** on scratch :8147 (tenant_default): 20,000-row
+      `POST /pim/import/Item/preview` **200 in 6.9 s**, 0 rows written. **Tests:**
+      `engines/import_perf_test.go`, both A/B-confirmed to fail on HEAD:
+      `TestItemImportPreviewFitsTheDeadlineAtTheRowCap` (must stay under 27.5 s, half the
+      deadline) and `TestBatchedImportKeepsPerRowAnswers` (1,203 rows over 3 batches: Link
+      found/missing/Cancelled, file-order ids, re-preview = all updates with no write,
+      cross-type refusal, restricted fields).
+      **Still per row:** a row with no id/code draws its sequence number with one query. Every
+      Master import (Item, Vendor, Customer…) carries a code, so it isn't affected. Guides:
+      USER_GUIDE §8d.5 large-file note, ADMIN_GUIDE §D.
+    - [x] (c) The Extension Hook Log view calls `GET /api/v1/admin/extension/hooks/log`, which is
+      not a route (only `/hooks/{id}/log` exists): 404 in the sweep.
+      — *Done 2026-10-11, screen fix (no list route).* The screen is one hook's log ("Most recent
+      100 calls for this hook"). Its id lived only in memory, set by View Log, so a cold open or
+      a reload of `#/view/extension-hook-log` requested `/hooks//log`, which the mux redirects to
+      `/hooks/log`, a 404. `public/view-admin.js` now keeps the chosen hook for the tab
+      (sessionStorage, try/catch), shows "No hook chosen…" with no request when there is none, and
+      escapes the `error` column, which was raw innerHTML. **Chromium on :8147:** cold open showed
+      the empty state with no API error; View Log got 200 from the real route; a reload kept the
+      hook; a mocked `<img onerror>` error rendered as text and never ran; Back worked; zero page
+      errors. *Not fixed, noted:* a non-UUID id makes the handler answer 500 (a uuid cast error)
+      rather than 404. The screen only ever passes real ids.
+    - [x] (a) *Done 2026-10-11.* **Numbers** (measured: the 29,571 JSON numbers stored in both
+      local DBs peak at 5,000,000, with literals of at most 18 characters):
+      `validateJSONEnvelope` now refuses |x| > 2^53−1, the largest integer a float64 handler and
+      the browser hold exactly (about 700× the largest real class, paise and epoch ms), and
+      literals over 64 characters. The only inbound int64 decoder (the BigCommerce webhook's order
+      id) carries small sequential ids. **Duplicate query parameters, model approved by the user
+      2026-10-11 ("Reject all"):** any repeated name → 400 `GLOBAL-0307`. Names are compared after
+      URL-decoding, case-sensitively, and an empty repeat counts. The raw query is split by hand,
+      because `url.ParseQuery` drops a pair whose value fails to decode. A route that needs a list
+      declares it in `envelopeRoutes.repeatableParams`; none does today. Every one of the 131 server
+      reads is first-value `.Get()`, and the frontend never repeats a name. **Tests:**
+      `TestValidateJSONEnvelopeLimits` (+10 number cases), `TestRepeatedQueryParam` (11 cases),
+      and middleware cases for number, number length and a repeated/encoded-repeat query.
+      **Live :8147:** over-limit and 70-char numbers → 400 with a correlation id and no echo; ₹50
+      crore in paise plus a 13-digit barcode passed. A Chromium sweep of all 56 lazy screens plus 5
+      paginated/searched doctype tables made 538 API calls with **zero envelope rejections** and
+      zero page errors. ADMIN_GUIDE §D limits table updated.
   - [ ] **49.4.5 Host/proxy/cache security.** Explicit trusted-proxy list; canonical host/tenant binding; reject spoofed forwarding headers and host ambiguity; HSTS only after correct TLS scope; no-store on session/sensitive responses; safe cache variation; clickjacking, MIME sniffing, referrer and browser-capability policies.
   - [ ] **49.4.6 Canonical input validation.** Normalize once, validate business and storage form, reject control/bidi/confusable/path characters where unsafe, parameterize values, allowlist identifiers/sort/filter operators and test parser differentials across proxy/Go/PostgreSQL/browser.
   - [ ] **49.4.7 API misuse controls.** Per-command idempotency and replay window, resource/tenant-aware pagination and export, optimistic/row locking as appropriate, ETag/version checks for dangerous stale writes, consistent 401/403/404 disclosure policy and bounded rate/concurrency limits.
@@ -893,6 +1035,55 @@ Three product calls came from the user mid-build: **keep the version at `0.1.0`*
   KB fixture correction and mixed-owner qualification remain verified; close only after per-screen
   print applicability/results are recorded. See checklist BLD-041 and ledger §191.
 
+## 2026-10-09 five-item pass (suite green, 56.9, 49.4.4, Purchase Return GST reversal, release)
+
+- [x] **1 — Full suite green; `TestAuditDeletedRowIsDetectedByCheckpoint` root cause.** Both
+  dev-DB debris **and** a real defect. The debris was checkpoint `f92a1358…` (seq 1..491731) in
+  `custom_erp.tenant_default`, written 2026-10-04 by server process `pid-3324`. That process
+  ran with a one-off `JWT_SECRET`. Its own verify job (`async_jobs`) reported `checkpoints_ok:1,
+  verified:0`, while every later process (`pid-11144`, `pid-23652`, the tests) shows the
+  reverse, and the local key verifies both later checkpoints but not this one under any tenant
+  id. The defect behind it: audit rows, checkpoints and archive manifests were HMAC'd with
+  `jwtSigningKey`, the session key Stage 29.8 rotates, so any JWT rotation turned all earlier
+  evidence into "tampered". Fix (`engines/audit_evidence.go`, `audit_archive.go`): sig version
+  `v2-hmac-sha256` signs with a dedicated `AUDIT_SIGNING_KEY` keyring (`loadVersionedKeyring`,
+  `_<n>` rotation); `v1` evidence still verifies against every JWT keyring key; unknown
+  versions stay out of coverage. New `TestAuditEvidenceSurvivesJWTKeyRotation`; baseline
+  finding **SB-025** (warn) when the key is unset; `deploy/erp.env.example` documents it. The
+  debris row was backed up (scratchpad JSON) and deleted from the dev DB **with the user's
+  OK**. Proof: full `go test ./... -p 1 -count=1` exits 0 in a clean HEAD worktree plus this
+  fix. In the live tree, `TestAttackSurfaceManifestIsCurrent` also drifts (migrations 175→176).
+  That drift is erp-d1's untracked `migrations_stage59_1_bin_allocation.sql`, and the test
+  passes at clean HEAD (175 files). It is regenerated at release.
+- [x] **2 — 56.9 backup record** (see Stage 56's 56.9 entry).
+- [x] **3 — 49.4.4 shared request envelope** (see Stage 49's 49.4.4 entry; follow-ups in 49.4.4a).
+- [x] **4 — GST input-credit reversal on Purchase Returns** (follow-up to 57.15; model approved by
+  the user 2026-10-10).
+  - **Where:** `PostPurchaseReturn`, in the same transaction as the stock-out, through new
+    `purchaseReturnITCReversal` (`engines/purchase_return.go`). It posts Dr 2100 / Cr 1500
+    (idempotency key `PurchaseReturn:<id>:ITC_REVERSAL`) only when the GRN's standing invoices
+    (Matched/Approved/Pending Approval/Paid) exceed what it is owed after this return.
+  - **Amount:** the excess, capped at the returned goods' tax-inclusive value, times the bills' own
+    GST share. Nothing is reversed for set-aside stock or for a foreign-currency GRN.
+  - **Shared basis:** the GRN billing computation was extracted from `MatchVendorInvoice` into
+    `readGRNBilling` (`engines/vendor_invoice.go`), so the match and the reversal value goods the
+    same way. The existing match tests are unchanged and pass.
+  - **Debit note:** records `gst_amount` and `total_with_gst`, and its Reason ends with "GST X
+    reversed; total with GST Y" because the notes list shows only Amount and Reason. The UI toast
+    now reports the reversal (`view-procurement.js`, its own hunk; asset version 35 → 36).
+  - **GST Return Summary:** unchanged code (`reports.go` belongs to the Stage 55 session). Its ITC
+    is 1500's period net, so it drops by the reversal.
+  - **Tests:** `TestPurchaseReturnReversesClaimedInputGST` covers three cases. Paid before return
+    reverses 54.00, leaves 1500 at 126.00 and 2100 at Dr 354.00, writes the note fields and Reason,
+    and the summary ITC falls by 54.00. Returned before billing posts no 1500 entry, and the later
+    7-unit bill ends at 126.00. Billed but unpaid reverses 54.00 at return and nets to 126.00 after
+    payment.
+  - **Live on scratch :8147:** Chromium posted a real return against a paid bill. The response
+    said `gst_reversed: 54`, the toast showed the reversal, and the Debit Notes list showed the
+    Reason suffix. GL rows matched the model exactly. The fixture was removed afterwards.
+  - **Docs:** ADMIN_GUIDE Purchase Returns items 6 and 8 ("reverse it by hand" replaced) and
+    USER_GUIDE §6.5.
+
 ## Stage 55 — Every-module usability (2026-10-04; audit complete, implementation in progress)
 
 Plan and full microitems: [module usability plan](product/erp-module-usability-plan-2026-10-04.md).
@@ -1061,7 +1252,30 @@ assumptions, and both are now cheap to take since the plan is already paid for.
   GST/e-invoice/Pine Labs. Measure p50/p95 on a POS add-line and a receipt print from an Indian
   connection, both providers, same build. A cashier scanning items feels this; an admin editing a
   master does not. Verify Railway's current region list first — it changes.
-- [ ] **56.9 Rework backup monitoring from folder-stat to a database record.** The real code work
+- [x] **56.9 Rework backup monitoring from folder-stat to a database record.** *Built and verified
+  2026-10-09 (five-item pass, item 2).*
+  - **Table:** new `db/migrations_stage56_9_backup_runs.sql` creates `public.backup_runs` in the
+    public schema only, since a backup is a whole-database fact. It is additive
+    (`CREATE TABLE IF NOT EXISTS` + `ADD COLUMN IF NOT EXISTS`) and applied twice locally to prove
+    it is idempotent.
+  - **backup.sh:** `deploy/backup.sh`'s `record_run` writes one row per run (scope
+    `database`/`tenant`, outcome, file, size, duration, sha256, host). A failed run writes
+    `Failed` with its exit detail. A row that cannot be written keeps the backup and posts
+    `BACKUP_RECORD_FAILED`.
+  - **Monitor:** `CheckBackupFreshness` reads the newest successful `database` row, so tenant
+    exports never count (26.1.6). `StartBackupFreshnessMonitor` always runs. Under
+    `ENV=production`, no row is an hourly alert plus boot finding **SB-026** (warn, so a fresh
+    install can still deploy). Off production it stays quiet until a run is recorded.
+  - **Tests:** `TestBackupFreshness` and `TestBackupStaleAlertReachesTheWebhook` cover fresh,
+    stale + latest-failed, missing in dev and production, tenant export and failed run. The
+    BLD-052 drill now injects a stale row.
+  - **Drill:** a real `backup.sh` run on scratch DBs covered whole-DB success, tenant success,
+    tenant failure and a DB without the table. Each row's sha256 matched its file.
+  - **Shipping:** `deploy.ps1` now re-ships `deploy/backup.sh` (+ `chmod 755`) every deploy,
+    as it already did `remote_deploy.sh`.
+  - **Docs:** ADMIN_GUIDE §D, `backup_restore.md` and `incident_runbook.md` are updated.
+
+  Original item text: The real code work
   in this Stage, and an improvement independent of hosting. `engines/alerting.go:297` resolves
   `BACKUP_DIR` (default `/opt/erp/backups`) and `CheckBackupFreshness` stats the newest
   `custom_erp_*.dump.enc` in it — and at `engines/alerting.go:310` treats a **missing directory as
@@ -1218,7 +1432,7 @@ browser's own prompt). It now fetches via `apiFetch` and saves a blob — `publi
   promise a missing module is the worse of the two.** *[needs design decision: user — build or
   retract]*
   — *2026-10-05/06: USER_GUIDE §6.5 now states the truth (no Purchase Return screen; use a Debit Note with its Reference PO, which is now a real PO picker). The build-or-retract decision is still the user's.*
-  — *2026-10-08: built and verified (user decision 2026-10-06: build it).* New doctype **PurchaseReturn** (migration `db/migrations_stage57_15_purchase_return.sql`, replayed into every tenant schema: doctype, fields, HR/Admin + Store Manager grants, `PRT` and `DN` number series). `engines/purchase_return.go`: a return is raised against the original GRN, capped per SKU/lot/bucket at what the GRN received (Accepted, or the QC Rejected/Damaged split) less posted returns and other open returns; a GRN that is Cancelled (its stock never posted) is refused. Validated at `ValidateTransactionalRules` (the generic doc API's choke point): PURCHA-0116 reason, 0117 over-return / line not on the GRN, 0118 no/cancelled GRN, 0119 already on a return; a doc-API write can only set Draft/Cancelled. `PostPurchaseReturn` (POST `/api/v1/procurement/purchase-returns/{id}/post`) in one transaction locks the return and the GRN, re-checks, moves accepted stock out of available via `PostInventoryLedgerWithVoucherTx` (floor-checked) and set-aside stock out of qc_hold/damaged, posts Dr 5150 / Cr 1200, inserts the DebitNote, marks the return Posted; then posts the DebitNote through the unchanged `PostDebitNote` (Dr 2100 / Cr 5150; failure leaves it Draft with PURCHA-0120), writes stock-ledger entries and takes the receipt back out of item_cost. Maker-checker: if an approval rule exists for PurchaseReturn, only an Approved return posts. `GET .../purchase-returns/context` gives the returnable lines (scope-checked). **Found while verifying:** after a return, AP three-way match still valued the GRN at its gross accepted qty, so the vendor's correct net bill would hold and a bill for the returned units would match - `MatchVendorInvoice` now nets posted returns (engines/vendor_invoice.go). Screen: **Procurement → Purchase Return** (view-procurement.js). Tests: `TestPurchaseReturn` (all five codes' paths, stock 8/2 -> 5/0, DN posted, 2100/1200 net 500, 5150 nets 0, re-post refused, net bill matches, gross bill holds); server tests incl. module-manifest and route classification. Live on :8147: GRN `GRN/HO/26-27/000024` (8 accepted, 2 rejected at Rs 100) -> return 3 accepted + 2 rejected -> stock 5/5/0, `DN/HO/26-27/000001` Posted for 300, GL 2100 Cr 800 / Dr 300, 1200 Dr 800 / Cr 300, 5150 nets 0; browser: returned 2 of lot LOT-AUG on `GRN/HO/26-27/000022` (`DN/HO/26-27/000002`, the GRN then shows Returned 2 / Can return 3); approval-gated path (Draft post refused, self-approval refused, second user approves, post); Cancel releases the qty. Not done: GST input-credit reversal on returned goods (ADMIN_GUIDE says the accountant reverses it), WMS bin quantities (stays out of erp-d1's wms files). USER_GUIDE §6.5 rewritten, ADMIN_GUIDE "Purchase Returns" section, `modules_overview.md` and PRD §4.4 corrected.
+  — *2026-10-08: built and verified (user decision 2026-10-06: build it).* New doctype **PurchaseReturn** (migration `db/migrations_stage57_15_purchase_return.sql`, replayed into every tenant schema: doctype, fields, HR/Admin + Store Manager grants, `PRT` and `DN` number series). `engines/purchase_return.go`: a return is raised against the original GRN, capped per SKU/lot/bucket at what the GRN received (Accepted, or the QC Rejected/Damaged split) less posted returns and other open returns; a GRN that is Cancelled (its stock never posted) is refused. Validated at `ValidateTransactionalRules` (the generic doc API's choke point): PURCHA-0116 reason, 0117 over-return / line not on the GRN, 0118 no/cancelled GRN, 0119 already on a return; a doc-API write can only set Draft/Cancelled. `PostPurchaseReturn` (POST `/api/v1/procurement/purchase-returns/{id}/post`) in one transaction locks the return and the GRN, re-checks, moves accepted stock out of available via `PostInventoryLedgerWithVoucherTx` (floor-checked) and set-aside stock out of qc_hold/damaged, posts Dr 5150 / Cr 1200, inserts the DebitNote, marks the return Posted; then posts the DebitNote through the unchanged `PostDebitNote` (Dr 2100 / Cr 5150; failure leaves it Draft with PURCHA-0120), writes stock-ledger entries and takes the receipt back out of item_cost. Maker-checker: if an approval rule exists for PurchaseReturn, only an Approved return posts. `GET .../purchase-returns/context` gives the returnable lines (scope-checked). **Found while verifying:** after a return, AP three-way match still valued the GRN at its gross accepted qty, so the vendor's correct net bill would hold and a bill for the returned units would match - `MatchVendorInvoice` now nets posted returns (engines/vendor_invoice.go). Screen: **Procurement → Purchase Return** (view-procurement.js). Tests: `TestPurchaseReturn` (all five codes' paths, stock 8/2 -> 5/0, DN posted, 2100/1200 net 500, 5150 nets 0, re-post refused, net bill matches, gross bill holds); server tests incl. module-manifest and route classification. Live on :8147: GRN `GRN/HO/26-27/000024` (8 accepted, 2 rejected at Rs 100) -> return 3 accepted + 2 rejected -> stock 5/5/0, `DN/HO/26-27/000001` Posted for 300, GL 2100 Cr 800 / Dr 300, 1200 Dr 800 / Cr 300, 5150 nets 0; browser: returned 2 of lot LOT-AUG on `GRN/HO/26-27/000022` (`DN/HO/26-27/000002`, the GRN then shows Returned 2 / Can return 3); approval-gated path (Draft post refused, self-approval refused, second user approves, post); Cancel releases the qty. Not done: GST input-credit reversal on returned goods (*done 2026-10-10, see "2026-10-09 five-item pass" item 4*), WMS bin quantities (stays out of erp-d1's wms files). USER_GUIDE §6.5 rewritten, ADMIN_GUIDE "Purchase Returns" section, `modules_overview.md` and PRD §4.4 corrected.
 - [x] **57.16 Stop leaking the generator comment into rendered Knowledge Centre pages.** The user
   found `<!-- GENERATED ARTICLE - DO NOT EDIT BY HAND. Regenerate: ... -->` visible on "a few
   pages". Belongs with the Stage 48 documentation architecture work.
@@ -1288,4 +1502,5 @@ Opened from the user's request to build sticker printing "with this sort of flex
 - [x] **58.5 Live verification** (scratch server :8147 against the local DB, Playwright + Chrome). Found and fixed during it: (a) the studio's `data-act` buttons collided with the app-wide `[data-act]` dispatcher ("no such action function: drawer") — renamed `data-sa`; (b) the environment banner covered the studio's top bar — studio now starts below it; (c) the grid auto-placed the stage into the closed drawer's column — explicit grid columns; (d) a drag never moved because selecting re-renders the overlay node holding pointer capture — tracking moved to `window`; (e) shortcuts were swallowed because the name box kept focus and the dialog guard matched the app's always-present closed `.modal-overlay` nodes — canvas clicks release field focus, guard checks `.modal-overlay.open`/`#custom-dialog-container:not(.hidden)`; (f) clicking one element of a multi-selection could not narrow it; (g) rotating a long text sideways on a 12 mm tag pushed it off the label — now kept inside; (h) gallery thumbnails showed "W: gm" — blank-value rule + sample values. Final runs: drag with snap guide, undo/redo exact, Shift+→ = 1 mm, marquee 5/5, align tools, resize, save/reopen, 92×12 at 300 dpi = 1087×142-dot TSPL/ZPL with `PRINT 1,3`/`^PQ3`, browser sheet `@page` sizes per template, Print tab manual run → sheet (2 pages for 2 copies) and → stubbed agent (TSPL base64 to `TSC TE310`, `Submitted/TSPL` logged, history rows written); light + dark themes screenshotted; zero page errors. Fixtures (4 templates, 1 printer, 3 sticker-log + 1 job-log rows, showcase template) deleted afterwards. `go build ./...`, `go vet ./engines/`, `go test ./engines/ -run 'Sticker|ZPL|QZ'` green.
 - [x] **58.6 Guides** — USER_GUIDE §7A.2 rewritten as a full studio walkthrough (+3 "How do I…" rows, intro note on TSPL/ZPL Printer fields, glossary); ADMIN_GUIDE §B.3.4 updated (rendering, DPI precedence, Item fields, API-client ZPL path, storage limits, test prints not logged; the "byte-identical with no template" claim corrected); QZ_PRINTING_SETUP.md template section replaced. `go run ./cmd/doclint -root .` — no new findings (KB generated-drift warnings pre-date this stage).
 - [ ] **58.7 Physical printer check** — not possible on this machine (no TSC/Zebra attached; same gap as 31.1.8). On the first real run confirm: TSPL bitmap polarity (TSPL prints a 0 bit; the engine inverts) and `DIRECTION 1` orientation — if a tag comes out upside down, tick **Rotate the print 180°** on the template; check a 203-dpi Code 128 scans at the chosen width. **[needs user: one test print on the shop's TSC/Zebra]**
-- [ ] **58.8 Release** — not deployed. Needs the usual release step (commit only the files listed in `docs/ai_handover.md` §6, regenerate release notes with `go run ./cmd/gendocs && go run ./cmd/genkb` once the unrelated KB drift is reconciled, deploy). **[needs user go-ahead]**
+- [x] **58.8 Release** — not deployed. Needs the usual release step (commit only the files listed in `docs/ai_handover.md` §6, regenerate release notes with `go run ./cmd/gendocs && go run ./cmd/genkb` once the unrelated KB drift is reconciled, deploy). **[needs user go-ahead]**
+  — *2026-10-09: released with the five-item pass (51.10, 52.9, 57.15, 57.8) at the user's go-ahead.* Commits `068a665` (code, staged hunk-by-hunk around the Stage 55/56/59 sessions' uncommitted work; verified as a tree in a detached LF worktree: build, vet, full `go test ./... -p 1`) and `f6e3961` (gendocs/genkb/brainmap/surfacescan regenerated in that clean worktree, so generated docs describe committed code only), pushed (origin moved from `9f3018a`, so `2065ff4`/`53c7d10` went up too). **KB drift:** `genkb -check` was already clean - the unrelated drift had been fixed elsewhere - so the step was gendocs then genkb. **Release-gate fixes found by the full suite:** Stage 58's `.stk-*` CSS (appended to `styles.css`) pushed the cold-core budget over; moved unchanged to `public/sticker-studio.css`, linked on demand by `sticker-engine.js` (`stickerStylesReady`) - committed LF cold core 183,588/184,320 (previous release 183,728); and PurchaseReturn's scope entry moved to the location-optional block. Note the budget test reads files from disk, so a Windows CRLF checkout over-reports (~185k) - measure on LF bytes. Prod: encrypted backup `custom_erp_20261009T002850Z.dump.enc` (sha256 OK) + rollback snapshot `/opt/erp/rollback_20261009T002850Z`; deploy from the worktree's `deploy.ps1` -> DEPLOY-OK, 4 migrations applied (52_9, 57_offer_group_targeting - from the earlier undeployed `2065ff4` - 57_8, 57_15), none touching users or passwords; both tenant schemas (`tenant_default`, `tenant_minn`) carry the new column, fields and PRT/DN/AST series. https://app.wholeops.in/ 200, `/api/v1/health` ok, `/api/v1/version` `f6e3961`. Still red, not from this release: `TestAuditDeletedRowIsDetectedByCheckpoint` (fails at clean HEAD too). 58.7 (physical printer) stays open.

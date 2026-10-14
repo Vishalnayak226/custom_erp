@@ -44,6 +44,35 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 215. Five-item pass: import speed, envelope remainder, limiter bounds, generator safety, release (2026-10-11)
+
+Detail lives in micro_checklist 49.4.4a, 47.11.1 and 47.15.1.
+
+- **Item 1 — 49.4.4a(b), import speed.** A 20,000-row Item preview took 6 minutes on a
+  non-default tenant (~17 ms/row, ~20 round trips per row). The shared import core now resolves
+  doctype meta, settings, permissions and the Master flag once per file. Each batch prefetches
+  its Link targets in one query and writes its rows in one upsert. Preview now takes 5.2 s and
+  import 4.4 s; live HTTP preview took 6.9 s. The same upsert now refuses an id held by another
+  record type, which it used to overwrite. Two regression tests are A/B-confirmed on HEAD.
+- **Item 2 — 49.4.4a(a)+(c), envelope remainder.** The Extension Hook Log 404 was the screen,
+  not a missing route. A cold open or reload lost the hook id and requested `/hooks//log`. The
+  screen now keeps the hook for the tab, explains when none is chosen, and escapes the error
+  column; Chromium verified it. The envelope now bounds JSON numbers to ±(2^53−1) and 64
+  characters (measured peak 5,000,000 / 18 chars). It also refuses any repeated query parameter
+  (the user approved "Reject all"). A 56-screen sweep made 538 calls with zero envelope rejections.
+- **Item 3 — 47.11.1, bounded limiter state.** Key churn grew the limiter by ~119 bytes a key,
+  never freed, and junk bearer tokens each got a fresh budget, so per-IP limits could be
+  bypassed. Only a token this server signed now gets its own bucket. The table sweeps idle keys
+  and caps at 100,000 keys (~11 MB), with overflow throttling only newcomers. The tenant in-flight
+  map forgets idle tenants. Limits are per process by design; the shared security state
+  (lockout, tokens, credential version) is already in PostgreSQL.
+- **Item 4 — 47.15.1, generator safety.** The staged, manifest-driven pipeline and read-only
+  `-check`s already existed (Stage 48). A bare `gendocs` could still write live paths; it now
+  needs `-out`. The safety script was extended to surfacescan and the full check, and made
+  independent of governance freshness. All 24 read-only assertions pass. Found: every
+  capability's review date expired 2026-10-09, which blocks `update-docs` Content/All publish
+  until the user reviews.
+
 ## 213. SOP video: a draft chapter for every module, and the defects recording them found (2026-10-08 → 10; docs + code)
 
 The user approved recording the SOP chapters for all modules (57.12). Detail in `micro_checklist.md` 57.12, 57.25, 57.26.
@@ -53,7 +82,37 @@ The user approved recording the SOP chapters for all modules (57.12). Detail in 
 - **Guides.** USER_GUIDE gains §9B.1 (journal vouchers), §9C (service contracts and tickets) and §9D (CRM campaigns), and the asset Transfer/Dispose panel and Stock Ledger balance notes.
 - **Open (57.26).** Nine observations needing a decision, led by the generic Edit form being able to set a lifecycle Status directly.
 
-## 201. Five-item pass: Item family template, lot-level sticker log, Purchase Return, asset records, release (2026-10-08; code + docs, in progress)
+## 211. Five-item pass: audit-key defect, backup record, request envelope, PR GST reversal, release (2026-10-09)
+
+Item-by-item detail lives in micro_checklist's "2026-10-09 five-item pass" section and 56.9.
+
+- **Item 1 — suite green.** `TestAuditDeletedRowIsDetectedByCheckpoint` was dev-DB debris
+  caused by a real defect. A 2026-10-04 server with a one-off `JWT_SECRET` wrote a checkpoint
+  that no other process could verify, because audit evidence was keyed to the rotating JWT
+  session key. Audit evidence now signs as `v2` with its own `AUDIT_SIGNING_KEY` keyring (SB-025
+  when unset), and `v1` still verifies against the JWT keyring. The debris row was deleted from
+  the dev DB with the user's OK. Full suite exits 0 in a clean HEAD worktree plus the fix.
+- **Item 2 — 56.9.** `public.backup_runs` (new migration). `backup.sh` records every run, and
+  `CheckBackupFreshness` reads the newest successful whole-database row. In production, no
+  backup recorded is an alert plus boot finding SB-026. `deploy.ps1` now ships `backup.sh`.
+- **Item 3 — 49.4.4.** `request_envelope.go` is called once from `apiMiddleware` (and the
+  public API middleware). It allowlists methods and content types, bounds body, headers and
+  JSON shape, rejects duplicate keys, and propagates a 55 s deadline. New codes
+  `GLOBAL-0303..0308` carry the correlation id.
+  - The limits come from measurement. That measurement found the old 2 MB cap silently
+    overriding every larger upload limit.
+  - Live checks found a deadline reported as an empty 499 (fixed: now 504) and that a
+    20,000-row import preview takes about 110 s (follow-up 49.4.4a).
+- **Item 4 — Purchase Return GST reversal (model approved 2026-10-10).** `PostPurchaseReturn`
+  now reverses input GST already claimed on returned goods (Dr 2100 / Cr 1500), on the same
+  billing basis as the 3-way match, now shared through `readGRNBilling`. A return made before
+  billing reverses nothing.
+  - Paid-before-return, returned-before-billing and billed-but-unpaid are tested. A live
+    Chromium post showed the reversal in the toast and the Debit Note.
+  - The GST Return Summary picks it up through 1500's period net. Both guides are updated.
+    Asset version is now 36.
+
+## 201. Five-item pass: Item family template, lot-level sticker log, Purchase Return, asset records, release (2026-10-08 → 09; code + docs, released `068a665`/`f6e3961`)
 
 The user set five items to be done in order, each verified before the next. Detail in
 `micro_checklist.md` 51.10, 52.9, 57.15, 57.8, 58.8.
@@ -77,6 +136,11 @@ The user set five items to be done in order, each verified before the next. Deta
   Capitalise asks for the useful life. Never sellable, enforced once at the sale-side GST choke
   point and OMS order intake (ASSET-0273). Live: 2 laptops received -> 2 Draft assets, stock 0;
   POS and order refused.
+- **Release (58.8).** Committed `068a665` (code, hunk-staged around three concurrent sessions) and
+  `f6e3961` (generated docs from a clean worktree), pushed and deployed to app.wholeops.in after an
+  encrypted backup: 4 additive migrations on both tenants, site 200, health ok, version `f6e3961`.
+  The full suite found two release gates, both fixed: Stage 58's CSS over the cold-core budget
+  (moved to an on-demand `sticker-studio.css`) and a scope-registry mismatch.
 
 ## 200. Stage 57 decisions built: GST credit, order shipping postings, Location Movement, offer group targeting (2026-10-08; code + docs)
 

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net"
@@ -194,6 +195,13 @@ func writeEngineError(w http.ResponseWriter, r *http.Request, err error, fallbac
 		w.WriteHeader(clientClosedRequestStatus)
 		return
 	}
+	// Stage 49.4.4: the request envelope's deadline expired while the caller
+	// is still waiting. That is not abandonment - they get a real answer
+	// telling them to send less, instead of an empty 499.
+	if requestDeadlineExceeded(r, err) {
+		writeAPIError(w, r, "GLOBAL-0308", "")
+		return
+	}
 	if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
 		// Stage 30.2.4: verr.Message - the engine's own specific reason - used
 		// to be discarded here in favour of the catalog's generic wording. It
@@ -229,6 +237,9 @@ func isAbandonedRequest(r *http.Request, err error) bool {
 	if err == nil {
 		return false
 	}
+	if requestDeadlineExceeded(r, err) {
+		return false
+	}
 	if engines.IsCancellation(err) {
 		return true
 	}
@@ -239,6 +250,13 @@ func isAbandonedRequest(r *http.Request, err error) bool {
 		errors.Is(err, syscall.ECONNRESET) ||
 		errors.Is(err, syscall.ECONNABORTED) ||
 		errors.Is(err, net.ErrClosed)
+}
+
+// requestDeadlineExceeded reports whether err stems from the request's own
+// deadline (the 49.4.4 envelope's) running out, rather than the client
+// leaving - the request context says which: DeadlineExceeded versus Canceled.
+func requestDeadlineExceeded(r *http.Request, err error) bool {
+	return err != nil && r != nil && errors.Is(r.Context().Err(), context.DeadlineExceeded)
 }
 
 // clientClosedRequestStatus mirrors nginx's non-standard 499. There is no

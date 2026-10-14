@@ -395,6 +395,7 @@ func validatePurchaseReturnRules(tenantID, docID, priorStatus string, priorData,
 type PurchaseReturnPostResult struct {
 	ReturnID         string  `json:"id"`
 	ReturnValue      float64 `json:"return_value"`
+	GSTReversed      float64 `json:"gst_reversed,omitempty"`
 	DebitNoteID      string  `json:"debit_note_id,omitempty"`
 	DebitNotePosted  bool    `json:"debit_note_posted"`
 	DebitNoteWarning string  `json:"debit_note_warning,omitempty"`
@@ -519,6 +520,7 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 
 	valuePaise := RupeesToPaise(total)
 	var dnID string
+	var itcReversed float64
 	if valuePaise > 0 {
 		// GenerateSequence commits on its own connection, like every generated
 		// number: a rolled-back post leaves a gap in the DN series, never a
@@ -531,10 +533,34 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 			"", fmt.Sprintf("PurchaseReturn:%s:STOCK_OUT", returnID)); err != nil {
 			return nil, fmt.Errorf("GL posting failed, return not posted: %v", err)
 		}
+		// Input GST already claimed on these goods is reversed in the same
+		// transaction (follow-up to 57.15; model approved 2026-10-10).
+		itcPaise, err := purchaseReturnITCReversal(tx, tenantID, schema, ctx.POID, ctx.GRNID, lines)
+		if err != nil {
+			return nil, err
+		}
+		if itcPaise > 0 {
+			if err := PostDoubleEntryTx(tx, tenantID, schema, "PurchaseReturn", returnID,
+				map[string]int64{"2100": itcPaise}, map[string]int64{"1500": itcPaise},
+				"", fmt.Sprintf("PurchaseReturn:%s:ITC_REVERSAL", returnID)); err != nil {
+				return nil, fmt.Errorf("GL posting failed, return not posted: %v", err)
+			}
+			itcReversed = PaiseToRupees(itcPaise)
+			data["gst_reversed"] = itcReversed
+		}
 		dn := map[string]interface{}{
 			"code": dnID, "note_number": dnID, "vendor_id": ctx.VendorID, "reference_po": ctx.POID,
 			"amount": total, "reason": fmt.Sprintf("Purchase return %s (GRN %s): %s", returnID, ctx.GRNID, strField(data, "reason")),
 			"status": "Draft", "source_doctype": "PurchaseReturn", "source_doc_id": returnID,
+		}
+		if itcReversed > 0 {
+			// The note's GL stays at taxable value (Dr 2100 / Cr 5150); these
+			// two fields are what the vendor-facing note shows they refund.
+			dn["gst_amount"] = itcReversed
+			dn["total_with_gst"] = round2(total + itcReversed)
+			// The notes list shows Amount and Reason, so the refund the vendor
+			// owes including GST is stated where it is read.
+			dn["reason"] = fmt.Sprintf("%s | GST %.2f reversed; total with GST %.2f", dn["reason"], itcReversed, round2(total+itcReversed))
 		}
 		dnBytes, err := json.Marshal(dn)
 		if err != nil {
@@ -586,7 +612,7 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 		}
 	}
 
-	result := &PurchaseReturnPostResult{ReturnID: returnID, ReturnValue: total}
+	result := &PurchaseReturnPostResult{ReturnID: returnID, ReturnValue: total, GSTReversed: itcReversed}
 	if valuePaise > 0 {
 		result.DebitNoteID = dnID
 		if _, derr := PostDebitNote(tenantID, dnID, userID); derr != nil {
@@ -599,6 +625,88 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 	LogAuditEvent(tenantID, userID, "POST_PURCHASE_RETURN", "SUCCESS", fmt.Sprintf(
 		"Posted purchase return %s against GRN %s value=%.2f debit_note=%s", returnID, ctx.GRNID, total, result.DebitNoteID))
 	return result, nil
+}
+
+// purchaseReturnITCReversal is how much input GST (1500) a purchase return
+// must give back, in paise.
+//
+// Input credit is claimed when a vendor invoice is paid (inputGSTDebits), on
+// the GST share the invoice recorded. Goods returned BEFORE they were billed
+// were never claimed - MatchVendorInvoice already nets posted returns out of
+// what the vendor may bill - so nothing is reversed. Goods returned AFTER
+// billing show up as the GRN's standing invoices exceeding what it is still
+// owed once this return leaves: that excess, capped at the returned goods'
+// tax-inclusive value, carries the GST to reverse, at the billed invoices'
+// own GST share. An invoice billed but not yet paid is reversed now too; its
+// later payment claims the full credit and the two net to the right figure.
+//
+// Not reversed: set-aside (rejected/damaged) stock, which was never billable,
+// and a GRN billed in foreign currency, whose import IGST was paid at customs
+// rather than claimed through inputGSTDebits.
+func purchaseReturnITCReversal(tx queryRower, tenantID, schema, poID, grnID string, lines []PurchaseReturnLine) (int64, error) {
+	billing, err := readGRNBilling(tx, schema, poID, grnID)
+	if err != nil {
+		return 0, err
+	}
+	returnedNet := 0.0
+	for _, l := range lines {
+		if l.StockBucket != PurchaseReturnBucketAccepted {
+			continue
+		}
+		if rate, ok := billing.RateBySku[l.SKU]; ok {
+			returnedNet += rate * l.Qty
+		} else {
+			returnedNet += l.LineValue
+		}
+	}
+	if returnedNet <= 0 {
+		return 0, nil
+	}
+
+	rows, err := tx.Query(fmt.Sprintf(`
+		SELECT data FROM %s.documents
+		WHERE doctype = 'VendorInvoice' AND deleted_at IS NULL
+		  AND status IN (%s) AND data->>'grn_id' = $1`, schema, billableVendorInvoiceStatuses), grnID)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	var billed, billedGST float64
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return 0, err
+		}
+		var inv map[string]interface{}
+		if err := json.Unmarshal([]byte(raw), &inv); err != nil {
+			return 0, err
+		}
+		if documentFXPosition(tenantID, inv, "invoice_amount").Foreign {
+			return 0, nil
+		}
+		amount, gst := numFromInterface(inv["invoice_amount"]), numFromInterface(inv["gst_amount"])
+		billed += amount
+		if gst > 0 && gst < amount {
+			billedGST += gst
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	if billed <= 0 || billedGST <= 0 {
+		return 0, nil
+	}
+
+	stillOwedNet := billing.AcceptedNet - returnedNet
+	if stillOwedNet < 0 {
+		stillOwedNet = 0
+	}
+	excess := billed - stillOwedNet*billing.TaxRatio
+	if excess <= 0 {
+		return 0, nil
+	}
+	reversibleGross := math.Min(excess, returnedNet*billing.TaxRatio)
+	return RupeesToPaise(reversibleGross * billedGST / billed), nil
 }
 
 // reverseItemCostReceipt takes a returned receipt back out of the moving

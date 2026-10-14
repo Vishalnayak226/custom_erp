@@ -10,6 +10,8 @@ import (
 	"io"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type ImportResult struct {
@@ -247,6 +249,10 @@ func runDocDataImportContext(ctx context.Context, tenantID, doctype, userID, rol
 	if batchRows < 1 {
 		batchRows = 1
 	}
+	lk, err := newImportLookups(tenantID, schema, doctype, role)
+	if err != nil {
+		return nil, err
+	}
 	for batchStart := 0; batchStart < len(docRows); batchStart += batchRows {
 		// Checked between batches, never inside one. importBatch owns its own
 		// transaction, so stopping here leaves every already-committed batch
@@ -261,7 +267,7 @@ func runDocDataImportContext(ctx context.Context, tenantID, doctype, userID, rol
 			batchEnd = len(docRows)
 		}
 		if err := importBatch(tenantID, schema, doctype, userID, role, dryRun,
-			docRows[batchStart:batchEnd], preErrors[batchStart:batchEnd], batchStart+2, result, seenIDs); err != nil {
+			docRows[batchStart:batchEnd], preErrors[batchStart:batchEnd], batchStart+2, result, seenIDs, lk); err != nil {
 			return nil, err
 		}
 	}
@@ -280,6 +286,106 @@ func runDocDataImportContext(ctx context.Context, tenantID, doctype, userID, rol
 	}
 
 	return result, nil
+}
+
+// importLookups is everything importBatch used to re-read from the database
+// for every row (49.4.4a): the doctype's fields, platform.field_max_length,
+// the role's field permissions and whether the doctype is a Master - about
+// 20 round trips per Item row, which put a 20,000-row file far past the
+// request deadline. Resolved once per file instead, the same way batchRows
+// is, so a mid-import config edit applies to the next file.
+type importLookups struct {
+	validation     *docValidationLookups
+	permissions    map[string]FieldPermission
+	permissionsErr error
+	isMaster       bool
+	isMasterErr    error
+}
+
+func newImportLookups(tenantID, schema, doctype, role string) (*importLookups, error) {
+	fields, err := GetDocTypeMeta(tenantID, doctype)
+	if err != nil {
+		return nil, err
+	}
+	lk := &importLookups{validation: &docValidationLookups{
+		fields:         fields,
+		fieldMaxLength: GetSettingIntForSchema(schema, "platform.field_max_length"),
+	}}
+	if role != "" {
+		lk.permissions, lk.permissionsErr = fieldPermissions(tenantID, role, doctype)
+	}
+	lk.isMaster, lk.isMasterErr = IsMasterDoctype(tenantID, doctype)
+	return lk, nil
+}
+
+func (lk *importLookups) masterDoctype() (bool, error) { return lk.isMaster, lk.isMasterErr }
+
+// importWrite is one validated row waiting for its batch's write.
+type importWrite struct {
+	rowNumber int
+	id, data  string
+}
+
+// prefetchLinks answers every Link value in one batch with one query per
+// Link field, replacing a lookup per row per Link field. The query is
+// verifyDocumentExists's own condition. A Link back to the doctype being
+// imported is left to the per-row check, because an earlier row of the same
+// file can create its target. A failed prefetch only costs speed: those ids
+// stay unanswered and the per-row check runs for them.
+func (lk *importLookups) prefetchLinks(schema, doctype string, docRows []map[string]interface{}) {
+	known := map[string]map[string]bool{}
+	for _, f := range lk.validation.fields {
+		if f.Fieldtype != "Link" || f.Options == "" || f.Options == doctype {
+			continue
+		}
+		pending := map[string]bool{}
+		var ids []string
+		for _, row := range docRows {
+			val, ok := row[f.Fieldname]
+			if !ok || val == nil {
+				continue
+			}
+			id := strings.TrimSpace(fmt.Sprintf("%v", val))
+			_, done := known[f.Options][id]
+			_, queued := pending[id]
+			if id == "" || done || queued {
+				continue
+			}
+			pending[id] = false
+			ids = append(ids, id)
+		}
+		if len(ids) == 0 {
+			continue
+		}
+		rows, err := db.DB.Query(fmt.Sprintf(`SELECT id FROM %s.documents
+			WHERE doctype = $1 AND id = ANY($2::text[]) AND status != 'Cancelled'`, schema), f.Options, pq.Array(ids))
+		if err != nil {
+			continue
+		}
+		ok := true
+		for rows.Next() {
+			var id string
+			if rows.Scan(&id) != nil {
+				ok = false
+				break
+			}
+			pending[id] = true
+		}
+		if rows.Err() != nil {
+			ok = false
+		}
+		rows.Close()
+		if !ok {
+			continue
+		}
+		if known[f.Options] == nil {
+			known[f.Options] = map[string]bool{}
+		}
+		for id, exists := range pending {
+			known[f.Options][id] = exists
+		}
+	}
+	lk.validation.linkExists = known
 }
 
 // missingMandatoryColumns compares a doctype's mandatory fields against the
@@ -338,7 +444,9 @@ func missingMandatoryColumns(tenantID, doctype string, headers []string) []strin
 // either a plain CSV row or a template-remapped/transformed one); preErrors
 // is parallel to docRows and, when non-empty for a row, records that row as
 // failed for the given reason without calling ValidateDocument at all.
-func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, docRows []map[string]interface{}, preErrors []string, firstRowNumber int, result *ImportResult, seenIDs map[string]bool) error {
+func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, docRows []map[string]interface{}, preErrors []string, firstRowNumber int, result *ImportResult, seenIDs map[string]bool, lk *importLookups) error {
+	lk.prefetchLinks(schema, doctype, docRows)
+
 	tx, err := db.DB.Begin()
 	if err != nil {
 		return err
@@ -350,6 +458,7 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 	}
 
 	batchSuccessCount := 0
+	var writes []importWrite
 	for i, docData := range docRows {
 		rowNumber := firstRowNumber + i
 
@@ -368,7 +477,11 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		// skipped there rather than issuing a query that would only ever
 		// find zero rows for a role named "".
 		if role != "" {
-			if permErr := RejectRestrictedFieldWrites(tenantID, role, doctype, docData); permErr != nil {
+			permErr := lk.permissionsErr
+			if permErr == nil {
+				permErr = rejectRestrictedFieldWritesIn(lk.permissions, role, docData)
+			}
+			if permErr != nil {
 				recordImportError(result, rowNumber, permErr.Error())
 				continue
 			}
@@ -404,7 +517,7 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		}
 
 		// Perform field structure validation
-		valErr := ValidateDocument(tenantID, doctype, docData)
+		valErr := validateDocumentWith(tenantID, doctype, docData, lk.validation)
 		if valErr != nil {
 			recordImportError(result, rowNumber, valErr.Error())
 			continue
@@ -421,7 +534,7 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		// not exist" forever - 51.1's exact bug, on the one caller 51.1
 		// believed it had already fixed. Runs after ValidateDocument so a
 		// Master's mandatory `code` is already guaranteed present.
-		if _, invErr := ApplyMasterIDCodeInvariant(tenantID, doctype, rowIsCreate, docData); invErr != nil {
+		if _, invErr := applyMasterIDCodeInvariant(rowIsCreate, docData, lk.masterDoctype); invErr != nil {
 			recordImportError(result, rowNumber, fmt.Sprintf("could not resolve whether %s is a Master doctype: %v", doctype, invErr))
 			continue
 		}
@@ -471,29 +584,69 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 			recordImportError(result, rowNumber, fmt.Sprintf("Failed to marshal JSON payload: %v", mErr))
 			continue
 		}
+		writes = append(writes, importWrite{rowNumber: rowNumber, id: id, data: string(marshaled)})
+	}
 
-		// Create/update classification (Stage 15.2): checked before the
-		// upsert below so it reflects pre-write state regardless of dryRun.
-		var alreadyExists bool
-		_ = tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM documents WHERE doctype = $1 AND id = $2)`, doctype, id).Scan(&alreadyExists)
-
-		// Insert document record
-		query := `
-			INSERT INTO documents (id, doctype, data, status, created_by)
-			VALUES ($1, $2, $3, $4, $5)
-			ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = CURRENT_TIMESTAMP`
-		_, execErr := tx.Exec(query, id, doctype, marshaled, "Active", userID)
-		if execErr != nil {
-			recordImportError(result, rowNumber, fmt.Sprintf("Database write error: %v", execErr))
-			continue
+	// 49.4.4a: the batch's valid rows go in one statement instead of an
+	// EXISTS query plus an upsert per row. RETURNING reports which ids were
+	// created (xmax is 0 only on a freshly inserted row version) and which
+	// updated - Stage 15.2's classification, still pre-write state
+	// regardless of dryRun. seenIDs keeps an id from appearing twice here.
+	//
+	// ids are unique across every doctype in this table, so the update arm
+	// only fires for a row of the same doctype; an id held by another record
+	// type comes back missing and is refused instead of overwriting that
+	// record's data (the generic create got the same guard in 7657453).
+	if len(writes) > 0 {
+		ids := make([]string, len(writes))
+		datas := make([]string, len(writes))
+		for i, w := range writes {
+			ids[i], datas[i] = w.id, w.data
 		}
-
-		result.SuccessRows++
-		batchSuccessCount++
-		if alreadyExists {
-			result.UpdatedIDs = append(result.UpdatedIDs, id)
-		} else {
-			result.CreatedIDs = append(result.CreatedIDs, id)
+		inserted := map[string]bool{}
+		rows, execErr := tx.Query(`
+			INSERT INTO documents (id, doctype, data, status, created_by)
+			SELECT u.id, $1, u.data::jsonb, 'Active', $2
+			FROM unnest($3::text[], $4::text[]) WITH ORDINALITY AS u(id, data, ord)
+			ORDER BY u.ord
+			ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = CURRENT_TIMESTAMP
+			WHERE documents.doctype = EXCLUDED.doctype
+			RETURNING id, (xmax = 0)`, doctype, userID, pq.Array(ids), pq.Array(datas))
+		if execErr == nil {
+			for rows.Next() {
+				var id string
+				var created bool
+				if execErr = rows.Scan(&id, &created); execErr != nil {
+					break
+				}
+				inserted[id] = created
+			}
+			if execErr == nil {
+				execErr = rows.Err()
+			}
+			rows.Close()
+		}
+		if execErr != nil {
+			// The statement is all-or-nothing and the transaction is now
+			// aborted, so every queued row failed and nothing commits.
+			for _, w := range writes {
+				recordImportError(result, w.rowNumber, fmt.Sprintf("Database write error: %v", execErr))
+			}
+			return nil
+		}
+		for _, w := range writes {
+			created, written := inserted[w.id]
+			if !written {
+				recordImportError(result, w.rowNumber, fmt.Sprintf("id %q already belongs to a different record type - use another code", w.id))
+				continue
+			}
+			result.SuccessRows++
+			batchSuccessCount++
+			if created {
+				result.CreatedIDs = append(result.CreatedIDs, w.id)
+			} else {
+				result.UpdatedIDs = append(result.UpdatedIDs, w.id)
+			}
 		}
 	}
 

@@ -68,8 +68,8 @@ set -euo pipefail
 #
 # Note this only covers a run that STARTS and then fails. A cron that never
 # fires at all cannot report its own absence, which is why the Go server also
-# watches the backup directory's age
-# (engines/alerting.go's StartBackupFreshnessMonitor) -- the two halves catch
+# watches the age of the newest run this script records in public.backup_runs
+# (engines/alerting.go's StartBackupFreshnessMonitor, Stage 56.9) -- the two halves catch
 # different failures and neither replaces the other.
 alert_ops() {
   severity="$1"
@@ -96,11 +96,50 @@ alert_ops() {
 failed_stage=""
 failed_line=""
 trap 'failed_stage="${BASH_COMMAND%% *}"; failed_line="$LINENO"' ERR
+
+# ---------------------------------------------------------------------------
+# Run record (Stage 56.9)
+# ---------------------------------------------------------------------------
+# Every run, successful or failed, writes one row to public.backup_runs. The
+# Go server's backup monitor (engines/alerting.go's CheckBackupFreshness)
+# reads the newest successful 'database' row instead of looking at this
+# script's output folder, which a PaaS app service cannot see. Tenant exports
+# are recorded with scope 'tenant' and never count as the nightly (26.1.6).
+#
+# Best-effort by design: a backup that completed is not turned into a failure
+# because its record could not be written. A missing record is still caught,
+# because the monitor then sees no fresh row and alerts BACKUP_STALE.
+started_ms="$(date +%s%3N)"
+record_run() {
+  local outcome="$1" file_name="${2:-}" size_bytes="${3:-}" sha="${4:-}" detail="${5:-}"
+  local scope=database duration_ms
+  [ -n "${DATABASE_URL:-}" ] || return 0
+  if [ -n "${TENANT_SCHEMA:-}" ]; then scope=tenant; fi
+  duration_ms=$(( $(date +%s%3N) - started_ms ))
+  if ! psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 \
+      -v scope="$scope" -v tenant_schema="${TENANT_SCHEMA:-}" -v outcome="$outcome" \
+      -v file_name="$file_name" -v size_bytes="$size_bytes" -v duration_ms="$duration_ms" \
+      -v sha="$sha" -v detail="$detail" -v host="$(hostname -s 2>/dev/null || echo unknown-host)" \
+      -v started_ms="$started_ms" >/dev/null 2>&1 <<'SQL'
+INSERT INTO public.backup_runs
+  (scope, tenant_schema, outcome, file_name, size_bytes, duration_ms, sha256, detail, host, started_at, finished_at)
+VALUES
+  (:'scope', NULLIF(:'tenant_schema', ''), :'outcome', NULLIF(:'file_name', ''),
+   NULLIF(:'size_bytes', '')::bigint, :'duration_ms'::bigint, NULLIF(:'sha', ''),
+   NULLIF(:'detail', ''), :'host', to_timestamp(:'started_ms'::bigint / 1000.0), now());
+SQL
+  then
+    alert_ops BACKUP_RECORD_FAILED "${TENANT_SCHEMA:-whole-database} backup ran ($outcome) but its row could not be written to public.backup_runs -- has the 56.9 migration been applied?"
+  fi
+  return 0
+}
+
 on_exit() {
   rc=$?
   [ "$rc" -eq 0 ] && return 0
   detail="exit code $rc"
   [ -n "$failed_stage" ] && detail="$detail during '$failed_stage' (line $failed_line)"
+  record_run Failed "" "" "" "$detail" || true
   alert_ops BACKUP_FAILED "${TENANT_SCHEMA:-whole-database} backup FAILED -- $detail. See /var/log/erp-backup.log" || true
 }
 trap on_exit EXIT
@@ -176,4 +215,7 @@ fi
 find "$BACKUP_DIR" -name "$prune_glob.enc" -mtime +"$RETAIN_DAYS" -delete
 find "$BACKUP_DIR" -name "$prune_glob.enc.sha256" -mtime +"$RETAIN_DAYS" -delete
 
+# sha256sum prefixes the hash with "\" when the file name needed escaping.
+enc_sha="$(cut -d' ' -f1 "$enc.sha256")"
+record_run Success "$(basename "$enc")" "$(wc -c < "$enc" | tr -d ' ')" "${enc_sha#\\}"
 echo "backup complete: $enc"

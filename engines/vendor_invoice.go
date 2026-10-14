@@ -150,89 +150,12 @@ func MatchVendorInvoice(tenantID, invoiceID, poID, grnID string, tolerancePercen
 		return out, err
 	}
 
-	var poDataStr string
-	if err := tx.QueryRow(fmt.Sprintf(
-		`SELECT data FROM %s.documents WHERE doctype = 'PurchaseOrder' AND id = $1`, schema), poID).Scan(&poDataStr); err != nil {
-		return out, fmt.Errorf("purchase order not found: %v", err)
-	}
-	var poData map[string]interface{}
-	if err := json.Unmarshal([]byte(poDataStr), &poData); err != nil {
+	billing, err := readGRNBilling(tx, schema, poID, grnID)
+	if err != nil {
 		return out, err
 	}
-	poNet := numFromInterface(poData["total_amount"])
-	poGross := numFromInterface(poData["grand_total"])
-	taxRatio := 1.0
-	if poGross > 0 && poNet > 0 {
-		taxRatio = poGross / poNet
-	} else {
-		poGross = poNet
-	}
-	poItemsStr, _ := poData["items"].(string)
-	var poItems []poItemLine
-	rateBySku := map[string]float64{}
-	if poItemsStr != "" {
-		// 24.18: a malformed poItemsStr leaves rateBySku empty, which
-		// rateDataMissing (below) treats as a real, handled case - logged so
-		// that degrade path is traceable instead of silent.
-		if err := json.Unmarshal([]byte(poItemsStr), &poItems); err != nil {
-			log.Printf("[VENDOR-INVOICE] corrupt PO items for %s: %v", poID, err)
-		}
-		for _, it := range poItems {
-			rateBySku[it.Sku] = it.Rate
-		}
-	}
-
-	var grnDataStr string
-	if err := tx.QueryRow(fmt.Sprintf(
-		`SELECT data FROM %s.documents WHERE doctype = 'GRN' AND id = $1`, schema), grnID).Scan(&grnDataStr); err != nil {
-		return out, fmt.Errorf("GRN not found: %v", err)
-	}
-	var grnData map[string]interface{}
-	if err := json.Unmarshal([]byte(grnDataStr), &grnData); err != nil {
-		return out, err
-	}
-	if grnPOID, _ := grnData["po_id"].(string); grnPOID != poID {
-		return out, fmt.Errorf("GRN %s does not reference PO %s", grnID, poID)
-	}
-	receivedStr, _ := grnData["received_items"].(string)
-	var receivedItems []grnItemLine
-	rateDataMissing := len(rateBySku) == 0
-	acceptedNet := 0.0
-	if receivedStr != "" {
-		// 24.18: a malformed receivedStr leaves the expected bill at 0, which
-		// holds the invoice rather than matching it - fails closed, logged.
-		if err := json.Unmarshal([]byte(receivedStr), &receivedItems); err != nil {
-			log.Printf("[VENDOR-INVOICE] corrupt GRN received_items for %s: %v", grnID, err)
-		}
-		for _, line := range receivedItems {
-			rate, ok := rateBySku[line.Sku]
-			if !ok {
-				rateDataMissing = true
-				continue
-			}
-			qty := line.Qty
-			if line.AcceptedQty != nil {
-				qty = *line.AcceptedQty
-			}
-			acceptedNet += rate * float64(qty)
-		}
-		// Stage 57.15: accepted stock already sent back on a posted Purchase
-		// Return is not billable - the vendor's net invoice should match, and
-		// one still billing the returned units should hold.
-		returned, rerr := postedPurchaseReturnAcceptedQty(tx, schema, grnID)
-		if rerr != nil {
-			return out, rerr
-		}
-		for sku, qty := range returned {
-			if rate, ok := rateBySku[sku]; ok {
-				acceptedNet -= rate * qty
-			}
-		}
-		if acceptedNet < 0 {
-			acceptedNet = 0
-		}
-	}
-	expected := acceptedNet * taxRatio
+	poData, taxRatio, poGross, rateDataMissing := billing.POData, billing.TaxRatio, billing.POGross, billing.RateDataMissing
+	expected := billing.AcceptedNet * taxRatio
 
 	// Invoices already standing against the same GRN / PO (this one excluded).
 	billedAgainst := func(field, ref string) (float64, error) {
@@ -575,4 +498,106 @@ func FinalizeVendorInvoiceOverridePayment(tenantID, invoiceID, userID string, op
 	LogAuditEvent(tenantID, userID, "PAY_VENDOR_INVOICE_OVERRIDE_FINALIZED", "SUCCESS",
 		"Override-approved "+settlementAuditDetail("vendor invoice", invoiceID, settlement))
 	return amountInt, nil
+}
+
+// grnBilling is what a GRN can be billed for, on the one basis both
+// MatchVendorInvoice and a purchase return's input-credit reversal use:
+// accepted qty (less accepted stock already sent back on posted returns) x
+// the PO line rate, with the PO's own tax ratio to gross it up.
+type grnBilling struct {
+	POData          map[string]interface{}
+	TaxRatio        float64
+	POGross         float64
+	AcceptedNet     float64
+	RateBySku       map[string]float64
+	RateDataMissing bool
+}
+
+func readGRNBilling(tx queryRower, schema, poID, grnID string) (grnBilling, error) {
+	var b grnBilling
+	var poDataStr string
+	if err := tx.QueryRow(fmt.Sprintf(
+		`SELECT data FROM %s.documents WHERE doctype = 'PurchaseOrder' AND id = $1`, schema), poID).Scan(&poDataStr); err != nil {
+		return b, fmt.Errorf("purchase order not found: %v", err)
+	}
+	var poData map[string]interface{}
+	if err := json.Unmarshal([]byte(poDataStr), &poData); err != nil {
+		return b, err
+	}
+	poNet := numFromInterface(poData["total_amount"])
+	poGross := numFromInterface(poData["grand_total"])
+	taxRatio := 1.0
+	if poGross > 0 && poNet > 0 {
+		taxRatio = poGross / poNet
+	} else {
+		poGross = poNet
+	}
+	poItemsStr, _ := poData["items"].(string)
+	var poItems []poItemLine
+	rateBySku := map[string]float64{}
+	if poItemsStr != "" {
+		// 24.18: a malformed poItemsStr leaves rateBySku empty, which
+		// rateDataMissing (below) treats as a real, handled case - logged so
+		// that degrade path is traceable instead of silent.
+		if err := json.Unmarshal([]byte(poItemsStr), &poItems); err != nil {
+			log.Printf("[VENDOR-INVOICE] corrupt PO items for %s: %v", poID, err)
+		}
+		for _, it := range poItems {
+			rateBySku[it.Sku] = it.Rate
+		}
+	}
+
+	var grnDataStr string
+	if err := tx.QueryRow(fmt.Sprintf(
+		`SELECT data FROM %s.documents WHERE doctype = 'GRN' AND id = $1`, schema), grnID).Scan(&grnDataStr); err != nil {
+		return b, fmt.Errorf("GRN not found: %v", err)
+	}
+	var grnData map[string]interface{}
+	if err := json.Unmarshal([]byte(grnDataStr), &grnData); err != nil {
+		return b, err
+	}
+	if grnPOID, _ := grnData["po_id"].(string); grnPOID != poID {
+		return b, fmt.Errorf("GRN %s does not reference PO %s", grnID, poID)
+	}
+	receivedStr, _ := grnData["received_items"].(string)
+	var receivedItems []grnItemLine
+	rateDataMissing := len(rateBySku) == 0
+	acceptedNet := 0.0
+	if receivedStr != "" {
+		// 24.18: a malformed receivedStr leaves the expected bill at 0, which
+		// holds the invoice rather than matching it - fails closed, logged.
+		if err := json.Unmarshal([]byte(receivedStr), &receivedItems); err != nil {
+			log.Printf("[VENDOR-INVOICE] corrupt GRN received_items for %s: %v", grnID, err)
+		}
+		for _, line := range receivedItems {
+			rate, ok := rateBySku[line.Sku]
+			if !ok {
+				rateDataMissing = true
+				continue
+			}
+			qty := line.Qty
+			if line.AcceptedQty != nil {
+				qty = *line.AcceptedQty
+			}
+			acceptedNet += rate * float64(qty)
+		}
+		// Stage 57.15: accepted stock already sent back on a posted Purchase
+		// Return is not billable - the vendor's net invoice should match, and
+		// one still billing the returned units should hold.
+		returned, rerr := postedPurchaseReturnAcceptedQty(tx, schema, grnID)
+		if rerr != nil {
+			return b, rerr
+		}
+		for sku, qty := range returned {
+			if rate, ok := rateBySku[sku]; ok {
+				acceptedNet -= rate * qty
+			}
+		}
+		if acceptedNet < 0 {
+			acceptedNet = 0
+		}
+	}
+	b.POData, b.TaxRatio, b.POGross, b.AcceptedNet = poData, taxRatio, poGross, acceptedNet
+	b.RateBySku, b.RateDataMissing = rateBySku, rateDataMissing
+	return b, nil
 }

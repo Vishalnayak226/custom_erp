@@ -338,9 +338,10 @@ func handlePIMCompleteness(w http.ResponseWriter, r *http.Request) {
 }
 
 // handlePIMMediaUpload (Stage 15.2). Media files are larger than the global
-// 2MB JSON body cap set in apiMiddleware - re-wrapping r.Body with a bigger
-// MaxBytesReader here, before ParseMultipartForm reads it, raises the limit
-// for this route only; every other route keeps the existing 2MB ceiling.
+// 2MB body cap. The route's 10MB allowance lives in the shared request
+// envelope's route table (request_envelope.go, Stage 49.4.4): a nested
+// MaxBytesReader here can only lower the envelope's cap, never raise it, so
+// before 49.4.4 this route was silently held to 2MB.
 func handlePIMMediaUpload(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
 	userID := r.Header.Get("Resolved-User-ID")

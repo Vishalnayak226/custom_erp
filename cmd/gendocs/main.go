@@ -56,6 +56,14 @@ func main() {
 			explicitOut = true
 		}
 	})
+	// 47.15.1: writing needs an explicit staging root. -out used to default
+	// to ".", so a bare `go run ./cmd/gendocs` wrote the live guide, KB and
+	// OpenAPI paths directly, past the staged, manifest-checked publication
+	// in docs/update-docs.ps1. -check may still compare against "." - it
+	// only reads.
+	if !*check && !explicitOut {
+		fail(fmt.Errorf("writing requires an explicit -out staging root; publish with pwsh docs/update-docs.ps1 (or compare with -check)"))
+	}
 	if *connStr != "" && (!explicitOut || *tenant == "" || *environment == "" || *check) {
 		fail(fmt.Errorf("permission evidence requires -out, -tenant, -environment and cannot run in -check"))
 	}
@@ -163,7 +171,7 @@ func errorCodesDoc(stamp string) string {
 		"Error Code Reference",
 		stamp,
 		"`internal/server`'s error catalog (`error_catalog_generated.go`)",
-		"`go run ./cmd/gendocs`"))
+		"`pwsh docs/update-docs.ps1 -Group Content`"))
 
 	entries := server.CatalogEntries()
 	b.WriteString(fmt.Sprintf("Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.\n\n"+
@@ -214,7 +222,7 @@ func reportCatalogDoc(stamp string) string {
 		"Report Catalog",
 		stamp,
 		"`engines`' report registry (`report_definitions.go`)",
-		"`go run ./cmd/gendocs`"))
+		"`pwsh docs/update-docs.ps1 -Group Content`"))
 
 	defs := engines.ListReportDefinitions()
 	byCat := map[string][]engines.ReportDefinition{}

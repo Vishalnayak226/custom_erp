@@ -73,6 +73,14 @@ if ($LASTEXITCODE -ne 0) { throw "scp of db/ failed" }
 if ($LASTEXITCODE -ne 0) { throw "could not create $RemoteDir/deploy on remote" }
 & scp "$RepoRoot\deploy\remote_deploy.sh" "${Target}:$RemoteDir/deploy/remote_deploy.sh"
 if ($LASTEXITCODE -ne 0) { throw "scp of deploy/remote_deploy.sh failed" }
+# Stage 56.9: backup.sh is shipped fresh too. The server's backup monitor reads
+# the run row this script writes to public.backup_runs; a stale remote copy
+# from before 56.9 writes no row, so the monitor would report every nightly as
+# missing. Executable, because the cron line invokes it directly.
+& scp "$RepoRoot\deploy\backup.sh" "${Target}:$RemoteDir/deploy/backup.sh"
+if ($LASTEXITCODE -ne 0) { throw "scp of deploy/backup.sh failed" }
+& ssh $Target "chmod 755 $RemoteDir/deploy/backup.sh"
+if ($LASTEXITCODE -ne 0) { throw "could not mark deploy/backup.sh executable on remote" }
 
 Write-Host "Migrating + swapping binary + health-checking + restarting on the box..." -ForegroundColor Cyan
 # The actual migrate/swap/restart/health-check/rollback logic lives in

@@ -125,6 +125,33 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-11 five-item pass in progress (ledger §215; checklist 49.4.4a, 47.11.1, 47.15.1) -
+  NOT committed, NOT deployed.**
+  - **Item 1 done (49.4.4a(b)).** Import speed: `engines/import.go` (`importLookups`, batched
+    Link prefetch, one `unnest` upsert per batch with a cross-type guard), `engines/doctype.go`
+    (`validateDocumentWith`, `applyMasterIDCodeInvariant`), `engines/field_permissions.go`
+    (`rejectRestrictedFieldWritesIn`), new `engines/import_perf_test.go`. Guides: USER_GUIDE
+    §8d.5 large-file note (one line, this pass's own hunk), ADMIN_GUIDE §D paragraph under the
+    limits table. 20,000-row preview went from 6 min to 5.2 s. Also
+    `engines/bld046_request_cancellation_test.go`: the interrupted-import subtest now cancels
+    through a counting context (`cancelAfterChecks`), since the polling goroutine can no longer
+    catch the faster import.
+  - **Item 2 done (49.4.4a(a)+(c)).** `internal/server/request_envelope.go` (number bounds,
+    `repeatedQueryParam`, `repeatableParams`) + `_test.go`. `public/view-admin.js` Hook Log
+    screen. ADMIN_GUIDE §D table rows. Duplicate-query model "Reject all" approved by the user
+    2026-10-11.
+  - **Item 3 done (47.11.1).** `internal/server/middleware.go` (`RateLimiter` sweep, cap and
+    overflow; `sessionFingerprint` needs a signed token; `release` deletes at 0), new
+    `internal/server/rate_limit_bounds_test.go`, ADMIN_GUIDE §D rate-limit/replica paragraph.
+  - **Item 4 done (47.15.1).** `cmd/gendocs/main.go` (write needs `-out`; regenerate hints),
+    `cmd/gendocs/kbdocs.go` (hint), `docs/test-docs-safety.ps1` (24 assertions, pass),
+    `docs/governance/documentation-standard.md`. **Blocker for doc publishing:**
+    `docs/product/capability-register.json` `review_by` = 2026-10-09 for every capability, so
+    `doclint` fails and `update-docs.ps1 -Group Content/All` cannot publish until the user
+    reviews. Regenerate with the individual generators (`-out` to `%TEMP%`) meanwhile.
+  - Items 1-4 verified: full `go test ./engines ./internal/server -p 1` green after items 1-3.
+    Scratch :8147 stopped. **Release (item 5) is waiting for the user's OK on the file list.**
+
 - **2026-10-10 SOP chapters for every module (ledger §213; checklist 57.12, 57.25, 57.26) -
   committed locally, NOT pushed, NOT deployed.**
   - Commits on `main` since prod (`f6e3961`): `bf21ee5` `407be5a` `691f5b7` `69ded6b`
@@ -150,9 +177,53 @@ for checking the current source and worktree.
     deploy: asset version (another session has 35 → 36 uncommitted), `attack_surface.json`
     regen, brain redraw.
 
-- **2026-10-08 five-item pass (ledger §201; checklist 51.10, 52.9, 57.15, 57.8, 58.8) - in progress,
-  NOT committed, NOT deployed.** Nothing is committed until the release step (58.8) has the user's
-  file-list OK. Done so far: **51.10** Item family import template, in `engines/import.go` (header
+- **2026-10-09 five-item pass in progress (ledger §211; checklist "2026-10-09 five-item pass" +
+  56.9) - NOT committed, NOT deployed.**
+  - **Item 1 done.** Audit evidence now signs with a dedicated `AUDIT_SIGNING_KEY` keyring
+    (`v2-hmac-sha256`; `v1` still verifies against the JWT keyring), in
+    `engines/audit_evidence.go`, `audit_archive.go`, `security_baseline.go` (SB-025) and tests.
+    The dev-DB debris checkpoint `f92a1358` was deleted with the user's OK, and its backup is in
+    the session scratchpad.
+  - **Item 2 done.** New `db/migrations_stage56_9_backup_runs.sql`, applied to local
+    `custom_erp`. Changed: `engines/alerting.go` (SB-026 in `security_baseline.go`),
+    `deploy/backup.sh`, `deploy/deploy.ps1` (now ships `backup.sh`), `deploy/erp.env.example`,
+    ADMIN_GUIDE, `backup_restore.md`, `incident_runbook.md`, and backup/drill tests.
+  - **Prod at release:** set `AUDIT_SIGNING_KEY` in `/etc/erp/erp.env`, apply the 56.9
+    migration, then run the new `backup.sh` once so a row exists before the monitor's first tick.
+  - **Windows test trap:** `pg_dump`/`psql` reject options after a positional URL. Drill
+    `backup.sh` through a shim that passes `--dbname=`; Linux getopt is fine.
+  - **Item 3 done (49.4.4).**
+    - New `internal/server/request_envelope.go` + `_test.go`.
+    - Hunks: `middleware.go` (envelope replaces the 2 MB cap), `middleware_public_api.go`
+      (one call), `apierror.go` (deadline → 504 GLOBAL-0308, not 499),
+      `error_catalog_extensions.go` (GLOBAL-0303..0308), and a comment fix in
+      `handlers_procurement_pim2.go`, which another session also edited, so stage by hunk.
+    - Guides: ADMIN_GUIDE §D limits table, USER_GUIDE §8d.5 large-file note.
+    - Follow-ups in 49.4.4a: import preview speed, Extension Hook Log 404, numeric/query bounds.
+  - **Item 4 done (Purchase Return GST reversal, model approved 2026-10-10).**
+    - `engines/purchase_return.go` (`purchaseReturnITCReversal`, wired into
+      `PostPurchaseReturn`; result `gst_reversed`).
+    - `engines/vendor_invoice.go` (`readGRNBilling` extracted from `MatchVendorInvoice`).
+    - New `engines/purchase_return_itc_test.go`.
+    - `public/view-procurement.js` toast: its own hunk near line 2068; Stage 55's hunks are
+      elsewhere in the file.
+    - **Asset version bumped 35 → 36** (`app.js` `VIEW_MODULE_VERSION`, `index.html`
+      `app.js?v=36`). The Stage 55 frontend release must use 37.
+    - Guides: ADMIN_GUIDE Purchase Returns items 6/8, USER_GUIDE §6.5.
+
+- **2026-10-09 RELEASED: five-item pass + Stage 58 - latest commit `f6e3961`, pushed, deployed.**
+  `068a665` = code (51.10, 52.9, 57.15, 57.8, Stage 58 Sticker Studio), `f6e3961` = generated docs/KB/
+  brain/attack surface, rebuilt in a clean LF worktree. Prod app.wholeops.in: site 200, health ok,
+  version `f6e3961`; 4 migrations applied (52_9, 57_offer_group_targeting, 57_8, 57_15) on
+  tenant_default and tenant_minn; pre-deploy encrypted backup `custom_erp_20261009T002850Z.dump.enc`
+  and rollback snapshot `/opt/erp/rollback_20261009T002850Z`. No passwords touched. **Asset version
+  is now 35** (`app.js?v=35`, `VIEW_MODULE_VERSION` 35) - the next frontend release bumps to 36.
+  **Cold-core budget trap:** `cmd/releasebudget` reads files from disk, so a Windows CRLF checkout
+  over-reports by ~1.2k; measure from an LF export (`git -c core.autocrlf=false archive`). Shipped LF
+  cold core 183,588/184,320. **Not committed (other sessions' work, still in the tree):** Stage 55.x
+  (view-*.js, reports.go, guides/tracker hunks), Stage 56 Dockerfile, erp-d1's Stage 59 files. The
+  tracker updates recording this release (micro_checklist 58.8, ledger §201, this entry) are also
+  uncommitted. Detail of the pass follows. **51.10** Item family import template, in `engines/import.go` (header
   helper split out; plain template output unchanged), `engines/pim_import_template.go`
   (`GenerateItemFamilyCSVTemplate`), `engines/import_master_invariant_test.go`
   (`TestItemImportTemplates`), `internal/server/handlers_pim_pos_finance.go` (`?variant=family`),

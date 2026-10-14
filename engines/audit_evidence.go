@@ -46,7 +46,54 @@ import (
 // AuditSigVersion names the current signing scheme. It is stored on every row
 // so a key rotation or a format change becomes a new version rather than a
 // silent reinterpretation of old evidence.
-const AuditSigVersion = "v1-hmac-sha256"
+//
+// v2 is v1's exact HMAC keyed with its OWN keyring (AUDIT_SIGNING_KEY) instead
+// of the JWT session-signing key. v1 borrowed jwtSigningKey, which Stage 29.8
+// exists to rotate - so retiring a JWT key, or one process starting with a
+// different JWT_SECRET, turned every earlier row and checkpoint into
+// "tampered": the key-rotation-mistaken-for-an-attack this model is meant to
+// prevent. Found 2026-10-09 when a dev server run with a one-off JWT_SECRET
+// left a checkpoint every other process reported as forged.
+const AuditSigVersion = "v2-hmac-sha256"
+
+// auditSigVersionJWTKeyed is the original scheme. Rows and checkpoints signed
+// under it still verify against every key in the JWT keyring, so nothing
+// written before v2 loses coverage.
+const auditSigVersionJWTKeyed = "v1-hmac-sha256"
+
+// auditSigningKeys is the dedicated audit-evidence keyring: AUDIT_SIGNING_KEY_<n>
+// rotation exactly like CHANNEL_CREDENTIAL_KEY, the highest number signs, and
+// every configured key still verifies (engines/secret_keyring.go).
+var auditSigningKeys, auditSigningKey = loadVersionedKeyring("AUDIT_SIGNING_KEY", "audit_signing_key.local")
+
+// auditVerifyKeys is every key evidence stamped with this version may have
+// been signed with, newest first; nil means the version is outside this
+// verifier's coverage (a retired scheme), which is not tampering.
+func auditVerifyKeys(version string) [][]byte {
+	var out [][]byte
+	switch version {
+	case AuditSigVersion:
+		for _, k := range auditSigningKeys {
+			out = append(out, k.key)
+		}
+	case auditSigVersionJWTKeyed:
+		for _, k := range jwtKeys {
+			out = append(out, k.secret)
+		}
+	}
+	return out
+}
+
+// auditMACMatches reports whether sig is sign(key) for any key that may have
+// signed this version.
+func auditMACMatches(version, sig string, sign func(key []byte) string) bool {
+	for _, key := range auditVerifyKeys(version) {
+		if hmac.Equal([]byte(sign(key)), []byte(sig)) {
+			return true
+		}
+	}
+	return false
+}
 
 // SignAuditRow produces a row's independent signature.
 //
@@ -55,15 +102,20 @@ const AuditSigVersion = "v1-hmac-sha256"
 // same signature - "a|bc" and "ab|c" must not collide, which plain
 // concatenation would allow.
 func SignAuditRow(tenantID, userID, action, status, details, entityType, entityID, correlationID string, createdAt time.Time) string {
+	return signAuditRowWith(AuditSigVersion, auditSigningKey.key, tenantID, userID, action, status, details,
+		entityType, entityID, correlationID, createdAt)
+}
+
+func signAuditRowWith(version string, key []byte, tenantID, userID, action, status, details, entityType, entityID, correlationID string, createdAt time.Time) string {
 	var b strings.Builder
 	for _, f := range []string{
-		AuditSigVersion, tenantID, userID, action, status, details,
+		version, tenantID, userID, action, status, details,
 		entityType, entityID, correlationID,
 		createdAt.UTC().Format(time.RFC3339Nano),
 	} {
 		fmt.Fprintf(&b, "%d:%s|", len(f), f)
 	}
-	mac := hmac.New(sha256.New, jwtSigningKey.secret)
+	mac := hmac.New(sha256.New, key)
 	mac.Write([]byte(b.String()))
 	return hex.EncodeToString(mac.Sum(nil))
 }
@@ -166,14 +218,15 @@ func VerifyAuditEvidence(tenantID string) (*AuditVerification, error) {
 			continue
 		}
 		out.SignedRows++
-		if sigVer != AuditSigVersion {
+		if auditVerifyKeys(sigVer) == nil {
 			// A row signed under a retired scheme is out of THIS verifier's
 			// coverage, not evidence of tampering. Reporting it as tampering
 			// is how a key rotation gets mistaken for an attack.
 			continue
 		}
-		want := SignAuditRow(tenantID, userID, action, status, details, entType, entID, corr, createdAt)
-		if hmac.Equal([]byte(want), []byte(sig)) {
+		if auditMACMatches(sigVer, sig, func(key []byte) string {
+			return signAuditRowWith(sigVer, key, tenantID, userID, action, status, details, entType, entID, corr, createdAt)
+		}) {
 			out.Verified++
 		} else {
 			out.Intact = false
@@ -230,12 +283,13 @@ func verifyCheckpoints(tenantID, schema string, out *AuditVerification) error {
 	}
 
 	for _, c := range checkpoints {
-		if c.sigVer != AuditSigVersion {
+		if auditVerifyKeys(c.sigVer) == nil {
 			continue
 		}
 		// Does the checkpoint's own signature hold?
-		want := signCheckpoint(tenantID, c.fromSeq, c.toSeq, c.rowCount, c.unsignedCount, c.digest, c.prevSig)
-		if !hmac.Equal([]byte(want), []byte(c.sig)) {
+		if !auditMACMatches(c.sigVer, c.sig, func(key []byte) string {
+			return signCheckpointWith(c.sigVer, key, tenantID, c.fromSeq, c.toSeq, c.rowCount, c.unsignedCount, c.digest, c.prevSig)
+		}) {
 			out.Intact = false
 			out.CheckpointsBad = append(out.CheckpointsBad, c.id+" (signature)")
 			continue
@@ -337,9 +391,13 @@ func countUnsigned(pairs [][2]string) int {
 }
 
 func signCheckpoint(tenantID string, fromSeq, toSeq int64, rowCount, unsignedCount int, digest, prevSig string) string {
-	mac := hmac.New(sha256.New, jwtSigningKey.secret)
+	return signCheckpointWith(AuditSigVersion, auditSigningKey.key, tenantID, fromSeq, toSeq, rowCount, unsignedCount, digest, prevSig)
+}
+
+func signCheckpointWith(version string, key []byte, tenantID string, fromSeq, toSeq int64, rowCount, unsignedCount int, digest, prevSig string) string {
+	mac := hmac.New(sha256.New, key)
 	fmt.Fprintf(mac, "%s|%s|%d|%d|%d|%d|%s|%s",
-		AuditSigVersion, tenantID, fromSeq, toSeq, rowCount, unsignedCount, digest, prevSig)
+		version, tenantID, fromSeq, toSeq, rowCount, unsignedCount, digest, prevSig)
 	return hex.EncodeToString(mac.Sum(nil))
 }
 

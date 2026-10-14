@@ -375,9 +375,13 @@ func loadAuditRowsInRange(schema string, fromSeq, toSeq int64) ([]AuditArchiveRo
 // --- signing and file-level verification ----------------------------------
 
 func signArchiveManifest(tenantID, checkpointID string, fromSeq, toSeq int64, rowCount, unsignedCount int, rowDigest, fileSHA string) string {
-	mac := hmac.New(sha256.New, jwtSigningKey.secret)
+	return signArchiveManifestWith(AuditSigVersion, auditSigningKey.key, tenantID, checkpointID, fromSeq, toSeq, rowCount, unsignedCount, rowDigest, fileSHA)
+}
+
+func signArchiveManifestWith(version string, key []byte, tenantID, checkpointID string, fromSeq, toSeq int64, rowCount, unsignedCount int, rowDigest, fileSHA string) string {
+	mac := hmac.New(sha256.New, key)
 	fmt.Fprintf(mac, "%s|%s|%s|%d|%d|%d|%d|%s|%s",
-		AuditSigVersion, tenantID, checkpointID, fromSeq, toSeq, rowCount, unsignedCount, rowDigest, fileSHA)
+		version, tenantID, checkpointID, fromSeq, toSeq, rowCount, unsignedCount, rowDigest, fileSHA)
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -405,9 +409,10 @@ func verifyArchiveFile(filePath, fileSHA, sig, sigVersion, tenantID, checkpointI
 	if hex.EncodeToString(sum[:]) != fileSHA {
 		return nil, fmt.Errorf("archive file checksum mismatch - the file on disk does not match what was recorded when it was written")
 	}
-	if sigVersion == AuditSigVersion {
-		wantSig := signArchiveManifest(tenantID, checkpointID, fromSeq, toSeq, rowCount, unsignedCount, rowDigest, fileSHA)
-		if !hmac.Equal([]byte(wantSig), []byte(sig)) {
+	if auditVerifyKeys(sigVersion) != nil {
+		if !auditMACMatches(sigVersion, sig, func(key []byte) string {
+			return signArchiveManifestWith(sigVersion, key, tenantID, checkpointID, fromSeq, toSeq, rowCount, unsignedCount, rowDigest, fileSHA)
+		}) {
 			return nil, fmt.Errorf("archive manifest signature invalid")
 		}
 	}

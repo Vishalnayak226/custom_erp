@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -152,19 +151,12 @@ func TestDrillIncidentOneQueueSaturation(t *testing.T) {
 func TestDrillIncidentTwoStaleBackup(t *testing.T) {
 	sink := newDrillSink(t)
 
-	// Injected incident: a backup directory whose newest artifact is far
-	// older than the allowed age. Uses a scratch directory so the drill never
-	// depends on, or disturbs, a real backup location.
-	dir := t.TempDir()
-	stale := time.Now().Add(-72 * time.Hour)
-	path := dir + "/erp-backup-drill.sql.gz.enc"
-	if err := os.WriteFile(path, []byte("drill placeholder, not a real backup"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.Chtimes(path, stale, stale); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("BACKUP_DIR", dir)
+	// Injected incident: the newest recorded whole-database backup (Stage
+	// 56.9's public.backup_runs) is far older than the allowed age. The
+	// fixture rows carry their own host marker and are removed afterwards,
+	// so the drill never depends on, or disturbs, a real backup record.
+	backupRunsTestDB(t)
+	recordBackupRun(t, "database", "Success", time.Now().Add(-72*time.Hour))
 
 	// The stale-backup alert is throttled to one per maxAge window by a
 	// package-level timestamp. Another test in this package may already have
@@ -177,9 +169,9 @@ func TestDrillIncidentTwoStaleBackup(t *testing.T) {
 	text := sink.await(t, "incident 2 (stale backup)")
 	assertActionableAndSafe(t, "incident 2", text,
 		[]string{"backup"},
-		// Must not disclose the filesystem layout of the host to a
+		// Must not disclose the backup's file name or host to a
 		// third-party channel.
-		[]string{dir})
+		[]string{"custom_erp_fixture.dump.enc", backupTestHost})
 	t.Logf("incident 2 delivered: %s", text)
 }
 

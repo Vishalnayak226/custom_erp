@@ -418,9 +418,17 @@ Most items are taxable and need a GST Rate above 0 — the system rejects a bare
    - its Debit Note posts Dr `2100` / Cr `5150` through the same Post a hand-made Debit Note uses.
 
    `5150` nets to zero, and both what you hold and what you owe drop by the returned value. Live example: 8 accepted at ₹100 booked ₹800. Returning 3 left `2100` at Cr ₹500 and `1200` at Dr ₹500. Rejected or damaged units were never booked as owed, so returning them posts no GL entry and raises no Debit Note.
-6. **The supplier's bill.** The Vendor Invoice three-way match values a GRN at its accepted units **less units on posted returns**. A bill for the units actually kept matches, and one still charging for returned units goes to MismatchHold. If the bill was paid before the return, the posted Debit Note leaves `2100` in debit by the returned value: the supplier owes you that amount.
+6. **The supplier's bill.** The Vendor Invoice three-way match values a GRN at its accepted units **less units on posted returns**. A bill for the units actually kept matches, and one still charging for returned units goes to MismatchHold. If the bill was paid before the return, `2100` is left in debit by the returned goods' value **including GST** (item 8): the supplier owes you that amount.
 7. **If the Debit Note cannot be posted** (for example its accounting period is closed), the return still posts, because the goods have physically gone back. The Debit Note is left as a Draft, and the poster is told `PURCHA-0120` with the note number. Post it from **Financial Accounting → Debit / Credit Notes** once the cause is fixed.
-8. **GST on the returned goods** is not reversed automatically. If input credit was already claimed on the supplier's bill for the returned units, your accountant reverses it in the return period. The Debit Note carries the value before GST.
+8. **GST on the returned goods is reversed automatically** (since 2026-10-10). Input credit is booked to `1500` GST Input Credit when a supplier's bill is paid. When a return posts, the system checks whether the returned units were already on a bill: the GRN's Matched, Approved, Pending Approval or Paid bills now come to more than it is owed for the units kept.
+   - **If they were billed,** the GST share of those units is reversed in the same posting: Dr `2100` / Cr `1500`, at the bill's own GST share (`gst_amount ÷ invoice_amount`), capped at the over-billed amount.
+   - **If they were returned before any bill,** nothing is reversed. The supplier bills only the kept units, so their GST was never claimed.
+   - **Not reversed:** rejected or damaged units, which were never billed, and a GRN billed in a foreign currency, whose import IGST is paid at customs.
+   - **Billed but not yet paid:** the reversal posts at the return, the later payment claims the full credit, and `1500` nets to the right figure.
+
+   Live example: a bill of ₹1,180 (₹180 GST) for 10 units at ₹100 was paid. Returning 3 reversed ₹54, leaving `1500` at ₹126 (GST on the 7 kept) and `2100` in debit by ₹354, the supplier's tax-inclusive refund. The Debit Note's own entry stays at the value before GST (₹300). The note also records `gst_amount` (₹54) and `total_with_gst` (₹354), its **Reason** ends with "GST 54.00 reversed; total with GST 354.00" (visible in Debit / Credit Notes), and the poster sees the reversed amount in the confirmation.
+
+   **GST Return Summary:** Input Tax Credit is `1500`'s net for the period, so it falls by the reversal in the return's posting period, and Net Tax Payable rises by the same amount. There is no separate line to file by hand.
 
 Error codes: `PURCHA-0116` (no reason), `PURCHA-0117` (more than can be returned, or a line the GRN never received), `PURCHA-0118` (no GRN, or a cancelled one whose stock never posted), `PURCHA-0119` (already on another return, or already posted), `PURCHA-0120` (Debit Note raised but not posted).
 
@@ -687,7 +695,7 @@ Full procedure and the latest verified restore-drill record: **[`../operations/b
 
 Full procedure: **[`../operations/incident_runbook.md`](../operations/incident_runbook.md)** — severity levels (P0-P3), escalation contacts, rollback steps, and every log location in one place. Automated alerting is built and only needs `OPS_ALERT_WEBHOOK_URL` set to your real destination — see that doc §3 for exact setup. Four things alert: the system panicking, a nightly backup **failing**, a nightly backup **not existing at all**, and a spike in errors.
 
-The third one is worth understanding, because it is the failure the other three cannot catch. A backup job that fails tells you it failed; a backup job that was never installed, or that stopped being scheduled, says nothing — and silence looks exactly like success. The server therefore checks the age of the newest backup file every hour and alerts if it is missing or more than 36 hours old, independently of whether any job ran. **Until you set the webhook URL, all four are written to the server log only and nobody is notified.**
+The third one is worth understanding, because it is the failure the other three cannot catch. A backup job that fails tells you it failed; a backup job that was never installed, or that stopped being scheduled, says nothing — and silence looks exactly like success. The server therefore checks every hour when the last successful whole-database backup was **recorded in the database** (`deploy/backup.sh` writes one row per run to `public.backup_runs`), and alerts if there is none or it is more than 36 hours old, independently of whether any job ran. Single-tenant exports never count as the nightly backup. On a production server (`ENV=production`) "no backup recorded at all" is also printed at every start as finding **SB-026** — it is never silent there. To see the record yourself: `psql "$DATABASE_URL" -c "SELECT finished_at, scope, outcome, size_bytes FROM public.backup_runs ORDER BY finished_at DESC LIMIT 5"`. **Until you set the webhook URL, all four are written to the server log only and nobody is notified.**
 
 ### C.5 Connector / Integration Verification
 
@@ -829,10 +837,31 @@ See `README.md`'s "Project Structure" section for the full current map. In short
 
 JWT bearer auth with expiry, TOTP MFA for privileged roles, server-side RBAC on every document operation, parameterized SQL throughout (no string-built queries), a request body size cap, per-category rate limiting, a CORS allowlist, HMAC-verified inbound webhooks, AES-256-GCM encrypted-at-rest channel credentials. Historical hardening record: **[`../operations/hardening_roadmap.md`](../operations/hardening_roadmap.md)** (closed, historical reference — not an active backlog).
 
+**Every API request passes one shared check before it reaches any screen's logic** (the request envelope, Stage 49.4.4; `internal/server/request_envelope.go`). An integration or script that breaks a rule gets a clear error with a `correlation_id` to quote to support:
+
+| Rule | Limit | Error |
+|---|---|---|
+| Method | GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS | 405 `GLOBAL-0303` |
+| Body type | JSON or multipart file upload; a body with no `Content-Type` is read as JSON. The import hook also takes CSV/plain text; CSP reports take their browser types. Compressed bodies are refused. | 415 `GLOBAL-0304` |
+| Body size | 2 MB by default. Item/bulk imports and import templates allow 16 MB, media upload 10 MB, bulk media upload 100 MB, and the import hook 5 MB. | 413 `GLOBAL-0305` |
+| Headers | at most 100 fields and 32 KB | 431 `GLOBAL-0306` |
+| JSON shape | one value, nested at most 32 levels, lists of at most 50,000 items, text values of at most 1 MB (2 MB for sticker templates, whose logos live in one field), numbers within ±9,007,199,254,740,991 and at most 64 characters long, and no field repeated in the same object | 400 `GLOBAL-0307` |
+| Query string | each parameter at most once (`?status=a&status=b` is refused, because servers and proxies disagree on which value applies) | 400 `GLOBAL-0307` |
+| Time | 55 seconds per request (the server cuts connections at 60) | 504 `GLOBAL-0308` |
+
+A file at the import row limit (`platform.max_import_rows`, 20,000 by default) previews and imports well inside the time limit: a 20,000-row Item file took about 5 seconds each way in testing (Stage 49.4.4a). If you raise that setting far above the default, or a user still reports `GLOBAL-0308` on an import, have them split the file, as USER_GUIDE §8d.5 says.
+
+**Rate limits and the per-tenant request cap (Stage 47.11.1).** Each API type has a per-minute budget, for example login 5, search 100 and reports 60, answered with 429 `SEC-0280`. Each signed-in session gets its own budget. Everything else from one address shares that address's budget, including a request carrying a token this server did not issue or that has expired. Separately, each tenant may have `platform.per_tenant_max_concurrent_requests` requests in flight at once (default 15). Both are kept in the server's memory and stay bounded:
+- The limiter forgets callers a minute after their last request and never tracks more than 100,000 at once.
+- If a flood of new addresses fills that table, new callers share one budget per API type until it drains. Callers already being tracked keep their own budget. The server log shows `[RATE-LIMIT] key table full` while this happens.
+
+If you run more than one server process behind a load balancer, each process keeps its own counts. A caller spread across N processes can make up to N times a budget per minute, and each process applies the tenant cap to its own database connections. That is intended: these limits slow abuse and protect each process. The protections that must hold across every process are in the database: account lockout after failed logins, MFA and reset tokens, and session revocation.
+
 Two additions worth knowing about (Stage 29.8):
 
 - **Sessions are re-validated per request, not just at login.** Token claims are frozen when issued, so the middleware re-reads the user's active-status/role/location on each request (30s cache, `AUTH_STATE_CACHE_SECONDS`). Deactivating or demoting someone takes effect on their open session. A database failure here returns a retryable 503, deliberately *not* a 401 — a replica hiccup must not sign everyone out.
 - **The signing key can be rotated without logging everyone out.** Set `JWT_SECRET_2` alongside `JWT_SECRET_1`; the highest number signs new tokens and every configured key still verifies. Wait one full token lifetime (`JWT_EXPIRY_HOURS`), then delete the old one. Full procedure in `deploy/erp.env.example`.
+- **Audit evidence has its own signing key, `AUDIT_SIGNING_KEY`** (exactly 32 characters; rotate with `AUDIT_SIGNING_KEY_<n>` the same way). Rotating the JWT key above no longer touches audit evidence. Until 2026-10-09 audit rows and checkpoints were signed with the JWT key, so rotating it made all earlier evidence look tampered. Evidence signed that way still verifies as long as its JWT key stays configured. Set `AUDIT_SIGNING_KEY` in `/etc/erp/erp.env` and keep it with your other keys. If it is unset, the server generates one on its own disk (finding **SB-025**), and a database restored onto another server cannot verify its audit evidence.
 
 ### D.6 Extending the System
 
