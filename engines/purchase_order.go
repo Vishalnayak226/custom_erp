@@ -313,7 +313,16 @@ func BuildPurchaseOrderPrint(tenantID, poID string) (POPrint, error) {
 		out.Status = str(po, "status")
 	}
 
-	vendorID := firstNonEmpty(str(po, "vendor"), str(po, "vendor_id"))
+	out.Buyer, out.Vendor = resolvePrintParties(tenantID, firstNonEmpty(str(po, "vendor"), str(po, "vendor_id")), str(po, "location"))
+	return out, nil
+}
+
+// resolvePrintParties is the Buyer/Vendor block every printed purchase-side
+// document shares (PO, and since Stage 62 the GRN and its debit/credit
+// notes): the vendor master, and the Legal Entity behind the location.
+func resolvePrintParties(tenantID, vendorID, locationCode string) (buyer, vendor POParty) {
+	out := struct{ Buyer, Vendor POParty }{}
+	po := map[string]interface{}{"location": locationCode}
 	if v, _, errV := fetchDocData(tenantID, "Vendor", vendorID); errV == nil {
 		out.Vendor = POParty{
 			Name:    firstNonEmpty(str(v, "name"), vendorID),
@@ -344,7 +353,7 @@ func BuildPurchaseOrderPrint(tenantID, poID string) (POPrint, error) {
 			out.Buyer.Name = firstNonEmpty(str(loc, "name"), str(po, "location"))
 		}
 	}
-	return out, nil
+	return out.Buyer, out.Vendor
 }
 
 func firstNonEmpty(vals ...string) string {

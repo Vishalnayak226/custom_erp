@@ -550,6 +550,15 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return
 		}
+		// Stage 62: a design created from a PO's Add design arrives with no
+		// code - number it from its Design/... series here (a code someone
+		// typed is kept), since the master-code endpoint is admin-only.
+		if doctype == "ProductFamily" {
+			if err := engines.PrepareDesignNumber(tenantID, location, id == "", payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
+		}
 
 		// Stage 51.5: an Item under a parent design gets its Combination
 		// ID/SKU generated from that design's code plus its own variant
@@ -582,8 +591,22 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// field it fills in is mandatory, so the default has to be in place
 		// before the mandatory check runs.
 		if doctype == "GRN" {
+			// Stage 62: line POs (multi-PO, one vendor), PO rate vs invoice
+			// rate, and the totals - first, so the header po_id the receiving
+			// location defaults from is already resolved.
+			if err := engines.PrepareGRNPricing(tenantID, id == "", payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
 			if err := engines.PrepareGRNReceipt(tenantID, payload); err != nil {
 				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve the receiving location from the purchase order")
+				return
+			}
+			// Every SKU on a new GRN gets a batch number (blank lines only),
+			// written onto the document so its stickers and stock posting
+			// carry the same value (engines/wms_receiving.go).
+			if err := engines.PrepareGRNBatchNumbers(tenantID, id == "", payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 				return
 			}
 		}
@@ -984,6 +1007,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// this stage's Workbench screen, so the bug was real but dormant
 		// (unreachable) until now - closing it here rather than shipping a
 		// screen that could newly trigger it.
+		var grnNotes engines.GRNNotesResult
 		if doctype == "GRN" && id == "" {
 			locationCode, _ := payload["location"].(string)
 			// GRN's own registered schema (db/migrations_phase3.sql) declares the mandatory
@@ -1048,6 +1072,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				// Stage 57.7: the tenant's barcode policy - the permanent barcode
 				// unless generation is off, plus a receipt-date barcode when on.
 				engines.EnsureReceiptBarcodes(tenantID, docID, items)
+
+				// Stage 62: the PO-vs-invoice price difference is settled by a
+				// Debit Note / Vendor Credit Note raised and posted now - never a
+				// hold. A note that cannot post is reported, the receipt stands.
+				grnNotes = engines.PostGRNRateDifferenceNotes(tenantID, docID, userID, r.Header.Get("Resolved-Location"))
 			}
 
 			// Publish inventory transaction changed outbox event
@@ -1080,10 +1109,20 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// business outcome like "Paid" from this response. statusVal already
 		// tracks the value actually persisted above (including the Pending
 		// Approval reassignment just above when a re-approval-on-edit reset ran).
-		_ = json.NewEncoder(w).Encode(map[string]string{
+		resp := map[string]string{
 			"status": statusVal,
 			"id":     docID,
-		})
+		}
+		if grnNotes.DebitNoteID != "" {
+			resp["debit_note_id"] = grnNotes.DebitNoteID
+		}
+		if grnNotes.VendorCreditNoteID != "" {
+			resp["vendor_credit_note_id"] = grnNotes.VendorCreditNoteID
+		}
+		if grnNotes.Warning != "" {
+			resp["notes_warning"] = grnNotes.Warning
+		}
+		_ = json.NewEncoder(w).Encode(resp)
 
 	case http.MethodDelete:
 		if id == "" {

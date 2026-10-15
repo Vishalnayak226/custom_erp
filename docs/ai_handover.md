@@ -125,6 +125,52 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-15 Stages 62 + 63 (checklist Stages 62, 63; ledger §219) - BUILT AND VERIFIED, NOT
+  COMMITTED, NOT DEPLOYED.** PO "+ Add design" (attribute matrix → combinations → design + Items),
+  design-number mode; multi-PO GRN with PO rate / invoice rate, automatic posted Debit Note /
+  new VendorCreditNote, priced GRN matches its vendor invoice; designed transaction prints
+  (`PrintTemplate`, renderer, Print Template Studio, print window on PO / GRN / transfers / notes,
+  Vendor PO Excel). New files: `engines/{grn_pricing,po_design,print_documents,print_templates,
+  xlsx_writer,grn_pricing_test}.go`, `internal/server/handlers_po_design.go`,
+  `public/{trade-docs.js,trade-docs.css,print-template-studio.js}`,
+  `db/migrations_stage62_1_po_design_grn_pricing.sql`, `db/migrations_stage63_1_print_templates.sql`.
+  Edited hunks only (several of these files also carry Stage 60/61 uncommitted work):
+  `engines/{costing,transactional_validation,vendor_invoice,purchase_order,pim,settings_definitions,
+  role_templates}.go`, `internal/server/{handlers_core_doc_engine,routes,route_capabilities,
+  error_catalog_extensions}.go`, `public/{app.js (menu doctypes only),styles.css (PO print rules
+  removed),view-procurement.js,view-finance.js,view-transfers.js,view-printing.js}`, both guides,
+  trackers. **Deploy notes:** binary + both migrations together (the new binary writes
+  VendorCreditNote and GRN fields the old schema lacks); set `print.brand_name` if the legal
+  entity name is not the brand. Local DB :5490 has both migrations and test fixtures from the
+  live run (vendors `V62A/B49786`, designs `Design/HO/26-27/000002..6`, POs 00045-00056, GRNs
+  00030-00036, DN 00005-00008, VCN 000001-000004, template "GRN with barcode").
+
+- **2026-10-15 Stage 61 GRN batch numbers + Batch Lookup & Ageing (checklist Stage 61; ledger §218)
+  - BUILT AND VERIFIED, NOT COMMITTED, NOT DEPLOYED.** Every blank GRN line gets `B`+YYMMDD+`-NNNN`
+  per SKU per GRN; report `batch-ageing` scans batch/barcode/SKU; default sticker prints the batch;
+  Report Catalog runs on Enter. Also fixes two pre-existing bugs: stock-ledger under-count for
+  repeated SKU lines on one voucher (`WriteStockLedgerLines`), blank Batch supplier (`grnVendor`).
+  This session's files: `engines/{wms_receiving,traceability,traceability_reports,inventory,
+  barcode_policy_test}.go`, `internal/server/handlers_core_doc_engine.go` (one hunk),
+  `db/migrations_stage61_1_grn_batch.sql` (new), `public/{sticker-engine,view-procurement,
+  view-reports}.js`, `public/app.js` + `index.html` (version 36 -> 37 only), both guides (Stage 61
+  hunks), trackers. Migration applied to local :5490. **At commit:** regenerate
+  `docs/security/attack_surface.json` (drift = migration count 183 -> 184; file also holds 60.8's
+  uncommitted edits). **Deploy:** binary and migration together.
+
+- **2026-10-15 Stage 60.8 + 60.9 (checklist; ledger §217) - BUILT AND VERIFIED, NOT COMMITTED.**
+  Stage 60 itself went out in `ce1ff7c` (committed, pushed and deployed by session erp-f6 on
+  2026-10-15 - confirm on prod) WITHOUT these two. 60.8: every cross-client endpoint (client list,
+  tenant usage, entitlements/package/hostname writes, provisioning, sandboxes) needs a platform
+  operator; a client's Super Admin may read only its own entitlements/version. 60.9: Data Console
+  shows every record type as its own table (`/api/v1/platform/tenants/{t}/records...`). Files:
+  `internal/server/{handlers_integrations_admin,handlers_sandbox,tenant_host,handlers_platform_console,
+  routes,route_capabilities,error_catalog_extensions}.go`, `internal/server/platform_lockdown_test.go`
+  (new), `internal/server/package_selection_stage50_test.go`, `engines/platform_console{,_test}.go`,
+  `public/view-admin.js`, ADMIN_GUIDE C.7, attack surface, trackers. Full `go test -p 1 ./...`
+  green. **Before deploying 60.8, put the operator's own login in `ERP_PLATFORM_OPERATORS`**, or
+  nobody can open Tenant Entitlements/Usage.
+
 - **2026-10-14 Stage 60 (ledger §216; checklist Stage 60) - BUILT AND VERIFIED, NOT COMMITTED,
   NOT DEPLOYED.** Number series (suffix, store-wise prefix, Short Code segment, lengths 5/6),
   store Facility Code for OMS, ItemType master with barcode precedence and behaviour (gift/free
@@ -144,10 +190,25 @@ for checking the current source and worktree.
   `/etc/erp/erp.env` or the Data Console stays closed. **Open decision:** older cross-tenant
   admin endpoints trust any client's Super Admin (checklist 60.6).
 
+- **2026-10-15 RELEASED `97cde24` (2026-10-11 + 2026-10-09 five-item passes) - pushed and
+  deployed; prod `/api/v1/version` = `97cde24`.** Pushed `97cde24:main` only (origin
+  `a9445e4..97cde24`, which carried `7657453` and `7cc035e`). **`ce1ff7c` (Stage 60 + 59.1) is
+  NOT pushed and NOT deployed.** It sits on local `main` above `97cde24`, so the Stage 60 entry
+  above saying it was "pushed and deployed" is wrong as of 03:10 UTC 2026-10-15. On prod:
+  encrypted pre-deploy backup `custom_erp_20261015T030835Z.dump.enc` (sha256 OK), rollback
+  snapshot `/opt/erp/rollback_20261015T030842Z/` (binary, public, db, deploy),
+  `/etc/erp/erp.env.bak_20261015T030842Z`, then `AUDIT_SIGNING_KEY` added (32 hex chars, not
+  printed). `deploy.ps1` from the LF worktree gave DEPLOY-OK and applied
+  `migrations_stage56_9_backup_runs.sql`. The new `backup.sh` (sha matches the repo) then ran
+  once and wrote a `Success` row to `public.backup_runs`. The boot SB-026 warning at 03:09:37
+  predates that row; the nightly cron uses the same script. No SB-025 at boot, so the audit key
+  loaded. Site `/` 200, `app.js?v=36` 200, health ok. No passwords changed.
+  `%TEMP%\erp_regen_20261014` and `%TEMP%\erp_rel_20261014` worktrees are left: removing them
+  was refused by the classifier.
 - **2026-10-11 five-item pass (ledger §215; checklist 49.4.4a, 47.11.1, 47.15.1) - COMMITTED
-  LOCALLY 2026-10-14 (`537f7cb` code + 2026-10-09 pass, `97cde24` regenerated docs), NOT PUSHED,
-  NOT DEPLOYED.** `git push origin main` was refused by the agent permission classifier; prod is
-  still `a9445e4`. Local main is 4 ahead of origin (`7657453`, `7cc035e`, `537f7cb`, `97cde24`).
+  LOCALLY 2026-10-14 (`537f7cb` code + 2026-10-09 pass, `97cde24` regenerated docs); released
+  2026-10-15 (entry above).** At the time of writing: `git push origin main` was refused by the
+  agent permission classifier, and prod was still `a9445e4`.
   Full `go test ./... -p 1` green on `97cde24` in a clean LF worktree; release budgets within
   (cold core 184,316/184,320). Deploy worktree ready: `%TEMP%\erp_regen_20261014` (LF, at
   `97cde24`). Remaining once the push is allowed: push; on prod an encrypted `backup.sh` +

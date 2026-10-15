@@ -642,6 +642,14 @@ async function renderReportCatalogPanel(panel) {
     document.getElementById('rc-columns-panel').classList.add('hidden');
   });
   document.getElementById('rc-run-btn').addEventListener('click', runReportCatalogReport);
+  // Enter in a filter runs the report - a barcode scanner types the code and
+  // presses Enter, so a scan box works without reaching for the button.
+  document.getElementById('rc-params').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.matches('[data-param-key]')) {
+      e.preventDefault();
+      runReportCatalogReport();
+    }
+  });
   document.getElementById('rc-columns-btn').addEventListener('click', toggleReportColumnsPanel);
   document.getElementById('rc-save-filter-btn').addEventListener('click', saveReportCatalogFilter);
   document.getElementById('rc-export-btn').addEventListener('click', exportReportCatalogReport);

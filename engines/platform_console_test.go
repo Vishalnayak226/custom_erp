@@ -108,3 +108,83 @@ func TestPlatformConsoleMaskingAndEdits(t *testing.T) {
 		t.Errorf("an invalid table name must be refused")
 	}
 }
+
+// Stage 60.6 record tables: each record type reads as its own table (one
+// column per defined field), and an edit writes typed values back into that
+// record's JSON - a Number stays a number - with hidden fields refused.
+func TestPlatformRecordTablesReadAndEdit(t *testing.T) {
+	db.InitDB(testConnStr())
+	tenantID, schemaName := uniqueLifecycleTenant(t)
+	defer dropLifecycleTenant(tenantID, schemaName)
+	if _, err := ProvisionTenantSchema(tenantID, schemaName, "0.1.0-test"); err != nil {
+		t.Fatalf("ProvisionTenantSchema: %v", err)
+	}
+	if _, err := db.DB.Exec(`INSERT INTO ` + schemaName + `.documents (doctype, id, data, status, created_by) VALUES
+		('Item', 'SKU-1', '{"code":"SKU-1","name":"Blue Shirt","sale_price":499,"legacy_note":"x"}', 'Active', 'admin'),
+		('Customer', 'CUST-9', '{"code":"CUST-9","name":"Ravi","phone":"9000000001"}', 'Active', 'admin')`); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+
+	types, err := PlatformRecordTypes(tenantID)
+	if err != nil {
+		t.Fatalf("PlatformRecordTypes: %v", err)
+	}
+	found := false
+	for _, rt := range types {
+		if rt.Doctype == "Item" && rt.Rows == 1 {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("Item should be listed as a table with 1 row")
+	}
+
+	page, err := PlatformRecords(tenantID, "Item", PlatformRowFilter{Q: "blue"})
+	if err != nil {
+		t.Fatalf("PlatformRecords: %v", err)
+	}
+	if page.Total != 1 || page.Rows[0]["name"] != "Blue Shirt" {
+		t.Fatalf("Item table by name search: total %d rows %v", page.Total, page.Rows)
+	}
+	var priceCol *PlatformColumn
+	for i := range page.Columns {
+		if page.Columns[i].Name == "sale_price" {
+			priceCol = &page.Columns[i]
+		}
+	}
+	if priceCol == nil || priceCol.Label == "" || !priceCol.Editable {
+		t.Errorf("sale_price should be an editable, labelled column: %+v", priceCol)
+	}
+	if other, _ := page.Rows[0]["other_data"].(map[string]interface{}); other["legacy_note"] != "x" {
+		t.Errorf("an undefined key should appear under other_data: %v", page.Rows[0]["other_data"])
+	}
+
+	price, name, status := "550.5", "Blue Shirt XL", "Inactive"
+	if _, err := PlatformUpdateRecord(tenantID, "Item", "SKU-1", map[string]*string{"sale_price": &price, "name": &name, "status": &status}, "default", "ops"); err != nil {
+		t.Fatalf("PlatformUpdateRecord: %v", err)
+	}
+	var priceType, storedName, storedStatus string
+	if err := db.DB.QueryRow(`SELECT jsonb_typeof(data->'sale_price'), data->>'name', status FROM `+schemaName+`.documents WHERE id = 'SKU-1'`).Scan(&priceType, &storedName, &storedStatus); err != nil {
+		t.Fatalf("read back: %v", err)
+	}
+	if priceType != "number" || storedName != "Blue Shirt XL" || storedStatus != "Inactive" {
+		t.Errorf("after edit: price type %s, name %q, status %q", priceType, storedName, storedStatus)
+	}
+
+	bad := "abc"
+	var verr *ValidationError
+	if _, err := PlatformUpdateRecord(tenantID, "Item", "SKU-1", map[string]*string{"sale_price": &bad}, "default", "ops"); !errors.As(err, &verr) {
+		t.Errorf("a non-number price must be refused, got %v", err)
+	}
+	phone := "1"
+	if _, err := PlatformUpdateRecord(tenantID, "Customer", "CUST-9", map[string]*string{"phone": &phone}, "default", "ops"); !errors.As(err, &verr) || verr.Code != "PLATFORM-0316" {
+		t.Errorf("editing a hidden customer phone: err = %v, want PLATFORM-0316", err)
+	}
+	cust, err := PlatformRecords(tenantID, "Customer", PlatformRowFilter{})
+	if err != nil || cust.Rows[0]["phone"] != MaskedValue || cust.Rows[0]["name"] != MaskedValue {
+		t.Errorf("customer fields must be masked: %v %v", err, cust.Rows)
+	}
+	if p, _ := PlatformRecords(tenantID, "Customer", PlatformRowFilter{Q: "Ravi"}); p.Total != 0 {
+		t.Errorf("a customer must not be findable by its hidden name")
+	}
+}

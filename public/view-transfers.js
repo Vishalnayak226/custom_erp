@@ -201,7 +201,24 @@ export {
   receiveTransferOrder
 };
 
+// Stage 63: Transfer Out (dispatch challan) prints once approved, Transfer In
+// once received - through the designed-template print dialog (trade-docs.js,
+// which sets window.printTransactionDocument when it loads).
+import('./trade-docs.js' + new URL(import.meta.url).search).catch(() => null);
+
 function renderTransferActions(t) {
+  const prints = [];
+  if (['Approved', 'Packed', 'Dispatched', 'Received'].includes(t.status)) {
+    prints.push(`<button class="action-btn" ${actionAttrs('printTransactionDocument', ['TransferOrder', t.id, 'TransferOut'])}>Print Transfer Out</button>`);
+  }
+  if (t.status === 'Received') {
+    prints.push(`<button class="action-btn" ${actionAttrs('printTransactionDocument', ['TransferOrder', t.id, 'TransferIn'])}>Print Transfer In</button>`);
+  }
+  const stage = renderTransferStageActions(t);
+  return [stage, ...prints].filter(Boolean).join(' ');
+}
+
+function renderTransferStageActions(t) {
   if (t.status === 'Draft') {
     return `<button class="action-btn" ${actionAttrs('approveTransferOrder', [t.id])}>Mark Approved</button>`;
   }

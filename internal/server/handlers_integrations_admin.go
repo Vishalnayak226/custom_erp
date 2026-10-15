@@ -385,13 +385,11 @@ func handleRetryIntegrationEvent(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
-	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can provision new tenants")
+	if !requirePlatformOperator(w, r) {
 		return
 	}
 
@@ -558,9 +556,7 @@ func handleListTenants(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	role := r.Header.Get("Resolved-Role")
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can list tenants")
+	if !requirePlatformOperator(w, r) {
 		return
 	}
 
@@ -616,9 +612,7 @@ func handleTenantUsage(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	role := r.Header.Get("Resolved-Role")
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view tenant usage")
+	if !requirePlatformOperator(w, r) {
 		return
 	}
 
@@ -679,9 +673,8 @@ func handleGetModuleEntitlements(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	role := r.Header.Get("Resolved-Role")
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view module entitlements")
+	if !allowTenantTarget(r, r.URL.Query().Get("tenant_id")) {
+		writeAPIError(w, r, "PLATFORM-0317", "")
 		return
 	}
 
@@ -706,9 +699,7 @@ func handleSetModuleEntitlement(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	role := r.Header.Get("Resolved-Role")
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can modify module entitlements")
+	if !requirePlatformOperator(w, r) {
 		return
 	}
 
@@ -790,9 +781,7 @@ func handleSetTenantPackage(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	role := r.Header.Get("Resolved-Role")
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can change a tenant's plan")
+	if !requirePlatformOperator(w, r) {
 		return
 	}
 
@@ -905,9 +894,8 @@ func handleGetTenantVersion(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	role := r.Header.Get("Resolved-Role")
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can view tenant version records")
+	if !allowTenantTarget(r, r.URL.Query().Get("tenant_id")) {
+		writeAPIError(w, r, "PLATFORM-0317", "")
 		return
 	}
 

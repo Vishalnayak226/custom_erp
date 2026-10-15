@@ -182,6 +182,8 @@ type BatchInfo struct {
 	ExpiryDate    string            `json:"expiry_date,omitempty"`
 	SupplierBatch string            `json:"supplier_batch,omitempty"`
 	Vendor        string            `json:"vendor,omitempty"`
+	GRN           string            `json:"grn,omitempty"`         // the receipt that first registered this lot
+	ReceivedOn    string            `json:"received_on,omitempty"` // that receipt's date - what batch ageing counts from
 	Status        string            `json:"status"`
 	Attributes    map[string]string `json:"attributes,omitempty"`
 }
@@ -204,6 +206,8 @@ func batchFromData(docID, dataStr, status string) BatchInfo {
 	out.ExpiryDate, _ = data["expiry_date"].(string)
 	out.SupplierBatch, _ = data["supplier_batch"].(string)
 	out.Vendor, _ = data["vendor"].(string)
+	out.GRN, _ = data["grn"].(string)
+	out.ReceivedOn, _ = data["received_on"].(string)
 	// The JSON status field and the documents.status column are separate values
 	// in this schema (the CycleCountLine gate documents the same distinction).
 	// The column is authoritative for a lifecycle decision, so it is only
@@ -321,6 +325,10 @@ func EnsureBatch(tenantID string, in BatchInfo, receivedQty float64, userID stri
 		"received_qty":   receivedQty,
 		"status":         BatchActive,
 	}
+	if grn := strings.TrimSpace(in.GRN); grn != "" {
+		data["grn"] = grn
+		data["received_on"] = localDateString(time.Now())
+	}
 	if len(in.Attributes) > 0 {
 		attrJSON, _ := json.Marshal(in.Attributes)
 		data["attributes"] = string(attrJSON)
@@ -342,6 +350,7 @@ func EnsureBatch(tenantID string, in BatchInfo, receivedQty float64, userID stri
 		DocID: docID, BatchNo: batchNo, Item: sku, MfgDate: strings.TrimSpace(in.MfgDate),
 		ExpiryDate: expiry, SupplierBatch: strings.TrimSpace(in.SupplierBatch),
 		Vendor: strings.TrimSpace(in.Vendor), Status: BatchActive, Attributes: in.Attributes,
+		GRN: strings.TrimSpace(in.GRN), ReceivedOn: strField(data, "received_on"),
 	}, nil
 }
 
@@ -1477,4 +1486,109 @@ func sortBatchStockByExpiry(rows []BatchStockRow) {
 		}
 		return rows[i].BinCode < rows[j].BinCode
 	})
+}
+
+// ---------------------------------------------------------------------------
+// Batch lookup and ageing - "scan it and know which day it came in".
+// ---------------------------------------------------------------------------
+
+// BatchAgeingRow is one lot and how long ago it was received.
+type BatchAgeingRow struct {
+	Sku         string  `json:"sku"`
+	BatchNo     string  `json:"batch_no"`
+	ReceivedOn  string  `json:"received_on"`
+	AgeDays     int     `json:"age_days"`
+	GRN         string  `json:"grn"`
+	Vendor      string  `json:"vendor"`
+	ReceivedQty float64 `json:"received_qty"`
+	ExpiryDate  string  `json:"expiry_date,omitempty"`
+	Status      string  `json:"status"`
+}
+
+// GetBatchAgeing answers a scan. A value that is a batch number returns that
+// lot; otherwise a SKU, its barcode or a receipt-date barcode returns every
+// lot of that item. A blank scan lists every lot. Oldest first, so the stock
+// that has waited longest leads. minAgeDays > 0 keeps only lots at least that
+// old.
+//
+// Ageing counts from the receipt date the GRN stamped on the lot; a lot from
+// before that existed (typed by hand, or received before GRN batch numbers)
+// falls back to the date its Batch record was created, which for a lot first
+// seen on a GRN is the same day.
+func GetBatchAgeing(tenantID, scan string, minAgeDays int) ([]BatchAgeingRow, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	scan = strings.TrimSpace(scan)
+	rows, err := queryBatchAgeing(schema, scan, "")
+	if err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 && scan != "" {
+		item, errItem := ResolveItemBySKU(tenantID, scan)
+		if errItem != nil {
+			if errors.Is(errItem, ErrItemNotFound) {
+				return rows, nil
+			}
+			return nil, errItem
+		}
+		code := strField(item.Data, "code")
+		if code == "" {
+			code = item.ID
+		}
+		if rows, err = queryBatchAgeing(schema, "", code); err != nil {
+			return nil, err
+		}
+	}
+	if minAgeDays <= 0 {
+		return rows, nil
+	}
+	kept := rows[:0]
+	for _, r := range rows {
+		if r.AgeDays >= minAgeDays {
+			kept = append(kept, r)
+		}
+	}
+	return kept, nil
+}
+
+// queryBatchAgeing reads lots by batch number or by item code (both optional).
+func queryBatchAgeing(schema, batchNo, sku string) ([]BatchAgeingRow, error) {
+	rows, err := db.DB.Query(fmt.Sprintf(`
+		SELECT b.data::text, COALESCE(b.status, ''), to_char(b.created_at, 'YYYY-MM-DD')
+		FROM %s.documents b
+		WHERE b.doctype = 'Batch' AND b.deleted_at IS NULL
+		  AND ($1 = '' OR UPPER(b.data->>'batch_no') = UPPER($1))
+		  AND ($2 = '' OR b.data->>'item' = $2)
+		ORDER BY COALESCE(NULLIF(b.data->>'received_on', ''), to_char(b.created_at, 'YYYY-MM-DD')), b.data->>'batch_no'
+		LIMIT 5000`, schema), batchNo, sku)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []BatchAgeingRow{}
+	for rows.Next() {
+		var dataStr, status, created string
+		if err := rows.Scan(&dataStr, &status, &created); err != nil {
+			return nil, err
+		}
+		info := batchFromData("", dataStr, status)
+		var data map[string]interface{}
+		_ = json.Unmarshal([]byte(dataStr), &data)
+		received := info.ReceivedOn
+		if received == "" {
+			received = created
+		}
+		r := BatchAgeingRow{
+			Sku: info.Item, BatchNo: info.BatchNo, ReceivedOn: received,
+			GRN: info.GRN, Vendor: info.Vendor, ReceivedQty: numFromInterface(data["received_qty"]),
+			ExpiryDate: info.ExpiryDate, Status: info.Status,
+		}
+		if d, ok := parseTraceDate(received); ok {
+			r.AgeDays = int(today().Sub(d).Hours() / 24)
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }

@@ -85,6 +85,8 @@ func TestApplyPackageSelectionCoversAllTenPackagesViaAPI(t *testing.T) {
 	location := "P50PKGLOC-" + stage47UniqueID()
 	adminID, cleanupAdmin := seedStage47User(t, engines.RoleSuperAdmin, location)
 	defer cleanupAdmin()
+	// Stage 60.6: changing a client's plan is a platform-operator action.
+	t.Setenv("ERP_PLATFORM_OPERATORS", "default:"+adminID)
 	token := stage47Token(adminID, engines.RoleSuperAdmin, location)
 
 	packageKeys := make([]string, 0, len(engines.ProductPackages))
@@ -192,6 +194,8 @@ func TestApplyPackageSelectionFaultInjectionViaAPI(t *testing.T) {
 	location := "P50FAULTLOC-" + stage47UniqueID()
 	adminID, cleanupAdmin := seedStage47User(t, engines.RoleSuperAdmin, location)
 	defer cleanupAdmin()
+	// Stage 60.6: changing a client's plan is a platform-operator action.
+	t.Setenv("ERP_PLATFORM_OPERATORS", "default:"+adminID)
 	token := stage47Token(adminID, engines.RoleSuperAdmin, location)
 
 	if err := engines.SetModuleEntitlement(tenantID, "pim", true, "test-bld007"); err != nil {

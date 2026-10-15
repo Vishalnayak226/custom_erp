@@ -193,7 +193,7 @@ var roleTemplates = []RoleTemplate{
 		},
 		Doctypes: map[string]AccessLevel{
 			"VendorInvoice": AccessOperate, "PaymentProposal": AccessOperate,
-			"DebitNote": AccessOperate, "ExpenseClaim": AccessOperate,
+			"DebitNote": AccessOperate, "VendorCreditNote": AccessOperate, "ExpenseClaim": AccessOperate,
 			"LandedCostVoucher": AccessOperate,
 			// A payables clerk must not also create the vendor being paid -
 			// that is the vendor-create + payment SoD conflict, enforced as

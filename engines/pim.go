@@ -747,6 +747,21 @@ func PrepareItemVariantCode(tenantID string, isCreate bool, payload map[string]i
 	}
 	payload["variant_option_values"] = strings.Join(parts, ";")
 
-	payload["code"] = GenerateVariantCode(tenantID, parentCode, "", kv)
+	code := GenerateVariantCode(tenantID, parentCode, "", kv)
+	// Stage 62: a create whose generated Combination ID already belongs to a
+	// live Item is a duplicate combination, not an edit. Without this the
+	// create became an upsert on that id and silently overwrote the existing
+	// Item (its name, prices, everything) - ValidateItemVariantUniqueness
+	// could not see it, because it excludes the record being saved and the
+	// two now share one id.
+	if schema, err := db.GetTenantSchema(tenantID); err == nil {
+		var existing string
+		if db.DB.QueryRow(fmt.Sprintf(
+			`SELECT id FROM %s.documents WHERE doctype = 'Item' AND id = $1 AND deleted_at IS NULL`, schema), code).Scan(&existing) == nil {
+			return &ValidationError{Code: "GLOBAL-0002", SubFor: "Combination", Message: fmt.Sprintf(
+				"combination %s already exists under design %s - use it instead of creating it again", code, parentCode)}
+		}
+	}
+	payload["code"] = code
 	return nil
 }

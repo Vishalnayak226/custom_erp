@@ -322,6 +322,9 @@
         "engines/purchase_requisition_catalog.go",
         "engines/purchase_order.go",
         "internal/server/handlers_purchase_order.go",
+        "engines/grn_pricing.go",
+        "engines/po_design.go",
+        "internal/server/handlers_po_design.go",
         "engines/purchase_return.go",
         "internal/server/handlers_purchase_return.go"
       ]
@@ -539,7 +542,7 @@
       "id": "printing",
       "lobe": "peripheral",
       "name": "Device Printing (QZ Tray)",
-      "role": "Silent one-click printing to named OS printers via a QZ Tray bridge on each packing PC. RSA request signing (the tray verifies SHA512withRSA over a SHA-256 hex string), the Printer Master's OS-name/role/language mapping, ZPL/TSPL/ESC-POS command generation, and byte-for-byte pass-through of marketplace-issued label PDFs. Also the Sticker Studio (Stage 58): the browser-side sticker engine that renders every label at printer DPI into TSPL/ZPL bitmaps or the print dialog, and the full-screen label designer.",
+      "role": "Silent one-click printing to named OS printers via a QZ Tray bridge on each packing PC. RSA request signing (the tray verifies SHA512withRSA over a SHA-256 hex string), the Printer Master's OS-name/role/language mapping, ZPL/TSPL/ESC-POS command generation, and byte-for-byte pass-through of marketplace-issued label PDFs. Also the Sticker Studio (Stage 58): the browser-side sticker engine that renders every label at printer DPI into TSPL/ZPL bitmaps or the print dialog, and the full-screen label designer. Stage 63: designed transaction prints (PO, Vendor PO, GRN, transfers, debit/credit notes) - the trade-docs page renderer and print window, and the Print Template Studio.",
       "match": [
         "engines/qz_*.go",
         "internal/server/handlers_qz_*.go",
@@ -547,6 +550,12 @@
         "public/sticker-engine.js",
         "public/sticker-studio.js",
         "public/sticker-studio.css",
+        "public/trade-docs.js",
+        "public/trade-docs.css",
+        "public/print-template-studio.js",
+        "engines/print_documents.go",
+        "engines/print_templates.go",
+        "engines/xlsx_writer.go",
         "cmd/qzcert/**"
       ]
     },

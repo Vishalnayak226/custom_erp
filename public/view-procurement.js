@@ -1,5 +1,12 @@
 import { documentSearchLink } from './view-document-links.js';
 
+// Stage 62/63: transaction prints, the print-template studio and this
+// screen's GRN/design styles live in trade-docs.js (+ trade-docs.css), loaded
+// with this module's own version so a deploy refreshes them together - and
+// kept out of the cold-core app.js/styles.css, which have a release budget.
+const TRADE_DOCS_QUERY = new URL(import.meta.url).search;
+const tradeDocsReady = import('./trade-docs.js' + TRADE_DOCS_QUERY);
+
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
@@ -297,8 +304,12 @@ function renderPOComposer(panel) {
 
     <div class="po-lines-head">
       <h3>Items</h3>
-      <button class="btn btn-outline btn-sm" id="po-add-line" type="button">+ Add item</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-outline btn-sm" id="po-add-design" type="button" title="Create a design and its combinations (colour, size...) right here and add them to this PO">+ Add design</button>
+        <button class="btn btn-outline btn-sm" id="po-add-line" type="button">+ Add item</button>
+      </div>
     </div>
+    <div id="po-design-panel" class="po-design-panel hidden"></div>
     <div class="table-wrapper">
       <table class="po-lines">
         <thead>
@@ -354,6 +365,7 @@ function renderPOComposer(panel) {
     d.lines.push({ sku: '', qty: '', rate: '', mrp: '' });
     renderPOLines();
   });
+  document.getElementById('po-add-design').addEventListener('click', openPODesignPanel);
   document.getElementById('po-create-btn').addEventListener('click', savePurchaseOrder);
   const cancelBtn = document.getElementById('po-cancel-edit');
   if (cancelBtn) cancelBtn.addEventListener('click', () => { poDraft = newPODraft(); poPreview = null; renderView('purchase-orders'); });
@@ -460,6 +472,347 @@ function renderPOLines() {
   });
 
   renderPOTotals();
+}
+
+// ---------------------------------------------------------------------------
+// Add design (Stage 62.5/62.6)
+//
+// The org's attribute matrix (every Active ProductAttributeDef): a Select
+// attribute with one value picked is a design attribute, with several it is an
+// axis, and the axes multiply into combinations - any of which can be removed
+// before creating. "Create & add to PO" makes the design (a ProductFamily,
+// numbered Design/...) and one Item per combination through the ordinary
+// record API, so numbering, variant codes, barcodes and the duplicate check
+// are exactly the ones every other Item gets, then adds them as PO lines.
+// A pasted design number loads that design and its existing combinations;
+// new ones can be added next to them.
+// ---------------------------------------------------------------------------
+let poDesign = null;
+
+function newPODesignState(matrix) {
+  return {
+    matrix, code: '', loaded: null, name: '', hsn: '', gst: '', rate: '', mrp: '', qty: '1',
+    picked: {}, typed: {}, removed: new Set(), rows: {}
+  };
+}
+
+async function openPODesignPanel() {
+  const panel = document.getElementById('po-design-panel');
+  if (!panel) return;
+  if (!poDraft.vendor) {
+    await showCustomAlert('Pick the vendor first - a design added here is bought from this PO\'s vendor.', 'Add design');
+    return;
+  }
+  await tradeDocsReady.catch(() => null); // panel styles
+  const res = await apiFetch('/api/v1/procurement/design-matrix');
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to load the product attributes.'); return; }
+  poDesign = newPODesignState(await res.json());
+  panel.classList.remove('hidden');
+  renderPODesignPanel();
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closePODesignPanel() {
+  poDesign = null;
+  const panel = document.getElementById('po-design-panel');
+  if (panel) { panel.classList.add('hidden'); panel.innerHTML = ''; }
+}
+
+// poDesignAxes / poDesignAttributes split the picked values into combination
+// axes (2+ values) and design-level attributes (one value, or typed).
+function poDesignAxes(d) {
+  return d.matrix.attributes.filter(a => a.value_type === 'Select' && (d.picked[a.code] || []).length > 1);
+}
+function poDesignAttributes(d) {
+  const out = {};
+  d.matrix.attributes.forEach(a => {
+    if (a.value_type === 'Select') {
+      const vals = d.picked[a.code] || [];
+      if (vals.length === 1) out[a.code] = vals[0];
+    } else if ((d.typed[a.code] || '').trim()) {
+      out[a.code] = d.typed[a.code].trim();
+    }
+  });
+  return out;
+}
+
+// poDesignCombinations is the cross product of the axes, each with a stable
+// key ("color:Red;size:M") used for removal, per-row edits and matching an
+// existing Item of a loaded design.
+function poDesignCombinations(d) {
+  const axes = poDesignAxes(d);
+  let combos = [{}];
+  axes.forEach(a => {
+    const next = [];
+    combos.forEach(c => (d.picked[a.code] || []).forEach(v => next.push({ ...c, [a.code]: v })));
+    combos = next;
+  });
+  return combos.map(c => ({ values: c, key: Object.keys(c).sort().map(k => `${k}:${c[k]}`).join(';') }));
+}
+
+function poDesignExistingFor(d, values) {
+  if (!d.loaded) return null;
+  const want = Object.keys(values).sort().map(k => `${k.toLowerCase()}:${String(values[k]).toLowerCase()}`).join(';');
+  return (d.loaded.combinations || []).find(c => {
+    const o = c.options || {};
+    const keys = Object.keys(o).filter(k => o[k] !== '' && Object.prototype.hasOwnProperty.call(values, k));
+    const have = keys.sort().map(k => `${k.toLowerCase()}:${String(o[k]).toLowerCase()}`).join(';');
+    return keys.length === Object.keys(values).length && have === want;
+  }) || null;
+}
+
+function renderPODesignPanel() {
+  const panel = document.getElementById('po-design-panel');
+  const d = poDesign;
+  if (!panel || !d) return;
+  const modeText = d.matrix.design_number_mode === 'match'
+    ? 'Reuse when it matches: the same name and every design attribute brings back the existing design.'
+    : 'New every time: this gets a new design number.';
+  const selectAttrs = d.matrix.attributes.filter(a => a.value_type === 'Select' && (a.options || []).length);
+  const otherAttrs = d.matrix.attributes.filter(a => a.value_type !== 'Select');
+  const combos = poDesignCombinations(d);
+  const kept = combos.filter(c => !d.removed.has(c.key));
+  const axes = poDesignAxes(d);
+  panel.innerHTML = `
+    <div class="po-design-head">
+      <h3>Add design</h3>
+      <button type="button" class="btn btn-ghost btn-sm" id="pod-close">Close</button>
+    </div>
+    <div class="po-design-row">
+      <div class="form-group">
+        <label class="form-label" for="pod-code">Existing design no <span class="po-optional">optional</span></label>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="pod-code" class="form-input" style="width:190px;" value="${escapeHTMLText(d.code)}" placeholder="Paste a design no">
+          <button type="button" class="btn btn-outline btn-sm" id="pod-load">Load</button>
+        </div>
+      </div>
+      <div class="po-design-mode">${d.loaded ? `Adding to design <strong>${escapeHTMLText(d.loaded.code)}</strong> &mdash; it keeps its number; new combinations are added next to its ${d.loaded.combinations.length} existing one(s). <button type="button" class="link-btn" id="pod-unload">Start a new design instead</button>` : escapeHTMLText(modeText)}</div>
+    </div>
+    <div class="po-design-row">
+      <div class="form-group"><label class="form-label" for="pod-name">Design name</label><input type="text" id="pod-name" class="form-input" style="width:220px;" value="${escapeHTMLText(d.name)}" ${d.loaded ? 'readonly' : ''}></div>
+      <div class="form-group"><label class="form-label" for="pod-hsn">HSN</label><input type="text" id="pod-hsn" class="form-input" style="width:110px;" value="${escapeHTMLText(d.hsn)}"></div>
+      <div class="form-group"><label class="form-label" for="pod-gst">GST %</label><input type="number" id="pod-gst" class="form-input num" style="width:80px;" min="0" step="0.01" value="${escapeHTMLText(d.gst)}"></div>
+      <div class="form-group"><label class="form-label" for="pod-rate">Purchase price</label><input type="number" id="pod-rate" class="form-input num" style="width:110px;" min="0" step="0.01" value="${escapeHTMLText(d.rate)}"></div>
+      <div class="form-group"><label class="form-label" for="pod-mrp">MRP <span class="po-optional">optional</span></label><input type="number" id="pod-mrp" class="form-input num" style="width:100px;" min="0" step="0.01" value="${escapeHTMLText(d.mrp)}"></div>
+      <div class="form-group"><label class="form-label" for="pod-qty">Qty each</label><input type="number" id="pod-qty" class="form-input num" style="width:80px;" min="1" step="1" value="${escapeHTMLText(d.qty)}"></div>
+    </div>
+    <div class="po-design-matrix">
+      ${selectAttrs.length === 0 && otherAttrs.length === 0 ? `<p class="text-muted">No product attributes are defined yet. Add them under PIM &rarr; Product Attributes (Value Type <b>Select</b> with options such as <i>Red, Blue</i> for colours or <i>S, M, L</i> for sizes), then come back.</p>` : ''}
+      ${selectAttrs.map(a => `
+        <div class="pod-attr">
+          <div class="pod-attr-label">${escapeHTMLText(a.label)} <span class="text-muted">${(d.picked[a.code] || []).length > 1 ? '&middot; combination' : (d.picked[a.code] || []).length === 1 ? '&middot; design' : ''}</span></div>
+          <div class="pod-chips">
+            ${a.options.map(o => `<button type="button" class="pod-chip${(d.picked[a.code] || []).includes(o) ? ' on' : ''}" data-pod-attr="${escapeHTMLText(a.code)}" data-pod-val="${escapeHTMLText(o)}">${escapeHTMLText(o)}</button>`).join('')}
+            <button type="button" class="pod-chip pod-chip-all" data-pod-all="${escapeHTMLText(a.code)}">${(d.picked[a.code] || []).length === a.options.length ? 'None' : 'All'}</button>
+          </div>
+        </div>`).join('')}
+      ${otherAttrs.length ? `<div class="po-design-row">${otherAttrs.map(a => `
+        <div class="form-group"><label class="form-label">${escapeHTMLText(a.label)}</label><input type="${a.value_type === 'Number' ? 'number' : a.value_type === 'Date' ? 'date' : 'text'}" class="form-input" style="width:150px;" data-pod-typed="${escapeHTMLText(a.code)}" value="${escapeHTMLText(d.typed[a.code] || '')}"></div>`).join('')}</div>` : ''}
+    </div>
+    <div class="pod-combos-head">
+      <strong>${kept.length} combination(s)</strong>
+      ${axes.length === 0 ? '<span class="text-muted">Pick two or more values of an attribute (e.g. several colours) to make combinations; with none, the design is one item.</span>' : ''}
+      ${d.removed.size ? `<button type="button" class="link-btn" id="pod-restore">Restore ${d.removed.size} removed</button>` : ''}
+    </div>
+    <div class="table-wrapper">
+      <table class="po-lines">
+        <thead><tr>${axes.map(a => `<th>${escapeHTMLText(a.label)}</th>`).join('')}${axes.length ? '' : '<th>Item</th>'}<th class="num" style="width:90px;">Qty</th><th class="num" style="width:120px;">Purchase price</th><th class="num" style="width:110px;">MRP</th><th>SKU</th><th style="width:36px;"></th></tr></thead>
+        <tbody>
+          ${kept.map(c => {
+            const row = d.rows[c.key] || {};
+            const existing = poDesignExistingFor(d, c.values);
+            return `<tr>
+              ${axes.map(a => `<td>${escapeHTMLText(c.values[a.code] || '')}</td>`).join('')}${axes.length ? '' : `<td>${escapeHTMLText(d.name || 'Design')}</td>`}
+              <td><input type="number" class="form-input num" min="0" step="1" data-pod-row="${escapeHTMLText(c.key)}" data-pod-field="qty" value="${escapeHTMLText(row.qty ?? d.qty)}"></td>
+              <td><input type="number" class="form-input num" min="0" step="0.01" data-pod-row="${escapeHTMLText(c.key)}" data-pod-field="rate" value="${escapeHTMLText(row.rate ?? d.rate)}"></td>
+              <td><input type="number" class="form-input num" min="0" step="0.01" data-pod-row="${escapeHTMLText(c.key)}" data-pod-field="mrp" value="${escapeHTMLText(row.mrp ?? d.mrp)}"></td>
+              <td>${existing ? `<span class="badge badge-secondary" title="Already exists - reused">${escapeHTMLText(existing.sku)}</span>` : '<span class="text-muted">new</span>'}</td>
+              <td><button type="button" class="po-line-remove" data-pod-remove="${escapeHTMLText(c.key)}" title="Remove this combination" aria-label="Remove combination">&times;</button></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div id="pod-error" class="login-error hidden"></div>
+    <div class="po-design-actions">
+      <button type="button" class="btn btn-primary" id="pod-create" ${kept.length ? '' : 'disabled'}>Create &amp; add ${kept.length} to PO</button>
+    </div>
+  `;
+
+  const bind = (id, key) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('input', () => { d[key] = el.value; });
+  };
+  bind('pod-code', 'code'); bind('pod-name', 'name'); bind('pod-hsn', 'hsn'); bind('pod-gst', 'gst');
+  bind('pod-rate', 'rate'); bind('pod-mrp', 'mrp'); bind('pod-qty', 'qty');
+  // Price / MRP / qty defaults flow into rows nobody has edited yet.
+  ['pod-rate', 'pod-mrp', 'pod-qty'].forEach(id => document.getElementById(id).addEventListener('change', renderPODesignPanel));
+  document.getElementById('pod-close').addEventListener('click', closePODesignPanel);
+  document.getElementById('pod-load').addEventListener('click', loadPODesign);
+  document.getElementById('pod-code').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); loadPODesign(); } });
+  const unload = document.getElementById('pod-unload');
+  if (unload) unload.addEventListener('click', () => { d.loaded = null; d.code = ''; d.name = ''; renderPODesignPanel(); });
+  const restore = document.getElementById('pod-restore');
+  if (restore) restore.addEventListener('click', () => { d.removed.clear(); renderPODesignPanel(); });
+  panel.querySelectorAll('[data-pod-attr]').forEach(btn => btn.addEventListener('click', () => {
+    const code = btn.getAttribute('data-pod-attr');
+    const val = btn.getAttribute('data-pod-val');
+    const list = d.picked[code] || (d.picked[code] = []);
+    const i = list.indexOf(val);
+    if (i >= 0) list.splice(i, 1); else list.push(val);
+    renderPODesignPanel();
+  }));
+  panel.querySelectorAll('[data-pod-all]').forEach(btn => btn.addEventListener('click', () => {
+    const code = btn.getAttribute('data-pod-all');
+    const a = d.matrix.attributes.find(x => x.code === code);
+    d.picked[code] = (d.picked[code] || []).length === a.options.length ? [] : a.options.slice();
+    renderPODesignPanel();
+  }));
+  panel.querySelectorAll('[data-pod-typed]').forEach(input => input.addEventListener('input', () => {
+    d.typed[input.getAttribute('data-pod-typed')] = input.value;
+  }));
+  panel.querySelectorAll('[data-pod-row]').forEach(input => input.addEventListener('input', () => {
+    const key = input.getAttribute('data-pod-row');
+    (d.rows[key] || (d.rows[key] = {}))[input.getAttribute('data-pod-field')] = input.value;
+  }));
+  panel.querySelectorAll('[data-pod-remove]').forEach(btn => btn.addEventListener('click', () => {
+    d.removed.add(btn.getAttribute('data-pod-remove'));
+    renderPODesignPanel();
+  }));
+  document.getElementById('pod-create').addEventListener('click', (e) => guardAgainstDoubleSubmit(e.currentTarget, 'Creating...', createPODesign));
+}
+
+// loadPODesign: a pasted design number always takes that same design; its
+// attributes and existing combinations come back, and any value picked beyond
+// them becomes a new combination.
+async function loadPODesign() {
+  const d = poDesign;
+  const code = (document.getElementById('pod-code')?.value || '').trim();
+  if (!d || !code) return;
+  const res = await apiFetch(`/api/v1/procurement/design/${encodeURIComponent(code)}`);
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, `Design ${code} was not found.`); return; }
+  applyLoadedDesign(d, await res.json());
+  renderPODesignPanel();
+}
+
+function applyLoadedDesign(d, design) {
+  d.loaded = design;
+  d.code = design.code;
+  d.name = design.name || d.name;
+  if (design.hsn_code) d.hsn = design.hsn_code;
+  if (design.gst_rate) d.gst = String(design.gst_rate);
+  if (design.purchase_rate && !d.rate) d.rate = String(design.purchase_rate);
+  if (design.mrp && !d.mrp) d.mrp = String(design.mrp);
+  const attrs = design.attributes || {};
+  const byLower = {};
+  d.matrix.attributes.forEach(a => { byLower[a.code.toLowerCase()] = a; });
+  Object.keys(attrs).forEach(k => {
+    const a = byLower[k.toLowerCase()];
+    if (!a || !attrs[k]) return;
+    if (a.value_type === 'Select') {
+      const opt = (a.options || []).find(o => o.toLowerCase() === String(attrs[k]).toLowerCase()) || attrs[k];
+      d.picked[a.code] = [opt];
+    } else {
+      d.typed[a.code] = attrs[k];
+    }
+  });
+  // Existing combinations' values are pre-picked, so the grid shows them
+  // (marked with their SKU) next to whatever new values are added.
+  (design.combinations || []).forEach(c => Object.keys(c.options || {}).forEach(k => {
+    const a = byLower[k.toLowerCase()];
+    if (!a || a.value_type !== 'Select' || !c.options[k]) return;
+    const opt = (a.options || []).find(o => o.toLowerCase() === String(c.options[k]).toLowerCase()) || c.options[k];
+    const list = d.picked[a.code] || (d.picked[a.code] = []);
+    if (!list.includes(opt)) list.push(opt);
+  }));
+}
+
+async function createPODesign() {
+  const d = poDesign;
+  if (!d) return;
+  const errEl = document.getElementById('pod-error');
+  const fail = (msg) => { errEl.textContent = msg; errEl.classList.remove('hidden'); };
+  errEl.classList.add('hidden');
+  const name = (d.name || '').trim();
+  const hsn = (d.hsn || '').trim();
+  if (!d.loaded && !name) return fail('Enter the design name.');
+  if (!hsn || d.gst === '' || isNaN(Number(d.gst))) return fail('HSN and GST % are needed - every item created here is a taxable product.');
+  const kept = poDesignCombinations(d).filter(c => !d.removed.has(c.key));
+  if (!kept.length) return fail('Every combination was removed - restore or pick at least one.');
+  const attrs = poDesignAttributes(d);
+  const attrString = Object.keys(attrs).sort().map(k => `${k}:${attrs[k]}`).join(';');
+
+  // 1. The design: the loaded one, a matching one (Reuse mode), or a new one.
+  let designCode = d.loaded ? d.loaded.code : '';
+  if (!designCode && d.matrix.design_number_mode === 'match') {
+    const mRes = await apiFetch('/api/v1/procurement/design/match', { method: 'POST', body: JSON.stringify({ name, attributes: attrs }) });
+    if (mRes && mRes.ok) {
+      const m = await mRes.json();
+      if (m.code) {
+        const gRes = await apiFetch(`/api/v1/procurement/design/${encodeURIComponent(m.code)}`);
+        if (gRes && gRes.ok) { d.loaded = await gRes.json(); designCode = d.loaded.code; }
+      }
+    }
+  }
+  if (!designCode) {
+    const fRes = await apiFetch('/api/v1/doc/ProductFamily', {
+      method: 'POST',
+      body: JSON.stringify({
+        name, status: 'Active', description: attrString ? `Design attributes: ${attrString}` : undefined,
+        design_attributes: attrString || undefined, vendor: poDraft.vendor || undefined, hsn_code: hsn,
+        gst_rate: Number(d.gst), mrp: d.mrp === '' ? undefined : Number(d.mrp), purchase_rate: d.rate === '' ? undefined : Number(d.rate)
+      })
+    });
+    if (!fRes) return;
+    if (!fRes.ok) return fail(await getErrorMessage(fRes, 'Could not create the design.'));
+    designCode = (await fRes.json()).id;
+  }
+
+  // 2. One Item per combination (an existing one is reused, not duplicated).
+  const designName = name || (d.loaded && d.loaded.name) || designCode;
+  const added = [];
+  const failures = [];
+  for (const c of kept) {
+    const row = d.rows[c.key] || {};
+    const qty = Number(row.qty ?? d.qty) || 0;
+    const rate = Number(row.rate ?? d.rate) || 0;
+    const mrpRaw = row.mrp ?? d.mrp;
+    const existing = poDesignExistingFor(d, c.values);
+    let sku = existing ? existing.sku : '';
+    if (!sku) {
+      const valuesText = Object.keys(c.values).sort().map(k => c.values[k]).join(' ');
+      const iRes = await apiFetch('/api/v1/doc/Item', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: valuesText ? `${designName} ${valuesText}` : designName,
+          family: designCode, parent_product_code: designCode,
+          variant_option_values: c.key || undefined,
+          hsn_code: hsn, gst_rate: Number(d.gst),
+          mrp: mrpRaw === '' || mrpRaw == null ? undefined : Number(mrpRaw),
+          standard_cost: rate || undefined
+        })
+      });
+      if (!iRes) return;
+      if (!iRes.ok) { failures.push(`${c.key || designName}: ${await getErrorMessage(iRes, 'could not be created')}`); continue; }
+      sku = (await iRes.json()).id;
+    }
+    if (qty > 0) added.push({ sku, qty: String(qty), rate: rate ? String(rate) : '', mrp: mrpRaw === '' || mrpRaw == null ? '' : String(mrpRaw) });
+  }
+
+  // 3. Onto the PO - replacing the one blank starter line if that is all there is.
+  if (poDraft.lines.length === 1 && !poDraft.lines[0].sku && !poDraft.lines[0].qty && !poDraft.lines[0].rate) poDraft.lines = [];
+  poDraft.lines.push(...added);
+  if (!poDraft.lines.length) poDraft.lines.push({ sku: '', qty: '', rate: '', mrp: '' });
+  renderPOLines();
+  schedulePOPreview();
+  if (failures.length) {
+    fail(`Design ${designCode}: ${added.length} combination(s) added; ${failures.length} could not be created - ${failures.join('; ')}`);
+    return;
+  }
+  closePODesignPanel();
+  showToast(`Design ${designCode}: ${added.length} combination(s) added to the PO.`, { variant: 'success' });
 }
 
 // schedulePOPreview debounces the pricing call. 250ms is long enough that
@@ -724,94 +1077,19 @@ window.amendPurchaseOrder = async function(poId) {
 };
 
 // ---------------------------------------------------------------------------
-// Printed PO and vendor dispatch (Stage 40.1)
+// Printed PO and vendor dispatch (Stage 40.1; designed prints Stage 63)
 //
-// The payload is assembled server-side (GET .../print) so the sheet does not
-// have to fetch the vendor, the legal entity and every item and stitch them
-// together itself - and so MRP is stripped before it ever reaches the page.
-// ---------------------------------------------------------------------------
 // Stage 40.10: silent-prints via QZ first (job_type 'Purchase Order', quiet -
 // a tenant with no QZ printer configured for POs is the normal case, not an
-// error). Falls back to the existing browser @media print sheet exactly like
-// printSalesInvoice, so nobody is blocked when QZ Tray or a mapped printer
-// isn't present.
+// error). Otherwise the print dialog (trade-docs.js): Purchase Order or Vendor
+// PO, the best-matching designed template (or the standard layout), the store
+// it is generated from, a preview, and the Excel download with item pictures.
+// ---------------------------------------------------------------------------
 window.printPurchaseOrder = async function(poId) {
   if (await qzTryPrint('Purchase Order', { documentRef: poId, quiet: true })) return;
-
-  const res = await apiFetch(`/api/v1/procurement/purchase-order/${encodeURIComponent(poId)}/print`);
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'Failed to prepare the purchase order for printing.');
-    return;
-  }
-  renderPOPrintSheet(await res.json());
+  const m = await tradeDocsReady;
+  await m.printTransactionDocument('PurchaseOrder', poId);
 };
-
-function renderPOPrintSheet(po) {
-  const area = document.getElementById('invoice-print-area');
-  if (!area) return;
-  const party = (title, p) => `
-    <div class="po-print-party">
-      <div class="po-print-party-title">${title}</div>
-      <div class="po-print-party-name">${escapeHTMLText(p.name || '—')}</div>
-      ${p.address ? `<div>${escapeHTMLText(p.address)}</div>` : ''}
-      ${p.gstin ? `<div>GSTIN: ${escapeHTMLText(p.gstin)}</div>` : ''}
-      ${p.state && p.state !== 'Not set' ? `<div>State: ${escapeHTMLText(p.state)}</div>` : ''}
-      ${p.email ? `<div>${escapeHTMLText(p.email)}</div>` : ''}
-      ${p.phone ? `<div>${escapeHTMLText(p.phone)}</div>` : ''}
-    </div>`;
-
-  const b = po.breakdown || {};
-  // No MRP column: the server already zeroes it, and the buying side's
-  // expected retail price is not the vendor's business.
-  area.innerHTML = `
-    <div class="invoice-sheet po-print">
-      <div class="invoice-title">Purchase Order</div>
-      ${po.status !== 'Approved' ? `<div class="invoice-draft">${escapeHTMLText((po.status || '').toUpperCase())}</div>` : ''}
-      <div class="po-print-meta">
-        <div><strong>PO No:</strong> ${escapeHTMLText(po.po_number || '')}</div>
-        ${po.order_date ? `<div><strong>Date:</strong> ${escapeHTMLText(po.order_date)}</div>` : ''}
-        ${po.ship_to ? `<div><strong>Ship to:</strong> ${escapeHTMLText(po.ship_to)}</div>` : ''}
-      </div>
-      <div class="po-print-parties">
-        ${party('Buyer', po.buyer || {})}
-        ${party('Vendor', po.vendor || {})}
-      </div>
-      <table class="po-print-lines">
-        <thead><tr><th>#</th><th>Item</th><th>HSN</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">GST %</th><th class="num">Taxable</th><th class="num">Amount</th></tr></thead>
-        <tbody>
-          ${(po.lines || []).map((l, i) => `
-            <tr>
-              <td>${i + 1}</td>
-              <td>${escapeHTMLText(l.sku || '')}${l.item_name ? `<div class="po-print-itemname">${escapeHTMLText(l.item_name)}</div>` : ''}</td>
-              <td>${escapeHTMLText(l.hsn_code || '')}</td>
-              <td class="num">${escapeHTMLText(String(l.qty ?? ''))}</td>
-              <td class="num">${formatMoney(l.rate)}</td>
-              <td class="num">${l.gst_rate ? l.gst_rate + '%' : (l.tax_treatment && l.tax_treatment !== 'Taxable' ? escapeHTMLText(l.tax_treatment) : '—')}</td>
-              <td class="num">${formatMoney(l.taxable)}</td>
-              <td class="num">${formatMoney(l.line_total)}</td>
-            </tr>`).join('')}
-        </tbody>
-      </table>
-      <table class="po-print-totals">
-        <tr><td>Taxable value</td><td class="num">${formatMoney(b.taxable_amount)}</td></tr>
-        ${b.interstate
-          ? `<tr><td>IGST</td><td class="num">${formatMoney(b.igst)}</td></tr>`
-          : `<tr><td>CGST</td><td class="num">${formatMoney(b.cgst)}</td></tr><tr><td>SGST</td><td class="num">${formatMoney(b.sgst)}</td></tr>`}
-        <tr class="po-print-grand"><td>Grand Total</td><td class="num">${formatMoney(po.grand_total)}</td></tr>
-      </table>
-      ${po.amount_in_words ? `<div class="po-print-words">${escapeHTMLText(po.amount_in_words)}</div>` : ''}
-      ${po.place_of_supply && po.place_of_supply.derived ? `<div class="po-print-pos">Place of supply: ${escapeHTMLText(po.place_of_supply.buyer_state_label || '')}</div>` : ''}
-      <div class="po-print-foot">
-        <div>Prices are <strong>${escapeHTMLText(po.gst_mode || '')}</strong> of GST.</div>
-        <div class="po-print-sign">Authorised Signatory</div>
-      </div>
-    </div>
-  `;
-  area.classList.add('printing');
-  window.print();
-  setTimeout(() => area.classList.remove('printing'), 500);
-}
 
 // sendPurchaseOrderToVendor records the dispatch and fires the notification
 // engine's PurchaseOrderIssued event. When no notification channel is
@@ -979,6 +1257,12 @@ let grnLineItems = [];
 // prefilled from, so createGRN can carry that reference through as GRN's
 // new optional asn_id field.
 let grnLoadedASNId = '';
+// Stage 62: the POs this receipt takes lines from - several are allowed, all
+// of one vendor - as { id, label, vendor }. Each line carries its own po_id,
+// po_rate and gst_rate (ex-GST, from the PO's own pricing preview, which is
+// the function the server re-prices with on save) and an editable
+// invoice_rate that defaults to the PO rate.
+let grnPOs = [];
 
 async function renderGRNWorkbenchView(container) {
   const res = await apiFetch('/api/v1/doc/GRN');
@@ -988,13 +1272,14 @@ async function renderGRNWorkbenchView(container) {
   state.docData = grns;
   grnLineItems = [];
   grnLoadedASNId = '';
+  grnPOs = [];
 
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Goods Receipt</h1>
-      <p class="page-subtitle">Receive against a PO: capture accepted, short, and damaged quantities per line, then post to stock.</p>
+      <p class="page-subtitle">Receive against one or more POs of a vendor: capture accepted, short and damaged quantities and the vendor's invoice price per line, then post to stock. Price differences become debit / credit notes automatically.</p>
     </div>
   `;
   container.appendChild(header);
@@ -1008,16 +1293,39 @@ async function renderGRNWorkbenchView(container) {
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       ${autoNumberField('GRN Number', 'GRN', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="grn-po">PO Reference</label>
-        <input type="text" id="grn-po" class="form-input" style="width: 150px;" autocomplete="off">
+        <label class="form-label" for="grn-po">Purchase Order</label>
+        <input type="text" id="grn-po" class="form-input" style="width: 170px;" autocomplete="off" placeholder="Search PO...">
       </div>
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="grn-location">Receiving Location</label>
         <input type="text" id="grn-location" class="form-input" style="width: 130px;" autocomplete="off">
       </div>
-      <button class="btn btn-outline" id="grn-load-po-btn" type="button">Load Items from PO</button>
+      <button class="btn btn-outline" id="grn-load-po-btn" type="button">Add PO &amp; Load Items</button>
     </div>
+    <div id="grn-po-chips" class="grn-po-chips"></div>
     <div id="grn-po-note" style="margin-top: 8px; font-size: 12.5px; color: var(--text-muted);"></div>
+
+    <!-- Stage 62: the vendor's invoice. Its amount is a control total - the
+         lines below carry the invoice price; any difference is shown, never
+         a reason to hold the receipt. -->
+    <div class="grn-invoice-row">
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label">Vendor</label>
+        <div id="grn-vendor" class="grn-vendor-name">&mdash;</div>
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-inv-no">Vendor Invoice No</label>
+        <input type="text" id="grn-inv-no" class="form-input" style="width: 150px;" autocomplete="off">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-inv-date">Invoice Date</label>
+        <input type="date" id="grn-inv-date" class="form-input" style="width: 155px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="grn-inv-amount">Invoice Amount (incl. GST)</label>
+        <input type="number" id="grn-inv-amount" class="form-input num" style="width: 150px;" min="0" step="0.01">
+      </div>
+    </div>
 
     <!-- Stage 26.5.1: ASN capture ahead of a GRN - an optional prefill
          source alongside the PO one above, same "Load Items from X" pattern. -->
@@ -1137,6 +1445,7 @@ async function renderGRNWorkbenchView(container) {
       <div id="grn-weight-note" style="font-size: 12.5px; color: var(--text-muted); align-self: center;"></div>
     </div>
     <div id="grn-lines-list" style="margin: 12px 0;"></div>
+    <div id="grn-totals" class="grn-totals"></div>
     <div id="grn-form-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
     <button class="btn btn-primary" id="grn-create-btn">Post Receipt</button>
   `;
@@ -1158,6 +1467,7 @@ async function renderGRNWorkbenchView(container) {
   document.getElementById('grn-load-asn-btn').addEventListener('click', loadGRNItemsFromASN);
   document.getElementById('grn-add-line-btn').addEventListener('click', addGRNLine);
   document.getElementById('grn-create-btn').addEventListener('click', createGRN);
+  document.getElementById('grn-inv-amount').addEventListener('input', renderGRNTotals);
 
   // Stage 42.1.4: drop the per-SKU tracking cache each time the screen is
   // opened, so an item switched to batch-tracked in Setup is picked up on the
@@ -1174,14 +1484,16 @@ async function renderGRNWorkbenchView(container) {
   let html = `
     <table>
       <thead>
-        <tr><th>GRN #</th><th>PO</th><th>Location</th><th>Lines</th><th>Received / Rejected / Damaged</th><th>Status</th></tr>
+        <tr><th>GRN #</th><th>PO</th><th>Location</th><th>Lines</th><th>Received / Rejected / Damaged</th><th>Vendor Invoice</th><th>Price Notes</th><th>Status</th></tr>
       </thead>
       <tbody>
   `;
   if (grns.length === 0) {
-    html += `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No goods receipts yet. Use <b>Load Items from PO</b> above to receive against an approved Purchase Order, then <b>Post Receipt</b>.</td></tr>`;
+    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No goods receipts yet. Use <b>Load Items from PO</b> above to receive against an approved Purchase Order, then <b>Post Receipt</b>.</td></tr>`;
   }
-  grns.forEach(g => {
+  // Newest first (the list API returns creation order), so a receipt just
+  // posted - and the notes it raised - is the row at the top.
+  grns.slice().reverse().forEach(g => {
     let lines = [];
     try { lines = JSON.parse(g.received_items || '[]'); } catch (e) { lines = []; }
     const receivedTotal = lines.reduce((s, l) => s + (Number(l.qty) || 0), 0);
@@ -1191,11 +1503,13 @@ async function renderGRNWorkbenchView(container) {
     html += `
       <tr>
         <td style="font-family: monospace;">${g.code || g.id}</td>
-        <td>${documentSearchLink('PurchaseOrder', g.po_id)}</td>
+        <td>${(g.po_ids ? String(g.po_ids).split(',') : [g.po_id]).filter(Boolean).map(p => documentSearchLink('PurchaseOrder', p)).join('<br>')}</td>
         <td>${g.location || ''}</td>
         <td>${lines.length}</td>
         <td>${receivedTotal} / ${rejectedTotal} / ${damagedTotal}</td>
-        <td><span class="badge ${statusBadge}">${escapeHTMLText(g.status || '')}</span><div><button class="action-btn" ${actionAttrs('startVendorInvoiceFromGRN', [g.id, g.po_id])}>Record vendor invoice</button></div></td>
+        <td>${g.vendor_invoice_no ? escapeHTMLText(g.vendor_invoice_no) : '<span class="text-muted">&mdash;</span>'}${g.invoice_total ? `<div class="text-muted" style="font-size:12px;">${formatMoney(g.invoice_total)}</div>` : ''}</td>
+        <td>${grnNotesCell(g)}</td>
+        <td><span class="badge ${statusBadge}">${escapeHTMLText(g.status || '')}</span><div><button class="action-btn" ${actionAttrs('startVendorInvoiceFromGRN', [g.id, g.po_id])}>Record vendor invoice</button> <button class="action-btn" ${actionAttrs('printTransactionDocument', ['GRN', g.id])}>Print</button></div></td>
       </tr>
     `;
   });
@@ -1230,15 +1544,22 @@ function renderGRNLinesList() {
   // only once a line on this receipt actually carries one.
   const grnHasBatches = grnLineItems.some(l => l.batch_no);
   const grnHasSerials = grnLineItems.some(l => l.serial_numbers && l.serial_numbers.length);
+  // Stage 62: the PO column appears once a second PO is on the receipt.
+  const grnMultiPO = new Set(grnLineItems.map(l => l.po_id).filter(Boolean)).size > 1;
   el.innerHTML = `
     <table style="margin-top: 4px;">
-      <thead><tr><th>SKU</th><th>Barcode</th>${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}${grnHasSerials ? '<th>Serials</th>' : ''}<th>Ordered</th><th>Received</th><th>Accepted</th><th>Rejected</th><th>Damaged</th><th>Short</th><th></th></tr></thead>
+      <thead><tr>${grnMultiPO ? '<th>PO</th>' : ''}<th>SKU</th><th>Barcode</th>${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}${grnHasSerials ? '<th>Serials</th>' : ''}<th>Ordered</th><th>Received</th><th>Accepted</th><th>Rejected</th><th>Damaged</th><th>Short</th><th class="num" title="Agreed price per unit before GST, from the PO">PO Rate</th><th class="num" title="Price per unit before GST on the vendor's invoice">Invoice Rate</th><th class="num">Value</th><th></th></tr></thead>
       <tbody>
         ${grnLineItems.map((line, idx) => {
           const ordered = line.ordered_qty;
           const short = (ordered !== null && ordered !== undefined && ordered !== '') ? Math.max(0, ordered - line.qty) : null;
+          const hasPORate = line.po_rate !== undefined && line.po_rate !== null && line.po_rate !== '';
+          const invRate = (line.invoice_rate === '' || line.invoice_rate === undefined || line.invoice_rate === null) ? (hasPORate ? line.po_rate : '') : line.invoice_rate;
+          const diff = hasPORate && invRate !== '' ? Number(invRate) - Number(line.po_rate) : 0;
+          const value = invRate === '' ? null : Number(invRate) * (Number(line.accepted_qty) || 0);
           return `
-            <tr>
+            <tr${Math.abs(diff) >= 0.005 ? ' class="grn-rate-diff"' : ''}>
+              ${grnMultiPO ? `<td style="font-family: monospace; font-size: 12px;">${escapeHTMLText(line.po_id || '')}</td>` : ''}
               <td style="font-family: monospace;">${line.sku}</td>
               <td><span class="badge badge-secondary" style="font-family: Consolas, Monaco, monospace; letter-spacing: 1px;">${line.barcode || line.sku}</span></td>
               ${grnHasBatches ? `<td>${batchCellHTML({ batch_no: line.batch_no, expiry_date: line.expiry_date })}</td>` : ''}
@@ -1249,6 +1570,9 @@ function renderGRNLinesList() {
               <td>${line.rejected_qty > 0 ? `<span class="badge badge-danger">${line.rejected_qty}</span>` : '0'}</td>
               <td>${line.damaged_qty > 0 ? `<span class="badge badge-danger">${line.damaged_qty}</span>` : '0'}</td>
               <td>${short === null ? '&mdash;' : short > 0 ? `<span class="badge badge-warning">${short}</span>` : '0'}</td>
+              <td class="num">${hasPORate ? formatMoney(line.po_rate) : '<span class="text-muted">&mdash;</span>'}</td>
+              <td class="num"><input type="number" class="form-input num grn-rate-input" min="0" step="0.01" data-grn-rate="${idx}" value="${escapeHTMLText(String(invRate))}" aria-label="Invoice rate for ${escapeHTMLText(line.sku)}">${Math.abs(diff) >= 0.005 ? `<div class="grn-rate-delta ${diff > 0 ? 'up' : 'down'}">${diff > 0 ? '+' : '&minus;'}${formatMoney(Math.abs(diff))} vs PO</div>` : ''}</td>
+              <td class="num">${value === null ? '<span class="text-muted">&mdash;</span>' : formatMoney(value)}</td>
               <td><button class="action-btn action-btn-danger" type="button" ${actionAttrs('removeGRNLine', [idx])}>Remove</button></td>
             </tr>
           `;
@@ -1256,7 +1580,93 @@ function renderGRNLinesList() {
       </tbody>
     </table>
   `;
+  el.querySelectorAll('[data-grn-rate]').forEach(input => {
+    input.addEventListener('change', () => {
+      const i = Number(input.getAttribute('data-grn-rate'));
+      const v = input.value.trim();
+      if (v !== '' && (isNaN(Number(v)) || Number(v) < 0)) { input.value = grnLineItems[i].invoice_rate ?? ''; return; }
+      grnLineItems[i].invoice_rate = v === '' ? '' : Math.round(Number(v) * 100) / 100;
+      renderGRNLinesList();
+    });
+  });
+  renderGRNTotals();
 }
+
+// grnNotesCell lists the debit / credit notes a posted GRN raised for its
+// price differences (Stage 62), each printable.
+function grnNotesCell(g) {
+  const parts = [];
+  if (g.debit_note_id) parts.push(`<div>Debit <button class="link-btn" type="button" ${actionAttrs('printTransactionDocument', ['DebitNote', g.debit_note_id])}>${escapeHTMLText(g.debit_note_id)}</button></div>`);
+  if (g.vendor_credit_note_id) parts.push(`<div>Credit <button class="link-btn" type="button" ${actionAttrs('printTransactionDocument', ['VendorCreditNote', g.vendor_credit_note_id])}>${escapeHTMLText(g.vendor_credit_note_id)}</button></div>`);
+  return parts.length ? parts.join('') : '<span class="text-muted">&mdash;</span>';
+}
+
+// renderGRNTotals is the "section to see" the difference: value at PO price,
+// value at invoice price with GST, the vendor's typed invoice amount, and the
+// notes the receipt will raise. Accepted qty only - rejected and damaged units
+// are not owed (they go back on a Purchase Return). GST here is an estimate
+// at each line's PO GST rate; the server prices the saved receipt itself.
+function renderGRNTotals() {
+  const el = document.getElementById('grn-totals');
+  if (!el) return;
+  const priced = grnLineItems.filter(l => l.po_rate !== undefined && l.po_rate !== '' && l.po_rate !== null);
+  if (grnLineItems.length === 0 || priced.length === 0) { el.innerHTML = ''; return; }
+  let poValue = 0, invValue = 0, invGST = 0, up = 0, down = 0;
+  grnLineItems.forEach(l => {
+    const acc = Number(l.accepted_qty) || 0;
+    const hasPO = l.po_rate !== undefined && l.po_rate !== '' && l.po_rate !== null;
+    const inv = (l.invoice_rate === '' || l.invoice_rate === undefined || l.invoice_rate === null) ? (hasPO ? Number(l.po_rate) : 0) : Number(l.invoice_rate);
+    const gst = Number(l.gst_rate) || 0;
+    if (hasPO) poValue += Number(l.po_rate) * acc;
+    invValue += inv * acc;
+    invGST += inv * acc * gst / 100;
+    if (hasPO) {
+      const d = (inv - Number(l.po_rate)) * acc * (1 + gst / 100);
+      if (d > 0.004) up += d; else if (d < -0.004) down += -d;
+    }
+  });
+  const invTotal = invValue + invGST;
+  const typedRaw = document.getElementById('grn-inv-amount')?.value || '';
+  const typed = typedRaw === '' ? null : Number(typedRaw);
+  const gap = typed === null ? null : typed - invTotal;
+  el.innerHTML = `
+    <div class="grn-totals-grid">
+      <div><span>Value at PO price</span><strong>${formatMoney(poValue)}</strong></div>
+      <div><span>Value at invoice price</span><strong>${formatMoney(invValue)}</strong></div>
+      <div><span>GST (approx.)</span><strong>${formatMoney(invGST)}</strong></div>
+      <div><span>Invoice value incl. GST</span><strong>${formatMoney(invTotal)}</strong></div>
+      <div><span>Vendor invoice amount</span><strong>${typed === null ? '&mdash;' : formatMoney(typed)}</strong></div>
+      <div class="${gap !== null && Math.abs(gap) >= 1 ? 'grn-gap' : ''}"><span>Invoice minus lines</span><strong>${gap === null ? '&mdash;' : formatMoney(gap)}</strong></div>
+    </div>
+    <div class="grn-notes-preview">
+      ${up > 0.004 ? `<span class="badge badge-warning">Debit note ${formatMoney(up)} will be raised to the vendor (billed above PO)</span>` : ''}
+      ${down > 0.004 ? `<span class="badge badge-secondary">Credit note ${formatMoney(down)} will be raised to the vendor (billed below PO)</span>` : ''}
+      ${up <= 0.004 && down <= 0.004 ? '<span class="text-muted">Invoice prices match the PO &mdash; no note needed.</span>' : ''}
+      ${gap !== null && Math.abs(gap) >= 1 ? `<div class="grn-gap-note">The vendor's invoice total does not equal these lines. Check the invoice rates and quantities; the receipt still posts and records the difference.</div>` : ''}
+    </div>
+  `;
+}
+
+// renderGRNPOChips shows the POs on this receipt, each removable (with its lines).
+function renderGRNPOChips() {
+  const el = document.getElementById('grn-po-chips');
+  if (!el) return;
+  el.innerHTML = grnPOs.map((p, i) => `
+    <span class="grn-po-chip">${escapeHTMLText(p.label)}
+      <button type="button" class="grn-po-chip-x" ${actionAttrs('removeGRNPO', [i])} aria-label="Remove ${escapeHTMLText(p.label)}">&times;</button>
+    </span>`).join('');
+  const vendorEl = document.getElementById('grn-vendor');
+  if (vendorEl) vendorEl.textContent = grnPOs.length ? (grnPOs[0].vendor || '—') : '—';
+}
+
+window.removeGRNPO = function(i) {
+  const p = grnPOs[i];
+  if (!p) return;
+  grnPOs.splice(i, 1);
+  grnLineItems = grnLineItems.filter(l => l.po_id !== p.id);
+  renderGRNPOChips();
+  renderGRNLinesList();
+};
 
 // Best-effort barcode lookup for the line-list preview badge - falls back
 // to the SKU itself on any miss, same degrade-gracefully behavior
@@ -1465,12 +1875,12 @@ async function populateGRNBatchRow() {
 
   const tracked = grnBatchTracked[sku];
   row.classList.remove('hidden');
-  if (batchEl) batchEl.placeholder = tracked ? 'required for this item' : 'optional';
+  if (batchEl) batchEl.placeholder = tracked ? 'required for this item' : 'auto if blank';
   if (note) {
     const shelfLife = grnBatchShelfLife[sku] || 0;
     note.innerHTML = tracked
       ? `<b>${escapeHTMLText(sku)}</b> is batch-tracked &mdash; a lot number is required.${shelfLife > 0 ? ` If you enter a manufacture date and leave Expiry blank, expiry is derived as manufacture + ${shelfLife} days.` : ''}`
-      : `<b>${escapeHTMLText(sku)}</b> is not batch-tracked. You may still record a lot number; it will be kept for traceability.`;
+      : `<b>${escapeHTMLText(sku)}</b> is not batch-tracked. Leave Batch / Lot No blank and it gets a batch number with today's date (e.g. B261015-0001) when the GRN is saved, or type your own.`;
   }
 
   // Stage 42.1.8: the serial row only shows for a Serial / Batch and Serial
@@ -1560,29 +1970,91 @@ async function loadGRNItemsFromPOInner() {
     return;
   }
   const po = await res.json();
+  const poKey = po.id || poId;
+  const poLabel = po.po_number || po.code || poKey;
+  const poVendor = po.vendor || po.vendor_id || '';
+
+  // Stage 62: several POs may go on one receipt, but only of one vendor
+  // (GOODSR-0318 on the server says the same).
+  if (grnPOs.some(p => p.id === poKey)) {
+    noteEl.textContent = `PO ${poLabel} is already on this receipt.`;
+    document.getElementById('grn-po').value = '';
+    return;
+  }
+  if (grnPOs.length && poVendor && grnPOs[0].vendor && poVendor !== grnPOs[0].vendor) {
+    noteEl.textContent = `PO ${poLabel} is for vendor ${poVendor}, but this receipt is for ${grnPOs[0].vendor}. Receive it on its own goods receipt.`;
+    return;
+  }
 
   const locationEl = document.getElementById('grn-location');
   if (!locationEl.value && (po.location || po.target_warehouse)) {
-    locationEl.value = po.location || po.target_warehouse;
+    locationEl.value = po.target_warehouse || po.location;
   }
 
   let items = [];
   try { items = JSON.parse(po.items || '[]'); } catch (e) { items = []; }
   if (items.length === 0) {
-    noteEl.textContent = `PO ${poId} has no recorded item lines - add lines manually below.`;
+    noteEl.textContent = `PO ${poLabel} has no recorded item lines - add lines manually below.`;
     return;
   }
 
-  grnLineItems = [];
+  // PO rate and GST rate per SKU, ex-GST, from the same preview the PO screen
+  // shows - the server re-reads them on save, so this is display only.
+  const rates = {};
+  const prevRes = await apiFetch('/api/v1/procurement/purchase-order/preview', {
+    method: 'POST',
+    body: JSON.stringify({ vendor: poVendor, vendor_id: poVendor, location: po.location || '', target_warehouse: po.target_warehouse || '', items: po.items || '[]', gst_mode: po.gst_mode || '', interstate: !!po.interstate, interstate_override: !!po.interstate_override })
+  });
+  if (prevRes && prevRes.ok) {
+    const prev = await prevRes.json();
+    const acc = {};
+    (prev.lines || []).forEach(l => {
+      if (!l.sku || l.error || !(l.qty > 0)) return;
+      const a = acc[l.sku] || (acc[l.sku] = { taxable: 0, qty: 0, gst: 0 });
+      a.taxable += Number(l.taxable) || 0; a.qty += Number(l.qty) || 0; a.gst = Number(l.gst_rate) || 0;
+    });
+    Object.keys(acc).forEach(sku => { rates[sku] = { rate: Math.round(acc[sku].taxable / acc[sku].qty * 100) / 100, gst: acc[sku].gst }; });
+  }
+
+  // Already received on earlier receipts of this PO (cancelled ones excluded),
+  // so only the open quantity loads.
+  const receivedBefore = {};
+  (Array.isArray(state.docData) ? state.docData : []).forEach(g => {
+    if (g.status === 'Cancelled') return;
+    const onThis = g.po_id === poKey || String(g.po_ids || '').split(',').includes(poKey);
+    if (!onThis) return;
+    let ls = [];
+    try { ls = JSON.parse(g.received_items || '[]'); } catch (e) { ls = []; }
+    ls.forEach(l => {
+      if ((l.po_id || g.po_id) === poKey) receivedBefore[l.sku] = (receivedBefore[l.sku] || 0) + (Number(l.qty) || 0);
+    });
+  });
+
+  let added = 0, closed = 0;
   for (const it of items) {
     const sku = it.sku || it.item_id || '';
     const orderedQty = Number(it.qty) || 0;
     if (!sku) continue;
+    const open = Math.max(0, orderedQty - (receivedBefore[sku] || 0));
+    receivedBefore[sku] = Math.max(0, (receivedBefore[sku] || 0) - orderedQty);
+    if (open <= 0) { closed++; continue; }
     const barcode = await lookupGRNBarcode(sku);
-    grnLineItems.push({ sku, ordered_qty: orderedQty, qty: orderedQty, accepted_qty: orderedQty, rejected_qty: 0, rejection_reason: '', damaged_qty: 0, damage_reason: '', barcode });
+    const r = rates[sku];
+    grnLineItems.push({
+      po_id: poKey, sku, ordered_qty: open, qty: open, accepted_qty: open, rejected_qty: 0, rejection_reason: '', damaged_qty: 0, damage_reason: '', barcode,
+      ...(r ? { po_rate: r.rate, gst_rate: r.gst, invoice_rate: r.rate } : {})
+    });
+    added++;
   }
+  if (added === 0) {
+    noteEl.textContent = `PO ${poLabel} has nothing left to receive${closed ? ' - every line is fully received' : ''}.`;
+    return;
+  }
+  grnPOs.push({ id: poKey, label: poLabel, vendor: poVendor });
   grnLoadedASNId = '';
-  noteEl.textContent = `Loaded ${grnLineItems.length} line(s) from PO ${poId}. Adjust Received/Rejected/Damaged qty for any variance, then Post Receipt.`;
+  document.getElementById('grn-po').value = '';
+  noteEl.textContent = `Loaded ${added} open line(s) from PO ${poLabel}${closed ? ` (${closed} already fully received)` : ''}. Add another PO of the same vendor, or adjust quantities and invoice rates, then Post Receipt.`;
+  renderGRNPOChips();
   renderGRNLinesList();
 }
 
@@ -1615,6 +2087,8 @@ async function loadGRNItemsFromASN() {
   }
 
   grnLineItems = [];
+  grnPOs = [];
+  renderGRNPOChips();
   for (const it of items) {
     const sku = it.sku || '';
     const expectedQty = Number(it.qty) || 0;
@@ -1638,11 +2112,21 @@ async function createGRNInner() {
   const errorEl = document.getElementById('grn-form-error');
   errorEl.classList.add('hidden');
 
-  const poId = document.getElementById('grn-po').value.trim();
+  // Stage 62: the POs added above; a PO typed but not added (or one an ASN
+  // filled in) still counts as the receipt's PO.
+  const typedPO = document.getElementById('grn-po').value.trim();
+  const poIds = grnPOs.length ? grnPOs.map(p => p.id) : (typedPO ? [typedPO] : []);
+  const poId = poIds.join(', ');
   const location = document.getElementById('grn-location').value.trim();
 
-  if (!poId || !location || grnLineItems.length === 0) {
-    errorEl.textContent = 'PO Reference, Receiving Location, and at least one line item are all required.';
+  if (poIds.length === 0 || !location || grnLineItems.length === 0) {
+    errorEl.textContent = 'A Purchase Order, the Receiving Location, and at least one line item are all required.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const invAmountRaw = document.getElementById('grn-inv-amount').value.trim();
+  if (invAmountRaw !== '' && (isNaN(Number(invAmountRaw)) || Number(invAmountRaw) < 0)) {
+    errorEl.textContent = 'The vendor invoice amount must be a number of zero or more.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -1659,10 +2143,14 @@ async function createGRNInner() {
   const res = await apiFetch('/api/v1/doc/GRN', {
     method: 'POST',
     body: JSON.stringify({
-      po_id: poId,
+      po_id: poIds[0],
+      po_ids: poIds.join(','),
       asn_id: grnLoadedASNId || undefined,
       location,
-      received_items: JSON.stringify(grnLineItems),
+      vendor_invoice_no: document.getElementById('grn-inv-no').value.trim() || undefined,
+      vendor_invoice_date: document.getElementById('grn-inv-date').value || undefined,
+      vendor_invoice_amount: invAmountRaw === '' ? undefined : Number(invAmountRaw),
+      received_items: JSON.stringify(grnLineItems.map(l => ({ ...l, po_id: l.po_id || poIds[0] }))),
       status: 'Approved'
     })
   });
@@ -1671,6 +2159,16 @@ async function createGRNInner() {
     errorEl.textContent = await getErrorMessage(res, 'Failed to post goods receipt.');
     errorEl.classList.remove('hidden');
     return;
+  }
+  let saved = {};
+  try { saved = await res.json(); } catch (e) { saved = {}; }
+  const notes = [];
+  if (saved.debit_note_id) notes.push(`Debit note ${saved.debit_note_id} raised to the vendor for the price billed above the PO.`);
+  if (saved.vendor_credit_note_id) notes.push(`Credit note ${saved.vendor_credit_note_id} raised to the vendor for the price billed below the PO.`);
+  if (saved.notes_warning) {
+    await showCustomAlert(`Goods receipt posted. ${notes.join(' ')} However: ${saved.notes_warning}`, 'Goods Receipt Posted');
+  } else if (notes.length) {
+    showToast(`Goods receipt posted. ${notes.join(' ')}`, { variant: 'success' });
   }
   renderView('grn');
 }
@@ -2095,4 +2593,4 @@ async function cancelPurchaseReturn(id) {
   renderView('purchase-returns');
 }
 
-export { renderApprovalsView, decideApproval, decideApprovalInner, newPODraft, renderPurchaseOrdersView, renderPOComposer, renderPOLines, schedulePOPreview, runPOPreview, poDraftPayload, renderPOSupplyBanner, renderPOTotals, savePurchaseOrder, savePurchaseOrderInner, renderPOPrintSheet, submitPOForApproval, submitDocForApproval, submitQualityInspectionForApproval, sendSubcontractOrder, receiveSubcontractOrder, mergeCustomerRow, renderGRNWorkbenchView, renderGRNLinesList, lookupGRNBarcode, addGRNLine, populateGRNBatchRow, loadGRNItemsFromPO, loadGRNItemsFromPOInner, loadGRNItemsFromASN, createGRN, createGRNInner, renderASNView, renderASNLinesList, addASNLine, createASN, createASNInner, renderPurchaseReturnsView, loadPurchaseReturnLines, savePurchaseReturn, postPurchaseReturn, submitPurchaseReturnForApproval, cancelPurchaseReturn };
+export { renderApprovalsView, decideApproval, decideApprovalInner, newPODraft, renderPurchaseOrdersView, renderPOComposer, renderPOLines, schedulePOPreview, runPOPreview, poDraftPayload, renderPOSupplyBanner, renderPOTotals, savePurchaseOrder, savePurchaseOrderInner, submitPOForApproval, submitDocForApproval, submitQualityInspectionForApproval, sendSubcontractOrder, receiveSubcontractOrder, mergeCustomerRow, renderGRNWorkbenchView, renderGRNLinesList, lookupGRNBarcode, addGRNLine, populateGRNBatchRow, loadGRNItemsFromPO, loadGRNItemsFromPOInner, loadGRNItemsFromASN, createGRN, createGRNInner, renderASNView, renderASNLinesList, addASNLine, createASN, createASNInner, renderPurchaseReturnsView, loadPurchaseReturnLines, savePurchaseReturn, postPurchaseReturn, submitPurchaseReturnForApproval, cancelPurchaseReturn };

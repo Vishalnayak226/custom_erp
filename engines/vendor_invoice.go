@@ -202,7 +202,7 @@ func MatchVendorInvoice(tenantID, invoiceID, poID, grnID string, tolerancePercen
 		}
 	}
 	poTol := poGross * tolerancePercent / 100
-	if priorOnPO+invoiceAmount > poGross+poTol {
+	if !billing.Priced && priorOnPO+invoiceAmount > poGross+poTol {
 		reasons = append(reasons, fmt.Sprintf(
 			"PO %s total is %.2f incl. tax; already billed %.2f, so this invoice would overbill it.",
 			poID, round2(poGross), round2(priorOnPO)))
@@ -511,6 +511,10 @@ type grnBilling struct {
 	AcceptedNet     float64
 	RateBySku       map[string]float64
 	RateDataMissing bool
+	// Priced (Stage 62): valued at the GRN's own invoice rates. Billing above
+	// the PO total is then expected - the GRN's debit note settles it - so
+	// the PO over-billing check does not apply.
+	Priced bool
 }
 
 func readGRNBilling(tx queryRower, schema, poID, grnID string) (grnBilling, error) {
@@ -556,8 +560,21 @@ func readGRNBilling(tx queryRower, schema, poID, grnID string) (grnBilling, erro
 	if err := json.Unmarshal([]byte(grnDataStr), &grnData); err != nil {
 		return b, err
 	}
-	if grnPOID, _ := grnData["po_id"].(string); grnPOID != poID {
+	onGRN := false
+	for _, id := range GRNPOIDs(grnData) {
+		onGRN = onGRN || id == poID
+	}
+	if !onGRN {
 		return b, fmt.Errorf("GRN %s does not reference PO %s", grnID, poID)
+	}
+	// Stage 62: a priced GRN is billed at its own invoice rates (ex-GST, the
+	// GST at each line's rate), across every PO it received against - the
+	// vendor's bill then matches its GRN instead of holding on a price the
+	// GRN already recorded and settled with a debit/credit note.
+	if priced := readPricedGRNBilling(tx, schema, grnID, grnData); priced != nil {
+		priced.POData = poData
+		priced.POGross = poGross
+		return *priced, nil
 	}
 	receivedStr, _ := grnData["received_items"].(string)
 	var receivedItems []grnItemLine

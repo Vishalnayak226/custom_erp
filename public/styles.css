@@ -2796,113 +2796,6 @@ input.form-input.num {
   cursor: help;
 }
 
-/* --- Printed PO ---------------------------------------------------------
-   Extends .invoice-sheet (the existing A4 browser-print fallback) rather
-   than defining a second sheet, so both documents share one page setup.
-   There is deliberately no MRP column: the server strips it before the
-   payload ever reaches this markup. */
-.po-print .po-print-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 18px;
-  margin: 10px 0 14px;
-  font-size: 13px;
-}
-
-.po-print-parties {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 16px;
-}
-
-.po-print-party {
-  flex: 1;
-  padding: 10px 12px;
-  border: 1px solid #999;
-  border-radius: 4px;
-  font-size: 12px;
-  line-height: 1.5;
-}
-
-.po-print-party-title {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #555;
-}
-
-.po-print-party-name {
-  font-size: 14px;
-  font-weight: 700;
-}
-
-.po-print-lines {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 12px;
-}
-
-.po-print-lines th,
-.po-print-lines td {
-  padding: 6px 8px;
-  border: 1px solid #999;
-  text-align: left;
-}
-
-.po-print-lines th {
-  background-color: #f0f0f0;
-  font-weight: 700;
-}
-
-.po-print-itemname {
-  font-size: 10px;
-  color: #555;
-}
-
-.po-print-totals {
-  width: 300px;
-  margin-left: auto;
-  margin-top: 10px;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.po-print-totals td {
-  padding: 4px 8px;
-}
-
-.po-print-grand td {
-  border-top: 2px solid #000;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.po-print-words {
-  margin-top: 10px;
-  font-size: 12px;
-  font-style: italic;
-}
-
-.po-print-pos {
-  margin-top: 4px;
-  font-size: 12px;
-}
-
-.po-print-foot {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin-top: 34px;
-  font-size: 11px;
-}
-
-.po-print-sign {
-  padding-top: 6px;
-  border-top: 1px solid #000;
-  font-size: 12px;
-}
-
 /* Field-format guidance (Stage 40.2). Inline under the input, which is the
    DisplayStyle the message catalog already specifies for these codes. The
    note element is always present once decorated and simply empties when the
@@ -3082,7 +2975,6 @@ body {
    figures, so a column of numbers lines up digit for digit. */
 .po-lines .num,
 .po-total-row,
-.po-print-totals,
 td.num {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;

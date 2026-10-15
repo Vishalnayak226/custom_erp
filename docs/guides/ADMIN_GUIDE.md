@@ -603,6 +603,15 @@ What you need to know as the administrator:
 - **Barcodes you have already assigned are safe.** If you imported your own barcodes, or your supplier's, receiving will not overwrite them.
 - **This closed a real gap**: before it, a newly received item had no barcode, so its label had nothing to print and someone had to remember to generate one manually first.
 
+**GRN batch numbers (Stage 61.1).** A fixed barcode cannot say which delivery a piece came from, so every SKU on every new GRN also gets a **batch number**: `B` + the receipt date (YYMMDD) + `-` + that day's running number, e.g. **B261015-0001**. One per SKU per GRN — lines of the same SKU share it. It is given when the GRN is saved, before anything posts, so the GRN, its stickers, the stock ledger and the Batch record all carry the same value. What to know:
+
+- **There is no switch and nothing to set up.** A number the clerk types is always kept, and covers that SKU's other blank lines on the same GRN.
+- **Two kinds of line are not numbered.** A **batch-tracked** item (Traceability = Batch) still needs the lot printed on the carton (INVENT-0115): that is a control you switched on per item, and an invented number would hide a missed entry. A **Fixed Asset** item never enters stock.
+- **The counter** is the number series `GRNBatchSeq` (daily, no store segment). The number's format is fixed so the date stays readable; changing the series' prefix or separator does not change it.
+- **Each batch is registered** under **Setup → Batch** with its **Goods Receipt**, **Received On** date, **Supplier** (the PO's vendor) and the GRN's total received for it. The **Batch Lookup & Ageing** report (Report Catalog → Inventory; User Guide §6.3) reads these: scan a batch, a barcode or a SKU to see receipt date and age. It shows what each batch received, not what is left — a POS sale scans the SKU's barcode and does not record the batch.
+- **Labels.** The built-in label prints the batch on its last line. Custom templates need the **Batch / Lot** field added in the Sticker Studio (§B.3.4) — bind a Barcode element to it to make the batch scannable.
+- Fixed with it: two lines of the same SKU (and lot) on one document used to write only the first line to the **stock ledger** (the second looked like a replay), so the ledger under-counted while stock on hand was right. They now write one ledger entry for the combined quantity.
+
 #### B.3.3.2 Bulk import: Master codes and Design-based SKUs
 
 **Stage 51.10:** on **Setup → Item → Bulk Import** there are two template buttons. **Download Template CSV** is the full Item template, unchanged, with `id` and `code`. **Download Template (SKU from Design)** has no `id` or `code` column and puts `family` first, so a user who fills it in as downloaded gets Design-based SKUs. Variation goes in `variant_option_values` (`size:S`) unless the tenant's Items carry the jewellery attribute fields. Uploading a row for a SKU that already exists updates that Item (see the last paragraph below). User Guide §8d.5 has the steps.
@@ -683,6 +692,97 @@ A **webhook subscription** tells this system: "whenever *this kind* of thing hap
 **Finance work home (Stage 55.10):** **Finance / GL → Work to review** links operators to AP, AR, payment proposals, bank reconciliation and period close. It shows no first-page status counts because the generic document API paginates; use source lists and reports for actual balances and exceptions. Do not treat the advisory close checklist as an Account Head signature or qualified CA statutory acceptance. Retain source-document, posting-identity and bank-reconciliation evidence for those separate reviews.
 
 **Posting-identity gap (2026-10-09):** the Work panel now opens the existing full GL audit export directly; Chromium verified the exact report. Its GL rows carry source doctype/id and timestamp but no posting actor, and audit logs do not have a reliable entity link for every GL write. The link is a source review aid, **not** an accountable who-posted-what register. Add explicit actor capture to the shared posting path and reconcile historical `NULL`/unknown rows before 55.10 may be claimed complete. Account Head and qualified CA signoffs remain external gates.
+
+#### B.3.6 Designs from the PO, multi-PO goods receipts and price-difference notes (Stage 62)
+
+**Design number mode.** **Configuration → Procurement → Design number on a PO's Add design** (`procurement.po_design_number_mode`):
+
+- **New every time** (default) — every *Add design* on a PO creates a new design.
+- **Reuse when it matches** — a design (ProductFamily) with the same name (case and surrounding spaces ignored) and exactly the same **design attributes** is reused; only combinations it lacks are created.
+
+A pasted design number always loads that design, whichever mode is set.
+
+**What a "design" is.** A design is a **ProductFamily** record, numbered from the `ProductFamily` series (`Design/<store>/<year>/000001`, editable under Prefix Configurations, §B.3.2). One created from a PO stores `design_attributes` (e.g. `fabric:cotton`), `vendor`, `hsn_code`, `gst_rate`, `mrp`, `purchase_rate`. Each combination is an ordinary **Item** with `family` = `parent_product_code` = the design and `variant_option_values` = its axis values; its code is the design number plus those values. The attribute matrix shown on the PO is every Active **ProductAttributeDef** — define Colour, Size and so on there (Value Type **Select**, comma-separated options). A design created without a code (the PO path) is numbered on save, so a buyer does not need the admin-only master-code endpoint; a typed code is kept.
+
+**Duplicate combinations are refused.** Creating an Item whose generated Combination ID already exists is now rejected with a message naming the existing combination. Before Stage 62 such a create silently overwrote the existing Item.
+
+**Multi-PO goods receipt rules.**
+
+- One GRN may list several POs (`po_ids`); every line carries its own `po_id`, and the header `po_id` is the first PO, so every older report and integration still sees a PO.
+- All POs must be the **same vendor** — otherwise **GOODSR-0318**.
+- Approval, over-receipt tolerance, unexpected-item and fully-received checks run **per PO on that PO's own lines**.
+- Received quantity is counted per line PO, so a later GRN loads only what is still open.
+
+**PO rate vs invoice rate.**
+
+- The server stamps each line's `po_rate` and `gst_rate` from its PO's own pricing (ex-GST per unit), ignoring any value the client sends.
+- `invoice_rate` defaults to the PO rate. A negative rate is refused with **GOODSR-0319**.
+- The GRN stores `po_value`, `invoice_value`, `invoice_gst`, `invoice_total`, the typed `vendor_invoice_amount` and `invoice_amount_difference`. The difference is a control figure only — it never blocks or holds the receipt.
+
+**The accounting.** Amounts are on **accepted** quantity only; rejected and damaged units go back on a Purchase Return. The PO price is treated as the agreed price.
+
+| Event | Entry |
+|---|---|
+| GRN posts | Dr 1200 Inventory / Cr 2100 GRN Suspense **at the invoice rate** (item cost too) |
+| Invoice rate above PO → **Debit Note** (series `DN`) | Dr 2100 / Cr 5150 for the taxable difference, and Dr 2100 / Cr 1500 for its GST |
+| Invoice rate below PO → **Vendor Credit Note** (series `VCN`, doctype `VendorCreditNote`) | Dr 5150 / Cr 2100 for the taxable difference, and Dr 1500 / Cr 2100 for its GST |
+
+- Both notes are raised **and posted** as soon as the GRN's stock posts. They carry `grn_id`, `source_doc_id`, `note_lines`, `gst_amount` and `total_with_gst`, and are linked back on the GRN (`debit_note_id`, `vendor_credit_note_id`).
+- Raising them again is a no-op, so a retry never double-posts.
+- If a note cannot post, the receipt still stands. The user sees the reason, and the note can be posted from **Debit / Credit Notes**.
+- Net effect: payable and purchase cost both settle at accepted quantity × PO price.
+- The GST on a vendor credit note is input credit only as far as the vendor's own supplementary invoice supports it. Reconcile it with the vendor before filing.
+
+**Vendor invoice matching.**
+
+- A GRN whose lines all carry an invoice rate is matched at accepted quantity × invoice rate + GST, across all its POs.
+- The PO over-billing check is skipped for such a GRN, because the debit note has already settled billing above the PO.
+- Older GRNs keep the PO-rate basis.
+
+**Permissions.** `VendorCreditNote` mirrors `DebitNote` (HR/Admin all; Store Manager read/create), and the Payables role template operates both.
+
+#### B.3.7 Transaction print templates (Stage 63)
+
+**What can be printed.**
+
+- Seven transactions: Purchase Order, Vendor PO, Goods Receipt Note, Transfer Out, Transfer In, Debit Note, Credit Note (to vendor).
+- Each prints from one server payload, `GET /api/v1/print/document/{transaction}/{id}?store=&images=1`, which also returns the templates that fit. The payload holds brand, generating store, party, ship-to, every header field, every line with all its Item fields (and picture when `images=1`), the GST split per rate, totals and amount in words.
+- The page is drawn in the browser by `public/trade-docs.js`, the same renderer the designer uses. It is printed through the browser print dialog; there is no thermal path.
+
+**Brand.**
+
+- **Configuration → Printing → Brand name on prints** (`print.brand_name`) is printed on every page.
+- Blank uses the generating store's legal entity name.
+- A template that does not place the brand gets it at the top of every page anyway.
+
+**Generating store.**
+
+- Chosen at print time; defaults to the document's own store (PO: location; GRN: receiving location; Transfer Out: from; Transfer In: to; notes: their GRN's location).
+- The store block shows the Location's name, address, city, PIN and phone, with the **state and GSTIN of its Legal Entity**. Make sure every Location points at a Legal Entity that has a GSTIN and state.
+
+**Templates.**
+
+- `PrintTemplate` records (module Core). Design them under **Stock → Sticker Printing → Document templates** (USER_GUIDE §7B.2).
+- Fields: `transaction`, `is_default`, optional `vendor`, `item_families`, `item_categories` (comma-separated), `layout` (JSON, up to 1.5 MB including logos), `status`.
+- Permissions: HR/Admin all; Store Manager and Cashier read.
+
+**Which template a document gets.**
+
+- A template mapped to a vendor, family or category is offered only when the document matches. The vendor is the PO's or GRN's vendor; families and categories come from the lines' Items.
+- The best match is pre-selected, scored vendor 8, family 4, category 2, default 1.
+- With no matching record, the built-in **Standard layout** is used.
+- Setting a template as default clears the flag on others of that transaction.
+- Retire a template with **Status = Inactive**.
+
+**Transfers and tax.**
+
+- Transfer value is quantity × the Item's `standard_cost` (else MRP).
+- Between two Locations of the same GSTIN it prints as a delivery challan with no GST.
+- Between different GSTINs, GST is computed at the Item's rate: IGST across states, CGST + SGST within one.
+
+**Vendor PO in Excel.** `GET /api/v1/procurement/purchase-order/{id}/excel` returns an .xlsx built without any library: header, parties, lines with the item's thumbnail in the Image column, GST split and grand total. Item pictures come from PIM media (the active Main Image, else the first image).
+
+**Silent printing.** A tenant with a QZ / print-agent printer mapped for job type **Purchase Order** keeps printing POs silently; the print window opens only when no such printer is mapped.
 
 ### B.4 Where to Look When Something Seems Wrong
 
@@ -853,28 +953,30 @@ It reports the database role the application actually connects as. If it says th
 
 ---
 
-### C.7 Data Console — fixing data inside any client (Stage 60.6)
+### C.7 Data Console and cross-client control — platform operators only (Stage 60.6)
 
-**Admin → Data Console** lets a platform operator open any client, browse every one of its database tables, and edit a row directly. It is for repairs that have no screen of their own; prefer the normal screen whenever one exists, because the console does not run the business rules a screen does.
+**Admin → Data Console** lets a platform operator open any client and fix any record directly. It is for repairs that have no screen of their own; prefer the normal screen whenever one exists, because the console does not re-run the business rules a screen does.
 
-**Who can use it.** Being a Super Admin is not enough — every client has its own Super Admin. An operator is a Super Admin whose client and username appear in the server setting `ERP_PLATFORM_OPERATORS`, a comma-separated list of `client:username` pairs:
+**Who can use it — and every other cross-client screen.** Being a Super Admin is not enough: every client has its own Super Admin. A **platform operator** is a Super Admin whose client and username appear in the server setting `ERP_PLATFORM_OPERATORS`, a comma-separated list of `client:username` pairs:
 
 ```
 ERP_PLATFORM_OPERATORS=default:admin
 ```
 
-Set it in the server's environment (`/etc/erp.env` on the droplet) and restart the service. It cannot be set from inside the app, so no client user can grant it to themselves. Anyone else who opens the screen is told they are not an operator, and the API answers `PLATFORM-0317`.
+Set it in the server's environment (`/etc/erp/erp.env` on the droplet) and restart the service. It cannot be set from inside the app, so no client user can grant it to themselves. Use a login that belongs to you, not to a client (the `default` client's admin, or a dedicated user). Only operators can: use the Data Console; list clients; see **Tenant Usage**; change a client's modules or plan (**Tenant Entitlements**); set a client's hostname; create clients; create, reset or delete sandbox clients. A client's own Super Admin may still **read** its own client's module list and version record, never another client's. Anyone else gets `PLATFORM-0317`.
 
-**Using it.** Choose the **Client** and the **Table** (each shows an approximate row count; "view only" tables cannot be edited). For the `documents` table — where every PO, GRN, Item, Vendor, Store and other record lives — type a **Record type** such as `PurchaseOrder` to narrow it, and **Find by key** to search the key column (the record's id/code). Click **Edit** on a row, change the fields, tick **empty (NULL)** to clear one, and **Save changes**; you confirm before anything is written. The database checks each value against the column's type, so a malformed date or JSON is refused rather than saved.
+**One table per transaction.** The **Table** list shows every record type of the chosen client as its own table, grouped by module — **PurchaseOrder**, **GRN**, **Vendor**, **Item**, **Location**, **SalesInvoice**, **TransferOrder** and every other one, each with its row count. Opening one shows one column per field (headed by the field's label, e.g. *PO Number*, *Vendor*, *Status*), plus the record's number (`id`), status and timestamps. Any value a record carries that its record type no longer defines is shown under **Other data** rather than hidden. Below the record types are the raw **Database tables** (see "Where things are").
+
+**Fixing a record.** Choose the **Client** and the **Table**, type a number, code or name in **Find** (e.g. `PO/BDR/26-27/00001`), and click **Edit** on the row. Each field gets the right box: a dropdown for a choice field, a record picker for a field that points at another record (it shows names, saves the record's code), a large box for line items and other JSON. Tick **empty** to clear a field. **Save changes** asks you to confirm, then writes only the fields you changed. Numbers are saved as numbers and yes/no fields as true/false; a value that does not fit the field (letters in a price, broken JSON) is refused. The record's number cannot be changed.
 
 **What it protects.**
 
-- **Hidden values** show as `••••••` and cannot be changed: passwords, password-reset and MFA secrets, API and channel credentials, recovery codes, and **customer personal details** — phone, email, address, PIN code, PAN/Aadhaar, date of birth, bank details, and a Customer's name. Inside a record's JSON data the same keys are hidden; when you save, every hidden value keeps what is stored, whatever the box showed. **Find by key** searches key columns only, so hidden values cannot be found by searching.
-- **Keys** (a row's identity, e.g. `id`) cannot be changed, and a table with no key cannot be edited at all.
+- **Hidden values** show as `••••••` and cannot be changed: passwords, password-reset and MFA secrets, API and channel credentials, recovery codes, and **customer personal details** — phone, email, address, PIN code, PAN/Aadhaar, date of birth, bank details, and a Customer's name. Inside line items and other JSON the same keys are hidden; when you save, every hidden value keeps what is stored. Searching never looks inside hidden values.
+- **Record numbers and table keys** cannot be changed, and a raw table with no key cannot be edited at all.
 - **Audit tables** (`audit_*`, `system_error_logs`) are view only, so the trail cannot be rewritten — by anyone.
-- **Every change is recorded** in that client's **Activity Log** as `PLATFORM_DATA_EDIT`, with the table, the key, the columns changed and their before/after values (hidden values stay hidden), and also in the operator's own client log.
+- **Every change is recorded** in that client's **Activity Log** as `PLATFORM_DATA_EDIT`, with the record or table, its number, the fields changed and their before/after values (hidden values stay hidden), and also in the operator's own client log.
 
-**Where things are.** `documents` (every record, by `doctype`), `doctype_fields` / `doctype_meta` (each record type's fields and labels), `prefix_configs` and `sequence_counters` (number series and their running counters), `system_settings` (Configuration), `role_permissions` and `field_permissions` (access), `bin_stock*` and `inventory_*` (stock), `gl_postings` / `gl_accounts` (accounts), `approval_*` (approvals). Editing stock or ledger rows directly can leave stock and books out of balance; correct those with an adjustment or reversal through their screens where one exists.
+**Where things are (raw database tables).** Every record type above is stored in the one `documents` table (by `doctype`); the record-type tables are the easier way to fix them. The other tables: `doctype_fields` / `doctype_meta` (each record type's fields and labels), `prefix_configs` and `sequence_counters` (number series and their running counters), `system_settings` (Configuration), `role_permissions` and `field_permissions` (access), `bin_stock*` and `inventory_*` (stock), `gl_postings` / `gl_accounts` (accounts), `approval_*` (approvals). Editing stock or ledger rows directly can leave stock and books out of balance; correct those with an adjustment or reversal through their screens where one exists.
 
 ## Part D — Developer / CTO Level
 

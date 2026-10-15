@@ -14,13 +14,11 @@ import (
 // not an unauthenticated public signup flow.
 
 func handleProvisionSandboxTenant(w http.ResponseWriter, r *http.Request) {
-	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only a Super Admin can provision a sandbox tenant")
+	if !requirePlatformOperator(w, r) {
 		return
 	}
 	var req struct {
@@ -39,13 +37,11 @@ func handleProvisionSandboxTenant(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleListSandboxTenants(w http.ResponseWriter, r *http.Request) {
-	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodGet {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only a Super Admin can list sandbox tenants")
+	if !requirePlatformOperator(w, r) {
 		return
 	}
 	tenants, err := engines.ListSandboxTenants()
@@ -57,13 +53,11 @@ func handleListSandboxTenants(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleResetSandboxTenant(w http.ResponseWriter, r *http.Request) {
-	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodPost {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only a Super Admin can reset a sandbox tenant")
+	if !requirePlatformOperator(w, r) {
 		return
 	}
 	var req struct {
@@ -78,13 +72,11 @@ func handleResetSandboxTenant(w http.ResponseWriter, r *http.Request) {
 }
 
 func handleDeleteSandboxTenant(w http.ResponseWriter, r *http.Request) {
-	role := r.Header.Get("Resolved-Role")
 	if r.Method != http.MethodDelete {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if !engines.IsSuperAdmin(role) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only a Super Admin can delete a sandbox tenant")
+	if !requirePlatformOperator(w, r) {
 		return
 	}
 	if err := engines.DeleteSandboxTenant(r.PathValue("id")); err != nil {

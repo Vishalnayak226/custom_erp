@@ -316,7 +316,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '36';
+const VIEW_MODULE_VERSION = '37';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -3617,7 +3617,7 @@ const MENU_PERMISSION_MAP = {
   'menu-vendor-invoices': { doctypes: ['VendorInvoice'] },
   'menu-payment-proposals': { doctypes: ['PaymentProposal', 'VendorInvoice'] },
   'menu-bank-reconciliation': { doctypes: ['BankAccount', 'BankStatementLine'] },
-  'menu-finance-notes': { doctypes: ['DebitNote', 'CreditNote'] },
+  'menu-finance-notes': { doctypes: ['DebitNote', 'CreditNote', 'VendorCreditNote'] },
   'menu-sales-invoices': { doctypes: ['SalesInvoice'] },
   'menu-journal-vouchers': { doctypes: ['JournalVoucher'] },
 

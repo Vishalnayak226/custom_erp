@@ -249,6 +249,13 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/print/qz/log":                                      {LevelAuthenticated, "stickers.default"},
 	"GET /api/v1/print/qz/printers":                                 {LevelAuthenticated, "stickers.default"},
 	"GET /api/v1/procurement/purchase-order/{id}/print":             {LevelAuthenticated, "procurement.default"},
+	"GET /api/v1/procurement/design-matrix":                         {LevelAuthenticated, "procurement.default"},
+	"GET /api/v1/procurement/design/{code}":                         {LevelAuthenticated, "procurement.default"},
+	"POST /api/v1/procurement/design/match":                         {LevelAuthenticated, "procurement.default"},
+	"POST /api/v1/finance/vendor-credit-note/{id}/post":             {LevelAuthenticated, "finance.default"},
+	"GET /api/v1/print/document/{txn}/{id}":                         {LevelAuthenticated, "doc.default"},
+	"GET /api/v1/print/catalog":                                     {LevelAuthenticated, "doc.default"},
+	"GET /api/v1/procurement/purchase-order/{id}/excel":             {LevelAuthenticated, "procurement.default"},
 	"GET /api/v1/reports/catalog":                                   {LevelAuthenticated, "reports.default"},
 	"GET /api/v1/reports/current-stock":                             {LevelAuthenticated, "reports.default"},
 	"GET /api/v1/reports/drilldown/{id}":                            {LevelAuthenticated, "reports.default"},
@@ -591,11 +598,14 @@ var routeCapabilities = map[string]RouteClassification{
 
 	// Stage 60.6 platform data console: LevelAdmin here, narrowed to the
 	// ERP_PLATFORM_OPERATORS allowlist inside each handler.
-	"GET /api/v1/platform/me":                                   {LevelAdmin, "platform.console"},
-	"GET /api/v1/platform/tenants":                              {LevelAdmin, "platform.console"},
-	"GET /api/v1/platform/tenants/{tenant}/tables":              {LevelAdmin, "platform.console"},
-	"GET /api/v1/platform/tenants/{tenant}/tables/{table}":      {LevelAdmin, "platform.console"},
-	"POST /api/v1/platform/tenants/{tenant}/tables/{table}/row": {LevelAdmin, "platform.console"},
+	"GET /api/v1/platform/me":                                       {LevelAdmin, "platform.console"},
+	"GET /api/v1/platform/tenants":                                  {LevelAdmin, "platform.console"},
+	"GET /api/v1/platform/tenants/{tenant}/tables":                  {LevelAdmin, "platform.console"},
+	"GET /api/v1/platform/tenants/{tenant}/tables/{table}":          {LevelAdmin, "platform.console"},
+	"POST /api/v1/platform/tenants/{tenant}/tables/{table}/row":     {LevelAdmin, "platform.console"},
+	"GET /api/v1/platform/tenants/{tenant}/records":                 {LevelAdmin, "platform.console"},
+	"GET /api/v1/platform/tenants/{tenant}/records/{doctype}":       {LevelAdmin, "platform.console"},
+	"POST /api/v1/platform/tenants/{tenant}/records/{doctype}/{id}": {LevelAdmin, "platform.console"},
 }
 
 // capabilityLookupMux exists only to recover the registered pattern string

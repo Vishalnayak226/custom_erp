@@ -114,6 +114,10 @@ func validatePurchaseRequisitionEditRules(priorStatus string, priorData map[stri
 // bucket alongside accepted/rejected - engines/wms_receiving.go's
 // PostGRNReceiptWithQC is what actually acts on all three at posting time.
 type grnReceivedLine struct {
+	// POID is the PO this line was received against (Stage 62, multi-PO
+	// GRN); blank on a line written before that, which belongs to the
+	// header po_id.
+	POID            string   `json:"po_id,omitempty"`
 	Sku             string   `json:"sku"`
 	Qty             float64  `json:"qty"`
 	AcceptedQty     *float64 `json:"accepted_qty,omitempty"`
@@ -276,7 +280,10 @@ func fetchGRNReceivedQuantities(tenantID, poID, excludeGRNID string) (map[string
 	if err != nil {
 		return nil, err
 	}
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, data FROM %s.documents WHERE doctype = 'GRN' AND data->>'po_id' = $1 AND status != 'Cancelled'`, schema), poID)
+	// Stage 62: a multi-PO GRN lists every PO in po_ids, and only its lines
+	// drawn from poID count against it.
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, data FROM %s.documents WHERE doctype = 'GRN' AND status != 'Cancelled'
+		AND (data->>'po_id' = $1 OR (',' || COALESCE(data->>'po_ids', '') || ',') LIKE '%%,' || $1 || ',%%')`, schema), poID)
 	if err != nil {
 		return nil, err
 	}
@@ -302,8 +309,11 @@ func fetchGRNReceivedQuantities(tenantID, poID, excludeGRNID string) (map[string
 		if err := json.Unmarshal([]byte(receivedStr), &lines); err != nil {
 			continue
 		}
+		headerPO, _ := data["po_id"].(string)
 		for _, l := range lines {
-			received[l.Sku] += l.Qty
+			if l.POID == poID || (l.POID == "" && headerPO == poID) {
+				received[l.Sku] += l.Qty
+			}
 		}
 	}
 	return received, rows.Err()
@@ -419,10 +429,26 @@ func validateGRNRules(tenantID, docID string, payload map[string]interface{}) er
 		}
 	}
 
-	poID := strField(payload, "po_id")
-	if poID == "" {
-		return nil
+	// Stage 62: a GRN may receive against several POs of one vendor; every PO
+	// check below runs per PO, on that PO's own lines.
+	headerPO := strField(payload, "po_id")
+	for _, poID := range GRNPOIDs(payload) {
+		var poLines []grnReceivedLine
+		for _, line := range lines {
+			if line.POID == poID || (line.POID == "" && poID == headerPO) {
+				poLines = append(poLines, line)
+			}
+		}
+		if err := validateGRNAgainstPO(tenantID, docID, poID, poLines); err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+// validateGRNAgainstPO is validateGRNRules' PO cross-check for one PO and the
+// receipt lines drawn from it.
+func validateGRNAgainstPO(tenantID, docID, poID string, lines []grnReceivedLine) error {
 	ordered, err := fetchPOItemQuantities(tenantID, poID)
 	if err != nil && err != sql.ErrNoRows {
 		// 24.33: fail closed on a corrupt PO row instead of silently

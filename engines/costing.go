@@ -202,12 +202,18 @@ func RecordGRNReceiptCosting(tenantID, schema, grnID string, acceptedLines []str
 	Qty float64
 }) {
 	poID := grnPurchaseOrderID(schema, grnID)
+	// Stage 62: a priced GRN costs at the vendor's invoice rate (stamped on
+	// its lines, multi-PO aware); an older GRN still costs from its PO.
+	grnCosts := grnLineUnitCostsPaise(tenantID, grnID)
 	var totalValuePaise int64
 	for _, line := range acceptedLines {
 		if line.Qty <= 0 {
 			continue
 		}
-		unitCostPaise, ok := resolvePOBaseUnitCostPaise(tenantID, poID, line.SKU)
+		unitCostPaise, ok := grnCosts[line.SKU]
+		if !ok {
+			unitCostPaise, ok = resolvePOBaseUnitCostPaise(tenantID, poID, line.SKU)
+		}
 		if !ok {
 			LogSystemError(tenantID, "", "WARN", "RecordGRNReceiptCosting",
 				fmt.Sprintf("GRN %s: could not resolve a base cost for %s (po_id=%q) - not costed", grnID, line.SKU, poID), "")
@@ -323,6 +329,7 @@ func ApplyLandedCostVoucher(tenantID, voucherID, userID string) error {
 		return fmt.Errorf("GRN %s has unreadable received_items: %v", grnID, err)
 	}
 	poID := grnPurchaseOrderID(schema, grnID)
+	grnCosts := grnLineUnitCostsPaise(tenantID, grnID)
 
 	type lineBase struct {
 		sku       string
@@ -340,7 +347,10 @@ func ApplyLandedCostVoucher(tenantID, voucherID, userID string) error {
 		if sku == "" || accepted <= 0 {
 			continue
 		}
-		unitCostPaise, ok := resolvePOBaseUnitCostPaise(tenantID, poID, sku)
+		unitCostPaise, ok := grnCosts[sku]
+		if !ok {
+			unitCostPaise, ok = resolvePOBaseUnitCostPaise(tenantID, poID, sku)
+		}
 		if !ok {
 			continue
 		}

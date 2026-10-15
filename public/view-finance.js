@@ -1,5 +1,8 @@
 import { documentSearchLink } from './view-document-links.js';
 
+// Stage 62/63: debit / credit note prints come from trade-docs.js.
+const tradeDocsReady = import('./trade-docs.js' + new URL(import.meta.url).search);
+
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
@@ -783,11 +786,13 @@ async function renderBankReconciliationView(container) {
 // doctype-table New-record form for each doctype; this view adds the Post
 // action (GL reversal) the generic CRUD screen can't express.
 async function renderFinanceNotesView(container) {
-  const [debitRes, creditRes] = await Promise.all([
+  const [debitRes, creditRes, vendorCreditRes] = await Promise.all([
     apiFetch('/api/v1/doc/DebitNote'),
-    apiFetch('/api/v1/doc/CreditNote')
+    apiFetch('/api/v1/doc/CreditNote'),
+    apiFetch('/api/v1/doc/VendorCreditNote')
   ]);
   if (!debitRes || !creditRes) return;
+  await tradeDocsReady.catch(() => null);
 
   const header = document.createElement('div');
   header.className = 'page-header';
@@ -811,25 +816,25 @@ async function renderFinanceNotesView(container) {
       <h2 style="font-size: 16px; font-weight: 700;">Debit Notes (to Vendors)</h2>
       <button class="btn btn-outline btn-sm" id="dn-new-btn">+ New Debit Note</button>
     </div>
-    <table>
-      <thead><tr><th>Note #</th><th>Vendor</th><th>Amount</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>
-        ${debitNotes.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No debit notes yet. Fill in the form above and <b>Post</b> to raise one against a vendor.</td></tr>`
-          : debitNotes.map(n => `
-            <tr>
-              <td style="font-family: monospace;">${n.note_number || n.id}</td>
-              <td>${n.vendor_id || ''}</td>
-              <td>${(n.amount ?? 0).toLocaleString()}</td>
-              <td>${n.reason || ''}</td>
-              <td><span class="badge ${n.status === 'Posted' ? 'badge-success' : 'badge-secondary'}">${n.status}</span></td>
-              <td>${n.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('postFinanceNote', ['DebitNote', n.id])}>Post</button>` : ''}</td>
-            </tr>
-          `).join('')}
-      </tbody>
-    </table>
+    ${vendorNotesTable(debitNotes, 'DebitNote', 'No debit notes yet. A goods receipt billed above the PO price raises one automatically; use <b>+ New Debit Note</b> for any other claim on a vendor.')}
   `;
   container.appendChild(debitPanel);
+
+  // Stage 62: the vendor-side credit note - raised automatically when a goods
+  // receipt is billed below the PO price (the PO price is the agreed one).
+  const vendorCreditNotes = vendorCreditRes && vendorCreditRes.ok ? await vendorCreditRes.json() : [];
+  const vendorCreditPanel = document.createElement('div');
+  vendorCreditPanel.className = 'table-panel';
+  vendorCreditPanel.style.padding = '24px';
+  vendorCreditPanel.style.marginBottom = '24px';
+  vendorCreditPanel.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
+      <h2 style="font-size: 16px; font-weight: 700;">Credit Notes (to Vendors)</h2>
+      <button class="btn btn-outline btn-sm" id="vcn-new-btn">+ New Vendor Credit Note</button>
+    </div>
+    ${vendorNotesTable(vendorCreditNotes, 'VendorCreditNote', 'No vendor credit notes yet. A goods receipt billed below the PO price raises one automatically.')}
+  `;
+  container.appendChild(vendorCreditPanel);
 
   const creditPanel = document.createElement('div');
   creditPanel.className = 'table-panel';
@@ -867,12 +872,44 @@ async function renderFinanceNotesView(container) {
     currentDoctype = 'CreditNote'; currentSearchQuery = ''; currentTablePage = 1;
     renderView('doctype-table');
   });
+  document.getElementById('vcn-new-btn').addEventListener('click', () => {
+    currentDoctype = 'VendorCreditNote'; currentSearchQuery = ''; currentTablePage = 1;
+    renderView('doctype-table');
+  });
+}
+
+// vendorNotesTable lists vendor-side notes (debit and Stage 62 credit) with
+// their GST, total and source GRN, and Print / Post actions.
+function vendorNotesTable(notes, doctype, emptyText) {
+  return `
+    <table>
+      <thead><tr><th>Note #</th><th>Vendor</th><th>GRN</th><th class="num">Amount</th><th class="num">GST</th><th class="num">Total</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${notes.length === 0
+          ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">${emptyText}</td></tr>`
+          : notes.map(n => `
+            <tr>
+              <td style="font-family: monospace;">${escapeHTMLText(n.note_number || n.id)}</td>
+              <td>${escapeHTMLText(n.vendor_id || '')}</td>
+              <td>${n.grn_id ? documentSearchLink('GRN', n.grn_id) : '<span class="text-muted">&mdash;</span>'}</td>
+              <td class="num">${formatMoney(n.amount ?? 0)}</td>
+              <td class="num">${n.gst_amount ? formatMoney(n.gst_amount) : '&mdash;'}</td>
+              <td class="num">${formatMoney(n.total_with_gst ?? n.amount ?? 0)}</td>
+              <td>${escapeHTMLText(n.reason || '')}</td>
+              <td><span class="badge ${n.status === 'Posted' ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(n.status || '')}</span></td>
+              <td>${n.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('postFinanceNote', [doctype, n.id])}>Post</button> ` : ''}<button class="action-btn" ${actionAttrs('printTransactionDocument', [doctype, n.id])}>Print</button></td>
+            </tr>
+          `).join('')}
+      </tbody>
+    </table>`;
 }
 
 async function postFinanceNote(doctype, id) {
   const confirmed = await showCustomConfirm('Post this note? This books the GL reversal immediately and cannot be undone.', 'Confirm Post');
   if (!confirmed) return;
-  const endpoint = doctype === 'DebitNote' ? `/api/v1/finance/debit-note/${id}/post` : `/api/v1/finance/credit-note/${id}/post`;
+  const endpoint = doctype === 'DebitNote' ? `/api/v1/finance/debit-note/${encodeURIComponent(id)}/post`
+    : doctype === 'VendorCreditNote' ? `/api/v1/finance/vendor-credit-note/${encodeURIComponent(id)}/post`
+    : `/api/v1/finance/credit-note/${encodeURIComponent(id)}/post`;
   const res = await apiFetch(endpoint, { method: 'POST' });
   if (!res) return;
   if (!res.ok) {

@@ -1,6 +1,9 @@
 package engines
 
-import "strconv"
+import (
+	"strconv"
+	"strings"
+)
 
 // Stage 42.1 - the traceability reports.
 //
@@ -92,6 +95,36 @@ func init() {
 		},
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
 			rows, err := GetBatchMovementHistory(tenantID, params["sku"], params["batch_no"])
+			if err != nil {
+				return nil, err
+			}
+			return structsToRows(rows)
+		},
+	})
+
+	// GRN batch numbers - scan a sticker's batch (or its SKU barcode) and see
+	// which day each lot came in and how old it is. Inventory, not WMS: GRN
+	// batches exist whether or not the warehouse module is switched on.
+	RegisterReport(ReportDefinition{
+		ID: "batch-ageing", Label: "Batch Lookup & Ageing", Category: "Inventory",
+		Columns: []ReportColumn{
+			{Key: "batch_no", Label: "Batch"},
+			{Key: "sku", Label: "Item"},
+			{Key: "received_on", Label: "Received On"},
+			{Key: "age_days", Label: "Age (days)"},
+			{Key: "grn", Label: "GRN"},
+			{Key: "vendor", Label: "Supplier"},
+			{Key: "received_qty", Label: "Received Qty"},
+			{Key: "expiry_date", Label: "Expires"},
+			{Key: "status", Label: "Batch Status"},
+		},
+		Params: []ReportParam{
+			{Key: "scan", Label: "Scan batch, barcode or SKU", Type: "text"},
+			{Key: "min_age_days", Label: "Older than (days)", Type: "text"},
+		},
+		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
+			minAge, _ := strconv.Atoi(strings.TrimSpace(params["min_age_days"]))
+			rows, err := GetBatchAgeing(tenantID, params["scan"], minAge)
 			if err != nil {
 				return nil, err
 			}

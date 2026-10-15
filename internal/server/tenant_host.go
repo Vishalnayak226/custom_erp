@@ -208,8 +208,7 @@ func handleSetTenantHostSlug(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
-	if !engines.IsSuperAdmin(r.Header.Get("Resolved-Role")) {
-		writeAPIErrorGeneric(w, r, http.StatusForbidden, "Only HR/Admin can set a tenant hostname")
+	if !requirePlatformOperator(w, r) {
 		return
 	}
 

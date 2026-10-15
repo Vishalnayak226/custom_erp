@@ -99,9 +99,12 @@ export const DEFAULT_STICKER_TEMPLATE = {
   settings: DEFAULT_SETTINGS, assets: {},
   elements: [
     { id: 'd1', kind: 'text', field: 'name', x_mm: 2, y_mm: 1.2, w_mm: 46, h_mm: 4.6, font_size_mm: 3.2, bold: true, fit: 'shrink', align: 'center', valign: 'middle' },
-    { id: 'd2', kind: 'barcode', field: 'barcode', x_mm: 2, y_mm: 6.2, w_mm: 46, h_mm: 13, symbology: 'code128', show_text: true, quiet_zone: true },
-    { id: 'd3', kind: 'text', field: 'custom', text: 'SKU: {sku}', x_mm: 2, y_mm: 19.8, w_mm: 27, h_mm: 4, font_size_mm: 2.6, fit: 'shrink', valign: 'middle' },
-    { id: 'd4', kind: 'text', field: 'hsn_code', prefix: 'HSN: ', x_mm: 29, y_mm: 19.8, w_mm: 19, h_mm: 4, font_size_mm: 2.6, fit: 'shrink', align: 'right', valign: 'middle' }
+    { id: 'd2', kind: 'barcode', field: 'barcode', x_mm: 2, y_mm: 6.0, w_mm: 46, h_mm: 10.4, symbology: 'code128', show_text: true, quiet_zone: true },
+    { id: 'd3', kind: 'text', field: 'custom', text: 'SKU: {sku}', x_mm: 2, y_mm: 16.8, w_mm: 27, h_mm: 3.8, font_size_mm: 2.6, fit: 'shrink', valign: 'middle' },
+    { id: 'd4', kind: 'text', field: 'hsn_code', prefix: 'HSN: ', x_mm: 29, y_mm: 16.8, w_mm: 19, h_mm: 3.8, font_size_mm: 2.6, fit: 'shrink', align: 'right', valign: 'middle' },
+    // Stage 61: the GRN batch (B + receipt date), so the day it came in reads
+    // off the tag. Left off by the blank-value rule when a label has no batch.
+    { id: 'd5', kind: 'text', field: 'batch_no', prefix: 'Batch: ', x_mm: 2, y_mm: 20.8, w_mm: 46, h_mm: 3.6, font_size_mm: 2.6, fit: 'shrink', valign: 'middle' }
   ]
 };
 

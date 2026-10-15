@@ -44,6 +44,35 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 219. Stages 62 + 63 — designs inside the PO, multi-PO GRN at invoice price with automatic notes, designed transaction prints (2026-10-15, code + docs, NOT COMMITTED)
+
+The user: create SKUs / design combinations in the PO from the org's attribute matrix (design number new or reused per config); one GRN for several POs of a vendor; PO price and invoice price on every line, the vendor's invoice amount at the top, the difference raised as debit / credit notes — "never on hold"; then, mid-stage, "print templates customisable by the user, drag and drop, mapped product-wise, PO / Vendor PO (images, Excel) / Transfer Out / In / GRN / notes, brand always there, which store I am generating from". Detail in [micro_checklist.md Stages 62 and 63](micro_checklist.md).
+
+- **62.1–62.3** Multi-PO GRN (same vendor, per-PO checks, open quantities); server-read PO rate + editable invoice rate; stock at invoice price; Debit Note / new Vendor Credit Note raised and posted automatically (GST legs to 1500), idempotent; priced GRNs match their vendor invoice instead of holding.
+- **62.5–62.6** "+ Add design" on the PO: attribute chips → combinations grid → design (ProductFamily, server-numbered) + Items created through the record API → PO lines; design-number mode new / reuse-when-matching; pasting a design loads it and its combinations.
+- **63** One print-data endpoint for 7 transactions, `PrintTemplate` with vendor / family / category mapping, an HTML page renderer (flowing tables, tax split, totals, brand always), the Print Template Studio (drag fields and columns), a print window everywhere (template, generating store, preview), Vendor PO Excel with pictures (hand-written .xlsx).
+- **Bugs found and fixed:** a pre-existing **silent overwrite of an existing Item** when a combination was created twice; the GRN↔note link update failing on jsonb; dark-theme table styles leaking onto printed pages; the studio's top bar under the environment banner.
+- **Verified:** build/vet, 4 new engine tests, full `go test ./... -p 1`, live API + Chrome walk (PO design, two-PO GRN with notes, GL, vendor-invoice match, prints, studio, Excel); migrations `stage62_1`, `stage63_1` applied locally. Not deployed.
+
+## 218. Stage 61 — GRN batch numbers and scan-to-age lookup (2026-10-15, code + docs, NOT COMMITTED)
+
+The user: a SKU keeps one barcode, so "in each GRN, each Combination ID/SKU will have a batch number" (every SKU), and "after scanning I should know the batch, so I will know ageing or which day it came in". Detail in [micro_checklist.md Stage 61](micro_checklist.md).
+
+- **61.1** Every blank GRN line gets `B` + YYMMDD + `-` + the day's number (`B261015-0001`), one per SKU per GRN, assigned before the GRN is written; typed numbers kept; batch-tracked items still need the carton's lot; migration `stage61_1_grn_batch` (series row + Batch `grn`/`received_on`).
+- **61.2** Report **Batch Lookup & Ageing** (Inventory): scan a batch, barcode or SKU → received date, age, GRN, supplier, qty; Enter runs any Report Catalog report.
+- **61.3** The built-in sticker prints the batch on its last line.
+- **61.4** Live run found and fixed: a malformed number with the seeded series row; Batch received qty counting only a SKU's first line; a **pre-existing stock-ledger under-count** for repeated SKU lines on one voucher (fixed once in `WriteStockLedgerLines`); a **pre-existing blank Batch supplier** (now the PO's vendor).
+- **Verified:** build/vet, targeted engine/server/db/cmd tests, new regression tests (the ledger one fails on the old code), live API + Chrome walk of GRN → report → sticker; fixtures removed. Attack-surface manifest needs regenerating at commit (migration count only).
+
+## 217. Stage 60.8/60.9 — only the platform operator reaches other clients; one table per transaction (2026-10-15, code + docs, NOT COMMITTED)
+
+The user: "Only Super admin I can, no one else. Client can't change other" and "I need individual table for all txn ... I should be fixing it". Detail in [micro_checklist.md 60.8/60.9](micro_checklist.md).
+
+- **60.8** The older cross-client endpoints trusted any client's Super Admin; they now require the `ERP_PLATFORM_OPERATORS` allowlist, and a client's own admin may only read its own entitlements/version.
+- **60.9** Physical per-transaction tables were not built (a split would move every client's live data); the Data Console instead presents each record type as its own table with labelled, typed, editable columns over `documents`.
+- **Process note:** a concurrent session's commit `3da89d2` caught 60.8 mid-edit (did not build); coordinated by message and it was released as `ce1ff7c` without 60.8/60.9.
+- **Verified:** full `go test -p 1 ./...` green; HTTP 403/200 for non-operator/operator; browser walk of the record tables and an edit.
+
 ## 216. Stage 60 — number series per transaction and store, item types, names not codes, platform data console (2026-10-14, code + docs, NOT COMMITTED)
 
 The user asked whether PO/GRN/barcode were ready and what was missing, then said "Build" with decisions: lengths 5 (purchase, HR) / 6 (stock, sales, production, assets); the store's Short Code inside numbers; Store Name / Store Code / Short Code / Facility Code with Facility Code for OMS; item types with barcode rules **and** behaviour; a raw-edit console over every table of any client with customer details hidden; no internal codes in the UI except Design, Combination and barcode. Full detail in [micro_checklist.md Stage 60](micro_checklist.md).
@@ -84,6 +113,14 @@ Detail lives in micro_checklist 49.4.4a, 47.11.1 and 47.15.1.
   independent of governance freshness. All 24 read-only assertions pass. Found: every
   capability's review date expired 2026-10-09, which blocks `update-docs` Content/All publish
   until the user reviews.
+- **Item 5 — release (2026-10-14 → 15).** `537f7cb` (this pass and the 2026-10-09 pass, staged
+  file by file and hunk by hunk around four concurrent sessions) and `97cde24` (guides, KB,
+  brain and attack surface regenerated in a clean LF worktree). Full suite green there. The
+  first push was refused by the agent permission classifier; after the user's go-ahead,
+  `97cde24` alone was pushed, leaving another session's later `ce1ff7c` local. On prod: an
+  encrypted backup (sha256 OK), a rollback snapshot, `AUDIT_SIGNING_KEY` set, then DEPLOY-OK
+  with the 56.9 migration. The new `backup.sh` recorded a Success row. Site 200, health ok,
+  version `97cde24`.
 
 ## 214. Stage 55.11 family/image publishing gate and browser proof, still open (2026-10-11)
 

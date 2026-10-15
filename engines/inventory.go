@@ -356,6 +356,25 @@ func (e *InsufficientStockError) Error() string {
 // entries are idempotency-keyed, so a crash between the commit and this call
 // leaves entries that a replay writes exactly once.
 func WriteStockLedgerLines(tenantID, locationCode, voucherType, voucherID, userID string, lines []PostedStockLine) {
+	// Lines that share a key (one SKU, and lot, on two lines of the same
+	// voucher) are one movement of their summed qty. Written separately, the
+	// second was swallowed as a replay of the first, so the ledger showed 2 of
+	// a GRN's 2+4 while availability rightly took 6 (found Stage 61.1, when
+	// every SKU on a GRN started sharing one batch number).
+	if voucherID != "" {
+		merged := make([]PostedStockLine, 0, len(lines))
+		at := map[[2]string]int{}
+		for _, p := range lines {
+			k := [2]string{p.SKU, p.BatchNo}
+			if i, ok := at[k]; ok {
+				merged[i].Qty += p.Qty
+				continue
+			}
+			at[k] = len(merged)
+			merged = append(merged, p)
+		}
+		lines = merged
+	}
 	for _, p := range lines {
 		entry := StockLedgerEntry{
 			ItemID: p.SKU, WarehouseID: locationCode, Qty: float64(p.Qty),

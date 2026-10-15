@@ -1876,10 +1876,12 @@ async function renderTenantUsageView(container) {
 
 
 // Data Console (Stage 60.6): a platform operator browses and fixes any
-// client's tables. Who may use it, what is masked and what is refused are all
-// decided on the server (engines/platform_console.go); this screen only shows
-// what the server returns and sends back what the operator changed.
-const consoleState = { tenant: '', table: '', doctype: '', q: '', offset: 0, limit: 50, page: null, tables: [] };
+// client's data. Every record type (Purchase Order, GRN, Vendor, Item...) is
+// offered as its own table with one column per field; the raw database tables
+// are listed after them. Who may use it, what is masked and what is refused
+// are decided on the server (engines/platform_console.go); this screen shows
+// what the server returns and sends back only what the operator changed.
+const consoleState = { tenant: '', table: '', q: '', offset: 0, limit: 50, page: null };
 
 async function renderPlatformConsoleView(container) {
   const header = document.createElement('div');
@@ -1887,7 +1889,7 @@ async function renderPlatformConsoleView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Data Console</h1>
-      <p class="page-subtitle">Browse and fix any client's tables directly. Passwords, secrets and customer personal details stay hidden, keys and audit tables cannot be changed, and every change is written to that client's Activity Log.</p>
+      <p class="page-subtitle">Every transaction and master of any client as its own table - fix a wrong record field by field. Passwords, secrets and customer personal details stay hidden, record numbers and audit tables cannot be changed, and every change is written to that client's Activity Log.</p>
     </div>`;
   container.appendChild(header);
 
@@ -1915,15 +1917,13 @@ async function renderPlatformConsoleView(container) {
   controls.className = 'table-panel';
   controls.style.cssText = 'padding: 16px; min-height: 0;';
   controls.innerHTML = `
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; align-items: end;">
       <div class="form-group"><label class="form-label" for="pc-tenant">Client</label>
         <select id="pc-tenant" class="form-select">${tenants.map(t => `<option value="${escapeHTMLText(t.tenant_id)}" ${t.tenant_id === consoleState.tenant ? 'selected' : ''}>${escapeHTMLText(t.name || t.tenant_id)}</option>`).join('')}</select></div>
-      <div class="form-group"><label class="form-label" for="pc-table">Table</label>
+      <div class="form-group" style="grid-column: span 2;"><label class="form-label" for="pc-table">Table</label>
         <select id="pc-table" class="form-select"></select></div>
-      <div class="form-group" id="pc-doctype-wrap"><label class="form-label" for="pc-doctype">Record type (documents only)</label>
-        <input id="pc-doctype" class="form-input" placeholder="e.g. PurchaseOrder" value="${escapeHTMLText(consoleState.doctype)}"></div>
-      <div class="form-group"><label class="form-label" for="pc-q">Find by key</label>
-        <input id="pc-q" class="form-input" placeholder="id / code" value="${escapeHTMLText(consoleState.q)}"></div>
+      <div class="form-group"><label class="form-label" for="pc-q">Find</label>
+        <input id="pc-q" class="form-input" placeholder="number, code or name" value="${escapeHTMLText(consoleState.q)}"></div>
       <div class="form-group"><button class="btn btn-primary" id="pc-load">Show rows</button></div>
     </div>`;
   container.appendChild(controls);
@@ -1936,7 +1936,6 @@ async function renderPlatformConsoleView(container) {
   const tableSel = controls.querySelector('#pc-table');
   const load = () => {
     consoleState.table = tableSel.value;
-    consoleState.doctype = controls.querySelector('#pc-doctype').value.trim();
     consoleState.q = controls.querySelector('#pc-q').value.trim();
     consoleState.offset = 0;
     loadConsoleRows(results);
@@ -1955,11 +1954,19 @@ async function renderPlatformConsoleView(container) {
   if (consoleState.table) loadConsoleRows(results);
 }
 
+// Table choices: "rec:<RecordType>" for one record type as a table, and
+// "tbl:<table>" for a raw database table.
 async function loadConsoleTables(tableSel) {
-  const res = await apiFetch(`/api/v1/platform/tenants/${encodeURIComponent(consoleState.tenant)}/tables`);
-  consoleState.tables = res && res.ok ? await res.json() : [];
-  tableSel.innerHTML = '<option value="">Choose a table...</option>' + consoleState.tables.map(t =>
-    `<option value="${escapeHTMLText(t.name)}" ${t.name === consoleState.table ? 'selected' : ''}>${escapeHTMLText(t.name)} (~${t.rows})${t.read_only ? ' - view only' : ''}</option>`).join('');
+  const base = `/api/v1/platform/tenants/${encodeURIComponent(consoleState.tenant)}`;
+  const [recRes, tblRes] = await Promise.all([apiFetch(`${base}/records`), apiFetch(`${base}/tables`)]);
+  const records = recRes && recRes.ok ? await recRes.json() : [];
+  const tables = tblRes && tblRes.ok ? await tblRes.json() : [];
+  const byModule = {};
+  records.forEach(r => { (byModule[r.module || 'Other'] = byModule[r.module || 'Other'] || []).push(r); });
+  const opt = (value, text) => `<option value="${escapeHTMLText(value)}" ${value === consoleState.table ? 'selected' : ''}>${escapeHTMLText(text)}</option>`;
+  tableSel.innerHTML = '<option value="">Choose a table...</option>'
+    + Object.keys(byModule).sort().map(m => `<optgroup label="${escapeHTMLText(m)} - one table per record type">${byModule[m].map(r => opt('rec:' + r.doctype, `${r.doctype} (${r.rows})`)).join('')}</optgroup>`).join('')
+    + `<optgroup label="Database tables">${tables.map(t => opt('tbl:' + t.name, `${t.name} (~${t.rows})${t.read_only ? ' - view only' : ''}`)).join('')}</optgroup>`;
 }
 
 function consoleCellText(v) {
@@ -1968,12 +1975,18 @@ function consoleCellText(v) {
   return String(v);
 }
 
+function consoleIsRecord() {
+  return consoleState.table.startsWith('rec:');
+}
+
 async function loadConsoleRows(results) {
   if (!consoleState.table) { results.innerHTML = ''; return; }
+  const name = consoleState.table.slice(4);
   const params = new URLSearchParams({ limit: consoleState.limit, offset: consoleState.offset });
-  if (consoleState.doctype) params.set('doctype', consoleState.doctype);
   if (consoleState.q) params.set('q', consoleState.q);
-  const res = await apiFetch(`/api/v1/platform/tenants/${encodeURIComponent(consoleState.tenant)}/tables/${encodeURIComponent(consoleState.table)}?${params}`);
+  const base = `/api/v1/platform/tenants/${encodeURIComponent(consoleState.tenant)}`;
+  const url = consoleIsRecord() ? `${base}/records/${encodeURIComponent(name)}?${params}` : `${base}/tables/${encodeURIComponent(name)}?${params}`;
+  const res = await apiFetch(url);
   if (!res) return;
   if (!res.ok) {
     renderErrorPanel(results, await getErrorMessage(res, 'Could not load rows.'), () => loadConsoleRows(results));
@@ -1996,7 +2009,7 @@ async function loadConsoleRows(results) {
       </div>
       <div style="overflow-x: auto;">
         <table>
-          <thead><tr>${canEdit ? '<th></th>' : ''}${cols.map(c => `<th title="${escapeHTMLText(c.type)}">${escapeHTMLText(c.name)}${c.key ? ' (key)' : ''}</th>`).join('')}</tr></thead>
+          <thead><tr>${canEdit ? '<th></th>' : ''}${cols.map(c => `<th title="${escapeHTMLText(c.name + ' (' + c.type + ')')}">${escapeHTMLText(c.label || c.name)}${c.key ? ' (key)' : ''}</th>`).join('')}</tr></thead>
           <tbody>${(page.rows || []).map((r, i) => `<tr>${canEdit ? `<td><button class="btn btn-outline btn-sm" data-pc-edit="${i}">Edit</button></td>` : ''}${cols.map(c => {
             const text = consoleCellText(r[c.name]);
             return `<td style="max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: Consolas, Monaco, monospace; font-size: 12px;" title="${escapeHTMLText(text.slice(0, 500))}">${escapeHTMLText(text.slice(0, 160))}</td>`;
@@ -2010,52 +2023,90 @@ async function loadConsoleRows(results) {
   results.querySelectorAll('[data-pc-edit]').forEach(btn => btn.addEventListener('click', () => openConsoleEditor(results, page.rows[Number(btn.dataset.pcEdit)])));
 }
 
+function consoleValueText(v) {
+  return v !== null && typeof v === 'object' ? JSON.stringify(v, null, 2) : (v === null || v === undefined ? '' : String(v));
+}
+
+// consoleInput is the editor box for one column: a dropdown for a Select
+// field, a record picker for a Link field, a large box for JSON, else text.
+function consoleInput(c, text) {
+  const attrs = `class="form-input" data-pc-col="${escapeHTMLText(c.name)}"`;
+  if (c.type === 'Check') {
+    return `<select class="form-select" data-pc-col="${escapeHTMLText(c.name)}"><option value=""></option>${['true', 'false'].map(o => `<option ${o === text ? 'selected' : ''}>${o}</option>`).join('')}</select>`;
+  }
+  if (c.type === 'Select' && c.options) {
+    const opts = c.options.split(',').map(o => o.trim());
+    if (text && !opts.includes(text)) opts.unshift(text);
+    return `<select class="form-select" data-pc-col="${escapeHTMLText(c.name)}"><option value=""></option>${opts.map(o => `<option ${o === text ? 'selected' : ''}>${escapeHTMLText(o)}</option>`).join('')}</select>`;
+  }
+  if (c.type.startsWith('json') || c.type === 'JSONTable' || c.type === 'JSONMap' || text.length > 80) {
+    return `<textarea class="form-textarea" rows="${Math.min(16, text.split('\n').length + 1)}" data-pc-col="${escapeHTMLText(c.name)}" style="font-family: monospace; font-size: 12px;">${escapeHTMLText(text)}</textarea>`;
+  }
+  return `<input ${attrs} value="${escapeHTMLText(text)}">`;
+}
+
 function openConsoleEditor(results, row) {
   const page = consoleState.page;
+  const isRecord = consoleIsRecord();
   const editor = results.querySelector('#pc-editor');
   const key = {};
   page.columns.filter(c => c.key).forEach(c => { key[c.name] = consoleCellText(row[c.name]); });
   const fieldFor = c => {
-    const v = row[c.name];
-    const text = v !== null && typeof v === 'object' ? JSON.stringify(v, null, 2) : (v === null || v === undefined ? '' : String(v));
+    const text = consoleValueText(row[c.name]);
+    const label = escapeHTMLText(c.label || c.name);
     if (!c.editable) {
-      return `<div class="form-group"><span class="form-label">${escapeHTMLText(c.name)}</span><div class="text-muted" style="font-family: monospace;">${c.masked ? 'hidden' : escapeHTMLText(text.slice(0, 200))}${c.key ? ' (key)' : ''}</div></div>`;
+      return `<div class="form-group"><span class="form-label">${label}</span><div class="text-muted" style="font-family: monospace; overflow-wrap: anywhere;">${c.masked ? 'hidden' : escapeHTMLText(text.slice(0, 300))}${c.key ? ' (key)' : ''}</div></div>`;
     }
-    const multi = c.type.startsWith('json') || text.length > 80;
-    const input = multi
-      ? `<textarea class="form-textarea" rows="${Math.min(16, text.split('\n').length + 1)}" data-pc-col="${escapeHTMLText(c.name)}" style="font-family: monospace; font-size: 12px;">${escapeHTMLText(text)}</textarea>`
-      : `<input class="form-input" data-pc-col="${escapeHTMLText(c.name)}" value="${escapeHTMLText(text)}">`;
-    return `<div class="form-group"><label class="form-label">${escapeHTMLText(c.name)} <span class="text-muted">(${escapeHTMLText(c.type)})</span></label>${input}
-      <label style="font-size: 12px;"><input type="checkbox" data-pc-null="${escapeHTMLText(c.name)}" ${v === null ? 'checked' : ''}> empty (NULL)</label></div>`;
+    return `<div class="form-group"><label class="form-label">${label} <span class="text-muted">(${escapeHTMLText(c.type)})</span></label>${consoleInput(c, text)}
+      <label style="font-size: 12px;"><input type="checkbox" data-pc-null="${escapeHTMLText(c.name)}" ${row[c.name] === null || row[c.name] === undefined ? 'checked' : ''}> empty</label></div>`;
   };
   editor.innerHTML = `
     <div style="border-top: 1px solid var(--border-color); margin-top: 16px; padding-top: 12px;">
-      <h3 style="margin: 0 0 8px;">Edit row ${escapeHTMLText(Object.values(key).join(' / '))}</h3>
-      <p class="text-muted">Values are saved exactly as typed and checked only by the database. Hidden values keep what is stored.</p>
+      <h3 style="margin: 0 0 8px;">Edit ${escapeHTMLText(page.table)} ${escapeHTMLText(Object.values(key).join(' / '))}</h3>
+      <p class="text-muted">Saved exactly as entered - the record's own screen rules are not re-run, so check the values. Hidden values keep what is stored.</p>
       <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">${page.columns.map(fieldFor).join('')}</div>
       <div style="display: flex; gap: 8px; margin-top: 12px;">
         <button class="btn btn-primary" id="pc-save">Save changes</button>
         <button class="btn btn-secondary" id="pc-cancel">Cancel</button>
       </div>
     </div>`;
+  // Typing into a field that was empty clears its "empty" tick.
+  const clearEmpty = e => {
+    const col = e.target.dataset && e.target.dataset.pcCol;
+    const tick = col && editor.querySelector(`[data-pc-null="${CSS.escape(col)}"]`);
+    if (tick) tick.checked = false;
+  };
+  editor.addEventListener('input', clearEmpty);
+  editor.addEventListener('change', clearEmpty);
+  // Link fields get the app's own record picker, which shows names but keeps
+  // the record's id as the value.
+  if (isRecord) {
+    page.columns.filter(c => c.editable && c.type === 'Link' && c.options).forEach(c => {
+      const input = editor.querySelector(`input[data-pc-col="${CSS.escape(c.name)}"]`);
+      if (input && typeof attachLinkTypeahead === 'function') attachLinkTypeahead(input, c.options);
+    });
+  }
   editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
   editor.querySelector('#pc-cancel').addEventListener('click', () => { editor.innerHTML = ''; });
   editor.querySelector('#pc-save').addEventListener('click', async () => {
     const set = {};
     page.columns.filter(c => c.editable).forEach(c => {
       const input = editor.querySelector(`[data-pc-col="${CSS.escape(c.name)}"]`);
-      const isNull = editor.querySelector(`[data-pc-null="${CSS.escape(c.name)}"]`).checked;
+      const isEmpty = editor.querySelector(`[data-pc-null="${CSS.escape(c.name)}"]`).checked;
       const v = row[c.name];
-      const before = v !== null && typeof v === 'object' ? JSON.stringify(v, null, 2) : (v === null || v === undefined ? '' : String(v));
-      if (isNull && v !== null) set[c.name] = null;
-      else if (!isNull && (input.value !== before || v === null)) set[c.name] = input.value;
+      const wasEmpty = v === null || v === undefined;
+      const before = consoleValueText(v);
+      if (isEmpty && !wasEmpty) set[c.name] = null;
+      else if (!isEmpty && (input.value !== before || wasEmpty) && !(wasEmpty && input.value === '')) set[c.name] = input.value;
     });
     if (!Object.keys(set).length) { showToast('Nothing changed.'); return; }
-    const ok = await showCustomConfirm(`Change ${Object.keys(set).join(', ')} on ${page.table} in client "${consoleState.tenant}"? This writes live data directly and is recorded in that client's Activity Log.`, 'Save to live data');
+    const where = isRecord ? `${page.table} ${key.id}` : `${page.table}`;
+    const ok = await showCustomConfirm(`Change ${Object.keys(set).join(', ')} on ${where} in client "${consoleState.tenant}"? This writes live data directly and is recorded in that client's Activity Log.`, 'Save to live data');
     if (!ok) return;
-    const res = await apiFetch(`/api/v1/platform/tenants/${encodeURIComponent(consoleState.tenant)}/tables/${encodeURIComponent(page.table)}/row`, {
-      method: 'POST', body: JSON.stringify({ key, set })
-    });
+    const base = `/api/v1/platform/tenants/${encodeURIComponent(consoleState.tenant)}`;
+    const res = isRecord
+      ? await apiFetch(`${base}/records/${encodeURIComponent(page.table)}/${encodeURIComponent(key.id)}`, { method: 'POST', body: JSON.stringify({ set }) })
+      : await apiFetch(`${base}/tables/${encodeURIComponent(page.table)}/row`, { method: 'POST', body: JSON.stringify({ key, set }) });
     if (!res) return;
     if (res.ok) {
       showToast('Saved.');

@@ -2,9 +2,11 @@ package engines
 
 import (
 	"custom_erp/db"
+	"encoding/json"
 	"fmt"
 	"math"
 	"strings"
+	"time"
 )
 
 // Stage 26.5 (WMS Enterprise Maturity Sprint): 26.5.1 ASN capture ahead of a
@@ -141,7 +143,17 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 		// A lot number typed against an item nobody asked to trace is kept
 		// rather than dropped - it costs nothing, and switching that item to
 		// Batch later then finds real history instead of a blank past.
-		if batchNo != "" && accepted > 0 {
+		// Two lines of one SKU on one lot (GRN batch numbers are per SKU,
+		// Stage 61.1) register one Batch whose received qty is their sum.
+		merged := false
+		for i := range receivedBatches {
+			if batchNo != "" && accepted > 0 && receivedBatches[i].info.Item == sku && receivedBatches[i].info.BatchNo == batchNo {
+				receivedBatches[i].acceptedQty += accepted
+				merged = true
+				break
+			}
+		}
+		if batchNo != "" && accepted > 0 && !merged {
 			receivedBatches = append(receivedBatches, receivedBatch{
 				info: BatchInfo{
 					BatchNo:       batchNo,
@@ -299,6 +311,7 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 	vendor := grnVendor(schema, grnID)
 	for _, rb := range receivedBatches {
 		rb.info.Vendor = vendor
+		rb.info.GRN = grnID
 		if _, err := EnsureBatch(tenantID, rb.info, rb.acceptedQty, userID); err != nil {
 			LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC",
 				fmt.Sprintf("batch %s of %s could not be registered from GRN %s: %v", rb.info.BatchNo, rb.info.Item, grnID, err), "")
@@ -337,11 +350,143 @@ func grnVendor(schema, grnID string) string {
 	if grnID == "" {
 		return ""
 	}
+	// A GRN made from the screen carries no vendor of its own - it is the
+	// PO's - so fall back to the PO, or every lot's Supplier stays blank.
 	var vendor string
-	if err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT COALESCE(data->>'vendor', '') FROM %s.documents WHERE doctype = 'GRN' AND id = $1`, schema),
+	if err := db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(NULLIF(g.data->>'vendor', ''), po.data->>'vendor', '')
+		FROM %s.documents g
+		LEFT JOIN %s.documents po ON po.doctype = 'PurchaseOrder' AND po.id = g.data->>'po_id'
+		WHERE g.doctype = 'GRN' AND g.id = $1`, schema, schema),
 		grnID).Scan(&vendor); err != nil {
 		return ""
 	}
 	return vendor
+}
+
+// GRN batch numbers. The user: "In each GRN, each Combination ID/SKU will
+// have a batch number" - so a SKU whose barcode stays the same on every
+// receipt can still be told apart by when it came in, and a scan of the batch
+// answers "which day did this arrive, how old is it" (the batch-ageing
+// report in traceability_reports.go).
+//
+// The number carries its receipt date: "B" + YYMMDD + "-" + that day's
+// running number, e.g. B261015-0001, so the day is readable off the sticker
+// without scanning anything. The counter is the GRNBatchSeq series bucketed by
+// day, the same row-locked counter PIMDatedBarcodeSeq uses.
+
+// grnBatchFromParts formats one GRN batch number.
+func grnBatchFromParts(day time.Time, seq int) string {
+	return fmt.Sprintf("B%s-%04d", day.Format("060102"), seq)
+}
+
+// GenerateGRNBatchNumber draws the day's next GRN batch number.
+func GenerateGRNBatchNumber(tenantID string, day time.Time) (string, error) {
+	dayKey := day.Format("060102")
+	raw, err := GenerateSequence(tenantID, "GRNBatchSeq", "", dayKey)
+	if err != nil {
+		return "", err
+	}
+	// The counter is the digit run after the day segment, whatever the
+	// series' prefix/separator config ("2610150001" with the seeded row,
+	// "GRNBatchSeq/261015/000001" without one); the format above is fixed so
+	// the date stays readable.
+	rest := raw
+	if i := strings.Index(raw, dayKey); i >= 0 {
+		rest = raw[i+len(dayKey):]
+	}
+	start := strings.IndexAny(rest, "0123456789")
+	if start < 0 {
+		return "", fmt.Errorf("GRNBatchSeq returned %q, not a number - check prefix_configs", raw)
+	}
+	end := start
+	for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
+		end++
+	}
+	var seq int
+	if _, err := fmt.Sscanf(rest[start:end], "%d", &seq); err != nil || seq < 1 {
+		return "", fmt.Errorf("GRNBatchSeq returned %q, not a number - check prefix_configs", raw)
+	}
+	return grnBatchFromParts(day, seq), nil
+}
+
+// PrepareGRNBatchNumbers gives every SKU on a new GRN a batch number, before
+// the document is written so the GRN itself, its stickers and its stock
+// posting all carry the same value. One number per SKU per GRN: two lines of
+// the same SKU share it, and a number typed on any line of that SKU is used
+// for its blank lines too. A typed number is never replaced.
+//
+// Two kinds of line are left alone. A batch-tracked item (Item Traceability =
+// Batch) keeps its existing rule that the clerk types the lot printed on the
+// carton (INVENT-0115) - that is a control the business switched on for that
+// item, and an invented number would hide a missed entry. A Fixed Asset item
+// never enters stock or the batch register (Stage 57.8).
+func PrepareGRNBatchNumbers(tenantID string, isCreate bool, payload map[string]interface{}) error {
+	if !isCreate {
+		return nil
+	}
+	raw, ok := payload["received_items"].(string)
+	if !ok || strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	var lines []interface{}
+	if err := json.Unmarshal([]byte(raw), &lines); err != nil {
+		return nil // the create handler reports malformed received_items itself
+	}
+
+	batchFor := map[string]string{}
+	for _, l := range lines {
+		m, ok := l.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		sku := strings.TrimSpace(strField(m, "sku"))
+		if b := strings.TrimSpace(strField(m, "batch_no")); sku != "" && b != "" && batchFor[sku] == "" {
+			batchFor[sku] = b
+		}
+	}
+
+	day := time.Now()
+	changed := false
+	skip := map[string]bool{}
+	for _, l := range lines {
+		m, ok := l.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		sku := strings.TrimSpace(strField(m, "sku"))
+		if sku == "" || skip[sku] || strings.TrimSpace(strField(m, "batch_no")) != "" {
+			continue
+		}
+		if batchFor[sku] == "" {
+			tracking, err := GetItemTracking(tenantID, sku)
+			if err != nil {
+				return err
+			}
+			isAsset, err := isFixedAssetSKU(tenantID, sku)
+			if err != nil {
+				return err
+			}
+			if tracking.TracksBatch() || isAsset {
+				skip[sku] = true
+				continue
+			}
+			code, err := GenerateGRNBatchNumber(tenantID, day)
+			if err != nil {
+				return err
+			}
+			batchFor[sku] = code
+		}
+		m["batch_no"] = batchFor[sku]
+		changed = true
+	}
+	if !changed {
+		return nil
+	}
+	out, err := json.Marshal(lines)
+	if err != nil {
+		return err
+	}
+	payload["received_items"] = string(out)
+	return nil
 }

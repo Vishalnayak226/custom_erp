@@ -143,6 +143,22 @@ func registerStage282Settings() {
 		},
 		Description: "Whether the Purchase Price entered on a PO line already includes GST. Each PO can override this.",
 	})
+	// Stage 63 (engines/print_documents.go): the brand every designed print carries.
+	RegisterSetting(SettingDefinition{
+		Key: "print.brand_name", Module: "Printing",
+		Label: "Brand name on prints", Type: SettingTypeString, Default: "",
+		Description: "Printed at the top of every PO, GRN, transfer and debit / credit note - even on a template that does not place it. Blank uses the legal entity's name of the store the print is generated from.",
+	})
+	// Stage 62.6 (engines/po_design.go).
+	RegisterSetting(SettingDefinition{
+		Key: "procurement.po_design_number_mode", Module: "Procurement",
+		Label: "Design number on a PO's Add design", Type: SettingTypeSelect, Default: DesignNumberModeNew,
+		Options: []SettingOption{
+			{Value: DesignNumberModeNew, Label: "New every time - each Add design gets a new design number"},
+			{Value: DesignNumberModeMatch, Label: "Reuse when it matches - same name and every design attribute brings back the existing design"},
+		},
+		Description: "What Add design on a Purchase Order does with the design number. Pasting an existing design number always loads that design, whichever is chosen.",
+	})
 
 	// --- Point of Sale ---
 	RegisterSetting(SettingDefinition{

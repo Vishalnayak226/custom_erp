@@ -921,6 +921,17 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/procurement/purchase-order/{id}/print", apiMiddleware(moduleGate("procurement", handlePrintPurchaseOrder)))
 	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/send", apiMiddleware(moduleGate("procurement", handleSendPurchaseOrder)))
 
+	// Stage 62: designs and combinations from inside the PO (read side), the
+	// printed GRN and its debit/credit notes, and posting a vendor credit note.
+	http.HandleFunc("GET /api/v1/procurement/design-matrix", apiMiddleware(moduleGate("procurement", handleGetDesignMatrix)))
+	http.HandleFunc("GET /api/v1/procurement/design/{code}", apiMiddleware(moduleGate("procurement", handleGetDesign)))
+	http.HandleFunc("POST /api/v1/procurement/design/match", apiMiddleware(moduleGate("procurement", handleMatchDesign)))
+	http.HandleFunc("POST /api/v1/finance/vendor-credit-note/{id}/post", apiMiddleware(handlePostVendorCreditNote))
+	// Stage 63: designed transaction prints and the Vendor PO in Excel.
+	http.HandleFunc("GET /api/v1/print/document/{txn}/{id}", apiMiddleware(handlePrintDocument))
+	http.HandleFunc("GET /api/v1/print/catalog", apiMiddleware(handlePrintCatalog))
+	http.HandleFunc("GET /api/v1/procurement/purchase-order/{id}/excel", apiMiddleware(moduleGate("procurement", handleVendorPOExcel)))
+
 	// Vendor invoice 3-way match + payment (Stage 17.8)
 	http.HandleFunc("POST /api/v1/procurement/vendor-invoice/match", apiMiddleware(moduleGate("procurement", handleMatchVendorInvoice)))
 	http.HandleFunc("POST /api/v1/procurement/vendor-invoice/pay", apiMiddleware(moduleGate("procurement", handlePayVendorInvoice)))
@@ -1025,6 +1036,9 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/tables", apiMiddleware(handlePlatformTables))
 	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/tables/{table}", apiMiddleware(handlePlatformRows))
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/tables/{table}/row", apiMiddleware(handlePlatformUpdateRow))
+	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/records", apiMiddleware(handlePlatformRecordTypes))
+	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/records/{doctype}", apiMiddleware(handlePlatformRecords))
+	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/records/{doctype}/{id}", apiMiddleware(handlePlatformUpdateRecord))
 	// Stage 26.1.5: tenant usage/health dashboard (live concurrency usage + configured limits, per tenant).
 	http.HandleFunc("GET /api/v1/admin/tenant-usage", apiMiddleware(handleTenantUsage))
 

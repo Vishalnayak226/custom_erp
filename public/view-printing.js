@@ -137,7 +137,9 @@ const BULK_STICKER_SOURCE_DOCTYPES = [
 let currentStickerTab = 'print';
 const STICKER_TABS = [
   { id: 'print', label: 'Print' },
-  { id: 'templates', label: 'Templates' }
+  { id: 'templates', label: 'Sticker templates' },
+  // Stage 63: how PO / GRN / transfers / debit-credit notes print.
+  { id: 'documents', label: 'Document templates' }
 ];
 let stickerSourceDoctype = BULK_STICKER_SOURCE_DOCTYPES[0].doctype;
 let stickerSourceDocId = '';
@@ -152,7 +154,7 @@ async function renderStickersView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Sticker Printing</h1>
-      <p class="page-subtitle">Print item labels (barcode, name, HSN), print from a GRN/Transfer Order, and configure category-based label templates.</p>
+      <p class="page-subtitle">Print item labels (barcode, name, HSN), print from a GRN/Transfer Order, design label templates - and design how POs, GRNs, transfers and debit / credit notes print (Document templates).</p>
     </div>
   `;
   container.appendChild(header);
@@ -174,6 +176,11 @@ async function renderStickersView(container) {
 
   if (currentStickerTab === 'templates') {
     await renderStickerTemplatesTab(container);
+    return;
+  }
+  if (currentStickerTab === 'documents') {
+    const { renderPrintTemplateGallery } = await import('./trade-docs.js' + PRINTING_MODULE_QUERY);
+    await renderPrintTemplateGallery(container);
     return;
   }
   await renderStickerPrintTab(container);
