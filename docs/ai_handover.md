@@ -125,6 +125,19 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-16 COMMITTED, PUSHED AND DEPLOYED: `ce1ff7c` (Stage 59.1 + 60) and `2c3da8e`
+  (Stages 60.8, 60.9, 61, 62, 63).** The "NOT COMMITTED / NOT DEPLOYED" tags in the entries below
+  are superseded. Pre-commit: build, vet, `node --check`, `internal/securityscan` (attack surface
+  regenerated: 516 routes, 186 migrations), `db`, and the Stage 61-63 engine/server suites green.
+  Deployed from a clean LF worktree via `deploy\deploy.ps1`: DEPLOY-OK, 8 migrations applied
+  (stage59_1 → stage63_1). Before: rollback snapshot `/opt/erp/rollback_20261015_184015`,
+  backup `custom_erp_20261015T184015Z.dump.enc` (sha256 OK). After: https://app.wholeops.in/
+  and `/api/v1/health` 200, `app.js` hash matches the commit, public/ `erp:erp`.
+  **Open:** `ERP_PLATFORM_OPERATORS` is NOT set in prod `/etc/erp/erp.env`, so the 60.8
+  cross-client screens (Tenant Entitlements/Usage, provisioning, sandboxes) refuse everyone
+  until the operator's `client:username` is added and `erp` restarted. Not committed (deliberately):
+  `docs/sop-video/media/` + `output/` (~495 MB of .webm recordings).
+
 - **2026-10-15 Stages 62 + 63 (checklist Stages 62, 63; ledger §219) - BUILT AND VERIFIED, NOT
   COMMITTED, NOT DEPLOYED.** PO "+ Add design" (attribute matrix → combinations → design + Items),
   design-number mode; multi-PO GRN with PO rate / invoice rate, automatic posted Debit Note /
