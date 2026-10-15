@@ -372,6 +372,7 @@
             <li><a class="menu-item" id="menu-system-status"><span>System Status</span></a></li>
             <li><a class="menu-item" id="menu-tenant-entitlements"><span>Tenant Entitlements</span></a></li>
             <li><a class="menu-item" id="menu-tenant-usage"><span>Tenant Usage</span></a></li>
+            <li><a class="menu-item" id="menu-platform-console"><span>Data Console</span></a></li>
           </ul>
         </li>
       </ul>
@@ -590,47 +591,6 @@
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-act="closeAddFieldModal">Cancel</button>
           <button type="submit" class="btn btn-primary" id="add-field-submit">Save Field</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- Edit Prefix Config Modal -->
-  <div class="modal-overlay" id="edit-prefix-modal">
-    <div class="modal-container">
-      <div class="modal-header">
-        <h3 class="modal-title">Edit Prefix Configuration</h3>
-        <button type="button" class="modal-close" aria-label="Close dialog" data-act="closeEditPrefixModal">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>
-      </div>
-      <form id="edit-prefix-form" data-act="submitEditPrefix" data-act-on="submit" data-act-args="[&quot;$event&quot;]">
-        <input type="hidden" id="edit-prefix-doctype">
-        <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
-          <div class="form-group">
-            <label class="form-label" for="edit-prefix-prefix">Prefix</label>
-            <input type="text" class="form-control" id="edit-prefix-prefix" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="edit-prefix-separator">Separator</label>
-            <input type="text" class="form-control" id="edit-prefix-separator" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="edit-prefix-padding">Padding Width</label>
-            <input type="number" class="form-control" id="edit-prefix-padding" min="1" max="10" required>
-          </div>
-          <div class="form-group">
-            <label class="form-label" for="edit-prefix-reset">Reset Frequency</label>
-            <select class="form-control" id="edit-prefix-reset" required>
-              <option value="NEVER">NEVER</option>
-              <option value="ANNUAL">ANNUAL</option>
-              <option value="MONTHLY">MONTHLY</option>
-            </select>
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-act="closeEditPrefixModal">Cancel</button>
-          <button type="submit" class="btn btn-primary">Save Configuration</button>
         </div>
       </form>
     </div>

@@ -16,7 +16,7 @@ screens: [configuration]
 ---
 
 <!-- GENERATED ARTICLE - DO NOT EDIT BY HAND.
-     Regenerate: pwsh docs/update-docs.ps1 -Group Content -->
+     Regenerate: go run ./cmd/gendocs && go run ./cmd/genkb -->
 
 # Country codes and phone number rules
 

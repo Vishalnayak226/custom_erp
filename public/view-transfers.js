@@ -108,6 +108,15 @@ async function renderTransfersView(container) {
   // Stage 57: the line's item was a bare text box - people had to type the
   // exact code. It picks by name now and still stores the code.
   attachLinkTypeahead(document.getElementById('transfer-line-sku'), 'Item');
+  const savedContext = sessionStorage.getItem('erp_stock_transfer_context');
+  sessionStorage.removeItem('erp_stock_transfer_context');
+  if (savedContext) {
+    try {
+      const context = JSON.parse(savedContext);
+      document.getElementById('transfer-from').value = String(context.location || '');
+      document.getElementById('transfer-line-sku').value = String(context.sku || '');
+    } catch (error) { /* Ignore a stale navigation hint; the form remains usable. */ }
+  }
 }
 
 function renderTransferLinesList() {

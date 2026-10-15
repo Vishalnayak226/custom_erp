@@ -761,6 +761,18 @@ func BuildInvoicePayload(tenantID, invoiceID string, printer QZPrinter) (*QZPrin
 	}
 	customer, _ := data["customer"].(string)
 	location, _ := data["location"].(string)
+	// Stage 60.5: an invoice names the customer and the store, never their
+	// internal codes. Either lookup failing falls back to the stored value.
+	if customer != "" {
+		if cust, _, errC := fetchDocData(tenantID, "Customer", customer); errC == nil && cust != nil {
+			if n := strings.TrimSpace(pimString(cust["name"])); n != "" {
+				customer = n
+			}
+		}
+	}
+	if location != "" {
+		location = ReceiptStoreHeader(tenantID, location).Line()
+	}
 	amount := numFromInterface(data["total_amount"])
 
 	if isESCPOS(printer.Language) {
@@ -782,7 +794,7 @@ func BuildInvoicePayload(tenantID, invoiceID string, printer QZPrinter) (*QZPrin
 			b.WriteString(escposRow("Customer", customer, cols))
 		}
 		if location != "" {
-			b.WriteString(escposRow("Location", location, cols))
+			b.WriteString(escposRow("Store", location, cols))
 		}
 		b.WriteString(escposRow("Status", status, cols))
 		b.WriteString(strings.Repeat("-", cols) + "\n")
@@ -829,7 +841,7 @@ table{border-collapse:collapse;} td{padding:4px 0;} td.k{font-weight:700;padding
 </style></head><body>
 <h1>Tax Invoice</h1>` + watermark + `<hr>
 <table>` + row("Invoice", number) + row("Date", createdAt.Format("02 Jan 2006")) +
-				row("Customer", customer) + row("Location", location) + row("Status", status) + `</table>
+				row("Customer", customer) + row("Store", location) + row("Status", status) + `</table>
 <div class="total">Total: ` + money(amount) + `</div>
 </body></html>`,
 		}},

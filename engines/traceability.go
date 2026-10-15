@@ -750,19 +750,29 @@ type AllocationCandidate struct {
 // This is the single choke point both pick-list generators now call, so
 // 42.2.8's strategies (LIFO, nearest-bin, fewest-picks, clean-location) are
 // added in one place and every caller inherits them.
+//
+// Stage 59.1: stock already reserved for another open FulfillmentTask
+// (bin_allocation, Open) is not offered again - see openBinReservationsSQL.
 func AllocateFromStock(tenantID, sku, locationCode string, needed int) (allocated []AllocationCandidate, shortfall int, err error) {
+	return allocateFromStockQ(db.DB, tenantID, sku, locationCode, needed)
+}
+
+// allocateFromStockQ is AllocateFromStock against a caller's querier, so a
+// reservation made inside a transaction (reserveTaskSKUTx) allocates from the
+// same snapshot it then inserts into.
+func allocateFromStockQ(q stockQuerier, tenantID, sku, locationCode string, needed int) (allocated []AllocationCandidate, shortfall int, err error) {
 	if needed <= 0 {
 		return nil, 0, nil
 	}
 	strategy := ResolveAllocationStrategy(tenantID, sku)
 	if strategy == StrategyFEFO {
-		return allocateFEFO(tenantID, sku, locationCode, needed)
+		return allocateFEFO(q, tenantID, sku, locationCode, needed)
 	}
 	orderBy, ok := allocationOrderFragments[strategy]
 	if !ok {
 		orderBy = allocationOrderFragments[StrategyFIFO]
 	}
-	return allocateByOrder(tenantID, sku, locationCode, needed, orderBy)
+	return allocateByOrder(q, tenantID, sku, locationCode, needed, orderBy)
 }
 
 // allocateByOrder (42.2.8, generalising 26.5.6's original allocateFIFO) is
@@ -776,20 +786,21 @@ func AllocateFromStock(tenantID, sku, locationCode string, needed int) (allocate
 // the inbound side - extended here so a bin frozen for a physical
 // inventory (or already blocked/full for any other reason) can't have
 // stock picked out from under a count either.
-func allocateByOrder(tenantID, sku, locationCode string, needed int, orderBy string) ([]AllocationCandidate, int, error) {
+func allocateByOrder(q stockQuerier, tenantID, sku, locationCode string, needed int, orderBy string) ([]AllocationCandidate, int, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, needed, err
 	}
-	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT bs.bin_code, bs.qty, COALESCE(b.data->>'zone', ''), COALESCE(b.data->>'aisle', ''), COALESCE(b.data->>'rack', ''),
+	rows, err := q.Query(fmt.Sprintf(`
+		SELECT bs.bin_code, bs.qty - COALESCE(ra.reserved, 0), COALESCE(b.data->>'zone', ''), COALESCE(b.data->>'aisle', ''), COALESCE(b.data->>'rack', ''),
 		       COALESCE(NULLIF(z.data->>'pick_sequence', '')::int, 999999) AS zone_pick_seq
 		FROM %s.bin_stock bs
 		LEFT JOIN %s.documents b ON b.doctype = 'Bin' AND b.data->>'bin_code' = bs.bin_code
 		LEFT JOIN %s.documents z ON z.doctype = 'Zone' AND z.status = 'Active' AND z.data->>'code' = b.data->>'zone'
-		WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.qty > 0
+		LEFT JOIN (%s) ra ON ra.bin_code = bs.bin_code
+		WHERE bs.sku = $1 AND bs.location_code = $2 AND bs.condition = 'Good' AND bs.qty - COALESCE(ra.reserved, 0) > 0
 		  AND COALESCE(b.data->>'bin_status', '') NOT IN ('Blocked', 'Full', 'Counting')
-		ORDER BY %s`, schema, schema, schema, orderBy), sku, locationCode)
+		ORDER BY %s`, schema, schema, schema, openBinReservationsSQL(schema, false), orderBy), sku, locationCode)
 	if err != nil {
 		return nil, needed, err
 	}
@@ -833,7 +844,7 @@ func allocateByOrder(tenantID, sku, locationCode string, needed int, orderBy str
 // the correct refusal: issuing units nobody can trace to a lot is exactly what
 // a batch-tracked item exists to prevent, and the resulting shortfall tells the
 // warehouse there is untraced stock to reconcile.
-func allocateFEFO(tenantID, sku, locationCode string, needed int) ([]AllocationCandidate, int, error) {
+func allocateFEFO(q stockQuerier, tenantID, sku, locationCode string, needed int) ([]AllocationCandidate, int, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, needed, err
@@ -847,20 +858,21 @@ func allocateFEFO(tenantID, sku, locationCode string, needed int) ([]AllocationC
 	// zero minimum means "usable up to the expiry date", not "expiry ignored".
 	cutoff := today().AddDate(0, 0, tracking.MinShelfLifeOnPickDays).Format(isoDate)
 
-	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT bsb.bin_code, bsb.batch_no, bsb.qty,
+	rows, err := q.Query(fmt.Sprintf(`
+		SELECT bsb.bin_code, bsb.batch_no, bsb.qty - COALESCE(ra.reserved, 0),
 		       COALESCE(bn.data->>'zone', ''), COALESCE(bn.data->>'aisle', ''), COALESCE(bn.data->>'rack', ''),
 		       COALESCE(b.data->>'expiry_date', '')
 		FROM %s.bin_stock_batch bsb
 		JOIN %s.documents b
 		     ON b.doctype = 'Batch' AND b.data->>'item' = bsb.sku AND b.data->>'batch_no' = bsb.batch_no
 		LEFT JOIN %s.documents bn ON bn.doctype = 'Bin' AND bn.data->>'bin_code' = bsb.bin_code
-		WHERE bsb.sku = $1 AND bsb.location_code = $2 AND bsb.condition = 'Good' AND bsb.qty > 0
+		LEFT JOIN (%s) ra ON ra.bin_code = bsb.bin_code AND ra.batch_no = bsb.batch_no
+		WHERE bsb.sku = $1 AND bsb.location_code = $2 AND bsb.condition = 'Good' AND bsb.qty - COALESCE(ra.reserved, 0) > 0
 		  AND COALESCE(b.status, '') = 'Active'
 		  AND (NULLIF(b.data->>'expiry_date', '') IS NULL OR b.data->>'expiry_date' >= $3)
 		  AND COALESCE(bn.data->>'bin_status', '') NOT IN ('Blocked', 'Full', 'Counting')
 		ORDER BY NULLIF(b.data->>'expiry_date', '') ASC NULLS LAST, bsb.batch_no, bsb.bin_code`,
-		schema, schema, schema), sku, locationCode, cutoff)
+		schema, schema, schema, openBinReservationsSQL(schema, true)), sku, locationCode, cutoff)
 	if err != nil {
 		return nil, needed, err
 	}

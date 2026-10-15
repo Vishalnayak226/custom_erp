@@ -1262,45 +1262,19 @@ func handleSequence(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]string{"code": code})
 }
 
+// handlePrefix lists and saves number series (Admin -> Prefix
+// Configurations). Stage 60.1 moved the shape rules into
+// engines.SaveNumberSeries so the screen, imports and any future caller get
+// the same validation (suffix, per-store overrides, prefix collisions).
 func handlePrefix(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.Header.Get("Resolved-Tenant-ID")
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
-		return
-	}
 
 	switch r.Method {
 	case http.MethodGet:
-		rows, err := db.DB.Query(fmt.Sprintf(`
-			SELECT id, doc_type, prefix, separator, padding_width, reset_frequency, active_status, COALESCE(include_store, TRUE)
-			FROM %s.prefix_configs ORDER BY doc_type`, schema))
+		configs, err := engines.ListNumberSeries(tenantID)
 		if err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
-		}
-		defer rows.Close()
-
-		type PrefixConfig struct {
-			ID             string `json:"id"`
-			DocType        string `json:"doc_type"`
-			Prefix         string `json:"prefix"`
-			Separator      string `json:"separator"`
-			PaddingWidth   int    `json:"padding_width"`
-			ResetFrequency string `json:"reset_frequency"`
-			ActiveStatus   bool   `json:"active_status"`
-			IncludeStore   bool   `json:"include_store"`
-		}
-
-		configs := []PrefixConfig{}
-		for rows.Next() {
-			var c PrefixConfig
-			err := rows.Scan(&c.ID, &c.DocType, &c.Prefix, &c.Separator, &c.PaddingWidth, &c.ResetFrequency, &c.ActiveStatus, &c.IncludeStore)
-			if err != nil {
-				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
-				return
-			}
-			configs = append(configs, c)
 		}
 		_ = json.NewEncoder(w).Encode(configs)
 
@@ -1308,49 +1282,38 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 		if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
 			return
 		}
-		// IncludeStore is a pointer so an omitted field keeps the stored value
-		// rather than silently reading as Go's false - this endpoint is a full
-		// upsert, and a caller that predates the field would otherwise turn
-		// the store segment off on every save it makes.
+		// IncludeStore and StoreOverrides are pointers/nil-able so an omitted
+		// field keeps the stored value - this endpoint is a full upsert, and a
+		// caller that predates a field must not wipe it on every save.
 		var req struct {
-			DocType        string `json:"doc_type"`
-			Prefix         string `json:"prefix"`
-			Separator      string `json:"separator"`
-			PaddingWidth   int    `json:"padding_width"`
-			ResetFrequency string `json:"reset_frequency"`
-			ActiveStatus   bool   `json:"active_status"`
-			IncludeStore   *bool  `json:"include_store"`
+			DocType        string                                 `json:"doc_type"`
+			Prefix         string                                 `json:"prefix"`
+			Suffix         string                                 `json:"suffix"`
+			Separator      string                                 `json:"separator"`
+			PaddingWidth   int                                    `json:"padding_width"`
+			ResetFrequency string                                 `json:"reset_frequency"`
+			ActiveStatus   bool                                   `json:"active_status"`
+			IncludeStore   *bool                                  `json:"include_store"`
+			StoreOverrides map[string]engines.StoreSeriesOverride `json:"store_overrides"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
 			return
 		}
-		if !validResetFrequencies[req.ResetFrequency] {
+		if !validResetFrequencies[strings.ToUpper(strings.TrimSpace(req.ResetFrequency))] {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "reset_frequency must be one of ANNUAL, MONTHLY, NEVER")
 			return
 		}
-		includeStore := true
-		if req.IncludeStore != nil {
-			includeStore = *req.IncludeStore
+		series := engines.NumberSeries{
+			DocType: req.DocType, Prefix: req.Prefix, Suffix: req.Suffix, Separator: req.Separator,
+			PaddingWidth: req.PaddingWidth, ResetFrequency: req.ResetFrequency, ActiveStatus: req.ActiveStatus,
 		}
-
-		query := fmt.Sprintf(`
-			INSERT INTO %s.prefix_configs (doc_type, prefix, separator, padding_width, reset_frequency, active_status, include_store)
-			VALUES ($1, $2, $3, $4, $5, $6, $7)
-			ON CONFLICT (doc_type) DO UPDATE SET
-				prefix = EXCLUDED.prefix,
-				separator = EXCLUDED.separator,
-				padding_width = EXCLUDED.padding_width,
-				reset_frequency = EXCLUDED.reset_frequency,
-				active_status = EXCLUDED.active_status,
-				include_store = COALESCE($8, %s.prefix_configs.include_store)`, schema, schema)
-		_, err = db.DB.Exec(query, req.DocType, req.Prefix, req.Separator, req.PaddingWidth, req.ResetFrequency, req.ActiveStatus, includeStore, req.IncludeStore)
-		if err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		if err := engines.SaveNumberSeries(tenantID, series, req.IncludeStore, req.StoreOverrides); err != nil {
+			writeEngineError(w, r, err, http.StatusInternalServerError)
 			return
 		}
 
-		engines.LogAuditEvent(tenantID, "admin", "UPDATE_PREFIX_CONFIG", "SUCCESS", fmt.Sprintf("Updated prefix config for doc_type: %s", req.DocType))
+		engines.LogAuditEvent(tenantID, r.Header.Get("Resolved-User-ID"), "UPDATE_PREFIX_CONFIG", "SUCCESS", fmt.Sprintf("Updated number series for %s", req.DocType))
 		_ = json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
 
 	default:

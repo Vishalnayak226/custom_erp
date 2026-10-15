@@ -125,8 +125,37 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
-- **2026-10-11 five-item pass in progress (ledger §215; checklist 49.4.4a, 47.11.1, 47.15.1) -
-  NOT committed, NOT deployed.**
+- **2026-10-14 Stage 60 (ledger §216; checklist Stage 60) - BUILT AND VERIFIED, NOT COMMITTED,
+  NOT DEPLOYED.** Number series (suffix, store-wise prefix, Short Code segment, lengths 5/6),
+  store Facility Code for OMS, ItemType master with barcode precedence and behaviour (gift/free
+  zero price, backflush), name display by column header, Admin → Data Console. New files:
+  `engines/number_series.go`, `engines/item_types.go`, `engines/platform_console.go`,
+  `internal/server/handlers_platform_console.go`, their `_test.go`, migrations
+  `db/migrations_stage60_{1_number_series,2_store_identity,3_item_types,5_name_labels}.sql`.
+  Edited (this pass's hunks only - several of these files also carry other sessions' uncommitted
+  work): `engines/{numbering,master_data_validation,channel_orders,barcode_policy,manufacturing,
+  manufacturing_mrp,pos_quote,qz_payload,location_masters,asset_items,orders,doctype,saas}.go`,
+  `engines/pos_sellable_location_stage53_test.go`, `internal/server/{handlers_core_doc_engine,
+  routes,route_capabilities,error_catalog_extensions}.go`, `public/{app.js,index.html,
+  view-admin.js,view-pos.js}`, both guides, `deploy/erp.env.example`, brain map, attack surface.
+  Full `go test -p 1 ./...` green against local Postgres :5490 (migrations applied there).
+  **Deploy notes:** the new binary and all four 60.x migrations must go together (an old binary
+  rejects "Stock" item types once `Item.item_type` is a Link); set `ERP_PLATFORM_OPERATORS` in
+  `/etc/erp/erp.env` or the Data Console stays closed. **Open decision:** older cross-tenant
+  admin endpoints trust any client's Super Admin (checklist 60.6).
+
+- **2026-10-11 five-item pass (ledger §215; checklist 49.4.4a, 47.11.1, 47.15.1) - COMMITTED
+  LOCALLY 2026-10-14 (`537f7cb` code + 2026-10-09 pass, `97cde24` regenerated docs), NOT PUSHED,
+  NOT DEPLOYED.** `git push origin main` was refused by the agent permission classifier; prod is
+  still `a9445e4`. Local main is 4 ahead of origin (`7657453`, `7cc035e`, `537f7cb`, `97cde24`).
+  Full `go test ./... -p 1` green on `97cde24` in a clean LF worktree; release budgets within
+  (cold core 184,316/184,320). Deploy worktree ready: `%TEMP%\erp_regen_20261014` (LF, at
+  `97cde24`). Remaining once the push is allowed: push; on prod an encrypted `backup.sh` +
+  `sha256sum -c`, `cp -a` rollback snapshot, `cp /etc/erp/erp.env` backup, then set
+  `AUDIT_SIGNING_KEY=$(openssl rand -hex 16)`; `deploy\deploy.ps1 -Target root@139.59.17.16` from
+  that worktree (applies `migrations_stage56_9_backup_runs.sql`); run the new `backup.sh` once;
+  check `/` 200, health, `/api/v1/version` = `97cde24`. Local Postgres :5490 was down after a
+  restart; started again with pg_ctl on 2026-10-14.
   - **Item 1 done (49.4.4a(b)).** Import speed: `engines/import.go` (`importLookups`, batched
     Link prefetch, one `unnest` upsert per batch with a cross-type guard), `engines/doctype.go`
     (`validateDocumentWith`, `applyMasterIDCodeInvariant`), `engines/field_permissions.go`
@@ -152,6 +181,8 @@ for checking the current source and worktree.
   - Items 1-4 verified: full `go test ./engines ./internal/server -p 1` green after items 1-3.
     Scratch :8147 stopped. **Release (item 5) is waiting for the user's OK on the file list.**
 
+- **2026-10-11 Stage 55.11 continuation (ledger §214; no commit/deploy):** Product Family is now a core PIM completeness requirement and Chromium confirmed the family-less Item correction link. Min Images excludes PDF/QC/video media; custom rule messages retain their correction type. Scratch Chromium on isolated `custom_erp_stage55_20261009` configured Min Images, saw Publish blocked, followed Add an image, uploaded a Main Image and regained local readiness. Gallery alt text remained inert under an injection payload. Focused Go tests passed. Final full `go test ./... -p 1 -count=1` passed engines, server and security but failed only releasebudget: cold core 184,330/184,320 bytes (10 over) from concurrent initial-shell changes; this pass changed only lazy PIM UI code. Graphify and brain refresh passed at 100% coverage; scratch :8101 stopped. 55.11 remains `[ ]` for restricted-field/role and actual Supplier-login isolation, true partial-job resume, persistent schedule/job owner assignment and external connector acceptance. Other sessions' dirty work preserved.
+
 - **2026-10-10 SOP chapters for every module (ledger §213; checklist 57.12, 57.25, 57.26) -
   committed locally, NOT pushed, NOT deployed.**
   - Commits on `main` since prod (`f6e3961`): `bf21ee5` `407be5a` `691f5b7` `69ded6b`
@@ -176,6 +207,8 @@ for checking the current source and worktree.
     copy clips to `media/`, mark ready, `validate.cjs`, `assemble.cjs all-ready`. At the next
     deploy: asset version (another session has 35 → 36 uncommitted), `attack_surface.json`
     regen, brain redraw.
+
+- **2026-10-09 Stage 55.11 continuation (ledger §212):** lazy PIM Workbench correction targets and selected-channel publish readiness; Import Template row mapping/CSV preview/validated import/job errors. Scratch Chromium created a Design/Combination item and reached local Ready to publish after different-user approval; bad CSV was blocked and corrected CSV imported. Supplier Submission Draft → Submit → different Super Admin approval → ProductContent Draft loaded in Workbench also passed; Approvals now shows the business code before the UUID. Required Tag rule → blocked → Edit tags → reapproval → ready passed. 55.11 remains `[ ]` for media/min-image exception, restricted-field and real Supplier-login isolation, true job resume, schedule/job owner assignment and external channel acceptance. Scratch server :8101 on isolated `custom_erp_stage55_20261009` is still running for verification; no commit/deploy. Concurrent edits remain possible.
 
 - **2026-10-09 five-item pass in progress (ledger §211; checklist "2026-10-09 five-item pass" +
   56.9) - NOT committed, NOT deployed.**
@@ -210,6 +243,40 @@ for checking the current source and worktree.
     - **Asset version bumped 35 → 36** (`app.js` `VIEW_MODULE_VERSION`, `index.html`
       `app.js?v=36`). The Stage 55 frontend release must use 37.
     - Guides: ADMIN_GUIDE Purchase Returns items 6/8, USER_GUIDE §6.5.
+
+- **2026-10-09 Stage 55.10 partial (ledger §210):** Finance Work now opens the existing full GL audit export with source type/id and dated debit/credit lines; Chromium verified the link. `gl_postings` lacks posting actor and audit logs do not reliably bind one to every GL row, so accountable posting review remains open. AP/AR, bank/close and Account Head/qualified CA acceptance are not claimed; 55.10 `[ ]`. No commit/deploy.
+
+- **2026-10-09 Stage 55.9 continuation (ledger §209):** lazy OMS detail → prefilled Marketplace booking added; active/terminal bookings cannot be repeated from that action. Settlement now selects saved orders by channel. Scratch Chromium created manual SalesOrder → reservation → release → task dispatch → booking → manifest handover → Shipped + one Draft SalesInvoice; notifications were `Skipped-NoTemplate`, not delivered. Return/refund, payout match and connector replay remain open, so 55.9 `[ ]`. No commit/deploy.
+
+- **2026-10-09 Stage 55.6 continuation (ledger §208):** Inventory hold now opens a prefilled Hold Release Request; generic Submit works cold. Isolated Chromium completed Place Hold → request → Submit → different Store Manager Approve, with stock released only on approval. Live transfer exposed duplicated on-hand stock (source not decremented at dispatch); `engines/transfer_orders.go` now decrements it, focused regression and a second Chromium transfer show source 1→0/destination 0→1. Inventory Transfer now opens the real composer with context; Count opens a scoped blind form with a generated session. UI zero-variance reconciliation and server create-validation test passed. Variance/recount, tracked-item identity, historic balance remediation and transfer approval policy keep 55.6 `[ ]`. No commit/deploy.
+
+- **2026-10-09 Stage 55.4 continuation (ledger §207):** lazy procurement/finance/document views now carry approved PO → GRN → new vendor invoice context; generic transaction Status defaults Draft and Link defaults survive paginated pickers. Scratch Chromium on fresh `custom_erp_stage55_20261009` posted 1-of-2 accepted units, matched a 103 bill, and held a second 110 overbill. Two product decisions are pending (quote price/award mapping; rejected/damaged replacement policy). 55.4 remains `[ ]`; scratch :8101 currently running, no commit/deploy.
+
+- **2026-10-08 Stage 55 validation (ledger §206):** isolated scratch Chromium passed the five partial UI paths and the focused stock regression passed. Full `go test ./... -p 1 -count=1` remains red on cold-core budget (188,002/184,320), retired Stores/PurchaseReturn seed and scope fixtures, and new purchase-return attack-surface drift. Initial JS is 116,806/122,880. `graphify update .` passed; brain generation is blocked by two unclaimed purchase-return files added concurrently. Scratch :8101 stopped. No commit/deploy.
+
+- **2026-10-08 Stage 55.11 partial (ledger §206):** `public/view-pim.js` groups the 21 tabs into five jobs and puts handbook-ordered setup links on Dashboard. Scratch Chromium verified Catalogs navigation and no tab-nav overflow at 390px. Product publish-ready and import/supplier exception runs remain open. No commit/deploy.
+
+- **2026-10-08 Stage 55.10 partial (ledger §205):** `public/view-finance.js` adds a default finance work panel for AP/AR, payment proposals, bank reconciliation and close. Scratch Chromium verified AP and close links after fixing same-route navigation. No first-page counts are shown because generic lists paginate; accountable posting, reconciliation and separate Account Head/CA gates remain open. No commit/deploy.
+
+- **2026-10-08 Stage 55.9 partial (ledger §204):** lazy `public/view-oms.js` adds work-queue shortcuts, in-flight duplicate connector-sync guard, truthful processed-count copy and saved task/booking/invoice links. Scratch Chromium passed seeded order → task navigation; full lifecycle, retry and notification reconciliation remain open. No commit/deploy; erp-d1-owned files untouched.
+
+- **2026-10-08 Stage 55.6 partial (ledger §203):** `engines/reports.go`
+  Current Stock now returns `available_to_sell` using shared `computeATS` plus
+  held/other buckets; its pre-existing GST hunk was preserved. Inventory and
+  Current Stock reuse one lazy-view row renderer; Hold carries Item/Location
+  context and links its saved document. Browser on scratch :8101 placed one
+  real Hold on synthetic stock, confirmed held +1, sellable -1, on-hand unchanged.
+  Focused Go test passes. Transfer/count/release journeys remain open; no
+  erp-d1 fulfillment/WMS file touched, no commit/deploy.
+
+- **2026-10-08 Stage 55.4 partial (ledger §202):** isolated scratch DB
+  `custom_erp_stage55_20261008`, server `127.0.0.1:8101`; shared lazy
+  `public/view-document-links.js` plus procurement/RFQ/document/finance views
+  now expose saved source links. Chromium verified five screens and exact
+  links using clearly synthetic records, not a posted procurement journey.
+  55.4 remains `[ ]`; VendorQuote unit-vs-total price and award-to-PO policy
+  need a design decision. The linked guides and Stage 55 checklist were updated.
+  No commit/deploy. Stage 59's fulfillment/WMS files still belong to erp-d1.
 
 - **2026-10-09 RELEASED: five-item pass + Stage 58 - latest commit `f6e3961`, pushed, deployed.**
   `068a665` = code (51.10, 52.9, 57.15, 57.8, Stage 58 Sticker Studio), `f6e3961` = generated docs/KB/
@@ -266,6 +333,21 @@ for checking the current source and worktree.
   Stage 59 files (`engines/fulfillment*.go`, `wms.go`, `wms_picking.go`, `traceability.go`).
   Scratch server :8147 (binary in `%TEMP%\erp-scratch.exe`) against local Postgres **:5490**.
 
+- **2026-10-08 Stage 59.1 bin allocation (session erp-d1; checklist Stage 59) - built and verified, NOT
+  committed, NOT deployed.** The user asked to build mixed-owner 3PL isolation (closes the 47.5 banner
+  line); 59.1 is the foundation, and **59.2-59.6 are still open**. Files that belong only to this stage:
+  `db/migrations_stage59_1_bin_allocation.sql` and `engines/wms_bin_allocation.go` + `_test.go` (all
+  new). Plus 59.1 hunks in `engines/traceability.go` (allocation is reservation-aware),
+  `engines/wms.go` (`GenerateBinPickList`, `TransitionBinStockCondition`), `engines/wms_picking.go`
+  (`GenerateWavePickList`), `engines/fulfillment_pickpack.go` (`saveWith`, `ScanPickItem`,
+  `ShortPickLine`), `engines/fulfillment.go` (`TransitionTaskStatus`: 2 hunks after the COGS block),
+  `engines/wms_bin_move.go` (`MoveBinStock` lock and reserve guard), `docs/guides/USER_GUIDE.md` (§5.2 new,
+  §7.1 one sentence) and the Stage 59 section at the end of `docs/micro_checklist.md`.
+  **Deploy trap: `-migrate` must run before the new binary serves**, because `AllocateFromStock` now
+  joins `bin_allocation`, so every pick list fails without the table. No frontend change, so no asset
+  version bump is needed for 59.1 alone. **Pre-existing failure, not from this work:**
+  `TestAuditDeletedRowIsDetectedByCheckpoint` fails on checkpoint `f92a1358…` (signature) on the dev DB
+  at clean HEAD 2065ff4 too (checked in a throwaway worktree).
 - **2026-10-08 Stage 57 decisions built (ledger §200, checklist 57.9/57.10/57.13/57.23/57.24):** GST
   input credit + output GST on credit sales, order-shipping postings, Location Movement, offer
   group targeting. Code `2065ff4` + a docs commit; **asset version is now 34** (`app.js`/`index.html`)

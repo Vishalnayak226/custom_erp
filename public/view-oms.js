@@ -1,6 +1,7 @@
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
+import { documentSearchLink } from './view-document-links.js';
 
 // omsConsoleState is the whole screen's state: the active filter, the current
 // selection, and the last result. Module-level rather than re-derived from the
@@ -14,6 +15,8 @@ let omsConsoleState = {
   selected: new Set(),
   lastResult: null
 };
+const omsSyncInFlight = new Set();
+let omsSettlementOrderIDs = [];
 
 function omsFilterQuery(extra = {}) {
   const params = new URLSearchParams();
@@ -40,6 +43,16 @@ async function renderOMSWorkbenchView(container) {
          styles.css at all, which is why its four tiles rendered as full-width
          stacked bars with an unstyled number. -->
     <div class="dashboard-stats-row" id="oms-tiles"></div>
+    <div class="table-panel" style="padding:16px 24px;margin-bottom:24px;">
+      <h2 style="font-size:16px;margin:0 0 8px;">Start with the work needing attention</h2>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" data-oms-queue="hold">Allocation or payment holds</button>
+        <button class="btn btn-outline btn-sm" data-oms-queue="release">Ready to release</button>
+        <button class="btn btn-outline btn-sm" data-oms-queue="overdue">Overdue open orders</button>
+        <button class="btn btn-outline btn-sm" data-oms-queue="mapping">Unmapped channel items</button>
+        <a class="btn btn-outline btn-sm" href="#/setup/ReturnRequest">Return requests</a>
+      </div>
+    </div>
     <div class="table-panel" style="padding:24px;margin-bottom:24px;">
       <div class="oms-console-head">
         <div><h2 style="font-size:16px;margin:0;">Channel connectors</h2><p class="page-subtitle" style="margin:4px 0 0;">Sync health, lag and unmapped marketplace SKUs.</p></div>
@@ -85,6 +98,18 @@ async function renderOMSWorkbenchView(container) {
     </div>`;
 
   document.getElementById('oms-refresh').addEventListener('click', () => renderView('oms'));
+  container.querySelectorAll('[data-oms-queue]').forEach(button => button.addEventListener('click', async () => {
+    const queue = button.dataset.omsQueue;
+    if (queue === 'mapping') {
+      document.getElementById('oms-sku-exceptions')?.scrollIntoView({ block: 'center' });
+      return;
+    }
+    omsConsoleState.filter = { channel: '', status: queue === 'hold' ? 'On Hold' : queue === 'release' ? 'Reserved' : '', hold_reason: '', location: '', from_date: '', to_date: '', sla_minutes: queue === 'overdue' ? 60 : 0 };
+    omsConsoleState.offset = 0;
+    omsConsoleState.selected.clear();
+    await loadOMSOrders();
+    document.getElementById('oms-order-table')?.scrollIntoView({ block: 'start' });
+  }));
   document.getElementById('oms-search-btn').addEventListener('click', runOMSGlobalSearch);
   document.getElementById('oms-global-search').addEventListener('keydown', e => { if (e.key === 'Enter') runOMSGlobalSearch(); });
   document.getElementById('oms-search-clear').addEventListener('click', () => {
@@ -192,13 +217,22 @@ function formatOMSLag(seconds) {
 async function runOMSChannelSync(button) {
   const channel = button.getAttribute('data-channel');
   const operation = button.getAttribute('data-channel-sync');
+  const key = `${channel}:${operation}`;
+  if (omsSyncInFlight.has(key)) return;
+  omsSyncInFlight.add(key);
   button.disabled = true;
-  const res = await apiFetch(`/api/v1/marketplace/channels/${encodeURIComponent(channel)}/${operation}`, { method: 'POST' });
-  button.disabled = false;
-  if (!res || !res.ok) { if (res) await showApiError(res, 'Channel sync failed.'); return; }
-  const result = await res.json();
-  showToast(`${channel}: ${result.processed || 0} processed, ${result.failed || 0} failed.`, { variant: result.failed ? 'warning' : 'success' });
-  loadOMSConnectorOperations();
+  button.setAttribute('aria-busy', 'true');
+  try {
+    const res = await apiFetch(`/api/v1/marketplace/channels/${encodeURIComponent(channel)}/${operation}`, { method: 'POST' });
+    if (!res || !res.ok) { if (res) await showApiError(res, 'Channel sync failed.'); return; }
+    const result = await res.json();
+    showToast(`${channel}: ${result.processed || 0} processed (including existing order IDs), ${result.failed || 0} failed. Review exceptions before retrying.`, { variant: result.failed ? 'warning' : 'success' });
+    await loadOMSConnectorOperations();
+  } finally {
+    omsSyncInFlight.delete(key);
+    button.disabled = false;
+    button.removeAttribute('aria-busy');
+  }
 }
 
 async function resolveOMSChannelSKU(button) {
@@ -522,13 +556,17 @@ window.openOMSOrderDetail = async function(orderID) {
   const order = d.order || {};
   const status = order.order_status || '';
   const terminal = ['Shipped', 'Delivered', 'Closed', 'Cancelled'].includes(status);
+  const hasLiveBooking = (d.shipments || []).some(shipment => !['Cancelled', 'RTO'].includes(shipment.status));
+  const taskForBooking = !terminal && !hasLiveBooking
+    ? (d.fulfillment_tasks || []).find(task => ['Packed', 'Dispatched'].includes(task.status))
+    : null;
 
-  const section = (title, rows, columns) => `
+  const section = (title, rows, columns, doctype = '') => `
     <h4 class="oms-detail-heading">${escapeHTMLText(title)} <span class="text-muted">(${rows.length})</span></h4>
     ${rows.length === 0
       ? `<p class="text-muted oms-detail-empty">None.</p>`
       : `<div class="table-wrapper"><table><thead><tr>${columns.map(c => `<th>${escapeHTMLText(c.label)}</th>`).join('')}</tr></thead>
-         <tbody>${rows.map(r => `<tr>${columns.map(c => `<td>${escapeHTMLText(String(r[c.key] ?? '—'))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}`;
+         <tbody>${rows.map(r => `<tr>${columns.map(c => `<td>${doctype && c.key === 'id' ? documentSearchLink(doctype, r.id) : escapeHTMLText(String(r[c.key] ?? '—'))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`}`;
 
   const lineRows = (d.lines || []).map(l => `
     <tr>
@@ -567,6 +605,7 @@ window.openOMSOrderDetail = async function(orderID) {
 
         <div class="oms-action-bar">
           ${status === 'Reserved' ? `<button class="btn btn-primary btn-sm" data-action="fulfil" title="Create the pick tasks for this order at its sourcing location(s)">Release to Fulfillment</button>` : ''}
+          ${taskForBooking ? `<button class="btn btn-primary btn-sm" data-action="book" title="Create a carrier booking and AWB for this order">Book shipment</button>` : ''}
           ${status === 'On Hold' ? `<button class="btn btn-primary btn-sm" data-action="release">Release hold</button>` : `<button class="btn btn-outline btn-sm" data-action="hold"${terminal ? ' disabled' : ''}>Hold</button>`}
           <button class="btn btn-outline btn-sm" data-action="edit"${terminal ? ' disabled' : ''}>Edit</button>
           <button class="btn btn-outline btn-sm" data-action="reallocate"${terminal ? ' disabled' : ''}>Reallocate</button>
@@ -584,9 +623,9 @@ window.openOMSOrderDetail = async function(orderID) {
         </table></div>
 
         ${section('Reservations', d.reservations || [], [{ key: 'sku', label: 'SKU' }, { key: 'location_code', label: 'Location' }, { key: 'quantity', label: 'Qty' }, { key: 'reservation_type', label: 'Type' }, { key: 'expires_at', label: 'Expires' }])}
-        ${section('Fulfillment tasks', d.fulfillment_tasks || [], [{ key: 'id', label: 'Task' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Location' }, { key: 'created_at', label: 'Created' }])}
-        ${section('Shipments', d.shipments || [], [{ key: 'id', label: 'Booking' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'AWB' }, { key: 'created_at', label: 'Created' }])}
-        ${section('Invoices', d.invoices || [], [{ key: 'id', label: 'Invoice' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Amount' }, { key: 'created_at', label: 'Created' }])}
+        ${section('Fulfillment tasks', d.fulfillment_tasks || [], [{ key: 'id', label: 'Task' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Location' }, { key: 'created_at', label: 'Created' }], 'FulfillmentTask')}
+        ${section('Shipments', d.shipments || [], [{ key: 'id', label: 'Booking' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'AWB' }, { key: 'created_at', label: 'Created' }], 'LogisticsBooking')}
+        ${section('Invoices', d.invoices || [], [{ key: 'id', label: 'Invoice' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Amount' }, { key: 'created_at', label: 'Created' }], 'SalesInvoice')}
         ${section('Returns', d.returns || [], [{ key: 'id', label: 'Return' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Type' }, { key: 'created_at', label: 'Created' }])}
         ${section('Refunds', d.refunds || [], [{ key: 'id', label: 'Refund' }, { key: 'status', label: 'Status' }, { key: 'detail', label: 'Mode' }, { key: 'created_at', label: 'Created' }])}
         ${section('Notifications', d.notifications || [], [{ key: 'id', label: 'Log' }, { key: 'status', label: 'Dispatch' }, { key: 'detail', label: 'Event' }, { key: 'created_at', label: 'At' }])}
@@ -597,6 +636,7 @@ window.openOMSOrderDetail = async function(orderID) {
   document.body.appendChild(overlay);
 
   const close = () => overlay.remove();
+  overlay.addEventListener('click', event => { if (event.target.closest('a[href^="#/setup/"]')) close(); });
   overlay.querySelector('.modal-close').addEventListener('click', close);
   overlay.querySelector('.modal-footer .btn-secondary').addEventListener('click', close);
 
@@ -621,6 +661,15 @@ window.openOMSOrderDetail = async function(orderID) {
     // FA-20261005-03: the Reserved order's next step - creates its pick
     // tasks, which then appear on the Fulfillment screen.
     if (action === 'fulfil') return omsPost(`${path}/release-to-fulfillment`, {}, 'Failed to release this order to fulfillment.', after);
+    if (action === 'book') {
+      sessionStorage.setItem('erp_marketplace_booking_context', JSON.stringify({
+        order_id: orderID,
+        fulfillment_task_id: taskForBooking.id,
+        destination_pincode: String(order.shipping_address || '').match(/\b\d{6}\b/)?.[0] || ''
+      }));
+      close();
+      return renderView('marketplace');
+    }
     if (action === 'hold') {
       const reasonCode = await showCustomPrompt('Active Hold reason-code:', '', 'Hold Order');
       if (reasonCode === null || !reasonCode.trim()) return;
@@ -931,9 +980,10 @@ async function renderMarketplaceView(container) {
         <label class="form-label" for="mkt-net-payout">Net Payout</label>
         <input type="number" id="mkt-net-payout" class="form-input" style="width: 110px;">
       </div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 180px;">
-        <label class="form-label" for="mkt-order-ids">Order IDs (comma-separated)</label>
-        <input type="text" id="mkt-order-ids" class="form-input">
+      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 220px;">
+        <label class="form-label" for="mkt-order-pick">Orders in this payout</label>
+        <div style="display:flex;gap:8px;"><input type="text" id="mkt-order-pick" class="form-input" placeholder="Find a saved order"><button class="btn btn-outline" id="mkt-order-add" type="button">Add</button></div>
+        <div id="mkt-order-selected" aria-live="polite"></div>
       </div>
       <button class="btn btn-primary" id="mkt-reconcile-btn">Reconcile</button>
     </div>
@@ -1100,10 +1150,58 @@ async function renderMarketplaceView(container) {
   container.appendChild(manifestPanel);
 
   document.getElementById('mkt-reconcile-btn').addEventListener('click', submitMarketplaceReconcile);
+  document.getElementById('mkt-order-add').addEventListener('click', addOMSSettlementOrder);
+  document.getElementById('mkt-channel').addEventListener('change', () => { omsSettlementOrderIDs = []; renderOMSSettlementOrderSelection(); });
+  attachLinkTypeahead(document.getElementById('mkt-order-pick'), 'SalesOrder', { noSetupHint: true });
+  renderOMSSettlementOrderSelection();
   document.getElementById('mkt-book-btn').addEventListener('click', submitLogisticsBooking);
   document.getElementById('mkt-manifest-btn').addEventListener('click', submitGenerateManifest);
+  attachLinkTypeahead(document.getElementById('mkt-order-id'), 'SalesOrder', { noSetupHint: true });
+  attachLinkTypeahead(document.getElementById('mkt-fulfillment-task-id'), 'FulfillmentTask', { noSetupHint: true });
   attachLinkTypeahead(document.getElementById('mkt-manifest-location'), 'Location');
+  const bookingContext = sessionStorage.getItem('erp_marketplace_booking_context');
+  sessionStorage.removeItem('erp_marketplace_booking_context');
+  if (bookingContext) {
+    try {
+      const source = JSON.parse(bookingContext);
+      document.getElementById('mkt-order-id').value = String(source.order_id || '');
+      document.getElementById('mkt-fulfillment-task-id').value = String(source.fulfillment_task_id || '');
+      document.getElementById('mkt-pincode').value = String(source.destination_pincode || '');
+      document.getElementById('mkt-booking-error').textContent = 'Review the destination pincode and choose a serviceable carrier before booking.';
+      document.getElementById('mkt-booking-error').classList.remove('hidden');
+      document.getElementById('mkt-booking-error').classList.add('info');
+    } catch (error) { /* An old navigation hint cannot block a fresh booking. */ }
+  }
   populateMarketplaceChannelOptions();
+}
+
+function renderOMSSettlementOrderSelection() {
+  const host = document.getElementById('mkt-order-selected');
+  if (!host) return;
+  host.innerHTML = omsSettlementOrderIDs.length
+    ? omsSettlementOrderIDs.map(id => `<span class="badge badge-secondary" style="margin:4px 4px 0 0;">${escapeHTMLText(id)} <button type="button" class="action-btn" data-remove-settlement-order="${escapeHTMLText(id)}" aria-label="Remove order ${escapeHTMLText(id)}">×</button></span>`).join('')
+    : '<small class="text-muted">Choose saved orders; no comma-separated IDs needed.</small>';
+  host.querySelectorAll('[data-remove-settlement-order]').forEach(button => button.addEventListener('click', () => {
+    omsSettlementOrderIDs = omsSettlementOrderIDs.filter(id => id !== button.dataset.removeSettlementOrder);
+    renderOMSSettlementOrderSelection();
+  }));
+}
+
+async function addOMSSettlementOrder() {
+  const input = document.getElementById('mkt-order-pick');
+  const id = input?.value.trim();
+  if (!id) { showToast('Choose an existing order first.', { variant: 'warning' }); return; }
+  const res = await apiFetch(`/api/v1/doc/SalesOrder/${encodeURIComponent(id)}`);
+  if (!res || !res.ok) { if (res) await showApiError(res, 'That order was not found.'); return; }
+  const order = await res.json();
+  const channel = document.getElementById('mkt-channel').value;
+  if (String(order.channel || '') !== channel) {
+    showToast(`Order ${id} belongs to ${order.channel || 'another source'}, not ${channel}.`, { variant: 'warning' });
+    return;
+  }
+  if (!omsSettlementOrderIDs.includes(id)) omsSettlementOrderIDs.push(id);
+  input.value = '';
+  renderOMSSettlementOrderSelection();
 }
 
 // Stage 35.8: Settlement Reconciliation panel - reads the
@@ -1273,10 +1371,10 @@ async function submitMarketplaceReconcile() {
   const totalSale = parseFloat(document.getElementById('mkt-total-sale').value);
   const commission = parseFloat(document.getElementById('mkt-commission').value) || 0;
   const netPayout = parseFloat(document.getElementById('mkt-net-payout').value) || 0;
-  const orderIds = document.getElementById('mkt-order-ids').value.split(',').map(s => s.trim()).filter(Boolean);
+  const orderIds = [...omsSettlementOrderIDs];
 
-  if (!settlementId || !totalSale || totalSale <= 0) {
-    errorEl.textContent = 'Settlement ID and a positive Total Sale are required.';
+  if (!settlementId || !totalSale || totalSale <= 0 || orderIds.length === 0) {
+    errorEl.textContent = 'Settlement ID, a positive Total Sale and at least one saved order from this channel are required.';
     errorEl.classList.remove('hidden');
     return;
   }
@@ -1298,6 +1396,7 @@ async function submitMarketplaceReconcile() {
     errorEl.classList.remove('hidden');
     return;
   }
+  omsSettlementOrderIDs = [];
   renderView('marketplace');
 }
 

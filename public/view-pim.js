@@ -1,8 +1,29 @@
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
-// Where the PIM tab bar was scrolled to, kept across re-renders (Stage 57).
-let pimTabBarScrollLeft = 0;
+const PIM_GROUPS = [
+  { id: 'products', label: 'Products', tabs: ['dashboard', 'workbench', 'reports', 'families', 'attributes', 'attribute-groups', 'family-attributes'] },
+  { id: 'work', label: 'My work', tabs: ['my-work', 'supplier-submissions', 'task-templates', 'workflows'] },
+  { id: 'media', label: 'Media', tabs: ['media-library'] },
+  { id: 'channels', label: 'Channels & publishing', tabs: ['channels', 'channel-category-map', 'channel-field-map', 'channel-validation-rules', 'catalogs', 'export-templates', 'export-schedules'] },
+  { id: 'advanced', label: 'Advanced setup', tabs: ['import-templates', 'import-schedules'] }
+];
+
+function openPIMTab(tab) {
+  if (!tab) return;
+  setActiveMenu('menu-pim');
+  closeSubmenus();
+  currentPIMTab = tab.id;
+  if (tab.doctype) {
+    currentDoctype = tab.doctype;
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    renderView('doctype-table');
+    return;
+  }
+  currentPIMSelectedItem = '';
+  renderView('pim');
+}
 
 function renderPIMShellHeader(container) {
   const header = document.createElement('div');
@@ -15,87 +36,41 @@ function renderPIMShellHeader(container) {
   `;
   container.appendChild(header);
 
-  const tabBar = document.createElement('div');
-  tabBar.style.display = 'flex';
-  tabBar.style.gap = '8px';
-  tabBar.style.marginBottom = '16px';
-  // Stage 45: at a narrow enough width/zoom this row is wider than the page
-  // - .page-container clips overflow-x rather than scrolling it, so without
-  // this the trailing tabs were just gone with no way back to them. Scoping
-  // the scroll to the bar itself (not the whole page) keeps the rest of the
-  // screen from picking up a horizontal scrollbar too.
-  //
-  // flex-shrink: 0 is load-bearing, not decorative. Verified live: setting
-  // only overflow-x on a flex item inside .page-container's column flexbox
-  // let the whole bar collapse to 0px height whenever the page's other
-  // content was tall enough to overflow vertically - overflow-x non-visible
-  // suppresses this item's automatic min-height (content-based sizing only
-  // applies when overflow is 'visible'), and per the CSS Overflow spec the
-  // *used* value of overflow-y becomes 'auto' here regardless of what's
-  // declared (confirmed: getComputedStyle still reports 'auto' even with
-  // overflow-y explicitly set to 'visible' below - that line documents
-  // intent but does not itself prevent the collapse). flex-shrink: 0 is what
-  // actually fixes it: it exempts the item from shrinking at all, which
-  // sidesteps the automatic-minimum-size calculation entirely rather than
-  // trying to win it.
-  tabBar.style.overflowX = 'auto';
-  tabBar.style.overflowY = 'visible';
-  tabBar.style.flexShrink = '0';
-  tabBar.innerHTML = PIM_TABS.map(t =>
-    `<button class="btn ${t.id === currentPIMTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-pim-tab="${t.id}">${t.label}</button>`
-  ).join('');
-  container.appendChild(tabBar);
-  // Stage 57 (user QA): every tab click re-renders the whole screen, which
-  // rebuilt this bar scrolled back to its first tab - so picking Catalog
-  // (far right) snapped the strip to the start and hid the tab just chosen.
-  // The bar's scroll position is carried across the re-render, then nudged
-  // only if the active tab would otherwise be out of view.
-  // The screen is built off-page and settles over several layouts (attached
-  // at a 1px width first), so the position is re-applied each time the bar
-  // reaches a real width, until the user scrolls it themselves - and a
-  // position read from a collapsed bar is never remembered.
-  const REAL_WIDTH = 40;
-  let userMovedBar = false;
-  const restoreTabScroll = () => {
-    if (userMovedBar || !tabBar.isConnected || tabBar.clientWidth < REAL_WIDTH) return;
-    tabBar.scrollLeft = pimTabBarScrollLeft;
-    const active = tabBar.querySelector('.btn-primary');
-    if (active) {
-      const left = active.offsetLeft - tabBar.offsetLeft;
-      const right = left + active.offsetWidth;
-      if (left < tabBar.scrollLeft) tabBar.scrollLeft = Math.max(0, left - 16);
-      else if (right > tabBar.scrollLeft + tabBar.clientWidth) tabBar.scrollLeft = right - tabBar.clientWidth + 16;
-    }
-  };
-  restoreTabScroll();
-  new ResizeObserver(restoreTabScroll).observe(tabBar);
-  ['wheel', 'pointerdown', 'touchstart', 'keydown'].forEach(type =>
-    tabBar.addEventListener(type, () => { userMovedBar = true; }, { passive: true }));
-  tabBar.addEventListener('scroll', () => {
-    if (tabBar.clientWidth >= REAL_WIDTH) pimTabBarScrollLeft = tabBar.scrollLeft;
-  }, { passive: true });
-  tabBar.querySelectorAll('[data-pim-tab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      pimTabBarScrollLeft = tabBar.scrollLeft;
-      const tab = PIM_TABS.find(t => t.id === btn.getAttribute('data-pim-tab'));
-      setActiveMenu('menu-pim');
-      closeSubmenus();
-      currentPIMTab = tab.id;
-      if (tab.doctype) {
-        currentDoctype = tab.doctype;
-        currentSearchQuery = '';
-        currentTablePage = 1;
-        renderView('doctype-table');
-        return;
-      }
-      currentPIMSelectedItem = '';
-      renderView('pim');
-    });
+  const activeGroup = PIM_GROUPS.find(group => group.tabs.includes(currentPIMTab)) || PIM_GROUPS[0];
+  const groupBar = document.createElement('nav');
+  groupBar.setAttribute('aria-label', 'PIM jobs');
+  groupBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;flex-shrink:0';
+  PIM_GROUPS.forEach(group => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `btn btn-sm ${group.id === activeGroup.id ? 'btn-primary' : 'btn-outline'}`;
+    button.textContent = group.label;
+    button.setAttribute('aria-current', group.id === activeGroup.id ? 'true' : 'false');
+    button.addEventListener('click', () => openPIMTab(PIM_TABS.find(tab => tab.id === group.tabs[0])));
+    groupBar.appendChild(button);
   });
+  container.appendChild(groupBar);
+  const tabBar = document.createElement('nav');
+  tabBar.setAttribute('aria-label', `${activeGroup.label} screens`);
+  tabBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;flex-shrink:0;min-width:0';
+  activeGroup.tabs.forEach(id => {
+    const tab = PIM_TABS.find(candidate => candidate.id === id);
+    if (!tab) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `btn btn-sm ${tab.id === currentPIMTab ? 'btn-primary' : 'btn-outline'}`;
+    button.textContent = tab.label;
+    button.setAttribute('aria-current', tab.id === currentPIMTab ? 'page' : 'false');
+    button.addEventListener('click', () => openPIMTab(tab));
+    tabBar.appendChild(button);
+  });
+  container.appendChild(tabBar);
 }
 
 async function renderPIMView(container) {
   renderPIMShellHeader(container);
+
+  if (currentPIMTab === 'dashboard') renderPIMSetupPath(container);
 
   if (currentPIMTab === 'dashboard') {
     await renderPIMDashboardTab(container);
@@ -108,6 +83,42 @@ async function renderPIMView(container) {
   } else if (currentPIMTab === 'media-library') {
     await renderPIMMediaLibraryTab(container);
   }
+}
+
+function renderPIMSetupPath(container) {
+  const panel = document.createElement('section');
+  panel.className = 'table-panel';
+  panel.style.cssText = 'padding:16px;margin-bottom:16px';
+  const title = document.createElement('h2');
+  title.textContent = 'Set up a product for publishing';
+  panel.appendChild(title);
+  const steps = [
+    ['1. Item (SKU, HSN and GST)', 'Item'],
+    ['2. Product Family', 'families'],
+    ['3. Attribute Definitions', 'attributes'],
+    ['4. Family Attributes', 'family-attributes'],
+    ['5. Assign the Item to its family', 'Item'],
+    ['6. Enrich content and media in Workbench', 'workbench'],
+    ['7. Check completeness and missing fields', 'reports'],
+    ['8. Configure channel mappings and validation', 'channels'],
+    ['9. Publish from Workbench when ready', 'workbench']
+  ];
+  const list = document.createElement('ol');
+  list.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 20px;padding-left:24px';
+  steps.forEach(([label, target]) => {
+    const item = document.createElement('li');
+    const link = document.createElement('a');
+    link.href = target === 'Item' ? '#/setup/Item' : '#/view/pim';
+    link.textContent = label;
+    if (target !== 'Item') link.addEventListener('click', event => {
+      event.preventDefault();
+      openPIMTab(PIM_TABS.find(tab => tab.id === target));
+    });
+    item.appendChild(link);
+    list.appendChild(item);
+  });
+  panel.appendChild(list);
+  container.appendChild(panel);
 }
 
 // Stage 36.6.3: catalog-wide media browse/search/tag - the per-item gallery
@@ -1040,9 +1051,12 @@ async function renderPIMDetailPanel(container, itemCode) {
   panel.style.marginTop = '16px';
   panel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;"><span data-link-ref="${escapeHTMLText(itemCode)}" data-link-doctype="Item">${escapeHTMLText(itemCode)}</span> - Completeness: ${escapeHTMLText(comp.score)}% <span class="badge badge-secondary" style="margin-left: 8px;">${escapeHTMLText(comp.enrichment_status || '')}</span></h2>
-    <p style="color: var(--text-muted); margin-bottom: 16px;">
-      Missing: ${comp.missing_fields && comp.missing_fields.length > 0 ? escapeHTMLText(comp.missing_fields.join(', ')) : 'Nothing - fully complete.'}
-    </p>
+    <div class="pim-missing-fields" style="margin-bottom:16px;">
+      <strong>What to fix next</strong>
+      ${comp.missing_fields && comp.missing_fields.length > 0
+        ? `<ul style="margin:8px 0 0;padding-left:20px;">${comp.missing_fields.map(field => `<li>${escapeHTMLText(field)} — ${pimCorrectionMarkup(field, attrDefs)}</li>`).join('')}</ul>`
+        : '<p style="margin:8px 0 0;color:var(--text-muted);">Core product is complete. Check a channel below before publishing.</p>'}
+    </div>
 
     <h3 style="font-size: 14px; font-weight: 700; margin-bottom: 12px;">Add / Update Attribute Value</h3>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 24px;">
@@ -1075,6 +1089,7 @@ async function renderPIMDetailPanel(container, itemCode) {
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
       <h3 style="font-size: 14px; font-weight: 700; margin: 0;">Content</h3>
       <button class="btn btn-outline btn-sm" id="pim-content-assist-btn" title="Draft title, descriptions and tags from this product's own stored data. Nothing is saved until you click Save Draft.">Assist</button>
+      <span class="text-muted" id="pim-content-current" role="status">Loading saved content…</span>
     </div>
     <div id="pim-content-assist-note" class="hidden" style="margin-bottom: 12px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-color); font-size: 13px; color: var(--text-muted);"></div>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
@@ -1167,8 +1182,9 @@ async function renderPIMDetailPanel(container, itemCode) {
         <select id="pim-publish-channel" class="form-input" style="width: 200px;"><option value="">Loading...</option></select>
       </div>
       <button class="btn btn-outline" id="pim-publish-preview-btn">Preview</button>
-      <button class="btn btn-primary" id="pim-publish-btn">Publish</button>
+      <button class="btn btn-primary" id="pim-publish-btn" disabled>Publish</button>
     </div>
+    <div id="pim-publish-readiness" role="status" style="margin-bottom:12px;">Checking channel requirements…</div>
     <div id="pim-publish-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
     <div id="pim-publish-preview" style="margin-bottom: 12px;"></div>
     <div id="pim-publish-log"></div>
@@ -1178,18 +1194,141 @@ async function renderPIMDetailPanel(container, itemCode) {
   `;
   container.appendChild(panel);
 
+  panel.querySelectorAll('[data-pim-correction]').forEach(button => button.addEventListener('click', () => {
+    const target = button.getAttribute('data-pim-correction');
+    if (target === 'item') {
+      window.location.hash = '#/setup/Item';
+    } else if (target === 'attribute') {
+      const select = panel.querySelector('#pim-attr-select');
+      const option = [...select.options].find(candidate => candidate.textContent === button.getAttribute('data-pim-field'));
+      if (option) select.value = option.value;
+      panel.querySelector('#pim-attr-value').focus();
+    } else if (target === 'content') {
+      panel.querySelector('#pim-content-title').focus();
+    }
+  }));
+
   document.getElementById('pim-attr-save-btn').addEventListener('click', () => savePIMAttributeValue(itemCode));
   document.getElementById('pim-content-assist-btn').addEventListener('click', () => runPIMContentAssist(itemCode));
   document.getElementById('pim-content-save-btn').addEventListener('click', () => savePIMContent(itemCode, 'Draft'));
   document.getElementById('pim-content-submit-btn').addEventListener('click', () => submitPIMContent(itemCode));
+  document.getElementById('pim-content-lang').addEventListener('change', async () => {
+    await loadPIMContentDraft(itemCode);
+    await renderPIMContentHistory(itemCode);
+  });
   document.getElementById('pim-media-upload-btn').addEventListener('click', () => uploadPIMMedia(itemCode));
   document.getElementById('pim-publish-btn').addEventListener('click', () => publishPIMItem(itemCode));
   document.getElementById('pim-publish-preview-btn').addEventListener('click', () => previewPIMPublish(itemCode));
 
+  await loadPIMContentDraft(itemCode);
   await renderPIMMediaGallery(itemCode);
   await renderPIMPublishSection(itemCode);
   await renderPIMContentHistory(itemCode);
   await renderPIMRelatedProducts(itemCode);
+}
+
+function pimCorrectionMarkup(field, attrDefs) {
+  const escaped = escapeHTMLText(field);
+  if (field.startsWith('Approved Content')) {
+    return '<button type="button" class="btn btn-link btn-sm" data-pim-correction="content">Complete content and submit it for approval below</button>';
+  }
+  if (['name', 'barcode', 'category', 'hsn_code', 'gst_rate', 'Product Family'].includes(field)) {
+    return '<button type="button" class="btn btn-link btn-sm" data-pim-correction="item">Edit this in Setup → Item</button>';
+  }
+  if (attrDefs.some(def => (def.label || def.code || def.id) === field)) {
+    return `<button type="button" class="btn btn-link btn-sm" data-pim-correction="attribute" data-pim-field="${escaped}">Enter its value below</button>`;
+  }
+  return 'Review the product family or channel setup.';
+}
+
+// Keep template authoring in the generic table, but make its existing
+// mapping/preview/import endpoints usable from the template row itself.
+async function openPIMImportTemplateRun(templateID) {
+  document.getElementById('pim-import-run-modal')?.remove();
+  const overlay = document.createElement('div');
+  overlay.id = 'pim-import-run-modal';
+  overlay.className = 'modal-overlay open';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-label', 'Preview and import catalog CSV');
+  overlay.innerHTML = `<div class="modal-container" style="max-width:820px;">
+    <div class="modal-header"><h3 class="modal-title">Preview and import catalog CSV</h3><button type="button" class="modal-close" aria-label="Close">&times;</button></div>
+    <div class="modal-body">
+      <p>Template: <strong>${escapeHTMLText(templateID)}</strong>. Check the source-to-target fields, then preview your CSV. Import is enabled only when that exact file passes validation.</p>
+      <div id="pim-import-mapping" role="status">Loading field mapping…</div>
+      <div class="form-group" style="margin-top:16px;"><label class="form-label" for="pim-import-file">CSV file</label><input class="form-input" type="file" id="pim-import-file" accept=".csv,text/csv"></div>
+      <div id="pim-import-result" role="status"></div>
+    </div>
+    <div class="modal-footer"><button type="button" class="btn btn-secondary" id="pim-import-close">Close</button><button type="button" class="btn btn-outline" id="pim-import-preview">Preview (no changes)</button><button type="button" class="btn btn-primary" id="pim-import-commit" disabled>Import validated file</button></div>
+  </div>`;
+  document.body.appendChild(overlay);
+  const fileInput = overlay.querySelector('#pim-import-file');
+  const previewButton = overlay.querySelector('#pim-import-preview');
+  const commitButton = overlay.querySelector('#pim-import-commit');
+  const resultEl = overlay.querySelector('#pim-import-result');
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close').addEventListener('click', close);
+  overlay.querySelector('#pim-import-close').addEventListener('click', close);
+  overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
+  fileInput.addEventListener('change', () => { commitButton.disabled = true; resultEl.textContent = 'Preview this file before importing.'; });
+  const mappingRes = await apiFetch(`/api/v1/pim/import-templates/${encodeURIComponent(templateID)}/preview-mapping`);
+  if (!overlay.isConnected) return;
+  const mappingEl = overlay.querySelector('#pim-import-mapping');
+  if (!mappingRes || !mappingRes.ok) {
+    mappingEl.textContent = 'Field mapping could not be loaded. Refresh the template and try again.';
+    previewButton.disabled = true;
+    return;
+  }
+  const mapping = await mappingRes.json();
+  const rows = mapping.mappings || [];
+  mappingEl.innerHTML = `<p style="margin:8px 0;">Target: <strong>${escapeHTMLText(mapping.target_doctype)}</strong></p><div class="table-wrapper"><table><thead><tr><th>CSV column</th><th>ERP field</th><th>Transform</th><th>Default</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escapeHTMLText(row.source_column)}</td><td>${row.target_label ? escapeHTMLText(row.target_label) : `<span class="badge badge-danger">Unknown: ${escapeHTMLText(row.target_field)}</span>`}</td><td>${escapeHTMLText(row.transform_rule || '')}</td><td>${escapeHTMLText(row.default_value || '')}</td></tr>`).join('')}</tbody></table></div>`;
+  if (rows.length === 0 || rows.some(row => !row.target_label)) {
+    previewButton.disabled = true;
+    resultEl.textContent = 'Repair the template mapping before uploading a file.';
+    return;
+  }
+  const run = async dryRun => {
+    const file = fileInput.files[0];
+    if (!file) { resultEl.textContent = 'Choose a CSV file first.'; return; }
+    previewButton.disabled = true;
+    commitButton.disabled = true;
+    resultEl.textContent = dryRun ? 'Validating file without writing…' : 'Importing validated file…';
+    const body = new FormData(); body.append('file', file);
+    const action = dryRun ? 'preview' : 'import';
+    const res = await apiUpload(`/api/v1/pim/import-templates/${encodeURIComponent(templateID)}/${action}`, body);
+    if (!overlay.isConnected) return;
+    previewButton.disabled = false;
+    if (!res || !res.ok) {
+      const error = res ? await res.json().catch(() => ({})) : {};
+      resultEl.textContent = error.error || 'File validation failed. Correct the CSV and preview again.';
+      return;
+    }
+    const outcome = await res.json();
+    const errors = outcome.errors || [];
+    resultEl.innerHTML = `<p><strong>${dryRun ? 'Preview only — nothing written' : 'Import completed'}</strong>: ${escapeHTMLText(outcome.total_rows)} row(s), ${escapeHTMLText(outcome.created_ids?.length || 0)} created, ${escapeHTMLText(outcome.updated_ids?.length || 0)} updated, ${escapeHTMLText(outcome.failed_rows || 0)} failed.</p>${errors.length ? `<ul>${errors.slice(0,20).map(error => `<li>Row ${escapeHTMLText(error.row_number)}: ${escapeHTMLText(error.message)}</li>`).join('')}</ul>${errors.length > 20 ? '<p>More error rows are in the job download.</p>' : ''}` : ''}`;
+    if (dryRun) {
+      commitButton.disabled = outcome.total_rows < 1 || outcome.failed_rows > 0;
+      if (outcome.failed_rows > 0) resultEl.insertAdjacentHTML('beforeend', '<p>Correct the file and preview it again. No rows were imported.</p>');
+    } else {
+      fileInput.value = '';
+      if (outcome.import_job_id) {
+        const download = document.createElement('button');
+        download.type = 'button'; download.className = 'btn btn-outline btn-sm';
+        download.textContent = `Download job ${outcome.import_job_id} error rows`;
+        download.addEventListener('click', async () => {
+          const response = await apiFetch(`/api/v1/pim/import-jobs/${encodeURIComponent(outcome.import_job_id)}/errors.csv`);
+          if (!response || !response.ok) { await showApiError(response, 'Could not download error rows.'); return; }
+          const url = URL.createObjectURL(await response.blob());
+          const link = document.createElement('a'); link.href = url; link.download = `pim_import_${outcome.import_job_id}_errors.csv`; link.click(); URL.revokeObjectURL(url);
+        });
+        resultEl.appendChild(download);
+      }
+      resultEl.insertAdjacentHTML('beforeend', '<p>Keep the job result for audit. To continue after a failure, correct the CSV and preview a new upload; this screen does not resume a partly processed job.</p>');
+    }
+  };
+  previewButton.addEventListener('click', () => run(true));
+  commitButton.addEventListener('click', () => run(false));
+  fileInput.focus();
 }
 
 // renderPIMRelatedProducts (Stage 36.7.3): other Active items in the same
@@ -1309,12 +1448,12 @@ async function renderPIMMediaGallery(itemCode) {
   }
 
   gallery.innerHTML = media.map(m => `
-    <div class="table-panel" style="padding: 8px; width: 150px;" data-media-card="${m.id}">
-      <div style="font-size: 11px; font-weight: 600; margin-bottom: 4px;">${m.media_role} <span class="text-muted">v${m.version_no || 1}</span></div>
-      <img data-media-thumb="${m.id}" style="width: 100%; height: 90px; object-fit: cover; background: var(--bg-secondary); border-radius: 4px;" alt="${m.alt_text || m.media_role}">
-      <div class="text-muted" style="font-size:10px; margin-top:4px; word-break:break-word;">${m.alt_text || 'No alt text'}${m.expiry_date ? ` · expires ${m.expiry_date}` : ''}</div>
-      <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 6px;" data-edit-media="${m.id}" data-alt="${m.alt_text || ''}" data-expiry="${m.expiry_date || ''}">Edit Alt/Expiry</button>
-      <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 4px;" data-deactivate-media="${m.id}">Deactivate</button>
+    <div class="table-panel" style="padding: 8px; width: 150px;" data-media-card="${escapeHTMLText(m.id)}">
+      <div style="font-size: 11px; font-weight: 600; margin-bottom: 4px;">${escapeHTMLText(m.media_role)} <span class="text-muted">v${escapeHTMLText(m.version_no || 1)}</span></div>
+      <img data-media-thumb="${escapeHTMLText(m.id)}" style="width: 100%; height: 90px; object-fit: cover; background: var(--bg-secondary); border-radius: 4px;" alt="${escapeHTMLText(m.alt_text || m.media_role)}">
+      <div class="text-muted" style="font-size:10px; margin-top:4px; word-break:break-word;">${escapeHTMLText(m.alt_text || 'No alt text')}${m.expiry_date ? ` · expires ${escapeHTMLText(m.expiry_date)}` : ''}</div>
+      <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 6px;" data-edit-media="${escapeHTMLText(m.id)}" data-alt="${escapeHTMLText(m.alt_text || '')}" data-expiry="${escapeHTMLText(m.expiry_date || '')}">Edit Alt/Expiry</button>
+      <button class="btn btn-outline btn-sm" style="width: 100%; margin-top: 4px;" data-deactivate-media="${escapeHTMLText(m.id)}">Deactivate</button>
     </div>
   `).join('');
 
@@ -1400,7 +1539,10 @@ async function renderPIMPublishSection(itemCode) {
   const channels = channelsRes && channelsRes.ok ? await channelsRes.json() : [];
   select.innerHTML = channels.length === 0
     ? `<option value="">No channels configured</option>`
-    : channels.map(c => `<option value="${c.code || c.id}">${c.name || c.code || c.id}</option>`).join('');
+    : channels.map(c => `<option value="${escapeHTMLText(c.code || c.id)}">${escapeHTMLText(c.name || c.code || c.id)}</option>`).join('');
+
+  select.addEventListener('change', () => checkPIMPublishReadiness(itemCode));
+  await checkPIMPublishReadiness(itemCode);
 
   const logRes = await apiFetch(`/api/v1/pim/publish-log?item=${encodeURIComponent(itemCode)}`);
   const log = logRes && logRes.ok ? await logRes.json() : [];
@@ -1410,8 +1552,60 @@ async function renderPIMPublishSection(itemCode) {
     // attempt be triaged at a glance (missing credential vs. duplicate SKU
     // vs. a blank required field) instead of only reading the raw message.
     : `<table><thead><tr><th>Channel</th><th>Status</th><th>External ID</th><th>Error Code</th><th>When</th></tr></thead><tbody>${
-        log.map(l => `<tr><td>${l.channel_code}</td><td><span class="badge ${l.status === 'Published' ? 'badge-success' : 'badge-danger'}">${l.status}</span></td><td style="font-family: monospace;">${l.external_id || ''}</td><td style="font-family: monospace;">${l.error_code || ''}</td><td>${l.created_at || ''}</td></tr>`).join('')
+        log.map(l => `<tr><td>${escapeHTMLText(l.channel_code)}</td><td><span class="badge ${l.status === 'Published' ? 'badge-success' : 'badge-danger'}">${escapeHTMLText(l.status)}</span></td><td style="font-family: monospace;">${escapeHTMLText(l.external_id || '')}</td><td style="font-family: monospace;">${escapeHTMLText(l.error_code || '')}</td><td>${escapeHTMLText(l.created_at || '')}</td></tr>`).join('')
       }</tbody></table>`;
+}
+
+async function checkPIMPublishReadiness(itemCode) {
+  const select = document.getElementById('pim-publish-channel');
+  const status = document.getElementById('pim-publish-readiness');
+  const publish = document.getElementById('pim-publish-btn');
+  if (!select || !status || !publish) return;
+  const channel = select.value;
+  publish.disabled = true;
+  if (!channel) {
+    status.textContent = 'Set up a channel under Channels & publishing to check readiness.';
+    return;
+  }
+  status.textContent = 'Checking channel requirements…';
+  const res = await apiFetch(`/api/v1/pim/completeness/${encodeURIComponent(itemCode)}?channel=${encodeURIComponent(channel)}`);
+  if (select.value !== channel || currentPIMSelectedItem !== itemCode) return;
+  if (!res || !res.ok) {
+    status.textContent = 'Readiness could not be checked. Check your connection or channel setup and retry by selecting the channel again.';
+    return;
+  }
+  const result = await res.json();
+  const readiness = result.publish_readiness;
+  if (!readiness) {
+    status.textContent = 'Readiness information is unavailable; publishing is paused.';
+    return;
+  }
+  publish.disabled = !readiness.ready;
+  if (readiness.ready) {
+    status.textContent = `Ready to publish to ${select.selectedOptions[0]?.textContent || channel}. This queues a local publish job; an external marketplace receipt must be checked separately.`;
+  } else {
+    const issues = readiness.missing_fields || [];
+    status.innerHTML = `<strong>Not ready for ${escapeHTMLText(select.selectedOptions[0]?.textContent || channel)}:</strong><ul style="margin:8px 0 0;padding-left:20px;">${issues.map(issue => `<li>${escapeHTMLText(issue)} ${pimReadinessCorrectionMarkup(issue)}</li>`).join('')}</ul><p style="margin:8px 0 0;">After correcting these, select the channel again to recheck.</p>`;
+    status.querySelectorAll('[data-pim-ready-action]').forEach(button => button.addEventListener('click', () => {
+      const target = button.getAttribute('data-pim-ready-action');
+      if (target === 'item') { window.location.hash = '#/setup/Item'; return; }
+      if (target === 'category') { openPIMTab(PIM_TABS.find(tab => tab.id === 'channel-category-map')); return; }
+      const field = document.getElementById(`pim-${target}`);
+      if (field) { field.focus(); field.scrollIntoView({ block: 'center' }); }
+    }));
+  }
+}
+
+function pimReadinessCorrectionMarkup(issue) {
+  let action = '', label = '';
+  if (issue.startsWith('category mapping')) { action = 'category'; label = 'Open Category Mapping'; }
+  else if (issue.startsWith('Required Tag')) { action = 'content-tags'; label = 'Edit tags'; }
+  else if (issue.startsWith('Max Title Length')) { action = 'content-title'; label = 'Edit title'; }
+  else if (issue.startsWith('Min Images') || issue.toLowerCase().includes('primary image')) { action = 'media-file'; label = 'Add an image'; }
+  else if (issue.startsWith('Approved Content')) { action = 'content-title'; label = 'Submit content for approval'; }
+  else if (['name', 'barcode', 'category', 'hsn_code', 'gst_rate', 'Product Family'].includes(issue)) { action = 'item'; label = 'Edit Item'; }
+  if (!action) return '';
+  return `<button type="button" class="btn btn-link btn-sm" data-pim-ready-action="${action}">${label}</button>`;
 }
 
 // previewPIMPublish (Stage 26.4.7) shows the outbound payload that would be
@@ -1440,9 +1634,33 @@ async function previewPIMPublish(itemCode) {
   previewEl.innerHTML = `
     <h4 style="font-size:13px;font-weight:700;margin-bottom:8px;">${preview.has_prior_snapshot ? 'Diff vs. last publish attempt' : 'Outbound payload (no prior publish attempt for this channel to diff against)'}</h4>
     <table><thead><tr><th>Field</th><th>Previously Published</th><th>About to Publish</th></tr></thead><tbody>${
-      (preview.fields || []).map(f => `<tr style="${f.changed ? 'font-weight:600;' : ''}"><td>${f.field}</td><td>${f.old || ''}</td><td>${f.new || ''}</td></tr>`).join('')
+      (preview.fields || []).map(f => `<tr style="${f.changed ? 'font-weight:600;' : ''}"><td>${escapeHTMLText(f.field)}</td><td>${escapeHTMLText(f.old || '')}</td><td>${escapeHTMLText(f.new || '')}</td></tr>`).join('')
     }</tbody></table>
   `;
+}
+
+async function loadPIMContentDraft(itemCode) {
+  const language = document.getElementById('pim-content-lang')?.value.trim() || 'en';
+  const status = document.getElementById('pim-content-current');
+  if (!status) return;
+  const saveButton = document.getElementById('pim-content-save-btn');
+  const submitButton = document.getElementById('pim-content-submit-btn');
+  saveButton.disabled = true;
+  submitButton.disabled = true;
+  status.textContent = 'Loading saved content…';
+  const contentID = `${itemCode}::${language}`;
+  const res = await apiFetch(`/api/v1/doc/ProductContent/${encodeURIComponent(contentID)}`);
+  if (currentPIMSelectedItem !== itemCode || document.getElementById('pim-content-lang')?.value.trim() !== language) return;
+  if (!res) { status.textContent = 'Could not load saved content. Retry by reselecting the language.'; return; }
+  if (!res.ok && res.status !== 404) { status.textContent = 'Could not load saved content. Do not overwrite it until this is resolved.'; return; }
+  const saved = res.ok ? await res.json() : {};
+  for (const [field, key] of [['title', 'title'], ['short', 'short_desc'], ['long', 'long_desc'], ['seo', 'seo_title'], ['tags', 'tags'], ['owner', 'owner'], ['sla', 'sla_due_date']]) {
+    const input = document.getElementById(`pim-content-${field}`);
+    if (input) input.value = saved[key] || '';
+  }
+  saveButton.disabled = false;
+  submitButton.disabled = false;
+  status.textContent = res.ok ? `Saved content: ${saved.status || 'Draft'}` : 'No saved content for this language yet.';
 }
 
 // renderPIMContentHistory (Stage 26.4.5/26.4.6) surfaces one ProductContent
@@ -1467,13 +1685,13 @@ async function renderPIMContentHistory(itemCode) {
   const logHTML = log.length === 0
     ? `<div class="text-muted" style="font-size:13px;">No approval history yet. Entries appear here once a content change is submitted for approval.</div>`
     : `<table><thead><tr><th>Action</th><th>By</th><th>Comment</th><th>When</th></tr></thead><tbody>${
-        log.map(l => `<tr><td>${l.action}</td><td>${l.actor_user_id}</td><td>${l.comment || ''}</td><td>${l.created_at || ''}</td></tr>`).join('')
+        log.map(l => `<tr><td>${escapeHTMLText(l.action)}</td><td>${escapeHTMLText(l.actor_user_id)}</td><td>${escapeHTMLText(l.comment || '')}</td><td>${escapeHTMLText(l.created_at || '')}</td></tr>`).join('')
       }</tbody></table>`;
 
   const versionsHTML = versions.length === 0
     ? `<div class="text-muted" style="font-size:13px;">No approved versions yet. Once a content version is approved you can <b>Restore</b> it from here.</div>`
     : `<table><thead><tr><th>Version</th><th>Title</th><th>Approved At</th><th></th></tr></thead><tbody>${
-        versions.map(v => `<tr><td>${v.version_no}</td><td>${(v.data && v.data.title) || ''}</td><td>${v.created_at || ''}</td><td><button class="btn btn-outline btn-sm" data-rollback-version="${v.id}">Restore</button></td></tr>`).join('')
+        versions.map(v => `<tr><td>${escapeHTMLText(v.version_no)}</td><td>${escapeHTMLText((v.data && v.data.title) || '')}</td><td>${escapeHTMLText(v.created_at || '')}</td><td><button class="btn btn-outline btn-sm" data-rollback-version="${escapeHTMLText(v.id)}">Restore</button></td></tr>`).join('')
       }</tbody></table>`;
 
   container.innerHTML = `
@@ -1660,4 +1878,4 @@ async function submitPIMContent(itemCode) {
 // trips (limit/offset/q on the existing list endpoint), keyed by page+
 // search so the SWR cache below can't hand back the wrong page.
 
-export { renderPIMShellHeader, renderPIMView, renderPIMMediaLibraryTab, renderPIMDashboardTab, pimTaskQuery, renderPIMMyWorkTab, loadPIMAssignableUsers, loadPIMTaskTemplates, loadPIMWorkflowDefinitions, loadPIMTasks, renderPIMTaskTiles, pimTaskStatusBadge, renderPIMTaskTable, updatePIMTaskBulkBar, runPIMTaskAction, runPIMTaskBulk, openPIMTaskDetail, runPIMTaskTemplate, startPIMWorkflowRun, loadPIMWorkflowRuns, renderPIMReportsTab, renderPIMWorkbenchTab, renderPIMDetailPanel, renderPIMRelatedProducts, runPIMContentAssist, renderPIMMediaGallery, uploadPIMMedia, renderPIMPublishSection, previewPIMPublish, renderPIMContentHistory, publishPIMItem, savePIMAttributeValue, pimContentPayload, savePIMContent, submitPIMContent };
+export { renderPIMShellHeader, renderPIMView, renderPIMMediaLibraryTab, renderPIMDashboardTab, pimTaskQuery, renderPIMMyWorkTab, loadPIMAssignableUsers, loadPIMTaskTemplates, loadPIMWorkflowDefinitions, loadPIMTasks, renderPIMTaskTiles, pimTaskStatusBadge, renderPIMTaskTable, renderPIMDetailPanel, openPIMImportTemplateRun, updatePIMTaskBulkBar, runPIMTaskAction, runPIMTaskBulk, openPIMTaskDetail, runPIMTaskTemplate, startPIMWorkflowRun, loadPIMWorkflowRuns, renderPIMReportsTab, renderPIMWorkbenchTab, renderPIMRelatedProducts, runPIMContentAssist, renderPIMMediaGallery, uploadPIMMedia, renderPIMPublishSection, previewPIMPublish, renderPIMContentHistory, publishPIMItem, savePIMAttributeValue, pimContentPayload, savePIMContent, submitPIMContent };

@@ -1019,6 +1019,12 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/admin/tenant/feature-flag", apiMiddleware(handleSetFeatureFlag))
 	// Stage 26.1.4: tenant registry list, for the entitlement admin screen's tenant picker.
 	http.HandleFunc("GET /api/v1/admin/tenants", apiMiddleware(handleListTenants))
+	// Stage 60.6: platform data console - any client's tables, masked and audited.
+	http.HandleFunc("GET /api/v1/platform/me", apiMiddleware(handlePlatformMe))
+	http.HandleFunc("GET /api/v1/platform/tenants", apiMiddleware(handlePlatformTenants))
+	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/tables", apiMiddleware(handlePlatformTables))
+	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/tables/{table}", apiMiddleware(handlePlatformRows))
+	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/tables/{table}/row", apiMiddleware(handlePlatformUpdateRow))
 	// Stage 26.1.5: tenant usage/health dashboard (live concurrency usage + configured limits, per tenant).
 	http.HandleFunc("GET /api/v1/admin/tenant-usage", apiMiddleware(handleTenantUsage))
 

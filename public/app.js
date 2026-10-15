@@ -393,6 +393,7 @@ const LAZY_VIEW_MODULES = {
   'system-status': ['view-admin.js', 'renderSystemStatusView', 'System Status'],
   'tenant-entitlements': ['view-admin.js', 'renderTenantEntitlementsView', 'Tenant Entitlements'],
   'tenant-usage': ['view-admin.js', 'renderTenantUsageView', 'Tenant Usage'],
+  'platform-console': ['view-admin.js', 'renderPlatformConsoleView', 'Data Console'],
   help: ['view-help.js', 'renderHelpView', 'Help'],
 };
 
@@ -1593,10 +1594,13 @@ function linkNameMap(doctype) {
       const res = await apiFetch(`/api/v1/doc/${encodeURIComponent(doctype)}?limit=1000`);
       const map = new Map();
       if (res && res.ok) {
-        ((await res.json()) || []).forEach(d => {
+        const rows = (await res.json()) || [];
+        rows.forEach(d => {
           const name = d.name || d.label || d.title;
           if (name) [d.id, d.code].filter(Boolean).forEach(k => map.set(String(k), String(name)));
         });
+        // All records fitted: a value not in the map is not a code (60.5).
+        map.complete = rows.length < 1000;
       }
       return map;
     })().catch(() => new Map()));
@@ -1611,6 +1615,29 @@ function seriesDoctypeOf(text) {
   return m && state.activeDoctypes.some(d => d.name === m[1]) ? m[1] : null;
 }
 
+// 60.5: a plain cell under a Vendor/Store/SKU/Customer header shows its name.
+// Design, Combination and Barcode columns keep their codes.
+const COLUMN_LINK_RE = {
+  Vendor: /^(vendor|supplier)( name| code| id)?( \(.*\))?$/,
+  Location: /^(((from|to|source|destination|target) )?(location|store|warehouse|facility)( name| code)?( \(.*\))?|from|to)$/,
+  Customer: /^customer( name| code| id)?( \(.*\))?$/,
+  Item: /^(sku|item|item code|product)( \(.*\))?$/
+};
+function columnLinkCells(root) {
+  const out = new Map();
+  root.querySelectorAll('table').forEach(t => {
+    const head = t.tHead && t.tHead.rows[t.tHead.rows.length - 1];
+    const types = head ? [...head.cells].map(th => {
+      const x = th.textContent.trim().toLowerCase();
+      return Object.keys(COLUMN_LINK_RE).find(d => COLUMN_LINK_RE[d].test(x) && state.activeDoctypes.some(a => a.name === d));
+    }) : [];
+    if (types.some(Boolean)) t.querySelectorAll(':scope > tbody > tr').forEach(r => {
+      if (r.cells.length === types.length) [...r.cells].forEach((td, i) => types[i] && out.set(td, types[i]));
+    });
+  });
+  return out;
+}
+
 async function sweepLinkNames(root) {
   if (!root) return;
   const targets = [];
@@ -1619,12 +1646,13 @@ async function sweepLinkNames(root) {
     const host = el.querySelector(':scope > .copyable-cell > span:first-child') || el;
     targets.push({ el: host, doctype: el.dataset.linkDoctype, ref: el.dataset.linkRef });
   });
+  const columnTypes = columnLinkCells(root);
   root.querySelectorAll('td:not([data-link-swept])').forEach(td => {
     td.dataset.linkSwept = '1';
     const host = td.children.length === 0 ? td : td.querySelector(':scope > .copyable-cell > span:first-child');
     if (!host || host.children.length) return;
     const text = host.textContent.trim();
-    const doctype = text && seriesDoctypeOf(text);
+    const doctype = text && (seriesDoctypeOf(text) || columnTypes.get(td));
     // A master's own list keeps its Code column: there the code is the
     // record's identity, shown beside its name, not a reference to decode.
     if (doctype && !(currentView === 'doctype-table' && currentDoctype === doctype)) targets.push({ el: host, doctype, ref: text });
@@ -1638,7 +1666,7 @@ async function sweepLinkNames(root) {
       let name = map.get(t.ref);
       // Past the first 1000 records of a type, fall back to a single lookup -
       // bounded by what is on screen, at most a page of rows.
-      if (!name) name = linkDisplayName(await lookupLinkDoc(doctype, t.ref));
+      if (!name && !map.complete) name = linkDisplayName(await lookupLinkDoc(doctype, t.ref));
       if (name && name !== t.ref && t.el.isConnected) {
         t.el.textContent = name;
         t.el.title = t.ref;
@@ -3686,7 +3714,8 @@ const MENU_PERMISSION_MAP = {
   'menu-tenant-entitlements': { adminOnly: true },
   // Tenant Usage/health dashboard (Stage 26.1.5) - same HR/Admin-only gate
   // as handleTenantUsage.
-  'menu-tenant-usage': { adminOnly: true }
+  'menu-tenant-usage': { adminOnly: true },
+  'menu-platform-console': { adminOnly: true }
 };
 
 // Module navigation registry: sidebar entries and direct screen entry share
@@ -4001,6 +4030,12 @@ const MENU_MODULE_MAP = {
     "module": "core",
     "views": [
       "tenant-usage"
+    ]
+  },
+  "@platform-console": {
+    "module": "core",
+    "views": [
+      "platform-console"
     ]
   },
   "account-menu-profile-btn": {
@@ -4502,24 +4537,10 @@ function closeNavDrawer() {
   setNavDrawer(false);
 }
 
-// Found during the BLD-038 accessibility sweep: every `.modal-overlay`
-// dialog hides itself with `opacity: 0; pointer-events: none;`, not
-// `display: none`. That leaves a closed dialog fully in the tab order and
-// the accessibility tree - a keyboard user tabbing through ANY screen lands
-// on 50+ invisible controls belonging to whichever dialogs happen to be
-// closed, confirmed live via a 120-press Tab walk from Home. The real
-// open/close functions (openDynamicModal/closeDynamicModal,
-// openFieldModal/closeAddFieldModal, openImportModal/closeImportModal) each
-// now set `.inert` explicitly alongside `.open` - a MutationObserver-based
-// version of this was tried first, but at least one of them
-// (openFieldModal) calls .focus() on a field INSIDE the modal in the same
-// synchronous call that opens it, and a MutationObserver callback is a
-// microtask that had not yet run by then, so the un-inerting lost the race
-// and the focus() call silently failed. This one-time pass only has to
-// cover what those functions do not: #edit-prefix-modal/#add-label-modal,
-// two more `.modal-overlay`s confirmed dead - no classList reference to
-// their ids anywhere in this file - left over from before those flows moved
-// to prompt()/inline rows, so nothing ever opens or closes them.
+// BLD-038: a closed `.modal-overlay` is only transparent, so it stayed in the
+// tab order. Each modal's open/close sets `.inert` itself (a MutationObserver
+// lost the race with openFieldModal's synchronous focus()); this one-time pass
+// inerts the overlays nothing has opened yet.
 function initModalInertSync() {
   document.querySelectorAll('.modal-overlay').forEach(overlay => {
     overlay.inert = !overlay.classList.contains('open');
@@ -4844,7 +4865,7 @@ function setupEventListeners() {
   // Offline Queue Gaps (24.36) - same generic doctype-table pattern as Offline Sync Review above.
   document.getElementById('menu-pos-offline-gaps').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-gaps'); closeSubmenus(); currentDoctype = 'POSOfflineQueueGap'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-journal-vouchers', 'menu-transfers', 'menu-location-movement', 'menu-putaway', 'menu-warehouse-cockpit', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage'].forEach(id => {
+  ['menu-inventory', 'menu-journal-vouchers', 'menu-transfers', 'menu-location-movement', 'menu-putaway', 'menu-warehouse-cockpit', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage', 'menu-platform-console'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -5778,6 +5799,7 @@ const STATIC_VIEW_MENU_IDS = {
   'configuration': 'menu-configuration',
   'tenant-entitlements': 'menu-tenant-entitlements',
   'tenant-usage': 'menu-tenant-usage',
+  'platform-console': 'menu-platform-console',
   'vendor-invoices': 'menu-vendor-invoices',
   'payment-proposals': 'menu-payment-proposals',
   'bank-reconciliation': 'menu-bank-reconciliation',
@@ -7657,18 +7679,6 @@ async function fetchDocTableData(doctype, page, search) {
   const pageData = await fetchDocTablePage(doctype, page, search);
   if (!pageData) return undefined;
   return { fields: await metaRes.json(), records: pageData.records, total: pageData.total };
-}
-
-function prefixConfigSample(c) {
-  const parts = [c.prefix];
-  if (c.include_store !== false) parts.push('HQ');
-  const reset = (c.reset_frequency || 'ANNUAL').toUpperCase();
-  // NEVER is the only setting with no period segment - it never resets, so
-  // there is no period to name.
-  if (reset === 'MONTHLY') parts.push('26-27-04');
-  else if (reset !== 'NEVER') parts.push('26-27');
-  parts.push(String(1).padStart(c.padding_width || 1, '0'));
-  return parts.join(c.separator);
 }
 
 // cfgEsc is a historical alias for escapeHTMLText. It used to be a second,

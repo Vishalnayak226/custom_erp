@@ -334,6 +334,18 @@ func handlePIMCompleteness(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if channelID != "" {
+		readiness, err := engines.CheckPublishReadiness(tenantID, itemCode, channelID)
+		if err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+			return
+		}
+		_ = json.NewEncoder(w).Encode(struct {
+			*engines.CompletenessResult
+			PublishReadiness *engines.PublishReadiness `json:"publish_readiness"`
+		}{result, readiness})
+		return
+	}
 	_ = json.NewEncoder(w).Encode(result)
 }
 

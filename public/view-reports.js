@@ -322,6 +322,29 @@ function renderExecDashboardTrendChart(container, labels, values) {
 // endpoint Reports > Current Stock already calls (no new backend), but adds
 // the client-side search box that endpoint's own report tab never had.
 let inventorySearchQuery = '';
+function stockTableHTML(rows, showTasks = false, searched = false) {
+  const quantity = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : '—';
+  const actions = showTasks ? '<th>Next task</th>' : '';
+  const cells = showTasks ? 8 : 7;
+  return `<table>
+    <thead><tr><th>Item</th><th>Location</th><th title="Book stock before reservations and holds">On hand</th><th title="Matches the reservation admission calculation">Available to sell</th><th>Reserved</th><th>Held</th><th>Why unavailable</th>${actions}</tr></thead>
+    <tbody>${rows.length === 0
+      ? `<tr><td colspan="${cells}" class="text-center py-8 text-muted">${searched ? 'No stock rows match this search. Clear the search to see all locations.' : 'No stock on hand yet. Post a Goods Receipt against a Purchase Order to add stock.'}</td></tr>`
+      : rows.map(r => {
+          const sku = String(r.sku || '');
+          const location = String(r.location_code || '');
+          const holdRoute = '#/view/place-hold';
+          return `<tr>
+            <td data-link-doctype="Item" data-link-ref="${escapeHTMLText(sku)}">${copyableCell(sku, sku)}</td>
+            <td data-link-doctype="Location" data-link-ref="${escapeHTMLText(location)}">${copyableCell(location, location)}</td>
+            <td>${quantity(r.on_hand)}</td><td>${quantity(r.available_to_sell)}</td>
+            <td>${quantity(r.reserved)}</td><td>${quantity(r.hold_qty)}</td>
+            <td><details><summary>Breakdown</summary><span>Base available: ${quantity(r.available)}; committed: ${quantity(r.committed)}; safety: ${quantity(r.safety_stock)}; blocked: ${quantity(r.blocked)}; QC hold: ${quantity(r.qc_hold)}; damaged: ${quantity(r.damaged)}; channel buffer: ${quantity(r.channel_buffer)}.</span></details></td>
+            ${showTasks ? `<td><a href="#/view/transfers" data-stock-task="transfer" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}">Transfer</a> · <a href="#/view/cycle-count" data-stock-task="count" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}">Count</a> · <a href="${holdRoute}" data-stock-task="hold" data-stock-sku="${escapeHTMLText(sku)}" data-stock-location="${escapeHTMLText(location)}">Hold</a></td>` : ''}
+          </tr>`;
+        }).join('')}</tbody></table>`;
+}
+
 async function renderInventoryView(container) {
   const res = await apiFetch('/api/v1/reports/current-stock');
   if (!res) return;
@@ -342,6 +365,7 @@ async function renderInventoryView(container) {
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.innerHTML = `
+    <p style="padding:16px 16px 0; color:var(--text-muted); font-size:13px;">On hand is book stock. Available to sell subtracts reservations, safety stock, blocked/QC/damaged stock, channel buffer and active holds from base availability. Open Breakdown for the exact buckets; a hold does not change physical on-hand.</p>
     <div class="table-controls">
       <div class="search-box">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
@@ -351,6 +375,15 @@ async function renderInventoryView(container) {
     <div class="table-wrapper" id="inventory-table-wrapper"></div>
   `;
   container.appendChild(panel);
+  panel.querySelector('#inventory-table-wrapper').addEventListener('click', event => {
+    const link = event.target.closest('[data-stock-task]');
+    if (!link) return;
+    const context = JSON.stringify({ sku: link.dataset.stockSku, location: link.dataset.stockLocation });
+    const task = link.dataset.stockTask;
+    if (task === 'hold' || task === 'transfer' || task === 'count') {
+      sessionStorage.setItem(`erp_stock_${task}_context`, context);
+    }
+  });
 
   // Only the table body redraws on each keystroke - the search input itself
   // stays untouched so it doesn't lose focus/cursor position while typing
@@ -360,26 +393,8 @@ async function renderInventoryView(container) {
     const filtered = inventorySearchQuery
       ? rows.filter(r => `${r.sku} ${r.location_code}`.toLowerCase().includes(inventorySearchQuery))
       : rows;
-    let html = `
-      <table>
-        <thead><tr><th>SKU</th><th>Location</th><th>On Hand</th><th>Available</th><th>Committed</th><th>Reserved</th><th>Safety Stock</th></tr></thead>
-        <tbody>
-    `;
-    html += filtered.length === 0
-      ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No stock on hand anywhere yet. Stock appears once a Goods Receipt is posted against a Purchase Order &mdash; see <b>Procurement &raquo; Goods Receipt</b>.</td></tr>`
-      : filtered.map(r => `
-          <tr>
-            <td style="font-family: monospace;">${copyableCell(r.sku, r.sku)}</td>
-            <td>${copyableCell(r.location_code, r.location_code)}</td>
-            <td>${r.on_hand}</td>
-            <td>${r.available}</td>
-            <td>${r.committed}</td>
-            <td>${r.reserved}</td>
-            <td>${r.safety_stock}</td>
-          </tr>
-        `).join('');
-    html += `</tbody></table>`;
-    wrapper.innerHTML = html;
+    wrapper.innerHTML = stockTableHTML(filtered, true, !!inventorySearchQuery);
+    sweepLinkNames(wrapper);
   }
   draw();
   document.getElementById('inventory-search-input').addEventListener('input', (e) => {
@@ -392,26 +407,8 @@ async function renderCurrentStockReport(panel) {
   const res = await apiFetch('/api/v1/reports/current-stock');
   if (!res) return;
   const rows = res.ok ? await res.json() : [];
-  let html = `
-    <table>
-      <thead><tr><th>SKU</th><th>Location</th><th>On Hand</th><th>Available</th><th>Committed</th><th>Reserved</th><th>Safety Stock</th></tr></thead>
-      <tbody>
-  `;
-  html += rows.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No stock on hand yet. Stock appears once a Goods Receipt is posted against a Purchase Order.</td></tr>`
-    : rows.map(r => `
-        <tr>
-          <td style="font-family: monospace;">${r.sku}</td>
-          <td>${r.location_code}</td>
-          <td>${r.on_hand}</td>
-          <td>${r.available}</td>
-          <td>${r.committed}</td>
-          <td>${r.reserved}</td>
-          <td>${r.safety_stock}</td>
-        </tr>
-      `).join('');
-  html += `</tbody></table>`;
-  panel.innerHTML = html;
+  panel.innerHTML = stockTableHTML(rows);
+  sweepLinkNames(panel);
 }
 
 async function renderSalesRegisterReport(panel) {
@@ -1091,6 +1088,8 @@ async function downloadReportExportCSV(jobId) {
   URL.revokeObjectURL(url);
 }
 
+import { documentSearchLink } from './view-document-links.js';
+
 // RFQ / Vendor Quote / Quote Comparison (Stage 13.12) - RFQ/VendorQuote
 // creation and listing use the same generic doc API as Vendor/Customer
 // (Stage 13.9); this screen adds the comparison view and winner-selection
@@ -1144,15 +1143,16 @@ async function renderRFQView(container) {
   listPanel.style.marginBottom = '24px';
   let listHtml = `
     <table>
-      <thead><tr><th>RFQ Number</th><th>Description</th><th>Quantity</th><th>Target Date</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>RFQ Number</th><th>Source requisition</th><th>Description</th><th>Quantity</th><th>Target Date</th><th>Status</th><th></th></tr></thead>
       <tbody>
   `;
   listHtml += rfqs.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No RFQs yet. Use <b>Create RFQ</b> above to invite quotes from your vendors.</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No RFQs yet. Create and approve a requisition first, then convert it to RFQ; or create a standalone RFQ above.</td></tr>`
     : rfqs.map(r => `
         <tr>
           <td style="font-family: monospace;">${r.code || r.id}</td>
-          <td>${r.description || ''}</td>
+          <td>${documentSearchLink('PurchaseRequisition', r.source_requisition_id)}</td>
+          <td>${escapeHTMLText(r.description || '')}</td>
           <td>${r.quantity ?? ''}</td>
           <td>${r.target_date || ''}</td>
           <td><span class="badge ${r.status === 'Closed' ? 'badge-success' : 'badge-secondary'}">${escapeHTMLText(r.status || '')}</span></td>
@@ -1334,6 +1334,7 @@ async function renderRFQQuotesPanel(container, rfqId, rfq) {
   panel.style.padding = '24px';
   panel.innerHTML = `
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Quotes for ${escapeHTMLText((rfq && rfq.code) || rfqId)}</h2>
+    <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">Selecting a winner records the comparison decision but does not create a PO. Create and review the PO separately; this quote currently has no item, unit or tax line to carry across safely.</p>
     ${isClosed ? '' : `
       <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px;">
         ${autoNumberField('Quote Number', 'QTN', '160px')}

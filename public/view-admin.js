@@ -1,22 +1,28 @@
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
+// Number series screen (Admin -> Prefix Configurations). Stage 60.1 replaced
+// the chained prompts with one form: prefix, separator, length, suffix,
+// restart, store-in-number, status, a live preview, and a per-store
+// prefix/suffix override list - every store appears there as soon as it is
+// created, so a new store needs no setup here unless it wants its own prefix.
 async function renderPrefixConfigsView(container) {
-  const res = await apiFetch('/api/v1/prefix');
+  const [res, stores] = await Promise.all([apiFetch('/api/v1/prefix'), loadSeriesStores()]);
   if (!res) return;
   if (!res.ok) {
-    const msg = await getErrorMessage(res, 'Failed to load prefix configurations.');
+    const msg = await getErrorMessage(res, 'Failed to load number series.');
     renderErrorPanel(container, msg, () => renderView('prefix-configs'));
     return;
   }
   state.prefixConfigs = await res.json();
+  state.seriesStores = stores;
 
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Prefix Configurations</h1>
-      <p class="page-subtitle">Number series for every transaction document, and for master records like Vendor and Item. Purchase orders, goods receipts, transfers, claims, vendor codes, item codes and the rest draw their number from here when they are saved - nobody types one in.</p>
+      <p class="page-subtitle">Number series for every transaction document, and for master records like Vendor and Item. Each transaction has its own prefix, length and suffix, and each store can have its own prefix and suffix. Numbers are issued when a record is saved - nobody types one in.</p>
     </div>
     <button class="btn btn-primary" ${actionAttrs('addPrefixConfig')}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -25,19 +31,22 @@ async function renderPrefixConfigsView(container) {
   `;
   container.appendChild(header);
 
+  const sampleStore = stores[0] ? seriesStoreSegment(stores[0]) : 'HQ';
+  const restarts = { ANNUAL: 'Yearly', MONTHLY: 'Monthly', NEVER: 'Never' };
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   let html = `
     <table>
       <thead>
         <tr>
-          <th>Record Type</th>
+          <th>Transaction</th>
           <th>Prefix</th>
-          <th>Separator</th>
-          <th>Padding</th>
-          <th>Reset Interval</th>
-          <th>Store Segment</th>
-          <th>Next Number Looks Like</th>
+          <th>Length</th>
+          <th>Suffix</th>
+          <th>Restarts</th>
+          <th>Store in number</th>
+          <th>Store-wise</th>
+          <th>Next number looks like</th>
           <th>Status</th>
           <th>Action</th>
         </tr>
@@ -45,15 +54,17 @@ async function renderPrefixConfigsView(container) {
       <tbody>
   `;
   state.prefixConfigs.forEach(c => {
+    const overrides = Object.keys(c.store_overrides || {}).length;
     html += `
       <tr>
-        <td style="font-weight:600;">${c.doc_type}</td>
-        <td style="font-family: monospace;">${c.prefix}</td>
-        <td>${c.separator}</td>
+        <td style="font-weight:600;">${escapeHTMLText(c.doc_type)}</td>
+        <td style="font-family: monospace;">${escapeHTMLText(c.prefix)}</td>
         <td>${c.padding_width}</td>
-        <td>${c.reset_frequency}</td>
+        <td style="font-family: monospace;">${escapeHTMLText(c.suffix || '')}</td>
+        <td>${restarts[c.reset_frequency] || escapeHTMLText(c.reset_frequency)}</td>
         <td>${c.include_store === false ? 'No' : 'Yes'}</td>
-        <td style="font-family: monospace;">${prefixConfigSample(c)}</td>
+        <td>${overrides ? overrides + (overrides === 1 ? ' store' : ' stores') : '-'}</td>
+        <td style="font-family: monospace;">${escapeHTMLText(prefixConfigSample(c, sampleStore))}</td>
         <td>${c.active_status ? 'Active' : 'Inactive'}</td>
         <td><button class="btn btn-outline btn-sm" ${actionAttrs('editPrefixConfig', [c.doc_type])}>Edit</button></td>
       </tr>
@@ -64,62 +75,233 @@ async function renderPrefixConfigsView(container) {
   container.appendChild(panel);
 }
 
-// addPrefixConfig (Stage 51.4): the record types with no row here yet
-// (Vendor, Item, or any future one) were still being auto-numbered - the
-// engine falls back to sane defaults when no row exists, see
-// engines/numbering.go's GenerateSequence - just not editably, since this
-// screen could only edit a row that already existed. Reuses the exact same
-// upsert endpoint and sequential-prompt flow as editPrefixConfig, with one
-// extra prompt up front for the record type itself.
-window.addPrefixConfig = async function() {
-  const docType = await showCustomPrompt('Record Type (must match the doctype name exactly, e.g. Vendor, Item):', '');
-  if (!docType) return;
-  if (state.prefixConfigs.some(x => x.doc_type === docType.trim())) {
-    await showCustomAlert(`"${docType}" already has a series - use its Edit button instead.`);
-    return;
+// loadSeriesStores lists every Location for the store-wise override rows. A
+// failure leaves the list empty rather than blocking the series screen.
+async function loadSeriesStores() {
+  try {
+    const res = await apiFetch('/api/v1/doc/Location?limit=500');
+    if (!res || !res.ok) return [];
+    const rows = await res.json();
+    return (Array.isArray(rows) ? rows : [])
+      .map(r => ({ code: r.code || r.id, name: r.name || r.code || r.id, short_code: String(r.short_code || '').trim() }))
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  } catch (_) {
+    return [];
   }
-  await editPrefixConfig(docType.trim(), { prefix: docType.trim(), separator: '/', padding_width: 6, reset_frequency: 'ANNUAL', include_store: true });
+}
+
+// seriesStoreSegment mirrors engines.storeNumberSegment for the preview: the
+// Short Code when set, else the store code. (The server also falls back to the
+// store code when a short code is shared; the Location form refuses a shared
+// one, so the preview and the issued number agree.)
+function seriesStoreSegment(store) {
+  return (store && (store.short_code || store.code)) || 'HQ';
+}
+
+// addPrefixConfig (Stage 51.4): a record type with no row here yet (Vendor,
+// Item, or any future one) is still auto-numbered by the engine's defaults,
+// just not editably. Opens the same form with the transaction field open.
+window.addPrefixConfig = function() {
+  openEditPrefixModal(null);
 };
 
-window.editPrefixConfig = async function(docType, newDefaults) {
-  const c = state.prefixConfigs.find(x => x.doc_type === docType) || newDefaults;
-  if (!c) return;
+window.editPrefixConfig = function(docType) {
+  const c = state.prefixConfigs.find(x => x.doc_type === docType);
+  if (c) openEditPrefixModal(c);
+};
 
-  const prefix = await showCustomPrompt('Enter Prefix:', c.prefix);
-  if (!prefix) return;
-  const separator = await showCustomPrompt('Enter Separator:', c.separator);
-  if (!separator) return;
-  const paddingRaw = await showCustomPrompt('Enter Padding Width:', c.padding_width);
-  const padding = parseInt(paddingRaw);
-  if (!padding) return;
-  // Reset interval decides both how often the counter restarts and whether the
-  // number carries a period segment at all: a series that restarts every year
-  // without showing the year would re-issue last year's numbers, and since the
-  // number is also the document id that is a rejected save, not a cosmetic
-  // problem. NEVER is therefore the only way to get a number with no period.
-  const reset = await showCustomPrompt('Reset Interval - ANNUAL (PO/HQ/26-27/000001), MONTHLY (PO/HQ/26-27-04/000001), or NEVER (PO/HQ/000001, one continuous series):', c.reset_frequency);
-  if (!reset) return;
-  const storeRaw = await showCustomPrompt('Include the store code in the number? Yes keeps each location numbering separately (PO/HQ/...); No gives one shared series across all locations (PO/...):', c.include_store === false ? 'No' : 'Yes');
-  if (storeRaw === null) return;
-  const includeStore = !/^n/i.test(String(storeRaw).trim());
+// prefixConfigSample previews a series' next number in engines/numbering.go's
+// order: <Prefix>/[<Store>/][<Period>/]<Number>[/<Suffix>]. The store segment
+// is its Short Code; a store's own prefix/suffix override wins when given.
+function prefixConfigSample(c, storeSegment, storeCode) {
+  const o = (storeCode && c.store_overrides && c.store_overrides[storeCode]) || {};
+  const parts = [o.prefix || c.prefix];
+  if (c.include_store !== false) parts.push(storeSegment || 'HQ');
+  const reset = (c.reset_frequency || 'ANNUAL').toUpperCase();
+  // NEVER is the only setting with no period segment - it never resets, so
+  // there is no period to name.
+  if (reset === 'MONTHLY') parts.push('26-27-04');
+  else if (reset !== 'NEVER') parts.push('26-27');
+  parts.push(String(1).padStart(c.padding_width || 1, '0'));
+  const suffix = o.suffix || c.suffix;
+  if (suffix) parts.push(suffix);
+  return parts.join(c.separator);
+}
 
-  const res = await apiFetch('/api/v1/prefix', {
-    method: 'POST',
-    body: JSON.stringify({
-      doc_type: docType,
-      prefix,
-      separator,
-      padding_width: padding,
-      reset_frequency: String(reset).trim().toUpperCase(),
-      active_status: true,
-      include_store: includeStore
-    })
+// The Number Series form lives here, not in index.html, so it costs nothing
+// at startup (NFR-COST-001 cold-core budget); built on first open.
+function ensureEditPrefixModal() {
+  if (document.getElementById('edit-prefix-modal')) return;
+  document.body.insertAdjacentHTML('beforeend', `
+<div class="modal-overlay" id="edit-prefix-modal">
+  <div class="modal-container" style="max-width: 760px;">
+    <div class="modal-header">
+      <h3 class="modal-title" id="edit-prefix-title">Number Series</h3>
+      <button type="button" class="modal-close" aria-label="Close dialog" data-act="closeEditPrefixModal">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </div>
+    <form id="edit-prefix-form" data-act="submitEditPrefix" data-act-on="submit" data-act-args="[&quot;$event&quot;]">
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="form-group">
+          <label class="form-label" for="edit-prefix-doctype">Transaction</label>
+          <input type="text" class="form-input" id="edit-prefix-doctype" required placeholder="Record type, e.g. Vendor, Item">
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+          <div class="form-group">
+            <label class="form-label" for="edit-prefix-prefix">Prefix</label>
+            <input type="text" class="form-input" id="edit-prefix-prefix" maxlength="20" data-act="previewEditPrefix" data-act-on="input">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-prefix-separator">Separator</label>
+            <input type="text" class="form-input" id="edit-prefix-separator" maxlength="3" data-act="previewEditPrefix" data-act-on="input">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-prefix-padding">Number length (digits)</label>
+            <input type="number" class="form-input" id="edit-prefix-padding" min="1" max="12" required data-act="previewEditPrefix" data-act-on="input">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-prefix-suffix">Suffix (optional)</label>
+            <input type="text" class="form-input" id="edit-prefix-suffix" maxlength="20" data-act="previewEditPrefix" data-act-on="input">
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+          <div class="form-group">
+            <label class="form-label" for="edit-prefix-reset">Restart numbering</label>
+            <select class="form-select" id="edit-prefix-reset" required data-act="previewEditPrefix" data-act-on="change">
+              <option value="ANNUAL">Every financial year (year shown in the number)</option>
+              <option value="MONTHLY">Every month (year and month shown)</option>
+              <option value="NEVER">Never - one continuous series</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-prefix-store">Store in the number</label>
+            <select class="form-select" id="edit-prefix-store" data-act="previewEditPrefix" data-act-on="change">
+              <option value="yes">Yes - each store numbers separately, its Short Code is printed</option>
+              <option value="no">No - one series shared by all stores</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="edit-prefix-active">Status</label>
+            <select class="form-select" id="edit-prefix-active">
+              <option value="yes">Active</option>
+              <option value="no">Inactive - this transaction cannot be saved</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <span class="form-label">Next number looks like</span>
+          <div id="edit-prefix-preview" style="font-family: Consolas, Monaco, monospace; font-size: 15px; padding: 8px 10px; border: 1px dashed var(--border-color); border-radius: 6px;"></div>
+        </div>
+        <div class="form-group">
+          <span class="form-label">Store-wise prefix and suffix (optional - leave blank to use the series' own)</span>
+          <div id="edit-prefix-stores" style="max-height: 260px; overflow-y: auto;"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-act="closeEditPrefixModal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Series</button>
+      </div>
+    </form>
+  </div>
+</div>`);
+}
+
+function openEditPrefixModal(c) {
+  ensureEditPrefixModal();
+  const modal = document.getElementById('edit-prefix-modal');
+  if (!modal) return;
+  const isNew = !c;
+  const s = c || { doc_type: '', prefix: '', separator: '/', padding_width: 5, suffix: '', reset_frequency: 'ANNUAL', include_store: true, active_status: true, store_overrides: {} };
+  const docInput = document.getElementById('edit-prefix-doctype');
+  docInput.value = s.doc_type;
+  docInput.readOnly = !isNew;
+  document.getElementById('edit-prefix-title').textContent = isNew ? 'New Number Series' : 'Number Series - ' + s.doc_type;
+  document.getElementById('edit-prefix-prefix').value = s.prefix || '';
+  document.getElementById('edit-prefix-separator').value = s.separator || '';
+  document.getElementById('edit-prefix-padding').value = s.padding_width || 5;
+  document.getElementById('edit-prefix-suffix').value = s.suffix || '';
+  document.getElementById('edit-prefix-reset').value = s.reset_frequency || 'ANNUAL';
+  document.getElementById('edit-prefix-store').value = s.include_store === false ? 'no' : 'yes';
+  document.getElementById('edit-prefix-active').value = s.active_status === false ? 'no' : 'yes';
+
+  const overrides = s.store_overrides || {};
+  const stores = state.seriesStores || [];
+  const box = document.getElementById('edit-prefix-stores');
+  const rows = stores.map((st, i) => {
+    const o = overrides[st.code] || {};
+    const label = escapeHTMLText(st.name);
+    return `<tr>
+      <td>${label}</td>
+      <td style="font-family: monospace;">${escapeHTMLText(st.short_code || '-')}</td>
+      <td><input type="text" class="form-input" maxlength="20" data-store-index="${i}" data-store-part="prefix" value="${escapeHTMLText(o.prefix || '')}" aria-label="Prefix for ${label}"></td>
+      <td><input type="text" class="form-input" maxlength="20" data-store-index="${i}" data-store-part="suffix" value="${escapeHTMLText(o.suffix || '')}" aria-label="Suffix for ${label}"></td>
+    </tr>`;
+  }).join('');
+  box.innerHTML = stores.length
+    ? `<table><thead><tr><th>Store</th><th>Short Code</th><th>Prefix</th><th>Suffix</th></tr></thead><tbody>${rows}</tbody></table>`
+    : '<p class="text-muted">No stores yet. Each store appears here once it is created under Setup -> Location.</p>';
+
+  previewEditPrefix();
+  modal.inert = false;
+  modal.classList.add('open');
+  (isNew ? docInput : document.getElementById('edit-prefix-prefix')).focus();
+}
+
+function readEditPrefixForm() {
+  const overrides = {};
+  const stores = state.seriesStores || [];
+  document.querySelectorAll('#edit-prefix-stores input[data-store-index]').forEach(input => {
+    const st = stores[Number(input.dataset.storeIndex)];
+    const v = input.value.trim();
+    if (!st || !v) return;
+    overrides[st.code] = overrides[st.code] || {};
+    overrides[st.code][input.dataset.storePart] = v;
   });
+  return {
+    doc_type: document.getElementById('edit-prefix-doctype').value.trim(),
+    prefix: document.getElementById('edit-prefix-prefix').value.trim(),
+    separator: document.getElementById('edit-prefix-separator').value,
+    padding_width: parseInt(document.getElementById('edit-prefix-padding').value, 10) || 0,
+    suffix: document.getElementById('edit-prefix-suffix').value.trim(),
+    reset_frequency: document.getElementById('edit-prefix-reset').value,
+    include_store: document.getElementById('edit-prefix-store').value === 'yes',
+    active_status: document.getElementById('edit-prefix-active').value === 'yes',
+    store_overrides: overrides,
+  };
+}
+
+function previewEditPrefix() {
+  const el = document.getElementById('edit-prefix-preview');
+  if (!el) return;
+  const s = readEditPrefixForm();
+  const first = (state.seriesStores || [])[0];
+  el.textContent = prefixConfigSample(s, seriesStoreSegment(first), first && first.code);
+}
+window.previewEditPrefix = previewEditPrefix;
+
+window.closeEditPrefixModal = function() {
+  const modal = document.getElementById('edit-prefix-modal');
+  if (!modal) return;
+  modal.classList.remove('open');
+  modal.inert = true;
+};
+
+window.submitEditPrefix = async function(e) {
+  if (e && e.preventDefault) e.preventDefault();
+  const body = readEditPrefixForm();
+  if (!body.doc_type) {
+    await showCustomAlert('Enter the transaction (record type) this series numbers.');
+    return;
+  }
+  const res = await apiFetch('/api/v1/prefix', { method: 'POST', body: JSON.stringify(body) });
   if (!res) return;
   if (res.ok) {
+    window.closeEditPrefixModal();
+    showToast('Number series for ' + body.doc_type + ' saved.');
     renderView('prefix-configs');
   } else {
-    await showApiError(res, 'Failed to save prefix configuration.');
+    await showApiError(res, 'Failed to save the number series.');
   }
 };
 
@@ -1692,4 +1874,196 @@ async function renderTenantUsageView(container) {
 }
 
 
-export { renderPrefixConfigsView, renderApprovalRulesView, renderDynamicLabelsView, renderExtensionHooksView, renderExtensionHookLogView, showOneTimeSecretDialog, renderLogHubView, renderConfigurationView, renderConfigModuleRail, configInputId, renderConfigIntegrations, configIntegrationSectionHtml, wireConfigIntegrationSection, renderConfigFields, configFieldHtml, updateConfigDirtyState, saveConfiguration, renderSystemStatusView, renderTenantEntitlementsView, renderTenantUsageView };
+
+// Data Console (Stage 60.6): a platform operator browses and fixes any
+// client's tables. Who may use it, what is masked and what is refused are all
+// decided on the server (engines/platform_console.go); this screen only shows
+// what the server returns and sends back what the operator changed.
+const consoleState = { tenant: '', table: '', doctype: '', q: '', offset: 0, limit: 50, page: null, tables: [] };
+
+async function renderPlatformConsoleView(container) {
+  const header = document.createElement('div');
+  header.className = 'page-header';
+  header.innerHTML = `
+    <div class="page-title-section">
+      <h1 class="page-title">Data Console</h1>
+      <p class="page-subtitle">Browse and fix any client's tables directly. Passwords, secrets and customer personal details stay hidden, keys and audit tables cannot be changed, and every change is written to that client's Activity Log.</p>
+    </div>`;
+  container.appendChild(header);
+
+  const meRes = await apiFetch('/api/v1/platform/me');
+  const me = meRes && meRes.ok ? await meRes.json() : { operator: false };
+  if (!me.operator) {
+    const panel = document.createElement('div');
+    panel.className = 'table-panel';
+    panel.style.cssText = 'padding: 16px; min-height: 0;';
+    panel.innerHTML = `<p>Only a platform operator can use the Data Console. An operator is a Super Admin whose client and username are listed in the server setting <code>ERP_PLATFORM_OPERATORS</code> (for example <code>default:admin</code>). Ask whoever runs the server to add you, then sign in again.</p>`;
+    container.appendChild(panel);
+    return;
+  }
+
+  const tenantsRes = await apiFetch('/api/v1/platform/tenants');
+  if (!tenantsRes || !tenantsRes.ok) {
+    const msg = tenantsRes ? await getErrorMessage(tenantsRes, 'Could not load clients.') : 'Could not load clients.';
+    renderErrorPanel(container, msg, () => renderView('platform-console'));
+    return;
+  }
+  const tenants = await tenantsRes.json();
+  if (!consoleState.tenant && tenants.length) consoleState.tenant = tenants[0].tenant_id;
+
+  const controls = document.createElement('div');
+  controls.className = 'table-panel';
+  controls.style.cssText = 'padding: 16px; min-height: 0;';
+  controls.innerHTML = `
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; align-items: end;">
+      <div class="form-group"><label class="form-label" for="pc-tenant">Client</label>
+        <select id="pc-tenant" class="form-select">${tenants.map(t => `<option value="${escapeHTMLText(t.tenant_id)}" ${t.tenant_id === consoleState.tenant ? 'selected' : ''}>${escapeHTMLText(t.name || t.tenant_id)}</option>`).join('')}</select></div>
+      <div class="form-group"><label class="form-label" for="pc-table">Table</label>
+        <select id="pc-table" class="form-select"></select></div>
+      <div class="form-group" id="pc-doctype-wrap"><label class="form-label" for="pc-doctype">Record type (documents only)</label>
+        <input id="pc-doctype" class="form-input" placeholder="e.g. PurchaseOrder" value="${escapeHTMLText(consoleState.doctype)}"></div>
+      <div class="form-group"><label class="form-label" for="pc-q">Find by key</label>
+        <input id="pc-q" class="form-input" placeholder="id / code" value="${escapeHTMLText(consoleState.q)}"></div>
+      <div class="form-group"><button class="btn btn-primary" id="pc-load">Show rows</button></div>
+    </div>`;
+  container.appendChild(controls);
+
+  const results = document.createElement('div');
+  results.id = 'pc-results';
+  container.appendChild(results);
+
+  const tenantSel = controls.querySelector('#pc-tenant');
+  const tableSel = controls.querySelector('#pc-table');
+  const load = () => {
+    consoleState.table = tableSel.value;
+    consoleState.doctype = controls.querySelector('#pc-doctype').value.trim();
+    consoleState.q = controls.querySelector('#pc-q').value.trim();
+    consoleState.offset = 0;
+    loadConsoleRows(results);
+  };
+  tenantSel.addEventListener('change', async () => {
+    consoleState.tenant = tenantSel.value;
+    consoleState.table = '';
+    await loadConsoleTables(tableSel);
+    results.innerHTML = '';
+  });
+  tableSel.addEventListener('change', load);
+  controls.querySelector('#pc-load').addEventListener('click', load);
+  controls.querySelector('#pc-q').addEventListener('keydown', e => { if (e.key === 'Enter') load(); });
+
+  await loadConsoleTables(tableSel);
+  if (consoleState.table) loadConsoleRows(results);
+}
+
+async function loadConsoleTables(tableSel) {
+  const res = await apiFetch(`/api/v1/platform/tenants/${encodeURIComponent(consoleState.tenant)}/tables`);
+  consoleState.tables = res && res.ok ? await res.json() : [];
+  tableSel.innerHTML = '<option value="">Choose a table...</option>' + consoleState.tables.map(t =>
+    `<option value="${escapeHTMLText(t.name)}" ${t.name === consoleState.table ? 'selected' : ''}>${escapeHTMLText(t.name)} (~${t.rows})${t.read_only ? ' - view only' : ''}</option>`).join('');
+}
+
+function consoleCellText(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+
+async function loadConsoleRows(results) {
+  if (!consoleState.table) { results.innerHTML = ''; return; }
+  const params = new URLSearchParams({ limit: consoleState.limit, offset: consoleState.offset });
+  if (consoleState.doctype) params.set('doctype', consoleState.doctype);
+  if (consoleState.q) params.set('q', consoleState.q);
+  const res = await apiFetch(`/api/v1/platform/tenants/${encodeURIComponent(consoleState.tenant)}/tables/${encodeURIComponent(consoleState.table)}?${params}`);
+  if (!res) return;
+  if (!res.ok) {
+    renderErrorPanel(results, await getErrorMessage(res, 'Could not load rows.'), () => loadConsoleRows(results));
+    return;
+  }
+  const page = await res.json();
+  consoleState.page = page;
+  const cols = page.columns || [];
+  const canEdit = !page.read_only && cols.some(c => c.editable);
+  const from = page.total ? consoleState.offset + 1 : 0;
+  const to = consoleState.offset + (page.rows || []).length;
+  results.innerHTML = `
+    <div class="table-panel" style="padding: 12px 16px; min-height: 0;">
+      <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <div><b>${escapeHTMLText(page.table)}</b> - rows ${from}-${to} of ${page.total}${page.read_only ? ' - view only' : ''}</div>
+        <div>
+          <button class="btn btn-outline btn-sm" id="pc-prev" ${consoleState.offset === 0 ? 'disabled' : ''}>Previous</button>
+          <button class="btn btn-outline btn-sm" id="pc-next" ${to >= page.total ? 'disabled' : ''}>Next</button>
+        </div>
+      </div>
+      <div style="overflow-x: auto;">
+        <table>
+          <thead><tr>${canEdit ? '<th></th>' : ''}${cols.map(c => `<th title="${escapeHTMLText(c.type)}">${escapeHTMLText(c.name)}${c.key ? ' (key)' : ''}</th>`).join('')}</tr></thead>
+          <tbody>${(page.rows || []).map((r, i) => `<tr>${canEdit ? `<td><button class="btn btn-outline btn-sm" data-pc-edit="${i}">Edit</button></td>` : ''}${cols.map(c => {
+            const text = consoleCellText(r[c.name]);
+            return `<td style="max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: Consolas, Monaco, monospace; font-size: 12px;" title="${escapeHTMLText(text.slice(0, 500))}">${escapeHTMLText(text.slice(0, 160))}</td>`;
+          }).join('')}</tr>`).join('') || `<tr><td colspan="${cols.length + 1}">No rows.</td></tr>`}</tbody>
+        </table>
+      </div>
+      <div id="pc-editor"></div>
+    </div>`;
+  results.querySelector('#pc-prev').addEventListener('click', () => { consoleState.offset = Math.max(0, consoleState.offset - consoleState.limit); loadConsoleRows(results); });
+  results.querySelector('#pc-next').addEventListener('click', () => { consoleState.offset += consoleState.limit; loadConsoleRows(results); });
+  results.querySelectorAll('[data-pc-edit]').forEach(btn => btn.addEventListener('click', () => openConsoleEditor(results, page.rows[Number(btn.dataset.pcEdit)])));
+}
+
+function openConsoleEditor(results, row) {
+  const page = consoleState.page;
+  const editor = results.querySelector('#pc-editor');
+  const key = {};
+  page.columns.filter(c => c.key).forEach(c => { key[c.name] = consoleCellText(row[c.name]); });
+  const fieldFor = c => {
+    const v = row[c.name];
+    const text = v !== null && typeof v === 'object' ? JSON.stringify(v, null, 2) : (v === null || v === undefined ? '' : String(v));
+    if (!c.editable) {
+      return `<div class="form-group"><span class="form-label">${escapeHTMLText(c.name)}</span><div class="text-muted" style="font-family: monospace;">${c.masked ? 'hidden' : escapeHTMLText(text.slice(0, 200))}${c.key ? ' (key)' : ''}</div></div>`;
+    }
+    const multi = c.type.startsWith('json') || text.length > 80;
+    const input = multi
+      ? `<textarea class="form-textarea" rows="${Math.min(16, text.split('\n').length + 1)}" data-pc-col="${escapeHTMLText(c.name)}" style="font-family: monospace; font-size: 12px;">${escapeHTMLText(text)}</textarea>`
+      : `<input class="form-input" data-pc-col="${escapeHTMLText(c.name)}" value="${escapeHTMLText(text)}">`;
+    return `<div class="form-group"><label class="form-label">${escapeHTMLText(c.name)} <span class="text-muted">(${escapeHTMLText(c.type)})</span></label>${input}
+      <label style="font-size: 12px;"><input type="checkbox" data-pc-null="${escapeHTMLText(c.name)}" ${v === null ? 'checked' : ''}> empty (NULL)</label></div>`;
+  };
+  editor.innerHTML = `
+    <div style="border-top: 1px solid var(--border-color); margin-top: 16px; padding-top: 12px;">
+      <h3 style="margin: 0 0 8px;">Edit row ${escapeHTMLText(Object.values(key).join(' / '))}</h3>
+      <p class="text-muted">Values are saved exactly as typed and checked only by the database. Hidden values keep what is stored.</p>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px;">${page.columns.map(fieldFor).join('')}</div>
+      <div style="display: flex; gap: 8px; margin-top: 12px;">
+        <button class="btn btn-primary" id="pc-save">Save changes</button>
+        <button class="btn btn-secondary" id="pc-cancel">Cancel</button>
+      </div>
+    </div>`;
+  editor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  editor.querySelector('#pc-cancel').addEventListener('click', () => { editor.innerHTML = ''; });
+  editor.querySelector('#pc-save').addEventListener('click', async () => {
+    const set = {};
+    page.columns.filter(c => c.editable).forEach(c => {
+      const input = editor.querySelector(`[data-pc-col="${CSS.escape(c.name)}"]`);
+      const isNull = editor.querySelector(`[data-pc-null="${CSS.escape(c.name)}"]`).checked;
+      const v = row[c.name];
+      const before = v !== null && typeof v === 'object' ? JSON.stringify(v, null, 2) : (v === null || v === undefined ? '' : String(v));
+      if (isNull && v !== null) set[c.name] = null;
+      else if (!isNull && (input.value !== before || v === null)) set[c.name] = input.value;
+    });
+    if (!Object.keys(set).length) { showToast('Nothing changed.'); return; }
+    const ok = await showCustomConfirm(`Change ${Object.keys(set).join(', ')} on ${page.table} in client "${consoleState.tenant}"? This writes live data directly and is recorded in that client's Activity Log.`, 'Save to live data');
+    if (!ok) return;
+    const res = await apiFetch(`/api/v1/platform/tenants/${encodeURIComponent(consoleState.tenant)}/tables/${encodeURIComponent(page.table)}/row`, {
+      method: 'POST', body: JSON.stringify({ key, set })
+    });
+    if (!res) return;
+    if (res.ok) {
+      showToast('Saved.');
+      loadConsoleRows(results);
+    } else {
+      await showApiError(res, 'The change was not saved.');
+    }
+  });
+}
+
+export { renderPrefixConfigsView, renderApprovalRulesView, renderDynamicLabelsView, renderExtensionHooksView, renderExtensionHookLogView, showOneTimeSecretDialog, renderLogHubView, renderConfigurationView, renderConfigModuleRail, configInputId, renderConfigIntegrations, configIntegrationSectionHtml, wireConfigIntegrationSection, renderConfigFields, configFieldHtml, updateConfigDirtyState, saveConfiguration, renderSystemStatusView, renderTenantEntitlementsView, renderTenantUsageView, renderPlatformConsoleView };

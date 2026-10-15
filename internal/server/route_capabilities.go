@@ -588,6 +588,14 @@ var routeCapabilities = map[string]RouteClassification{
 	"PUT /api/v1/admin/settings":                                {LevelAdmin, "admin.settings"},
 	"PUT /api/v1/me":                                            {LevelAuthenticated, "me.default"},
 	"PUT /api/v1/meta/{doctype}/fields/{id}":                    {LevelAuthenticated, "meta.default"},
+
+	// Stage 60.6 platform data console: LevelAdmin here, narrowed to the
+	// ERP_PLATFORM_OPERATORS allowlist inside each handler.
+	"GET /api/v1/platform/me":                                   {LevelAdmin, "platform.console"},
+	"GET /api/v1/platform/tenants":                              {LevelAdmin, "platform.console"},
+	"GET /api/v1/platform/tenants/{tenant}/tables":              {LevelAdmin, "platform.console"},
+	"GET /api/v1/platform/tenants/{tenant}/tables/{table}":      {LevelAdmin, "platform.console"},
+	"POST /api/v1/platform/tenants/{tenant}/tables/{table}/row": {LevelAdmin, "platform.console"},
 }
 
 // capabilityLookupMux exists only to recover the registered pattern string

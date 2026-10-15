@@ -114,9 +114,26 @@ func fetchChannelValidationRules(tenantID, channelCode string) ([]channelValidat
 
 func channelRuleFailureMessage(rule channelValidationRule, detail string) string {
 	if rule.Message != "" {
-		return rule.Message
+		return fmt.Sprintf("%s: %s", rule.RuleType, rule.Message)
 	}
 	return fmt.Sprintf("%s: %s", rule.RuleType, detail)
+}
+
+// countChannelImages only counts active, externally presentable image assets.
+// Certificates, QC evidence and videos are media, but cannot satisfy a
+// marketplace's minimum product-image requirement.
+func countChannelImages(media []ProductMediaAsset) int {
+	count := 0
+	for _, asset := range media {
+		if asset.Status != "Active" || !strings.HasPrefix(asset.FileType, "image/") {
+			continue
+		}
+		switch asset.MediaRole {
+		case "Main Image", "Gallery", "Variant Image", "Lifestyle":
+			count++
+		}
+	}
+	return count
 }
 
 func tagListContains(tags, target string) bool {
@@ -156,14 +173,15 @@ func evaluateChannelValidationRules(tenantID, itemCode, channelCode, locale stri
 	if err != nil {
 		return nil, err
 	}
+	imageCount := countChannelImages(media)
 
 	var failures []string
 	for _, rule := range rules {
 		switch rule.RuleType {
 		case "Min Images":
 			minCount, _ := strconv.Atoi(rule.RuleValue)
-			if len(media) < minCount {
-				failures = append(failures, channelRuleFailureMessage(rule, fmt.Sprintf("requires at least %d image(s), item has %d", minCount, len(media))))
+			if imageCount < minCount {
+				failures = append(failures, channelRuleFailureMessage(rule, fmt.Sprintf("requires at least %d image(s), item has %d", minCount, imageCount)))
 			}
 		case "Max Title Length":
 			maxLen, _ := strconv.Atoi(rule.RuleValue)
@@ -662,8 +680,8 @@ func PullChannelState(tenantID, itemCode, channelCode string) (*ChannelDiffPrevi
 // why" shape 36.2.5's bulk task/workflow actions and 36.3's variant preflight
 // already use, rather than one failure aborting the whole batch.
 type ChannelPullOutcome struct {
-	ItemCode string             `json:"item_code"`
-	Error    string             `json:"error,omitempty"`
+	ItemCode string              `json:"item_code"`
+	Error    string              `json:"error,omitempty"`
 	Diff     *ChannelDiffPreview `json:"diff,omitempty"`
 }
 

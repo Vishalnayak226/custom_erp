@@ -30,10 +30,12 @@ import (
 // ItemTypeFixedAsset is the Item.item_type value for a non-sellable asset.
 const ItemTypeFixedAsset = "Fixed Asset"
 
-// IsFixedAssetItem reports whether an Item's data marks it as a fixed asset.
-func IsFixedAssetItem(data map[string]interface{}) bool {
-	t, _ := data["item_type"].(string)
-	return strings.EqualFold(strings.TrimSpace(t), ItemTypeFixedAsset)
+// IsFixedAssetItem reports whether an Item's type is a fixed-asset type. Since
+// Stage 60.3 that is the ItemType record's "Fixed Asset" flag, so a tenant may
+// define its own asset types; "Fixed Asset" itself keeps its meaning even with
+// no ItemType record (builtInItemTypeRules).
+func IsFixedAssetItem(tenantID string, data map[string]interface{}) bool {
+	return ItemTypeRulesFor(tenantID, ItemTypeName(data)).FixedAsset
 }
 
 // RejectNonSellableItem refuses a sale-side line for a Fixed Asset item. An
@@ -46,7 +48,7 @@ func RejectNonSellableItem(tenantID, sku string) error {
 	if err != nil {
 		return err
 	}
-	if IsFixedAssetItem(item.Data) {
+	if IsFixedAssetItem(tenantID, item.Data) {
 		return &ValidationError{Code: "ASSET-0273", Message: fmt.Sprintf(
 			"item %s is a fixed asset, not stock for sale - it cannot be sold, ordered or invoiced", sku)}
 	}
@@ -63,7 +65,7 @@ func isFixedAssetSKU(tenantID, sku string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	return IsFixedAssetItem(item.Data), nil
+	return IsFixedAssetItem(tenantID, item.Data), nil
 }
 
 // assetReceiptLine is one GRN line of a Fixed Asset item.

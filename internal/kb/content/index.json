@@ -3778,11 +3778,6 @@
             },
             {
               "level": 2,
-              "text": "Global",
-              "slug": "global"
-            },
-            {
-              "level": 2,
               "text": "Global / Common",
               "slug": "global-common"
             },

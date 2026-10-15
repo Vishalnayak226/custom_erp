@@ -1,0 +1,862 @@
+{
+  "schema_version": 1,
+  "title": "ERP operating procedures",
+  "edition": "2026-10-05 training draft",
+  "format": {
+    "width": 1280,
+    "height": 720,
+    "fps": 25,
+    "container": "webm"
+  },
+  "segments": [
+    {
+      "id": "department_setup",
+      "title": "Set up a department",
+      "actor": "Administrator",
+      "file": "media/department-setup.webm",
+      "status": "ready",
+      "fixture_contract": "department-name"
+    },
+    {
+      "id": "vendor_setup",
+      "title": "Set up a vendor",
+      "actor": "Administrator",
+      "file": "media/vendor-setup.webm",
+      "status": "ready",
+      "fixture_contract": "vendor-name"
+    },
+    {
+      "id": "item_setup",
+      "title": "Set up an item",
+      "actor": "Administrator",
+      "file": "media/item-setup.webm",
+      "status": "ready",
+      "fixture_contract": "item-name-barcode-tax"
+    },
+    {
+      "id": "location_check",
+      "title": "Confirm the receiving location",
+      "actor": "Administrator",
+      "file": "media/location-check.webm",
+      "status": "ready",
+      "fixture_contract": "warehouse-name"
+    },
+    {
+      "id": "requisition_create",
+      "title": "Create and verify a requisition",
+      "actor": "Requester",
+      "file": "media/requisition-create.webm",
+      "status": "ready",
+      "fixture_contract": "department-name-quantity"
+    },
+    {
+      "id": "po_create",
+      "title": "Create a purchase order draft",
+      "actor": "Buyer",
+      "file": "media/po-create.webm",
+      "status": "ready",
+      "fixture_contract": "vendor-item-location-quantity"
+    },
+    {
+      "id": "po_submit",
+      "title": "Submit the purchase order for approval",
+      "actor": "Buyer",
+      "file": "media/po-submit.webm",
+      "status": "ready",
+      "fixture_contract": "po-id"
+    },
+    {
+      "id": "po_approval",
+      "title": "Approve the purchase order",
+      "actor": "Approver",
+      "file": "media/po-approval.webm",
+      "status": "ready",
+      "fixture_contract": "po-id"
+    },
+    {
+      "id": "grn_post",
+      "title": "Receive and verify the goods",
+      "actor": "Receiver",
+      "file": "media/grn-post.webm",
+      "status": "ready",
+      "fixture_contract": "po-id-item-location-quantity"
+    },
+    {
+      "id": "role_setup",
+      "title": "Create a role and give it a module",
+      "actor": "Administrator",
+      "file": "media/role-setup.webm",
+      "status": "ready",
+      "fixture_contract": "role-name-inventory"
+    },
+    {
+      "id": "user_setup",
+      "title": "Create a user with that role",
+      "actor": "Administrator",
+      "file": "media/user-setup.webm",
+      "status": "ready",
+      "fixture_contract": "username-role"
+    },
+    {
+      "id": "bin_zone_setup",
+      "title": "Set up a bin, creating its zone in place",
+      "actor": "Administrator",
+      "file": "media/bin-zone-setup.webm",
+      "status": "ready",
+      "fixture_contract": "bin-zone-warehouse"
+    },
+    {
+      "id": "rfq_quotes",
+      "title": "Request quotes, invite a vendor, choose the winner",
+      "actor": "Buyer",
+      "file": "media/rfq-quotes.webm",
+      "status": "ready",
+      "fixture_contract": "rfq-vendor-quote"
+    },
+    {
+      "id": "transfer_stock",
+      "title": "Move stock from the warehouse to the shop",
+      "actor": "Stock controller",
+      "file": "media/transfer-stock.webm",
+      "status": "ready",
+      "fixture_contract": "warehouse-shop-item-qty20"
+    },
+    {
+      "id": "pos_open_till",
+      "title": "Open the till for the shift",
+      "actor": "Cashier",
+      "file": "media/pos-open-till.webm",
+      "status": "ready",
+      "fixture_contract": "shop-float2000"
+    },
+    {
+      "id": "pos_sale",
+      "title": "Ring up a cash sale",
+      "actor": "Cashier",
+      "file": "media/pos-sale.webm",
+      "status": "ready",
+      "fixture_contract": "shop-item-cash"
+    },
+    {
+      "id": "pos_close_till",
+      "title": "Count the cash and close the till",
+      "actor": "Cashier",
+      "file": "media/pos-close-till.webm",
+      "status": "ready",
+      "fixture_contract": "float-plus-sales"
+    },
+    {
+      "id": "supplier_invoice",
+      "title": "Record, match and pay the supplier's bill",
+      "actor": "Accounts",
+      "file": "media/supplier-invoice.webm",
+      "status": "ready",
+      "fixture_contract": "po-grn-full-receipt-vendor"
+    },
+    {
+      "id": "oms_manual_order",
+      "title": "Take a phone order",
+      "actor": "Order desk",
+      "file": "media/oms-manual-order.webm",
+      "status": "ready",
+      "fixture_contract": "item-with-stock"
+    },
+    {
+      "id": "oms_release",
+      "title": "Release the order to the warehouse",
+      "actor": "Order desk",
+      "file": "media/oms-release.webm",
+      "status": "ready",
+      "fixture_contract": "reserved-order"
+    },
+    {
+      "id": "fulfillment_dispatch",
+      "title": "Pick, pack and dispatch",
+      "actor": "Warehouse",
+      "file": "media/fulfillment-dispatch.webm",
+      "status": "ready",
+      "fixture_contract": "released-order-task"
+    },
+    {
+      "id": "sales_invoice_post",
+      "title": "Post and settle the order's invoice",
+      "actor": "Accounts",
+      "file": "media/sales-invoice-post.webm",
+      "status": "ready",
+      "fixture_contract": "shipped-order-draft-invoice"
+    },
+    {
+      "id": "jv_create",
+      "title": "Raise a journal voucher",
+      "actor": "Accountant",
+      "file": "media/jv-create.webm",
+      "status": "ready",
+      "fixture_contract": "chart-of-accounts"
+    },
+    {
+      "id": "jv_approve",
+      "title": "Approve and post the journal voucher",
+      "actor": "Controller",
+      "file": "media/jv-approve.webm",
+      "status": "ready",
+      "fixture_contract": "submitted-journal-voucher"
+    },
+    {
+      "id": "customer_setup",
+      "title": "Set up a customer",
+      "actor": "Administrator",
+      "file": "media/customer-setup.webm",
+      "status": "ready",
+      "fixture_contract": "customer-name"
+    },
+    {
+      "id": "debit_note",
+      "title": "Raise and post a debit note to a supplier",
+      "actor": "Accounts",
+      "file": "media/debit-note.webm",
+      "status": "ready",
+      "fixture_contract": "vendor-po"
+    },
+    {
+      "id": "credit_note",
+      "title": "Raise and post a credit note to a customer",
+      "actor": "Accounts",
+      "file": "media/credit-note.webm",
+      "status": "ready",
+      "fixture_contract": "customer"
+    },
+    {
+      "id": "bin_second_setup",
+      "title": "Add a second bin",
+      "actor": "Warehouse administrator",
+      "file": "media/bin-second-setup.webm",
+      "status": "ready",
+      "fixture_contract": "zone-location"
+    },
+    {
+      "id": "putaway_stock",
+      "title": "Put received stock away into a bin",
+      "actor": "Warehouse",
+      "file": "media/putaway-stock.webm",
+      "status": "ready",
+      "fixture_contract": "bin-item-with-stock"
+    },
+    {
+      "id": "location_movement",
+      "title": "Move stock from one bin to another",
+      "actor": "Warehouse",
+      "file": "media/location-movement.webm",
+      "status": "ready",
+      "fixture_contract": "two-bins-stock-in-first"
+    },
+    {
+      "id": "product_group_setup",
+      "title": "Group products for a promotion",
+      "actor": "Merchandiser",
+      "file": "media/product-group-setup.webm",
+      "status": "ready",
+      "fixture_contract": "item"
+    },
+    {
+      "id": "offer_setup",
+      "title": "Create a coupon offer on a product group",
+      "actor": "Merchandiser",
+      "file": "media/offer-setup.webm",
+      "status": "ready",
+      "fixture_contract": "product-group"
+    },
+    {
+      "id": "pos_sale_coupon",
+      "title": "Apply the coupon at the till",
+      "actor": "Cashier",
+      "file": "media/pos-sale-coupon.webm",
+      "status": "ready",
+      "fixture_contract": "open-session-offer-coupon"
+    },
+    {
+      "id": "purchase_return",
+      "title": "Return goods to the supplier",
+      "actor": "Receiver",
+      "file": "media/purchase-return.webm",
+      "status": "ready",
+      "fixture_contract": "posted-grn"
+    },
+    {
+      "id": "employee_setup",
+      "title": "Add an employee",
+      "actor": "HR",
+      "file": "media/employee-setup.webm",
+      "status": "ready",
+      "fixture_contract": "employee-name"
+    },
+    {
+      "id": "salary_structure_setup",
+      "title": "Give the employee a salary structure",
+      "actor": "HR",
+      "file": "media/salary-structure-setup.webm",
+      "status": "ready",
+      "fixture_contract": "employee"
+    },
+    {
+      "id": "leave_request",
+      "title": "Apply for and approve leave",
+      "actor": "HR and manager",
+      "file": "media/leave-request.webm",
+      "status": "ready",
+      "fixture_contract": "employee"
+    },
+    {
+      "id": "attendance_mark",
+      "title": "Mark attendance",
+      "actor": "HR",
+      "file": "media/attendance-mark.webm",
+      "status": "ready",
+      "fixture_contract": "employee"
+    },
+    {
+      "id": "payroll_run",
+      "title": "Run payroll and post it",
+      "actor": "HR and accounts",
+      "file": "media/payroll-run.webm",
+      "status": "ready",
+      "fixture_contract": "employee-salary-structure"
+    },
+    {
+      "id": "expense_claim",
+      "title": "Claim an expense",
+      "actor": "Employee or clerk",
+      "file": "media/expense-claim.webm",
+      "status": "ready",
+      "fixture_contract": "employee"
+    },
+    {
+      "id": "expense_approve",
+      "title": "Approve the expense claim",
+      "actor": "Store manager",
+      "file": "media/expense-approve.webm",
+      "status": "ready",
+      "fixture_contract": "submitted-expense-claim"
+    },
+    {
+      "id": "expense_pay",
+      "title": "Verify and pay the claim",
+      "actor": "Finance",
+      "file": "media/expense-pay.webm",
+      "status": "ready",
+      "fixture_contract": "approved-expense-claim"
+    },
+    {
+      "id": "asset_register",
+      "title": "Register and capitalise a fixed asset",
+      "actor": "Accounts",
+      "file": "media/asset-register.webm",
+      "status": "ready",
+      "fixture_contract": "employee-location"
+    },
+    {
+      "id": "asset_transfer",
+      "title": "Transfer the asset to another location",
+      "actor": "Accounts",
+      "file": "media/asset-transfer.webm",
+      "status": "ready",
+      "fixture_contract": "capitalised-asset-store"
+    },
+    {
+      "id": "fg_item_setup",
+      "title": "Set up the finished product",
+      "actor": "Administrator",
+      "file": "media/fg-item-setup.webm",
+      "status": "ready",
+      "fixture_contract": "fg-item-name"
+    },
+    {
+      "id": "bom_create",
+      "title": "Create the bill of materials",
+      "actor": "Production planner",
+      "file": "media/bom-create.webm",
+      "status": "ready",
+      "fixture_contract": "fg-item-raw-item"
+    },
+    {
+      "id": "production_order",
+      "title": "Make it: issue material and receive finished goods",
+      "actor": "Production",
+      "file": "media/production-order.webm",
+      "status": "ready",
+      "fixture_contract": "bom-raw-stock-location"
+    },
+    {
+      "id": "quality_inspection",
+      "title": "Inspect the production batch",
+      "actor": "Quality",
+      "file": "media/quality-inspection.webm",
+      "status": "ready",
+      "fixture_contract": "completed-production-order"
+    },
+    {
+      "id": "quality_approve",
+      "title": "Approve the inspection result",
+      "actor": "Store manager",
+      "file": "media/quality-approve.webm",
+      "status": "ready",
+      "fixture_contract": "submitted-quality-inspection"
+    },
+    {
+      "id": "pim_family_setup",
+      "title": "Create a product family",
+      "actor": "Catalogue manager",
+      "file": "media/pim-family-setup.webm",
+      "status": "ready",
+      "fixture_contract": "none"
+    },
+    {
+      "id": "pim_attribute_setup",
+      "title": "Define an attribute",
+      "actor": "Catalogue manager",
+      "file": "media/pim-attribute-setup.webm",
+      "status": "ready",
+      "fixture_contract": "none"
+    },
+    {
+      "id": "pim_family_attribute",
+      "title": "Make the attribute required for the family",
+      "actor": "Catalogue manager",
+      "file": "media/pim-family-attribute.webm",
+      "status": "ready",
+      "fixture_contract": "family-attribute"
+    },
+    {
+      "id": "pim_item_family",
+      "title": "Put the product in its family",
+      "actor": "Catalogue manager",
+      "file": "media/pim-item-family.webm",
+      "status": "ready",
+      "fixture_contract": "item-family"
+    },
+    {
+      "id": "pim_workbench",
+      "title": "Enrich the product on the Workbench",
+      "actor": "Catalogue manager",
+      "file": "media/pim-workbench.webm",
+      "status": "ready",
+      "fixture_contract": "item-in-family"
+    },
+    {
+      "id": "service_contract_setup",
+      "title": "Record an annual maintenance contract",
+      "actor": "Service manager",
+      "file": "media/service-contract-setup.webm",
+      "status": "ready",
+      "fixture_contract": "customer-capitalised-asset"
+    },
+    {
+      "id": "service_ticket_raise",
+      "title": "Log a service ticket and assign a technician",
+      "actor": "Service manager",
+      "file": "media/service-ticket-raise.webm",
+      "status": "ready",
+      "fixture_contract": "active-service-contract-technician-user"
+    },
+    {
+      "id": "service_ticket_resolve",
+      "title": "Work the ticket to closure",
+      "actor": "Service manager",
+      "file": "media/service-ticket-resolve.webm",
+      "status": "ready",
+      "fixture_contract": "assigned-service-ticket"
+    },
+    {
+      "id": "crm_customer_birthday",
+      "title": "Record a customer's date of birth",
+      "actor": "Marketing (head office)",
+      "file": "media/crm-customer-birthday.webm",
+      "status": "ready",
+      "fixture_contract": "customer"
+    },
+    {
+      "id": "campaign_setup",
+      "title": "Set up a birthday campaign",
+      "actor": "Marketing (head office)",
+      "file": "media/campaign-setup.webm",
+      "status": "ready",
+      "fixture_contract": "none"
+    },
+    {
+      "id": "campaign_roi",
+      "title": "Read the campaign's return",
+      "actor": "Marketing (head office)",
+      "file": "media/campaign-roi.webm",
+      "status": "ready",
+      "fixture_contract": "campaign-after-a-send-run"
+    },
+    {
+      "id": "report_gst_summary",
+      "title": "Check the month's GST position",
+      "actor": "Accounts",
+      "file": "media/report-gst-summary.webm",
+      "status": "ready",
+      "fixture_contract": "posted-sales-and-purchases"
+    },
+    {
+      "id": "report_catalog_export",
+      "title": "Run a catalog report and export it",
+      "actor": "Accounts",
+      "file": "media/report-catalog-export.webm",
+      "status": "ready",
+      "fixture_contract": "stock-movements"
+    },
+    {
+      "id": "printer_setup",
+      "title": "Record the label printer",
+      "actor": "Store keeper",
+      "file": "media/printer-setup.webm",
+      "status": "ready",
+      "fixture_contract": "location"
+    },
+    {
+      "id": "sticker_print_grn",
+      "title": "Print barcode labels for a goods receipt",
+      "actor": "Store keeper",
+      "file": "media/sticker-print-grn.webm",
+      "status": "ready",
+      "fixture_contract": "approved-grn-printer"
+    }
+  ],
+  "chapters": [
+    {
+      "id": "purchase_requisition",
+      "title": "Purchase requisition — from setup to saved request",
+      "actor": "Requester and administrator",
+      "start": "Start: request a needed item and know the department responsible.",
+      "end": "End: a numbered Draft requisition is visible in the list; the next process is buyer review and PO.",
+      "segments": [
+        "department_setup",
+        "requisition_create"
+      ]
+    },
+    {
+      "id": "purchase_order",
+      "title": "Purchase order — from master setup to approval",
+      "actor": "Administrator, buyer and approver",
+      "start": "Start: confirm a vendor, item and receiving warehouse before ordering.",
+      "end": "End: a numbered PO is approved by a different authorized person and ready for receipt.",
+      "segments": [
+        "vendor_setup",
+        "item_setup",
+        "location_check",
+        "po_create",
+        "po_submit",
+        "po_approval"
+      ]
+    },
+    {
+      "id": "goods_receipt",
+      "title": "Goods receipt — repeat setup, then receive against PO",
+      "actor": "Administrator, buyer, approver and receiver",
+      "start": "Start: reconfirm the vendor, item, warehouse and approved PO; do not receive against an unrelated order.",
+      "end": "End: a numbered GRN is posted and the item/location stock view is checked.",
+      "segments": [
+        "vendor_setup",
+        "item_setup",
+        "location_check",
+        "po_create",
+        "po_submit",
+        "po_approval",
+        "grn_post"
+      ]
+    },
+    {
+      "id": "users_and_roles",
+      "title": "Users and roles - a person who sees only their module",
+      "actor": "Administrator",
+      "start": "Start: decide what this person should be able to see, before creating their account.",
+      "end": "End: an Active user whose role sees only the granted module; at first sign-in they set their own password.",
+      "segments": [
+        "role_setup",
+        "user_setup"
+      ]
+    },
+    {
+      "id": "bin_setup",
+      "title": "Bins and zones - set up a storage position",
+      "actor": "Administrator",
+      "start": "Start: confirm the warehouse the bin belongs to.",
+      "end": "End: a saved bin in a named zone at that warehouse; the zone was created without leaving the form.",
+      "segments": [
+        "location_check",
+        "bin_zone_setup"
+      ]
+    },
+    {
+      "id": "request_for_quotation",
+      "title": "Request for quotation - from vendor to chosen price",
+      "actor": "Administrator and buyer",
+      "start": "Start: the supplier you will invite must exist as a vendor.",
+      "end": "End: a Closed RFQ with one selected quote; the buyer raises the purchase order next.",
+      "segments": [
+        "vendor_setup",
+        "rfq_quotes"
+      ]
+    },
+    {
+      "id": "stock_transfer",
+      "title": "Stock transfer - warehouse to shop",
+      "actor": "Administrator and stock controller",
+      "start": "Start: confirm the sending warehouse holds the stock you will move.",
+      "end": "End: a Received transfer and the shop's stock row showing the units that arrived.",
+      "segments": [
+        "location_check",
+        "transfer_stock"
+      ]
+    },
+    {
+      "id": "pos_shift",
+      "title": "Point of sale - one cashier shift",
+      "actor": "Cashier",
+      "start": "Start: the shop is a selling location with stock, and the cashier's account is assigned to it.",
+      "end": "End: a completed cash sale and a closed session whose counted cash matches the expected amount.",
+      "segments": [
+        "pos_open_till",
+        "pos_sale",
+        "pos_close_till"
+      ]
+    },
+    {
+      "id": "supplier_bill",
+      "title": "Supplier bill - from order and receipt to a paid, matched invoice",
+      "actor": "Buyer, approver, receiver and accounts",
+      "start": "Start: reconfirm the vendor, item and warehouse, raise and approve the PO, receive the goods - the bill is checked against both.",
+      "end": "End: the bill is Matched against the PO and the accepted goods, then Paid; its GST sits in GST Input Credit.",
+      "segments": [
+        "vendor_setup",
+        "item_setup",
+        "location_check",
+        "po_create",
+        "po_submit",
+        "po_approval",
+        "grn_post",
+        "supplier_invoice"
+      ]
+    },
+    {
+      "id": "online_order",
+      "title": "Online order - from phone order to paid invoice",
+      "actor": "Order desk, warehouse and accounts",
+      "start": "Start: the item has stock at a warehouse; a customer places an order by phone.",
+      "end": "End: the order is Shipped, its stock and cost are posted, and its invoice is posted and settled.",
+      "segments": [
+        "oms_manual_order",
+        "oms_release",
+        "fulfillment_dispatch",
+        "sales_invoice_post"
+      ]
+    },
+    {
+      "id": "journal_voucher",
+      "title": "Journal voucher - a month-end accrual, raised and approved",
+      "actor": "Accountant and controller",
+      "start": "Start: a cost is owed this month but will be paid next month (October salaries).",
+      "end": "End: a balanced voucher, approved by a second person, posted to Salary Expense and Salary Payable.",
+      "segments": [
+        "jv_create",
+        "jv_approve"
+      ]
+    },
+    {
+      "id": "debit_credit_notes",
+      "title": "Debit and credit notes - adjusting what suppliers and customers owe",
+      "actor": "Buyer, approver and accounts",
+      "start": "Start: a supplier agreed a rebate on an approved order; a customer was overcharged.",
+      "end": "End: a posted debit note against the supplier's order and a posted credit note refunding the customer.",
+      "segments": [
+        "vendor_setup",
+        "item_setup",
+        "location_check",
+        "po_create",
+        "po_submit",
+        "po_approval",
+        "debit_note",
+        "customer_setup",
+        "credit_note"
+      ]
+    },
+    {
+      "id": "location_movement_chapter",
+      "title": "Location movement - re-slot stock between bins in one warehouse",
+      "actor": "Warehouse administrator and warehouse staff",
+      "start": "Start: the warehouse has stock received; two bins exist in one zone.",
+      "end": "End: part of a bin's stock moved to another bin at the same warehouse, recorded on the stock ledger.",
+      "segments": [
+        "location_check",
+        "bin_zone_setup",
+        "bin_second_setup",
+        "putaway_stock",
+        "location_movement"
+      ]
+    },
+    {
+      "id": "offers_and_coupons",
+      "title": "Offers - a coupon discount on a group of products",
+      "actor": "Merchandiser and cashier",
+      "start": "Start: a promotion covers a chosen set of products and is redeemed with a coupon.",
+      "end": "End: the offer is live, and a till sale applies it only when the coupon is entered.",
+      "segments": [
+        "product_group_setup",
+        "offer_setup",
+        "pos_open_till",
+        "pos_sale_coupon",
+        "pos_close_till"
+      ]
+    },
+    {
+      "id": "purchase_return_chapter",
+      "title": "Purchase return - send goods back against their GRN",
+      "actor": "Buyer, approver and receiver",
+      "start": "Start: goods arrived on a receipt against an approved PO, and some must go back.",
+      "end": "End: the returned units have left stock and a posted debit note records what the supplier owes.",
+      "segments": [
+        "vendor_setup",
+        "item_setup",
+        "location_check",
+        "po_create",
+        "po_submit",
+        "po_approval",
+        "grn_post",
+        "purchase_return"
+      ]
+    },
+    {
+      "id": "hr_month",
+      "title": "HR - from a new employee to a posted payslip",
+      "actor": "HR, manager and accounts",
+      "start": "Start: a new store associate joins on 1 October.",
+      "end": "End: their leave approved, attendance marked, and October payroll run and posted to the accounts.",
+      "segments": [
+        "employee_setup",
+        "salary_structure_setup",
+        "leave_request",
+        "attendance_mark",
+        "payroll_run"
+      ]
+    },
+    {
+      "id": "expense_claims",
+      "title": "Expense claim - from receipt to reimbursement",
+      "actor": "Employee, store manager and finance",
+      "start": "Start: an employee paid a business expense personally and has the receipt.",
+      "end": "End: the claim approved by their manager, verified by finance and paid, with the expense posted.",
+      "segments": [
+        "employee_setup",
+        "expense_claim",
+        "expense_approve",
+        "expense_pay"
+      ]
+    },
+    {
+      "id": "fixed_assets",
+      "title": "Fixed assets - register, capitalise and move an asset",
+      "actor": "HR and accounts",
+      "start": "Start: the business bought equipment it will use for years; it has a person responsible for it.",
+      "end": "End: the asset is capitalised with its depreciation basis and moved to its new location on the register.",
+      "segments": [
+        "location_check",
+        "employee_setup",
+        "asset_register",
+        "asset_transfer"
+      ]
+    },
+    {
+      "id": "manufacturing_run",
+      "title": "Manufacturing - from bill of materials to finished goods in stock",
+      "actor": "Administrator, planner and production",
+      "start": "Start: the raw material is in stock at the warehouse; the finished product is new.",
+      "end": "End: a completed production order - raw material issued, finished goods received at cost.",
+      "segments": [
+        "item_setup",
+        "location_check",
+        "fg_item_setup",
+        "bom_create",
+        "production_order"
+      ]
+    },
+    {
+      "id": "quality_check",
+      "title": "Quality - inspect a batch and sign off the result",
+      "actor": "Planner, production, quality and store manager",
+      "start": "Start: a batch has been produced and must be checked before it is sold.",
+      "end": "End: an inspection recorded against the production order and approved by a second person.",
+      "segments": [
+        "item_setup",
+        "location_check",
+        "fg_item_setup",
+        "bom_create",
+        "production_order",
+        "quality_inspection",
+        "quality_approve"
+      ]
+    },
+    {
+      "id": "pim_setup",
+      "title": "PIM - set up a family and complete a product, in order",
+      "actor": "Administrator and catalogue manager",
+      "start": "Start: the product exists as an Item; nothing describes it for selling yet.",
+      "end": "End: the product sits in a family with a required attribute filled in and its selling content submitted for approval.",
+      "segments": [
+        "fg_item_setup",
+        "pim_family_setup",
+        "pim_attribute_setup",
+        "pim_family_attribute",
+        "pim_item_family",
+        "pim_workbench"
+      ]
+    },
+    {
+      "id": "service",
+      "title": "Service - maintenance contract and a service ticket from call to closure",
+      "actor": "Service manager",
+      "start": "Start: the equipment being serviced is on the asset register (see the Fixed assets chapter), and a technician has a login.",
+      "end": "End: the ticket is resolved with its fix recorded and closed, and one visit is used on the customer's contract.",
+      "segments": [
+        "customer_setup",
+        "service_contract_setup",
+        "service_ticket_raise",
+        "service_ticket_resolve"
+      ]
+    },
+    {
+      "id": "crm",
+      "title": "CRM - a birthday campaign and its return",
+      "actor": "Marketing (head office)",
+      "start": "Start: customers are on file and the CRM module is switched on.",
+      "end": "End: the campaign greets each customer on their birthday by itself, and the Campaign ROI report shows who it reached, what they spent and the return on its cost.",
+      "segments": [
+        "customer_setup",
+        "crm_customer_birthday",
+        "campaign_setup",
+        "campaign_roi"
+      ]
+    },
+    {
+      "id": "reports",
+      "title": "Reports - the GST position and any report as a spreadsheet",
+      "actor": "Accounts",
+      "start": "Start: the month has posted sales and purchases and stock has moved.",
+      "end": "End: the GST payable for the period is read off one screen, and a catalog report is run and downloaded as CSV.",
+      "segments": [
+        "report_gst_summary",
+        "report_catalog_export"
+      ]
+    },
+    {
+      "id": "stickers",
+      "title": "Stickers - barcode labels for goods received",
+      "actor": "Store keeper",
+      "start": "Start: goods have been received on an approved GRN.",
+      "end": "End: a label printer is on file, and one barcode label per accepted unit is printed from the GRN and logged against it.",
+      "segments": [
+        "printer_setup",
+        "sticker_print_grn"
+      ]
+    }
+  ]
+}

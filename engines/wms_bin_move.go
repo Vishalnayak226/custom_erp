@@ -71,8 +71,19 @@ func MoveBinStock(tenantID string, in BinMoveInput) error {
 		return err
 	}
 
-	// Source: the bin row, locked.
+	// Stage 59.1: take the SKU's reservation lock BEFORE the bin row lock -
+	// the order ConsumeTaskBinStockTx uses - so a move and a pick on the same
+	// bin queue behind each other instead of deadlocking.
 	var locationCode string
+	if err := tx.QueryRow(fmt.Sprintf(
+		`SELECT location_code FROM %s.bin_stock WHERE bin_code = $1 AND sku = $2 AND condition = 'Good'`, schema),
+		in.FromBin, in.SKU).Scan(&locationCode); err == nil {
+		if err := lockSKUAtLocationTx(tx, schema, locationCode, in.SKU); err != nil {
+			return err
+		}
+	}
+
+	// Source: the bin row, locked.
 	var have int
 	err = tx.QueryRow(fmt.Sprintf(
 		`SELECT location_code, qty FROM %s.bin_stock WHERE bin_code = $1 AND sku = $2 AND condition = 'Good' FOR UPDATE`, schema),
@@ -84,6 +95,15 @@ func MoveBinStock(tenantID string, in BinMoveInput) error {
 	}
 	if have < in.Qty {
 		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Quantity", Message: fmt.Sprintf("only %d of %s in bin %s, cannot move %d", have, in.SKU, in.FromBin, in.Qty)}
+	}
+	// Stock promised to an open pick task stays where the picker was sent.
+	reserved, err := BinReservedQty(tx, schema, in.FromBin, in.SKU, "")
+	if err != nil {
+		return err
+	}
+	if have-reserved < in.Qty {
+		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Quantity", Message: fmt.Sprintf(
+			"bin %s holds %d of %s but %d are reserved for open pick tasks, so only %d can be moved", in.FromBin, have, in.SKU, reserved, have-reserved)}
 	}
 
 	// Destination: the same checks putaway makes, plus "same location".

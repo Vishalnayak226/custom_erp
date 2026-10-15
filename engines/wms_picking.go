@@ -160,53 +160,57 @@ func GenerateWavePickList(tenantID, waveID string) ([]WavePickLine, []WaveOrderA
 		return nil, nil, fmt.Errorf("wave %s has no open (Pending/Picking) tasks", waveID)
 	}
 
-	// Aggregate demand per SKU across the whole wave.
-	demandBySku := map[string]int{}
-	var skus []string
+	// Stage 59.1: each task reserves its own bins, oldest task first, so an
+	// older order is not starved by a newer one when stock falls short - the
+	// rule the old pooled allocation enforced, now kept by the order the
+	// reservations are made in. The consolidated walk below is read back from
+	// those reservations, so it names exactly the stock each task will take
+	// (and, from 59.3, only its own owner's stock), and two calls agree.
+	sort.SliceStable(remainders, func(i, j int) bool { return remainders[i].CreatedAt.Before(remainders[j].CreatedAt) })
+	var taskOrder []string
+	seenTask := map[string]bool{}
 	for _, r := range remainders {
-		if _, seen := demandBySku[r.Sku]; !seen {
-			skus = append(skus, r.Sku)
+		if !seenTask[r.TaskID] {
+			seenTask[r.TaskID] = true
+			taskOrder = append(taskOrder, r.TaskID)
 		}
-		demandBySku[r.Sku] += r.Remaining
 	}
-	sort.Strings(skus)
-
-	var pickLines []WavePickLine
-	allocatedTotalBySku := map[string]int{}
-	for _, sku := range skus {
-		demand := demandBySku[sku]
-		// Stage 42.1.5: the bin-selection query that used to live inline here is
-		// now AllocateFromStock, which picks FIFO or FEFO from the item's own
-		// tracking_mode and applies the expiry gates. FIFO's SQL is byte-for-byte
-		// the query this block used to run, so a warehouse with no batch-tracked
-		// item gets the same pick list it got before.
-		candidates, shortfall, err := AllocateFromStock(tenantID, sku, locationCode, demand)
-		if err != nil {
+	for _, id := range taskOrder {
+		if err := ReserveTaskBinStock(tenantID, id); err != nil {
 			return nil, nil, err
 		}
-		for _, c := range candidates {
-			pickLines = append(pickLines, WavePickLine{
-				Sku: sku, BinCode: c.BinCode, Zone: c.Zone, Aisle: c.Aisle, Rack: c.Rack,
-				PickQty: c.Qty, BatchNo: c.BatchNo, ExpiryDate: c.ExpiryDate,
-			})
-		}
-		allocatedTotalBySku[sku] = demand - shortfall
+	}
+	reserved, err := openTaskAllocations(schema, taskOrder)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	// Distribute each SKU's allocated total back to the tasks that need it,
-	// oldest task first.
-	sort.SliceStable(remainders, func(i, j int) bool { return remainders[i].CreatedAt.Before(remainders[j].CreatedAt) })
-	remainingAllocBySku := map[string]int{}
-	for sku, total := range allocatedTotalBySku {
-		remainingAllocBySku[sku] = total
+	type walkKey struct{ sku, bin, batch string }
+	walkIdx := map[walkKey]int{}
+	var pickLines []WavePickLine
+	reservedByTaskSKU := map[[2]string]int{}
+	for _, c := range reserved {
+		reservedByTaskSKU[[2]string{c.TaskID, c.SKU}] += c.Qty
+		k := walkKey{c.SKU, c.BinCode, c.BatchNo}
+		if i, ok := walkIdx[k]; ok {
+			pickLines[i].PickQty += c.Qty
+			continue
+		}
+		walkIdx[k] = len(pickLines)
+		pickLines = append(pickLines, WavePickLine{
+			Sku: c.SKU, BinCode: c.BinCode, Zone: c.Zone, Aisle: c.Aisle, Rack: c.Rack,
+			PickQty: c.Qty, BatchNo: c.BatchNo, ExpiryDate: c.ExpiryDate,
+		})
 	}
+
 	var allocations []WaveOrderAllocation
 	for _, r := range remainders {
-		give := remainingAllocBySku[r.Sku]
+		key := [2]string{r.TaskID, r.Sku}
+		give := reservedByTaskSKU[key]
 		if give > r.Remaining {
 			give = r.Remaining
 		}
-		remainingAllocBySku[r.Sku] -= give
+		reservedByTaskSKU[key] -= give
 		allocations = append(allocations, WaveOrderAllocation{
 			TaskID: r.TaskID, Sku: r.Sku, AllocatedQty: give, Shortfall: r.Remaining - give,
 		})

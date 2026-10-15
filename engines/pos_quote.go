@@ -63,6 +63,10 @@ const (
 	// such a cart through discount approval whenever the tenant has configured
 	// one. In 'strict' mode this source cannot occur - the line is rejected.
 	PriceSourceCashierEntered = "cashier_entered"
+	// PriceSourceItemTypeFree - the item's type sells at zero price (Gift,
+	// Free With Item; Stage 60.4). Master data, so authoritative; no override
+	// or price list can make it chargeable.
+	PriceSourceItemTypeFree = "item_type_free"
 )
 
 // Pricing modes (setting pos.pricing_mode).
@@ -221,6 +225,10 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 	contractList := customerPriceListCode(tenantID, req.CustomerID)
 	defaultList := strings.TrimSpace(GetSettingString(tenantID, "pos.default_price_list"))
 	overrides := approvedPriceOverrides(tenantID, req.CartNumber)
+	freeItems, err := resolveFreeItemLines(tenantID, req.Lines)
+	if err != nil {
+		return nil, err
+	}
 
 	result := &QuoteResult{
 		QuoteID:    NewDocIDCompact("POSQ"),
@@ -267,6 +275,11 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 		line := QuoteLine{Sku: sku, Qty: in.Qty, MRP: itemMRP, PriceListCode: refList}
 
 		switch {
+		case freeItems[sku]:
+			// Stage 60.4: a zero-price item type is free, not discounted - its
+			// reference is 0 too, so it never reads as a 100% manual discount.
+			line.PriceListCode = ""
+			line.PriceSource = PriceSourceItemTypeFree
 		case reference > 0:
 			line.ReferencePrice = round2(reference)
 			line.UnitPrice = line.ReferencePrice
@@ -291,7 +304,7 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 		// 47.2.3: an approved override replaces the charged price but never
 		// the reference - so the deviation stays visible in the totals, in the
 		// receipt and in the evidence, rather than being absorbed silently.
-		if ov, ok := overrides[sku]; ok {
+		if ov, ok := overrides[sku]; ok && !freeItems[sku] {
 			line.UnitPrice = round2(ov.price)
 			line.OverrideID = ov.id
 			line.PriceSource = PriceSourceOverride

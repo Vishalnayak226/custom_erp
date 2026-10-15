@@ -136,6 +136,12 @@ func FulfillmentTaskLocationCode(tenantID, taskID string) (string, error) {
 }
 
 func (t *pickPackTask) save(schema string) error {
+	return t.saveWith(db.DB, schema)
+}
+
+// saveWith writes the task through the caller's transaction - required when
+// that transaction holds the task's row lock, or the UPDATE would wait on it.
+func (t *pickPackTask) saveWith(q stockQuerier, schema string) error {
 	itemMaps := make([]map[string]interface{}, len(t.items))
 	for i, it := range t.items {
 		itemMaps[i] = it.toMap()
@@ -146,7 +152,7 @@ func (t *pickPackTask) save(schema string) error {
 	if err != nil {
 		return err
 	}
-	_, err = db.DB.Exec(fmt.Sprintf(
+	_, err = q.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET data = $1, status = $2, updated_at = CURRENT_TIMESTAMP WHERE doctype = 'FulfillmentTask' AND id = $3`, schema),
 		marshaled, t.status, t.id)
 	return err
@@ -231,6 +237,18 @@ func ScanPickItem(tenantID, taskID, scan string) (sku string, pickedQty int, err
 		return "", 0, fmt.Errorf("scanned code %q does not match any known item", scan)
 	}
 
+	// Stage 59.1: the scan and the bin it empties are one transaction, under
+	// the task's row lock, so two scanners on one task cannot both count the
+	// same unit and the bin is decremented exactly once per picked unit.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return "", 0, err
+	}
+	defer tx.Rollback()
+	lockedStatus, lockedData, err := lockFulfillmentTaskTx(tx, schema, taskID)
+	if err != nil {
+		return "", 0, err
+	}
 	task, err := loadPickPackTask(schema, taskID)
 	if err != nil {
 		return "", 0, err
@@ -257,9 +275,23 @@ func ScanPickItem(tenantID, taskID, scan string) (sku string, pickedQty int, err
 		return "", 0, fmt.Errorf("scanned code belongs to %q (%s), which is not part of this task", name, resolvedSKU)
 	}
 
+	// Reserve the whole task first (a no-op once its pick list has been
+	// produced), so a task scanned without one still takes its units from
+	// whole reservations rather than one single-unit row per scan.
+	if err := ReserveTaskBinStockTx(tx, tenantID, schema, taskID, lockedStatus, lockedData); err != nil {
+		return "", 0, err
+	}
+	location, _ := task.data["location_code"].(string)
+	if _, err := ConsumeTaskBinStockTx(tx, tenantID, schema, taskID, location, resolvedSKU, 1); err != nil {
+		return "", 0, err
+	}
+
 	task.items[matchIdx].PickedQty++
 	recomputeTaskStatus(task)
-	if err := task.save(schema); err != nil {
+	if err := task.saveWith(tx, schema); err != nil {
+		return "", 0, err
+	}
+	if err := tx.Commit(); err != nil {
 		return "", 0, err
 	}
 	return resolvedSKU, task.items[matchIdx].PickedQty, nil
@@ -333,6 +365,16 @@ func ShortPickLine(tenantID, taskID, sku, reasonCode string) error {
 	if err != nil {
 		return err
 	}
+	// Stage 59.1: the short and the release of that SKU's still-reserved bin
+	// stock commit together, so stock nobody will pick is never left promised.
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, _, err := lockFulfillmentTaskTx(tx, schema, taskID); err != nil {
+		return err
+	}
 	task, err := loadPickPackTask(schema, taskID)
 	if err != nil {
 		return err
@@ -359,7 +401,22 @@ func ShortPickLine(tenantID, taskID, sku, reasonCode string) error {
 	}
 
 	recomputeTaskStatus(task)
-	return task.save(schema)
+	if err := task.saveWith(tx, schema); err != nil {
+		return err
+	}
+	// Release the SKU, then re-reserve from the task as now saved: a SKU
+	// listed on two lines and shorted on only one still needs the other's.
+	if err := ReleaseTaskBinStockTx(tx, schema, taskID, sku); err != nil {
+		return err
+	}
+	status, data, err := lockFulfillmentTaskTx(tx, schema, taskID)
+	if err != nil {
+		return err
+	}
+	if err := ReserveTaskBinStockTx(tx, tenantID, schema, taskID, status, data); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // CompletePackTask is the explicit, blockable pack-completion action (§12:

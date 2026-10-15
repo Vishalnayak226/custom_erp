@@ -99,6 +99,11 @@ func ImportChannelSalesOrder(tenantID string, input ChannelOrderInput) (string, 
 	}
 	defer release()
 
+	// Stage 60.2: OMS knows a store by its Facility Code; the ERP keys stock by
+	// Store Code. A value matching no facility code is passed through as-is, so
+	// a connector already sending store codes keeps working.
+	input.PreferredLocation = ResolveFacilityCode(schema, input.PreferredLocation)
+
 	// The mapping row is only honoured when the order it names still exists
 	// (Stage 35.1.3). The retired importers wrote a mapping row pointing at a
 	// synthetic "ORD-<channel>-<id>" that was never created as a document, so
@@ -226,4 +231,22 @@ func ImportUnicommerceSalesOrder(tenantID, channelOrderID, storeCode string, lin
 	}
 	LogAuditEvent(tenantID, "system", "UNICOMMERCE_ORDER_IMPORTED", "SUCCESS", fmt.Sprintf("order=%s store=%s items=%d", orderID, storeCode, len(lines)))
 	return orderID, nil
+}
+
+// ResolveFacilityCode maps an OMS Facility Code to the store's Store Code
+// (Stage 60.2). Facility codes are unique per tenant (MASTER-0313), so at
+// most one store matches; anything else is returned unchanged.
+func ResolveFacilityCode(schema, value string) string {
+	if value == "" {
+		return value
+	}
+	var code string
+	err := db.DB.QueryRow(fmt.Sprintf(`
+		SELECT COALESCE(data->>'code', id) FROM %s.documents
+		WHERE doctype = 'Location' AND UPPER(TRIM(data->>'facility_code')) = UPPER(TRIM($1))
+		LIMIT 1`, schema), value).Scan(&code)
+	if err != nil || code == "" {
+		return value
+	}
+	return code
 }

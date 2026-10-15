@@ -1,6 +1,7 @@
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
+import { documentSearchLink } from './view-document-links.js';
 async function renderDocTableView(container) {
   const doctypeAtRequestTime = currentDoctype;
   const pageAtRequestTime = currentTablePage;
@@ -236,6 +237,7 @@ function renderDocTable() {
         <tr>
           ${bulkEditingEnabled ? `<th style="width: 42px;"><input type="checkbox" aria-label="Select all visible records" data-pim-select-page ${items.length > 0 && items.every(item => bulkSelectedDocIDs.has(item.id)) ? 'checked' : ''}></th>` : ''}
           ${state.activeDocFields.map(f => `<th>${escapeHTMLText(getTranslatedLabel(f.label))}</th>`).join('')}
+          ${currentDoctype === 'PurchaseRequisition' ? '<th>Next document</th>' : ''}
           <th class="row-actions-cell" style="text-align: right;">Actions</th>
         </tr>
       </thead>
@@ -252,7 +254,7 @@ function renderDocTable() {
     const emptyMsg = currentSearchQuery
       ? `No ${label} records match &ldquo;${escapeHTMLText(currentSearchQuery)}&rdquo;. Clear the search box above to see all of them.`
       : `No ${label} records yet. Use <b>New ${label}</b> above to create the first one, or <b>Bulk Import</b> to load a CSV.`;
-    tableHTML += `<tr><td colspan="${state.activeDocFields.length + 1 + (bulkEditingEnabled ? 1 : 0)}" class="text-center py-8 text-muted">${emptyMsg}</td></tr>`;
+    tableHTML += `<tr><td colspan="${state.activeDocFields.length + 1 + (bulkEditingEnabled ? 1 : 0) + (currentDoctype === 'PurchaseRequisition' ? 1 : 0)}" class="text-center py-8 text-muted">${emptyMsg}</td></tr>`;
   } else {
     items.forEach(row => {
       tableHTML += `<tr>`;
@@ -272,6 +274,13 @@ function renderDocTable() {
           tableHTML += `<td>${copyableCell(val, val)}</td>`;
         }
       });
+      if (currentDoctype === 'PurchaseRequisition') {
+        const nextType = row.converted_to_doctype;
+        const nextID = row.converted_to_id;
+        tableHTML += `<td>${nextType && nextID
+          ? documentSearchLink(nextType, nextID, `${nextType === 'RFQ' ? 'RFQ' : 'PO'} ${nextID}`)
+          : row.status === 'Approved' ? 'Choose RFQ or PO →' : 'Awaiting approval'}</td>`;
+      }
       const showHistory = TAXONOMY_HISTORY_DOCTYPES.has(currentDoctype);
       // Stage 26.3.2: Purchase Requisition has no bespoke workbench (unlike
       // GRN) - its schema is flat enough that the generic doctype-table
@@ -320,7 +329,7 @@ function renderDocTable() {
         // Stage 26.8.8/26.8.10: Appraisal/Grievance are the same "flat
         // doctype, only the submit-for-approval action is bespoke" shape
         // QualityInspection already uses above.
-        : (currentDoctype === 'Appraisal' || currentDoctype === 'Grievance') && row.status === 'Draft'
+        : (currentDoctype === 'Appraisal' || currentDoctype === 'Grievance' || currentDoctype === 'HoldReleaseRequest' || currentDoctype === 'SupplierSubmission') && row.status === 'Draft'
         ? `<button class="action-btn" title="Submit for Approval" aria-label="Submit ${escapeHTMLText(row.id)} for approval" style="margin-right:4px;" data-doc-action="submit-document" data-doc-id="${escapeHTMLText(row.id)}" data-doctype="${escapeHTMLText(currentDoctype)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
            </button>`
@@ -328,6 +337,10 @@ function renderDocTable() {
         // download the CSV - same authenticated-blob pattern as the Product
         // Group Actions modal's Export CSV button, since a plain <a href>
         // can't carry the Bearer token this endpoint requires.
+        : currentDoctype === 'PIMImportTemplate' && row.status === 'Active'
+        ? `<button class="action-btn" title="Preview and import CSV" aria-label="Preview and import with template ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="run-pim-import" data-doc-id="${escapeHTMLText(row.id)}">
+             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 20h16"/></svg>
+           </button>`
         : currentDoctype === 'PIMExportTemplate' && row.status === 'Active'
         ? `<button class="action-btn" title="Run" aria-label="Run export template ${escapeHTMLText(row.id)}" style="margin-right:4px;" data-doc-action="run-pim-export" data-doc-id="${escapeHTMLText(row.id)}">
              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -390,7 +403,8 @@ function renderDocTable() {
         case 'receive-subcontract-order': window.receiveSubcontractOrder?.(id, button.dataset.expectedQty); break;
         case 'merge-customer': window.mergeCustomerRow?.(id); break;
         case 'service-ticket': runServiceTicketStep(id, button.dataset.step, button); break;
-        case 'submit-document': window.submitDocForApproval?.(button.dataset.doctype, id); break;
+        case 'submit-document': submitGenericDocForApproval(button.dataset.doctype, id, button); break;
+        case 'run-pim-import': loadViewModule('/view-pim.js?v=1').then(() => window.openPIMImportTemplateRun?.(id)).catch(() => showToast('Import tools could not load. Refresh and try again.', { variant: 'error' })); break;
         case 'run-pim-export': window.runPIMExportTemplateRow?.(id); break;
         case 'share-pim-catalog': window.openPIMCatalogShareModal?.(id, button.dataset.docName); break;
         case 'taxonomy-history': window.viewTaxonomyHistory?.(id); break;
@@ -512,6 +526,29 @@ window.submitRequisitionForApproval = async function(documentId) {
   }
   renderView('doctype-table');
 };
+
+// The generic table is lazy-loaded independently of procurement. Keep its
+// approval action here so a hold-release maker can submit without first
+// visiting a procurement screen (which exports a similarly named helper).
+async function submitGenericDocForApproval(doctype, documentId, button) {
+  if (button.disabled) return;
+  button.disabled = true;
+  try {
+    const res = await apiFetch('/api/v1/approval/submit', {
+      method: 'POST',
+      body: JSON.stringify({ doctype, document_id: documentId })
+    });
+    if (!res) return;
+    if (!res.ok) {
+      await showApiError(res, 'Failed to submit for approval.');
+      return;
+    }
+    showToast(`${getDoctypeLabel(doctype)} submitted for approval.`, { variant: 'info' });
+    renderView('doctype-table');
+  } finally {
+    button.disabled = false;
+  }
+}
 
 // Service Ticket lifecycle: Draft -> Assigned -> InProgress -> Resolved ->
 // Closed, each step through its own endpoint so the checks there run (a
@@ -1005,7 +1042,7 @@ document.addEventListener('keydown', (e) => {
 // Open Dynamic Creation Modal. Pass an existing record (as returned by
 // GET /api/v1/doc/{doctype}/{id}) to switch into edit mode instead of
 // create - see editDocRecord below, the only caller that does this.
-window.openDynamicModal = async function(existingRecord) {
+window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
   // These are audit records emitted by the dedicated reset workflow. Users
   // are identities, not documents: generic Link(User)/CRUD cannot create a
   // valid reset and must not replace the audited dual-control endpoint.
@@ -1025,6 +1062,12 @@ window.openDynamicModal = async function(existingRecord) {
   editingDocVersion = isEdit && typeof existingRecord.version === 'number' ? existingRecord.version : null;
   title.textContent = `${isEdit ? 'Edit' : 'New'} ${getDoctypeLabel(currentDoctype)}`;
   body.innerHTML = '';
+  if (currentDoctype === 'CycleCountLine' && !isEdit) {
+    const note = document.createElement('p');
+    note.className = 'form-group-wide';
+    note.textContent = 'Blind count: enter what you physically see. The expected quantity and variance are calculated only when the session is reconciled.';
+    body.appendChild(note);
+  }
 
   const activeDoc = state.activeDoctypes.find(d => d.name === currentDoctype);
   const isMaster = activeDoc && activeDoc.document_type === 'Master';
@@ -1032,6 +1075,17 @@ window.openDynamicModal = async function(existingRecord) {
 
   for (const f of state.activeDocFields) {
     if (f.fieldname === 'id') continue;
+    if (currentDoctype === 'CycleCountLine' && !isEdit) {
+      if (['system_qty', 'variance', 'variance_reason_code', 'recount_of', 'physical_inventory', 'cycle_class'].includes(f.fieldname)) continue;
+      if (f.fieldname === 'status') {
+        const status = document.createElement('input');
+        status.type = 'hidden';
+        status.name = 'status';
+        status.value = 'Draft';
+        body.appendChild(status);
+        continue;
+      }
+    }
     // Stage 30.5.6: f.mirrored marks the derived half of a duplicate
     // mandatory pair (PurchaseOrder's vendor_id against vendor). The server
     // copies it across at the same choke point that numbers the document, so
@@ -1046,7 +1100,7 @@ window.openDynamicModal = async function(existingRecord) {
     // the number (engines/document_numbering.go), rather than a copy of the
     // doctype list kept here.
     const isCodeField = f.auto_generated || ((isMaster || isPurchaseRequisition) && f.fieldname.toLowerCase() === 'code');
-    const existingVal = isEdit ? existingRecord[f.fieldname] : undefined;
+    const existingVal = isEdit ? existingRecord[f.fieldname] : createDefaults[f.fieldname];
 
     const fg = document.createElement('div');
     fg.className = 'form-group';
@@ -1073,9 +1127,13 @@ window.openDynamicModal = async function(existingRecord) {
         select.innerHTML += `<option value="${o.trim()}">${o.trim()}</option>`;
       });
       if (existingVal !== undefined && existingVal !== null) select.value = existingVal;
-      // Stage 57.4: a new record's Status starts on Active (defaultSelectValue).
+      // Masters with an Active status start Active; transaction forms with a
+      // Draft option start Draft. Otherwise a required Status is left blank
+      // and the browser silently blocks Save before the server sees it.
       else if (!isEdit) {
-        const preset = defaultSelectValue(f, opts.map(o => o.trim()));
+        const choices = opts.map(o => o.trim());
+        const preset = defaultSelectValue(f, choices) ||
+          (activeDoc?.document_type === 'Transaction' && f.fieldname.toLowerCase() === 'status' && choices.includes('Draft') ? 'Draft' : '');
         if (preset) select.value = preset;
       }
       fg.appendChild(select);
@@ -1099,6 +1157,21 @@ window.openDynamicModal = async function(existingRecord) {
         opt.value = CREATE_OPTION;
         opt.textContent = `+ Create new ${getDoctypeLabel(f.options)}…`;
         select.appendChild(opt);
+      };
+      // A source-linked create or edit may name a valid record outside the
+      // generic list endpoint's first page. Keep that reference selected;
+      // the server still validates it when the document is saved.
+      const selectKnownValue = () => {
+        if (existingVal === undefined || existingVal === null || existingVal === '') return false;
+        const value = String(existingVal);
+        if (![...select.options].some(option => option.value === value)) {
+          const option = document.createElement('option');
+          option.value = value;
+          option.textContent = value;
+          select.appendChild(option);
+        }
+        select.value = value;
+        return true;
       };
       let lastLinkValue = '';
       select.addEventListener('focus', () => { lastLinkValue = select.value === CREATE_OPTION ? '' : select.value; });
@@ -1135,6 +1208,7 @@ window.openDynamicModal = async function(existingRecord) {
           // (10 of the 18 core master lists were empty at audit time).
           if (!data || data.length === 0) {
             select.innerHTML = `<option value="" disabled selected>— No ${getDoctypeLabel(f.options)} records yet —</option>`;
+            selectKnownValue();
             appendCreateOption();
             // With inline create on offer the select itself is the way out;
             // the navigate-away hint stays only for a user who cannot create.
@@ -1154,7 +1228,7 @@ window.openDynamicModal = async function(existingRecord) {
             option.textContent = item.name || item.label || item.title || item.code || item.id || '';
             select.appendChild(option);
           });
-          if (existingVal !== undefined && existingVal !== null) select.value = existingVal;
+          if (existingVal !== undefined && existingVal !== null) selectKnownValue();
           // Stage 57.2: a value carried across a setup detour, applied now the
           // options it names exist (restoreFormValues).
           else if (select.dataset.pendingValue && [...select.options].some(o => o.value === select.dataset.pendingValue)) select.value = select.dataset.pendingValue;
@@ -1178,6 +1252,10 @@ window.openDynamicModal = async function(existingRecord) {
       input.type = 'number';
       input.name = f.fieldname;
       input.required = f.mandatory;
+      if (currentDoctype === 'CycleCountLine' && f.fieldname === 'counted_qty') {
+        input.min = '0';
+        input.step = '1';
+      }
       if (existingVal !== undefined && existingVal !== null) input.value = existingVal;
       fg.appendChild(input);
     } else if (f.fieldtype === 'Currency') {

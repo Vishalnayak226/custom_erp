@@ -68,6 +68,7 @@ Jump straight to the thing you're trying to do.
 | Record stock that has arrived | §6, step 9 |
 | Complete a missing barcode when receiving stock | §6.4 — existing/imported Items are covered automatically |
 | Understand where document numbers come from | §6.1 |
+| Sell a gift or free-with-item product, or use backflush materials in production | §6.8 |
 | Move stock between locations | §7 |
 | Add a vendor, item, brand, location… | §8 |
 | Correct a record I got wrong | §8 — use the row's **Edit** icon |
@@ -285,9 +286,42 @@ Day to day you will not need this button. Between customers, use **New Sale (Res
 
 1. Click **Inventory** in the sidebar.
 2. Use the search box to find an item by name or code.
-3. The screen shows how much is available right now.
+3. Read **On hand** for physical book stock and **Available to sell** for the
+   quantity the system will let an order reserve. The latter subtracts
+   reservations, safety stock, active holds, blocked/QC/damaged stock and
+   channel buffer from base availability. Open **Breakdown** on a row to see
+   the component amounts. A hold does not remove physical stock.
+4. Use that row's **Transfer**, **Count** or **Hold** link for the next task.
+   **Hold** carries the item and location into Place Hold; choose a Hold Code,
+   quantity and reason, then save. The result links to the saved Hold record.
+   Release is a separate Hold Release Request requiring approval. After placing
+   the hold, choose **Request release of this hold**, enter the reason, save
+   the Draft, then use its row's **Submit for Approval** action. A different
+   Store Manager approves from **Approvals**; only then does available stock
+   return. The request button itself never releases stock.
 
-If you need to know how much stock is *actually free to sell* (not already reserved for another order), that number accounts for anything already promised elsewhere — it's not just a raw count sitting in the warehouse.
+For a simple untracked item transfer, choose **Transfer** on the Inventory
+row, select the From and To locations, add the item and quantity, and create
+the Draft. **Mark Approved**, **Dispatch** and **Receive** are separate actions;
+receiving asks for the actual quantity and a reason for any shortfall. The
+source on-hand decreases at dispatch, the quantity is in transit until
+receipt, and only confirmed units enter destination stock. Transfer approval
+is currently a direct authorized status action, not independent maker-checker
+sign-off; do not treat it as such. Lot/serial-preserving transfer remains an
+open Stage 55.6 gate.
+
+For an ad hoc blind count, choose **Count** on the Inventory row, then **Start
+blind count for this item**. The item, location and new count-session reference
+are filled for you. Enter only the quantity you physically counted and Save;
+expected quantity and variance are not shown during entry. Return to **Cycle
+Count**: the last session reference is already in **Reconcile Session**. A
+zero-variance line posts there; a variance waits for the separate reason,
+recount/approval path. The server rejects a new count line that claims Posted
+or supplies an expected quantity or variance by hand.
+
+The **Available to sell** figure is the same calculation the reservation
+engine uses. The Current Stock report now shows that figure and its breakdown
+too; the raw `available` database bucket alone is not free-to-sell stock.
 
 ### 5.1 Entering a wave on Mobile Picking
 
@@ -296,6 +330,18 @@ Letters and hyphens are part of the identifier: `WAVE-0001` must remain `WAVE-00
 This is a warehouse code, not a phone number. Click **Load** for the chosen wave. The example is
 only a format example; use a wave that exists in your warehouse. An assigned-wave chooser is
 planned separately; this screen currently still requires the wave reference.
+
+### 5.2 How a pick list holds stock in the bins
+
+This only applies to locations that keep stock in **bins**. A store with no bins picks exactly as before.
+
+- **Opening a pick list reserves the stock it shows.** The bins and quantities on a task's pick list are set aside for that task. Another task's pick list will not send a second picker to the same units. If there isn't enough free stock in the bins, the list shows the rest as **short**.
+- **Opening the list again shows the same bins.** It shows what is still left to pick. Units you have already scanned drop off the list.
+- **Each pick scan takes that unit out of its bin.** Dispatching a task takes out any units that were shipped without being scanned. Bin quantities therefore go down as goods leave, and on-hand stock at the location goes down at dispatch.
+- **Short-picking or rejecting a task frees what it was holding**, so the next task can be sent to that stock.
+- **Reserved stock stays put.** You can't move it to another bin (§7.1), or mark it Damaged or QC-Hold, while a task holds it. Short-pick or reject that task first, then move or mark the stock.
+
+**Checking the bins against the books.** Open **Reports → Bin Stock Reconciliation**. For each item and location it shows on-hand stock, how much the bins hold, how much has been picked but not yet dispatched, and the **Difference**. "Bins over-state stock" means the bins claim more than the location holds. Before October 2026, shipped units were never taken out of bins, so older bins will show this. Settle it with a cycle count of those bins. The report only shows the gap; it changes nothing.
 
 ## 6. Ordering More Stock (Purchase Order)
 
@@ -318,16 +364,16 @@ planned separately; this screen currently still requires the wave reference.
 6. Click **Create Draft**. Depending on the amount it may need someone else's **approval** before it's official — that's a safety check, not a bug. You'll see it move to "Pending Approval", and once approved it's ready to send.
 7. **Send it to the vendor.** On the order's row, **Print** opens a proper purchase order laid out for A4 — both parties' names, addresses and GSTINs, the item table with HSN and tax, the grand total, and the amount in words. **Send to Vendor** records the dispatch (the row shows "Sent to vendor") and opens a pre-filled email to the vendor's contact address. If your administrator has configured a notification channel, it goes out through that as well.
 8. **Amend** loads the order back into the same panel — including its items — so you can change quantities or prices. Amending an already-approved PO sends it back for re-approval, and the screen warns you before it does.
-9. When the stock physically arrives, record a **GRN** (Goods Receipt Note — "yes, this stock actually showed up") on **Procurement → Goods Receipt**. Click **Load Items from PO**, pick the order, adjust any quantity that arrived short, and click **Post Receipt**. **Only then does the stock count go up** — an order by itself never adds stock, only a confirmed receipt does. Check **Inventory** afterwards to confirm it moved.
-    Once it is posted, any Item on the receipt that still has no barcode gets one as a safety net — for example, an older or imported Item. A new Item made on screen requires a barcode before it can be saved. The GRN is also where you start printing its labels — see §7A.1.
+9. When the stock physically arrives, find the approved PO and click **Receive goods**. The Goods Receipt screen opens with that PO and its lines loaded. If you opened Goods Receipt directly, choose the PO and click **Load Items from PO**. For a partial delivery, remove the full-quantity line and add the actual received quantity; record any rejected or damaged quantity and its reason. The posting confirmation separates accepted from rejected/damaged units. **Only accepted units enter available stock**; an order by itself never adds stock. Check **Inventory** afterwards.
+    Once it is posted, the configured barcode policy can issue a missing barcode — for example, on an older or imported Item. A new Item no longer requires you to type a barcode. The GRN is also where you start printing its labels — see §7A.1.
 
 #### 6.4 Completing missing barcodes at receipt
 
-When you create an Item on screen, **Barcode** is required. Type an existing barcode, or use the **Generate** button beside the field to issue a valid EAN-13. Goods Receipt also has a safety net: **when you post a receipt, each distinct Item on it that still has no barcode gets one automatically**. This covers older, imported or API-created Items that pre-date the required on-screen field.
+When you create an Item on screen, **Barcode is optional**: enter an existing barcode, use **Generate**, or leave it to the configured barcode-issuance policy. Goods Receipt can issue a missing barcode at receipt when that policy is selected. Ask your administrator to check **Configuration → Inventory** before relying on receipt-time issuance.
 
 What that means in practice:
 
-- **A new Item cannot normally be saved without a barcode.** The Item form marks Barcode with `*`; use **Generate** there if you do not already have a supplier barcode.
+- **A new Item can be saved without typing a barcode.** The configured policy decides whether it is generated at Item creation, at receipt, or not automatically.
 - **A missing barcode on a received Item is completed after the receipt posts.** You can then print its labels from that GRN (§7A.1).
 - **An item that already has a barcode keeps it.** Receiving the same SKU again does not issue it a second barcode or change the one on your existing labels. This is safe to rely on: the same stock can be received any number of times and the barcode stays put.
 - **The barcodes are real EAN-13 numbers**, with a valid check digit, so an ordinary retail scanner reads them.
@@ -336,15 +382,15 @@ What that means in practice:
 
 If you want to *print* at the moment of receipt, that is still a deliberate second step — post the receipt, then print its labels from the Sticker Printing screen (§7A.1). Posting a receipt does not send anything to a printer on its own.
 
-**An RFQ is optional.** If you want to compare vendor quotes first, raise a Purchase Requisition and convert it to an **RFQ** (Procurement → RFQ), collect quotes, then convert to a PO. If you already know who you're buying from — which is the normal case — go straight to a Purchase Order as above. Nothing requires an RFQ to exist first.
+**An RFQ is optional.** If you want to compare suppliers, raise a Purchase Requisition and convert it to an **RFQ** (Procurement → RFQ), then collect and select quotes. A winning quote does **not** yet price or issue a PO automatically: its price basis, tax and award mapping need a business rule. Review and create the PO explicitly. If you already know the supplier, go straight to a Purchase Order as above.
 
 ![The Purchase Order screen; the PO Number box is greyed out and filled in on save](img/purchase-order.png)
 
 ### 6.1 Where document numbers come from
 
-You never type the number on a Purchase Order, Goods Receipt, Stock Transfer, Expense Claim, Leave request, or any other transaction. The field is greyed out and reads something like **"Auto (PO series)"**, and the real number appears once you save — for example `PO/HO/26-27/000042`.
+You never type the number on a Purchase Order, Goods Receipt, Stock Transfer, Expense Claim, Leave request, or any other transaction. The field is greyed out and reads something like **"Auto (PO series)"**, and the real number appears once you save — for example `PO/BDR/26-27/00042`.
 
-That number is issued by the system, in order, from a numbering series your administrator controls (see the Admin Guide, §B.3.2). Reading the example above left to right: the **PO** part is the document type, **HO** is the location it was raised at, **26-27** is the financial year, and **000042** is the running count. Your administrator can change any of that — including removing the location or the year entirely — so yours may look different, and that's fine.
+That number is issued by the system, in order, from a numbering series your administrator controls (see the Admin Guide, §B.3.2). Reading the example above left to right: the **PO** part is the document type, **BDR** is the Short Code of the store it was raised at, **26-27** is the financial year, and **00042** is the running count. Your administrator can change any of that per transaction — the prefix, the number of digits, a suffix after the number, a store's own prefix, or removing the store or the year entirely — so yours may look different, and that's fine.
 
 Two things worth knowing:
 
@@ -432,6 +478,17 @@ Together the last two are what a recall needs — the first tells you what to st
 
 The status only moves forward — Draft → Sent → Closed.
 
+**Following the saved documents.** A converted Purchase Requisition now shows its
+next RFQ or PO in the **Next document** column; select that link to find the
+saved record. An RFQ created from a requisition links back to it. The PO list
+also shows its source requisition, and a Goods Receipt links back to its PO.
+From a posted receipt, **Record vendor invoice** opens the bill list; on the
+invoice list, the PO and GRN references open those exact saved records. These
+links are for checking lineage, not approval or posting shortcuts. Selecting a
+winning vendor quote **does not create a PO**: the current quote form does not
+capture an item, unit or tax line to carry into a safe PO draft. A buyer must
+review and create the PO separately until that conversion rule is designed.
+
 ### 6.5 Sending goods back to a supplier
 
 Use **Procurement → Purchase Return** when goods go back to the supplier. A return is always raised against the **goods receipt (GRN)** they arrived on, so the system knows the supplier, the PO, the location, the lot and the price.
@@ -466,7 +523,7 @@ A supplier **overcharged you** and nothing physical went back? Then there is no 
 
 When the supplier's bill arrives, record it and let the system check it before anyone pays it.
 
-1. Go to **Financial Accounting → Vendor Invoice** and click **+ New Vendor Invoice**.
+1. From the posted Goods Receipt row, click **Record vendor invoice** and then **+ New Vendor Invoice**. Its GRN, PO and vendor are carried into the form. Or open **Financial Accounting → Vendor Invoice** and enter those references yourself. Confirm the supplier's invoice number, amount and financial year; a new transaction starts in **Draft**.
 2. Enter the supplier's **Invoice Number**, pick the **Vendor**, the **PO Reference** and the **GRN Reference** (the goods receipt this bill is for), and the **Invoice Amount** exactly as printed on the bill — **including GST**. Save. It starts as **Draft**.
 3. Click **Match** on its row. You are not asked for the PO or GRN again — the invoice already names them.
    - **Matched** — the bill agrees with what you actually accepted: accepted quantity × the PO rate, plus the PO's GST, within the tolerance your administrator set (2% by default). A **partial delivery billed for what arrived matches** — you do not have to wait for the whole PO. Goods you **rejected** at receipt are not owed, so they are not counted.
@@ -489,6 +546,18 @@ An asset you already own, or one bought without a PO, can still be added by hand
 
 If someone tries to sell a Fixed Asset item, the POS, a sales order or an invoice refuses it with "This item is a fixed asset, not stock for sale, so it cannot be sold, ordered or invoiced." Units QC rejected on the receipt stay in QC hold and can go back to the supplier on a Purchase Return (§6.5).
 
+### 6.8 Item types: gifts, free items, accessories and backflush materials
+
+Every Item has an **Item Type** (Setup → Item). Most items are **Product**, the default. The others change how the item behaves:
+
+- **Gift** — rings up at **zero** at the till. The bill line shows "Free (gift / free with item)" as its price, and it is not counted as a discount.
+- **Free With Item** — also rings up at zero, but only with its main product. On the Item, set **Free with item** to that product (for example, a charger free with a phone). If the main product is not on the bill in at least the same quantity, the till says so and will not complete the sale until you add it or remove the free item.
+- **Accessory** and **Non-Asset** — normal stock items, grouped so they can be reported on separately. They keep **one fixed barcode** for the SKU.
+- **Backflush** — a material used in production that is **not** issued up front. When finished goods are reported on a production order, the system takes the right quantity of each backflush material from stock automatically (BOM quantity × units finished). If there is not enough, the completion is refused and tells you which material is short.
+- **Fixed Asset** — bought for the business, never sold (§6.7).
+
+**Barcodes.** Your administrator decides when a barcode is created — when the Item is saved, or when it is first received on a GRN — and whether a SKU gets a fresh barcode each day it is received. That can be set for the whole business, for an item type, or for one Item: on the Item form, **Generate barcode at** and **Barcode per receipt date** override the item type when they are not left at "Item type default".
+
 ## 7. Moving Stock Between Locations (Stock Transfer)
 
 1. Click **Stock Transfer** in the sidebar.
@@ -507,7 +576,7 @@ Use this to re-slot stock inside one warehouse or store, for example moving a fa
 3. Enter the **Quantity**, pick the **To Bin** (only bins at this location are offered), and optionally a **Reason**. If the bin holds more than one batch of the item, choose the **Batch** too.
 4. Click **Move Stock**. The table refreshes with the new quantities.
 
-The move is refused, with the reason shown, if the destination bin is inactive, Blocked, Full or being counted, would go over its capacity, is in a zone that cannot take that item, or is at a different location. Every move is recorded in the stock ledger with both bins.
+The move is refused, with the reason shown, if the destination bin is inactive, Blocked, Full or being counted, would go over its capacity, is in a zone that cannot take that item, or is at a different location. It is also refused for stock an open pick task is holding (§5.2): the message says how many units can be moved. Every move is recorded in the stock ledger with both bins.
 
 ## 7A. Printing Barcode Stickers and Labels
 
@@ -725,6 +794,18 @@ If a row is rejected, the message names the row number and the exact problem (fo
 Then run the **Competitor Price Gap** report (Section 9) to see where you stand.
 
 > **"Our Price" comes from what you actually sold at, not from a price list.** This system has no separate price-list master — the price is set on the sale itself. So the report shows the most recent price you actually transacted at for that item, and tells you which it came from (a POS sale or a sales order). **An item you have never sold shows "No price on file"** rather than a made-up figure — that is correct, not a fault. Ring one through, and the comparison appears.
+
+### 8a. Setting up PIM in order
+
+Open **PIM → Products → Dashboard** and follow **Set up a product for publishing**. The links lead through: create the **Item** (SKU, HSN and GST); define a **Product Family**, reusable **Attribute Definitions** and required **Family Attributes**; assign the Item to that family; enrich content and images in **Workbench**; use **Reports** to correct missing fields; then, only if selling online, configure a channel and its mappings/validation before publishing from the Workbench. **Attribute Groups** are optional presentation grouping. An Item is the sellable SKU/variant; PIM enriches it rather than creating a separate stock item.
+
+The 21 PIM destinations are grouped by job: **Products**, **My work**, **Media**, **Channels & publishing**, and **Advanced setup**. Pick a job first, then its screen. The current group stays visible at phone width instead of requiring a long sideways tab scroll. A completeness score is a local content check, not proof that an external marketplace accepted a publication.
+
+To finish one product, create the family and any required family attributes first. In **Setup → Item**, choose that family; for a variant, enter its combination choices (for example `Metal:Gold`) so the saved Item receives its Design/Combination SKU. In **Products → Workbench**, open the Item row. **What to fix next** points to Item master fields, an attribute-value entry, or content approval. Fill the attribute value there, write content, and select **Submit for Approval**. A different authorized reviewer approves it from **Approvals**; your own submission cannot be self-approved. Return to the Workbench and select a channel. **Not ready for…** lists the remaining channel-specific issues; **Publish** remains disabled until these are fixed. A local **Ready to publish** message allows a queued publish attempt, but it is not a marketplace receipt. If your channel requires category mapping, create it under **Channels & publishing → Category Mapping** before retrying the check.
+
+An Item without a **Product Family** stays incomplete even if its other fields are filled: use the **Edit this in Setup → Item** link and assign the family. For a channel's **Min Images** rule, only active product images (Main, Gallery, Variant or Lifestyle) count; a PDF certificate, QC evidence or video does not. Select **Add an image** beside the readiness message to jump to the Workbench upload, choose an image and its role, then select the channel again to recheck. A custom rule message still names its rule so that correction link remains available.
+
+For a mapped CSV, go to **Advanced setup → Import Templates**, save a template with its target record type and source-column-to-field lines, then use that template row's **Preview and import CSV** action. The dialog shows the resolved field names. Choose a CSV and select **Preview (no changes)**; invalid rows identify their CSV row number and block Import. Correct the same file and preview again, then select **Import validated file**. Keep the resulting job number and download its error rows if any. A partially processed job cannot be resumed in place: correct the CSV and run a new preview/import; existing records are treated as updates where their identity matches. A supplier submission is a separate review path under **My work → Supplier Submissions**: save a Draft, use its **Submit for Approval** row action, and have a different authorized reviewer decide it in **Approvals**. Approval creates Draft product content, not a publication. Open that product in the Workbench; its saved content is loaded for further editing and its own separate approval.
 
 ### 8b. Grouping Products for PIM Work
 
@@ -953,6 +1034,8 @@ That also means a manual order **can be refused**, and the most common reason is
 
 **If you're working a queue rather than looking for one order, use the filters.** Above the Orders table there is a row of filters: **Channel**, **Status**, **Hold reason**, **Location**, a **From/To** date range, and **SLA breach over** (1 hour / 4 hours / 24 hours). Each dropdown shows a count next to every option, so you can see how much work is behind a filter before you pick it. **Clear filters** resets them.
 
+For a daily starting point, use **Start with work needing attention**: **Allocation/payment holds**, **Ready to release**, and **Overdue open** open the corresponding order queues. **Unmapped channel items** takes you to the mapping exceptions. Open an order to see its linked fulfillment tasks, bookings and invoices; those links search the saved record directly. An order without a linked record has not yet produced that downstream step.
+
 Filters you use repeatedly can be kept: set them up, then **Save this view** and give it a name. It reappears in the **Saved views…** dropdown. Views are private to you.
 
 **Did my marketplace order actually sync in?** Every order — however it arrived — has a **Source** column showing the system it came from and, underneath, **that system's own order id**. Find the channel's order number there and you have your answer; if it isn't there, it hasn't arrived. You don't need anyone to check a database for you.
@@ -970,6 +1053,7 @@ Across the top of that page is the action bar:
 | Action | What it does |
 | --- | --- |
 | **Release to Fulfillment** | The next step for a **Reserved** order: sends it to the warehouse. One pick task is created per location holding its stock, the order becomes **Released**, and the tasks appear on the **Fulfillment** screen. Clicking it twice does not create a second set. Only shown while the order is Reserved. |
+| **Book shipment** | After a task is packed/dispatched, opens **Marketplace** with this saved order, task and destination PIN filled. Review them and choose a serviceable carrier. It is hidden when a live booking already exists or the order has shipped. |
 | **Release hold** | Clears a hold and re-allocates. Only shown while the order is On Hold. |
 | **Hold** | Stops the order. Asks for an active Hold reason code, which is recorded. |
 | **Edit** | Change the customer, phone, shipping/billing address or payment status. **Saving re-runs the same checks a new order goes through** — so if your edit leaves the order unfulfillable (an address with no PIN code, say) the order is placed On Hold with the reason, rather than saved silently broken. |
@@ -993,10 +1077,12 @@ If an action is greyed out, the order has reached a status that closes it (Shipp
 2. **Clear any hold.** An order sitting On Hold does not progress. Open it, read the reason, fix it, click **Release hold**. Working a backlog? Filter the queue by **Status = On Hold**, or by the specific **Hold reason**, tick the ones you've resolved and release them together.
 3. **Release to the warehouse.** Open the order (now **Reserved**) and click **Release to Fulfillment**. The order becomes **Released**.
 4. **Pick and pack.** Go to **Fulfillment** — the task for this order is routed to the location holding the stock. Work it through pick → pack. Anything you marked **Expedite** appears at the top of the picking worklist. (Warehouses using wave picking or mobile picking do the same thing from those screens.)
-5. **Book the shipment.** Under **Marketplace & Logistics**, book the courier and print the shipping label. The Shipment column starts reporting the booking's state.
-6. **Hand over.** Once the courier has it, the order moves to Shipped and the shipment to In-Transit. At that moment the stock leaves the location's books, and the cost of the goods is posted to the accounts. If the picker short-picked something, only what was actually picked leaves stock.
-7. **Invoice.** A draft invoice appears in the Invoice column, for what was actually shipped (short-picked units are not billed) and with its GST worked out. Open it, post it, and settle it when the customer has paid.
-8. **Delivered.** Delivery events move the order to Delivered.
+5. **Book the shipment.** Open the order and choose **Book shipment**. On **Marketplace**, check the filled order/task/PIN, enter a serviceable carrier, and choose **Book**. The booking and AWB then appear in the order's **Shipments** section. A package-based label may require its invoice first; the screen will refuse an early print.
+6. **Hand over.** On **Marketplace**, generate a manifest for that courier and location, then **Hand Over**. The booking becomes **Handed Over** and, when every task has dispatched, the order becomes **Shipped**. **In-Transit** is a later tracking action, not the handover status. Dispatch moves the shipped quantity out of location stock; handover closes the order and starts invoice/notification work.
+7. **Invoice.** A Draft invoice appears in the order's **Invoices** section for the shipped quantity. Open it, post it, and settle it when the customer has paid. A notification marked **Queued**, **Skipped-NoTemplate** or **Sent** means something different; do not call it delivered unless the log actually says so.
+8. **Delivered.** Record **Mark Delivered** on the booking when the courier confirms delivery; that event moves the order to Delivered.
+
+On **Marketplace**, a manual settlement now lets you add real saved channel orders one by one. Changing the channel clears the selection. Do not enter a payout until you have the provider's settlement evidence; this picker alone is not a reconciliation.
 
 If you're comparing this to how Unicommerce or a similar OMS describes the same flow: their "sale order → inventory allocation → picklist → invoice → manifest/dispatch" maps onto steps 1–7 above. The vocabulary differs; the sequence doesn't.
 
@@ -1023,6 +1109,14 @@ The difference between what you booked and what you actually received is recorde
 - **FX Gain/Loss Register** — every exchange gain and loss that has been recorded, and which document caused it.
 
 If your finance team runs a month-end revaluation, open balances get restated then too; that is described in the Admin Guide and is not something you need to do yourself.
+
+## 9B. Finance work to review
+
+Open **Financial Accounting → Finance / GL**. **Work to review** starts with direct paths to Payables, Receivables, Payment Proposals, Bank Reconciliation and Period Close. Open the destination and inspect each source document before posting or paying it; this landing page does not show balances, ageing, bank differences or approval counts. On **Accounting Periods**, use **Close Checklist** to inspect warnings before a permanent close; the checklist is advisory and does not itself certify the books.
+
+**GL posting sources** opens the dated **Statutory Audit Export (Full GL)** report. Set its Period Start and Period End, then inspect each debit/credit line's account and source document. This report does **not** identify the posting actor on each GL row; do not use it alone as proof of who approved or posted an entry.
+
+For a supplier bill, match it to its PO and GRN in **Vendor Invoice** before a payment proposal. For a customer bill, use **Sales Invoice** to distinguish Draft, Approved (posted) and Paid. Use **Bank Reconciliation** within the selected bank account; a matched count does not mean all statement lines or GL postings are reconciled. An Account Head and a qualified CA still have separate review and signoff responsibilities.
 
 ### 9B.1 Raising a journal voucher (accruals, corrections, opening balances)
 

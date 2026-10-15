@@ -1,8 +1,11 @@
+import { documentSearchLink } from './view-document-links.js';
+
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
-let currentFinanceTab = 'trial-balance';
+let currentFinanceTab = 'work';
 const FINANCE_TABS = [
+  { id: 'work', label: 'Work to review' },
   { id: 'trial-balance', label: 'Trial Balance' },
   { id: 'chart-of-accounts', label: 'Chart of Accounts' },
   { id: 'periods', label: 'Accounting Periods' }
@@ -55,6 +58,11 @@ async function renderFinanceView(container) {
       renderView('finance');
     });
   });
+
+  if (currentFinanceTab === 'work') {
+    await renderFinanceWorkPanel(container);
+    return;
+  }
 
   if (currentFinanceTab === 'periods') {
     await renderAccountingPeriodsPanel(container);
@@ -157,6 +165,53 @@ async function renderFinanceView(container) {
   });
   html += `</tbody></table>`;
   panel.innerHTML = html;
+  container.appendChild(panel);
+}
+
+async function renderFinanceWorkPanel(container) {
+  const cards = [
+    { title: 'Payables', detail: 'Match supplier bills and review holds before payment.', href: '#/view/vendor-invoices' },
+    { title: 'Receivables', detail: 'Post customer bills and settle approved balances.', href: '#/view/sales-invoices' },
+    { title: 'Payment proposals', detail: 'Prepare and approve a payment run from matched bills.', href: '#/view/payment-proposals' },
+    { title: 'Bank reconciliation', detail: 'Match statement lines within the selected bank account.', href: '#/view/bank-reconciliation' },
+    { title: 'GL posting sources', detail: 'Review dated debit/credit lines and their source documents. Posting actor is not yet recorded on GL rows.', report: 'statutory-gl-export' },
+    { title: 'Period close', detail: 'Review the advisory checklist, exceptions and closer before closing.', tab: 'periods' }
+  ];
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  panel.style.padding = '24px';
+  const heading = document.createElement('h2');
+  heading.textContent = 'Finance work to review';
+  panel.appendChild(heading);
+  const help = document.createElement('p');
+  help.textContent = 'Open a source list to inspect its actual status and balance before posting, paying or closing.';
+  panel.appendChild(help);
+  const list = document.createElement('div');
+  list.style.cssText = 'display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px';
+  cards.forEach(card => {
+    const link = document.createElement('a');
+    link.className = 'btn btn-outline';
+    link.style.cssText = 'display:block;text-align:left;white-space:normal;min-height:92px';
+    link.href = card.href || '#/view/finance';
+    link.textContent = `${card.title} — ${card.detail}`;
+    if (card.tab) link.addEventListener('click', event => {
+      event.preventDefault();
+      currentFinanceTab = card.tab;
+      renderView('finance');
+    });
+    if (card.report) link.addEventListener('click', async event => {
+      event.preventDefault();
+      try {
+        const reports = await loadViewModule('/view-reports.js?v=1');
+        reports.execDashboardOpenReport(card.report);
+      } catch (error) {
+        console.error('Could not open the GL source report', error);
+        showToast('Could not open the GL source report. Try Reports → Report Catalog.', { variant: 'warning' });
+      }
+    });
+    list.appendChild(link);
+  });
+  panel.appendChild(list);
   container.appendChild(panel);
 }
 
@@ -353,6 +408,15 @@ async function showPeriodCloseChecklist(periodId) {
 // create form here - this view only adds the match/pay actions the generic
 // CRUD screen can't express.
 async function renderVendorInvoicesView(container) {
+  let fromGRN = null;
+  try {
+    const raw = sessionStorage.getItem('stage55-invoice-source-grn');
+    sessionStorage.removeItem('stage55-invoice-source-grn');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed.grnId === 'string' && typeof parsed.poId === 'string') fromGRN = parsed;
+    }
+  } catch (_) { /* storage can be disabled or stale */ }
   const [invRes, sectionsRes] = await Promise.all([
     apiFetch('/api/v1/doc/VendorInvoice'),
     apiFetch('/api/v1/doc/TDSSection')
@@ -365,13 +429,27 @@ async function renderVendorInvoicesView(container) {
     <div class="page-title-section">
       <h1 class="page-title">Vendor Invoice</h1>
       <p class="page-subtitle">3-way match against PO/GRN, then pay - plain or TDS-withheld.</p>
+      ${fromGRN ? `<p class="page-subtitle">From GRN ${escapeHTMLText(fromGRN.grnId)}. Confirm the vendor's invoice number, amount and financial year before matching.</p>` : ''}
     </div>
     <button class="btn btn-primary" id="vi-new-btn">+ New Vendor Invoice</button>
   `;
   container.appendChild(header);
-  document.getElementById('vi-new-btn').addEventListener('click', () => {
+  document.getElementById('vi-new-btn').addEventListener('click', async () => {
+    const defaults = {};
+    if (fromGRN) {
+      defaults.grn_id = fromGRN.grnId;
+      defaults.po_id = fromGRN.poId;
+      const poRes = await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(fromGRN.poId)}`);
+      if (poRes?.ok) {
+        const po = await poRes.json();
+        defaults.vendor_id = po.vendor_id || po.vendor || '';
+      }
+    }
     currentDoctype = 'VendorInvoice'; currentSearchQuery = ''; currentTablePage = 1;
-    renderView('doctype-table');
+    await renderView('doctype-table');
+    if (fromGRN && currentView === 'doctype-table' && currentDoctype === 'VendorInvoice' && canCreateDoctype('VendorInvoice')) {
+      await openDynamicModal(undefined, defaults);
+    }
   });
 
   const invoices = invRes.ok ? await invRes.json() : [];
@@ -391,8 +469,8 @@ async function renderVendorInvoicesView(container) {
             <tr>
               <td style="font-family: monospace;">${v.invoice_number || v.id}</td>
               <td>${v.vendor_id || ''}</td>
-              <td>${v.po_id || ''}</td>
-              <td>${v.grn_id || ''}</td>
+              <td>${documentSearchLink('PurchaseOrder', v.po_id)}</td>
+              <td>${documentSearchLink('GRN', v.grn_id)}</td>
               <td>${(v.invoice_amount ?? 0).toLocaleString()}</td>
               <td><span class="badge ${STATUS_BADGE[v.status] || 'badge-secondary'}">${v.status}</span></td>
               <td>${renderVendorInvoiceActions(v)}</td>

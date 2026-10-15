@@ -202,7 +202,7 @@ func TestReceiptStoreHeaderResolvesStoreAndEntity(t *testing.T) {
 		if h.EntityName != "Minn Retail Pvt Ltd" || h.GSTIN != "27AAAAA0000A1Z5" || h.State != "Maharashtra" {
 			t.Errorf("entity not resolved: %+v", h)
 		}
-		if h.Line() != "Bandra Flagship (S53-RCPT-FULL)" {
+		if h.Line() != "Bandra Flagship" {
 			t.Errorf("Line() = %q", h.Line())
 		}
 	})
@@ -247,7 +247,7 @@ func TestLocationMasterRulesStampSellable(t *testing.T) {
 		{"an explicit Yes on a Warehouse is left alone", map[string]interface{}{"type": "Warehouse", "sellable": "Yes"}, "Yes"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := validateLocationMasterRules(tc.payload); err != nil {
+			if err := validateLocationMasterRules("default", "", tc.payload); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if got := tc.payload["sellable"]; got != tc.want {

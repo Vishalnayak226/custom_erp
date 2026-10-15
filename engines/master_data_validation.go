@@ -38,7 +38,7 @@ func ValidateMasterDataRules(tenantID, docID, doctype string, payload map[string
 	case "Customer":
 		return validateCustomerMasterRules(tenantID, docID, payload)
 	case "Location":
-		return validateLocationMasterRules(payload)
+		return validateLocationMasterRules(tenantID, docID, payload)
 	case "ProductContent":
 		return validateProductContentDuplicate(tenantID, docID, payload)
 	case "Batch":
@@ -332,6 +332,9 @@ func strField(payload map[string]interface{}, key string) string {
 var itemCodePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 ._\-\/]*$`)
 
 func validateItemMasterRules(tenantID, docID string, payload map[string]interface{}) error {
+	if err := validateItemTypeRules(tenantID, docID, payload); err != nil {
+		return err
+	}
 	if code := strField(payload, "code"); code != "" && !itemCodePattern.MatchString(code) {
 		return &ValidationError{Code: "GLOBAL-0002", SubFor: "Item Code (SKU)", Message: fmt.Sprintf(
 			"Item Code (SKU) %q may only contain letters, numbers, spaces, and . _ - / - no HTML or script characters", code)}
@@ -1205,7 +1208,10 @@ func validatePreShipValidationRuleMasterRules(tenantID, docID string, payload ma
 //
 // An explicit value is never overwritten. A Warehouse with a trade counter is
 // a real thing, and a user who sets Sellable = Yes on one means it.
-func validateLocationMasterRules(payload map[string]interface{}) error {
+func validateLocationMasterRules(tenantID, docID string, payload map[string]interface{}) error {
+	if err := validateLocationIdentityCodes(tenantID, docID, payload); err != nil {
+		return err
+	}
 	if strField(payload, "sellable") != "" {
 		return nil
 	}
@@ -1213,6 +1219,53 @@ func validateLocationMasterRules(payload map[string]interface{}) error {
 		payload["sellable"] = "Yes"
 	} else {
 		payload["sellable"] = "No"
+	}
+	return nil
+}
+
+// validateLocationIdentityCodes (Stage 60.2) keeps a store's Short Code and
+// Facility Code its own. The Short Code is printed inside document numbers
+// (storeNumberSegment) and each store counts separately, so two stores
+// sharing one would both issue PO/BDR/26-27/00001; the Facility Code is how
+// OMS orders find their store, so a shared one would route an order to
+// whichever store the lookup met first. A Short Code also may not equal
+// another store's Store Code, for the same number-segment reason.
+func validateLocationIdentityCodes(tenantID, docID string, payload map[string]interface{}) error {
+	short := strings.TrimSpace(strField(payload, "short_code"))
+	facility := strings.TrimSpace(strField(payload, "facility_code"))
+	if short == "" && facility == "" {
+		return nil
+	}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	self := strings.TrimSpace(docID)
+	if self == "" {
+		self = strings.TrimSpace(strField(payload, "code"))
+	}
+	var other string
+	if short != "" {
+		err = db.DB.QueryRow(fmt.Sprintf(`
+			SELECT COALESCE(data->>'name', id) FROM %s.documents
+			WHERE doctype = 'Location' AND id <> $1 AND COALESCE(data->>'code', id) <> $1
+			  AND (UPPER(TRIM(data->>'short_code')) = UPPER($2) OR UPPER(COALESCE(data->>'code', id)) = UPPER($2))
+			LIMIT 1`, schema), self, short).Scan(&other)
+		if err == nil {
+			return &ValidationError{Code: "MASTER-0312", SubFor: "short_code", Message: fmt.Sprintf(
+				"Short Code %q is already used by %s - each store needs its own, because it is printed inside document numbers", short, other)}
+		}
+	}
+	if facility != "" {
+		err = db.DB.QueryRow(fmt.Sprintf(`
+			SELECT COALESCE(data->>'name', id) FROM %s.documents
+			WHERE doctype = 'Location' AND id <> $1 AND COALESCE(data->>'code', id) <> $1
+			  AND UPPER(TRIM(data->>'facility_code')) = UPPER($2)
+			LIMIT 1`, schema), self, facility).Scan(&other)
+		if err == nil {
+			return &ValidationError{Code: "MASTER-0313", SubFor: "facility_code", Message: fmt.Sprintf(
+				"Facility Code %q is already used by %s - OMS orders find their store by this code, so it must be unique", facility, other)}
+		}
 	}
 	return nil
 }

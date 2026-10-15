@@ -22,6 +22,10 @@ The [sanitized JSON](erp-usability-observations-2026-10-04.json) contains exact 
 keyboard probes, response codes, source hashes and artifact filenames. No tokens or record values
 are published here. Screenshots/raw outputs remain in the session scratchpad named in the JSON.
 
+This is the **pre-fix baseline**. Its 198 Edit-title observations and other findings are not
+recomputed after Stage 55.1. See [the later shared-correctness verification](stage55-shared-correctness-2026-10-04.json)
+and ledger §193 for the fixes and limits; keep these historical rows as observed.
+
 ## What was actually inspected
 
 - 20 entitlement owners, 199 metadata record types, 56 bespoke/shell routes.

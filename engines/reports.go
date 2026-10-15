@@ -8,16 +8,17 @@ import (
 	"time"
 )
 
-// GetCurrentStockReport lists on-hand/available/reserved stock per SKU per
-// location - the read model already backing the availability API, exposed
-// here as a browsable report instead of a per-SKU lookup.
+// GetCurrentStockReport lists the same available-to-sell figure used by
+// reservation admission, alongside its component restrictions. Raw
+// inventory_availability.available alone is NOT sellable after holds etc.
 func GetCurrentStockReport(tenantID string) ([]map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
 	}
 	rows, err := db.DB.Query(fmt.Sprintf(`
-		SELECT sku, location_code, on_hand, available, committed, reserved, safety_stock
+		SELECT sku, location_code, on_hand, available, committed, reserved, safety_stock,
+		       blocked, qc_hold, damaged, channel_buffer, hold_qty
 		FROM %s.inventory_availability ORDER BY location_code, sku`, schema))
 	if err != nil {
 		return nil, err
@@ -27,13 +28,18 @@ func GetCurrentStockReport(tenantID string) ([]map[string]interface{}, error) {
 	var results []map[string]interface{}
 	for rows.Next() {
 		var sku, location string
-		var onHand, available, committed, reserved, safetyStock int
-		if err := rows.Scan(&sku, &location, &onHand, &available, &committed, &reserved, &safetyStock); err != nil {
+		var onHand, available, committed, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held int
+		if err := rows.Scan(&sku, &location, &onHand, &available, &committed, &reserved, &safetyStock,
+			&blocked, &qcHold, &damaged, &channelBuffer, &held); err != nil {
 			return nil, err
 		}
+		sellable := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 		results = append(results, map[string]interface{}{
 			"sku": sku, "location_code": location, "on_hand": onHand,
-			"available": available, "committed": committed, "reserved": reserved, "safety_stock": safetyStock,
+			"available": available, "available_to_sell": sellable, "committed": committed,
+			"reserved": reserved, "safety_stock": safetyStock, "blocked": blocked,
+			"qc_hold": qcHold, "damaged": damaged, "channel_buffer": channelBuffer,
+			"hold_qty": held,
 		})
 	}
 	return results, nil
@@ -401,7 +407,10 @@ func GetGSTReturnSummary(tenantID, startDate, endDate string) (*GSTReturnSummary
 	if err != nil {
 		return nil, err
 	}
-	inputTaxCredit := -itcNet
+	inputTaxCredit := 0.0
+	if itcNet != 0 {
+		inputTaxCredit = -itcNet // never a JSON "-0" when there is no credit
+	}
 
 	// Counted on 4100 rather than the exempt accounts too: every sale credits
 	// 4100 (PostSalesFinanceBooking books full revenue there before anything

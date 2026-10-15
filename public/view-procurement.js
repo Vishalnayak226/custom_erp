@@ -1,3 +1,5 @@
+import { documentSearchLink } from './view-document-links.js';
+
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
@@ -37,7 +39,7 @@ async function renderApprovalsView(container) {
       <thead>
         <tr>
           <th>Record Type</th>
-          <th>Document ID</th>
+          <th>Document</th>
           <th>Amount</th>
           <th>Location</th>
           <th>Actions</th>
@@ -51,12 +53,13 @@ async function renderApprovalsView(container) {
   (items || []).forEach(item => {
     const amount = item.total_amount ?? item.amount ?? '';
     const loc = item.location || item.location_code || '';
+    const reference = item.code || item.name || item.id;
     html += `
       <tr>
         <td>${escapeHTMLText(getDoctypeLabel(item.doctype))}</td>
-        <td style="font-family: monospace;">${item.id}</td>
+        <td>${escapeHTMLText(reference)}${reference !== item.id ? `<div class="text-muted" style="font-size:11px;">Record ${escapeHTMLText(item.id)}</div>` : ''}</td>
         <td>${amount !== '' ? Number(amount).toLocaleString() : ''}</td>
-        <td>${loc}</td>
+        <td>${escapeHTMLText(loc)}</td>
         <td>
           <button class="action-btn" ${actionAttrs('decideApproval', [ACTION_ARG_ELEMENT, item.doctype, item.id, 'Approved'])}>Approve</button>
           <button class="action-btn action-btn-danger" ${actionAttrs('decideApproval', [ACTION_ARG_ELEMENT, item.doctype, item.id, 'Rejected'])}>Reject</button>
@@ -196,6 +199,7 @@ async function renderPurchaseOrdersView(container) {
       <thead>
         <tr>
           <th>PO Number</th>
+          <th>Source requisition</th>
           <th>Vendor</th>
           <th>Location</th>
           <th>Items</th>
@@ -208,7 +212,7 @@ async function renderPurchaseOrdersView(container) {
       <tbody>
   `;
   if (orders.length === 0) {
-    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No purchase orders yet. Add a vendor and at least one item above, then <b>Create Draft</b>.</td></tr>`;
+    html += `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No purchase orders yet. Add a vendor and at least one item above, then <b>Create Draft</b>.</td></tr>`;
   }
   orders.forEach(po => {
     const statusBadge = po.status === 'Approved' ? 'badge-success'
@@ -226,6 +230,7 @@ async function renderPurchaseOrdersView(container) {
     html += `
       <tr>
         <td style="font-family: monospace;">${copyableCell(poNumber, poNumber)}</td>
+        <td>${documentSearchLink('PurchaseRequisition', po.source_requisition_id)}</td>
         <td>${escapeHTMLText(po.vendor || '')}</td>
         <td>${escapeHTMLText(po.location || '')}</td>
         <td>${lineCount === 0 ? '<span class="po-no-lines" title="This PO was raised before line items existed, or was created through the API without them.">No lines</span>' : `${lineCount} item${lineCount === 1 ? '' : 's'}`}</td>
@@ -234,6 +239,7 @@ async function renderPurchaseOrdersView(container) {
         <td><span class="badge ${statusBadge}">${escapeHTMLText(po.status || '')}</span>${sent}</td>
         <td class="po-row-actions">
           ${po.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('submitPOForApproval', [po.id])}>Submit for Approval</button>` : ''}
+          ${po.status === 'Approved' ? `<button class="action-btn" ${actionAttrs('startGRNFromPO', [po.id])}>Receive goods</button>` : ''}
           ${po.status !== 'Closed' ? `<button class="action-btn" ${actionAttrs('amendPurchaseOrder', [po.id])}>Amend</button>` : ''}
           <button class="action-btn" ${actionAttrs('printPurchaseOrder', [po.id])}>Print</button>
           ${po.status !== 'Draft' ? `<button class="action-btn" ${actionAttrs('sendPurchaseOrderToVendor', [po.id])}>Send to Vendor</button>` : ''}
@@ -245,6 +251,11 @@ async function renderPurchaseOrdersView(container) {
   panel.innerHTML = html;
   container.appendChild(panel);
 }
+
+window.startGRNFromPO = function(poId) {
+  try { sessionStorage.setItem('stage55-grn-source-po', String(poId)); } catch (_) { /* storage can be disabled */ }
+  renderView('grn');
+};
 
 // formatMoney groups the Indian way (12,34,567.89), matching the printed PO
 // and engines/amount_words.go's FormatIndianCurrency. en-IN is a built-in
@@ -1180,18 +1191,33 @@ async function renderGRNWorkbenchView(container) {
     html += `
       <tr>
         <td style="font-family: monospace;">${g.code || g.id}</td>
-        <td>${g.po_id || ''}</td>
+        <td>${documentSearchLink('PurchaseOrder', g.po_id)}</td>
         <td>${g.location || ''}</td>
         <td>${lines.length}</td>
         <td>${receivedTotal} / ${rejectedTotal} / ${damagedTotal}</td>
-        <td><span class="badge ${statusBadge}">${g.status}</span></td>
+        <td><span class="badge ${statusBadge}">${escapeHTMLText(g.status || '')}</span><div><button class="action-btn" ${actionAttrs('startVendorInvoiceFromGRN', [g.id, g.po_id])}>Record vendor invoice</button></div></td>
       </tr>
     `;
   });
   html += `</tbody></table>`;
   listPanel.innerHTML = html;
   container.appendChild(listPanel);
+
+  let sourcePO = '';
+  try {
+    sourcePO = sessionStorage.getItem('stage55-grn-source-po') || '';
+    sessionStorage.removeItem('stage55-grn-source-po');
+  } catch (_) { /* storage can be disabled */ }
+  if (sourcePO) {
+    document.getElementById('grn-po').value = sourcePO;
+    await loadGRNItemsFromPO();
+  }
 }
+
+window.startVendorInvoiceFromGRN = function(grnId, poId) {
+  try { sessionStorage.setItem('stage55-invoice-source-grn', JSON.stringify({ grnId, poId })); } catch (_) { /* storage can be disabled */ }
+  renderView('vendor-invoices');
+};
 
 function renderGRNLinesList() {
   const el = document.getElementById('grn-lines-list');
@@ -1625,8 +1651,10 @@ async function createGRNInner() {
   // server on save (Stage 30.6) - so this asks about the receipt's effect,
   // which is what actually needs confirming, rather than naming a number the
   // maker typed.
-  const totalQty = grnLineItems.reduce((s, l) => s + l.qty, 0);
-  if (!(await showCustomConfirm(`Post this goods receipt against ${poId}? ${totalQty} unit(s) will be added to stock at ${location}.`, 'Post Goods Receipt'))) return;
+  const acceptedQty = grnLineItems.reduce((s, l) => s + (Number(l.accepted_qty) || 0), 0);
+  const rejectedQty = grnLineItems.reduce((s, l) => s + (Number(l.rejected_qty) || 0), 0);
+  const damagedQty = grnLineItems.reduce((s, l) => s + (Number(l.damaged_qty) || 0), 0);
+  if (!(await showCustomConfirm(`Post this goods receipt against ${poId}? ${acceptedQty} accepted unit(s) will enter stock at ${location}; ${rejectedQty} rejected and ${damagedQty} damaged unit(s) will not enter sellable stock.`, 'Post Goods Receipt'))) return;
 
   const res = await apiFetch('/api/v1/doc/GRN', {
     method: 'POST',

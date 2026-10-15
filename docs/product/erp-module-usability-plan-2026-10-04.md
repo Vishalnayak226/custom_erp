@@ -28,9 +28,14 @@ Retain these. The main weaknesses are inconsistent task guidance, technical-ID e
 overloaded workbenches and real navigation/form defects, not a lack of modules or a need
 for a new frontend framework.
 
-This began as an **audit and plan**, not an assertion that proposed improvements had shipped.
-The subsequent “continue building” authorizes Phase 55.1 implementation and disposable-data tests;
-the remaining phases are planned, not implicitly accepted or complete. Business policy and access
+This began as a **screen/UI audit and plan**, not a functional certification or an assertion
+that proposed improvements had shipped. The user's clarified objective is business-function
+correctness, not visual cleanup. The separate [every-module functional verification plan](erp-functional-verification-plan-2026-10-04.md)
+is the controlling evidence gate for save/readback, sequences, document lineage, stock/GL
+effects and independent task completion. This screen register cannot close that gate.
+The subsequent “continue building” authorized Phase 55.1 implementation and disposable-data tests;
+that phase is verified in [its browser/Go evidence](../assurance/stage55-shared-correctness-2026-10-04.json).
+The remaining phases are planned, not implicitly accepted or complete. Business policy and access
 controls are not relaxed. No commit or deployment.
 Existing Stage 50 BLD/JRN gates remain authoritative; Stage 55 organizes the usability work
 without declaring earlier security, performance or business acceptance complete.
@@ -54,6 +59,11 @@ One reviewer used three structured lenses, **not three independent human testers
 | First-time authorized user | What is this for, what do I need, what do I do next? | Plain purpose, visible prerequisites, sensible defaults, searchable names, example and next action |
 | Daily operator | Can I finish accurately with little typing, interruptions and a scanner/keyboard? | Task queue, source-document prefill, preserved context, safe retries, efficient lines and exceptions |
 | Supervisor/administrator | Who may do this, what changes, how do I diagnose or reverse a mistake? | Scope and status, approval/audit chain, bounded correction, configuration owner, actionable errors |
+
+The later [functional verification plan](erp-functional-verification-plan-2026-10-04.md)
+adds two **future**, separate finance lenses requested on 2026-10-05: Account Head for
+operational books, controls and close; qualified CA for applicable statutory/tax treatment
+and audit evidence. Neither lens was exercised in this historical screen inventory.
 
 Chromium inspection uses the disposable `custom_erp_t1` fixture via loopback port 8101,
 desktop 1440×1000 and phone 390×844. Actual navigation, tab clicks and New-dialog clicks were
@@ -182,12 +192,12 @@ release gate. Owners are roles to assign, not claims of external owner approval.
 
 ### 55.1 — Shared correctness (frontend owner + QA; BLD-035/038/041)
 
-- [ ] Fix UX-001 using actual click-path regression tests, not a direct helper call that misses the event argument.
-- [ ] Fix UX-002 and test every lazy screen's secondary tabs from a fresh browser context.
-- [ ] Resolve UX-003 with field semantics across all hint/validation hooks; preserve exact scanned characters.
-- [ ] Repair UX-008's shared initial-dialog focus and UX-009's identity reference; keep the layout part of UX-008 in 55.2/55.11.
-- [ ] Triage any failed/retried register checks against a fresh source snapshot; separate harness timing from application errors.
-- [ ] **Done:** no incorrect New/Edit mode; cold HR/Manufacturing tabs render; scan semantics pass; relevant full-suite results and UI evidence recorded. No unrelated checked BLD item is silently reopened or closed.
+- [x] Fix UX-001 using actual click-path regression tests, not a direct helper call that misses the event argument. Nine shared form types and a real Department create/edit passed; this does not claim 198 end-to-end saves.
+- [x] Fix UX-002 and test every lazy screen's secondary tabs from a fresh browser context. Seven affected HR/Manufacturing tabs passed individually cold; all 54 secondary tabs passed across seven fresh parent contexts, with chunk failure/retry covered.
+- [x] Resolve UX-003 with field semantics across all hint/validation hooks; preserve exact scanned characters. The semantic matrix excludes Wave/lot/serial/barcode identifiers from phone decoration; actual Wave typing retains its code at desktop and 390px, while a genuine phone number still normalizes. Device-scanner acceptance remains in 55.22.
+- [x] Repair UX-008's shared initial-dialog focus and UX-009's identity reference; keep the layout part of UX-008 in 55.2/55.11. New focuses within the dialog, traps Tab and returns focus on Escape; password-reset history uses the supported Users path, with access denial checked for a restricted role.
+- [x] Triage any failed/retried register checks against a fresh source snapshot; separate harness timing from application errors. Initial long-sweep timeouts and one sequence-denying test-harness error were rerun; the final checks pass.
+- [x] **Done:** New/Edit mode, cold tabs, scan semantics and relevant UI evidence pass. The full Go run remains red solely on the previously known stale audit checkpoint in `TestAuditDeletedRowIsDetectedByCheckpoint`; the server package and targeted tests pass. BLD-041 remains open on unverified conditional print paths, BLD-045 on performance budgets, and PIM phone layout remains 55.2/55.11.
 
 ### 55.2 — Shared UX shell, lists, forms and Help (frontend/design + accessibility QA)
 
@@ -255,23 +265,29 @@ release gate. Owners are roles to assign, not claims of external owner approval.
 - [ ] Guided mapping/hold resolution and retry show expected effect and idempotency; settlement/booking choose real orders rather than comma-separated IDs.
 - [ ] **Done:** locally seeded order → allocation → shipping → invoice and exception/refund journeys are legible and reconciled; notification queued vs delivered is truthful. Vendor delivery and external acceptance remain separate.
 
-### 55.10 — Finance and period close (accountant + AP/AR approver)
+### 55.10 — Finance and period close (AP/AR + Account Head + qualified CA)
 
 - [ ] Task home for receivables, payable exceptions, proposals, reconciliation and close; distinguish posted entries from drafts/requests.
 - [ ] Source-linked invoices/notes/payment proposals with evidence, due balances, partial settlement and approval context; empty proposals link to eligible invoice work.
 - [ ] Reconciliation workbench links statement lines to candidates and explains differences; preserve bank/account/entity scope.
 - [ ] Expose journal balance, effective period, currency/rate, cost-center/project and source; guide existing intercompany, landed cost, deferral/prepayment and budget flows.
 - [ ] Close checklist shows exceptions and drill-through; backdated requests follow approval, not a free editable status.
-- [ ] **Done:** AP/AR/GL/stock-linked examples reconcile including partial/credit cases; accountant signs off actual treatment. UX review alone never certifies GST/TDS/accounting compliance.
+- [ ] Account Head follows AP/AR/POS/stock/payroll/asset source documents into subledgers and GL, signs explained reconciliations and the controlled close.
+- [ ] Qualified CA independently samples applicable tax/statutory treatment, invoice/credit series, cutoffs, source-to-return totals and export/audit evidence; document applicability and unresolved interpretations.
+- [ ] **Done:** AP/AR/GL/stock-linked examples reconcile including partial/credit cases; Account Head signs operational treatment and a qualified CA provides separate applicable statutory review. UX review alone never certifies GST/TDS/accounting compliance.
 
 ### 55.11 — PIM and catalog operations (merchandiser + data steward)
 
-- [ ] Group 21 tabs into Products, My work, Media, Channels/publishing and Advanced setup while preserving all deep links and permissions.
-- [ ] Repair the observed phone-width tab overlap; zero document overflow alone is not a usability pass.
+- [x] Group 21 tabs into Products, My work, Media, Channels/publishing and Advanced setup while preserving all deep links and permissions. Scratch Chromium also cold-opened the Import Template deep link and loaded its row action.
+- [x] Repair the observed phone-width tab overlap; zero document overflow alone is not a usability pass. 390px Chromium inspection completed 2026-10-08.
 - [ ] Guided family/attributes → product/variants → media → channel validation → publish; Jewellery design/combination structure remains explicit.
 - [ ] Workbench exposes completeness reasons, editable permitted fields and next correction; preserve existing dashboard/bulk editing instead of proposing duplicate implementations.
 - [ ] Import/export mappings use sample preview, error rows, validation and resumable job results; supplier submission review and scheduled runs have clear owners.
 - [ ] **Done:** a product reaches local publish-ready state from an import/manual path; validation failure is repairable without technical IDs. No AI Assist work or external channel acceptance inferred.
+
+2026-10-09 progress: a fresh manual Design/Product Family → mandatory attribute → Item Combination SKU → category-mapped local Channel → Workbench attribute/content → different HR/Admin approval reached an enabled **Ready to publish** state in Chromium; the blocked state named the missing attribute and approval. The Workbench now offers direct correction targets and uses the queue's channel-readiness rules before enabling Publish. Import Template row actions now show resolved mappings, server dry-run errors, then a validated import with job ID/error download; a bad CSV row was blocked and a corrected one imported through Chromium. A Supplier Submission Draft now has a generic Submit row action; Chromium submitted one, a different Super Admin approved it, and the resulting ProductContent Draft loaded into the Workbench. The shared Approvals table shows the business code first instead of only a UUID. A live Required Tag channel rule blocked publication; its **Edit tags** action focused the saved content field, and reapproval restored Ready to publish. **Still open:** media upload/min-image exception walkthrough; permitted-field/role and true Supplier-login isolation tests; true partial-job resume (new upload is currently required), and persistent schedule/job owner assignment. The connector is a documented local stub, not external acceptance.
+
+2026-10-11 continuation: a family-less Item now fails core completeness with a readable **Product Family** correction; Chromium confirmed its Workbench link, and a focused Go regression covers the gate. The channel **Min Images** rule no longer counts PDFs, QC evidence or video as product pictures, and a custom message retains its rule prefix so **Add an image** stays actionable. A disposable Chromium run configured a Min Images rule, observed Publish blocked, followed Add an image, uploaded a Main Image and reached local Ready again. Malicious alt text rendered as text/attribute only; the gallery interpolation is escaped. **Still open:** permitted-field/role and actual Supplier-login isolation, true partial-job resume, persistent schedule/job owner assignment, and external channel acceptance. Keep 55.11 and its Done bar unchecked.
 
 ### 55.12 — Manufacturing (planner + shop-floor operator)
 
@@ -348,7 +364,8 @@ release gate. Owners are roles to assign, not claims of external owner approval.
 
 - [ ] Re-run the complete register against a fixed build: fresh entry, populated/empty/filtered/denied/error states, key nested dialogs and all sub-tabs.
 - [ ] Perform real disposable-data end-to-end journeys: source-to-pay, order-to-cash/return, receive-to-ship/count, plan-to-produce, employee-to-pay and record-to-report.
-- [ ] Test beginner, daily-operator and supervisor roles separately; no Super Admin-only acceptance. Include desktop, phone, keyboard, assistive technology and applicable scanners/printers.
+- [ ] Complete the [functional verification matrix](erp-functional-verification-plan-2026-10-04.md): classify all 199 types; for every applicable module prove UI save/readback, number scope/uniqueness, source-to-successor links, stock/GL/payment effects, exceptions and least privilege. Existing screen-only checks do not count.
+- [ ] Test beginner, daily-operator and supervisor roles separately; no Super Admin-only acceptance. Add separate Account Head and qualified CA reviews of financially material journeys. Include desktop, phone, keyboard, assistive technology and applicable scanners/printers.
 - [ ] Proposed usability target: five representative participants per priority persona, at least 90% of assigned routine tasks completed unaided; report actual denominators and failures. This is a project target, not a vendor standard or proof that all people can use it.
 - [ ] Proposed discovery targets: assigned routine task found within 30 seconds and primary task reachable within three navigation actions; zero incorrect/duplicate posting, lost entered data or permission bypass. Specialized expert decisions are excluded from novice tasks explicitly.
 - [ ] Reconcile business results; re-run relevant Go/browser/security/print suites and BLD-045 budgets. Update Help/guides from literal walkthroughs; retain historical evidence.

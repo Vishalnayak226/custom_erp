@@ -60,12 +60,13 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 	}
 
 	// 1. Fetch prefix configuration for this document type
-	var prefix, separator, resetFreq string
+	var prefix, suffix, separator, resetFreq, overridesRaw string
 	var paddingWidth int
 	var activeStatus, includeStore bool
-	queryConfig := `SELECT prefix, separator, padding_width, reset_frequency, active_status, COALESCE(include_store, TRUE)
+	queryConfig := `SELECT prefix, COALESCE(suffix, ''), separator, padding_width, reset_frequency, active_status,
+	                       COALESCE(include_store, TRUE), COALESCE(store_overrides, '{}'::jsonb)::text
 	                FROM prefix_configs WHERE doc_type = $1`
-	err = tx.QueryRow(queryConfig, docType).Scan(&prefix, &separator, &paddingWidth, &resetFreq, &activeStatus, &includeStore)
+	err = tx.QueryRow(queryConfig, docType).Scan(&prefix, &suffix, &separator, &paddingWidth, &resetFreq, &activeStatus, &includeStore, &overridesRaw)
 	if err == sql.ErrNoRows {
 		// Use default fallbacks
 		prefix = docType
@@ -95,6 +96,22 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 	counterStore := storeCode
 	if !includeStore {
 		counterStore = counterWildcard
+	}
+
+	// Stage 60.1: a store may carry its own prefix/suffix for this series, and
+	// prints its Short Code rather than its store code. The counter stays keyed
+	// by the store code, so renaming a short code never restarts a series.
+	if o, ok := parseStoreOverrides(overridesRaw)[storeCode]; ok && storeCode != "" {
+		if o.Prefix != "" {
+			prefix = o.Prefix
+		}
+		if o.Suffix != "" {
+			suffix = o.Suffix
+		}
+	}
+	storeSegment := storeCode
+	if includeStore && storeCode != "" {
+		storeSegment = storeNumberSegment(tx, storeCode)
 	}
 
 	// 3. Fetch or create counter for that bucket with row lock
@@ -132,18 +149,21 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 	formatStr := fmt.Sprintf("%%0%dd", paddingWidth)
 	paddedNum := fmt.Sprintf(formatStr, nextVal)
 
-	// Format: <Prefix><Separator>[<StoreCode><Separator>][<Period><Separator>]<PaddedNum>
+	// Format: <Prefix>/[<Store>/][<Period>/]<PaddedNum>[/<Suffix>]
 	parts := []string{}
 	if prefix != "" {
 		parts = append(parts, prefix)
 	}
 	if includeStore && storeCode != "" {
-		parts = append(parts, storeCode)
+		parts = append(parts, storeSegment)
 	}
 	if periodSegment != "" {
 		parts = append(parts, periodSegment)
 	}
 	parts = append(parts, paddedNum)
+	if suffix != "" {
+		parts = append(parts, suffix)
+	}
 
 	return strings.Join(parts, separator), nil
 }

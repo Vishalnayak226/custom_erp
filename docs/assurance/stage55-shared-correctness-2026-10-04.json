@@ -1,0 +1,493 @@
+{
+  "schemaVersion": 1,
+  "phase": "55.1",
+  "date": "2026-10-04",
+  "scope": "Shared correctness only; no global UI/business/device acceptance",
+  "database": "custom_erp_t1",
+  "origin": "http://127.0.0.1:8101",
+  "browser": "151.0.7922.34",
+  "sourceHashes": {
+    "public/app.js": "8e3a1dd8a0cae4c9ca084b8b207a1153fb0109a4f94d00c19d8d491e021b5299",
+    "public/index.html": "405bbd84703b8f69143826a89071c5617923c125b2cc39517e85f20851edd2bc",
+    "public/view-documents.js": "8a3abd13a36cf59a4db5e438092d8808d7d6f8e4f741f6b5151b398015b8aba7",
+    "public/view-hr.js": "e7f0d8a09b08180530ccbd5260a9f32b21a357b510caa14e1154786e0a7d19e4",
+    "public/view-manufacturing.js": "a3ce7514521d6f744ffa0c95365d4c2cc4fed76bbfae2afa4bfd9f4f06f4d722",
+    "docs/qa/stage55-shared-correctness.cjs": "95fa1825f411d8b1db9fb496818c2872707987746c8c1d52f95f534af892d86e",
+    "internal/server/stage55_shared_ui_test.go": "0913d42769872f536e29deb29dc818b1262b5f91b3c0a7f6d88ea06b95c84751"
+  },
+  "checksPassed": 20,
+  "secondaryTabPanels": 54,
+  "coldContextPolicy": "A fresh context for each of seven parent screens; additionally each of seven formerly broken HR/Manufacturing tabs tested in its own fresh context",
+  "checks": [
+    {
+      "name": "cold hr/roster",
+      "evidence": {
+        "type": "ShiftAssignment",
+        "coldEntry": true,
+        "newAndEscape": true,
+        "navigateAwayAndBack": true,
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1"
+    },
+    {
+      "name": "cold hr/onboarding",
+      "evidence": {
+        "type": "OnboardingChecklist",
+        "coldEntry": true,
+        "newAndEscape": true,
+        "navigateAwayAndBack": true,
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1"
+    },
+    {
+      "name": "cold hr/appraisals",
+      "evidence": {
+        "type": "Appraisal",
+        "coldEntry": true,
+        "newAndEscape": true,
+        "navigateAwayAndBack": true,
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1"
+    },
+    {
+      "name": "cold hr/training",
+      "evidence": {
+        "type": "TrainingRecord",
+        "coldEntry": true,
+        "newAndEscape": true,
+        "navigateAwayAndBack": true,
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1"
+    },
+    {
+      "name": "cold hr/grievances",
+      "evidence": {
+        "type": "Grievance",
+        "coldEntry": true,
+        "newAndEscape": true,
+        "navigateAwayAndBack": true,
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1"
+    },
+    {
+      "name": "cold manufacturing/quality",
+      "evidence": {
+        "type": "QualityInspection",
+        "coldEntry": true,
+        "newAndEscape": true,
+        "navigateAwayAndBack": true,
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1"
+    },
+    {
+      "name": "cold manufacturing/subcontracting",
+      "evidence": {
+        "type": "SubcontractOrder",
+        "coldEntry": true,
+        "newAndEscape": true,
+        "navigateAwayAndBack": true,
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1"
+    },
+    {
+      "name": "nested chunk failure then live-parent Retry",
+      "evidence": {
+        "attempts": 2,
+        "recoveredView": "hr"
+      },
+      "passed": true,
+      "run": "phase55-1"
+    },
+    {
+      "name": "wave input and phone input semantics",
+      "evidence": {
+        "matrix": {
+          "wave": false,
+          "lot": false,
+          "serial": false,
+          "barcode": false,
+          "phone": true,
+          "derived": false
+        },
+        "wave": "WAVE-0001",
+        "mobileWave": "WAVE-0001",
+        "phone": "+919876543210"
+      },
+      "passed": true,
+      "run": "phase55-1-mobile"
+    },
+    {
+      "name": "New defaults, field kinds, keyboard containment and Escape",
+      "evidence": [
+        {
+          "type": "Department",
+          "title": "New Department",
+          "generated": [
+            {
+              "name": "code",
+              "value": "",
+              "required": false,
+              "placeholder": "Auto-generated upon save"
+            }
+          ]
+        },
+        {
+          "type": "Item",
+          "title": "New Item",
+          "generated": [
+            {
+              "name": "code",
+              "value": "",
+              "required": false,
+              "placeholder": "Auto-generated upon save"
+            }
+          ]
+        },
+        {
+          "type": "Vendor",
+          "title": "New Vendor",
+          "generated": [
+            {
+              "name": "code",
+              "value": "",
+              "required": false,
+              "placeholder": "Auto-generated upon save"
+            }
+          ]
+        },
+        {
+          "type": "PurchaseRequisition",
+          "title": "New Purchase Requisition",
+          "generated": [
+            {
+              "name": "code",
+              "value": "",
+              "required": false,
+              "placeholder": "Auto-generated from Prefix Configs on save"
+            }
+          ]
+        },
+        {
+          "type": "Attendance",
+          "title": "New Attendance",
+          "generated": [
+            {
+              "name": "code",
+              "value": "",
+              "required": false,
+              "placeholder": "Auto-generated from Prefix Configs on save"
+            }
+          ]
+        },
+        {
+          "type": "JournalVoucher",
+          "title": "New Journal Voucher",
+          "generated": []
+        },
+        {
+          "type": "InspectionPlan",
+          "title": "New Inspection Plan",
+          "generated": [
+            {
+              "name": "code",
+              "value": "",
+              "required": false,
+              "placeholder": "Auto-generated upon save"
+            }
+          ]
+        },
+        {
+          "type": "ReportFilterPreset",
+          "title": "New Report Filter Preset",
+          "generated": []
+        },
+        {
+          "type": "PIMImportTemplate",
+          "title": "New PIM Import Template",
+          "generated": [
+            {
+              "name": "code",
+              "value": "",
+              "required": false,
+              "placeholder": "Auto-generated upon save"
+            }
+          ]
+        }
+      ],
+      "passed": true,
+      "run": "phase55-1"
+    },
+    {
+      "name": "password reset history uses supported Users action",
+      "evidence": {
+        "usersLoaded": true,
+        "resetPromptOpened": true,
+        "promptCancelled": true,
+        "genericUserLookup": 0,
+        "resetWrites": 0
+      },
+      "passed": true,
+      "run": "phase55-1-reset"
+    },
+    {
+      "name": "real Department create, edit, and new-after-edit",
+      "evidence": {
+        "id": "Department/HQ/2026/000001",
+        "createStatus": 200,
+        "editStatus": 200,
+        "createdPayload": {
+          "id": "Department/HQ/2026/000001",
+          "status": "Active"
+        },
+        "newAfterEdit": true,
+        "fixtureRetained": true
+      },
+      "passed": true,
+      "run": "phase55-1-save"
+    },
+    {
+      "name": "restricted role cannot list reset targets",
+      "evidence": {
+        "identityStatus": 200,
+        "role": "Store Manager",
+        "usersStatus": 403,
+        "usersMenuVisible": false
+      },
+      "passed": true,
+      "run": "phase55-1-save"
+    },
+    {
+      "name": "secondary tabs from fresh finance",
+      "evidence": {
+        "freshContextPerParent": true,
+        "tabs": [
+          "trial-balance",
+          "chart-of-accounts",
+          "periods"
+        ],
+        "pageErrors": [],
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1-tabs"
+    },
+    {
+      "name": "secondary tabs from fresh reports",
+      "evidence": {
+        "freshContextPerParent": true,
+        "tabs": [
+          "exec-dashboard",
+          "current-stock",
+          "sales-register",
+          "vendor-ledger",
+          "payables-ageing",
+          "receivables-ageing",
+          "gst-return-summary",
+          "report-catalog"
+        ],
+        "pageErrors": [],
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1-tabs"
+    },
+    {
+      "name": "secondary tabs from fresh stickers",
+      "evidence": {
+        "freshContextPerParent": true,
+        "tabs": [
+          "print",
+          "templates"
+        ],
+        "pageErrors": [],
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1-tabs"
+    },
+    {
+      "name": "secondary tabs from fresh hr",
+      "evidence": {
+        "freshContextPerParent": true,
+        "tabs": [
+          "attendance",
+          "leave",
+          "payroll-export",
+          "roster",
+          "payroll",
+          "loans",
+          "onboarding",
+          "appraisals",
+          "training",
+          "grievances",
+          "my-requests"
+        ],
+        "pageErrors": [],
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1-tabs"
+    },
+    {
+      "name": "secondary tabs from fresh manufacturing",
+      "evidence": {
+        "freshContextPerParent": true,
+        "tabs": [
+          "orders",
+          "quality",
+          "mrp",
+          "schedule",
+          "subcontracting"
+        ],
+        "pageErrors": [],
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1-tabs"
+    },
+    {
+      "name": "secondary tabs from fresh pim",
+      "evidence": {
+        "freshContextPerParent": true,
+        "tabs": [
+          "dashboard",
+          "workbench",
+          "reports",
+          "my-work",
+          "media-library",
+          "task-templates",
+          "workflows",
+          "families",
+          "attributes",
+          "attribute-groups",
+          "family-attributes",
+          "channels",
+          "channel-category-map",
+          "channel-field-map",
+          "channel-validation-rules",
+          "supplier-submissions",
+          "import-templates",
+          "import-schedules",
+          "export-templates",
+          "export-schedules",
+          "catalogs"
+        ],
+        "pageErrors": [],
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1-tabs"
+    },
+    {
+      "name": "secondary tabs from fresh audit-logs",
+      "evidence": {
+        "freshContextPerParent": true,
+        "tabs": [
+          "audit",
+          "system",
+          "integration",
+          "jobs"
+        ],
+        "pageErrors": [],
+        "apiErrors": []
+      },
+      "passed": true,
+      "run": "phase55-1-tabs"
+    }
+  ],
+  "runs": [
+    {
+      "directory": "phase55-1",
+      "startedAt": "2026-10-04T08:55:57.050Z",
+      "finishedAt": "2026-10-04T09:01:18.013Z",
+      "checks": 12,
+      "failed": [
+        {
+          "name": "real Department create, edit, and new-after-edit",
+          "error": "page.waitForResponse: Timeout 30000ms exceeded while waiting for event \"response\"\n    at C:\\Users\\ABCD\\Documents\\Antigravity Projects\\ERP\\docs\\qa\\stage55-shared-correctness.cjs:191:32\n    at async check (C:\\Users\\ABCD\\Documents\\Antigravity Projects\\ERP\\docs\\qa\\stage55-shared-correctness.cjs:73:28)\n    at async C:\\Users\\ABCD\\Documents\\Antigravity Projects\\ERP\\docs\\qa\\stage55-shared-correctness.cjs:184:17"
+        }
+      ],
+      "blockedWrites": [
+        {
+          "method": "POST",
+          "path": "/api/v1/sequence"
+        }
+      ]
+    },
+    {
+      "directory": "phase55-1-save",
+      "startedAt": "2026-10-04T09:01:43.904Z",
+      "finishedAt": "2026-10-04T09:02:32.371Z",
+      "checks": 2,
+      "failed": [],
+      "blockedWrites": []
+    },
+    {
+      "directory": "phase55-1-reset",
+      "startedAt": "2026-10-04T09:04:35.861Z",
+      "finishedAt": "2026-10-04T09:04:56.664Z",
+      "checks": 1,
+      "failed": [],
+      "blockedWrites": []
+    },
+    {
+      "directory": "phase55-1-tabs",
+      "startedAt": "2026-10-04T09:07:33.119Z",
+      "finishedAt": "2026-10-04T09:11:38.765Z",
+      "checks": 7,
+      "failed": [],
+      "blockedWrites": []
+    },
+    {
+      "directory": "phase55-1-mobile",
+      "startedAt": "2026-10-04T09:12:32.106Z",
+      "finishedAt": "2026-10-04T09:12:48.533Z",
+      "checks": 1,
+      "failed": [],
+      "blockedWrites": []
+    }
+  ],
+  "interpretation": [
+    "Initial create/edit check was blocked by the harness denying POST /api/v1/sequence. The narrow Department sequence allowlist was corrected and the real persistence rerun passed; no production code change was made for that timeout.",
+    "Password-reset cancellation was rechecked by actually clicking Cancel and asserting the prompt closed. No password reset was submitted.",
+    "New/Edit smoke includes nine generic record types spanning shared field renderers, seven embedded-tab New paths, actual Department create/edit, keyboard containment/Escape and Item Type default. It does not claim 198 end-to-end saves."
+  ],
+  "fullSuite": {
+    "command": "go test ./... -p 1 -count=1",
+    "passed": false,
+    "failures": [
+      "TestAuditDeletedRowIsDetectedByCheckpoint (0.39s)"
+    ],
+    "knownPreservedCheckpoint": "311b63f0-4f1b-40ac-bd6f-b4421838d3f9",
+    "serverPackagePassed": true,
+    "logPath": "C:\\Users\\ABCD\\.codex\\scratchpad\\erp-ux-audit-20261004\\phase55-full-go-test.log"
+  },
+  "additionalVerification": [
+    "Four TestStage55 structural tripwires pass",
+    "TestAdminPasswordReset* immediate/dual-control/self-target tests pass",
+    "Timezone/role-template regression tests pass",
+    "go vet ./internal/server passes",
+    "go build ./cmd/server to session scratchpad passes",
+    "node --check on four changed JavaScript sources and browser harness passes"
+  ],
+  "notClosed": [
+    "BLD-041 complete per-screen print acceptance",
+    "BLD-045 performance budgets/long-session soak",
+    "PIM mobile tab overlap and wider shared UX (55.2)",
+    "Remaining domain phases and real-user/device/provider acceptance"
+  ]
+}

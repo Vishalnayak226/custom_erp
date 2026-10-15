@@ -119,6 +119,14 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 		return fmt.Errorf("BOM %s has no components to issue", bomID)
 	}
 
+	// Stage 60.4: a component whose item type is Backflush is not issued up
+	// front - it is consumed at each completion in proportion to the quantity
+	// finished (finishProductionQty). The full list is still snapshotted below,
+	// so the BOM-changed check covers both halves.
+	allComponents := components
+	issueNow, backflush := splitBackflushComponents(tenantID, components)
+	components = issueNow
+
 	// MANUFA-0143: an explicit pre-check (rather than just relying on
 	// PostInventoryLedger's own generic floor-check error below) so a raw
 	// material shortage reports precisely, the same reason
@@ -149,15 +157,22 @@ func IssueProductionMaterial(tenantID, orderID string) error {
 			"qty": -(c.Qty * orderQty), // negative to decrement, matching checkout's convention
 		}
 	}
-	if _, err := PostInventoryLedger(tenantID, location, items, false); err != nil {
-		return fmt.Errorf("material issue failed: %v", err)
+	if len(items) > 0 {
+		if _, err := PostInventoryLedger(tenantID, location, items, false); err != nil {
+			return fmt.Errorf("material issue failed: %v", err)
+		}
 	}
 
 	// Stage 26.9.2: snapshot the exploded requirement as issued, so
 	// finishProductionQty can detect (MFG-0276) if the BOM document itself
 	// is edited after this point, before the order is completed.
-	if snapBytes, errM := json.Marshal(components); errM == nil {
+	if snapBytes, errM := json.Marshal(allComponents); errM == nil {
 		data["bom_snapshot"] = string(snapBytes)
+	}
+	if len(backflush) > 0 {
+		if bfBytes, errM := json.Marshal(backflush); errM == nil {
+			data["backflush_components"] = string(bfBytes)
+		}
 	}
 
 	return saveProductionOrderStatus(tenantID, orderID, "Material Issued", data)
@@ -186,4 +201,46 @@ func CompleteProductionOrder(tenantID, orderID string) error {
 		return fmt.Errorf("production order has no remaining quantity to complete")
 	}
 	return finishProductionQty(tenantID, orderID, remaining)
+}
+
+// splitBackflushComponents separates the components issued at Material Issue
+// from those whose item type is Backflush (Stage 60.4), which are consumed at
+// completion instead.
+func splitBackflushComponents(tenantID string, components []bomComponent) (issueNow, backflush []bomComponent) {
+	for _, c := range components {
+		item, err := ResolveItemBySKU(tenantID, c.Sku)
+		if err == nil && ItemRules(tenantID, item.Data).Backflush {
+			backflush = append(backflush, c)
+			continue
+		}
+		issueNow = append(issueNow, c)
+	}
+	return issueNow, backflush
+}
+
+// backflushLines turns an order's recorded backflush components into the
+// negative ledger lines for qty finished units, after checking the stock is
+// there (MANUFA-0143, the same refusal Material Issue gives).
+func backflushLines(tenantID, schema, location string, data map[string]interface{}, qty float64) ([]interface{}, error) {
+	raw, _ := data["backflush_components"].(string)
+	if raw == "" {
+		return nil, nil
+	}
+	var components []bomComponent
+	if err := json.Unmarshal([]byte(raw), &components); err != nil {
+		return nil, fmt.Errorf("production order's backflush components are not valid JSON: %v", err)
+	}
+	lines := make([]interface{}, 0, len(components))
+	for _, c := range components {
+		required := c.Qty * qty
+		var available float64
+		if errQ := db.DB.QueryRow(fmt.Sprintf(`SELECT available FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2`, schema), c.Sku, location).Scan(&available); errQ != nil {
+			available = 0
+		}
+		if available < required {
+			return nil, &ValidationError{Code: "MANUFA-0143", Message: fmt.Sprintf("backflush stock is insufficient for SKU %s at %s: available %v, required %v", c.Sku, location, available, required)}
+		}
+		lines = append(lines, map[string]interface{}{"sku": c.Sku, "qty": -required})
+	}
+	return lines, nil
 }

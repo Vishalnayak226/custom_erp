@@ -421,6 +421,18 @@ func finishProductionQty(tenantID, orderID string, qty float64) error {
 	for _, bp := range byProducts(bomData) {
 		items = append(items, map[string]interface{}{"sku": bp.Sku, "qty": bp.QtyPerUnit * qty})
 	}
+	// Stage 60.4: backflush components are consumed now, in proportion to the
+	// quantity finished, in the same ledger posting as the finished goods - so
+	// a shortage refuses the completion rather than leaving stock half-moved.
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return err
+	}
+	consumed, err := backflushLines(tenantID, schema, location, data, qty)
+	if err != nil {
+		return err
+	}
+	items = append(items, consumed...)
 	if _, err := PostInventoryLedger(tenantID, location, items, false); err != nil {
 		return fmt.Errorf("finished goods receipt failed: %v", err)
 	}

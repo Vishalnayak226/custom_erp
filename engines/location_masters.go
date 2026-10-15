@@ -201,12 +201,13 @@ func ReceiptStoreHeader(tenantID, locationCode string) ReceiptStore {
 	return out
 }
 
-// Line is how the store reads on one line of a receipt: the shop's name, with
-// its code in brackets when the two differ. A Location whose name was never
-// filled in stores its code in both fields, and "HO (HO)" is not a heading.
+// Line is how the store reads on one line of a receipt: the shop's name. Stage
+// 60.5 dropped the code that used to follow it in brackets - no internal code
+// in front of a customer. A Location whose name was never filled in stores its
+// code in both fields, so it still prints that, the only identity it has.
 func (s ReceiptStore) Line() string {
-	if s.Name == "" || s.Name == s.Code {
+	if s.Name == "" {
 		return s.Code
 	}
-	return fmt.Sprintf("%s (%s)", s.Name, s.Code)
+	return s.Name
 }

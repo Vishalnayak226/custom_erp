@@ -433,6 +433,22 @@ func TransitionTaskStatus(tenantID string, taskID string, newStatus string) erro
 				return fmt.Errorf("COGS posting failed, task not dispatched: %v", err)
 			}
 		}
+		// Stage 59.1: units shipped without ever being scanned leave their
+		// bins now (scanned ones already did, in ScanPickItem).
+		for _, n := range taskSKUNeeds(task) {
+			if _, err := ConsumeTaskBinStockTx(tx, tenantID, schema, taskID, locationCode, n.SKU, n.Demand-n.Picked); err != nil {
+				return err
+			}
+		}
+	}
+
+	// Stage 59.1: a dispatched or rejected task holds no bin stock any more -
+	// whatever it still had reserved goes back (a rejection's new task at the
+	// next node reserves its own when it is picked).
+	if newStatus == "Dispatched" || newStatus == "Rejected" {
+		if err := ReleaseTaskBinStockTx(tx, schema, taskID, ""); err != nil {
+			return err
+		}
 	}
 
 	// 2. Update status of the current task

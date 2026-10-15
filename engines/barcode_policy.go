@@ -58,7 +58,8 @@ func BarcodePerReceiptDate(tenantID string) bool {
 // a numbering failure leaves the Item without one (the receipt-time safety
 // net still covers it) rather than refusing the save.
 func PrepareItemBarcode(tenantID string, isCreate bool, payload map[string]interface{}) {
-	if !isCreate || BarcodeGenerateAt(tenantID) != BarcodeAtSKUCreate {
+	// Stage 60.3: the Item's own rule, then its type's, then the client's.
+	if !isCreate || EffectiveBarcodeGenerateAt(tenantID, payload) != BarcodeAtSKUCreate {
 		return
 	}
 	if existing, _ := payload["barcode"].(string); strings.TrimSpace(existing) != "" {
@@ -116,10 +117,31 @@ func GenerateDatedEANBarcode(tenantID string, day time.Time) (string, error) {
 // EnsureItemBarcodes: stock has already posted, so a failure is logged and
 // that one SKU skipped.
 func EnsureReceiptBarcodes(tenantID, grnID string, items []interface{}) {
-	if BarcodeGenerateAt(tenantID) != BarcodeAtOff {
-		EnsureItemBarcodes(tenantID, items)
+	// Stage 60.3: each SKU follows its own rule (Item, then Item Type, then
+	// the client setting), so the receipt is split by what each line needs.
+	permanent := make([]interface{}, 0, len(items))
+	dated := map[string]bool{}
+	for _, raw := range items {
+		m, ok := raw.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		sku, _ := m["sku"].(string)
+		item, errItem := ResolveItemBySKU(tenantID, sku)
+		if errItem != nil {
+			continue
+		}
+		if EffectiveBarcodeGenerateAt(tenantID, item.Data) != BarcodeAtOff {
+			permanent = append(permanent, raw)
+		}
+		if EffectiveBarcodePerReceiptDate(tenantID, item.Data) {
+			dated[sku] = true
+		}
 	}
-	if !BarcodePerReceiptDate(tenantID) {
+	if len(permanent) > 0 {
+		EnsureItemBarcodes(tenantID, permanent)
+	}
+	if len(dated) == 0 {
 		return
 	}
 	schema, err := db.GetTenantSchema(tenantID)
@@ -135,7 +157,7 @@ func EnsureReceiptBarcodes(tenantID, grnID string, items []interface{}) {
 			continue
 		}
 		sku, _ := m["sku"].(string)
-		if sku == "" || seen[sku] {
+		if sku == "" || seen[sku] || !dated[sku] {
 			continue
 		}
 		seen[sku] = true

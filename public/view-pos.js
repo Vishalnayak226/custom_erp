@@ -1100,7 +1100,8 @@ const POS_PRICE_SOURCE_LABELS = {
   default_price_list: 'Price list',
   item_sale_price: 'Item price',
   item_mrp: 'MRP',
-  cashier_entered: 'Not priced - keyed in'
+  cashier_entered: 'Not priced - keyed in',
+  item_type_free: 'Free (gift / free with item)'
 };
 
 // posPriceCell renders one line's price. A server-priced line is read-only
@@ -1733,7 +1734,7 @@ function printPOSReceipt(cartNumber, location, paymentMode, items, saleTotal, lo
   const header = `
       <div class="receipt-title">${cfgEsc(p && p.entityName ? p.entityName : 'Sales Receipt')}</div>
       ${p && p.entityName ? '<div>Sales Receipt</div>' : ''}
-      <div>${cfgEsc(storeName)}${storeName !== location ? ` (${cfgEsc(location)})` : ''}</div>
+      <div>${cfgEsc(storeName)}</div>
       ${p && p.gstin ? `<div>GSTIN ${cfgEsc(p.gstin)}</div>` : ''}
       ${p && p.stateName ? `<div>${cfgEsc(p.stateName)}</div>` : ''}
       <div>${cfgEsc(cartNumber)}</div>

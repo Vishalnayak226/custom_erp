@@ -378,6 +378,14 @@ type docValidationLookups struct {
 }
 
 func validateDocumentWith(tenantID string, doctype string, docData map[string]interface{}, lk *docValidationLookups) error {
+	// Stage 60.3: blank / legacy "Stock" item types become "Product" before
+	// the Link to ItemType is checked (engines/item_types.go).
+	if doctype == "Item" {
+		normalizeItemType(docData)
+	}
+	if doctype == "ItemType" {
+		InvalidateItemTypeCache(tenantID)
+	}
 	fields := lk.fields
 	if len(fields) == 0 {
 		// META-0196 (Stage 25.5): "DocType not registered" - a doctype with
@@ -477,6 +485,17 @@ func validateDocumentWith(tenantID string, doctype string, docData map[string]in
 						existsLink, err = verifyDocumentExists(tenantID, f.Options, valStr)
 						if err != nil {
 							return err
+						}
+						// Remember a hit for the rest of this import (Stage 60.3): a
+						// value set during validation - an Item's blank type becoming
+						// "Product" - was never in the batch prefetch, and would otherwise
+						// cost one query per row. Only hits: a target missing now may
+						// still be created by a later row of the same file.
+						if existsLink && lk.linkExists != nil {
+							if lk.linkExists[f.Options] == nil {
+								lk.linkExists[f.Options] = map[string]bool{}
+							}
+							lk.linkExists[f.Options][valStr] = true
 						}
 					}
 					if !existsLink {

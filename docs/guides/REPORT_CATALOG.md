@@ -2,7 +2,7 @@
 
 <!-- GENERATED FILE - DO NOT EDIT BY HAND.
      Source: `engines`' report registry (`report_definitions.go`)
-     Regenerate: `pwsh docs/update-docs.ps1 -Group Content` -->
+     Regenerate: `go run ./cmd/gendocs` -->
 
 > **Generated 2026-09-10.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.

@@ -169,6 +169,19 @@ What lives where (37 settings across 13 modules):
 
 The country list covers 54 countries. If one you need is missing, that is a one-line addition to the table in `engines/phone.go` — the settings dropdown, the validation, and the browser's typing limit are all generated from it.
 
+#### B.3.0.3a A store's four identities: Store Name, Store Code, Short Code, Facility Code (Stage 60.2)
+
+Each **Location** (Setup → Core → Location) carries four ways to name it, each with one job:
+
+| Field | Used for | Rule |
+|---|---|---|
+| **Store Name** | What every screen, receipt and invoice shows — "Bandra Store". | Required. |
+| **Store Code** | The system's own key for the store. Stock, reservations and transactions reference it; it is never shown in place of the name. | Required, unique. |
+| **Short Code** | Printed inside document numbers: `PO/BDR/26-27/00001` (B.3.2). The two or three letters staff say out loud. | Optional; unique among short codes and store codes (`MASTER-0312`). Blank prints the Store Code. |
+| **Facility Code** | The code the OMS / marketplace uses for this store. A channel order naming a facility is routed to the store with that Facility Code. | Optional; unique (`MASTER-0313`). A channel order that sends the Store Code instead still works. |
+
+Changing a Short Code changes how the **next** numbers read; numbers already issued keep their text and each store's counter carries on.
+
 #### B.3.0.4 Which locations a till may sell from (`Location.sellable`, Stage 53)
 
 Every **Location** record carries a **Sellable** flag (`Yes` / `No`), next to its Type. It answers one question: *may a POS till ring up a sale here?*
@@ -314,43 +327,42 @@ Two shipped judgement calls you may want to change: an **approved Leave** and a 
 
 Nobody types a document number in this system. Purchase Orders, Goods Receipts, Purchase Returns (`PRT`, and the Debit Notes they raise, `DN`), Fixed Assets raised from a goods receipt (`AST`), ASNs, RFQs, Vendor Quotes, Stock Transfers, Expense Claims, Leave, Employee Loans, Grievances, Production Orders and Attendance all draw their number from a **series** defined on this screen, at the moment the document is saved. The user sees a greyed-out box reading "Auto (PO series)" until then.
 
-Each row is one series. The table shows a **Next Number Looks Like** column so you can see the effect of a change before anyone lives with it. **Edit** walks you through the settings:
+Each row is one series, and each transaction has its own: PO, GRN and Transfer numbers can all look different. The table shows the prefix, length, suffix, how often it restarts, whether the store is in the number, how many stores have their own prefix, and a **Next number looks like** example. **Edit** opens one form with every setting and a live preview:
 
 | Setting | What it does |
 |---|---|
-| **Prefix** | The leading text. `PO`, `GRN`, `TRF` — whatever your business calls it. |
-| **Separator** | What goes between the parts. `/` by default; `-` is common. |
-| **Padding Width** | How many digits the counter is padded to. `6` gives `000042`. |
-| **Reset Interval** | `ANNUAL` → `PO/HO/26-27/000001`, restarting each financial year. `MONTHLY` → `PO/HO/26-27-07/000001`, restarting monthly. `NEVER` → `PO/HO/000001`, one continuous series forever. |
-| **Store Segment** | `Yes` puts the location in the number and numbers each location separately. `No` removes it and runs one shared series across all locations. |
+| **Prefix** | The leading text. `PO`, `GRN`, `TRF` — whatever your business calls it. Letters, digits, `-`, `_` and `.`; no spaces. |
+| **Separator** | What goes between the parts. `/` by default; `-` is common. Up to 3 characters. |
+| **Number length (digits)** | How many digits the running number is padded to. `5` gives `00042`. Shipped lengths: purchase series (PR, RFQ, Vendor Quote, PO, ASN, GRN, Purchase Return, Debit Note) and HR series (Leave, Attendance, Expense, Loan, Grievance, Payslip) **5**; Transfers, Sales Invoice, Production Order and Fixed Asset **6**. |
+| **Suffix (optional)** | Text after the number: `PO/BDR/26-27/00001/A`. |
+| **Restart numbering** | **Every financial year** → `PO/BDR/26-27/00001`. **Every month** → `PO/BDR/26-27-07/00001`. **Never** → `PO/BDR/00001`, one continuous series. |
+| **Store in the number** | **Yes** prints the store's **Short Code** and numbers each store separately. **No** removes it and runs one series shared by every store. |
+| **Status** | **Inactive** stops that transaction from being saved at all (`ADMINC-0030`). |
+| **Store-wise prefix and suffix** | Every store is listed here as soon as it is created. Leave a store blank to use the series' own prefix and suffix, or give it its own: e.g. Bandra's POs as `BPO/BDR/26-27/00001`. |
+
+**Which store text appears in the number.** The store's **Short Code** (Setup → Location), so a Bandra store with short code `BDR` prints `PO/BDR/...`. A store with no short code prints its Store Code. Short codes must be unique: the Location form refuses one that another store already uses as its short code or store code (`MASTER-0312`), because two stores printing the same segment would hand out the same number.
 
 Things to understand before you change one:
 
-- **Reset Interval decides two things at once, on purpose.** It sets how often the counter restarts *and* whether the number shows the period. There's no way to reset annually while hiding the year, because that would re-issue last year's numbers — and since the number is also the document's identifier, the second document would be refused. `NEVER` is the only way to get a number with no year in it.
-- **Store Segment works the same way.** Turning it off doesn't just hide the location; it merges the per-location counters into one. Otherwise two locations would both be handed `PO/000001`.
-- **Changes apply to the next document only.** Existing documents keep the numbers they were issued. Renaming a prefix does not renumber history, which is what you want for an audit trail.
+- **Restart decides two things at once, on purpose.** It sets how often the counter restarts *and* whether the number shows the period. There's no way to restart yearly while hiding the year, because that would re-issue last year's numbers — and since the number is also the document's identifier, the second document would be refused. **Never** is the only way to get a number with no year in it.
+- **Store in the number works the same way.** Turning it off doesn't just hide the store; it merges the per-store counters into one. Otherwise two stores would both be handed `PO/00001`.
+- **Changes apply to the next document only.** Existing documents keep the numbers they were issued. Changing a prefix, length, suffix or short code does not renumber history, and the running counter carries on (it is kept per Store Code), so no number is ever issued twice.
 - **Gaps in a series are normal.** A number is drawn before the document is fully validated, so a rejected save leaves a gap. That is standard behaviour for a sequence counter and is not data loss.
-- **Deactivating a series stops the documents that use it.** Anyone creating that record type gets "numbering configuration is inactive" (`ADMINC-0030`) and cannot save. Deactivate only when you intend to block the record type.
-- **Don't give two series the same prefix.** Document numbers are unique across *every* record type, not just within one, so overlapping prefixes will eventually collide and cause failed saves.
+- **Two series cannot share a prefix.** Document numbers are unique across *every* record type, so the screen refuses a prefix (or a store-wise prefix) that another series already prints (`ADMINC-0310`).
 
 ##### Adding a series for a record type that isn't listed yet (New Series)
 
-The table only ever showed record types that already had a series row. Master records — Vendor, Item, Customer, Employee and the rest — were *always* auto-numbered (the engine falls back to sensible defaults when no row exists), but with no row on this screen there was nothing to edit, so their prefix and padding were invisible and unchangeable.
+The table only ever showed record types that already had a series row. Master records — Vendor, Item, Customer, Employee and the rest — were *always* auto-numbered (the engine falls back to sensible defaults when no row exists), but with no row on this screen there was nothing to edit.
 
-**Vendor, Item and ProductFamily now ship with explicit rows**, so they appear in the table like any other series and are editable straight away. Their shipped settings are deliberately identical to the defaults the engine was already using, so **no code that has already been issued changes shape** — an existing `Item/HQ/2026/000002` stays exactly as it is.
+**Vendor, Item and ProductFamily ship with explicit rows**, so they appear in the table like any other series and are editable straight away. Their shipped settings are identical to the defaults the engine was already using, so **no code that has already been issued changes shape**.
 
 For anything else, use **New Series** (the plus-icon button) at the top of the screen:
 
-1. Click **New Series**.
-2. **Record Type** — type the record type's name **exactly as the system spells it**: `Vendor`, `Item`, `Customer`, `PurchaseOrder`. This is the internal doctype name, not the friendly label, and it is case-sensitive. If you get it wrong you create a series that nothing will ever draw from — harmless, but it does nothing. Check the spelling on the **Database Schema Design** screen if you are unsure.
-3. If that record type already has a series, you are told so and sent to its **Edit** button instead — you cannot create a second series for the same record type.
-4. The rest is the **same five prompts as Edit** (Prefix, Separator, Padding Width, Reset Interval, include the store code), pre-filled with sensible defaults: prefix = the record type's own name, separator `/`, padding `6`, `ANNUAL`, store segment on.
-5. Save. The new row appears in the table, and the **next** record of that type is numbered from it.
+1. Click **New Series**. The same form opens, with the **Transaction** box editable.
+2. **Transaction** — type the record type's name **exactly as the system spells it**: `Vendor`, `Item`, `Customer`, `PurchaseOrder`. This is the internal doctype name, not the friendly label, and it is case-sensitive. If you get it wrong you create a series that nothing will ever draw from — harmless, but it does nothing. Check the spelling on the **Database Schema Design** screen if you are unsure.
+3. Fill in the rest of the form as for **Edit** and save. If that record type already has a series, saving updates it — there is only ever one series per record type.
 
-Two cautions, both the same ones that apply to editing an existing series:
-
-- **It applies to the next record only.** Records already created keep their numbers. Adding a series for a record type that has been auto-numbering for months does **not** renumber the existing ones, and the counter starts from 1 — so pick a prefix that cannot collide with what has already been issued, or you will get failed saves when the new series catches up with the old numbers. If in doubt, keep the default prefix (which is what the engine was already using) rather than inventing a new one.
-- **Document numbers are unique system-wide.** The "don't give two series the same prefix" rule above applies to a series you add here just as much as to one that shipped.
+One caution: **it applies to the next record only.** Adding a series for a record type that has been auto-numbering for months does **not** renumber the existing ones, and the counter starts from 1 — so if you choose a new prefix, choose one that cannot collide with what has already been issued. If in doubt, keep the default prefix (the record type's own name, which is what the engine was already using).
 
 #### B.3.2.1 Locking the industry profile
 
@@ -432,11 +444,27 @@ Most items are taxable and need a GST Rate above 0 — the system rejects a bare
 
 Error codes: `PURCHA-0116` (no reason), `PURCHA-0117` (more than can be returned, or a line the GRN never received), `PURCHA-0118` (no GRN, or a cancelled one whose stock never posted), `PURCHA-0119` (already on another return, or already posted), `PURCHA-0120` (Debit Note raised but not posted).
 
+#### Item Types — what kind of item a SKU is (Stage 60.3/60.4)
+
+Every Item has an **Item Type** (Setup → Item → Item Type). **Product** is the default: an Item saved with the field blank, or with the older value "Stock", is a Product. Item types are a list you manage under **Setup → Item Type**; seven ship with every client:
+
+| Type | Barcode | Behaviour |
+|---|---|---|
+| **Product** | Client default | A normal stock item, bought and sold. |
+| **Accessory** | Fixed per SKU | Sold alongside a main product; otherwise a normal stock item. |
+| **Non-Asset** | Fixed per SKU | A stock item that is not a fixed asset (consumables, packing material). |
+| **Free With Item** | Fixed per SKU | **Sells at zero price**, and only alongside its parent item: set **Free with item** on the Item to the main product. The till refuses the free item unless the parent is on the same bill in at least the same quantity (`POSOFF-0314`), and the Item form refuses a Free With Item SKU with no parent, or with itself as parent (`MASTER-0315`). |
+| **Gift** | Fixed per SKU | **Sells at zero price** at the till. The line shows "Free (gift / free with item)" as its price source and does not count as a discount. |
+| **Backflush** | Fixed per SKU | In production it is **not** issued at Material Issue. Each time finished goods are reported (partial or full completion), the BOM quantity × units finished is taken from stock at the order's location in the same posting as the finished goods. Short stock refuses the completion (`MANUFA-0143`). |
+| **Fixed Asset** | Off | Bought on a PO and raised as an Asset, never sold (below). |
+
+Each type is a record with these settings, so you can change the shipped ones or add your own: **Generate barcode at**, **Barcode per receipt date**, **Sell at zero price**, **Only with its parent item**, **Backflush**, **Fixed asset**, and **Status**. An Item picks its behaviour up from its type; only the two barcode settings can be overridden per Item. Zero price applies to the till's server-side pricing (POS quote and checkout); it cannot be overridden by a price list or a supervisor override.
+
 #### Fixed Asset items — bought on a PO, never sold (Stage 57.8)
 
 An Item whose **Item Type** is **Fixed Asset** is equipment the business keeps, not stock it sells. User Guide §6.7 has the day-to-day steps. What an administrator should know:
 
-1. **Turning an Item into a fixed asset** is the **Item Type** field on the Item (Setup → Item; blank means Stock, so every existing Item is unchanged). Change it before the item is received. Stock already on hand from earlier receipts stays as stock, and that stock still cannot be sold once the type is Fixed Asset.
+1. **Turning an Item into a fixed asset** is the **Item Type** field on the Item (Setup → Item; blank means Product, so every existing Item is unchanged). Change it before the item is received. Stock already on hand from earlier receipts stays as stock, and that stock still cannot be sold once the type is Fixed Asset.
 2. **Receiving.** When its GRN posts, the accepted units do not enter stock and nothing is booked to `1200` Inventory. Each unit becomes a **Draft** asset in HRM → Fixed Assets, numbered from the `AST` series (B.3.2; the location is the store segment), costed at the PO's rate before GST, and carrying the Item, GRN, PO, vendor, location and serial number. Units QC rejected or damaged go to QC hold / damaged as for any item. If an asset cannot be raised, the receipt still posts and an ERROR naming the GRN is written to the system error log, so the asset can be entered by hand.
 3. **Accounting.** Capitalise books Dr `1400` Fixed Assets / Cr `2100` GRN Suspense, the same entry a hand-entered asset has always made. The supplier's bill is matched and paid against the GRN as usual, and paying it clears `2100`. Capitalise asks for the useful life when the asset has none, and stores it on the asset.
 4. **Never sellable.** One check refuses a Fixed Asset item on every sale path: the server's sale-side tax computation, which POS quote and checkout, order and pack invoices and customer returns all use, and OMS order intake, both when an order is created and when a hold is released. The refusal is `ASSET-0273`. Picking needs an order line and stock, and a Fixed Asset item has neither.
@@ -444,6 +472,8 @@ An Item whose **Item Type** is **Fixed Asset** is equipment the business keeps, 
 #### GST on purchases (Input Tax Credit) and on credit sales
 
 - **Supplier bills.** When a Vendor Invoice is matched, the system works out how much of the bill is GST, using the GST on the Purchase Order it matches (CGST/SGST or IGST in the PO's proportions), and stores it on the invoice. Paying the invoice posts the goods value to `2100` GRN Suspense and the GST to `1500` GST Input Credit Account. That holds for Pay, Pay w/ TDS and an approved Override & Pay alike. A foreign-currency bill, or one matched against a PO without GST, posts the whole amount to `2100` as before.
+- **RFQ award policy still needs a product decision.** The current Vendor Quote captures one `quoted_price` and lead time, but no unit, item line, tax basis or delivery terms. Selecting the winning quote records the comparison result; it must not automatically price or issue a PO. Stage 55.4 now links existing source documents in the UI, while quote-to-PO field semantics and approval policy remain open. Configure and review a PO explicitly; do not treat the linked records alone as three-way-match acceptance.
+- **Procurement handoff (Stage 55.4 continuation):** an approved PO's **Receive goods** action carries that PO into GRN; the posted GRN's **Record vendor invoice** action carries its GRN/PO/vendor into the generic Draft invoice form. Operators still enter the supplier invoice number, amount and financial year and run **Match** before paying. A local partial receipt of one unit at ₹100 plus 3% GST matched a ₹103 invoice; a second ₹110 bill on that same GRN was held as overbilling. Rejected/damaged replacement versus PO-fulfillment accounting remains a product decision; do not change tolerance/closure policy on an assumption.
 - **TDS** on a bill whose GST is recorded is deducted on the value **excluding** GST (CBDT Circular 23/2017). The supplier still receives the full bill less TDS.
 - **Credit and online sales.** A Sales Invoice drafted for a shipped order now carries its CGST/SGST/IGST, worked out the same way package invoices are. Posting it books the tax to `2200`/`2201`/`2202` GST Output Payable and only the rest to `4100` Sales Revenue, the same split a POS sale makes. Before this, credit sales put their whole value in revenue, so their GST never reached the GST return.
 - **GST Return Summary** shows **Input Tax Credit** (the period's movement on `1500`, which includes GST on expense claims) and **Net GST Payable** (output tax minus input credit; a negative figure is credit carried forward).
@@ -525,6 +555,29 @@ Two configurations are refused when you save, because both are silently unusable
 
 #### B.3.3.1 Barcodes generated automatically at goods receipt
 
+**Stock availability review (Stage 55.6 partial).** Inventory and Current Stock
+now expose `available_to_sell`, calculated by the reservation engine's shared
+formula from base availability minus reserved, safety, blocked, QC-hold,
+damaged, channel-buffer and active-hold quantities. `available` remains the
+base bucket in the API for compatibility; do not use it alone to promise stock.
+The browser check placed an actual Hold against a disposable stock row and
+confirmed Available to sell fell while On hand did not. A later isolated
+Chromium run followed Place Hold → linked Hold Release Request Draft → Submit
+for Approval → a different Store Manager's Approve and confirmed available
+stock returned only after approval. A transfer run exposed and fixed source
+`on_hand` not decreasing at dispatch; the regression test and a second live
+transfer show one unit leaving HO and entering the destination, without a
+duplicate on-hand unit. Count/recount, lot/serial identity and independent
+transfer-approval policy remain open Stage 55.6 gates.
+
+Inventory's Transfer link now opens the real transfer composer with source and
+item filled, rather than the generic TransferOrder record table. Its Count
+link starts a scoped blind CycleCountLine with a generated session reference;
+the new-line form omits system quantity, variance and lifecycle status, and
+generic create validation accepts only Draft, nonnegative whole-unit counts
+with no system-owned values. A Chromium run posted a zero-variance line.
+Variance/recount approval and historical balance remediation remain unverified.
+
 **Barcode policy (Stage 57.7)** — two settings under **Configuration → Inventory**:
 
 | Setting | Choices |
@@ -535,6 +588,8 @@ Two configurations are refused when you save, because both are silently unusable
 Barcodes belong to the **SKU** — each Item, i.e. each variant. A design / Product Family has none. **Barcode** is no longer a field anyone has to type on the Item form; one you type or scan yourself is always kept, and nothing ever replaces an existing barcode.
 
 **Receipt-date barcodes** are EAN-13s of the form `02` + `YYMMDD` + a 4-digit number for that day + check digit (up to 9,999 per day). They are listed under **Setup → Item Barcode** with the SKU, the date and the receipt(s) that used them. Scanning one anywhere — POS, pick/pack, sticker re-print — finds its SKU. One code per SKU per day: a second receipt of the same SKU on the same day reuses that day's code.
+
+**Per item type and per item (Stage 60.3).** The two settings above are the client-wide default. Each **Item Type** (Setup → Item Type) can override them — **Generate barcode at** (Client default / SKU creation / Goods receipt / Off) and **Barcode per receipt date** (Client default / Fixed per SKU / New per receipt date) — and each **Item** can override its type with the same two fields ("Item type default" keeps the type's rule). The most specific one wins: **Item, then Item Type, then the client setting.** The shipped Accessory, Non-Asset, Free With Item, Gift and Backflush types are **Fixed per SKU**, so those SKUs keep one barcode even when the client issues a new one per receipt date; Fixed Asset issues none (assets carry an asset tag).
 
 Receipt-time generation of the permanent barcode (below) still runs under **SKU creation** too, as the safety net for older, imported or API-created Items.
 
@@ -620,6 +675,14 @@ A **webhook subscription** tells this system: "whenever *this kind* of thing hap
 **What the other system receives**: an HTTP `POST` whose body is `{"event": "<name>", "payload": {…}}`, with headers `X-Webhook-Event` (the event name), `X-Webhook-Delivery` (a unique id, so a repeat can be ignored) and `X-Webhook-Signature: sha256=<HMAC-SHA256 of the body, keyed with your Signing Secret>`. Events in use today include `pos.sale.completed`, `inventory.stock_changed` and `pim.publish.queued`.
 
 **How it stays reliable**: an event is written in the same database transaction as the business change that caused it (the "outbox"), so an event is never sent for a sale that was rolled back, and none is lost if delivery fails — failed deliveries are retried by the job runner. A server running with external side effects switched off (development and training instances, see the startup log line `SIMULATED (ENV=development)`) records deliveries but does not actually send them.
+
+**OMS connector retry (Stage 55.9):** the order desk prevents two simultaneous manual syncs of the same channel operation in one browser session. A successful pull reports orders *processed*, which can include previously imported channel order IDs; it does not mean that many new SalesOrders were created. Check the order's source and channel order ID before retrying, and use the integration exception/mapping queue to fix rejected items. This UI guard is not a substitute for the server's channel-order idempotency key or for a real connector acceptance run.
+
+**OMS local handoff (Stage 55.9 partial, 2026-10-09):** a scratch Chromium journey created a manual SalesOrder, reserved a unit, released it to a FulfillmentTask, dispatched the task, booked a carrier from the order detail, handed over a manifest, and found a Shipped order with one Draft SalesInvoice. The booking action is suppressed once an active booking exists or the order is terminal. Both notification logs said `Skipped-NoTemplate`; no delivery is claimed. The settlement form now selects saved orders from the chosen channel instead of accepting comma-separated IDs; this is not proof of payout matching. Return/refund and connector replay remain open.
+
+**Finance work home (Stage 55.10):** **Finance / GL → Work to review** links operators to AP, AR, payment proposals, bank reconciliation and period close. It shows no first-page status counts because the generic document API paginates; use source lists and reports for actual balances and exceptions. Do not treat the advisory close checklist as an Account Head signature or qualified CA statutory acceptance. Retain source-document, posting-identity and bank-reconciliation evidence for those separate reviews.
+
+**Posting-identity gap (2026-10-09):** the Work panel now opens the existing full GL audit export directly; Chromium verified the exact report. Its GL rows carry source doctype/id and timestamp but no posting actor, and audit logs do not have a reliable entity link for every GL write. The link is a source review aid, **not** an accountable who-posted-what register. Add explicit actor capture to the shared posting path and reconcile historical `NULL`/unknown rows before 55.10 may be claimed complete. Account Head and qualified CA signoffs remain external gates.
 
 ### B.4 Where to Look When Something Seems Wrong
 
@@ -790,6 +853,29 @@ It reports the database role the application actually connects as. If it says th
 
 ---
 
+### C.7 Data Console — fixing data inside any client (Stage 60.6)
+
+**Admin → Data Console** lets a platform operator open any client, browse every one of its database tables, and edit a row directly. It is for repairs that have no screen of their own; prefer the normal screen whenever one exists, because the console does not run the business rules a screen does.
+
+**Who can use it.** Being a Super Admin is not enough — every client has its own Super Admin. An operator is a Super Admin whose client and username appear in the server setting `ERP_PLATFORM_OPERATORS`, a comma-separated list of `client:username` pairs:
+
+```
+ERP_PLATFORM_OPERATORS=default:admin
+```
+
+Set it in the server's environment (`/etc/erp.env` on the droplet) and restart the service. It cannot be set from inside the app, so no client user can grant it to themselves. Anyone else who opens the screen is told they are not an operator, and the API answers `PLATFORM-0317`.
+
+**Using it.** Choose the **Client** and the **Table** (each shows an approximate row count; "view only" tables cannot be edited). For the `documents` table — where every PO, GRN, Item, Vendor, Store and other record lives — type a **Record type** such as `PurchaseOrder` to narrow it, and **Find by key** to search the key column (the record's id/code). Click **Edit** on a row, change the fields, tick **empty (NULL)** to clear one, and **Save changes**; you confirm before anything is written. The database checks each value against the column's type, so a malformed date or JSON is refused rather than saved.
+
+**What it protects.**
+
+- **Hidden values** show as `••••••` and cannot be changed: passwords, password-reset and MFA secrets, API and channel credentials, recovery codes, and **customer personal details** — phone, email, address, PIN code, PAN/Aadhaar, date of birth, bank details, and a Customer's name. Inside a record's JSON data the same keys are hidden; when you save, every hidden value keeps what is stored, whatever the box showed. **Find by key** searches key columns only, so hidden values cannot be found by searching.
+- **Keys** (a row's identity, e.g. `id`) cannot be changed, and a table with no key cannot be edited at all.
+- **Audit tables** (`audit_*`, `system_error_logs`) are view only, so the trail cannot be rewritten — by anyone.
+- **Every change is recorded** in that client's **Activity Log** as `PLATFORM_DATA_EDIT`, with the table, the key, the columns changed and their before/after values (hidden values stay hidden), and also in the operator's own client log.
+
+**Where things are.** `documents` (every record, by `doctype`), `doctype_fields` / `doctype_meta` (each record type's fields and labels), `prefix_configs` and `sequence_counters` (number series and their running counters), `system_settings` (Configuration), `role_permissions` and `field_permissions` (access), `bin_stock*` and `inventory_*` (stock), `gl_postings` / `gl_accounts` (accounts), `approval_*` (approvals). Editing stock or ledger rows directly can leave stock and books out of balance; correct those with an adjustment or reversal through their screens where one exists.
+
 ## Part D — Developer / CTO Level
 
 ### D.1 Deployment (`promote.ps1`)
@@ -876,6 +962,16 @@ These are different from extension tokens and browser sessions. Extension tokens
 After `db/migrations_stage38_2_api_credentials.sql` is applied, a Super Admin can issue/list/rotate/revoke credentials through the private `/api/v1/admin/api-credentials` endpoints documented in `../specs/public_api_v1.md`. A newly issued or rotated key is shown once and the response is marked `Cache-Control: no-store`; copy it directly into the integrator's secret store. The database retains only a one-way digest and an operator-visible prefix, so a lost key cannot be recovered—rotate it.
 
 No public business endpoint accepts these credentials yet. That is deliberate: Stage 38.3's per-credential limiter and 38.5's idempotency contract must exist before the first `/api/public/v1` route is exposed. Do not try to send an API key to the private `/api/v1` application routes; it is not a user session and will be rejected.
+
+#### D.6.1a PIM setup and navigation (Stage 55.11)
+
+The PIM rail now groups its 21 existing screens under **Products**, **My work**, **Media**, **Channels & publishing** and **Advanced setup**. The Product Dashboard carries the ordered path: Item master → Product Family → Attribute Definitions → required Family Attributes → assign Item family → Workbench content/media → completeness report → optional channel mappings/validation → publish from Workbench. This mirrors the module handbook. The grouped navigation does not change server permissions or create a new product master. A local ready score is not external channel acceptance; keep a channel-response and exception review before treating an item as live.
+
+The Workbench's selected-channel check now uses the same publish-readiness rules as the queue gate (completeness, category map and channel validation rules). It disables Publish until locally ready and names missing fields; an external connector still requires its own receipt check. The manual UI walkthrough used a Product Family Design ID, an Item Combination SKU, a mandatory attribute and a separate ProductContent approval. A Store Manager cannot approve ProductContent merely because they can read it; the shipped approval rule requires **HR/Admin**, and the checker must differ from the submitter.
+
+Product Family is a required core completeness check; a family-less Item cannot become publish-ready by filling unrelated fields. **Min Images** counts active customer-facing image assets in Main, Gallery, Variant Image or Lifestyle roles, not PDF certificates, Internal QC assets or video. A custom validation message retains its rule type prefix so the Workbench can show the relevant correction action. The isolated browser run verified rule block → Add an image → upload → ready; it does not prove a marketplace accepted the media.
+
+For mapped imports, **Advanced setup → Import Templates** has a row action to inspect the resolved mapping, preview a CSV without writes, and import only a zero-error preview of the selected file. The resulting import job ID and authenticated error-row download are shown in the dialog. A corrected file must be previewed as a new run; this is not checkpoint/resume of a partly processed job. Assign a named data steward operationally to review these job results and **Import Schedules → Last Run Status**; the schedule record has no owner field yet. **Supplier Submissions** Draft rows now have Submit for Approval. The shipped supplier-submission rule requires a **Super Admin** checker who differs from the maker; approval copies content to ProductContent as a Draft. ProductContent then needs its own separate **HR/Admin** checker and will load into Workbench for editing. The supplier-login/vendor isolation path itself remains to be browser-tested. Do not mark the Stage 55.11 schedule-owner/resume Done bar complete until those are implemented and live-tested.
 
 #### D.6.2 PIM tasks and workflows (Stage 36.2)
 

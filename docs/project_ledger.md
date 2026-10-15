@@ -44,6 +44,18 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 216. Stage 60 — number series per transaction and store, item types, names not codes, platform data console (2026-10-14, code + docs, NOT COMMITTED)
+
+The user asked whether PO/GRN/barcode were ready and what was missing, then said "Build" with decisions: lengths 5 (purchase, HR) / 6 (stock, sales, production, assets); the store's Short Code inside numbers; Store Name / Store Code / Short Code / Facility Code with Facility Code for OMS; item types with barcode rules **and** behaviour; a raw-edit console over every table of any client with customer details hidden; no internal codes in the UI except Design, Combination and barcode. Full detail in [micro_checklist.md Stage 60](micro_checklist.md).
+
+- **60.1** Suffix and per-store prefix/suffix on every series, Short Code as the store segment, enforced prefix uniqueness across series, the chosen lengths; one form with a live preview replaces the chained prompts.
+- **60.2** `Location.facility_code`, unique Short/Facility codes, OMS intake resolves a facility to its store.
+- **60.3/60.4** `ItemType` master (7 seeded); barcode rule precedence Item > Item Type > client; Gift / Free With Item at zero price on the till (parent required for the latter); Backflush consumed at production completion.
+- **60.5** Name display extended at the one sweep choke point by column header; receipts and invoices print names.
+- **60.6** Admin → Data Console behind an `ERP_PLATFORM_OPERATORS` allowlist, masked and audited.
+- **Found on the way:** the older cross-tenant admin endpoints trust any client's Super Admin (open decision in 60.6); the item-type normalisation defeated the import's Link prefetch (fixed generally in `validateDocumentWith`); the series form and preview moved out of the startup files to stay inside the cold-core budget.
+- **Verified:** build/vet, full `go test -p 1 ./...` green, release budget 184,099/184,320, browser walk-through of the series form, Item Types, store labels, console masking/edit and PO list names.
+
 ## 215. Five-item pass: import speed, envelope remainder, limiter bounds, generator safety, release (2026-10-11)
 
 Detail lives in micro_checklist 49.4.4a, 47.11.1 and 47.15.1.
@@ -73,6 +85,10 @@ Detail lives in micro_checklist 49.4.4a, 47.11.1 and 47.15.1.
   capability's review date expired 2026-10-09, which blocks `update-docs` Content/All publish
   until the user reviews.
 
+## 214. Stage 55.11 family/image publishing gate and browser proof, still open (2026-10-11)
+
+`CalculateCompleteness` now requires a Product Family. The Workbench shows a family-less Item as incomplete with a direct Item correction; focused Go and disposable Chromium checks passed. The channel's Min Images rule now counts only active customer-facing product image roles, not PDF certificates, QC evidence or video. Custom rule text retains the rule type, so its correction action remains reachable. In Chromium, a new Min Images rule blocked Publish, Add an image focused the upload, and a Main Image restored local readiness. Escaped gallery alt text remained inert under an injection payload. Focused family/image tests passed. The final full `go test ./... -p 1 -count=1` passed engines, server and security packages, but `cmd/releasebudget` failed: concurrent initial-shell changes put cold core at 184,330/184,320 bytes (10 over); this pass changed only the lazy PIM module. `graphify update .` and brain regeneration passed (100% coverage), and the scratch server was stopped. Restricted-field/role, actual Supplier-login isolation, partial-job resume and persistent schedule/job owner assignment remain open, as does external connector acceptance. 55.11 stays `[ ]`; no commit or deploy.
+
 ## 213. SOP video: a draft chapter for every module, and the defects recording them found (2026-10-08 → 10; docs + code)
 
 The user approved recording the SOP chapters for all modules (57.12). Detail in `micro_checklist.md` 57.12, 57.25, 57.26.
@@ -81,6 +97,10 @@ The user approved recording the SOP chapters for all modules (57.12). Detail in 
 - **Defects found and fixed (57.25).** Names shown as codes on six screens; four dead ends (no journal-voucher screen, typed-code asset prompts, procurement-owned row buttons inert until Procurement was opened, Service Ticket lifecycle with no buttons); Stock Ledger balances always 0 unless fully filtered; raw ISO timestamps in catalog reports; pickers stacking on re-attach. Commits `bf21ee5` … `dc4e365`, each re-recorded clean.
 - **Guides.** USER_GUIDE gains §9B.1 (journal vouchers), §9C (service contracts and tickets) and §9D (CRM campaigns), and the asset Transfer/Dispose panel and Stock Ledger balance notes.
 - **Open (57.26).** Nine observations needing a decision, led by the generic Edit form being able to set a lifecycle Status directly.
+
+## 212. Stage 55.11 manual publish readiness and mapped import, still open (2026-10-09)
+
+The lazy PIM Workbench now turns missing completeness fields into correction targets and checks the same full channel readiness as the publish queue before enabling Publish. The generic Import Template table has a lazy row action for mapping preview, dry-run row errors, validated import and authenticated job error download. Isolated Chromium created a new Design family, mandatory attribute, Combination SKU and category-mapped channel, then reached local Ready to publish after a different HR/Admin approved its content. An invalid CSV row was blocked and a corrected CSV imported through the UI; the import action also loaded from a cold deep link. A Supplier Submission Draft had no Submit action although the guide directed users to it; the generic approval action now includes that doctype. Chromium saved/submitted one, a different Super Admin approved it, and the resulting ProductContent Draft loaded into the Workbench rather than an empty editor. The Approvals table shows its business code rather than only a UUID. A live Required Tag channel rule blocked publish; Edit tags focused the saved content field and reapproval restored readiness. Media/min-image exceptions, restricted-field and true Supplier-login isolation, partial-job resume, and persistent schedule/job ownership remain open. The channel connector is a local stub; no external acceptance. No commit/deploy.
 
 ## 211. Five-item pass: audit-key defect, backup record, request envelope, PR GST reversal, release (2026-10-09)
 
@@ -111,6 +131,134 @@ Item-by-item detail lives in micro_checklist's "2026-10-09 five-item pass" secti
     Chromium post showed the reversal in the toast and the Debit Note.
   - The GST Return Summary picks it up through 1500's period net. Both guides are updated.
     Asset version is now 36.
+
+## 210. Stage 55.10 GL source review, accountable actor still open (2026-10-09)
+
+Finance's Work panel now opens the existing full-GL statutory audit export,
+with source type/id, account, debit/credit and date. Scratch Chromium verified
+the exact report is selected. The GL table has no posted-by column and its
+audit events do not reliably link actor to GL row, so this is **not** a
+who-posted-what register. AP/AR partial-credit reconciliation, bank exceptions,
+controlled close and independent Account Head/qualified CA acceptance also
+remain open. 55.10 stays unchecked. No commit/deploy.
+
+## 209. Stage 55.9 order-to-shipment UI handoff, still open (2026-10-09)
+
+The lazy OMS detail now carries a packed/dispatched order into a prefilled
+Marketplace carrier booking; it suppresses that action after a live booking or
+terminal order. Manual settlement selects verified saved channel orders one at
+a time and clears them on channel change, rather than accepting comma-separated
+IDs. Isolated Chromium created a manual SalesOrder, reserved stock, released a
+FulfillmentTask, dispatched it, booked a carrier, handed over a manifest and
+observed a Shipped order, one Draft SalesInvoice and two truthful
+`Skipped-NoTemplate` notification logs. A separate browser pass verified the
+settlement picker. No external delivery, return/refund, payout reconciliation
+or connector replay was accepted; 55.9 stays open. No commit/deploy.
+
+## 208. Stage 55.6 hold release and transfer stock correction, still open (2026-10-09)
+
+Place Hold now links to a prefilled Hold Release Request. The generic table's
+approval action is owned by its lazy module, so it works without first loading
+Procurement. Scratch Chromium on isolated Postgres placed a hold, saved and
+submitted the release request, approved it as a different Store Manager, and
+showed available stock restored only after approval. A live full transfer then
+exposed a material balance defect: dispatch reduced source available but not
+source on-hand, so receipt duplicated the unit across locations. Fixed the
+dispatch update; a focused Go regression and second Chromium transfer showed
+source 1→0, destination 0→1. Count/recount, tracked-item transfer identity,
+and transfer approval policy still prevent the 55.6 Done bar. No commit/deploy.
+
+Follow-up: Inventory's Transfer action now opens the actual composer with
+source/item carried over; Count opens a scoped blind count with a generated
+session reference. The generic count form hides system-owned fields, and the
+server rejects Posted/variance/expected quantity on a new line. Chromium
+followed Inventory → blind count → zero-variance reconciliation; focused
+validation test passed. Variance/recount, batch/serial identity, transfer
+approval and historic duplicated balances remain open.
+
+## 207. Stage 55.4 procurement handoff and partial receipt, still open (2026-10-09)
+
+Approved PO → GRN now carries its source and loads lines; a posted GRN → New
+Vendor Invoice carries GRN, PO and vendor into the generic form. The shared
+Link picker retains a selected reference outside the first paginated page,
+and transaction Status defaults to Draft so Save reaches the server. The GRN
+confirmation distinguishes accepted from rejected/damaged stock. Chromium on
+fresh isolated Postgres and scratch :8101 posted a 1-of-2 receipt; Inventory
+showed one unit, a 103 bill matched 103 accepted value, and a second 110 bill
+went to MismatchHold with overbilling reasons. This was a local UI journey
+against a disposable, pre-seeded Approved PO, not requisition/quote conversion
+or business acceptance. Quote price/award and rejected-replacement policies
+were requested from the user; 55.4 remains unchecked. No commit/deploy.
+
+## 206. Stage 55.11 PIM navigation and setup path, partial (2026-10-08)
+
+The lazy PIM shell now groups the existing 21 destinations into five job groups
+with wrapped controls, preserving doctype-backed screens and navigation. Dashboard
+links the nine setup steps described in the PIM handbook, from Item through
+family/attributes, Workbench enrichment, completeness and optional channel
+publishing. Chromium on scratch :8101 reached Catalogs and returned to Products;
+at 390px the tab navigation did not overflow. No product-to-publish-ready or
+import/supplier exception run was completed, so 55.11 stays open. No commit or
+deployment.
+
+Verification boundary for this five-item pass: edited JS modules pass
+`node --check`, and the focused current-stock Go regression and scratch Chromium
+routes pass. `go test ./... -p 1 -count=1` is red: release cold core 188,002/184,320
+bytes; engines has PurchaseReturn seed/FK, retired Stores role vocabulary and
+PurchaseReturn scope-seed failures; server has the same retired Stores module
+manifest failure; securityscan sees two new purchase-return routes outside the
+approved manifest. The `initial_js_gzip_bytes` reading is 116,806/122,880 bytes.
+`graphify update .` completed; brain regeneration stopped on two concurrently
+added, unclaimed purchase-return files. Those failures are not accepted as
+Stage 55 completion evidence. The scratch :8101 process was stopped after UI
+verification; the disposable database remains for reproducibility.
+
+## 205. Stage 55.10 finance work handoff, partial (2026-10-08)
+
+Finance / GL now opens a lazy work panel pointing to AP, AR, payment proposals,
+bank reconciliation and period close. It deliberately shows no first-page
+counts because the generic document API paginates. A Chromium run on scratch
+:8101 followed payables and close. It exposed a same-route close-link bug,
+which was corrected and passed on rerun. No posting-identity workbench,
+reconciliation signoff or Account Head/qualified CA acceptance has been done.
+55.10 remains open. No commit or deployment.
+
+## 204. Stage 55.9 OMS order-desk handoff, partial (2026-10-08)
+
+The lazy OMS view now starts with hold, ready-to-release, overdue and unmapped-item
+queues. Connector sync ignores a simultaneous duplicate operation and reports
+processed records without claiming all are new imports. Order detail links saved
+fulfillment tasks, logistics bookings and invoices. Chromium on scratch :8101
+followed Ready to release to a seeded SalesOrder detail and its FulfillmentTask,
+with no page errors. This was a synthetic lineage fixture, not an end-to-end
+allocated, shipped, invoiced or connector-retry run. Stage 55.9 remains open; no
+erp-d1 fulfillment/WMS file was edited. No commit or deployment.
+
+## 203. Stage 55.6 stock truth and hold handoff, partial (2026-10-08)
+
+Current Stock previously presented raw `available` as free-to-sell even though
+reservation admission subtracts seven restriction buckets. The shared report now
+returns that same `computeATS` result plus its components; Inventory and Current
+Stock share the rendering and show a human-readable breakdown. Inventory rows
+link to Transfer, Count and a context-prefilled Hold. Chromium on scratch :8101
+placed a Hold through the UI and followed the saved-document link; on-hand was
+unchanged, held increased one and available-to-sell decreased one. A focused Go
+test proves the report changes with hold quantity. The stock was a synthetic
+disposable fixture; full transfer/count/release and accounting/audit Done bars
+remain open. No commit/deploy; no erp-d1 fulfillment/WMS file was edited.
+
+## 202. Stage 55.4 procurement lineage, partial (2026-10-08)
+
+Added one shared document-search link helper in a lazy frontend module and used it
+on the requisition, RFQ, PO, GRN and vendor-invoice screens. Chromium against the
+isolated local Postgres database `custom_erp_stage55_20261008` and scratch server
+`:8101` verified all five screens and each new source/next link, including actual
+invoice-to-GRN navigation. The fixture was deliberately synthetic and did not
+post stock or AP. The RFQ quote's price basis and PO award mapping are undefined;
+that product decision, full partial/rejected receipt and match reconciliation keep
+55.4 open. User/Admin guides and micro-checklist record the boundary. No commit or
+deployment. `cmd/releasebudget` reports cold-core gzip 187,871 bytes versus its
+184,320-byte gate; the new module is lazy and `app.js` was untouched.
 
 ## 201. Five-item pass: Item family template, lot-level sticker log, Purchase Return, asset records, release (2026-10-08 → 09; code + docs, released `068a665`/`f6e3961`)
 

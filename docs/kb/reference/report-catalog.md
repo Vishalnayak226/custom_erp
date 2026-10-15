@@ -16,7 +16,7 @@ screens: [reports]
 ---
 
 <!-- GENERATED ARTICLE - DO NOT EDIT BY HAND.
-     Regenerate: pwsh docs/update-docs.ps1 -Group Content -->
+     Regenerate: go run ./cmd/gendocs && go run ./cmd/genkb -->
 
 # Report catalog
 

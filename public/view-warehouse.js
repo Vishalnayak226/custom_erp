@@ -1,3 +1,5 @@
+import { documentSearchLink } from './view-document-links.js';
+
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
@@ -414,6 +416,7 @@ async function renderPlaceHoldView(container) {
     <div class="page-title-section">
       <h1 class="page-title">Place Hold</h1>
       <p class="page-subtitle">Immediately blocks qty of a SKU at a location from allocation. Release requires a Hold Release Request and Store Manager approval.</p>
+      <a href="#/view/inventory">← Back to Inventory</a>
     </div>
   `;
   container.appendChild(header);
@@ -450,6 +453,7 @@ async function renderPlaceHoldView(container) {
       <button class="btn btn-primary" id="hold-submit-btn" type="button">Place Hold</button>
     </div>
     <div id="hold-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+    <div id="hold-result" aria-live="polite" style="margin-top:16px;"></div>
   `;
   container.appendChild(panel);
 
@@ -457,6 +461,15 @@ async function renderPlaceHoldView(container) {
   attachLinkTypeahead(document.getElementById('hold-code'), 'HoldCode');
   attachLinkTypeahead(document.getElementById('hold-sku'), 'Item');
   attachLinkTypeahead(document.getElementById('hold-location'), 'Location');
+  const savedContext = sessionStorage.getItem('erp_stock_hold_context');
+  sessionStorage.removeItem('erp_stock_hold_context');
+  if (savedContext) {
+    try {
+      const context = JSON.parse(savedContext);
+      document.getElementById('hold-sku').value = String(context.sku || '');
+      document.getElementById('hold-location').value = String(context.location || '');
+    } catch (error) { /* A stale local hint must not block a fresh hold. */ }
+  }
 }
 
 async function submitPlaceHold() {
@@ -485,10 +498,27 @@ async function submitPlaceHold() {
     await showApiError(res, 'Failed to place hold.', 'Place Hold Failed');
     return;
   }
-  await showCustomAlert(`Placed a hold of ${qty} x ${sku} at ${locationCode}.`, 'Hold Placed');
+  const saved = await res.json();
+  const result = document.getElementById('hold-result');
+  if (result) result.innerHTML = `<span class="badge badge-success">Hold placed</span> ${documentSearchLink('Hold', saved.id)}. <button class="action-btn" ${actionAttrs('startHoldReleaseRequest', [saved.id])}>Request release of this hold</button> <small>Release needs a separate approval; this button does not free the stock.</small>`;
+  await showCustomAlert(`Placed hold ${saved.id} for ${qty} x ${sku} at ${locationCode}.`, 'Hold Placed');
   document.getElementById('hold-qty').value = 1;
   document.getElementById('hold-reason').value = '';
 }
+
+window.startHoldReleaseRequest = async function(holdId) {
+  if (!canCreateDoctype('HoldReleaseRequest')) {
+    await showCustomAlert('Your role cannot request a hold release. Ask an inventory supervisor.', 'Release Needs Authorization');
+    return;
+  }
+  currentDoctype = 'HoldReleaseRequest';
+  currentSearchQuery = '';
+  currentTablePage = 1;
+  await renderView('doctype-table');
+  if (currentView === 'doctype-table' && currentDoctype === 'HoldReleaseRequest') {
+    await openDynamicModal(undefined, { hold_id: holdId, status: 'Draft' });
+  }
+};
 
 // Stage 42.3.4 - Yard Board: check-in/check-out for trailers, InYard ->
 // AtDoor -> Departed (validateYardCheckInMasterRules enforces the order
@@ -2247,6 +2277,10 @@ async function submitWavePickList() {
 // linking directly into the existing generic doctype-table view instead of
 // building a second import mechanism.
 async function renderCycleCountView(container) {
+  let stockContext = null;
+  try { stockContext = JSON.parse(sessionStorage.getItem('erp_stock_count_context') || 'null'); }
+  catch (error) { /* Invalid navigation context never blocks ordinary counting. */ }
+  sessionStorage.removeItem('erp_stock_count_context');
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
@@ -2265,6 +2299,7 @@ async function renderCycleCountView(container) {
     <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 8px;">1. Enter counted quantities</h2>
     <p style="color: var(--text-muted); margin-bottom: 12px;">Count lines are entered the same way as any other bulk line-item load, via Bulk Import.</p>
     <button class="btn btn-outline" id="cyclecount-open-lines-btn" type="button">Manage Count Lines</button>
+    ${stockContext?.sku && stockContext?.location ? `<div class="notice" style="margin-top:12px;">Count ${escapeHTMLText(stockContext.sku)} at ${escapeHTMLText(stockContext.location)}. The expected quantity stays hidden while you enter your count. <button class="btn btn-primary" id="cyclecount-start-source-btn" type="button">Start blind count for this item</button></div>` : ''}
   `;
   container.appendChild(importPanel);
 
@@ -2365,6 +2400,18 @@ async function renderCycleCountView(container) {
     currentTablePage = 1;
     renderView('doctype-table');
   });
+  document.getElementById('cyclecount-start-source-btn')?.addEventListener('click', async () => {
+    if (!canCreateDoctype('CycleCountLine')) return;
+    const session = `CC-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`;
+    sessionStorage.setItem('erp_cycle_count_last_session', session);
+    currentDoctype = 'CycleCountLine';
+    currentSearchQuery = '';
+    currentTablePage = 1;
+    await renderView('doctype-table');
+    if (currentView === 'doctype-table' && currentDoctype === 'CycleCountLine') {
+      await openDynamicModal(undefined, { count_session: session, location: stockContext.location, sku: stockContext.sku, status: 'Draft' });
+    }
+  });
   document.getElementById('cyclecount-reconcile-btn').addEventListener('click', submitCycleCountReconcile);
   document.getElementById('ccvariance-set-btn').addEventListener('click', submitCycleCountVarianceReason);
   document.getElementById('ccvariance-post-btn').addEventListener('click', submitRetryCycleCountPost);
@@ -2372,6 +2419,9 @@ async function renderCycleCountView(container) {
   document.getElementById('recount-submit-btn').addEventListener('click', submitRecountValue);
   document.getElementById('abc-plan-btn').addEventListener('click', fetchABCCycleCountPlan);
   attachLinkTypeahead(document.getElementById('abc-location'), 'Location');
+  const lastSession = sessionStorage.getItem('erp_cycle_count_last_session');
+  if (lastSession) document.getElementById('cyclecount-session').value = lastSession;
+  if (stockContext?.location) document.getElementById('abc-location').value = stockContext.location;
 }
 
 async function submitCycleCountReconcile() {

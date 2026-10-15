@@ -109,7 +109,7 @@ func PackTransferOrder(tenantID, transferOrderID, userID string, boxes []map[str
 
 // DispatchTransferOrder moves an Approved *or* Packed TransferOrder to
 // Dispatched: each line's qty is floor-checked and moved out of the source
-// location's `available` into its `in_transit` (Stage 17.6 migration) -
+// location's `on_hand` and `available` into its `in_transit` (Stage 17.6 migration) -
 // never received out of thin air, and never dispatched twice (row-locked,
 // status-gated).
 func DispatchTransferOrder(tenantID, transferOrderID, userID string) error {
@@ -165,7 +165,7 @@ func DispatchTransferOrder(tenantID, transferOrderID, userID string) error {
 			return &ValidationError{Code: "STOCKT-0112", Message: fmt.Sprintf("transfer quantity exceeds available stock for SKU %s at %s: available=%d, requested=%d", line.Sku, fromWarehouse, available, line.Qty)}
 		}
 		if _, err := tx.Exec(fmt.Sprintf(
-			`UPDATE %s.inventory_availability SET available = available - $1, in_transit = in_transit + $1, updated_at = CURRENT_TIMESTAMP
+			`UPDATE %s.inventory_availability SET on_hand = on_hand - $1, available = available - $1, in_transit = in_transit + $1, updated_at = CURRENT_TIMESTAMP
 			 WHERE sku = $2 AND location_code = $3`, schema),
 			line.Qty, line.Sku, fromWarehouse); err != nil {
 			return err

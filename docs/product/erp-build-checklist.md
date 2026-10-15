@@ -1805,18 +1805,38 @@ Where only a subset is approved, record that scope before executing; do not sile
 [screen register](../assurance/erp-usability-screen-register-2026-10-04.md) map the live UI to 22
 phases without replacing BLD/JRN acceptance. 56 routes, 199 record types, 70 tab/config panels and
 92 report parameter screens inspected; no transaction or real-user acceptance inferred.
+The user's clarified bar is [functional ERP verification](erp-functional-verification-plan-2026-10-04.md):
+correct save/readback, numbering, source-document inheritance, stock/finance effects and an
+independently completed task in every applicable module. The screen audit does not meet it.
 
 - [x] **55.0 Audit/plan recorded.** Three reviewer lenses, official practice references and exact
-  coverage/limitations; ledger §192.
-- [ ] **55.1 Shared correctness.** UX-001/002/003/008-focus/009: actual New-click mode, cold HR/Mfg
-  dependencies, Wave character preservation, modal initial focus and supported User lookup.
+  coverage/limitations; ledger §192. This was one reviewer, not three independent users.
+- [ ] **55.0F Functional audit/repair.** Every module's normal and exception journey, all 199
+  type classifications, persistence, sequence and downstream reconciliation evidenced per the
+  functional matrix. No screen-only or unsubmitted-form result counts as functional acceptance.
+  **2026-10-05 UI execution is partial, not Done:** an isolated tenant proved ten master saves,
+  requisition, manager-approved PO, partial GRN, vendor-invoice mismatch, transfer-approval 405,
+  and one idempotent OMS order; see [functional audit](../assurance/erp-functional-audit-2026-10-05.md).
+  The user requested audit/plan today and bug fixes after ERP build completion; six repair
+  findings are recorded there, but the remaining modules and 199-type matrix are still open.
+  The next finance review has **two distinct open lenses**: Account Head (books, controls and
+  close) and qualified CA (applicable statutory/tax treatment and audit evidence). Neither
+  reviewed the first run or signed off.
+- [x] **55.1 Shared correctness.** UX-001/002/003/008-focus/009: actual New/Edit click paths,
+  seven cold HR/Mfg tabs, all 54 secondary panels, Wave character preservation at phone width,
+  modal focus/Tab containment and supported Users reset path. Twenty Chromium checks including
+  real Department create/edit and restricted-role denial passed. [Evidence](../assurance/stage55-shared-correctness-2026-10-04.json).
+  The full Go suite retains one pre-existing stale audit-checkpoint failure (ledger §193); no
+  conditional-print or performance gate is closed here.
 - [ ] **55.2–55.21 Domain execution.** Full per-phase microitems and Done bars are in the linked plan
   and live micro-checklist. Reuse implemented components; do not rebuild accepted features blindly.
 - [ ] **55.22 Acceptance.** Per-role business journeys, every screen's relevant recovery/help/print,
-  reconciled data, accessibility/performance/device and accountable owner results.
+  reconciled data, accessibility/performance/device and accountable owner results. Financially
+  material journeys also need Account Head reconciliation and independent qualified CA review
+  where statutory treatment applies; record unresolved policy explicitly.
 
-New cold-tab failures add an explicit BLD-041 verification gap; its default-screen render pass
-does not cover secondary-tab dependencies. Shared New/focus findings are new regression work
+The cold-tab dependency gap discovered in the audit is now fixed and verified, but BLD-041 remains
+open for conditional print paths. Shared New/focus findings were new regression work
 against BLD-035/038, not a rewrite of historical evidence. BLD-036's accepted section-refresh
 residual remains accepted. No policy/provider/hardware decisions are silently closed.
 

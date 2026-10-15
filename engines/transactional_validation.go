@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
+	"strconv"
 	"strings"
 )
 
@@ -48,6 +50,8 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return validatePurchaseOrderEditRules(tenantID, docID, priorStatus, priorData, payload)
 	case "TransferOrder":
 		return validateTransferOrderCreateRules(payload)
+	case "CycleCountLine":
+		return validateCycleCountLineCreateRules(priorData, payload)
 	case "ProductionOrder":
 		return validateProductionOrderEditRules(priorStatus, priorData, payload)
 	case "Employee":
@@ -60,6 +64,30 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return validatePurchaseRequisitionEditRules(priorStatus, priorData)
 	case "PurchaseReturn":
 		return validatePurchaseReturnRules(tenantID, docID, priorStatus, priorData, payload)
+	}
+	return nil
+}
+
+// The generic form may create a blind count line, but only reconciliation and
+// approval may write its system quantity, variance, or final status. Generic
+// updates are separately disabled by CycleCountLine role permissions.
+func validateCycleCountLineCreateRules(priorData, payload map[string]interface{}) error {
+	if priorData != nil {
+		return nil
+	}
+	if strField(payload, "status") != "Draft" {
+		return &ValidationError{Message: "a new count line must start as Draft; reconcile the session to post or request approval"}
+	}
+	for _, field := range []string{"system_qty", "variance", "variance_qty", "variance_reason_code", "recount_of", "physical_inventory", "cycle_class"} {
+		if value, ok := payload[field]; ok && value != nil && strings.TrimSpace(fmt.Sprint(value)) != "" {
+			return &ValidationError{Message: fmt.Sprintf("%s is calculated or assigned by the count workflow, not entered on a new count line", field)}
+		}
+	}
+	if raw, ok := payload["counted_qty"]; ok {
+		quantity, err := strconv.ParseFloat(strings.TrimSpace(fmt.Sprint(raw)), 64)
+		if err != nil || math.IsNaN(quantity) || math.IsInf(quantity, 0) || quantity < 0 || quantity != math.Trunc(quantity) {
+			return &ValidationError{Message: "counted quantity must be a whole number of units, zero or greater"}
+		}
 	}
 	return nil
 }

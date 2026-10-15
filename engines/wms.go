@@ -267,16 +267,39 @@ func GenerateBinPickList(tenantID, taskID string) ([]PickListLine, error) {
 		return nil, err
 	}
 
-	var lines []PickListLine
+	// Stage 59.1: the list is the task's own reservation, not a fresh guess.
+	// ReserveTaskBinStock tops up whatever is not yet reserved (through
+	// AllocateFromStock's FIFO/FEFO choke point, skipping stock promised to
+	// other tasks) and the lines below are read back from bin_allocation - so
+	// calling this twice shows the same bins, and the picker is sent to stock
+	// nobody else has been sent to. Lines show what is still to pick.
+	if err := ReserveTaskBinStock(tenantID, taskID); err != nil {
+		return nil, err
+	}
+	var rawData map[string]interface{}
+	_ = json.Unmarshal([]byte(dataStr), &rawData)
+	reserved, err := openTaskAllocations(schema, []string{taskID})
+	if err != nil {
+		return nil, err
+	}
+	reservedBySKU := map[string][]taskAllocationLine{}
+	for _, r := range reserved {
+		reservedBySKU[r.SKU] = append(reservedBySKU[r.SKU], r)
+	}
+	pickUOMBySKU := map[string]string{}
 	for _, item := range task.Items {
-		// Stage 42.1.5: bin selection moved to AllocateFromStock, the one choke
-		// point that decides FIFO vs FEFO from the item's tracking_mode and
-		// applies the expiry gates. Its FIFO branch runs the same query this
-		// block used to; the only visible change for a non-batch item is the
-		// walk-route sort, which is re-applied below rather than in SQL.
-		candidates, shortfall, err := AllocateFromStock(tenantID, item.Sku, task.LocationCode, item.Qty)
-		if err != nil {
-			return nil, err
+		if _, seen := pickUOMBySKU[item.Sku]; !seen {
+			pickUOMBySKU[item.Sku] = item.PickUOM
+		}
+	}
+
+	var lines []PickListLine
+	for _, need := range taskSKUNeeds(rawData) {
+		item := struct{ Sku, PickUOM string }{need.SKU, pickUOMBySKU[need.SKU]}
+		candidates := reservedBySKU[need.SKU]
+		shortfall := need.Demand - need.Picked
+		for _, c := range candidates {
+			shortfall -= c.Qty
 		}
 		sort.SliceStable(candidates, func(i, j int) bool {
 			a, b := candidates[i], candidates[j]
@@ -354,6 +377,17 @@ func TransitionBinStockCondition(tenantID, binCode, sku string, qty int, fromCon
 	}
 
 	var locationCode string
+	// Stage 59.1: Good stock can be promised to a pick task, so take the SKU's
+	// reservation lock first - the same lock-then-row order picks use.
+	if fromCondition == "Good" {
+		if err := tx.QueryRow(fmt.Sprintf(
+			`SELECT location_code FROM %s.bin_stock WHERE bin_code = $1 AND sku = $2 AND condition = 'Good'`, schema),
+			binCode, sku).Scan(&locationCode); err == nil {
+			if err := lockSKUAtLocationTx(tx, schema, locationCode, sku); err != nil {
+				return err
+			}
+		}
+	}
 	var have int
 	err = tx.QueryRow(fmt.Sprintf(
 		`SELECT location_code, qty FROM %s.bin_stock WHERE bin_code = $1 AND sku = $2 AND condition = $3 FOR UPDATE`, schema),
@@ -365,6 +399,20 @@ func TransitionBinStockCondition(tenantID, binCode, sku string, qty int, fromCon
 	}
 	if have < qty {
 		return fmt.Errorf("only %d units of %s in %s condition, cannot move %d", have, sku, fromCondition, qty)
+	}
+	if fromCondition == "Good" {
+		// A unit promised to an open pick task cannot quietly stop being Good
+		// underneath it: short-pick or reject that task first, which hands
+		// the reservation back, then mark the stock.
+		reserved, err := BinReservedQty(tx, schema, binCode, sku, "")
+		if err != nil {
+			return err
+		}
+		if have-reserved < qty {
+			return &ValidationError{Code: "GLOBAL-0002", SubFor: "Quantity", Message: fmt.Sprintf(
+				"bin %s holds %d Good units of %s but %d are reserved for open pick tasks, so only %d can change condition - short-pick or reject the task holding them first",
+				binCode, have, sku, reserved, have-reserved)}
+		}
 	}
 
 	if _, err := tx.Exec(fmt.Sprintf(

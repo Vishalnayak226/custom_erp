@@ -445,3 +445,22 @@ func TestWMSEnterprise(t *testing.T) {
 		}
 	})
 }
+
+func TestCycleCountLineCreateCannotBypassReconciliation(t *testing.T) {
+	valid := map[string]interface{}{"status": "Draft", "counted_qty": float64(1)}
+	if err := ValidateTransactionalRules("default", "CycleCountLine", "", "", nil, valid); err != nil {
+		t.Fatalf("a blind Draft count must be accepted: %v", err)
+	}
+	for _, payload := range []map[string]interface{}{
+		{"status": "Posted", "counted_qty": 1},
+		{"status": "Pending Approval", "counted_qty": 1},
+		{"status": "Draft", "counted_qty": 1, "system_qty": 100},
+		{"status": "Draft", "counted_qty": 1, "variance": -99},
+		{"status": "Draft", "counted_qty": -1},
+		{"status": "Draft", "counted_qty": 1.5},
+	} {
+		if err := ValidateTransactionalRules("default", "CycleCountLine", "", "", nil, payload); err == nil {
+			t.Errorf("untrusted count payload was accepted: %#v", payload)
+		}
+	}
+}

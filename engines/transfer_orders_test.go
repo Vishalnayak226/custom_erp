@@ -51,12 +51,12 @@ func TestTransferOrderDispatchReceiveLifecycle(t *testing.T) {
 			t.Fatalf("DispatchTransferOrder: %v", err)
 		}
 
-		var available, inTransit int
-		if err := db.DB.QueryRow("SELECT available, in_transit FROM "+schema+".inventory_availability WHERE sku=$1 AND location_code=$2", sku, fromWH).Scan(&available, &inTransit); err != nil {
+		var onHand, available, inTransit int
+		if err := db.DB.QueryRow("SELECT on_hand, available, in_transit FROM "+schema+".inventory_availability WHERE sku=$1 AND location_code=$2", sku, fromWH).Scan(&onHand, &available, &inTransit); err != nil {
 			t.Fatalf("query availability: %v", err)
 		}
-		if available != 70 || inTransit != 30 {
-			t.Fatalf("expected available=70 in_transit=30, got available=%d in_transit=%d", available, inTransit)
+		if onHand != 70 || available != 70 || inTransit != 30 {
+			t.Fatalf("expected on_hand=70 available=70 in_transit=30, got on_hand=%d available=%d in_transit=%d", onHand, available, inTransit)
 		}
 
 		if err := DispatchTransferOrder(tenantID, toID, "system"); err == nil {
@@ -100,15 +100,15 @@ func TestTransferOrderDispatchReceiveLifecycle(t *testing.T) {
 			t.Fatalf("ReceiveTransferOrder: %v", err)
 		}
 
-		var srcInTransit, destAvailable int
-		if err := db.DB.QueryRow("SELECT in_transit FROM "+schema+".inventory_availability WHERE sku=$1 AND location_code=$2", sku, fromWH).Scan(&srcInTransit); err != nil {
+		var srcOnHand, srcInTransit, destOnHand, destAvailable int
+		if err := db.DB.QueryRow("SELECT on_hand, in_transit FROM "+schema+".inventory_availability WHERE sku=$1 AND location_code=$2", sku, fromWH).Scan(&srcOnHand, &srcInTransit); err != nil {
 			t.Fatalf("query source: %v", err)
 		}
-		if err := db.DB.QueryRow("SELECT available FROM "+schema+".inventory_availability WHERE sku=$1 AND location_code=$2", sku, toWH).Scan(&destAvailable); err != nil {
+		if err := db.DB.QueryRow("SELECT on_hand, available FROM "+schema+".inventory_availability WHERE sku=$1 AND location_code=$2", sku, toWH).Scan(&destOnHand, &destAvailable); err != nil {
 			t.Fatalf("query dest: %v", err)
 		}
-		if srcInTransit != 0 || destAvailable != 30 {
-			t.Fatalf("expected source in_transit=0 dest available=30, got in_transit=%d available=%d", srcInTransit, destAvailable)
+		if srcOnHand != 70 || srcInTransit != 0 || destOnHand != 30 || destAvailable != 30 {
+			t.Fatalf("expected source on_hand=70 in_transit=0 dest on_hand=30 available=30, got source on_hand=%d in_transit=%d dest on_hand=%d available=%d", srcOnHand, srcInTransit, destOnHand, destAvailable)
 		}
 
 		var dataStr string

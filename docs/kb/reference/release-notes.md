@@ -15,7 +15,7 @@ applies_to: source registries; not release acceptance
 ---
 
 <!-- GENERATED ARTICLE - DO NOT EDIT BY HAND.
-     Regenerate: pwsh docs/update-docs.ps1 -Group Content -->
+     Regenerate: go run ./cmd/gendocs && go run ./cmd/genkb -->
 
 # Release notes
 

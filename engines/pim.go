@@ -34,7 +34,7 @@ var publishOwnedStatuses = map[string]bool{
 }
 
 // coreItemFields are always checked for completeness regardless of family.
-var coreItemFields = []string{"name", "barcode", "category", "hsn_code", "gst_rate"}
+var coreItemFields = []string{"name", "barcode", "category", "hsn_code", "gst_rate", "family"}
 
 type CompletenessResult struct {
 	ItemCode           string   `json:"item_code"`
@@ -301,7 +301,11 @@ func CalculateCompleteness(tenantID, itemCode, locale, channelID string) (*Compl
 		if isFieldFilled(data, f) {
 			result.PassedChecks++
 		} else {
-			missing = append(missing, f)
+			if f == "family" {
+				missing = append(missing, "Product Family")
+			} else {
+				missing = append(missing, f)
+			}
 		}
 	}
 
