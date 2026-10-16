@@ -951,6 +951,24 @@ go run ./cmd/tenantctl db-privilege -schema tenant_default
 
 It reports the database role the application actually connects as. If it says the app is a **superuser**, a single SQL-injection or code-execution bug reaches every database on that PostgreSQL server and the filesystem — fix that at the deployment level (an owner-only role), not in the app.
 
+#### C.6.1 Every client kept in step with the template (Stage 64.1)
+
+Each client has its own copy of the database tables, cloned from `tenant_default` when the client is created. Most upgrades (migrations) change only `tenant_default`, so a client created earlier used to miss whatever came later. On production, `tenant_minn` was missing 16 tables, 11 columns (audit writes failed because of one of them), 53 record types with their fields and permissions, its number series, and every status-change rule.
+
+**This is now automatic.** Every `erp-server -migrate` (which `deploy\deploy.ps1` runs on each deploy) ends by comparing every client schema with `tenant_default` and adding what is missing. Provisioning a new client runs the same step. The deploy output shows one line per client that changed, then `Client schemas in step with tenant_default (N checked).`:
+
+```
+  [sync] tenant_minn: 16 tables, 11 columns, 3 indexes, 10 own sequences, 53 doctype_meta, 830 doctype_fields, ...
+Client schemas in step with tenant_default (1 checked).
+```
+
+What it adds, and what it never touches:
+
+- **Adds** missing tables, columns (with their defaults) and indexes; missing record types and their fields; the default permissions **for record types it adds** (a permission you removed from an existing record type is not handed back); missing number series; and the system seed records — status-change rules, the base currency, TDS sections.
+- **Gives each client its own id counters.** A table cloned the old way took its ids from `tenant_default`'s counter; each such column now gets its own counter, starting after its highest id.
+- **Never changes or removes** anything a client already has, and never copies business records, users, settings, module entitlements, approval rules or running number counters.
+- A `[sync-warn]` line means one item could not be added (for example a unique index over duplicate data) and was skipped; everything else still applied. Fix the data through the Data Console (§C.7), then run `-migrate` again.
+
 ---
 
 ### C.7 Data Console and cross-client control — platform operators only (Stage 60.6)
@@ -975,6 +993,8 @@ Set it in the server's environment (`/etc/erp/erp.env` on the droplet) and resta
 - **Record numbers and table keys** cannot be changed, and a raw table with no key cannot be edited at all.
 - **Audit tables** (`audit_*`, `system_error_logs`) are view only, so the trail cannot be rewritten — by anyone.
 - **Every change is recorded** in that client's **Activity Log** as `PLATFORM_DATA_EDIT`, with the record or table, its number, the fields changed and their before/after values (hidden values stay hidden), and also in the operator's own client log.
+
+**Finding the log for a data issue.** Every client keeps its own logs, and the console opens them for either client: **`system_error_logs`** holds every server error raised while that client was working, with its module and correlation id (rows are in id order, so the newest are on the last page), and **`audit_logs`** holds every change, including each console edit (`PLATFORM_DATA_EDIT`). Pick the client, open the table, and search by record number or correlation id; the same id appears in the error message the user saw. Both are view only.
 
 **Where things are (raw database tables).** Every record type above is stored in the one `documents` table (by `doctype`); the record-type tables are the easier way to fix them. The other tables: `doctype_fields` / `doctype_meta` (each record type's fields and labels), `prefix_configs` and `sequence_counters` (number series and their running counters), `system_settings` (Configuration), `role_permissions` and `field_permissions` (access), `bin_stock*` and `inventory_*` (stock), `gl_postings` / `gl_accounts` (accounts), `approval_*` (approvals). Editing stock or ledger rows directly can leave stock and books out of balance; correct those with an adjustment or reversal through their screens where one exists.
 

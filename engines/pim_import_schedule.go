@@ -244,7 +244,7 @@ func processPIMImportSchedules(schema string) {
 		`SELECT id, data FROM %s.documents WHERE doctype = 'PIMImportSchedule' AND status = 'Active'
 		 AND data->>'source_type' = 'Drop Directory'`, schema))
 	if err != nil {
-		log.Printf("[PIM_IMPORT_SCHEDULE] query failed for %s: %v", schema, err)
+		LogBackgroundJobError("PIM_IMPORT_SCHEDULE", "query", schema, err)
 		return
 	}
 	type due struct {

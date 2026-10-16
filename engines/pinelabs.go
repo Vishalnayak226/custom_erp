@@ -245,7 +245,7 @@ func StartPineLabsReconciliationWorker(ctx context.Context, interval time.Durati
 					}
 					result, err := ReconcilePineLabsTransactions(tenantID)
 					if err != nil {
-						log.Printf("[PINELABS] Reconciliation failed for %s: %v", schema, err)
+						LogBackgroundJobError("PINELABS", "Reconciliation", schema, err)
 						continue
 					}
 					rec, _ := result["reconciled"].(int)

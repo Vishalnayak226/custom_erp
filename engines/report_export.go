@@ -152,7 +152,7 @@ func processReportExportJobs(ctx context.Context, schema string) {
 		`SELECT id, data FROM %s.documents WHERE doctype = 'ReportExportJob' AND status = 'Pending' ORDER BY created_at LIMIT $1`, schema),
 		asyncReportWorkerBatchSize)
 	if err != nil {
-		log.Printf("[REPORT_EXPORT] query failed for %s: %v", schema, err)
+		LogBackgroundJobError("REPORT_EXPORT", "query", schema, err)
 		return
 	}
 	type pendingJob struct {
@@ -315,7 +315,7 @@ func StartReportExportRetentionSweeper(ctx context.Context, interval time.Durati
 						continue
 					}
 					if _, err := SweepReportExportJobRetention(tenantID); err != nil {
-						log.Printf("[REPORT_EXPORT-SWEEP] sweep failed for %s: %v", schema, err)
+						LogBackgroundJobError("REPORT_EXPORT-SWEEP", "sweep", schema, err)
 					}
 				}
 			}

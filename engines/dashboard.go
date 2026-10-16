@@ -214,7 +214,7 @@ func processDashboardDigests(ctx context.Context, schema string) {
 		 LIMIT $2`, schema),
 		today, asyncReportWorkerBatchSize)
 	if err != nil {
-		log.Printf("[DASHBOARD_DIGEST] query failed for %s: %v", schema, err)
+		LogBackgroundJobError("DASHBOARD_DIGEST", "query", schema, err)
 		return
 	}
 	type dueDigest struct {

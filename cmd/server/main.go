@@ -68,6 +68,23 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Printf("Applied %d migration(s); %d already up to date.\n", applied, len(results)-applied)
+
+		// Stage 64.1: most migrations change only tenant_default, so bring
+		// every client schema up to it after each run (db/tenant_schema_sync.go).
+		reports, err := db.SyncAllTenantSchemas()
+		for _, r := range reports {
+			if r.Changed() {
+				fmt.Printf("  [sync] %s: %s\n", r.Schema, r.Summary())
+			}
+			for _, w := range r.Warnings {
+				fmt.Printf("  [sync-warn] %s: %s\n", r.Schema, w)
+			}
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "client schema sync failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Client schemas in step with tenant_default (%d checked).\n", len(reports))
 		return
 	}
 

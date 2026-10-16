@@ -86,7 +86,7 @@ func processPIMExportSchedules(schema string) {
 		 LIMIT $2`, schema),
 		today, asyncReportWorkerBatchSize)
 	if err != nil {
-		log.Printf("[PIM_EXPORT_SCHEDULE] query failed for %s: %v", schema, err)
+		LogBackgroundJobError("PIM_EXPORT_SCHEDULE", "query", schema, err)
 		return
 	}
 	type due struct {

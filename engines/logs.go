@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"regexp"
+	"sync"
 	"time"
 	"unicode/utf8"
 )
@@ -199,7 +200,7 @@ func LogSystemError(tenantID string, correlationID string, severity, moduleSourc
 		return
 	}
 
-	query := `INSERT INTO system_error_logs (correlation_id, severity, module_source, error_message, stack_trace) 
+	query := `INSERT INTO system_error_logs (correlation_id, severity, module_source, error_message, stack_trace)
 	          VALUES (CASE WHEN $1 = '' THEN NULL ELSE $1::uuid END, $2, $3, $4, $5)`
 	_, err = tx.Exec(query, correlationID, severity, moduleSource, message, stackTrace)
 	if err != nil {
@@ -208,4 +209,46 @@ func LogSystemError(tenantID string, correlationID string, severity, moduleSourc
 	}
 
 	tx.Commit()
+}
+
+// Stage 64.2: a background worker's failure for one client used to reach only
+// the server log, so a data problem it hit (on production: tenant_minn's
+// missing pinelabs_transactions table, 286 times a day) never showed in that
+// client's system_error_logs, where the Data Console looks. Each distinct
+// failure is now recorded there too - at most once an hour, so a worker that
+// retries every few minutes does not flood the table.
+const backgroundErrorRecordEvery = time.Hour
+
+var (
+	backgroundErrorMu   sync.Mutex
+	backgroundErrorLast = map[string]time.Time{}
+)
+
+// LogBackgroundJobError logs "[MODULE] <what> failed for <schema>: <err>" to
+// the server log every time, and to that client's system_error_logs once an
+// hour per distinct failure.
+func LogBackgroundJobError(module, what, schema string, err error) {
+	log.Printf("[%s] %s failed for %s: %v", module, what, schema, err)
+	key := module + "|" + schema + "|" + err.Error()
+	now := time.Now()
+	backgroundErrorMu.Lock()
+	if last, ok := backgroundErrorLast[key]; ok && now.Sub(last) < backgroundErrorRecordEvery {
+		backgroundErrorMu.Unlock()
+		return
+	}
+	backgroundErrorLast[key] = now
+	if len(backgroundErrorLast) > 1000 {
+		for k, t := range backgroundErrorLast {
+			if now.Sub(t) >= backgroundErrorRecordEvery {
+				delete(backgroundErrorLast, k)
+			}
+		}
+	}
+	backgroundErrorMu.Unlock()
+
+	tenantID, idErr := tenantIDForSchema(schema)
+	if idErr != nil || tenantID == "" {
+		return
+	}
+	LogSystemError(tenantID, "", "ERROR", module, fmt.Sprintf("%s failed: %v", what, err), "")
 }

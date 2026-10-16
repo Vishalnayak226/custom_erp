@@ -264,6 +264,14 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		return "", fmt.Errorf("failed to seed item types: %v", err)
 	}
 
+	// Stage 64.1: the list in step 3 can drift again the next time a migration
+	// adds a table; this catches whatever it misses - tables, columns, indexes,
+	// per-client sequences, record types, status-change rules - from the
+	// catalog itself.
+	if _, err = db.SyncTenantSchemaTx(tx, schemaName); err != nil {
+		return "", fmt.Errorf("failed to bring the new schema up to tenant_default: %v", err)
+	}
+
 	// 5. Create a unique admin account for this tenant with a freshly generated password.
 	password, err := generateRandomPassword()
 	if err != nil {
@@ -347,26 +355,7 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 // schemaName has already passed validSQLIdentifier in ProvisionTenantSchema,
 // its only caller, before reaching here.
 func grantLeastPrivilegeSchemaAccessTx(tx *sql.Tx, schemaName string) error {
-	var hardened bool
-	if err := tx.QueryRow(`SELECT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'erp_app')`).Scan(&hardened); err != nil {
-		return err
-	}
-	if !hardened {
-		return nil
-	}
-	_, err := tx.Exec(fmt.Sprintf(`
-		GRANT USAGE ON SCHEMA %[1]s TO erp_app;
-		GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %[1]s TO erp_app;
-		GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA %[1]s TO erp_app;
-		GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA %[1]s TO erp_app;
-		GRANT USAGE ON SCHEMA %[1]s TO erp_backup;
-		GRANT SELECT ON ALL TABLES IN SCHEMA %[1]s TO erp_backup;
-		GRANT SELECT ON ALL SEQUENCES IN SCHEMA %[1]s TO erp_backup;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA %[1]s GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO erp_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA %[1]s GRANT USAGE, SELECT ON SEQUENCES TO erp_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA %[1]s GRANT EXECUTE ON FUNCTIONS TO erp_app;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA %[1]s GRANT SELECT ON TABLES TO erp_backup;
-		ALTER DEFAULT PRIVILEGES IN SCHEMA %[1]s GRANT SELECT ON SEQUENCES TO erp_backup;
-	`, schemaName))
-	return err
+	// Stage 64.1: shared with db.SyncTenantSchemaTx, which grants on the
+	// tables it adds to an existing client.
+	return db.GrantLeastPrivilegeSchemaAccessTx(tx, schemaName)
 }

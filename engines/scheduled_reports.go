@@ -77,7 +77,7 @@ func processScheduledReports(ctx context.Context, schema string) {
 		 LIMIT $2`, schema),
 		today, asyncReportWorkerBatchSize)
 	if err != nil {
-		log.Printf("[SCHEDULED_REPORT] query failed for %s: %v", schema, err)
+		LogBackgroundJobError("SCHEDULED_REPORT", "query", schema, err)
 		return
 	}
 	type dueSchedule struct {

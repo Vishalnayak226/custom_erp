@@ -121,7 +121,7 @@ func QuarantineStaleExternalDispatchJobs() {
 	for _, schema := range schemas {
 		n, err := quarantineStaleExternalDispatchJobsInSchema(schema)
 		if err != nil {
-			log.Printf("[ENVIRONMENT] quarantine sweep failed for %s: %v", schema, err)
+			LogBackgroundJobError("ENVIRONMENT", "quarantine sweep", schema, err)
 			continue
 		}
 		total += n

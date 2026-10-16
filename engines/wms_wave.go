@@ -338,7 +338,7 @@ func processWaveTemplateAutoRun(schema string) {
 		`SELECT id, data->>'run_daily_at', COALESCE(data->>'last_auto_run_date', '')
 		 FROM %s.documents WHERE doctype = 'WaveTemplate' AND status = 'Active' AND COALESCE(data->>'run_daily_at', '') != ''`, schema))
 	if err != nil {
-		log.Printf("[WAVE_AUTO_CREATE] query failed for %s: %v", schema, err)
+		LogBackgroundJobError("WAVE_AUTO_CREATE", "query", schema, err)
 		return
 	}
 	type due struct{ id, runAt string }

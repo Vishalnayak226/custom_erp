@@ -186,7 +186,7 @@ func runClaimedJobsContext(ctx context.Context, schema string) {
 	}
 	jobs, err := claimJobs(schema, jobClaimBatchSize)
 	if err != nil {
-		log.Printf("[JOBRUNNER] claim failed for %s: %v", schema, err)
+		LogBackgroundJobError("JOBRUNNER", "claim", schema, err)
 		return
 	}
 	for _, job := range jobs {
@@ -516,7 +516,7 @@ func StartJobRunnerRetentionSweeper(ctx context.Context, interval time.Duration)
 						continue
 					}
 					if _, err := SweepJobRunnerRetention(tenantID); err != nil {
-						log.Printf("[JOBRUNNER-SWEEP] sweep failed for %s: %v", schema, err)
+						LogBackgroundJobError("JOBRUNNER-SWEEP", "sweep", schema, err)
 					}
 				}
 			}
