@@ -280,7 +280,7 @@ function renderPOComposer(panel) {
       ${editing ? '' : autoNumberField('PO Number', 'PO', '100%')}
       <div class="form-group">
         <label class="form-label" for="po-vendor">Vendor</label>
-        <erp-typeahead id="po-vendor" doctype="Vendor"></erp-typeahead>
+        <input type="text" id="po-vendor" class="form-input" autocomplete="off" placeholder="Click to choose, or type to search">
       </div>
       <div class="form-group">
         <label class="form-label" for="po-location">Location (billing entity)</label>
@@ -340,11 +340,16 @@ function renderPOComposer(panel) {
   `;
 
   const vendorEl = document.getElementById('po-vendor');
+  // Stage 64.7 (the user: "vendor should show me a drop down to select and ask
+  // to create if not present"): the shell's standard picker, as Location
+  // below - clicking the empty box lists vendors, and text that matches none
+  // offers "Create <text>" inline and picks the new vendor.
+  attachLinkTypeahead(vendorEl, 'Vendor');
   vendorEl.value = d.vendor || '';
   vendorEl.addEventListener('change', () => { d.vendor = vendorEl.value.trim(); schedulePOPreview(); });
-  // <erp-typeahead> fires `change` on pick, but a typed-and-blurred value has
-  // to be caught too, or a vendor typed by hand never reaches the preview and
-  // the supply type silently stays underived.
+  // A pick fires `change`, but a typed-and-blurred value has to be caught
+  // too, or a vendor typed by hand never reaches the preview and the supply
+  // type silently stays underived.
   vendorEl.addEventListener('blur', () => { if (vendorEl.value.trim() !== d.vendor) { d.vendor = vendorEl.value.trim(); schedulePOPreview(); } });
 
   const locEl = document.getElementById('po-location');
