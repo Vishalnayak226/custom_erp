@@ -364,21 +364,25 @@ This only applies to locations that keep stock in **bins**. A store with no bins
    - **Location (billing entity)** — which of your locations is buying. This decides who the vendor invoices, and it's half of how the system works out your GST (see §6.2).
    - **Target Warehouse (ship to)** — where the goods should physically arrive. Often the same as Location; it doesn't have to be.
    - **GST treatment of purchase price** — leave it on "Tenant default" unless this particular vendor quotes differently. See §6.2.
-3. **Add your items.** Click **+ Add item** for each line, then fill in:
-   - **Item** — type to search; pick from the list.
-   - **Qty** and **Purchase Price** — what you're ordering and what you're paying per unit.
+3. **Add your items.** The **Add item** row sits at the top of the panel, under the totals. For each line:
+   - **Add item** — type to search; pick from the list.
+   - **Qty** (starts at 1) and **Purchase price** — what you're ordering and what you're paying per unit.
    - **MRP** — optional. Record it if you're tracking it; leave it blank if not. **It never appears on the vendor's printed copy** — it's for you, not for them.
 
-   The four grey columns to the right — **HSN**, **GST %**, **Taxable**, **Tax**, **Line Total** — fill themselves in as you type. You can't edit them, on purpose: HSN and GST rate come from the Item master, so there's only ever one answer to "what tax does this item carry".
+   Press **Enter** or click **Add**. The line goes into **Added items** below, the row clears for the next item, and the cursor is back in the item box — so you can keep adding without moving. The top of the panel — vendor, location, the totals, the **Add item** row and **Create Draft** — stays pinned while you scroll down through a long list. Change a quantity or price right in the list; click **×** at the end of a line to remove it.
+
+   The grey columns in the list — **HSN**, **GST %**, **Taxable**, **Tax**, **Line Total** — fill themselves in as you type. You can't edit them, on purpose: HSN and GST rate come from the Item master, so there's only ever one answer to "what tax does this item carry".
 
    If a line turns red, that item is missing its HSN code or GST rate on the Item master. Fix it under **Setup → Items** and the line clears.
 
-   **Buying a new design?** You don't have to create the items first. Click **+ Add design** next to **+ Add item**, pick the colours, sizes and other attributes, remove any combination you aren't buying, and **Create & add to PO** makes the design and every combination and puts them on the order — see §6.9.
-4. Check the **totals** at the bottom — taxable value, the tax split, and the grand total — and the **supply-type banner** above the items (§6.2).
+   **Buying a new design?** You don't have to create the items first. Click **+ Add design** at the end of the **Add item** row, pick the colours, sizes and other attributes, remove any combination you aren't buying, and **Create & add to PO** makes the design and every combination and puts them on the order — see §6.9.
+4. Check the **totals** at the top — taxable value, the tax split, and the grand total, always in view — and the **supply-type banner** above them (§6.2).
 5. **You don't type a PO number.** The box shows "Auto (PO series)" and is greyed out on purpose. The number is issued when you save; see §6.1.
 6. Click **Create Draft**. Depending on the amount it may need someone else's **approval** before it's official — that's a safety check, not a bug. You'll see it move to "Pending Approval", and once approved it's ready to send.
 7. **Send it to the vendor.** On the order's row, **Print** opens the print window (§7B): choose **Purchase Order** or **Vendor PO** (the vendor's copy, with item pictures and no MRP), the template, and the store it is generated from; check the preview, then **Print** — or **Excel** to download the Vendor PO as a spreadsheet with a picture of each item. The standard layout has your brand, both parties' names, addresses, states and GSTINs, the item table with HSN and tax, the CGST/SGST (or IGST) split, the grand total, and the amount in words. **Send to Vendor** records the dispatch (the row shows "Sent to vendor") and opens a pre-filled email to the vendor's contact address. If your administrator has configured a notification channel, it goes out through that as well.
 8. **Amend** loads the order back into the same panel — including its items — so you can change quantities or prices. Amending an already-approved PO sends it back for re-approval, and the screen warns you before it does.
+
+   **Delete** on the order's row removes a purchase order at any stage — draft, pending approval, approved or already sent — **as long as no goods have been received against it**. It asks you to confirm first. Once a goods receipt exists (including one that received several POs together), Delete is refused and names the receipt; cancel that receipt first. You only see **Delete** if your role is allowed to delete purchase orders — your administrator sets that under **Settings → Roles** (Purchase Order → Delete).
 9. When the stock physically arrives, find the approved PO and click **Receive goods**. The Goods Receipt screen opens with that PO and its lines loaded. If you opened Goods Receipt directly, choose the PO and click **Add PO & Load Items** — and repeat for any other PO of the **same vendor** that came in the same delivery (§6.10). Only what is still **open** on each PO loads. Type the vendor's **invoice number, date and amount**, and on each line change the **Invoice Rate** if the bill's price differs from the PO; any difference becomes a debit or credit note automatically (§6.10). For a partial delivery, remove the full-quantity line and add the actual received quantity; record any rejected or damaged quantity and its reason. The posting confirmation separates accepted from rejected/damaged units. **Only accepted units enter available stock**; an order by itself never adds stock. Check **Inventory** afterwards.
     Once it is posted, the configured barcode policy can issue a missing barcode — for example, on an older or imported Item. A new Item no longer requires you to type a barcode. The GRN is also where you start printing its labels — see §7A.1.
 
@@ -588,7 +592,7 @@ Every Item has an **Item Type** (Setup → Item). Most items are **Product**, th
 In fashion you often order a design that doesn't exist in the system yet, in several colours and sizes. You can create it right from the order.
 
 1. On **Purchase Order**, pick the **Vendor** first (the button asks for it if you haven't).
-2. Click **+ Add design**. A panel opens under **Items** showing **every product attribute your business has defined** — for example *Colour*, *Size*, *Fabric*. (Attributes are set up under **PIM → Product Attributes**; one with Value Type **Select** and options such as `Red, Blue` shows here as buttons.)
+2. Click **+ Add design**. A panel opens below the **Add item** row showing **every product attribute your business has defined** — for example *Colour*, *Size*, *Fabric*. (Attributes are set up under **PIM → Product Attributes**; one with Value Type **Select** and options such as `Red, Blue` shows here as buttons.)
 3. Fill in the **Design name**, **HSN**, **GST %**, **Purchase price**, **MRP** (optional) and **Qty each**.
 4. Click the values you are buying:
    - **One value** of an attribute (say Fabric = *Cotton*) describes the **design**.

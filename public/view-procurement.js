@@ -154,6 +154,10 @@ let poDraft = null;
 let poPreview = null;
 let poPreviewTimer = null;
 
+function newPOEntry() {
+  return { sku: '', qty: '1', rate: '', mrp: '' };
+}
+
 function newPODraft() {
   return {
     id: '', vendor: '', target_warehouse: '', location: '',
@@ -161,7 +165,9 @@ function newPODraft() {
     // resolves and displays - the screen never hardcodes Exclusive itself.
     gst_mode: '',
     interstate: false, interstate_override: false,
-    lines: [{ sku: '', qty: '', rate: '', mrp: '' }],
+    lines: [],
+    // Stage 65.1: the entry row at the top of the composer; Add moves it into lines.
+    entry: newPOEntry(),
     wasApproved: false, version: null
   };
 }
@@ -250,6 +256,7 @@ async function renderPurchaseOrdersView(container) {
           ${po.status !== 'Closed' ? `<button class="action-btn" ${actionAttrs('amendPurchaseOrder', [po.id])}>Amend</button>` : ''}
           <button class="action-btn" ${actionAttrs('printPurchaseOrder', [po.id])}>Print</button>
           ${po.status !== 'Draft' ? `<button class="action-btn" ${actionAttrs('sendPurchaseOrderToVendor', [po.id])}>Send to Vendor</button>` : ''}
+          ${canDeleteDoctype('PurchaseOrder') ? `<button class="action-btn action-btn-danger" ${actionAttrs('deletePurchaseOrder', [po.id, poNumber])}>Delete</button>` : ''}
         </td>
       </tr>
     `;
@@ -258,6 +265,19 @@ async function renderPurchaseOrdersView(container) {
   panel.innerHTML = html;
   container.appendChild(panel);
 }
+
+// Stage 65.2: Delete for roles with Delete on Purchase Order (Settings -> Roles).
+// Any status, until goods are received against it - the server refuses that
+// with PURCHA-0320 and names the receipt.
+window.deletePurchaseOrder = async function(poId, poNumber) {
+  if (!await showCustomConfirm(`Delete purchase order ${poNumber}? This cannot be undone from this screen.`, 'Delete Purchase Order')) return;
+  const res = await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(poId)}`, { method: 'DELETE' });
+  if (!res) return;
+  if (!res.ok) { await showApiError(res, 'Failed to delete the purchase order.', 'Delete Purchase Order'); return; }
+  if (poDraft && poDraft.id === poId) { poDraft = newPODraft(); poPreview = null; }
+  showToast(`Purchase order ${poNumber} deleted.`);
+  renderView('purchase-orders');
+};
 
 window.startGRNFromPO = function(poId) {
   try { sessionStorage.setItem('stage55-grn-source-po', String(poId)); } catch (_) { /* storage can be disabled */ }
@@ -271,9 +291,14 @@ function renderPOComposer(panel) {
   const d = poDraft;
   const editing = !!d.id;
   panel.innerHTML = `
+    <div class="po-sticky">
     <div class="po-composer-head">
       <h2>${editing ? `Amend ${escapeHTMLText(d.po_number || d.id)}` : 'New Purchase Order'}</h2>
-      ${editing ? `<button class="btn btn-ghost btn-sm" id="po-cancel-edit">Cancel</button>` : ''}
+      <div class="po-actions">
+        <div id="po-form-error" class="login-error hidden"></div>
+        ${editing ? `<button class="btn btn-ghost btn-sm" id="po-cancel-edit">Cancel</button>` : ''}
+        <button class="btn btn-primary" id="po-create-btn">${editing ? 'Save Amendment' : 'Create Draft'}</button>
+      </div>
     </div>
 
     <div class="po-header-grid">
@@ -302,14 +327,36 @@ function renderPOComposer(panel) {
 
     <div id="po-supply-banner" class="po-supply-banner"></div>
 
-    <div class="po-lines-head">
-      <h3>Items</h3>
-      <div style="display:flex; gap:8px;">
-        <button class="btn btn-outline btn-sm" id="po-add-design" type="button" title="Create a design and its combinations (colour, size...) right here and add them to this PO">+ Add design</button>
-        <button class="btn btn-outline btn-sm" id="po-add-line" type="button">+ Add item</button>
+    <div id="po-totals" class="po-totals"></div>
+
+    <div class="po-entry" id="po-entry">
+      <div class="form-group po-entry-item">
+        <label class="form-label" for="po-entry-sku">Add item</label>
+        <input type="text" id="po-entry-sku" class="form-input" autocomplete="off" placeholder="Search item...">
       </div>
+      <div class="form-group po-entry-num">
+        <label class="form-label" for="po-entry-qty">Qty</label>
+        <input type="number" id="po-entry-qty" class="form-input num" min="1" step="1">
+      </div>
+      <div class="form-group po-entry-num">
+        <label class="form-label" for="po-entry-rate">Purchase price</label>
+        <input type="number" id="po-entry-rate" class="form-input num" min="0" step="0.01">
+      </div>
+      <div class="form-group po-entry-num">
+        <label class="form-label" for="po-entry-mrp">MRP <span class="po-optional">optional</span></label>
+        <input type="number" id="po-entry-mrp" class="form-input num" min="0" step="0.01" placeholder="&mdash;">
+      </div>
+      <button class="btn btn-primary btn-sm" id="po-entry-add" type="button" title="Add this line (Enter)">Add</button>
+      <button class="btn btn-outline btn-sm" id="po-add-design" type="button" title="Create a design and its combinations (colour, size...) right here and add them to this PO">+ Add design</button>
     </div>
+    <div id="po-entry-error" class="po-line-error hidden"></div>
+    </div>
+
     <div id="po-design-panel" class="po-design-panel hidden"></div>
+
+    <div class="po-lines-head">
+      <h3>Added items <span id="po-line-count" class="po-line-count"></span></h3>
+    </div>
     <div class="table-wrapper">
       <table class="po-lines">
         <thead>
@@ -328,14 +375,6 @@ function renderPOComposer(panel) {
         </thead>
         <tbody id="po-lines-body"></tbody>
       </table>
-    </div>
-
-    <div class="po-footer">
-      <div id="po-totals" class="po-totals"></div>
-      <div class="po-actions">
-        <div id="po-form-error" class="login-error hidden"></div>
-        <button class="btn btn-primary" id="po-create-btn">${editing ? 'Save Amendment' : 'Create Draft'}</button>
-      </div>
     </div>
   `;
 
@@ -366,16 +405,71 @@ function renderPOComposer(panel) {
     schedulePOPreview();
   });
 
-  document.getElementById('po-add-line').addEventListener('click', () => {
-    d.lines.push({ sku: '', qty: '', rate: '', mrp: '' });
-    renderPOLines();
+  // Stage 65.1 (the user: "my screen will be the create zone always"): one
+  // entry row at the top; Add (or Enter) appends it to the list below, which
+  // scrolls on its own while the header, totals and this row stay in view.
+  if (!d.entry) d.entry = newPOEntry();
+  const entryEls = {
+    sku: document.getElementById('po-entry-sku'),
+    qty: document.getElementById('po-entry-qty'),
+    rate: document.getElementById('po-entry-rate'),
+    mrp: document.getElementById('po-entry-mrp')
+  };
+  attachLinkTypeahead(entryEls.sku, 'Item');
+  Object.entries(entryEls).forEach(([field, el]) => {
+    el.value = d.entry[field] || '';
+    el.addEventListener('change', () => { d.entry[field] = el.value.trim(); });
+    el.addEventListener('blur', () => { d.entry[field] = el.value.trim(); });
+    // Enter adds the line; inside the item box an open menu takes Enter
+    // first (the picker stops it), so Enter there only adds once picked.
+    el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addPOEntryLine(); } });
   });
+  document.getElementById('po-entry-add').addEventListener('click', addPOEntryLine);
   document.getElementById('po-add-design').addEventListener('click', openPODesignPanel);
   document.getElementById('po-create-btn').addEventListener('click', savePurchaseOrder);
   const cancelBtn = document.getElementById('po-cancel-edit');
   if (cancelBtn) cancelBtn.addEventListener('click', () => { poDraft = newPODraft(); poPreview = null; renderView('purchase-orders'); });
 
   renderPOLines();
+}
+
+// addPOEntryLine moves the entry row into the PO's lines and clears it for the
+// next item, keeping the cursor in the item box.
+function addPOEntryLine() {
+  const d = poDraft;
+  const errEl = document.getElementById('po-entry-error');
+  const el = id => document.getElementById(id);
+  const line = {
+    sku: el('po-entry-sku').value.trim(),
+    qty: el('po-entry-qty').value.trim() || '1',
+    rate: el('po-entry-rate').value.trim(),
+    mrp: el('po-entry-mrp').value.trim()
+  };
+  if (!line.sku) {
+    errEl.textContent = 'Choose an item first.';
+    errEl.classList.remove('hidden');
+    el('po-entry-sku').focus();
+    return;
+  }
+  if (!(Number(line.qty) > 0)) {
+    errEl.textContent = 'Quantity must be at least 1.';
+    errEl.classList.remove('hidden');
+    el('po-entry-qty').focus();
+    return;
+  }
+  errEl.classList.add('hidden');
+  d.lines.push(line);
+  d.entry = newPOEntry();
+  ['po-entry-sku', 'po-entry-rate', 'po-entry-mrp'].forEach(id => { el(id).value = ''; });
+  el('po-entry-qty').value = d.entry.qty;
+  renderPOLines();
+  const added = document.querySelector(`[data-po-line="${d.lines.length - 1}"]`);
+  if (added) {
+    added.classList.add('po-line-just-added');
+    setTimeout(() => added.classList.remove('po-line-just-added'), 1600);
+  }
+  schedulePOPreview();
+  el('po-entry-sku').focus();
 }
 
 // renderPOLines redraws the line rows and reattaches their handlers.
@@ -407,7 +501,11 @@ function renderPOLines() {
   // blur must not commit, or it re-prices, re-renders and blurs again - a loop
   // that ran every few hundred ms while someone typed.
   poLinesRebuilding = true;
-  body.innerHTML = d.lines.map((line, i) => {
+  const countEl = document.getElementById('po-line-count');
+  if (countEl) countEl.textContent = d.lines.length ? `(${d.lines.length})` : '';
+  body.innerHTML = d.lines.length === 0
+    ? `<tr><td colspan="10" class="po-lines-empty">No items yet &mdash; add one above, or use <b>+ Add design</b>.</td></tr>`
+    : d.lines.map((line, i) => {
     const p = previewLines[i] || {};
     const err = p.error ? `<div class="po-line-error">${escapeHTMLText(p.error)}</div>` : '';
     const derived = (v, suffix = '') => (v === undefined || v === null || v === '' ? '<span class="text-muted">&mdash;</span>' : escapeHTMLText(String(v)) + suffix);
@@ -470,7 +568,6 @@ function renderPOLines() {
     btn.addEventListener('click', () => {
       const i = Number(btn.getAttribute('data-po-remove'));
       poDraft.lines.splice(i, 1);
-      if (poDraft.lines.length === 0) poDraft.lines.push({ sku: '', qty: '', rate: '', mrp: '' });
       renderPOLines();
       schedulePOPreview();
     });
@@ -809,7 +906,6 @@ async function createPODesign() {
   // 3. Onto the PO - replacing the one blank starter line if that is all there is.
   if (poDraft.lines.length === 1 && !poDraft.lines[0].sku && !poDraft.lines[0].qty && !poDraft.lines[0].rate) poDraft.lines = [];
   poDraft.lines.push(...added);
-  if (!poDraft.lines.length) poDraft.lines.push({ sku: '', qty: '', rate: '', mrp: '' });
   renderPOLines();
   schedulePOPreview();
   if (failures.length) {
@@ -1069,7 +1165,8 @@ window.amendPurchaseOrder = async function(poId) {
     interstate_override: !!record.interstate_override,
     lines: lines.length ? lines.map(l => ({
       sku: l.sku || '', qty: l.qty ?? '', rate: l.rate ?? '', mrp: l.mrp ?? ''
-    })) : [{ sku: '', qty: '', rate: '', mrp: '' }],
+    })) : [],
+    entry: newPOEntry(),
     wasApproved: record.status === 'Approved',
     status: record.status,
     version: typeof record.version === 'number' ? record.version : null

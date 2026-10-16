@@ -316,7 +316,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '40';
+const VIEW_MODULE_VERSION = '41';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -1365,9 +1365,7 @@ const TYPEAHEAD_DOCTYPE_OPTS = {
   // (30.5.8) - without it, the conversion would have been a net loss for a
   // user who does not know the employee codes.
   Employee: { showAllOnFocus: true },
-  // Stage 64.7: every Vendor box lists vendors on click (PO, ASN, vendor
-  // invoice...), not only after typing.
-  Vendor: { showAllOnFocus: true },
+  Vendor: { showAllOnFocus: true }, // Stage 64.7
   // 2026-10-09: a Bin record has no code or name - its human identifier is
   // bin_code and its id is a generated UUID. With the defaults the picker
   // listed and stored that UUID, so Putaway, Bin Conditions and LPN all sent
@@ -3516,13 +3514,8 @@ async function init() {
 // Deliberately not on the critical init() Promise.all above: nothing else
 // waits on it, and a slow/failed fetch should never delay the first view.
 //
-// Stage 64.5 (the user, 2026-10-16: "there should be a close button ... not
-// required in ERP, except for payment or new feature, and it should be closed
-// as well"): the strip no longer carries the build's supported-configuration
-// caveats (still returned by /api/v1/system/environment and documented in
-// ADMIN_GUIDE); it is for short notices only - today the non-production
-// "SIMULATED ENVIRONMENT" line - and every notice has a close button. Closing
-// is remembered per message in this browser, so a new message still shows.
+// Stage 64.5: short notices only (the build caveats stay in the API), each
+// with a close button remembered per message, so a new message still shows.
 const ENV_BANNER_DISMISSED_KEY = 'erp.envBanner.dismissed';
 async function fetchAndRenderEnvironmentBanner() {
   try {

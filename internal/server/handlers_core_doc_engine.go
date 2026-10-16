@@ -1140,7 +1140,20 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
-		if documentType == "Transaction" && status == "Approved" {
+		if doctype == "PurchaseOrder" {
+			// Stage 65.2 (the user, 2026-10-16: delete "any PO with no goods
+			// received", for roles with Delete on Purchase Order): any status,
+			// approved and sent included, until a goods receipt exists.
+			receipts, rErr := engines.PurchaseOrderReceipts(tenantID, id)
+			if rErr != nil {
+				writeAPIErrorGeneric(w, r, http.StatusInternalServerError, rErr.Error())
+				return
+			}
+			if len(receipts) > 0 {
+				writeAPIErrorDetail(w, r, "PURCHA-0320", "", "Goods received on: "+strings.Join(receipts, ", "))
+				return
+			}
+		} else if documentType == "Transaction" && status == "Approved" {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Approved transactional documents cannot be deleted")
 			return
 		}

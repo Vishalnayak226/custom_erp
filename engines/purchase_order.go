@@ -407,3 +407,30 @@ func MarkPurchaseOrderSent(tenantID, poID, userID string) (POPrint, error) {
 		fmt.Sprintf("po=%s vendor=%s total=%.2f", doc.PONumber, doc.Vendor.Code, doc.GrandTotal))
 	return doc, nil
 }
+
+// PurchaseOrderReceipts lists the goods receipts taken against a PO - not
+// cancelled, not deleted - including a multi-PO receipt (Stage 62) that names
+// it in po_ids. Stage 65.2: a PO can be deleted only while this is empty (the
+// user, 2026-10-16: "any PO with no goods received").
+func PurchaseOrderReceipts(tenantID, poID string) ([]string, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id FROM %s.documents WHERE doctype = 'GRN' AND status != 'Cancelled' AND deleted_at IS NULL
+		AND (data->>'po_id' = $1 OR (',' || COALESCE(data->>'po_ids', '') || ',') LIKE '%%,' || $1 || ',%%')
+		ORDER BY created_at`, schema), poID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}

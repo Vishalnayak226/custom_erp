@@ -153,3 +153,87 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .pts-card .pts-card-meta { font-size: 12px; color: var(--text-muted); }
 .pts-card .pts-card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
 @media (max-width: 1100px) { .pts-body { grid-template-columns: 220px 1fr 260px; } }
+
+/* Stage 65.1: the PO header, totals and the entry row stay pinned at the top
+   of the screen while the added lines scroll underneath (the user: "my screen
+   will be the create zone always"). Negative margins let the pinned block
+   cover the composer's own padding, so lines never show through at its edges. */
+.po-sticky {
+  position: sticky;
+  top: -24px;
+  z-index: 15;
+  margin: -24px -24px 16px;
+  padding: 24px 24px 12px;
+  background-color: var(--panel-bg);
+  border-bottom: 1px solid var(--border-color);
+  border-radius: 8px 8px 0 0;
+}
+
+.po-sticky .po-totals {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 24px;
+  min-width: 0;
+  margin: 4px 0 12px;
+}
+
+.po-sticky .po-total-row {
+  gap: 8px;
+  padding: 0;
+}
+
+.po-sticky .po-total-grand {
+  margin: 0;
+  padding: 0 0 0 16px;
+  border-top: none;
+  border-left: 1px solid var(--border-color);
+}
+
+.po-sticky .po-total-mode,
+.po-sticky .po-total-hint {
+  margin: 0;
+}
+
+.po-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.po-entry .form-group {
+  margin-bottom: 0;
+}
+
+.po-entry .form-input {
+  width: 100%;
+}
+
+.po-entry-item {
+  flex: 1 1 280px;
+}
+
+.po-entry-num {
+  flex: 0 0 120px;
+}
+
+.po-line-count {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.po-lines-empty {
+  padding: 18px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.po-line-just-added {
+  animation: po-line-flash 1.6s ease-out;
+}
+
+@keyframes po-line-flash {
+  from { background-color: var(--success-soft-bg); }
+  to   { background-color: transparent; }
+}

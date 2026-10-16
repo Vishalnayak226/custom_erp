@@ -693,6 +693,12 @@ A **webhook subscription** tells this system: "whenever *this kind* of thing hap
 
 **Posting-identity gap (2026-10-09):** the Work panel now opens the existing full GL audit export directly; Chromium verified the exact report. Its GL rows carry source doctype/id and timestamp but no posting actor, and audit logs do not have a reliable entity link for every GL write. The link is a source review aid, **not** an accountable who-posted-what register. Add explicit actor capture to the shared posting path and reconcile historical `NULL`/unknown rows before 55.10 may be claimed complete. Account Head and qualified CA signoffs remain external gates.
 
+#### B.3.5a Who can delete a purchase order (Stage 65.2)
+
+**Settings → Roles → Purchase Order → Delete** decides it, per role. Super Admin and HR/Admin can always delete; any other role only when its Delete box is ticked (Store Manager, for example, ships without it). A role with it sees **Delete** on every PO row.
+
+**What the system still refuses, whatever the role:** a PO that goods have been received against — a goods receipt that is not cancelled names it, directly or as one of the POs of a multi-PO receipt (§B.3.6). The user gets `PURCHA-0320` with the receipt number(s). Cancel the receipt first, then delete. Every other status can be deleted — draft, pending approval, approved, sent to the vendor — which is wider than other transactions, where an approved record can never be deleted. The delete is a soft delete: the record is hidden everywhere and logged as `SOFT_DELETE_PurchaseOrder` in the Activity Log with who did it; its row stays in the database for audit.
+
 #### B.3.6 Designs from the PO, multi-PO goods receipts and price-difference notes (Stage 62)
 
 **Design number mode.** **Configuration → Procurement → Design number on a PO's Add design** (`procurement.po_design_number_mode`):
