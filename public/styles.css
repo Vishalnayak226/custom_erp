@@ -3070,8 +3070,9 @@ td.num {
   color: var(--primary-hover);
 }
 
-/* Stage 47.0.4/47.0.5: a persistent, non-dismissible strip so nobody
-   mistakes a SIMULATED (external side effects off) instance for a real one -
+/* Stage 47.0.5: a strip so nobody mistakes a SIMULATED (external side
+   effects off) instance for a real one; closable since Stage 64.5 (x button,
+   remembered per message) -
    fixed to the viewport rather than the sidebar layout so it appears
    identically regardless of which view is on screen. body.env-banner-active
    (set by fetchAndRenderEnvironmentBanner in app.js) gets a JS-computed
@@ -3135,9 +3136,22 @@ td.num {
   cursor: pointer;
 }
 
-.env-banner-toggle:focus-visible {
+.env-banner-toggle:focus-visible,
+.env-banner-close:focus-visible {
   outline: 2px solid var(--warning-strong);
   outline-offset: 2px;
+}
+
+.env-banner-close {
+  flex: 0 0 auto;
+  margin-left: 8px;
+  background: none;
+  border: none;
+  padding: 0 4px;
+  font-size: 16px;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
 }
 
 .setup-banner {

@@ -316,7 +316,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '37';
+const VIEW_MODULE_VERSION = '39';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -771,11 +771,18 @@ function saveNavState() {
   // links the setup hints hand out: without it the hash would be left stale
   // pointing at whichever hinted screen was opened last.
   //
-  // replaceState rather than assigning location.hash, for two reasons: it does
-  // not fire the hashchange listener (which would bounce straight back into a
-  // second render of the view being rendered right now), and it does not push
-  // a history entry per navigation, which would make Back require as many
-  // presses as the user made clicks.
+  // pushState/replaceState rather than assigning location.hash: neither fires
+  // the hashchange listener (which would bounce straight back into a second
+  // render of the view being rendered right now).
+  //
+  // Stage 64.6 (the user: "if I go to Reports and click Chrome Back it closes
+  // the ERP"): moving to a different screen now pushes one history entry, so
+  // browser Back / Forward walk between ERP screens (the hashchange listener
+  // renders them) instead of leaving the app. Paging or searching within the
+  // same screen still replaces, so Back is one press per screen, not per click.
+  // Replaced, not pushed: the first screen after sign-in (no deep link yet, so
+  // Back would land on a blank entry) and a setup detour's own entry, which
+  // openSetupDoctype has just pushed.
   try {
     // BLD-034: carries page/search along on a doctype-table screen, so a
     // refresh restores where the user actually was, not just which doctype -
@@ -787,7 +794,16 @@ function saveNavState() {
     const target = currentView === 'doctype-table' && currentDoctype
       ? deepLinkForDoctype(currentDoctype, { page: currentTablePage, search: currentSearchQuery })
       : deepLinkForView(currentView);
-    if (window.location.hash !== target) history.replaceState(history.state, '', target); // keeps a setup detour's marker (Stage 57.2)
+    if (window.location.hash !== target) {
+      const screenOf = h => String(h || '').split('?')[0];
+      const freshDetour = history.state && history.state.erpSetupDetour &&
+        quickCreateReturn && window.location.hash === quickCreateReturn.hash;
+      if (parseDeepLink() && !freshDetour && screenOf(window.location.hash) !== screenOf(target)) {
+        history.pushState(null, '', target);
+      } else {
+        history.replaceState(history.state, '', target); // keeps a setup detour's marker (Stage 57.2)
+      }
+    }
   } catch (e) {
     // file:// or a sandboxed frame - navigation still works, it just isn't
     // addressable. Not worth failing the render over.
@@ -2647,6 +2663,7 @@ async function navigateToDeepLink(link) {
   }
   if (link.kind === 'view') {
     await renderView(link.view);
+    restoreActiveMenuState(link.view); // Stage 64.6: browser Back/Forward lands here too
     return true;
   }
   return false;
@@ -3492,29 +3509,28 @@ async function init() {
   loadAppVersion();
 }
 
-// Stage 47.0.4/47.0.5: fetch once at boot and show a persistent strip when
-// this instance is not delivering real external side effects (email/
-// webhook/ops-alert) - the common case outside a production deployment.
+// Stage 47.0.5: fetch once at boot and show a strip at the top of the page.
 // Deliberately not on the critical init() Promise.all above: nothing else
 // waits on it, and a slow/failed fetch should never delay the first view.
+//
+// Stage 64.5 (the user, 2026-10-16: "there should be a close button ... not
+// required in ERP, except for payment or new feature, and it should be closed
+// as well"): the strip no longer carries the build's supported-configuration
+// caveats (still returned by /api/v1/system/environment and documented in
+// ADMIN_GUIDE); it is for short notices only - today the non-production
+// "SIMULATED ENVIRONMENT" line - and every notice has a close button. Closing
+// is remembered per message in this browser, so a new message still shows.
+const ENV_BANNER_DISMISSED_KEY = 'erp.envBanner.dismissed';
 async function fetchAndRenderEnvironmentBanner() {
   try {
     const res = await apiFetch('/api/v1/system/environment');
     if (!res || !res.ok) return;
     const data = await res.json();
-    const notices = data.supported_configuration_notice || [];
-    // Stage 47.0.4: this must never disappear behind a menu - the audit's
-    // own words. Shown whenever there is anything to say, regardless of
-    // role, alongside (not instead of) the simulated-environment strip.
-    if (data.external_side_effects && notices.length === 0) return;
-    const parts = [];
-    if (!data.external_side_effects) {
-      parts.push(`SIMULATED ENVIRONMENT (${data.env}) - email, webhook and ops-alert delivery are OFF`);
-    }
-    if (notices.length > 0) {
-      parts.push(`Conditionally supported: ${notices.join(' · ')}`);
-    }
-    const fullText = parts.join('  |  ');
+    if (data.external_side_effects) return;
+    const fullText = `SIMULATED ENVIRONMENT (${data.env}) - email, webhook and ops-alert delivery are OFF`;
+    try {
+      if (localStorage.getItem(ENV_BANNER_DISMISSED_KEY) === fullText) return;
+    } catch (e) { /* storage blocked: just show it */ }
 
     const banner = document.createElement('div');
     banner.id = 'environment-banner';
@@ -3535,6 +3551,15 @@ async function fetchAndRenderEnvironmentBanner() {
     toggle.hidden = true;
     toggle.setAttribute('aria-expanded', 'false');
     banner.appendChild(toggle);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'env-banner-close';
+    closeBtn.textContent = '×';
+    closeBtn.title = 'Close';
+    closeBtn.setAttribute('aria-label', 'Close this notice');
+    banner.appendChild(closeBtn);
+
     document.body.appendChild(banner);
     document.body.classList.add('env-banner-active');
 
@@ -3555,6 +3580,13 @@ async function fetchAndRenderEnvironmentBanner() {
       toggle.setAttribute('aria-expanded', String(expanded));
       toggle.hidden = false;
       syncBannerHeight();
+    });
+    closeBtn.addEventListener('click', () => {
+      window.removeEventListener('resize', checkTruncation);
+      banner.remove();
+      document.body.classList.remove('env-banner-active');
+      document.body.style.paddingTop = '';
+      try { localStorage.setItem(ENV_BANNER_DISMISSED_KEY, fullText); } catch (e) { /* closes for this page only */ }
     });
     checkTruncation();
     window.addEventListener('resize', checkTruncation);
