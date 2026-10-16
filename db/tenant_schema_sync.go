@@ -297,14 +297,14 @@ func SyncTenantSchemaTx(tx *sql.Tx, schema string) (TenantSchemaSyncReport, erro
 		names[ix.name] = true
 	}
 	for _, ix := range tplIdx {
-		if have[ix.shape] {
+		// Present under the same name counts as present: some definitions
+		// (an expression index with casts, say) re-parse to different text
+		// in the client, so comparing by shape alone re-created an unnamed
+		// copy on every run (found on production 2026-10-16).
+		if have[ix.shape] || names[ix.name] {
 			continue
 		}
-		name := ix.name
-		if names[name] {
-			name = "" // let Postgres pick a free name
-		}
-		stmt := ix.create(schema, name)
+		stmt := ix.create(schema, ix.name)
 		if try("index "+ix.name, stmt) {
 			rep.IndexesCreated = append(rep.IndexesCreated, ix.table+":"+ix.name)
 			have[ix.shape] = true
@@ -488,9 +488,6 @@ func (ix indexDef) create(schema, name string) string {
 	unique := ""
 	if ix.unique {
 		unique = "UNIQUE "
-	}
-	if name == "" {
-		return fmt.Sprintf("CREATE %sINDEX ON %s.%s %s", unique, pq.QuoteIdentifier(schema), pq.QuoteIdentifier(ix.table), ix.body)
 	}
 	return fmt.Sprintf("CREATE %sINDEX IF NOT EXISTS %s ON %s.%s %s", unique, pq.QuoteIdentifier(name),
 		pq.QuoteIdentifier(schema), pq.QuoteIdentifier(ix.table), ix.body)

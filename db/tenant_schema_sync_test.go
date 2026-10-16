@@ -1,6 +1,9 @@
 package db
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Stage 64.1: a client schema provisioned before later migrations (as
 // tenant_minn was on production) is brought up to tenant_default, and a
@@ -56,6 +59,25 @@ func TestSyncTenantSchemaBringsStaleClientUpToTemplate(t *testing.T) {
 	mustExec(`INSERT INTO ` + schema + `.doctype_meta SELECT * FROM tenant_default.doctype_meta WHERE name < 'M'`)
 	// An existing record type whose permission an admin removed must not get it back.
 	mustExec(`INSERT INTO ` + schema + `.doctype_meta SELECT * FROM tenant_default.doctype_meta WHERE name = 'Item' ON CONFLICT DO NOTHING`)
+	// An index the client holds under the template's name but with different
+	// text (on production an expression index re-parsed differently) must
+	// count as present: no unnamed copy of the template's definition.
+	var namedIdx, namedIdxDef string
+	if err := DB.QueryRow(`SELECT i.relname, regexp_replace(pg_get_indexdef(i.oid), '^CREATE (UNIQUE )?INDEX \S+ ON \S+ ', '')
+		FROM pg_index x JOIN pg_class i ON i.oid = x.indexrelid JOIN pg_class t ON t.oid = x.indrelid
+		JOIN pg_namespace n ON n.oid = t.relnamespace
+		WHERE n.nspname = 'tenant_default' AND t.relname = 'documents' AND NOT x.indisunique AND NOT x.indisprimary
+		ORDER BY 1 LIMIT 1`).Scan(&namedIdx, &namedIdxDef); err != nil {
+		t.Fatalf("no plain index on tenant_default.documents to test with: %v", err)
+	}
+	var likeCopy string
+	DB.QueryRow(`SELECT i.relname FROM pg_index x JOIN pg_class i ON i.oid = x.indexrelid JOIN pg_class t ON t.oid = x.indrelid
+		JOIN pg_namespace n ON n.oid = t.relnamespace WHERE n.nspname = $1 AND t.relname = 'documents'
+		AND regexp_replace(pg_get_indexdef(i.oid), '^CREATE (UNIQUE )?INDEX \S+ ON \S+ ', '') = $2`, schema, namedIdxDef).Scan(&likeCopy)
+	if likeCopy != "" {
+		mustExec(`DROP INDEX ` + schema + `.` + likeCopy)
+	}
+	mustExec(`CREATE INDEX ` + namedIdx + ` ON ` + schema + `.documents (updated_at)`)
 	mustExec(`INSERT INTO ` + schema + `.` + serialTable + ` SELECT * FROM tenant_default.` + serialTable + ` LIMIT 1`)
 	mustExec(`UPDATE ` + schema + `.` + serialTable + ` SET id = 900000001`)
 
@@ -136,6 +158,12 @@ func TestSyncTenantSchemaBringsStaleClientUpToTemplate(t *testing.T) {
 	}
 	// The audit write that failed on production now has its column.
 	mustExec(`INSERT INTO ` + schema + `.audit_logs (user_id, action, status, details, signature) VALUES ('t', 'TEST', 'ok', '', 'x')`)
+
+	if n := count(`SELECT count(*) FROM pg_index x JOIN pg_class i ON i.oid = x.indexrelid JOIN pg_class t ON t.oid = x.indrelid
+		JOIN pg_namespace n ON n.oid = t.relnamespace WHERE n.nspname = '` + schema + `' AND t.relname = 'documents'
+		AND regexp_replace(pg_get_indexdef(i.oid), '^CREATE (UNIQUE )?INDEX \S+ ON \S+ ', '') = ` + "'" + strings.ReplaceAll(namedIdxDef, "'", "''") + "'"); n != 0 {
+		t.Errorf("an unnamed copy of %s was created although the client has an index of that name", namedIdx)
+	}
 
 	if again := run(); again.Changed() {
 		t.Errorf("second run changed something: %s", again.Summary())
