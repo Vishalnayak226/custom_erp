@@ -125,6 +125,19 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-16 Stage 64 COMMITTED, PUSHED AND DEPLOYED (`042579b`).** Client schema sync
+  (`db/tenant_schema_sync.go`, runs after every `-migrate` and in provisioning) brought prod's
+  `tenant_minn` fully in step with tenant_default (it was missing 16 tables, 11 columns incl.
+  `audit_logs.signature` — audit writes had been failing since 2026-09-22 — 53 record types,
+  status rules, INR, TDS); background-worker failures now reach the client's `system_error_logs`
+  hourly (`LogBackgroundJobError`). `ERP_PLATFORM_OPERATORS=default:admin` now set in prod
+  `erp.env` (supersedes the "Open" note below). Details: checklist Stage 64, ledger §220.
+  **Concurrent session in flight:** Stage 61.6 GRN batch rules (uncommitted: `engines/wms_receiving.go`,
+  `traceability*.go`, `item_types.go`, `number_series.go`, `settings_definitions.go`, `public/*`,
+  `db/migrations_stage61_6_grn_batch_rules.sql`, `attack_surface.json`) — not in `042579b`, not
+  deployed. Brain map (`docs/brain/*`) not redrawn for Stage 64's new files; redraw once 61.6 lands.
+  SOP videos (`docs/sop-video/media|output`, ~495 MB) still untracked — the user pushes them.
+
 - **2026-10-16 COMMITTED, PUSHED AND DEPLOYED: `ce1ff7c` (Stage 59.1 + 60) and `2c3da8e`
   (Stages 60.8, 60.9, 61, 62, 63).** The "NOT COMMITTED / NOT DEPLOYED" tags in the entries below
   are superseded. Pre-commit: build, vet, `node --check`, `internal/securityscan` (attack surface
