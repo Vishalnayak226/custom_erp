@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"database/sql"
 	"encoding/json"
+	"regexp"
 	"testing"
 	"time"
 )
@@ -88,16 +89,13 @@ func TestEnsureReceiptBarcodesPerDate(t *testing.T) {
 	}
 }
 
-// Stage 61.1: every SKU on a new GRN gets one batch number - B + receipt date
-// + the day's running number - shared by that SKU's lines; a typed number is
-// kept and covers the SKU's blank lines; a batch-tracked item is left for the
-// clerk to type the carton's lot. The lot then scans back to its receipt date
-// and age, by batch number or by the SKU.
-func TestPrepareGRNBatchNumbersAndAgeing(t *testing.T) {
-	if got := grnBatchFromParts(time.Date(2026, 10, 15, 9, 0, 0, 0, time.Local), 7); got != "B261015-0007" {
-		t.Fatalf("grnBatchFromParts = %q, want B261015-0007", got)
-	}
-
+// Stage 61: blank GRN lines get batch numbers by the Item / Item Type /
+// client rule - one per SKU on the GRN (default), one per line, one per SKU per
+// day (shared by that day's GRNs at the same location) or off; a typed number
+// is kept and covers the SKU's blank lines; a batch-tracked item is left for
+// the clerk to type the carton's lot. The number is the GRNBatchSeq series
+// (B-YYMMDD-NNNN as seeded).
+func TestPrepareGRNBatchNumbersModes(t *testing.T) {
 	db.InitDB(testConnStr())
 	tenantID, schemaName := uniqueLifecycleTenant(t)
 	defer dropLifecycleTenant(tenantID, schemaName)
@@ -107,72 +105,191 @@ func TestPrepareGRNBatchNumbersAndAgeing(t *testing.T) {
 	if _, err := db.DB.Exec(`INSERT INTO ` + schemaName + `.documents (doctype, id, data, status, created_by) VALUES
 		('Item', 'TEE-BLU-M', '{"code":"TEE-BLU-M","name":"Tee Blue M"}', 'Active', 'admin'),
 		('Item', 'CAP-RED', '{"code":"CAP-RED","name":"Cap Red"}', 'Active', 'admin'),
-		('Item', 'SYRUP-1L', '{"code":"SYRUP-1L","name":"Syrup 1L","tracking_mode":"Batch"}', 'Active', 'admin')`); err != nil {
+		('Item', 'SYRUP-1L', '{"code":"SYRUP-1L","name":"Syrup 1L","tracking_mode":"Batch"}', 'Active', 'admin'),
+		('Item', 'LINE-SKU', '{"code":"LINE-SKU","name":"Per line","grn_batch_number":"One per GRN line"}', 'Active', 'admin'),
+		('Item', 'DAY-SKU', '{"code":"DAY-SKU","name":"Per day","item_type":"DayType"}', 'Active', 'admin'),
+		('ItemType', 'DayType', '{"code":"DayType","grn_batch_number":"One per SKU per day","status":"Active"}', 'Active', 'admin')
+		ON CONFLICT DO NOTHING`); err != nil {
 		t.Fatalf("seed items: %v", err)
 	}
-	// The series row migrations_stage61_1 seeds. Its blank separator runs the
-	// day and the counter together ("2610150001"); the first live run read
-	// that as one number and issued B261015-2610150001.
+	// The series as migrations stage61_1 + stage61_6 leave it.
 	if _, err := db.DB.Exec(`INSERT INTO ` + schemaName + `.prefix_configs (doc_type, prefix, separator, padding_width, reset_frequency, active_status, include_store)
-		VALUES ('GRNBatchSeq', '', '', 4, 'ANNUAL', TRUE, FALSE) ON CONFLICT (doc_type) DO NOTHING`); err != nil {
+		VALUES ('GRNBatchSeq', 'B', '-', 4, 'ANNUAL', TRUE, FALSE)
+		ON CONFLICT (doc_type) DO UPDATE SET prefix = 'B', separator = '-', padding_width = 4, reset_frequency = 'ANNUAL', include_store = FALSE`); err != nil {
 		t.Fatalf("seed GRNBatchSeq: %v", err)
 	}
+	prep := func(raw string) []map[string]interface{} {
+		t.Helper()
+		payload := map[string]interface{}{"location": "LOC-61", "received_items": raw}
+		if err := PrepareGRNBatchNumbers(tenantID, true, payload); err != nil {
+			t.Fatalf("PrepareGRNBatchNumbers: %v", err)
+		}
+		var lines []map[string]interface{}
+		if err := json.Unmarshal([]byte(payload["received_items"].(string)), &lines); err != nil {
+			t.Fatal(err)
+		}
+		return lines
+	}
+	shape := regexp.MustCompile(`^B-` + time.Now().Format("060102") + `-\d{4}$`)
 
-	payload := map[string]interface{}{"received_items": `[
+	lines := prep(`[
 		{"sku":"TEE-BLU-M","qty":2},
 		{"sku":"CAP-RED","qty":1},
 		{"sku":"TEE-BLU-M","qty":3},
 		{"sku":"CAP-RED","qty":4,"batch_no":"VENDOR-LOT-9"},
-		{"sku":"SYRUP-1L","qty":5}]`}
-	if err := PrepareGRNBatchNumbers(tenantID, true, payload); err != nil {
-		t.Fatalf("PrepareGRNBatchNumbers: %v", err)
+		{"sku":"SYRUP-1L","qty":5},
+		{"sku":"LINE-SKU","qty":1},
+		{"sku":"LINE-SKU","qty":1},
+		{"sku":"DAY-SKU","qty":3}]`)
+	tee, _ := lines[0]["batch_no"].(string)
+	if !shape.MatchString(tee) || lines[2]["batch_no"] != tee || lines[0]["batch_auto"] != true {
+		t.Fatalf("TEE-BLU-M lines = %v / %v, want one shared auto B-YYMMDD-NNNN", lines[0], lines[2])
 	}
-	var lines []map[string]interface{}
-	if err := json.Unmarshal([]byte(payload["received_items"].(string)), &lines); err != nil {
-		t.Fatal(err)
-	}
-	tee := lines[0]["batch_no"]
-	want := "B" + time.Now().Format("060102") + "-"
-	if s, _ := tee.(string); len(s) != 12 || s[:8] != want {
-		t.Fatalf("TEE-BLU-M batch = %v, want %sNNNN", tee, want)
-	}
-	if lines[2]["batch_no"] != tee {
-		t.Errorf("second TEE-BLU-M line got %v, want the SKU's %v", lines[2]["batch_no"], tee)
-	}
-	if lines[1]["batch_no"] != "VENDOR-LOT-9" || lines[3]["batch_no"] != "VENDOR-LOT-9" {
-		t.Errorf("CAP-RED lines got %v / %v, want the typed VENDOR-LOT-9 on both", lines[1]["batch_no"], lines[3]["batch_no"])
+	if lines[1]["batch_no"] != "VENDOR-LOT-9" || lines[3]["batch_no"] != "VENDOR-LOT-9" || lines[1]["batch_auto"] != nil {
+		t.Errorf("CAP-RED lines = %v / %v, want the typed VENDOR-LOT-9 on both, not marked auto", lines[1], lines[3])
 	}
 	if b, ok := lines[4]["batch_no"]; ok {
 		t.Errorf("batch-tracked SYRUP-1L was given %v; the clerk must type the carton's lot", b)
+	}
+	l1, _ := lines[5]["batch_no"].(string)
+	l2, _ := lines[6]["batch_no"].(string)
+	if !shape.MatchString(l1) || !shape.MatchString(l2) || l1 == l2 {
+		t.Errorf("per-line item got %q / %q, want two different numbers", l1, l2)
+	}
+	day, _ := lines[7]["batch_no"].(string)
+	if !shape.MatchString(day) {
+		t.Fatalf("per-day item got %q", day)
+	}
+
+	// The day's batch is registered by the first GRN; a second GRN that day
+	// at the same location shares it, and its quantity is added once.
+	if _, err := EnsureBatch(tenantID, BatchInfo{BatchNo: day, Item: "DAY-SKU", GRN: "GRN-A", Location: "LOC-61", AutoNumbered: true}, 3, "test"); err != nil {
+		t.Fatalf("EnsureBatch: %v", err)
+	}
+	again := prep(`[{"sku":"DAY-SKU","qty":2},{"sku":"TEE-BLU-M","qty":1}]`)
+	if again[0]["batch_no"] != day {
+		t.Errorf("second GRN today got %v, want the day's %s", again[0]["batch_no"], day)
+	}
+	if again[1]["batch_no"] == tee {
+		t.Errorf("per-GRN item reused the first GRN's %s", tee)
+	}
+	for i := 0; i < 2; i++ { // the second call is a replay and must not add again
+		if _, err := EnsureBatch(tenantID, BatchInfo{BatchNo: day, Item: "DAY-SKU", GRN: "GRN-B", Location: "LOC-61", AutoNumbered: true}, 2, "test"); err != nil {
+			t.Fatalf("EnsureBatch (shared): %v", err)
+		}
+	}
+	rows, err := GetBatchAgeing(tenantID, day, 0, false)
+	if err != nil || len(rows) != 1 || rows[0].ReceivedQty != 5 || rows[0].GRN != "GRN-A, GRN-B" {
+		t.Fatalf("day batch = %+v %v, want received 5 across GRN-A, GRN-B", rows, err)
+	}
+
+	// Off for the client: nothing is numbered (the per-line Item still is,
+	// since an Item's own rule wins).
+	if err := SetSetting(tenantID, "inventory.grn_batch_number", GRNBatchOff, "test"); err != nil {
+		t.Fatal(err)
+	}
+	off := prep(`[{"sku":"TEE-BLU-M","qty":1},{"sku":"LINE-SKU","qty":1}]`)
+	if b, ok := off[0]["batch_no"]; ok {
+		t.Errorf("client off, but TEE-BLU-M got %v", b)
+	}
+	if b, _ := off[1]["batch_no"].(string); !shape.MatchString(b) {
+		t.Errorf("Item rule 'One per GRN line' should win over client off, got %q", b)
 	}
 
 	edit := map[string]interface{}{"received_items": `[{"sku":"TEE-BLU-M","qty":2}]`}
 	if err := PrepareGRNBatchNumbers(tenantID, false, edit); err != nil || edit["received_items"] != `[{"sku":"TEE-BLU-M","qty":2}]` {
 		t.Errorf("an edit must not be renumbered: %v %v", edit["received_items"], err)
 	}
+}
 
-	teeBatch := tee.(string)
-	if _, err := EnsureBatch(tenantID, BatchInfo{BatchNo: teeBatch, Item: "TEE-BLU-M", GRN: "GRN-61-T1"}, 5, "test"); err != nil {
-		t.Fatalf("EnsureBatch: %v", err)
+// Stage 61.9: what is left of each batch is the SKU's stock on hand laid
+// against its batches newest first; bands follow each batch's age; stock
+// beyond everything received is "before batch numbers".
+func TestBatchAgeingFIFOAndBands(t *testing.T) {
+	db.InitDB(testConnStr())
+	tenantID, schemaName := uniqueLifecycleTenant(t)
+	defer dropLifecycleTenant(tenantID, schemaName)
+	if _, err := ProvisionTenantSchema(tenantID, schemaName, "0.1.0-test"); err != nil {
+		t.Fatalf("ProvisionTenantSchema: %v", err)
 	}
-	byBatch, err := GetBatchAgeing(tenantID, teeBatch, 0)
+	dayAgo := func(n int) string { return time.Now().AddDate(0, 0, -n).Format("2006-01-02") }
+	if _, err := db.DB.Exec(`INSERT INTO `+schemaName+`.documents (doctype, id, data, status, created_by) VALUES
+		('Item', 'AGE-SKU', '{"code":"AGE-SKU","name":"Aged","barcode":"0200000006101"}', 'Active', 'admin'),
+		('Item', 'OLD-SKU', '{"code":"OLD-SKU","name":"Older stock"}', 'Active', 'admin'),
+		('Batch', 'BATCH-61-1', jsonb_build_object('batch_no','B-OLD','item','AGE-SKU','received_qty',10,'received_on',$1::text,'grn','GRN-1'), 'Active', 'test'),
+		('Batch', 'BATCH-61-2', jsonb_build_object('batch_no','B-MID','item','AGE-SKU','received_qty',5,'received_on',$2::text,'grn','GRN-2'), 'Active', 'test'),
+		('Batch', 'BATCH-61-3', jsonb_build_object('batch_no','B-NEW','item','AGE-SKU','received_qty',4,'received_on',$3::text,'grn','GRN-3'), 'Active', 'test'),
+		('Batch', 'BATCH-61-4', jsonb_build_object('batch_no','B-ONE','item','OLD-SKU','received_qty',10,'received_on',$3::text,'grn','GRN-4'), 'Active', 'test')`,
+		dayAgo(100), dayAgo(45), dayAgo(5)); err != nil {
+		t.Fatalf("seed: %v", err)
+	}
+	if _, err := db.DB.Exec(`INSERT INTO ` + schemaName + `.inventory_availability (sku, location_code, on_hand, available) VALUES
+		('AGE-SKU', 'LOC-A', 8, 8), ('AGE-SKU', 'LOC-B', 4, 4), ('OLD-SKU', 'LOC-A', 15, 15)`); err != nil {
+		t.Fatalf("seed stock: %v", err)
+	}
+
+	// 12 on hand: B-NEW 4, B-MID 5, B-OLD the remaining 3. Scanned by barcode.
+	rows, err := GetBatchAgeing(tenantID, "0200000006101", 0, false)
+	if err != nil || len(rows) != 3 {
+		t.Fatalf("scan by barcode = %+v %v", rows, err)
+	}
+	want := []struct {
+		batch string
+		left  float64
+		band  string
+	}{{"B-OLD", 3, "91-180"}, {"B-MID", 5, "31-60"}, {"B-NEW", 4, "0-30"}}
+	for i, w := range want {
+		if rows[i].BatchNo != w.batch || rows[i].EstQtyLeft != w.left || rows[i].AgeBand != w.band {
+			t.Errorf("row %d = %s left %v band %s, want %s left %v band %s",
+				i, rows[i].BatchNo, rows[i].EstQtyLeft, rows[i].AgeBand, w.batch, w.left, w.band)
+		}
+	}
+	if old, _ := GetBatchAgeing(tenantID, "AGE-SKU", 40, false); len(old) != 2 {
+		t.Errorf("older than 40 days = %d rows, want B-OLD and B-MID", len(old))
+	}
+
+	// Sell 6: 6 left -> B-NEW 4, B-MID 2, B-OLD nothing.
+	if _, err := db.DB.Exec(`UPDATE ` + schemaName + `.inventory_availability SET on_hand = 2 WHERE sku = 'AGE-SKU' AND location_code = 'LOC-A'`); err != nil {
+		t.Fatal(err)
+	}
+	inStock, err := GetBatchAgeing(tenantID, "AGE-SKU", 0, true)
+	if err != nil || len(inStock) != 2 || inStock[0].BatchNo != "B-MID" || inStock[0].EstQtyLeft != 2 {
+		t.Fatalf("only with stock left = %+v %v, want B-MID 2 then B-NEW 4", inStock, err)
+	}
+
+	bands, err := GetStockAgeing(tenantID, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(byBatch) != 1 || byBatch[0].Sku != "TEE-BLU-M" ||
-		byBatch[0].GRN != "GRN-61-T1" || byBatch[0].ReceivedOn != time.Now().Format("2006-01-02") ||
-		byBatch[0].AgeDays != 0 || byBatch[0].ReceivedQty != 5 {
-		t.Fatalf("scan of %s = %+v", teeBatch, byBatch)
+	got := map[string]StockAgeingRow{}
+	for _, b := range bands {
+		got[b.Sku] = b
 	}
-	bySKU, err := GetBatchAgeing(tenantID, "TEE-BLU-M", 0)
-	if err != nil || len(bySKU) != 1 || bySKU[0].BatchNo != teeBatch {
-		t.Fatalf("scan of the SKU = %+v %v, want its one lot", bySKU, err)
+	age := got["AGE-SKU"]
+	if age.OnHand != 6 || age.Band0to30 != 4 || age.Band31to60 != 2 || age.Band91to180 != 0 || age.BeforeBatch != 0 || age.OldestBatch != "B-MID" {
+		t.Errorf("AGE-SKU bands = %+v", age)
 	}
-	if old, err := GetBatchAgeing(tenantID, teeBatch, 30); err != nil || len(old) != 0 {
-		t.Errorf("a lot received today is not 30 days old: %+v %v", old, err)
+	old := got["OLD-SKU"]
+	if old.OnHand != 15 || old.Band0to30 != 10 || old.BeforeBatch != 5 {
+		t.Errorf("OLD-SKU bands = %+v, want 10 in 0-30 and 5 before batch numbers", old)
 	}
-	if none, err := GetBatchAgeing(tenantID, "NO-SUCH-CODE", 0); err != nil || len(none) != 0 {
-		t.Errorf("unknown scan = %+v %v, want no rows and no error", none, err)
+	if len(bands) < 2 || bands[0].Sku != "OLD-SKU" {
+		t.Errorf("stock older than any batch should lead: %+v", bands)
+	}
+}
+
+// Stage 61.7: a counter series (GRN batch numbers, barcodes) may share a
+// prefix with a document series - its values are never record ids - while two
+// document series still may not.
+func TestCounterSeriesPrefixMayRepeat(t *testing.T) {
+	all := []NumberSeries{{DocType: "PurchaseOrder", Prefix: "PO"}}
+	batch := NumberSeries{DocType: "GRNBatchSeq", Prefix: "PO", Separator: "-", PaddingWidth: 4, ResetFrequency: "ANNUAL"}
+	if err := validateNumberSeries(batch, &NumberSeries{DocType: "GRNBatchSeq", Prefix: "B"}, nil, all); err != nil {
+		t.Errorf("GRN batch series with prefix PO refused: %v", err)
+	}
+	grn := NumberSeries{DocType: "GRN", Prefix: "PO", Separator: "/", PaddingWidth: 5, ResetFrequency: "ANNUAL"}
+	if err := validateNumberSeries(grn, &NumberSeries{DocType: "GRN", Prefix: "GRN"}, nil, all); err == nil {
+		t.Error("a document series reusing PO's prefix must still be refused")
 	}
 }
 

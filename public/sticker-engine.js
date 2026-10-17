@@ -98,15 +98,25 @@ export const DEFAULT_STICKER_TEMPLATE = {
   id: '', code: '', name: 'Built-in default', w: 50, h: 25,
   settings: DEFAULT_SETTINGS, assets: {},
   elements: [
-    { id: 'd1', kind: 'text', field: 'name', x_mm: 2, y_mm: 1.2, w_mm: 46, h_mm: 4.6, font_size_mm: 3.2, bold: true, fit: 'shrink', align: 'center', valign: 'middle' },
-    { id: 'd2', kind: 'barcode', field: 'barcode', x_mm: 2, y_mm: 6.0, w_mm: 46, h_mm: 10.4, symbology: 'code128', show_text: true, quiet_zone: true },
-    { id: 'd3', kind: 'text', field: 'custom', text: 'SKU: {sku}', x_mm: 2, y_mm: 16.8, w_mm: 27, h_mm: 3.8, font_size_mm: 2.6, fit: 'shrink', valign: 'middle' },
-    { id: 'd4', kind: 'text', field: 'hsn_code', prefix: 'HSN: ', x_mm: 29, y_mm: 16.8, w_mm: 19, h_mm: 3.8, font_size_mm: 2.6, fit: 'shrink', align: 'right', valign: 'middle' },
-    // Stage 61: the GRN batch (B + receipt date), so the day it came in reads
-    // off the tag. Left off by the blank-value rule when a label has no batch.
-    { id: 'd5', kind: 'text', field: 'batch_no', prefix: 'Batch: ', x_mm: 2, y_mm: 20.8, w_mm: 46, h_mm: 3.6, font_size_mm: 2.6, fit: 'shrink', valign: 'middle' }
+    { id: 'd1', kind: 'text', field: 'name', x_mm: 2, y_mm: 0.8, w_mm: 46, h_mm: 3.6, font_size_mm: 2.8, bold: true, fit: 'shrink', align: 'center', valign: 'middle' },
+    { id: 'd2', kind: 'barcode', field: 'barcode', x_mm: 2, y_mm: 4.6, w_mm: 46, h_mm: 8.4, symbology: 'code128', show_text: true, quiet_zone: true, font_size_mm: 2.0 },
+    { id: 'd3', kind: 'text', field: 'custom', text: 'SKU: {sku}', x_mm: 2, y_mm: 13.2, w_mm: 27, h_mm: 3.0, font_size_mm: 2.3, fit: 'shrink', valign: 'middle' },
+    { id: 'd4', kind: 'text', field: 'hsn_code', prefix: 'HSN: ', x_mm: 29, y_mm: 13.2, w_mm: 19, h_mm: 3.0, font_size_mm: 2.3, fit: 'shrink', align: 'right', valign: 'middle' },
+    // Stage 61: the GRN batch as its own scannable barcode, number printed
+    // under it - the receipt date reads off the tag, and a scan in Batch
+    // Lookup & Ageing finds this exact batch. Left off by the blank-value rule
+    // when a label has no batch (a label printed without a document).
+    { id: 'd5', kind: 'barcode', field: 'batch_no', x_mm: 1, y_mm: 16.4, w_mm: 48, h_mm: 8.0, symbology: 'code128', show_text: true, quiet_zone: true, font_size_mm: 2.0 }
   ]
 };
+
+// A batch number in the default GRN batch shape (B-YYMMDD-NNNN, Stage 61),
+// dated today, so a design previews and scan-checks at the real length.
+export const SAMPLE_BATCH_NO = (() => {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `B-${String(d.getFullYear()).slice(-2)}${p(d.getMonth() + 1)}${p(d.getDate())}-0001`;
+})();
 
 // The built-in label fields every sticker carries (engines.StickerLabel);
 // anything else is read off label.fields, i.e. the Item record.
@@ -116,7 +126,7 @@ export const BUILTIN_FIELDS = [
   { key: 'barcode', label: 'Barcode value', sample: '8901234567890' },
   { key: 'hsn_code', label: 'HSN code', sample: '7113' },
   { key: 'category', label: 'Category', sample: 'Rings' },
-  { key: 'batch_no', label: 'Batch / Lot', sample: 'LOT-24A' },
+  { key: 'batch_no', label: 'Batch / Lot', sample: SAMPLE_BATCH_NO },
   { key: 'expiry_date', label: 'Expiry date', sample: '2027-01-01' },
   { key: 'mfg_date', label: 'Mfg date', sample: '2026-01-01' },
   { key: 'qty', label: 'Qty (copies on this line)', sample: '1' },
@@ -125,7 +135,7 @@ export const BUILTIN_FIELDS = [
 
 export const SAMPLE_LABEL = {
   sku: 'SKU-0001', name: 'Sample Item Name', barcode: '8901234567890', hsn_code: '7113',
-  category: 'Rings', batch_no: 'LOT-24A', expiry_date: '2027-01-01', mfg_date: '2026-01-01',
+  category: 'Rings', batch_no: SAMPLE_BATCH_NO, expiry_date: '2027-01-01', mfg_date: '2026-01-01',
   qty: 1, source_doc_id: 'GRN-0001', fields: {}
 };
 

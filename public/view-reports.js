@@ -841,11 +841,23 @@ function renderReportCatalogParams() {
   const def = currentReportCatalogDef();
   const container = document.getElementById('rc-params');
   if (!def || !container) return;
+  // A "select" param is a real dropdown of its options (it used to render as a
+  // free-text box, so the user had to type an option exactly). An optional one
+  // leads with a blank "Any"; otherwise its first option is the default.
+  const control = p => {
+    if (p.type === 'select' && p.options) {
+      const opts = p.options.split(',').map(o => o.trim()).filter(Boolean);
+      const any = /\(optional\)/i.test(p.label) ? '<option value="">Any</option>' : '';
+      return `<select id="rc-param-${p.key}" class="form-select" data-param-key="${p.key}" style="width: 180px;">${any}${opts.map(o =>
+        `<option value="${escapeHTMLText(o)}">${escapeHTMLText(o)}</option>`).join('')}</select>`;
+    }
+    return `<input type="${p.type === 'date' ? 'date' : 'text'}" id="rc-param-${p.key}" class="form-input"
+             data-param-key="${p.key}" ${p.required ? 'required' : ''} style="width: 160px;">`;
+  };
   container.innerHTML = (def.params || []).map(p => `
     <div class="form-group" style="margin-bottom: 0;">
       <label class="form-label" for="rc-param-${p.key}">${p.label}</label>
-      <input type="${p.type === 'date' ? 'date' : 'text'}" id="rc-param-${p.key}" class="form-input"
-             data-param-key="${p.key}" ${p.required ? 'required' : ''} style="width: 160px;">
+      ${control(p)}
     </div>
   `).join('');
 }

@@ -222,6 +222,8 @@
         "engines/tenant_lifecycle.go",
         "engines/platform_console.go",
         "internal/server/handlers_platform_console.go",
+        "engines/platform_control_panel.go",
+        "internal/server/handlers_control_panel.go",
         "cmd/tenantctl/*",
         "engines/modules.go",
         "engines/tenant_limits.go",
@@ -325,6 +327,7 @@
         "engines/grn_pricing.go",
         "engines/po_design.go",
         "internal/server/handlers_po_design.go",
+        "engines/item_names.go",
         "engines/purchase_return.go",
         "internal/server/handlers_purchase_return.go"
       ]

@@ -39,6 +39,7 @@ type ItemTypeRules struct {
 	Name            string
 	BarcodeAt       string // "" (inherit), BarcodeAtSKUCreate, BarcodeAtGRN, BarcodeAtOff
 	BarcodePerDate  string // "" (inherit), "yes", "no"
+	BatchMode       string // "" (inherit), or a GRNBatch* mode (Stage 61.6)
 	SellAtZeroPrice bool
 	NeedsParentItem bool
 	Backflush       bool
@@ -143,6 +144,7 @@ func cachedItemTypes(tenantID string) map[string]ItemTypeRules {
 			Name:            id,
 			BarcodeAt:       barcodeAtFromLabel(pimString(data["barcode_generate_at"])),
 			BarcodePerDate:  barcodePerDateFromLabel(pimString(data["barcode_per_receipt_date"])),
+			BatchMode:       grnBatchModeFromLabel(pimString(data["grn_batch_number"])),
 			SellAtZeroPrice: yesValue(data["sell_at_zero_price"]),
 			NeedsParentItem: yesValue(data["needs_parent_item"]),
 			Backflush:       yesValue(data["backflush"]),
@@ -165,6 +167,9 @@ func ItemRules(tenantID string, itemData map[string]interface{}) ItemTypeRules {
 	if v := barcodePerDateFromLabel(pimString(itemData["barcode_per_receipt_date"])); v != "" {
 		r.BarcodePerDate = v
 	}
+	if v := grnBatchModeFromLabel(pimString(itemData["grn_batch_number"])); v != "" {
+		r.BatchMode = v
+	}
 	return r
 }
 
@@ -186,6 +191,31 @@ func EffectiveBarcodePerReceiptDate(tenantID string, itemData map[string]interfa
 		return false
 	}
 	return BarcodePerReceiptDate(tenantID)
+}
+
+// EffectiveGRNBatchMode is how this Item's blank GRN lines get batch numbers
+// (Stage 61.6): the Item's own rule, then its type's, then the client's.
+func EffectiveGRNBatchMode(tenantID string, itemData map[string]interface{}) string {
+	if v := ItemRules(tenantID, itemData).BatchMode; v != "" {
+		return v
+	}
+	return GRNBatchMode(tenantID)
+}
+
+// grnBatchModeFromLabel maps the Select labels (and the raw setting values)
+// to a GRNBatch* mode; anything else inherits.
+func grnBatchModeFromLabel(v string) string {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "one per sku on each grn", GRNBatchPerGRNSKU:
+		return GRNBatchPerGRNSKU
+	case "one per grn line", GRNBatchPerLine:
+		return GRNBatchPerLine
+	case "one per sku per day", GRNBatchPerSKUDay:
+		return GRNBatchPerSKUDay
+	case GRNBatchOff:
+		return GRNBatchOff
+	}
+	return ""
 }
 
 // barcodeAtFromLabel maps the Select labels (and the raw setting values, so a

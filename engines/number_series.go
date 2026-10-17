@@ -43,6 +43,10 @@ type NumberSeries struct {
 
 var validResetFrequency = map[string]bool{"ANNUAL": true, "MONTHLY": true, "NEVER": true}
 
+// counterSeries mint values that are never a document id: barcode digits and
+// GRN batch numbers (Stage 61.7).
+var counterSeries = map[string]bool{"PIMBarcodeSeq": true, "PIMDatedBarcodeSeq": true, "GRNBatchSeq": true}
+
 // seriesTextPattern is what a prefix, suffix or override may contain: letters,
 // digits and the few joiners people use in document numbers. No spaces - a
 // number is read aloud, typed into searches and printed on barcodes.
@@ -184,6 +188,11 @@ func validateNumberSeries(s NumberSeries, current *NumberSeries, overrides map[s
 
 	mine := seriesPrefixes(s.Prefix, overrides)
 	for _, other := range all {
+		// A counter's number is never a record id, so it cannot replace a
+		// record - its prefix may repeat one a document series uses.
+		if counterSeries[s.DocType] || counterSeries[other.DocType] {
+			continue
+		}
 		if other.DocType == s.DocType {
 			continue
 		}

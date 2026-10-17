@@ -135,6 +135,19 @@ for checking the current source and worktree.
   its working tree keeps `app.js?v=38` (never served by prod, so no cache clash). Brain map not redrawn
   for Stage 64/65's new files. SOP videos still untracked (user to push).
 
+- **2026-10-16 Stage 61.6-61.11 GRN batch flexibility (checklist Stage 61; ledger §221) - BUILT AND
+  VERIFIED, NOT COMMITTED, NOT DEPLOYED.** Batch numbering per client / Item Type / Item
+  (`inventory.grn_batch_number`: per SKU per GRN, per line, per SKU per day, off); look = the
+  `GRNBatchSeq` number series (default now `B-261016-0001`); built-in sticker prints the batch as a
+  second barcode; Studio drop-a-field-on-a-barcode rebinds it; FIFO "Est. Left" + age bands on
+  `batch-ageing`, new `stock-ageing` report; Report Catalog `select` params render as dropdowns.
+  Files: `engines/{wms_receiving,traceability,traceability_reports,item_types,number_series,
+  settings_definitions,barcode_policy_test}.go`, `db/migrations_stage61_6_grn_batch_rules.sql`
+  (new), `public/{sticker-engine,sticker-studio,view-admin,view-reports,view-procurement}.js`,
+  `public/app.js` + `index.html` (version 37 -> 38 only), both guides, trackers, attack surface
+  (187 migrations). Migration applied to local :5490. **Deploy:** binary and migration together;
+  the migration only changes `GRNBatchSeq` where it is still the untouched 61.1 seed.
+
 - **2026-10-16 Stage 64 COMMITTED, PUSHED AND DEPLOYED (`042579b`).** Client schema sync
   (`db/tenant_schema_sync.go`, runs after every `-migrate` and in provisioning) brought prod's
   `tenant_minn` fully in step with tenant_default (it was missing 16 tables, 11 columns incl.

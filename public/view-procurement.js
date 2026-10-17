@@ -2119,7 +2119,7 @@ async function populateGRNBatchRow() {
     const shelfLife = grnBatchShelfLife[sku] || 0;
     note.innerHTML = tracked
       ? `<b>${escapeHTMLText(sku)}</b> is batch-tracked &mdash; a lot number is required.${shelfLife > 0 ? ` If you enter a manufacture date and leave Expiry blank, expiry is derived as manufacture + ${shelfLife} days.` : ''}`
-      : `<b>${escapeHTMLText(sku)}</b> is not batch-tracked. Leave Batch / Lot No blank and it gets a batch number with today's date (e.g. B261015-0001) when the GRN is saved, or type your own.`;
+      : `<b>${escapeHTMLText(sku)}</b> is not batch-tracked. Leave Batch / Lot No blank and it gets a batch number with today's date (e.g. B-261015-0001) when the GRN is saved - unless batch numbers are switched off for it - or type your own.`;
   }
 
   // Stage 42.1.8: the serial row only shows for a Serial / Batch and Serial

@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // Stage 42.1 - the traceability foundation.
@@ -182,8 +185,10 @@ type BatchInfo struct {
 	ExpiryDate    string            `json:"expiry_date,omitempty"`
 	SupplierBatch string            `json:"supplier_batch,omitempty"`
 	Vendor        string            `json:"vendor,omitempty"`
-	GRN           string            `json:"grn,omitempty"`         // the receipt that first registered this lot
-	ReceivedOn    string            `json:"received_on,omitempty"` // that receipt's date - what batch ageing counts from
+	GRN           string            `json:"grn,omitempty"`           // the receipt that first registered this lot
+	ReceivedOn    string            `json:"received_on,omitempty"`   // that receipt's date - what batch ageing counts from
+	Location      string            `json:"location,omitempty"`      // where that receipt was posted
+	AutoNumbered  bool              `json:"auto_numbered,omitempty"` // the number was issued by the GRN (Stage 61), not typed
 	Status        string            `json:"status"`
 	Attributes    map[string]string `json:"attributes,omitempty"`
 }
@@ -208,6 +213,8 @@ func batchFromData(docID, dataStr, status string) BatchInfo {
 	out.Vendor, _ = data["vendor"].(string)
 	out.GRN, _ = data["grn"].(string)
 	out.ReceivedOn, _ = data["received_on"].(string)
+	out.Location, _ = data["location"].(string)
+	out.AutoNumbered = data["auto_numbered"] == "Yes"
 	// The JSON status field and the documents.status column are separate values
 	// in this schema (the CycleCountLine gate documents the same distinction).
 	// The column is authoritative for a lifecycle decision, so it is only
@@ -290,6 +297,19 @@ func EnsureBatch(tenantID string, in BatchInfo, receivedQty float64, userID stri
 			patch["vendor"] = in.Vendor
 			existing.Vendor = in.Vendor
 		}
+		// One day's auto-numbered batch shared by a later GRN (per-SKU-per-day
+		// numbering): add that receipt's quantity and record the GRN, once.
+		if grn := strings.TrimSpace(in.GRN); in.AutoNumbered && grn != "" && existing.AutoNumbered {
+			if _, err := db.DB.Exec(fmt.Sprintf(`
+				UPDATE %s.documents
+				SET data = jsonb_set(jsonb_set(data, '{received_qty}', to_jsonb(COALESCE(NULLIF(data->>'received_qty', '')::numeric, 0) + $2)),
+				                     '{grns}', COALESCE(data->'grns', '[]'::jsonb) || to_jsonb($3::text)),
+				    updated_at = CURRENT_TIMESTAMP
+				WHERE doctype = 'Batch' AND id = $1 AND COALESCE(data->>'grn', '') <> $3
+				  AND NOT COALESCE(data->'grns', '[]'::jsonb) ? $3`, schema), existing.DocID, receivedQty, grn); err != nil {
+				return nil, err
+			}
+		}
 		if len(patch) > 0 {
 			patchJSON, _ := json.Marshal(patch)
 			if _, err := db.DB.Exec(fmt.Sprintf(`
@@ -328,6 +348,13 @@ func EnsureBatch(tenantID string, in BatchInfo, receivedQty float64, userID stri
 	if grn := strings.TrimSpace(in.GRN); grn != "" {
 		data["grn"] = grn
 		data["received_on"] = localDateString(time.Now())
+		data["grns"] = []string{grn}
+	}
+	if loc := strings.TrimSpace(in.Location); loc != "" {
+		data["location"] = loc
+	}
+	if in.AutoNumbered {
+		data["auto_numbered"] = "Yes"
 	}
 	if len(in.Attributes) > 0 {
 		attrJSON, _ := json.Marshal(in.Attributes)
@@ -1490,32 +1517,58 @@ func sortBatchStockByExpiry(rows []BatchStockRow) {
 
 // ---------------------------------------------------------------------------
 // Batch lookup and ageing - "scan it and know which day it came in".
+//
+// What is left of each batch is an ESTIMATE, first in first out: a sale scans
+// the SKU's barcode and records no batch, so the SKU's stock on hand is laid
+// against its newest receipts first and the oldest batches are taken as sold.
+// That is the usual way stock is aged when sales are not batch-tracked. Stock
+// on hand beyond everything the batches received is older than any batch
+// (received before GRN batch numbers existed).
 // ---------------------------------------------------------------------------
 
-// BatchAgeingRow is one lot and how long ago it was received.
+// BatchAgeingRow is one lot, how long ago it was received, and how much of it
+// is estimated to be left.
 type BatchAgeingRow struct {
 	Sku         string  `json:"sku"`
 	BatchNo     string  `json:"batch_no"`
 	ReceivedOn  string  `json:"received_on"`
 	AgeDays     int     `json:"age_days"`
+	AgeBand     string  `json:"age_band"`
 	GRN         string  `json:"grn"`
 	Vendor      string  `json:"vendor"`
 	ReceivedQty float64 `json:"received_qty"`
+	EstQtyLeft  float64 `json:"est_qty_left"`
 	ExpiryDate  string  `json:"expiry_date,omitempty"`
 	Status      string  `json:"status"`
+}
+
+// Ageing bands, in days since receipt.
+var ageBands = []struct {
+	Upto int
+	Name string
+}{{30, "0-30"}, {60, "31-60"}, {90, "61-90"}, {180, "91-180"}}
+
+// ageBand names the band a batch of this age falls in.
+func ageBand(days int) string {
+	for _, b := range ageBands {
+		if days <= b.Upto {
+			return b.Name
+		}
+	}
+	return "180+"
 }
 
 // GetBatchAgeing answers a scan. A value that is a batch number returns that
 // lot; otherwise a SKU, its barcode or a receipt-date barcode returns every
 // lot of that item. A blank scan lists every lot. Oldest first, so the stock
 // that has waited longest leads. minAgeDays > 0 keeps only lots at least that
-// old.
+// old; inStockOnly keeps only lots with stock estimated left.
 //
 // Ageing counts from the receipt date the GRN stamped on the lot; a lot from
 // before that existed (typed by hand, or received before GRN batch numbers)
 // falls back to the date its Batch record was created, which for a lot first
 // seen on a GRN is the same day.
-func GetBatchAgeing(tenantID, scan string, minAgeDays int) ([]BatchAgeingRow, error) {
+func GetBatchAgeing(tenantID, scan string, minAgeDays int, inStockOnly bool) ([]BatchAgeingRow, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -1526,31 +1579,43 @@ func GetBatchAgeing(tenantID, scan string, minAgeDays int) ([]BatchAgeingRow, er
 		return nil, err
 	}
 	if len(rows) == 0 && scan != "" {
-		item, errItem := ResolveItemBySKU(tenantID, scan)
+		code, found, errItem := scannedItemCode(tenantID, scan)
 		if errItem != nil {
-			if errors.Is(errItem, ErrItemNotFound) {
-				return rows, nil
-			}
 			return nil, errItem
 		}
-		code := strField(item.Data, "code")
-		if code == "" {
-			code = item.ID
+		if !found {
+			return rows, nil
 		}
 		if rows, err = queryBatchAgeing(schema, "", code); err != nil {
 			return nil, err
 		}
 	}
-	if minAgeDays <= 0 {
-		return rows, nil
+	if err := fillBatchRemaining(schema, rows); err != nil {
+		return nil, err
 	}
 	kept := rows[:0]
 	for _, r := range rows {
-		if r.AgeDays >= minAgeDays {
+		if (minAgeDays <= 0 || r.AgeDays >= minAgeDays) && (!inStockOnly || r.EstQtyLeft > 0) {
 			kept = append(kept, r)
 		}
 	}
 	return kept, nil
+}
+
+// scannedItemCode resolves a scanned SKU, barcode or receipt-date barcode to
+// the Item code batches are recorded against.
+func scannedItemCode(tenantID, scan string) (string, bool, error) {
+	item, err := ResolveItemBySKU(tenantID, scan)
+	if errors.Is(err, ErrItemNotFound) {
+		return "", false, nil
+	} else if err != nil {
+		return "", false, err
+	}
+	code := strField(item.Data, "code")
+	if code == "" {
+		code = item.ID
+	}
+	return code, true, nil
 }
 
 // queryBatchAgeing reads lots by batch number or by item code (both optional).
@@ -1561,7 +1626,7 @@ func queryBatchAgeing(schema, batchNo, sku string) ([]BatchAgeingRow, error) {
 		WHERE b.doctype = 'Batch' AND b.deleted_at IS NULL
 		  AND ($1 = '' OR UPPER(b.data->>'batch_no') = UPPER($1))
 		  AND ($2 = '' OR b.data->>'item' = $2)
-		ORDER BY COALESCE(NULLIF(b.data->>'received_on', ''), to_char(b.created_at, 'YYYY-MM-DD')), b.data->>'batch_no'
+		ORDER BY COALESCE(NULLIF(b.data->>'received_on', ''), to_char(b.created_at, 'YYYY-MM-DD')), b.created_at, b.data->>'batch_no'
 		LIMIT 5000`, schema), batchNo, sku)
 	if err != nil {
 		return nil, err
@@ -1580,15 +1645,228 @@ func queryBatchAgeing(schema, batchNo, sku string) ([]BatchAgeingRow, error) {
 		if received == "" {
 			received = created
 		}
+		grns := info.GRN
+		if list, ok := data["grns"].([]interface{}); ok && len(list) > 1 {
+			parts := make([]string, 0, len(list))
+			for _, g := range list {
+				if s, ok := g.(string); ok && s != "" {
+					parts = append(parts, s)
+				}
+			}
+			grns = strings.Join(parts, ", ")
+		}
 		r := BatchAgeingRow{
 			Sku: info.Item, BatchNo: info.BatchNo, ReceivedOn: received,
-			GRN: info.GRN, Vendor: info.Vendor, ReceivedQty: numFromInterface(data["received_qty"]),
+			GRN: grns, Vendor: info.Vendor, ReceivedQty: numFromInterface(data["received_qty"]),
 			ExpiryDate: info.ExpiryDate, Status: info.Status,
 		}
 		if d, ok := parseTraceDate(received); ok {
 			r.AgeDays = int(today().Sub(d).Hours() / 24)
 		}
+		r.AgeBand = ageBand(r.AgeDays)
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// skuLayers is one SKU's stock on hand laid against its batches, newest
+// first: Left[batch] is what is estimated to remain of each, Older is the
+// stock beyond everything the batches received.
+type skuLayers struct {
+	OnHand float64
+	Left   map[string]float64
+	Older  float64
+}
+
+// batchLayers lays each SKU's stock on hand (every location) against its
+// batches, newest receipt first.
+func batchLayers(schema string, skus []string) (map[string]*skuLayers, error) {
+	out := map[string]*skuLayers{}
+	if len(skus) == 0 {
+		return out, nil
+	}
+	for _, s := range skus {
+		out[s] = &skuLayers{Left: map[string]float64{}}
+	}
+	onHand, err := db.DB.Query(fmt.Sprintf(
+		`SELECT sku, COALESCE(SUM(on_hand), 0) FROM %s.inventory_availability WHERE sku = ANY($1) GROUP BY sku`, schema), pq.Array(skus))
+	if err != nil {
+		return nil, err
+	}
+	for onHand.Next() {
+		var sku string
+		var qty float64
+		if err := onHand.Scan(&sku, &qty); err != nil {
+			onHand.Close()
+			return nil, err
+		}
+		if l := out[sku]; l != nil && qty > 0 {
+			l.OnHand = qty
+		}
+	}
+	onHand.Close()
+	if err := onHand.Err(); err != nil {
+		return nil, err
+	}
+	remaining := map[string]float64{}
+	for s, l := range out {
+		remaining[s] = l.OnHand
+	}
+	batches, err := db.DB.Query(fmt.Sprintf(`
+		SELECT data->>'item', data->>'batch_no', COALESCE(NULLIF(data->>'received_qty', '')::numeric, 0)
+		FROM %s.documents
+		WHERE doctype = 'Batch' AND deleted_at IS NULL AND data->>'item' = ANY($1)
+		ORDER BY COALESCE(NULLIF(data->>'received_on', ''), to_char(created_at, 'YYYY-MM-DD')) DESC, created_at DESC`, schema), pq.Array(skus))
+	if err != nil {
+		return nil, err
+	}
+	defer batches.Close()
+	for batches.Next() {
+		var sku, batchNo string
+		var received float64
+		if err := batches.Scan(&sku, &batchNo, &received); err != nil {
+			return nil, err
+		}
+		l := out[sku]
+		if l == nil {
+			continue
+		}
+		take := math.Min(math.Max(received, 0), remaining[sku])
+		l.Left[batchNo] += take
+		remaining[sku] -= take
+	}
+	for s, l := range out {
+		l.Older = remaining[s]
+	}
+	return out, batches.Err()
+}
+
+// fillBatchRemaining sets EstQtyLeft on each row from its SKU's layers.
+func fillBatchRemaining(schema string, rows []BatchAgeingRow) error {
+	seen := map[string]bool{}
+	skus := []string{}
+	for _, r := range rows {
+		if !seen[r.Sku] {
+			seen[r.Sku] = true
+			skus = append(skus, r.Sku)
+		}
+	}
+	layers, err := batchLayers(schema, skus)
+	if err != nil {
+		return err
+	}
+	for i := range rows {
+		if l := layers[rows[i].Sku]; l != nil {
+			rows[i].EstQtyLeft = l.Left[rows[i].BatchNo]
+		}
+	}
+	return nil
+}
+
+// StockAgeingRow is one SKU's stock on hand split into ageing bands by the
+// batches it is estimated to come from.
+type StockAgeingRow struct {
+	Sku          string  `json:"sku"`
+	OnHand       float64 `json:"on_hand"`
+	Band0to30    float64 `json:"band_0_30"`
+	Band31to60   float64 `json:"band_31_60"`
+	Band61to90   float64 `json:"band_61_90"`
+	Band91to180  float64 `json:"band_91_180"`
+	Band180Plus  float64 `json:"band_180_plus"`
+	BeforeBatch  float64 `json:"before_batches"`
+	OldestBatch  string  `json:"oldest_batch"`
+	OldestOnDate string  `json:"oldest_received_on"`
+}
+
+// GetStockAgeing ages every SKU with stock on hand (or the one scanned): its
+// stock is laid against its batches newest first, and each batch's share is
+// counted in the band of that batch's age. Oldest stock first.
+func GetStockAgeing(tenantID, scan string) ([]StockAgeingRow, error) {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	var skus []string
+	if scan = strings.TrimSpace(scan); scan != "" {
+		code, found, err := scannedItemCode(tenantID, scan)
+		if err != nil {
+			return nil, err
+		}
+		if !found {
+			return []StockAgeingRow{}, nil
+		}
+		skus = []string{code}
+	} else {
+		rows, err := db.DB.Query(fmt.Sprintf(
+			`SELECT sku FROM %s.inventory_availability GROUP BY sku HAVING SUM(on_hand) > 0 ORDER BY sku LIMIT 20000`, schema))
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			var s string
+			if err := rows.Scan(&s); err != nil {
+				rows.Close()
+				return nil, err
+			}
+			skus = append(skus, s)
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+	}
+	layers, err := batchLayers(schema, skus)
+	if err != nil {
+		return nil, err
+	}
+	out := []StockAgeingRow{}
+	for _, sku := range skus {
+		l := layers[sku]
+		if l == nil || l.OnHand <= 0 {
+			continue
+		}
+		row := StockAgeingRow{Sku: sku, OnHand: l.OnHand, BeforeBatch: l.Older}
+		batches, err := queryBatchAgeing(schema, "", sku)
+		if err != nil {
+			return nil, err
+		}
+		for _, b := range batches { // oldest first
+			left := l.Left[b.BatchNo]
+			if left <= 0 {
+				continue
+			}
+			l.Left[b.BatchNo] = 0 // two batch records with one number are counted once
+			if row.OldestBatch == "" {
+				row.OldestBatch, row.OldestOnDate = b.BatchNo, b.ReceivedOn
+			}
+			switch b.AgeBand {
+			case "0-30":
+				row.Band0to30 += left
+			case "31-60":
+				row.Band31to60 += left
+			case "61-90":
+				row.Band61to90 += left
+			case "91-180":
+				row.Band91to180 += left
+			default:
+				row.Band180Plus += left
+			}
+		}
+		out = append(out, row)
+	}
+	// Stock older than any batch first, then by the oldest batch still held.
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if (a.BeforeBatch > 0) != (b.BeforeBatch > 0) {
+			return a.BeforeBatch > 0
+		}
+		if a.OldestOnDate != b.OldestOnDate {
+			if a.OldestOnDate == "" || b.OldestOnDate == "" {
+				return b.OldestOnDate == ""
+			}
+			return a.OldestOnDate < b.OldestOnDate
+		}
+		return a.Sku < b.Sku
+	})
+	return out, nil
 }

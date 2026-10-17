@@ -57,11 +57,11 @@ async function renderPrefixConfigsView(container) {
     const overrides = Object.keys(c.store_overrides || {}).length;
     html += `
       <tr>
-        <td style="font-weight:600;">${escapeHTMLText(c.doc_type)}</td>
+        <td style="font-weight:600;">${escapeHTMLText(seriesDisplayName(c.doc_type))}</td>
         <td style="font-family: monospace;">${escapeHTMLText(c.prefix)}</td>
         <td>${c.padding_width}</td>
         <td style="font-family: monospace;">${escapeHTMLText(c.suffix || '')}</td>
-        <td>${restarts[c.reset_frequency] || escapeHTMLText(c.reset_frequency)}</td>
+        <td>${(isGRNBatchSeries(c) ? GRN_BATCH_RESTARTS : restarts)[c.reset_frequency] || escapeHTMLText(c.reset_frequency)}</td>
         <td>${c.include_store === false ? 'No' : 'Yes'}</td>
         <td>${overrides ? overrides + (overrides === 1 ? ' store' : ' stores') : '-'}</td>
         <td style="font-family: monospace;">${escapeHTMLText(prefixConfigSample(c, sampleStore))}</td>
@@ -113,6 +113,22 @@ window.editPrefixConfig = function(docType) {
 // prefixConfigSample previews a series' next number in engines/numbering.go's
 // order: <Prefix>/[<Store>/][<Period>/]<Number>[/<Suffix>]. The store segment
 // is its Short Code; a store's own prefix/suffix override wins when given.
+// Series that number something other than a document. A GRN batch number
+// (Stage 61.7) carries the receipt date, so for it "Restarts" means daily /
+// monthly / never and the period in the sample is a date, not a year.
+const SERIES_DISPLAY_NAMES = {
+  GRNBatchSeq: 'GRN batch number',
+  PIMBarcodeSeq: 'Barcode (counter)',
+  PIMDatedBarcodeSeq: 'Receipt-date barcode (counter)'
+};
+const GRN_BATCH_RESTARTS = { ANNUAL: 'Daily', MONTHLY: 'Monthly', NEVER: 'Never' };
+function seriesDisplayName(docType) {
+  return SERIES_DISPLAY_NAMES[docType] ? `${SERIES_DISPLAY_NAMES[docType]} (${docType})` : docType;
+}
+function isGRNBatchSeries(c) {
+  return c && c.doc_type === 'GRNBatchSeq';
+}
+
 function prefixConfigSample(c, storeSegment, storeCode) {
   const o = (storeCode && c.store_overrides && c.store_overrides[storeCode]) || {};
   const parts = [o.prefix || c.prefix];
@@ -120,7 +136,13 @@ function prefixConfigSample(c, storeSegment, storeCode) {
   const reset = (c.reset_frequency || 'ANNUAL').toUpperCase();
   // NEVER is the only setting with no period segment - it never resets, so
   // there is no period to name.
-  if (reset === 'MONTHLY') parts.push('26-27-04');
+  if (isGRNBatchSeries(c)) {
+    const d = new Date();
+    const yy = String(d.getFullYear()).slice(-2);
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    if (reset === 'MONTHLY') parts.push(yy + '-' + mm);
+    else if (reset !== 'NEVER') parts.push(yy + mm + String(d.getDate()).padStart(2, '0'));
+  } else if (reset === 'MONTHLY') parts.push('26-27-04');
   else if (reset !== 'NEVER') parts.push('26-27');
   parts.push(String(1).padStart(c.padding_width || 1, '0'));
   const suffix = o.suffix || c.suffix;
@@ -216,11 +238,16 @@ function openEditPrefixModal(c) {
   const docInput = document.getElementById('edit-prefix-doctype');
   docInput.value = s.doc_type;
   docInput.readOnly = !isNew;
-  document.getElementById('edit-prefix-title').textContent = isNew ? 'New Number Series' : 'Number Series - ' + s.doc_type;
+  document.getElementById('edit-prefix-title').textContent = isNew ? 'New Number Series' : 'Number Series - ' + seriesDisplayName(s.doc_type);
   document.getElementById('edit-prefix-prefix').value = s.prefix || '';
   document.getElementById('edit-prefix-separator').value = s.separator || '';
   document.getElementById('edit-prefix-padding').value = s.padding_width || 5;
   document.getElementById('edit-prefix-suffix').value = s.suffix || '';
+  // A GRN batch number restarts with its date (Stage 61.7).
+  const resetLabels = isGRNBatchSeries(s)
+    ? { ANNUAL: 'Every day (receipt date shown, e.g. 261015)', MONTHLY: 'Every month (year and month shown)', NEVER: 'Never - no date in the number' }
+    : { ANNUAL: 'Every financial year (year shown in the number)', MONTHLY: 'Every month (year and month shown)', NEVER: 'Never - one continuous series' };
+  document.querySelectorAll('#edit-prefix-reset option').forEach(o => { o.textContent = resetLabels[o.value] || o.textContent; });
   document.getElementById('edit-prefix-reset').value = s.reset_frequency || 'ANNUAL';
   document.getElementById('edit-prefix-store').value = s.include_store === false ? 'no' : 'yes';
   document.getElementById('edit-prefix-active').value = s.active_status === false ? 'no' : 'yes';

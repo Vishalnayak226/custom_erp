@@ -44,6 +44,17 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 221. Stage 61.6-61.11 — GRN batch numbers with full flexibility (2026-10-16, code + docs, NOT COMMITTED)
+
+The user asked whether Stage 61 was "ready with expected flexibility"; the honest answer was no, six gaps were listed, and the user said build all of them, the expectation being drag-and-drop label design. Detail in [micro_checklist.md Stage 61](micro_checklist.md).
+
+- **61.6** How often a batch number is given — one per SKU per GRN / per GRN line / per SKU per day / off — set per client, Item Type and Item like the barcode rules (migration `stage61_6_grn_batch_rules`).
+- **61.7** Its look is an ordinary Number Series (`GRNBatchSeq`): prefix, store, date / month / none, length, suffix. Default now `B-261016-0001`.
+- **61.8** The built-in label prints the batch as a scannable barcode; in the Sticker Studio a field dropped onto a barcode rebinds it.
+- **61.9** Estimated stock left per batch (first in, first out) and ageing bands; new **Stock Ageing (by GRN batch)** report.
+- **61.10** Report Catalog dropdown filters are real dropdowns (pre-existing gap).
+- **Verified:** new engine tests, server/db/cmd/securityscan suites, live API + Chrome walk (series edit → GRN from the screen → reports → Studio drag-and-drop), both label barcodes decoded at 203 dpi; fixtures removed.
+
 ## 221. Stage 65 — PO create zone and delete, item name → design → variants, operator Control Panel (2026-10-16/17, code + docs, deployed)
 
 From the minn handover session. **65.1** the PO header, totals and a single Add item row stay pinned while added lines scroll; **65.2** PO delete for roles with Delete on Purchase Order, any status until goods are received (`PURCHA-0320`); **65.3** Category / Product Type / Item Name masters (HSN + GST on the item name, server-numbered); **65.4** the PO's Add design panel becomes item name → typed design number with prefix suggestions → variants with values and attributes addable inline (`PIM-0321`); **65.5** Settings → Control Panel, every client's status, address, modules, version, users, activity, errors, releases and last backup for the platform operator. Also 64.5–64.7 the closable top strip, browser Back inside the ERP and the Vendor list-on-click picker. Detail and decisions in [micro_checklist.md Stage 65](micro_checklist.md).

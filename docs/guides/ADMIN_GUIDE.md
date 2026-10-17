@@ -603,13 +603,25 @@ What you need to know as the administrator:
 - **Barcodes you have already assigned are safe.** If you imported your own barcodes, or your supplier's, receiving will not overwrite them.
 - **This closed a real gap**: before it, a newly received item had no barcode, so its label had nothing to print and someone had to remember to generate one manually first.
 
-**GRN batch numbers (Stage 61.1).** A fixed barcode cannot say which delivery a piece came from, so every SKU on every new GRN also gets a **batch number**: `B` + the receipt date (YYMMDD) + `-` + that day's running number, e.g. **B261015-0001**. One per SKU per GRN — lines of the same SKU share it. It is given when the GRN is saved, before anything posts, so the GRN, its stickers, the stock ledger and the Batch record all carry the same value. What to know:
+**GRN batch numbers (Stage 61).** A fixed barcode cannot say which delivery a piece came from, so a GRN line left without a batch number gets one when the GRN is saved — before anything posts, so the GRN, its stickers, the stock ledger and the Batch record all carry the same value. A number the clerk types is always kept. What you control:
 
-- **There is no switch and nothing to set up.** A number the clerk types is always kept, and covers that SKU's other blank lines on the same GRN.
-- **Two kinds of line are not numbered.** A **batch-tracked** item (Traceability = Batch) still needs the lot printed on the carton (INVENT-0115): that is a control you switched on per item, and an invented number would hide a missed entry. A **Fixed Asset** item never enters stock.
-- **The counter** is the number series `GRNBatchSeq` (daily, no store segment). The number's format is fixed so the date stays readable; changing the series' prefix or separator does not change it.
-- **Each batch is registered** under **Setup → Batch** with its **Goods Receipt**, **Received On** date, **Supplier** (the PO's vendor) and the GRN's total received for it. The **Batch Lookup & Ageing** report (Report Catalog → Inventory; User Guide §6.3) reads these: scan a batch, a barcode or a SKU to see receipt date and age. It shows what each batch received, not what is left — a POS sale scans the SKU's barcode and does not record the batch.
-- **Labels.** The built-in label prints the batch on its last line. Custom templates need the **Batch / Lot** field added in the Sticker Studio (§B.3.4) — bind a Barcode element to it to make the batch scannable.
+**How often (Settings → Inventory → GRN batch numbers, then Item Type, then Item).** The same precedence as the barcode rules: the Item's **GRN batch number** field wins, then its **Item Type**'s, then the client setting. "Client default" / "Item type default" (or blank) inherit, so existing records keep the client rule.
+
+| Value | Effect |
+|---|---|
+| **One per SKU on each GRN** (default) | Lines of the same SKU on one GRN share a number; a number typed on one of them covers the others. |
+| **One per GRN line** | Every blank line gets its own number. |
+| **One per SKU per day** | Every GRN receiving the SKU at the same location on the same day shares one number; its Batch record adds up their quantities and lists every GRN. |
+| **Off** | No number is filled in. |
+
+**What it looks like (Admin → Prefix Configurations → "GRN batch number (GRNBatchSeq)").** An ordinary number series: **Prefix**, **Store in number** (the receiving store's short code), the period, the **Number** length and **Suffix**, joined by the **Separator**. **Restart numbering** here means **Every day** (the receipt date is in the number — B-261016-0001, the default), **Every month** (B-26-10-0001) or **Never** (no date — B-0001). The Next-number column previews it. Its prefix may repeat another series' prefix, since a batch number is never a record id. **Keep it short on small labels**: on a 50 × 25 label at 203 dpi the default fits with 2-dot bars, but a longer prefix (e.g. LOT) or a 5-digit number makes the bars 1 dot wide — the Sticker Studio's scan check warns when that happens; widen the barcode or shorten the format.
+
+What else to know:
+
+- **Two kinds of line are never numbered.** A **batch-tracked** item (Traceability = Batch) still needs the lot printed on the carton (INVENT-0115): that is a control you switched on per item, and an invented number would hide a missed entry. A **Fixed Asset** item never enters stock.
+- **Each batch is registered** under **Setup → Batch** with its **Goods Receipt**, **Received On**, **Received At** (location), **Supplier** (the PO's vendor) and the received quantity.
+- **Two reports** (Report Catalog → Inventory; User Guide §6.3): **Batch Lookup & Ageing** (scan a batch, barcode or SKU → receipt date, age, age band, GRN, supplier, received and estimated left) and **Stock Ageing (by GRN batch)** (each item's stock on hand in 0-30 / 31-60 / 61-90 / 91-180 / 180+ day bands). "Left" is a **first-in-first-out estimate**: a POS sale scans the SKU's barcode and records no batch, so the item's stock on hand across all locations is laid against its newest batches first. Stock beyond everything the batches received shows as **Before batch numbers**.
+- **Labels.** The built-in label prints the batch as a second Code 128 barcode with the number under it. On custom templates, drag **Batch / Lot** from the Studio's Data panel onto a barcode element (§B.3.4).
 - Fixed with it: two lines of the same SKU (and lot) on one document used to write only the first line to the **stock ledger** (the second looked like a replay), so the ledger under-counted while stock on hand was right. They now write one ledger entry for the combined quantity.
 
 #### B.3.3.2 Bulk import: Master codes and Design-based SKUs

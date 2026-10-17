@@ -446,7 +446,17 @@ function mount() {
     if (!key) return;
     e.preventDefault();
     const r = board.getBoundingClientRect();
-    addElement('text', { field: key, at: { x: (e.clientX - r.left) / S.zoom, y: (e.clientY - r.top) / S.zoom } });
+    const at = { x: (e.clientX - r.left) / S.zoom, y: (e.clientY - r.top) / S.zoom };
+    // Dropped on a barcode or QR code: that code now encodes the field (e.g.
+    // drop Batch / Lot on a barcode to make the batch scannable). Anywhere
+    // else: a new text element.
+    const code = [...S.t.elements].reverse().find(el => !el.hidden && !el.locked && (el.kind === 'barcode' || el.kind === 'qr') &&
+      at.x >= el.x_mm && at.x <= el.x_mm + el.w_mm && at.y >= el.y_mm && at.y <= el.y_mm + el.h_mm);
+    if (code) {
+      change(() => { code.field = key; S.sel = new Set([code.id]); S.tab = 'element'; }, { inspector: true });
+      return;
+    }
+    addElement('text', { field: key, at });
   });
 
   attachPreviewPicker(root.querySelector('.stk-preview-input'));
@@ -1749,7 +1759,7 @@ async function usePreviewItem(code) {
   }
   S.label = {
     sku: item.code || code, name: item.name || '', barcode: item.barcode || item.code || code,
-    hsn_code: item.hsn_code || '', category: item.category || '', batch_no: 'LOT-24A',
+    hsn_code: item.hsn_code || '', category: item.category || '', batch_no: E.SAMPLE_BATCH_NO,
     expiry_date: '', mfg_date: '', qty: 1, source_doc_id: 'GRN-0001', fields
   };
   S.previewName = item.name || code;

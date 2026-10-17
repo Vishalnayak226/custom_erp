@@ -62,6 +62,18 @@ func init() {
 		},
 		Description: "For stock you age or rotate by arrival date. Every dated barcode still scans as its SKU, and is listed under Setup > Item Barcode.",
 	})
+	// Stage 61.6: GRN batch numbers - see engines/wms_receiving.go.
+	RegisterSetting(SettingDefinition{
+		Key: "inventory.grn_batch_number", Module: "Inventory",
+		Label: "GRN batch numbers", Type: SettingTypeSelect, Default: GRNBatchPerGRNSKU,
+		Options: []SettingOption{
+			{Value: GRNBatchPerGRNSKU, Label: "One per SKU on each GRN - every line of a SKU on one receipt shares it"},
+			{Value: GRNBatchPerLine, Label: "One per GRN line - each line gets its own"},
+			{Value: GRNBatchPerSKUDay, Label: "One per SKU per day - every receipt of a SKU on one day shares it"},
+			{Value: GRNBatchOff, Label: "Off - only batch numbers typed on the GRN"},
+		},
+		Description: "How a GRN line left without a batch number gets one. An Item Type or an Item can choose differently. A typed number is always kept, and a batch-tracked item always needs the lot from the carton. The number's look is the GRNBatchSeq number series.",
+	})
 
 	// --- Security ---
 	RegisterSetting(SettingDefinition{

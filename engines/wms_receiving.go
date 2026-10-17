@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -60,7 +61,7 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 	// before anything is written, so this list only ever contains lots whose
 	// stock genuinely arrived.
 	type receivedBatch struct {
-		info     BatchInfo
+		info        BatchInfo
 		acceptedQty float64
 	}
 	var receivedBatches []receivedBatch
@@ -161,6 +162,7 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 					MfgDate:       strField(m, "mfg_date"),
 					ExpiryDate:    strField(m, "expiry_date"),
 					SupplierBatch: strField(m, "supplier_batch"),
+					AutoNumbered:  m["batch_auto"] == true,
 				},
 				acceptedQty: accepted,
 			})
@@ -312,6 +314,7 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 	for _, rb := range receivedBatches {
 		rb.info.Vendor = vendor
 		rb.info.GRN = grnID
+		rb.info.Location = locationCode
 		if _, err := EnsureBatch(tenantID, rb.info, rb.acceptedQty, userID); err != nil {
 			LogSystemError(tenantID, "", "WARN", "PostGRNReceiptWithQC",
 				fmt.Sprintf("batch %s of %s could not be registered from GRN %s: %v", rb.info.BatchNo, rb.info.Item, grnID, err), "")
@@ -364,63 +367,91 @@ func grnVendor(schema, grnID string) string {
 	return vendor
 }
 
-// GRN batch numbers. The user: "In each GRN, each Combination ID/SKU will
-// have a batch number" - so a SKU whose barcode stays the same on every
-// receipt can still be told apart by when it came in, and a scan of the batch
-// answers "which day did this arrive, how old is it" (the batch-ageing
-// report in traceability_reports.go).
+// GRN batch numbers (Stage 61). The user: "In each GRN, each Combination
+// ID/SKU will have a batch number" - so a SKU whose barcode stays the same on
+// every receipt can still be told apart by when it came in, and a scan of the
+// batch answers "which day did this arrive, how old is it" (the batch-ageing
+// reports in traceability_reports.go).
 //
-// The number carries its receipt date: "B" + YYMMDD + "-" + that day's
-// running number, e.g. B261015-0001, so the day is readable off the sticker
-// without scanning anything. The counter is the GRNBatchSeq series bucketed by
-// day, the same row-locked counter PIMDatedBarcodeSeq uses.
+// How often a number is issued is a rule like the barcode rules (61.6): the
+// client setting inventory.grn_batch_number, overridden by the Item Type and
+// then the Item (EffectiveGRNBatchMode). What it looks like is the GRNBatchSeq
+// number series (61.7), edited on the Number Series screen like any other:
+// prefix, store, period, number and suffix joined by the separator, where the
+// period is the receipt date - B-261015-0001 by default.
 
-// grnBatchFromParts formats one GRN batch number.
-func grnBatchFromParts(day time.Time, seq int) string {
-	return fmt.Sprintf("B%s-%04d", day.Format("060102"), seq)
+// GRN batch numbering modes.
+const (
+	GRNBatchPerGRNSKU = "per_grn_sku" // one per SKU on each GRN (default)
+	GRNBatchPerLine   = "per_grn_line"
+	GRNBatchPerSKUDay = "per_sku_day" // one per SKU per day, shared by that day's GRNs
+	GRNBatchOff       = "off"
+)
+
+// GRNBatchMode is the client-wide numbering mode.
+func GRNBatchMode(tenantID string) string {
+	switch v := GetSettingString(tenantID, "inventory.grn_batch_number"); v {
+	case GRNBatchPerLine, GRNBatchPerSKUDay, GRNBatchOff:
+		return v
+	default:
+		return GRNBatchPerGRNSKU
+	}
 }
 
-// GenerateGRNBatchNumber draws the day's next GRN batch number.
-func GenerateGRNBatchNumber(tenantID string, day time.Time) (string, error) {
-	dayKey := day.Format("060102")
-	raw, err := GenerateSequence(tenantID, "GRNBatchSeq", "", dayKey)
+// grnBatchPeriodKey is the period GenerateSequence prints and counts by: the
+// receipt date for a daily series (shown as ANNUAL in prefix_configs, since a
+// batch series restarts with its date), year-month for MONTHLY, none for NEVER.
+func grnBatchPeriodKey(tenantID string, day time.Time) string {
+	reset := "ANNUAL"
+	if schema, err := db.GetTenantSchema(tenantID); err == nil {
+		_ = db.DB.QueryRow(fmt.Sprintf(
+			`SELECT COALESCE(reset_frequency, 'ANNUAL') FROM %s.prefix_configs WHERE doc_type = 'GRNBatchSeq'`, schema)).Scan(&reset)
+	}
+	switch strings.ToUpper(strings.TrimSpace(reset)) {
+	case "NEVER":
+		return ""
+	case "MONTHLY":
+		return day.Format("06") // sequencePeriod adds "-MM"
+	default:
+		return day.Format("060102")
+	}
+}
+
+// GenerateGRNBatchNumber draws the next GRN batch number for a receipt at
+// storeCode (used only when the series puts the store in the number).
+func GenerateGRNBatchNumber(tenantID, storeCode string, day time.Time) (string, error) {
+	return GenerateSequence(tenantID, "GRNBatchSeq", storeCode, grnBatchPeriodKey(tenantID, day))
+}
+
+// todaysAutoBatch finds the batch number already issued today for this SKU
+// at this location by per-SKU-per-day numbering, if any.
+func todaysAutoBatch(tenantID, sku, location string, day time.Time) string {
+	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return "", err
+		return ""
 	}
-	// The counter is the digit run after the day segment, whatever the
-	// series' prefix/separator config ("2610150001" with the seeded row,
-	// "GRNBatchSeq/261015/000001" without one); the format above is fixed so
-	// the date stays readable.
-	rest := raw
-	if i := strings.Index(raw, dayKey); i >= 0 {
-		rest = raw[i+len(dayKey):]
-	}
-	start := strings.IndexAny(rest, "0123456789")
-	if start < 0 {
-		return "", fmt.Errorf("GRNBatchSeq returned %q, not a number - check prefix_configs", raw)
-	}
-	end := start
-	for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
-		end++
-	}
-	var seq int
-	if _, err := fmt.Sscanf(rest[start:end], "%d", &seq); err != nil || seq < 1 {
-		return "", fmt.Errorf("GRNBatchSeq returned %q, not a number - check prefix_configs", raw)
-	}
-	return grnBatchFromParts(day, seq), nil
+	var batchNo string
+	_ = db.DB.QueryRow(fmt.Sprintf(`
+		SELECT data->>'batch_no' FROM %s.documents
+		WHERE doctype = 'Batch' AND deleted_at IS NULL AND data->>'item' = $1
+		  AND data->>'auto_numbered' = 'Yes' AND data->>'received_on' = $2
+		  AND COALESCE(data->>'location', '') = $3
+		ORDER BY created_at DESC LIMIT 1`, schema), sku, localDateString(day), location).Scan(&batchNo)
+	return batchNo
 }
 
-// PrepareGRNBatchNumbers gives every SKU on a new GRN a batch number, before
-// the document is written so the GRN itself, its stickers and its stock
-// posting all carry the same value. One number per SKU per GRN: two lines of
-// the same SKU share it, and a number typed on any line of that SKU is used
-// for its blank lines too. A typed number is never replaced.
+// PrepareGRNBatchNumbers gives the blank lines of a new GRN their batch
+// numbers, before the document is written so the GRN itself, its stickers and
+// its stock posting all carry the same value. A typed number is never
+// replaced; under the per-SKU modes it also covers that SKU's other blank
+// lines. A line numbered here is marked batch_auto, which the Batch record
+// keeps (auto_numbered) so per-SKU-per-day numbering can find the day's batch.
 //
-// Two kinds of line are left alone. A batch-tracked item (Item Traceability =
-// Batch) keeps its existing rule that the clerk types the lot printed on the
-// carton (INVENT-0115) - that is a control the business switched on for that
-// item, and an invented number would hide a missed entry. A Fixed Asset item
-// never enters stock or the batch register (Stage 57.8).
+// Never numbered: a batch-tracked item (Item Traceability = Batch) keeps its
+// rule that the clerk types the lot printed on the carton (INVENT-0115) - a
+// control the business switched on for that item, where an invented number
+// would hide a missed entry; and a Fixed Asset item, which never enters stock
+// or the batch register (Stage 57.8).
 func PrepareGRNBatchNumbers(tenantID string, isCreate bool, payload map[string]interface{}) error {
 	if !isCreate {
 		return nil
@@ -433,51 +464,71 @@ func PrepareGRNBatchNumbers(tenantID string, isCreate bool, payload map[string]i
 	if err := json.Unmarshal([]byte(raw), &lines); err != nil {
 		return nil // the create handler reports malformed received_items itself
 	}
+	location := strings.TrimSpace(strField(payload, "location"))
 
-	batchFor := map[string]string{}
+	typed := map[string]string{}
 	for _, l := range lines {
 		m, ok := l.(map[string]interface{})
 		if !ok {
 			continue
 		}
 		sku := strings.TrimSpace(strField(m, "sku"))
-		if b := strings.TrimSpace(strField(m, "batch_no")); sku != "" && b != "" && batchFor[sku] == "" {
-			batchFor[sku] = b
+		if b := strings.TrimSpace(strField(m, "batch_no")); sku != "" && b != "" && typed[sku] == "" {
+			typed[sku] = b
 		}
 	}
 
 	day := time.Now()
+	modes := map[string]string{}
+	shared := map[string]string{}
 	changed := false
-	skip := map[string]bool{}
 	for _, l := range lines {
 		m, ok := l.(map[string]interface{})
 		if !ok {
 			continue
 		}
 		sku := strings.TrimSpace(strField(m, "sku"))
-		if sku == "" || skip[sku] || strings.TrimSpace(strField(m, "batch_no")) != "" {
+		if sku == "" || strings.TrimSpace(strField(m, "batch_no")) != "" {
 			continue
 		}
-		if batchFor[sku] == "" {
-			tracking, err := GetItemTracking(tenantID, sku)
-			if err != nil {
+		mode, seen := modes[sku]
+		if !seen {
+			var err error
+			if mode, err = grnLineBatchMode(tenantID, sku); err != nil {
 				return err
 			}
-			isAsset, err := isFixedAssetSKU(tenantID, sku)
-			if err != nil {
-				return err
-			}
-			if tracking.TracksBatch() || isAsset {
-				skip[sku] = true
-				continue
-			}
-			code, err := GenerateGRNBatchNumber(tenantID, day)
-			if err != nil {
-				return err
-			}
-			batchFor[sku] = code
+			modes[sku] = mode
 		}
-		m["batch_no"] = batchFor[sku]
+		var code string
+		switch mode {
+		case GRNBatchOff:
+			continue
+		case GRNBatchPerLine:
+			c, err := GenerateGRNBatchNumber(tenantID, location, day)
+			if err != nil {
+				return err
+			}
+			code = c
+		default: // per GRN x SKU, per SKU per day
+			if code = typed[sku]; code == "" {
+				code = shared[sku]
+			}
+			if code == "" && mode == GRNBatchPerSKUDay {
+				code = todaysAutoBatch(tenantID, sku, location, day)
+			}
+			if code == "" {
+				c, err := GenerateGRNBatchNumber(tenantID, location, day)
+				if err != nil {
+					return err
+				}
+				code = c
+			}
+			shared[sku] = code
+		}
+		m["batch_no"] = code
+		if code != typed[sku] {
+			m["batch_auto"] = true
+		}
 		changed = true
 	}
 	if !changed {
@@ -489,4 +540,26 @@ func PrepareGRNBatchNumbers(tenantID string, isCreate bool, payload map[string]i
 	}
 	payload["received_items"] = string(out)
 	return nil
+}
+
+// grnLineBatchMode is how a SKU's blank GRN lines are numbered: off for a
+// batch-tracked or Fixed Asset item, else the Item / Item Type / client rule.
+func grnLineBatchMode(tenantID, sku string) (string, error) {
+	tracking, err := GetItemTracking(tenantID, sku)
+	if err != nil {
+		return "", err
+	}
+	if tracking.TracksBatch() {
+		return GRNBatchOff, nil
+	}
+	item, err := ResolveItemBySKU(tenantID, sku)
+	if errors.Is(err, ErrItemNotFound) {
+		return GRNBatchMode(tenantID), nil // the GRN's own item check reports it
+	} else if err != nil {
+		return "", err
+	}
+	if IsFixedAssetItem(tenantID, item.Data) {
+		return GRNBatchOff, nil
+	}
+	return EffectiveGRNBatchMode(tenantID, item.Data), nil
 }

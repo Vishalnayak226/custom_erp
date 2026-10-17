@@ -102,9 +102,10 @@ func init() {
 		},
 	})
 
-	// GRN batch numbers - scan a sticker's batch (or its SKU barcode) and see
-	// which day each lot came in and how old it is. Inventory, not WMS: GRN
-	// batches exist whether or not the warehouse module is switched on.
+	// GRN batch numbers (Stage 61) - scan a sticker's batch (or its SKU
+	// barcode) and see which day each lot came in, how old it is and how much
+	// of it is estimated to be left. Inventory, not WMS: GRN batches exist
+	// whether or not the warehouse module is switched on.
 	RegisterReport(ReportDefinition{
 		ID: "batch-ageing", Label: "Batch Lookup & Ageing", Category: "Inventory",
 		Columns: []ReportColumn{
@@ -112,19 +113,51 @@ func init() {
 			{Key: "sku", Label: "Item"},
 			{Key: "received_on", Label: "Received On"},
 			{Key: "age_days", Label: "Age (days)"},
+			{Key: "age_band", Label: "Age Band"},
 			{Key: "grn", Label: "GRN"},
 			{Key: "vendor", Label: "Supplier"},
 			{Key: "received_qty", Label: "Received Qty"},
+			{Key: "est_qty_left", Label: "Est. Left (FIFO)"},
 			{Key: "expiry_date", Label: "Expires"},
 			{Key: "status", Label: "Batch Status"},
 		},
 		Params: []ReportParam{
 			{Key: "scan", Label: "Scan batch, barcode or SKU", Type: "text"},
 			{Key: "min_age_days", Label: "Older than (days)", Type: "text"},
+			{Key: "show", Label: "Show", Type: "select", Options: "All batches,Only with stock left"},
 		},
 		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
 			minAge, _ := strconv.Atoi(strings.TrimSpace(params["min_age_days"]))
-			rows, err := GetBatchAgeing(tenantID, params["scan"], minAge)
+			rows, err := GetBatchAgeing(tenantID, params["scan"], minAge, params["show"] == "Only with stock left")
+			if err != nil {
+				return nil, err
+			}
+			return structsToRows(rows)
+		},
+	})
+
+	// Stage 61.9 - stock ageing by receipt: each SKU's stock on hand split
+	// into age bands by the batches it is estimated (first in, first out) to
+	// come from.
+	RegisterReport(ReportDefinition{
+		ID: "stock-ageing", Label: "Stock Ageing (by GRN batch)", Category: "Inventory",
+		Columns: []ReportColumn{
+			{Key: "sku", Label: "Item"},
+			{Key: "on_hand", Label: "On Hand"},
+			{Key: "band_0_30", Label: "0-30 days"},
+			{Key: "band_31_60", Label: "31-60 days"},
+			{Key: "band_61_90", Label: "61-90 days"},
+			{Key: "band_91_180", Label: "91-180 days"},
+			{Key: "band_180_plus", Label: "Over 180 days"},
+			{Key: "before_batches", Label: "Before batch numbers"},
+			{Key: "oldest_batch", Label: "Oldest Batch Held"},
+			{Key: "oldest_received_on", Label: "Oldest Received On"},
+		},
+		Params: []ReportParam{
+			{Key: "scan", Label: "Scan barcode or SKU (optional)", Type: "text"},
+		},
+		Run: func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
+			rows, err := GetStockAgeing(tenantID, params["scan"])
 			if err != nil {
 				return nil, err
 			}

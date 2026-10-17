@@ -3365,9 +3365,9 @@
   ],
   "migrations": {
     "base_schema_file": "db/migration.sql",
-    "incremental_files": 187,
+    "incremental_files": 188,
     "newest": [
-      "migrations_stage61_1_grn_batch.sql",
+      "migrations_stage61_6_grn_batch_rules.sql",
       "migrations_stage62_1_po_design_grn_pricing.sql",
       "migrations_stage63_1_print_templates.sql",
       "migrations_stage65_3_item_names.sql",
@@ -3686,7 +3686,7 @@
     "direct_dependencies": 2,
     "environment_flags": 32,
     "environment_flags_security_critical": 13,
-    "incremental_migrations": 187,
+    "incremental_migrations": 188,
     "outbound_call_sites": 9,
     "routes": 518,
     "routes_integration_credential": 4,

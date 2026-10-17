@@ -60,6 +60,8 @@ Jump straight to the thing you're trying to do.
 | See who printed which labels, and when | §7A.4 |
 | Scan a sticker and see which day it came in and how old it is | §6.3 (*Batch Lookup & Ageing*) |
 | List stock older than 90 days, oldest first | §6.3 (*Batch Lookup & Ageing → Older than*) |
+| See how much stock is 0-30, 31-60, 61-90, 91-180 or over 180 days old | §6.3 (*Stock Ageing by GRN batch*) |
+| Make the batch number scannable on my own label design | §7A.2 (drag **Batch / Lot** onto a barcode) |
 | Print a shipping label or a sales invoice, or make labels print with no dialog | **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)** — "Day-to-day use" |
 | Take a return | [USER_SOP §3.3](USER_SOP.md) |
 | Check how much stock I have | §5 |
@@ -449,7 +451,18 @@ You can also **Override** a derived answer when you know something the master re
 
 ### 6.3 Batches and expiry dates (for items that need them)
 
-**Every GRN line gets a batch number.** On **Procurement → Goods Receipt**, leave **Batch / Lot No** blank for an ordinary item and posting the receipt gives that SKU a batch number carrying the day it arrived: `B`, the date as YYMMDD, then that day's running number. **B261015-0001** is the first batch received on 15 October 2026, **B261015-0002** the second, and so on. Every line of the same SKU on one GRN shares its number; the next GRN gets a new one. Type a number yourself if you want your own — it is kept, and covers that SKU's other blank lines on the same GRN. The SKU's barcode stays the same on every receipt; the batch is what tells one delivery from the next. It prints on the item's stickers (§7A) and you can scan it to see when it came in and how old it is — **Batch Lookup & Ageing**, below.
+**Every GRN line gets a batch number.** On **Procurement → Goods Receipt**, leave **Batch / Lot No** blank and posting the receipt gives the line a batch number carrying the day it arrived: `B`, the date as YYMMDD, then that day's running number. **B-261016-0001** is the first batch received on 16 October 2026, **B-261016-0002** the second, and so on. Type a number yourself if you want your own — it is always kept. The SKU's barcode stays the same on every receipt; the batch is what tells one delivery from the next. It prints on the item's stickers as a second, scannable barcode (§7A) and you can scan it to see when it came in and how old it is — **Batch Lookup & Ageing**, below.
+
+How often a new number is given is set by your administrator — for the whole business, for an item type, or for one Item (the Item form's **GRN batch number** field):
+
+| Setting | What you see on a GRN |
+|---|---|
+| **One per SKU on each GRN** (usual) | Every line of the same SKU on one GRN shares a number; the next GRN gets a new one. A number you type on one line also covers that SKU's blank lines. |
+| **One per GRN line** | Each line gets its own number, even for the same SKU. |
+| **One per SKU per day** | Every GRN that brings the SKU into the same store on the same day shares one number. |
+| **Off** | Nothing is filled in; only numbers you type are used. |
+
+The letters and layout of the number (e.g. `LOT-261016-0001`, or no date at all) are also your administrator's choice.
 
 The rest of this section applies only to items your administrator has marked as **batch-tracked** — typically food, medicines, cosmetics, chemicals or anything else where "which production lot did this come from" and "when does it expire" are real questions. For those, the clerk types the lot printed on the carton; no number is made up for them. If none of your items are marked that way, nothing below ever appears.
 
@@ -489,11 +502,13 @@ Together the last two are what a recall needs — the first tells you what to st
 
 **Batch Lookup & Ageing — scan a sticker, see when it came in.** **Reports → Report Catalog → Batch Lookup & Ageing** (under Inventory). Click into **Scan batch, barcode or SKU**, scan or type, and press **Enter**:
 
-- **A batch number** (e.g. B261015-0003) shows that batch: the item, **Received On**, **Age (days)**, the **GRN** that brought it in, the **Supplier**, the quantity received, and its status.
+- **A batch number** (scan the second barcode on the sticker, e.g. B-261016-0003) shows that batch: the item, **Received On**, **Age (days)**, its **Age Band** (0-30, 31-60, 61-90, 91-180, 180+), the **GRN** that brought it in (several, if a per-day batch was shared), the **Supplier**, **Received Qty** and **Est. Left (FIFO)**.
 - **The SKU's barcode or the SKU code** shows every batch of that item, oldest first — the order to sell it in.
-- **Blank** lists every batch, oldest first. Put a number in **Older than (days)** to see only stock that has waited at least that long, e.g. 90.
+- **Blank** lists every batch, oldest first. Put a number in **Older than (days)** to see only batches that have waited at least that long, e.g. 90, and set **Show** to **Only with stock left** to hide batches that have sold through.
 
-It reports what each batch **received**, not what is left of it: a sale scans the SKU's barcode, so it does not say which batch the piece came from. Batches received before batch numbers were given on every GRN show the date their batch record was made, which for a batch first seen on a GRN is the same day.
+**Est. Left (FIFO)** is an estimate: a sale scans the SKU's barcode, so it does not record which batch the piece came from. The item's stock on hand (all stores together) is laid against its newest batches first, so the oldest batches are the ones counted as sold — first in, first out. Batches received before batch numbers existed show the date their batch record was made.
+
+**Stock Ageing (by GRN batch)** — **Reports → Report Catalog**, under Inventory — is the summary: one row per item in stock, with its on-hand quantity split into **0-30 / 31-60 / 61-90 / 91-180 / Over 180 days**, plus **Before batch numbers** (stock older than any batch, i.e. received before batch numbers were switched on), and the oldest batch still held. Items with the oldest stock come first. Scan a barcode or SKU to see one item.
 
 ### 6.4 Asking vendors for quotes (RFQ)
 
@@ -679,7 +694,7 @@ Three things it does for you:
 
 - **A GRN prints against accepted quantity only.** If 100 arrived, 3 were rejected and 2 damaged, you get 95 labels — not 100. A line with nothing accepted doesn't appear at all, since there is nothing sellable to label.
 - **Lots stay separate.** If the same SKU came in on two different batch/lot numbers, it stays as two rows and a **Batch/Lot** column appears so you can tell them apart. Each row is selected, counted and printed on its own, and each label carries its own lot and expiry.
-- **The batch is on the label.** Every GRN line has a batch number (§6.3), and the built-in label prints it on its last line — *Batch: B261015-0003* — so the day the piece arrived can be read off the tag. A label printed without a document has no batch, and that line is simply left off. On your own templates, add the **Batch / Lot** field in the Sticker Studio (§7A.2): as text to read it, or as a **Barcode** element bound to Batch / Lot to make it scannable in **Batch Lookup & Ageing**.
+- **The batch is on the label.** A GRN line's batch number (§6.3) prints on the built-in label as a second, smaller barcode under the SKU's, with the number written beneath it — so the day the piece arrived can be read off the tag, and scanning that barcode in **Batch Lookup & Ageing** finds this exact batch. A label printed without a document has no batch, and that barcode is simply left off. On your own templates, drag **Batch / Lot** from the Studio's **Data** panel onto the label (§7A.2).
 - **Mixed categories come off grouped.** A GRN holding earrings and necklaces prints all the earring labels, then all the necklace labels, so the strip can be torn into one stack per category.
 
 If the document loads but says *"That document has no stickerable lines"*, the lines were all rejected/damaged, or (for a transfer) the quantities are zero.
@@ -693,7 +708,7 @@ Out of the box, every SKU prints the same plain 50 × 25 mm label — name, barc
 #### Start a template
 
 1. **Sticker Printing → Templates → New template**. The studio opens full-screen.
-2. **Start a new label** asks for the size of the roll you print on. Pick one of the standard sizes — **Jewellery tags** (tail tags 92 × 12, 95 × 12, 100 × 15, small tag 70 × 10), **Retail** (38 × 25, 50 × 25, 50 × 38, 75 × 50), **Multi-up rolls** (2-up 38 × 25, 3-up 32 × 25), **Shipping** (100 × 50, 4 × 6 in) — or **Use the built-in retail layout (50 × 25)** to start from the default label, or **Blank 50 × 25**. Any size can be changed later.
+2. **Start a new label** asks for the size of the roll you print on. Pick one of the standard sizes — **Jewellery tags** (tail tags 92 × 12, 95 × 12, 100 × 15, small tag 70 × 10), **Retail** (38 × 25, 50 × 25, 50 × 38, 75 × 50), **Multi-up rolls** (2-up 38 × 25, 3-up 32 × 25), **Shipping** (100 × 50, 4 × 6 in) — or **Use the built-in retail layout (50 × 25)** to start from the default label (name, the SKU's barcode, SKU and HSN, and the batch barcode) and drag it into your own arrangement, or **Blank 50 × 25**. Any size can be changed later.
 3. Type a name in **Name this template** at the top left (for example `Bridal silver tag`). It is the only thing you must fill in to save.
 
 #### Put things on the label
@@ -703,7 +718,7 @@ The **Insert** rail on the left adds elements to the middle of the label:
 | Button | What it adds |
 |---|---|
 | **Text** | Your own wording. Type plain text, or mix in item data with `{field}` tokens — `W: {weight} gm`, `MRP ₹{mrp}`, `{metal_type} {purity_karat}`. **Insert field…** under the text box drops a token in for you. |
-| **Data** | Opens the **Data fields** drawer: every field on the label (**Item name**, **SKU**, **Barcode value**, **HSN code**, **Category**, **Batch / Lot**, **Expiry date**, **Mfg date**, **Qty**, **Source document no.**) and **every field on the Item record** — weight, purity, size, MRP, sale price, and any field your business added, including ones added later. Search it, then click a field to add it, or drag it onto the exact spot on the label. Each row shows the value it would print. |
+| **Data** | Opens the **Data fields** drawer: every field on the label (**Item name**, **SKU**, **Barcode value**, **HSN code**, **Category**, **Batch / Lot**, **Expiry date**, **Mfg date**, **Qty**, **Source document no.**) and **every field on the Item record** — weight, purity, size, MRP, sale price, and any field your business added, including ones added later. Search it, then click a field to add it, or drag it onto the exact spot on the label. **Drop a field onto a barcode or QR code** and that code switches to it — drop **Batch / Lot** onto a barcode to make the batch scannable. Each row shows the value it would print (Batch / Lot shows a sample in today's batch format). |
 | **Barcode** | A barcode of the item's barcode value (or any other field, or custom text). **Code 128** takes any text; **EAN-13** is the 13-digit retail code (a value that isn't a valid EAN-13 prints as Code 128 instead, and the studio says so). |
 | **QR** | A QR code of any field or custom text — for example a product link `https://yourshop.in/p/{sku}`. |
 | **Line**, **Box** | Dividers and borders. A box can be **solid filled**. |
