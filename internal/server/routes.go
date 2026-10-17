@@ -926,6 +926,8 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/procurement/design-matrix", apiMiddleware(moduleGate("procurement", handleGetDesignMatrix)))
 	http.HandleFunc("GET /api/v1/procurement/design/{code}", apiMiddleware(moduleGate("procurement", handleGetDesign)))
 	http.HandleFunc("POST /api/v1/procurement/design/match", apiMiddleware(moduleGate("procurement", handleMatchDesign)))
+	// Stage 65.4: add a value (or a new attribute) to the PIM attributes from the PO.
+	http.HandleFunc("POST /api/v1/procurement/design-attribute", apiMiddleware(moduleGate("procurement", handleAddDesignAttributeValue)))
 	http.HandleFunc("POST /api/v1/finance/vendor-credit-note/{id}/post", apiMiddleware(handlePostVendorCreditNote))
 	// Stage 63: designed transaction prints and the Vendor PO in Excel.
 	http.HandleFunc("GET /api/v1/print/document/{txn}/{id}", apiMiddleware(handlePrintDocument))

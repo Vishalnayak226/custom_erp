@@ -252,6 +252,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/procurement/design-matrix":                         {LevelAuthenticated, "procurement.default"},
 	"GET /api/v1/procurement/design/{code}":                         {LevelAuthenticated, "procurement.default"},
 	"POST /api/v1/procurement/design/match":                         {LevelAuthenticated, "procurement.default"},
+	"POST /api/v1/procurement/design-attribute":                     {LevelAuthenticated, "procurement.default"},
 	"POST /api/v1/finance/vendor-credit-note/{id}/post":             {LevelAuthenticated, "finance.default"},
 	"GET /api/v1/print/document/{txn}/{id}":                         {LevelAuthenticated, "doc.default"},
 	"GET /api/v1/print/catalog":                                     {LevelAuthenticated, "doc.default"},

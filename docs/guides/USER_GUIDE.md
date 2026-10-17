@@ -375,7 +375,7 @@ This only applies to locations that keep stock in **bins**. A store with no bins
 
    If a line turns red, that item is missing its HSN code or GST rate on the Item master. Fix it under **Setup → Items** and the line clears.
 
-   **Buying a new design?** You don't have to create the items first. Click **+ Add design** at the end of the **Add item** row, pick the colours, sizes and other attributes, remove any combination you aren't buying, and **Create & add to PO** makes the design and every combination and puts them on the order — see §6.9.
+   **Buying a new design?** You don't have to create the items first. Click **+ Add design** at the end of the **Add item** row, pick the item name (its HSN and GST come with it), type the design number, pick the colours, sizes and other attributes, remove any combination you aren't buying, and **Add to PO** makes the design and every combination and puts them on the order — see §6.9.
 4. Check the **totals** at the top — taxable value, the tax split, and the grand total, always in view — and the **supply-type banner** above them (§6.2).
 5. **You don't type a PO number.** The box shows "Auto (PO series)" and is greyed out on purpose. The number is issued when you save; see §6.1.
 6. Click **Create Draft**. Depending on the amount it may need someone else's **approval** before it's official — that's a safety check, not a bug. You'll see it move to "Pending Approval", and once approved it's ready to send.
@@ -589,23 +589,27 @@ Every Item has an **Item Type** (Setup → Item). Most items are **Product**, th
 
 ### 6.9 Creating designs and combinations inside the PO (Add design)
 
-In fashion you often order a design that doesn't exist in the system yet, in several colours and sizes. You can create it right from the order.
+In fashion you often order a design that doesn't exist in the system yet, in several colours and sizes. You can create it right from the order, in two parts: the **item name** (the parent — what it is, with its HSN and GST) and the **variants** (the children — colour, size and so on).
 
 1. On **Purchase Order**, pick the **Vendor** first (the button asks for it if you haven't).
-2. Click **+ Add design**. A panel opens below the **Add item** row showing **every product attribute your business has defined** — for example *Colour*, *Size*, *Fabric*. (Attributes are set up under **PIM → Product Attributes**; one with Value Type **Select** and options such as `Red, Blue` shows here as buttons.)
-3. Fill in the **Design name**, **HSN**, **GST %**, **Purchase price**, **MRP** (optional) and **Qty each**.
-4. Click the values you are buying:
+2. Click **+ Add design**. A panel opens below the **Add item** row.
+3. **Item name.** Click the box to see your item names, or type to search (*Necklaces Antique*, *Kurta Cotton*). Pick one, and its **Category**, **HSN** and **GST** show next to it — you never type them again for that item name. **Not in the list?** Type it and choose **Create "…"**: a small form asks the **Category** (*Necklaces*), the **Product Type** (*Antique*), the **HSN** (pick it and the GST rate fills in) and the **GST %** — once. A missing category or product type can be created from inside that form the same way.
+4. **Design number.** Type the design's number — often the vendor's own (*D-1024*). As you type, the item name's existing designs that **start with** what you typed are listed; pick one to add to that design. If nothing matches, the list stays empty and the panel says **New design**: it is created when you add it, with its own design id (e.g. `Design/HO/26-27/000012`). Leave it blank and the design is numbered automatically.
+5. Set the **Purchase price**, **MRP** (optional) and **Qty each**.
+6. **Variants.** Every product attribute your business has defined is shown (*Colour*, *Size*, *Fabric*…). Click the values you are buying:
    - **One value** of an attribute (say Fabric = *Cotton*) describes the **design**.
    - **Two or more values** (say Colour = *Red, Blue* and Size = *S, M, L*) become **combinations** — every mix is listed below (6 here). **All** picks every value of that attribute.
-5. In the combinations table, change any row's **Qty**, **Purchase price** or **MRP**, and click **×** on any combination you are not buying (**Restore removed** brings them back).
-6. Click **Create & add N to PO**. The system creates the design (numbered from the *Design* series, e.g. `Design/HO/26-27/000012`) and one item per combination (its Combination ID is the design number plus its values, e.g. `Design/HO/26-27/000012-Red-M`), each with the HSN and GST you gave, and adds them as lines on the PO. Barcodes follow your barcode policy (§6.8).
+   - **A value that isn't there yet?** Type it in that attribute's **+ value** box and press **Enter** — it is saved to the attribute (PIM → Product Attributes) and picked. **A new attribute?** Type its name and first value in the boxes under the attributes and click **+ Add attribute**. (These need the right to change product attributes; your administrator grants it.)
+7. In the combinations table, change any row's **Qty**, **Purchase price** or **MRP**, and click **×** on any combination you are not buying (**Restore removed** brings them back).
+8. Click **Add N to PO**. The system creates the design (or uses the one you picked) and one item per combination — its **Combination ID** is the design id plus its values, e.g. `Design/HO/26-27/000012-Red-M` — each with the item name's HSN and GST, and adds them as lines on the PO. Barcodes follow your barcode policy (§6.8).
+9. The panel stays on the same item name with the design number cleared, so you can type the **next design number** straight away; the values you picked stay picked, since the next design is often in the same sizes. Click **Done** when you have finished.
 
-**The design number: new every time, or reuse.** Your administrator chooses (Admin Guide §B.3.6):
+**Adding to an existing design.** Type the start of its number and pick it from the list. The PO always takes that same design: its existing combinations show with their Combination ID, and any new value you pick becomes a new combination next to them. Existing combinations are reused, never created twice — the system refuses to create a combination that already exists.
 
-- **New every time** (the default, suited to fast fashion): each **Add design** gets a new design number, even if the name looks the same.
-- **Reuse when it matches**: if a design with the **same name and exactly the same design attributes** already exists, it is used instead of creating a new one, and only the combinations it doesn't have yet are created.
+**Leaving the design number blank: new every time, or reuse.** Your administrator chooses (Admin Guide §B.3.6):
 
-**Adding to an existing design.** Type or paste its number in **Existing design no** and click **Load**. The PO always takes that same design: its attributes and existing combinations load (shown with their SKU), and any new value you pick becomes a new combination added next to them. Existing combinations are reused, never created twice — the system refuses to create a combination that already exists.
+- **New every time** (the default, suited to fast fashion): each **Add design** gets a new design id.
+- **Reuse when it matches**: if a design of the same item name with **exactly the same design attributes** already exists, it is used instead of creating a new one, and only the combinations it doesn't have yet are created.
 
 ### 6.10 Receiving several POs on one GRN, at the vendor's invoice price
 

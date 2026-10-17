@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 )
 
 // Stage 62.5/62.6: creating designs and their combinations from inside the
@@ -251,18 +250,5 @@ func PrepareDesignNumber(tenantID, location string, isCreate bool, payload map[s
 	if !isCreate || strings.TrimSpace(strField(payload, "code")) != "" || strings.TrimSpace(strField(payload, "id")) != "" {
 		return nil
 	}
-	store := strings.TrimSpace(location)
-	if store == "" {
-		store = "HQ"
-	}
-	code, err := GenerateSequence(tenantID, "ProductFamily", store, documentFinancialYear(time.Now()))
-	if err != nil {
-		if verr, ok := err.(*ValidationError); ok {
-			return verr
-		}
-		return fmt.Errorf("could not number the design: %v", err)
-	}
-	payload["code"] = code
-	payload["id"] = code
-	return nil
+	return PrepareMasterNumber(tenantID, location, "ProductFamily", isCreate, payload)
 }

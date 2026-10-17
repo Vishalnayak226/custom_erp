@@ -553,11 +553,19 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// Stage 62: a design created from a PO's Add design arrives with no
 		// code - number it from its Design/... series here (a code someone
 		// typed is kept), since the master-code endpoint is admin-only.
-		if doctype == "ProductFamily" {
-			if err := engines.PrepareDesignNumber(tenantID, location, id == "", payload); err != nil {
+		// Stage 65.3: Category, Product Type and Item Name are numbered the
+		// same way (created inline from the PO too), an Item Name with no name
+		// becomes "<Category> <Product Type>", and a design under an item name
+		// takes its HSN / GST where its own are blank.
+		if engines.IsServerNumberedMaster(doctype) {
+			if err := engines.PrepareMasterNumber(tenantID, location, doctype, id == "", payload); err != nil {
 				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 				return
 			}
+		}
+		if err := engines.PrepareItemNameFields(tenantID, doctype, payload); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
 		}
 
 		// Stage 51.5: an Item under a parent design gets its Combination

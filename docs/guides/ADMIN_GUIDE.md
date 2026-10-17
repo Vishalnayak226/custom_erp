@@ -699,6 +699,17 @@ A **webhook subscription** tells this system: "whenever *this kind* of thing hap
 
 **What the system still refuses, whatever the role:** a PO that goods have been received against — a goods receipt that is not cancelled names it, directly or as one of the POs of a multi-PO receipt (§B.3.6). The user gets `PURCHA-0320` with the receipt number(s). Cancel the receipt first, then delete. Every other status can be deleted — draft, pending approval, approved, sent to the vendor — which is wider than other transactions, where an approved record can never be deleted. The delete is a soft delete: the record is hidden everywhere and logged as `SOFT_DELETE_PurchaseOrder` in the Activity Log with who did it; its row stays in the database for audit.
 
+#### B.3.5b Item names, categories and product types (Stage 65.3)
+
+Three small master lists sit above designs, so a buyer types an item's tax details once:
+
+- **Category** (*Necklaces*, *Kurtas*) and **Product Type** (*Antique*, *Cotton*) — both under **Setup**: just a name. Their code is numbered by the system (`CAT/HO/26-27/000001`, `PTYPE/...`), whoever creates them, including from inside a PO.
+- **Item Name** — under **Setup** (PIM): a Category plus a Product Type, the **name** (left blank, it becomes "*Category Product Type*"), the **HSN code** and the **GST rate**. Numbered `ITEMNAME/...`.
+
+**Designs inherit from their item name.** A design (Product Family) created with an Item Name takes that item name's HSN and GST wherever its own are blank, and every combination created from the PO's **Add design** panel carries them too — so correcting an item name's HSN is the place to change it for future designs (existing items keep what they were created with). A design also stores the **Design Number** the buyer typed (the vendor's number, say); its code stays the system's own `Design/...` id.
+
+**Who can do what.** Out of the box Super Admin and HR/Admin manage all three lists; Store Manager can read them. Creating an item name from the PO needs **create** on Item Name (and on Category / Product Type for new ones) — grant it under **Settings → Roles**. Adding a value to a product attribute from the PO needs **update** on the product attributes record type (`ProductAttributeDef`); adding a new attribute needs **create** on it. Both are recorded in the Activity Log (`DESIGN_ATTRIBUTE_VALUE_ADDED`, `DESIGN_ATTRIBUTE_CREATED`). A value with a comma, or a value for a typed (non-list) attribute, is refused with `PIM-0321`.
+
 #### B.3.6 Designs from the PO, multi-PO goods receipts and price-difference notes (Stage 62)
 
 **Design number mode.** **Configuration → Procurement → Design number on a PO's Add design** (`procurement.po_design_number_mode`):

@@ -156,3 +156,32 @@ func handleVendorPOExcel(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Disposition", `attachment; filename="`+name+`"`)
 	_, _ = w.Write(body)
 }
+
+// handleAddDesignAttributeValue adds a value to a product attribute, or
+// creates the attribute, from the PO's design panel (Stage 65.4). Needs the
+// same right the PIM screen would: update on ProductAttributeDef to extend
+// one, create to add a new one.
+func handleAddDesignAttributeValue(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Code  string `json:"code"`
+		Label string `json:"label"`
+		Value string `json:"value"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+	action, denied := "update", "You do not have permission to change product attributes"
+	if body.Code == "" {
+		action, denied = "create", "You do not have permission to create product attributes"
+	}
+	if !requireDocPermission(w, r, "ProductAttributeDef", action, denied) {
+		return
+	}
+	attr, err := engines.AddDesignAttributeValue(r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-User-ID"), body.Code, body.Label, body.Value)
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(attr)
+}
