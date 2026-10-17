@@ -1015,6 +1015,23 @@ Set it in the server's environment (`/etc/erp/erp.env` on the droplet) and resta
 
 **Where things are (raw database tables).** Every record type above is stored in the one `documents` table (by `doctype`); the record-type tables are the easier way to fix them. The other tables: `doctype_fields` / `doctype_meta` (each record type's fields and labels), `prefix_configs` and `sequence_counters` (number series and their running counters), `system_settings` (Configuration), `role_permissions` and `field_permissions` (access), `bin_stock*` and `inventory_*` (stock), `gl_postings` / `gl_accounts` (accounts), `approval_*` (approvals). Editing stock or ledger rows directly can leave stock and books out of balance; correct those with an adjustment or reversal through their screens where one exists.
 
+### C.8 Control Panel — every client at a glance (Stage 65.5)
+
+**Settings → Control Panel** is the platform operator's one page (operators only, the same `ERP_PLATFORM_OPERATORS` setting as §C.7; anyone else sees a short note saying so). It only reads; each row opens the screen that makes the change.
+
+**The four cards at the top.**
+
+- **Running release** — the version, the git commit and the release date of the binary that is serving the page right now, and the environment (`production` on the droplet).
+- **Clients** — how many, how many are sandboxes, and how many have a problem (a missing or unusable schema — shown in red on the row).
+- **Hosted at** — the domain each client's own address sits under (`TENANT_BASE_DOMAIN`, e.g. `wholeops.in`).
+- **Last backup** — the most recent whole-database backup (time, outcome, size) from the nightly job's ledger; if it failed, the time of the last good one. "None recorded" means the backup job has never written its record on this server.
+
+**The Clients table, one row per client.** Name, client id and schema; **Status** (active / suspended…, a *sandbox* or *legal hold* tag, and "admin not signed in yet" while the client's one-time admin login is unused); **Address** (opens it in a new tab — "main address" when the client has none of its own); **Created**; **Version** ("follows release" unless the client is pinned to one); **Modules** — how many are on and off; click it to list them; **Users** (active), **Records**, **Last activity** (its newest Activity Log entry) and **Errors (24h)** with the time of the last one (open them in the Data Console's `system_error_logs`, §C.7).
+
+**Actions on each row.** **Modules** opens **Tenant Entitlements** with that client chosen — turn a module on or off there, or apply a plan. **Data** opens the **Data Console** on that client. Browser **Back** returns here.
+
+**Releases** lists the last ten entries of the release ledger (`public.deployments`: when, environment, version, commit, who, status). Only `promote.ps1` writes to it; releases shipped with `deploy\deploy.ps1` do not, so the running release in the first card is the reliable answer to "what is live".
+
 ## Part D — Developer / CTO Level
 
 ### D.1 Deployment (`promote.ps1`)

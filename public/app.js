@@ -316,7 +316,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '42';
+const VIEW_MODULE_VERSION = '43';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -394,6 +394,7 @@ const LAZY_VIEW_MODULES = {
   'tenant-entitlements': ['view-admin.js', 'renderTenantEntitlementsView', 'Tenant Entitlements'],
   'tenant-usage': ['view-admin.js', 'renderTenantUsageView', 'Tenant Usage'],
   'platform-console': ['view-admin.js', 'renderPlatformConsoleView', 'Data Console'],
+  'control-panel': ['view-control-panel.js', 'renderControlPanelView', 'Control Panel'],
   help: ['view-help.js', 'renderHelpView', 'Help'],
 };
 
@@ -3743,7 +3744,8 @@ const MENU_PERMISSION_MAP = {
   // Tenant Usage/health dashboard (Stage 26.1.5) - same HR/Admin-only gate
   // as handleTenantUsage.
   'menu-tenant-usage': { adminOnly: true },
-  'menu-platform-console': { adminOnly: true }
+  'menu-platform-console': { adminOnly: true },
+  'menu-control-panel': { adminOnly: true }
 };
 
 // Module navigation registry: sidebar entries and direct screen entry share
@@ -4064,6 +4066,12 @@ const MENU_MODULE_MAP = {
     "module": "core",
     "views": [
       "platform-console"
+    ]
+  },
+  "@control-panel": {
+    "module": "core",
+    "views": [
+      "control-panel"
     ]
   },
   "account-menu-profile-btn": {
@@ -4893,7 +4901,7 @@ function setupEventListeners() {
   // Offline Queue Gaps (24.36) - same generic doctype-table pattern as Offline Sync Review above.
   document.getElementById('menu-pos-offline-gaps').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-pos-offline-gaps'); closeSubmenus(); currentDoctype = 'POSOfflineQueueGap'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
 
-  ['menu-inventory', 'menu-journal-vouchers', 'menu-transfers', 'menu-location-movement', 'menu-putaway', 'menu-warehouse-cockpit', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage', 'menu-platform-console'].forEach(id => {
+  ['menu-inventory', 'menu-journal-vouchers', 'menu-transfers', 'menu-location-movement', 'menu-putaway', 'menu-warehouse-cockpit', 'menu-bin-conditions', 'menu-cycle-count', 'menu-asn', 'menu-lpn', 'menu-bin-replenishment', 'menu-wave-picking', 'menu-mobile-picking', 'menu-users', 'menu-roles', 'menu-prefix-configs', 'menu-approval-rules', 'menu-dynamic-labels', 'menu-extension-hooks', 'menu-audit-logs', 'menu-system-status', 'menu-configuration', 'menu-tenant-entitlements', 'menu-tenant-usage', 'menu-platform-console', 'menu-control-panel'].forEach(id => {
     const btn = document.getElementById(id);
     if (btn) {
       btn.addEventListener('click', (e) => {
@@ -5828,6 +5836,7 @@ const STATIC_VIEW_MENU_IDS = {
   'tenant-entitlements': 'menu-tenant-entitlements',
   'tenant-usage': 'menu-tenant-usage',
   'platform-console': 'menu-platform-console',
+  'control-panel': 'menu-control-panel',
   'vendor-invoices': 'menu-vendor-invoices',
   'payment-proposals': 'menu-payment-proposals',
   'bank-reconciliation': 'menu-bank-reconciliation',

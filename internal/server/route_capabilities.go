@@ -601,6 +601,7 @@ var routeCapabilities = map[string]RouteClassification{
 	// ERP_PLATFORM_OPERATORS allowlist inside each handler.
 	"GET /api/v1/platform/me":                                       {LevelAdmin, "platform.console"},
 	"GET /api/v1/platform/tenants":                                  {LevelAdmin, "platform.console"},
+	"GET /api/v1/platform/control-panel":                            {LevelAdmin, "platform.console"},
 	"GET /api/v1/platform/tenants/{tenant}/tables":                  {LevelAdmin, "platform.console"},
 	"GET /api/v1/platform/tenants/{tenant}/tables/{table}":          {LevelAdmin, "platform.console"},
 	"POST /api/v1/platform/tenants/{tenant}/tables/{table}/row":     {LevelAdmin, "platform.console"},

@@ -161,7 +161,7 @@ The sidebar has **twelve top-level entries**. Most are module groups: hover one 
 | **Manufacturing** | Opens directly. |
 | **PIM** | Opens directly. |
 | **Setup** | Every reference list the system knows about (§8) |
-| **Settings** | Admin-only: Users · Roles · Prefix Configs · Approval Rules · Dynamic Labels · Database Schema Design · Extension Hooks · Activity Log · Configuration · System Status · Tenant Entitlements · Tenant Usage |
+| **Settings** | Admin-only: Users · Roles · Prefix Configs · Approval Rules · Dynamic Labels · Database Schema Design · Extension Hooks · Activity Log · Configuration · System Status · Tenant Entitlements · Tenant Usage · Data Console · Control Panel (platform operator) |
 
 
 ![The sidebar, showing its twelve top-level entries](img/sidebar.png)

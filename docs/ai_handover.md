@@ -125,6 +125,16 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-17 Stage 65 + 64.5–64.7 COMMITTED, PUSHED AND DEPLOYED** (`d516214` strip/Back, `87a9a4e`
+  sync index fix, `02e22c6` Vendor picker, `ac35a7c` PO pinned zone + delete, `fd38b1e` item names +
+  design panel incl. migration `stage65_3`, then the Control Panel commit). Prod: rollback snapshots
+  and a verified backup before the migration deploy; tenant_minn got the new masters via the migration
+  loop + sync. **Still open:** the concurrent session's Stage 61.6 (GRN batch rules) is uncommitted in
+  the tree (`engines/wms_receiving.go`, `traceability*.go`, `item_types.go`, `number_series.go`,
+  `settings_definitions.go`, `public/*`, `migrations_stage61_6_grn_batch_rules.sql`) and not deployed;
+  its working tree keeps `app.js?v=38` (never served by prod, so no cache clash). Brain map not redrawn
+  for Stage 64/65's new files. SOP videos still untracked (user to push).
+
 - **2026-10-16 Stage 64 COMMITTED, PUSHED AND DEPLOYED (`042579b`).** Client schema sync
   (`db/tenant_schema_sync.go`, runs after every `-migrate` and in provisioning) brought prod's
   `tenant_minn` fully in step with tenant_default (it was missing 16 tables, 11 columns incl.

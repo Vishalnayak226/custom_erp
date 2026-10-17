@@ -1035,6 +1035,7 @@ func registerRoutes() {
 	// Stage 60.6: platform data console - any client's tables, masked and audited.
 	http.HandleFunc("GET /api/v1/platform/me", apiMiddleware(handlePlatformMe))
 	http.HandleFunc("GET /api/v1/platform/tenants", apiMiddleware(handlePlatformTenants))
+	http.HandleFunc("GET /api/v1/platform/control-panel", apiMiddleware(handleControlPanel)) // Stage 65.5
 	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/tables", apiMiddleware(handlePlatformTables))
 	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/tables/{table}", apiMiddleware(handlePlatformRows))
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/tables/{table}/row", apiMiddleware(handlePlatformUpdateRow))
