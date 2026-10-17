@@ -126,7 +126,13 @@ for checking the current source and worktree.
 ## 6. Version Control
 
 - **2026-10-17 Release of everything above (Stages 54.3f, 65.6-65.8, 66-72, plans 73-75) in one commit,
-  pushed and deployed** - supersedes the "NOT COMMITTED / NOT DEPLOYED" tags on the entries below.
+  `0845470`, DEPLOYED - NOT PUSHED** (the classifier refused `git push`; the user said deploy anyway, so
+  origin/main is still `31fb485` until the user pushes). Supersedes the "NOT COMMITTED / NOT DEPLOYED"
+  tags on the entries below. Prod: rollback `/opt/erp/rollback_20261017_122753`, backup
+  `custom_erp_20261017T122753Z.dump.enc` (sha256 OK), DEPLOY-OK from a clean LF worktree, 8 migrations
+  (65_6, 67_2, 70_1, 71_1, 72_1, 72_3, 72_6, 72_8), sync "1 checked" no changes; app.wholeops.in and
+  minn.wholeops.in both report `git_commit` 0845470, `/` and the new modules 200, app.js hash = commit,
+  `public` erp:erp 755.
   Two CI gates were red on the combined tree and were fixed at release: (1) cold core 191,213 / 184,320
   (`cmd/releasebudget`; `view-pos.js` +6.7 KB from Stage 72) - checklist 72.15 moved the POS Return
   tab, + New Customer, Check / Redeem Points and the Packaging / Gift Card dialogs into the lazy
