@@ -45,7 +45,7 @@ const MaskedValue = "••••••"
 const platformOperatorsEnv = "ERP_PLATFORM_OPERATORS"
 
 var (
-	secretColumnRe = regexp.MustCompile(`(?i)(password|secret|token|otp|hash|api_key|apikey|private|credential|recovery|salt)`)
+	secretColumnRe = regexp.MustCompile(`(?i)(password|secret|token|otp|hash|api_key|apikey|private|credential|recovery|salt|card_number)`)
 	piiKeyRe       = regexp.MustCompile(`(?i)((^|_)(phone|mobile|email|address|pincode|pan|aadhaar|aadhar|dob|birth|account_number|ifsc|upi)($|_)|^customer_name$)`)
 	customerNameRe = regexp.MustCompile(`(?i)^(name|first_name|last_name|full_name|customer_name)$`)
 	identRe        = regexp.MustCompile(`^[a-z_][a-z0-9_]*$`)
@@ -58,8 +58,11 @@ func platformSecretTable(table string) bool {
 }
 
 // platformReadOnlyTable is a table the console shows but never changes.
+// Stage 72.8: gift-card balances and their ledger too - a stored-value
+// balance only ever changes through an appended ledger event (blueprint 11.4).
 func platformReadOnlyTable(table string) bool {
-	return strings.HasPrefix(table, "audit_") || table == "system_error_logs" || platformSecretTable(table)
+	return strings.HasPrefix(table, "audit_") || table == "system_error_logs" || platformSecretTable(table) ||
+		strings.HasPrefix(table, "stored_value_")
 }
 
 // IsPlatformOperator reports whether this session may use the console.

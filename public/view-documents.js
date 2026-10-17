@@ -74,23 +74,14 @@ async function renderDocTableView(container) {
   // GRN's Item picker) - see quickCreateReturn's declaration.
   const showQuickCreateBack = quickCreateReturn && quickCreateReturn.forDoctype === currentDoctype;
 
-  // BLD-037: this subtitle used to read literally "Pluggable module
-  // metadata records database" for every doctype - an internal/technical
-  // phrase with no real per-doctype description behind it (doctype_meta has
-  // no description column - engines/doctype.go's GetDocTypes), left over
-  // from whenever this generic list view was first built. Every
-  // purpose-built screen's own subtitle (Home's quick actions, POS,
-  // Finance/GL, ...) is a plain-language one-liner; this generic fallback
-  // path had drifted from that convention.
+  // Screens carry a title only - no descriptive subtitle under it (user
+  // decision 2026-10-17: the help docs explain each screen).
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
     <div class="page-title-section">
       ${showQuickCreateBack ? `<a href="#" id="quick-create-back" class="empty-state-link" style="display:inline-block; margin-bottom:6px;">&larr; Back to ${escapeHTMLText(quickCreateReturn.label || getTranslatedLabel(quickCreateReturn.view))}</a>` : ''}
       <h1 class="page-title">${escapeHTMLText(getDoctypeLabel(currentDoctype))}</h1>
-      <p class="page-subtitle">${currentDoctype === 'PasswordResetRequest'
-        ? 'Password reset history. Start a reset from Users; privileged accounts require a second administrator’s approval.'
-        : 'View and manage these records.'}</p>
     </div>
     <div style="display:flex; gap: 8px;">
       ${currentDoctype === 'PasswordResetRequest' ? (isMenuRuleVisible(MENU_PERMISSION_MAP['menu-users'])
@@ -1381,9 +1372,10 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
   // Stage 57.3: "HSN Code* - ask to create the master in New Item". The HSN
   // box becomes a picker over the HSN catalogue with inline create, and a
   // chosen code's default GST rate fills an empty rate field.
-  if (currentDoctype === 'Item') {
-    attachHSNPicker(body.querySelector('[name="hsn_code"]'), body.querySelector('[name="gst_rate"]'));
-  }
+  // Stage 66: smart suggestions on every record that carries an HSN box
+  // (Item, Item Name, a design), not only Item.
+  const hsnBox = body.querySelector('input[name="hsn_code"]');
+  if (hsnBox) attachHSNPicker(hsnBox, body.querySelector('[name="gst_rate"]'));
 
   // Stage 55.7: a Bin's zone must be an existing Zone's code, which is
   // auto-numbered - so it is picked (showing the zone's name), and a zone
@@ -1637,7 +1629,9 @@ async function handleDynamicFormSubmitInner(form) {
     // declaration. Scoped to create (not edit) - editing an unrelated
     // existing record from a shortcut-opened list is just browsing, not
     // the flow the shortcut exists for.
-    const returnTo = (!isEdit && quickCreateReturn && quickCreateReturn.forDoctype === currentDoctype) ? quickCreateReturn : null;
+    // Stage 65.8: an edit the shortcut itself opened (the PO's Edit store,
+    // quickCreateReturn.editId) is that flow, and returns the same way.
+    const returnTo = ((!isEdit || quickCreateReturn?.editId) && quickCreateReturn && quickCreateReturn.forDoctype === currentDoctype) ? quickCreateReturn : null;
     // Stage 57.2: the shared return restores the origin list, reopens the
     // form that was open there with what had been typed, and fills in the
     // record just created - and unwinds the detour's history entry.
@@ -1671,7 +1665,6 @@ async function renderDocTypeBuilderView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Database Schema Design</h1>
-      <p class="page-subtitle">Configure schema structures, define dynamic fields, and setup RBAC rules.</p>
     </div>
     <button class="btn btn-primary" ${actionAttrs('openNewDoctypeModal')}>
       <span>Register New Record Type</span>

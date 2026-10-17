@@ -80,13 +80,116 @@ type StickerTemplate struct {
 	Elements      json.RawMessage
 }
 
-// ResolveStickerTemplate finds the Active StickerTemplate whose categories
-// list contains category (case-insensitive, trimmed). When nothing matches,
-// it falls back to the single Active is_default template if one exists; when
-// neither exists it returns (nil, nil) - the caller's cue to keep the
-// pre-Stage-52 hardcoded label untouched rather than treat "unconfigured" as
-// an error.
+// Stage 70: which template a label uses is a rule, checked in this order -
+// the Item's own template, its Item Type's, the template naming its category,
+// the client's default template, and otherwise the built-in standard label.
+// A print from a transaction may also choose a template for a line, which
+// beats every rule for that print only.
+const (
+	StickerRuleItem     = "Item"
+	StickerRuleItemType = "Item type"
+	StickerRuleCategory = "Category"
+	StickerRuleDefault  = "Default"
+	StickerRuleStandard = "Standard"
+	StickerRuleChosen   = "Chosen for this print"
+)
+
+// StickerTemplateStandard, chosen for a line, prints the built-in standard
+// label whatever the rules say.
+const StickerTemplateStandard = "standard"
+
+// ResolveStickerTemplate is the category-and-default part of the rules, for a
+// label with no Item behind it. (nil, nil) means "no template" - the caller
+// prints the built-in label rather than treating "unconfigured" as an error.
 func ResolveStickerTemplate(tenantID, category string) (*StickerTemplate, error) {
+	templates, err := activeStickerTemplates(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	t, _ := pickStickerTemplate(templates, "", "", category)
+	return t, nil
+}
+
+// ResolveStickerTemplateForItem applies every rule to one Item and reports
+// which rule decided ("Standard" with a nil template = the built-in label).
+// item may be nil (a SKU with no Item record): only category and default apply.
+func ResolveStickerTemplateForItem(tenantID string, item map[string]interface{}, category string) (*StickerTemplate, string, error) {
+	templates, err := activeStickerTemplates(tenantID)
+	if err != nil {
+		return nil, StickerRuleStandard, err
+	}
+	var itemTpl, typeTpl string
+	if item != nil {
+		itemTpl = pimString(item["sticker_template"])
+		typeTpl = ItemTypeRulesFor(tenantID, ItemTypeName(item)).StickerTemplate
+	}
+	t, rule := pickStickerTemplate(templates, itemTpl, typeTpl, category)
+	return t, rule, nil
+}
+
+// ChosenStickerTemplate is the template a print picked for a line by hand:
+// StickerTemplateStandard is the built-in label (nil), anything else must be
+// an Active template.
+func ChosenStickerTemplate(tenantID, id string) (*StickerTemplate, error) {
+	if strings.EqualFold(id, StickerTemplateStandard) {
+		return nil, nil
+	}
+	templates, err := activeStickerTemplates(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if t := findStickerTemplate(templates, id); t != nil {
+		return t, nil
+	}
+	return nil, fmt.Errorf("sticker template %q is not an active template - pick another one or set it Active", id)
+}
+
+// pickStickerTemplate is the rule order itself, kept free of the database so
+// the order is tested directly. A rule naming a template that is Inactive or
+// gone is skipped, so setting a template Inactive retires it everywhere.
+func pickStickerTemplate(templates []StickerTemplate, itemTpl, typeTpl, category string) (*StickerTemplate, string) {
+	if t := findStickerTemplate(templates, itemTpl); t != nil {
+		return t, StickerRuleItem
+	}
+	if t := findStickerTemplate(templates, typeTpl); t != nil {
+		return t, StickerRuleItemType
+	}
+	if needle := strings.ToLower(strings.TrimSpace(category)); needle != "" {
+		for i := range templates {
+			for _, c := range templates[i].Categories {
+				if strings.ToLower(c) == needle {
+					return &templates[i], StickerRuleCategory
+				}
+			}
+		}
+	}
+	for i := range templates {
+		if templates[i].IsDefault {
+			return &templates[i], StickerRuleDefault
+		}
+	}
+	return nil, StickerRuleStandard
+}
+
+// findStickerTemplate matches a stored Link value against a template's record
+// id, or its code for a value typed by hand.
+func findStickerTemplate(templates []StickerTemplate, ref string) *StickerTemplate {
+	ref = strings.TrimSpace(ref)
+	if ref == "" {
+		return nil
+	}
+	for i := range templates {
+		if strings.EqualFold(templates[i].ID, ref) || strings.EqualFold(templates[i].Code, ref) {
+			return &templates[i]
+		}
+	}
+	return nil
+}
+
+// activeStickerTemplates reads the client's Active templates, in record-id
+// order so "first match wins" is the same on every call (two templates naming
+// one category, or two ticked as default, used to depend on scan order).
+func activeStickerTemplates(tenantID string) ([]StickerTemplate, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return nil, err
@@ -98,14 +201,15 @@ func ResolveStickerTemplate(tenantID, category string) (*StickerTemplate, error)
 		       COALESCE(data->>'elements', '[]')
 		FROM %s.documents
 		WHERE doctype = 'StickerTemplate' AND status != 'Cancelled'
-		  AND COALESCE(data->>'status', 'Active') = 'Active'`, schema))
+		  AND deleted_at IS NULL
+		  AND COALESCE(data->>'status', 'Active') = 'Active'
+		ORDER BY id`, schema))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	needle := strings.ToLower(strings.TrimSpace(category))
-	var fallback *StickerTemplate
+	var templates []StickerTemplate
 	for rows.Next() {
 		var t StickerTemplate
 		var categoriesRaw, isDefaultRaw, widthRaw, heightRaw, elementsRaw string
@@ -121,24 +225,9 @@ func ResolveStickerTemplate(tenantID, category string) (*StickerTemplate, error)
 				t.Categories = append(t.Categories, c)
 			}
 		}
-
-		if needle != "" {
-			for _, c := range t.Categories {
-				if strings.ToLower(c) == needle {
-					match := t
-					return &match, nil
-				}
-			}
-		}
-		if t.IsDefault && fallback == nil {
-			match := t
-			fallback = &match
-		}
+		templates = append(templates, t)
 	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return fallback, nil
+	return templates, rows.Err()
 }
 
 // StickerElement is one positioned field on a StickerTemplate's label,
@@ -277,12 +366,30 @@ func stickerItemFields(item map[string]interface{}) map[string]string {
 		default:
 			continue
 		}
+		if k == "variant_option_values" {
+			s = StickerVariantText(s)
+		}
 		if s == "" || len(s) > 500 {
 			continue
 		}
 		out[k] = s
 	}
 	return out
+}
+
+// StickerVariantText turns an Item's stored variant shorthand
+// ("metal_type:Silver;size:7") into what a tag should say ("Silver / 7"):
+// the attribute codes are a data-entry format, not label text. The browser
+// engine's variantText mirrors it for the studio preview.
+func StickerVariantText(raw string) string {
+	var vals []string
+	for _, p := range strings.Split(raw, ";") {
+		kv := strings.SplitN(p, ":", 2)
+		if v := strings.TrimSpace(kv[len(kv)-1]); v != "" {
+			vals = append(vals, v)
+		}
+	}
+	return strings.Join(vals, " / ")
 }
 
 // checkPrinterActive is the DEVICE-0298 (Stage 25.5) printer-existence gate,
@@ -311,7 +418,7 @@ func checkPrinterActive(schema, printerCode string) error {
 // flow, sourceDoctype/sourceDocID blank) and PrintStickersForDocument (Stage
 // 52, printing from a GRN/TransferOrder) so the SKU-resolution, barcode
 // rendering, and audit-log write stay a single implementation.
-func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate string) (StickerLabel, error) {
+func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, batchNo, expiryDate, chosenTemplate string) (StickerLabel, error) {
 	// Stage 30.1.1: resolved through the shared ResolveItemBySKU (code ->
 	// barcode -> id) rather than the internal id alone - a sticker run
 	// keyed off item Codes used to print every label with a blank
@@ -325,8 +432,9 @@ func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode,
 		// so a corrupt Item record doesn't go unnoticed.
 		log.Printf("[STICKERS] could not resolve Item %s: %v", sku, err)
 	}
+	var item map[string]interface{}
 	if err == nil {
-		item := resolved.Data
+		item = resolved.Data
 		if v, ok := item["name"].(string); ok {
 			label.Name = v
 		}
@@ -359,9 +467,19 @@ func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode,
 		label.BarcodeSVG = svg
 	}
 
-	if tmpl, tErr := ResolveStickerTemplate(tenantID, label.Category); tErr != nil {
-		log.Printf("[STICKERS] could not resolve template for category %q: %v", label.Category, tErr)
-	} else if tmpl != nil {
+	// Stage 70: a template chosen for this print beats the rules; a chosen
+	// template that is no longer Active stops the run rather than printing
+	// some other design.
+	var tmpl *StickerTemplate
+	var tErr error
+	if chosenTemplate != "" {
+		if tmpl, tErr = ChosenStickerTemplate(tenantID, chosenTemplate); tErr != nil {
+			return label, tErr
+		}
+	} else if tmpl, _, tErr = ResolveStickerTemplateForItem(tenantID, item, label.Category); tErr != nil {
+		log.Printf("[STICKERS] could not resolve template for %s: %v", sku, tErr)
+	}
+	if tmpl != nil {
 		label.TemplateID = tmpl.ID
 		label.TemplateName = tmpl.Name
 		label.TemplateElements = tmpl.Elements
@@ -422,7 +540,7 @@ func PrintStickers(tenantID string, skus []string, printerCode, printedBy, repri
 
 	var labels []StickerLabel
 	for _, sku := range skus {
-		label, err := resolveAndLogSticker(tenantID, schema, sku, copies, printerCode, printedBy, reprintReason, "", "", "", "")
+		label, err := resolveAndLogSticker(tenantID, schema, sku, copies, printerCode, printedBy, reprintReason, "", "", "", "", "")
 		if err != nil {
 			return nil, err
 		}

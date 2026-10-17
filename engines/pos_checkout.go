@@ -84,6 +84,16 @@ type posCart struct {
 	// finalization path gets the same behavior for free with no call-site
 	// change.
 	OfflineSynced bool `json:"offline_synced"`
+	// Consumption (Stage 72.3) is what the sale uses up with its lines -
+	// resolved from the Backflush Rules and the cashier's Packaging choices by
+	// handleCheckout and stored here, so an approval-gated or authorise-only
+	// sale posts exactly what the cashier confirmed.
+	Consumption []ConsumptionLine `json:"consumption"`
+	// GiftCardTenders (Stage 72.8): gift cards paying part of the bill,
+	// checked at checkout and redeemed in this transaction. OfferDiscount is
+	// read only to cap them at what the customer actually owed.
+	GiftCardTenders []GiftCardTender `json:"gift_card_tenders"`
+	OfferDiscount   float64          `json:"offer_discount"`
 }
 
 // FinalizeOutcome is what one committed sale produced. Returned so the caller
@@ -161,7 +171,11 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 		return nil, err
 	}
 
-	itemsInterface := make([]interface{}, len(cart.Items))
+	itemsInterface := make([]interface{}, 0, len(cart.Items))
+	// Stage 72.9-72.11: what each line takes out of stock and what it costs
+	// now depends on the item's policy - see saleStockIssue. A gift's cost
+	// goes to its profile's expense account rather than COGS.
+	giftCostByAccount := map[string]int64{}
 	// Stage 45: paise totals for the ledger/receipt, computed straight from
 	// each line's own float64 price - not from a whole-rupee int() truncated
 	// before the qty multiply, which is the exact leak the 2026-07-31
@@ -177,9 +191,23 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	totalSalePaise, totalCostPaise := int64(0), int64(0)
 	totalSaleRupees, totalCostRupees := 0, 0
 	var costingGaps []CostingGapLine
-	for i, item := range cart.Items {
-		itemsInterface[i] = map[string]interface{}{"sku": item.Sku, "qty": -item.Qty}
+	for _, item := range cart.Items {
+		issue := saleStockIssue(tenantID, item.Sku, item.Qty)
+		itemsInterface = append(itemsInterface, issue.stock...)
 		totalSalePaise += RupeesToPaise(item.SalePrice) * int64(item.Qty)
+		if issue.handled {
+			if issue.giftAccount != "" {
+				giftCostByAccount[issue.giftAccount] += issue.costPaise
+			} else {
+				totalCostPaise += issue.costPaise
+			}
+			if !issue.costResolved {
+				costingGaps = append(costingGaps, CostingGapLine{SKU: item.Sku, Qty: item.Qty, SaleValue: item.SalePrice * float64(item.Qty)})
+			}
+			totalSaleRupees += int(item.SalePrice) * item.Qty
+			totalCostRupees += int(PaiseToRupees(issue.costPaise))
+			continue
+		}
 		// Stage 47.2.2: cost is resolved entirely server-side - a real
 		// moving-average cost (engines/costing.go), then Item.standard_cost,
 		// then zero. The client's cost_price, which Stage 37.3.3 had left as
@@ -236,11 +264,42 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	if err := PostSalesGSTBookingTx(tx, schema, tenantID, cartNumber, cart.GSTBreakdown); err != nil {
 		return nil, fmt.Errorf("GST booking failed: %v", err)
 	}
+	// Stage 72.8: gift cards paying the bill - liability down, payment
+	// clearing credited by the same amount, all or nothing with the sale.
+	if len(cart.GiftCardTenders) > 0 {
+		var giftTotal int64
+		for _, t := range cart.GiftCardTenders {
+			giftTotal += t.AmountPaise
+		}
+		if owed := totalSalePaise - loyaltyDiscountPaise - RupeesToPaise(cart.OfferDiscount); giftTotal > owed {
+			return nil, &ValidationError{Code: "POSOFF-0435", Message: fmt.Sprintf("gift cards cover %.2f but the bill comes to %.2f", PaiseToRupees(giftTotal), PaiseToRupees(owed))}
+		}
+		if err := redeemGiftCardTendersTx(tx, schema, tenantID, cartNumber, cart.Location, cashier, cart.PaymentMode, cart.GiftCardTenders); err != nil {
+			return nil, err
+		}
+	}
 	// Stage 26.6.11: move any exempt/nil-rated/zero-rated turnover out of 4100
 	// so it is not later reported as taxable value. A wholly taxable cart
 	// no-ops here.
 	if err := PostExemptSalesReclassTx(tx, schema, tenantID, cartNumber, cart.GSTBreakdown); err != nil {
 		return nil, fmt.Errorf("exempt-sales reclass failed: %v", err)
+	}
+	// Stage 72.7: a gift handed over free is a promotional cost, not COGS.
+	for _, acct := range sortedPaiseKeys(giftCostByAccount) {
+		if giftCostByAccount[acct] <= 0 {
+			continue
+		}
+		if err := PostDoubleEntryTx(tx, tenantID, schema, "POSCart", cartNumber,
+			map[string]int64{acct: giftCostByAccount[acct]}, map[string]int64{"1200": giftCostByAccount[acct]},
+			"", fmt.Sprintf("POSCart:%s:GIFT_COST:%s", cartNumber, acct)); err != nil {
+			return nil, fmt.Errorf("gift cost posting failed: %v", err)
+		}
+	}
+	// Stage 72.3: packaging and consumables the sale used, from the rules and
+	// the cashier's choices stored on the cart at checkout.
+	consumptionNegative, consumptionLedger, err := postSaleConsumptionTx(tx, schema, tenantID, cartNumber, cart.Location, cart.Consumption, cart.OfflineSynced)
+	if err != nil {
+		return nil, err
 	}
 
 	if _, err := tx.Exec(fmt.Sprintf(
@@ -306,6 +365,15 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	// --- everything below is post-commit and must never undo the sale -----
 
 	WriteStockLedgerLines(tenantID, cart.Location, "POSInvoice", cartNumber, cashier, ledgerLines)
+	WriteStockLedgerLines(tenantID, cart.Location, "POSConsumption", cartNumber, cashier, consumptionLedger)
+	for _, ev := range consumptionNegative {
+		RecordItemException(tenantID, ItemExceptionInput{
+			ProcessType: ItemExceptionShortStock, SourceDoctype: "POSCart", SourceID: cartNumber,
+			SKU: ev.SKU, Location: ev.LocationCode, Code: "POSOFF-0416", Qty: ev.Shortfall,
+			Message:  fmt.Sprintf("sale %s used %s the store did not have: stock is now %d - count it, or receive the missing quantity", cartNumber, ev.SKU, ev.ResultingAvailable),
+			DedupKey: "short|" + cartNumber + "|" + ev.SKU,
+		})
+	}
 
 	if len(negativeEvents) > 0 {
 		// 20.13 decision: an offline-synced sale already physically happened

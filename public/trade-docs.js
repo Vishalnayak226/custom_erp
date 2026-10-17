@@ -44,7 +44,12 @@ export const TRANSACTIONS = [
   { key: 'TransferOut', label: 'Transfer Out (dispatch challan)', doctype: 'TransferOrder' },
   { key: 'TransferIn', label: 'Transfer In (receipt)', doctype: 'TransferOrder' },
   { key: 'DebitNote', label: 'Debit Note', doctype: 'DebitNote' },
-  { key: 'VendorCreditNote', label: 'Credit Note (to vendor)', doctype: 'VendorCreditNote' }
+  { key: 'VendorCreditNote', label: 'Credit Note (to vendor)', doctype: 'VendorCreditNote' },
+  // Stage 71: the standard print formats pack.
+  { key: 'GRNVendorCopy', label: 'Vendor Copy (goods receipt acknowledgement)', doctype: 'GRN' },
+  { key: 'PurchaseReturn', label: 'Purchase Return (return to vendor)', doctype: 'PurchaseReturn' },
+  { key: 'CreditNote', label: 'Credit Note (to customer)', doctype: 'CreditNote' },
+  { key: 'SalesReturn', label: 'Sales Return', doctype: 'ReturnRequest' }
 ];
 export const txnLabel = (k) => (TRANSACTIONS.find(t => t.key === k) || {}).label || k;
 
@@ -84,7 +89,7 @@ export function formatValue(v, fmt) {
 // guessFormat picks a sensible format for a key when the template set none.
 export function guessFormat(key) {
   const k = String(key || '').split('.').pop();
-  if (/^(rate|mrp|taxable|cgst|sgst|igst|tax|amount|grand_total|round_off|po_rate|invoice_rate|rate_difference|po_value|invoice_value|invoice_gst|invoice_total|vendor_invoice_amount|invoice_amount_difference|total_amount|standard_cost|sale_price|gst_amount|total_with_gst)$/.test(k)) return 'money';
+  if (/^(rate|mrp|taxable|cgst|sgst|igst|tax|amount|grand_total|round_off|po_rate|invoice_rate|rate_difference|po_value|invoice_value|invoice_gst|invoice_total|vendor_invoice_amount|invoice_amount_difference|total_amount|standard_cost|sale_price|gst_amount|total_with_gst|original_taxable|original_disc)$/.test(k)) return 'money';
   if (/(^|_)qty$|^qty|line_count/.test(k)) return 'qty';
   if (/gst_rate$/.test(k)) return 'percent';
   if (/date$|^date$/.test(k)) return 'date';
@@ -110,51 +115,115 @@ export const newElementId = () => `e${Date.now().toString(36)}${(nextId++).toStr
 
 const col = (key, label, width, extra = {}) => ({ key, label, width, align: extra.align || (['text', 'image'].includes(extra.format || guessFormat(key)) && key !== 'sr' ? 'left' : 'right'), format: extra.format || guessFormat(key), ...extra });
 
+// Stage 71: columns, header fields, totals and signatures follow the user's
+// "Standard ERP Transaction Print Formats" pack. Fields the ERP does not hold
+// (bin per line, cess, IRN, vehicle / LR, payment terms...) are left out
+// rather than printed empty.
 const TXN_COLUMNS = {
-  PurchaseOrder: [col('sr', '#', 5, { align: 'center' }), col('sku', 'SKU', 18), col('item_name', 'Item', 34), col('hsn_code', 'HSN', 10), col('qty', 'Qty', 8), col('rate', 'Rate', 12), col('mrp', 'MRP', 11), col('gst_rate', 'GST', 7), col('taxable', 'Taxable', 14), col('amount', 'Amount', 15)],
-  VendorPO: [col('sr', '#', 5, { align: 'center' }), col('image', 'Image', 16, { format: 'image', align: 'center' }), col('sku', 'SKU', 18), col('item_name', 'Item', 34), col('hsn_code', 'HSN', 10), col('qty', 'Qty', 8), col('rate', 'Rate', 12), col('gst_rate', 'GST', 7), col('amount', 'Amount', 15)],
-  GRN: [col('sr', '#', 4, { align: 'center' }), col('sku', 'SKU', 16), col('item_name', 'Item', 26), col('qty', 'Recd', 7), col('accepted_qty', 'Accepted', 8), col('rejected_qty', 'Rej.', 6), col('damaged_qty', 'Dmg.', 6), col('po_rate', 'PO Rate', 10), col('invoice_rate', 'Inv. Rate', 10), col('gst_rate', 'GST', 6), col('amount', 'Amount', 13)],
-  TransferOut: [col('sr', '#', 5, { align: 'center' }), col('sku', 'SKU', 18), col('item_name', 'Item', 38), col('hsn_code', 'HSN', 10), col('qty', 'Qty', 8), col('rate', 'Value/Unit', 12), col('taxable', 'Value', 14), col('tax', 'GST', 11), col('amount', 'Total', 14)],
-  TransferIn: [col('sr', '#', 5, { align: 'center' }), col('sku', 'SKU', 18), col('item_name', 'Item', 38), col('sent_qty', 'Sent', 9), col('qty', 'Received', 10), col('rate', 'Value/Unit', 12), col('amount', 'Total', 14)],
-  DebitNote: [col('sr', '#', 5, { align: 'center' }), col('sku', 'SKU', 18), col('item_name', 'Item / Reason', 36), col('qty', 'Qty', 8), col('po_rate', 'PO Rate', 11), col('invoice_rate', 'Billed', 11), col('rate', 'Diff./Unit', 11), col('taxable', 'Taxable', 13), col('tax', 'GST', 11), col('amount', 'Amount', 14)]
+  PurchaseOrder: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Item / Barcode', 20), col('description', 'Description / Variant', 38), col('hsn_code', 'HSN', 9), col('uom', 'UOM', 7), col('qty', 'Qty', 8), col('rate', 'Unit Price', 12), col('gst_rate', 'Tax %', 7), col('amount', 'Line Total', 14)],
+  VendorPO: [col('sr', 'Ln', 4, { align: 'center' }), col('image', 'Image', 16, { format: 'image', align: 'center' }), col('item_code', 'Item / Barcode', 18), col('description', 'Description / Variant', 32), col('hsn_code', 'HSN', 9), col('uom', 'UOM', 7), col('qty', 'Qty', 8), col('rate', 'Unit Price', 12), col('gst_rate', 'Tax %', 7), col('amount', 'Line Total', 14)],
+  GRN: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode / Item', 17), col('description', 'Design / Variant', 25), col('po_qty', 'PO Qty', 8), col('qty', 'Received', 8), col('accepted_qty', 'Accepted', 8), col('rejected_qty', 'Rejected', 8), col('damaged_qty', 'Damaged', 8), col('qc_status', 'QC Status', 11, { align: 'left' }), col('variance_reason', 'Variance Reason', 17)],
+  GRNVendorCopy: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Item / Barcode', 18), col('description', 'Description', 27), col('po_qty', 'Ordered Qty', 10), col('qty', 'Delivered Qty', 10), col('accepted_qty', 'Accepted Qty', 10), col('rejected_qty', 'Rejected Qty', 10), col('damaged_qty', 'Damaged Qty', 11), col('variance_reason', 'Remarks', 18)],
+  PurchaseReturn: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode / Item', 16), col('description', 'Description', 27), col('received_qty', 'Received Qty', 9), col('return_qty', 'Return Qty', 9), col('uom', 'UOM', 6), col('rate', 'Rate', 11), col('gst_rate', 'Tax %', 7), col('taxable', 'Return Value', 13), col('reason', 'Reason', 16)],
+  TransferOut: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode / Combination', 18), col('description', 'Description', 31), col('hsn_code', 'HSN', 9), col('uom', 'UOM', 7), col('requested_qty', 'Requested Qty', 10), col('shipped_qty', 'Shipped Qty', 10), col('rate', 'Value / Unit', 11), col('taxable', 'Value', 13)],
+  TransferIn: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode / Combination', 20), col('description', 'Description', 36), col('shipped_qty', 'Shipped Qty', 11), col('received_qty', 'Received Qty', 11), col('short_qty', 'Short', 9), col('reason', 'Reason', 22)],
+  DebitNote: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Item', 15), col('hsn_code', 'HSN', 8), col('description', 'Description / Reason', 28), col('original_taxable', 'Original Taxable', 13), col('taxable', 'Debit Taxable', 13), col('cgst', 'CGST', 10), col('sgst', 'SGST', 10), col('igst', 'IGST', 10), col('amount', 'Debit Total', 13)],
+  CreditNote: [col('sr', 'Ln', 5, { align: 'center' }), col('description', 'Description / Reason', 120), col('amount', 'Credit Amount', 30)],
+  SalesReturn: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode', 16), col('description', 'Item / Description', 28), col('original_qty', 'Original Qty', 9), col('return_qty', 'Return Qty', 9), col('mrp', 'MRP', 11), col('original_disc', 'Original Disc.', 11), col('tax', 'Tax', 10), col('amount', 'Refund Value', 13), col('condition', 'Condition', 12)]
 };
-TXN_COLUMNS.VendorCreditNote = TXN_COLUMNS.DebitNote;
+TXN_COLUMNS.VendorCreditNote = TXN_COLUMNS.DebitNote.map(c => ({ ...c,
+  label: { taxable: 'Credit Taxable', amount: 'Credit Total' }[c.key] || c.label }));
+
+// The field grid under the parties: [text, column, row]. column 0 / 1 is the
+// left / right half, 2 the full width. A piece whose fields are all blank
+// drops out instead of printing a label with nothing after it.
+const TXN_INFO = {
+  PurchaseOrder: [['Ship to: {ship_to.name}, {ship_to.address} {ship_to.city}', 2, 0], ['Price basis: {fields.gst_mode} of GST', 0, 1], ['Currency: {fields.currency}', 1, 1], ['Buyer: {audit.created_by}', 0, 2]],
+  GRN: [['PO No.: {fields.po_numbers}', 0, 0], ['Vendor invoice / challan: {fields.vendor_invoice_no}', 1, 0], ['ASN: {fields.asn_id}', 0, 1], ['Invoice date: {fields.vendor_invoice_date|date}', 1, 1]],
+  PurchaseReturn: [['Original PO: {fields.po_numbers}', 0, 0], ['Original GRN: {fields.grn_id}', 1, 0], ['Vendor invoice: {fields.vendor_invoice_no}', 0, 1], ['Invoice date: {fields.vendor_invoice_date|date}', 1, 1], ['Return reason: {fields.reason}', 0, 2], ['Linked debit note: {fields.debit_note_id}', 1, 2]],
+  TransferOut: [['Master transfer order: {number}', 0, 0], ['Transfer type: {fields.supply_type}', 1, 0], ['Value basis: {fields.value_basis}', 0, 1], ['Stock status after posting: {fields.stock_status_after}', 1, 1]],
+  TransferIn: [['Master transfer order: {number}', 0, 0], ['Receipt status: {fields.receipt_status}', 1, 0], ['Transfer type: {fields.supply_type}', 0, 1], ['Stock status after posting: {fields.stock_status_after}', 1, 1]],
+  DebitNote: [['Original invoice no.: {fields.original_invoice_no}', 0, 0], ['Original invoice date: {fields.original_invoice_date|date}', 1, 0], ['Against GRN: {fields.grn_id}', 0, 1], ['PO: {fields.po_numbers}', 1, 1], ['Document direction: {fields.document_direction}', 0, 2], ['Place of supply: {fields.place_of_supply}', 1, 2], ['Reason: {fields.reason}', 2, 3]],
+  CreditNote: [['Original invoice no.: {fields.original_invoice_no}', 0, 0], ['Original invoice date: {fields.original_invoice_date|date}', 1, 0], ['Reason: {fields.reason}', 2, 1]],
+  SalesReturn: [['Original bill no.: {fields.original_order}', 0, 0], ['Original bill date: {fields.original_invoice_date|date}', 1, 0], ['Refund method: {fields.refund_method}', 0, 1], ['Refund no.: {fields.refund_no}', 1, 1], ['Return type: {fields.return_type}', 0, 2]]
+};
+TXN_INFO.VendorPO = TXN_INFO.PurchaseOrder;
+TXN_INFO.GRNVendorCopy = TXN_INFO.GRN;
+TXN_INFO.VendorCreditNote = TXN_INFO.DebitNote;
+
+const tot = (key, label, extra = {}) => ({ key: `totals.${key}`, label, ...extra });
+const TAX_ROWS = [tot('cgst', 'CGST', { when: 'intra', hideZero: true }), tot('sgst', 'SGST', { when: 'intra', hideZero: true }), tot('igst', 'IGST', { when: 'inter', hideZero: true })];
+const TXN_TOTALS = {
+  PurchaseOrder: [tot('taxable', 'Subtotal'), ...TAX_ROWS, tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'PO Total', { strong: true })],
+  GRN: [tot('po_qty', 'Total PO qty'), tot('qty', 'Total received'), tot('accepted_qty', 'Accepted', { strong: true }), tot('rejected_qty', 'Rejected'), tot('damaged_qty', 'Damaged', { hideZero: true })],
+  GRNVendorCopy: [tot('po_qty', 'Total ordered'), tot('qty', 'Total delivered'), tot('accepted_qty', 'Accepted', { strong: true }), tot('rejected_qty', 'Rejected'), tot('damaged_qty', 'Damaged', { hideZero: true })],
+  PurchaseReturn: [tot('return_qty', 'Total returned qty'), tot('taxable', 'Taxable return value'), tot('tax', 'Tax adjustment'), tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'Total return value', { strong: true })],
+  TransferOut: [tot('shipped_qty', 'Total pieces'), tot('taxable', 'Value'), ...TAX_ROWS, tot('grand_total', 'Total value', { strong: true })],
+  TransferIn: [tot('shipped_qty', 'Total shipped'), tot('received_qty', 'Total received', { strong: true }), tot('short_qty', 'Short')],
+  DebitNote: [tot('taxable', 'Taxable amount debited'), tot('tax', 'Tax debited'), tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'Total debit note', { strong: true })],
+  VendorCreditNote: [tot('taxable', 'Taxable amount credited'), tot('tax', 'Tax credited'), tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'Total credit note', { strong: true })],
+  CreditNote: [tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'Total credit note', { strong: true })],
+  SalesReturn: [tot('taxable', 'Return subtotal'), tot('tax', 'Tax reversal'), tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'Net refund / credit', { strong: true })]
+};
+TXN_TOTALS.VendorPO = TXN_TOTALS.PurchaseOrder;
+
+const TXN_SIGNATURES = {
+  PurchaseOrder: ['Prepared By', 'Approved By', 'Supplier Acceptance'],
+  GRN: ['Received By', 'QC / Verification', 'Posted By / Approver'],
+  GRNVendorCopy: ['Vendor / Driver', 'Received By', 'Security / Gate'],
+  PurchaseReturn: ['Prepared / Packed By', 'Approved By', 'Vendor / Transporter'],
+  TransferOut: ['Picked / Packed By', 'Dispatched By', 'Transporter / Handover'],
+  TransferIn: ['Received By', 'Verified By', 'Posted / Approved By'],
+  DebitNote: ['Prepared By', 'Approved By', 'Authorised Signatory'],
+  SalesReturn: ['Processed By', 'Verified / Approved By', 'Customer Acknowledgement']
+};
+TXN_SIGNATURES.VendorPO = TXN_SIGNATURES.PurchaseOrder;
+TXN_SIGNATURES.VendorCreditNote = TXN_SIGNATURES.CreditNote = TXN_SIGNATURES.DebitNote;
+
+// Prints that carry no money (quantities only) have no tax summary and no
+// amount in words.
+const QTY_ONLY = { GRN: 1, GRNVendorCopy: 1, TransferIn: 1, CreditNote: 1 };
+// The one note the pack prints on the document itself.
+const TXN_NOTE = {
+  GRNVendorCopy: 'This acknowledges the quantity received at this location. It is not a confirmation of invoice acceptance, payment approval, final QC acceptance or agreed valuation.'
+};
 
 export function defaultLayout(txn) {
-  const blockTitle = { PurchaseOrder: 'Buyer', VendorPO: 'Buyer', GRN: 'Received at', TransferOut: 'Dispatched from', TransferIn: 'Received at', DebitNote: 'From', VendorCreditNote: 'From' }[txn] || 'From';
-  // The info strip under the parties: one piece per value, so a blank one
-  // (a GRN with no vendor invoice yet) drops out instead of printing a label
-  // with nothing after it. [text, x, width] in mm, all on one row.
-  const NOTE = { DebitNote: 1, VendorCreditNote: 1 };
-  const extra = {
-    PurchaseOrder: [['Ship to: {ship_to.name}, {ship_to.address} {ship_to.city}', 10, 130], ['Prices are {fields.gst_mode} of GST', 140, 60]],
-    VendorPO: [['Ship to: {ship_to.name}, {ship_to.address} {ship_to.city}', 10, 190]],
-    GRN: [['PO: {fields.po_numbers}', 10, 70], ['Vendor invoice: {fields.vendor_invoice_no}', 80, 45], ['Dated {fields.vendor_invoice_date|date}', 125, 30], ['Amount: {fields.vendor_invoice_amount|money}', 155, 45]],
-    TransferOut: [['{fields.supply_type}', 10, 190]],
-    TransferIn: [['{fields.supply_type}', 10, 190]],
-    DebitNote: [['Against GRN {fields.grn_id}', 10, 60], ['PO: {fields.po_numbers}', 70, 70], ['Vendor invoice: {fields.vendor_invoice_no}', 140, 60]],
-    VendorCreditNote: [['Against GRN {fields.grn_id}', 10, 60], ['PO: {fields.po_numbers}', 70, 70], ['Vendor invoice: {fields.vendor_invoice_no}', 140, 60]]
-  }[txn] || [];
+  const blockTitle = { PurchaseOrder: 'Bill to', VendorPO: 'Bill to', GRN: 'Received at', GRNVendorCopy: 'Received at', PurchaseReturn: 'Dispatched from', TransferOut: 'From location', TransferIn: 'To location', DebitNote: 'Issuer', VendorCreditNote: 'Issuer', CreditNote: 'Issuer', SalesReturn: 'Store' }[txn] || 'From';
   const E = (o) => ({ id: newElementId(), fontSize: 9, align: 'left', pages: 'first', ...o });
+  const info = TXN_INFO[txn] || [];
+  const infoRows = info.reduce((n, i) => Math.max(n, i[2] + 1), 0);
+  const tableY = 63 + infoRows * 5 + 2;
+  const noMoney = !!QTY_ONLY[txn];
+  const note = TXN_NOTE[txn];
+  const signs = TXN_SIGNATURES[txn] || TXN_SIGNATURES.DebitNote;
   return {
     version: 1,
     page: { size: 'A4', orientation: 'portrait', margin: 10, font: 'Inter, Arial, sans-serif' },
     elements: [
-      E({ type: 'field', key: 'brand.name', x: 10, y: 8, w: 115, h: 9, fontSize: 16, bold: true, pages: 'all' }),
-      E({ type: 'field', key: 'title', x: 125, y: 8, w: 75, h: 7, fontSize: 13, bold: true, align: 'right', pages: 'all' }),
+      E({ type: 'field', key: 'brand.name', x: 10, y: 8, w: 105, h: 9, fontSize: 16, bold: true, pages: 'all' }),
+      E({ type: 'text', text: 'Financial year: {fields.financial_year}', x: 10, y: 17, w: 80, h: 4.5, fontSize: 8 }),
+      E({ type: 'text', text: 'Status: {status}', x: 10, y: 21.5, w: 80, h: 4.5, fontSize: 8 }),
+      E({ type: 'field', key: 'title', x: 105, y: 8, w: 95, h: 7, fontSize: 12, bold: true, align: 'right', pages: 'all' }),
       E({ type: 'text', text: 'No: {number}', x: 125, y: 15, w: 75, h: 5, align: 'right', pages: 'all' }),
       E({ type: 'text', text: 'Date: {date|date}', x: 125, y: 20, w: 75, h: 5, align: 'right' }),
       E({ type: 'line', x: 10, y: 27, w: 190, h: 0.4, thickness: 0.4, pages: 'all' }),
       E({ type: 'block', block: 'store', title: blockTitle, x: 10, y: 30, w: 93, h: 30, border: true }),
       E({ type: 'block', block: 'party', title: '{party_title}', x: 107, y: 30, w: 93, h: 30, border: true }),
-      ...extra.map(([text, x, w]) => E({ type: 'text', text, x, y: 62, w, h: 5, fontSize: 8 })),
-      ...(NOTE[txn] ? [E({ type: 'text', text: 'Reason: {fields.reason}', x: 10, y: 67, w: 190, h: 5, fontSize: 8 })] : []),
-      E({ type: 'table', x: 10, y: 72, w: 190, h: 146, contY: 30, columns: TXN_COLUMNS[txn] || TXN_COLUMNS.PurchaseOrder, fontSize: 8, headerBg: '#f1f3f5', imageSize: 14, pages: 'all' }),
-      E({ type: 'taxSummary', x: 10, y: 222, w: 112, h: 30, fontSize: 8, pages: 'last' }),
-      E({ type: 'totals', x: 128, y: 222, w: 72, h: 34, fontSize: 9, pages: 'last' }),
-      E({ type: 'text', text: 'Amount in words: {amount_in_words}', x: 10, y: 258, w: 190, h: 6, fontSize: 8.5, italic: true, pages: 'last' }),
-      E({ type: 'text', text: 'For {brand.name}\n\n\nAuthorised Signatory', x: 128, y: 266, w: 72, h: 18, align: 'right', pages: 'last' }),
-      E({ type: 'pageNo', x: 10, y: 287, w: 190, h: 5, fontSize: 7, align: 'center', pages: 'all' })
+      ...info.map(([text, c, r]) => E({ type: 'text', text, x: c === 1 ? 107 : 10, y: 62 + r * 5, w: c === 2 ? 190 : 93, h: 5, fontSize: 8 })),
+      E({ type: 'table', x: 10, y: tableY, w: 190, h: 218 - tableY, contY: 30, columns: TXN_COLUMNS[txn] || TXN_COLUMNS.PurchaseOrder, fontSize: 8, headerBg: '#f1f3f5', imageSize: 14, pages: 'all' }),
+      ...(noMoney ? [] : [E({ type: 'taxSummary', x: 10, y: 222, w: 112, h: 30, fontSize: 8, pages: 'last' })]),
+      E({ type: 'totals', x: 128, y: 222, w: 72, h: 32, fontSize: 9, pages: 'last', rows: TXN_TOTALS[txn] || TXN_TOTALS.PurchaseOrder }),
+      ...(noMoney ? [] : [E({ type: 'text', text: 'Amount in words: {amount_in_words}', x: 10, y: 255, w: 190, h: 6, fontSize: 8.5, italic: true, pages: 'last' })]),
+      ...(note ? [E({ type: 'text', text: note, x: 10, y: 222, w: 112, h: 18, fontSize: 8, italic: true, border: true, pages: 'last' })] : []),
+      ...signs.flatMap((label, i) => [
+        E({ type: 'line', x: 10 + i * 65, y: 275, w: 55, h: 0.3, thickness: 0.3, pages: 'last' }),
+        E({ type: 'text', text: label, x: 10 + i * 65, y: 276, w: 55, h: 5, fontSize: 8, align: 'center', pages: 'last' })
+      ]),
+      E({ type: 'text', text: 'Created: {audit.created_by} {audit.created_at}', x: 10, y: 283, w: 62, h: 4, fontSize: 6.5, pages: 'last' }),
+      E({ type: 'text', text: 'Approved: {audit.approved_by} {audit.approved_at}', x: 72, y: 283, w: 62, h: 4, fontSize: 6.5, pages: 'last' }),
+      E({ type: 'text', text: 'Printed: {audit.printed_by} {audit.printed_at}', x: 134, y: 283, w: 66, h: 4, fontSize: 6.5, align: 'right', pages: 'last' }),
+      E({ type: 'pageNo', x: 10, y: 288, w: 190, h: 5, fontSize: 7, align: 'center', pages: 'all' })
     ]
   };
 }
@@ -334,8 +403,21 @@ export function printContext(doc) {
     ...doc,
     brand: doc.brand || {},
     store: doc.store || {}, party: doc.party || {}, ship_to: doc.ship_to || {},
-    fields: doc.fields || {}, totals: doc.totals || {}
+    fields: doc.fields || {}, totals: doc.totals || {},
+    // Stage 71: who printed it and when, beside the server's created /
+    // approved audit fields.
+    audit: { ...(doc.audit || {}), printed_by: printedBy(), printed_at: printedAt() }
   };
+}
+
+function printedBy() {
+  try { return localStorage.getItem('erp_username') || ''; } catch (e) { return ''; }
+}
+
+function printedAt() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 // renderPages returns page elements (not yet attached) for the layout.
@@ -425,6 +507,7 @@ async function fetchPrintData(txn, id, store, images) {
 // transactionsFor is which print transactions a document offers.
 function transactionsFor(doctype, doc) {
   if (doctype === 'PurchaseOrder') return ['PurchaseOrder', 'VendorPO'];
+  if (doctype === 'GRN') return ['GRN', 'GRNVendorCopy'];
   if (doctype === 'TransferOrder') return (doc && doc.status === 'Received') ? ['TransferIn', 'TransferOut'] : ['TransferOut', 'TransferIn'];
   const t = TRANSACTIONS.find(x => x.doctype === doctype);
   return t ? [t.key] : [];

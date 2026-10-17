@@ -72,7 +72,15 @@ func TestItemTypesBarcodePricingAndBackflush(t *testing.T) {
 	insert("CHARGER", "Item", tax(map[string]interface{}{"code": "CHARGER", "name": "Charger", "sale_price": 500.0, "item_type": "Free With Item", "free_with": "PHONE"}))
 	insert("MUG", "Item", tax(map[string]interface{}{"code": "MUG", "name": "Mug", "sale_price": 200.0, "item_type": "Gift"}))
 
-	q, err := ResolvePOSQuote(tenantID, QuoteRequest{Lines: []QuoteLineRequest{{Sku: "PHONE", Qty: 1}, {Sku: "CHARGER", Qty: 1}, {Sku: "MUG", Qty: 2}}})
+	// Stage 72.7: the Gift type is Promo only - a gift needs a Gift With
+	// Purchase offer this bill qualifies for (blueprint UAT-14).
+	var verr *ValidationError
+	cart := []QuoteLineRequest{{Sku: "PHONE", Qty: 1}, {Sku: "CHARGER", Qty: 1}, {Sku: "MUG", Qty: 2}}
+	if _, err := ResolvePOSQuote(tenantID, QuoteRequest{Lines: cart}); !errors.As(err, &verr) || verr.Code != "POSOFF-0412" {
+		t.Errorf("gift with no offer: err = %v, want POSOFF-0412", err)
+	}
+	insert("OFF-MUG", "Offer", map[string]interface{}{"name": "Mugs with a phone", "offer_type": "Gift With Purchase", "scope": "Item", "scope_value": "PHONE", "gift_item": "MUG", "gift_qty": 2.0})
+	q, err := ResolvePOSQuote(tenantID, QuoteRequest{Lines: cart})
 	if err != nil {
 		t.Fatalf("ResolvePOSQuote: %v", err)
 	}
@@ -82,9 +90,13 @@ func TestItemTypesBarcodePricingAndBackflush(t *testing.T) {
 			if l.UnitPrice != 1000 {
 				t.Errorf("PHONE unit price = %v, want 1000", l.UnitPrice)
 			}
-		case "CHARGER", "MUG":
+		case "CHARGER":
 			if l.UnitPrice != 0 || l.ReferencePrice != 0 || l.PriceSource != PriceSourceItemTypeFree {
 				t.Errorf("%s should be free: %+v", l.Sku, l)
+			}
+		case "MUG":
+			if l.UnitPrice != 0 || l.ReferencePrice != 0 || l.PriceSource != PriceSourceGWP || l.PromotionRef != "OFF-MUG" {
+				t.Errorf("MUG should be a free gift under OFF-MUG: %+v", l)
 			}
 		}
 	}
@@ -92,7 +104,6 @@ func TestItemTypesBarcodePricingAndBackflush(t *testing.T) {
 		t.Errorf("free lines must not count as a discount: subtotal %v, manual discount %v%%", q.Subtotal, q.ManualDiscountPct)
 	}
 
-	var verr *ValidationError
 	_, err = ResolvePOSQuote(tenantID, QuoteRequest{Lines: []QuoteLineRequest{{Sku: "CHARGER", Qty: 1}}})
 	if !errors.As(err, &verr) || verr.Code != "POSOFF-0314" {
 		t.Errorf("charger without its phone: err = %v, want POSOFF-0314", err)

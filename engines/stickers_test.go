@@ -111,6 +111,27 @@ func TestStickerItemFieldsAndFieldFallback(t *testing.T) {
 	}
 }
 
+// The variant field prints its values ("Silver / 7"), never the stored
+// "metal_type:Silver;size:7" shorthand.
+func TestStickerVariantText(t *testing.T) {
+	cases := map[string]string{
+		"metal_type:Silver;size:7": "Silver / 7",
+		" colour : Red ; size: M ": "Red / M",
+		"size:;colour:Blue":        "Blue",
+		"Red":                      "Red",
+		"":                         "",
+	}
+	for in, want := range cases {
+		if got := StickerVariantText(in); got != want {
+			t.Errorf("StickerVariantText(%q) = %q, want %q", in, got, want)
+		}
+	}
+	fields := stickerItemFields(map[string]interface{}{"variant_option_values": "metal_type:Silver;size:7"})
+	if fields["variant_option_values"] != "Silver / 7" {
+		t.Errorf("label field = %q, want %q", fields["variant_option_values"], "Silver / 7")
+	}
+}
+
 // Stage 58: the server-side ZPL path (kept for API clients) understands the
 // studio's text elements - custom text with {field} placeholders, prefix and
 // suffix around a bound field - prints kind=barcode from any field, and skips
@@ -136,5 +157,35 @@ func TestZPLStickerElementStage58Kinds(t *testing.T) {
 		if z := zplStickerElement(StickerElement{Kind: kind, Field: "sku", WMM: 10, HMM: 10}, label, 203); z != "" {
 			t.Errorf("kind %s should be skipped on the server path, got %q", kind, z)
 		}
+	}
+}
+
+// Stage 70: the rule order - Item, Item Type, category, default, standard -
+// with a rule that names a missing (Inactive or deleted) template skipped.
+func TestPickStickerTemplateRuleOrder(t *testing.T) {
+	templates := []StickerTemplate{
+		{ID: "T-ITEM", Code: "ITEM-CODE"},
+		{ID: "T-TYPE"},
+		{ID: "T-CAT", Categories: []string{"Rings", "Bands"}},
+		{ID: "T-DEF", IsDefault: true},
+	}
+	cases := []struct {
+		name, itemTpl, typeTpl, category, wantID, wantRule string
+	}{
+		{"item first", "T-ITEM", "T-TYPE", "Rings", "T-ITEM", StickerRuleItem},
+		{"item by code, any case", "item-code", "", "", "T-ITEM", StickerRuleItem},
+		{"item type next", "", "T-TYPE", "Rings", "T-TYPE", StickerRuleItemType},
+		{"missing item template skipped", "T-GONE", "", " bands ", "T-CAT", StickerRuleCategory},
+		{"category", "", "", "rings", "T-CAT", StickerRuleCategory},
+		{"default", "", "", "Necklaces", "T-DEF", StickerRuleDefault},
+	}
+	for _, c := range cases {
+		got, rule := pickStickerTemplate(templates, c.itemTpl, c.typeTpl, c.category)
+		if got == nil || got.ID != c.wantID || rule != c.wantRule {
+			t.Errorf("%s: got %+v by %q, want %s by %q", c.name, got, rule, c.wantID, c.wantRule)
+		}
+	}
+	if got, rule := pickStickerTemplate(templates[:3], "", "", "Necklaces"); got != nil || rule != StickerRuleStandard {
+		t.Errorf("no default: got %+v by %q, want the standard label", got, rule)
 	}
 }

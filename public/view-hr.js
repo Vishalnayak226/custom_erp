@@ -1,6 +1,10 @@
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
 // are published by the loader for legacy cross-view calls.
+// Stage 69: each tab that records something is a list with + New, the form a
+// page of its own (txn-screen.js, the standard ERP shape).
+const { txnPagedSection, txnRestorePane, txnDone } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+
 let currentHRTab = 'attendance';
 const HR_TABS = [
   { id: 'attendance', label: 'Attendance' },
@@ -22,7 +26,6 @@ async function renderHRView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">HR</h1>
-      <p class="page-subtitle">Attendance, leave, and payroll export. Manage employees under Setup.</p>
     </div>
   `;
   container.appendChild(header);
@@ -142,7 +145,6 @@ async function renderAttendanceTab(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Mark Attendance</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       ${autoNumberField('Attendance Code', 'ATT', '160px')}
 ${employeePickerField('att-employee', '200px')}
@@ -169,7 +171,6 @@ ${employeePickerField('att-employee', '200px')}
     </div>
     <div id="att-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(formPanel);
 
   const listPanel = document.createElement('div');
   listPanel.className = 'table-panel';
@@ -179,7 +180,7 @@ ${employeePickerField('att-employee', '200px')}
       <tbody>
   `;
   html += records.length === 0
-    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No attendance records yet. Pick an employee and a date above, then <b>Save</b>.</td></tr>`
+    ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No attendance records yet. Click <b>+ Mark Attendance</b> to record one.</td></tr>`
     : records.map(r => `
         <tr>
           <td style="font-family: monospace;">${r.code || r.id}</td>
@@ -191,7 +192,9 @@ ${employeePickerField('att-employee', '200px')}
       `).join('');
   html += `</tbody></table>`;
   listPanel.innerHTML = html;
-  container.appendChild(listPanel);
+  container.appendChild(txnPagedSection({ id: 'hr-att', title: 'Attendance', page: 'Mark attendance', count: records.length,
+    newLabel: 'Mark Attendance', form: formPanel, list: listPanel, heading: 'h2' }));
+  txnRestorePane('hr-att');
 
   document.getElementById('att-save-btn').addEventListener('click', saveAttendance);
   attachEmployeePicker('att-employee');
@@ -224,6 +227,7 @@ async function saveAttendance() {
     errorEl.classList.remove('hidden');
     return;
   }
+  txnDone('hr-att');
   renderView('hr');
 }
 
@@ -236,7 +240,6 @@ async function renderLeaveTab(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Apply Leave</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       ${autoNumberField('Leave Code', 'LV', '160px')}
 ${employeePickerField('leave-employee', '200px')}
@@ -265,7 +268,6 @@ ${employeePickerField('leave-employee', '200px')}
     </div>
     <div id="leave-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(formPanel);
 
   const listPanel = document.createElement('div');
   listPanel.className = 'table-panel';
@@ -275,7 +277,7 @@ ${employeePickerField('leave-employee', '200px')}
       <tbody>
   `;
   html += records.length === 0
-    ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No leave applications yet. Use <b>Apply</b> above to record one on an employee's behalf.</td></tr>`
+    ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No leave applications yet. Click <b>+ Apply Leave</b> to record one on an employee's behalf.</td></tr>`
     : records.map(r => `
         <tr>
           <td style="font-family: monospace;">${r.code || r.id}</td>
@@ -293,7 +295,9 @@ ${employeePickerField('leave-employee', '200px')}
       `).join('');
   html += `</tbody></table>`;
   listPanel.innerHTML = html;
-  container.appendChild(listPanel);
+  container.appendChild(txnPagedSection({ id: 'hr-leave', title: 'Leave', page: 'Apply leave', count: records.length,
+    newLabel: 'Apply Leave', form: formPanel, list: listPanel, heading: 'h2' }));
+  txnRestorePane('hr-leave');
 
   document.getElementById('leave-save-btn').addEventListener('click', saveLeave);
   attachEmployeePicker('leave-employee');
@@ -326,6 +330,7 @@ async function saveLeave() {
     errorEl.classList.remove('hidden');
     return;
   }
+  txnDone('hr-leave');
   renderView('hr');
 }
 
@@ -432,7 +437,6 @@ async function renderPayrollTab(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Run Payroll</h2>
     <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 12px;">Salary structures are configured under Setup &rarr; Salary Structure.</p>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
 ${employeePickerField('payroll-run-employee', '200px')}
@@ -448,7 +452,6 @@ ${employeePickerField('payroll-run-employee', '200px')}
     </div>
     <div id="payroll-run-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(formPanel);
 
   const payslipsRes = await apiFetch('/api/v1/doc/Payslip');
   const payslips = payslipsRes && payslipsRes.ok ? await payslipsRes.json() : [];
@@ -461,7 +464,7 @@ ${employeePickerField('payroll-run-employee', '200px')}
       <tbody>
   `;
   html += payslips.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No payslips yet. Use <b>Run Payroll</b> above &mdash; each employee needs a Salary Structure first.</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No payslips yet. Click <b>+ Run Payroll</b> &mdash; each employee needs a Salary Structure first.</td></tr>`
     : payslips.map(p => `
         <tr>
           <td style="font-family: monospace;">${p.code || p.id}</td>
@@ -475,7 +478,9 @@ ${employeePickerField('payroll-run-employee', '200px')}
       `).join('');
   html += `</tbody></table>`;
   listPanel.innerHTML = html;
-  container.appendChild(listPanel);
+  container.appendChild(txnPagedSection({ id: 'hr-payroll', title: 'Payslips', page: 'Run payroll', count: payslips.length,
+    newLabel: 'Run Payroll', form: formPanel, list: listPanel, heading: 'h2' }));
+  txnRestorePane('hr-payroll');
 
   document.getElementById('payroll-run-btn').addEventListener('click', runPayrollForEmployee);
   attachEmployeePicker('payroll-run-employee');
@@ -503,6 +508,7 @@ async function runPayrollForEmployee() {
     await showApiError(res, 'Failed to run payroll.', 'Payroll Run Failed');
     return;
   }
+  txnDone('hr-payroll');
   renderView('hr');
 }
 
@@ -533,7 +539,6 @@ async function renderEmployeeLoansTab(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Loan/Advance</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       ${autoNumberField('Loan Code', 'LOAN', '160px')}
 ${employeePickerField('loan-employee', '200px')}
@@ -549,7 +554,6 @@ ${employeePickerField('loan-employee', '200px')}
     </div>
     <div id="loan-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(formPanel);
 
   const loansRes = await apiFetch('/api/v1/doc/EmployeeLoan');
   const loans = loansRes && loansRes.ok ? await loansRes.json() : [];
@@ -562,7 +566,7 @@ ${employeePickerField('loan-employee', '200px')}
       <tbody>
   `;
   html += loans.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No loans yet. Use <b>Create Loan</b> above, then <b>Disburse</b> to post it to the ledger.</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No loans yet. Click <b>+ New Loan/Advance</b>, then <b>Disburse</b> it here to post it to the ledger.</td></tr>`
     : loans.map(l => `
         <tr>
           <td style="font-family: monospace;">${l.code || l.id}</td>
@@ -576,7 +580,9 @@ ${employeePickerField('loan-employee', '200px')}
       `).join('');
   html += `</tbody></table>`;
   listPanel.innerHTML = html;
-  container.appendChild(listPanel);
+  container.appendChild(txnPagedSection({ id: 'hr-loans', title: 'Loans/Advances', page: 'New loan/advance', count: loans.length,
+    newLabel: 'New Loan/Advance', form: formPanel, list: listPanel, heading: 'h2' }));
+  txnRestorePane('hr-loans');
 
   document.getElementById('loan-create-btn').addEventListener('click', createEmployeeLoan);
   attachEmployeePicker('loan-employee');
@@ -612,6 +618,7 @@ async function createEmployeeLoanInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  txnDone('hr-loans');
   renderView('hr');
 }
 
@@ -685,7 +692,6 @@ async function renderMyRequestsTab(container) {
     </div>
     <div id="myreq-leave-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(formPanel);
 
   const expensePanel = document.createElement('div');
   expensePanel.className = 'table-panel';
@@ -726,7 +732,6 @@ async function renderMyRequestsTab(container) {
     </div>
     <div id="myreq-exp-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(expensePanel);
 
   // Stage 26.8.10 (P2, go-ahead 2026-07-27): Grievance submission, same
   // self-service shape as Leave/Expense above - create Draft then submit
@@ -758,7 +763,6 @@ async function renderMyRequestsTab(container) {
     </div>
     <div id="myreq-griev-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(grievancePanel);
 
   const [leavesRes, expensesRes, grievancesRes] = await Promise.all([
     apiFetch('/api/v1/doc/Leave'),
@@ -778,11 +782,16 @@ async function renderMyRequestsTab(container) {
         ${myLeaves.map(l => `<tr><td>Leave</td><td>${l.leave_type || ''} ${l.from_date || ''} to ${l.to_date || ''}</td><td><span class="badge badge-secondary">${l.status}</span></td></tr>`).join('')}
         ${myExpenses.map(e => `<tr><td>Expense</td><td>${e.category || ''} ${e.amount ?? ''}</td><td><span class="badge badge-secondary">${e.status}</span></td></tr>`).join('')}
         ${myGrievances.map(g => `<tr><td>Grievance</td><td>${g.category || ''} ${g.description || ''}</td><td><span class="badge badge-secondary">${g.status}</span></td></tr>`).join('')}
-        ${myLeaves.length === 0 && myExpenses.length === 0 && myGrievances.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No requests submitted yet. Use <b>Submit Leave Request</b>, <b>Submit Expense Claim</b> or <b>Submit Grievance</b> above.</td></tr>` : ''}
+        ${myLeaves.length === 0 && myExpenses.length === 0 && myGrievances.length === 0 ? `<tr><td colspan="3" style="text-align:center; color:var(--text-muted);">No requests submitted yet. Use <b>+ Request Leave</b>, <b>+ Expense Claim</b> or <b>+ Grievance</b>.</td></tr>` : ''}
       </tbody>
     </table>
   `;
-  container.appendChild(historyPanel);
+  // Stage 69: one list of everything this employee asked for; each kind of
+  // request is its own New page.
+  container.appendChild(txnPagedSection({ id: 'hr-myreq', title: 'My Requests', heading: 'h2', list: historyPanel,
+    count: myLeaves.length + myExpenses.length + myGrievances.length,
+    forms: { leave: ['Request Leave', formPanel], expense: ['Expense Claim', expensePanel], grievance: ['Grievance', grievancePanel] } }));
+  txnRestorePane('hr-myreq');
 
   document.getElementById('myreq-leave-btn').addEventListener('click', () => submitMyLeaveRequest(employee));
   document.getElementById('myreq-exp-btn').addEventListener('click', () => submitMyExpenseClaim(employee));
@@ -831,6 +840,7 @@ async function submitMyGrievanceInner(employee) {
     errorEl.classList.remove('hidden');
     return;
   }
+  txnDone('hr-myreq');
   renderView('hr');
 }
 
@@ -868,6 +878,7 @@ async function submitMyLeaveRequestInner(employee) {
     errorEl.classList.remove('hidden');
     return;
   }
+  txnDone('hr-myreq');
   renderView('hr');
 }
 
@@ -905,6 +916,7 @@ async function submitMyExpenseClaimInner(employee) {
     errorEl.classList.remove('hidden');
     return;
   }
+  txnDone('hr-myreq');
   renderView('hr');
 }
 

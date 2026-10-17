@@ -49,7 +49,7 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 	case "PurchaseOrder":
 		return validatePurchaseOrderEditRules(tenantID, docID, priorStatus, priorData, payload)
 	case "TransferOrder":
-		return validateTransferOrderCreateRules(payload)
+		return validateTransferOrderCreateRules(tenantID, payload)
 	case "CycleCountLine":
 		return validateCycleCountLineCreateRules(priorData, payload)
 	case "ProductionOrder":
@@ -673,11 +673,21 @@ func validatePurchaseOrderEditRules(tenantID, docID, priorStatus string, priorDa
 // validateTransferOrderCreateRules covers STOCKT-0111 - a plain field
 // comparison, cheap enough to run on every save rather than gating it to
 // create-only.
-func validateTransferOrderCreateRules(payload map[string]interface{}) error {
+func validateTransferOrderCreateRules(tenantID string, payload map[string]interface{}) error {
 	from := strField(payload, "from_warehouse")
 	to := strField(payload, "to_warehouse")
 	if from != "" && to != "" && from == to {
 		return &ValidationError{Code: "STOCKT-0111", Message: "source and destination location cannot be the same"}
+	}
+	// Stage 72.9 (ITM-002): an item that keeps no stock is never transferred.
+	if raw, _ := payload["items"].(string); raw != "" {
+		if lines, err := parseTransferItems(raw); err == nil {
+			skus := make([]string, 0, len(lines))
+			for _, l := range lines {
+				skus = append(skus, l.Sku)
+			}
+			return RefuseNonStockItems(tenantID, skus, "transferred")
+		}
 	}
 	return nil
 }

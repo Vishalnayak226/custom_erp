@@ -53,6 +53,30 @@ var reviewedBypassFindings = map[string]map[string]struct {
 			tell a description of a hole from a description of the plug - a human read it and this is
 			the plug.`},
 	},
+	// Stage 72.8's gift cards. A gift card number is a closed-loop stored-value
+	// instrument the ERP itself registers and funds - not a payment card: no
+	// PAN, CVV, track data or PIN is captured anywhere (the till takes card and
+	// UPI payments as a mode only). The pattern matches the field name
+	// card_number, which these files use for that gift card number.
+	"payment-card-data": {
+		"db/migrations_stage72_8_stored_value.sql": {1, `stored_value_instruments.card_number, the gift
+			card number the store registers (printed on the card) - the key the till looks a card up by.
+			Never shown in full after registration: engines/stored_value.go masks it on every response,
+			and the data console masks the column (engines/platform_console.go's secretColumnRe).`},
+		"engines/platform_console.go": {1, `secretColumnRe listing card_number, so the data console
+			shows the gift card column masked - the control, not a use.`},
+		"engines/stored_value.go": {15, `Register, issue, balance, redeem, block and cancel look a gift
+			card up by its number and answer with MaskCardNumber (last four) only; the full number is
+			returned once, to the manager who generated it, for printing on the cards.`},
+		"internal/server/handlers_item_master.go": {8, `The gift card balance / action / issue request
+			bodies carry the gift card number the cashier scanned; the handlers pass it to
+			engines/stored_value.go and return its masked view.`},
+		"public/view-pos-extras.js": {6, `The POS Gift Card dialog sends the scanned gift card number to
+			those endpoints and holds it on the open bill's tenders, in memory only.`},
+		"public/view-pos.js": {2, `Checkout sends the open bill's gift card tenders. A gift card sale is
+			online only - refused before it could reach the offline queue - so a number never lands in
+			the device's offline store.`},
+	},
 }
 
 func TestNoUnreviewedBypassPattern(t *testing.T) {
@@ -142,13 +166,13 @@ func TestBypassFindingsAreRedacted(t *testing.T) {
 	}
 }
 
-// The payment-card-data pattern (47.16.5) is expected to find ZERO hits in
-// this real tree - that is the point, confirmed by 49.6.2's manual review
-// and unchanged since. Which means TestBypassScannerStillDetects below
-// cannot prove this particular pattern still works (a pattern that never
-// matches and a pattern that is silently broken look identical against a
-// clean tree). This proves it on a synthetic fixture instead, independent of
-// what this repository currently contains.
+// The payment-card-data pattern (47.16.5) is expected to find no payment
+// card data in this real tree - that is the point, confirmed by 49.6.2's
+// manual review. Its only hits are Stage 72.8's gift card numbers, reviewed
+// above. So TestBypassScannerStillDetects below cannot prove this pattern
+// still catches the real shape (card_number next to cvv). This proves it on
+// a synthetic fixture instead, independent of what this repository currently
+// contains.
 func TestPaymentCardDataPatternDetectsRealShape(t *testing.T) {
 	dir := t.TempDir()
 	planted := "type CardCapture struct {\n\tCardNumber string `json:\"card_number\"`\n\tCVV        string `json:\"cvv\"`\n}\n"

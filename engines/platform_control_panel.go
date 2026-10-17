@@ -11,11 +11,13 @@ import (
 
 // Stage 65.5 (the user, 2026-10-16: "a page where I can see all clients and
 // what access I gave, release and all other control, where hosted and
-// everything"): one read-only summary for the platform operator. Everything
-// here already exists in its own place - the tenants registry, each client's
-// module entitlements, users, audit and error logs, the deployments and
-// backup_runs ledgers - this only gathers it. Changes stay on the screens
-// that own them (Tenant Entitlements, Data Console, sandboxes).
+// everything"): one summary for the platform operator. Everything here already
+// exists in its own place - the tenants registry, each client's module
+// entitlements, users, audit and error logs, the deployments and backup_runs
+// ledgers - this only gathers it. Changes stay on the screens that own them
+// (Tenant Entitlements, Data Console, sandboxes); the two it makes itself,
+// pause/resume and the free trial (Stage 65.6), are lifecycle calls in
+// tenant_lifecycle.go / tenant_trial.go.
 
 // ControlPanelClient is one client's row.
 type ControlPanelClient struct {
@@ -26,6 +28,8 @@ type ControlPanelClient struct {
 	StatusReason     string     `json:"status_reason,omitempty"`
 	IsSandbox        bool       `json:"is_sandbox"`
 	SandboxExpiresAt *time.Time `json:"sandbox_expires_at,omitempty"`
+	TrialEndsAt      *time.Time `json:"trial_ends_at,omitempty"` // Stage 65.6
+	TrialEnded       bool       `json:"trial_ended"`
 	HostSlug         string     `json:"host_slug,omitempty"`
 	URL              string     `json:"url,omitempty"`
 	CreatedAt        *time.Time `json:"created_at,omitempty"`
@@ -87,20 +91,22 @@ func GetControlPanel() (ControlPanel, error) {
 	rows, err := db.DB.Query(`SELECT tenant_id, COALESCE(name, tenant_id), schema_name, COALESCE(lifecycle_status, ''),
 		COALESCE(lifecycle_reason, ''), COALESCE(is_sandbox, FALSE), sandbox_expires_at, COALESCE(host_slug, ''),
 		created_at, provisioned_at, COALESCE(app_version, ''), COALESCE(pinned_version, ''), COALESCE(legal_hold, FALSE),
-		bootstrap_consumed_at IS NOT NULL OR bootstrap_issued_at IS NULL
+		bootstrap_consumed_at IS NOT NULL OR bootstrap_issued_at IS NULL, trial_ends_at
 		FROM public.tenants ORDER BY is_sandbox, tenant_id`)
 	if err != nil {
 		return out, err
 	}
 	for rows.Next() {
 		var c ControlPanelClient
-		var sandboxExp, created, provisioned sql.NullTime
+		var sandboxExp, created, provisioned, trialEnds sql.NullTime
 		if err := rows.Scan(&c.TenantID, &c.Name, &c.Schema, &c.Status, &c.StatusReason, &c.IsSandbox, &sandboxExp, &c.HostSlug,
-			&created, &provisioned, &c.AppVersion, &c.PinnedVersion, &c.LegalHold, &c.AdminSignedIn); err != nil {
+			&created, &provisioned, &c.AppVersion, &c.PinnedVersion, &c.LegalHold, &c.AdminSignedIn, &trialEnds); err != nil {
 			rows.Close()
 			return out, err
 		}
 		c.SandboxExpiresAt, c.CreatedAt, c.ProvisionedAt = nullTimePtr(sandboxExp), nullTimePtr(created), nullTimePtr(provisioned)
+		c.TrialEndsAt = nullTimePtr(trialEnds)
+		c.TrialEnded = trialOver(c.TrialEndsAt)
 		if c.HostSlug != "" && base != "" {
 			c.URL = "https://" + c.HostSlug + "." + base + "/"
 		}

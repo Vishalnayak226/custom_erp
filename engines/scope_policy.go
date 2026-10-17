@@ -129,6 +129,7 @@ var doctypeScopes = map[string]DoctypeScope{
 	"GatePass":               locScope("location_code", true),
 	"Hold":                   locScope("location_code", true),
 	"Manifest":               locScope("location_code", true),
+	"ConsumptionEntry":       locScope("location", true), // Stage 72.6
 	"POSCart":                locScope("location", true),
 	"POSOfflineQueueGap":     locScope("location", true),
 	"POSOfflineSyncVariance": locScope("location", true),
@@ -159,6 +160,11 @@ var doctypeScopes = map[string]DoctypeScope{
 	// absent location cannot be what hides the request. Optional = an
 	// attribute, not the row's scope - the same rule every entry in this block
 	// follows.
+	// Stage 72.3 / 72.5: a rule for one store, an exception at a store - both
+	// optional (blank = every store / not store-specific).
+	"BackflushRule":         locScope("location", false),
+	"ItemException":         locScope("location", false),
+	"Batch":                 locScope("location", false), // Stage 61.6: where it was received (blank before)
 	"FloorAssistRequest":    locScope("location", false),
 	"PackStation":           locScope("location_code", false),
 	"PreShipValidationRule": locScope("location_code", false),

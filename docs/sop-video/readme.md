@@ -26,6 +26,11 @@ disposable training database, there is no voice track, and no business owner has
 signed a chapter off. [output/all-ready.webm](output/all-ready.webm) is the
 earlier Purchase Requisition walkthrough, kept as it was.
 
+The recordings themselves (`media/` and `output/`, about 500 MB) are **not in git** -
+they live on the machine that recorded them and are rebuilt from the tracked
+scripts and tools here. How the finished chapters reach clients is still to be
+decided (checklist 57.12a); once it is, this paragraph will say where they are.
+
 ## How the chapters work
 
 Each chapter in [project.json](project.json) has an explicit start, ordered steps,

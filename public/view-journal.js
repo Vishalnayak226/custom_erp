@@ -13,6 +13,9 @@
 // BLD-041: native ES module loaded with import() by the authorized view
 // dispatcher. Shared services resolve from the classic app shell.
 
+// Stage 68: the transaction-screen bar's shared pieces, same version.
+const { txnContext, txnRestorePane, txnPageTitle, txnNewButton, txnDone } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+
 let jvAccounts = null;
 let jvLines = [];
 
@@ -37,51 +40,62 @@ function jvLineCount(v) {
 }
 
 async function renderJournalVouchersView(container) {
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Journal Vouchers</h1>
-      <p class="page-subtitle">Manual entries - accruals, corrections, opening balances. Debits must equal credits; a voucher posts only after a second person approves it.</p>
-    </div>
-    <button class="btn btn-primary" id="jv-new-btn" type="button">+ New Journal Voucher</button>
-  `;
-  container.appendChild(header);
-
-  const formPanel = document.createElement('div');
-  formPanel.className = 'table-panel hidden';
-  formPanel.id = 'jv-form-panel';
-  formPanel.style.padding = '24px';
-  formPanel.style.marginBottom = '24px';
-  container.appendChild(formPanel);
-  document.getElementById('jv-new-btn').addEventListener('click', openJournalVoucherForm);
-
   const res = await apiFetch('/api/v1/doc/JournalVoucher');
   if (!res) return;
   if (!res.ok) { renderErrorPanel(container, 'Failed to load journal vouchers.', () => renderView('journal-vouchers')); return; }
   const vouchers = (await res.json()).filter(v => v.status !== 'Recurring Template');
-  const panel = document.createElement('div');
-  panel.className = 'table-panel';
-  panel.innerHTML = `
-    <table>
-      <thead><tr><th>Voucher</th><th>Date</th><th>Narration</th><th class="num">Lines</th><th class="num">Amount</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>
-        ${vouchers.length === 0
-          ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No journal vouchers yet. Use <b>+ New Journal Voucher</b> above.</td></tr>`
-          : vouchers.map(v => `
-            <tr>
-              <td style="font-family: monospace;">${escapeHTMLText(v.voucher_number || v.id)}</td>
-              <td>${escapeHTMLText(v.voucher_date || '')}</td>
-              <td>${escapeHTMLText(v.narration || '')}</td>
-              <td class="num">${jvLineCount(v)}</td>
-              <td class="num">${Number(v.total_amount || 0).toLocaleString()}</td>
-              <td><span class="badge ${JV_STATUS_BADGE[v.status] || 'badge-secondary'}">${escapeHTMLText(v.status || '')}</span></td>
-              <td>${renderJournalVoucherActions(v)}</td>
-            </tr>`).join('')}
-      </tbody>
-    </table>
+
+  // Stage 68: the frozen transaction layout (txn-screen.css) - the debit /
+  // credit totals and Save live in the bar. Stage 69: opens on the list; New
+  // is its own page.
+  const screen = document.createElement('div');
+  screen.className = 'txn-screen';
+  screen.id = 'jv-screen';
+  screen.dataset.landing = 'history';
+  screen.innerHTML = `
+    <div class="txn-bar">
+      ${txnPageTitle({ screen: 'jv-screen', title: 'Journal Vouchers', page: 'New journal voucher', count: vouchers.length })}
+      ${txnContext()}
+      ${txnNewButton({ screen: 'jv-screen', label: 'New Journal Voucher' })}
+      <div class="txn-sum txn-main-only">
+        <span>Debit <b id="jv-total-debit">0</b></span>
+        <span>Credit <b id="jv-total-credit">0</b></span>
+        <span id="jv-balance-note"></span>
+      </div>
+      <div class="txn-actions txn-main-only">
+        <div id="jv-error" class="login-error hidden"></div>
+        <button class="btn btn-outline btn-sm" id="jv-cancel-btn" type="button" title="Clear this voucher and start again">Clear</button>
+        <button class="btn btn-primary" id="jv-save-btn" type="button">Save as Draft</button>
+      </div>
+    </div>
+    <div class="txn-pane" data-pane="new" id="jv-form-panel"></div>
+    <div class="txn-pane hidden" data-pane="history">
+      <div class="txn-grid">
+        <table>
+          <thead><tr><th>Voucher</th><th>Date</th><th>Narration</th><th class="num">Lines</th><th class="num">Amount</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${vouchers.length === 0
+              ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No journal vouchers yet. Click <b>+ New Journal Voucher</b>, fill in the lines and <b>Save as Draft</b>.</td></tr>`
+              : vouchers.map(v => `
+                <tr>
+                  <td style="font-family: monospace;">${escapeHTMLText(v.voucher_number || v.id)}</td>
+                  <td>${escapeHTMLText(v.voucher_date || '')}</td>
+                  <td>${escapeHTMLText(v.narration || '')}</td>
+                  <td class="num">${jvLineCount(v)}</td>
+                  <td class="num">${Number(v.total_amount || 0).toLocaleString()}</td>
+                  <td><span class="badge ${JV_STATUS_BADGE[v.status] || 'badge-secondary'}">${escapeHTMLText(v.status || '')}</span></td>
+                  <td>${renderJournalVoucherActions(v)}</td>
+                </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
   `;
-  container.appendChild(panel);
+  container.appendChild(screen);
+  document.getElementById('jv-cancel-btn').addEventListener('click', openJournalVoucherForm);
+  document.getElementById('jv-save-btn').addEventListener('click', () => guardAgainstDoubleSubmit(document.getElementById('jv-save-btn'), 'Saving...', saveJournalVoucher));
+  await openJournalVoucherForm();
+  txnRestorePane('jv-screen');
 }
 
 function renderJournalVoucherActions(v) {
@@ -92,49 +106,44 @@ function renderJournalVoucherActions(v) {
   return '';
 }
 
+// openJournalVoucherForm (re)starts the New pane with a blank two-line voucher.
 async function openJournalVoucherForm() {
   const panel = document.getElementById('jv-form-panel');
   const accounts = await loadJVAccounts();
   jvLines = [{ account: '', debit: '', credit: '' }, { account: '', debit: '', credit: '' }];
+  document.getElementById('jv-error')?.classList.add('hidden');
   panel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Journal Voucher</h2>
-    <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="txn-head">
+      <div class="form-group">
         <label class="form-label" for="jv-date">Date<span class="required">*</span></label>
-        <input type="date" id="jv-date" class="form-input" style="width: 170px;" value="${localISODate(new Date())}">
+        <input type="date" id="jv-date" class="form-input" value="${localISODate(new Date())}">
       </div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 260px;">
+      <div class="form-group jv-narration">
         <label class="form-label" for="jv-narration">Narration<span class="required">*</span></label>
         <input type="text" id="jv-narration" class="form-input" placeholder="What this entry is for, in words an auditor will understand">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group">
         <label class="form-label" for="jv-cost-center">Cost Center</label>
-        <input type="text" id="jv-cost-center" class="form-input" style="width: 180px;" autocomplete="off" placeholder="Optional">
+        <input type="text" id="jv-cost-center" class="form-input" autocomplete="off" placeholder="Optional">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group">
         <label class="form-label" for="jv-department">Department</label>
-        <input type="text" id="jv-department" class="form-input" style="width: 180px;" autocomplete="off" placeholder="Optional">
+        <input type="text" id="jv-department" class="form-input" autocomplete="off" placeholder="Optional">
       </div>
     </div>
+    <div class="txn-hint"><span>Manual entries - accruals, corrections, opening balances. Debits must equal credits; a voucher posts only after a second person approves it.</span></div>
     <datalist id="jv-account-options">${accounts.map(a => `<option value="${escapeHTMLText(a.code)}">${escapeHTMLText(a.code + ' · ' + a.name)}</option>`).join('')}</datalist>
-    <table>
-      <thead><tr><th>Account</th><th class="num">Debit</th><th class="num">Credit</th><th></th></tr></thead>
-      <tbody id="jv-lines-body"></tbody>
-      <tfoot><tr><td><button class="btn btn-outline btn-sm" id="jv-add-line" type="button">+ Add line</button></td>
-        <td class="num" id="jv-total-debit">0</td><td class="num" id="jv-total-credit">0</td><td id="jv-balance-note"></td></tr></tfoot>
-    </table>
-    <div id="jv-error" class="login-error hidden" style="margin-top: 12px;"></div>
-    <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
-      <button class="btn btn-outline" id="jv-cancel-btn" type="button">Cancel</button>
-      <button class="btn btn-primary" id="jv-save-btn" type="button">Save as Draft</button>
+    <div class="txn-grid">
+      <table>
+        <thead><tr><th>Account</th><th class="num">Debit</th><th class="num">Credit</th><th></th></tr></thead>
+        <tbody id="jv-lines-body"></tbody>
+        <tfoot><tr><td colspan="4"><button class="btn btn-outline btn-sm" id="jv-add-line" type="button">+ Add line</button></td></tr></tfoot>
+      </table>
     </div>
   `;
-  panel.classList.remove('hidden');
   attachLinkTypeahead(document.getElementById('jv-cost-center'), 'CostCenter', { noSetupHint: true });
   attachLinkTypeahead(document.getElementById('jv-department'), 'Department', { noSetupHint: true });
   document.getElementById('jv-add-line').addEventListener('click', () => { jvLines.push({ account: '', debit: '', credit: '' }); renderJournalVoucherLines(); });
-  document.getElementById('jv-cancel-btn').addEventListener('click', () => panel.classList.add('hidden'));
-  document.getElementById('jv-save-btn').addEventListener('click', () => guardAgainstDoubleSubmit(document.getElementById('jv-save-btn'), 'Saving...', saveJournalVoucher));
   renderJournalVoucherLines();
   document.getElementById('jv-narration').focus();
 }
@@ -223,6 +232,7 @@ async function saveJournalVoucher() {
   if (!res) return;
   if (!res.ok) { fail(await getErrorMessage(res, 'The voucher could not be saved.')); return; }
   showToast('Journal voucher saved as Draft. Submit it for approval to post it.');
+  txnDone('jv-screen');
   renderView('journal-vouchers');
 }
 

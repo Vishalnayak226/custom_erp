@@ -32,6 +32,7 @@ func TestSettingsRegistry(t *testing.T) {
 			{"loyalty.recompute_tier_on_earn", "true", false},
 			{"loyalty.recompute_tier_on_earn", "maybe", true},
 			{"security.default_idle_timeout_minutes", "30", false},
+			{"security.default_idle_timeout_minutes", "720", false},
 			{"security.default_idle_timeout_minutes", "7", true}, // not an allowed option
 			{"does.not.exist", "1", true},                        // unregistered key
 		}

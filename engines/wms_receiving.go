@@ -75,6 +75,9 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 	// Stage 57.8: Fixed Asset items never become stock - their accepted units
 	// are raised as Draft Assets once the rest of the receipt has posted.
 	var assetLines []assetReceiptLine
+	// expenseOnly (Stage 72.9): accepted lines of items that keep no stock -
+	// costed to expense, never posted to a store.
+	var expenseOnly []interface{}
 
 	for _, raw := range items {
 		m, ok := raw.(map[string]interface{})
@@ -127,6 +130,16 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 			}
 			if rejected > 0 || damaged > 0 {
 				qcSplits = append(qcSplits, qcSplit{sku: sku, rejected: rejected, damaged: damaged})
+			}
+			continue
+		}
+
+		// Stage 72.9: a service or non-stock expense item keeps no stock -
+		// the receipt books its value straight to its expense account
+		// (RecordGRNReceiptCosting) and posts nothing to a store.
+		if policy, _, known := ItemPolicyForSKU(tenantID, sku); known && !policy.Tracked() {
+			if accepted > 0 {
+				expenseOnly = append(expenseOnly, map[string]interface{}{"sku": sku, "qty": accepted})
 			}
 			continue
 		}
@@ -212,7 +225,8 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 		if err != nil {
 			return negativeEvents, err
 		}
-
+	}
+	if len(acceptedItems) > 0 || len(expenseOnly) > 0 {
 		// Stage 37.3: cost the receipt and post the GRN's real GL entry
 		// (Dr 1200 Inventory / Cr 2100 GRN Suspense) - see
 		// RecordGRNReceiptCosting's own comment for why this closes a
@@ -223,8 +237,8 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 		costingLines := make([]struct {
 			SKU string
 			Qty float64
-		}, 0, len(acceptedItems))
-		for _, raw := range acceptedItems {
+		}, 0, len(acceptedItems)+len(expenseOnly))
+		for _, raw := range append(append([]interface{}(nil), acceptedItems...), expenseOnly...) {
 			m, ok := raw.(map[string]interface{})
 			if !ok {
 				continue

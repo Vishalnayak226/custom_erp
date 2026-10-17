@@ -39,6 +39,9 @@ const (
 	offerTypeFlat        = "Flat Off"
 	offerTypeBuyXGetY    = "Buy X Get Y"
 	offerTypeBundlePrice = "Bundle Price"
+	// Stage 72.7 (blueprint section 10): no discount - it makes a promo-only
+	// gift item eligible, and the till prompts the cashier to scan it.
+	offerTypeGiftWithPurchase = "Gift With Purchase"
 )
 
 // OfferCartLine is one line of the cart being priced. category is resolved
@@ -78,6 +81,17 @@ type OfferEvaluation struct {
 	GrossAmount    float64        `json:"gross_amount"`
 	NetAmount      float64        `json:"net_amount"`
 	UnmatchedCodes []string       `json:"unmatched_codes,omitempty"`
+	// Gifts are the Gift With Purchase offers this cart qualifies for.
+	Gifts []EligibleGift `json:"gifts,omitempty"`
+}
+
+// EligibleGift is one gift a cart has earned: up to Qty of GiftItem, free.
+type EligibleGift struct {
+	OfferID  string `json:"offer_id"`
+	Name     string `json:"name"`
+	GiftItem string `json:"gift_item"`
+	GiftName string `json:"gift_name"`
+	Qty      int    `json:"qty"`
 }
 
 // offerRule is one Offer document parsed into its evaluated form.
@@ -109,6 +123,10 @@ type offerRule struct {
 	// scopeName is what the till shows for the target - a product group's
 	// name rather than its generated code (Stage 57.1 names, not codes).
 	scopeName string
+	// giftItem / giftQty: a Gift With Purchase offer's gift and how many per
+	// qualifying bill (or per buy_qty qualifying units when buy_qty is set).
+	giftItem string
+	giftQty  int
 }
 
 // EvaluatePOSOffers resolves every Active Offer against a cart and returns the
@@ -174,8 +192,10 @@ func EvaluatePOSOffers(tenantID string, input OfferEvaluationInput) (*OfferEvalu
 	today := time.Now().Format("2006-01-02")
 	remaining := gross
 
+	result.Gifts = evaluateGiftOffers(tenantID, rules, input.Lines, gross, tier, suppliedCodes, usedCodes, today)
+
 	for _, rule := range rules {
-		if !offerIsLive(rule, today) {
+		if !offerIsLive(rule, today) || rule.offerType == offerTypeGiftWithPurchase {
 			continue
 		}
 		if rule.customerTier != "" && !strings.EqualFold(rule.customerTier, tier) {
@@ -628,7 +648,65 @@ func loadActiveOffers(tenantID string) ([]offerRule, error) {
 			validTo:           strField(d, "valid_to"),
 			priority:          numFromInterface(d["priority"]),
 			stackable:         !strings.EqualFold(strings.TrimSpace(strField(d, "stackable")), "No"),
+			giftItem:          strings.TrimSpace(strField(d, "gift_item")),
+			giftQty:           int(numFromInterface(d["gift_qty"])),
 		})
 	}
 	return out, rows.Err()
+}
+
+// evaluateGiftOffers (Stage 72.7) works out the Gift With Purchase offers a
+// cart qualifies for. Same eligibility as a discount offer - validity dates,
+// customer tier, coupon, minimum bill, minimum quantity and scope - judged on
+// the PAID lines only, so a gift already on the bill never qualifies itself.
+// Independent of discount stacking: a gift does not use up a discount slot.
+func evaluateGiftOffers(tenantID string, rules []offerRule, lines []OfferCartLine, gross float64, tier string, supplied, used map[string]bool, today string) []EligibleGift {
+	paid := make([]OfferCartLine, 0, len(lines))
+	for _, l := range lines {
+		if l.SalePrice > 0 {
+			paid = append(paid, l)
+		}
+	}
+	var gifts []EligibleGift
+	for _, rule := range rules {
+		if rule.offerType != offerTypeGiftWithPurchase || rule.giftItem == "" || !offerIsLive(rule, today) {
+			continue
+		}
+		if rule.customerTier != "" && !strings.EqualFold(rule.customerTier, tier) {
+			continue
+		}
+		if rule.couponCode != "" && !supplied[strings.ToUpper(rule.couponCode)] {
+			continue
+		}
+		if rule.minBillAmount > 0 && gross < rule.minBillAmount {
+			continue
+		}
+		qualifying := offerQualifyingQty(rule, paid)
+		if qualifying <= 0 || (rule.minQty > 0 && qualifying < rule.minQty) {
+			continue
+		}
+		per := rule.giftQty
+		if per <= 0 {
+			per = 1
+		}
+		qty := per
+		if rule.buyQty > 0 {
+			qty = per * (qualifying / rule.buyQty)
+		}
+		if qty <= 0 {
+			continue
+		}
+		gift := EligibleGift{OfferID: rule.id, Name: rule.name, GiftItem: rule.giftItem, GiftName: rule.giftItem, Qty: qty}
+		if item, err := ResolveItemBySKU(tenantID, rule.giftItem); err == nil && item != nil {
+			if code := strings.TrimSpace(pimString(item.Data["code"])); code != "" {
+				gift.GiftItem = code
+			}
+			gift.GiftName = itemLabel(item.Data, gift.GiftItem)
+		}
+		gifts = append(gifts, gift)
+		if rule.couponCode != "" {
+			used[strings.ToUpper(rule.couponCode)] = true
+		}
+	}
+	return gifts
 }

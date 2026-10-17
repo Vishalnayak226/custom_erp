@@ -2,6 +2,8 @@ import { documentSearchLink } from './view-document-links.js';
 
 // Stage 62/63: debit / credit note prints come from trade-docs.js.
 const tradeDocsReady = import('./trade-docs.js' + new URL(import.meta.url).search);
+// Stage 68: the transaction-screen bar's shared pieces, same version.
+const { txnContext, txnTabs, txnMoney, txnRestorePane, txnPagedSection, txnDone } = await import('./txn-screen.js' + new URL(import.meta.url).search);
 
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
@@ -20,7 +22,6 @@ async function renderFinanceView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Finance / GL</h1>
-      <p class="page-subtitle">Trial balance across all posted GL accounts, and accounting-period close control.</p>
     </div>
   `;
   container.appendChild(header);
@@ -426,43 +427,19 @@ async function renderVendorInvoicesView(container) {
   ]);
   if (!invRes) return;
 
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Vendor Invoice</h1>
-      <p class="page-subtitle">3-way match against PO/GRN, then pay - plain or TDS-withheld.</p>
-      ${fromGRN ? `<p class="page-subtitle">From GRN ${escapeHTMLText(fromGRN.grnId)}. Confirm the vendor's invoice number, amount and financial year before matching.</p>` : ''}
-    </div>
-    <button class="btn btn-primary" id="vi-new-btn">+ New Vendor Invoice</button>
-  `;
-  container.appendChild(header);
-  document.getElementById('vi-new-btn').addEventListener('click', async () => {
-    const defaults = {};
-    if (fromGRN) {
-      defaults.grn_id = fromGRN.grnId;
-      defaults.po_id = fromGRN.poId;
-      const poRes = await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(fromGRN.poId)}`);
-      if (poRes?.ok) {
-        const po = await poRes.json();
-        defaults.vendor_id = po.vendor_id || po.vendor || '';
-      }
-    }
-    currentDoctype = 'VendorInvoice'; currentSearchQuery = ''; currentTablePage = 1;
-    await renderView('doctype-table');
-    if (fromGRN && currentView === 'doctype-table' && currentDoctype === 'VendorInvoice' && canCreateDoctype('VendorInvoice')) {
-      await openDynamicModal(undefined, defaults);
-    }
-  });
-
   const invoices = invRes.ok ? await invRes.json() : [];
   const sections = (sectionsRes && sectionsRes.ok) ? await sectionsRes.json() : [];
   window.__tdsSections = sections;
 
   const STATUS_BADGE = { Draft: 'badge-secondary', Matched: 'badge-success', MismatchHold: 'badge-danger', Paid: 'badge-success' };
-  const panel = document.createElement('div');
-  panel.className = 'table-panel';
-  panel.innerHTML = `
+  financeListScreen(container, {
+    title: 'Vendor Invoice',
+    hint: `3-way match against PO/GRN, then pay - plain or TDS-withheld.${fromGRN ? ` <b>From GRN ${escapeHTMLText(fromGRN.grnId)}</b>: confirm the vendor's invoice number, amount and financial year before matching.` : ''}`,
+    count: invoices.length,
+    total: invoices.reduce((s, v) => s + (Number(v.invoice_amount) || 0), 0),
+    newId: 'vi-new-btn',
+    newLabel: '+ New Vendor Invoice',
+    table: `
     <table>
       <thead><tr><th>Invoice #</th><th>Vendor</th><th>PO</th><th>GRN</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
@@ -480,9 +457,25 @@ async function renderVendorInvoicesView(container) {
             </tr>
           `).join('')}
       </tbody>
-    </table>
-  `;
-  container.appendChild(panel);
+    </table>`
+  });
+  document.getElementById('vi-new-btn').addEventListener('click', async () => {
+    const defaults = {};
+    if (fromGRN) {
+      defaults.grn_id = fromGRN.grnId;
+      defaults.po_id = fromGRN.poId;
+      const poRes = await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(fromGRN.poId)}`);
+      if (poRes?.ok) {
+        const po = await poRes.json();
+        defaults.vendor_id = po.vendor_id || po.vendor || '';
+      }
+    }
+    currentDoctype = 'VendorInvoice'; currentSearchQuery = ''; currentTablePage = 1;
+    await renderView('doctype-table');
+    if (fromGRN && currentView === 'doctype-table' && currentDoctype === 'VendorInvoice' && canCreateDoctype('VendorInvoice')) {
+      await openDynamicModal(undefined, defaults);
+    }
+  });
 }
 
 function renderVendorInvoiceActions(v) {
@@ -601,16 +594,6 @@ async function renderPaymentProposalsView(container) {
   ]);
   if (!invRes || !propRes) return;
 
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Payment Proposals</h1>
-      <p class="page-subtitle">Group Matched vendor invoices into one payment run.</p>
-    </div>
-  `;
-  container.appendChild(header);
-
   const invoices = (invRes.ok ? await invRes.json() : []).filter(v => v.status === 'Matched');
   const proposals = propRes.ok ? await propRes.json() : [];
 
@@ -619,7 +602,6 @@ async function renderPaymentProposalsView(container) {
   builderPanel.style.padding = '24px';
   builderPanel.style.marginBottom = '24px';
   builderPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Build a Proposal from Matched Invoices</h2>
     ${invoices.length === 0 ? `<p style="color:var(--text-muted);">No Matched vendor invoices available to batch.</p>` : `
       <table style="margin-bottom: 16px;">
         <thead><tr><th></th><th>Invoice #</th><th>Vendor</th><th>Amount</th></tr></thead>
@@ -638,7 +620,6 @@ async function renderPaymentProposalsView(container) {
     `}
     <div id="pp-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(builderPanel);
 
   const listPanel = document.createElement('div');
   listPanel.className = 'table-panel';
@@ -647,7 +628,7 @@ async function renderPaymentProposalsView(container) {
       <thead><tr><th>Proposal #</th><th>Invoices</th><th>Total Amount</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${proposals.length === 0
-          ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No payment proposals yet. Tick one or more Matched vendor invoices above, then <b>Create Proposal from Selected</b>.</td></tr>`
+          ? `<tr><td colspan="5" style="text-align:center; color:var(--text-muted);">No payment proposals yet. Click <b>+ New Proposal</b>, tick one or more Matched vendor invoices, then <b>Create Proposal from Selected</b>.</td></tr>`
           : proposals.map(p => {
             let ids = [];
             try { ids = JSON.parse(p.invoice_ids || '[]'); } catch (e) { /* leave empty */ }
@@ -664,7 +645,11 @@ async function renderPaymentProposalsView(container) {
       </tbody>
     </table>
   `;
-  container.appendChild(listPanel);
+  // Stage 69: the proposals are the page; + New Proposal opens the invoice
+  // picker as a page of its own (txn-screen.js, the standard ERP shape).
+  container.appendChild(txnPagedSection({ id: 'pp-screen', title: 'Payment Proposals', page: 'New proposal from matched invoices',
+    count: proposals.length, newLabel: 'New Proposal', form: builderPanel, list: listPanel }));
+  txnRestorePane('pp-screen');
 
   const createBtn = document.getElementById('pp-create-btn');
   if (createBtn) createBtn.addEventListener('click', async () => {
@@ -686,6 +671,7 @@ async function renderPaymentProposalsView(container) {
       errorEl.classList.remove('hidden');
       return;
     }
+    txnDone('pp-screen');
     renderView('payment-proposals');
   });
 }
@@ -720,7 +706,6 @@ async function renderBankReconciliationView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Bank Reconciliation</h1>
-      <p class="page-subtitle">Match imported bank-statement lines against GL postings for a bank account.</p>
     </div>
   `;
   container.appendChild(header);
@@ -794,61 +779,42 @@ async function renderFinanceNotesView(container) {
   if (!debitRes || !creditRes) return;
   await tradeDocsReady.catch(() => null);
 
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Debit / Credit Notes</h1>
-      <p class="page-subtitle">Post-facto vendor and customer adjustments, GL-reversing on Post.</p>
-    </div>
-  `;
-  container.appendChild(header);
-
   const debitNotes = debitRes.ok ? await debitRes.json() : [];
   const creditNotes = creditRes.ok ? await creditRes.json() : [];
-
-  const debitPanel = document.createElement('div');
-  debitPanel.className = 'table-panel';
-  debitPanel.style.padding = '24px';
-  debitPanel.style.marginBottom = '24px';
-  debitPanel.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
-      <h2 style="font-size: 16px; font-weight: 700;">Debit Notes (to Vendors)</h2>
-      <button class="btn btn-outline btn-sm" id="dn-new-btn">+ New Debit Note</button>
-    </div>
-    ${vendorNotesTable(debitNotes, 'DebitNote', 'No debit notes yet. A goods receipt billed above the PO price raises one automatically; use <b>+ New Debit Note</b> for any other claim on a vendor.')}
-  `;
-  container.appendChild(debitPanel);
-
   // Stage 62: the vendor-side credit note - raised automatically when a goods
   // receipt is billed below the PO price (the PO price is the agreed one).
   const vendorCreditNotes = vendorCreditRes && vendorCreditRes.ok ? await vendorCreditRes.json() : [];
-  const vendorCreditPanel = document.createElement('div');
-  vendorCreditPanel.className = 'table-panel';
-  vendorCreditPanel.style.padding = '24px';
-  vendorCreditPanel.style.marginBottom = '24px';
-  vendorCreditPanel.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
-      <h2 style="font-size: 16px; font-weight: 700;">Credit Notes (to Vendors)</h2>
-      <button class="btn btn-outline btn-sm" id="vcn-new-btn">+ New Vendor Credit Note</button>
-    </div>
-    ${vendorNotesTable(vendorCreditNotes, 'VendorCreditNote', 'No vendor credit notes yet. A goods receipt billed below the PO price raises one automatically.')}
-  `;
-  container.appendChild(vendorCreditPanel);
 
-  const creditPanel = document.createElement('div');
-  creditPanel.className = 'table-panel';
-  creditPanel.style.padding = '24px';
-  creditPanel.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 16px;">
-      <h2 style="font-size: 16px; font-weight: 700;">Credit Notes (to Customers)</h2>
-      <button class="btn btn-outline btn-sm" id="cn-new-btn">+ New Credit Note</button>
+  // Stage 68: the frozen transaction layout (txn-screen.css) - the three note
+  // books are tabs of one screen, each list its own scroller.
+  const pane = (key, label, newId, newLabel, table) => `
+    <div class="txn-pane${key === 'debit' ? '' : ' hidden'}" data-pane="${key}">
+      <div class="txn-note fn-pane-head"><span>${label}</span><button class="btn btn-outline btn-sm" id="${newId}">${newLabel}</button></div>
+      <div class="txn-grid">${table}</div>
+    </div>`;
+  const screen = document.createElement('div');
+  screen.className = 'txn-screen';
+  screen.id = 'fn-screen';
+  screen.innerHTML = `
+    <div class="txn-bar">
+      <h1 class="page-title txn-title">Debit / Credit Notes</h1>
+      ${txnTabs('txnShowPane', 'fn-screen:debit', [
+        ['fn-screen:debit', `Debit notes (${debitNotes.length})`],
+        ['fn-screen:vendor-credit', `Vendor credit notes (${vendorCreditNotes.length})`],
+        ['fn-screen:customer-credit', `Customer credit notes (${creditNotes.length})`]])}
+      ${txnContext()}
     </div>
+    <div class="txn-hint"><span>Post-facto vendor and customer adjustments, GL-reversing on Post.</span></div>
+    ${pane('debit', 'Debit Notes (to Vendors)', 'dn-new-btn', '+ New Debit Note',
+      vendorNotesTable(debitNotes, 'DebitNote', 'No debit notes yet. A goods receipt billed above the PO price raises one automatically; use <b>+ New Debit Note</b> for any other claim on a vendor.'))}
+    ${pane('vendor-credit', 'Credit Notes (to Vendors)', 'vcn-new-btn', '+ New Vendor Credit Note',
+      vendorNotesTable(vendorCreditNotes, 'VendorCreditNote', 'No vendor credit notes yet. A goods receipt billed below the PO price raises one automatically.'))}
+    ${pane('customer-credit', 'Credit Notes (to Customers)', 'cn-new-btn', '+ New Credit Note', `
     <table>
       <thead><tr><th>Note #</th><th>Customer</th><th>Amount</th><th>Reason</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${creditNotes.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No credit notes yet. Fill in the form above and <b>Post</b> to raise one against a customer.</td></tr>`
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No credit notes yet. Use <b>+ New Credit Note</b>, then <b>Post</b> it to raise one against a customer.</td></tr>`
           : creditNotes.map(n => `
             <tr>
               <td style="font-family: monospace;">${n.note_number || n.id}</td>
@@ -856,13 +822,14 @@ async function renderFinanceNotesView(container) {
               <td>${(n.amount ?? 0).toLocaleString()}</td>
               <td>${n.reason || ''}</td>
               <td><span class="badge ${n.status === 'Posted' ? 'badge-success' : 'badge-secondary'}">${n.status}</span></td>
-              <td>${n.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('postFinanceNote', ['CreditNote', n.id])}>Post</button>` : ''}</td>
+              <td>${n.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('postFinanceNote', ['CreditNote', n.id])}>Post</button> ` : ''}<button class="action-btn" ${actionAttrs('printTransactionDocument', ['CreditNote', n.id])}>Print</button></td>
             </tr>
           `).join('')}
       </tbody>
-    </table>
+    </table>`)}
   `;
-  container.appendChild(creditPanel);
+  container.appendChild(screen);
+  txnRestorePane('fn-screen');
 
   document.getElementById('dn-new-btn').addEventListener('click', () => {
     currentDoctype = 'DebitNote'; currentSearchQuery = ''; currentTablePage = 1;
@@ -923,30 +890,38 @@ async function postFinanceNote(doctype, id) {
 // Stage 1 as a registered doctype with zero GL/amount/frontend - this view
 // plus engines/sales_invoice.go make it a real credit-sales flow, the
 // source Receivables Ageing reads.
+// financeListScreen (Stage 68) is a finance list as a frozen transaction
+// screen (txn-screen.css): title, who and where, the count and total, the New
+// button in one bar, a one-line hint, and the list as the only scroller.
+function financeListScreen(container, { title, hint, count, total, newId, newLabel, table }) {
+  const screen = document.createElement('div');
+  screen.className = 'txn-screen';
+  screen.innerHTML = `
+    <div class="txn-bar">
+      <h1 class="page-title txn-title">${title}</h1>
+      ${txnContext()}
+      <div class="txn-sum"><span><b>${count}</b> document${count === 1 ? '' : 's'}</span>${total == null ? '' : `<span class="txn-total" title="Total of the documents listed">${txnMoney(total)}</span>`}</div>
+      <div class="txn-actions"><button class="btn btn-primary" id="${newId}">${newLabel}</button></div>
+    </div>
+    <div class="txn-hint"><span>${hint}</span></div>
+    <div class="txn-grid">${table}</div>`;
+  container.appendChild(screen);
+}
+
 async function renderSalesInvoicesView(container) {
   const res = await apiFetch('/api/v1/doc/SalesInvoice');
   if (!res) return;
 
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Sales Invoice</h1>
-      <p class="page-subtitle">Credit sales to customers - Post to recognize the receivable, Settle once paid.</p>
-    </div>
-    <button class="btn btn-primary" id="si-new-btn">+ New Sales Invoice</button>
-  `;
-  container.appendChild(header);
-  document.getElementById('si-new-btn').addEventListener('click', () => {
-    currentDoctype = 'SalesInvoice'; currentSearchQuery = ''; currentTablePage = 1;
-    renderView('doctype-table');
-  });
-
   const invoices = res.ok ? await res.json() : [];
   const STATUS_BADGE = { Draft: 'badge-secondary', Approved: 'badge-warning', Paid: 'badge-success', Cancelled: 'badge-danger' };
-  const panel = document.createElement('div');
-  panel.className = 'table-panel';
-  panel.innerHTML = `
+  financeListScreen(container, {
+    title: 'Sales Invoice',
+    hint: 'Credit sales to customers - Post to recognize the receivable, Settle once paid.',
+    count: invoices.length,
+    total: invoices.reduce((s, v) => s + (Number(v.total_amount) || 0), 0),
+    newId: 'si-new-btn',
+    newLabel: '+ New Sales Invoice',
+    table: `
     <table>
       <thead><tr><th>Invoice #</th><th>Customer</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
@@ -966,9 +941,12 @@ async function renderSalesInvoicesView(container) {
             </tr>
           `).join('')}
       </tbody>
-    </table>
-  `;
-  container.appendChild(panel);
+    </table>`
+  });
+  document.getElementById('si-new-btn').addEventListener('click', () => {
+    currentDoctype = 'SalesInvoice'; currentSearchQuery = ''; currentTablePage = 1;
+    renderView('doctype-table');
+  });
 }
 
 async function postSalesInvoiceAction(id) {

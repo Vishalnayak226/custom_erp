@@ -20,6 +20,7 @@ func TestMoveBinStock(t *testing.T) {
 	cleanup := func() {
 		db.DB.Exec("DELETE FROM " + schema + ".documents WHERE id LIKE 'TEST-MV-%'")
 		db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'StockLedgerEntry' AND data->>'item_id' IN ($1, $2)", sku, lotSKU)
+		db.DB.Exec("DELETE FROM "+schema+".documents WHERE doctype = 'WarehouseTask' AND data->>'item' IN ($1, $2)", sku, lotSKU)
 		db.DB.Exec("DELETE FROM "+schema+".bin_stock WHERE sku IN ($1, $2)", sku, lotSKU)
 		db.DB.Exec("DELETE FROM "+schema+".bin_stock_batch WHERE sku IN ($1, $2)", sku, lotSKU)
 	}
@@ -59,6 +60,16 @@ func TestMoveBinStock(t *testing.T) {
 	if ledger != 1 {
 		t.Fatalf("expected one BinMove ledger entry, got %d", ledger)
 	}
+	// Stage 69: Location Movement's history page lists the completed Move
+	// tasks, so each carries what was moved and why.
+	moveTask := func(s string) (qty float64, batch, notes string) {
+		db.DB.QueryRow("SELECT COALESCE((data->>'qty')::float, 0), COALESCE(data->>'batch_no', ''), COALESCE(data->>'notes', '') FROM "+schema+
+			".documents WHERE doctype = 'WarehouseTask' AND data->>'task_type' = 'Move' AND data->>'item' = $1 AND data->>'to_bin' = 'TEST-MV-B'", s).Scan(&qty, &batch, &notes)
+		return
+	}
+	if q, _, notes := moveTask(sku); q != 4 || notes != "re-slot" {
+		t.Fatalf("Move task = qty %v notes %q, want 4 / re-slot", q, notes)
+	}
 
 	for name, in := range map[string]BinMoveInput{
 		"other location": {FromBin: "TEST-MV-A", ToBin: "TEST-MV-C", SKU: sku, Qty: 1},
@@ -86,7 +97,9 @@ func TestMoveBinStock(t *testing.T) {
 	if err := MoveBinStock(tenantID, BinMoveInput{FromBin: "TEST-MV-A", ToBin: "TEST-MV-B", SKU: lotSKU, Qty: 2}); err == nil {
 		t.Fatalf("expected a move from a two-lot bin without a batch to be refused")
 	}
-	if err := MoveBinStock(tenantID, BinMoveInput{FromBin: "TEST-MV-A", ToBin: "TEST-MV-B", SKU: lotSKU, Qty: 2, BatchNo: "L2"}); err != nil {
+	// A real user, as the handler always passes: the logged task's created_by
+	// must name one.
+	if err := MoveBinStock(tenantID, BinMoveInput{FromBin: "TEST-MV-A", ToBin: "TEST-MV-B", SKU: lotSKU, Qty: 2, BatchNo: "L2", UserID: "system"}); err != nil {
 		t.Fatalf("lot move: %v", err)
 	}
 	var l2A, l2B int
@@ -94,6 +107,9 @@ func TestMoveBinStock(t *testing.T) {
 	db.DB.QueryRow("SELECT qty FROM "+schema+".bin_stock_batch WHERE bin_code = 'TEST-MV-B' AND sku = $1 AND batch_no = 'L2'", lotSKU).Scan(&l2B)
 	if l2A != 1 || l2B != 2 {
 		t.Fatalf("lot L2 after move A=%d B=%d, want 1/2", l2A, l2B)
+	}
+	if _, batch, _ := moveTask(lotSKU); batch != "L2" {
+		t.Fatalf("lot Move task batch = %q, want L2", batch)
 	}
 
 	rows, err := GetBinContents(tenantID, loc)

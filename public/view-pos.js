@@ -2,6 +2,9 @@
 // Loaded with import() only after the route entitlement check succeeds.
 // Shared app services and offline-queue boot helpers remain in the shell.
 
+// Stage 68: the transaction-screen bar's shared pieces, same version.
+const { txnContext, txnTabs, txnRestorePane } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+
 // ---------------------------------------------------------------------------
 // Stage 53: this screen rebuilt as a standard retail till.
 //
@@ -48,39 +51,46 @@ let posSearchResults = [];
 let posSearchActiveIndex = -1;
 
 function renderPOSView(container) {
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">POS / Billing</h1>
-      <p class="page-subtitle">Scan a barcode or search by name to add items, then take payment.</p>
-    </div>
-  `;
-  container.appendChild(header);
-
+  // Stage 68: the frozen transaction layout (txn-screen.css) - the bar carries
+  // who and where, the bill total and Complete Sale; only the cart scrolls.
   const panel = document.createElement('div');
-  panel.className = 'table-panel';
-  panel.style.padding = '24px';
+  panel.className = 'txn-screen';
+  panel.id = 'pos-screen';
   panel.innerHTML = `
-    <div id="pos-session-bar" style="display: flex; gap: 12px; align-items: center; margin-bottom: 16px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px;">
-      <span id="pos-session-status" style="font-size: 13px; color: var(--text-muted);">Checking session&hellip;</span>
+    <div class="txn-bar">
+      <h1 class="page-title txn-title">POS / Billing</h1>
+      ${txnTabs('txnShowPane', 'pos-screen:sale', [['pos-screen:sale', 'Sale'], ['pos-screen:return', 'Return']])}
+      ${txnContext()}
+      <div class="txn-sum txn-main-only">
+        <span id="pos-loyalty-discount-row" class="hidden"></span>
+        <span id="pos-giftcard-row" class="hidden"></span>
+        <span id="pos-change-due" class="hidden"></span>
+        <span class="txn-total">Total <span id="pos-cart-total">0.00</span></span>
+      </div>
+      <div class="txn-actions txn-main-only">
+        <button class="btn btn-primary" id="pos-checkout-btn">Complete Sale</button>
+      </div>
+    </div>
+
+    <div id="pos-sale-pane" class="txn-pane" data-pane="sale">
+    <div id="pos-session-bar" class="txn-note pos-session">
+      <span id="pos-session-status">Checking session&hellip;</span>
       <span id="pos-offline-queue-badge" class="badge badge-secondary hidden" style="cursor: pointer;" title="Click to try syncing now" ${actionAttrs('trySyncOfflineQueue')}></span>
-      <button class="btn btn-outline" id="pos-session-open-btn" type="button" style="margin-left: auto;">Open Session</button>
-      <button class="btn btn-outline hidden" id="pos-session-close-btn" type="button">Close Session</button>
+      <button class="btn btn-outline btn-sm" id="pos-session-open-btn" type="button" style="margin-left: auto;">Open Session</button>
+      <button class="btn btn-outline btn-sm hidden" id="pos-session-close-btn" type="button">Close Session</button>
       <!-- Stage 53.9: the way out of a locked terminal. Always present, never
            hidden - a cashier who has bound the till to the wrong store must be
            able to see the fix, not go looking for it. -->
-      <button class="btn btn-outline" id="pos-reset-terminal-btn" type="button" title="Unbind this till from its store and clear the cart">Reset Terminal</button>
+      <button class="btn btn-outline btn-sm" id="pos-reset-terminal-btn" type="button" title="Unbind this till from its store and clear the cart">Reset Terminal</button>
     </div>
 
-    <!-- Stage 53.10: the frozen completed bill. Rendered above everything the
-         cashier would otherwise touch, because its whole purpose is to be in
-         the way until it is dismissed. -->
-    <div id="pos-completed-sale" class="hidden" style="margin-bottom: 20px; padding: 18px 20px; border: 2px solid var(--success-color, #1a7f37); border-radius: 8px; background: var(--bg-color);"></div>
+    <!-- Stage 53.10: the frozen completed bill, in place of the till until it
+         is dismissed. -->
+    <div id="pos-completed-sale" class="hidden pos-completed"></div>
 
-    <div id="pos-till-body">
-      <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-        <div class="form-group" style="max-width: 280px; margin-bottom: 0;">
+    <div id="pos-till-body" class="txn-pane">
+      <div class="txn-head">
+        <div class="form-group">
           <!-- Stage 41: the cashier searches and sees the location's NAME;
                #pos-location stays the code, because every downstream call
                (session, availability, cart number, receipt) keys off it.
@@ -88,70 +98,26 @@ function renderPOSView(container) {
           <label class="form-label" for="pos-location-display">Store</label>
           <input type="text" id="pos-location-display" class="form-input" placeholder="Search by store name or code" autocomplete="off">
           <input type="hidden" id="pos-location" value="${posLocation}">
-          <div id="pos-location-lock-note" class="hidden" style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;"></div>
+          <div id="pos-location-lock-note" class="txn-hint hidden"></div>
         </div>
-        <div class="form-group" style="max-width: 260px; margin-bottom: 0;">
-          <!-- Stage 53.4: was "Customer Code (optional)" / "For loyalty points".
-               Same split-value control as the store box: the cashier searches a
-               NAME (phone and code match too - the server's ?q= scans every
-               field), and #pos-customer still carries the code every existing
-               reader of it expects. -->
+        <div class="form-group">
+          <!-- Stage 53.4: same split-value control as the store box: the
+               cashier searches a NAME (phone and code match too), and
+               #pos-customer still carries the code. -->
           <label class="form-label" for="pos-customer-display">Customer (optional)</label>
           <input type="text" id="pos-customer-display" class="form-input" placeholder="Search by name or phone" autocomplete="off">
           <input type="hidden" id="pos-customer" value="">
-          <div id="pos-customer-note" style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">Walk-in &mdash; no customer attached.</div>
+          <div id="pos-customer-note" class="txn-hint">Walk-in &mdash; no customer attached.</div>
         </div>
-        <button class="btn btn-outline" id="pos-customer-new-btn" type="button" title="Add a customer standing at the counter">+ New Customer</button>
-        <button class="btn btn-outline" id="pos-loyalty-check-btn" type="button">Check Points</button>
-        <button class="btn btn-outline" id="pos-loyalty-redeem-btn" type="button">Redeem Points</button>
-      </div>
-      <div id="pos-loyalty-info" style="margin: 8px 0 16px; font-size: 13px; color: var(--text-muted);"></div>
-
-      <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 8px;">
-        <div class="form-group" style="flex: 1; margin-bottom: 0;">
-          <label class="form-label" for="pos-sku-input">Scan or search</label>
-          <input type="text" id="pos-sku-input" class="form-input" style="font-size: 16px; padding: 10px 12px;"
-                 placeholder="Scan a barcode, or type a product name / code" autocomplete="off">
-        </div>
-        <button class="btn btn-primary" id="pos-add-btn" style="padding: 10px 20px;">Add to Cart</button>
-      </div>
-      <!-- Stage 53.6: what matched, when the typed text was not an exact code
-           or barcode. Empty and hidden the rest of the time, which is every
-           scan - the scanner path must never be interrupted by a list. -->
-      <div id="pos-search-results" class="hidden" style="margin-bottom: 16px; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden;"></div>
-      <div id="pos-scan-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
-
-      <table>
-        <thead>
-          <tr>
-            <th>Item</th>
-            <th>Available</th>
-            <th>Qty</th>
-            <!-- Stage 47.2: Sale Price is now what the SERVER says, rendered
-                 read-only with the source it came from; the Cost Price column
-                 is gone entirely (a cashier never sees margin, and the server
-                 no longer accepts a cost from the till at all). -->
-            <th>Sale Price</th>
-            <th>Line Total</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody id="pos-cart-body"></tbody>
-      </table>
-      <!-- Stage 30.7: offers configured in the ERP (Offer master) are evaluated
-           server-side and shown here. This block is display-only - the discount
-           that reaches the sale is always recomputed at checkout. -->
-      <div id="pos-offers-row" class="hidden" style="margin-top: 16px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-color);"></div>
-      <div style="display: flex; justify-content: flex-end; align-items: flex-end; gap: 20px; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border-color); flex-wrap: wrap;">
-        <div class="form-group" style="max-width: 160px; margin-bottom: 0;">
+        <div class="form-group">
           <label class="form-label" for="pos-coupon-code">Coupon code</label>
           <input type="text" id="pos-coupon-code" class="form-input" placeholder="Optional" autocomplete="off">
         </div>
-        <div class="form-group" style="max-width: 110px; margin-bottom: 0;">
+        <div class="form-group">
           <label class="form-label" for="pos-discount-pct">Discount %</label>
           <input type="number" min="0" max="100" step="0.1" value="0" id="pos-discount-pct" class="form-input">
         </div>
-        <div class="form-group" style="margin-bottom: 0;">
+        <div class="form-group">
           <label class="form-label" for="pos-payment-mode">Payment Mode</label>
           <select id="pos-payment-mode" class="form-input">
             <option value="Cash">Cash</option>
@@ -159,17 +125,65 @@ function renderPOSView(container) {
             <option value="UPI">UPI</option>
           </select>
         </div>
-        <!-- Stage 53.11: cash tendered and change due. Shown for Cash only;
-             a card or UPI sale is for the exact amount and has no change. -->
-        <div class="form-group" id="pos-tender-group" style="max-width: 130px; margin-bottom: 0;">
+        <!-- Stage 53.11: cash tendered and change due (in the bar). Shown for
+             Cash only; a card or UPI sale is for the exact amount. -->
+        <div class="form-group" id="pos-tender-group">
           <label class="form-label" for="pos-cash-tendered">Cash tendered</label>
           <input type="number" min="0" step="0.01" id="pos-cash-tendered" class="form-input" placeholder="0.00">
         </div>
-        <div id="pos-change-due" class="hidden" style="font-size: 14px; font-weight: 600;"></div>
-        <div id="pos-loyalty-discount-row" class="hidden" style="font-size: 13px; font-weight: 600; color: var(--text-muted);"></div>
-        <div style="font-size: 22px; font-weight: 700;">Total: <span id="pos-cart-total">0.00</span></div>
-        <button class="btn btn-primary" id="pos-checkout-btn" style="padding: 10px 22px;">Complete Sale</button>
       </div>
+      <div class="pos-customer-actions">
+        <button class="btn btn-outline btn-sm" id="pos-customer-new-btn" type="button" title="Add a customer standing at the counter">+ New Customer</button>
+        <button class="btn btn-outline btn-sm" id="pos-loyalty-check-btn" type="button">Check Points</button>
+        <button class="btn btn-outline btn-sm" id="pos-loyalty-redeem-btn" type="button">Redeem Points</button>
+        <!-- Stage 72.8: pay with a gift card, issue one, check a balance. -->
+        <button class="btn btn-outline btn-sm" id="pos-giftcard-btn" type="button">Gift Card</button>
+        <span id="pos-loyalty-info"></span>
+      </div>
+
+      <div class="txn-entry">
+        <div class="form-group txn-entry-main">
+          <label class="form-label" for="pos-sku-input">Scan or search</label>
+          <input type="text" id="pos-sku-input" class="form-input pos-scan-input"
+                 placeholder="Scan a barcode, or type a product name / code" autocomplete="off">
+        </div>
+        <button class="btn btn-primary" id="pos-add-btn">Add to Cart</button>
+        <!-- Stage 72.4: shown only when a line's box (or other packaging) may
+             be changed. The default is already chosen; this is for when the
+             customer gets something else. -->
+        <button class="btn btn-outline hidden" id="pos-packaging-btn" type="button" title="Change the box or packaging used">Packaging</button>
+      </div>
+      <!-- Stage 53.6: what matched, when the typed text was not an exact code
+           or barcode. Empty and hidden the rest of the time, which is every
+           scan - the scanner path must never be interrupted by a list. -->
+      <div id="pos-search-results" class="hidden pos-search-results"></div>
+      <div id="pos-scan-error" class="login-error hidden"></div>
+
+      <div class="txn-grid">
+        <table>
+          <thead>
+            <tr>
+              <th>Item</th>
+              <th>Available</th>
+              <th>Qty</th>
+              <!-- Stage 47.2: Sale Price is what the SERVER says, read-only
+                   with its source; a cashier never sees cost or margin. -->
+              <th>Sale Price</th>
+              <th>Line Total</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="pos-cart-body"></tbody>
+        </table>
+        <!-- Stage 30.7: offers configured in the ERP (Offer master), evaluated
+             server-side. Display-only - the discount that reaches the sale is
+             always recomputed at checkout. -->
+        <div id="pos-offers-row" class="hidden pos-offers"></div>
+        <!-- Stage 72.4 / 72.7: gifts this bill has earned, and the packaging
+             it will use up (never printed on the bill). -->
+        <div id="pos-packaging-row" class="hidden pos-offers"></div>
+      </div>
+    </div>
     </div>
   `;
   container.appendChild(panel);
@@ -211,6 +225,8 @@ function renderPOSView(container) {
   });
   document.getElementById('pos-customer-new-btn').addEventListener('click', quickAddPOSCustomer);
   document.getElementById('pos-add-btn').addEventListener('click', addSKUToPOSCart);
+  document.getElementById('pos-packaging-btn').addEventListener('click', openPOSPackaging);
+  document.getElementById('pos-giftcard-btn').addEventListener('click', openPOSGiftCard);
   document.getElementById('pos-sku-input').addEventListener('keydown', onPOSScanKeyDown);
   document.getElementById('pos-checkout-btn').addEventListener('click', submitPOSCheckout);
   document.getElementById('pos-loyalty-check-btn').addEventListener('click', checkPOSLoyaltyBalance);
@@ -225,7 +241,14 @@ function renderPOSView(container) {
   renderPOSCartTable();
   refreshPOSSessionStatus();
   loadPOSStoreProfile();
-  renderPOSReturnPanel(container);
+  // Stage 68: the Return tab's pane, filled by view-pos-extras.js.
+  const returnPane = document.createElement('div');
+  returnPane.className = 'txn-pane hidden';
+  returnPane.id = 'pos-return-pane';
+  returnPane.dataset.pane = 'return';
+  panel.appendChild(returnPane);
+  posExtras().then(m => { if (returnPane.isConnected) m.renderPOSReturnPanel(returnPane); }, () => {});
+  txnRestorePane('pos-screen');
   renderOfflineQueueBadge();
   trySyncOfflineQueue();
 }
@@ -273,6 +296,7 @@ function clearPOSTillState() {
   posStoreProfile = null;
   clearPOSRedemption();
   clearPOSProductSearch();
+  clearPOSPackagingState();
 
   const completedEl = document.getElementById('pos-completed-sale');
   if (completedEl) { completedEl.classList.add('hidden'); completedEl.innerHTML = ''; }
@@ -340,275 +364,6 @@ function renderPOSCustomerNote() {
   }
   note.textContent = `${shown || code} (${code}) — loyalty points will be earned on this sale.`;
 }
-
-// quickAddPOSCustomer creates a customer from the till. The alternative is
-// what the screen used to force: leave POS, go to the Customer master, create
-// the record, come back, and find the cart gone - with a queue waiting.
-//
-// Deliberately asks for the two things a counter can actually get (a name and
-// a phone number) and lets the server mint the code; everything else about the
-// customer can be filled in later from the master.
-async function quickAddPOSCustomer() {
-  const name = await showCustomPrompt('Customer name?', '', 'New Customer');
-  if (name === null) return;
-  if (!name.trim()) {
-    await showCustomAlert('A customer needs a name.', 'New Customer');
-    return;
-  }
-  const phone = await showCustomPrompt(`Phone number for ${name.trim()}? (optional)`, '', 'New Customer');
-  if (phone === null) return;
-
-  const res = await apiFetch('/api/v1/doc/Customer', {
-    method: 'POST',
-    body: JSON.stringify({ name: name.trim(), phone: phone.trim(), status: 'Active' })
-  });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'The customer was not created.');
-    return;
-  }
-  const created = await res.json();
-  const code = created.id || created.code || '';
-  if (!code) {
-    await showCustomAlert('The customer was created but the till could not read its code back - search for them by name.', 'New Customer');
-    return;
-  }
-  const hidden = document.getElementById('pos-customer');
-  const display = document.getElementById('pos-customer-display');
-  if (display) { display.value = name.trim(); display.dataset.resolved = '1'; }
-  if (hidden) {
-    hidden.value = code;
-    hidden.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-  showToast(`${name.trim()} added and attached to this sale.`, { variant: 'success', title: 'New Customer' });
-}
-
-// Stage 47.4.6 - the Returns surface, rebuilt.
-//
-// What it replaced, and why: the Stage 20.11 panel asked the clerk to type the
-// SKU, the quantity, the SALE PRICE and the COST PRICE, and posted them to the
-// retired POST /api/v1/fulfillment/return. Every one of those four was a
-// question the server could answer better - and the two prices were questions
-// the client had no business answering at all (audit A-02/A-04).
-//
-// It now works the other way round: the clerk types the bill number, the server
-// says what is still returnable and at what price, and the clerk picks
-// quantities. Nothing on this screen can set a price, and the eligibility
-// explanation is shown in words so a refusal can be repeated to the customer
-// standing at the counter rather than appearing as an unexplained rejection.
-//
-// This stays a thin, separate panel (its own posReturnCart) rather than a
-// mode-toggle on the sale cart above, so a return in progress can never be
-// confused with or accidentally merged into an in-progress sale.
-let posReturnCart = []; // { sku, qty, unitPrice, remaining }
-let posReturnEligibility = null;
-
-function renderPOSReturnPanel(container) {
-  const panel = document.createElement('div');
-  panel.className = 'table-panel';
-  panel.style.padding = '24px';
-  panel.style.marginTop = '20px';
-  panel.innerHTML = `
-    <h2 style="margin: 0 0 12px; font-size: 16px;">Process a Return</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; margin-bottom: 16px;">
-      <div class="form-group" style="max-width: 260px; margin-bottom: 0;">
-        <label class="form-label" for="pos-return-order-id">Original Bill / Cart Number</label>
-        <input type="text" id="pos-return-order-id" class="form-input" placeholder="e.g. POS-HO-171..." autocomplete="off">
-      </div>
-      <button class="btn btn-outline" id="pos-return-lookup-btn" type="button">Look Up Bill</button>
-      <div class="form-group" style="max-width: 220px; margin-bottom: 0;">
-        <label class="form-label" for="pos-return-location-display">Return Location</label>
-        <input type="text" id="pos-return-location-display" class="form-input" placeholder="Search by store name or code" autocomplete="off">
-        <input type="hidden" id="pos-return-location" value="${posLocation}">
-      </div>
-    </div>
-    <div id="pos-return-eligibility" style="margin-bottom: 16px; font-size: 13px;"></div>
-    <div id="pos-return-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
-    <table>
-      <thead>
-        <tr>
-          <th>SKU</th><th>Sold</th><th>Already Returned</th><th>Still Returnable</th>
-          <th>Return Qty</th><th>Price (from the bill)</th><th>Refund</th>
-        </tr>
-      </thead>
-      <tbody id="pos-return-body"></tbody>
-    </table>
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; gap: 16px;">
-      <div style="font-size: 12.5px; color: var(--text-muted);">
-        Prices come from the original bill and cannot be changed here. The refund is calculated by the server after the goods are received and inspected.
-      </div>
-      <div style="display:flex; align-items:center; gap:16px;">
-        <div style="font-weight:600;">Refund if all accepted: <span id="pos-return-total">0.00</span></div>
-        <button class="btn btn-primary" id="pos-return-submit-btn" type="button" disabled>Raise Return</button>
-      </div>
-    </div>
-  `;
-  container.appendChild(panel);
-
-  attachCodeNamePicker(
-    document.getElementById('pos-return-location-display'),
-    document.getElementById('pos-return-location'),
-    'Location');
-  document.getElementById('pos-return-lookup-btn').addEventListener('click', lookUpPOSReturnBill);
-  document.getElementById('pos-return-order-id').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      lookUpPOSReturnBill();
-    }
-  });
-  document.getElementById('pos-return-submit-btn').addEventListener('click', submitPOSReturn);
-
-  renderPOSReturnTable();
-}
-
-// lookUpPOSReturnBill asks the server what is returnable. Nothing is typed by
-// the clerk except the bill number.
-async function lookUpPOSReturnBill() {
-  const errorEl = document.getElementById('pos-return-error');
-  errorEl.classList.add('hidden');
-  const orderID = document.getElementById('pos-return-order-id').value.trim();
-  posReturnCart = [];
-  posReturnEligibility = null;
-  if (!orderID) {
-    errorEl.textContent = 'Enter the original bill or cart number.';
-    errorEl.classList.remove('hidden');
-    renderPOSReturnTable();
-    return;
-  }
-  const res = await apiFetch(`/api/v1/returns/eligibility?original_order_id=${encodeURIComponent(orderID)}`);
-  if (!res) return;
-  if (!res.ok) {
-    errorEl.textContent = await getErrorMessage(res, 'That bill could not be looked up.');
-    errorEl.classList.remove('hidden');
-    renderPOSReturnTable();
-    return;
-  }
-  posReturnEligibility = await res.json();
-  // Every returnable line starts at zero: a return is something the clerk
-  // chooses line by line with the customer, not a whole-bill default.
-  posReturnCart = (posReturnEligibility.lines || [])
-    .filter(l => l.remaining_qty > 0)
-    .map(l => ({ sku: l.sku, qty: 0, unitPrice: Number(l.unit_price) || 0, remaining: l.remaining_qty, sold: l.sold_qty, returned: l.already_returned, reason: l.reason }));
-  renderPOSReturnTable();
-}
-
-function updatePOSReturnLine(sku, value) {
-  const line = posReturnCart.find(l => l.sku === sku);
-  if (!line) return;
-  let qty = parseInt(value, 10);
-  if (isNaN(qty) || qty < 0) qty = 0;
-  // Clamped at the source rather than left for the server to reject: the
-  // server still enforces it under a lock, but a spinner that lets a clerk
-  // type 99 and only learns at submit time is a worse counter experience.
-  if (qty > line.remaining) qty = line.remaining;
-  line.qty = qty;
-  renderPOSReturnTable();
-}
-
-function renderPOSReturnTable() {
-  const body = document.getElementById('pos-return-body');
-  if (!body) return;
-  body.innerHTML = '';
-
-  const explain = document.getElementById('pos-return-eligibility');
-  if (explain) {
-    if (!posReturnEligibility) {
-      explain.innerHTML = '<span style="color: var(--text-muted);">Enter a bill number and look it up to see what can be returned.</span>';
-    } else {
-      const ok = posReturnEligibility.found && posReturnEligibility.within_window;
-      explain.innerHTML = `
-        <div style="padding:10px 12px; border-radius:6px; border:1px solid ${ok ? 'var(--border-color)' : 'var(--warning-soft-border, var(--border-color))'};
-                    background: ${ok ? 'var(--bg-color)' : 'var(--warning-soft-bg, var(--bg-color))'};">
-          ${cfgEsc(posReturnEligibility.explanation || '')}
-          ${posReturnEligibility.sale_date ? `<span style="color:var(--text-muted);"> Sold ${cfgEsc(posReturnEligibility.sale_date)}; return window ${posReturnEligibility.window_days} days.</span>` : ''}
-        </div>`;
-    }
-  }
-
-  let refund = 0;
-  posReturnCart.forEach(line => {
-    refund += line.qty * line.unitPrice;
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td style="font-weight:600;">${cfgEsc(line.sku)}</td>
-      <td>${line.sold}</td>
-      <td>${line.returned}</td>
-      <td>${line.remaining}</td>
-      <td><input type="number" min="0" max="${line.remaining}" value="${line.qty}" class="form-input" style="width: 90px;"
-                 ${actionAttrs('updatePOSReturnLine', [line.sku, ACTION_ARG_VALUE], { on: 'change' })}></td>
-      <td>${line.unitPrice.toFixed(2)}</td>
-      <td>${(line.qty * line.unitPrice).toFixed(2)}</td>
-    `;
-    body.appendChild(tr);
-  });
-
-  const totalEl = document.getElementById('pos-return-total');
-  if (totalEl) totalEl.textContent = refund.toFixed(2);
-  const submitBtn = document.getElementById('pos-return-submit-btn');
-  if (submitBtn) submitBtn.disabled = !posReturnCart.some(l => l.qty > 0);
-}
-
-async function submitPOSReturn() {
-  // BLD-036: converted from a bare manual disable/finally to the shared
-  // helper for a busy label, consistent with the other guarded composers -
-  // the server-side idempotency key below already made a double-click safe,
-  // this only makes it clearer to the cashier that it's in flight.
-  await guardAgainstDoubleSubmit(document.getElementById('pos-return-submit-btn'), 'Submitting...', submitPOSReturnInner);
-}
-
-async function submitPOSReturnInner() {
-  const errorEl = document.getElementById('pos-return-error');
-  errorEl.classList.add('hidden');
-  const orderID = document.getElementById('pos-return-order-id').value.trim();
-  const returnLocation = document.getElementById('pos-return-location').value.trim();
-  const lines = posReturnCart.filter(l => l.qty > 0);
-
-  if (!orderID || !returnLocation) {
-    errorEl.textContent = 'Original bill number and return location are required.';
-    errorEl.classList.remove('hidden');
-    return;
-  }
-  if (lines.length === 0) {
-    errorEl.textContent = 'Set a return quantity on at least one line.';
-    errorEl.classList.remove('hidden');
-    return;
-  }
-
-  // Stage 47.4.3: one key per bill + line set, so a double-click, a lost
-  // response or a second tab raises ONE return. The server refuses a
-  // different payload under the same key, which is why the key includes the
-  // lines rather than only the bill.
-  const idempotencyKey = `${orderID}|${lines.map(l => `${l.sku}:${l.qty}`).sort().join(',')}`;
-  const res = await apiFetch('/api/v1/returns', {
-    method: 'POST',
-    body: JSON.stringify({
-      request_type: 'Customer Return',
-      return_location: returnLocation,
-      original_order_id: orderID,
-      idempotency_key: idempotencyKey,
-      // Selection only. No price, no cost - the server resolves both from
-      // the original sale lines.
-      items: lines.map(l => ({ sku: l.sku, qty: l.qty }))
-    })
-  });
-  if (!res) return;
-  if (!res.ok) {
-    errorEl.textContent = await getErrorMessage(res, 'The return could not be raised.');
-    errorEl.classList.remove('hidden');
-    return;
-  }
-  const data = await res.json();
-  posReturnCart = [];
-  posReturnEligibility = null;
-  document.getElementById('pos-return-order-id').value = '';
-  renderPOSReturnTable();
-  await showCustomAlert(
-    data.replayed
-      ? `This return was already raised as ${data.return_request_id}. Nothing was duplicated.`
-      : `Return ${data.return_request_id} raised. It now needs approval, then the goods received and inspected before any refund is paid.`,
-    'Return Raised');
-}
-
 
 // Stage 20.7: reflects whether the acting cashier already has an Open
 // session at posLocation, so the POS screen doesn't let a cashier build a
@@ -891,6 +646,7 @@ async function addResolvedItemToPOSCart(sku, name) {
   const sellable = avail.ats ?? avail.available ?? 0;
   const withheld = (avail.qc_hold || 0) + (avail.damaged || 0) + (avail.blocked || 0) + (avail.hold_qty || 0);
 
+  posLastAddedSku = sku;
   const existing = posCart.find(line => line.sku === sku);
   if (existing) {
     existing.qty += 1;
@@ -990,7 +746,14 @@ function renderPOSCartTable(skipQuote) {
     posRedeemPoints = Math.floor(total);
   }
 
-  document.getElementById('pos-cart-total').textContent = Math.max(0, total - posRedeemPoints - posOfferDiscount).toFixed(2);
+  // Stage 72.8: gift cards paying the bill come off what is still due.
+  const giftPaid = posGiftCardTenders.reduce((s, g) => s + g.amount, 0);
+  const giftRow = document.getElementById('pos-giftcard-row');
+  if (giftRow) {
+    giftRow.textContent = giftPaid > 0 ? `Gift card: -${giftPaid.toFixed(2)} (${posGiftCardTenders.map(g => g.card).join(', ')})` : '';
+    giftRow.classList.toggle('hidden', !(giftPaid > 0));
+  }
+  document.getElementById('pos-cart-total').textContent = Math.max(0, total - posRedeemPoints - posOfferDiscount - giftPaid).toFixed(2);
   renderPOSTender();
   if (!skipQuote) refreshPOSQuote();
 }
@@ -1007,6 +770,8 @@ function renderPOSCartTable(skipQuote) {
 // The withheld figure is shown only when it is non-zero, so the ordinary line -
 // which is almost every line - stays a single clean number.
 function posAvailabilityCell(line) {
+  // Stage 72.9: a service or non-stock item has no shelf to count.
+  if (line.notStocked) return '<div class="txn-hint">Not stocked</div>';
   const sellable = Number(line.available) || 0;
   const withheld = Number(line.withheld) || 0;
   // A line asking for more than the store can sell is flagged HERE, as it is
@@ -1083,6 +848,18 @@ let posQuoteVersion = '';
 // cleared immediately afterwards - so a confirmation can never leak into the
 // next sale and silently accept a price change nobody looked at.
 let posAcceptPriceChange = false;
+// Stage 72.4 / 72.7: from the quote - what this cart uses up with its lines
+// (box, butter paper) and the choices per line, the gifts it has earned and
+// any component the store is short of; plus the cashier's Packaging changes,
+// keyed "sku|group", sent with the sale.
+let posPackaging = [];
+let posPackagingOverrides = {};
+let posGifts = [];
+let posPackagingShortages = [];
+let posLastAddedSku = '';
+// Stage 72.8: gift cards paying this bill - {card_number, card (masked), amount}.
+// Held only in memory: never queued offline, never stored on the device.
+let posGiftCardTenders = [];
 
 // posCanOverridePrice gates the per-line Override button on the capability
 // the server actually checks (see engines/role_templates.go), never on a role
@@ -1101,7 +878,8 @@ const POS_PRICE_SOURCE_LABELS = {
   item_sale_price: 'Item price',
   item_mrp: 'MRP',
   cashier_entered: 'Not priced - keyed in',
-  item_type_free: 'Free (gift / free with item)'
+  item_type_free: 'Free (gift / free with item)',
+  gwp_offer: 'Free gift (offer)'
 };
 
 // posPriceCell renders one line's price. A server-priced line is read-only
@@ -1196,6 +974,7 @@ async function refreshPOSQuote() {
     posAppliedOffers = [];
     posQuoteVersion = '';
     row.classList.add('hidden');
+    clearPOSPackagingState();
     return;
   }
 
@@ -1230,6 +1009,7 @@ async function refreshPOSQuote() {
     return;
   }
   if (seq !== posOfferPreviewSeq) return;
+  if (res && !res.ok && await dropPOSRefusedLine(res)) return;
   if (!res || !res.ok) {
     // A quote that will not resolve is a real, blocking condition in strict
     // mode (an item with no price cannot be sold), so say so rather than
@@ -1254,7 +1034,15 @@ async function refreshPOSQuote() {
     line.priceSource = ql.price_source || '';
     line.overrideId = ql.override_id || '';
     line.unpriced = ql.price_source === 'cashier_entered';
+    line.notStocked = !!ql.not_stocked;
+    line.billMode = ql.bill_mode || '';
   });
+  posPackaging = Array.isArray(data.packaging) ? data.packaging : [];
+  posGifts = Array.isArray(data.gifts) ? data.gifts : [];
+  posPackagingShortages = Array.isArray(data.packaging_shortages) ? data.packaging_shortages : [];
+  const liveKeys = new Set(posPackaging.map(posPackagingKey));
+  Object.keys(posPackagingOverrides).forEach(k => { if (!liveKeys.has(k)) delete posPackagingOverrides[k]; });
+  renderPOSPackagingRow();
 
   posAppliedOffers = Array.isArray(data.applied_offers) ? data.applied_offers : [];
   const newDiscount = Number(data.offer_discount) || 0;
@@ -1334,7 +1122,9 @@ async function submitPOSCheckoutInner() {
     errorEl.classList.remove('hidden');
     return;
   }
-  if (posCart.some(line => line.qty <= 0 || line.salePrice <= 0)) {
+  // Stage 72.2: a gift / free-with-item line is priced 0 by the server on
+  // purpose (it used to be refused here, so no free item could ever be billed).
+  if (posCart.some(line => line.qty <= 0 || (line.salePrice <= 0 && !POS_FREE_SOURCES.has(line.priceSource)))) {
     errorEl.textContent = 'Every line needs a quantity and a price greater than zero.';
     errorEl.classList.remove('hidden');
     return;
@@ -1358,7 +1148,7 @@ async function submitPOSCheckoutInner() {
     // Stage 30.2.5: the redemption travels with the sale and is burned
     // server-side only if the sale completes.
     const redeemPoints = customerId ? posRedeemPoints : 0;
-    const res = await checkoutOnlineOrQueue({
+    const checkoutPayload = {
       cart_number: cartNumber,
       location: posLocation,
       payment_mode: paymentMode,
@@ -1370,8 +1160,30 @@ async function submitPOSCheckoutInner() {
       // something else, it says so rather than charging either figure.
       quote_version: posQuoteVersion,
       accept_price_change: posAcceptPriceChange,
+      // Stage 72.4: only the lines whose packaging the cashier changed.
+      packaging_overrides: Object.values(posPackagingOverrides).map(o => ({ sku: o.sku, group: o.group, component: o.component, reason: o.reason })),
       items: cartItems
-    });
+    };
+    let res;
+    if (posGiftCardTenders.length) {
+      // Stage 72.8: a gift card sale is online only - it is never queued, so a
+      // card number never lands in the device's offline store.
+      checkoutPayload.gift_cards = posGiftCardTenders.map(g => ({ card_number: g.card_number, amount: g.amount }));
+      if (!navigator.onLine) {
+        errorEl.textContent = 'No connection - a gift card cannot be used offline. Remove it (Gift Card -> Remove) and take another payment.';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+      try {
+        res = await apiFetch('/api/v1/checkout', { method: 'POST', body: JSON.stringify(checkoutPayload) });
+      } catch (e) {
+        errorEl.textContent = 'The connection dropped - nothing was charged to the gift card. Try again once you are back online.';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+    } else {
+      res = await checkoutOnlineOrQueue(checkoutPayload);
+    }
     if (res === 'queued') {
       // Stage 53.10: an offline sale freezes the till exactly as a live one
       // does. It is a completed transaction as far as the customer walking out
@@ -1481,6 +1293,8 @@ async function submitPOSCheckoutInner() {
       loyaltyDiscount: Number(data.loyalty_discount) || 0,
       loyaltyPoints: Number(data.loyalty_points_redeemed) || 0,
       offerDiscount: Number(data.offer_discount) || 0,
+      // Stage 72.8: read before freezePOSTill clears the tenders.
+      giftCards: posGiftCardTenders.map(g => ({ card: g.card, amount: g.amount })),
       tendered: isNaN(tendered) ? null : tendered,
       changeDue: isNaN(tendered) ? null : tendered - (Number(amountDue) || 0),
       canPrint: true
@@ -1509,9 +1323,11 @@ function posReceiptItems(cartItems) {
       sku: it.sku,
       qty: it.qty,
       name: line ? line.name : it.sku,
-      sale_price: line ? Number(line.salePrice) || 0 : Number(it.sale_price) || 0
+      sale_price: line ? Number(line.salePrice) || 0 : Number(it.sale_price) || 0,
+      hidden: !!(line && line.billMode === 'HIDDEN_INTERNAL' && !(Number(line.salePrice) > 0))
     };
-  });
+  // Stage 72: an item whose profile keeps it off the customer's bill.
+  }).filter(it => !it.hidden);
 }
 
 // --- Stage 53.10: the frozen completed bill ---------------------------------
@@ -1539,6 +1355,7 @@ function freezePOSTill(sale) {
   posCartNumber = '';
   clearPOSRedemption();
   clearPOSProductSearch();
+  clearPOSPackagingState();
   renderPOSCartTable();
 
   const tillBody = document.getElementById('pos-till-body');
@@ -1570,6 +1387,7 @@ function freezePOSTill(sale) {
       ${lines}
       ${sale.offerDiscount > 0 ? money('Offer discount', -sale.offerDiscount) : ''}
       ${sale.loyaltyDiscount > 0 ? money(`Loyalty points applied${sale.loyaltyPoints ? ` (${sale.loyaltyPoints} pt)` : ''}`, -sale.loyaltyDiscount) : ''}
+      ${(sale.giftCards || []).map(g => money(`Gift card ${g.card}`, -g.amount)).join('')}
       ${money(sale.status === 'paid' ? 'Collected' : 'Total', sale.amountDue, true)}
       ${sale.tendered !== null && sale.tendered !== undefined ? money('Cash tendered', sale.tendered) : ''}
       ${sale.changeDue !== null && sale.changeDue !== undefined ? money('Change due', sale.changeDue, true) : ''}
@@ -1759,27 +1577,6 @@ function printPOSReceipt(cartNumber, location, paymentMode, items, saleTotal, lo
   setTimeout(() => area.classList.remove('printing'), 500);
 }
 
-// CRM/Loyalty (Stage 13.13d, scoped MVP) - POS integration. Earning
-// happens automatically server-side (handleCheckout) once customer_id is
-// set; these two actions are the customer-facing "check balance" /
-// "redeem" steps a cashier drives manually before completing the sale.
-async function checkPOSLoyaltyBalance() {
-  const infoEl = document.getElementById('pos-loyalty-info');
-  const customerId = document.getElementById('pos-customer').value.trim();
-  if (!customerId) {
-    infoEl.textContent = 'Search for the customer by name or phone first, or add them with + New Customer.';
-    return;
-  }
-  const res = await apiFetch(`/api/v1/loyalty/ledger?customer_id=${encodeURIComponent(customerId)}`);
-  if (!res) return;
-  if (!res.ok) {
-    infoEl.textContent = 'Failed to look up loyalty balance.';
-    return;
-  }
-  const data = await res.json();
-  infoEl.textContent = `${customerId} has ${data.balance} loyalty point(s).`;
-}
-
 // Stage 30.2.5: the points a cashier has added to THIS cart, not yet burned.
 // The burn happens server-side when the sale completes. Cleared whenever the
 // cart is (completed, queued offline, or abandoned by leaving the screen), so
@@ -1798,54 +1595,121 @@ function clearPOSRedemption() {
   if (offersRow) { offersRow.classList.add('hidden'); offersRow.innerHTML = ''; }
 }
 
-async function redeemPOSLoyaltyPoints() {
-  const infoEl = document.getElementById('pos-loyalty-info');
-  const customerId = document.getElementById('pos-customer').value.trim();
-  if (!customerId) {
-    infoEl.textContent = 'Search for the customer by name or phone first, or add them with + New Customer.';
-    return;
-  }
-  if (posCart.length === 0) {
-    infoEl.textContent = 'Add items to the cart before redeeming points - the discount is applied to this sale.';
-    return;
-  }
-
-  // Check the balance first so the cashier is told "you have N" rather than
-  // finding out at the till.
-  const balRes = await apiFetch(`/api/v1/loyalty/ledger?customer_id=${encodeURIComponent(customerId)}`);
-  if (!balRes) return;
-  if (!balRes.ok) {
-    infoEl.textContent = 'Failed to look up loyalty balance.';
-    return;
-  }
-  const balance = (await balRes.json()).balance || 0;
-  if (balance <= 0) {
-    infoEl.textContent = `${customerId} has no loyalty points to redeem.`;
-    return;
-  }
-
-  const cartTotal = posCart.reduce((sum, line) => sum + line.qty * line.salePrice, 0);
-  const pointsStr = await showCustomPrompt(`How many points to redeem? ${customerId} has ${balance}. 1 point = 1 off this sale.`);
-  const points = parseInt(pointsStr, 10);
-  if (!points || points <= 0) return;
-  if (points > balance) {
-    infoEl.textContent = `${customerId} only has ${balance} point(s).`;
-    return;
-  }
-  if (points > cartTotal) {
-    infoEl.textContent = `This sale is only ${cartTotal.toFixed(2)} - redeem at most ${Math.floor(cartTotal)} point(s).`;
-    return;
-  }
-
-  // Nothing is burned here. The points ride on the cart and are spent by the
-  // server only if the sale completes.
-  posRedeemPoints = points;
-  renderPOSCartTable();
-  infoEl.textContent = `${points} point(s) will be applied to this sale. They are only deducted once the sale completes.`;
-}
-
 // Stage 53: the new names are exported for the same reason the old ones are -
 // app.js does Object.assign(window, module) on import, and the cart table's
 // inline onclick handlers (stepPOSCartLine, removeSKUFromPOSCart) resolve off
 // window.
-export { renderPOSView, renderPOSReturnPanel, lookUpPOSReturnBill, updatePOSReturnLine, renderPOSReturnTable, submitPOSReturn, submitPOSReturnInner, refreshPOSSessionStatus, openPOSSessionFlow, closePOSSessionFlow, addSKUToPOSCart, removeSKUFromPOSCart, updatePOSCartLine, renderPOSCartTable, posCanOverridePrice, posPriceCell, openPOSPriceOverride, posCurrentCartNumber, currentPOSCouponCodes, refreshPOSQuote, submitPOSCheckout, submitPOSCheckoutInner, printPOSReceipt, checkPOSLoyaltyBalance, clearPOSRedemption, redeemPOSLoyaltyPoints, applyPOSTerminalLock, resetPOSTerminal, renderPOSCustomerNote, quickAddPOSCustomer, clearPOSProductSearch, onPOSScanKeyDown, highlightPOSSearchResult, renderPOSSearchResults, pickPOSSearchResult, addResolvedItemToPOSCart, stepPOSCartLine, posAvailabilityCell, renderPOSTender, posReceiptItems, freezePOSTill, startNewPOSSale, printCompletedPOSSale, posStoreLabel, loadPOSStoreProfile, clearPOSTillState };
+// --- Stage 72: packaging, gifts and items the till does not sell -------------
+//
+// The quote says what the cart uses up with its lines - the Backflush Rules'
+// default box per line, butter paper - and which other boxes each line may
+// switch to. Nothing is scanned: the default is already chosen, and Packaging
+// is for the customer who gets something else. None of it is printed on the
+// bill; it leaves stock with the sale, linked to the bill number.
+
+// Price sources the server prices at 0 on purpose.
+const POS_FREE_SOURCES = new Set(['item_type_free', 'gwp_offer']);
+
+// Also drops the gift cards paying the bill - every place that ends a cart
+// (clear, freeze, empty) calls this.
+function clearPOSPackagingState() {
+  posPackaging = [];
+  posPackagingOverrides = {};
+  posGifts = [];
+  posPackagingShortages = [];
+  posGiftCardTenders = [];
+  renderPOSPackagingRow();
+}
+
+function posPackagingKey(p) {
+  return `${p.for_sku}|${p.group}`.toLowerCase();
+}
+
+// What a packaging line consumes once the cashier's change is applied.
+function posPackagingChoice(p) {
+  const o = posPackagingOverrides[posPackagingKey(p)];
+  if (!o) return { component: p.component, name: p.component_name || p.component, qty: p.qty, changed: false };
+  return { component: o.component, name: o.component ? (o.name || o.component) : 'None', qty: o.component ? p.qty : 0, changed: true };
+}
+
+function renderPOSPackagingRow() {
+  const row = document.getElementById('pos-packaging-row');
+  const btn = document.getElementById('pos-packaging-btn');
+  const changeable = posPackaging.filter(p => p.override_allowed && ((p.choices || []).length > 1 || p.none_allowed));
+  if (btn) btn.classList.toggle('hidden', !changeable.length);
+  if (!row) return;
+  const parts = [];
+  posGifts.forEach(g => {
+    const taken = posCart.filter(l => String(l.sku).toLowerCase() === String(g.gift_item).toLowerCase()).reduce((s, l) => s + l.qty, 0);
+    const left = g.qty - taken;
+    parts.push(`<div style="font-size:13px; font-weight:600;">Gift eligible: ${g.qty} &times; ${cfgEsc(g.gift_name)}
+      <span style="font-weight:400; color:var(--text-muted);">(${cfgEsc(g.name)}) &mdash; ${left > 0 ? `scan ${left === g.qty ? 'it' : left + ' more'} to hand it over` : 'scanned'}</span></div>`);
+  });
+  const totals = {};
+  posPackaging.forEach(p => {
+    const c = posPackagingChoice(p);
+    if (!c.component || !c.qty) return;
+    const key = c.name + (c.changed ? ' *' : '');
+    totals[key] = (totals[key] || 0) + c.qty;
+  });
+  const used = Object.keys(totals).map(k => `${totals[k]} &times; ${cfgEsc(k)}`);
+  if (used.length) {
+    parts.push(`<div style="font-size:12.5px; color:var(--text-muted);">Uses (not on the bill): ${used.join(', ')}${Object.keys(totals).some(k => k.endsWith(' *')) ? ' &middot; * changed' : ''}</div>`);
+  }
+  posPackagingShortages.forEach(s => {
+    const blocking = s.action === 'block';
+    parts.push(`<div style="font-size:12.5px; color:${blocking ? 'var(--danger-color, #b3261e)' : 'var(--warning-color, #b26a00)'};">
+      Short of ${cfgEsc(s.name || s.component)}: store has ${s.available}, this sale uses ${s.needed} &mdash; ${blocking ? 'choose another option under Packaging' : 'the sale goes ahead and the shortfall is listed under Item Exceptions'}</div>`);
+  });
+  row.innerHTML = parts.join('');
+  row.classList.toggle('hidden', !parts.length);
+}
+
+// The Return tab, + New Customer, Check / Redeem Points and the Packaging /
+// Gift Card dialogs are in view-pos-extras.js, so this first screen stays
+// inside the cold-core budget (cmd/releasebudget). posTill is how they reach
+// this module's state.
+const posExtras = () => import('./view-pos-extras.js' + new URL(import.meta.url).search)
+  .catch(e => { showCustomAlert('Part of the till did not load. Check the connection, then reload the page.', 'POS'); throw e; });
+const posTill = {
+  get packaging() { return posPackaging; },
+  get overrides() { return posPackagingOverrides; },
+  get tenders() { return posGiftCardTenders; },
+  set tenders(v) { posGiftCardTenders = v; },
+  set redeemPoints(v) { posRedeemPoints = v; },
+  key: posPackagingKey,
+  choice: posPackagingChoice,
+  renderPackaging: renderPOSPackagingRow,
+  renderCart: renderPOSCartTable,
+  storeLabel: posStoreLabel
+};
+const posLazy = (name) => async () => (await posExtras())[name](posTill);
+const openPOSPackaging = posLazy('openPOSPackaging');
+const openPOSGiftCard = posLazy('openPOSGiftCard');
+const quickAddPOSCustomer = posLazy('quickAddPOSCustomer');
+const checkPOSLoyaltyBalance = posLazy('checkPOSLoyaltyBalance');
+const redeemPOSLoyaltyPoints = posLazy('redeemPOSLoyaltyPoints');
+
+// dropPOSRefusedLine handles a quote refused because of ONE line's item policy
+// - packaging scanned onto the bill, a gift the bill has not earned, a gift
+// card scanned as merchandise: that line comes off and the cashier is told
+// why, instead of the whole cart going unpriced. The server names the line as
+// "Name (SKU)"; the line just scanned is the fallback.
+async function dropPOSRefusedLine(res) {
+  let body = {};
+  try { body = await res.clone().json(); } catch (e) { return false; }
+  if (!['POSOFF-0411', 'POSOFF-0412', 'POSOFF-0413'].includes(body.code)) return false;
+  const msg = body.detail || body.error || 'This item cannot be billed here.';
+  const bad = posCart.find(l => msg.includes(`(${l.sku})`)) || posCart.find(l => l.sku === posLastAddedSku);
+  if (!bad) return false;
+  posCart = posCart.filter(l => l !== bad);
+  const errorEl = document.getElementById('pos-scan-error');
+  if (errorEl) {
+    errorEl.textContent = msg;
+    errorEl.classList.remove('hidden');
+  }
+  renderPOSCartTable();
+  return true;
+}
+
+export { renderPOSView, refreshPOSSessionStatus, openPOSSessionFlow, closePOSSessionFlow, addSKUToPOSCart, removeSKUFromPOSCart, updatePOSCartLine, renderPOSCartTable, posCanOverridePrice, posPriceCell, openPOSPriceOverride, posCurrentCartNumber, currentPOSCouponCodes, refreshPOSQuote, submitPOSCheckout, submitPOSCheckoutInner, printPOSReceipt, checkPOSLoyaltyBalance, clearPOSRedemption, redeemPOSLoyaltyPoints, applyPOSTerminalLock, resetPOSTerminal, renderPOSCustomerNote, quickAddPOSCustomer, clearPOSProductSearch, onPOSScanKeyDown, highlightPOSSearchResult, renderPOSSearchResults, pickPOSSearchResult, addResolvedItemToPOSCart, stepPOSCartLine, posAvailabilityCell, renderPOSTender, posReceiptItems, freezePOSTill, startNewPOSSale, printCompletedPOSSale, posStoreLabel, loadPOSStoreProfile, clearPOSTillState };

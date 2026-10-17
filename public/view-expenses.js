@@ -6,22 +6,17 @@
 //
 // BLD-041: native ES module loaded with import() by the authorized view
 // dispatcher. Shared services resolve from the classic app shell.
+//
+// Stage 69: the claims list is the page; + New Expense Claim opens the form as
+// a page of its own (txn-screen.js, the standard ERP shape).
+const { txnPagedSection, txnRestorePane, txnDone } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+
 async function renderExpensesView(container) {
   // 30.5.8: the parallel Employee fetch that used to sit alongside this one
   // only existed to build the picker's <option>s; the picker is a typeahead
   // now and fetches on demand.
   const claimsRes = await apiFetch('/api/v1/doc/ExpenseClaim');
   if (!claimsRes) return;
-
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Expenses</h1>
-      <p class="page-subtitle">Claim &rarr; Manager Approval &rarr; Finance Verification &rarr; Payment.</p>
-    </div>
-  `;
-  container.appendChild(header);
 
   const claims = claimsRes.ok ? await claimsRes.json() : [];
 
@@ -30,7 +25,6 @@ async function renderExpensesView(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Expense Claim</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       ${autoNumberField('Claim Number', 'EXP', '160px')}
 ${employeePickerField('exp-employee', '180px')}
@@ -77,7 +71,6 @@ ${employeePickerField('exp-employee', '180px')}
     </div>
     <div id="exp-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(formPanel);
 
   const listPanel = document.createElement('div');
   listPanel.className = 'table-panel';
@@ -89,7 +82,7 @@ ${employeePickerField('exp-employee', '180px')}
       <tbody>
   `;
   html += claims.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No expense claims yet. Use <b>Create Draft</b> above to raise one.</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No expense claims yet. Click <b>+ New Expense Claim</b> to raise one.</td></tr>`
     : claims.map(c => `
         <tr>
           <td style="font-family: monospace;">${c.code || c.id}</td>
@@ -103,7 +96,9 @@ ${employeePickerField('exp-employee', '180px')}
       `).join('');
   html += `</tbody></table>`;
   listPanel.innerHTML = html;
-  container.appendChild(listPanel);
+  container.appendChild(txnPagedSection({ id: 'exp-screen', title: 'Expenses', page: 'New expense claim', count: claims.length,
+    newLabel: 'New Expense Claim', form: formPanel, list: listPanel }));
+  txnRestorePane('exp-screen');
 
   document.getElementById('exp-create-btn').addEventListener('click', createExpenseClaim);
   attachEmployeePicker('exp-employee');
@@ -169,6 +164,7 @@ async function createExpenseClaimInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  txnDone('exp-screen');
   renderView('expenses');
 }
 

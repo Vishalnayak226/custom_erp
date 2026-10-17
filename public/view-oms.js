@@ -16,6 +16,10 @@ let omsConsoleState = {
   lastResult: null
 };
 const omsSyncInFlight = new Set();
+
+// Stage 69: list / New pages (txn-screen.js), loaded with the OMS and
+// Marketplace screens.
+const loadTxnScreen = () => import('./txn-screen.js' + new URL(import.meta.url).search);
 let omsSettlementOrderIDs = [];
 
 function omsFilterQuery(extra = {}) {
@@ -28,16 +32,19 @@ function omsFilterQuery(extra = {}) {
 }
 
 async function renderOMSWorkbenchView(container) {
+  // Stage 69: the console is the page; + New Order opens the manual order as a
+  // page of its own (txn-screen.js, the standard ERP shape).
+  const { txnPageTitle, txnNewButton, txnRestorePane } = await loadTxnScreen();
   container.innerHTML = `
-    <div class="page-header">
-      <div class="page-title-section">
-        <h1 class="page-title">Order Management</h1>
-        <p class="page-subtitle">Every channel's orders in one queue &mdash; filter, act in bulk, and open any order end to end.</p>
-      </div>
-      <div class="page-actions">
+   <div id="oms-screen" class="txn-paged txn-on-landing" data-landing="list">
+    <div class="page-section-bar">
+      ${txnPageTitle({ screen: 'oms-screen', title: 'Order Management', page: 'New manual order', landing: 'list' })}
+      <span class="page-section-actions txn-landing-only">
         <button class="btn btn-outline" id="oms-refresh">Refresh</button>
-      </div>
+        ${txnNewButton({ screen: 'oms-screen', label: 'New Order' })}
+      </span>
     </div>
+    <div data-pane="list">
     <!-- dashboard-stats-row / stat-val, not stats-grid / stat-value: the two
          class names the previous version of this screen used do not exist in
          styles.css at all, which is why its four tiles rendered as full-width
@@ -55,7 +62,7 @@ async function renderOMSWorkbenchView(container) {
     </div>
     <div class="table-panel" style="padding:24px;margin-bottom:24px;">
       <div class="oms-console-head">
-        <div><h2 style="font-size:16px;margin:0;">Channel connectors</h2><p class="page-subtitle" style="margin:4px 0 0;">Sync health, lag and unmapped marketplace SKUs.</p></div>
+        <div><h2 style="font-size:16px;margin:0;">Channel connectors</h2></div>
         <button class="btn btn-outline btn-sm" id="oms-connectors-refresh">Refresh connectors</button>
       </div>
       <div id="oms-connector-health" class="table-wrapper" style="margin-top:16px;"></div>
@@ -64,7 +71,7 @@ async function renderOMSWorkbenchView(container) {
     </div>
     <div class="table-panel" style="padding:24px;margin-bottom:24px;">
       <div class="oms-console-head">
-        <div><h2 style="font-size:16px;margin:0;">Bundles and kits</h2><p class="page-subtitle" style="margin:4px 0 0;">Virtual availability is derived from components; stocked kits can be assembled or disassembled.</p></div>
+        <div><h2 style="font-size:16px;margin:0;">Bundles and kits</h2></div>
         <button class="btn btn-outline btn-sm" id="oms-bundles-manage">Manage definitions</button>
       </div>
       <div id="oms-bundle-operations" class="table-wrapper" style="margin-top:16px;"></div>
@@ -77,7 +84,6 @@ async function renderOMSWorkbenchView(container) {
       </div>
       <div id="oms-search-results"></div>
     </div>
-    <div class="table-panel" id="oms-manual-panel" style="padding:24px;margin-bottom:24px;"></div>
     <div class="table-panel" style="padding:24px;">
       <div class="oms-console-head">
         <h2 style="font-size:16px;margin:0;">Orders</h2>
@@ -95,7 +101,13 @@ async function renderOMSWorkbenchView(container) {
         <button class="btn btn-outline" id="oms-bulk-cancel">Cancel</button>
       </div>
       <div id="oms-order-table"></div>
-    </div>`;
+    </div>
+    </div>
+    <div data-pane="new" class="hidden">
+      <div class="table-panel" id="oms-manual-panel" style="padding:24px;margin-bottom:24px;"></div>
+    </div>
+   </div>`;
+  txnRestorePane('oms-screen');
 
   document.getElementById('oms-refresh').addEventListener('click', () => renderView('oms'));
   container.querySelectorAll('[data-oms-queue]').forEach(button => button.addEventListener('click', async () => {
@@ -785,10 +797,6 @@ let manualOrderLines = [{ sku: '', qty: '', unit_price: '' }];
 function renderManualOrderPanel(panel) {
   if (!panel) return;
   panel.innerHTML = `
-    <div class="po-composer-head">
-      <h2>New manual order</h2>
-      <span style="font-size:12px;color:var(--text-muted);">Goes through the same Order Engine as a channel import &mdash; allocation, reservations and holds all apply.</span>
-    </div>
     <div class="po-header-grid">
       <div class="form-group">
         <label class="form-label" for="mo-customer">Customer name</label>
@@ -914,7 +922,8 @@ async function createManualOrderInner() {
 
   const data = await res.json();
   manualOrderLines = [{ sku: '', qty: '', unit_price: '' }];
-  await showCustomAlert(`Order ${data.order_id} created. It is now in the Orders table below with its fulfillment, shipment and invoice state, exactly like a channel order.`, 'Order Created');
+  await showCustomAlert(`Order ${data.order_id} created. It is now in the Orders table with its fulfillment, shipment and invoice state, exactly like a channel order.`, 'Order Created');
+  (await loadTxnScreen()).txnDone('oms-screen');
   renderView('oms');
 }
 
@@ -940,7 +949,6 @@ async function renderMarketplaceView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Marketplace</h1>
-      <p class="page-subtitle">Channel settlement reconciliation and logistics bookings.</p>
     </div>
   `;
   container.appendChild(header);
@@ -948,6 +956,10 @@ async function renderMarketplaceView(container) {
   const settlements = settlementsRes.ok ? await settlementsRes.json() : [];
   const bookings = bookingsRes.ok ? await bookingsRes.json() : [];
   const manifests = manifestsRes.ok ? await manifestsRes.json() : [];
+  // Stage 69: Settlements, Logistics Bookings and Manifests are each a list
+  // with + New, the form a page of its own (txn-screen.js).
+  const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
+  const section = (el) => { el.style.marginBottom = '24px'; return el; };
 
   // --- Settlements panel ---
   const settlementPanel = document.createElement('div');
@@ -955,7 +967,6 @@ async function renderMarketplaceView(container) {
   settlementPanel.style.padding = '24px';
   settlementPanel.style.marginBottom = '24px';
   settlementPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Settlements</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="mkt-settlement-id">Settlement ID</label>
@@ -988,6 +999,10 @@ async function renderMarketplaceView(container) {
       <button class="btn btn-primary" id="mkt-reconcile-btn">Reconcile</button>
     </div>
     <div id="mkt-settlement-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+  `;
+  const settlementList = document.createElement('div');
+  settlementList.className = 'table-panel';
+  settlementList.innerHTML = `
     <table>
       <thead>
         <tr>
@@ -1001,7 +1016,7 @@ async function renderMarketplaceView(container) {
       </thead>
       <tbody>
         ${settlements.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No settlements yet. Use <b>Reconcile</b> above once a marketplace payout file is available.</td></tr>`
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No settlements yet. Click <b>+ Reconcile Payout</b> once a marketplace payout file is available.</td></tr>`
           : settlements.map(s => `
             <tr>
               <td style="font-family: monospace;">${s.code || s.id}</td>
@@ -1015,7 +1030,9 @@ async function renderMarketplaceView(container) {
       </tbody>
     </table>
   `;
-  container.appendChild(settlementPanel);
+  container.appendChild(section(txnPagedSection({ id: 'mkt-settlements', title: 'Settlements', page: 'Reconcile a payout',
+    count: settlements.length, newLabel: 'Reconcile Payout', form: settlementPanel, list: settlementList, heading: 'h2' })));
+  txnRestorePane('mkt-settlements');
 
   // --- Settlement Reconciliation panel (Stage 35.8, the "UniReco" gap) ---
   // The panel above stays exactly as it was (a manual one-shot reconcile for
@@ -1036,7 +1053,6 @@ async function renderMarketplaceView(container) {
   bookingPanel.className = 'table-panel';
   bookingPanel.style.padding = '24px';
   bookingPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Logistics Bookings</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="mkt-order-id">Order ID</label>
@@ -1065,6 +1081,10 @@ async function renderMarketplaceView(container) {
       <button class="btn btn-primary" id="mkt-book-btn">Book</button>
     </div>
     <div id="mkt-booking-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+  `;
+  const bookingList = document.createElement('div');
+  bookingList.className = 'table-panel';
+  bookingList.innerHTML = `
     <div class="table-wrapper">
     <table>
       <thead>
@@ -1081,7 +1101,7 @@ async function renderMarketplaceView(container) {
       </thead>
       <tbody>
         ${bookings.length === 0
-          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No logistics bookings yet. Use <b>Book</b> above to book a shipment with a courier.</td></tr>`
+          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No logistics bookings yet. Click <b>+ Book Shipment</b> to book a shipment with a courier.</td></tr>`
           : bookings.map(b => `
             <tr>
               <td style="font-family: monospace;">${b.code || b.id}</td>
@@ -1098,16 +1118,16 @@ async function renderMarketplaceView(container) {
     </table>
     </div>
   `;
-  container.appendChild(bookingPanel);
+  container.appendChild(section(txnPagedSection({ id: 'mkt-bookings', title: 'Logistics Bookings', page: 'Book a shipment',
+    count: bookings.length, newLabel: 'Book Shipment', form: bookingPanel, list: bookingList, heading: 'h2' })));
+  txnRestorePane('mkt-bookings');
 
   // --- Manifests panel (Stage 26.12.4) ---
   const manifestPanel = document.createElement('div');
   manifestPanel.className = 'table-panel';
   manifestPanel.style.padding = '24px';
-  manifestPanel.style.marginTop = '24px';
   manifestPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Manifests</h2>
-    <p style="color: var(--text-muted); font-size: 13px; margin-top: -12px; margin-bottom: 16px;">Groups every AWB-assigned shipment for one courier at one location. Handing over a manifest dispatches its fulfillment tasks and, once every task on an order has shipped, flips the order to Shipped.</p>
+    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 16px;">Groups every AWB-assigned shipment for one courier at one location. Handing over a manifest dispatches its fulfillment tasks and, once every task on an order has shipped, flips the order to Shipped.</p>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="mkt-manifest-courier">Courier</label>
@@ -1120,6 +1140,10 @@ async function renderMarketplaceView(container) {
       <button class="btn btn-primary" id="mkt-manifest-btn">Generate Manifest</button>
     </div>
     <div id="mkt-manifest-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
+  `;
+  const manifestList = document.createElement('div');
+  manifestList.className = 'table-panel';
+  manifestList.innerHTML = `
     <table>
       <thead>
         <tr>
@@ -1133,7 +1157,7 @@ async function renderMarketplaceView(container) {
       </thead>
       <tbody>
         ${manifests.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No manifests yet. Use <b>Generate Manifest</b> above once shipments have been booked.</td></tr>`
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No manifests yet. Click <b>+ Generate Manifest</b> once shipments have been booked.</td></tr>`
           : manifests.map(m => `
             <tr>
               <td style="font-family: monospace;">${m.code || m.id}</td>
@@ -1147,7 +1171,9 @@ async function renderMarketplaceView(container) {
       </tbody>
     </table>
   `;
-  container.appendChild(manifestPanel);
+  container.appendChild(section(txnPagedSection({ id: 'mkt-manifests', title: 'Manifests', page: 'Generate manifest',
+    count: manifests.length, newLabel: 'Generate Manifest', form: manifestPanel, list: manifestList, heading: 'h2' })));
+  txnRestorePane('mkt-manifests');
 
   document.getElementById('mkt-reconcile-btn').addEventListener('click', submitMarketplaceReconcile);
   document.getElementById('mkt-order-add').addEventListener('click', addOMSSettlementOrder);
@@ -1164,6 +1190,7 @@ async function renderMarketplaceView(container) {
   if (bookingContext) {
     try {
       const source = JSON.parse(bookingContext);
+      window.txnShowPane('mkt-bookings:new'); // a booking handed over from Fulfillment opens its New page
       document.getElementById('mkt-order-id').value = String(source.order_id || '');
       document.getElementById('mkt-fulfillment-task-id').value = String(source.fulfillment_task_id || '');
       document.getElementById('mkt-pincode').value = String(source.destination_pincode || '');
@@ -1397,6 +1424,7 @@ async function submitMarketplaceReconcile() {
     return;
   }
   omsSettlementOrderIDs = [];
+  (await loadTxnScreen()).txnDone('mkt-settlements');
   renderView('marketplace');
 }
 
@@ -1440,6 +1468,7 @@ async function submitLogisticsBooking() {
     errorEl.classList.remove('hidden');
     return;
   }
+  (await loadTxnScreen()).txnDone('mkt-bookings');
   renderView('marketplace');
 }
 
@@ -1491,6 +1520,7 @@ async function submitGenerateManifest() {
     errorEl.classList.remove('hidden');
     return;
   }
+  (await loadTxnScreen()).txnDone('mkt-manifests');
   renderView('marketplace');
 }
 

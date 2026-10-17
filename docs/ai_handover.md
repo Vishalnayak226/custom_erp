@@ -125,6 +125,224 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-17 Release of everything above (Stages 54.3f, 65.6-65.8, 66-72, plans 73-75) in one commit,
+  pushed and deployed** - supersedes the "NOT COMMITTED / NOT DEPLOYED" tags on the entries below.
+  Two CI gates were red on the combined tree and were fixed at release: (1) cold core 191,213 / 184,320
+  (`cmd/releasebudget`; `view-pos.js` +6.7 KB from Stage 72) - checklist 72.15 moved the POS Return
+  tab, + New Customer, Check / Redeem Points and the Packaging / Gift Card dialogs into the lazy
+  `public/view-pos-extras.js`, now 183,937; (2) `TestNoUnreviewedBypassPattern` - Stage 72.8's gift
+  card `card_number` hits the payment-card-data pattern; reviewed entries added in
+  `internal/securityscan/bypass_test.go` (gift card numbers, not PANs; masked everywhere, never
+  offline-queued). Also fixed the long-red `TestDoctypeScopeRegistryMatchesTheSeeds` (`Batch` added to
+  `doctypeScopes`, optional location). Attack surface: static file count 51. **Open (not fixed):**
+  gift card numbers are stored in plaintext in `stored_value_instruments.card_number` (a bearer
+  instrument) - hardening candidate, see 72.D. Measure the cold core with Go 1.27.1 (the portable
+  `go.exe` is 1.22.12 and over-reports ~1%; inside the repo `go run` switches toolchain itself).
+
+- **2026-10-17 Stage 75: off-box backups, e-invoice readiness (IRIS IRP-6), reports to the catalog,
+  media layer, hosting additions. PLANNED + APPROVED, no code, NOT COMMITTED.**
+  - **Plans:** `docs/product/hosting-media-reports-gst-plan-2026-10-17.md` and
+    `docs/product/einvoice-iris-irp-plan-2026-10-17.md`; checklist Stage 75.
+  - **Sources:** two external PDFs (a hosting/reports/media/GST decision pack, and the IRIS IRP-6 BRD)
+    plus the user's report catalogs (290 reports, in `Downloads\...\ERP\Reports`).
+  - **Decisions D1–D6 are approved:** R2 off-box copies, DO daily backups, media layer now, catalogs
+    as the report spec, e-invoice built ready, Railway Pro with production on the droplet.
+  - **Facts found:**
+    - Backups stay on the droplet only, and `media_store` is in no backup at all (75.1, P0).
+    - IRIS needs whitelisted *Indian* static IPs, which is an input to 56.11.
+    - Stage 75.2 builds the IRN half of 74.4 (pointer added there).
+  - **Start with:** 75.1.4 once the user has done 75.1.1–75.1.3.
+- **2026-10-17 Stage 74 transaction modules master BRD - PLANNED ONLY (checklist change, no code),
+  NOT COMMITTED.** The user's `Enterprise_Transaction_Modules_Master_BRD.pdf` (BRD-TXN-001, 46 pp.) is a
+  full spec of the eleven modules 71.7 listed (delivery challan, customer advance, material issue / receipt,
+  inventory adjustment, job work, store credit, IRN / e-way bill, reprint log, reason codes, PO / GRN fields,
+  print profiles). Mapped as checklist Stage 74; 71.7 now points there. Layout:
+  - Wave 0: 22 decisions (74.0.1, need the user + Finance / Tax) and a source re-check (74.0.2).
+  - Wave 1: shared spine 74.1.1-74.1.6.
+  - Waves 2-3: P0 money (advance, store credit, adjustment, MI / MR) 74.2.x; movement / vendor (challan,
+    PO / GRN fields, job work, print profiles) 74.3.x.
+  - Wave 4: IRN / EWB, buildable against a fake adapter; credentials stay 20.30 / 26.2.3.
+  - Wave 5: registers, roles, migration, pilot gates.
+  - 74.U: the BRD's UAT and E2E journeys.
+
+  Found by the re-check, not in the BRD:
+  - The stock ledger row is written after commit, best effort (`engines/inventory.go:353-397`).
+  - Cycle-count variances post no GL.
+  - Stock postings skip the closed-period check.
+  - There is no attachment mechanism.
+  - GL accounts are hard-coded.
+  - A POS return creates no GST credit note.
+  - Reports have no store scope.
+
+  Store credit depends on Stage 73's 73.1.1 / 73.1.6, so build those first.
+- **2026-10-17 Stage 72 Item & Material Master (item policy, POS packaging backflush, Gift With
+  Purchase, gift cards, consumption entry) - NOT COMMITTED, NOT DEPLOYED.** Checklist Stage 72
+  (72.D = decisions still needed), ledger §228. New: `engines/item_policy.go`,
+  `backflush_rules.go`, `item_exceptions.go`, `pos_item_policy.go`, `consumption_entry.go`,
+  `stored_value.go`, `item_master_reports.go`, tests `item_policy_test.go`,
+  `stored_value_test.go`; `internal/server/handlers_item_master.go`; `public/view-consumption.js`
+  (lazy, imported from the Inventory screen); `db/migrations_stage72_1_item_policy.sql`,
+  `72_3_backflush_rules.sql`, `72_6_consumption_entry.sql`, `72_8_stored_value.sql`. Changed (my
+  hunks only): `engines/item_types.go` (Policy / ExpenseAccount on ItemTypeRules - the
+  StickerTemplate lines there are Stage 70's), `item_types_test.go` (Gift needs a GWP offer),
+  `master_data_validation.go`, `pos_quote.go`, `pos_offers.go`, `pos_checkout.go`, `costing.go`
+  (GRN non-valuated -> expense), `wms_receiving.go` (non-stock lines), `manufacturing.go`
+  (backflush by consumption method), `transactional_validation.go`, `qz_payload.go`,
+  `platform_console.go` (stored_value_* read-only, card_number masked), `scope_policy.go`,
+  `saas.go` (ONE line: copy StoredValueProfile with ItemType - the users-INSERT hunk is Stage
+  67's), `internal/server/handlers_pim_pos_finance.go`, `routes.go` + `route_capabilities.go`
+  (6 routes; other hunks there are 65.6 / 66), `error_catalog_extensions.go` (MASTER-0401..0408,
+  POSOFF-0411..0416 / 0431..0436, INVENT-0421/0422), `public/view-pos.js` (shared with 68/69 -
+  stage by hunk), `public/view-reports.js` (one Inventory-header hunk; rest is others'),
+  USER_GUIDE §4.6 / §5 / §6.8, ADMIN_GUIDE §B.3.8 + Item Types pointer, UAT_CHECKLIST §25,
+  `docs/brain/*` (8 files claimed, redraw 100%), `docs/security/attack_surface.json` (regenerated
+  from the whole tree, 527 routes). **Cold core untouched** (no app.js / index.html / styles.css
+  edits). Migrations applied to local `custom_erp` (5490) only. **Deploy:** binary + the four
+  migrations together; the 72.8 migration creates `public.stored_value_ledger_append_only()`.
+  **Tell stores:** Gift-type items now need a *Gift With Purchase* offer (before this stage the
+  till refused all zero-priced lines anyway). Known red in `go test ./engines/`:
+  `TestDoctypeScopeRegistryMatchesTheSeeds` for *Batch* only (pre-existing). `graphify update .`
+  done (via update-brain).
+
+- **2026-10-17 Stage 73 enterprise suite completion blueprint - PLANNED ONLY (checklist change, no code),
+  NOT COMMITTED.** The user's `Enterprise_Business_Platform_Suite_Completion_Blueprint.pdf` (41 pp.,
+  346-row capability register) mapped onto the build as checklist Stage 73: Wave 0 decisions D01-D12 and
+  the register's home (73.0.1 / 73.0.2, both need the user), Wave 1 P0 money / stock items 73.1.1-73.1.10,
+  Wave 2 73.2.1-73.2.19, Wave 3 73.3.1-73.3.3, Wave 4 scope-gated 73.4.1-73.4.10, Waves 5 / 6 as pointers to
+  existing items, 73.J.1 journeys. Every Partial / Missing claim in the PDF was re-checked against source;
+  73.0.3 lists where the PDF is wrong. **Start building at 73.1.1**, a suspected POS partial-return
+  over-refund (refund at the full line `sale_price`; bill-level offer discount and redeemed points ignored,
+  `engines/returns.go:86-130`). Reproduce it with a failing test before fixing. Numbered 73 because a concurrent session's
+  Stage 72 (Item & Material Master: `db/migrations_stage72_*.sql`, `engines/item_policy.go` and others,
+  untracked) has no checklist section yet - it belongs above 73. Changed: `docs/micro_checklist.md`
+  (appended at the end) and this entry. No files added, so no brain redraw.
+
+- **2026-10-17 Stage 69 create and history on separate pages (list first, + New = its own page) -
+  NOT COMMITTED, NOT DEPLOYED.** Checklist Stage 69, ledger §227. No new files, no migration, no new
+  route. Changed: `public/txn-screen.js` + `txn-screen.css` (the shared list / New page mechanism -
+  both files are untracked, from Stage 68, so they ship with Stage 68 + 69 together), `view-procurement.js`
+  (PO, GRN, Purchase Return, ASN), `view-transfers.js`, `view-journal.js`, `view-hr.js`,
+  `view-expenses.js`, `view-assets.js`, `view-manufacturing.js`, `view-reports.js` (RFQ only),
+  `view-oms.js` (OMS + Marketplace), `view-finance.js` (Payment Proposals), `view-warehouse.js` (Yard
+  Board, Location Movement), `view-printing.js` (Print tab), `engines/wms_bin_move.go` (Move task carries
+  batch + reason) + `_test.go`; USER_GUIDE, USER_SOP, UAT_CHECKLIST, QZ_PRINTING_SETUP. **Shared files:**
+  every `view-*.js` above also holds Stage 67.4 / 68 / 70 / 71 hunks from other sessions (and
+  `view-finance.js` was edited by another session mid-way) - stage by hunk. `app.js` / `styles.css` /
+  `index.html` not touched: cold core +0. No `?v=` bump (the tree's `?v=46` is undeployed). Brain map
+  already claims `public/txn-screen.*`; no redraw needed. Scratch server 8169 stopped.
+  `graphify update .` done.
+
+- **2026-10-17 Stage 71 transaction prints to the company's print-format pack - NOT COMMITTED, NOT
+  DEPLOYED.** Checklist Stage 71 (71.7 = modules the pack needs, awaiting the user's choice), ledger §226.
+  New: `db/migrations_stage71_1_print_formats.sql`, `engines/print_formats_stage71_test.go`. Changed:
+  `engines/print_documents.go` (audit, FY, new line fields, GRN PO qty / QC, transfer shipped / received fix,
+  4 new prints, `stripValues`), `engines/print_templates.go` (catalogue), `public/trade-docs.js` (transactions,
+  standard layouts, printed-by), `public/view-procurement.js` (Purchase Return Print), `public/view-finance.js`
+  (customer credit note Print), `public/view-returns.js` (Print + loads trade-docs), `attack_surface.json`
+  (193 migrations), USER_GUIDE §7B, ADMIN_GUIDE §B.3.7. **Shared files:** the three `view-*.js` files hold
+  the concurrent Stage 68/69 transaction-screen hunks - stage by hunk (Stage 71 adds one Print button each,
+  plus the import line in `view-returns.js`). Lazy modules only, so 0 bytes to cold core; no `?v=` bump
+  (46 not deployed). Migration applied to local `custom_erp` on 5490. **Deploy:** binary and migration together.
+
+- **2026-10-17 Stage 70 sticker template rules + standard label variant/duplicate + template chosen at
+  print - NOT COMMITTED, NOT DEPLOYED.** Checklist Stage 70, ledger §225. New:
+  `db/migrations_stage70_1_sticker_template_rules.sql` (Item/ItemType `sticker_template` Links). Changed:
+  `engines/stickers.go` (rule resolver, `ORDER BY id`, `deleted_at` filter, chosen template in
+  `resolveAndLogSticker`), `engines/item_types.go`, `engines/sticker_document_source.go` (+ `_test`),
+  `engines/stickers_test.go`, `public/sticker-engine.js` (variant line on the standard label),
+  `public/sticker-studio.js` (Standard card, `copyBuiltin`, Template rules screen), `public/sticker-studio.css`,
+  `public/view-printing.js` (rules tab, per-line/whole-run template picker), `docs/security/attack_surface.json`
+  (191 migrations), USER_GUIDE §7A (+ §7A.5), ADMIN_GUIDE §B.3.4, QZ_PRINTING_SETUP. **Same files also hold
+  66.6's sticker-variant hunks** (`stickers.go`, `stickers_test.go`, `sticker-engine.js`, `sticker-studio.js`) -
+  commit them together. `view-printing.js` and `sticker-studio.css`/`sticker-studio.js` also carry the 67.4
+  subtitle-removal hunks of the concurrent session - stage by hunk. Numbered 70 because 68/69 are that session's.
+  All lazy modules, so 0 bytes to cold core; no `?v=` bump (tree's 46 not deployed). Migration applied to local
+  `custom_erp` on 5490 (it was first applied under the name `stage68_1`, so the local ledger has a stale
+  row for that name - harmless, the SQL is idempotent). **Deploy:** binary and migration together.
+  `graphify update .` done.
+
+- **2026-10-17 Stage 67 12-hour sign-in + grouped Setup/Settings menus - NOT COMMITTED, NOT
+  DEPLOYED.** Checklist Stage 67, ledger §223. New: `db/migrations_stage67_2_idle_timeout_12h.sql`
+  (every `tenant_*` schema: users still at the 30-min seed -> 720, column default 720; skips a tenant
+  whose admin set `security.default_idle_timeout_minutes`). Changed: `engines/settings_definitions.go`
+  (default 720 + "12 hours" option), `engines/settings_registry_test.go`, `engines/saas.go` (new
+  client admin seeded from the setting), `internal/server/handlers_profile.go` (720 allowed),
+  `public/app.js` (idle timer shares last activity across tabs via `localStorage.erp_last_activity`;
+  `IDLE_TIMEOUT_OPTIONS` + 12 hours; `syncFlyoutHeadings()` guard `#submenu-master`),
+  `public/index.html` (Settings flyout headings), ADMIN_GUIDE §B.3.0, USER_GUIDE §11, USER_SOP §29.
+  **Shared files:** `app.js`, `index.html` and all three trackers also hold Stage 66 / 65.6 / 65.7
+  / 54.3f hunks - stage by hunk. No `?v=` bump needed: the tree's `app.js?v=46` is not deployed yet.
+  Cold core: this stage +163 B gzip; the live tree measures 185,568 / 184,320 (over, mainly from the
+  other uncommitted work). Migration applied to local `custom_erp` on 5490 only. **Deploy:** binary
+  and migration together, so prod users (incl. `tenant_minn`) move to 12 h. `graphify update .` done.
+  **67.4 (same day, also uncommitted):** removed the descriptive `page-subtitle` line under every
+  screen title (50 headers + the generic doctype list + 4 section blurbs) and added a
+  `.page-title-section .page-subtitle { display: none; }` guard in `styles.css`. Touches `app.js`,
+  `styles.css`, `sticker-studio.js/.css`, `view-admin/assets/control-panel/documents/expenses/
+  finance/hr/manufacturing/oms/pim/printing/procurement/reports/warehouse.js`, UAT_CHECKLIST.
+  Whole-line deletions only, so stage by hunk alongside the other sessions' work. Rides the
+  undeployed `?v=46`/`styles.css?v=30` bumps; no new bump.
+
+- **2026-10-17 Stage 66 smart HSN / GST suggestions + no number spinners - NOT COMMITTED, NOT
+  DEPLOYED.** Checklist Stage 66, ledger §222. New: `engines/hsn_master.json`, `engines/hsn_suggest.go`
+  (+ `_test.go`), `internal/server/handlers_hsn.go` (`GET /api/v1/hsn/suggest`). Changed:
+  `engines/doctype.go` (industry switch seeds HSN codes), `engines/hsn_catalog.go`, `routes.go` +
+  `route_capabilities.go` (one route each), `attack_surface.json` (521 routes, regenerated from the
+  whole tree, so it also covers 65.6's routes), `public/app.js` (stub + typeahead `source`/`titleFn` +
+  `installNumberStepGuards`; `VIEW_MODULE_VERSION` 46), `public/view-pickers.js`,
+  `public/view-documents.js`, `public/styles.css` (spinner rule), `index.html` (`app.js?v=46`,
+  `styles.css?v=30`), both guides. No migration. **Shared files with the concurrent 65.6/65.7 session:**
+  `app.js`, `styles.css`, `index.html`, `routes.go`, `route_capabilities.go`, `attack_surface.json` -
+  stage by hunk. Cold core: this stage alone -225 B gzip. Brain map: the three new files are
+  claimed (`doc-kernel` in `brain.map.json`); the redraw itself is blocked by the concurrent
+  session's new, unclaimed `public/txn-screen.{js,css}` - redraw once those are claimed.
+  `graphify update .` done.
+
+- **2026-10-17 65.6 Pause / Resume + free trial on the Control Panel - NOT COMMITTED, NOT DEPLOYED.**
+  New: `db/migrations_stage65_6_client_trial.sql` (`public.tenants.trial_ends_at`),
+  `engines/tenant_trial.go` (+ `_test`), `internal/server/control_panel_stage65_6_test.go`. Changed:
+  `engines/tenant_lifecycle.go` (gate reads the trial date), `engines/platform_control_panel.go`,
+  `internal/server/handlers_control_panel.go` (2 POST routes), `handlers_integrations_admin.go`
+  (`trial_days` on provision), `routes.go`, `route_capabilities.go`, `public/view-control-panel.js`,
+  `public/view-admin.js`, `docs/security/attack_surface.json` (520 routes / 189 migrations), ADMIN_GUIDE
+  §C.6-C.8, checklist 65.6, ledger §221. **Shared hunks:** the `app.js` `VIEW_MODULE_VERSION` 44->45 and
+  `index.html` `app.js?v=45` lines are this item's bump (65.7 rides on them); `app.js` also holds
+  65.7's typeahead hunk - stage by hunk. This item adds **0 bytes** to cold core (no CSS, same-length
+  version digits), so the 184,594 `releasebudget` overage is 54.3f + 65.7, not 65.6. Migration applied
+  to local `custom_erp` on 5490 only. **Deploy:** binary and migration together (`remote_deploy.sh`
+  migrates before restart - the new gate reads `trial_ends_at`). Tests: build, vet, `node --check`,
+  full `internal/server`, `db`, `securityscan` green; `engines` green except the pre-existing
+  `TestDoctypeScopeRegistryMatchesTheSeeds` (`Batch` missing from `doctypeScopes`, from 2c3da8e).
+  `brain.map.json` claims `engines/tenant_trial.go` (tenancy region); the redraw itself still stops on
+  another session's unclaimed, in-progress `engines/hsn_suggest.go`, `engines/hsn_master.json`,
+  `internal/server/handlers_hsn.go` - claim those when that work lands, then run `update-brain.ps1`.
+
+- **2026-10-17 65.7 + 65.8 + Stage 68 (frozen transaction screens) - NOT COMMITTED, NOT
+  DEPLOYED.** Checklist 65.7, 65.8, Stage 68; ledger §224. New: `public/txn-screen.css`,
+  `public/txn-screen.js`, `internal/server/po_preview_addresses_stage65_test.go`. Changed:
+  `public/app.js` (typeahead create row; `openSetupDoctype(doctype, editId)`; `loadViewStyles` +
+  4th `LAZY_VIEW_MODULES` item on pos / purchase-orders / grn / purchase-returns / transfers /
+  returns / vendor-invoices / finance-notes / sales-invoices / journal-vouchers; desktop
+  `#nav-toggle` → `.nav-hidden`; nav-drawer comments condensed), `public/styles.css`
+  (`.typeahead-create`; `.app-container` / `.sidebar` `height: 100%`; `.nav-toggle` at every width;
+  `.header-search` margin; `.po-line-name` removed), `public/index.html` (one comment),
+  `public/view-pos.js`, `view-procurement.js`, `view-transfers.js`, `view-returns.js`,
+  `view-finance.js`, `view-journal.js`, `view-documents.js` (return after an `editId` edit),
+  `public/trade-docs.css` (old PO pinned-zone + GRN totals CSS removed),
+  `internal/server/handlers_purchase_order.go` (preview adds `bill_to` / `ship_to`), USER_GUIDE,
+  UAT_CHECKLIST, USER_SOP. **Budget:** this change alone 184,127 / 184,320 (clean HEAD worktree,
+  hunks selected by content); the live tree reads 185,000+ because of other sessions' hunks in the
+  same four core files - whoever commits those must trim them. **Stage numbering:** another session
+  used "Stage 66" in `app.js` (typeahead `titleFn` / `source`) and `view-pickers.js` - mine is 68.
+  **Local DB:** HO Location now has empty address / city / pincode keys (version 5) from a test
+  edit that was undone through the API.
+
+- **2026-10-17 54.3f version line moved into the profile chip - NOT COMMITTED, NOT DEPLOYED.**
+  `public/index.html` (`.app-version` now inside `.account-menu`, `styles.css?v=29`),
+  `public/styles.css` (absolute bottom-right of the chip, chevron on the name line, role ellipsis,
+  popup anchored right), both guides' wording, `micro_checklist.md` 54.3f. Verified with Playwright
+  against the real stylesheet. No JS change, so `app.js?v=` is untouched.
+
 - **2026-10-17 Stage 61.6-61.11 COMMITTED, PUSHED AND DEPLOYED: `f017bd2`.** Supersedes the "NOT
   COMMITTED" tags on the 61.6 entries below. Fixed at commit: the tree had `VIEW_MODULE_VERSION` /
   `app.js?v=` at 38 while HEAD was already 43 - shipped as **44**. Attack surface regenerated (518

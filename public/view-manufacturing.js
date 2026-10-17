@@ -8,6 +8,10 @@
 // BLD-041: native ES module loaded with import() by the authorized view
 // dispatcher. Shared services resolve from the classic app shell; named
 // exports preserve the legacy globals needed by existing screen callbacks.
+// Stage 69: the Orders tab is a list with + New, each form a page of its own
+// (txn-screen.js, the standard ERP shape).
+const { txnPagedSection, txnRestorePane, txnDone } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+
 let currentMfgTab = 'orders';
 const MFG_TABS = [
   { id: 'orders', label: 'Orders' },
@@ -29,7 +33,6 @@ async function renderManufacturingView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Manufacturing</h1>
-      <p class="page-subtitle">Multi-level BOM, WIP-tracked production orders, QC, and MRP. Work Centers/Routing are managed under Setup.</p>
     </div>
   `;
   container.appendChild(header);
@@ -124,7 +127,6 @@ async function renderManufacturingOrdersTab(container) {
     </div>
     <div id="bom-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(bomFormPanel);
 
   const orderFormPanel = document.createElement('div');
   orderFormPanel.className = 'table-panel';
@@ -153,7 +155,6 @@ async function renderManufacturingOrdersTab(container) {
     </div>
     <div id="po-mfg-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(orderFormPanel);
 
   const listPanel = document.createElement('div');
   listPanel.className = 'table-panel';
@@ -163,7 +164,7 @@ async function renderManufacturingOrdersTab(container) {
       <tbody>
   `;
   html += orders.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No production orders yet. Use <b>Create BOM</b> first if you have none, then <b>Create Order</b>.</td></tr>`
+    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No production orders yet. Use <b>+ New BOM</b> first if you have none, then <b>+ New Production Order</b>.</td></tr>`
     : orders.map(o => `
         <tr>
           <td style="font-family: monospace;">${o.code || o.id}</td>
@@ -176,7 +177,9 @@ async function renderManufacturingOrdersTab(container) {
       `).join('');
   html += `</tbody></table>`;
   listPanel.innerHTML = html;
-  container.appendChild(listPanel);
+  container.appendChild(txnPagedSection({ id: 'mfg-orders', title: 'Production Orders', heading: 'h2', list: listPanel,
+    count: orders.length, forms: { new: ['New Production Order', orderFormPanel], bom: ['New BOM', bomFormPanel] } }));
+  txnRestorePane('mfg-orders');
 
   document.getElementById('bom-create-btn').addEventListener('click', createBOM);
   document.getElementById('po-mfg-create-btn').addEventListener('click', createProductionOrder);
@@ -517,6 +520,8 @@ async function createBOMInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  showToast(`BOM ${data.code || data.id || ''} created. Pick it under + New Production Order.`, { variant: 'success' });
+  txnDone('mfg-orders');
   renderView('manufacturing');
 }
 
@@ -550,6 +555,7 @@ async function createProductionOrderInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  txnDone('mfg-orders');
   renderView('manufacturing');
 }
 

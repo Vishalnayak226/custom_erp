@@ -63,3 +63,8 @@ skill-observations/
 # deploy.ps1 cross-compiles the Linux binary here before scp'ing it (~11MB).
 # Build output, never source.
 deploy/build/
+
+# SOP video recordings (~500 MB) - rebuilt from the tracked scripts and tools
+# in docs/sop-video, shared with clients outside git (checklist 57.12a).
+docs/sop-video/media/
+docs/sop-video/output/

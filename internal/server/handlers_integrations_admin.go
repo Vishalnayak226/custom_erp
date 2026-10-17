@@ -412,6 +412,10 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 		// provisioned before and after this field behave identically.
 		// Explicitly "": no hostname, which is always a valid state.
 		HostSlug *string `json:"host_slug"`
+		// TrialDays (Stage 65.6, optional) - a free trial ending that many
+		// days from now (engines.SetTenantTrial). Omitted or 0: no trial, the
+		// behaviour every caller had before.
+		TrialDays int `json:"trial_days"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -421,6 +425,10 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 
 	if req.TenantID == "" || req.SchemaName == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'tenant_id' and 'schema_name' are required")
+		return
+	}
+	if req.TrialDays < 0 || req.TrialDays > engines.MaxTrialDays {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, fmt.Sprintf("trial_days must be 0 (no trial) to %d", engines.MaxTrialDays))
 		return
 	}
 
@@ -475,6 +483,18 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 		_ = engines.ApplyPackageSelection(req.TenantID, req.Packages, "system:provision")
 	}
 
+	// Best-effort like the hostname above: the client exists and works, and
+	// a trial missed here shows as "no trial" on the Control Panel, where it
+	// can be set in one click.
+	trialEndsAt := ""
+	if req.TrialDays > 0 {
+		if endsAt, err := engines.SetTenantTrial(req.TenantID, req.TrialDays, controlPanelActor(r), "set at provisioning"); err != nil {
+			log.Printf("[WARN] provisioned tenant %q but could not start its %d-day trial: %v", req.TenantID, req.TrialDays, err)
+		} else {
+			trialEndsAt = endsAt.Format(time.RFC3339)
+		}
+	}
+
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status":              "provisioned",
 		"tenant_id":           req.TenantID,
@@ -482,6 +502,7 @@ func handleProvisionTenant(w http.ResponseWriter, r *http.Request) {
 		"admin_username":      "admin",
 		"admin_password":      adminPassword,
 		"admin_password_note": "Shown once - store it securely now. It is not persisted in plaintext anywhere and cannot be retrieved again.",
+		"trial_ends_at":       trialEndsAt,
 	})
 }
 

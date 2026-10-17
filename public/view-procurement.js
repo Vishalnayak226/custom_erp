@@ -6,6 +6,8 @@ import { documentSearchLink } from './view-document-links.js';
 // kept out of the cold-core app.js/styles.css, which have a release budget.
 const TRADE_DOCS_QUERY = new URL(import.meta.url).search;
 const tradeDocsReady = import('./trade-docs.js' + TRADE_DOCS_QUERY);
+// Stage 68: the transaction-screen bar's shared pieces, same version.
+const { txnContext, txnMoney, txnRestorePane, txnPageTitle, txnNewButton, txnDone, txnPageOf, txnOnPage, txnPagedSection } = await import('./txn-screen.js' + TRADE_DOCS_QUERY);
 
 // BLD-041: native ES module, loaded on first authorized view visit.
 // Shared app services resolve from the classic shell; these named exports
@@ -26,7 +28,6 @@ async function renderApprovalsView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Approvals</h1>
-      <p class="page-subtitle">Documents awaiting your sign-off.</p>
     </div>
   `;
   container.appendChild(header);
@@ -172,37 +173,60 @@ function newPODraft() {
   };
 }
 
+// Stage 65.8 (the user: "Two page for new and history not in one page") /
+// Stage 69 (the standard ERP shape, txn-screen.js): the PO list is the
+// landing page, + New Purchase Order opens the composer as a page of its own -
+// Edit is the same page with the PO loaded. The page is a browser history
+// entry, so Back returns to the list; poDraft keeps a half-typed PO across a
+// look at the list. This screen re-renders per page (txnOnPage).
+let poPage = 'history';
+txnOnPage('po-composer', () => renderView('purchase-orders'));
+
+window.showPOPage = function(page) {
+  window.txnShowPane(`po-composer:${page === 'new' ? 'new' : 'history'}`);
+};
+
+// + New Purchase Order: a PO left half-typed is picked up again; an Edit left
+// unsaved is dropped for a blank PO.
+window.newPurchaseOrder = function() {
+  if (poDraft && poDraft.id) { poDraft = newPODraft(); poPreview = null; }
+  showPOPage('new');
+};
+
+// poPageHead is the title both pages share; its list h1 keeps .page-title so a
+// detour (Edit store) can name its way back ("Back to Purchase Orders").
+function poPageHead(count) {
+  const editing = poDraft && poDraft.id;
+  return txnPageTitle({ screen: 'po-composer', title: 'Purchase Orders', count,
+    page: editing ? `Edit ${escapeHTMLText(poDraft.po_number || poDraft.id)}` : 'New purchase order' });
+}
+
 async function renderPurchaseOrdersView(container) {
+  if (!poDraft) poDraft = newPODraft();
+  poPage = txnPageOf('po-composer', 'history');
+
+  const screen = document.createElement('div');
+  screen.className = poPage === 'history' ? 'txn-screen txn-on-landing' : 'txn-screen';
+  screen.id = 'po-composer';
+  screen.dataset.landing = 'history';
+  container.appendChild(screen);
+  if (poPage === 'new') {
+    renderPOComposer(screen);
+    return;
+  }
+
   const res = await apiFetch('/api/v1/doc/PurchaseOrder');
   if (!res) return;
-
-  if (!poDraft) poDraft = newPODraft();
-
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Purchase Order</h1>
-      <p class="page-subtitle">Pick items, set purchase prices, then submit for approval. GST and the supply type are worked out for you.</p>
-    </div>
-  `;
-  container.appendChild(header);
-
   const ordersLoadFailed = !res.ok;
   const orders = res.ok ? await res.json() : [];
 
-  const formPanel = document.createElement('div');
-  formPanel.className = 'table-panel po-composer';
-  formPanel.id = 'po-composer';
-  container.appendChild(formPanel);
-  renderPOComposer(formPanel);
-
+  screen.innerHTML = `<div class="txn-bar">${poPageHead(orders.length)}${txnContext()}
+    <button type="button" class="btn btn-primary txn-landing-only" ${actionAttrs('newPurchaseOrder', [])}>+ New Purchase Order</button></div>`;
   const panel = document.createElement('div');
-  panel.className = 'table-panel';
-  // BLD-036: the composer above still works even if this list failed to
-  // load, so this stays a partial-section message rather than a full
-  // renderErrorPanel takeover - but it used to have no way back short of
-  // navigating away and back.
+  panel.className = 'txn-grid';
+  // BLD-036: the New tab still works even if this list failed to load, so
+  // this stays a partial-section message rather than a full renderErrorPanel
+  // takeover - but it used to have no way back short of navigating away.
   let html = ordersLoadFailed
     ? `<p style="padding: 16px; color: var(--danger-color); font-size: 13px;">Failed to load existing purchase orders. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['purchase-orders'])}>Try Again</button></p>`
     : '';
@@ -214,7 +238,7 @@ async function renderPurchaseOrdersView(container) {
           <th>PO Number</th>
           <th>Source requisition</th>
           <th>Vendor</th>
-          <th>Location</th>
+          <th>Billing address</th>
           <th>Items</th>
           <th class="num">Taxable</th>
           <th class="num">Grand Total</th>
@@ -225,7 +249,7 @@ async function renderPurchaseOrdersView(container) {
       <tbody>
   `;
   if (orders.length === 0) {
-    html += `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No purchase orders yet. Add a vendor and at least one item above, then <b>Create Draft</b>.</td></tr>`;
+    html += `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No purchase orders yet. Click <b>+ New Purchase Order</b>, add a vendor and at least one item, then <b>Create Draft</b>.</td></tr>`;
   }
   orders.forEach(po => {
     const statusBadge = po.status === 'Approved' ? 'badge-success'
@@ -253,7 +277,7 @@ async function renderPurchaseOrdersView(container) {
         <td class="po-row-actions">
           ${po.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('submitPOForApproval', [po.id])}>Submit for Approval</button>` : ''}
           ${po.status === 'Approved' ? `<button class="action-btn" ${actionAttrs('startGRNFromPO', [po.id])}>Receive goods</button>` : ''}
-          ${po.status !== 'Closed' ? `<button class="action-btn" ${actionAttrs('amendPurchaseOrder', [po.id])}>Amend</button>` : ''}
+          ${po.status !== 'Closed' ? `<button class="action-btn" ${actionAttrs('amendPurchaseOrder', [po.id])}>Edit</button>` : ''}
           <button class="action-btn" ${actionAttrs('printPurchaseOrder', [po.id])}>Print</button>
           ${po.status !== 'Draft' ? `<button class="action-btn" ${actionAttrs('sendPurchaseOrderToVendor', [po.id])}>Send to Vendor</button>` : ''}
           ${canDeleteDoctype('PurchaseOrder') ? `<button class="action-btn action-btn-danger" ${actionAttrs('deletePurchaseOrder', [po.id, poNumber])}>Delete</button>` : ''}
@@ -263,7 +287,7 @@ async function renderPurchaseOrdersView(container) {
   });
   html += `</tbody></table></div>`;
   panel.innerHTML = html;
-  container.appendChild(panel);
+  screen.appendChild(panel);
 }
 
 // Stage 65.2: Delete for roles with Delete on Purchase Order (Settings -> Roles).
@@ -290,30 +314,40 @@ window.startGRNFromPO = function(poId) {
 function renderPOComposer(panel) {
   const d = poDraft;
   const editing = !!d.id;
+  // Stage 65.8 / 66: the frozen transaction layout (txn-screen.css) - one bar
+  // (title, New / History, who and where, totals and tax, actions), the
+  // header fields, the entry row, and the lines as the only scroller.
+  // Editing an existing PO is this same page with its number fixed.
   panel.innerHTML = `
-    <div class="po-sticky">
-    <div class="po-composer-head">
-      <h2>${editing ? `Amend ${escapeHTMLText(d.po_number || d.id)}` : 'New Purchase Order'}</h2>
-      <div class="po-actions">
+    <div class="txn-bar">
+      ${poPageHead()}
+      ${txnContext()}
+      <div id="po-totals" class="txn-sum"></div>
+      <div class="txn-actions">
         <div id="po-form-error" class="login-error hidden"></div>
         ${editing ? `<button class="btn btn-ghost btn-sm" id="po-cancel-edit">Cancel</button>` : ''}
-        <button class="btn btn-primary" id="po-create-btn">${editing ? 'Save Amendment' : 'Create Draft'}</button>
+        <button class="btn btn-primary" id="po-create-btn">${editing ? 'Save changes' : 'Create Draft'}</button>
       </div>
     </div>
 
-    <div class="po-header-grid">
-      ${editing ? '' : autoNumberField('PO Number', 'PO', '100%')}
+    <div class="txn-head">
+      ${editing ? `<div class="form-group">
+        <label class="form-label" for="po-number">PO Number</label>
+        <input type="text" id="po-number" class="form-input" readonly tabindex="-1" value="${escapeHTMLText(d.po_number || d.id)}" title="Editing keeps the same PO number">
+      </div>` : autoNumberField('PO Number', 'PO', '100%')}
       <div class="form-group">
         <label class="form-label" for="po-vendor">Vendor</label>
         <input type="text" id="po-vendor" class="form-input" autocomplete="off" placeholder="Click to choose, or type to search">
       </div>
       <div class="form-group">
-        <label class="form-label" for="po-location">Location (billing entity)</label>
-        <input type="text" id="po-location" class="form-input" value="${escapeHTMLText(d.location)}">
+        <label class="form-label" for="po-location">Billing address</label>
+        <input type="text" id="po-location" class="form-input" placeholder="Pick a store or warehouse" value="${escapeHTMLText(d.location)}">
+        <div class="txn-hint" id="po-bill-addr"></div>
       </div>
       <div class="form-group">
-        <label class="form-label" for="po-warehouse">Target Warehouse (ship to)</label>
-        <input type="text" id="po-warehouse" class="form-input" value="${escapeHTMLText(d.target_warehouse)}">
+        <label class="form-label" for="po-warehouse">Shipping address</label>
+        <input type="text" id="po-warehouse" class="form-input" placeholder="Where the goods are delivered" value="${escapeHTMLText(d.target_warehouse)}">
+        <div class="txn-hint" id="po-ship-addr"></div>
       </div>
       <div class="form-group">
         <label class="form-label" for="po-gst-mode">GST treatment of purchase price</label>
@@ -327,22 +361,20 @@ function renderPOComposer(panel) {
 
     <div id="po-supply-banner" class="po-supply-banner"></div>
 
-    <div id="po-totals" class="po-totals"></div>
-
-    <div class="po-entry" id="po-entry">
-      <div class="form-group po-entry-item">
+    <div class="txn-entry" id="po-entry">
+      <div class="form-group txn-entry-main">
         <label class="form-label" for="po-entry-sku">Add item</label>
         <input type="text" id="po-entry-sku" class="form-input" autocomplete="off" placeholder="Search item...">
       </div>
-      <div class="form-group po-entry-num">
+      <div class="form-group">
         <label class="form-label" for="po-entry-qty">Qty</label>
         <input type="number" id="po-entry-qty" class="form-input num" min="1" step="1">
       </div>
-      <div class="form-group po-entry-num">
+      <div class="form-group">
         <label class="form-label" for="po-entry-rate">Purchase price</label>
         <input type="number" id="po-entry-rate" class="form-input num" min="0" step="0.01">
       </div>
-      <div class="form-group po-entry-num">
+      <div class="form-group">
         <label class="form-label" for="po-entry-mrp">MRP <span class="po-optional">optional</span></label>
         <input type="number" id="po-entry-mrp" class="form-input num" min="0" step="0.01" placeholder="&mdash;">
       </div>
@@ -350,14 +382,9 @@ function renderPOComposer(panel) {
       <button class="btn btn-outline btn-sm" id="po-add-design" type="button" title="Create a design and its combinations (colour, size...) right here and add them to this PO">+ Add design</button>
     </div>
     <div id="po-entry-error" class="po-line-error hidden"></div>
-    </div>
 
-    <div id="po-design-panel" class="po-design-panel hidden"></div>
-
-    <div class="po-lines-head">
-      <h3>Added items <span id="po-line-count" class="po-line-count"></span></h3>
-    </div>
-    <div class="table-wrapper">
+    <div class="txn-grid">
+      <div id="po-design-panel" class="po-design-panel hidden"></div>
       <table class="po-lines">
         <thead>
           <tr>
@@ -395,10 +422,22 @@ function renderPOComposer(panel) {
   const whEl = document.getElementById('po-warehouse');
   attachLinkTypeahead(locEl, 'Location');
   attachLinkTypeahead(whEl, 'Location');
-  locEl.addEventListener('change', () => { d.location = locEl.value.trim(); schedulePOPreview(); });
-  locEl.addEventListener('blur', () => { d.location = locEl.value.trim(); schedulePOPreview(); });
-  whEl.addEventListener('change', () => { d.target_warehouse = whEl.value.trim(); });
-  whEl.addEventListener('blur', () => { d.target_warehouse = whEl.value.trim(); });
+  // Shipping starts as the billing store - the usual case - and stays the
+  // user's to change; it is only filled while still empty.
+  const commitBilling = () => {
+    d.location = locEl.value.trim();
+    if (d.location && !d.target_warehouse) { d.target_warehouse = d.location; whEl.value = d.location; }
+    schedulePOPreview();
+  };
+  locEl.addEventListener('change', commitBilling);
+  locEl.addEventListener('blur', commitBilling);
+  const commitShipping = () => {
+    if (whEl.value.trim() === d.target_warehouse) return;
+    d.target_warehouse = whEl.value.trim();
+    schedulePOPreview();
+  };
+  whEl.addEventListener('change', commitShipping);
+  whEl.addEventListener('blur', commitShipping);
 
   document.getElementById('po-gst-mode').addEventListener('change', (e) => {
     d.gst_mode = e.target.value;
@@ -428,10 +467,40 @@ function renderPOComposer(panel) {
   document.getElementById('po-add-design').addEventListener('click', openPODesignPanel);
   document.getElementById('po-create-btn').addEventListener('click', savePurchaseOrder);
   const cancelBtn = document.getElementById('po-cancel-edit');
-  if (cancelBtn) cancelBtn.addEventListener('click', () => { poDraft = newPODraft(); poPreview = null; renderView('purchase-orders'); });
+  if (cancelBtn) cancelBtn.addEventListener('click', () => { poDraft = newPODraft(); poPreview = null; showPOPage('history'); });
 
   renderPOLines();
+  renderPOAddresses();
+  // Coming back to this page (from History, or from Edit store) re-reads the
+  // stores, so a corrected address shows without retyping anything.
+  if (d.vendor || d.location || d.target_warehouse || d.lines.length) schedulePOPreview();
 }
+
+// renderPOAddresses fills the line under Billing / Shipping address with the
+// chosen store's address from the store master, and Edit store - which opens
+// that store's own form and comes back here once it is saved (the address is
+// the store's, so it is corrected there, for every document that uses it).
+function renderPOAddresses() {
+  const d = poDraft;
+  const fill = (elId, code, store, sameAsBilling) => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    if (!code) { el.innerHTML = ''; return; }
+    const s = store || {};
+    const text = sameAsBilling ? 'Same as billing' : !store ? ''
+      : [s.address, [s.city, s.pincode].filter(Boolean).join(' '), s.state, s.gstin ? `GSTIN ${s.gstin}` : '']
+          .filter(Boolean).join(', ') || 'No address on this store yet';
+    el.innerHTML = `<span></span>${canUpdateDoctype('Location') ? ` <a href="#" class="empty-state-link" ${actionAttrs('editPOStore', [code], { prevent: true })}>Edit store</a>` : ''}`;
+    el.firstChild.textContent = text;
+    el.title = sameAsBilling ? '' : text;
+  };
+  fill('po-bill-addr', d.location, poPreview && poPreview.bill_to);
+  fill('po-ship-addr', d.target_warehouse, poPreview && poPreview.ship_to, !!d.location && d.target_warehouse === d.location);
+}
+
+window.editPOStore = function(code) {
+  openSetupDoctype('Location', code);
+};
 
 // addPOEntryLine moves the entry row into the PO's lines and clears it for the
 // next item, keeping the cursor in the item box.
@@ -501,8 +570,6 @@ function renderPOLines() {
   // blur must not commit, or it re-prices, re-renders and blurs again - a loop
   // that ran every few hundred ms while someone typed.
   poLinesRebuilding = true;
-  const countEl = document.getElementById('po-line-count');
-  if (countEl) countEl.textContent = d.lines.length ? `(${d.lines.length})` : '';
   body.innerHTML = d.lines.length === 0
     ? `<tr><td colspan="10" class="po-lines-empty">No items yet &mdash; add one above, or use <b>+ Add design</b>.</td></tr>`
     : d.lines.map((line, i) => {
@@ -512,8 +579,7 @@ function renderPOLines() {
     return `
       <tr data-po-line="${i}"${p.error ? ' class="po-line-flagged"' : ''}>
         <td>
-          <input type="text" class="form-input" data-po-field="sku" value="${escapeHTMLText(line.sku)}" placeholder="Search item...">
-          ${p.item_name ? `<div class="po-line-name">${escapeHTMLText(p.item_name)}</div>` : ''}
+          <input type="text" class="form-input" data-po-field="sku" value="${escapeHTMLText(line.sku)}" placeholder="Search item..." title="${escapeHTMLText(p.item_name || '')}">
           ${err}
         </td>
         <td><input type="number" class="form-input num" data-po-field="qty" min="1" step="1" value="${escapeHTMLText(line.qty)}"></td>
@@ -1087,6 +1153,7 @@ async function runPOPreview() {
   }
   renderPOLines();
   renderPOSupplyBanner();
+  renderPOAddresses();
 }
 
 // poDraftPayload is the one place the draft becomes an API body, so the
@@ -1124,7 +1191,7 @@ function renderPOSupplyBanner() {
 
   if (!pos || (!pos.derived && !d.vendor && !d.location)) {
     el.className = 'po-supply-banner po-supply-idle';
-    el.innerHTML = `<span>Pick a vendor and a location &mdash; the supply type is worked out from their states.</span>`;
+    el.innerHTML = `<span>Pick a vendor and a billing address &mdash; the supply type is worked out from their states.</span>`;
     return;
   }
 
@@ -1132,14 +1199,14 @@ function renderPOSupplyBanner() {
     el.className = 'po-supply-banner po-supply-warn';
     el.innerHTML = `
       <span><strong>Supply type could not be derived</strong> &mdash; ${escapeHTMLText(pos.reason || 'a state is missing')}.
-      Set it manually below, or add the missing GSTIN/state on the master.</span>
+      Tick it here, or add the GSTIN/state on the store or vendor.</span>
       <label class="po-override"><input type="checkbox" id="po-interstate" ${d.interstate ? 'checked' : ''}> Inter-state (IGST)</label>`;
   } else {
     const kind = pos.interstate ? 'Inter-state' : 'Intra-state';
     const tax = pos.interstate ? 'IGST' : 'CGST + SGST';
     el.className = `po-supply-banner ${d.interstate_override ? 'po-supply-warn' : 'po-supply-ok'}`;
     el.innerHTML = `
-      <span><strong>${kind} (${tax})</strong> &mdash; vendor in ${escapeHTMLText(pos.vendor_state_label || '?')}, billing entity in ${escapeHTMLText(pos.buyer_state_label || '?')}.</span>
+      <span><strong>${kind} (${tax})</strong> &mdash; vendor in ${escapeHTMLText(pos.vendor_state_label || '?')}, billing address in ${escapeHTMLText(pos.buyer_state_label || '?')}.</span>
       <label class="po-override"><input type="checkbox" id="po-interstate-override" ${d.interstate_override ? 'checked' : ''}> Override</label>
       ${d.interstate_override ? `<label class="po-override"><input type="checkbox" id="po-interstate" ${d.interstate ? 'checked' : ''}> Inter-state (IGST)</label>` : ''}`;
   }
@@ -1163,21 +1230,23 @@ function renderPOSupplyBanner() {
 function renderPOTotals() {
   const el = document.getElementById('po-totals');
   if (!el) return;
+  // Stage 68: the bar's summary - lines, quantity, taxable, the tax split and
+  // the grand total in one place (the GST treatment field says inclusive or
+  // exclusive, so it is not repeated here).
+  const lines = poDraft.lines.length;
+  const qty = poDraft.lines.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+  const count = lines ? `<span><b>${lines}</b> item${lines === 1 ? '' : 's'} · Qty <b>${qty}</b></span>` : '';
   const p = poPreview;
   if (!p || !p.breakdown || (!p.breakdown.taxable_amount && !p.grand_total)) {
-    el.innerHTML = `<div class="po-total-hint">Add an item to see the tax breakdown.</div>`;
+    el.innerHTML = count || '<span>Add an item to see the totals and tax.</span>';
     return;
   }
   const b = p.breakdown;
-  const row = (label, value, cls = '') => `<div class="po-total-row ${cls}"><span>${label}</span><span>${formatMoney(value)}</span></div>`;
+  const part = (label, value) => `<span>${label} <b>${txnMoney(value)}</b></span>`;
   const nonTaxable = (b.exempt_amount || 0) + (b.nil_rated_amount || 0) + (b.zero_rated_amount || 0);
-  el.innerHTML = `
-    ${row('Taxable value', b.taxable_amount)}
-    ${nonTaxable ? row('Exempt / nil / zero-rated', nonTaxable) : ''}
-    ${b.interstate ? row(`IGST`, b.igst) : row(`CGST`, b.cgst) + row(`SGST`, b.sgst)}
-    ${row('Grand total', p.grand_total, 'po-total-grand')}
-    <div class="po-total-mode">Prices entered are <strong>${escapeHTMLText(p.gst_mode || '')}</strong> of GST.</div>
-  `;
+  el.innerHTML = `${count}${part('Taxable', b.taxable_amount)}${nonTaxable ? part('Exempt / nil', nonTaxable) : ''}
+    ${b.interstate ? part('IGST', b.igst) : part('CGST', b.cgst) + part('SGST', b.sgst)}
+    <span class="txn-total" title="Grand total">${txnMoney(p.grand_total)}</span>`;
 }
 
 async function savePurchaseOrder() {
@@ -1194,7 +1263,7 @@ async function savePurchaseOrderInner() {
   const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
 
   if (!d.vendor || !d.target_warehouse || !d.location) {
-    fail('Vendor, Location and Target Warehouse are all required.');
+    fail('Vendor, Billing address and Shipping address are all required.');
     return;
   }
   const payload = poDraftPayload(d);
@@ -1230,13 +1299,13 @@ async function savePurchaseOrderInner() {
 
   if (d.id) {
     if (d.wasApproved) {
-      if (!await showCustomConfirm('This PO is Approved. Amending it will reset it to Pending Approval for re-approval. Continue?', 'Amend Purchase Order')) return;
+      if (!await showCustomConfirm('This PO is Approved. Saving your changes sends it back to Pending Approval for re-approval. Continue?', 'Edit Purchase Order')) return;
       // PURCHA-0085: the server requires a reason when an Approved PO's
       // items/total actually change. Collected unconditionally here (rather
       // than trying to mirror the server's own before/after diff) so a save
       // never fails on a missing field the composer had no way to fill in -
       // sending it on an edit the server doesn't require it for is harmless.
-      const amendReason = await showCustomPrompt('Reason for this amendment:', '');
+      const amendReason = await showCustomPrompt('Reason for this change:', '');
       if (amendReason === null) return;
       payload.amendment_reason = amendReason;
     }
@@ -1252,11 +1321,11 @@ async function savePurchaseOrderInner() {
   const res = await apiFetch(url, { method: 'POST', body: JSON.stringify(payload) });
   if (!res) return;
   if (!res.ok) {
-    fail(await getErrorMessage(res, d.id ? 'Failed to save amendment - someone else may have edited this record, refresh and try again.' : 'Failed to create purchase order.'));
+    fail(await getErrorMessage(res, d.id ? 'Failed to save your changes - someone else may have edited this record, refresh and try again.' : 'Failed to create purchase order.'));
     return;
   }
   if (d.id && d.wasApproved) {
-    await showCustomAlert('Purchase order amended. It now requires re-approval.', 'Amend Purchase Order');
+    await showCustomAlert('Purchase order saved. It now needs re-approval.', 'Edit Purchase Order');
   } else {
     // BLD-035: every other save through this composer (plain create, plain
     // edit) previously returned to the list with no confirmation at all.
@@ -1271,10 +1340,12 @@ async function savePurchaseOrderInner() {
   }
   poDraft = newPODraft();
   poPreview = null;
-  renderView('purchase-orders');
+  // To History, where the saved PO's next steps are (Submit, Print, Send).
+  showPOPage('history');
 }
 
-// amendPurchaseOrder loads an existing PO back into the same composer.
+// amendPurchaseOrder (the History row's Edit) loads an existing PO back into
+// the same composer.
 //
 // Stage 26.3.6 built this as a chain of four showCustomPrompt() dialogs,
 // because the screen had no form worth reusing. It does now - and a prompt
@@ -1284,7 +1355,7 @@ window.amendPurchaseOrder = async function(poId) {
   const res = await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(poId)}`);
   if (!res) return;
   if (!res.ok) {
-    await showApiError(res, 'Failed to load purchase order for amendment.');
+    await showApiError(res, 'Failed to load the purchase order for editing.');
     return;
   }
   const record = await res.json();
@@ -1309,10 +1380,10 @@ window.amendPurchaseOrder = async function(poId) {
     version: typeof record.version === 'number' ? record.version : null
   };
   poPreview = null;
-  renderView('purchase-orders');
-  runPOPreview();
-  const composer = document.getElementById('po-composer');
-  if (composer) composer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // Stage 65.8 (the user: "Edit of everything ... like a brand new po screen.
+  // But PO number will be same"): the New page, every field editable, number
+  // fixed. The composer runs its own preview once rendered.
+  showPOPage('new');
 };
 
 // ---------------------------------------------------------------------------
@@ -1513,182 +1584,177 @@ async function renderGRNWorkbenchView(container) {
   grnLoadedASNId = '';
   grnPOs = [];
 
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Goods Receipt</h1>
-      <p class="page-subtitle">Receive against one or more POs of a vendor: capture accepted, short and damaged quantities and the vendor's invoice price per line, then post to stock. Price differences become debit / credit notes automatically.</p>
+  // Stage 68: the frozen transaction layout (txn-screen.css). Stage 69: opens
+  // on the list; New is its own page, switched in place - the receipt being
+  // keyed in lives only in this page (grnLineItems), so it has to survive a
+  // look at the list.
+  const screen = document.createElement('div');
+  screen.className = 'txn-screen';
+  screen.id = 'grn-screen';
+  screen.dataset.landing = 'history';
+  screen.innerHTML = `
+    <div class="txn-bar">
+      ${txnPageTitle({ screen: 'grn-screen', title: 'Goods Receipt', page: 'New goods receipt', count: grns.length })}
+      ${txnContext()}
+      ${txnNewButton({ screen: 'grn-screen', label: 'New Goods Receipt' })}
+      <div id="grn-totals" class="txn-sum txn-main-only"></div>
+      <div class="txn-actions txn-main-only">
+        <div id="grn-form-error" class="login-error hidden"></div>
+        <button class="btn btn-primary" id="grn-create-btn">Post Receipt</button>
+      </div>
     </div>
-  `;
-  container.appendChild(header);
 
-  const formPanel = document.createElement('div');
-  formPanel.className = 'table-panel';
-  formPanel.style.padding = '24px';
-  formPanel.style.marginBottom = '24px';
-  formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Goods Receipt</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      ${autoNumberField('GRN Number', 'GRN', '160px')}
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="txn-pane" data-pane="new">
+    <div class="txn-head">
+      ${autoNumberField('GRN Number', 'GRN', '100%')}
+      <div class="form-group">
         <label class="form-label" for="grn-po">Purchase Order</label>
-        <input type="text" id="grn-po" class="form-input" style="width: 170px;" autocomplete="off" placeholder="Search PO...">
+        <input type="text" id="grn-po" class="form-input" autocomplete="off" placeholder="Search PO...">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group txn-head-btn">
+        <button class="btn btn-outline" id="grn-load-po-btn" type="button">Add PO &amp; Load Items</button>
+      </div>
+      <div class="form-group">
         <label class="form-label" for="grn-location">Receiving Location</label>
-        <input type="text" id="grn-location" class="form-input" style="width: 130px;" autocomplete="off">
+        <input type="text" id="grn-location" class="form-input" autocomplete="off">
       </div>
-      <button class="btn btn-outline" id="grn-load-po-btn" type="button">Add PO &amp; Load Items</button>
-    </div>
-    <div id="grn-po-chips" class="grn-po-chips"></div>
-    <div id="grn-po-note" style="margin-top: 8px; font-size: 12.5px; color: var(--text-muted);"></div>
-
-    <!-- Stage 62: the vendor's invoice. Its amount is a control total - the
-         lines below carry the invoice price; any difference is shown, never
-         a reason to hold the receipt. -->
-    <div class="grn-invoice-row">
-      <div class="form-group" style="margin-bottom: 0;">
+      <!-- Stage 62: the vendor's invoice. Its amount is a control total - the
+           lines below carry the invoice price; any difference is shown, never
+           a reason to hold the receipt. -->
+      <div class="form-group">
         <label class="form-label">Vendor</label>
         <div id="grn-vendor" class="grn-vendor-name">&mdash;</div>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group">
         <label class="form-label" for="grn-inv-no">Vendor Invoice No</label>
-        <input type="text" id="grn-inv-no" class="form-input" style="width: 150px;" autocomplete="off">
+        <input type="text" id="grn-inv-no" class="form-input" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group">
         <label class="form-label" for="grn-inv-date">Invoice Date</label>
-        <input type="date" id="grn-inv-date" class="form-input" style="width: 155px;">
+        <input type="date" id="grn-inv-date" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group">
         <label class="form-label" for="grn-inv-amount">Invoice Amount (incl. GST)</label>
-        <input type="number" id="grn-inv-amount" class="form-input num" style="width: 150px;" min="0" step="0.01">
+        <input type="number" id="grn-inv-amount" class="form-input num" min="0" step="0.01">
       </div>
-    </div>
-
-    <!-- Stage 26.5.1: ASN capture ahead of a GRN - an optional prefill
-         source alongside the PO one above, same "Load Items from X" pattern. -->
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px;">
-      <div class="form-group" style="margin-bottom: 0;">
+      <!-- Stage 26.5.1: ASN capture ahead of a GRN - an optional prefill
+           source alongside the PO one, same "Load Items from X" pattern. -->
+      <div class="form-group">
         <label class="form-label" for="grn-asn">ASN Reference (optional)</label>
-        <input type="text" id="grn-asn" class="form-input" style="width: 150px;" autocomplete="off">
+        <input type="text" id="grn-asn" class="form-input" autocomplete="off">
       </div>
-      <button class="btn btn-outline" id="grn-load-asn-btn" type="button">Load Items from ASN</button>
+      <div class="form-group txn-head-btn">
+        <button class="btn btn-outline" id="grn-load-asn-btn" type="button">Load Items from ASN</button>
+      </div>
     </div>
-    <div id="grn-asn-note" style="margin-top: 8px; font-size: 12.5px; color: var(--text-muted);"></div>
+    <div id="grn-po-chips" class="grn-po-chips"></div>
+    <div id="grn-po-note" class="txn-hint"></div>
+    <div id="grn-asn-note" class="txn-hint"></div>
+    <div id="grn-notes-preview" class="txn-hint grn-notes-preview"></div>
 
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-color);">
-      <div class="form-group" style="margin-bottom: 0;">
+    <div class="txn-entry">
+      <div class="form-group txn-entry-main">
         <label class="form-label" for="grn-line-sku">SKU</label>
-        <input type="text" id="grn-line-sku" class="form-input" style="width: 140px;" autocomplete="off">
+        <input type="text" id="grn-line-sku" class="form-input" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group">
         <label class="form-label" for="grn-line-ordered">Ordered Qty</label>
-        <input type="number" id="grn-line-ordered" class="form-input" style="width: 85px;" min="0">
+        <input type="number" id="grn-line-ordered" class="form-input" min="0">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group">
         <label class="form-label" for="grn-line-received">Received Qty</label>
-        <input type="number" id="grn-line-received" class="form-input" style="width: 90px;" min="0">
+        <input type="number" id="grn-line-received" class="form-input" min="0">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group">
         <label class="form-label" for="grn-line-rejected">Rejected Qty</label>
-        <input type="number" id="grn-line-rejected" class="form-input" style="width: 85px;" min="0" value="0">
+        <input type="number" id="grn-line-rejected" class="form-input" min="0" value="0">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group txn-entry-wide">
         <label class="form-label" for="grn-line-reject-reason">Rejection Reason</label>
-        <input type="text" id="grn-line-reject-reason" class="form-input" style="width: 150px;" placeholder="required if rejected > 0">
+        <input type="text" id="grn-line-reject-reason" class="form-input" placeholder="required if rejected > 0">
       </div>
-      <!-- Stage 26.5.2: QC sampling's third bucket - damaged is now tracked
-           separately from rejected instead of one combined field, each with
-           its own required reason, and each actually posts to a different
-           inventory_availability bucket server-side (PostGRNReceiptWithQC). -->
-      <div class="form-group" style="margin-bottom: 0;">
+      <!-- Stage 26.5.2: QC sampling's third bucket - damaged is tracked
+           separately from rejected, each with its own required reason, and
+           each posts to a different inventory_availability bucket. -->
+      <div class="form-group">
         <label class="form-label" for="grn-line-damaged">Damaged Qty</label>
-        <input type="number" id="grn-line-damaged" class="form-input" style="width: 85px;" min="0" value="0">
+        <input type="number" id="grn-line-damaged" class="form-input" min="0" value="0">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group txn-entry-wide">
         <label class="form-label" for="grn-line-damage-reason">Damage Reason</label>
-        <input type="text" id="grn-line-damage-reason" class="form-input" style="width: 150px;" placeholder="required if damaged > 0">
+        <input type="text" id="grn-line-damage-reason" class="form-input" placeholder="required if damaged > 0">
       </div>
       <button class="btn btn-outline" id="grn-add-line-btn" type="button">Add Line</button>
     </div>
 
-    <!-- Stage 42.1.4: batch/lot capture at receipt. Its own row rather than
-         three more fields squeezed into the QC row above, because a receiving
-         clerk types these off the carton in one go and they belong together.
-         The whole row hides itself for an item that is not batch-tracked
-         (populateGRNBatchRow below), so a warehouse that has opted no item
-         into traceability never sees it. -->
-    <div id="grn-batch-row" class="hidden" style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
-      <div class="form-group" style="margin-bottom: 0;">
+    <!-- Stage 42.1.4: batch/lot capture at receipt, its own row; hidden for
+         an item that is not batch-tracked (populateGRNBatchRow below). -->
+    <div id="grn-batch-row" class="txn-entry hidden">
+      <div class="form-group txn-entry-wide">
         <label class="form-label" for="grn-line-batch">Batch / Lot No</label>
-        <input type="text" id="grn-line-batch" class="form-input" style="width: 150px;" autocomplete="off">
+        <input type="text" id="grn-line-batch" class="form-input" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group txn-entry-wide">
         <label class="form-label" for="grn-line-mfg">Manufacture Date</label>
-        <input type="date" id="grn-line-mfg" class="form-input" style="width: 160px;">
+        <input type="date" id="grn-line-mfg" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group txn-entry-wide">
         <label class="form-label" for="grn-line-expiry">Expiry Date</label>
-        <input type="date" id="grn-line-expiry" class="form-input" style="width: 160px;">
+        <input type="date" id="grn-line-expiry" class="form-input">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group txn-entry-wide">
         <label class="form-label" for="grn-line-supplier-batch">Supplier Batch No</label>
-        <input type="text" id="grn-line-supplier-batch" class="form-input" style="width: 150px;" autocomplete="off">
+        <input type="text" id="grn-line-supplier-batch" class="form-input" autocomplete="off">
       </div>
-      <div id="grn-batch-note" style="font-size: 12.5px; color: var(--text-muted); align-self: center;"></div>
+      <div id="grn-batch-note" class="txn-hint"></div>
     </div>
 
-    <!-- Stage 42.1.8: serial capture at receipt. Its own row, hidden unless
-         the SKU in the line field is Serial or Batch and Serial tracked
-         (populateGRNBatchRow below also drives this one) - one serial number
-         per accepted unit, which is what makes this a textarea rather than a
-         single input. -->
-    <div id="grn-serial-row" class="hidden" style="display: flex; gap: 12px; align-items: flex-start; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 260px;">
+    <!-- Stage 42.1.8: serial capture at receipt - one serial number per
+         accepted unit; hidden unless the SKU is serial-tracked. -->
+    <div id="grn-serial-row" class="txn-entry hidden">
+      <div class="form-group txn-entry-main">
         <label class="form-label" for="grn-line-serials">Serial Numbers (one per unit)</label>
-        <textarea id="grn-line-serials" class="form-input" rows="2" style="width: 100%; font-family: Consolas, Monaco, monospace;" placeholder="one per line, or comma-separated"></textarea>
+        <textarea id="grn-line-serials" class="form-input" rows="2" style="font-family: Consolas, Monaco, monospace;" placeholder="one per line, or comma-separated"></textarea>
       </div>
-      <div id="grn-serial-note" style="font-size: 12.5px; color: var(--text-muted); align-self: center;"></div>
+      <div id="grn-serial-note" class="txn-hint"></div>
     </div>
-    <!-- Stage 42.3.7: catch weight + dimensional capture at receipt. Weight
-         is shown (and required) only for an item flagged is_catch_weight;
-         dimensions are always optional and offered for every line, same
-         "no gate, just an optional capture" shape as the batch fields for a
-         non-tracked item above. -->
-    <div id="grn-weight-row" style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border-color);">
-      <div class="form-group" style="margin-bottom: 0;">
+    <!-- Stage 42.3.7: catch weight (required for an is_catch_weight item) and
+         optional dimensions, offered for every line. -->
+    <div id="grn-weight-row" class="txn-entry">
+      <div class="form-group">
         <label class="form-label" for="grn-line-weight">Actual Weight</label>
-        <input type="number" id="grn-line-weight" class="form-input" style="width: 110px;" min="0" step="0.01">
+        <input type="number" id="grn-line-weight" class="form-input" min="0" step="0.01">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group">
         <label class="form-label" for="grn-line-weight-uom">Weight UOM</label>
-        <input type="text" id="grn-line-weight-uom" class="form-input" style="width: 90px;" placeholder="kg" autocomplete="off">
+        <input type="text" id="grn-line-weight-uom" class="form-input" placeholder="kg" autocomplete="off">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group txn-entry-narrow">
         <label class="form-label" for="grn-line-length">L</label>
-        <input type="number" id="grn-line-length" class="form-input" style="width: 70px;" min="0" step="0.01">
+        <input type="number" id="grn-line-length" class="form-input" min="0" step="0.01">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group txn-entry-narrow">
         <label class="form-label" for="grn-line-width">W</label>
-        <input type="number" id="grn-line-width" class="form-input" style="width: 70px;" min="0" step="0.01">
+        <input type="number" id="grn-line-width" class="form-input" min="0" step="0.01">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group txn-entry-narrow">
         <label class="form-label" for="grn-line-height">H</label>
-        <input type="number" id="grn-line-height" class="form-input" style="width: 70px;" min="0" step="0.01">
+        <input type="number" id="grn-line-height" class="form-input" min="0" step="0.01">
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
+      <div class="form-group txn-entry-narrow">
         <label class="form-label" for="grn-line-dim-uom">Dim UOM</label>
-        <input type="text" id="grn-line-dim-uom" class="form-input" style="width: 80px;" placeholder="cm" autocomplete="off">
+        <input type="text" id="grn-line-dim-uom" class="form-input" placeholder="cm" autocomplete="off">
       </div>
-      <div id="grn-weight-note" style="font-size: 12.5px; color: var(--text-muted); align-self: center;"></div>
+      <div id="grn-weight-note" class="txn-hint"></div>
     </div>
-    <div id="grn-lines-list" style="margin: 12px 0;"></div>
-    <div id="grn-totals" class="grn-totals"></div>
-    <div id="grn-form-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
-    <button class="btn btn-primary" id="grn-create-btn">Post Receipt</button>
+    <div class="txn-grid"><div id="grn-lines-list"></div></div>
+    </div>
+
+    <div class="txn-pane hidden" data-pane="history">
+      <div class="txn-grid" id="grn-history"></div>
+    </div>
   `;
-  container.appendChild(formPanel);
+  container.appendChild(screen);
 
   attachLinkTypeahead(document.getElementById('grn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
   attachLinkTypeahead(document.getElementById('grn-location'), 'Location');
@@ -1718,8 +1784,6 @@ async function renderGRNWorkbenchView(container) {
 
   renderGRNLinesList();
 
-  const listPanel = document.createElement('div');
-  listPanel.className = 'table-panel';
   let html = `
     <table>
       <thead>
@@ -1728,7 +1792,7 @@ async function renderGRNWorkbenchView(container) {
       <tbody>
   `;
   if (grns.length === 0) {
-    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No goods receipts yet. Use <b>Load Items from PO</b> above to receive against an approved Purchase Order, then <b>Post Receipt</b>.</td></tr>`;
+    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No goods receipts yet. Click <b>+ New Goods Receipt</b>, add an approved Purchase Order with <b>Add PO &amp; Load Items</b>, then <b>Post Receipt</b>.</td></tr>`;
   }
   // Newest first (the list API returns creation order), so a receipt just
   // posted - and the notes it raised - is the row at the top.
@@ -1753,8 +1817,8 @@ async function renderGRNWorkbenchView(container) {
     `;
   });
   html += `</tbody></table>`;
-  listPanel.innerHTML = html;
-  container.appendChild(listPanel);
+  document.getElementById('grn-history').innerHTML = html;
+  txnRestorePane('grn-screen');
 
   let sourcePO = '';
   try {
@@ -1762,6 +1826,7 @@ async function renderGRNWorkbenchView(container) {
     sessionStorage.removeItem('stage55-grn-source-po');
   } catch (_) { /* storage can be disabled */ }
   if (sourcePO) {
+    window.txnShowPane('grn-screen:new'); // "Receive goods" on a PO opens the New page
     document.getElementById('grn-po').value = sourcePO;
     await loadGRNItemsFromPO();
   }
@@ -1776,7 +1841,8 @@ function renderGRNLinesList() {
   const el = document.getElementById('grn-lines-list');
   if (!el) return;
   if (grnLineItems.length === 0) {
-    el.innerHTML = `<p style="font-size: 13px; color: var(--text-muted);">No lines added yet.</p>`;
+    el.innerHTML = `<p class="txn-empty">No lines added yet &mdash; add a PO above, or a line by SKU.</p>`;
+    renderGRNTotals();
     return;
   }
   // Stage 42.1.4/42.1.8: the Batch/Expiry and Serials columns each appear
@@ -1786,7 +1852,7 @@ function renderGRNLinesList() {
   // Stage 62: the PO column appears once a second PO is on the receipt.
   const grnMultiPO = new Set(grnLineItems.map(l => l.po_id).filter(Boolean)).size > 1;
   el.innerHTML = `
-    <table style="margin-top: 4px;">
+    <table>
       <thead><tr>${grnMultiPO ? '<th>PO</th>' : ''}<th>SKU</th><th>Barcode</th>${grnHasBatches ? '<th>Batch / Expiry</th>' : ''}${grnHasSerials ? '<th>Serials</th>' : ''}<th>Ordered</th><th>Received</th><th>Accepted</th><th>Rejected</th><th>Damaged</th><th>Short</th><th class="num" title="Agreed price per unit before GST, from the PO">PO Rate</th><th class="num" title="Price per unit before GST on the vendor's invoice">Invoice Rate</th><th class="num">Value</th><th></th></tr></thead>
       <tbody>
         ${grnLineItems.map((line, idx) => {
@@ -1847,9 +1913,18 @@ function grnNotesCell(g) {
 // at each line's PO GST rate; the server prices the saved receipt itself.
 function renderGRNTotals() {
   const el = document.getElementById('grn-totals');
+  const notesEl = document.getElementById('grn-notes-preview');
   if (!el) return;
+  // Stage 68: the bar's summary - lines and accepted units always, the money
+  // once a line is priced; the note preview is the one-line notice below.
+  const accepted = grnLineItems.reduce((s, l) => s + (Number(l.accepted_qty) || 0), 0);
+  const count = grnLineItems.length ? `<span><b>${grnLineItems.length}</b> line${grnLineItems.length === 1 ? '' : 's'} · Accepted <b>${accepted}</b></span>` : '';
   const priced = grnLineItems.filter(l => l.po_rate !== undefined && l.po_rate !== '' && l.po_rate !== null);
-  if (grnLineItems.length === 0 || priced.length === 0) { el.innerHTML = ''; return; }
+  if (grnLineItems.length === 0 || priced.length === 0) {
+    el.innerHTML = count || '<span>Add a PO or a line to see the totals.</span>';
+    if (notesEl) notesEl.innerHTML = '';
+    return;
+  }
   let poValue = 0, invValue = 0, invGST = 0, up = 0, down = 0;
   grnLineItems.forEach(l => {
     const acc = Number(l.accepted_qty) || 0;
@@ -1868,22 +1943,18 @@ function renderGRNTotals() {
   const typedRaw = document.getElementById('grn-inv-amount')?.value || '';
   const typed = typedRaw === '' ? null : Number(typedRaw);
   const gap = typed === null ? null : typed - invTotal;
-  el.innerHTML = `
-    <div class="grn-totals-grid">
-      <div><span>Value at PO price</span><strong>${formatMoney(poValue)}</strong></div>
-      <div><span>Value at invoice price</span><strong>${formatMoney(invValue)}</strong></div>
-      <div><span>GST (approx.)</span><strong>${formatMoney(invGST)}</strong></div>
-      <div><span>Invoice value incl. GST</span><strong>${formatMoney(invTotal)}</strong></div>
-      <div><span>Vendor invoice amount</span><strong>${typed === null ? '&mdash;' : formatMoney(typed)}</strong></div>
-      <div class="${gap !== null && Math.abs(gap) >= 1 ? 'grn-gap' : ''}"><span>Invoice minus lines</span><strong>${gap === null ? '&mdash;' : formatMoney(gap)}</strong></div>
-    </div>
-    <div class="grn-notes-preview">
+  const gapBad = gap !== null && Math.abs(gap) >= 1;
+  el.innerHTML = `${count}
+    <span title="Value at PO price">PO value <b>${formatMoney(poValue)}</b></span>
+    <span title="Value at invoice price">Invoice value <b>${formatMoney(invValue)}</b></span>
+    <span>GST ≈ <b>${formatMoney(invGST)}</b></span>
+    ${typed === null ? '' : `<span class="${gapBad ? 'grn-gap' : ''}" title="Vendor invoice amount minus these lines">Invoice − lines <b>${formatMoney(gap)}</b></span>`}
+    <span class="txn-total" title="Invoice value incl. GST">${formatMoney(invTotal)}</span>`;
+  if (notesEl) notesEl.innerHTML = `
       ${up > 0.004 ? `<span class="badge badge-warning">Debit note ${formatMoney(up)} will be raised to the vendor (billed above PO)</span>` : ''}
       ${down > 0.004 ? `<span class="badge badge-secondary">Credit note ${formatMoney(down)} will be raised to the vendor (billed below PO)</span>` : ''}
       ${up <= 0.004 && down <= 0.004 ? '<span class="text-muted">Invoice prices match the PO &mdash; no note needed.</span>' : ''}
-      ${gap !== null && Math.abs(gap) >= 1 ? `<div class="grn-gap-note">The vendor's invoice total does not equal these lines. Check the invoice rates and quantities; the receipt still posts and records the difference.</div>` : ''}
-    </div>
-  `;
+      ${gapBad ? `<span class="grn-gap-note">The vendor's invoice total does not equal these lines. Check the invoice rates and quantities; the receipt still posts and records the difference.</span>` : ''}`;
 }
 
 // renderGRNPOChips shows the POs on this receipt, each removable (with its lines).
@@ -2409,6 +2480,7 @@ async function createGRNInner() {
   } else if (notes.length) {
     showToast(`Goods receipt posted. ${notes.join(' ')}`, { variant: 'success' });
   }
+  txnDone('grn-screen');
   renderView('grn');
 }
 
@@ -2425,16 +2497,6 @@ async function renderASNView(container) {
   const asns = await res.json();
   asnLineItems = [];
 
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Advance Shipment Notices (ASN)</h1>
-      <p class="page-subtitle">Capture what a vendor says is coming, ahead of the actual GRN - the GRN Workbench can prefill its lines from an ASN.</p>
-    </div>
-  `;
-  container.appendChild(header);
-
   const formPanel = document.createElement('div');
   formPanel.className = 'table-panel';
   formPanel.style.padding = '24px';
@@ -2446,7 +2508,6 @@ async function renderASNView(container) {
   // rule. po_id/vendor/carrier/tracking_number/expected_date/expected_items
   // are this Stage's additive fields.
   formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New ASN</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       ${autoNumberField('ASN Number', 'ASN', '160px')}
       <div class="form-group" style="margin-bottom: 0;">
@@ -2489,15 +2550,6 @@ async function renderASNView(container) {
     <div id="asn-form-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
     <button class="btn btn-primary" id="asn-create-btn">Save ASN</button>
   `;
-  container.appendChild(formPanel);
-
-  attachLinkTypeahead(document.getElementById('asn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
-  attachLinkTypeahead(document.getElementById('asn-location'), 'Location');
-  attachLinkTypeahead(document.getElementById('asn-vendor'), 'Vendor');
-  attachLinkTypeahead(document.getElementById('asn-line-sku'), 'Item');
-  document.getElementById('asn-add-line-btn').addEventListener('click', addASNLine);
-  document.getElementById('asn-create-btn').addEventListener('click', createASN);
-  renderASNLinesList();
 
   const listPanel = document.createElement('div');
   listPanel.className = 'table-panel';
@@ -2507,7 +2559,7 @@ async function renderASNView(container) {
       <tbody>
   `;
   if (asns.length === 0) {
-    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No ASNs yet. Use <b>Add Line</b> then <b>Save ASN</b> above to record a shipment your vendor has despatched.</td></tr>`;
+    html += `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No ASNs yet. Click <b>+ New ASN</b> to record a shipment your vendor has despatched.</td></tr>`;
   }
   asns.forEach(a => {
     let lines = [];
@@ -2527,7 +2579,19 @@ async function renderASNView(container) {
   });
   html += `</tbody></table>`;
   listPanel.innerHTML = html;
-  container.appendChild(listPanel);
+  // Stage 69: the ASN list is the page; + New ASN opens the form as a page of
+  // its own (txn-screen.js, the standard ERP shape).
+  container.appendChild(txnPagedSection({ id: 'asn-screen', title: 'Advance Shipment Notices (ASN)', page: 'New ASN',
+    count: asns.length, newLabel: 'New ASN', form: formPanel, list: listPanel }));
+  txnRestorePane('asn-screen');
+
+  attachLinkTypeahead(document.getElementById('asn-po'), 'PurchaseOrder', { valueFields: ['po_number', 'code', 'id'] });
+  attachLinkTypeahead(document.getElementById('asn-location'), 'Location');
+  attachLinkTypeahead(document.getElementById('asn-vendor'), 'Vendor');
+  attachLinkTypeahead(document.getElementById('asn-line-sku'), 'Item');
+  document.getElementById('asn-add-line-btn').addEventListener('click', addASNLine);
+  document.getElementById('asn-create-btn').addEventListener('click', createASN);
+  renderASNLinesList();
 }
 
 function renderASNLinesList() {
@@ -2610,6 +2674,7 @@ async function createASNInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  txnDone('asn-screen');
   renderView('asn');
 }
 
@@ -2636,46 +2701,6 @@ async function renderPurchaseReturnsView(container) {
   const grns = grnRes.ok ? (await grnRes.json()).filter(g => g.status !== 'Cancelled') : [];
   prtContext = null;
 
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Purchase Return</h1>
-      <p class="page-subtitle">Send goods back to the vendor against the GRN they arrived on. Posting takes the stock out and raises the vendor's debit note.</p>
-    </div>
-  `;
-  container.appendChild(header);
-
-  const formPanel = document.createElement('div');
-  formPanel.className = 'table-panel';
-  formPanel.style.padding = '24px';
-  formPanel.style.marginBottom = '24px';
-  formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Purchase Return</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="prt-grn">Goods Receipt (GRN)<span class="required">*</span></label>
-        <select id="prt-grn" class="form-input" style="min-width: 260px;">
-          <option value="">Choose the GRN the goods came in on</option>
-          ${grns.map(g => `<option value="${escapeHTMLText(g.id)}">${escapeHTMLText(g.id)}${g.vendor ? ' - ' + escapeHTMLText(g.vendor) : ''}${g.po_id ? ' (PO ' + escapeHTMLText(g.po_id) + ')' : ''}</option>`).join('')}
-        </select>
-      </div>
-      <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 240px;">
-        <label class="form-label" for="prt-reason">Reason for Return<span class="required">*</span></label>
-        <input type="text" id="prt-reason" class="form-input" placeholder="e.g. wrong size supplied, QC rejected" autocomplete="off">
-      </div>
-    </div>
-    <div id="prt-lines" style="margin-bottom: 16px; font-size: 13px; color: var(--text-muted);">Choose a GRN to see what can be returned.</div>
-    <div id="prt-form-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <button class="btn btn-primary" id="prt-save-btn" disabled>Save Return</button>
-      <span style="font-size: 13px; color: var(--text-muted);">${approvalRequired
-        ? 'Returns need approval before they can be posted.'
-        : 'Saved as a Draft; nothing moves until you Post it.'}</span>
-    </div>
-  `;
-  container.appendChild(formPanel);
-
   const badge = s => s === 'Posted' ? 'badge-success' : (s === 'Cancelled' || s === 'Rejected') ? 'badge-danger' : 'badge-secondary';
   const actions = r => {
     const out = [];
@@ -2688,34 +2713,102 @@ async function renderPurchaseReturnsView(container) {
     if (r.status === 'Draft' || r.status === 'Rejected') {
       out.push(`<button class="action-btn" ${actionAttrs('cancelPurchaseReturn', [r.id])}>Cancel</button>`);
     }
+    // Stage 71: the Return to Vendor print (trade-docs.js).
+    if (r.status !== 'Cancelled') {
+      out.push(`<button class="action-btn" ${actionAttrs('printTransactionDocument', ['PurchaseReturn', r.id])}>Print</button>`);
+    }
     return out.join(' ');
   };
-  const listPanel = document.createElement('div');
-  listPanel.className = 'table-panel';
-  listPanel.innerHTML = `
-    <table>
-      <thead><tr><th>Return #</th><th>GRN</th><th>Vendor</th><th>Reason</th><th>Value (ex-GST)</th><th>Debit Note</th><th>Status</th><th>Actions</th></tr></thead>
-      <tbody>
-        ${returns.length === 0
-          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No purchase returns yet. Choose a GRN above to raise one.</td></tr>`
-          : returns.map(r => `
-            <tr>
-              <td style="font-family: monospace;">${escapeHTMLText(r.code || r.id)}</td>
-              <td style="font-family: monospace;">${escapeHTMLText(r.grn_id || '')}</td>
-              <td>${escapeHTMLText(r.vendor_id || '')}</td>
-              <td>${escapeHTMLText(r.reason || '')}</td>
-              <td>${formatMoney(r.total_amount || 0)}</td>
-              <td style="font-family: monospace;">${escapeHTMLText(r.debit_note_id || '')}</td>
-              <td><span class="badge ${badge(r.status)}">${escapeHTMLText(r.status || '')}</span></td>
-              <td>${actions(r)}</td>
-            </tr>`).join('')}
-      </tbody>
-    </table>
+
+  // Stage 68: the frozen transaction layout (txn-screen.css). Stage 69: opens
+  // on the list; New is its own page, switched in place so a half-entered
+  // return survives a look at the list.
+  const screen = document.createElement('div');
+  screen.className = 'txn-screen';
+  screen.id = 'prt-screen';
+  screen.dataset.landing = 'history';
+  screen.innerHTML = `
+    <div class="txn-bar">
+      ${txnPageTitle({ screen: 'prt-screen', title: 'Purchase Return', page: 'New purchase return', count: returns.length })}
+      ${txnContext()}
+      ${txnNewButton({ screen: 'prt-screen', label: 'New Purchase Return' })}
+      <div id="prt-sum" class="txn-sum txn-main-only"><span>Choose a GRN to see what can be returned.</span></div>
+      <div class="txn-actions txn-main-only">
+        <div id="prt-form-error" class="login-error hidden"></div>
+        <button class="btn btn-primary" id="prt-save-btn" disabled title="${approvalRequired
+          ? 'Returns need approval before they can be posted.'
+          : 'Saved as a Draft; nothing moves until you Post it.'}">Save Return</button>
+      </div>
+    </div>
+
+    <div class="txn-pane" data-pane="new">
+      <div class="txn-head">
+        <div class="form-group">
+          <label class="form-label" for="prt-grn">Goods Receipt (GRN)<span class="required">*</span></label>
+          <select id="prt-grn" class="form-input">
+            <option value="">Choose the GRN the goods came in on</option>
+            ${grns.map(g => `<option value="${escapeHTMLText(g.id)}">${escapeHTMLText(g.id)}${g.vendor ? ' - ' + escapeHTMLText(g.vendor) : ''}${g.po_id ? ' (PO ' + escapeHTMLText(g.po_id) + ')' : ''}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="prt-reason">Reason for Return<span class="required">*</span></label>
+          <input type="text" id="prt-reason" class="form-input" placeholder="e.g. wrong size supplied, QC rejected" autocomplete="off">
+        </div>
+      </div>
+      <div class="txn-hint"><span>Send goods back to the vendor against the GRN they arrived on. ${approvalRequired
+        ? 'Returns need approval before they can be posted.'
+        : 'Saved as a Draft; posting takes the stock out and raises the vendor\'s debit note.'}</span></div>
+      <div class="txn-grid"><div id="prt-lines" class="txn-empty">Choose a GRN to see what can be returned.</div></div>
+    </div>
+
+    <div class="txn-pane hidden" data-pane="history">
+      <div class="txn-grid">
+        <table>
+          <thead><tr><th>Return #</th><th>GRN</th><th>Vendor</th><th>Reason</th><th>Value (ex-GST)</th><th>Debit Note</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${returns.length === 0
+              ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No purchase returns yet. Click <b>+ New Purchase Return</b> and choose a GRN to raise one.</td></tr>`
+              : returns.map(r => `
+                <tr>
+                  <td style="font-family: monospace;">${escapeHTMLText(r.code || r.id)}</td>
+                  <td style="font-family: monospace;">${escapeHTMLText(r.grn_id || '')}</td>
+                  <td>${escapeHTMLText(r.vendor_id || '')}</td>
+                  <td>${escapeHTMLText(r.reason || '')}</td>
+                  <td>${formatMoney(r.total_amount || 0)}</td>
+                  <td style="font-family: monospace;">${escapeHTMLText(r.debit_note_id || '')}</td>
+                  <td><span class="badge ${badge(r.status)}">${escapeHTMLText(r.status || '')}</span></td>
+                  <td>${actions(r)}</td>
+                </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
   `;
-  container.appendChild(listPanel);
+  container.appendChild(screen);
 
   document.getElementById('prt-grn').addEventListener('change', e => loadPurchaseReturnLines(e.target.value));
   document.getElementById('prt-save-btn').addEventListener('click', savePurchaseReturn);
+  document.getElementById('prt-lines').addEventListener('input', renderPurchaseReturnSum);
+  txnRestorePane('prt-screen');
+}
+
+// renderPurchaseReturnSum is the bar's summary for the return being keyed in:
+// lines and units going back, and their value at cost (display only - the
+// server values the saved return itself).
+function renderPurchaseReturnSum() {
+  const el = document.getElementById('prt-sum');
+  if (!el || !prtContext) return;
+  let lines = 0, units = 0, value = 0;
+  document.querySelectorAll('.prt-qty').forEach(input => {
+    const qty = Number(input.value) || 0;
+    if (qty <= 0) return;
+    const l = prtContext.lines[Number(input.dataset.line)] || {};
+    lines += 1;
+    units += qty;
+    if (l.stock_bucket === 'Accepted') value += qty * (Number(l.unit_cost) || 0);
+  });
+  el.innerHTML = `<span><b>${lines}</b> line${lines === 1 ? '' : 's'} · Units <b>${units}</b></span>
+    <span class="txn-total" title="Value going back, ex-GST">${txnMoney(value)}</span>`;
 }
 
 async function loadPurchaseReturnLines(grnID) {
@@ -2724,6 +2817,9 @@ async function loadPurchaseReturnLines(grnID) {
   document.getElementById('prt-form-error').classList.add('hidden');
   prtContext = null;
   saveBtn.disabled = true;
+  linesEl.className = 'txn-empty';
+  const sumEl = document.getElementById('prt-sum');
+  if (sumEl) sumEl.innerHTML = '<span>Choose a GRN to see what can be returned.</span>';
   if (!grnID) {
     linesEl.textContent = 'Choose a GRN to see what can be returned.';
     return;
@@ -2741,8 +2837,9 @@ async function loadPurchaseReturnLines(grnID) {
     linesEl.textContent = `Nothing left to return on ${grnID} - everything it received is already on a purchase return.`;
     return;
   }
+  linesEl.className = '';
   linesEl.innerHTML = `
-    <div style="margin-bottom: 8px;">Vendor <b data-link-doctype="Vendor" data-link-ref="${escapeHTMLText(prtContext.vendor_id || '')}">${escapeHTMLText(prtContext.vendor_id || '-')}</b>, returning from <b data-link-doctype="Location" data-link-ref="${escapeHTMLText(prtContext.location || '')}">${escapeHTMLText(prtContext.location || '-')}</b>. Enter the quantity going back on each line.</div>
+    <div class="txn-hint prt-context">Vendor <b data-link-doctype="Vendor" data-link-ref="${escapeHTMLText(prtContext.vendor_id || '')}">${escapeHTMLText(prtContext.vendor_id || '-')}</b>, returning from <b data-link-doctype="Location" data-link-ref="${escapeHTMLText(prtContext.location || '')}">${escapeHTMLText(prtContext.location || '-')}</b>. Enter the quantity going back on each line.</div>
     <table>
       <thead><tr><th>SKU</th><th>Lot</th><th>Stock</th><th>Received</th><th>Returned</th><th>On open returns</th><th>Can return</th><th>Unit cost (ex-GST)</th><th>Return qty</th></tr></thead>
       <tbody>
@@ -2762,6 +2859,7 @@ async function loadPurchaseReturnLines(grnID) {
     </table>
   `;
   saveBtn.disabled = false;
+  renderPurchaseReturnSum();
 }
 
 async function savePurchaseReturn() {
@@ -2789,6 +2887,7 @@ async function savePurchaseReturn() {
   if (!res.ok) { showError(await getErrorMessage(res, 'Failed to save the purchase return.')); return; }
   const saved = await res.json();
   showToast(`Purchase return ${saved.id} saved as a draft.`, { variant: 'info' });
+  txnDone('prt-screen');
   renderView('purchase-returns');
 }
 

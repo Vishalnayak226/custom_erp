@@ -67,6 +67,9 @@ const (
 	// Free With Item; Stage 60.4). Master data, so authoritative; no override
 	// or price list can make it chargeable.
 	PriceSourceItemTypeFree = "item_type_free"
+	// PriceSourceGWP - a promo-only gift (Stage 72.7) given free under a Gift
+	// With Purchase offer; QuoteLine.PromotionRef names the offer.
+	PriceSourceGWP = "gwp_offer"
 )
 
 // Pricing modes (setting pos.pricing_mode).
@@ -131,6 +134,13 @@ type QuoteLine struct {
 	// DiscountPct is this line's own deviation below ReferencePrice, 0 when
 	// the line is charged at (or above) master price.
 	DiscountPct float64 `json:"discount_pct"`
+	// Stage 72: PromotionRef is the Gift With Purchase offer that authorised a
+	// promo-only line; NotStocked marks a line whose item keeps no stock
+	// (service, non-stock); BillMode is set when the item stays off the
+	// customer's bill.
+	PromotionRef string `json:"promotion_ref,omitempty"`
+	NotStocked   bool   `json:"not_stocked,omitempty"`
+	BillMode     string `json:"bill_mode,omitempty"`
 }
 
 // QuoteResult is the whole authoritative answer: what the receipt says, what
@@ -190,6 +200,15 @@ type QuoteResult struct {
 	// today's behaviour for them.
 	HasUnverifiedPrice bool     `json:"has_unverified_price"`
 	UnpricedSKUs       []string `json:"unpriced_skus,omitempty"`
+
+	// Stage 72.4/72.7: the gifts this cart has earned (the till prompts for
+	// them), and - filled by the /pos/quote handler only - the packaging each
+	// line consumes with the choices the cashier may switch to, plus any
+	// component the store is short of. Not part of the signed version: none
+	// of it changes what the customer pays.
+	Gifts              []EligibleGift        `json:"gifts,omitempty"`
+	Packaging          []ConsumptionLine     `json:"packaging,omitempty"`
+	PackagingShortages []ConsumptionShortage `json:"packaging_shortages,omitempty"`
 }
 
 // ResolvePOSQuote prices a cart from tenant master data alone.
@@ -249,6 +268,15 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 				Message: fmt.Sprintf("every quote line needs a SKU and a positive quantity (sku=%q, qty=%d)", in.Sku, in.Qty)}
 		}
 
+		// Stage 72.2: what the item may do at the till (blueprint 14.1).
+		policy, itemData, known := ItemPolicyForSKU(tenantID, sku)
+		if known {
+			if err := posSellabilityGate(tenantID, req.CartNumber, req.Location, sku, itemData, policy); err != nil {
+				return nil, err
+			}
+		}
+		promoOnly := known && policy.Sellability == SellPromoOnly
+
 		itemPrice, itemMRP := itemMasterPrices(tenantID, sku)
 
 		// Reference price: what master data says this line is worth, ignoring
@@ -273,9 +301,17 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 		}
 
 		line := QuoteLine{Sku: sku, Qty: in.Qty, MRP: itemMRP, PriceListCode: refList}
+		if known {
+			line.NotStocked = !policy.Tracked()
+			if policy.BillMode == BillHidden {
+				line.BillMode = BillHidden
+			}
+		}
 
 		switch {
-		case freeItems[sku]:
+		case freeItems[sku] || promoOnly:
+			// A promo-only item is always given free of charge; whether this
+			// cart has earned it is checked once the offers are known.
 			// Stage 60.4: a zero-price item type is free, not discounted - its
 			// reference is 0 too, so it never reads as a 100% manual discount.
 			line.PriceListCode = ""
@@ -304,7 +340,7 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 		// 47.2.3: an approved override replaces the charged price but never
 		// the reference - so the deviation stays visible in the totals, in the
 		// receipt and in the evidence, rather than being absorbed silently.
-		if ov, ok := overrides[sku]; ok && !freeItems[sku] {
+		if ov, ok := overrides[sku]; ok && !freeItems[sku] && !promoOnly {
 			line.UnitPrice = round2(ov.price)
 			line.OverrideID = ov.id
 			line.PriceSource = PriceSourceOverride
@@ -352,6 +388,10 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 	result.AppliedOffers = offerEval.Applied
 	result.OfferDiscount = offerEval.TotalDiscount
 	result.UnmatchedCodes = offerEval.UnmatchedCodes
+	result.Gifts = offerEval.Gifts
+	if err := authorizePromoLines(tenantID, req, result); err != nil {
+		return nil, err
+	}
 
 	result.Total = round2(result.Subtotal - result.OfferDiscount)
 	if result.Total < 0 {

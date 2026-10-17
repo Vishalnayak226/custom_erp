@@ -639,7 +639,6 @@ body.stk-studio-open .typeahead-menu { z-index: 2100; }
 .stk-gallery { padding: 24px; }
 .stk-gallery-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
 .stk-gallery-head h2 { font-size: 16px; font-weight: 700; margin: 0 0 4px; }
-.stk-gallery-head .page-subtitle { margin: 0; }
 .stk-gallery-tools { display: flex; gap: 8px; align-items: center; }
 .stk-gallery-search { width: 220px; }
 .stk-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
@@ -684,3 +683,15 @@ body.stk-studio-open .typeahead-menu { z-index: 2100; }
 .stk-page { position: relative; overflow: hidden; break-after: page; page-break-after: always; }
 .stk-page:last-child { break-after: auto; page-break-after: auto; }
 .stk-page img { position: absolute; display: block; }
+
+/* Template rules (Stage 70) */
+.stk-gallery-hint { margin-bottom: 16px; }
+.stk-rules-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; max-width: 760px; }
+.stk-rule { border: 1px solid var(--border-color); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+.stk-rule-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.stk-rule-n { width: 24px; height: 24px; border-radius: 50%; background: var(--primary-light); color: var(--text-main); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+.stk-rule-note { font-size: 13px; margin: 0; }
+.stk-rule-table { width: 100%; }
+.stk-rule-table td { padding: 4px 8px 4px 0; vertical-align: middle; }
+.stk-rule-table td:first-child { width: 45%; }
+.stk-rule-default { max-width: 360px; }

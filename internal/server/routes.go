@@ -593,6 +593,14 @@ func registerRoutes() {
 	// pricing, approval and idempotency stay on one code path.
 	http.HandleFunc("POST /api/v1/pos/payment/confirm", apiMiddleware(handlePOSPaymentConfirm))
 	http.HandleFunc("POST /api/v1/pos/payment/void", apiMiddleware(handlePOSPaymentVoid))
+	// Stage 72.6 / 72.8 (item & material master): consumption entry, gift cards
+	// as stored value (handlers_item_master.go).
+	http.HandleFunc("POST /api/v1/inventory/consumption", apiMiddleware(moduleGate("inventory", handlePostConsumptionEntry)))
+	http.HandleFunc("GET /api/v1/inventory/consumption/book", apiMiddleware(moduleGate("inventory", handleConsumptionBookStock)))
+	http.HandleFunc("POST /api/v1/pos/gift-card/issue", apiMiddleware(handleIssueGiftCard))
+	http.HandleFunc("POST /api/v1/pos/gift-card/balance", apiMiddleware(handleGiftCardBalance))
+	http.HandleFunc("POST /api/v1/stored-value/cards", apiMiddleware(handleRegisterGiftCards))
+	http.HandleFunc("POST /api/v1/stored-value/cards/action", apiMiddleware(handleGiftCardAction))
 	http.HandleFunc("GET /api/v1/finance/trial-balance", apiMiddleware(handleTrialBalance))
 	http.HandleFunc("GET /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))
 	http.HandleFunc("POST /api/v1/finance/periods", apiMiddleware(handleAccountingPeriods))
@@ -1036,6 +1044,8 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/platform/me", apiMiddleware(handlePlatformMe))
 	http.HandleFunc("GET /api/v1/platform/tenants", apiMiddleware(handlePlatformTenants))
 	http.HandleFunc("GET /api/v1/platform/control-panel", apiMiddleware(handleControlPanel)) // Stage 65.5
+	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/status", apiMiddleware(handleControlPanelTenantStatus)) // Stage 65.6
+	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/trial", apiMiddleware(handleControlPanelTenantTrial))   // Stage 65.6
 	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/tables", apiMiddleware(handlePlatformTables))
 	http.HandleFunc("GET /api/v1/platform/tenants/{tenant}/tables/{table}", apiMiddleware(handlePlatformRows))
 	http.HandleFunc("POST /api/v1/platform/tenants/{tenant}/tables/{table}/row", apiMiddleware(handlePlatformUpdateRow))
@@ -1158,6 +1168,8 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/admin/industries", apiMiddleware(handleGetIndustries))
 	http.HandleFunc("POST /api/v1/admin/industry", apiMiddleware(handleSwitchIndustry))
 	http.HandleFunc("GET /api/v1/admin/industry/lock", apiMiddleware(handleGetIndustryLock))
+	// Stage 66: ranked HSN/SAC codes (and their GST rates) for the item being named.
+	http.HandleFunc("GET /api/v1/hsn/suggest", apiMiddleware(handleHSNSuggest))
 
 	// Bulk CSV Import
 	http.HandleFunc("POST /api/v1/import/{doctype}", apiMiddleware(handleBulkImport))

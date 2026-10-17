@@ -59,7 +59,23 @@ func handlePreviewPurchaseOrder(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(preview)
+	// Stage 65.8: the composer shows the chosen stores' Billing and Shipping
+	// address under their pickers - the same blocks the printed PO uses
+	// (LoadPrintStore), so the screen and the print cannot disagree.
+	out := struct {
+		engines.POPreview
+		BillTo *engines.PrintStore `json:"bill_to,omitempty"`
+		ShipTo *engines.PrintStore `json:"ship_to,omitempty"`
+	}{POPreview: preview}
+	if code, _ := payload["location"].(string); code != "" {
+		s := engines.LoadPrintStore(tenantID, code)
+		out.BillTo = &s
+	}
+	if code, _ := payload["target_warehouse"].(string); code != "" {
+		s := engines.LoadPrintStore(tenantID, code)
+		out.ShipTo = &s
+	}
+	_ = json.NewEncoder(w).Encode(out)
 }
 
 // handlePrintPurchaseOrder returns the fully-resolved vendor copy of a PO.

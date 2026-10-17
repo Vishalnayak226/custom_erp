@@ -206,6 +206,10 @@ func RecordGRNReceiptCosting(tenantID, schema, grnID string, acceptedLines []str
 	// its lines, multi-PO aware); an older GRN still costs from its PO.
 	grnCosts := grnLineUnitCostsPaise(tenantID, grnID)
 	var totalValuePaise int64
+	// Stage 72.10: a non-valuated or non-stock item is expensed at receipt -
+	// its value goes to its profile's expense account, not 1200 Inventory,
+	// and it never enters the moving average (an issue costs it at zero).
+	expenseByAccount := map[string]int64{}
 	for _, line := range acceptedLines {
 		if line.Qty <= 0 {
 			continue
@@ -219,6 +223,10 @@ func RecordGRNReceiptCosting(tenantID, schema, grnID string, acceptedLines []str
 				fmt.Sprintf("GRN %s: could not resolve a base cost for %s (po_id=%q) - not costed", grnID, line.SKU, poID), "")
 			continue
 		}
+		if policy, _, known := ItemPolicyForSKU(tenantID, line.SKU); known && !policy.Valuated() {
+			expenseByAccount[policy.ExpenseAccount] += unitCostPaise * int64(line.Qty)
+			continue
+		}
 		if err := RecordStockReceiptCost(tenantID, line.SKU, line.Qty, unitCostPaise); err != nil {
 			LogSystemError(tenantID, "", "ERROR", "RecordGRNReceiptCosting",
 				fmt.Sprintf("GRN %s: RecordStockReceiptCost failed for %s: %v", grnID, line.SKU, err), "")
@@ -226,11 +234,21 @@ func RecordGRNReceiptCosting(tenantID, schema, grnID string, acceptedLines []str
 		}
 		totalValuePaise += unitCostPaise * int64(line.Qty)
 	}
+	debits := map[string]int64{}
+	if totalValuePaise > 0 {
+		debits["1200"] = totalValuePaise
+	}
+	for acct, v := range expenseByAccount {
+		if v > 0 {
+			debits[acct] += v
+			totalValuePaise += v
+		}
+	}
 	if totalValuePaise <= 0 {
 		return
 	}
 	if err := PostDoubleEntry(tenantID, "GRN", grnID,
-		map[string]int64{"1200": totalValuePaise}, map[string]int64{"2100": totalValuePaise},
+		debits, map[string]int64{"2100": totalValuePaise},
 		"", fmt.Sprintf("GRN:%s:RECEIPT_COST", grnID)); err != nil {
 		LogSystemError(tenantID, "", "ERROR", "RecordGRNReceiptCosting",
 			fmt.Sprintf("GRN %s: GL posting failed (stock already received, not rolled back): %v", grnID, err), "")

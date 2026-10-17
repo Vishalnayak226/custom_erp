@@ -1,0 +1,386 @@
+/* ===========================================================================
+   Stage 68: the transaction screen - one frozen layout for every billing-style
+   screen (POS, Purchase Order, Goods Receipt, Purchase Return, Stock Transfer,
+   Returns). The user: "It will frozen like normal offline pos bill screen. It
+   will not scroll. There will sub scroll for prod ... Summ will be shown in
+   one place in top, tax part. User/Store detail in top. Very minimal space
+   but every screen should be uniform."
+
+   So the page never scrolls; only the item grid does, under a fixed frame:
+
+     .txn-bar    title · tabs · who/where · the totals and tax · actions
+     .txn-head   the header fields, one compact grid
+     .txn-note   one-line notices (supply type, session, errors)
+     .txn-entry  the scan / add-item row
+     .txn-grid   the items - the one scroller, its header row pinned
+
+   Loaded with those screens (LAZY_VIEW_MODULES' stylesheet entry), not in the
+   cold core. Uses the existing tokens, so dark mode comes for free.
+   =========================================================================== */
+
+/* The page around a transaction screen stops scrolling and hands it the
+   whole height. */
+#view-root:has(> .txn-screen) {
+  overflow: hidden;
+  padding: 10px 16px 12px;
+  gap: 8px;
+}
+
+.txn-screen {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px 0;
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.txn-screen > * { flex-shrink: 0; }
+
+/* --- Row 1: the bar -------------------------------------------------------- */
+.txn-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  min-height: 34px;
+}
+
+.txn-title {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+/* Who is working, where: "manager1 · Store Manager · HO". */
+.txn-ctx {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.txn-ctx b { color: var(--text-main); font-weight: 600; }
+
+/* The summary: every total and the tax split, in one place. */
+.txn-sum {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: flex-end;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.txn-sum b { color: var(--text-main); font-weight: 600; }
+
+.txn-sum .txn-total {
+  padding-left: 14px;
+  border-left: 1px solid var(--border-color);
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.txn-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.txn-actions .login-error { margin: 0; max-width: 360px; }
+
+.txn-tabs {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--surface-subtle);
+}
+
+.txn-tab {
+  padding: 4px 14px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.txn-tab:hover { color: var(--text-main); }
+
+.txn-tab.active {
+  background: var(--panel-bg);
+  color: var(--text-main);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+/* --- Rows 2-4: header fields, notices, entry -------------------------------- */
+.txn-head {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px 10px;
+  align-items: start;
+}
+
+.txn-screen .form-group { gap: 3px; margin-bottom: 0; }
+
+.txn-screen .form-label { font-size: 12px; }
+
+.txn-screen .form-input,
+.txn-screen .form-select {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.txn-screen .btn { padding: 6px 14px; }
+
+.txn-screen .btn-sm { padding: 5px 10px; }
+
+/* A muted one-liner under a field (an address, "Walk-in"). Full text on hover. */
+.txn-hint {
+  display: flex;
+  gap: 6px;
+  min-height: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.txn-hint > span {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.txn-hint .empty-state-link { flex-shrink: 0; }
+
+.txn-note,
+.txn-screen .po-supply-banner {
+  gap: 10px;
+  padding: 5px 10px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.txn-entry {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.txn-entry .form-group { flex: 0 0 110px; }
+
+.txn-entry .form-group.txn-entry-main { flex: 1 1 200px; }
+
+.txn-entry .form-group.txn-entry-wide { flex-basis: 150px; }
+
+.txn-entry .form-group.txn-entry-narrow { flex-basis: 70px; }
+
+/* A button that sits in the header grid, level with the inputs beside it. */
+.txn-head .txn-head-btn { align-self: end; }
+
+/* An empty one-liner takes no room at all. */
+.txn-hint:empty { display: none; }
+
+/* --- The grid: the only thing that scrolls --------------------------------- */
+.txn-grid {
+  flex: 1 1 auto;
+  min-height: 120px;
+  margin: 0 -14px;
+  overflow: auto;
+  border-top: 1px solid var(--border-color);
+  overscroll-behavior: contain;
+}
+
+.txn-grid th { padding: 7px 12px; }
+
+.txn-grid td { padding: 6px 12px; }
+
+.txn-grid .form-input { padding: 5px 8px; }
+
+.txn-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.txn-grid .txn-hint { padding: 6px 12px; }
+
+/* --- Per-screen touches ------------------------------------------------------ */
+.txn-head .jv-narration { grid-column: span 2; }
+
+.fn-pane-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+}
+
+/* --- Panes: New / History (Sale / Return) switched in place (txnShowPane) --- */
+.txn-pane {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* A total or a Post button belongs to the first pane's work in progress. */
+.txn-screen.txn-aside .txn-main-only { display: none; }
+
+/* --- Stage 69: list page and New page (txnPageTitle / txnNewButton) --------- */
+/* Only the screen's own bar (screen > bar > part), so a paged section inside
+   a page of another (RFQ's quotes) keeps its own state. */
+.txn-on-landing > * > .txn-page-only,
+[data-landing]:not(.txn-on-landing) > * > .txn-landing-only { display: none !important; }
+
+.txn-titlebox {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.txn-count {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--surface-subtle);
+  border: 1px solid var(--border-color);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.txn-crumb {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 14px;
+  color: var(--primary-color);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.txn-crumb:hover { text-decoration: underline; }
+.txn-crumb-sep { color: var(--text-muted); }
+
+/* The list page's bar has no totals; its actions sit at the right edge. */
+.txn-bar > .txn-landing-only.btn,
+.txn-bar > .txn-actions.txn-landing-only { margin-left: auto; }
+
+/* A paged section inside an ordinary page (HR, Expenses...): its own small
+   bar above the list or the form. */
+.page-section-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-bottom: 12px;
+}
+
+.page-section-bar h2 { margin: 0; font-size: 16px; }
+
+.page-section-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.page-section-bar .page-title { margin: 0; }
+
+/* --- POS ------------------------------------------------------------------- */
+/* The bill total and Complete Sale belong to a sale in progress, not to a
+   completed bill still on screen. */
+#pos-screen:has(#pos-completed-sale:not(.hidden)) .txn-main-only { display: none; }
+
+.pos-session {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-muted);
+}
+
+.pos-completed {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px 18px;
+  border: 2px solid var(--success-color, #1a7f37);
+  border-radius: 8px;
+  background: var(--bg-color);
+}
+
+.pos-customer-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.txn-screen .pos-scan-input {
+  padding: 8px 12px;
+  font-size: 15px;
+}
+
+.pos-search-results {
+  max-height: 32vh;
+  overflow: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.pos-offers {
+  margin: 8px 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-color);
+}
+
+.pos-return-head { align-items: end; }
+
+.pos-return-total {
+  grid-column: span 2;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  font-size: 13px;
+}
+
+/* Phones and very short windows: a frozen frame would leave the grid no room,
+   so the page scrolls as one there. */
+@media (max-width: 820px), (max-height: 520px) {
+  #view-root:has(> .txn-screen) { overflow-y: auto; }
+  .txn-screen { flex: none; overflow: visible; }
+  .txn-grid { overflow: visible; min-height: 0; }
+}

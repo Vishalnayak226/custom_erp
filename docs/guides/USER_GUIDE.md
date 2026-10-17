@@ -52,7 +52,10 @@ Jump straight to the thing you're trying to do.
 | Understand why my shop isn't in the till's Store list | §4.0 step 2 |
 | Fix a screen showing old or wrong data (Refresh vs Reset) | §12.3 |
 | Print barcode stickers for everything on a GRN or a transfer | §7A.1 |
-| Make one product category's label look different | §7A.2 |
+| Make one product category's label look different | §7A.2, then §7A.5 |
+| Change the standard label (copy it into my own template) | §7A.2 (**Duplicate** on the **Standard label** card) |
+| Choose which template an item, item type or category prints with | §7A.5 |
+| Print one GRN line on a different label layout, just this once | §7A.1 (the line's **Template** dropdown) |
 | Design a jewellery tag with weight, size, MRP and a QR code | §7A.2 |
 | Print 2 or 3 labels across a multi-up roll, or on an A4 sticker sheet | §7A.2 (*Label tab*) |
 | Fix labels that print off-centre, too light, or upside down | §7A.2 (*Label tab → Printer tuning*, then **Test print**) |
@@ -150,6 +153,24 @@ Once you're in, you'll see a **sidebar** on the left. **It only shows what your 
 
 The sidebar has **twelve top-level entries**. Most are module groups: hover one and its screens slide out to the right (click it instead if you are on a touchscreen or using a keyboard). Four — **Home**, **Reports**, **Manufacturing** and **PIM** — have no flyout and open straight away.
 
+**Hide the menu for more room.** The **☰** button at the top left, beside the search box, hides the whole sidebar — like Gmail — so the screen you are working in gets the full width. Click it again to bring the menu back. Your browser remembers the choice, so the menu stays hidden (or shown) the next time you sign in. On a phone the same button opens the menu as a slide-out drawer instead.
+
+**Every transaction screen looks the same.** POS, Purchase Order, Goods Receipt, Purchase Return, Stock Transfer, Returns, Vendor and Sales Invoices, Debit / Credit Notes and Journal Vouchers are each **one fixed screen that does not scroll** — like a shop's billing screen. Top to bottom:
+
+- **The bar** — the screen's name, a small chip with **who you are signed in as and your store**, the **totals and tax** of what you are entering, and the main button (**Create Draft**, **Post Receipt**, **Complete Sale**…).
+- **The header boxes** — vendor, addresses, invoice details and so on, packed close together.
+- **The add-item row** — scan or search an item and add it.
+- **The items** — the only part that scrolls. Its column headings stay in place while you scroll through a long list.
+
+**Creating something and looking at what you've already made are two different pages** — the way Odoo, ERPNext and Zoho work. Every screen where you record something (Purchase Order, Goods Receipt, Purchase Return, Stock Transfer, Location Movement, Journal Vouchers, ASN, RFQ and its quotes, Expenses, Fixed Assets, Payment Proposals, Yard Board, Sticker Printing's Print tab, the manual order in Order Management, Marketplace's settlements / bookings / manifests, Manufacturing's orders, and HR's Attendance, Leave, Payroll, Loans/Advances and My Requests):
+
+- **opens on the list** — what has been saved, newest work and its status, with the count beside the screen's name;
+- **+ New …** at the top right (for example **+ New Purchase Order**, **+ Mark Attendance**) opens the form as a page of its own, titled with a breadcrumb such as **Purchase Orders › New purchase order**;
+- the breadcrumb's first word, or your browser's **Back** button, returns to the list. Anything you half-typed is kept: **+ New** (or **Forward**) brings it back, until you save it or leave the screen;
+- **saving returns you to the list**, where the new record is now shown with its next steps (Submit, Approve, Post, Print…).
+
+The POS till is the exception: it opens ready to sell, and its **Sale** / **Return** tabs switch in place.
+
 | Sidebar entry | What lives inside |
 |---|---|
 | **Home** | Opens directly. This is where you land when you first sign in — see "Home, your landing screen" below. |
@@ -211,9 +232,9 @@ This is the screen a cashier uses most.
 ### 4.0 Open the till for the shift
 
 1. Click **POS / Billing** (under the **POS** module).
-2. Start typing your shop's **name** into **Store** and pick it from the list (the code and short code work too, if that is what you know it by). The bar above shows whether a session is open there.
+2. Start typing your shop's **name** into **Store** and pick it from the list (the code and short code work too, if that is what you know it by). The session line just under the screen's title bar shows whether a session is open there.
    - **Only sellable locations appear here.** If the shop you expect is missing, it is almost certainly set to **Sellable = No** on its Location record — ask an administrator to change it. This is deliberate: it is what stops a sale being rung up against a warehouse or head office by accident.
-3. If the bar says *"No open session … open one before selling"*, click **Open Session**, type the **cash physically in the till right now**, and confirm. The bar changes to *"Session open at …"*.
+3. If the session line says *"No open session … open one before selling"*, click **Open Session**, type the **cash physically in the till right now**, and confirm. The bar changes to *"Session open at …"*.
 4. **The till is now bound to that store.** The **Store** box goes read-only and shows *"Bound to … for this session"* underneath. This is on purpose — it means you cannot drift onto another shop's stock halfway through a shift. To change it, see **Reset Terminal** in §4.5.
 5. At the end of the shift, click **Close Session** and enter the cash you counted. The system shows what it expected, what you counted, and the difference — note it for your manager if it isn't zero.
 
@@ -233,10 +254,10 @@ You open a session once per shift, not once per sale.
 5. **If the customer is a returning or loyalty customer**, type their **name** (or phone number, or code) into **Customer** and pick them from the list. The line beneath the box reads *"Walk-in — no customer attached"* until you do, so you always know which you are on.
    - **The customer isn't in the system yet?** Click **+ New Customer**, enter their name and phone, and they are created and attached to this sale without leaving the till.
    - **Check Points** shows their balance. **Redeem Points** spends points on this sale — the discount comes off the amount to collect automatically, and the points are only actually deducted once the sale completes.
-6. **Any offers that apply appear on their own, above the total** — see §4.2. If the customer has a coupon, type it into the **Coupon code** box.
-7. Check the total — tax is calculated automatically, you don't need to work it out.
-8. **Choose how they're paying.** If it is **Cash**, type what the customer handed you into **Cash tendered** and the screen shows **Change due** before you commit to anything (or *"Short by …"* if it isn't enough). Card and UPI are for the exact amount, so the box disappears for those.
-9. Click **Complete Sale**.
+6. **Any offers that apply appear on their own, in a panel under the items** — see §4.2. If the customer has a coupon, type it into the **Coupon code** box.
+7. Check the **Total** at the top right of the screen — tax is calculated automatically, you don't need to work it out.
+8. **Choose how they're paying.** If it is **Cash**, type what the customer handed you into **Cash tendered** and **Change due** appears beside the Total at the top before you commit to anything (or *"Short by …"* if it isn't enough). Card and UPI are for the exact amount, so the box disappears for those.
+9. Click **Complete Sale** (top right, next to the Total).
 
 ### 4.1a The sale is complete — the till freezes
 
@@ -257,7 +278,7 @@ Why it works this way: before, the cart silently emptied behind a dialog and the
 
 ### 4.2 Offers and coupons at the till
 
-You do not apply offers by hand. Whatever your head office has set up in the ERP is worked out automatically as you build the cart, and shown in a panel just above the total — each offer by name, what it did ("10% off the bill", "buy 2 get 1 free — 1 free unit"), and how much it took off.
+You do not apply offers by hand. Whatever your head office has set up in the ERP is worked out automatically as you build the cart, and shown in a panel just under the items — each offer by name, what it did ("10% off the bill", "buy 2 get 1 free — 1 free unit"), and how much it took off.
 
 - **Automatic offers just appear.** Add the qualifying items and the offer shows up. Remove an item and it disappears again if the cart no longer qualifies. If an offer needs a minimum spend, it appears once the cart crosses it.
 - **Coupon offers need the code.** Type it into the **Coupon code** box. Case doesn't matter, and you can enter more than one separated by a space or comma. If a code doesn't apply to this cart, the panel says so in plain words rather than silently ignoring it — check the spelling, and whether the cart actually meets the offer's conditions.
@@ -297,6 +318,29 @@ Occasionally the back office changes a price between the moment the cart was pri
 
 Day to day you will not need this button. Between customers, use **New Sale (Reset)** on the finished bill instead — that keeps the store binding, which is what you want.
 
+### 4.6 Packaging, free gifts, gift cards — and items the till won't sell
+
+**The one rule:** if the exact thing you hand over matters, scan it. If it is ordinary packaging, the system takes care of it. If it is money (a gift card), it is issued and activated, never sold as a line.
+
+**Boxes, bags and butter paper — don't scan them.** Your store's usual packaging is set up once (Admin Guide §B.3.8, *Backflush Rules*): earrings go in a Small Red Box, a necklace in a Large Red Box, every packed item gets one butter paper. As you ring up, the panel under the items shows **Uses (not on the bill): 2 × Small Red Box, 3 × Butter Paper…**. When the sale completes, those leave the store's stock automatically, recorded against the bill number. They never print on the customer's bill.
+
+- **The customer gets a different box?** Click **Packaging** (next to **Add to Cart** — it only shows when something can be changed). Each line shows its usual packaging; pick the one actually used, or **None** where that is allowed. Some changes need a **Reason** — type it in the box beside the choice. Changed choices are marked with **\*** in the panel. Anything you leave alone keeps its usual packaging.
+- **The store is out of a box or of butter paper?** The panel says *"Short of …: store has 2, this sale uses 3"*. Normally **the sale still goes ahead** — the shortfall is recorded for your manager under **Item Exceptions**, to be put right by counting or receiving stock. Only if your administrator set that packaging to *Block* will the till ask you to pick another option first.
+- **Scanned a box by mistake?** The line comes straight off with *"… is not sold at the till … use Packaging to change it"*. Nothing else on the bill is affected.
+
+**Free gifts (Gift With Purchase).** When the bill qualifies for a gift — say a Gift Plant with every necklace — the panel shows **Gift eligible: 1 × Gift Plant — scan it to hand it over**. Scan the gift you actually hand over: it rings up at **0.00** as *Free gift (offer)* and the prompt changes to *scanned*. A gift the bill has **not** earned — or more of it than earned — is refused and comes off, with the reason. A "free with item" accessory (a charger free with a phone) still works as before: it is free only alongside its main product.
+
+**Gift cards.** Click **Gift Card** (with Check Points / Redeem Points) and choose what you are doing:
+
+- **Pay this bill with a gift card.** Scan or type the card number; leave the amount blank to use as much as the card covers (or type a smaller amount). The bar shows **Gift card: −600.00 (**** 1701)** and the **Total** drops to what is still to collect — take the rest by Cash / Card / UPI as usual. The card is charged only when the sale completes; if the sale fails, the card keeps its balance. A gift card **needs a connection** — it cannot be used on a sale rung up offline. To take a card back off the bill before completing, use **Gift Card → Remove the gift cards from this bill**.
+- **Issue / add value.** For a customer **buying** a gift card. Take their payment first, then scan the card, type the amount and choose how they paid. The card is funded at that moment and a separate **Gift Card Issue** receipt prints (card shown as **** 1701, amount, balance, valid until). It is not a line on any sale bill. A card that has already been issued cannot be issued again; whether value can be **added** to an issued card depends on its type.
+- **Check balance.** Scan the card to see its status, balance and expiry.
+- **Store managers also see:** **Block a card** (lost or misused — a reason is required), **Release a blocked card**, **Cancel an unused issue** (refund — allowed only while none of the balance has been used; refund the amount shown by the original payment mode), and **Register new cards** (load pre-printed card numbers, or have the system generate numbers to print — shown **once**, so print them straight away).
+
+The finished bill and the receipt show each gift card as its own line (*Gift card **** 1701 −600.00*), so the amount collected matches the drawer.
+
+**Items the till won't sell.** Some items are kept off the bill on purpose — packaging, internal supplies, fixed assets (laptops, the till itself). Scanning one removes the line and tells you why. A **service** (repair, installation) sells normally but shows **Not stocked** in the Available column, because there is no shelf stock to count.
+
 ## 5. Checking Stock
 
 1. Click **Inventory** in the sidebar.
@@ -306,7 +350,11 @@ Day to day you will not need this button. Between customers, use **New Sale (Res
    reservations, safety stock, active holds, blocked/QC/damaged stock and
    channel buffer from base availability. Open **Breakdown** on a row to see
    the component amounts. A hold does not remove physical stock.
-4. Use that row's **Transfer**, **Count** or **Hold** link for the next task.
+4. **Butter paper, tape, ribbon — Consumption Entry** (store managers). Things used up without a sale to hang them on are posted here. Click **Consumption Entry** at the top of the Inventory screen, choose the **Store** and the **Type**:
+   - **Periodic count** — count what is left and type the **Counted closing qty**; the system posts *book stock − counted* as consumed (book 1,000, counted 250 → 750 consumed).
+   - **Manual issue** — type the **Qty used**.
+   Add each item (its book stock appears), type the quantities, add a **Count reference** (e.g. *Week 42 count*), and click **Post Consumption**, then confirm. The stock leaves the store and the cost goes to the item's expense account. A count higher than the book, or a quantity used larger than the stock, is refused — receive the difference on a GRN first. Services and other items that keep no stock can't be added.
+5. Use that row's **Transfer**, **Count** or **Hold** link for the next task.
    **Hold** carries the item and location into Place Hold; choose a Hold Code,
    quantity and reason, then save. The result links to the saved Hold record.
    Release is a separate Hold Release Request requiring approval. After placing
@@ -360,32 +408,34 @@ This only applies to locations that keep stock in **bins**. A store with no bins
 
 ## 6. Ordering More Stock (Purchase Order)
 
-1. Click **Purchase Order**. The **New Purchase Order** panel is at the top of the screen — there's no separate "create" step to click first.
-2. Fill in the four header boxes:
+1. Click **Purchase Order**. The screen opens on the list of your purchase orders (the count is beside the title). Click **+ New Purchase Order** at the top right — the order form opens as its own page, **Purchase Orders › New purchase order**. **Purchase Orders** in that breadcrumb (or your browser's Back) returns to the list; whatever you had typed is still there when you click **+ New Purchase Order** again.
+2. Fill in the header boxes:
    - **Vendor** — start typing and pick the supplier from the list.
-   - **Location (billing entity)** — which of your locations is buying. This decides who the vendor invoices, and it's half of how the system works out your GST (see §6.2).
-   - **Target Warehouse (ship to)** — where the goods should physically arrive. Often the same as Location; it doesn't have to be.
+   - **Billing address** — which of your stores or warehouses is buying. This decides who the vendor invoices, and it's half of how the system works out your GST (see §6.2). The store's address, state and GSTIN show in grey under the box.
+   - **Shipping address** — where the goods should physically arrive. It fills in with the billing store as soon as you pick one (shown as *"Same as billing"*); pick a different store or warehouse if the goods go elsewhere.
    - **GST treatment of purchase price** — leave it on "Tenant default" unless this particular vendor quotes differently. See §6.2.
-3. **Add your items.** The **Add item** row sits at the top of the panel, under the totals. For each line:
+
+   **An address is wrong?** Click **Edit store** under it. That store's own form opens with its address; correct it and **Save**, and you come straight back to your purchase order with the new address shown. The address belongs to the store, so the correction applies everywhere that store is used — later orders, receipts and prints. (You only see **Edit store** if your role may edit stores.)
+3. **Add your items.** The **Add item** row sits under the header boxes. For each line:
    - **Add item** — type to search; pick from the list.
    - **Qty** (starts at 1) and **Purchase price** — what you're ordering and what you're paying per unit.
    - **MRP** — optional. Record it if you're tracking it; leave it blank if not. **It never appears on the vendor's printed copy** — it's for you, not for them.
 
-   Press **Enter** or click **Add**. The line goes into **Added items** below, the row clears for the next item, and the cursor is back in the item box — so you can keep adding without moving. The top of the panel — vendor, location, the totals, the **Add item** row and **Create Draft** — stays pinned while you scroll down through a long list. Change a quantity or price right in the list; click **×** at the end of a line to remove it.
+   Press **Enter** or click **Add**. The line goes into the item list below, the row clears for the next item, and the cursor is back in the item box — so you can keep adding without moving. Only the item list scrolls; the bar, the header boxes and the **Add item** row stay where they are. Change a quantity or price right in the list; click **×** at the end of a line to remove it.
 
    The grey columns in the list — **HSN**, **GST %**, **Taxable**, **Tax**, **Line Total** — fill themselves in as you type. You can't edit them, on purpose: HSN and GST rate come from the Item master, so there's only ever one answer to "what tax does this item carry".
 
    If a line turns red, that item is missing its HSN code or GST rate on the Item master. Fix it under **Setup → Items** and the line clears.
 
    **Buying a new design?** You don't have to create the items first. Click **+ Add design** at the end of the **Add item** row, pick the item name (its HSN and GST come with it), type the design number, pick the colours, sizes and other attributes, remove any combination you aren't buying, and **Add to PO** makes the design and every combination and puts them on the order — see §6.9.
-4. Check the **totals** at the top — taxable value, the tax split, and the grand total, always in view — and the **supply-type banner** above them (§6.2).
+4. Check the **totals** in the bar at the top — number of items and quantity, taxable value, the tax split (CGST + SGST, or IGST) and the grand total, always in view — and the **supply-type banner** under the header boxes (§6.2).
 5. **You don't type a PO number.** The box shows "Auto (PO series)" and is greyed out on purpose. The number is issued when you save; see §6.1.
-6. Click **Create Draft**. Depending on the amount it may need someone else's **approval** before it's official — that's a safety check, not a bug. You'll see it move to "Pending Approval", and once approved it's ready to send.
-7. **Send it to the vendor.** On the order's row, **Print** opens the print window (§7B): choose **Purchase Order** or **Vendor PO** (the vendor's copy, with item pictures and no MRP), the template, and the store it is generated from; check the preview, then **Print** — or **Excel** to download the Vendor PO as a spreadsheet with a picture of each item. The standard layout has your brand, both parties' names, addresses, states and GSTINs, the item table with HSN and tax, the CGST/SGST (or IGST) split, the grand total, and the amount in words. **Send to Vendor** records the dispatch (the row shows "Sent to vendor") and opens a pre-filled email to the vendor's contact address. If your administrator has configured a notification channel, it goes out through that as well.
-8. **Amend** loads the order back into the same panel — including its items — so you can change quantities or prices. Amending an already-approved PO sends it back for re-approval, and the screen warns you before it does.
+6. Click **Create Draft**. You're back on the list, with the new order on it. Depending on the amount it may need someone else's **approval** before it's official — that's a safety check, not a bug. You'll see it move to "Pending Approval", and once approved it's ready to send.
+7. **Send it to the vendor.** On the order's row in the list, **Print** opens the print window (§7B): choose **Purchase Order** or **Vendor PO** (the vendor's copy, with item pictures and no MRP), the template, and the store it is generated from; check the preview, then **Print** — or **Excel** to download the Vendor PO as a spreadsheet with a picture of each item. The standard layout has your brand, both parties' names, addresses, states and GSTINs, the item table with HSN and tax, the CGST/SGST (or IGST) split, the grand total, and the amount in words. **Send to Vendor** records the dispatch (the row shows "Sent to vendor") and opens a pre-filled email to the vendor's contact address. If your administrator has configured a notification channel, it goes out through that as well.
+8. **Edit** on the order's row opens it on the order page exactly like a new purchase order — vendor, billing and shipping address, GST treatment and every item line can all be changed — but it **keeps the same PO number** (shown, greyed, in the PO Number box; the breadcrumb reads *"Purchase Orders › Edit PO/…"*). Click **Save changes** to keep them or **Cancel** to go back to the list untouched. (Leaving an edit unsaved and clicking **+ New Purchase Order** starts a blank order; the unsaved edit is dropped.) Editing an already-approved PO sends it back for re-approval: the screen warns you first and asks for the reason for the change.
 
    **Delete** on the order's row removes a purchase order at any stage — draft, pending approval, approved or already sent — **as long as no goods have been received against it**. It asks you to confirm first. Once a goods receipt exists (including one that received several POs together), Delete is refused and names the receipt; cancel that receipt first. You only see **Delete** if your role is allowed to delete purchase orders — your administrator sets that under **Settings → Roles** (Purchase Order → Delete).
-9. When the stock physically arrives, find the approved PO and click **Receive goods**. The Goods Receipt screen opens with that PO and its lines loaded. If you opened Goods Receipt directly, choose the PO and click **Add PO & Load Items** — and repeat for any other PO of the **same vendor** that came in the same delivery (§6.10). Only what is still **open** on each PO loads. Type the vendor's **invoice number, date and amount**, and on each line change the **Invoice Rate** if the bill's price differs from the PO; any difference becomes a debit or credit note automatically (§6.10). For a partial delivery, remove the full-quantity line and add the actual received quantity; record any rejected or damaged quantity and its reason. The posting confirmation separates accepted from rejected/damaged units. **Only accepted units enter available stock**; an order by itself never adds stock. Check **Inventory** afterwards.
+9. When the stock physically arrives, find the approved PO and click **Receive goods**. The Goods Receipt opens on its **New goods receipt** page with that PO and its lines loaded. If you opened Goods Receipt directly, click **+ New Goods Receipt**, choose the PO and click **Add PO & Load Items** — and repeat for any other PO of the **same vendor** that came in the same delivery (§6.10). Only what is still **open** on each PO loads. Type the vendor's **invoice number, date and amount**, and on each line change the **Invoice Rate** if the bill's price differs from the PO; any difference becomes a debit or credit note automatically (§6.10). For a partial delivery, remove the full-quantity line and add the actual received quantity; record any rejected or damaged quantity and its reason. The posting confirmation separates accepted from rejected/damaged units. **Only accepted units enter available stock**; an order by itself never adds stock. Check **Inventory** afterwards.
     Once it is posted, the configured barcode policy can issue a missing barcode — for example, on an older or imported Item. A new Item no longer requires you to type a barcode. The GRN is also where you start printing its labels — see §7A.1.
 
 #### 6.4 Completing missing barcodes at receipt
@@ -438,7 +488,7 @@ You don't tick this any more. The system compares the state of the **legal entit
 - **same state** → intra-state → **CGST + SGST**
 - **different states** → inter-state → **IGST**
 
-The banner above the items tells you which it chose and why — for example *"Inter-state (IGST) — vendor in Karnataka (29), billing entity in Maharashtra (27)"*.
+The banner above the items tells you which it chose and why — for example *"Inter-state (IGST) — vendor in Karnataka (29), billing address in Maharashtra (27)"*.
 
 Each side's state comes from its GSTIN (the first two digits are the state code), falling back to the **State** field on the record if there's no GSTIN.
 
@@ -514,10 +564,10 @@ Together the last two are what a recall needs — the first tells you what to st
 
 **Procurement → RFQ / Quotes.** Use it when you want prices from several suppliers before you raise a Purchase Order.
 
-1. **Create the RFQ**: describe what you need, the quantity and (optionally) a target date, then **Create RFQ**. It starts as **Draft**.
+1. **Create the RFQ**: click **+ New RFQ**, describe what you need, the quantity and (optionally) a target date, then **Create RFQ**. It starts as **Draft** and you're back on the RFQ list.
 2. **Invite vendors**: on the RFQ's row choose **Vendors & Quotes**. Under **Invited vendors**, pick each supplier you are asking and **Invite vendor**. Remove one with its **×** while the RFQ is open.
 3. **Mark as Sent** once you have actually sent the request to them (by email, phone or in person — the system records who it went to; it does not send the request itself).
-4. **Record each quote** as it comes in: vendor, quoted price and lead time, then **Submit Quote**. A quote from a supplier you had not invited still records, and adds them to the invited list.
+4. **Record each quote** as it comes in: under **Quotes for RFQ/…** click **+ Record Quote**, enter the vendor, quoted price and lead time, then **Submit Quote** — you're back on the quotes list with it added. A quote from a supplier you had not invited still records, and adds them to the invited list.
 5. **Choose the winner**: **Select as Winner** on the best quote. The other quotes are rejected and the RFQ closes. If you decide to buy from nobody, use **Close** on the RFQ instead.
 
 The status only moves forward — Draft → Sent → Closed.
@@ -538,13 +588,13 @@ review and create the PO separately until that conversion rule is designed.
 Use **Procurement → Purchase Return** when goods go back to the supplier. A return is always raised against the **goods receipt (GRN)** they arrived on, so the system knows the supplier, the PO, the location, the lot and the price.
 
 1. Go to **Procurement → Purchase Return**.
-2. In **Goods Receipt (GRN)**, choose the receipt the goods came in on. A table shows what that GRN can still send back, one row per item, lot and kind of stock:
+2. The screen opens on the list of returns. Click **+ New Purchase Return**, then in **Goods Receipt (GRN)** choose the receipt the goods came in on. A table shows what that GRN can still send back, one row per item, lot and kind of stock:
    - **Accepted** is stock that went on your shelves. It shows its **Unit cost** (the PO rate before GST), because the supplier owes you for it.
    - **Rejected** and **Damaged** are what QC set aside when the goods were received on **Procurement → Goods Receipt**. The supplier was never owed for these, so they have no cost and no money changes hands for them.
    - **Can return** is what the GRN received, less what earlier returns already sent back (**Returned**) and what other returns still waiting to be posted have claimed (**On open returns**).
-3. Enter the **Reason for Return** (required), and a **Return qty** on each line that is going back. You cannot enter more than **Can return**.
-4. Click **Save Return**. It is saved as a **Draft** and gets a number such as `PRT/HO/26-27/000004`. Nothing moves yet.
-5. Click **Post** on its row and confirm. In one step:
+3. Enter the **Reason for Return** (required), and a **Return qty** on each line that is going back. You cannot enter more than **Can return**. The bar at the top counts the lines and units going back and their value at cost.
+4. Click **Save Return** (top right). It is saved as a **Draft**, gets a number such as `PRT/HO/26-27/000004`, and you're back on the list. Nothing moves yet.
+5. On the list, click **Post** on its row and confirm. In one step:
    - the stock leaves: accepted units come off your available stock at the GRN's location, rejected or damaged units come off QC hold or damaged;
    - a **Debit Note** is raised to the supplier for the accepted units' value and posted, so what you owe the supplier drops by that amount. It appears in the **Debit Note** column (for example `DN/HO/26-27/000002`) and under **Financial Accounting → Debit / Credit Notes**, already **Posted**.
 
@@ -561,7 +611,7 @@ Things the screen refuses, with the reason shown:
 
 When the supplier's bill comes in after a return, bill only for what you kept. The Vendor Invoice match (§6.6) counts accepted units **less what you returned**, so a bill for the kept units matches. A bill that still charges for the returned units goes on hold. If you had already paid for the returned goods, the supplier now owes you their value including GST, which is the total shown at the end of the Debit Note's Reason.
 
-A supplier **overcharged you** and nothing physical went back? Then there is no return. Raise a **Debit Note** by hand in **Financial Accounting → Debit / Credit Notes**: pick the supplier and the **Reference PO**, the amount and the reason.
+A supplier **overcharged you** and nothing physical went back? Then there is no return. Raise a **Debit Note** by hand in **Financial Accounting → Debit / Credit Notes** — on its **Debit notes** tab, click **+ New Debit Note** — then pick the supplier and the **Reference PO**, the amount and the reason. (The screen's other two tabs list **Vendor credit notes** and **Customer credit notes**, each with its own **+ New** button.)
 
 ### 6.6 Paying the supplier's bill (Vendor Invoice and the three-way match)
 
@@ -586,19 +636,33 @@ Laptops, furniture, machines and other things the business **uses** rather than 
    - **Transfer** opens a small panel above the register. Pick the **New Location** by name, and the **New Custodian** (optional) by name, then **Confirm**.
    - **Dispose** opens the same panel with **How is it leaving?** — **Sold**, **Scrapped** or **Written off (lost, stolen)**. **Confirm** writes off the remaining book value and closes the asset. This cannot be undone.
 
-An asset you already own, or one bought without a PO, can still be added by hand with the **Create** form at the top of **HRM → Fixed Assets**.
+An asset you already own, or one bought without a PO, can still be added by hand: **HRM → Fixed Assets** opens on the asset register; click **+ New Asset**, fill in the form and **Create** — you're back on the register with it listed as **Draft**, ready to **Capitalise**.
 
 If someone tries to sell a Fixed Asset item, the POS, a sales order or an invoice refuses it with "This item is a fixed asset, not stock for sale, so it cannot be sold, ordered or invoiced." Units QC rejected on the receipt stay in QC hold and can go back to the supplier on a Purchase Return (§6.5).
 
 ### 6.8 Item types: gifts, free items, accessories and backflush materials
 
-Every Item has an **Item Type** (Setup → Item). Most items are **Product**, the default. The others change how the item behaves:
+Every Item has an **Item Type** (Setup → Item). Most items are **Product**, the default. An item type is a ready-made **profile**: it answers, separately, *what the item is*, *whether stock is kept*, *whether that stock carries value*, *whether and how the till sells it*, *how it leaves stock* and *where its cost goes* (your administrator sets these — Admin Guide §B.3.8). The ones you will meet:
 
-- **Gift** — rings up at **zero** at the till. The bill line shows "Free (gift / free with item)" as its price, and it is not counted as a discount.
-- **Free With Item** — also rings up at zero, but only with its main product. On the Item, set **Free with item** to that product (for example, a charger free with a phone). If the main product is not on the bill in at least the same quantity, the till says so and will not complete the sale until you add it or remove the free item.
-- **Accessory** and **Non-Asset** — normal stock items, grouped so they can be reported on separately. They keep **one fixed barcode** for the SKU.
+| Item type | At the till | Stock | Example |
+|---|---|---|---|
+| **Product** (default), **Accessory** | Scanned and sold | Kept, valued | Jewellery, a belt |
+| **Gift** | Free, **only when an offer earns it** (§4.6) | Kept | Gift Plant |
+| **Free With Item** | Free, only with its main product | Kept | Charger with a phone |
+| **Packaging** | Never sold — used up automatically with sales | Kept | Red Box |
+| **Consumable - Periodic** | Never sold — counted and posted (§5) | Kept, not valued | Butter paper |
+| **Service** | Sold, nothing to scan off a shelf | **Not kept** | Repair, fitting |
+| **Non-Stock Expense** | Never sold | Not kept | Office supplies |
+| **Gift Card** | Issued, never sold (§4.6) | Not kept — it is money | Gift card |
+| **Virtual Kit** | Sold as one item; its parts leave stock | Parts kept | Gift set |
+| **Backflush** | — | Kept | A production material |
+| **Fixed Asset** | Never sold (§6.7) | Asset register | Laptop |
+
+- **Free With Item** — on the Item, set **Free with item** to the main product (for example, a charger free with a phone). If the main product is not on the bill in at least the same quantity, the till says so and will not complete the sale until you add it or remove the free item.
+- **Gift** — rings up at **zero**, but only up to what a *Gift With Purchase* offer has earned on this bill; otherwise the till refuses it. The cost of a gift goes to Promotional / GWP expense, not cost of goods sold.
 - **Backflush** — a material used in production that is **not** issued up front. When finished goods are reported on a production order, the system takes the right quantity of each backflush material from stock automatically (BOM quantity × units finished). If there is not enough, the completion is refused and tells you which material is short.
-- **Fixed Asset** — bought for the business, never sold (§6.7).
+- **An item can differ from its type.** The Item form has the same fields (*Commercial class*, *Stock tracking*, *Sellability at POS*…) defaulting to "Item type default"; set one only when that item really is the exception.
+- **Once an item has stock history, its stock tracking, valuation and accounting can't change** — create a new item for the new treatment instead. The system says so if you try.
 
 **Barcodes.** Your administrator decides when a barcode is created — when the Item is saved, or when it is first received on a GRN — and whether a SKU gets a fresh barcode each day it is received. That can be set for the whole business, for an item type, or for one Item: on the Item form, **Generate barcode at** and **Barcode per receipt date** override the item type when they are not left at "Item type default".
 
@@ -630,28 +694,28 @@ In fashion you often order a design that doesn't exist in the system yet, in sev
 
 A vendor often delivers against several of your POs on one invoice, and the invoice price doesn't always match the PO. The Goods Receipt handles both — **and never puts the receipt on hold**.
 
-**Several POs.** On **Goods Receipt**, choose a PO and click **Add PO & Load Items**, then choose the next PO of the **same vendor** and click it again. Each PO shows as a chip (× removes it with its lines), and a **PO** column appears on the lines. Only each PO's **still-open** quantity loads; a fully received PO says so and adds nothing. A PO of a **different vendor** is refused — receive it on its own GRN.
+**Several POs.** On **Goods Receipt**, click **+ New Goods Receipt** (or **Receive goods** on an approved PO's row, which opens it with that PO already loaded), choose a PO and click **Add PO & Load Items**, then choose the next PO of the **same vendor** and click it again. Each PO shows as a chip (× removes it with its lines), and a **PO** column appears on the lines. Only each PO's **still-open** quantity loads; a fully received PO says so and adds nothing. A PO of a **different vendor** is refused — receive it on its own GRN.
 
 **The vendor's invoice.** Fill in **Vendor Invoice No**, **Invoice Date** and **Invoice Amount (incl. GST)** from the bill.
 
 **Two prices on every line.** **PO Rate** is the agreed price before GST, read from the PO (you can't change it). **Invoice Rate** starts at the PO rate — change it to the price **before GST** printed on the vendor's bill. A line whose price differs is highlighted and shows the difference per unit.
 
-**The section to see it.** Under the lines: value at PO price, value at invoice price, GST, invoice value with GST, the amount you typed, and **Invoice minus lines**. It also tells you which notes will be raised:
+**The totals, at the top.** The bar at the top of the screen shows the lines and accepted units, **PO value** (at PO price), **Invoice value** (at invoice price), GST, **Invoice − lines** (once you type the invoice amount) and, in large, the invoice value with GST. The line under the header boxes tells you which notes will be raised:
 
 - Billed **above** the PO → a **Debit Note** to the vendor for the excess (with its GST).
 - Billed **below** the PO → a **Credit Note** to the vendor for the shortfall (with its GST).
 - If the typed invoice amount doesn't equal the lines, it says so in red — check rates and quantities. The receipt still posts and records the difference; nothing is held.
 
-**Post Receipt.** Stock goes in at the **invoice price**. The notes are created **and posted** straight away (you'll see their numbers in the message), and they appear on the GRN row under **Price Notes** and in **Financial Accounting → Debit / Credit Notes**, each with **Print**. Only **accepted** units count — rejected and damaged units go back on a Purchase Return (§6.5).
+**Post Receipt.** Stock goes in at the **invoice price**. The notes are created **and posted** straight away (you'll see their numbers in the message), and they appear on the GRN's row in the Goods Receipt list (where posting returns you) under **Price Notes** and in **Financial Accounting → Debit / Credit Notes**, each with **Print**. Only **accepted** units count — rejected and damaged units go back on a Purchase Return (§6.5).
 
 **What it means for the money.** The PO price is the agreed price. After the notes, what you owe the vendor and what the goods cost you both come back to accepted quantity × PO price. When the vendor's bill is recorded (§6.6) it matches this GRN at the invoice price.
 
 ## 7. Moving Stock Between Locations (Stock Transfer)
 
 1. Click **Stock Transfer** in the sidebar.
-2. Fill in the From and To warehouse/location, then add one or more line items (SKU + quantity) using the **Add Line** button — a transfer needs at least one line before it can be created. The Transfer Number is filled in for you when you save (§6.1).
-3. Click **Create Transfer**. It starts as a **Draft**.
-4. Once it's ready to go, click **Mark Approved**.
+2. The screen opens on the list of transfers. Click **+ New Transfer**, fill in the From and To warehouse/location, then add one or more line items (SKU + quantity) using the **Add Line** button — a transfer needs at least one line before it can be created. The bar at the top counts the lines and units. The Transfer Number is filled in for you when you save (§6.1).
+3. Click **Create Transfer** (top right). It starts as a **Draft**, and you're back on the list with it on top.
+4. On the list, once it's ready to go, click **Mark Approved**.
 5. Click **Dispatch** to move the stock out of the source location (it sits "in transit" until received).
 6. When it physically arrives, click **Receive** and confirm the quantity that actually showed up for each line — if less arrived than was dispatched, entering the lower number records that shortage rather than hiding it.
 7. **Print it.** From **Approved** onwards the row has **Print Transfer Out** — the dispatch challan that travels with the goods — and once received, **Print Transfer In** — the receipt, with sent and received quantities. Both open the print window (§7B). A transfer between two stores of the **same GSTIN** prints as a delivery challan with no tax; between two **different GSTINs** it is a taxable stock transfer and the GST is shown (IGST across states).
@@ -660,16 +724,17 @@ A vendor often delivers against several of your POs on one invoice, and the invo
 
 Use this to re-slot stock inside one warehouse or store, for example moving a fast seller to a bin near the packing table. The stock stays at the same location, so nothing changes in what you can sell. Only where it sits changes.
 
-1. Go to **Stock → Location Movement** and pick the **Location** by name. A table lists every bin that holds stock there, with the item and quantity.
-2. Click **Move** on the row you want to move from.
-3. Enter the **Quantity**, pick the **To Bin** (only bins at this location are offered), and optionally a **Reason**. If the bin holds more than one batch of the item, choose the **Batch** too.
-4. Click **Move Stock**. The table refreshes with the new quantities.
+1. Go to **Stock → Location Movement**. It opens on the history of moves — when, location, item, from bin, to bin, quantity, batch and reason, newest first (the latest 200).
+2. Click **+ New Movement** and pick the **Location** by name. A table lists every bin that holds stock there, with the item and quantity.
+3. Click **Move** on the row you want to move from.
+4. Enter the **Quantity**, pick the **To Bin** (only bins at this location are offered), and optionally a **Reason**. If the bin holds more than one batch of the item, choose the **Batch** too.
+5. Click **Move Stock**. You're back on the history with the move on top. **+ New Movement** again keeps the same location, with the bin quantities already updated, for the next move.
 
 The move is refused, with the reason shown, if the destination bin is inactive, Blocked, Full or being counted, would go over its capacity, is in a zone that cannot take that item, or is at a different location. It is also refused for stock an open pick task is holding (§5.2): the message says how many units can be moved. Every move is recorded in the stock ledger with both bins.
 
 ## 7A. Printing Barcode Stickers and Labels
 
-**Stock → Sticker Printing.** This is where item labels come from — the small barcode tags that go on the product itself. The screen has three tabs: **Print** (do a print run), **Sticker templates** (decide what a label looks like) and **Document templates** (how POs, GRNs, transfers and debit / credit notes print — §7B).
+**Stock → Sticker Printing.** This is where item labels come from — the small barcode tags that go on the product itself. The screen has four tabs: **Print** (do a print run), **Sticker templates** (decide what a label looks like), **Template rules** (which template each item's label uses — §7A.5) and **Document templates** (how POs, GRNs, transfers and debit / credit notes print — §7B).
 
 > **Before your first print run you need one Printer record.** Setup → Core → **Printer**, Active, one record per physical label printer. Without one, the Printer dropdown on this screen is empty and printing stops with "Select a printer first." (On this screen you always pick the printer yourself, so **Default For** = `Sticker` is not required here — it is what makes the *other* print screens one-click.) Getting labels to come out *silently* — straight to a **TSC (TSPL)** or **Zebra (ZPL)** thermal printer with no browser dialog — is a separate one-time per-PC setup covered in **[QZ_PRINTING_SETUP.md](QZ_PRINTING_SETUP.md)**; the Printer record needs its **Printer Language** (TSPL or ZPL), **Printer DPI** and **OS Printer Name** filled in. Until that is done, printing still works, it just opens the normal browser print dialog (as roll-sized pages or an A4 sticker sheet — §7A.2, *Label tab*).
 
@@ -677,12 +742,12 @@ The move is refused, with the reason shown, if the destination bin is inactive, 
 
 This is the normal way to print. You don't type SKUs — you point at the document the goods arrived on, and the system reads its own lines.
 
-1. Go to **Sticker Printing** (the **Print** tab opens by default).
-2. In the **Print from Transaction** panel, pick **Goods Receipt (GRN)** or **Transfer Order** in the **Module** dropdown.
+1. Go to **Sticker Printing**. The **Print** tab opens by default, on the **Print history** — every run, who printed it, from which document, and when.
+2. Click **+ Print Stickers**. In the **Print from Transaction** panel, pick **Goods Receipt (GRN)** or **Transfer Order** in the **Module** dropdown.
 3. In **Document**, start typing the document number — a suggestion list appears; pick the one you want. (If you pasted or typed the full number, click **Load**.)
 4. The line list appears, one row per SKU (or per SKU-and-lot, if a SKU arrived on more than one lot):
    - **Category** — what that item's Item Master says.
-   - **Template** — which label layout it will use, or **Default layout** if no template covers that category (§7A.2).
+   - **Template** — the label layout that line will print with, and in brackets the rule that picked it: *item*, *item type*, *category* or *default* (§7A.5), or **Standard label (no rule)** when no rule applies. To print a line on a different layout **this time only**, pick it in that line's dropdown — **Standard label** or any Active template. **Template for every line**, above the table, sets every line at once; choose **As per template rules** to go back. Nothing is saved to the item — the next print follows the rules again.
    - **Batch/Lot** — shown only when at least one line on the document carries a lot number.
    - **Copies** — pre-filled with that line's own quantity. Overtype it if you want a different number.
 5. Choose the **Printer** in the panel just below the line list, and type a **Reprint Reason** if this is a re-run of labels already printed once (optional, but it is recorded against the print).
@@ -701,14 +766,14 @@ If the document loads but says *"That document has no stickerable lines"*, the l
 
 ### 7A.2 Design your labels (Templates and the Sticker Studio)
 
-Out of the box, every SKU prints the same plain 50 × 25 mm label — name, barcode, SKU and HSN. To get any other look (a jewellery tail tag with weight and a QR code, a smaller earring tag, a 2-up retail roll), design a **template** in the **Sticker Studio**. You do this yourself; it needs no developer.
+Out of the box, every SKU prints the **Standard label** — 50 × 25 mm with the name, the variant's values (for example **Silver / 7**; left off for an item with no variant), the SKU's barcode, SKU and HSN, and the batch barcode. To get any other look (a jewellery tail tag with weight and a QR code, a smaller earring tag, a 2-up retail roll), design a **template** in the **Sticker Studio**. You do this yourself; it needs no developer.
 
-**The Templates tab** shows every template as a card with a live preview of the label, its size, DPI, how many elements it has and the categories it covers. **Edit** (or clicking the preview) opens it in the studio; **Duplicate** opens a copy to start a variant from. With more than six templates a **Filter templates…** box appears.
+**The Templates tab** shows every template as a card with a live preview of the label, its size, DPI, how many elements it has and the categories it covers. **Edit** (or clicking the preview) opens it in the studio; **Duplicate** opens a copy to start a variant from. With more than six templates a **Filter templates…** box appears. The first card is always the **Standard label** (badge **Built-in**). It cannot be edited, but its **Duplicate** opens a copy of it in the studio, named *Standard label copy* — rename it, change what you like, **Save**, and it is a template of your own.
 
 #### Start a template
 
 1. **Sticker Printing → Templates → New template**. The studio opens full-screen.
-2. **Start a new label** asks for the size of the roll you print on. Pick one of the standard sizes — **Jewellery tags** (tail tags 92 × 12, 95 × 12, 100 × 15, small tag 70 × 10), **Retail** (38 × 25, 50 × 25, 50 × 38, 75 × 50), **Multi-up rolls** (2-up 38 × 25, 3-up 32 × 25), **Shipping** (100 × 50, 4 × 6 in) — or **Use the built-in retail layout (50 × 25)** to start from the default label (name, the SKU's barcode, SKU and HSN, and the batch barcode) and drag it into your own arrangement, or **Blank 50 × 25**. Any size can be changed later.
+2. **Start a new label** asks for the size of the roll you print on. Pick one of the standard sizes — **Jewellery tags** (tail tags 92 × 12, 95 × 12, 100 × 15, small tag 70 × 10), **Retail** (38 × 25, 50 × 25, 50 × 38, 75 × 50), **Multi-up rolls** (2-up 38 × 25, 3-up 32 × 25), **Shipping** (100 × 50, 4 × 6 in) — or **Use the standard label (50 × 25)** to start from the Standard label (name, variant, the SKU's barcode, SKU and HSN, and the batch barcode) and drag it into your own arrangement, or **Blank 50 × 25**. Any size can be changed later.
 3. Type a name in **Name this template** at the top left (for example `Bridal silver tag`). It is the only thing you must fill in to save.
 
 #### Put things on the label
@@ -718,7 +783,7 @@ The **Insert** rail on the left adds elements to the middle of the label:
 | Button | What it adds |
 |---|---|
 | **Text** | Your own wording. Type plain text, or mix in item data with `{field}` tokens — `W: {weight} gm`, `MRP ₹{mrp}`, `{metal_type} {purity_karat}`. **Insert field…** under the text box drops a token in for you. |
-| **Data** | Opens the **Data fields** drawer: every field on the label (**Item name**, **SKU**, **Barcode value**, **HSN code**, **Category**, **Batch / Lot**, **Expiry date**, **Mfg date**, **Qty**, **Source document no.**) and **every field on the Item record** — weight, purity, size, MRP, sale price, and any field your business added, including ones added later. Search it, then click a field to add it, or drag it onto the exact spot on the label. **Drop a field onto a barcode or QR code** and that code switches to it — drop **Batch / Lot** onto a barcode to make the batch scannable. Each row shows the value it would print (Batch / Lot shows a sample in today's batch format). |
+| **Data** | Opens the **Data fields** drawer: every field on the label (**Item name**, **SKU**, **Barcode value**, **HSN code**, **Category**, **Batch / Lot**, **Expiry date**, **Mfg date**, **Qty**, **Source document no.**) and **every field on the Item record** — weight, purity, size, MRP, sale price, and any field your business added, including ones added later. Search it, then click a field to add it, or drag it onto the exact spot on the label. **Drop a field onto a barcode or QR code** and that code switches to it — drop **Batch / Lot** onto a barcode to make the batch scannable. Each row shows the value it would print (Batch / Lot shows a sample in today's batch format). **Variant** prints just the variant's values — an item saved as `metal_type:Silver;size:7` prints **Silver / 7**. |
 | **Barcode** | A barcode of the item's barcode value (or any other field, or custom text). **Code 128** takes any text; **EAN-13** is the 13-digit retail code (a value that isn't a valid EAN-13 prints as Code 128 instead, and the studio says so). |
 | **QR** | A QR code of any field or custom text — for example a product link `https://yourshop.in/p/{sku}`. |
 | **Line**, **Box** | Dividers and borders. A box can be **solid filled**. |
@@ -752,7 +817,7 @@ The **Insert** rail on the left adds elements to the middle of the label:
 - **Printer tuning**: **Shift → / Shift ↓** to correct a print that lands off-centre, **Darkness** (0–15) and **Speed**, and **Rotate the print 180°** if labels come out upside down. Blank darkness and speed keep the printer's own settings.
 - **Text**: the template's default **Font** (Arial, Arial Narrow, Segoe UI, Verdana, Tahoma, Trebuchet MS, Georgia, Times New Roman, Courier New, Consolas).
 - **Office printer / PDF**: how labels lay out when they go through the browser print dialog — **Roll - a page per row** (a thermal printer driven by its Windows driver) or **A4 sticker sheet** with margins and gaps; the studio tells you how many labels fit per page.
-- **Which items use it**: **Item categories** (comma-separated, matched against the Item's **Category** — spelling must match, capitals and spaces don't matter; a typo simply won't match and those items get the default layout), **Default for categories with no template of their own**, **Status** (an **Inactive** template is ignored — the safe way to retire a layout), and the **Template code** (made from the name when you first save; fixed after that).
+- **Which items use it**: **Item categories** (comma-separated, matched against the Item's **Category** — spelling must match, capitals and spaces don't matter; a typo simply won't match and those items fall to the next rule), **Default for categories with no template of their own**, **Status** (an **Inactive** template is ignored — the safe way to retire a layout), and the **Template code** (made from the name when you first save; fixed after that).
 
 **Layers tab** — every element, front-most first, with forward / backward, lock and hide on each row. Click a row to select it.
 
@@ -765,29 +830,53 @@ The **Insert** rail on the left adds elements to the middle of the label:
 
 What you see in the studio is what prints — the canvas, Printer view, the print dialog and the thermal printer all use the same drawing code.
 
-> **The default template.** Tick **Default for categories with no template of their own** on one template to make it the catch-all. Leave it unticked everywhere and unmatched items use the plain built-in label instead. Only one template should have it.
+> **The default template.** Tick **Default for categories with no template of their own** on one template to make it the catch-all. Leave it unticked everywhere and unmatched items use the Standard label instead. Only one template should have it — the **Template rules** tab (§7A.5) sets it on one and clears it from the rest for you.
 
 ### 7A.3 Print labels without a document (manual / re-print)
 
-For one-offs — a tag that fell off, a single item being re-tagged — use the panel below **Print from Transaction**:
+For one-offs — a tag that fell off, a single item being re-tagged — click **+ Print Stickers** and use the panel below **Print from Transaction**:
 
 1. Choose the **Printer**, set **Copies per SKU**, and enter a **Reprint Reason** if it's a re-print.
 2. Type or scan into **Scan or Enter SKU** and press Enter (or click **Add**) for each item. Added SKUs are listed underneath with an **x** to remove one.
-3. Click **Print Stickers**.
+3. Click **Print Stickers**. When it's done you're back on the Print history with the run on top.
 
-Category templates apply here exactly as they do to a document print — the layout follows the item's category either way.
+The template rules (§7A.5) apply here exactly as they do to a document print. Picking a different template for one print is on the document print only (§7A.1).
 
 ### 7A.4 What was printed, and by whom
 
 The table at the bottom of the **Print** tab is the print history: SKU, barcode, printer, who printed it, how many copies, the **Source** document, the **Lot**, the reprint reason, and when. Every print run — document-driven or manual — lands here, so a queried re-print can always be traced back to a person and a time. A run started from a GRN or Transfer Order also records which document it came from and which template it used. If that line carried a batch/lot, the run records the lot too. So when one SKU arrived on two lots in the same GRN and each lot's stickers were printed separately, the history shows two rows, one per lot (for example `LOT-JUL` ×3 and `LOT-AUG` ×5). A manual SKU scan has no lot, so that column stays blank for it, as it does for runs printed before this column existed.
 
+### 7A.5 Which template each item uses (Template rules)
+
+**Sticker Printing → Template rules.** An item's label uses the **first rule that applies**, checked top to bottom:
+
+| # | Rule | Where it is set |
+| --- | --- | --- |
+| 1 | **Item** — the item's own template | **Sticker template** on the Item form (or a `sticker_template` column in an Item import). The rules screen shows how many items use each template this way. |
+| 2 | **Item type** — every item of that type | The **Item type** table on this screen (also **Sticker template** on the Item Type record). |
+| 3 | **Category** — items whose **Category** matches (capitals don't matter) | The **Category** table on this screen. To map a category that is not listed, type it in **Another category** and pick its template. |
+| 4 | **Default** — everything no rule above picked | The **Default** dropdown on this screen. |
+| 5 | **Standard label** — the built-in label | Nothing to set. **Duplicate the standard label** opens a copy of it in the studio. |
+
+1. Open **Sticker Printing → Template rules**.
+2. Pick a template in any dropdown. It saves the moment you pick it, and a message confirms it (for example *"Category Rings saved."*).
+3. **Next rule** (or **Standard label (built-in)** for the default) takes that rule away again.
+
+Good to know:
+
+- Each category belongs to one template. Mapping a category here takes it off any other template, so two templates never fight over it. It is the same list as **Item categories** in the studio's **Label** tab.
+- The **Default** dropdown keeps the default tick on exactly one template.
+- An **Inactive** template is skipped wherever it is named, so a rule pointing at it falls through to the next rule.
+- The lists only offer **Active** templates. With no templates yet, the screen says so and every label prints the Standard label.
+- To print a few lines of one document on a different layout without changing any rule, pick the template on that line of the document print (§7A.1).
+
 ## 7B. Printing POs, GRNs, Transfers and Notes — and Designing Their Layout
 
 ### 7B.1 Printing a document
 
-**Print** on a Purchase Order, Goods Receipt, Stock Transfer (**Print Transfer Out / In**) or a debit / credit note (**Financial Accounting → Debit / Credit Notes**, or the GRN's **Price Notes** column) opens the print window:
+**Print** on any of these opens the print window: a Purchase Order, Goods Receipt, **Purchase Return** (Procurement → Purchase Return list), Stock Transfer (**Print Transfer Out / In**), a debit / credit note — vendor or **customer** (**Financial Accounting → Debit / Credit Notes**, or the GRN's **Price Notes** column), or a **Sales Return** (the Returns workbench).
 
-- **Print as** — for a PO: **Purchase Order** or **Vendor PO** (the vendor's copy, with item pictures); for a transfer: **Transfer Out** or **Transfer In**.
+- **Print as** — for a PO: **Purchase Order** or **Vendor PO** (the vendor's copy, with item pictures); for a GRN: **Goods Receipt Note** or **Vendor Copy**; for a transfer: **Transfer Out** or **Transfer In**.
 - **Template** — the best-matching designed template is chosen for you (marked "best match"); pick another, or **Standard layout (built-in)**.
 - **Generating store** — the store the print is issued from. It starts as the document's own store; pick another and its name, address, state and GSTIN go in the store block.
 - The **preview** shows every page exactly as it will print. **Print** prints it (choose "Save as PDF" in the print dialog for a PDF). On a PO, **Excel** downloads the Vendor PO as a spreadsheet with each item's picture.
@@ -795,9 +884,31 @@ The table at the bottom of the **Print** tab is the print history: SKU, barcode,
 
 Every print carries **your brand name** (your administrator sets it; otherwise your company's legal name) — even on a template that doesn't place it. Long item lists continue onto further pages with the table heading repeated; totals, the tax split, amount in words and the signature go on the last page.
 
+**What the Standard layout prints.** Every document has the same frame: brand, title, number, date, **financial year** and **status** at the top; the store and the other party in two boxes; a few reference lines under them (only the ones that have a value — a blank one is left off rather than printed empty); the items table; totals; three **signature lines**; and a small **audit line** at the foot — who created the document and when, who approved it and when (from the approval log), and who printed it and when.
+
+| Print | Items table | Totals | Signatures |
+| --- | --- | --- | --- |
+| **Purchase Order** / **Vendor PO** | Ln, Item / Barcode, Description / Variant, HSN, UOM, Qty, Unit Price, Tax %, Line Total (Vendor PO adds the picture) | Subtotal, CGST + SGST or IGST, PO Total | Prepared By · Approved By · Supplier Acceptance |
+| **Goods Receipt Note** | Barcode / Item, Design / Variant, PO Qty, Received, Accepted, Rejected, Damaged, QC Status, Variance Reason | Total PO qty, received, accepted, rejected (quantities only — no prices) | Received By · QC / Verification · Posted By / Approver |
+| **Vendor Copy** (of a GRN) | Item / Barcode, Description, Ordered, Delivered, Accepted, Rejected, Damaged, Remarks | Quantities only | Vendor / Driver · Received By · Security / Gate |
+| **Purchase Return** | Barcode / Item, Description, Received Qty (on the GRN), Return Qty, UOM, Rate, Tax %, Return Value, Reason | Taxable return value, tax adjustment, total | Prepared / Packed By · Approved By · Vendor / Transporter |
+| **Transfer Out** | Barcode / Combination, Description, HSN, UOM, Requested Qty, Shipped Qty, Value / Unit, Value | Total pieces, value, GST when the stores have different GSTINs | Picked / Packed By · Dispatched By · Transporter / Handover |
+| **Transfer In** | Barcode / Combination, Description, Shipped Qty, Received Qty, Short, Reason | Total shipped, received, short | Received By · Verified By · Posted / Approved By |
+| **Debit Note** / **Credit Note** (vendor) | Item, HSN, Description / Reason, Original Taxable, Debit (Credit) Taxable, CGST, SGST, IGST, Total | Taxable debited (credited), tax, total | Prepared By · Approved By · Authorised Signatory |
+| **Credit Note** (customer) | Description / Reason, Credit Amount | Total credit note | Prepared By · Approved By · Authorised Signatory |
+| **Sales Return** | Barcode, Item / Description, Original Qty, Return Qty, MRP, Original Disc., Tax, Refund Value, Condition | Return subtotal, tax reversal, net refund / credit | Processed By · Verified / Approved By · Customer Acknowledgement |
+
+Good to know:
+
+- **The Vendor Copy is the same GRN, not a new document** — same number. It is what you hand the vendor or driver as proof of what arrived: no prices, values or tax at all (whatever template prints it), with the note that it is not an acceptance of the invoice, payment or final QC.
+- **The GRN print shows quantities, not prices.** The PO and invoice rates are still there to add as columns in a template of your own (§7B.2), and the price differences print on the debit / credit notes.
+- **Transfer In prints against what was shipped.** A line received short shows the shortfall and the reason typed at receipt, and the header says *Received with shortage*.
+- **Sales Return** splits the refund back into taxable value and GST at the item's rate (shop prices include GST).
+- A designed template of your own still wins over the Standard layout: pick **Standard layout (built-in)** in **Template** to see this one.
+
 ### 7B.2 Designing a print template (Document templates)
 
-**Stock → Sticker Printing → Document templates** lists each transaction — Purchase Order, Vendor PO, Goods Receipt Note, Transfer Out, Transfer In, Debit Note, Credit Note (to vendor) — with its templates and the **Standard layout**. **Customise** starts from the standard layout; **+ New template** does the same for the transaction you pick; **Design** edits, **Duplicate** copies, **Make default** sets the one used when nothing more specific fits, **Delete** removes one.
+**Stock → Sticker Printing → Document templates** lists each transaction — Purchase Order, Vendor PO, Goods Receipt Note, Vendor Copy, Purchase Return, Transfer Out, Transfer In, Debit Note, Credit Note (to vendor), Credit Note (to customer), Sales Return — with its templates and the **Standard layout**. **Customise** starts from the standard layout; **+ New template** does the same for the transaction you pick; **Design** edits, **Duplicate** copies, **Make default** sets the one used when nothing more specific fits, **Delete** removes one.
 
 The designer works like the Sticker Studio:
 
@@ -838,7 +949,7 @@ record and does not reuse the edited record's identifier.
 You should almost never have to work out *which* list you are missing. Three things do it for you, and they all say the same thing the same way:
 
 - **Under a search box.** Pick a department on a Purchase Requisition and, if none exist yet, the box says *"No Department has been set up yet. Set up Department"*. If departments *do* exist, the line only appears while you are in the box, and reads *"Can't find the Department you need? Add a Department"* — so it helps when you are stuck and stays out of the way when you are not.
-- **In the search results.** Type a name that does not exist yet and the list offers **Create "what you typed"**.
+- **In the search results.** Type a name that does not exist yet and the list shows *"No matching Vendor"* with **+ Create "what you typed"** on its own line below it — the whole name, however long, so you can check it before you click.
 - **Either way, you create it right there (Stage 57).** A small form opens **on top of** the one you are working in, already holding the name you typed, and asking only for what that record needs. Save it and it is filled into your box; your own form never closed, so nothing you typed is lost. This works everywhere a record is picked — a vendor or item on a purchase order, a department on a requisition, a zone on a new Bin, a location on a transfer. Inside the small form, a missing record can itself be created the same way (an Item's HSN code, for example). If your role is not allowed to create that kind of record, it says so and tells you who to ask instead.
 - **At the top of a screen.** Open a screen that needs something you have not set up and a short panel lists what is missing, each with its own link. Close it with the **×** if you already know; it stays closed for the rest of your visit and comes back next time you sign in — deliberately, so a half-finished setup does not stay half-finished.
 - **The ⧉ icon opens it in a new tab.** Every one of these links has one next to it. Use it when you do not want to lose what you are in the middle of — set the missing thing up in the second tab, come back to the first, and carry on. (The links are ordinary links, so **Ctrl+click** and **middle-click** work too.)
@@ -864,7 +975,24 @@ If you would rather not leave the screen at all, use the **⧉** icon to do the 
 
 #### 8.1.2 HSN codes on an Item
 
-The **HSN Code** box on an Item is a picker over your **HSN Code** list (Setup → Core → HSN Code). Type a few digits: codes already in use appear, each with its description and default GST rate, and picking one fills an empty **GST Rate** for you. A code that is not on the list yet can be created from the picker. The list also fills itself: every Item saved with a valid HSN adds that code. An HSN or SAC code is **4, 6 or 8 digits**; spaces and dots are removed for you. The Item stores the plain number, so GST, e-invoices and reports read it exactly as before.
+The **HSN Code** box suggests the right code for what you are creating, so you pick rather than look it up. It works the same in the full Item form, in the small **New Item** form that opens from a purchase order or any other picker, and on an **Item Name** or a design.
+
+1. **Type the item's name first** (*Zircon Haar*, *Cotton Bedsheet Double*, *Georgette Saree*).
+2. **Click the HSN Code box.** A list opens straight away, in up to three groups:
+   - **Suggested for "your item name"**: codes read from the name. The material decides: *Silver Haar* suggests **711311 Silver jewellery**, *Zircon Haar* or *AD Necklace* suggest **711719 Imitation jewellery**, *Gold Plated Jhumka* is imitation too, *Cotton Fabric* is a fabric code, and *Cotton Shirt* is a garment code. If your own items with similar names already use a code, that code comes first, because it is how your business classifies them. Hover a row to see why it was suggested.
+   - **Your HSN list**: the codes already on your HSN Code list.
+   - **Common in your industry**: the usual codes for the industry your administrator chose (jewellery, clothing, food and so on).
+3. **Pick one.** The **GST Rate** fills itself in from the code: 3% for jewellery, for example. Under the GST box you also see the code's rates as buttons, then the other common rates (0, 3, 5, 18, 40). Click a button to use that rate.
+   - **When the rate depends on the price**, nothing is filled for you. Garments, made-ups and footwear are 5% up to Rs 2,500 a piece (or pair) and 18% above that; the two buttons say which is which, so choose the one that fits your selling price.
+   - **If your HSN list already carries a rate for that code**, that rate is filled and its button reads *Set on your HSN list*. Change it on the HSN Code list if it is out of date.
+   - **If you change the HSN code later**, a rate the picker filled changes with it. A rate you typed or clicked yourself is never overwritten.
+4. **Not in the list?** Type to search: digits search by code (*6109*) and words search the full HSN list shipped with the system (*bedsheet*, *imitation*). If you still can't find it, choose **+ Create "…"** to add the code to your list.
+
+**A 0% rate** (fresh milk, vegetables, seeds) needs the item's **Tax Treatment** set to *Exempt*, *Nil-Rated* or *Zero-Rated*. In the small New Item form, that box appears as soon as you choose 0%.
+
+The suggested rates are the GST rates in force from 22 September 2025, so check unusual items with your tax advisor. Your HSN list fills itself as you go: every Item saved with a valid HSN adds that code, with its description. An HSN or SAC code is **4, 6 or 8 digits**; spaces and dots are removed for you. The Item stores the plain number, so GST, e-invoices and reports read it exactly as before.
+
+**Number boxes have no up/down arrows.** Anywhere in the system, a number box (quantity, price, rate) takes exactly what you type. The mouse wheel and the arrow keys do not nudge it, so a scroll can't silently change a price.
 
 **Barcodes on an Item** are optional to type: leave the box blank and one is issued for that SKU (when, depends on your administrator's barcode settings). Scan or type your own if you have one — it is kept. The **Generate** button makes one on the spot.
 
@@ -1132,7 +1260,7 @@ If you save anyway with something malformed, the server refuses it and tells you
 
 Use this for a phone order, a walk-in wholesale order, a replacement, or anything a channel didn't send you.
 
-1. Go to **Order Management**. The **New manual order** panel is at the top.
+1. Go to **Order Management** and click **+ New Order** at the top right. The manual order form opens as its own page (**Order Management › New manual order**).
 2. Fill in:
    - **Customer name** and **Customer phone** — both optional, but they're what makes an order findable later. The phone box only accepts digits, `+`, `-`, `(`, `)` and spaces; it won't let you type letters.
    - **Source** — defaults to "Manual". Change it if you want the order tagged as coming from somewhere specific (a phone line, a trade counter, a particular salesperson).
@@ -1140,7 +1268,7 @@ Use this for a phone order, a walk-in wholesale order, a replacement, or anythin
    - **Payment** — Confirmed (paid), Pending, or Cash on delivery. **Confirmed** and **Cash on delivery** go straight through; **Pending** puts the order On Hold (*PAYMENT_PENDING*) until you edit it to Confirmed once the money arrives.
    - **Shipping address** — **required.** The order engine has to know where it's going.
 3. Add items with **+ Add item**: search for the item, set the quantity and the unit price.
-4. Click **Create Order**.
+4. Click **Create Order**. After the confirmation you're back on the Order Management console, with the order in its **Orders** table.
 
 **What happens the moment you click it:** the order goes through exactly the same engine a marketplace order does — stock is checked and **reserved**, the order is allocated, and any hold rules your business has configured are evaluated. This is deliberate. A manual order is a real order, so it can't be allowed to skip the checks a channel order goes through.
 
@@ -1195,7 +1323,7 @@ If an action is greyed out, the order has reached a status that closes it (Shipp
 2. **Clear any hold.** An order sitting On Hold does not progress. Open it, read the reason, fix it, click **Release hold**. Working a backlog? Filter the queue by **Status = On Hold**, or by the specific **Hold reason**, tick the ones you've resolved and release them together.
 3. **Release to the warehouse.** Open the order (now **Reserved**) and click **Release to Fulfillment**. The order becomes **Released**.
 4. **Pick and pack.** Go to **Fulfillment** — the task for this order is routed to the location holding the stock. Work it through pick → pack. Anything you marked **Expedite** appears at the top of the picking worklist. (Warehouses using wave picking or mobile picking do the same thing from those screens.)
-5. **Book the shipment.** Open the order and choose **Book shipment**. On **Marketplace**, check the filled order/task/PIN, enter a serviceable carrier, and choose **Book**. The booking and AWB then appear in the order's **Shipments** section. A package-based label may require its invoice first; the screen will refuse an early print.
+5. **Book the shipment.** Open the order and choose **Book shipment**. **Marketplace** opens on its **Book a shipment** page with the order/task/PIN filled — check them, enter a serviceable carrier, and choose **Book** (you're then back on the Logistics Bookings list). The booking and AWB then appear in the order's **Shipments** section. A package-based label may require its invoice first; the screen will refuse an early print.
 6. **Hand over.** On **Marketplace**, generate a manifest for that courier and location, then **Hand Over**. The booking becomes **Handed Over** and, when every task has dispatched, the order becomes **Shipped**. **In-Transit** is a later tracking action, not the handover status. Dispatch moves the shipped quantity out of location stock; handover closes the order and starts invoice/notification work.
 7. **Invoice.** A Draft invoice appears in the order's **Invoices** section for the shipped quantity. Open it, post it, and settle it when the customer has paid. A notification marked **Queued**, **Skipped-NoTemplate** or **Sent** means something different; do not call it delivered unless the log actually says so.
 8. **Delivered.** Record **Mark Delivered** on the booking when the courier confirms delivery; that event moves the order to Delivered.
@@ -1240,9 +1368,9 @@ For a supplier bill, match it to its PO and GRN in **Vendor Invoice** before a p
 
 For an entry no other screen makes — a month-end accrual, a correction, an opening balance — use **Financial Accounting → Journal Vouchers**.
 
-1. Click **+ New Journal Voucher**. Enter the **Date** and a **Narration** an auditor will understand. **Cost Center** and **Department** are optional.
-2. Add one row per account with **+ Add line**: pick the **Account** (type its name or code), then a **Debit** or a **Credit**. The totals under the lines must match before you can save.
-3. **Save as Draft**, then **Submit for Approval** on its row. An approver — not you — decides on **Approvals** (§10); approval is what posts it to the accounts.
+1. The screen opens on the list of vouchers. Click **+ New Journal Voucher** for a blank voucher. Enter the **Date** and a **Narration** an auditor will understand. **Cost Center** and **Department** are optional. (**Clear** in the bar starts the voucher again.)
+2. Add one row per account with **+ Add line**: pick the **Account** (type its name or code), then a **Debit** or a **Credit**. The **Debit** and **Credit** totals in the bar at the top must match — it says **Balanced** — before you can save.
+3. **Save as Draft** — you're back on the list — then click **Submit for Approval** on its row. An approver — not you — decides on **Approvals** (§10); approval is what posts it to the accounts.
 4. A posted voucher is never edited. **Reverse** creates a new voucher with every debit and credit swapped, and it goes through approval like any other. If a voucher was approved but its posting failed, its row shows **Retry Post**.
 
 ## 9C. Service — maintenance contracts and service tickets
@@ -1290,9 +1418,11 @@ If your role can approve things (e.g. a manager approving a purchase order), you
 
 Click your name at the bottom of the sidebar to open your account menu, then **My Profile**. From there you can see your role and (if set up) your linked employee record, change your own password, and set how long the system should wait before automatically signing you out if you step away — separate from the account-wide session limit your admin controls.
 
+**Auto Logout (inactivity)** is under **Contact & Session**: Never, 15 minutes, 30 minutes, 1 hour, 2 hours or **12 hours**. It starts at **12 hours**, which covers a full working day, and stays there unless you change it. Pick a value and click **Save Changes**. Working in any tab of the ERP counts as activity, so a second tab left open in the background will not sign you out while you work in another one.
+
 ### 11.1 Which version you are on
 
-At the **bottom of the sidebar, just under your name**, there is a small grey number:
+At the **bottom of the sidebar, in the right-hand corner of your name box** (beside your role, under the small arrow), there is a small grey number:
 
 ```
 0.1.0
@@ -1412,7 +1542,7 @@ Log in as your second account, go to **Financial Accounting → Approvals**, fin
 
 ### Step 6 — Receive the stock
 
-Back as the first user: **Procurement → Goods Receipt**. Click **Load Items from PO**, choose your approved PO, confirm the quantities that actually arrived, and click **Post Receipt**.
+Back as the first user: **Procurement → Goods Receipt**. Click **+ New Goods Receipt**, choose your approved PO and click **Add PO & Load Items** (or use **Receive goods** on the PO's row), confirm the quantities that actually arrived, and click **Post Receipt**.
 
 **Now check Stock → Inventory.** The quantity should have gone up. If it hasn't, stop here — everything downstream depends on this having worked.
 
@@ -1455,7 +1585,7 @@ That's the whole loop: buy → receive → sell → and the accounting follows b
 | **GRN** | Proof that ordered stock actually arrived — "Goods Receipt Note." |
 | **GL / Ledger** | The accounting record of every rupee moving in or out of the business. |
 | **SKU / Barcode** | The unique code identifying one specific product. |
-| **Sticker Template** | A label layout you design once in the Sticker Studio for a product category, so those items' tags print with the right size and content (§7A.2). |
+| **Sticker Template** | A label layout you design once in the Sticker Studio, so the items it is set for (by item, item type, category or as the default — §7A.5) print with the right size and content (§7A.2). |
 | **MFA** | A second security check (a code from your phone) in addition to your password. |
 | **Approval / Maker-checker** | A rule that important actions need a second person to say yes, so no one person can make a big mistake (or fraud) alone. |
 | **Tenant** | Your business's own private copy of the system — other businesses using the same system can never see your data. |

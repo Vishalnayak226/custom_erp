@@ -564,6 +564,11 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 			sku, _ := item["sku"].(string)
 			qty := int(numFromInterface(item["qty"]))
 			amount := float64(int(numFromInterface(item["sale_price"])) * qty)
+			// Stage 72: an item kept off the customer's bill (Customer bill =
+			// Hidden) is not printed - unless it carries money, which must show.
+			if mode, _ := item["bill_mode"].(string); mode == BillHidden && amount == 0 {
+				continue
+			}
 			lines = append(lines, receiptLine{sku: sku, qty: qty, amount: amount})
 			totals.saleTotal += amount
 		}
@@ -585,6 +590,17 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 	}
 	totals.offerDiscount = numFromInterface(data["offer_discount"])
 	totals.amountDue = totals.saleTotal - totals.loyaltyDiscount - totals.offerDiscount
+	// Stage 72.8: gift cards that paid part of the bill print as tenders (masked).
+	var giftTenders []receiptLine
+	if raw, ok := data["gift_card_tenders"].([]interface{}); ok {
+		for _, v := range raw {
+			if m, ok := v.(map[string]interface{}); ok {
+				amt := PaiseToRupees(int64(numFromInterface(m["amount_paise"])))
+				giftTenders = append(giftTenders, receiptLine{sku: pimString(m["card"]), amount: amt})
+				totals.amountDue -= amt
+			}
+		}
+	}
 
 	appliedOffers := []string{}
 	if offers, ok := data["applied_offers"].([]interface{}); ok {
@@ -654,6 +670,9 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 		}
 		if totals.loyaltyDiscount > 0 {
 			b.WriteString(escposRow("Loyalty points applied", "-"+money(totals.loyaltyDiscount), cols))
+		}
+		for _, g := range giftTenders {
+			b.WriteString(escposRow("Gift card "+g.sku, "-"+money(g.amount), cols))
 		}
 		b.WriteString(escBoldOn)
 		b.WriteString(escposRow("TOTAL ("+paymentMode+")", money(totals.amountDue), cols))

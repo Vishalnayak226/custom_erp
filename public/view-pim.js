@@ -31,7 +31,6 @@ function renderPIMShellHeader(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">PIM</h1>
-      <p class="page-subtitle">Product family/attribute framework, completeness scoring, content enrichment, media library, and channel publishing.</p>
     </div>
   `;
   container.appendChild(header);

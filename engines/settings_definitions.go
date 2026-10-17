@@ -90,15 +90,16 @@ func init() {
 	})
 	RegisterSetting(SettingDefinition{
 		Key: "security.default_idle_timeout_minutes", Module: "Security",
-		Label: "Default idle-timeout for new users", Type: SettingTypeSelect, Default: "30", Unit: "minutes",
+		Label: "Default idle-timeout for new users", Type: SettingTypeSelect, Default: "720", Unit: "minutes",
 		Options: []SettingOption{
 			{Value: "0", Label: "Never"},
 			{Value: "15", Label: "15 minutes"},
 			{Value: "30", Label: "30 minutes"},
 			{Value: "60", Label: "60 minutes"},
 			{Value: "120", Label: "120 minutes"},
+			{Value: "720", Label: "12 hours"},
 		},
-		Description: "The client-side auto-logout timer a newly created user starts with. Each user can change their own on the Profile screen afterwards.",
+		Description: "The client-side auto-logout timer a newly created user starts with - 12 hours by default, so a working shift is never cut short. Each user can change their own on the Profile screen afterwards.",
 	})
 
 	registerStage282Settings()

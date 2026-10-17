@@ -20,7 +20,7 @@ import (
 // allowedIdleTimeouts mirrors the options offered on the frontend's Profile
 // screen. 0 means "never" (rely solely on the server-side JWT session TTL
 // in engines/auth.go's tokenTTL(), not a client-side inactivity timer).
-var allowedIdleTimeouts = map[int]bool{0: true, 15: true, 30: true, 60: true, 120: true}
+var allowedIdleTimeouts = map[int]bool{0: true, 15: true, 30: true, 60: true, 120: true, 720: true}
 
 // allowedThemes (Stage 28.2) mirrors the frontend's theme selector. 'system'
 // defers to the OS via the CSS prefers-color-scheme media query.
@@ -239,7 +239,7 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.IdleTimeoutMinutes != nil && !allowedIdleTimeouts[*req.IdleTimeoutMinutes] {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "idle_timeout_minutes must be one of 0 (never), 15, 30, 60, 120")
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "idle_timeout_minutes must be one of 0 (never), 15, 30, 60, 120, 720")
 		return
 	}
 	if req.ThemePreference != nil && !allowedThemes[*req.ThemePreference] {

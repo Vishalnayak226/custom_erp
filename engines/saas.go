@@ -259,8 +259,8 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 	// Stage 60.3: the built-in Item Types are master records, not metadata, but
 	// every Item links to one (blank reads as Product), so a tenant without
 	// them could not save an Item. Copied from tenant_default like the seed
-	// tables above.
-	if _, err = tx.Exec(fmt.Sprintf(`INSERT INTO %s.documents SELECT * FROM tenant_default.documents WHERE doctype = 'ItemType' ON CONFLICT DO NOTHING`, schemaName)); err != nil {
+	// tables above. Stage 72.8: the seeded gift card profile rides along.
+	if _, err = tx.Exec(fmt.Sprintf(`INSERT INTO %s.documents SELECT * FROM tenant_default.documents WHERE doctype IN ('ItemType', 'StoredValueProfile') ON CONFLICT DO NOTHING`, schemaName)); err != nil {
 		return "", fmt.Errorf("failed to seed item types: %v", err)
 	}
 
@@ -282,10 +282,10 @@ func ProvisionTenantSchema(tenantID string, schemaName string, appVersion string
 		return "", fmt.Errorf("failed to hash admin password: %v", err)
 	}
 	_, err = tx.Exec(fmt.Sprintf(`
-		INSERT INTO %s.users (id, username, password_hash, email, role, status)
-		VALUES ('admin', 'admin', $1, $2, 'HR/Admin', 'Active')
+		INSERT INTO %s.users (id, username, password_hash, email, role, status, idle_timeout_minutes)
+		VALUES ('admin', 'admin', $1, $2, 'HR/Admin', 'Active', $3)
 		ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash`, schemaName),
-		string(hash), fmt.Sprintf("admin@%s.local", tenantID))
+		string(hash), fmt.Sprintf("admin@%s.local", tenantID), GetSettingInt(tenantID, "security.default_idle_timeout_minutes"))
 	if err != nil {
 		return "", fmt.Errorf("failed to create tenant admin user: %v", err)
 	}

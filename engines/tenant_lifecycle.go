@@ -263,6 +263,9 @@ func TenantLifecycleEvents(tenantID string, limit int) ([]TenantLifecycleEvent, 
 type tenantGateEntry struct {
 	operational bool
 	registered  bool
+	// trialEndsAt (Stage 65.6) is compared on every read, not at fetch time,
+	// so a trial that runs out inside the cache window still stops on time.
+	trialEndsAt *time.Time
 	fetchedAt   time.Time
 }
 
@@ -272,7 +275,8 @@ var (
 )
 
 // TenantIsOperational reports whether a tenant may currently serve traffic.
-// A suspended or deprovision-requested tenant is refused; an unregistered one
+// A suspended or deprovision-requested tenant is refused, and so is one whose
+// free trial has run out (Stage 65.6, engines/tenant_trial.go); an unregistered one
 // is refused with ErrTenantNotRegistered rather than being treated as a
 // database failure, so it fails closed as a rejected session rather than a
 // retryable 503.
@@ -303,12 +307,13 @@ func TenantIsOperational(tenantID string) (bool, error) {
 				}
 				return false, ErrTenantNotRegistered
 			}
-			return entry.operational, nil
+			return entry.operational && !trialOver(entry.trialEndsAt), nil
 		}
 	}
 
 	var status string
-	err := db.DB.QueryRow(`SELECT lifecycle_status FROM public.tenants WHERE tenant_id = $1`, canonical).Scan(&status)
+	var trialEnds sql.NullTime
+	err := db.DB.QueryRow(`SELECT lifecycle_status, trial_ends_at FROM public.tenants WHERE tenant_id = $1`, canonical).Scan(&status, &trialEnds)
 	switch {
 	case err == sql.ErrNoRows:
 		cacheTenantGate(canonical, tenantGateEntry{registered: false}, ttl)
@@ -323,8 +328,12 @@ func TenantIsOperational(tenantID string) (bool, error) {
 	}
 
 	operational := status == TenantStatusActive
-	cacheTenantGate(canonical, tenantGateEntry{operational: operational, registered: true}, ttl)
-	return operational, nil
+	var trialEndsAt *time.Time
+	if trialEnds.Valid {
+		trialEndsAt = &trialEnds.Time
+	}
+	cacheTenantGate(canonical, tenantGateEntry{operational: operational, registered: true, trialEndsAt: trialEndsAt}, ttl)
+	return operational && !trialOver(trialEndsAt), nil
 }
 
 func cacheTenantGate(tenantID string, entry tenantGateEntry, ttl time.Duration) {

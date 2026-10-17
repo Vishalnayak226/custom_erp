@@ -213,7 +213,8 @@ async function loadFields() {
       for (const f of meta || []) {
         if (!f.fieldname || known.has(f.fieldname) || f.fieldname === 'id') continue;
         if (f.fieldtype === 'JSONTable' || f.fieldtype === 'JSONMap') continue;
-        extra.push({ key: f.fieldname, label: f.label || f.fieldname, type: f.fieldtype, options: f.options, group: 'Item' });
+        const label = f.fieldname === 'variant_option_values' ? 'Variant' : (f.label || f.fieldname);
+        extra.push({ key: f.fieldname, label, type: f.fieldtype, options: f.options, group: 'Item' });
       }
     }
   } catch (e) { /* the built-in fields still work */ }
@@ -226,6 +227,7 @@ async function loadFields() {
 
 function sampleFor(f) {
   const k = f.key.toLowerCase();
+  if (k === 'variant_option_values') return 'Silver / 7';
   if (/weight|wt/.test(k)) return '38.505';
   if (/mrp|price|cost|amount|rate/.test(k)) return '12499';
   if (/purity|karat|carat/.test(k)) return '925';
@@ -241,7 +243,7 @@ function sampleFor(f) {
 // Open / close
 // ---------------------------------------------------------------------------
 
-export async function openStickerStudio({ templateId = null, copyFrom = null, onClose = null } = {}) {
+export async function openStickerStudio({ templateId = null, copyFrom = null, copyBuiltin = false, onClose = null } = {}) {
   S.onClose = onClose;
   S.sel = new Set();
   S.undo = []; S.redo = [];
@@ -265,6 +267,12 @@ export async function openStickerStudio({ templateId = null, copyFrom = null, on
   if (copyFrom && t) {
     t = Object.assign(t, { id: '', code: '', name: `${t.name} copy`, is_default: false });
   }
+  // Stage 70: the built-in standard label, copied into a template of your own.
+  if (copyBuiltin) {
+    t = E.templateFromDoc({ label_width_mm: E.DEFAULT_STICKER_TEMPLATE.w, label_height_mm: E.DEFAULT_STICKER_TEMPLATE.h });
+    t.name = 'Standard label copy';
+    t.elements = E.DEFAULT_STICKER_TEMPLATE.elements.map(e => E.normaliseElement(Object.assign({}, e, { id: E.newElementId() })));
+  }
   S.isNew = !templateId;
   if (!t) {
     t = E.templateFromDoc({ label_width_mm: 50, label_height_mm: 25 });
@@ -274,10 +282,10 @@ export async function openStickerStudio({ templateId = null, copyFrom = null, on
   await loadFields();
   await E.ensureTemplateAssets(S.t);
   mount();
-  if (S.isNew && !copyFrom) S.tab = 'label';
+  if (S.isNew && !copyFrom && !copyBuiltin) S.tab = 'label';
   fitZoom();
   refresh({ inspector: true });
-  if (S.isNew && !copyFrom) showStarter();
+  if (S.isNew && !copyFrom && !copyBuiltin) showStarter();
   else S.root.querySelector('.stk-name').focus();
 }
 
@@ -1249,7 +1257,7 @@ function showStarter() {
           <span>${esc(p.label)}</span></button>`;
       }).join('')}</div>`).join('')}
       <div class="stk-starter-foot">
-        <button class="btn btn-outline btn-sm" data-starter="default">Use the built-in retail layout (50 × 25)</button>
+        <button class="btn btn-outline btn-sm" data-starter="default">Use the standard label (50 × 25)</button>
         <button class="btn btn-outline btn-sm" data-starter="blank">Blank 50 × 25</button>
       </div>
     </div>`;
@@ -1754,7 +1762,7 @@ async function usePreviewItem(code) {
   const fields = {};
   for (const [k, v] of Object.entries(item)) {
     if (v === null || v === undefined || typeof v === 'object') continue;
-    const s = String(v);
+    const s = k === 'variant_option_values' ? E.variantText(v) : String(v);
     if (s && s.length <= 500) fields[k] = s;
   }
   S.label = {
@@ -1882,7 +1890,6 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
     <div class="stk-gallery-head">
       <div>
         <h2>Sticker templates</h2>
-        <p class="page-subtitle">Each template is one label design. Items pick theirs by category; the default covers the rest.</p>
       </div>
       <div class="stk-gallery-tools">
         ${templates.length > 6 ? '<input type="search" class="form-input stk-gallery-search" placeholder="Filter templates…" aria-label="Filter templates">' : ''}
@@ -1890,13 +1897,22 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
       </div>
     </div>
     ${templates.length === 0 ? `
-      <div class="stk-gallery-empty">
-        <div class="stk-gallery-empty-art">${icon('barcode', 40)}</div>
-        <h3>No templates yet</h3>
-        <p>Until you make one, every sticker prints the built-in layout: name, barcode, SKU and HSN on 50 × 25 mm.</p>
-        <button class="btn btn-primary" data-g="new">Design your first label</button>
-      </div>` : `
+      <p class="stk-muted stk-gallery-hint">No templates of your own yet, so every sticker prints the standard label below. Duplicate it to change it, or start a new one.</p>` : ''}
       <div class="stk-cards">
+        <article class="stk-card is-builtin" data-name="standard label built-in">
+          <button class="stk-card-thumb" data-g="std-dup" title="Duplicate to edit"><canvas></canvas></button>
+          <div class="stk-card-body">
+            <div class="stk-card-title">
+              <strong>Standard label</strong>
+              <span class="badge">Built-in</span>
+            </div>
+            <div class="stk-card-meta">${round2(E.DEFAULT_STICKER_TEMPLATE.w)} × ${round2(E.DEFAULT_STICKER_TEMPLATE.h)} mm · name, variant, barcode, SKU, HSN, batch</div>
+            <div class="stk-card-cats"><span class="stk-muted">Prints when no template rule applies</span></div>
+            <div class="stk-card-actions">
+              <button class="btn btn-outline btn-sm" data-g="std-dup">Duplicate</button>
+            </div>
+          </div>
+        </article>
         ${templates.map((t, i) => `
           <article class="stk-card ${t.status !== 'Active' ? 'is-inactive' : ''}" data-i="${i}" data-name="${esc((t.name + ' ' + t.code + ' ' + t.categories).toLowerCase())}">
             <button class="stk-card-thumb" data-g="open" data-i="${i}" title="Open in the studio"><canvas></canvas></button>
@@ -1914,13 +1930,15 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
               </div>
             </div>
           </article>`).join('')}
-      </div>`}`;
+      </div>`;
   container.appendChild(panel);
 
   // Thumbnails show plausible values for any Item field a template prints.
   const label = Object.assign({}, E.SAMPLE_LABEL, {
     fields: new Proxy({}, { get: (o, k) => (typeof k === 'string' ? sampleFor({ key: k, label: k.replace(/_/g, ' '), type: '' }) : undefined) })
   });
+  const std = E.templateFromDoc({ label_width_mm: E.DEFAULT_STICKER_TEMPLATE.w, label_height_mm: E.DEFAULT_STICKER_TEMPLATE.h, elements: E.DEFAULT_STICKER_TEMPLATE.elements });
+  E.paintPreview(panel.querySelector('.stk-card.is-builtin canvas'), std, label, { scale: Math.min(260 / std.w, 120 / std.h) });
   for (let i = 0; i < templates.length; i++) {
     const t = templates[i];
     await E.ensureTemplateAssets(t);
@@ -1936,10 +1954,155 @@ export async function renderStickerTemplateGallery(container, { onChange } = {})
     if (b.dataset.g === 'new') openStickerStudio({ onClose: reopen });
     if (b.dataset.g === 'open' && t) openStickerStudio({ templateId: t.id, onClose: reopen });
     if (b.dataset.g === 'dup' && t) openStickerStudio({ copyFrom: t.id, onClose: reopen });
+    if (b.dataset.g === 'std-dup') openStickerStudio({ copyBuiltin: true, onClose: reopen });
   });
   const search = panel.querySelector('.stk-gallery-search');
   if (search) search.addEventListener('input', () => {
     const q = search.value.trim().toLowerCase();
     panel.querySelectorAll('.stk-card').forEach(c => { c.hidden = q && !c.dataset.name.includes(q); });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Template rules (Sticker Printing > Template rules, Stage 70)
+// ---------------------------------------------------------------------------
+// Which template an item's label uses: the first rule that applies, in the
+// order engines.pickStickerTemplate checks them - Item, Item type, category,
+// default, then the built-in standard label. Each rule is stored where it
+// belongs (Item / ItemType sticker_template, a template's categories and its
+// default tick), so this screen only reads and edits those records.
+
+export async function renderStickerTemplateRules(container) {
+  const [tRes, typeRes, catRes] = await Promise.all([
+    window.apiFetch('/api/v1/doc/StickerTemplate'),
+    window.apiFetch('/api/v1/doc/ItemType'),
+    window.apiFetch('/api/v1/doc/Category')
+  ]);
+  if (!tRes) return;
+  if (!tRes.ok) { window.renderErrorPanel?.(container, 'Failed to load sticker templates.', () => window.renderView('stickers')); return; }
+  const all = await tRes.json();
+  const active = all.filter(t => (t.status || 'Active') === 'Active');
+  const types = typeRes && typeRes.ok ? await typeRes.json() : [];
+  const masterCats = catRes && catRes.ok ? (await catRes.json()).filter(c => (c.status || 'Active') === 'Active').map(c => c.name || c.code) : [];
+  const splitCats = t => String(t.categories || '').split(',').map(c => c.trim()).filter(Boolean);
+  const catKey = c => c.toLowerCase();
+  // A category resolves to the first Active template naming it, in record-id
+  // order - the order this list arrives in and the server reads them in.
+  const catTemplate = new Map();
+  const catNames = new Map();
+  for (const c of masterCats) catNames.set(catKey(c), c);
+  for (const t of active) for (const c of splitCats(t)) {
+    if (!catNames.has(catKey(c))) catNames.set(catKey(c), c);
+    if (!catTemplate.has(catKey(c))) catTemplate.set(catKey(c), t.id);
+  }
+  const cats = [...catNames.values()].sort((a, b) => a.localeCompare(b));
+  const isDefault = t => t.is_default === true || t.is_default === 'true';
+  const defaultTpl = active.find(isDefault);
+  const itemCounts = await Promise.all(active.map(async t => {
+    const r = await window.apiFetch(`/api/v1/doc/Item?sticker_template=${encodeURIComponent(t.id)}&count=true&limit=1`);
+    return { t, n: r && r.ok ? Number(r.headers.get('X-Total-Count') || 0) : 0 };
+  }));
+  const withItems = itemCounts.filter(x => x.n > 0);
+  const tplName = t => esc(t.name || t.code || t.id);
+  const off = active.length ? '' : 'disabled';
+  const options = (selected, first) => `<option value="">${esc(first)}</option>` +
+    active.map(t => `<option value="${esc(t.id)}" ${t.id === selected ? 'selected' : ''}>${tplName(t)}</option>`).join('');
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel stk-gallery stk-rules';
+  panel.innerHTML = `
+    <div class="stk-gallery-head"><h2>Template rules</h2></div>
+    ${active.length ? '' : '<p class="stk-muted stk-gallery-hint">No Active templates yet, so every label prints the standard label. Make one on the Sticker templates tab, then set the rules here.</p>'}
+    <ol class="stk-rules-list">
+      <li class="stk-rule">
+        <div class="stk-rule-head"><span class="stk-rule-n">1</span><strong>Item</strong><span class="stk-muted">Item form → Sticker template</span></div>
+        <p class="stk-rule-note">${withItems.length ? withItems.map(x => `${tplName(x.t)}: <b>${x.n}</b> item${x.n === 1 ? '' : 's'}`).join(' · ') : 'No item has a template of its own.'}</p>
+      </li>
+      <li class="stk-rule">
+        <div class="stk-rule-head"><span class="stk-rule-n">2</span><strong>Item type</strong></div>
+        ${types.length ? `<table class="stk-rule-table"><thead><tr><th>Item type</th><th>Template</th></tr></thead><tbody>
+          ${types.map(it => `<tr><td>${esc(it.code || it.id)}</td><td><select class="form-input" data-rule-type="${esc(it.id)}" ${off}>${options(it.sticker_template || '', 'Next rule')}</select></td></tr>`).join('')}
+        </tbody></table>` : '<p class="stk-rule-note">No item types to show.</p>'}
+      </li>
+      <li class="stk-rule">
+        <div class="stk-rule-head"><span class="stk-rule-n">3</span><strong>Category</strong></div>
+        <table class="stk-rule-table"><thead><tr><th>Category</th><th>Template</th></tr></thead><tbody>
+          ${cats.map(c => `<tr><td>${esc(c)}</td><td><select class="form-input" data-rule-cat="${esc(c)}" ${off}>${options(catTemplate.get(catKey(c)) || '', 'Next rule')}</select></td></tr>`).join('')}
+          <tr><td><input class="form-input" data-rule-newcat placeholder="Another category" aria-label="Another category" ${off}></td>
+              <td><select class="form-input" data-rule-newcat-tpl ${off}>${options('', 'Pick a template')}</select></td></tr>
+        </tbody></table>
+      </li>
+      <li class="stk-rule">
+        <div class="stk-rule-head"><span class="stk-rule-n">4</span><strong>Default</strong></div>
+        <select class="form-input stk-rule-default" data-rule-default aria-label="Default template" ${off}>${options(defaultTpl ? defaultTpl.id : '', 'Standard label (built-in)')}</select>
+      </li>
+      <li class="stk-rule">
+        <div class="stk-rule-head"><span class="stk-rule-n">5</span><strong>Standard label</strong><span class="stk-muted">built-in, 50 × 25 mm</span></div>
+        <div><button class="btn btn-outline btn-sm" data-rule-std>Duplicate the standard label</button></div>
+      </li>
+    </ol>`;
+  container.appendChild(panel);
+
+  const reload = () => window.renderView('stickers');
+  const saved = msg => { window.showToast?.(msg, { variant: 'success' }); reload(); };
+  const busy = async (el, fn) => { el.disabled = true; try { return await fn(); } finally { el.disabled = false; } };
+
+  panel.querySelectorAll('[data-rule-type]').forEach(sel => sel.addEventListener('change', () => busy(sel, async () => {
+    if (await patchDoc('ItemType', sel.dataset.ruleType, { sticker_template: sel.value })) saved(`Item type ${sel.dataset.ruleType} saved.`);
+  })));
+
+  // A category belongs to one template: taken off every other Active
+  // template's list and added to the chosen one's.
+  const setCategory = async (cat, tplId) => {
+    for (const t of active) {
+      const list = splitCats(t);
+      const has = list.some(c => catKey(c) === catKey(cat));
+      let next = null;
+      if (t.id === tplId && !has) next = [...list, cat];
+      if (t.id !== tplId && has) next = list.filter(c => catKey(c) !== catKey(cat));
+      if (next && !await patchDoc('StickerTemplate', t.id, { categories: next.join(', ') })) return false;
+    }
+    return true;
+  };
+  panel.querySelectorAll('[data-rule-cat]').forEach(sel => sel.addEventListener('change', () => busy(sel, async () => {
+    if (await setCategory(sel.dataset.ruleCat, sel.value)) saved(`Category ${sel.dataset.ruleCat} saved.`);
+  })));
+  const newCat = panel.querySelector('[data-rule-newcat]');
+  const newCatTpl = panel.querySelector('[data-rule-newcat-tpl]');
+  newCatTpl.addEventListener('change', () => busy(newCatTpl, async () => {
+    const cat = newCat.value.replace(/,/g, ' ').trim();
+    if (!newCatTpl.value) return;
+    if (!cat) { newCatTpl.value = ''; newCat.focus(); window.showToast?.('Type the category first.', { variant: 'error' }); return; }
+    if (await setCategory(cat, newCatTpl.value)) saved(`Category ${cat} saved.`);
+  }));
+
+  // One default: ticked on the chosen template, cleared on every other.
+  const def = panel.querySelector('[data-rule-default]');
+  def.addEventListener('change', () => busy(def, async () => {
+    for (const t of all) {
+      if ((t.id === def.value) !== isDefault(t) && !await patchDoc('StickerTemplate', t.id, { is_default: t.id === def.value })) return;
+    }
+    saved('Default template saved.');
+  }));
+
+  panel.querySelector('[data-rule-std]').addEventListener('click', () => openStickerStudio({ copyBuiltin: true, onClose: reload }));
+}
+
+// Changes a few fields of a record through the generic doc API: read it, send
+// it back whole with the change and the version it was read at, so an edit
+// made meanwhile by someone else is refused rather than overwritten.
+async function patchDoc(doctype, id, changes) {
+  const url = `/api/v1/doc/${doctype}/${encodeURIComponent(id)}`;
+  const res = await window.apiFetch(url);
+  if (!res) return false;
+  if (!res.ok) { await window.showApiError?.(res, `Could not read ${id}.`); return false; }
+  const doc = await res.json();
+  const body = Object.assign({}, doc, changes);
+  delete body.id;
+  delete body.version;
+  if (typeof doc.version === 'number') body.expected_version = doc.version;
+  const out = await window.apiFetch(url, { method: 'POST', body: JSON.stringify(body) });
+  if (!out) return false;
+  if (!out.ok) { await window.showApiError?.(out, `Could not save ${id}.`, 'Save failed'); return false; }
+  return true;
 }

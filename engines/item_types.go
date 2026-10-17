@@ -40,10 +40,16 @@ type ItemTypeRules struct {
 	BarcodeAt       string // "" (inherit), BarcodeAtSKUCreate, BarcodeAtGRN, BarcodeAtOff
 	BarcodePerDate  string // "" (inherit), "yes", "no"
 	BatchMode       string // "" (inherit), or a GRNBatch* mode (Stage 61.6)
+	StickerTemplate string // StickerTemplate id its items' labels use, "" = next rule (Stage 70)
 	SellAtZeroPrice bool
 	NeedsParentItem bool
 	Backflush       bool
 	FixedAsset      bool
+	// Policy holds the Stage 72 dimension fields this type sets (field ->
+	// canonical value); ExpenseAccount where its expensed issues post. Read
+	// through ItemPolicyFor (engines/item_policy.go), never directly.
+	Policy         map[string]string
+	ExpenseAccount string
 }
 
 // builtInItemTypeRules covers a tenant whose ItemType records have not been
@@ -145,10 +151,13 @@ func cachedItemTypes(tenantID string) map[string]ItemTypeRules {
 			BarcodeAt:       barcodeAtFromLabel(pimString(data["barcode_generate_at"])),
 			BarcodePerDate:  barcodePerDateFromLabel(pimString(data["barcode_per_receipt_date"])),
 			BatchMode:       grnBatchModeFromLabel(pimString(data["grn_batch_number"])),
+			StickerTemplate: pimString(data["sticker_template"]),
 			SellAtZeroPrice: yesValue(data["sell_at_zero_price"]),
 			NeedsParentItem: yesValue(data["needs_parent_item"]),
 			Backflush:       yesValue(data["backflush"]),
 			FixedAsset:      yesValue(data["fixed_asset"]),
+			Policy:          policyFromRecord(data),
+			ExpenseAccount:  pimString(data["expense_account"]),
 		}
 	}
 	itemTypeCacheMu.Lock()

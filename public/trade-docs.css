@@ -4,26 +4,19 @@
    themes both work; the printed page itself is always black on white. */
 
 /* ---- GRN: POs, vendor invoice, prices, totals ---- */
-.grn-po-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.grn-po-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .grn-po-chips:empty { display: none; }
 .grn-po-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 999px; background: var(--primary-light); color: var(--text-main); font-size: 12.5px; font-family: var(--font-numeric, monospace); }
 .grn-po-chip-x { border: 0; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 0 4px; border-radius: 50%; }
 .grn-po-chip-x:hover { color: var(--danger-color); }
-.grn-invoice-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 14px; padding: 12px; border-radius: 8px; background: var(--surface-subtle); }
 .grn-vendor-name { min-width: 160px; padding: 8px 0; font-weight: 600; }
 .grn-rate-input { width: 96px; }
 tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .grn-rate-delta { font-size: 11px; margin-top: 2px; }
 .grn-rate-delta.up { color: var(--danger-strong); }
 .grn-rate-delta.down { color: var(--success-strong); }
-.grn-totals:empty { display: none; }
-.grn-totals { margin: 4px 0 14px; padding: 12px 14px; border: 1px solid var(--border-color); border-radius: 8px; }
-.grn-totals-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 18px; }
-.grn-totals-grid > div { display: flex; flex-direction: column; gap: 2px; }
-.grn-totals-grid span { font-size: 12px; color: var(--text-muted); }
-.grn-totals-grid strong { font-family: var(--font-numeric, inherit); font-size: 15px; }
-.grn-totals-grid .grn-gap strong { color: var(--danger-strong); }
-.grn-notes-preview { margin-top: 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12.5px; }
+.grn-gap b { color: var(--danger-strong); }
+.grn-notes-preview { flex-wrap: wrap; gap: 8px; align-items: center; }
 .grn-gap-note { flex-basis: 100%; color: var(--danger-strong); }
 .link-btn { border: 0; background: none; padding: 0; color: var(--primary-color); cursor: pointer; font: inherit; text-decoration: underline; }
 
@@ -154,74 +147,7 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .pts-card .pts-card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
 @media (max-width: 1100px) { .pts-body { grid-template-columns: 220px 1fr 260px; } }
 
-/* Stage 65.1: the PO header, totals and the entry row stay pinned at the top
-   of the screen while the added lines scroll underneath (the user: "my screen
-   will be the create zone always"). Negative margins let the pinned block
-   cover the composer's own padding, so lines never show through at its edges. */
-.po-sticky {
-  position: sticky;
-  top: -24px;
-  z-index: 15;
-  margin: -24px -24px 16px;
-  padding: 24px 24px 12px;
-  background-color: var(--panel-bg);
-  border-bottom: 1px solid var(--border-color);
-  border-radius: 8px 8px 0 0;
-}
-
-.po-sticky .po-totals {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 6px 24px;
-  min-width: 0;
-  margin: 4px 0 12px;
-}
-
-.po-sticky .po-total-row {
-  gap: 8px;
-  padding: 0;
-}
-
-.po-sticky .po-total-grand {
-  margin: 0;
-  padding: 0 0 0 16px;
-  border-top: none;
-  border-left: 1px solid var(--border-color);
-}
-
-.po-sticky .po-total-mode,
-.po-sticky .po-total-hint {
-  margin: 0;
-}
-
-.po-entry {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 10px;
-}
-
-.po-entry .form-group {
-  margin-bottom: 0;
-}
-
-.po-entry .form-input {
-  width: 100%;
-}
-
-.po-entry-item {
-  flex: 1 1 280px;
-}
-
-.po-entry-num {
-  flex: 0 0 120px;
-}
-
-.po-line-count {
-  font-weight: 400;
-  color: var(--text-muted);
-}
+/* The PO screen's layout is the shared transaction screen (txn-screen.css, Stage 68). */
 
 .po-lines-empty {
   padding: 18px;

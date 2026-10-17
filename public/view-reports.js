@@ -20,7 +20,6 @@ async function renderReportsView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Reports</h1>
-      <p class="page-subtitle">Current Stock, Sales Register, Vendor Ledger, Payables/Receivables Ageing, and GST Return Summary.</p>
     </div>
   `;
   container.appendChild(header);
@@ -357,9 +356,22 @@ async function renderInventoryView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Inventory</h1>
-      <p class="page-subtitle">How much stock you have right now, and how much is actually free to sell (already-reserved stock excluded).</p>
     </div>
   `;
+  // Stage 72.6: butter paper counted at week end, tape used for the shop -
+  // posted as consumption (store manager / admin, as the server enforces).
+  const role = localStorage.getItem('erp_role') || '';
+  if (role === 'Store Manager' || isAdminRoleName(role)) {
+    const ceBtn = document.createElement('button');
+    ceBtn.className = 'btn btn-outline';
+    ceBtn.type = 'button';
+    ceBtn.textContent = 'Consumption Entry';
+    ceBtn.addEventListener('click', async () => {
+      const m = await import('./view-consumption.js' + new URL(import.meta.url).search);
+      m.openConsumptionEntry(header.parentNode || container);
+    });
+    header.appendChild(ceBtn);
+  }
   container.appendChild(header);
 
   const panel = document.createElement('div');
@@ -1116,19 +1128,15 @@ import { documentSearchLink } from './view-document-links.js';
 // action on top, which the generic endpoint doesn't provide.
 let selectedRFQId = '';
 
+// Stage 69: the RFQ list and a selected RFQ's quotes are each a list with
+// + New, the form a page of its own (txn-screen.js, the standard ERP shape) -
+// loaded with the RFQ screen only, not with Reports.
+const loadTxnScreen = () => import('./txn-screen.js' + new URL(import.meta.url).search);
+
 async function renderRFQView(container) {
   const res = await apiFetch('/api/v1/doc/RFQ');
   if (!res) return;
-
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">RFQ / Quotes</h1>
-      <p class="page-subtitle">Request quotes from vendors and compare them before creating a Purchase Order.</p>
-    </div>
-  `;
-  container.appendChild(header);
+  const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
 
   const rfqs = res.ok ? await res.json() : [];
 
@@ -1137,7 +1145,6 @@ async function renderRFQView(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New RFQ</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       ${autoNumberField('RFQ Number', 'RFQ', '160px')}
       <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
@@ -1156,7 +1163,6 @@ async function renderRFQView(container) {
     </div>
     <div id="rfq-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(formPanel);
 
   const listPanel = document.createElement('div');
   listPanel.className = 'table-panel';
@@ -1167,7 +1173,7 @@ async function renderRFQView(container) {
       <tbody>
   `;
   listHtml += rfqs.length === 0
-    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No RFQs yet. Create and approve a requisition first, then convert it to RFQ; or create a standalone RFQ above.</td></tr>`
+    ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No RFQs yet. Create and approve a requisition first, then convert it to RFQ; or click <b>+ New RFQ</b> for a standalone one.</td></tr>`
     : rfqs.map(r => `
         <tr>
           <td style="font-family: monospace;">${r.code || r.id}</td>
@@ -1185,14 +1191,17 @@ async function renderRFQView(container) {
       `).join('');
   listHtml += `</tbody></table>`;
   listPanel.innerHTML = listHtml;
-  container.appendChild(listPanel);
+  container.appendChild(txnPagedSection({ id: 'rfq-screen', title: 'RFQ / Quotes', page: 'New RFQ', count: rfqs.length,
+    newLabel: 'New RFQ', form: formPanel, list: listPanel }));
+  txnRestorePane('rfq-screen');
 
   document.getElementById('rfq-create-btn').addEventListener('click', createRFQ);
 
   if (selectedRFQId) {
+    // The selected RFQ's vendors and quotes sit under the list, on its page.
     const quotesContainer = document.createElement('div');
     quotesContainer.id = 'rfq-quotes-container';
-    container.appendChild(quotesContainer);
+    document.querySelector('#rfq-screen > [data-pane="list"]').appendChild(quotesContainer);
     await renderRFQQuotesPanel(quotesContainer, selectedRFQId, rfqs.find(r => r.id === selectedRFQId));
   }
 }
@@ -1227,11 +1236,14 @@ async function createRFQInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  (await loadTxnScreen()).txnDone('rfq-screen');
   renderView('rfq');
 }
 
-function viewRFQQuotes(rfqId) {
+async function viewRFQQuotes(rfqId) {
   selectedRFQId = rfqId;
+  // Another RFQ's quotes open on their list, not on a quote form left open.
+  (await loadTxnScreen()).txnDone('rfq-quotes');
   renderView('rfq');
 }
 
@@ -1349,36 +1361,18 @@ async function renderRFQQuotesPanel(container, rfqId, rfq) {
     document.getElementById('rfq-invite-btn').addEventListener('click', () => inviteRFQVendor(rfqId));
   }
 
+  const quotesTitle = `Quotes for ${escapeHTMLText((rfq && rfq.code) || rfqId)}`;
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.padding = '24px';
   panel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Quotes for ${escapeHTMLText((rfq && rfq.code) || rfqId)}</h2>
+    ${isClosed ? `<h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">${quotesTitle}</h2>` : ''}
     <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">Selecting a winner records the comparison decision but does not create a PO. Create and review the PO separately; this quote currently has no item, unit or tax line to carry across safely.</p>
-    ${isClosed ? '' : `
-      <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 20px;">
-        ${autoNumberField('Quote Number', 'QTN', '160px')}
-        <div class="form-group" style="margin-bottom: 0;">
-          <label class="form-label" for="quote-vendor">Vendor</label>
-          <input type="text" id="quote-vendor" class="form-input" style="width: 160px;">
-        </div>
-        <div class="form-group" style="margin-bottom: 0;">
-          <label class="form-label" for="quote-price">Quoted Price</label>
-          <input type="number" id="quote-price" class="form-input" style="width: 130px;">
-        </div>
-        <div class="form-group" style="margin-bottom: 0;">
-          <label class="form-label" for="quote-lead-time">Lead Time (days)</label>
-          <input type="number" id="quote-lead-time" class="form-input" style="width: 130px;">
-        </div>
-        <button class="btn btn-primary" id="quote-submit-btn">Submit Quote</button>
-      </div>
-      <div id="quote-form-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
-    `}
     <table>
       <thead><tr><th>Quote Number</th><th>Vendor</th><th>Quoted Price</th><th>Lead Time (days)</th><th>Status</th><th></th></tr></thead>
       <tbody>
         ${quotes.length === 0
-          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No quotes submitted yet. Use <b>Submit Quote</b> above to record a vendor's response, then <b>Select as Winner</b>.</td></tr>`
+          ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No quotes submitted yet.${isClosed ? '' : ` Click <b>+ Record Quote</b> to record a vendor's response, then <b>Select as Winner</b>.`}</td></tr>`
           : quotes.map(q => `
             <tr>
               <td style="font-family: monospace;">${q.code || q.id}</td>
@@ -1392,7 +1386,39 @@ async function renderRFQQuotesPanel(container, rfqId, rfq) {
       </tbody>
     </table>
   `;
-  container.appendChild(panel);
+  if (isClosed) {
+    container.appendChild(panel);
+    return;
+  }
+
+  // Stage 69: an open RFQ's quotes are a list with + Record Quote; the quote
+  // form is a page of its own.
+  const form = document.createElement('div');
+  form.className = 'table-panel';
+  form.style.padding = '24px';
+  form.innerHTML = `
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      ${autoNumberField('Quote Number', 'QTN', '160px')}
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="quote-vendor">Vendor</label>
+        <input type="text" id="quote-vendor" class="form-input" style="width: 160px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="quote-price">Quoted Price</label>
+        <input type="number" id="quote-price" class="form-input" style="width: 130px;">
+      </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="quote-lead-time">Lead Time (days)</label>
+        <input type="number" id="quote-lead-time" class="form-input" style="width: 130px;">
+      </div>
+      <button class="btn btn-primary" id="quote-submit-btn">Submit Quote</button>
+    </div>
+    <div id="quote-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
+  `;
+  const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
+  container.appendChild(txnPagedSection({ id: 'rfq-quotes', title: quotesTitle, page: 'Record quote', count: quotes.length,
+    newLabel: 'Record Quote', form, list: panel, heading: 'h2' }));
+  txnRestorePane('rfq-quotes');
 
   const submitBtn = document.getElementById('quote-submit-btn');
   if (submitBtn) submitBtn.addEventListener('click', () => submitVendorQuote(rfqId));
@@ -1442,6 +1468,7 @@ async function submitVendorQuoteInner(rfqId) {
       await saveRFQ(rfqId, { invited_vendors: JSON.stringify([...list, vendor]) });
     }
   }
+  (await loadTxnScreen()).txnDone('rfq-quotes');
   renderView('rfq');
 }
 

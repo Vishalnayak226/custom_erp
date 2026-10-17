@@ -98,15 +98,18 @@ export const DEFAULT_STICKER_TEMPLATE = {
   id: '', code: '', name: 'Built-in default', w: 50, h: 25,
   settings: DEFAULT_SETTINGS, assets: {},
   elements: [
-    { id: 'd1', kind: 'text', field: 'name', x_mm: 2, y_mm: 0.8, w_mm: 46, h_mm: 3.6, font_size_mm: 2.8, bold: true, fit: 'shrink', align: 'center', valign: 'middle' },
-    { id: 'd2', kind: 'barcode', field: 'barcode', x_mm: 2, y_mm: 4.6, w_mm: 46, h_mm: 8.4, symbology: 'code128', show_text: true, quiet_zone: true, font_size_mm: 2.0 },
-    { id: 'd3', kind: 'text', field: 'custom', text: 'SKU: {sku}', x_mm: 2, y_mm: 13.2, w_mm: 27, h_mm: 3.0, font_size_mm: 2.3, fit: 'shrink', valign: 'middle' },
-    { id: 'd4', kind: 'text', field: 'hsn_code', prefix: 'HSN: ', x_mm: 29, y_mm: 13.2, w_mm: 19, h_mm: 3.0, font_size_mm: 2.3, fit: 'shrink', align: 'right', valign: 'middle' },
+    { id: 'd1', kind: 'text', field: 'name', x_mm: 2, y_mm: 0.6, w_mm: 46, h_mm: 3.2, font_size_mm: 2.6, bold: true, fit: 'shrink', align: 'center', valign: 'middle' },
+    // Stage 70: the variant's values ("Silver / 7") under the name; left off
+    // for an item with no variant.
+    { id: 'd6', kind: 'text', field: 'variant_option_values', x_mm: 2, y_mm: 3.8, w_mm: 46, h_mm: 2.4, font_size_mm: 2.0, fit: 'shrink', align: 'center', valign: 'middle' },
+    { id: 'd2', kind: 'barcode', field: 'barcode', x_mm: 2, y_mm: 6.3, w_mm: 46, h_mm: 7.6, symbology: 'code128', show_text: true, quiet_zone: true, font_size_mm: 2.0 },
+    { id: 'd3', kind: 'text', field: 'custom', text: 'SKU: {sku}', x_mm: 2, y_mm: 14.0, w_mm: 27, h_mm: 2.8, font_size_mm: 2.3, fit: 'shrink', valign: 'middle' },
+    { id: 'd4', kind: 'text', field: 'hsn_code', prefix: 'HSN: ', x_mm: 29, y_mm: 14.0, w_mm: 19, h_mm: 2.8, font_size_mm: 2.3, fit: 'shrink', align: 'right', valign: 'middle' },
     // Stage 61: the GRN batch as its own scannable barcode, number printed
     // under it - the receipt date reads off the tag, and a scan in Batch
     // Lookup & Ageing finds this exact batch. Left off by the blank-value rule
     // when a label has no batch (a label printed without a document).
-    { id: 'd5', kind: 'barcode', field: 'batch_no', x_mm: 1, y_mm: 16.4, w_mm: 48, h_mm: 8.0, symbology: 'code128', show_text: true, quiet_zone: true, font_size_mm: 2.0 }
+    { id: 'd5', kind: 'barcode', field: 'batch_no', x_mm: 1, y_mm: 17.0, w_mm: 48, h_mm: 7.6, symbology: 'code128', show_text: true, quiet_zone: true, font_size_mm: 2.0 }
   ]
 };
 
@@ -132,6 +135,16 @@ export const BUILTIN_FIELDS = [
   { key: 'qty', label: 'Qty (copies on this line)', sample: '1' },
   { key: 'source_doc', label: 'Source document no.', sample: 'GRN-0001' }
 ];
+
+// An Item's stored variant shorthand ("metal_type:Silver;size:7") as a tag
+// shows it ("Silver / 7") - mirrors engines.StickerVariantText, which does the
+// same for real prints.
+export function variantText(raw) {
+  return String(raw || '').split(';')
+    .map(p => p.slice(p.indexOf(':') + 1).trim())
+    .filter(Boolean)
+    .join(' / ');
+}
 
 export const SAMPLE_LABEL = {
   sku: 'SKU-0001', name: 'Sample Item Name', barcode: '8901234567890', hsn_code: '7113',

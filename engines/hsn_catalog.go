@@ -96,10 +96,12 @@ func EnsureHSNCode(tenantID, rawHSN string, gstRate float64) error {
 	if err != nil {
 		return err
 	}
+	// Stage 66: a code picked from the master list arrives with its
+	// description rather than a blank one.
 	data := map[string]interface{}{
 		"code":        HSNCatalogID(hsn),
 		"hsn":         hsn,
-		"description": "",
+		"description": hsnMasterDescription(hsn),
 		"status":      "Active",
 	}
 	if gstRate > 0 {

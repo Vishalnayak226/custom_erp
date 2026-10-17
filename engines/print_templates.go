@@ -177,12 +177,38 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 		}
 	}
 	switch txn {
-	case PrintTxnGRN, PrintTxnDebitNote, PrintTxnVendorCreditNote:
+	case PrintTxnGRN, PrintTxnGRNVendorCopy, PrintTxnDebitNote, PrintTxnVendorCreditNote, PrintTxnPurchaseReturn:
 		add(&out.Header, "Document", "fields.po_numbers", "PO numbers")
 	case PrintTxnTransferOut, PrintTxnTransferIn:
 		add(&out.Header, "Document", "fields.supply_type", "Supply type")
+		add(&out.Header, "Document", "fields.value_basis", "Value basis")
+		add(&out.Header, "Document", "fields.stock_status_after", "Stock status after posting")
+		if txn == PrintTxnTransferIn {
+			add(&out.Header, "Document", "fields.receipt_status", "Receipt status")
+		}
 	case PrintTxnPurchaseOrder, PrintTxnVendorPO:
 		add(&out.Header, "Document", "fields.gst_mode", "GST treatment of prices")
+	case PrintTxnSalesReturn:
+		for _, f := range [][2]string{{"original_order", "Original bill / order"}, {"original_invoice_date", "Original bill date"},
+			{"return_type", "Return type"}, {"refund_method", "Refund method"}, {"refund_no", "Refund number"}, {"refund_status", "Refund status"}} {
+			add(&out.Header, "Document", "fields."+f[0], f[1])
+		}
+	}
+	switch txn {
+	case PrintTxnDebitNote, PrintTxnVendorCreditNote, PrintTxnCreditNote:
+		add(&out.Header, "Document", "fields.original_invoice_no", "Original invoice number")
+		add(&out.Header, "Document", "fields.original_invoice_date", "Original invoice date")
+		add(&out.Header, "Document", "fields.document_direction", "Document direction")
+	case PrintTxnPurchaseReturn:
+		add(&out.Header, "Document", "fields.vendor_invoice_no", "Vendor invoice number")
+		add(&out.Header, "Document", "fields.vendor_invoice_date", "Vendor invoice date")
+	}
+	// Stage 71: the common header and audit fields of every print.
+	add(&out.Header, "Document", "fields.financial_year", "Financial year")
+	add(&out.Header, "Document", "fields.currency", "Currency")
+	for _, f := range [][2]string{{"created_by", "Created by"}, {"created_at", "Created at"}, {"approved_by", "Approved by"},
+		{"approved_at", "Approved at"}, {"printed_by", "Printed by"}, {"printed_at", "Printed at"}} {
+		add(&out.Header, "Audit", "audit."+f[0], f[1])
 	}
 	for _, block := range [][2]string{{"store", "Generating store"}, {"party", "Vendor / other store"}, {"ship_to", "Ship to"}} {
 		for _, f := range printStoreFieldLabels {
@@ -190,7 +216,9 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 		}
 	}
 	for _, t := range [][2]string{
-		{"qty", "Total quantity"}, {"accepted_qty", "Total accepted"}, {"taxable", "Taxable value"}, {"cgst", "CGST"},
+		{"qty", "Total quantity"}, {"accepted_qty", "Total accepted"}, {"po_qty", "Total ordered (PO)"}, {"rejected_qty", "Total rejected"},
+		{"damaged_qty", "Total damaged"}, {"shipped_qty", "Total shipped"}, {"received_qty", "Total received"}, {"short_qty", "Total short"},
+		{"return_qty", "Total returned"}, {"taxable", "Taxable value"}, {"cgst", "CGST"},
 		{"sgst", "SGST"}, {"igst", "IGST"}, {"tax", "Total tax"}, {"amount", "Total before rounding"},
 		{"round_off", "Round off"}, {"grand_total", "Grand total"}, {"line_count", "Number of lines"},
 	} {
@@ -203,20 +231,45 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 		{"barcode", "Barcode"}, {"uom", "UOM"}, {"qty", "Quantity"}, {"rate", "Rate"}, {"mrp", "MRP"}, {"taxable", "Taxable value"},
 		{"gst_rate", "GST %"}, {"cgst", "CGST"}, {"sgst", "SGST"}, {"igst", "IGST"}, {"tax", "Tax"}, {"amount", "Amount"},
 		{"po_id", "PO"}, {"batch_no", "Batch"},
+		{"description", "Description (name · variant)"}, {"variant", "Variant"}, {"design", "Design / parent product"},
+		{"item_code", "Item / Barcode"},
 	} {
 		add(&out.Line, "Line", f[0], f[1])
 	}
 	switch txn {
-	case PrintTxnGRN:
-		for _, f := range [][2]string{{"accepted_qty", "Accepted"}, {"rejected_qty", "Rejected"}, {"damaged_qty", "Damaged"},
-			{"po_rate", "PO rate"}, {"invoice_rate", "Invoice rate"}, {"rate_difference", "Rate difference"}} {
+	case PrintTxnGRN, PrintTxnGRNVendorCopy:
+		for _, f := range [][2]string{{"po_qty", "PO (ordered) qty"}, {"accepted_qty", "Accepted"}, {"rejected_qty", "Rejected"}, {"damaged_qty", "Damaged"},
+			{"qc_status", "QC status"}, {"variance_reason", "Rejection / damage reason"}} {
 			add(&out.Line, "Line", f[0], f[1])
+		}
+		if txn == PrintTxnGRN {
+			for _, f := range [][2]string{{"po_rate", "PO rate"}, {"invoice_rate", "Invoice rate"}, {"rate_difference", "Rate difference"}} {
+				add(&out.Line, "Line", f[0], f[1])
+			}
 		}
 	case PrintTxnDebitNote, PrintTxnVendorCreditNote:
 		add(&out.Line, "Line", "po_rate", "PO rate")
 		add(&out.Line, "Line", "invoice_rate", "Invoice rate")
+		add(&out.Line, "Line", "original_taxable", "Original taxable value")
+		add(&out.Line, "Line", "reason", "Reason")
 	case PrintTxnTransferIn, PrintTxnTransferOut:
-		add(&out.Line, "Line", "sent_qty", "Sent quantity")
+		for _, f := range [][2]string{{"requested_qty", "Requested qty"}, {"shipped_qty", "Shipped qty"}} {
+			add(&out.Line, "Line", f[0], f[1])
+		}
+		if txn == PrintTxnTransferIn {
+			for _, f := range [][2]string{{"received_qty", "Received qty"}, {"short_qty", "Short qty"}, {"reason", "Shortage reason"}} {
+				add(&out.Line, "Line", f[0], f[1])
+			}
+		}
+	case PrintTxnPurchaseReturn:
+		for _, f := range [][2]string{{"received_qty", "Received qty (GRN)"}, {"return_qty", "Return qty"}, {"stock_bucket", "Returned from (accepted / rejected / damaged)"}, {"reason", "Reason"}} {
+			add(&out.Line, "Line", f[0], f[1])
+		}
+	case PrintTxnSalesReturn:
+		for _, f := range [][2]string{{"original_qty", "Original qty"}, {"return_qty", "Return qty"}, {"original_disc", "Original discount / unit"},
+			{"condition", "Condition"}, {"exchange_sku", "Exchanged for"}} {
+			add(&out.Line, "Line", f[0], f[1])
+		}
 	}
 	if metas, err := GetDocTypeMeta(tenantID, "Item"); err == nil {
 		for _, m := range metas {

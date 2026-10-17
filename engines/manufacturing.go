@@ -205,11 +205,13 @@ func CompleteProductionOrder(tenantID, orderID string) error {
 
 // splitBackflushComponents separates the components issued at Material Issue
 // from those whose item type is Backflush (Stage 60.4), which are consumed at
-// completion instead.
+// completion instead. Stage 72: "is it backflushed" is the item's resolved
+// Consumption (Auto backflush) - which the old Backflush flag still maps to - so
+// a Packaging-profile component is backflushed here too.
 func splitBackflushComponents(tenantID string, components []bomComponent) (issueNow, backflush []bomComponent) {
 	for _, c := range components {
 		item, err := ResolveItemBySKU(tenantID, c.Sku)
-		if err == nil && ItemRules(tenantID, item.Data).Backflush {
+		if err == nil && ItemPolicyFor(tenantID, item.Data).Consumption == ConsumeAutoBackflush {
 			backflush = append(backflush, c)
 			continue
 		}

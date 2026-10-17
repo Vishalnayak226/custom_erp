@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"custom_erp/db"
 	"custom_erp/engines"
@@ -408,6 +409,14 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// AcceptPriceChange is the operator's explicit confirmation of a
 		// changed price after such a rejection.
 		AcceptPriceChange bool `json:"accept_price_change"`
+		// PackagingOverrides (Stage 72.4) are the cashier's Packaging
+		// choices: another component of a line's group, or none. Checked
+		// against the Backflush Rules in engines.ResolveSaleConsumption.
+		PackagingOverrides []engines.ConsumptionOverride `json:"packaging_overrides"`
+		// GiftCards (Stage 72.8) are gift cards paying part or all of the
+		// bill. The full numbers are used here and never stored: the cart
+		// keeps engines.GiftCardTender (masked, internal card id).
+		GiftCards []engines.GiftCardTenderRequest `json:"gift_cards"`
 		// Items carries SELECTION inputs only. sale_price is accepted for one
 		// narrowing purpose - an item the tenant has not priced anywhere, in
 		// pos.pricing_mode 'assisted' (see engines.ResolvePOSQuote) - and is
@@ -577,6 +586,35 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Stage 72.3/72.5: what the sale consumes with its lines (packaging,
+	// butter paper), from the server's own resolved lines - never the
+	// editable cart - with the cashier's Packaging choices applied. A Block
+	// rule's shortage stops the sale here, before any side effect; Allow and
+	// Warn shortages are reported once the sale has posted.
+	consumptionInputs := make([]engines.ConsumptionLineInput, 0, len(quote.Lines))
+	for _, l := range quote.Lines {
+		consumptionInputs = append(consumptionInputs, engines.ConsumptionLineInput{Sku: l.Sku, Qty: l.Qty})
+	}
+	consumption, consumptionErr := engines.ResolveSaleConsumption(tenantID, req.Location, consumptionInputs, req.PackagingOverrides, time.Time{})
+	if consumptionErr != nil {
+		writeEngineError(w, r, consumptionErr, http.StatusUnprocessableEntity)
+		return
+	}
+	if !req.OfflineSynced && len(consumption) > 0 {
+		shortages, shortErr := engines.CheckConsumptionStock(tenantID, req.Location, consumption)
+		if shortErr != nil {
+			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to check packaging stock")
+			return
+		}
+		if blockErr := engines.BlockingShortage(shortages); blockErr != nil {
+			writeEngineError(w, r, blockErr, http.StatusUnprocessableEntity)
+			return
+		}
+	}
+	for i := range consumption {
+		consumption[i].Choices = nil
+	}
+
 	// Loyalty redemption pre-checks (Stage 30.2.5). The authoritative balance
 	// check is RedeemLoyaltyPoints' own, inside FinalizePOSCheckout - this one
 	// exists so the ordinary "not enough points" case is rejected here, before
@@ -598,6 +636,30 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		loyaltyDiscount = engines.LoyaltyRedemptionValue(tenantID, req.RedeemPoints)
+	}
+
+	// Stage 72.8: gift cards as a tender. Checked here, before any side
+	// effect, against what the customer actually owes; redeemed for real
+	// inside the sale's transaction. Never on an offline-queued sale - a
+	// balance cannot be checked or protected from a second spend offline
+	// (blueprint 16.2).
+	var giftTenders []engines.GiftCardTender
+	if len(req.GiftCards) > 0 {
+		if req.OfflineSynced {
+			writeAPIErrorDetail(w, r, "POSOFF-0434", "", "a gift card cannot pay for a sale rung up offline - take another payment mode")
+			return
+		}
+		due := quote.Total - float64(loyaltyDiscount)
+		var gcErr error
+		giftTenders, gcErr = engines.PrepareGiftCardTenders(tenantID, req.GiftCards, engines.RupeesToPaise(due))
+		if gcErr != nil {
+			writeEngineError(w, r, gcErr, http.StatusUnprocessableEntity)
+			return
+		}
+	}
+	giftPaid := 0.0
+	for _, t := range giftTenders {
+		giftPaid += engines.PaiseToRupees(t.AmountPaise)
 	}
 
 	schema, err := db.GetTenantSchema(tenantID)
@@ -725,9 +787,20 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		if l.PriceListCode != "" {
 			item["price_list_code"] = l.PriceListCode
 		}
+		if l.PromotionRef != "" {
+			item["promotion_ref"] = l.PromotionRef
+		}
+		if l.BillMode != "" {
+			item["bill_mode"] = l.BillMode
+		}
 		resolvedItems = append(resolvedItems, item)
 	}
 	storedPayload["items"] = resolvedItems
+	storedPayload["consumption"] = consumption
+	delete(storedPayload, "gift_cards") // full card numbers never reach the stored cart
+	if len(giftTenders) > 0 {
+		storedPayload["gift_card_tenders"] = giftTenders
+	}
 	storedPayload["gst_breakdown"] = gstBreakdown
 	storedPayload["pos_session"] = sessionID
 	// Stage 53.12: who rang it up, stored for the same reason gst_breakdown and
@@ -913,7 +986,8 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		claimSettled = true
 		response["status"] = "authorized"
 		response["payment_state"] = auth.PaymentState
-		response["amount_due"] = auth.AmountDue - float64(loyaltyDiscount) - quote.OfferDiscount
+		response["amount_due"] = auth.AmountDue - float64(loyaltyDiscount) - quote.OfferDiscount - giftPaid
+		response["gift_card_paid"] = giftPaid
 		response["sale_total"] = auth.AmountDue
 		_ = json.NewEncoder(w).Encode(response)
 		return
@@ -957,7 +1031,8 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 	response["sale_total"] = outcome.SaleTotal
 	response["loyalty_discount"] = outcome.LoyaltyDiscount
-	response["amount_due"] = outcome.SaleTotal - float64(outcome.LoyaltyDiscount) - quote.OfferDiscount
+	response["amount_due"] = outcome.SaleTotal - float64(outcome.LoyaltyDiscount) - quote.OfferDiscount - giftPaid
+	response["gift_card_paid"] = giftPaid
 	// 47.2.2's acceptance line, literally: "Cashier never receives
 	// margin/cost fields." cost_total was returned to every caller before this
 	// stage, which handed the till the exact figure Stage 16.7 already hid on
@@ -1016,6 +1091,19 @@ func handlePOSQuote(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
+	}
+	// Stage 72.4: the till's Packaging button shows each line's default
+	// component and the choices it may switch to; a short component is
+	// flagged before the cashier completes the sale.
+	inputs := make([]engines.ConsumptionLineInput, 0, len(quote.Lines))
+	for _, l := range quote.Lines {
+		inputs = append(inputs, engines.ConsumptionLineInput{Sku: l.Sku, Qty: l.Qty})
+	}
+	if packaging, pkgErr := engines.ResolveSaleConsumption(tenantID, req.Location, inputs, nil, time.Time{}); pkgErr == nil && len(packaging) > 0 {
+		quote.Packaging = packaging
+		if shortages, shortErr := engines.CheckConsumptionStock(tenantID, req.Location, packaging); shortErr == nil {
+			quote.PackagingShortages = shortages
+		}
 	}
 	_ = json.NewEncoder(w).Encode(quote)
 }

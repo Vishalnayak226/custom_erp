@@ -30,6 +30,7 @@ type DocStickerLine struct {
 	Qty        int
 	BatchNo    string
 	ExpiryDate string
+	TemplateID string // chosen for this print (Stage 70), "" = the rules decide
 }
 
 // ResolveDocumentStickerLines normalizes sourceDoctype's line-item shape into
@@ -130,10 +131,15 @@ func resolveTransferOrderStickerLines(tenantID, transferOrderID string) ([]DocSt
 //
 // Copies overrides the line's default copy count (its accepted/transfer qty);
 // zero or less means "use the line's own quantity".
+//
+// TemplateID (Stage 70) prints the line with that template instead of the one
+// the rules pick - a StickerTemplate id, or StickerTemplateStandard for the
+// built-in label; blank leaves it to the rules.
 type StickerLineSelection struct {
-	SKU     string `json:"sku"`
-	BatchNo string `json:"batch_no"`
-	Copies  int    `json:"copies"`
+	SKU        string `json:"sku"`
+	BatchNo    string `json:"batch_no"`
+	Copies     int    `json:"copies"`
+	TemplateID string `json:"template_id,omitempty"`
 }
 
 // SKUSelections adapts a plain SKU list to []StickerLineSelection, carrying
@@ -171,6 +177,7 @@ func filterStickerLines(lines []DocStickerLine, selections []StickerLineSelectio
 			if sel.Copies > 0 {
 				l.Qty = sel.Copies
 			}
+			l.TemplateID = strings.TrimSpace(sel.TemplateID)
 			filtered = append(filtered, l)
 			break // one line prints once even if two selections name it
 		}
@@ -215,7 +222,7 @@ func PrintStickersForDocument(tenantID, sourceDoctype, sourceDocID, printerCode,
 		if copies <= 0 {
 			copies = 1
 		}
-		label, err := resolveAndLogSticker(tenantID, schema, line.SKU, copies, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, line.BatchNo, line.ExpiryDate)
+		label, err := resolveAndLogSticker(tenantID, schema, line.SKU, copies, printerCode, printedBy, reprintReason, sourceDoctype, sourceDocID, line.BatchNo, line.ExpiryDate, line.TemplateID)
 		if err != nil {
 			return nil, err
 		}
@@ -240,7 +247,9 @@ type StickerPreviewLine struct {
 	Qty          int    `json:"qty"`
 	BatchNo      string `json:"batch_no,omitempty"`
 	ExpiryDate   string `json:"expiry_date,omitempty"`
+	TemplateID   string `json:"template_id,omitempty"`
 	TemplateName string `json:"template_name"`
+	TemplateRule string `json:"template_rule"` // which rule picked it (Stage 70)
 }
 
 // PreviewDocumentStickerLines is ResolveDocumentStickerLines plus the Item
@@ -254,18 +263,22 @@ func PreviewDocumentStickerLines(tenantID, sourceDoctype, sourceDocID string) ([
 	}
 	preview := make([]StickerPreviewLine, 0, len(lines))
 	for _, line := range lines {
-		p := StickerPreviewLine{SKU: line.SKU, Qty: line.Qty, BatchNo: line.BatchNo, ExpiryDate: line.ExpiryDate, TemplateName: "Default layout"}
+		p := StickerPreviewLine{SKU: line.SKU, Qty: line.Qty, BatchNo: line.BatchNo, ExpiryDate: line.ExpiryDate, TemplateName: "Standard label"}
+		var item map[string]interface{}
 		if resolved, err := ResolveItemBySKU(tenantID, line.SKU); err == nil {
-			if v, ok := resolved.Data["name"].(string); ok {
+			item = resolved.Data
+			if v, ok := item["name"].(string); ok {
 				p.Name = v
 			}
-			if v, ok := resolved.Data["category"].(string); ok {
+			if v, ok := item["category"].(string); ok {
 				p.Category = v
 			}
 		}
-		if tmpl, err := ResolveStickerTemplate(tenantID, p.Category); err == nil && tmpl != nil {
-			p.TemplateName = tmpl.Name
+		tmpl, rule, err := ResolveStickerTemplateForItem(tenantID, item, p.Category)
+		if err == nil && tmpl != nil {
+			p.TemplateID, p.TemplateName = tmpl.ID, tmpl.Name
 		}
+		p.TemplateRule = rule
 		preview = append(preview, p)
 	}
 	return preview, nil

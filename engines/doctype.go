@@ -699,6 +699,13 @@ func SwitchIndustryProfile(tenantID string, profilePath string, actingUser strin
 		}
 	}
 
+	// 2b. Stage 66: the industry's common HSN codes join the client's HSN
+	// list, so the New Item HSN picker has them from the first item on.
+	// Codes already on the list are left as they are.
+	if _, err := seedIndustryHSNCodes(tx, prof.IndustryCode); err != nil {
+		return err
+	}
+
 	// 3. Record/refresh the lock row (Stage 51.3). A plain switch (no prior
 	// row) inserts fresh at override_count 0; an override increments the
 	// counter rather than resetting it, so the row keeps an honest count of

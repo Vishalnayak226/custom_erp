@@ -132,6 +132,13 @@ Two things worth knowing:
 - **A change takes effect immediately, everywhere, with no restart.** Every setting is read at the moment it is used, not cached when the server starts. Lower the sales return window and the very next return attempt is judged by the new value.
 - **Out-of-range values are refused, not clamped.** Settings that could destabilise the server if set absurdly (page sizes, concurrency, batch sizes) carry a permitted range; a value outside it is rejected at save time with a message naming the limit. Nothing is silently "corrected" behind your back.
 
+**The Settings menu is grouped** (Stage 67.3): **Users & Access** (Users, Roles, Approval Rules), **Customize** (Configuration, Prefix Configs, Dynamic Labels, Database Schema Design, Extension Hooks), **Monitoring** (Activity Log, System Status) and **Platform** (Control Panel, Tenant Entitlements, Tenant Usage, Data Console). A heading only shows when you can open at least one screen under it. The **Setup** menu is grouped the same way, by module (CRM, Core, Finance, HR, Inventory...), with the filter box at the top.
+
+**How long people stay signed in** (Stage 67). Two limits apply, and whichever comes first signs someone out:
+
+- **Auto logout after inactivity**, chosen by each person under **My Profile → Contact & Session → Auto Logout**: Never, 15 min, 30 min, 1 hour, 2 hours or **12 hours**. New users start on **Security → Default idle-timeout for new users**, which is **12 hours** unless you change it. So does the first admin of a new client. Activity in any open tab counts, so a tab left in the background no longer signs out the one being worked in. When this shipped, everyone still on the old 30-minute starting value moved to 12 hours. Anyone who had picked a different value kept it. So did every client whose admin had set their own default.
+- **Session token lifetime**: **Security → Session token lifetime**, 24 hours by default. This is a hard limit, however active the person is.
+
 What lives where (37 settings across 13 modules):
 
 | Module | Examples of what you can change |
@@ -374,6 +381,10 @@ Because of that, **the profile locks itself the first time it is set.**
 
 The lock is real server-side state, not a browser setting — clearing your browser, using another machine, or signing in as a different admin will not unlock it.
 
+**Choosing the industry also loads its HSN codes (Stage 66).** The industry's common HSN/SAC codes are added to **Setup → Core → HSN Code**, each with a description and, where the code has a single GST rate, that rate. For example, a jewellery client gets 7113 silver and gold jewellery, 7117 imitation jewellery, coins, bullion and diamonds; a clothing client gets fabrics, garments, made-ups and footwear. Codes already on the list are left exactly as they were, so a description or rate you set is never overwritten. An override to another industry adds that industry's codes too and removes none. From then on, the **HSN Code** box on every Item suggests codes ranked for the item's name and your industry (User Guide §8.1.2). Without an industry the suggestions still work from the item name, but the *Common in your industry* group is missing. Set the industry early.
+
+**The HSN rates you set win.** If a code on your HSN Code list carries a **Default GST Rate**, that rate is what the item picker fills, and its button reads *Set on your HSN list*. The system's own rates (GST from 22 September 2025) appear beside it. A list that still holds an old rate (a pre-September-2025 12%, say) therefore keeps suggesting it until you correct it on the list. The full list the system suggests from ships with the system (`engines/hsn_master.json`, about 290 codes across the ten industries). It is suggestions only: an Item can carry any valid 4, 6 or 8-digit code.
+
 **To change a locked profile:**
 
 1. Click **Override** next to the disabled dropdown.
@@ -459,6 +470,8 @@ Every Item has an **Item Type** (Setup → Item → Item Type). **Product** is t
 | **Fixed Asset** | Off | Bought on a PO and raised as an Asset, never sold (below). |
 
 Each type is a record with these settings, so you can change the shipped ones or add your own: **Generate barcode at**, **Barcode per receipt date**, **Sell at zero price**, **Only with its parent item**, **Backflush**, **Fixed asset**, and **Status**. An Item picks its behaviour up from its type; only the two barcode settings can be overridden per Item. Zero price applies to the till's server-side pricing (POS quote and checkout); it cannot be overridden by a price list or a supervisor override.
+
+**Since Stage 72 an item type is a full profile** with eight independent dimensions (commercial class, stock tracking, valuation, accounting, sellability, customer bill, POS capture, consumption) that every Item may override, six more shipped types, and Gift / Free With Item are now *Promo only* — see **§B.3.8**. The four flags above still work: where a type leaves a dimension blank, its flags decide it.
 
 #### Fixed Asset items — bought on a PO, never sold (Stage 57.8)
 
@@ -636,9 +649,9 @@ Two things about CSV import that are worth knowing before you run a large load, 
 
 **Re-importing a Master by code now updates it rather than duplicating it**, which follows from the first point: the code resolves to the same id, so the row is matched and updated. Keep that in mind for a repeated load — it is usually what you want, but it does mean a second upload of the same file overwrites rather than being rejected.
 
-#### B.3.4 Category-based sticker templates and the Sticker Studio (Stages 52, 58)
+#### B.3.4 Sticker templates, template rules and the Sticker Studio (Stages 52, 58, 70)
 
-By default every item's barcode label uses one fixed built-in layout (name, barcode, SKU). A tenant that wants different categories to print differently defines a **StickerTemplate** per category instead — designed by the business itself in the full-screen **Sticker Studio** (Stage 58), no code change and no developer. The end-user steps are in [User Guide](USER_GUIDE.md) §7A.2; this subsection is what you need to know as the administrator.
+By default every item's barcode label uses the built-in **Standard label** (name, variant, barcode, SKU, HSN, batch barcode). A tenant that wants items to print differently defines **StickerTemplates** and rules for which items use them — designed by the business itself in the full-screen **Sticker Studio** (Stage 58), no code change and no developer. The end-user steps are in [User Guide](USER_GUIDE.md) §7A.2; this subsection is what you need to know as the administrator.
 
 **Nothing has to be configured.** With no `StickerTemplate` records the resolver returns "no template" and every label prints the built-in 50 × 25 mm layout — the same content as always (name, barcode, SKU, HSN). Since Stage 58 it is drawn by the same engine as designed templates, so it now also prints correctly on a TSC (TSPL) printer, which previously received Zebra commands. No tenant is forced through a design step to keep printing.
 
@@ -650,17 +663,23 @@ By default every item's barcode label uses one fixed built-in layout (name, barc
 | Store Manager | ✓ | ✓ | ✓ | — |
 | Cashier | ✓ | — | — | — |
 
-**How a label picks its template**, in order:
+**How a label picks its template** (Stage 70, `engines.ResolveStickerTemplateForItem` / `pickStickerTemplate`), first rule that applies:
 
-1. The item's **Category** is matched against each Active template's comma-separated `categories` list — case-insensitive, surrounding spaces ignored, but otherwise an exact string match.
-2. Failing that, the one template flagged **Default for categories with no template of their own** (`is_default`) is used, if there is one.
-3. Failing that, the built-in layout.
+1. **Item** — `Item.sticker_template` (a Link to StickerTemplate, on the Item form and in Item imports).
+2. **Item type** — `ItemType.sticker_template`, read through the item-type cache (30 s, dropped when an ItemType is saved).
+3. **Category** — the item's **Category** against each Active template's comma-separated `categories` list: case-insensitive, surrounding spaces ignored, otherwise an exact string match.
+4. **Default** — the template flagged **Default for categories with no template of their own** (`is_default`).
+5. Otherwise the built-in **Standard label** (`DEFAULT_STICKER_TEMPLATE` in `public/sticker-engine.js`: name, variant, barcode, SKU, HSN, batch barcode).
+
+Templates are read in record-id order, so when two templates name one category, or two carry the default flag, the result is the same every time. A rule naming an Inactive or deleted template is skipped. Users manage rules 2-4 on **Sticker Printing → Template rules** (User Guide §7A.5). That screen writes only the existing records: ItemType, the templates' `categories`, and `is_default` on one template while clearing it on the others. Each save is a read-modify-write that sends `expected_version`, so an edit made meanwhile is refused rather than overwritten. Migration `migrations_stage70_1_sticker_template_rules.sql` adds the two Link fields; they start blank, so no existing item changes what it prints.
+
+**Chosen at print.** On a GRN / Transfer Order print each line may carry `template_id` in the `lines` array of `POST /api/v1/stickers/print` (and the QZ payload endpoint): a StickerTemplate id, or `standard` for the built-in label. It beats the rules for that print only, and `sticker_print_log.template_id` records what actually printed. A chosen template that is not Active stops the run with a 422 instead of printing another design. The manual SKU panel always follows the rules.
 
 Three consequences worth telling your users about before they design anything:
 
-- **`Item.category` is free text.** There is no category master or taxonomy behind it, so there is nothing to Link a template to and nothing to validate a typo against — a template naming `Earings` simply never matches, silently, and those items quietly fall back to the default layout. If categories matter operationally, standardising the spelling on the Item Masters is the fix.
+- **`Item.category` is free text.** Nothing validates it against a template's list, so a template naming `Earings` simply never matches, silently, and those items fall to the next rule. If categories matter operationally, standardise the spelling on the Item Masters, or set the template by Item type or on the Item instead (rules 1-2 are Links, so they cannot be misspelt).
 - **`Status = Inactive` is the retire switch.** An Inactive template is skipped by the resolver entirely, which is the safe way to park a layout without deleting it (and without losing the audit rows that reference it).
-- **Only one template should carry the default flag.** Nothing stops two, and the resolver takes the first one the database hands back — i.e. effectively arbitrary. Treat it as a single-occupancy flag.
+- **Only one template should carry the default flag.** The studio's tick does not stop two; the resolver then takes the lowest record id. The **Template rules** screen's Default dropdown keeps it to one.
 
 **How labels are rendered (Stage 58).** Every label — designed or built-in — is drawn in the browser by `public/sticker-engine.js`, the same code the studio canvas uses, so what was designed is what prints:
 
@@ -770,11 +789,14 @@ A pasted design number always loads that design, whichever mode is set.
 
 **Permissions.** `VendorCreditNote` mirrors `DebitNote` (HR/Admin all; Store Manager read/create), and the Payables role template operates both.
 
-#### B.3.7 Transaction print templates (Stage 63)
+#### B.3.7 Transaction print templates (Stages 63, 71)
 
 **What can be printed.**
 
-- Seven transactions: Purchase Order, Vendor PO, Goods Receipt Note, Transfer Out, Transfer In, Debit Note, Credit Note (to vendor).
+- Eleven transactions: Purchase Order, Vendor PO, Goods Receipt Note, **Vendor Copy** (`GRNVendorCopy`, a print of the same GRN), **Purchase Return** (`PurchaseReturn`), Transfer Out, Transfer In, Debit Note, Credit Note (to vendor), **Credit Note (to customer)** (`CreditNote`) and **Sales Return** (`SalesReturn`, prints a `ReturnRequest`). The four in bold were added in Stage 71; migration `migrations_stage71_1_print_formats.sql` adds them to `PrintTemplate.transaction`'s options, but only where that list is still the one Stage 63 shipped.
+- **Standard layouts follow the company's print-format pack (Stage 71).** Each Standard layout has a common header (financial year, status), the pack's columns, reference lines that drop out when blank, totals, three signature lines and an audit line. The audit line reads `documents.created_by` / `created_at`, the last `approval_log` row with action `Approved`, and the printing user and time from the browser. Fields the ERP does not hold were left out: bin per line, cess, IRN / QR, e-way bill, vehicle / LR, packages, payment and delivery terms, reprint count. GRN and Transfer In standard prints are quantity-only. A tenant's own saved templates are untouched and still take precedence.
+- **The Vendor Copy cannot leak cost.** `BuildPrintDocument` removes every rate, value, tax, cost field of the item, invoice amount, money total, tax summary and amount in words from its payload, so no template can print them.
+- **Transfer In fix (Stage 71).** The receipt used to print its received quantity as "Sent", so a short line looked complete. Shipped now comes from `dispatched_items` (else `items`), and received, short and reason come from `received_items`.
 - Each prints from one server payload, `GET /api/v1/print/document/{transaction}/{id}?store=&images=1`, which also returns the templates that fit. The payload holds brand, generating store, party, ship-to, every header field, every line with all its Item fields (and picture when `images=1`), the GST split per rate, totals and amount in words.
 - The page is drawn in the browser by `public/trade-docs.js`, the same renderer the designer uses. It is printed through the browser print dialog; there is no thermal path.
 
@@ -813,6 +835,64 @@ A pasted design number always loads that design, whichever mode is set.
 
 **Silent printing.** A tenant with a QZ / print-agent printer mapped for job type **Purchase Order** keeps printing POs silently; the print window opens only when no such printer is mapped.
 
+#### B.3.8 Item & Material Master — profiles, packaging backflush at the till, gifts with purchase, gift cards (Stage 72)
+
+The rule behind all of this: **one list cannot answer six questions.** "Gift", "Backflush", "Asset" and "Sellable" are different kinds of answer, so every item now answers them separately, and behaviour is read from those answers — never from the name of an item or a type.
+
+**1. The eight dimensions (Setup → Item Type, and on every Item).**
+
+| Field | Values | What it controls |
+|---|---|---|
+| Commercial class | Merchandise, Accessory, Promotional / GWP, Packaging, Consumable, Service, Stored Value, Fixed Asset, Internal / MRO, Bundle / Kit | What it is - descriptive, for reports. Never drives behaviour on its own. |
+| Stock tracking | Tracked / Not tracked | Not tracked: no store stock. A GRN posts no stock (value goes to expense), the till issues none, transfers and consumption refuse it (`INVENT-0421`). |
+| Valuation | Valuated / Non-valuated / Not applicable | Non-valuated: quantity is kept but carries no value - a GRN debits the **Expense account** instead of 1200 Inventory and the item never enters the moving average, so issuing it costs nothing. |
+| Accounting treatment | Inventory asset, Expense, Fixed asset, Stored value liability, Service | Must agree with valuation (below). |
+| Sellability at POS | Normal sale / Promo only / Not sellable / Stored-value issue only | Not sellable: refused at the till (`POSOFF-0411`). Promo only: billed at 0, only up to what a Gift With Purchase offer (or the Free-With-Item parent) earns (`POSOFF-0412`). Stored-value issue only: refused as a bill line (`POSOFF-0413`) - issued through Gift Card. |
+| Customer bill | Visible line / Hidden (internal) / Separate receipt | Hidden zero-value lines are not printed. |
+| POS capture | Scan / Quick select / Auto / Manual / None | Descriptive guidance for the till. |
+| Consumption | Sale issue / Auto backflush / Manual issue / Periodic / Production / None | Auto backflush: consumed by Backflush Rules at the till, and at production completion when it is a BOM component. Periodic: counted and posted with Consumption Entry. |
+| Expense account | a GL code | Where an expensed or consumed item's cost goes. Blank: 5160 Packaging Consumption for packaging, 5170 Promotional / GWP Expense for gifts, else 5180 Consumables Expense. |
+
+**Precedence:** the Item's own value → its Item Type's → what the type's Stage 60 flags meant → the company default (an ordinary merchandise line). Leave the Item's fields at *Item type default* unless that item is the exception. *Reports → Item Classification Register* shows every item's resolved answers and which ones the item overrides.
+
+**Rules the system enforces on save** (Item, Item Type, CSV import and API alike):
+- Valuated stock must be an Inventory asset (`MASTER-0401`); a not-tracked item is *Not applicable*, a tracked one is Valuated or Non-valuated (`MASTER-0402`).
+- Fixed asset accounting only on a Fixed Asset class (`MASTER-0403`); Stored Value class ⇔ *Stored-value issue only* + *Stored value liability* (`MASTER-0404`).
+- Auto backflush or Periodic consumption needs a stock-tracked item (`MASTER-0405`); the expense account must exist in the chart (`MASTER-0406`).
+- **Once an item has stock history** (or, for an Item Type, once any of its items does), stock tracking, valuation and accounting treatment **cannot change** (`MASTER-0407`) - the quantities and values already posted were posted under the old treatment. Create a successor item / type.
+
+**Shipped profiles.** Product, Accessory, Non-Asset (normal sale), **Gift** and **Free With Item** (Promotional / GWP, *Promo only*, cost to 5170), Backflush (Auto backflush), Fixed Asset (not tracked, fixed asset, not sellable), and new: **Packaging** (tracked, valuated, not sellable, hidden, auto backflush, 5160), **Consumable - Periodic** (tracked, **non-valuated**, expense, not sellable, periodic, 5180), **Service** (not tracked, sold), **Non-Stock Expense** (not tracked, not sold, 5180), **Gift Card** (stored value) and **Virtual Kit** (not tracked; the Product Bundle's components leave stock). The migration filled these values only on types whose dimensions were blank, so a type you had already customised keeps yours.
+
+> **Behaviour change to tell the stores:** a **Gift** item now needs a *Gift With Purchase* offer to be billed (step 3). Before Stage 72 the till refused every zero-priced line anyway, so no store was able to bill gifts; now they can, under an offer.
+
+**2. Packaging consumed with every sale — Backflush Rules (Setup → Inventory → Backflush Rule).** One row per *"this sells → this is used up"*:
+
+- **Applies to:** *Item* (an item code), *Attribute* (`Size:Large`, matched against the item's variant options), *Category* (code or name), *Item Type*, or *All items*.
+- **Store:** blank = every store; a store's own rule beats the all-stores one. Store managers see the rules of their own stores and the all-stores ones.
+- **Consumed item** (must be stock tracked), **Qty per unit sold** (whole number, default 1), **Group** (*Box*, *Butter paper*…).
+- **Which rule wins:** within a group the most specific wins - Item, then Attribute, then Category, then Item Type, then All items; a store's rule before the all-stores one at the same level; then the higher **Priority**. Rules in different groups add up (a box *and* a butter paper).
+- **Cashier may change it** (default Yes): the till's **Packaging** button offers every consumed item of the same group set up for that store, plus **None** if **"None" allowed** (default Yes). **Reason needed when changed** makes the cashier type one (`POSOFF-0414`).
+- **When the store is short:** *Allow and report* (default - the sale always goes ahead, stock may go negative, and an Item Exception opens), *Warn* (the till shows it, the sale goes ahead) or *Block* (the sale is refused until another option is chosen - `POSOFF-0416`).
+- **Effective from / to** dates; **Status** Inactive stops a rule.
+- Only lines **sold normally** trigger packaging - gifts, free items and gift cards never do. The consumption is worked out from the server's own priced lines, posted **in the sale's transaction** (stock out under voucher `POSConsumption` with the bill number; valuated packaging Dr expense / Cr 1200 at moving-average cost; non-valuated quantity only) and stored on the bill with each rule's id **and version**, so editing a rule later never changes a past bill. A retried sale never consumes twice.
+- **Returns do not put packaging back** (the box usually stays with the customer); a box that physically comes back is received like any stock. *Reports → Backflush Consumption* lists every bill's consumption, what was changed and why.
+
+**3. Gift With Purchase (Setup → Offer).** Offer type **Gift With Purchase**: the usual scope (bill / item / category / product group / SKU list), minimum bill or quantity, coupon, customer tier and validity, plus **Gift item** and **Gift qty** (per bill; or per **Buy Qty** qualifying units when Buy Qty is set - e.g. Buy Qty 1, Gift qty 1 = one plant per necklace). It is judged on the **paid** lines only, never uses up a discount slot, and makes the gift item eligible: the till prompts *"Gift eligible … scan it"*, and the scanned gift is billed at 0 with the offer recorded on the line. The gift's cost goes to its profile's expense account (5170). Tax is computed by the normal engine on the line's value; Finance should confirm the treatment of free supplies. *Reports → Gift With Purchase Register* lists every gift handed over.
+
+**4. Gift cards (stored value).** A gift card is a liability to the holder, not merchandise.
+- **Setup → Sales → Stored Value Profile.** The shipped *Standard Gift Card*: 16-digit numeric, any amount 100-50,000, valid 12 months, part use allowed, no add-value, liability account 2610. Fixed denominations: Amounts = *Fixed* and list them (`500,1000,2000`).
+- **Register cards** (store manager): POS → **Gift Card → Register new cards** - paste pre-printed numbers, or generate N (numeric ones end in a check digit). Generated numbers are shown once for printing. A number already known is refused (`POSOFF-0432`).
+- **Issue** happens only after payment: the card is funded, its first ledger event written and Dr payment clearing / Cr 2610 posted together, or not at all. **Redemption** is a tender at checkout, inside the sale's transaction: Dr 2610 / Cr the payment clearing account, capped at what the customer owes. Never on an offline-queued sale.
+- Every balance change is an **append-only ledger event** (ACTIVATE, RELOAD, REDEEM, BLOCK, UNBLOCK, CANCEL) with the balance after it; the database refuses edits to the ledger, and the Data Console shows these tables read-only with card numbers masked. Screens and reports show only the last four digits.
+- **Block / release** need a reason; **Cancel an unused issue** refunds by the original payment mode while the whole balance is unused.
+- **Reports → Gift Card Liability** (outstanding by card; reconciles to account 2610) and **Gift Card Ledger** (every event).
+
+**5. Consumption Entry (Inventory → Consumption Entry, store manager / admin).** *Periodic count* posts book − counted closing stock; *Manual issue* posts the quantity used. Refused: counted above book, used above stock (`INVENT-0422`), items that keep no stock (`INVENT-0421`). Valuated items: Dr expense / Cr 1200; non-valuated: quantity only. The entry keeps its count reference and who posted it; a retried post never consumes twice.
+
+**6. Exceptions and reports.** **Setup → Inventory → Item Exception** (also *Reports → Item Exceptions*): every packaging shortfall (*Open* - fix it, then set Status = Resolved with a comment), and every refused non-sellable or unearned gift line at a till (*Logged*, one per bill and item). Other Stage 72 reports: **Item Classification Register**, **Item Master Completeness** (what each item still lacks for how it is classified), **Non-Valuated Stock**, **Inactive Items With Stock**.
+
+**Not built yet - each needs your decision first** (checklist 72.D): item release maker-checker and a Draft / Blocked lifecycle; effective-dated item and tax versions; cancelling a posted bill (today: a return); per-store item policy overrides; the audit trail recording the editor and a reason; negative-stock policy per profile; gift return policy; gift card refund-to-card and transfer.
+
 ### B.4 Where to Look When Something Seems Wrong
 
 1. **`.\manage.ps1 logs`** — the fastest first check. Shows the server's own output and error logs, plus the database log.
@@ -841,7 +921,7 @@ See §D for the full deployment procedure. In short: a change is tested in `dev`
 
 #### C.2.1 The version number users see, and how to bump it
 
-Every signed-in user sees a small grey number under their name at the bottom of the sidebar — **`0.1.0`** and nothing else. Hovering, focusing or tapping it opens a small popup carrying the version and the release date in `D/M/YY` form (**`0.1.0`** / **`4/10/26`**), so the date is one hover or one tap away without competing with the username above it. The same values are available unauthenticated at **`GET /api/v1/version`**:
+Every signed-in user sees a small grey number in the bottom-right corner of their profile chip at the bottom of the sidebar (beside their role, under the arrow) — **`0.1.0`** and nothing else. Hovering, focusing or tapping it opens a small popup carrying the version and the release date in `D/M/YY` form (**`0.1.0`** / **`4/10/26`**), so the date is one hover or one tap away without competing with the username above it. The same values are available unauthenticated at **`GET /api/v1/version`**:
 
 ```json
 {"version":"0.1.0","release_date":"2026-10-04","build_time":"2026-10-04T03:23:45Z","git_commit":"afaf419"}
@@ -934,7 +1014,7 @@ go run ./cmd/tenantctl events -tenant acme  # the evidence trail
 
 `list` flags any tenant still sitting on an unrotated one-time credential — worth checking after any onboarding.
 
-**Pausing a tenant** (non-payment, suspected compromise, customer request):
+**Pausing a tenant** (non-payment, suspected compromise, customer request) — also one click on the **Control Panel** (§C.8), which runs the same change; the server commands are:
 
 ```
 go run ./cmd/tenantctl suspend -tenant acme -reason "non-payment, invoice 2026-08" -yes
@@ -1010,7 +1090,7 @@ What it adds, and what it never touches:
 ERP_PLATFORM_OPERATORS=default:admin
 ```
 
-Set it in the server's environment (`/etc/erp/erp.env` on the droplet) and restart the service. It cannot be set from inside the app, so no client user can grant it to themselves. Use a login that belongs to you, not to a client (the `default` client's admin, or a dedicated user). Only operators can: use the Data Console; list clients; see **Tenant Usage**; change a client's modules or plan (**Tenant Entitlements**); set a client's hostname; create clients; create, reset or delete sandbox clients. A client's own Super Admin may still **read** its own client's module list and version record, never another client's. Anyone else gets `PLATFORM-0317`.
+Set it in the server's environment (`/etc/erp/erp.env` on the droplet) and restart the service. It cannot be set from inside the app, so no client user can grant it to themselves. Use a login that belongs to you, not to a client (the `default` client's admin, or a dedicated user). Only operators can: use the Data Console; list clients; see **Tenant Usage**; change a client's modules or plan (**Tenant Entitlements**); set a client's hostname; create clients; pause or resume a client and set its free trial (**Control Panel**, §C.8); create, reset or delete sandbox clients. A client's own Super Admin may still **read** its own client's module list and version record, never another client's. Anyone else gets `PLATFORM-0317`.
 
 **One table per transaction.** The **Table** list shows every record type of the chosen client as its own table, grouped by module — **PurchaseOrder**, **GRN**, **Vendor**, **Item**, **Location**, **SalesInvoice**, **TransferOrder** and every other one, each with its row count. Opening one shows one column per field (headed by the field's label, e.g. *PO Number*, *Vendor*, *Status*), plus the record's number (`id`), status and timestamps. Any value a record carries that its record type no longer defines is shown under **Other data** rather than hidden. Below the record types are the raw **Database tables** (see "Where things are").
 
@@ -1027,9 +1107,9 @@ Set it in the server's environment (`/etc/erp/erp.env` on the droplet) and resta
 
 **Where things are (raw database tables).** Every record type above is stored in the one `documents` table (by `doctype`); the record-type tables are the easier way to fix them. The other tables: `doctype_fields` / `doctype_meta` (each record type's fields and labels), `prefix_configs` and `sequence_counters` (number series and their running counters), `system_settings` (Configuration), `role_permissions` and `field_permissions` (access), `bin_stock*` and `inventory_*` (stock), `gl_postings` / `gl_accounts` (accounts), `approval_*` (approvals). Editing stock or ledger rows directly can leave stock and books out of balance; correct those with an adjustment or reversal through their screens where one exists.
 
-### C.8 Control Panel — every client at a glance (Stage 65.5)
+### C.8 Control Panel — every client at a glance, pause and free trial (Stage 65.5, 65.6)
 
-**Settings → Control Panel** is the platform operator's one page (operators only, the same `ERP_PLATFORM_OPERATORS` setting as §C.7; anyone else sees a short note saying so). It only reads; each row opens the screen that makes the change.
+**Settings → Control Panel** is the platform operator's one page (operators only, the same `ERP_PLATFORM_OPERATORS` setting as §C.7; anyone else sees a short note saying so). Two changes are made right here — **pausing** a client and its **free trial** (below); everything else opens the screen that makes the change.
 
 **The four cards at the top.**
 
@@ -1040,7 +1120,18 @@ Set it in the server's environment (`/etc/erp/erp.env` on the droplet) and resta
 
 **The Clients table, one row per client.** Name, client id and schema; **Status** (active / suspended…, a *sandbox* or *legal hold* tag, and "admin not signed in yet" while the client's one-time admin login is unused); **Address** (opens it in a new tab — "main address" when the client has none of its own); **Created**; **Version** ("follows release" unless the client is pinned to one); **Modules** — how many are on and off; click it to list them; **Users** (active), **Records**, **Last activity** (its newest Activity Log entry) and **Errors (24h)** with the time of the last one (open them in the Data Console's `system_error_logs`, §C.7).
 
-**Actions on each row.** **Modules** opens **Tenant Entitlements** with that client chosen — turn a module on or off there, or apply a plan. **Data** opens the **Data Console** on that client. Browser **Back** returns here.
+**Actions on each row.** **Modules** opens **Tenant Entitlements** with that client chosen — turn a module on or off there, or apply a plan. **Data** opens the **Data Console** on that client. Browser **Back** returns here. **Pause / Resume**, **Trial** and **Mark paid** are below. The row of the client you are signed in to says *your client* instead of those buttons: pausing it, or letting a trial run out on it, would lock you out of this page.
+
+**Pausing a client** (non-payment, a customer's request, suspected misuse). Click **Pause**, type the reason, and click **OK**. Everyone at that client is signed out within a minute and cannot sign in again; nothing is deleted. The row shows *suspended* with your reason under it. **Resume** (again with a reason) lets them sign in straight away. Both go into the client's history (`tenant_lifecycle_events`) with your name, exactly as the server command `tenantctl suspend` / `resume` does (§C.6).
+
+**Free trial.** A client on trial works normally until its end date, then is **paused automatically** — the same as **Pause**, nothing deleted — until you act. No job has to run: the end date is checked on every sign-in and every request.
+
+- **Start a trial:** click **Trial** on the row, enter the number of days from today (30 is filled in), **OK**. The Status column then shows a *trial* tag and "trial ends 16 Nov 2026 · 30 days left". A new client can be given its trial when you create it: **Tenant Entitlements → Provision New Tenant → Free trial (days)**, 30 by default — clear it (or enter 0) for a client who is paying from day one.
+- **Extend it:** click **Extend trial** and enter the days from today. This also gives a client whose trial has ended its access back at once.
+- **They have paid:** click **Mark paid** and confirm. The trial ends with no end date; the client keeps full access.
+- **When a trial ends:** the row shows *trial ended* and "paused by trial end" with the time, and the **Clients** card counts it under *paused*. Its users see the same sign-in failure as a wrong password (deliberately — the sign-in screen never says why a client is closed), so tell the client before the date if you can. Extend the trial or mark it paid to reopen it.
+
+The **Clients** card counts how many are *on trial* and how many are *paused* (by you or by a trial end). A sandbox has its own expiry and takes no trial.
 
 **Releases** lists the last ten entries of the release ledger (`public.deployments`: when, environment, version, commit, who, status). Only `promote.ps1` writes to it; releases shipped with `deploy\deploy.ps1` do not, so the running release in the first card is the reliable answer to "what is live".
 

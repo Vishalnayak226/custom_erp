@@ -9,6 +9,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 )
 
 // Stage 63.1: one print-data shape for every transaction a user designs a
@@ -36,6 +37,13 @@ const (
 	PrintTxnTransferIn       = "TransferIn"
 	PrintTxnDebitNote        = "DebitNote"
 	PrintTxnVendorCreditNote = "VendorCreditNote"
+	// Stage 71 (the user's standard print formats pack): the vendor copy is
+	// a print of the same GRN with every value taken out, the others print
+	// documents that already existed without a print.
+	PrintTxnGRNVendorCopy  = "GRNVendorCopy"
+	PrintTxnPurchaseReturn = "PurchaseReturn"
+	PrintTxnCreditNote     = "CreditNote"
+	PrintTxnSalesReturn    = "SalesReturn"
 )
 
 // PrintTransactions lists them with the doctype each prints from.
@@ -49,6 +57,10 @@ var PrintTransactions = []struct {
 	{PrintTxnTransferIn, "Transfer In (receipt)", "TransferOrder"},
 	{PrintTxnDebitNote, "Debit Note", "DebitNote"},
 	{PrintTxnVendorCreditNote, "Credit Note (to vendor)", "VendorCreditNote"},
+	{PrintTxnGRNVendorCopy, "Vendor Copy (goods receipt acknowledgement)", "GRN"},
+	{PrintTxnPurchaseReturn, "Purchase Return (return to vendor)", "PurchaseReturn"},
+	{PrintTxnCreditNote, "Credit Note (to customer)", "CreditNote"},
+	{PrintTxnSalesReturn, "Sales Return", "ReturnRequest"},
 }
 
 func printTxnDoctype(txn string) string {
@@ -105,6 +117,10 @@ type PrintDocument struct {
 	TaxSummary    []PrintTaxRow            `json:"tax_summary"`
 	Totals        map[string]float64       `json:"totals"`
 	AmountInWords string                   `json:"amount_in_words"`
+	// Audit is the system audit line every print ends with (Stage 71):
+	// created_by / created_at, approved_by / approved_at. Who printed it and
+	// when is added by the page at print time.
+	Audit map[string]string `json:"audit"`
 	// For template resolution (product-wise / vendor-wise mapping).
 	Vendor     string   `json:"vendor,omitempty"`
 	Families   []string `json:"families,omitempty"`
@@ -256,6 +272,18 @@ func (d *PrintDocument) addLine(tenantID string, in printLineIn, cache map[strin
 		"cgst": cgst, "sgst": sgst, "igst": igst, "tax": round2(in.GST), "amount": round2(in.Taxable + in.GST),
 		"item": item,
 	}
+	// Stage 71: "Description / Design / Variant" - the name with the
+	// variant's values (Silver / 7), and the design the item belongs to.
+	variant := StickerVariantText(strField(item, "variant_option_values"))
+	l["variant"], l["design"] = variant, strField(item, "parent_product_code")
+	l["item_code"] = in.SKU
+	if bc := strField(item, "barcode"); bc != "" && bc != in.SKU {
+		l["item_code"] = in.SKU + " / " + bc
+	}
+	l["description"] = strField(item, "name")
+	if variant != "" {
+		l["description"] = strings.TrimSpace(strField(item, "name") + " · " + variant)
+	}
 	if in.MRP == 0 {
 		l["mrp"] = numFromInterface(item["mrp"])
 	}
@@ -280,6 +308,11 @@ func (d *PrintDocument) addLine(tenantID string, in printLineIn, cache map[strin
 	d.Lines = append(d.Lines, l)
 }
 
+// printQtyTotals are the per-line quantities some prints total (a GRN's PO /
+// accepted / rejected, a transfer's shipped / received / short...), summed
+// only when a line carries them.
+var printQtyTotals = []string{"accepted_qty", "rejected_qty", "damaged_qty", "po_qty", "shipped_qty", "received_qty", "short_qty", "return_qty"}
+
 // finish computes the tax summary, totals and amount in words from the lines.
 func (d *PrintDocument) finish() {
 	byRate := map[float64]*PrintTaxRow{}
@@ -300,8 +333,10 @@ func (d *PrintDocument) finish() {
 		for _, k := range []string{"taxable", "cgst", "sgst", "igst", "tax", "amount"} {
 			tot[k] += numFromInterface(l[k])
 		}
-		if v, ok := l["accepted_qty"]; ok {
-			tot["accepted_qty"] += numFromInterface(v)
+		for _, k := range printQtyTotals {
+			if v, ok := l[k]; ok {
+				tot[k] += numFromInterface(v)
+			}
 		}
 	}
 	rates := make([]float64, 0, len(byRate))
@@ -383,8 +418,8 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 			d.addLine(tenantID, printLineIn{SKU: l.SKU, Qty: float64(l.Qty), Rate: l.Rate, Taxable: l.Taxable, GST: l.TaxAmount,
 				GSTRate: l.GSTRate, MRP: l.MRP}, cache, withImages)
 		}
-	case PrintTxnGRN:
-		d.Title = "Goods Receipt Note"
+	case PrintTxnGRN, PrintTxnGRNVendorCopy:
+		d.Title = map[string]string{PrintTxnGRN: "Goods Receipt Note", PrintTxnGRNVendorCopy: "GRN Acknowledgement - Vendor Copy"}[txn]
 		d.Number = firstNonEmpty(strField(data, "code"), id)
 		defaultStore = strField(data, "location")
 		pos := GRNPOIDs(data)
@@ -397,6 +432,7 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 			}
 		}
 		d.Party, d.PartyTitle = loadPrintVendor(tenantID, d.Vendor), "Vendor"
+		ordered := poOrderedQty(tenantID, pos)
 		for _, l := range grnLineMaps(data) {
 			acc := grnLineAcceptedQty(l)
 			rate := numFromInterface(l["invoice_rate"])
@@ -405,10 +441,29 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 			}
 			gstRate := numFromInterface(l["gst_rate"])
 			taxable := round2(rate * acc)
-			d.addLine(tenantID, printLineIn{SKU: strField(l, "sku"), POID: strField(l, "po_id"), BatchNo: strField(l, "batch_no"),
+			sku, poID := strField(l, "sku"), strField(l, "po_id")
+			rejected, damaged := numFromInterface(l["rejected_qty"]), numFromInterface(l["damaged_qty"])
+			poQty, okPO := ordered[poID+"|"+sku]
+			if !okPO {
+				poQty = ordered["|"+sku]
+			}
+			// QC status is what the receipt split says: nothing kept back,
+			// part kept back, or nothing accepted.
+			qc := "Accepted"
+			if rejected+damaged > 0 {
+				qc = map[bool]string{true: "Rejected", false: "Partly accepted"}[acc <= 0]
+			}
+			reasons := []string{}
+			for _, k := range []string{"rejection_reason", "damage_reason"} {
+				if s := strings.TrimSpace(strField(l, k)); s != "" {
+					reasons = append(reasons, s)
+				}
+			}
+			d.addLine(tenantID, printLineIn{SKU: sku, POID: poID, BatchNo: strField(l, "batch_no"),
 				Qty: numFromInterface(l["qty"]), Rate: rate, Taxable: taxable, GST: round2(taxable * gstRate / 100), GSTRate: gstRate,
 				Extra: map[string]interface{}{
-					"accepted_qty": acc, "rejected_qty": numFromInterface(l["rejected_qty"]), "damaged_qty": numFromInterface(l["damaged_qty"]),
+					"accepted_qty": acc, "rejected_qty": rejected, "damaged_qty": damaged, "po_qty": poQty,
+					"qc_status": qc, "variance_reason": strings.Join(reasons, "; "),
 					"po_rate": numFromInterface(l["po_rate"]), "invoice_rate": rate,
 					"rate_difference": round2(rate - numFromInterface(l["po_rate"])),
 				}}, cache, withImages)
@@ -429,17 +484,50 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		taxable := fromStore.GSTIN != "" && toStore.GSTIN != "" && fromStore.GSTIN != toStore.GSTIN
 		d.Interstate = taxable && fromStore.StateCode != toStore.StateCode
 		d.Fields["supply_type"] = map[bool]string{true: "Taxable stock transfer", false: "Delivery challan - stock transfer within one GSTIN, not a sale"}[taxable]
+		d.Fields["value_basis"] = "Standard cost (MRP where no cost)"
+		d.Fields["stock_status_after"] = map[string]string{PrintTxnTransferOut: "In transit", PrintTxnTransferIn: "Available at " + firstNonEmpty(toStore.Name, to)}[txn]
+		// Stage 71: requested is the order's line, shipped what dispatch
+		// recorded; a receipt prints against what was shipped. (The receipt
+		// used to print its own received qty as "Sent", so a short line
+		// looked complete.)
+		requested, shipped := transferQtyBySKU(strField(data, "items")), transferQtyBySKU(strField(data, "items"))
+		if s := strField(data, "dispatched_items"); s != "" {
+			shipped = transferQtyBySKU(s)
+		}
 		raw := strField(data, "items")
+		received := map[string]map[string]interface{}{}
 		if txn == PrintTxnTransferIn && strField(data, "received_items") != "" {
-			raw = strField(data, "received_items")
+			var rec []map[string]interface{}
+			_ = json.Unmarshal([]byte(strField(data, "received_items")), &rec)
+			for _, r := range rec {
+				received[strField(r, "sku")] = r
+			}
 		}
 		var lines []map[string]interface{}
 		_ = json.Unmarshal([]byte(raw), &lines)
+		anyShort := false
+		seen := map[string]bool{}
 		for _, l := range lines {
 			sku := strField(l, "sku")
-			qty := numFromInterface(l["qty"])
-			if txn == PrintTxnTransferIn && lineNumberSet(l, "received_qty") {
-				qty = numFromInterface(l["received_qty"])
+			if seen[sku] { // quantities are per SKU; a repeated SKU prints once
+				continue
+			}
+			seen[sku] = true
+			qty := shipped[sku]
+			extra := map[string]interface{}{"requested_qty": requested[sku], "shipped_qty": shipped[sku], "sent_qty": shipped[sku]}
+			if txn == PrintTxnTransferIn {
+				if r, ok := received[sku]; ok {
+					qty = numFromInterface(r["qty"])
+					if lineNumberSet(r, "received_qty") {
+						qty = numFromInterface(r["received_qty"])
+					}
+					extra["reason"] = strField(r, "reason")
+				} else if len(received) > 0 {
+					qty = 0
+				}
+				short := math.Max(shipped[sku]-qty, 0)
+				extra["received_qty"], extra["short_qty"] = qty, short
+				anyShort = anyShort || short > 0
 			}
 			item := printItemFields(tenantID, sku, cache)
 			rate := firstPositive(numFromInterface(item["standard_cost"]), numFromInterface(item["mrp"]))
@@ -451,8 +539,13 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 			} else {
 				gstRate = 0
 			}
-			d.addLine(tenantID, printLineIn{SKU: sku, Qty: qty, Rate: rate, Taxable: val, GST: gst, GSTRate: gstRate,
-				Extra: map[string]interface{}{"sent_qty": numFromInterface(l["qty"])}}, cache, withImages)
+			d.addLine(tenantID, printLineIn{SKU: sku, Qty: qty, Rate: rate, Taxable: val, GST: gst, GSTRate: gstRate, Extra: extra}, cache, withImages)
+		}
+		if txn == PrintTxnTransferIn {
+			d.Fields["receipt_status"] = map[bool]string{true: "Received with shortage", false: "Received in full"}[anyShort]
+			if len(received) == 0 {
+				d.Fields["receipt_status"] = "Not received yet"
+			}
 		}
 	case PrintTxnDebitNote, PrintTxnVendorCreditNote:
 		d.Title = map[string]string{PrintTxnDebitNote: "Debit Note", PrintTxnVendorCreditNote: "Credit Note"}[txn]
@@ -460,9 +553,15 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		d.Vendor = strField(data, "vendor_id")
 		d.Party, d.PartyTitle = loadPrintVendor(tenantID, d.Vendor), "Vendor"
 		grnID := firstNonEmpty(strField(data, "grn_id"), strField(data, "source_doc_id"))
+		d.Fields["document_direction"] = "Vendor"
+		d.Fields["place_of_supply"] = d.Party.State
 		if grn, _, errG := fetchDocData(tenantID, "GRN", grnID); errG == nil && grnID != "" {
 			defaultStore = strField(grn, "location")
 			d.Fields["po_numbers"] = strings.Join(GRNPOIDs(grn), ", ")
+			// The original invoice the note adjusts is the vendor's bill on
+			// the GRN.
+			d.Fields["original_invoice_no"] = firstNonEmpty(strField(data, "vendor_invoice_no"), strField(grn, "vendor_invoice_no"))
+			d.Fields["original_invoice_date"] = strField(grn, "vendor_invoice_date")
 			if po, _, errPO := fetchDocData(tenantID, "PurchaseOrder", strField(grn, "po_id")); errPO == nil {
 				d.Interstate, _ = po["interstate"].(bool)
 			}
@@ -475,7 +574,8 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		for _, l := range lines {
 			d.addLine(tenantID, printLineIn{SKU: l.SKU, POID: l.POID, Qty: l.Qty, Rate: round2(math.Abs(l.InvoiceRate - l.PORate)),
 				Taxable: l.Taxable, GST: l.GST, GSTRate: l.GSTRate,
-				Extra: map[string]interface{}{"po_rate": l.PORate, "invoice_rate": l.InvoiceRate}}, cache, withImages)
+				Extra: map[string]interface{}{"po_rate": l.PORate, "invoice_rate": l.InvoiceRate,
+					"original_taxable": round2(l.Qty * l.PORate), "reason": strField(data, "reason")}}, cache, withImages)
 		}
 		if len(lines) == 0 {
 			amount, gst := numFromInterface(data["amount"]), numFromInterface(data["gst_amount"])
@@ -484,14 +584,259 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 				gstRate = round2(gst / amount * 100)
 			}
 			d.addLine(tenantID, printLineIn{Qty: 1, Rate: amount, Taxable: amount, GST: gst, GSTRate: gstRate,
-				Extra: map[string]interface{}{"item_name": strField(data, "reason")}}, cache, false)
+				Extra: map[string]interface{}{"item_name": strField(data, "reason"), "description": strField(data, "reason")}}, cache, false)
+		}
+	case PrintTxnPurchaseReturn:
+		d.Title = "Purchase Return - Return to Vendor"
+		d.Number = firstNonEmpty(strField(data, "code"), id)
+		d.Date = firstNonEmpty(strField(data, "return_date"), d.Date)
+		defaultStore = strField(data, "location")
+		d.Vendor = strField(data, "vendor_id")
+		d.Party, d.PartyTitle = loadPrintVendor(tenantID, d.Vendor), "Vendor"
+		received := map[string]float64{}
+		grnRates := map[string]float64{}
+		if grn, _, errG := fetchDocData(tenantID, "GRN", strField(data, "grn_id")); errG == nil {
+			d.Fields["vendor_invoice_no"], d.Fields["vendor_invoice_date"] = strField(grn, "vendor_invoice_no"), strField(grn, "vendor_invoice_date")
+			d.Fields["po_numbers"] = strings.Join(GRNPOIDs(grn), ", ")
+			for _, l := range grnLineMaps(grn) {
+				received[strField(l, "sku")] += numFromInterface(l["qty"])
+				if lineNumberSet(l, "gst_rate") {
+					grnRates[strField(l, "sku")] = numFromInterface(l["gst_rate"])
+				}
+			}
+		}
+		if po, _, errPO := fetchDocData(tenantID, "PurchaseOrder", strField(data, "po_id")); errPO == nil {
+			d.Interstate, _ = po["interstate"].(bool)
+		}
+		var lines []PurchaseReturnLine
+		_ = json.Unmarshal([]byte(strField(data, "return_items")), &lines)
+		for _, l := range lines {
+			gstRate, ok := grnRates[l.SKU]
+			if !ok {
+				gstRate = numFromInterface(printItemFields(tenantID, l.SKU, cache)["gst_rate"])
+			}
+			value := firstPositive(l.LineValue, round2(l.UnitCost*l.Qty))
+			d.addLine(tenantID, printLineIn{SKU: l.SKU, BatchNo: l.BatchNo, Qty: l.Qty, Rate: l.UnitCost, Taxable: value,
+				GST: round2(value * gstRate / 100), GSTRate: gstRate,
+				Extra: map[string]interface{}{"return_qty": l.Qty, "received_qty": received[l.SKU], "stock_bucket": l.StockBucket,
+					"reason": firstNonEmpty(strField(data, "reason"), l.StockBucket)}}, cache, withImages)
+		}
+	case PrintTxnCreditNote:
+		d.Title = "Credit Note"
+		d.Number = firstNonEmpty(strField(data, "note_number"), strField(data, "code"), id)
+		d.Party, d.PartyTitle = loadPrintCustomer(tenantID, strField(data, "customer_id")), "Customer"
+		d.Fields["document_direction"] = "Customer"
+		if inv, _, errI := fetchDocData(tenantID, "SalesInvoice", strField(data, "sales_invoice_id")); errI == nil {
+			d.Fields["original_invoice_no"] = firstNonEmpty(strField(inv, "invoice_number"), strField(data, "sales_invoice_id"))
+			d.Fields["original_invoice_date"] = firstNonEmpty(strField(inv, "invoice_date"), strField(inv, "posting_date"))
+			defaultStore = strField(inv, "location")
+		}
+		if cart, _, errC := fetchDocData(tenantID, "POSCart", strField(data, "reference_cart")); errC == nil && defaultStore == "" {
+			defaultStore = firstNonEmpty(strField(cart, "location"), strField(cart, "store"))
+		}
+		// The note stores one amount and no tax split - it prints as one line.
+		amount := numFromInterface(data["amount"])
+		d.addLine(tenantID, printLineIn{Qty: 1, Rate: amount, Taxable: amount,
+			Extra: map[string]interface{}{"item_name": strField(data, "reason"), "description": strField(data, "reason")}}, cache, false)
+	case PrintTxnSalesReturn:
+		d.Title = "Sales Return"
+		d.Number = firstNonEmpty(strField(data, "code"), id)
+		defaultStore = strField(data, "return_location")
+		d.Fields["original_order"] = strField(data, "original_order_id")
+		d.Fields["return_type"] = strField(data, "request_type")
+		originalQty := map[string]float64{}
+		if cart, _, errC := fetchDocData(tenantID, "POSCart", strField(data, "original_order_id")); errC == nil {
+			d.Party = loadPrintCustomer(tenantID, firstNonEmpty(strField(cart, "customer_id"), strField(cart, "customer")))
+			if d.Party.Name == "" {
+				d.Party.Name, d.Party.Phone = strField(cart, "customer_name"), strField(cart, "customer_phone")
+			}
+			d.Fields["original_invoice_date"] = firstNonEmpty(strField(cart, "completed_at"), documentCreatedDate(tenantID, "POSCart", strField(data, "original_order_id")))
+			for k, v := range transferQtyBySKU(strField(cart, "items")) {
+				originalQty[k] = v
+			}
+		}
+		d.PartyTitle = "Customer"
+		if refund := returnRefund(tenantID, id); refund != nil {
+			d.Fields["refund_method"], d.Fields["refund_no"] = strField(refund, "refund_method"), firstNonEmpty(strField(refund, "code"), "")
+			d.Fields["refund_status"] = strField(refund, "status")
+		}
+		var lines []returnItemRecord
+		_ = json.Unmarshal([]byte(strField(data, "items")), &lines)
+		for _, l := range lines {
+			// Shop prices include GST: the refund value is split back into
+			// taxable and tax at the item's rate.
+			item := printItemFields(tenantID, l.SKU, cache)
+			gstRate := numFromInterface(item["gst_rate"])
+			value := round2(l.OriginalUnitPrice * float64(l.Qty))
+			taxable := round2(value / (1 + gstRate/100))
+			d.addLine(tenantID, printLineIn{SKU: l.SKU, Qty: float64(l.Qty), Rate: l.OriginalUnitPrice, Taxable: taxable,
+				GST: round2(value - taxable), GSTRate: gstRate,
+				Extra: map[string]interface{}{"return_qty": float64(l.Qty), "original_qty": originalQty[l.SKU],
+					"original_disc": round2(math.Max(numFromInterface(item["mrp"])-l.OriginalUnitPrice, 0)),
+					"condition": l.Disposition, "exchange_sku": l.ExchangeSKU}}, cache, withImages)
 		}
 	}
 
 	d.Store = LoadPrintStore(tenantID, firstNonEmpty(strings.TrimSpace(store), defaultStore))
 	d.Brand = map[string]string{"name": printBrandName(tenantID, d.Store)}
 	d.finish()
+	// Stage 71: the common header and audit fields every print carries.
+	d.Fields["financial_year"] = financialYear(d.Date)
+	if strField(d.Fields, "currency") == "" {
+		d.Fields["currency"] = "INR"
+	}
+	d.Audit = printAudit(tenantID, doctype, id)
+	if txn == PrintTxnGRNVendorCopy {
+		d.stripValues()
+	}
 	return d, nil
+}
+
+// stripValues takes every price, value and tax out of a document, so a print
+// meant for the vendor (the GRN's vendor copy) cannot show internal cost or
+// valuation whatever template it is printed with.
+func (d *PrintDocument) stripValues() {
+	money := []string{"rate", "mrp", "taxable", "gst_rate", "cgst", "sgst", "igst", "tax", "amount", "po_rate", "invoice_rate", "rate_difference"}
+	for _, l := range d.Lines {
+		for _, k := range money {
+			delete(l, k)
+		}
+		if item, ok := l["item"].(map[string]interface{}); ok {
+			slim := map[string]interface{}{}
+			for k, v := range item {
+				switch k {
+				case "standard_cost", "cost_price", "sale_price", "mrp":
+				default:
+					slim[k] = v
+				}
+			}
+			l["item"] = slim
+		}
+	}
+	for k := range d.Fields {
+		if strings.Contains(k, "value") || strings.Contains(k, "amount") || strings.HasPrefix(k, "invoice_") {
+			delete(d.Fields, k)
+		}
+	}
+	for _, k := range []string{"taxable", "cgst", "sgst", "igst", "tax", "amount", "round_off", "grand_total"} {
+		delete(d.Totals, k)
+	}
+	d.TaxSummary = []PrintTaxRow{}
+	d.AmountInWords = ""
+}
+
+// financialYear is the Indian financial year (April-March) a date falls in,
+// "2026-27"; "" for no date.
+func financialYear(date string) string {
+	t, err := time.Parse("2006-01-02", firstNonEmpty(dateOnly(date), ""))
+	if err != nil {
+		return ""
+	}
+	start := t.Year()
+	if t.Month() < time.April {
+		start--
+	}
+	return fmt.Sprintf("%d-%02d", start, (start+1)%100)
+}
+
+func dateOnly(s string) string {
+	if len(s) >= 10 {
+		return s[:10]
+	}
+	return s
+}
+
+// printAudit is who created the document and when, and who approved it
+// (the last Approved entry of the maker-checker log), as user names.
+func printAudit(tenantID, doctype, id string) map[string]string {
+	out := map[string]string{}
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return out
+	}
+	var by, at, docID string
+	if db.DB.QueryRow(fmt.Sprintf(`SELECT id, COALESCE(created_by, ''), COALESCE(to_char(created_at, 'YYYY-MM-DD HH24:MI'), '')
+		FROM %s.documents WHERE doctype = $1 AND (id = $2 OR data->>'code' = $2) LIMIT 1`, schema), doctype, id).Scan(&docID, &by, &at) == nil {
+		out["created_by"], out["created_at"] = printUserName(schema, by), at
+	}
+	if docID == "" {
+		docID = id
+	}
+	var actor, when string
+	if db.DB.QueryRow(fmt.Sprintf(`SELECT actor_user_id, COALESCE(to_char(created_at, 'YYYY-MM-DD HH24:MI'), '') FROM %s.approval_log
+		WHERE doctype = $1 AND document_id = $2 AND action = 'Approved' ORDER BY created_at DESC, id DESC LIMIT 1`, schema), doctype, docID).Scan(&actor, &when) == nil {
+		out["approved_by"], out["approved_at"] = printUserName(schema, actor), when
+	}
+	return out
+}
+
+// printUserName turns a stored user reference (an id or a user name) into
+// the user name; anything it cannot match prints as stored.
+func printUserName(schema, ref string) string {
+	var name string
+	if ref != "" && db.DB.QueryRow(fmt.Sprintf(`SELECT username FROM %s.users WHERE id::text = $1 OR username = $1 LIMIT 1`, schema), ref).Scan(&name) == nil {
+		return name
+	}
+	return ref
+}
+
+// poOrderedQty is each PO line's ordered quantity, keyed "po|sku", plus
+// "|sku" summed across the POs (a GRN line without a PO id).
+func poOrderedQty(tenantID string, poIDs []string) map[string]float64 {
+	out := map[string]float64{}
+	for _, poID := range poIDs {
+		po, _, err := fetchDocData(tenantID, "PurchaseOrder", poID)
+		if err != nil {
+			continue
+		}
+		for sku, q := range transferQtyBySKU(strField(po, "items")) {
+			out[poID+"|"+sku] += q
+			out["|"+sku] += q
+		}
+	}
+	return out
+}
+
+// transferQtyBySKU sums a JSON line list's qty per SKU ([{sku, qty}, ...] -
+// the shape PO, transfer and cart lines share).
+func transferQtyBySKU(raw string) map[string]float64 {
+	out := map[string]float64{}
+	var lines []map[string]interface{}
+	if json.Unmarshal([]byte(raw), &lines) != nil {
+		return out
+	}
+	for _, l := range lines {
+		out[strField(l, "sku")] += numFromInterface(l["qty"])
+	}
+	return out
+}
+
+// loadPrintCustomer is a customer as a party block.
+func loadPrintCustomer(tenantID, customerID string) PrintStore {
+	out := PrintStore{Code: customerID, Name: customerID}
+	if c, _, err := fetchDocData(tenantID, "Customer", customerID); err == nil {
+		out.Name = firstNonEmpty(str(c, "name"), customerID)
+		out.Phone, out.Email = str(c, "phone"), str(c, "email")
+	}
+	return out
+}
+
+// returnRefund is the RefundRequest raised for a return, nil when none.
+func returnRefund(tenantID, returnID string) map[string]interface{} {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return nil
+	}
+	var raw []byte
+	if db.DB.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = 'RefundRequest' AND deleted_at IS NULL
+		AND data->>'return_request_id' = $1 ORDER BY created_at DESC LIMIT 1`, schema), returnID).Scan(&raw) != nil {
+		return nil
+	}
+	var m map[string]interface{}
+	if json.Unmarshal(raw, &m) != nil {
+		return nil
+	}
+	return m
 }
 
 func firstPositive(vals ...float64) float64 {

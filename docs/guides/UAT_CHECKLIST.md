@@ -131,7 +131,7 @@ Companion to [USER_GUIDE.md](USER_GUIDE.md) (explains what each screen is *for*)
 
 - [ ] **Settlements panel** loads with a form (Settlement ID, Channel, Total Sale, Commission, Net Payout, Order IDs) and an existing-settlements table below it.
 - [ ] Channel dropdown includes Shopify/Amazon plus any real Channel records configured in the system (Stage 18 fix — previously hardcoded to just Shopify/Amazon).
-- [ ] Submitting "Reconcile" with all fields filled adds a new row to the settlements table.
+- [ ] **+ Reconcile Payout**, then "Reconcile" with all fields filled, returns to the settlements list with a new row.
 - [ ] **Logistics Bookings panel** loads below it with its own form and table; submitting "Book" adds a row.
 
 ---
@@ -157,7 +157,7 @@ Four tabs across the top: **Current Stock**, **Sales Register**, **Vendor Ledger
 ## 9. RFQ / Quotes
 
 - [ ] "New RFQ" form (RFQ Number, description, etc.) creates a new RFQ that appears in the list below.
-- [ ] Clicking into an RFQ shows its Quotes panel with a "Submit Quote" form (Quote Number, **Vendor** — has typeahead as of Stage 18, Quoted Price, Lead Time).
+- [ ] Clicking into an RFQ shows its quotes list; **+ Record Quote** opens the "Submit Quote" form (Quote Number, **Vendor** — has typeahead as of Stage 18, Quoted Price, Lead Time).
 - [ ] Submitting a quote adds it to the quotes table with status "Submitted".
 - [ ] "Select as Winner" on a submitted quote marks it Selected and closes out the RFQ (other quotes should no longer be selectable).
 
@@ -184,7 +184,7 @@ Three tabs: **Attendance**, **Leave**, **Payroll Export**.
 
 ## 12. Fixed Assets
 
-- [ ] "Create" form loads with Category, **Location (typeahead, Stage 18)**, **Custodian (typeahead against Employee, Stage 18)**, Acquisition Date, etc. New asset starts at status **Draft**.
+- [ ] **+ New Asset** opens the "Create" form with Category, **Location (typeahead, Stage 18)**, **Custodian (typeahead against Employee, Stage 18)**, Acquisition Date, etc. New asset starts at status **Draft**.
 - [ ] Creating an asset adds it to the asset register table (Asset #, Category, Location, Custodian, Cost, Accum. Depreciation, Net Block, Status).
 - [ ] Full lifecycle: **Draft** → "Capitalise" → **Capitalised** → "Transfer" (stays Capitalised, location/custodian change) or "Dispose" (moves to a disposed/terminal status). Confirm the right button(s) appear at each status.
   - ⚠️ **Known limitation**: the Transfer action's new-location/new-custodian prompts are plain browser pop-ups, not the typeahead picker used elsewhere — this is a documented, deferred gap (`docs/micro_checklist.md` Stage 18), not something newly broken.
@@ -250,7 +250,8 @@ For **each** item in the submenu:
 
 ## 18. Purchase Order
 
-- [ ] "New Purchase Order" form loads with PO Number, **Vendor (typeahead, Stage 18)**, **Target Warehouse (typeahead against Location, Stage 18)**, **Location (typeahead, Stage 18)**, Total Amount, GST Rate, Interstate checkbox.
+- [ ] Purchase Order opens on the **list** of saved orders (count beside the title) with **+ New Purchase Order** top right; that opens the order page (breadcrumb **Purchase Orders › New purchase order**; one fixed screen, only the item list scrolls) with PO Number, **Vendor**, **Billing address** and **Shipping address** (store pickers, each with the store's address and **Edit store** under it; Shipping fills with the billing store), GST treatment, the **Add item** row, and the totals and tax in the top bar. Browser **Back** returns to the list and **Forward** brings the half-typed order back; **Create Draft** lands on the list (Stage 65.8 / 68 / 69).
+- [ ] **List first, New as its own page, everywhere (Stage 69).** Goods Receipt, Purchase Return, Stock Transfer, Location Movement (history of moves), Journal Vouchers, ASN, RFQ (and an RFQ's quotes), Expenses, Fixed Assets, Payment Proposals, Yard Board, Sticker Printing → Print (print history), Order Management (**+ New Order**), Marketplace (settlements / bookings / manifests), Manufacturing → Orders and HR → Attendance / Leave / Payroll / Loans/Advances / My Requests each open on their list with **+ New …**; the form page has a breadcrumb back; saving lands on the list with the new record; Back from the form does not reload the screen. **Receive goods** on a PO opens the GRN's New page with the PO loaded; **Book shipment** from Fulfillment opens Marketplace's booking page filled.
 - [ ] "Calculate GST" with an amount and rate filled in shows a CGST/SGST or IGST breakdown.
 - [ ] "Create Draft" (as `admin` — other roles are expected to be denied here, see Role Access Notes) adds the PO to the table below with status "Draft".
 - [ ] "Submit for Approval" on a Draft PO changes its status to "Pending Approval" and it should then appear under **Approvals** (§7).
@@ -295,7 +296,7 @@ All four of these used to be dead links falling through to a "Module Setup Pendi
 - [ ] "Register New Record Type" (prompts for name/module/type) creates a new empty record type that then appears in the left-hand list and in **Setup** (§16) if registered as type "Master".
 - [ ] "Add Field" on a record type (prompts for fieldname/label/fieldtype/mandatory/options) adds a new field, and that field then appears on that record type's create form elsewhere in the app.
 - [ ] Deleting a field removes it from the record type's configuration and its create form.
-- [ ] ⚠️ **Known limitation**: the page subtitle mentions "setup RBAC rules," but there is no RBAC editor on *this* screen specifically — that's now the **Roles** screen instead (§19). Don't spend time looking for one here; that's expected, not a missed feature. (This note used to say role/doctype access was database-only with no UI anywhere — that's no longer true as of the Roles screen shipping; only the "not on this particular page" half still holds.)
+- [ ] ⚠️ **Known limitation**: there is no RBAC editor on *this* screen specifically — that's now the **Roles** screen instead (§19). Don't spend time looking for one here; that's expected, not a missed feature. (This note used to say role/doctype access was database-only with no UI anywhere — that's no longer true as of the Roles screen shipping; only the "not on this particular page" half still holds.)
 
 ---
 
@@ -359,7 +360,7 @@ Each of the following now has its own section in this checklist. Work through th
 ### 24.4 ASN
 
 - [ ] **Procurement → ASN** loads and lists ASNs.
-- [ ] **Add Line** then **Save ASN** creates one; the **ASN number is auto-issued**.
+- [ ] **+ New ASN**, **Add Line**, then **Save ASN** creates one and returns to the ASN list; the **ASN number is auto-issued**.
 - [ ] The ASN's **PO Number** field holds the *referenced PO's* number and is **not** overwritten with the ASN's own number.
 - [ ] A saved ASN can be loaded from the Goods Receipt screen (§24.1).
 
@@ -417,6 +418,26 @@ These are still produced *by* other actions rather than through a form of their 
 - [ ] Row **Edit** and **Delete** icons are likewise absent without update/delete grants.
 - [ ] A record type the role *can* create still shows its **New** button — confirm the gating is reading real grants and not just hiding everything.
 - [ ] Granting create access on **Settings → Roles** and reloading makes the buttons appear.
+
+## 25. Item & Material Master — packaging, gifts, gift cards (Stage 72; Admin Guide §B.3.8, User Guide §4.6)
+
+Set up first (as an admin): a sellable store; an earring item (category *Earrings*) and a necklace (category *Necklace*) with stock; **Packaging** items *Small Red Box*, *Large Red Box*, *Premium Box* and a **Consumable - Periodic** *Butter Paper*, all with stock at that store; a **Gift** item *Gift Plant* with stock; Backflush Rules: Earrings → Small Red Box (Group *Box*, Reason needed = Yes), Necklace → Large Red Box (Box), Premium Box on any item (Box), All items → Butter Paper (Group *Butter paper*, Cashier may change = No); an Offer *Gift With Purchase* scoped to the necklace with Gift item = Gift Plant, Gift qty 1.
+
+- [ ] **Packaging is automatic (UAT-07).** Ring up 2 earrings + 1 necklace: the panel under the items shows *Uses (not on the bill): 2 × Small Red Box, 1 × Large Red Box, 3 × Butter Paper*; complete the sale; the boxes and paper leave the store's stock; the bill and receipt show no packaging line.
+- [ ] **Change the box with a reason (UAT-08).** Before completing, **Packaging** → necklace → *Premium Box*, reason typed → only the premium box is used, marked * in the panel; *Reports → Backflush Consumption* shows the change and the reason.
+- [ ] **Reason is enforced.** Change the earrings' box without a reason → the till keeps the usual box and says a reason is needed.
+- [ ] **No box (UAT-09).** Choose **None** for a line → no box is used for it.
+- [ ] **Short stock (UAT-10).** With less butter paper than the sale uses, the till warns and the sale still completes; **Setup → Inventory → Item Exception** (or *Reports → Item Exceptions*) shows an Open shortfall. With a rule set to *Block*, the sale is refused until another option is picked.
+- [ ] **Packaging can't be billed (UAT-28).** Scan a box → the line comes off with *"… is not sold at the till"*; an Item Exception *Non-sellable POS attempt* is logged once.
+- [ ] **Returns don't put packaging back (UAT-12).** Return the earrings → earring stock comes back, box stock does not.
+- [ ] **Butter paper by count (UAT-13).** **Inventory → Consumption Entry**, Periodic count, Butter Paper, counted closing qty → *book − counted* leaves stock; counting more than the book is refused.
+- [ ] **Gift With Purchase (UAT-14/15).** With only earrings on the bill, scanning the Gift Plant is refused (not earned). Add the necklace → the panel shows *Gift eligible*; scan the plant → it rings up at 0.00 *Free gift (offer)*; plant stock goes down; *Reports → Gift With Purchase Register* lists it.
+- [ ] **Gift card issue (UAT-16/17).** **Gift Card → Register new cards** (generate 1) → print the number. **Issue**, 1,000 cash → a separate issue receipt prints; **Check balance** shows 1,000. An issue refused (amount under the minimum) leaves the card *Inactive*.
+- [ ] **Pay with a gift card (UAT-18).** On a 3,000 bill, **Gift Card → Pay**, 600 → bar shows *Gift card −600*, Total 2,400; complete → card balance 400, *Partially redeemed*; the receipt shows the gift card line. *Reports → Gift Card Liability* shows 400 outstanding.
+- [ ] **Duplicate and blocked cards (UAT-20).** Registering the same number again is refused; a **blocked** card cannot pay; **Release** returns it to its balance.
+- [ ] **Services and kits (UAT-05/21).** A **Service** item sells with *Not stocked* in Available and no stock movement; a **Virtual Kit** (Product Bundle, fulfilment *Virtual*) sold at the till takes its components out of stock.
+- [ ] **Treatment is frozen after history (UAT-24).** On an item with sales, change its item type to *Service* → refused with *"already has stock history"*.
+- [ ] **Classification register.** *Reports → Item Classification Register* lists every item with class, stock, valuation, sellability and consumption, and which ones the item overrides.
 
 ---
 

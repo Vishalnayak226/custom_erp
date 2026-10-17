@@ -33,6 +33,7 @@ A few things work the same way everywhere in this system. Learn them once here i
 - **The header search box** (top of the screen, "Search screens and setup lists...") is a **navigator, not a record search**. Type a few letters and it suggests screens and setup lists by name — "purch" offers Purchase Order, Purchase Requisitions and so on — and picking one takes you there. It does **not** look inside your records: it will not find a particular vendor, item or invoice. To find a *record*, go to its screen first and use that screen's own **Search table...** box.
 - **Each record-list screen has its own search box**, just above the table. It filters the list you're looking at. If it finds nothing, the table says so and tells you to clear the box — that means "no match", not "empty list".
 - **Creating a new record on a record-list screen**: click the plus-icon **New [Record Type]** button (top right), fill in the fields — anything with a red **\*** is required — and click **Save**. A field showing greyed-out placeholder text like *"Auto-generated upon save"* is numbered for you: leave it alone, you can't type in it.
+- **Transaction screens open on their list; New is a page of its own** (Stage 69, the Odoo / ERPNext / Zoho pattern). Purchase Order, Goods Receipt, Purchase Return, Stock Transfer, Location Movement, Journal Vouchers, ASN, RFQ, Expenses, Fixed Assets, Payment Proposals, Yard Board, Sticker Printing's Print tab, Order Management's manual order, Marketplace, Manufacturing's orders and the HR tabs that record something all show what is saved first, with a **+ New …** button top right. The form page has a breadcrumb back to the list (browser **Back** works too, and keeps what you typed); saving brings you back to the list with the new record on it. Where a step below says "click **+ New …**", that is the button.
 - **If you don't see New or Bulk Import**, your role has read access to that record type but not create access. Instead of the buttons you'll see a small **"Read-only for your role"** label — hover it for the explanation. Ask an administrator to grant your role create access on the **Roles** screen (see [ADMIN_SOP.md](ADMIN_SOP.md) §A.2). The same applies to the row **Edit** and **Delete** icons: they only appear if your role can actually use them.
 - **Document numbers are never typed.** Every transaction — Purchase Order, Goods Receipt, ASN, RFQ, Vendor Quote, Stock Transfer, Expense Claim, Leave, Employee Loan, Grievance, Production Order, Attendance — gets its number from a series when you save, shown as *"Auto (PO series)"* until then. Administrators control the format on the **Prefix Configurations** screen; see [ADMIN_GUIDE](ADMIN_GUIDE.md) §B.3.2. Gaps in a series are normal (a failed save doesn't reuse its number) and are not missing documents.
 - **Editing an existing record**: every row on a record-list screen has a pencil **Edit** icon next to its trash-can **Delete** icon. Click Edit, change what you need, and Save — you do **not** need to delete and recreate a record to correct it. (Earlier versions of this SOP said Edit didn't exist and told you to delete and recreate. That was wrong, and following it destroyed data unnecessarily. **PIM record types** additionally support a multi-select **Bulk Edit** that changes one field across several records at once — see §27.)
@@ -183,8 +184,8 @@ Reached via the **Financial Accounting** flyout → **Vendor Invoice**.
 
 Reached via the **Financial Accounting** flyout → **Payment Proposals**. This batches several **Matched** vendor invoices into one payment run.
 
-1. The top panel lists every currently **Matched** invoice with a checkbox. Tick the ones you want to pay together.
-2. Click **Create Proposal from Selected**. It appears below as a new proposal, status **Draft**, with its total amount and invoice count.
+1. The screen opens on the list of proposals. Click **+ New Proposal**: the page lists every currently **Matched** invoice with a checkbox. Tick the ones you want to pay together.
+2. Click **Create Proposal from Selected**. You're back on the list with the new proposal, status **Draft**, with its total amount and invoice count.
 3. Click **Execute** on a Draft proposal to pay every invoice in it via the normal vendor-invoice payment path, after a confirmation prompt.
 4. If any invoice in the batch fails to pay, a dialog lists exactly which ones and why — the rest still succeed; nothing is all-or-nothing.
 
@@ -254,13 +255,13 @@ Reached via the **Sales & Marketplace** flyout → **Marketplace**. Two independ
 
 ### 13.1 Settlements
 
-1. Fill in **Settlement ID**, pick a **Channel** (Shopify/Amazon, plus any additional Channel records your admin has configured), **Total Sale**, **Commission**, **Net Payout**, and a comma-separated list of **Order IDs**.
-2. Click **Reconcile**. The settlement appears in the table below with a **Reconciled** or pending status badge.
+1. Under **Settlements**, click **+ Reconcile Payout**. Fill in **Settlement ID**, pick a **Channel** (Shopify/Amazon, plus any additional Channel records your admin has configured), **Total Sale**, **Commission**, **Net Payout**, and add the orders in this payout with **Orders in this payout** → **Add**.
+2. Click **Reconcile**. You're back on the Settlements list, where it shows with a **Reconciled** or pending status badge.
 
 ### 13.2 Logistics Bookings
 
-1. Fill in **Order ID**, **Carrier**, **Tracking Number**, and **Shipping Charge**.
-2. Click **Book**. The booking appears in the table below.
+1. Under **Logistics Bookings**, click **+ Book Shipment**. Fill in **Order ID**, **Destination Pincode**, **Carrier** (blank = picked automatically from the pincode), **Tracking Number** (optional), and **Shipping Charge**.
+2. Click **Book**. You're back on the Logistics Bookings list with the booking on it. (**Manifests** works the same way: **+ Generate Manifest**, courier and location, **Generate Manifest**.)
 
 ---
 
@@ -296,9 +297,9 @@ This is the newer, general-purpose reporting framework — every report register
 
 Reached via the **Procurement** flyout → **Purchase Order**.
 
-1. Fill in **Vendor**, **Target Warehouse**, **Location** (all required), **Total Amount** (the taxable value), and optionally a **GST Rate %** plus an **Interstate** checkbox. **PO Number** is greyed out and reads "Auto (PO series)" — it is issued when you save (see §1).
-2. Click **Calculate GST** to preview the CGST/SGST or IGST breakdown for what you've entered so far — this is just a calculator, it doesn't change what gets saved.
-3. Click **Create Draft**. It appears in the list below as **Draft**.
+1. The screen opens on the list of purchase orders. Click **+ New Purchase Order**, then fill in **Vendor**, **Billing address** and **Shipping address** (all required; Shipping starts as the billing store), then add each item with its **Qty** and **Purchase price** on the **Add item** row. **PO Number** is greyed out and reads "Auto (PO series)" — it is issued when you save (see §1).
+2. The CGST/SGST or IGST split and the grand total are worked out as you add items and shown in the bar at the top — nothing to calculate by hand.
+3. Click **Create Draft**. You're back on the list, where it is listed as **Draft**.
 4. Click **Submit for Approval** on a Draft PO. Depending on the amount, it routes to a Store Manager (under a configured threshold) or Super Admin (at or above it) — you'll see it move to **Pending Approval**, then **Approved** or **Rejected** once decided (§6).
 
 5. **When the stock arrives**, record it on **Procurement → Goods Receipt** (§15B) against this PO. That is what actually raises your stock count — an approved PO on its own never does. The PO's own status stays **Approved** until the receipt closes it; look at the Goods Receipt screen, not this one, to see what has physically arrived.
@@ -328,7 +329,7 @@ Reached via the **Procurement** flyout → **Goods Receipt**. **This is the scre
 
 ![The Goods Receipt screen, with lines loaded from a purchase order](img/goods-receipt.png)
 
-1. Enter the **PO Reference** for the order the stock has arrived against.
+1. The screen opens on the list of receipts. Click **+ New Goods Receipt** (or **Receive goods** on the approved PO's row, which opens it with the PO already loaded) and enter the **PO Reference** for the order the stock has arrived against.
 2. Click **Load Items from PO**. Every line on that order appears in the table with its **Ordered Qty**.
    - If the vendor sent an ASN ahead of the delivery (§15C), enter the **ASN Reference** and click **Load Items from ASN** instead — same result, prefilled from what the vendor said was coming.
    - **Add Line** adds a line by hand for anything that arrived but wasn't ordered.
@@ -338,7 +339,7 @@ Reached via the **Procurement** flyout → **Goods Receipt**. **This is the scre
    - **Damaged Qty** and **Damage Reason** — what arrived broken.
    Record short and damaged quantities honestly. Entering the ordered quantity when less arrived is how stock records and reality drift apart, and it is very hard to unpick later.
 4. **Receiving Location** is where the accepted stock lands. If you leave it blank it defaults to the PO's own target warehouse — that's deliberate, not a bug.
-5. Click **Post Receipt**.
+5. Click **Post Receipt**. You're back on the list of receipts with this one on it.
 6. **Check that it worked.** Go to **Inventory** (§18) and confirm the quantity went up by what you accepted. If the receipt could not post to the ledger, it is marked **Cancelled** and the PO stays open for a real receipt — you are told, rather than being shown a false success.
 
 The GRN number is auto-issued; you never type one.
@@ -351,9 +352,9 @@ The GRN number is auto-issued; you never type one.
 
 Reached via the **Procurement** flyout → **ASN**. Captures what a vendor says is coming, before it arrives.
 
-1. Enter the **PO Reference** this shipment is against, the **Location** it is coming to, the **Vendor**, and — if you have them — the **Carrier**, **Tracking Number** and **Expected Date**.
+1. The screen opens on the list of ASNs. Click **+ New ASN** and enter the **PO Reference** this shipment is against, the **Location** it is coming to, the **Vendor**, and — if you have them — the **Carrier**, **Tracking Number** and **Expected Date**.
 2. For each item on the shipment, enter the **SKU** and **Expected Qty**, then click **Add Line**.
-3. Click **Save ASN**. The ASN number is auto-issued.
+3. Click **Save ASN**. The ASN number is auto-issued and you're back on the list.
 4. When the delivery physically lands, go to **Goods Receipt** (§15B) and use **Load Items from ASN** to prefill the receipt.
 
 > **The ASN's own "PO Number" field holds the referenced order's number, not the ASN's.** That is intentional — it's how the ASN is tied to its order.
@@ -375,9 +376,9 @@ Reached via the **Procurement** flyout → **Vendors**. A standard record-list s
 
 Reached via the **Procurement** flyout → **RFQ / Quotes**. This lets you request quotes from several vendors for the same requirement and compare them before creating a Purchase Order.
 
-1. Fill in **Item / Requirement Description**, **Quantity**, and **Target Date**, then click **Create RFQ**. It starts **Draft**/open for quotes. **RFQ Number** is issued on save (see §1).
-2. Click **View Quotes** on an RFQ row to open its quote comparison panel below the list.
-3. To record a vendor's quote: fill in **Vendor**, **Quoted Price**, **Lead Time (days)**, and click **Submit Quote**. Repeat for each vendor quoting. **Quote Number** is issued on save (see §1).
+1. Click **+ New RFQ**, fill in **Item / Requirement Description**, **Quantity**, and **Target Date**, then click **Create RFQ**. It starts **Draft**/open for quotes and you're back on the RFQ list. **RFQ Number** is issued on save (see §1).
+2. Click **Vendors & Quotes** (or **View Quotes** on a closed one) on an RFQ row to open its vendors and quotes under the list.
+3. To record a vendor's quote: under **Quotes for RFQ/…** click **+ Record Quote**, fill in **Vendor**, **Quoted Price**, **Lead Time (days)**, and click **Submit Quote**. Repeat for each vendor quoting. **Quote Number** is issued on save (see §1).
 4. Once you have quotes to compare, click **Select as Winner** next to the one you're accepting. Confirm — this marks that quote as the winner, **rejects every other quote automatically**, and closes the RFQ. This can't be undone, so make sure you've compared everything first.
 
 ---
@@ -397,9 +398,9 @@ This screen is read-only — there's no way to adjust stock counts directly here
 
 Reached via the **Stock** flyout → **Stock Transfer**. Moves stock between two locations through a Draft → Approved → (optional Packed) → Dispatched → Received lifecycle.
 
-1. Fill in **From Warehouse** and **To Warehouse**. **Transfer Number** is issued on save (see §1).
+1. The screen opens on the list of transfers. Click **+ New Transfer** and fill in **From Warehouse** and **To Warehouse**. **Transfer Number** is issued on save (see §1).
 2. Add one or more lines: enter a **SKU** and **Qty**, click **Add Line**. Repeat for every item — a transfer needs at least one line.
-3. Click **Create Transfer**. It starts as **Draft**.
+3. Click **Create Transfer**. It starts as **Draft**, and you're back on the list.
 4. Click **Mark Approved** when it's ready to go.
 5. From **Approved**, you have two options:
    - Click **Pack** to record which items go in which physical box — you'll be prompted for a **Box ID** per line (typing the same Box ID for multiple lines groups them into one box). This is optional; it's just a confirmation step.
@@ -541,10 +542,10 @@ Reached via **Setup** → **Core** → **Location** (§28). A standard record-li
 
 Reached via the **Stock** flyout → **Sticker Printing**.
 
-1. Pick a **Printer** from the dropdown (create one first if the list is empty — see the note below), set **Copies per SKU**, and optionally a **Reprint Reason**.
-2. Scan or type each SKU into **Scan or Enter SKU** and press Enter, or click **Add**. Repeat for every item to print. Each added SKU shows with a small **x** button to remove it.
-3. Click **Print Stickers**. The system opens your browser's print dialog with one label per SKU per copy (name, barcode value as text, SKU, and HSN code if set), and logs the print in history below with who printed it and when.
-4. **Print history** at the bottom shows every past print run, including any reprint reason given.
+1. The **Print** tab opens on the **Print history** — every past print run, who printed it and when, including any reprint reason given. Click **+ Print Stickers**.
+2. Pick a **Printer** from the dropdown (create one first if the list is empty — see the note below), set **Copies per SKU**, and optionally a **Reprint Reason**.
+3. Scan or type each SKU into **Scan or Enter SKU** and press Enter, or click **Add**. Repeat for every item to print. Each added SKU shows with a small **x** button to remove it.
+4. Click **Print Stickers**. The labels go to the printer (one per SKU per copy), and you're back on the Print history with this run on top.
 
 > Printer records themselves aren't managed from this screen — they're a Master-type record type, so create one via **Setup** (§28) if none exist yet, using the doctype name **Printer**.
 
@@ -552,16 +553,16 @@ Reached via the **Stock** flyout → **Sticker Printing**.
 
 ## 23. HR
 
-Reached via the **HRM** flyout → **HR**. Three tabs: **Attendance**, **Leave**, **Payroll Export**.
+Reached via the **HRM** flyout → **HR**. Tabs along the top: **Attendance**, **Leave**, **Payroll Export**, **Shift Roster**, **Payroll**, **Loans/Advances**, **Onboarding/Offboarding**, **Appraisals**, **Training**, **Grievances**, **My Requests**. Each tab that records something opens on its list with a **+ New …** button (§1): **+ Mark Attendance**, **+ Apply Leave**, **+ Run Payroll**, **+ New Loan/Advance**, and on **My Requests** **+ Request Leave**, **+ Expense Claim** and **+ Grievance**.
 
 ### 23.1 Attendance tab
 
-1. Pick an **Employee**, a **Date**, a **Location**, and a **Status** (Present/Absent/Late/Leave/Holiday/WeeklyOff). **Attendance Code** is issued on save (see §1).
-2. Click **Save**. It appears immediately in the list below.
+1. Click **+ Mark Attendance**. Pick an **Employee**, a **Date**, a **Location**, and a **Status** (Present/Absent/Late/Leave/Holiday/WeeklyOff). **Attendance Code** is issued on save (see §1).
+2. Click **Save**. You're back on the attendance list with the new record on it.
 
 ### 23.2 Leave tab
 
-1. Fill in **Employee**, **Leave Type** (Casual/Sick/Earned/Unpaid), **From**/**To Date**, and **Days**, then click **Apply**. It starts **Applied**. **Leave Code** is issued on save (see §1).
+1. Click **+ Apply Leave**, fill in **Employee**, **Leave Type** (Casual/Sick/Earned/Unpaid), **From**/**To Date**, and **Days**, then click **Apply**. It starts **Applied** and you're back on the leave list. **Leave Code** is issued on save (see §1).
 2. If you have approval rights, an **Applied** leave request shows **Approve** and **Reject** buttons right in the list — click one to decide it directly (no separate Approvals-screen trip needed for this particular doctype).
 
 ### 23.3 Payroll Export tab
@@ -579,7 +580,7 @@ Employees themselves are a Master-type record, so they're created and edited und
 
 Reached via the **HRM** flyout → **Fixed Assets**. Lifecycle: Draft → Capitalised → (any number of Transfers) → Disposed.
 
-1. Fill in **Asset Number**, **Category**, **Cost**, **Useful Life (yrs)**, **Location**, **Custodian**, and **Acquisition Date** — all required except Category/Custodian — then click **Create**. It starts **Draft**.
+1. The screen opens on the asset register. Click **+ New Asset**, fill in **Asset Number**, **Category**, **Cost**, **Useful Life (yrs)**, **Location**, **Custodian**, and **Acquisition Date** — all required except Category/Custodian — then click **Create**. It starts **Draft** and you're back on the register.
 2. Click **Capitalise** on a Draft asset to bring it onto the books — it becomes **Capitalised**, and depreciation starts being calculated automatically from here on (it's computed live on every view, not stored, so the numbers you see are always current as of today).
 3. From **Capitalised**, click **Transfer** to move it to a new location/custodian (you'll be prompted for both — custodian is optional), or **Dispose** to write it off. Disposal asks for a **disposal type** (Sale, Scrap, or WriteOff) and warns that it writes off the asset's remaining net book value permanently.
 4. The list shows **Cost**, **Accum. Depreciation**, and **Net Block** (Cost minus Accumulated Depreciation) live for every asset.
@@ -590,7 +591,7 @@ Reached via the **HRM** flyout → **Fixed Assets**. Lifecycle: Draft → Capita
 
 Reached via the **HRM** flyout → **Expenses**. Lifecycle: Claim → Manager Approval → Finance Verification → Payment.
 
-1. Fill in **Employee**, **Location**, **Expense Date**, **Category** (Conveyance/Travel/Food/Hotel/Fuel/Repair/Medical/Marketing/StoreExpense/Other), **Amount**, **GST Amount** (optional), **Advance Adjusted** (optional), and **Purpose**. Click **Create Draft**. **Claim Number** is issued on save (see §1).
+1. The screen opens on the list of claims. Click **+ New Expense Claim**, then fill in **Employee**, **Location**, **Expense Date**, **Category** (Conveyance/Travel/Food/Hotel/Fuel/Repair/Medical/Marketing/StoreExpense/Other), **Amount**, **GST Amount** (optional), **Advance Adjusted** (optional), and **Purpose**. Click **Create Draft**. **Claim Number** is issued on save (see §1).
 2. Click **Submit for Approval** — this routes through the same Approvals screen (§6) as everything else; a manager approves or rejects it there.
 3. Once **Approved**, click **Finance Verify** on the claim (this is a separate step from the manager approval — Finance checks the claim independently).
 4. Once **Verified**, click **Mark Paid**, confirm — this posts the payment to the ledger and closes the claim out.
@@ -603,13 +604,13 @@ Reached via **Manufacturing** in the sidebar. Single-level Bill of Materials (BO
 
 ### 26.1 Create a BOM
 
-1. Fill in **BOM Code** and **Parent Item** (the finished good's SKU).
+1. The **Orders** tab opens on the list of production orders. Click **+ New BOM** and fill in **BOM Code** and **Parent Item** (the finished good's SKU).
 2. In **Components**, type each raw-material SKU and quantity as `SKU:QTY`, comma-separated — e.g. `RAW-A:2, RAW-B:1`. Getting this format wrong shows an inline error explaining the expected shape.
-3. Click **Create BOM**.
+3. Click **Create BOM**. A message confirms it and you're back on the orders list.
 
 ### 26.2 Run a Production Order
 
-1. Pick a **BOM** from the dropdown, set **Quantity** and **Location**, click **Create Order**. It starts **Draft**. **Order Number** is issued on save (see §1).
+1. Click **+ New Production Order**, pick a **BOM** from the dropdown, set **Quantity** and **Location**, click **Create Order**. It starts **Draft** and you're back on the list. **Order Number** is issued on save (see §1).
 2. Click **Issue Material** — this consumes the BOM's raw-material components from stock at that location; the order becomes **Material Issued**.
 3. Click **Complete (Receive FG)**, confirm — this receives the finished good quantity into inventory and closes the order out as **Completed**.
 
@@ -687,7 +688,7 @@ Every entry works exactly like §1 describes: **New [Type]**, fill in required f
 Click your name/avatar at the bottom of the sidebar to open the account popover.
 
 1. **My Profile**: shows your Username, Role, Status, linked Employee (if any), and whether MFA is enabled — all read-only. Below that:
-   - **Contact & Session**: edit your **Email** and your personal **Auto Logout (inactivity)** timer (Never / 15 min / 30 min / 1 hour / 2 hours), click **Save Changes**.
+   - **Contact & Session**: edit your **Email** and your personal **Auto Logout (inactivity)** timer (Never / 15 min / 30 min / 1 hour / 2 hours / 12 hours — 12 hours unless you change it), click **Save Changes**.
    - **Change Password**: enter your Current Password, a New Password (12+ characters by default, and not one of the most common/breached passwords, your username, or a simple repeated/sequential pattern), confirm it, click **Update Password**. This signs your other active sessions out immediately — only this one keeps working.
 2. **Sign Out**: click it, confirm in the dialog. You'll see a brief "Signing you out..." transition before landing back on the login screen.
 

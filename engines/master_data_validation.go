@@ -87,6 +87,13 @@ func ValidateMasterDataRules(tenantID, docID, doctype string, payload map[string
 		return validatePreShipValidationRuleMasterRules(tenantID, docID, payload)
 	case "ProductBundle":
 		return validateProductBundleMasterRules(tenantID, docID, payload)
+	case "ItemType":
+		if err := ValidateItemPolicyCompatibility(tenantID, "ItemType", payload); err != nil {
+			return err
+		}
+		return guardPostedProfileChange(tenantID, docID, payload)
+	case "BackflushRule":
+		return validateBackflushRule(tenantID, docID, payload)
 	}
 	return nil
 }
@@ -333,6 +340,12 @@ var itemCodePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9 ._\-\/]*$`)
 
 func validateItemMasterRules(tenantID, docID string, payload map[string]interface{}) error {
 	if err := validateItemTypeRules(tenantID, docID, payload); err != nil {
+		return err
+	}
+	if err := ValidateItemPolicyCompatibility(tenantID, "Item", payload); err != nil {
+		return err
+	}
+	if err := guardPostedItemPolicyChange(tenantID, docID, payload); err != nil {
 		return err
 	}
 	if code := strField(payload, "code"); code != "" && !itemCodePattern.MatchString(code) {

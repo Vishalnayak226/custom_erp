@@ -400,3 +400,93 @@ func TestPrintStickersForDocumentSelectsOneLotOfASKU(t *testing.T) {
 		t.Fatalf("expected a SKU-only selection to still cover both lots, got %d: %+v", len(legacy), legacy)
 	}
 }
+
+// Stage 70: an item's label follows its Item's template, then its Item Type's,
+// then its category's; a rule naming an Inactive template is skipped; and a
+// template chosen for a line at print time beats the rules for that print.
+func TestStickerTemplateRulesAndChosenTemplate(t *testing.T) {
+	db.InitDB(testConnStr())
+	tenantID := "default"
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		t.Fatalf("schema: %v", err)
+	}
+
+	const (
+		tmplItem, tmplType, tmplCat, tmplOff = "TEST68-TMPL-ITEM", "TEST68-TMPL-TYPE", "TEST68-TMPL-CAT", "TEST68-TMPL-OFF"
+		itemType                             = "TEST68-TYPE"
+		skuOwn, skuType, skuCat, skuOff      = "TEST68-SKU-OWN", "TEST68-SKU-TYPE", "TEST68-SKU-CAT", "TEST68-SKU-OFF"
+		grnID, printerCode                   = "TEST68-GRN", "TEST68-PRINTER"
+		category                             = "Test68 Rings"
+	)
+	ids := []string{tmplItem, tmplType, tmplCat, tmplOff, itemType, skuOwn, skuType, skuCat, skuOff, grnID, printerCode}
+	stickerTestCleanup(schema, ids)
+	defer stickerTestCleanup(schema, ids)
+	defer InvalidateItemTypeCache(tenantID)
+
+	elements, _ := json.Marshal([]map[string]interface{}{{"id": "e1", "field": "name", "x_mm": 2, "y_mm": 2, "w_mm": 30, "h_mm": 6}})
+	for id, extra := range map[string]map[string]interface{}{
+		tmplItem: {}, tmplType: {}, tmplCat: {"categories": category}, tmplOff: {"status": "Inactive"},
+	} {
+		data := map[string]interface{}{"code": id, "name": id, "label_width_mm": 40, "label_height_mm": 20, "elements": string(elements), "status": "Active"}
+		for k, v := range extra {
+			data[k] = v
+		}
+		stickerTestInsert(t, schema, id, "StickerTemplate", data)
+	}
+	stickerTestInsert(t, schema, itemType, "ItemType", map[string]interface{}{"code": itemType, "sticker_template": tmplType, "status": "Active"})
+	InvalidateItemTypeCache(tenantID)
+	stickerTestInsert(t, schema, skuOwn, "Item", map[string]interface{}{"code": skuOwn, "name": "Own", "category": category, "item_type": itemType, "sticker_template": tmplItem})
+	stickerTestInsert(t, schema, skuType, "Item", map[string]interface{}{"code": skuType, "name": "Type", "category": category, "item_type": itemType})
+	stickerTestInsert(t, schema, skuCat, "Item", map[string]interface{}{"code": skuCat, "name": "Cat", "category": category})
+	stickerTestInsert(t, schema, skuOff, "Item", map[string]interface{}{"code": skuOff, "name": "Off", "category": category, "sticker_template": tmplOff})
+	stickerTestInsert(t, schema, printerCode, "Printer", map[string]interface{}{"code": printerCode, "name": "Rule Printer", "status": "Active", "printer_language": "ZPL"})
+	receivedJSON, _ := json.Marshal([]map[string]interface{}{
+		{"sku": skuOwn, "qty": 1, "accepted_qty": 1}, {"sku": skuType, "qty": 2, "accepted_qty": 2},
+		{"sku": skuCat, "qty": 3, "accepted_qty": 3}, {"sku": skuOff, "qty": 4, "accepted_qty": 4},
+	})
+	stickerTestInsert(t, schema, grnID, "GRN", map[string]interface{}{"code": grnID, "location": "TEST68-LOC", "received_items": string(receivedJSON)})
+
+	preview, err := PreviewDocumentStickerLines(tenantID, "GRN", grnID)
+	if err != nil {
+		t.Fatalf("PreviewDocumentStickerLines: %v", err)
+	}
+	want := map[string][2]string{
+		skuOwn:  {tmplItem, StickerRuleItem},
+		skuType: {tmplType, StickerRuleItemType},
+		skuCat:  {tmplCat, StickerRuleCategory},
+		skuOff:  {tmplCat, StickerRuleCategory}, // its own template is Inactive
+	}
+	for _, p := range preview {
+		if w := want[p.SKU]; p.TemplateID != w[0] || p.TemplateRule != w[1] {
+			t.Errorf("%s: template %q by %q, want %q by %q", p.SKU, p.TemplateID, p.TemplateRule, w[0], w[1])
+		}
+	}
+
+	// Chosen at print: Standard on the line whose Item names a template, and
+	// the Item template on a line the category would decide.
+	labels, err := PrintStickersForDocument(tenantID, "GRN", grnID, printerCode, "system", "", []StickerLineSelection{
+		{SKU: skuOwn, TemplateID: StickerTemplateStandard},
+		{SKU: skuCat, TemplateID: tmplItem},
+		{SKU: skuType},
+	})
+	if err != nil {
+		t.Fatalf("PrintStickersForDocument: %v", err)
+	}
+	got := map[string]string{}
+	for _, l := range labels {
+		got[l.SKU] = l.TemplateID
+	}
+	if got[skuOwn] != "" || got[skuCat] != tmplItem || got[skuType] != tmplType || len(got) != 3 {
+		t.Errorf("chosen templates not applied: %v", got)
+	}
+	var logged string
+	if err := db.DB.QueryRow("SELECT COALESCE(template_id, '') FROM "+schema+".sticker_print_log WHERE source_doc_id = $1 AND sku = $2", grnID, skuCat).Scan(&logged); err != nil || logged != tmplItem {
+		t.Errorf("print log should record the chosen template, got %q (%v)", logged, err)
+	}
+
+	// An Inactive template cannot be chosen.
+	if _, err := PrintStickersForDocument(tenantID, "GRN", grnID, printerCode, "system", "", []StickerLineSelection{{SKU: skuCat, TemplateID: tmplOff}}); err == nil {
+		t.Error("expected an Inactive chosen template to be refused")
+	}
+}

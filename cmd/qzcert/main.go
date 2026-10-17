@@ -43,7 +43,11 @@ func main() {
 	}
 
 	fmt.Printf("Wrote %s\n\n", *out)
-	fmt.Println("To make printing silent on a packing PC:")
+	fmt.Println("Using PrintBridge? You do not need this file. Build the installer from")
+	fmt.Println("the ERP's address instead - it trusts pages from that address directly:")
+	fmt.Println("    PrintBridge\\installer\\build.ps1 https://your-erp-address")
+	fmt.Println()
+	fmt.Println("Using QZ Tray? To make printing silent on a packing PC:")
 	fmt.Println("  1. Install QZ Tray on that PC and make sure it is running.")
 	fmt.Println("  2. Copy this file into QZ Tray's install directory as override.crt")
 	fmt.Println(`     Windows: C:\Program Files\QZ Tray\override.crt`)

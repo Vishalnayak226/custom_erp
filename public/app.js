@@ -316,7 +316,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '44';
+const VIEW_MODULE_VERSION = '46';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -338,16 +338,16 @@ function loadViewModule(src) {
 }
 
 const LAZY_VIEW_MODULES = {
-  pos: ['view-pos.js', 'renderPOSView', 'POS'],
+  pos: ['view-pos.js', 'renderPOSView', 'POS', 'txn-screen.css'],
   'rf-traceability': ['view-rf-traceability.js', 'renderRFTraceabilityView', 'RF Traceability'],
-  returns: ['view-returns.js', 'renderReturnsView', 'Returns'],
+  returns: ['view-returns.js', 'renderReturnsView', 'Returns', 'txn-screen.css'],
   finance: ['view-finance.js', 'renderFinanceView', 'Finance'],
-  'vendor-invoices': ['view-finance.js', 'renderVendorInvoicesView', 'Vendor Invoices'],
+  'vendor-invoices': ['view-finance.js', 'renderVendorInvoicesView', 'Vendor Invoices', 'txn-screen.css'],
   'payment-proposals': ['view-finance.js', 'renderPaymentProposalsView', 'Payment Proposals'],
   'bank-reconciliation': ['view-finance.js', 'renderBankReconciliationView', 'Bank Reconciliation'],
-  'finance-notes': ['view-finance.js', 'renderFinanceNotesView', 'Finance Notes'],
-  'sales-invoices': ['view-finance.js', 'renderSalesInvoicesView', 'Sales Invoices'],
-  'journal-vouchers': ['view-journal.js', 'renderJournalVouchersView', 'Journal Vouchers'],
+  'finance-notes': ['view-finance.js', 'renderFinanceNotesView', 'Finance Notes', 'txn-screen.css'],
+  'sales-invoices': ['view-finance.js', 'renderSalesInvoicesView', 'Sales Invoices', 'txn-screen.css'],
+  'journal-vouchers': ['view-journal.js', 'renderJournalVouchersView', 'Journal Vouchers', 'txn-screen.css'],
   fulfillment: ['view-warehouse.js', 'renderFulfillmentView', 'Fulfillment'],
   putaway: ['view-warehouse.js', 'renderPutawayView', 'Putaway'],
   'warehouse-cockpit': ['view-warehouse.js', 'renderWarehouseCockpitView', 'Warehouse Cockpit'],
@@ -368,16 +368,16 @@ const LAZY_VIEW_MODULES = {
   marketplace: ['view-oms.js', 'renderMarketplaceView', 'Marketplace'],
   oms: ['view-oms.js', 'renderOMSWorkbenchView', 'OMS'],
   approvals: ['view-procurement.js', 'renderApprovalsView', 'Approvals'],
-  'purchase-orders': ['view-procurement.js', 'renderPurchaseOrdersView', 'Purchase Orders'],
-  grn: ['view-procurement.js', 'renderGRNWorkbenchView', 'Goods Receipt'],
-  'purchase-returns': ['view-procurement.js', 'renderPurchaseReturnsView', 'Purchase Return'],
+  'purchase-orders': ['view-procurement.js', 'renderPurchaseOrdersView', 'Purchase Orders', 'txn-screen.css'],
+  grn: ['view-procurement.js', 'renderGRNWorkbenchView', 'Goods Receipt', 'txn-screen.css'],
+  'purchase-returns': ['view-procurement.js', 'renderPurchaseReturnsView', 'Purchase Return', 'txn-screen.css'],
   reports: ['view-reports.js', 'renderReportsView', 'Reports'],
   inventory: ['view-reports.js', 'renderInventoryView', 'Inventory'],
   rfq: ['view-reports.js', 'renderRFQView', 'Request for Quotation'],
   stickers: ['view-printing.js', 'renderStickersView', 'Sticker Printing'],
   hr: ['view-hr.js', 'renderHRView', 'HR'],
   assets: ['view-assets.js', 'renderAssetsView', 'Fixed Assets'],
-  transfers: ['view-transfers.js', 'renderTransfersView', 'Stock Transfer'],
+  transfers: ['view-transfers.js', 'renderTransfersView', 'Stock Transfer', 'txn-screen.css'],
   expenses: ['view-expenses.js', 'renderExpensesView', 'Expenses'],
   manufacturing: ['view-manufacturing.js', 'renderManufacturingView', 'Manufacturing'],
   pim: ['view-pim.js', 'renderPIMView', 'PIM'],
@@ -398,10 +398,25 @@ const LAZY_VIEW_MODULES = {
   help: ['view-help.js', 'renderHelpView', 'Help'],
 };
 
-async function renderLazyView(view, root, [moduleFile, entrypoint, label]) {
+// Stage 68: a view's own stylesheet (the registry's 4th entry), fetched with
+// its module and awaited so the screen never paints unstyled.
+const viewStyles = {};
+function loadViewStyles(file) {
+  return viewStyles[file] || (viewStyles[file] = new Promise(done => {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = `/${file}?v=${VIEW_MODULE_VERSION}`;
+    link.onload = link.onerror = done;
+    document.head.appendChild(link);
+  }));
+}
+
+async function renderLazyView(view, root, [moduleFile, entrypoint, label, styles]) {
+  const stylesReady = styles && loadViewStyles(styles);
   let module;
   try {
     module = await loadViewModule(`/${moduleFile}?v=1`);
+    await stylesReady;
   } catch (error) {
     console.error(`[BLD-041] ${label} module failed to load`, error);
     renderErrorPanel(root, `Failed to load the ${label} screen. Check your connection and try again.`, () => renderView(view));
@@ -997,16 +1012,9 @@ function attachEmployeePicker(id) {
   attachLinkTypeahead(document.getElementById(id), 'Employee');
 }
 
-// Reusable master-data autosuggest (Stage 18.2, docs/micro_checklist.md
-// Stage 18). Wires a plain text <input> to live search against the
-// existing generic GET /api/v1/doc/{doctype}?q=... endpoint, so screens get
-// a search-as-you-type picker without a bespoke fetch/debounce/dropdown per
-// field. Deliberately additive only: the input stays a normal free-text
-// field underneath - picking a suggestion just fills in a value. Nothing
-// here adds server-side validation or blocks typing something that doesn't
-// match a real record (Stage 17.9, db/migrations_stage17h_location_masters.sql,
-// already decided against retrofitting hard validation onto these existing
-// free-text columns - this keeps that same call for the same reason).
+// Reusable master-data autosuggest (Stage 18.2): search-as-you-type over
+// GET /api/v1/doc/{doctype}?q= on a plain <input>. Additive only - the box
+// stays free text; nothing validates or blocks a value (Stage 17.9's call).
 function attachTypeahead(inputEl, doctype, opts = {}) {
   const valueFields = opts.valueFields || ['code', 'name', 'id'];
   // 2026-10-09: name first, code second (Stage 57.1, names not codes). With
@@ -1019,22 +1027,10 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     return name && name !== code ? `${name} — ${code}` : (code || name);
   });
   const limit = opts.limit || 8;
-  // Stage 30.5.8. Two opt-in behaviours, both added for the consistency
-  // sweep and both deliberately off by default so the other 40-odd call
-  // sites are untouched:
-  //
-  //   groupBy         - render the results under a heading per distinct
-  //                     value of this field. Location's 103 records are a
-  //                     mix of shops, warehouses and the head office, and a
-  //                     flat list of eight codes gave no way to tell which
-  //                     was which. Group order is first-appearance, not a
-  //                     hardcoded list, so a tenant that adds a fourth
-  //                     Location type gets it grouped without a code change.
-  //   showAllOnFocus  - open the menu on focus with an empty query, so the
-  //                     control can be browsed and not only searched. This
-  //                     is what lets an employee <select> become a typeahead
-  //                     without losing the "just show me the list" affordance
-  //                     a dropdown had.
+  // Opt-in, off by default (Stage 30.5.8): groupBy - a heading per distinct
+  // value of that field, first-appearance order (Location: shop / warehouse /
+  // HO); showAllOnFocus - an empty box opens on the list, browsable like the
+  // <select> it replaced.
   const groupBy = opts.groupBy || null;
   const showAllOnFocus = !!opts.showAllOnFocus;
   const browseLimit = opts.browseLimit || 50;
@@ -1163,8 +1159,8 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
       } else if (!canCreateDoctype(doctype)) {
         row.innerHTML = `No matching ${label}. ${SETUP_MSG.missingNoAccess(label).replace(/^No [^.]*\. /, '')}`;
       } else {
-        row.innerHTML = `No matching ${label} &mdash; <a href="#" class="empty-state-link"></a>`;
-        row.querySelector('a').textContent = typed ? `Create “${typed}”` : `Create a new ${label}`;
+        row.innerHTML = `No matching ${label}<a href="#" class="empty-state-link typeahead-create"></a>`;
+        row.querySelector('a').textContent = typed ? `+ Create “${typed}”` : `+ Create a new ${label}`;
         // The menu is a child of <body>, not of the input's container, so it
         // has to be torn down explicitly before the dialog opens or it is left
         // floating over it.
@@ -1205,6 +1201,7 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
       const row = document.createElement('div');
       row.className = 'typeahead-item';
       row.textContent = labelFn(doc);
+      if (opts.titleFn) row.title = opts.titleFn(doc) || ''; // Stage 66
       row.addEventListener('mousedown', (e) => { e.preventDefault(); pick(doc); });
       menu.appendChild(row);
     });
@@ -1239,16 +1236,25 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     .map(([k, v]) => `&${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
     .join('');
 
+  // Stage 66: opts.source(q, { browse }) -> rows (or null) replaces the record search.
   async function search(q, { browse = false } = {}) {
     const seq = ++requestSeq;
     if (!q && !browse) { closeMenu(); return; }
     const pageSize = browse ? browseLimit : limit;
-    const res = await apiFetch(`/api/v1/doc/${doctype}?q=${encodeURIComponent(q)}&limit=${pageSize}${filterParams}`);
-    if (seq !== requestSeq) return; // a newer keystroke's request already superseded this one
-    if (!res || !res.ok) { closeMenu(); return; }
-    items = await res.json();
-    if (seq !== requestSeq) return;
-    resultsCapped = browse && items.length >= pageSize;
+    let rows;
+    if (typeof opts.source === 'function') {
+      rows = await opts.source(q, { browse });
+      if (seq !== requestSeq) return;
+      if (!rows) { closeMenu(); return; }
+    } else {
+      const res = await apiFetch(`/api/v1/doc/${doctype}?q=${encodeURIComponent(q)}&limit=${pageSize}${filterParams}`);
+      if (seq !== requestSeq) return; // a newer keystroke's request already superseded this one
+      if (!res || !res.ok) { closeMenu(); return; }
+      rows = await res.json();
+      if (seq !== requestSeq) return;
+    }
+    items = rows;
+    resultsCapped = !opts.source && browse && items.length >= pageSize;
     openMenu();
   }
 
@@ -1734,6 +1740,19 @@ function enhanceDateInput(input) {
   });
 }
 
+// No up/down on number boxes anywhere (user rule, 2026-10-17): spinners are
+// hidden in styles.css; this stops wheel and arrow-key stepping. Still
+// type="number", so only a valid number is accepted. Screens' own arrow-key
+// handlers still run (preventDefault only cancels the step).
+let numberStepGuardsInstalled = false;
+function installNumberStepGuards() {
+  if (numberStepGuardsInstalled) return;
+  numberStepGuardsInstalled = true;
+  const isNum = el => el instanceof HTMLInputElement && el.type === 'number';
+  document.addEventListener('wheel', e => { if (isNum(e.target) && e.target === document.activeElement) e.target.blur(); }, { passive: true });
+  document.addEventListener('keydown', e => { if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && isNum(e.target)) e.preventDefault(); }, true);
+}
+
 let datePickerObserver = null;
 function startDatePickerEnhancer() {
   if (datePickerObserver) return;
@@ -1771,30 +1790,9 @@ function defaultSelectValue(field, options) {
   return '';
 }
 
-// attachHSNPicker (Stage 57.3): HSN catalogue picker with inline create; fills
-// an empty GST rate. The box keeps the plain number (engines/hsn_catalog.go).
+// attachHSNPicker (Stage 57.3; smart since 66): view-pickers.js, on first use.
 function attachHSNPicker(hsnInput, gstInput) {
-  if (!hsnInput || hsnInput.dataset.hsnPicker === '1') return;
-  hsnInput.dataset.hsnPicker = '1';
-  attachLinkTypeahead(hsnInput, 'HSNCode', {
-    valueFields: ['hsn'],
-    labelFn: doc => {
-      const parts = [doc.hsn || doc.code];
-      if (doc.description) parts.push(doc.description);
-      if (doc.gst_rate !== undefined && doc.gst_rate !== null && doc.gst_rate !== '') parts.push(`GST ${doc.gst_rate}%`);
-      return parts.join(' — ');
-    }
-  });
-  hsnInput.addEventListener('change', async () => {
-    if (!gstInput || gstInput.value !== '') return;
-    const hsn = hsnInput.value.trim();
-    if (!hsn) return;
-    const doc = await lookupLinkDoc('HSNCode', `HSN-${hsn.replace(/[\s.]/g, '')}`);
-    if (doc && doc.gst_rate !== undefined && doc.gst_rate !== null && doc.gst_rate !== '' && gstInput.value === '') {
-      gstInput.value = doc.gst_rate;
-      gstInput.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-  });
+  if (hsnInput) loadPickers().then(m => m.attachSmartHSNPicker(hsnInput, gstInput));
 }
 
 // ---------------------------------------------------------------------------
@@ -2409,7 +2407,7 @@ function initFieldFormatListeners() {
 // it in the Setup flyout does. Kept in sync with renderSidebarSubmenu()'s own
 // click handler (it sets the same active classes) so arriving here from a hint
 // leaves the sidebar looking the way arriving here from the menu does.
-window.openSetupDoctype = function (doctype) {
+window.openSetupDoctype = function (doctype, editId) {
   document.querySelectorAll('.submenu-item').forEach(i => i.classList.remove('active'));
   document.querySelectorAll('.menu-item').forEach(i => i.classList.remove('active'));
   const setupMenu = document.getElementById('menu-master-definition');
@@ -2432,7 +2430,7 @@ window.openSetupDoctype = function (doctype) {
   quickCreateReturn = {
     forDoctype: doctype, view: currentView, label: originTitle,
     originDoctype: currentView === 'doctype-table' ? currentDoctype : null,
-    reopenForm,
+    reopenForm, editId,
     hash: window.location.hash,
     pushed: false
   };
@@ -2446,7 +2444,8 @@ window.openSetupDoctype = function (doctype) {
   currentDoctype = doctype;
   currentSearchQuery = '';
   currentTablePage = 1;
-  renderView('doctype-table');
+  // Stage 65.8: editId opens that record's form (PO's Edit store); saving it returns.
+  Promise.resolve(renderView('doctype-table')).then(() => { if (editId) window.editDocRecord(editId); });
 };
 
 // snapshot/restoreFormValues: carry a half-filled form across a detour; a select
@@ -3179,35 +3178,48 @@ function logout(message) {
   }, 500);
 }
 
-// Idle-timeout / auto-logout (Stage 21): a client-side inactivity timer
-// seeded from the user's own Profile-screen preference, separate from and
-// shorter than the server-side JWT session TTL (engines/auth.go's
-// tokenTTL(), a hard expiry the client can't change). 0 means "never" - no
-// timer is armed and only the JWT's own expiry ever signs the user out.
+// Idle auto-logout (Stage 21) from the Profile preference; 0 = never, only
+// the JWT's own expiry applies. Stage 67.1: last activity is shared across
+// tabs, so an idle tab no longer signs out the one in use.
 let idleTimeoutTimer = null;
 let idleTimeoutMinutes = 0;
-const IDLE_ACTIVITY_EVENTS = ['mousemove', 'keydown', 'click', 'scroll'];
+let idleActivityNotedAt = 0;
+const IDLE_ACTIVITY_EVENTS = ['mousemove', 'keydown', 'click', 'scroll', 'wheel', 'touchstart'];
+const IDLE_ACTIVITY_KEY = 'erp_last_activity';
 
-function resetIdleTimer() {
+function noteIdleActivity() {
+  const now = Date.now();
+  if (now - idleActivityNotedAt < 5000) return;
+  idleActivityNotedAt = now;
+  localStorage.setItem(IDLE_ACTIVITY_KEY, String(now));
+}
+
+function armIdleTimer() {
   if (!idleTimeoutMinutes) return;
   if (idleTimeoutTimer) clearTimeout(idleTimeoutTimer);
-  idleTimeoutTimer = setTimeout(() => {
+  const lastActivity = Math.max(idleActivityNotedAt, parseInt(localStorage.getItem(IDLE_ACTIVITY_KEY), 10) || 0);
+  const remainingMs = lastActivity + idleTimeoutMinutes * 60 * 1000 - Date.now();
+  if (remainingMs <= 0) {
     logout('You were signed out due to inactivity.');
-  }, idleTimeoutMinutes * 60 * 1000);
+    return;
+  }
+  idleTimeoutTimer = setTimeout(armIdleTimer, remainingMs);
 }
 
 function setupIdleTimeout(minutes) {
   stopIdleTimeout();
   idleTimeoutMinutes = minutes || 0;
   if (!idleTimeoutMinutes) return;
-  IDLE_ACTIVITY_EVENTS.forEach(evt => document.addEventListener(evt, resetIdleTimer));
-  resetIdleTimer();
+  IDLE_ACTIVITY_EVENTS.forEach(evt => document.addEventListener(evt, noteIdleActivity, { capture: true, passive: true }));
+  idleActivityNotedAt = 0;
+  noteIdleActivity();
+  armIdleTimer();
 }
 
 function stopIdleTimeout() {
   if (idleTimeoutTimer) clearTimeout(idleTimeoutTimer);
   idleTimeoutTimer = null;
-  IDLE_ACTIVITY_EVENTS.forEach(evt => document.removeEventListener(evt, resetIdleTimer));
+  IDLE_ACTIVITY_EVENTS.forEach(evt => document.removeEventListener(evt, noteIdleActivity, { capture: true }));
 }
 
 async function handleLoginSubmit(event) {
@@ -4262,7 +4274,7 @@ function applyModuleEntitlements() {
 // built headings are left to renderSidebarSubmenu.
 function syncFlyoutHeadings() {
   document.querySelectorAll('.has-flyout > .menu-flyout > li.submenu-group-label').forEach(heading => {
-    if (heading.closest('#menu-master-definition-submenu, .submenu')) return;
+    if (heading.closest('#submenu-master, .submenu')) return;
     let sibling = heading.nextElementSibling;
     let anyVisible = false;
     while (sibling && !sibling.classList.contains('submenu-group-label')) {
@@ -4519,24 +4531,11 @@ function renderSidebarSubmenu() {
   });
 }
 
-// --- Navigation drawer (Stage 47.6.3) --------------------------------------
-//
-// Below the operator breakpoint the sidebar leaves the layout flow and becomes
-// an off-canvas drawer (see the media query in styles.css). Before this, the
-// sidebar was a hard 270px with no collapsed state anywhere in the stylesheet,
-// so on a 390px device it took 69% of the viewport and left 120px for the
-// application - the concrete form of audit A-06/A-39's "a desktop page
-// squeezed into 390px".
-//
-// The keyboard and focus behaviour here is not decoration: an open drawer that
-// cannot be closed with Escape, or that leaves focus behind it, is a WCAG
-// failure (SC 2.1.2 No Keyboard Trap, SC 2.4.3 Focus Order) and, more
-// practically, is unusable with a ring scanner that only sends Tab/Enter.
-
-// The breakpoint is duplicated from styles.css deliberately and checked with
-// matchMedia rather than a hardcoded width comparison, so the JS follows
-// whatever the CSS actually applied - including at a zoom level where the CSS
-// pixel width and the device width disagree.
+// --- Navigation (Stage 47.6.3; desktop hide 65.8) ---------------------------
+// Below the breakpoint the sidebar is an off-canvas drawer: Escape closes it
+// and focus moves in and back (WCAG 2.1.2 / 2.4.3; ring scanners send only
+// Tab/Enter). Above it the same toggle hides or shows the column. The query
+// mirrors styles.css, read through matchMedia so zoom is honoured.
 const NAV_DRAWER_QUERY = '(max-width: 820px)';
 
 function navDrawerIsActive() {
@@ -4553,18 +4552,13 @@ function setNavDrawer(open) {
     toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
     toggle.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
   }
-  // The scrim is `hidden` rather than only CSS-hidden so it is removed from
-  // the accessibility tree as well as the picture - a screen reader should not
-  // find a clickable nothing sitting over the page.
+  // `hidden`, so the scrim also leaves the accessibility tree.
   if (scrim) scrim.hidden = !open;
   if (open) {
-    // Move focus into the drawer so the next Tab lands inside it rather than
-    // continuing through the page behind the scrim.
+    // Focus into the drawer, and back to the toggle on close.
     const first = document.querySelector('#app-sidebar .menu-item');
     if (first && first.focus) first.focus();
   } else if (toggle && navDrawerIsActive() && toggle.focus) {
-    // Returning focus to the control that opened it is what stops a keyboard
-    // user being dropped at the top of the document on every close.
     toggle.focus();
   }
 }
@@ -4589,8 +4583,23 @@ function initNavDrawer() {
   const container = document.getElementById('app-root');
   if (!toggle || !container) return;
 
+  // Stage 65.8 ("hide left menu like gmail"), remembered per browser.
+  const showNav = (shown) => {
+    container.classList.toggle('nav-hidden', !shown);
+    toggle.setAttribute('aria-expanded', String(shown));
+    toggle.setAttribute('aria-label', toggle.title = shown ? 'Hide menu' : 'Show menu');
+  };
+  let navHidden = false;
+  try { navHidden = localStorage.getItem('erp_nav_hidden') === '1'; } catch (_) { /* blocked */ }
+  if (!navDrawerIsActive()) showNav(!navHidden);
   toggle.addEventListener('click', (e) => {
     e.preventDefault();
+    if (!navDrawerIsActive()) {
+      navHidden = !container.classList.contains('nav-hidden');
+      showNav(!navHidden);
+      try { localStorage.setItem('erp_nav_hidden', navHidden ? '1' : ''); } catch (_) { /* blocked */ }
+      return;
+    }
     setNavDrawer(!container.classList.contains('nav-open'));
   });
   if (scrim) scrim.addEventListener('click', closeNavDrawer);
@@ -4601,26 +4610,21 @@ function initNavDrawer() {
     }
   });
 
-  // Choosing a destination closes the drawer - on a phone the operator wants
-  // the screen they picked, not the menu they picked it from. Delegated from
-  // the sidebar so it covers the dynamically-rendered Setup submenu too.
+  // Picking a destination closes the drawer (delegated: covers the built
+  // Setup submenu); a module row with a flyout is a disclosure, not one.
   const sidebar = document.getElementById('app-sidebar');
   if (sidebar) {
     sidebar.addEventListener('click', (e) => {
       if (!navDrawerIsActive()) return;
       const item = e.target && e.target.closest && e.target.closest('.menu-item');
-      // A module row that owns a flyout is a disclosure, not a destination -
-      // closing on it would shut the menu before its children could be read.
       if (item && !item.closest('.has-submenu')) closeNavDrawer();
     });
   }
 
-  // Resizing back above the breakpoint (rotating a tablet, undoing zoom) must
-  // clear the open state, or the desktop layout renders with a drawer class
-  // still applied and the scrim still in the accessibility tree.
+  // Back above the breakpoint (rotation, zoom): no drawer state left behind.
   if (window.matchMedia) {
     const mq = window.matchMedia(NAV_DRAWER_QUERY);
-    const onChange = () => { if (!mq.matches) closeNavDrawer(); };
+    const onChange = () => { if (!mq.matches) { closeNavDrawer(); showNav(!navHidden); } };
     if (mq.addEventListener) mq.addEventListener('change', onChange);
     else if (mq.addListener) mq.addListener(onChange);
   }
@@ -6020,6 +6024,7 @@ async function renderView(view) {
     startLinkNameSweep();
     // Stage 57.6: the shared date picker, same once-installed pattern.
     startDatePickerEnhancer();
+    installNumberStepGuards();
   }
 }
 
@@ -6161,14 +6166,15 @@ function describeDocumentStatusOutcome(doctypeLabel, status) {
 // My Profile (Stage 21): self-service account view - read-only account
 // info (including a best-effort linked Employee lookup), change own
 // password, and set the personal idle-timeout preference that drives
-// setupIdleTimeout() (see logout()/resetIdleTimer() above). Reached from
+// setupIdleTimeout() (see logout()/armIdleTimer() above). Reached from
 // the sidebar account-menu popover, not a sidebar list item of its own.
 const IDLE_TIMEOUT_OPTIONS = [
   { value: 0, label: 'Never' },
   { value: 15, label: '15 minutes' },
   { value: 30, label: '30 minutes' },
   { value: 60, label: '1 hour' },
-  { value: 120, label: '2 hours' }
+  { value: 120, label: '2 hours' },
+  { value: 720, label: '12 hours' }
 ];
 
 async function renderProfileView(container) {
@@ -6185,7 +6191,6 @@ async function renderProfileView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">My Profile</h1>
-      <p class="page-subtitle">View your account details, change your password, and manage session preferences.</p>
     </div>
   `;
   container.appendChild(header);
@@ -6562,7 +6567,6 @@ async function renderUsersView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Users</h1>
-      <p class="page-subtitle">Create and manage user accounts. Roles determine what each user can see and do.</p>
     </div>
   `;
   container.appendChild(header);
@@ -6802,7 +6806,6 @@ async function renderRolesView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Roles</h1>
-      <p class="page-subtitle">What each role can see and do. A role sees a module in the menu once it can read that module's records. Super Admin can always do everything; this only governs the other roles.</p>
     </div>
   `;
   container.appendChild(header);
@@ -7055,7 +7058,6 @@ async function renderHomeView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Home</h1>
-      <p class="page-subtitle">Your quick actions, what needs attention and what you last touched.</p>
     </div>
   `;
   container.appendChild(header);
@@ -7740,7 +7742,6 @@ function renderMockModuleView(container, view) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">${view.charAt(0).toUpperCase() + view.slice(1).replace('-', ' ')}</h1>
-      <p class="page-subtitle">Module setup in progress</p>
     </div>
   `;
   container.appendChild(header);

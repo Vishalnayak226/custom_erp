@@ -62,6 +62,16 @@ if (!document.getElementById('view-pickers-css')) {
 .date-picker .dp-footer { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border-color); }
 .date-picker .dp-link { padding: 6px 10px; border-radius: 6px; color: var(--primary-color); font-weight: 600; }
 .date-picker .dp-link:hover:not(:disabled) { background-color: var(--primary-light); }
+/* Stage 66: one-click GST rates under the GST box - the HSN's own first. */
+.hsn-rate-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-top: 6px; font-size: 12px; }
+.hsn-rate-chips:empty { display: none; }
+.hsn-rate-label { color: var(--text-muted); }
+.hsn-rate-label:not(:first-child) { margin-left: 4px; }
+.hsn-rate-chip { border: 1px solid var(--border-color); background: var(--panel-bg); color: var(--text-main); border-radius: 999px; padding: 2px 9px; font: inherit; cursor: pointer; }
+.hsn-rate-chip:hover { border-color: var(--border-hover); background: var(--surface-subtle); }
+.hsn-rate-chip.primary { border-color: var(--primary-color); background: var(--primary-light); }
+.hsn-rate-chip.active { background: var(--primary-color); border-color: var(--primary-color); color: var(--on-primary); }
+.hsn-rate-note { flex-basis: 100%; color: var(--warning-strong); }
 `;
   document.head.appendChild(style);
 }
@@ -409,8 +419,27 @@ async function openQuickCreateDialog(doctype, seedText) {
         fg.appendChild(gen);
       }
     });
-    if (doctype === 'Item') {
-      attachHSNPicker(holder.querySelector('[name="hsn_code"]'), holder.querySelector('[name="gst_rate"]'));
+    // Stage 66: every record with an HSN box (Item, Item Name, a design) gets
+    // the suggesting HSN picker and the rate that follows it.
+    const gstBox = holder.querySelector('[name="gst_rate"]');
+    const hsnBox = holder.querySelector('[name="hsn_code"]');
+    if (hsnBox) attachSmartHSNPicker(hsnBox, gstBox);
+    // A 0% rate is valid only with a non-taxable Tax Treatment (MASTER-0044),
+    // which this dialog does not otherwise ask - so the choice appears the
+    // moment the rate is 0, and is sent only then.
+    const treatmentField = fields.find(f => f.fieldname === 'tax_treatment' && f.fieldtype === 'Select');
+    let treatmentGroup = null;
+    if (gstBox && treatmentField && !asked.includes(treatmentField)) {
+      const tid = `qc-${doctype}-tax_treatment`;
+      const opts = String(treatmentField.options || '').split(',').map(o => o.trim()).filter(o => o && o !== 'Taxable');
+      treatmentGroup = document.createElement('div');
+      treatmentGroup.className = 'form-group hidden';
+      treatmentGroup.innerHTML = `<label class="form-label" for="${tid}">${escapeHTMLText(getTranslatedLabel(treatmentField.label))}<span class="required">*</span></label>
+        <select class="form-select" id="${tid}" name="tax_treatment"><option value="">— Select —</option>${opts.map(o => `<option value="${escapeHTMLText(o)}">${escapeHTMLText(o)}</option>`).join('')}</select>`;
+      gstBox.closest('.form-group').insertAdjacentElement('afterend', treatmentGroup);
+      const syncTreatment = () => treatmentGroup.classList.toggle('hidden', !(gstBox.value !== '' && Number(gstBox.value) === 0));
+      gstBox.addEventListener('input', syncTreatment);
+      gstBox.addEventListener('change', syncTreatment);
     }
 
     const close = (result) => {
@@ -444,6 +473,16 @@ async function openQuickCreateDialog(doctype, seedText) {
         else if (f.fieldtype === 'Number' || f.fieldtype === 'Currency') { if (el.value !== '') payload[f.fieldname] = parseFloat(el.value); }
         else payload[f.fieldname] = el.value;
       });
+      if (treatmentGroup && !treatmentGroup.classList.contains('hidden')) {
+        const treatment = treatmentGroup.querySelector('select');
+        if (!treatment.value) {
+          errorEl.textContent = 'A 0% GST rate needs a Tax Treatment - choose Exempt, Nil-Rated or Zero-Rated.';
+          errorEl.classList.remove('hidden');
+          treatment.focus();
+          return;
+        }
+        payload.tax_treatment = treatment.value;
+      }
       submitBtn.disabled = true;
       submitBtn.textContent = 'Creating…';
       try {
@@ -492,4 +531,121 @@ async function openQuickCreateDialog(doctype, seedText) {
   });
 }
 
-export { openDatePicker, closeDatePicker, openQuickCreateDialog };
+// attachSmartHSNPicker (Stage 57.3; smart in Stage 66) - app.js attachHSNPicker() lands here. The HSN box opens on a
+// list ranked for the item being named - codes the client's own similar
+// items carry, the master list read against the name ("silver" is not
+// "zircon"), the client's HSN list and its industry's common codes - from
+// GET /api/v1/hsn/suggest (engines/hsn_suggest.go). Typing searches all of
+// them; a code nobody suggested is still created inline. The box keeps the
+// plain number (engines/hsn_catalog.go).
+//
+// The GST rate follows the code: filled when the code has one rate and the
+// rate box is empty or was filled by this picker, cleared again when the new
+// code's rate depends on the price, and always offered as one-click rates
+// under the box (the code's own first, with when each applies).
+
+// The fields whose text describes the item - what the suggestions read.
+const HSN_SIGNAL_FIELDS = ['name', 'item_name', 'category', 'sub_category', 'product_type', 'item_type',
+  'metal_type', 'stone_type', 'fabric', 'device_category', 'type', 'description'];
+// One-click rates offered beside a code's own (GST 2.0 slabs, and 3% for
+// precious metals and jewellery).
+const GST_RATE_SLABS = [0, 3, 5, 18, 40];
+
+function hsnRateOf(s) {
+  if (!s) return null;
+  if (s.gst_rate !== undefined && s.gst_rate !== null && s.gst_rate !== '') return Number(s.gst_rate);
+  return s.rates && s.rates.length === 1 ? Number(s.rates[0].rate) : null;
+}
+
+function attachSmartHSNPicker(hsnInput, gstInput) {
+  if (!hsnInput || hsnInput.dataset.hsnPicker === '1') return;
+  hsnInput.dataset.hsnPicker = '1';
+  const scope = hsnInput.closest('form, .quick-create-fields, .modal-body') || document;
+  const known = new Map(); // hsn -> suggestion row, from the lists shown so far
+  const itemText = () => HSN_SIGNAL_FIELDS
+    .map(n => scope.querySelector(`[name="${n}"]`))
+    .filter(el => el && el !== hsnInput)
+    .map(el => (el.tagName === 'SELECT' ? (el.value ? (el.selectedOptions[0] || {}).textContent || '' : '') : typedTextOf(el)).trim())
+    .filter(Boolean)
+    .join(' ');
+  attachLinkTypeahead(hsnInput, 'HSNCode', {
+    valueFields: ['hsn'],
+    showAllOnFocus: true,
+    groupBy: 'group',
+    source: async (q) => {
+      const res = await apiFetch(`/api/v1/hsn/suggest?name=${encodeURIComponent(itemText())}&q=${encodeURIComponent(q)}`);
+      if (!res || !res.ok) return null;
+      const rows = ((await res.json()) || {}).suggestions || [];
+      rows.forEach(s => known.set(s.hsn, s));
+      return rows;
+    },
+    // Rate before description: a long description is cut off at the end of
+    // the row, and the rate is the part that must stay visible.
+    labelFn: doc => {
+      const rates = doc.rates && doc.rates.length > 1 ? doc.rates.map(r => r.rate) : [hsnRateOf(doc)].filter(r => r !== null);
+      const head = `${doc.hsn || doc.code}${rates.length ? ` (GST ${rates.join(' / ')}%)` : ''}`;
+      return doc.description ? `${head} — ${doc.description}` : head;
+    },
+    titleFn: doc => [doc.description, doc.reason ? `Why: ${doc.reason}` : '',
+      ...(doc.rates || []).filter(r => r.note).map(r => `${r.rate}%: ${r.note}`)].filter(Boolean).join('\n')
+  });
+  if (!gstInput) return;
+
+  const chips = document.createElement('div');
+  chips.className = 'hsn-rate-chips';
+  gstInput.insertAdjacentElement('afterend', chips);
+  let current = null; // the suggestion row for the code now in the HSN box
+
+  const paint = () => {
+    const own = current ? ((current.rates && current.rates.length) ? current.rates : (hsnRateOf(current) !== null ? [{ rate: hsnRateOf(current) }] : [])) : [];
+    const chip = (rate, note, primary) => {
+      const label = `${rate}%${note ? ` · ${note}` : ''}`;
+      return `<button type="button" class="hsn-rate-chip${primary ? ' primary' : ''}" data-rate="${escapeHTMLText(String(rate))}" title="${escapeHTMLText(note || `GST ${rate}%`)}">${escapeHTMLText(label)}</button>`;
+    };
+    const others = GST_RATE_SLABS.filter(s => !own.some(r => Number(r.rate) === s));
+    let html = '';
+    if (own.length) html += `<span class="hsn-rate-label">For HSN ${escapeHTMLText(current.hsn)}:</span>${own.map(r => chip(r.rate, r.note, true)).join('')}`;
+    html += `<span class="hsn-rate-label">${own.length ? 'Other' : 'Common rates'}:</span>${others.map(s => chip(s, '', false)).join('')}`;
+    if (gstInput.value !== '' && Number(gstInput.value) === 0) {
+      html += '<span class="hsn-rate-note">A 0% rate needs Tax Treatment set to Exempt, Nil-Rated or Zero-Rated.</span>';
+    }
+    chips.innerHTML = html;
+    chips.querySelectorAll('[data-rate]').forEach(b => b.classList.toggle('active', gstInput.value !== '' && Number(b.dataset.rate) === Number(gstInput.value)));
+  };
+  const setRate = (rate, byPicker) => {
+    gstInput.value = rate === null ? '' : rate;
+    gstInput.dispatchEvent(new Event('input', { bubbles: true }));
+    gstInput.dispatchEvent(new Event('change', { bubbles: true }));
+    if (byPicker && rate !== null) gstInput.dataset.hsnFilled = '1';
+    else delete gstInput.dataset.hsnFilled;
+    paint();
+  };
+  // Keep focus where it is when a rate is clicked.
+  chips.addEventListener('mousedown', e => e.preventDefault());
+  chips.addEventListener('click', e => {
+    const b = e.target.closest('[data-rate]');
+    if (b) setRate(Number(b.dataset.rate), false);
+  });
+  gstInput.addEventListener('input', e => { if (e.isTrusted) { delete gstInput.dataset.hsnFilled; paint(); } });
+
+  const follow = async () => {
+    const hsn = hsnInput.value.replace(/[\s.]/g, '');
+    if (!hsn) { current = null; paint(); return; }
+    let s = known.get(hsn);
+    if (!s) {
+      const res = await apiFetch(`/api/v1/hsn/suggest?hsn=${encodeURIComponent(hsn)}`);
+      s = res && res.ok ? (((await res.json()) || {}).suggestions || [])[0] : null;
+    }
+    if (hsnInput.value.replace(/[\s.]/g, '') !== hsn) return; // changed again meanwhile
+    current = s || { hsn, rates: [] };
+    const rate = hsnRateOf(current);
+    const ours = gstInput.value === '' || gstInput.dataset.hsnFilled === '1';
+    if (rate !== null && ours) setRate(rate, true);
+    else if (rate === null && gstInput.dataset.hsnFilled === '1') setRate(null, false);
+    else paint();
+  };
+  hsnInput.addEventListener('change', follow);
+  follow();
+}
+
+export { openDatePicker, closeDatePicker, openQuickCreateDialog, attachSmartHSNPicker };

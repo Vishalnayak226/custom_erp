@@ -12,7 +12,6 @@ async function renderFulfillmentView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Fulfillment</h1>
-      <p class="page-subtitle">Pick, pack, and dispatch tasks routed to your location.</p>
     </div>
   `;
   container.appendChild(header);
@@ -175,7 +174,6 @@ async function renderPutawayView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Putaway</h1>
-      <p class="page-subtitle">Place accepted stock into a bin. Refuses more than the location's unassigned on-hand quantity.</p>
     </div>
   `;
   container.appendChild(header);
@@ -415,7 +413,6 @@ async function renderPlaceHoldView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Place Hold</h1>
-      <p class="page-subtitle">Immediately blocks qty of a SKU at a location from allocation. Release requires a Hold Release Request and Store Manager approval.</p>
       <a href="#/view/inventory">← Back to Inventory</a>
     </div>
   `;
@@ -524,17 +521,13 @@ window.startHoldReleaseRequest = async function(holdId) {
 // AtDoor -> Departed (validateYardCheckInMasterRules enforces the order
 // server-side). Infor's 3D yard view is explicitly out of scope - this is a
 // flat status board, not a spatial map.
-async function renderYardBoardView(container) {
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Yard Board</h1>
-      <p class="page-subtitle">Check a trailer into the yard, spot it at a door, and check it out when it departs.</p>
-    </div>
-  `;
-  container.appendChild(header);
+// Stage 69: list / New pages (txn-screen.js, the standard ERP shape), loaded
+// only by the screens here that record something (Yard Board, Location
+// Movement).
+const loadTxnScreen = () => import('./txn-screen.js' + new URL(import.meta.url).search);
 
+async function renderYardBoardView(container) {
+  const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.padding = '24px';
@@ -561,13 +554,14 @@ async function renderYardBoardView(container) {
     </div>
     <div id="yard-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(panel);
-  document.getElementById('yard-checkin-btn').addEventListener('click', submitYardCheckIn);
-  attachLinkTypeahead(document.getElementById('yard-trailer'), 'Trailer', { valueFields: ['code'] });
-
   const body = document.createElement('div');
   body.id = 'yard-board-body';
-  container.appendChild(body);
+  // The board is the page; + Check In Trailer opens the check-in as its own.
+  container.appendChild(txnPagedSection({ id: 'yard-screen', title: 'Yard Board', page: 'Check in a trailer',
+    newLabel: 'Check In Trailer', form: panel, list: body }));
+  txnRestorePane('yard-screen');
+  document.getElementById('yard-checkin-btn').addEventListener('click', submitYardCheckIn);
+  attachLinkTypeahead(document.getElementById('yard-trailer'), 'Trailer', { valueFields: ['code'] });
   await loadYardBoard();
 }
 
@@ -647,6 +641,7 @@ async function submitYardCheckInInner() {
   document.getElementById('yard-carrier').value = '';
   document.getElementById('yard-driver').value = '';
   document.getElementById('yard-slot').value = '';
+  (await loadTxnScreen()).txnDone('yard-screen');
   await loadYardBoard();
 }
 
@@ -703,7 +698,6 @@ async function renderAppointmentCalendarView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Appointment Calendar</h1>
-      <p class="page-subtitle">Inbound/outbound dock appointments, scheduled against each door's capacity and service window.</p>
     </div>
   `;
   container.appendChild(header);
@@ -906,7 +900,6 @@ async function renderRFReceivingView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">RF Receiving</h1>
-      <p class="page-subtitle">Scan an ASN, then scan each carton's SKU to confirm it against what's expected. Batch/serial/catch-weight capture stays on the GRN Workbench.</p>
     </div>
   `;
   container.appendChild(header);
@@ -1094,7 +1087,6 @@ async function renderSortationView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Sortation / Put-Wall</h1>
-      <p class="page-subtitle">Assign an order to a slot, confirm scans into it, then clear it once handed off to packing.</p>
     </div>
   `;
   container.appendChild(header);
@@ -1230,7 +1222,6 @@ async function renderLoadingDockView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Loading</h1>
-      <p class="page-subtitle">Open a load against a dock door and trailer, scan each carton, then complete and depart.</p>
     </div>
   `;
   container.appendChild(header);
@@ -1445,7 +1436,6 @@ async function renderWarehouseCockpitView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Warehouse Cockpit</h1>
-      <p class="page-subtitle">Open tasks, exceptions, wave status, inbound due today, throughput and bin utilisation for one location, in one place.</p>
     </div>
   `;
   container.appendChild(header);
@@ -1606,7 +1596,6 @@ async function renderBinConditionsView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Bin Conditions</h1>
-      <p class="page-subtitle">Move bin stock between Good, Damaged, QC-Hold, and RTV. Moving out of Good makes it unsellable; moving into Good makes it sellable again.</p>
     </div>
   `;
   container.appendChild(header);
@@ -1691,7 +1680,6 @@ async function renderLPNView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">LPN / Carton / Pallet Grouping</h1>
-      <p class="page-subtitle">Group bin stock into a carton or pallet container for tracking - a further breakdown of bin stock, never a second source of truth for a bin's total.</p>
     </div>
   `;
   container.appendChild(header);
@@ -1804,7 +1792,6 @@ async function renderBinReplenishmentView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Bin Replenishment</h1>
-      <p class="page-subtitle">Pick-face bins below their min qty, with a suggested reserve bin to draw from - configure rules via the BinReplenishmentRule master.</p>
     </div>
   `;
   container.appendChild(header);
@@ -1878,18 +1865,17 @@ window.executeBinReplenishmentRow = async function(idx) {
 // through POST /api/v1/wms/bin-move - the same MoveBinStock the replenishment
 // screen uses, so both refuse the same destinations (missing, inactive,
 // Blocked/Full/Counting, another location, hazmat zone, over capacity).
+//
+// Stage 69 (the user: "TO, Stock movement ... different page"): the page is
+// the history of moves - the completed Move warehouse tasks every MoveBinStock
+// logs - and + New Movement opens the bin-stock picker as a page of its own.
 let locMoveRows = [];
 
 async function renderLocationMovementView(container) {
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Location Movement</h1>
-      <p class="page-subtitle">Move stock from one bin to another inside the same warehouse or store. To move stock to a different location, use Stock Transfer.</p>
-    </div>
-  `;
-  container.appendChild(header);
+  const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
+  const history = document.createElement('div');
+  history.className = 'table-panel';
+  history.id = 'locmove-history';
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -1905,10 +1891,48 @@ async function renderLocationMovementView(container) {
     <div id="locmove-form" class="hidden" style="border: 1px solid var(--border-color); border-radius: 8px; padding: 16px; margin-bottom: 16px;"></div>
     <div id="locmove-result"><p style="color: var(--text-muted);">Choose a location to see what each bin holds.</p></div>
   `;
-  container.appendChild(panel);
+  container.appendChild(txnPagedSection({ id: 'locmove-screen', title: 'Location Movement', page: 'New movement',
+    count: '', newLabel: 'New Movement', form: panel, list: history }));
+  txnRestorePane('locmove-screen');
   attachLinkTypeahead(document.getElementById('locmove-location'), 'Location');
   document.getElementById('locmove-load-btn').addEventListener('click', loadLocationMovementStock);
   document.getElementById('locmove-location').addEventListener('change', loadLocationMovementStock);
+  await loadLocationMovementHistory();
+}
+
+// loadLocationMovementHistory fills the list page: the latest 200 bin-to-bin
+// moves, newest first, with the count in the title.
+async function loadLocationMovementHistory() {
+  const el = document.getElementById('locmove-history');
+  if (!el) return;
+  const res = await apiFetch('/api/v1/doc/WarehouseTask?task_type=Move&sort=recent&limit=200');
+  if (!res) return;
+  if (!res.ok) {
+    el.innerHTML = `<p style="padding: 16px; color: var(--danger-color);">Failed to load past movements. <button class="btn btn-outline btn-sm" ${actionAttrs('renderView', ['location-movement'])}>Try Again</button></p>`;
+    return;
+  }
+  const moves = await res.json();
+  const count = document.querySelector('#locmove-screen .txn-count');
+  if (count) count.textContent = String(moves.length);
+  el.innerHTML = `
+    <table>
+      <thead><tr><th>Moved</th><th>Location</th><th>Item</th><th>From bin</th><th>To bin</th><th class="num">Qty</th><th>Batch</th><th>Reason</th></tr></thead>
+      <tbody>
+        ${moves.length === 0
+          ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No stock moved between bins yet. Click <b>+ New Movement</b>, choose a location, then <b>Move</b> on a bin's row.</td></tr>`
+          : moves.map(m => `
+            <tr>
+              <td>${m.updated_at ? escapeHTMLText(new Date(m.updated_at).toLocaleString()) : ''}</td>
+              <td>${escapeHTMLText(m.location_code || '')}</td>
+              <td>${escapeHTMLText(m.item || '')}</td>
+              <td>${escapeHTMLText(m.from_bin || '')}</td>
+              <td>${escapeHTMLText(m.to_bin || '')}</td>
+              <td class="num">${m.qty ?? ''}</td>
+              <td>${escapeHTMLText(m.batch_no || '') || '&mdash;'}</td>
+              <td>${escapeHTMLText(m.notes || '')}</td>
+            </tr>`).join('')}
+      </tbody>
+    </table>`;
 }
 
 async function loadLocationMovementStock() {
@@ -2007,7 +2031,10 @@ async function submitLocationMove(r) {
     if (!res) return;
     if (!res.ok) { await showApiError(res, 'The stock could not be moved.', 'Move Failed'); return; }
     showToast(`Moved ${qty} x ${r.item_name || r.sku} from ${r.bin_code} to ${toBin}.`);
-    await loadLocationMovementStock();
+    // Back to the history, the move on top; the New page keeps its location
+    // with fresh bin stock for the next move.
+    (await loadTxnScreen()).txnDone('locmove-screen');
+    await Promise.all([loadLocationMovementStock(), loadLocationMovementHistory()]);
   } finally {
     btn.disabled = false;
   }
@@ -2022,7 +2049,6 @@ async function renderWavePickingView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Wave / Batch Picking</h1>
-      <p class="page-subtitle">Tag several open fulfillment tasks into a wave, then generate one consolidated pick list instead of walking the warehouse once per order.</p>
     </div>
   `;
   container.appendChild(header);
@@ -2087,7 +2113,6 @@ async function renderMobilePickingView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Mobile Picking</h1>
-      <p class="page-subtitle">A phone-friendly, one-item-at-a-time view of a wave's pick list, with optional voice readout and hands-free "next"/"confirm" control.</p>
     </div>
   `;
   container.appendChild(header);
@@ -2286,7 +2311,6 @@ async function renderCycleCountView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Cycle Count</h1>
-      <p class="page-subtitle">Reconcile a count session: zero-variance lines post immediately, non-zero variance routes to approval.</p>
     </div>
   `;
   container.appendChild(header);

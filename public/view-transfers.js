@@ -21,6 +21,9 @@
 //
 let transferLineItems = [];
 
+// Stage 68: the transaction-screen bar's shared pieces, same version.
+const { txnContext, txnRestorePane, txnPageTitle, txnNewButton, txnDone } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+
 async function renderTransfersView(container) {
   const res = await apiFetch('/api/v1/doc/TransferOrder');
   if (!res) return;
@@ -29,76 +32,80 @@ async function renderTransfersView(container) {
   state.docData = transfers;
   transferLineItems = [];
 
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Stock Transfer</h1>
-      <p class="page-subtitle">Move stock between stores/warehouses: create a draft, get it approved, then dispatch and receive it.</p>
+  // Stage 68: the frozen transaction layout (txn-screen.css). Stage 69: opens
+  // on the list; New is its own page, switched in place so the lines being
+  // keyed in survive a look at the list.
+  const screen = document.createElement('div');
+  screen.className = 'txn-screen';
+  screen.id = 'transfer-screen';
+  screen.dataset.landing = 'history';
+  screen.innerHTML = `
+    <div class="txn-bar">
+      ${txnPageTitle({ screen: 'transfer-screen', title: 'Stock Transfer', page: 'New transfer', count: transfers.length })}
+      ${txnContext()}
+      ${txnNewButton({ screen: 'transfer-screen', label: 'New Transfer' })}
+      <div id="transfer-sum" class="txn-sum txn-main-only"></div>
+      <div class="txn-actions txn-main-only">
+        <div id="transfer-form-error" class="login-error hidden"></div>
+        <button class="btn btn-primary" id="transfer-create-btn">Create Transfer</button>
+      </div>
     </div>
-  `;
-  container.appendChild(header);
 
-  const formPanel = document.createElement('div');
-  formPanel.className = 'table-panel';
-  formPanel.style.padding = '24px';
-  formPanel.style.marginBottom = '24px';
-  formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Transfer (Draft)</h2>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-      ${autoNumberField('Transfer Number', 'TO', '160px')}
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="transfer-from">From Warehouse</label>
-        <input type="text" id="transfer-from" class="form-input" style="width: 150px;" autocomplete="off">
+    <div class="txn-pane" data-pane="new">
+      <div class="txn-head">
+        ${autoNumberField('Transfer Number', 'TO', '100%')}
+        <div class="form-group">
+          <label class="form-label" for="transfer-from">From Warehouse</label>
+          <input type="text" id="transfer-from" class="form-input" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="transfer-to">To Warehouse</label>
+          <input type="text" id="transfer-to" class="form-input" autocomplete="off">
+        </div>
       </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="transfer-to">To Warehouse</label>
-        <input type="text" id="transfer-to" class="form-input" style="width: 150px;" autocomplete="off">
+      <div class="txn-hint"><span>Create a draft, get it approved, then dispatch and receive it.</span></div>
+      <div class="txn-entry">
+        <div class="form-group txn-entry-main">
+          <label class="form-label" for="transfer-line-sku">SKU</label>
+          <input type="text" id="transfer-line-sku" class="form-input">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="transfer-line-qty">Qty</label>
+          <input type="number" id="transfer-line-qty" class="form-input" min="1">
+        </div>
+        <button class="btn btn-outline" id="transfer-add-line-btn" type="button">Add Line</button>
       </div>
+      <div class="txn-grid"><div id="transfer-lines-list"></div></div>
     </div>
-    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-top: 16px;">
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="transfer-line-sku">SKU</label>
-        <input type="text" id="transfer-line-sku" class="form-input" style="width: 150px;">
-      </div>
-      <div class="form-group" style="margin-bottom: 0;">
-        <label class="form-label" for="transfer-line-qty">Qty</label>
-        <input type="number" id="transfer-line-qty" class="form-input" style="width: 90px;" min="1">
-      </div>
-      <button class="btn btn-outline" id="transfer-add-line-btn" type="button">Add Line</button>
-    </div>
-    <div id="transfer-lines-list" style="margin: 12px 0;"></div>
-    <div id="transfer-form-error" class="login-error hidden" style="margin-bottom: 12px;"></div>
-    <button class="btn btn-primary" id="transfer-create-btn">Create Transfer</button>
-  `;
-  container.appendChild(formPanel);
 
-  const listPanel = document.createElement('div');
-  listPanel.className = 'table-panel';
-  let html = `
-    <table>
-      <thead>
-        <tr>
-          <th>Transfer #</th><th>From</th><th>To</th><th>Items</th><th>Status</th><th></th>
-        </tr>
-      </thead>
-      <tbody>
+    <div class="txn-pane hidden" data-pane="history">
+      <div class="txn-grid">
+        <table>
+          <thead>
+            <tr>
+              <th>Transfer #</th><th>From</th><th>To</th><th>Items</th><th>Status</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${transfers.length === 0
+              ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No transfers yet. Click <b>+ New Transfer</b>, add the lines, then <b>Create Transfer</b> to move stock between locations.</td></tr>`
+              : transfers.map(t => `
+                <tr>
+                  <td style="font-family: monospace;">${t.transfer_number || t.id}</td>
+                  <td>${t.from_warehouse || ''}</td>
+                  <td>${t.to_warehouse || ''}</td>
+                  <td>${(() => { try { return JSON.parse(t.items || '[]').length; } catch (e) { return 0; } })()}</td>
+                  <td><span class="badge ${t.status === 'Received' ? 'badge-success' : t.status === 'Draft' ? 'badge-secondary' : 'badge-warning'}">${t.status}</span></td>
+                  <td>${renderTransferActions(t)}</td>
+                </tr>
+              `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
   `;
-  html += transfers.length === 0
-    ? `<tr><td colspan="6" style="text-align:center; color:var(--text-muted);">No transfers yet. Use <b>Add Line</b> then <b>Create Transfer</b> above to move stock between locations.</td></tr>`
-    : transfers.map(t => `
-        <tr>
-          <td style="font-family: monospace;">${t.transfer_number || t.id}</td>
-          <td>${t.from_warehouse || ''}</td>
-          <td>${t.to_warehouse || ''}</td>
-          <td>${(() => { try { return JSON.parse(t.items || '[]').length; } catch (e) { return 0; } })()}</td>
-          <td><span class="badge ${t.status === 'Received' ? 'badge-success' : t.status === 'Draft' ? 'badge-secondary' : 'badge-warning'}">${t.status}</span></td>
-          <td>${renderTransferActions(t)}</td>
-        </tr>
-      `).join('');
-  html += `</tbody></table>`;
-  listPanel.innerHTML = html;
-  container.appendChild(listPanel);
+  container.appendChild(screen);
+  txnRestorePane('transfer-screen');
 
   renderTransferLinesList();
   document.getElementById('transfer-add-line-btn').addEventListener('click', addTransferLine);
@@ -122,17 +129,27 @@ async function renderTransfersView(container) {
 function renderTransferLinesList() {
   const el = document.getElementById('transfer-lines-list');
   if (!el) return;
+  // Stage 68: the bar's summary - lines and units moving.
+  const sumEl = document.getElementById('transfer-sum');
+  const units = transferLineItems.reduce((s, l) => s + (Number(l.qty) || 0), 0);
+  if (sumEl) {
+    sumEl.innerHTML = transferLineItems.length
+      ? `<span><b>${transferLineItems.length}</b> line${transferLineItems.length === 1 ? '' : 's'}</span><span class="txn-total" title="Units moving">${units} units</span>`
+      : '<span>Add a line to start the transfer.</span>';
+  }
   if (transferLineItems.length === 0) {
-    el.innerHTML = `<p style="font-size: 13px; color: var(--text-muted);">No lines added yet.</p>`;
+    el.innerHTML = `<p class="txn-empty">No lines added yet.</p>`;
     return;
   }
-  el.innerHTML = transferLineItems.map((line, idx) => `
-    <div style="display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 13.5px;">
-      <span data-link-doctype="Item" data-link-ref="${escapeHTMLText(line.sku)}">${escapeHTMLText(line.sku)}</span>
-      <span>qty ${line.qty}</span>
-      <button class="action-btn action-btn-danger" type="button" ${actionAttrs('removeTransferLine', [idx])}>Remove</button>
-    </div>
-  `).join('');
+  el.innerHTML = `<table>
+    <thead><tr><th>Item</th><th class="num">Qty</th><th></th></tr></thead>
+    <tbody>${transferLineItems.map((line, idx) => `
+      <tr>
+        <td data-link-doctype="Item" data-link-ref="${escapeHTMLText(line.sku)}">${escapeHTMLText(line.sku)}</td>
+        <td class="num">${line.qty}</td>
+        <td><button class="action-btn action-btn-danger" type="button" ${actionAttrs('removeTransferLine', [idx])}>Remove</button></td>
+      </tr>`).join('')}</tbody>
+  </table>`;
 }
 
 function addTransferLine() {
@@ -184,6 +201,7 @@ async function createTransferOrderInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  txnDone('transfer-screen');
   renderView('transfers');
 }
 

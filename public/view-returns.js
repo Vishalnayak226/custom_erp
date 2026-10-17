@@ -1,4 +1,8 @@
 // BLD-041: native ES module for the standalone Returns workbench.
+
+// Stage 71: the Sales Return print comes from trade-docs.js, which sets
+// window.printTransactionDocument when it loads.
+import('./trade-docs.js' + new URL(import.meta.url).search).catch(() => null);
 // POS-specific return lookup stays in view-pos.js; this workbench is loaded
 // only after the existing route-entitlement check succeeds.
 
@@ -27,48 +31,49 @@ const RETURN_ACTIONS_BY_STATUS = {
 
 const RETURN_DISPOSITIONS = ['Sellable', 'Damaged', 'Repairable', 'Missing', 'Wrong-Item', 'Rejected'];
 
+// Stage 68: the transaction-screen bar's shared pieces, same version.
+const { txnContext } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+
 let returnsViewRows = [];
 let returnsViewFilter = 'open';
 
 async function renderReturnsView(root) {
+  // Stage 68: the frozen transaction layout (txn-screen.css) - the bar carries
+  // who and where, the count and refund total, the filter; the list scrolls.
   const panel = document.createElement('div');
-  panel.className = 'table-panel';
-  panel.style.padding = '24px';
+  panel.className = 'txn-screen';
   panel.innerHTML = `
-    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:16px;">
-      <div>
-        <h2 style="margin:0 0 4px; font-size:16px;">Returns</h2>
-        <div style="font-size:12.5px; color:var(--text-muted);">
-          A return moves Requested &rarr; Approved &rarr; Received &rarr; QC Complete &rarr; Closed.
-          Stock is only received back at inspection, and no refund is paid until the goods have been inspected.
-        </div>
-      </div>
-      <div style="display:flex; gap:8px; align-items:flex-end;">
-        <div class="form-group" style="max-width:180px; margin-bottom:0;">
-          <label class="form-label" for="returns-filter">Show</label>
-          <select id="returns-filter" class="form-input">
-            <option value="open">Open returns</option>
-            <option value="all">All returns</option>
-            <option value="Requested">Awaiting approval</option>
-            <option value="Approved">Awaiting goods</option>
-            <option value="Received">Awaiting inspection</option>
-            <option value="QC Complete">Awaiting refund</option>
-          </select>
-        </div>
-        <button class="btn btn-outline" id="returns-refresh-btn" type="button">Refresh</button>
+    <div class="txn-bar">
+      <h1 class="page-title txn-title">Returns</h1>
+      ${txnContext()}
+      <div id="returns-sum" class="txn-sum"></div>
+      <div class="txn-actions">
+        <select id="returns-filter" class="form-input" aria-label="Show">
+          <option value="open">Open returns</option>
+          <option value="all">All returns</option>
+          <option value="Requested">Awaiting approval</option>
+          <option value="Approved">Awaiting goods</option>
+          <option value="Received">Awaiting inspection</option>
+          <option value="QC Complete">Awaiting refund</option>
+        </select>
+        <button class="btn btn-outline btn-sm" id="returns-refresh-btn" type="button">Refresh</button>
       </div>
     </div>
-    <div id="returns-error" class="login-error hidden" style="margin-bottom:16px;"></div>
-    <table>
-      <thead>
-        <tr>
-          <th>Return</th><th>Type</th><th>Original Bill</th><th>Location</th>
-          <th>Items</th><th>Refund Eligible</th><th>Status</th><th>Actions</th>
-        </tr>
-      </thead>
-      <tbody id="returns-body"></tbody>
-    </table>
-    <div id="returns-empty" style="padding:24px 4px; color:var(--text-muted); font-size:13px;"></div>
+    <div class="txn-hint"><span>A return moves Requested &rarr; Approved &rarr; Received &rarr; QC Complete &rarr; Closed.
+      Stock is only received back at inspection, and no refund is paid until the goods have been inspected.</span></div>
+    <div id="returns-error" class="login-error hidden"></div>
+    <div class="txn-grid">
+      <table>
+        <thead>
+          <tr>
+            <th>Return</th><th>Type</th><th>Original Bill</th><th>Location</th>
+            <th>Items</th><th>Refund Eligible</th><th>Status</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="returns-body"></tbody>
+      </table>
+      <div id="returns-empty" class="txn-empty"></div>
+    </div>
   `;
   root.appendChild(panel);
 
@@ -124,6 +129,13 @@ function renderReturnsTable() {
     return r.status === returnsViewFilter;
   });
 
+  // Stage 68: the bar's summary for what is shown.
+  const sumEl = document.getElementById('returns-sum');
+  if (sumEl) {
+    const refund = rows.reduce((n, r) => n + (r.refundEligible || 0), 0);
+    sumEl.innerHTML = `<span><b>${rows.length}</b> return${rows.length === 1 ? '' : 's'}</span><span class="txn-total" title="Refund eligible">${refund.toFixed(2)}</span>`;
+  }
+
   const emptyEl = document.getElementById('returns-empty');
   if (emptyEl) {
     emptyEl.textContent = rows.length ? '' :
@@ -142,7 +154,7 @@ function renderReturnsTable() {
       <td>${qtySummary} unit(s) across ${r.items.length} line(s)</td>
       <td>${r.refundEligible ? r.refundEligible.toFixed(2) : '-'}</td>
       <td>${cfgEsc(r.status)}</td>
-      <td>${actions.map(a => returnActionButton(r.id, a)).join(' ') || '<span style="color:var(--text-muted);">-</span>'}</td>
+      <td>${actions.map(a => returnActionButton(r.id, a)).join(' ')} <button class="action-btn" ${actionAttrs('printTransactionDocument', ['ReturnRequest', r.id])}>Print</button></td>
     `;
     body.appendChild(tr);
   });

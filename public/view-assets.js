@@ -5,19 +5,14 @@
 //
 // BLD-041: native ES module loaded with import() by the authorized view
 // dispatcher. Shared services resolve from the classic app shell.
+//
+// Stage 69: the register is the page; + New Asset opens the form as a page of
+// its own (txn-screen.js, the standard ERP shape).
+const { txnPagedSection, txnRestorePane, txnDone } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+
 async function renderAssetsView(container) {
   const res = await apiFetch('/api/v1/assets/register');
   if (!res) return;
-
-  const header = document.createElement('div');
-  header.className = 'page-header';
-  header.innerHTML = `
-    <div class="page-title-section">
-      <h1 class="page-title">Fixed Assets</h1>
-      <p class="page-subtitle">Asset register with calculated straight-line depreciation and net block.</p>
-    </div>
-  `;
-  container.appendChild(header);
 
   const assets = res.ok ? await res.json() : [];
 
@@ -26,7 +21,6 @@ async function renderAssetsView(container) {
   formPanel.style.padding = '24px';
   formPanel.style.marginBottom = '24px';
   formPanel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">New Asset (Draft)</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="asset-code">Asset Number</label>
@@ -60,7 +54,6 @@ async function renderAssetsView(container) {
     </div>
     <div id="asset-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
   `;
-  container.appendChild(formPanel);
 
   const listPanel = document.createElement('div');
   listPanel.className = 'table-panel';
@@ -75,7 +68,7 @@ async function renderAssetsView(container) {
       <tbody>
   `;
   html += assets.length === 0
-    ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No assets yet. Use <b>Create</b> above to capitalise your first fixed asset.</td></tr>`
+    ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No assets yet. Click <b>+ New Asset</b> to add your first fixed asset, then <b>Capitalise</b> it here.</td></tr>`
     : assets.map(a => `
         <tr>
           <td style="font-family: monospace;">${escapeHTMLText(a.code || a.id)}${a.source_grn ? `<div style="font-family: inherit; font-size: 12px; color: var(--text-muted);">${escapeHTMLText(a.item_code || '')} from GRN ${escapeHTMLText(a.source_grn)}</div>` : ''}</td>
@@ -91,7 +84,9 @@ async function renderAssetsView(container) {
       `).join('');
   html += `</tbody></table>`;
   listPanel.innerHTML = html;
-  container.appendChild(listPanel);
+  container.appendChild(txnPagedSection({ id: 'asset-screen', title: 'Fixed Assets', page: 'New asset (draft)', count: assets.length,
+    newLabel: 'New Asset', form: formPanel, list: listPanel }));
+  txnRestorePane('asset-screen');
   listPanel.addEventListener('click', event => {
     const button = event.target.closest('[data-asset-action]');
     if (!button) return;
@@ -156,6 +151,7 @@ async function createAssetInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  txnDone('asset-screen');
   renderView('assets');
 }
 
@@ -215,8 +211,10 @@ function openAssetActionPanel(title, bodyHTML, onConfirm) {
     </div>
     <div id="asset-action-error" class="login-error hidden" style="margin-top: 12px;"></div>
   `;
-  const anchor = document.getElementById('asset-create-btn')?.closest('.table-panel');
-  if (anchor) anchor.after(panel); else document.getElementById('view-root').prepend(panel);
+  // Stage 69: on the register page, above the list (the create form is its
+  // own page now).
+  const anchor = document.querySelector('#asset-screen > [data-pane="list"]');
+  if (anchor) anchor.prepend(panel); else document.getElementById('view-root').prepend(panel);
   panel.querySelector('#asset-action-cancel').addEventListener('click', () => panel.remove());
   const confirmBtn = panel.querySelector('#asset-action-confirm');
   confirmBtn.addEventListener('click', () => guardAgainstDoubleSubmit(confirmBtn, 'Working...', onConfirm));

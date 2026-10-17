@@ -173,7 +173,7 @@ should come out with no dialog.
 
 | To print | Do this | Uses the printer that is Default For |
 |---|---|---|
-| **Barcode stickers (manual)** | Sticker Printing → Print tab → add SKUs → **Print Stickers** | `Sticker` |
+| **Barcode stickers (manual)** | Sticker Printing → Print tab → **+ Print Stickers** → add SKUs → **Print Stickers** | `Sticker` |
 | **Barcode stickers (from a GRN/Transfer Order)** | Sticker Printing → Print tab → **Print from Transaction** → pick the document → **Print Selected** (or **Print** on one line) | `Sticker` |
 | **A marketplace label or invoice** (Myntra, or any channel PDF) | Sticker Printing → Print Setup → choose the file → **Print** | `Shipping Label` |
 | **An ERP shipping label** | Marketplace → Logistics Bookings → **Print Label** on the row | `Shipping Label` |
@@ -256,8 +256,9 @@ prints exactly as designed.
    to it.
 3. The line list shows every stickerable line — its SKU, name, lot (when
    the document carries one), category,
-   which template it will use (or "Default layout" if none is configured
-   for that category), and how many copies (defaulting to the accepted/
+   which template it will use and the rule that picked it (or "Standard
+   label" when no rule applies; the dropdown picks another template for
+   that print only), and how many copies (defaulting to the accepted/
    transfer quantity — edit the number if you want a different count).
 4. Either untick the lines you don't want and click **Print Selected**, or
    click **Print** on a single line to print just that one.

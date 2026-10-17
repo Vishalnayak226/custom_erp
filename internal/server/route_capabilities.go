@@ -154,6 +154,7 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/clevertap/logs":                                    {LevelAuthenticated, "clevertap.default"},
 	"GET /api/v1/dashboards/layouts":                                {LevelAuthenticated, "reports.default"},
 	"GET /api/v1/doc/{doctype}/meta":                                {LevelAuthenticated, "doc.default"},
+	"GET /api/v1/hsn/suggest":                                       {LevelAuthenticated, "doc.default"}, // Stage 66
 	"GET /api/v1/finance/fx-revaluation":                            {LevelAuthenticated, "finance.default"},
 	"GET /api/v1/finance/payment-proposal/{id}/payment-file":        {LevelAuthenticated, "finance.default"},
 	"GET /api/v1/finance/payment-proposal/{id}/utrs":                {LevelAuthenticated, "finance.default"},
@@ -475,6 +476,12 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/pos/quote":                                        {LevelAuthenticated, "pos.default"},
 	"POST /api/v1/pos/payment/confirm":                              {LevelAuthenticated, "pos.default"},
 	"POST /api/v1/pos/payment/void":                                 {LevelAuthenticated, "pos.default"},
+	"POST /api/v1/pos/gift-card/issue":                              {LevelAuthenticated, "pos.default"},       // Stage 72.8
+	"POST /api/v1/pos/gift-card/balance":                            {LevelAuthenticated, "pos.default"},       // Stage 72.8
+	"POST /api/v1/stored-value/cards":                               {LevelAuthenticated, "pos.default"},       // Stage 72.8, manager-only in handler
+	"POST /api/v1/stored-value/cards/action":                        {LevelAuthenticated, "pos.default"},       // Stage 72.8, manager-only in handler
+	"POST /api/v1/inventory/consumption":                            {LevelAuthenticated, "inventory.default"}, // Stage 72.6, manager-only in handler
+	"GET /api/v1/inventory/consumption/book":                        {LevelAuthenticated, "inventory.default"}, // Stage 72.6
 	"POST /api/v1/pos/price-override":                               {LevelAuthenticated, "pos.price_override"},
 	"POST /api/v1/pos/offline-heartbeat":                            {LevelAuthenticated, "pos.default"},
 	"POST /api/v1/pos/session/close":                                {LevelAuthenticated, "pos.default"},
@@ -602,6 +609,8 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/platform/me":                                       {LevelAdmin, "platform.console"},
 	"GET /api/v1/platform/tenants":                                  {LevelAdmin, "platform.console"},
 	"GET /api/v1/platform/control-panel":                            {LevelAdmin, "platform.console"},
+	"POST /api/v1/platform/tenants/{tenant}/status":                 {LevelAdmin, "platform.console"},
+	"POST /api/v1/platform/tenants/{tenant}/trial":                  {LevelAdmin, "platform.console"},
 	"GET /api/v1/platform/tenants/{tenant}/tables":                  {LevelAdmin, "platform.console"},
 	"GET /api/v1/platform/tenants/{tenant}/tables/{table}":          {LevelAdmin, "platform.console"},
 	"POST /api/v1/platform/tenants/{tenant}/tables/{table}/row":     {LevelAdmin, "platform.console"},

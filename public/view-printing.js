@@ -138,6 +138,8 @@ let currentStickerTab = 'print';
 const STICKER_TABS = [
   { id: 'print', label: 'Print' },
   { id: 'templates', label: 'Sticker templates' },
+  // Stage 70: which template an item's label uses.
+  { id: 'rules', label: 'Template rules' },
   // Stage 63: how PO / GRN / transfers / debit-credit notes print.
   { id: 'documents', label: 'Document templates' }
 ];
@@ -146,6 +148,11 @@ let stickerSourceDocId = '';
 let stickerSourceLines = [];    // last GET /api/v1/stickers/preview response
 let stickerSourceSelected = {}; // line index -> bool, defaults to all-selected on load
 let stickerSourceCopies = {};   // line index -> int, defaults to the line's own qty
+// Stage 70: a template picked for a line at print time beats the template
+// rules for that print only. '' = as per rules, 'standard' = the built-in label.
+let stickerSourceTemplates = {}; // line index -> template id
+let stickerTemplateChoices = []; // Active StickerTemplates: [{ id, name }]
+const STICKER_RULE_TEXT = { 'Item': 'item', 'Item type': 'item type', 'Category': 'category', 'Default': 'default' };
 let stickerPrinters = [];       // Printer records, for the engine's language/DPI/agent name
 
 async function renderStickersView(container) {
@@ -154,7 +161,6 @@ async function renderStickersView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Sticker Printing</h1>
-      <p class="page-subtitle">Print item labels (barcode, name, HSN), print from a GRN/Transfer Order, design label templates - and design how POs, GRNs, transfers and debit / credit notes print (Document templates).</p>
     </div>
   `;
   container.appendChild(header);
@@ -178,6 +184,11 @@ async function renderStickersView(container) {
     await renderStickerTemplatesTab(container);
     return;
   }
+  if (currentStickerTab === 'rules') {
+    const { renderStickerTemplateRules } = await loadStickerStudio();
+    await renderStickerTemplateRules(container);
+    return;
+  }
   if (currentStickerTab === 'documents') {
     const { renderPrintTemplateGallery } = await import('./trade-docs.js' + PRINTING_MODULE_QUERY);
     await renderPrintTemplateGallery(container);
@@ -193,13 +204,24 @@ async function renderStickerPrintTab(container) {
   ]);
   if (!printersRes || !historyRes) return;
 
-  renderQZSetupPanel(container);
-
   const printers = printersRes.ok ? await printersRes.json() : [];
   stickerPrinters = printers;
   const history = historyRes.ok ? await historyRes.json() : [];
 
-  renderStickerSourcePanel(container, printers);
+  // Stage 69: the print history is the page; + Print Stickers opens the print
+  // station (QZ status, Print from Transaction, scan) as a page of its own
+  // (txn-screen.js, the standard ERP shape). Attached first: the panels look
+  // their own elements up as they are built.
+  const { txnPagedSection, txnRestorePane } = await loadTxnScreen();
+  const printPage = document.createElement('div');
+  const historyPanel = document.createElement('div');
+  historyPanel.className = 'table-panel';
+  container.appendChild(txnPagedSection({ id: 'sticker-print', title: 'Print history', page: 'Print stickers',
+    count: history.length, newLabel: 'Print Stickers', form: printPage, list: historyPanel, heading: 'h2' }));
+  txnRestorePane('sticker-print');
+
+  renderQZSetupPanel(printPage);
+  renderStickerSourcePanel(printPage, printers);
 
   const formPanel = document.createElement('div');
   formPanel.className = 'table-panel';
@@ -234,17 +256,15 @@ async function renderStickerPrintTab(container) {
     <div id="sticker-form-error" class="login-error hidden" style="margin-bottom: 16px;"></div>
     <button class="btn btn-primary" id="sticker-print-btn">Print Stickers</button>
   `;
-  container.appendChild(formPanel);
+  printPage.appendChild(formPanel);
 
-  const historyPanel = document.createElement('div');
-  historyPanel.className = 'table-panel';
   let historyHtml = `
     <table>
       <thead><tr><th>SKU</th><th>Barcode</th><th>Printer</th><th>Printed By</th><th>Copies</th><th>Source</th><th>Lot</th><th>Reprint Reason</th><th>Date</th></tr></thead>
       <tbody>
   `;
   historyHtml += history.length === 0
-    ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No print history yet. Add SKUs above and use <b>Print Stickers</b>.</td></tr>`
+    ? `<tr><td colspan="9" style="text-align:center; color:var(--text-muted);">No print history yet. Click <b>+ Print Stickers</b>, add SKUs or load a transaction, then print.</td></tr>`
     : history.map(h => `
         <tr>
           <td style="font-family: monospace;">${escapeHTMLText(h.sku)}</td>
@@ -260,7 +280,6 @@ async function renderStickerPrintTab(container) {
       `).join('');
   historyHtml += `</tbody></table>`;
   historyPanel.innerHTML = historyHtml;
-  container.appendChild(historyPanel);
 
   document.getElementById('sticker-add-btn').addEventListener('click', addStickerSKU);
   document.getElementById('sticker-sku-input').addEventListener('keydown', (e) => {
@@ -285,8 +304,7 @@ function renderStickerSourcePanel(container, printers) {
   panel.style.padding = '24px';
   panel.style.marginBottom = '24px';
   panel.innerHTML = `
-    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 4px;">Print from Transaction</h2>
-    <p class="page-subtitle" style="margin: 0 0 16px;">Load a GRN or Transfer Order's own lines - print the whole document, or just one line.</p>
+    <h2 style="font-size: 16px; font-weight: 700; margin-bottom: 16px;">Print from Transaction</h2>
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 16px;">
       <div class="form-group" style="margin-bottom: 0;">
         <label class="form-label" for="sticker-source-doctype">Module</label>
@@ -333,8 +351,14 @@ async function loadStickerSourcePreview() {
   stickerSourceDocId = docId;
   if (!docId) return;
 
-  const res = await apiFetch(`/api/v1/stickers/preview?source_doctype=${encodeURIComponent(doctype)}&source_doc_id=${encodeURIComponent(docId)}`);
+  const [res, tplRes] = await Promise.all([
+    apiFetch(`/api/v1/stickers/preview?source_doctype=${encodeURIComponent(doctype)}&source_doc_id=${encodeURIComponent(docId)}`),
+    apiFetch('/api/v1/doc/StickerTemplate')
+  ]);
   if (!res) return;
+  stickerTemplateChoices = tplRes && tplRes.ok
+    ? (await tplRes.json()).filter(t => (t.status || 'Active') === 'Active').map(t => ({ id: t.id, name: t.name || t.code || t.id }))
+    : [];
   if (!res.ok) {
     errorEl.textContent = await getErrorMessage(res, 'Could not load that document.');
     errorEl.classList.remove('hidden');
@@ -349,6 +373,7 @@ async function loadStickerSourcePreview() {
   }
   stickerSourceSelected = {};
   stickerSourceCopies = {};
+  stickerSourceTemplates = {};
   stickerSourceLines.forEach((l, i) => {
     stickerSourceSelected[i] = true;
     stickerSourceCopies[i] = l.qty;
@@ -369,7 +394,19 @@ function renderStickerSourceLines() {
     return;
   }
   const anyBatch = stickerSourceLines.some(l => l.batch_no);
+  const choiceOptions = (selected) => [{ id: 'standard', name: 'Standard label' }, ...stickerTemplateChoices]
+    .map(t => `<option value="${escapeHTMLText(t.id)}" ${t.id === selected ? 'selected' : ''}>${escapeHTMLText(t.name)}</option>`).join('');
+  const values = stickerSourceLines.map((l, i) => stickerSourceTemplates[i] || '');
+  const runValue = values.every(v => v === values[0]) ? values[0] : '__mixed';
   el.innerHTML = `
+    <label class="form-label" style="display: flex; align-items: center; gap: 8px; margin: 4px 0 8px;">
+      Template for every line
+      <select id="sticker-source-template-all" class="form-input" style="width: auto;">
+        ${runValue === '__mixed' ? '<option value="__mixed" selected>Chosen per line</option>' : ''}
+        <option value="" ${runValue === '' ? 'selected' : ''}>As per template rules</option>
+        ${choiceOptions(runValue)}
+      </select>
+    </label>
     <table style="margin-top: 4px;">
       <thead><tr><th></th><th>SKU</th><th>Name</th>${anyBatch ? '<th>Batch/Lot</th>' : ''}<th>Category</th><th>Template</th><th>Copies</th><th></th></tr></thead>
       <tbody>
@@ -380,7 +417,10 @@ function renderStickerSourceLines() {
             <td>${escapeHTMLText(l.name || '')}</td>
             ${anyBatch ? `<td style="font-family: monospace;">${escapeHTMLText(l.batch_no || '')}</td>` : ''}
             <td>${escapeHTMLText(l.category || '')}</td>
-            <td>${escapeHTMLText(l.template_name)}</td>
+            <td><select data-source-template="${i}" class="form-input" style="min-width: 160px;" title="Rule that picked it: ${escapeHTMLText(l.template_rule || 'Standard')}">
+              <option value="">${escapeHTMLText(l.template_name)} (${escapeHTMLText(STICKER_RULE_TEXT[l.template_rule] || 'no rule')})</option>
+              ${choiceOptions(values[i])}
+            </select></td>
             <td><input type="number" min="1" data-source-copies="${i}" class="form-input" style="width: 70px;" value="${escapeHTMLText(stickerSourceCopies[i] ?? l.qty)}"></td>
             <td><button class="action-btn" data-source-print-one="${i}">Print</button></td>
           </tr>
@@ -399,6 +439,17 @@ function renderStickerSourceLines() {
       const n = parseInt(inp.value, 10);
       stickerSourceCopies[Number(inp.getAttribute('data-source-copies'))] = n > 0 ? n : 1;
     });
+  });
+  el.querySelectorAll('[data-source-template]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      stickerSourceTemplates[Number(sel.getAttribute('data-source-template'))] = sel.value;
+      renderStickerSourceLines();
+    });
+  });
+  document.getElementById('sticker-source-template-all').addEventListener('change', e => {
+    if (e.target.value === '__mixed') return;
+    stickerSourceLines.forEach((l, i) => { stickerSourceTemplates[i] = e.target.value; });
+    renderStickerSourceLines();
   });
   el.querySelectorAll('[data-source-print-one]').forEach(btn => {
     btn.addEventListener('click', () => printStickerSourceLines([Number(btn.getAttribute('data-source-print-one'))]));
@@ -434,7 +485,8 @@ async function printStickerSourceLines(indexes) {
     .map((l, n) => ({
       sku: l.sku,
       batch_no: l.batch_no || '',
-      copies: stickerSourceCopies[indexes[n]] || l.qty || 1
+      copies: stickerSourceCopies[indexes[n]] || l.qty || 1,
+      template_id: stickerSourceTemplates[indexes[n]] || ''
     }));
 
   const res = await apiFetch('/api/v1/stickers/print', {
@@ -452,6 +504,7 @@ async function printStickerSourceLines(indexes) {
     return;
   }
   await printStickerRun(data, { printerCode, copies: 1, jobRef: stickerSourceDocId });
+  (await loadTxnScreen()).txnDone('sticker-print');
   renderView('stickers');
 }
 
@@ -517,6 +570,7 @@ async function printStickers() {
 
   await printStickerRun(data, { printerCode, copies });
   stickerSKUs = [];
+  (await loadTxnScreen()).txnDone('sticker-print');
   renderView('stickers');
 }
 
@@ -574,6 +628,8 @@ function renderStickerElementHTML(el, label) {
 const PRINTING_MODULE_QUERY = new URL(import.meta.url).search;
 function loadStickerStudio() { return import('./sticker-studio.js' + PRINTING_MODULE_QUERY); }
 function loadStickerEngine() { return import('./sticker-engine.js' + PRINTING_MODULE_QUERY); }
+// Stage 69: the Print tab's list / New pages.
+function loadTxnScreen() { return import('./txn-screen.js' + PRINTING_MODULE_QUERY); }
 
 async function renderStickerTemplatesTab(container) {
   const { renderStickerTemplateGallery } = await loadStickerStudio();

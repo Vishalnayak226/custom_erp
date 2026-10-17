@@ -22,7 +22,6 @@ async function renderPrefixConfigsView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Prefix Configurations</h1>
-      <p class="page-subtitle">Number series for every transaction document, and for master records like Vendor and Item. Each transaction has its own prefix, length and suffix, and each store can have its own prefix and suffix. Numbers are issued when a record is saved - nobody types one in.</p>
     </div>
     <button class="btn btn-primary" ${actionAttrs('addPrefixConfig')}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -355,7 +354,6 @@ async function renderApprovalRulesView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Approval Rules</h1>
-      <p class="page-subtitle">Amount-slab to role routing for every approval-gated document type.</p>
     </div>
     <button class="btn btn-primary" ${actionAttrs('openApprovalRuleModal')}>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="margin-right: 6px;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
@@ -472,7 +470,6 @@ function renderDynamicLabelsView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Dynamic Labels</h1>
-      <p class="page-subtitle">Configure vocabulary overlays and translation dictionary mappings.</p>
     </div>
     <button class="btn btn-primary" ${actionAttrs('addNewLabelReplacement')}>
       <span>Add Translation Rule</span>
@@ -560,7 +557,6 @@ async function renderExtensionHooksView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Extension Hooks</h1>
-      <p class="page-subtitle">Webhook hooks and scoped tokens for a client's own hired developer - see extension-sdk/README.md.</p>
     </div>
   `;
   container.appendChild(header);
@@ -751,7 +747,6 @@ async function renderExtensionHookLogView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Hook Call Log</h1>
-      <p class="page-subtitle">Most recent 100 calls for this hook.</p>
     </div>
     <button class="btn btn-outline" ${actionAttrs('renderView', ['extension-hooks'])}>Back to Extension Hooks</button>
   `;
@@ -868,7 +863,6 @@ async function renderLogHubView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Activity Log</h1>
-      <p class="page-subtitle">Centralized System Audit trail, Middleware Panic recovery trace log console, and Integration payload viewer.</p>
     </div>
     <button class="btn btn-outline" id="log-hub-panic-test">
       <span>Test Panic Recovery</span>
@@ -1174,7 +1168,6 @@ async function renderConfigurationView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Configuration</h1>
-      <p class="page-subtitle">System settings, organized by module. Nothing here is hardcoded - the system reacts to whatever you set.</p>
     </div>
   `;
   container.appendChild(header);
@@ -1471,7 +1464,6 @@ async function renderSystemStatusView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">System Status</h1>
-      <p class="page-subtitle">Deployment health and backup/restore-drill cadence across every environment.</p>
     </div>
   `;
   container.appendChild(header);
@@ -1637,7 +1629,6 @@ async function renderTenantEntitlementsView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Tenant Entitlements</h1>
-      <p class="page-subtitle">Set which plan/modules each tenant has access to.</p>
     </div>
   `;
   container.appendChild(header);
@@ -1679,6 +1670,11 @@ async function renderTenantEntitlementsView(container) {
           <label class="form-label" for="provision-schema-name">Schema Name</label>
           <input type="text" id="provision-schema-name" class="form-input" placeholder="e.g. tenant_acme" style="width:220px;">
         </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="provision-trial-days">Free trial (days)</label>
+          <input type="number" id="provision-trial-days" class="form-input" min="0" max="365" value="30" style="width:140px;">
+          <div class="text-muted" style="font-size:11px; margin-top:4px;">Empty or 0 for a paying client. When the trial ends the client is paused until you extend it or mark it paid (Control Panel).</div>
+        </div>
       </div>
       <div>
         <label class="stat-label" style="display:block; margin-bottom:6px;">Packages (leave all unchecked to provision the full suite)</label>
@@ -1715,9 +1711,16 @@ async function renderTenantEntitlementsView(container) {
       return;
     }
     const selectedPackages = Array.from(document.querySelectorAll('.provision-package-checkbox:checked')).map(cb => cb.value);
+    // Stage 65.6: optional free trial; empty means none.
+    const trialDays = Number.parseInt(document.getElementById('provision-trial-days').value || '0', 10);
+    if (!(trialDays >= 0 && trialDays <= 365)) {
+      errorEl.textContent = 'Free trial is 0 (none) to 365 days.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
     const res = await apiFetch('/api/v1/admin/tenant/provision', {
       method: 'POST',
-      body: JSON.stringify({ tenant_id: tenantId, schema_name: schemaName, packages: selectedPackages })
+      body: JSON.stringify({ tenant_id: tenantId, schema_name: schemaName, packages: selectedPackages, trial_days: trialDays })
     });
     if (!res) return;
     if (!res.ok) {
@@ -1728,7 +1731,7 @@ async function renderTenantEntitlementsView(container) {
     const data = await res.json();
     await showOneTimeSecretDialog(
       'Tenant Provisioned',
-      `Tenant "${data.tenant_id}" is ready. Admin login is username "${data.admin_username}", password shown once below - store it now, it cannot be retrieved again:`,
+      `Tenant "${data.tenant_id}" is ready${data.trial_ends_at ? `, on a free trial until ${new Date(data.trial_ends_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}. Admin login is username "${data.admin_username}", password shown once below - store it now, it cannot be retrieved again:`,
       data.admin_password
     );
     renderView('tenant-entitlements');
@@ -1837,7 +1840,6 @@ async function renderTenantUsageView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Tenant Usage</h1>
-      <p class="page-subtitle">Live request concurrency and configured usage limits, per tenant.</p>
     </div>
   `;
   container.appendChild(header);
@@ -1916,7 +1918,6 @@ async function renderPlatformConsoleView(container) {
   header.innerHTML = `
     <div class="page-title-section">
       <h1 class="page-title">Data Console</h1>
-      <p class="page-subtitle">Every transaction and master of any client as its own table - fix a wrong record field by field. Passwords, secrets and customer personal details stay hidden, record numbers and audit tables cannot be changed, and every change is written to that client's Activity Log.</p>
     </div>`;
   container.appendChild(header);
 

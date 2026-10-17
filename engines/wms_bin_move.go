@@ -192,8 +192,11 @@ func MoveBinStock(tenantID string, in BinMoveInput) error {
 		detail += ": " + in.Reason
 	}
 	LogAuditEvent(tenantID, in.UserID, "WMS_BIN_MOVE", "SUCCESS", detail)
+	// Stage 69: batch and reason ride on the task too - Location Movement's
+	// history page lists these completed Move tasks.
 	LogCompletedWarehouseTask(tenantID, NewWarehouseTask{
 		TaskType: in.TaskType, LocationCode: locationCode, FromBin: in.FromBin, ToBin: in.ToBin, Item: in.SKU, Qty: float64(in.Qty),
+		BatchNo: batchNo, Notes: in.Reason,
 	}, in.UserID)
 	return nil
 }
