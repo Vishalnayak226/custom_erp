@@ -44,7 +44,7 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
-## 221. Stage 61.6-61.11 — GRN batch numbers with full flexibility (2026-10-16, code + docs, NOT COMMITTED)
+## 221. Stage 61.6-61.11 — GRN batch numbers with full flexibility (2026-10-16, code + docs; committed `f017bd2` and deployed 2026-10-17)
 
 The user asked whether Stage 61 was "ready with expected flexibility"; the honest answer was no, six gaps were listed, and the user said build all of them, the expectation being drag-and-drop label design. Detail in [micro_checklist.md Stage 61](micro_checklist.md).
 

@@ -125,6 +125,18 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-17 Stage 61.6-61.11 COMMITTED, PUSHED AND DEPLOYED: `f017bd2`.** Supersedes the "NOT
+  COMMITTED" tags on the 61.6 entries below. Fixed at commit: the tree had `VIEW_MODULE_VERSION` /
+  `app.js?v=` at 38 while HEAD was already 43 - shipped as **44**. Attack surface regenerated (518
+  routes, 188 migrations - it was missing Stage 65's two routes); brain map redrawn, `brain.map.json`
+  now claims `engines/item_names.go` (procurement), `engines/platform_control_panel.go` +
+  `internal/server/handlers_control_panel.go` (tenancy) - 100% coverage. Tests: build, vet,
+  `node --check`, engines batch/GRN/sticker/report suites, full `internal/server`, `db`,
+  `securityscan`, `cmd/...` green. Prod: rollback `/opt/erp/rollback_20261017_061346`, backup
+  `custom_erp_20261017T061347Z.dump.enc` (sha256 OK), DEPLOY-OK, 1 migration applied, sync "1
+  checked" no changes; app.js hash = commit, `public` erp:erp 755, both sites + health 200, both
+  clients' `GRNBatchSeq` = prefix B, separator "-". Nothing of this stage left uncommitted.
+
 - **2026-10-17 Stage 65 + 64.5–64.7 COMMITTED, PUSHED AND DEPLOYED** (`d516214` strip/Back, `87a9a4e`
   sync index fix, `02e22c6` Vendor picker, `ac35a7c` PO pinned zone + delete, `fd38b1e` item names +
   design panel incl. migration `stage65_3`, then the Control Panel commit). Prod: rollback snapshots
