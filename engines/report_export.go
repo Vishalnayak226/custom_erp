@@ -43,6 +43,11 @@ func CreateReportExportJob(tenantID, reportID, role string, params map[string]st
 	if err := RequireModules(tenantID, "reports", def.ModuleKey); err != nil {
 		return "", err
 	}
+	// Stage 75.3.3: refused now, not when the job runs, if it asks for a
+	// store the requester may not see.
+	if err := CheckReportStoreAccess(tenantID, reportID, role, userID, params); err != nil {
+		return "", err
+	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return "", err
@@ -53,7 +58,7 @@ func CreateReportExportJob(tenantID, reportID, role string, params map[string]st
 	}
 	jobID := NewDocID("RPTEXP")
 	data := map[string]interface{}{
-		"id": jobID, "code": jobID, "report_id": reportID, "requested_role": role,
+		"id": jobID, "code": jobID, "report_id": reportID, "requested_role": role, "requested_by": userID, // requested_by: Stage 75.3.3 store scope
 		"params": string(paramsJSON), "status": "Pending",
 	}
 	marshaled, err := json.Marshal(data)
@@ -192,7 +197,8 @@ func processReportExportJobs(ctx context.Context, schema string) {
 
 		newStatus := "Completed"
 		csvText := ""
-		def, resultRows, _, err := RunReportContext(ctx, tenantID, reportID, role, "", params)
+		requestedBy, _ := job.data["requested_by"].(string) // Stage 75.3.3: cut to the requester's stores
+		def, resultRows, _, err := RunReportContext(ctx, tenantID, reportID, role, requestedBy, params)
 		if err != nil {
 			// REPORT-0285 ("Export job failed") is this async path's own
 			// distinct catalog code, deliberately separate from REPORT-0162

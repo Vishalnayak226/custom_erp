@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -132,6 +131,10 @@ type PrintDocument struct {
 	Vendor     string   `json:"vendor,omitempty"`
 	Families   []string `json:"families,omitempty"`
 	Categories []string `json:"categories,omitempty"`
+	// AttributeColumns (Stage 87): the attributes the lines carry, each line's
+	// values under "attributes.<code>".
+	AttributeColumns []AttributeColumn `json:"attribute_columns,omitempty"`
+	designAttrs      map[string]map[string]string
 }
 
 // LoadPrintStore resolves a Location into a store block, its state and GSTIN
@@ -227,15 +230,11 @@ func itemThumbnailDataURL(tenantID, sku string) string {
 		LIMIT 1`, schema), sku).Scan(&mediaID); err != nil {
 		return ""
 	}
-	if path, err := GetMediaThumbnail(tenantID, mediaID); err == nil {
-		if b, err := os.ReadFile(path); err == nil && len(b) > 0 {
-			return "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(b)
-		}
+	if b, err := ReadMediaThumbnail(tenantID, mediaID); err == nil && len(b) > 0 {
+		return "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(b)
 	}
-	if path, fileType, err := GetMediaFile(tenantID, mediaID); err == nil {
-		if b, err := os.ReadFile(path); err == nil && len(b) > 0 && len(b) <= 600*1024 {
-			return "data:" + fileType + ";base64," + base64.StdEncoding.EncodeToString(b)
-		}
+	if b, fileType, _, err := ReadMediaFile(tenantID, mediaID); err == nil && len(b) > 0 && len(b) <= 600*1024 {
+		return "data:" + fileType + ";base64," + base64.StdEncoding.EncodeToString(b)
 	}
 	return ""
 }
@@ -283,6 +282,12 @@ func (d *PrintDocument) addLine(tenantID string, in printLineIn, cache map[strin
 	// variant's values (Silver / 7), and the design the item belongs to.
 	variant := StickerVariantText(strField(item, "variant_option_values"))
 	l["variant"], l["design"] = variant, strField(item, "parent_product_code")
+	if d.designAttrs == nil {
+		d.designAttrs = map[string]map[string]string{}
+	}
+	if attrs := ItemAttributeValues(tenantID, item, d.designAttrs); len(attrs) > 0 {
+		l["attributes"] = attrs
+	}
 	l["item_code"] = in.SKU
 	if bc := strField(item, "barcode"); bc != "" && bc != in.SKU {
 		l["item_code"] = in.SKU + " / " + bc
@@ -319,6 +324,21 @@ func (d *PrintDocument) addLine(tenantID string, in printLineIn, cache map[strin
 // accepted / rejected, a transfer's shipped / received / short...), summed
 // only when a line carries them.
 var printQtyTotals = []string{"accepted_qty", "rejected_qty", "damaged_qty", "po_qty", "shipped_qty", "received_qty", "short_qty", "return_qty"}
+
+// orderAttributeColumns names the attribute columns the lines carry and puts
+// each line's values under the attribute's own code (OrderAttributeColumns).
+func (d *PrintDocument) orderAttributeColumns(tenantID string) {
+	vals := make([]map[string]string, len(d.Lines))
+	for i, l := range d.Lines {
+		vals[i], _ = l["attributes"].(map[string]string)
+	}
+	d.AttributeColumns = OrderAttributeColumns(tenantID, vals)
+	for i, v := range vals {
+		if len(v) > 0 {
+			d.Lines[i]["attributes"] = v
+		}
+	}
+}
 
 // finish computes the tax summary, totals and amount in words from the lines.
 func (d *PrintDocument) finish() {
@@ -649,6 +669,22 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		if cart, _, errC := fetchDocData(tenantID, "POSCart", strField(data, "reference_cart")); errC == nil && defaultStore == "" {
 			defaultStore = firstNonEmpty(strField(cart, "location"), strField(cart, "store"))
 		}
+		// Stage 75.2.8: the note's IRN for a template to place; "IRN PENDING"
+		// while it is on its way to the IRP.
+		if badges, _ := EInvoiceBadges(tenantID, "CreditNote", id); badges != nil {
+			switch e := badges[id]; e.State {
+			case IRPStateAcknowledged:
+				d.Fields["irn"], d.Fields["irn_ack_no"] = e.IRN, e.AckNo
+				// 75.2.8a: the IRP's signed QR, drawn by a template's QR element.
+				d.Fields["irn_signed_qr"] = e.SignedQR
+				if e.AckDate != nil {
+					d.Fields["irn_ack_date"] = e.AckDate.Format("02-01-2006 15:04")
+				}
+			case "", IRPStateNotRequired, IRPStateCancelled:
+			default:
+				d.Fields["irn_status"] = "IRN PENDING"
+			}
+		}
 		// The note stores one amount and no tax split - it prints as one line.
 		amount := numFromInterface(data["amount"])
 		d.addLine(tenantID, printLineIn{Qty: 1, Rate: amount, Taxable: amount,
@@ -743,6 +779,7 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 	}
 	d.Brand = map[string]string{"name": printBrandName(tenantID, d.Store)}
 	d.finish()
+	d.orderAttributeColumns(tenantID)
 	// Stage 71: the common header and audit fields every print carries.
 	d.Fields["financial_year"] = financialYear(d.Date)
 	if strField(d.Fields, "currency") == "" {

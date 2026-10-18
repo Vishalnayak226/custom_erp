@@ -41,6 +41,19 @@ func customerReferenceReport(tenantID string, params map[string]string) ([]map[s
 	}
 	defer rows.Close()
 	out := []map[string]interface{}{}
+	// Stage 76.11: an order is shown by its number on both rows - its own and
+	// the invoice raised from it - not by the invoice's internal reference.
+	orderNumbers := map[string]string{}
+	orderNumber := func(id string) string {
+		if id == "" {
+			return ""
+		}
+		if n, ok := orderNumbers[id]; ok {
+			return n
+		}
+		orderNumbers[id] = DocumentNumber(tenantID, "SalesOrder", id)
+		return orderNumbers[id]
+	}
 	for rows.Next() {
 		var id, doctype, status, dataStr, date string
 		if err := rows.Scan(&id, &doctype, &status, &dataStr, &date); err != nil {
@@ -52,7 +65,7 @@ func customerReferenceReport(tenantID string, params map[string]string) ([]map[s
 			"amount": round2(numFromInterface(data["total_amount"]))}
 		if doctype == "SalesInvoice" {
 			row["document"], row["number"] = "Sales Invoice", saleDocNumber(id, data)
-			row["customer"], row["order"], row["status"] = strField(data, "customer"), strField(data, "sales_order_id"), status
+			row["customer"], row["order"], row["status"] = strField(data, "customer"), orderNumber(strField(data, "sales_order_id")), status
 		} else {
 			row["document"], row["number"] = "Sales Order", saleDocNumber(id, data)
 			row["customer"], row["order"], row["status"] = strField(data, "customer_name"), "", strField(data, "order_status")

@@ -137,10 +137,10 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 	// queries when the doctype actually declares a self dimension, so an
 	// ordinary request pays nothing for this.
 	docScope := engines.SessionScope{Role: role, UserID: userID, LocationCode: location}
-	if r.Method == http.MethodGet {
-		// Only a read is scope-filtered, and only a self-scoped doctype
-		// costs a query at all - so a write to Payslip/Leave does not pay
-		// for an Employee lookup it will never consult.
+	if r.Method == http.MethodGet || r.Method == http.MethodPost {
+		// A read is scope-filtered, and (Stage 73.D.7) a write is held to
+		// the session's own records where the doctype is self-scoped
+		// (selfScopeWriteAllowed). Only a self-scoped doctype costs a query.
 		docScope, err = engines.ResolveSessionScope(tenantID, doctype, docScope)
 		if err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve the access scope for this session")
@@ -209,11 +209,22 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		if id != "" {
 			// Retrieve single document
 			var dataStr string
-			var status string
+			var status, createdBy string
 			var version int
-			err = db.DB.QueryRow(fmt.Sprintf(`
-				SELECT data, status, version FROM %s.documents
-				WHERE doctype = $1 AND id = $2 AND deleted_at IS NULL`, schema), doctype, id).Scan(&dataStr, &status, &version)
+			readDoc := func() error {
+				return db.DB.QueryRow(fmt.Sprintf(`
+				SELECT data, status, version, COALESCE(created_by, '') FROM %s.documents
+				WHERE doctype = $1 AND id = $2 AND deleted_at IS NULL`, schema), doctype, id).Scan(&dataStr, &status, &version, &createdBy)
+			}
+			err = readDoc()
+			// Stage 76.6: an old long master code that was cleaned (a link
+			// on an old printout) opens the record under its new code.
+			if err == sql.ErrNoRows {
+				if renamed := engines.RenamedMasterCode(tenantID, doctype, id); renamed != "" {
+					id = renamed
+					err = readDoc()
+				}
+			}
 			if err == sql.ErrNoRows {
 				writeAPIError(w, r, "GLOBAL-0004", "")
 				return
@@ -247,32 +258,15 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// value means "not applicable" or "anomaly, deny"). A doctype
 			// the registry does not know keeps exactly the pre-47.1.4
 			// behavior below.
-			if constraints, known := engines.ScopeConstraints(doctype, docScope); known {
-				if failed := engines.DocumentMatchesScope(constraints, dataMap); failed != "" {
-					writeAPIError(w, r, "GLOBAL-0011", "")
-					return
-				}
-			} else {
-				docLoc, hasLoc := dataMap["location"]
-				if !hasLoc {
-					docLoc, hasLoc = dataMap["location_code"]
-				}
-				if hasLoc && fmt.Sprintf("%v", docLoc) != location && !engines.IsSuperAdmin(role) {
-					writeAPIError(w, r, "GLOBAL-0011", "")
-					return
-				}
-			}
-
-			// 26.4.10: the object-level half of supplier scoping. A row that
-			// carries a supplier_code must match this session's; a row with
-			// none (an Item, say) is not supplier-scoped and stays readable,
-			// mirroring exactly how the location check above treats a doctype
-			// with no location field.
-			if supplierCode != "" {
-				if docSup, ok := dataMap[supplierScopeField]; ok && fmt.Sprintf("%v", docSup) != supplierCode {
-					writeAPIError(w, r, "GLOBAL-0011", "")
-					return
-				}
+			//
+			// 26.4.10: then the object-level half of supplier scoping - a row
+			// that carries a supplier_code must match this session's. Stage
+			// 73.D.20: both are the one documentReadRule (document_read_rule.go)
+			// that attachments and purchase returns use too.
+			rule := documentReadRule{doctype: doctype, role: role, location: location, supplierCode: supplierCode, scope: docScope}
+			if !rule.visible(dataMap) || !engines.CreatorMayAccess(doctype, role, userID, createdBy) { // 73.D.9: a schedule is its creator's
+				writeAPIError(w, r, "GLOBAL-0011", "")
+				return
 			}
 
 			_ = json.NewEncoder(w).Encode(dataMap)
@@ -343,6 +337,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				args = append(args, supplierCode)
 				argIndex++
 			}
+			// Stage 73.D.9: a scheduled report / digest lists for its creator
+			// (and a Super Admin) only - engines.CreatorMayAccess.
+			if engines.CreatorOwnedDoctype(doctype) && !engines.IsSuperAdmin(role) {
+				whereClause += fmt.Sprintf(" AND created_by = $%d", argIndex)
+				args = append(args, userID)
+				argIndex++
+			}
 
 			// Dynamic search parameter filters check (WMS/OMS query filters)
 			for key, vals := range r.URL.Query() {
@@ -390,9 +391,17 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 					}
 					keyExclusion = fmt.Sprintf("kv.key NOT IN (%s) AND ", strings.Join(placeholders, ","))
 				}
-				whereClause += fmt.Sprintf(" AND EXISTS (SELECT 1 FROM jsonb_each_text(data) kv WHERE %skv.value ILIKE $%d)", keyExclusion, argIndex)
+				searchClause := fmt.Sprintf("EXISTS (SELECT 1 FROM jsonb_each_text(data) kv WHERE %skv.value ILIKE $%d)", keyExclusion, argIndex)
 				args = append(args, "%"+searchQuery+"%")
 				argIndex++
+				// Stage 76.6: an old long master code, typed from an old
+				// printout, finds the record it was cleaned to.
+				if renamed := engines.RenamedMasterCode(tenantID, doctype, strings.TrimSpace(searchQuery)); renamed != "" {
+					searchClause = fmt.Sprintf("(%s OR id = $%d)", searchClause, argIndex)
+					args = append(args, renamed)
+					argIndex++
+				}
+				whereClause += " AND " + searchClause
 			}
 
 			// BLD-034: an exact total (over every filter above, before
@@ -521,6 +530,33 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 
+		// Stage 73.D.9: someone else's schedule cannot be changed - checked on
+		// the stored row before anything is validated, as supplier scope is
+		// just above. (An update addressed by the payload's id is checked
+		// where the prior row is loaded, below.)
+		if id != "" && engines.CreatorOwnedDoctype(doctype) {
+			var storedCreator string
+			_ = db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(created_by, '') FROM %s.documents WHERE id = $1 AND doctype = $2 AND deleted_at IS NULL`, schema), id, doctype).Scan(&storedCreator)
+			if !engines.CreatorMayAccess(doctype, role, userID, storedCreator) {
+				writeAPIError(w, r, "GLOBAL-0011", "")
+				return
+			}
+		}
+
+		// Stage 73.D.7: the write half of self scope - a self-service user
+		// writes only their own leave, grievance, expense claim...
+		// (selfScopeWriteAllowed, document_read_rule.go).
+		writeTarget := id
+		if writeTarget == "" {
+			if v, ok := payload["id"].(string); ok {
+				writeTarget = strings.TrimSpace(v)
+			}
+		}
+		if !selfScopeWriteAllowed(schema, doctype, writeTarget, docScope, payload) {
+			writeAPIError(w, r, "GLOBAL-0011", "")
+			return
+		}
+
 		// Purchase Requisitions are numbered by the server from Prefix Configs
 		// (the PR series), not by a value typed into the generic form. Saving a
 		// requirement also learns its description into the reusable master used
@@ -596,6 +632,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// mandatory-field check runs. A no-op for a standalone Item (no
 		// family/parent_product_code) or on update.
 		if doctype == "Item" {
+			// Stage 89: the item name fills category / type / HSN / GST, and a
+			// new item takes the org's defaults (tax treatment, traceability,
+			// shelf life) where it left them blank.
+			if err := engines.PrepareItemDefaults(tenantID, id == "", payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
 			if err := engines.PrepareItemVariantCode(tenantID, id == "", payload); err != nil {
 				writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 				return
@@ -637,6 +680,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 				return
 			}
+			// Stage 89: the fields the org asks at the GRN (weights, purity),
+			// required ones refused when missing (MASTER-0891).
+			if err := engines.PrepareGRNItemValues(tenantID, payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
 		}
 
 		// Master record id = code invariant (2026-09-22 fix). Every Master
@@ -665,6 +714,28 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// would otherwise succeed.
 		if _, errInv := engines.ApplyMasterIDCodeInvariant(tenantID, doctype, id == "", payload); errInv != nil {
 			engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "WARN", r.URL.Path, fmt.Sprintf("could not resolve document_type for %s, left id as-is: %v", doctype, errInv), "")
+		}
+
+		// Stage 73.D.8: an update keeps every stored key the request did not
+		// send. The record form sends only the fields this role can see and
+		// the doctype declares, so replacing the record wiped fields hidden
+		// from the role and the keys the server keeps on it (a posted
+		// invoice's FX stamps, GST split, settlement / payment history,
+		// outstanding). A key that is sent - even blank - still wins, so
+		// clearing a field works as before. Merged before validation, so the
+		// checks below see the whole record.
+		if writeTarget != "" {
+			var storedStr string
+			if errStored := db.DB.QueryRow(fmt.Sprintf(`SELECT data FROM %s.documents WHERE doctype = $1 AND id = $2 AND deleted_at IS NULL`, schema), doctype, writeTarget).Scan(&storedStr); errStored == nil {
+				var stored map[string]interface{}
+				if json.Unmarshal([]byte(storedStr), &stored) == nil {
+					for k, v := range stored {
+						if _, sent := payload[k]; !sent {
+							payload[k] = v
+						}
+					}
+				}
+			}
 		}
 
 		// 2. Server-side metadata validation engine check
@@ -751,7 +822,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		if doctype == "ProductAttributeDef" {
+		if doctype == "ProductAttributeDef" || doctype == engines.ItemAttributeDoctype {
 			engines.KeepLibraryAttributeIdentity(tenantID, effectiveID, payload) // Stage 81
 		}
 		if err := engines.ValidateMasterDataRules(tenantID, effectiveID, doctype, payload); err != nil {
@@ -821,6 +892,20 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			// which is what every earlier transaction stored.
 			payload[field] = canonical
 		}
+		// Stage 93.9: the same for a person's department - picked from the
+		// Department list, stored as its id.
+		for _, field := range engines.DepartmentReferenceFields[doctype] {
+			ref, _ := payload[field].(string)
+			if ref == "" {
+				continue
+			}
+			canonical, err := engines.ResolveDepartmentReference(tenantID, ref)
+			if err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
+			payload[field] = canonical
+		}
 
 		// Setup Document ID and attributes
 		docID := ""
@@ -844,8 +929,13 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		var priorStatus string
 		var priorData map[string]interface{}
 		if docID != "" {
-			var priorDataStr string
-			if errPrior := db.DB.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = $1 AND id = $2`, schema), doctype, docID).Scan(&priorDataStr, &priorStatus); errPrior == nil {
+			var priorDataStr, priorCreatedBy string
+			if errPrior := db.DB.QueryRow(fmt.Sprintf(`SELECT data, status, COALESCE(created_by, '') FROM %s.documents WHERE doctype = $1 AND id = $2`, schema), doctype, docID).Scan(&priorDataStr, &priorStatus, &priorCreatedBy); errPrior == nil {
+				// Stage 73.D.9: someone else's schedule cannot be changed.
+				if !engines.CreatorMayAccess(doctype, role, userID, priorCreatedBy) {
+					writeAPIError(w, r, "GLOBAL-0011", "")
+					return
+				}
 				wasApproved = priorStatus == "Approved"
 				// 24.33: a failure here must not silently fall through with
 				// priorData == nil - every edit-gate check downstream
@@ -893,6 +983,16 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		// Stage 55.17a: a Customer's marketing consent changed on this save is
 		// stamped with when and by whom (consent_updated_at / consent_source).
 		engines.StampMarketingConsent(doctype, priorData, payload, userID)
+		// Stage 93.1 / 93.6: a location saved with no cost center gets one -
+		// a same-name one linked, else CC00001 named after it - in place
+		// before the single write below. Creates and edits alike: a
+		// location's cost center is never blank.
+		if doctype == "Location" {
+			if err := engines.PrepareLocationCostCenter(tenantID, docID, userID, payload); err != nil {
+				writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+				return
+			}
+		}
 
 		payloadBytes, _ := json.Marshal(payload)
 		statusVal := "Active"
@@ -1021,6 +1121,11 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			empStatus, _ := payload["status"].(string)
 			if errSync := engines.SyncEmployeeAccessLink(tenantID, empUserID, empStatus); errSync != nil {
 				engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "ACCESS_LINK_SYNC_FAILED", r.URL.Path, errSync.Error(), "")
+			}
+			// Stage 93.9: HR leads - the linked user takes the employee's department.
+			empDept, _ := payload["department"].(string)
+			if errSync := engines.SyncUserDepartmentFromEmployee(tenantID, empUserID, empDept); errSync != nil {
+				engines.LogSystemError(tenantID, r.Header.Get("Resolved-Correlation-ID"), "DEPARTMENT_SYNC_FAILED", r.URL.Path, errSync.Error(), "")
 			}
 		}
 
@@ -1168,14 +1273,18 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		var status, documentType string
-		err = db.DB.QueryRow(fmt.Sprintf(`SELECT d.status, m.document_type FROM %s.documents d JOIN %s.doctype_meta m ON m.name = d.doctype WHERE d.id = $1 AND d.doctype = $2 AND d.deleted_at IS NULL`, schema, schema), id, doctype).Scan(&status, &documentType)
+		var status, documentType, createdBy string
+		err = db.DB.QueryRow(fmt.Sprintf(`SELECT d.status, m.document_type, COALESCE(d.created_by, '') FROM %s.documents d JOIN %s.doctype_meta m ON m.name = d.doctype WHERE d.id = $1 AND d.doctype = $2 AND d.deleted_at IS NULL`, schema, schema), id, doctype).Scan(&status, &documentType, &createdBy)
 		if err == sql.ErrNoRows {
 			writeAPIError(w, r, "GLOBAL-0004", "")
 			return
 		}
 		if err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if !engines.CreatorMayAccess(doctype, role, userID, createdBy) { // Stage 73.D.9
+			writeAPIError(w, r, "GLOBAL-0011", "")
 			return
 		}
 		if doctype == "PurchaseOrder" {
@@ -1191,7 +1300,7 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 				writeAPIErrorDetail(w, r, "PURCHA-0320", "", "Goods received on: "+strings.Join(receipts, ", "))
 				return
 			}
-		} else if doctype == "ProductAttributeDef" {
+		} else if doctype == "ProductAttributeDef" || doctype == engines.ItemAttributeDoctype {
 			// Stage 81: an attribute set up from the library is switched off, never deleted.
 			if gErr := engines.CheckAttributeDelete(tenantID, id); gErr != nil {
 				writeEngineError(w, r, gErr, http.StatusInternalServerError)
@@ -1391,6 +1500,7 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 			ActiveStatus   bool                                   `json:"active_status"`
 			IncludeStore   *bool                                  `json:"include_store"`
 			StoreOverrides map[string]engines.StoreSeriesOverride `json:"store_overrides"`
+			YearFormat     *string                                `json:"year_format"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid payload")
@@ -1403,6 +1513,16 @@ func handlePrefix(w http.ResponseWriter, r *http.Request) {
 		series := engines.NumberSeries{
 			DocType: req.DocType, Prefix: req.Prefix, Suffix: req.Suffix, Separator: req.Separator,
 			PaddingWidth: req.PaddingWidth, ResetFrequency: req.ResetFrequency, ActiveStatus: req.ActiveStatus,
+		}
+		if req.YearFormat != nil {
+			series.YearFormat = *req.YearFormat
+		} else if all, err := engines.ListNumberSeries(tenantID); err == nil {
+			// Omitted (a caller older than Stage 86.2): keep the stored format.
+			for _, s := range all {
+				if s.DocType == strings.TrimSpace(req.DocType) {
+					series.YearFormat = s.YearFormat
+				}
+			}
 		}
 		if err := engines.SaveNumberSeries(tenantID, series, req.IncludeStore, req.StoreOverrides); err != nil {
 			writeEngineError(w, r, err, http.StatusInternalServerError)

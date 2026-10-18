@@ -676,7 +676,7 @@ func vendorInvoiceOpenAmount(data map[string]interface{}) float64 {
 // turns Paid. ok is false when the invoice is not open (not Approved, or not
 // found) - a note against a Paid invoice is a straight refund, as it always
 // was, and the caller posts that itself.
-func applyCreditNoteToInvoice(tx *sql.Tx, schema, tenantID, noteID, invoiceID, userID string, notePaise int64) (applied, refunded int64, ok bool, err error) {
+func applyCreditNoteToInvoice(tx *sql.Tx, schema, tenantID, noteID, invoiceID, userID string, notePaise int64, note map[string]interface{}) (applied, refunded int64, ok bool, err error) {
 	var dataStr, status string
 	err = tx.QueryRow(fmt.Sprintf(
 		`SELECT data, status FROM %s.documents WHERE doctype = 'SalesInvoice' AND id = $1 FOR UPDATE`, schema),
@@ -718,7 +718,11 @@ func applyCreditNoteToInvoice(tx *sql.Tx, schema, tenantID, noteID, invoiceID, u
 		credits["1100"] = refunded
 	}
 	key := fmt.Sprintf("CreditNote:%s:POST", noteID)
-	if err := PostDoubleEntryTx(tx, tenantID, schema, "CreditNote", noteID, map[string]int64{"4150": notePaise}, credits, "", key); err != nil {
+	debits, err := creditNoteDebitsPaise(tx, schema, invoiceID, noteID, notePaise, note) // 73.D.10: GST back too
+	if err != nil {
+		return 0, 0, false, err
+	}
+	if err := PostDoubleEntryTx(tx, tenantID, schema, "CreditNote", noteID, debits, credits, "", key); err != nil {
 		return 0, 0, false, postingError(err, "note not marked Posted")
 	}
 	entries = append(entries, SettlementEntry{

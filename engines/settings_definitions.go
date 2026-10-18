@@ -111,8 +111,66 @@ func init() {
 		},
 		Description: "How a GRN line left without a batch number gets one. An Item Type or an Item can choose differently. A typed number is always kept, and a batch-tracked item always needs the lot from the carton. The number's look is the GRNBatchSeq number series.",
 	})
+	// Stage 89: what a new Item starts with (engines/item_setup.go). Copied
+	// onto the item when it is created, so changing one later moves only the
+	// items made after - a tracked item's mode never shifts under its stock.
+	RegisterSetting(SettingDefinition{
+		Key: SettingDefaultTrackingMode, Module: "Inventory",
+		Label: "Traceability for new items", Type: SettingTypeSelect, Default: "None",
+		Options: []SettingOption{
+			{Value: "None", Label: "None - quantity only"},
+			{Value: "Batch", Label: "Batch - every receipt carries a lot"},
+			{Value: "Serial", Label: "Serial - every piece has its own number"},
+			{Value: "Batch and Serial", Label: "Batch and serial"},
+		},
+		Description: "What a new item is set to unless it chooses otherwise. Changing this does not change items that already exist.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingDefaultShelfLifeDays, Module: "Inventory",
+		Label: "Shelf life for new items", Type: SettingTypeInt, Default: "0", Unit: "days", Min: settingBound(0),
+		Description: "The standard shelf life a new item starts with. 0 = no shelf life. Each item can change its own.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingDefaultMinShelfLifeReceipt, Module: "Inventory",
+		Label: "Minimum shelf life left on receipt, for new items", Type: SettingTypeInt, Default: "0", Unit: "days", Min: settingBound(0),
+		Description: "A GRN refuses stock with less life left than this. 0 = no check. Each item can change its own.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingDefaultMinShelfLifePick, Module: "Inventory",
+		Label: "Minimum shelf life left when picked, for new items", Type: SettingTypeInt, Default: "0", Unit: "days", Min: settingBound(0),
+		Description: "Picking skips stock with less life left than this. 0 = no check. Each item can change its own.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingItemNameOrder, Module: "Inventory",
+		Label: "Item name order", Type: SettingTypeSelect, Default: ItemNameOrderCategoryType,
+		Options: []SettingOption{
+			{Value: ItemNameOrderCategoryType, Label: "Category + Type - Antique Necklace"},
+			{Value: ItemNameOrderTypeCategory, Label: "Type + Category - Necklace Antique"},
+		},
+		Description: "How an item name is built from its category and type. Switching renames every item name still built the old way, and the designs and items named from it; switching back renames them back. A name typed by hand and bills already printed are not changed.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingAttributeTypeMapping, Module: "Inventory",
+		Label: "Attributes follow the item's type", Type: SettingTypeBool, Default: "false",
+		Description: "Off: every attribute and value is offered for every item. On: an item, a PO line and a GRN line offer only the attributes and values mapped to the item's type (or its category) - set on each Product Type and Category. A type with nothing mapped still offers everything.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: SettingTreatmentSecondAdmin, Module: "Inventory",
+		Label: "A second admin approves item treatment corrections", Type: SettingTypeBool, Default: "false",
+		Description: "Off: an admin's correction of an item's stock tracking, valuation or accounting (after it has stock) applies once they confirm it. On: it waits for another admin's approval.",
+	})
 
 	// --- Security ---
+	RegisterSetting(SettingDefinition{
+		Key: SettingSelfApproval, Module: "Security",
+		Label: "Who can approve their own documents", Type: SettingTypeSelect, Default: SelfApprovalAnyone,
+		Options: []SettingOption{
+			{Value: SelfApprovalAnyone, Label: "Anyone who can approve it"},
+			{Value: SelfApprovalAdmins, Label: "Admins only"},
+			{Value: SelfApprovalNobody, Label: "Nobody - someone else always decides"},
+		},
+		Description: "Whether the person who submitted a document (a PO, a requisition, a voucher...) can approve or reject it themselves. They still need the role the approval rule names. Each one is marked \"decided by the submitter\" in the approval history and the audit log. A Super Admin's password reset and a second-admin treatment correction always need a second admin.",
+	})
 	RegisterSetting(SettingDefinition{
 		Key: "security.loyalty_otp_validity_minutes", Module: "Security",
 		Label: "Loyalty redemption OTP validity", Type: SettingTypeInt, Default: "5", Unit: "minutes",
@@ -216,12 +274,12 @@ func registerStage282Settings() {
 	// Stage 62.6 (engines/po_design.go).
 	RegisterSetting(SettingDefinition{
 		Key: "procurement.po_design_number_mode", Module: "Procurement",
-		Label: "Design number on a PO's Add design", Type: SettingTypeSelect, Default: DesignNumberModeNew,
+		Label: "Design number when a PO adds an item name's design", Type: SettingTypeSelect, Default: DesignNumberModeNew,
 		Options: []SettingOption{
-			{Value: DesignNumberModeNew, Label: "New every time - each Add design gets a new design number"},
+			{Value: DesignNumberModeNew, Label: "New every time - each design added gets a new design number"},
 			{Value: DesignNumberModeMatch, Label: "Reuse when it matches - same name and every design attribute brings back the existing design"},
 		},
-		Description: "What Add design on a Purchase Order does with the design number. Pasting an existing design number always loads that design, whichever is chosen.",
+		Description: "What a Purchase Order does with the design number when an item name's design is added with the design number left blank. Typing an existing design number always loads that design, whichever is chosen.",
 	})
 
 	// --- Point of Sale ---

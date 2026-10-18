@@ -57,6 +57,7 @@ func TestTaskInboxAggregatesOnlyTheViewersWork(t *testing.T) {
 		t.Fatalf("overdue work sorts first, got %+v", checker.Items[0])
 	}
 
+	withSelfApproval(t, tenantID, SelfApprovalNobody) // Stage 92: the submitter may not decide
 	maker, _ := ListTaskInbox(tenantID, TaskInboxScope{UserID: "maker1", Role: "Store Manager"})
 	if count(maker, "Approval") != 0 {
 		t.Fatal("the maker must not be asked to approve their own document")

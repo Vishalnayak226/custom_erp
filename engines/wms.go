@@ -26,7 +26,7 @@ import (
 // can never claim stock the location doesn't actually have.
 func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 	if qty <= 0 {
-		return errors.New("putaway qty must be positive")
+		return putawayRefused("putaway qty must be positive")
 	}
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -53,12 +53,12 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 		 FROM %s.documents WHERE doctype = 'Bin' AND data->>'bin_code' = $1`, schema),
 		binCode).Scan(&location, &binStatus, &binOpState, &maxQty, &maxWeight, &maxVolume, &binZone)
 	if err == sql.ErrNoRows {
-		return fmt.Errorf("bin %s not found", binCode)
+		return putawayRefused("bin %s not found", binCode)
 	} else if err != nil {
 		return err
 	}
 	if binStatus != "Active" {
-		return fmt.Errorf("bin %s is not Active", binCode)
+		return putawayRefused("bin %s is not Active", binCode)
 	}
 	// Stage 42.2.6: bin_status is the bin's OPERATIONAL state, distinct from
 	// the Active/Inactive record-status check above - a bin can be an Active
@@ -66,7 +66,7 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 	// bin before this Stage, and any bin that never sets it) is treated as
 	// Available.
 	if binOpState == "Blocked" || binOpState == "Full" || binOpState == "Counting" {
-		return fmt.Errorf("bin %s is %s and cannot receive putaway right now", binCode, binOpState)
+		return putawayRefused("bin %s is %s and cannot receive putaway right now", binCode, binOpState)
 	}
 	// Stage 42.3.9: hazmat compatibility. A hazmat-classified item (anything
 	// other than blank/None) may only be placed in a zone that has opted in
@@ -82,7 +82,7 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 		`SELECT on_hand FROM %s.inventory_availability WHERE sku = $1 AND location_code = $2 FOR UPDATE`, schema),
 		sku, location).Scan(&onHand)
 	if err == sql.ErrNoRows {
-		return fmt.Errorf("no on-hand stock for SKU %s at location %s", sku, location)
+		return putawayRefused("no on-hand stock for SKU %s at location %s", sku, location)
 	} else if err != nil {
 		return err
 	}
@@ -94,7 +94,7 @@ func PutawayToBin(tenantID, binCode, sku string, qty int, userID string) error {
 		return err
 	}
 	if alreadyBinned+qty > onHand {
-		return fmt.Errorf("putaway qty exceeds unassigned on-hand stock at %s (on_hand=%d, already binned=%d, requested=%d)",
+		return putawayRefused("putaway qty exceeds unassigned on-hand stock at %s (on_hand=%d, already binned=%d, requested=%d)",
 			location, onHand, alreadyBinned, qty)
 	}
 
@@ -165,13 +165,13 @@ func enforceBinCapacity(tx *sql.Tx, schema, binCode, sku string, addQty int, max
 	newWeight := curWeight + float64(addQty)*itemWeight
 	newVolume := curVolume + float64(addQty)*itemVolume
 	if maxQty > 0 && newQty > maxQty {
-		return fmt.Errorf("putaway would leave bin %s holding %.0f units, over its capacity of %.0f", binCode, newQty, maxQty)
+		return putawayRefused("putaway would leave bin %s holding %.0f units, over its capacity of %.0f", binCode, newQty, maxQty)
 	}
 	if maxWeight > 0 && newWeight > maxWeight {
-		return fmt.Errorf("putaway would leave bin %s holding %.2f weight units, over its max_weight of %.2f", binCode, newWeight, maxWeight)
+		return putawayRefused("putaway would leave bin %s holding %.2f weight units, over its max_weight of %.2f", binCode, newWeight, maxWeight)
 	}
 	if maxVolume > 0 && newVolume > maxVolume {
-		return fmt.Errorf("putaway would leave bin %s holding %.2f volume units, over its max_volume of %.2f", binCode, newVolume, maxVolume)
+		return putawayRefused("putaway would leave bin %s holding %.2f volume units, over its max_volume of %.2f", binCode, newVolume, maxVolume)
 	}
 	return nil
 }
@@ -204,7 +204,7 @@ func checkHazmatCompatibility(tx *sql.Tx, schema, sku, binZone, binCode string) 
 		return err
 	}
 	if hazmatAllowed != "Yes" {
-		return fmt.Errorf("item %s is classified %s - bin %s is in zone %s, which does not allow hazmat storage", sku, hazmatClass, binCode, binZone)
+		return putawayRefused("item %s is classified %s - bin %s is in zone %s, which does not allow hazmat storage", sku, hazmatClass, binCode, binZone)
 	}
 	return nil
 }
@@ -894,4 +894,12 @@ func CycleCountSessionLines(tenantID, session string) ([]CycleCountLineView, err
 		out[i].RecountLineID = recountOf[out[i].ID]
 	}
 	return out, rows.Err()
+}
+
+// putawayRefused (73.B.10) is every putaway refusal - a bin that is missing,
+// inactive, blocked or full, a quantity the location's unbinned stock cannot
+// cover, a hazmat zone - as INVENT-0971 with its reason, instead of a plain
+// error the API reported as a field-format problem (GLOBAL-0002).
+func putawayRefused(format string, args ...interface{}) error {
+	return &ValidationError{Code: "INVENT-0971", SubFor: "Bin", Message: fmt.Sprintf(format, args...)}
 }

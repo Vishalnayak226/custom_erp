@@ -2,7 +2,7 @@
 title: Release notes (part 2)
 section: Reference
 order: 26
-summary: Earlier releases, 2026-07-27 to 2026-08-19, continued from the release notes.
+summary: Earlier releases, 2026-07-27 to 2026-08-22, continued from the release notes.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -19,9 +19,63 @@ applies_to: source registries; not release acceptance
 
 # Release notes (part 2)
 
-This page continues the [release notes](release-notes.md) with **42** earlier entries, 2026-07-27 to 2026-08-19.
+This page continues the [release notes](release-notes.md) with **53** earlier entries, 2026-07-27 to 2026-08-22.
+
+## 2026-08-22
+
+**Stage 35.7 — commercial bundles and physically stocked kits** *(code + schema + UI)*
+
+All four Stage 35.7 items are complete. `ProductBundle` is intentionally not another manufacturing BOM: it describes a sellable commercial composition, with Virtual/Stocked fulfillment and Parent/Fixed/Component pricing. Validation pins every SKU to an active Item, forbids duplicate/self/nested components and keeps one active definition per bundle SKU.
+
+**Stage 35.6 — channel breadth becomes an operational SDK** *(code + schema + UI)*
+
+All seven Stage 35.6 items are code-complete. The new connector contract declares auth validation, order pull, inventory push, catalogue publish, status push, error mapping and capabilities; the scheduler and UI consume capabilities instead of platform-name conditionals. Amazon and Flipkart implement their public seller contracts, WooCommerce implements REST v3, and Myntra/Meesho/Ajio/Nykaa/Blinkit/Zepto/Swiggy Instamart use a fail-closed negotiated-path adapter because their seller contracts are private. Quick-commerce descriptors bind orders to a store location and forbid split allocation.
+
+## 2026-08-24
+
+**Stage 42.5.5 — Multi-owner stock segregation, closing Phase 42.5 and Stage 42** *(code + schema)*
+
+Closes the one item §110 left open: 42.D2 ("is 3PL/multi-owner a real target?") was resolved — yes, build it, the same call already made for §112's 42.6.6-42.6.9. Phase 42.5 is now 8/8 and Stage 42 (58 items across 6 phases) is fully closed. Full item detail in `micro_checklist.md` Stage 42.
+
+## 2026-08-22
+
+**Stage 42.6 — Labour and billing depth** *(code + schema)*
+
+All nine listed Phase 42.6 rows are built (the source heading calls the phase eight items, but the checklist contains 42.6.1 through 42.6.9).
+
+**Stage 35.5 — Courier integration crosses the provider boundary** *(code + schema)*
+
+All six Stage 35.5 items are code-complete using the parity plan's default first providers, Delhivery and Shiprocket; actually calling either account remains credential-gated. Full item detail is in `micro_checklist.md` Stage 35.
+
+**Stage 42.5 — Inventory control depth: physical inventory, CycleClass, replenishment breadth, slotting v2, facility hierarchy/copy/cross-facility inquiry** *(code + schema)*
+
+7 of 8 items (42.5.1-42.5.4, 42.5.6-42.5.8); 42.5.5 (multi-owner stock segregation) excluded, still gated on open decision 42.D2 (is 3PL a real target?). Full item-by-item detail in `micro_checklist.md` Stage 42.
+
+## 2026-08-21
+
+**Stage 46 — Money precision: paise migration** *(code + schema)*
+
+Closed the two items both `docs/DURABILITY_AUDIT_2026-07-31.md` and `docs/ERP_LOOPHOLES_ANALYSIS.md`'s 2026-08-20 re-evaluation still carried as genuinely open. Full item-by-item detail in `micro_checklist.md` Stage 46.
+
+**Stage 42.4 CLOSED — Outbound depth: waves, sortation, cartonization v2, packing validation, deconsolidation, loading + Bill of Lading, pre-ship gate, and VAS/kitting off the existing BOM** *(code + schema + frontend)*
+
+Closed all 11 items of Phase 42.4 in one pass. Full item-by-item detail in `micro_checklist.md` Stage 42.
+
+## 2026-08-20
+
+**Stage 42.3 CLOSED — Inbound depth: dock scheduling, yard, hold/release, configurable receipt rules, catch weight, planned cross-dock, hazmat compliance, and RF receiving** *(code + schema + frontend)*
+
+Closed all 10 items of Phase 42.3 in one pass. Full item-by-item detail in `micro_checklist.md` Stage 42.
 
 ## 2026-08-19
+
+**Stage 42.2 CLOSED — Zone/PutawayStrategy/AllocationStrategy masters, directed putaway, exception follow-on, the warehouse cockpit, and a real bug found in Stage 45's own render mechanism** *(code + schema + frontend)*
+
+Asked to finish the rest of Phase 42.2 (the warehouse task spine — 4/10 done, 42.2.1-42.2.4 already closed by the prior session). Closed the remaining six items, 42.2.5-42.2.10. Full item-by-item detail in `micro_checklist.md` Stage 42.
+
+**Stage 45 round 1 — UI/UX design-bar sweep: the render race, the clipped tab bars, and a mid-session misdiagnosis corrected** *(frontend only)*
+
+User reported 8 issues live against `:8080` deployment screenshots (duplicate panels across three Financial Accounting screens, F&A frozen header, help icon styling, a Wholeops rebrand ask, Setup submenu visuals, PIM tab bar clipping at 90% zoom, a setup banner that shouldn't be dismissible), then asked for a broader "no one has ever seen it, brainless-intuitive" design-bar sweep and to fix everything found. Full item-by-item detail in `micro_checklist.md` Stage 45.
 
 **Stage 42.1 CLOSED — outbound lottable validation, UOM conversion, real Code 128, and two bugs live verification caught** *(code + schema + docs)*
 

@@ -4,6 +4,7 @@ import (
 	"custom_erp/db"
 	"database/sql"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -42,6 +43,56 @@ func sequencePeriod(resetFreq, financialYear string, now time.Time) (bucket, seg
 	}
 }
 
+// financialYearPattern is the "26-27" every document series is handed.
+var financialYearPattern = regexp.MustCompile(`^(\d{2})-(\d{2})$`)
+
+// formatPeriodSegment prints a series' period in its year format (Stage
+// 86.2). Only the printed segment changes - sequencePeriod's bucket stays the
+// financial year, so a format changed mid-year carries the count on. A
+// monthly START_* series prints the calendar year and month (2701 for
+// January 2027), since the financial year's start year would read wrong for
+// January to March. A period that is not "26-27" (a GRN batch date, an older
+// caller's own key) prints as before.
+func formatPeriodSegment(yearFormat, resetFreq, financialYear string, now time.Time) string {
+	monthly := strings.EqualFold(strings.TrimSpace(resetFreq), "MONTHLY")
+	mm := ""
+	if monthly {
+		mm = now.Format("01")
+	}
+	m := financialYearPattern.FindStringSubmatch(financialYear)
+	if m == nil {
+		if monthly {
+			return financialYear + "-" + mm
+		}
+		return financialYear
+	}
+	start, end := m[1], m[2]
+	switch yearFormat {
+	case "FY_COMPACT": // 2627, 262704
+		return start + end + mm
+	case "FY_LONG": // 2026-27, 2026-27-04
+		if monthly {
+			return "20" + start + "-" + end + "-" + mm
+		}
+		return "20" + start + "-" + end
+	case "START_YY": // 26, monthly 2604
+		if monthly {
+			return now.Format("0601")
+		}
+		return start
+	case "START_YYYY": // 2026, monthly 202604
+		if monthly {
+			return now.Format("200601")
+		}
+		return "20" + start
+	default: // 26-27, 26-27-04
+		if monthly {
+			return financialYear + "-" + mm
+		}
+		return financialYear
+	}
+}
+
 // GenerateSequence generates the next document code using row-level locking
 func GenerateSequence(tenantID, docType, storeCode, financialYear string) (string, error) {
 	schema, err := db.GetTenantSchema(tenantID)
@@ -60,13 +111,13 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 	}
 
 	// 1. Fetch prefix configuration for this document type
-	var prefix, suffix, separator, resetFreq, overridesRaw string
+	var prefix, suffix, separator, resetFreq, overridesRaw, yearFormat string
 	var paddingWidth int
 	var activeStatus, includeStore bool
 	queryConfig := `SELECT prefix, COALESCE(suffix, ''), separator, padding_width, reset_frequency, active_status,
-	                       COALESCE(include_store, TRUE), COALESCE(store_overrides, '{}'::jsonb)::text
+	                       COALESCE(include_store, TRUE), COALESCE(store_overrides, '{}'::jsonb)::text, COALESCE(year_format, '')
 	                FROM prefix_configs WHERE doc_type = $1`
-	err = tx.QueryRow(queryConfig, docType).Scan(&prefix, &suffix, &separator, &paddingWidth, &resetFreq, &activeStatus, &includeStore, &overridesRaw)
+	err = tx.QueryRow(queryConfig, docType).Scan(&prefix, &suffix, &separator, &paddingWidth, &resetFreq, &activeStatus, &includeStore, &overridesRaw, &yearFormat)
 	if err == sql.ErrNoRows {
 		// Use default fallbacks
 		prefix = docType
@@ -93,15 +144,24 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 	// matches the segments the number will actually show (below): dropping the
 	// store segment from the format while still counting per-store would hand
 	// two stores the same visible number.
-	periodBucket, periodSegment := sequencePeriod(resetFreq, financialYear, time.Now())
+	now := time.Now()
+	periodBucket, periodSegment := sequencePeriod(resetFreq, financialYear, now)
+	if periodSegment != "" {
+		periodSegment = formatPeriodSegment(yearFormat, resetFreq, financialYear, now)
+	}
 	counterStore := storeCode
 	if !includeStore {
 		counterStore = counterWildcard
 	}
 
-	// Stage 60.1: a store may carry its own prefix/suffix for this series, and
-	// prints its Short Code rather than its store code. The counter stays keyed
-	// by the store code, so renaming a short code never restarts a series.
+	// Stage 60.1: a store prints its Short Code rather than its store code,
+	// and may carry its own suffix for this series. Stage 86.2: its own code
+	// for this series replaces only the store segment (user, 2026-10-18: "It
+	// should only change store's prefix"). A store prefix saved before 86.2
+	// still replaces the series prefix, so those numbers do not change. The
+	// counter stays keyed by the store code, so renaming a code never
+	// restarts a series.
+	var storeOwnCode string
 	if o, ok := parseStoreOverrides(overridesRaw)[storeCode]; ok && storeCode != "" {
 		if o.Prefix != "" {
 			prefix = o.Prefix
@@ -109,10 +169,14 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 		if o.Suffix != "" {
 			suffix = o.Suffix
 		}
+		storeOwnCode = o.Code
 	}
 	storeSegment := storeCode
 	if includeStore && storeCode != "" {
-		storeSegment = storeNumberSegment(tx, storeCode)
+		storeSegment = storeOwnCode
+		if storeSegment == "" {
+			storeSegment = storeNumberSegment(tx, storeCode)
+		}
 	}
 
 	// 3. Fetch or create counter for that bucket with row lock

@@ -57,7 +57,9 @@ func TestAttributeLibraryLoadsAndClassifies(t *testing.T) {
 }
 
 // Applying the library inside a transaction that is rolled back, so the shared
-// test database keeps nothing.
+// test database keeps nothing. Stage 86.3: a variant attribute lands in the
+// ERP's ItemAttribute list and, for a client with PIM, in PIM's list too,
+// mapped onto it; product information lands in PIM's list only.
 func TestApplyAttributeLibraryAddsOnceAndKeepsWhatTheClientHas(t *testing.T) {
 	db.InitDB(testConnStr())
 	schema, err := db.GetTenantSchema("default")
@@ -72,7 +74,7 @@ func TestApplyAttributeLibraryAddsOnceAndKeepsWhatTheClientHas(t *testing.T) {
 	// Start from none of these, whatever the shared database holds.
 	ids := []string{"JEW_PRIMARY_COLOUR", "JEW_SURFACE_FINISH", "JEW_JEWELRY_TYPE"}
 	for _, id := range ids {
-		if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.documents WHERE id = $1`, schema), id); err != nil {
+		if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.documents WHERE id IN ($1, $2)`, schema), id, itemAttributeID(id)); err != nil {
 			t.Fatalf("clear %s: %v", id, err)
 		}
 	}
@@ -83,48 +85,78 @@ func TestApplyAttributeLibraryAddsOnceAndKeepsWhatTheClientHas(t *testing.T) {
 		{ID: "JEW_JEWELRY_TYPE", UsedFor: AttributeUsedForProduct},
 		{ID: "CORE_GTIN"}, // the Item already has GTIN - never copied
 	}
-	res, err := applyAttributeLibraryTx(tx, schema, "test", picks)
+	res, err := applyAttributeLibraryTx(tx, schema, "test", picks, true)
 	if err != nil {
 		t.Fatalf("apply: %v", err)
 	}
 	if len(res.Added) != 3 || len(res.Skipped) != 1 || res.Skipped[0] != "CORE_GTIN" {
 		t.Fatalf("first apply = %+v, want 3 added and CORE_GTIN skipped", res)
 	}
-	var raw string
-	if err := tx.QueryRow(fmt.Sprintf(`SELECT data::text FROM %s.documents WHERE id = 'JEW_PRIMARY_COLOUR' AND doctype = 'ProductAttributeDef'`, schema)).Scan(&raw); err != nil {
-		t.Fatalf("read colour: %v", err)
+	read := func(id, doctype string) map[string]interface{} {
+		var raw string
+		if err := tx.QueryRow(fmt.Sprintf(`SELECT data::text FROM %s.documents WHERE id = $1 AND doctype = $2`, schema), id, doctype).Scan(&raw); err != nil {
+			t.Fatalf("read %s %s: %v", doctype, id, err)
+		}
+		var d map[string]interface{}
+		_ = json.Unmarshal([]byte(raw), &d)
+		return d
 	}
-	var d map[string]interface{}
-	_ = json.Unmarshal([]byte(raw), &d)
-	if d["used_for"] != AttributeUsedForVariant || d["library_id"] != "JEW_PRIMARY_COLOUR" || d["value_type"] != "Select" ||
-		!strings.Contains(fmt.Sprint(d["value_options"]), "Gold") || fmt.Sprint(d["group"]) == "" {
-		t.Fatalf("colour record = %v", d)
+	erp := read(itemAttributeID("JEW_PRIMARY_COLOUR"), ItemAttributeDoctype)
+	if erp["code"] != "JEW_PRIMARY_COLOUR" || erp["library_id"] != "JEW_PRIMARY_COLOUR" || erp["value_type"] != "Select" ||
+		!strings.Contains(fmt.Sprint(erp["value_options"]), "Gold") || erp["group"] != nil || erp["used_for"] != nil {
+		t.Fatalf("ERP colour record = %v", erp)
 	}
-	var finishUse string
-	_ = tx.QueryRow(fmt.Sprintf(`SELECT data->>'used_for' FROM %s.documents WHERE id = 'JEW_SURFACE_FINISH'`, schema)).Scan(&finishUse)
-	if finishUse != AttributeUsedForVariant {
-		t.Errorf("surface finish used_for = %q, want Variant", finishUse)
+	pim := read("JEW_PRIMARY_COLOUR", "ProductAttributeDef")
+	if pim["used_for"] != AttributeUsedForVariant || pim["erp_attribute"] != itemAttributeID("JEW_PRIMARY_COLOUR") || fmt.Sprint(pim["group"]) == "" {
+		t.Fatalf("PIM colour record = %v, want Variant, mapped onto the ERP one, with its group", pim)
 	}
+	if d := read("JEW_JEWELRY_TYPE", "ProductAttributeDef"); d["used_for"] != AttributeUsedForProduct || d["erp_attribute"] != nil {
+		t.Fatalf("PIM jewellery type = %v, want product information with no ERP attribute", d)
+	}
+	var erpType bool
+	_ = tx.QueryRow(fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %s.documents WHERE id = $1)`, schema), itemAttributeID("JEW_JEWELRY_TYPE")).Scan(&erpType)
+	if erpType {
+		t.Errorf("product information reached the ERP list")
+	}
+	_ = read(itemAttributeID("JEW_SURFACE_FINISH"), ItemAttributeDoctype)
 
 	// The client switches colour off and trims its values; a second apply
 	// must leave that exactly as it is.
-	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || '{"status":"Inactive","value_options":"Gold"}'::jsonb WHERE id = 'JEW_PRIMARY_COLOUR'`, schema)); err != nil {
+	if _, err := tx.Exec(fmt.Sprintf(`UPDATE %s.documents SET data = data || '{"status":"Inactive","value_options":"Gold"}'::jsonb WHERE id = $1`, schema), itemAttributeID("JEW_PRIMARY_COLOUR")); err != nil {
 		t.Fatalf("client edit: %v", err)
 	}
-	res, err = applyAttributeLibraryTx(tx, schema, "test", picks)
+	res, err = applyAttributeLibraryTx(tx, schema, "test", picks, true)
 	if err != nil {
 		t.Fatalf("second apply: %v", err)
 	}
 	if len(res.Added) != 0 || len(res.Skipped) != 4 {
 		t.Fatalf("second apply = %+v, want everything skipped", res)
 	}
-	var status, options string
-	_ = tx.QueryRow(fmt.Sprintf(`SELECT data->>'status', data->>'value_options' FROM %s.documents WHERE id = 'JEW_PRIMARY_COLOUR'`, schema)).Scan(&status, &options)
-	if status != "Inactive" || options != "Gold" {
-		t.Fatalf("after re-apply colour = %s / %s, want the client's Inactive / Gold kept", status, options)
+	if d := read(itemAttributeID("JEW_PRIMARY_COLOUR"), ItemAttributeDoctype); d["status"] != "Inactive" || d["value_options"] != "Gold" {
+		t.Fatalf("after re-apply ERP colour = %v, want the client's Inactive / Gold kept", d)
 	}
 
-	if _, err := applyAttributeLibraryTx(tx, schema, "test", []AttributeLibraryPick{{ID: "NOPE_X"}}); !errors.Is(err, ErrUnknownLibraryAttribute) {
+	// A client without PIM: the variant goes to the ERP list alone, and
+	// product information has nowhere to go.
+	for _, id := range ids {
+		if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s.documents WHERE id IN ($1, $2)`, schema), id, itemAttributeID(id)); err != nil {
+			t.Fatalf("clear %s: %v", id, err)
+		}
+	}
+	res, err = applyAttributeLibraryTx(tx, schema, "test", picks[:3], false)
+	if err != nil {
+		t.Fatalf("apply without PIM: %v", err)
+	}
+	if len(res.Added) != 2 || len(res.Skipped) != 1 || res.Skipped[0] != "JEW_JEWELRY_TYPE" {
+		t.Fatalf("apply without PIM = %+v, want the two variants added and the product one skipped", res)
+	}
+	var pimRows int
+	_ = tx.QueryRow(fmt.Sprintf(`SELECT COUNT(*) FROM %s.documents WHERE doctype = 'ProductAttributeDef' AND id = ANY($1)`, schema), "{"+strings.Join(ids, ",")+"}").Scan(&pimRows)
+	if pimRows != 0 {
+		t.Errorf("%d PIM attribute(s) made for a client without PIM", pimRows)
+	}
+
+	if _, err := applyAttributeLibraryTx(tx, schema, "test", []AttributeLibraryPick{{ID: "NOPE_X"}}, true); !errors.Is(err, ErrUnknownLibraryAttribute) {
 		t.Fatalf("unknown id error = %v, want ErrUnknownLibraryAttribute", err)
 	}
 }

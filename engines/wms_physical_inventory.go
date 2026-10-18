@@ -183,6 +183,7 @@ func StartPhysicalInventory(tenantID, locationCode, zoneCode, userID string) (pi
 		"code": piID, "location": locationCode, "zone": zoneCode, "status": "Counting",
 		"line_count": len(skus), "started_at": now, "frozen_bins": json.RawMessage(frozenJSON),
 	}
+	issueNumberInto(headerData, tenantID, "PhysicalInventory", piID, "", locationCode) // Stage 76.11
 	headerMarshaled, _ := json.Marshal(headerData)
 	if _, err := tx.Exec(fmt.Sprintf(
 		`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'PhysicalInventory', $2, 'Counting', $3)`, schema),

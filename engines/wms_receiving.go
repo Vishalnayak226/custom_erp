@@ -176,6 +176,9 @@ func PostGRNReceiptWithQC(tenantID, locationCode string, items []interface{}, us
 					ExpiryDate:    strField(m, "expiry_date"),
 					SupplierBatch: strField(m, "supplier_batch"),
 					AutoNumbered:  m["batch_auto"] == true,
+					// Stage 89 (D3): what this line was asked at the GRN -
+					// weights, purity - is kept on its batch.
+					Attributes: grnLineItemValues(m),
 				},
 				acceptedQty: accepted,
 			})

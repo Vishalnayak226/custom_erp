@@ -438,7 +438,7 @@ func EditOrderLines(tenantID, orderID string, changes []OrderLineChange, reason,
 		consequence = fmt.Sprintf("total fell by %.2f - refund the difference to the customer", oldTotal-newTotal)
 	}
 
-	shippingAddress, _ := order["shipping_address"].(string)
+	shippingAddress := ShippingAddressText(order) // Stage 76.3
 	holdReason, err := validateOrderChain(tenantID, shippingAddress, fmt.Sprint(order["payment_status"]), activeLines)
 	if err != nil {
 		return nil, err
@@ -595,6 +595,7 @@ func CreateReplacementOrder(tenantID, originalOrderID, kind string, lines []Repl
 	phone, _ := original["customer_phone"].(string)
 	newID, err := CreateSalesOrder(tenantID, SalesOrderInput{
 		Channel: channel, CustomerName: customer, ShippingAddress: address, ShippingState: state,
+		ShippingLine2: strField(original, "shipping_address_line2"), ShippingCity: strField(original, "shipping_city"), ShippingPincode: strField(original, "shipping_pincode"), // Stage 76.3
 		CustomerPhone: phone, PaymentStatus: "Confirmed", Lines: inputs,
 	})
 	if err != nil {

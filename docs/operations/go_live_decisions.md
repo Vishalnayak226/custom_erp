@@ -56,6 +56,7 @@ Status column current as of **2026-08-12**.
 | 14 | DR/restore drill in real prod | 26.11.3 | #4 | Internal, once #4 exists | 🟡 **Unblocked** by #4 — not yet run |
 | 15 | Business UAT cycle | 26.11.5 | — | Internal, needs real users | 🟡 **Run sheet drafted** — [`uat_run_sheet.md`](uat_run_sheet.md); needs real users |
 | 16 | Hypercare window | 26.11.6 | #15 | Internal decision | 🟡 **Plan drafted** — [`hypercare_plan.md`](hypercare_plan.md); needs your sign-off + #1/#2 |
+| 17 | Off-box backups | 75.1.1-75.1.8 | #4 | Portal (Cloudflare R2) + DigitalOcean backups | 🟡 **Engineering built 2026-10-18** (75.1.4-75.1.6: dump + media upload, `BACKUP_OFFSITE_FAILED` / `BACKUP_OFFSITE_STALE`) — needs the bucket and token in `/etc/erp/erp.env` (75.1.1), droplet backups on (75.1.2), the key in a password manager (75.1.3), then a restore drill from the bucket (75.1.7). Until then every backup is on the droplet it protects. See [`backup_restore.md`](backup_restore.md) → *Off-box copy* |
 
 ---
 

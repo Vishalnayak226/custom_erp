@@ -103,6 +103,7 @@ the route the way the others are):
 // diff, not noticed later in an audit.
 var reviewedUnauthenticatedRoutes = map[string]string{
 	"GET /internal/tls-ask":           "Caddy's on_demand_tls ask hook - called mid-TLS-handshake, before any request exists, so it cannot carry a bearer token. Answers only whether a hostname is a known tenant.",
+	"GET /favicon.ico":                "73.D.23: a browser asks for /favicon.ico on every page before anyone signs in; the handler only answers a 301 to /favicon.svg, a static file the method-less \"/\" file server already serves unauthenticated. No data, no input read, no tenant.",
 	"POST /api/public/v1/oauth/token": "Stage 38.2d's OAuth2 client_credentials grant - where an integration without a bearer gets one, so it cannot sit behind publicAPIMiddleware, which requires one. The client authenticates itself: its secret is checked against the stored hash in the named client's schema, only an Active oauth_client credential qualifies, requested scopes must already be held, 30 requests a minute per address, a 16 KiB body cap, and the issued token is stored hashed and never outlives its client. Reviewed at the 2026-10-18 release, when the scanner first saw it.",
 }
 

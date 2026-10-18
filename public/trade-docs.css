@@ -20,14 +20,22 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .grn-gap-note { flex-basis: 100%; color: var(--danger-strong); }
 .link-btn { border: 0; background: none; padding: 0; color: var(--primary-color); cursor: pointer; font: inherit; text-decoration: underline; }
 
-/* ---- PO: Add design ---- */
-.po-design-panel { margin: 10px 0 16px; padding: 16px; border: 1px solid var(--primary-color); border-radius: 10px; background: var(--panel-bg); box-shadow: var(--shadow-sm); }
-.po-design-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-.po-design-head h3 { font-size: 15px; font-weight: 700; margin: 0; }
-.po-design-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 10px; }
+/* ---- PO: an item name's attributes under the Add row (Stage 87) ----
+   Part of the frozen top, so its height is capped and it scrolls on its own;
+   the lines below keep their room. */
+.po-entry-attrs { flex: 0 1 auto; min-height: 56px; max-height: 42vh; overflow: auto; padding: 8px 12px; border: 1px solid var(--primary-color); border-radius: 8px; background: var(--panel-bg); }
+.po-entry-attrs-head { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: baseline; font-size: 12.5px; }
+.po-design-row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
 .po-design-row .form-group { margin-bottom: 0; }
-.po-design-mode { flex: 1; min-width: 240px; font-size: 12.5px; color: var(--text-muted); padding-bottom: 8px; }
-.po-design-matrix { display: flex; flex-direction: column; gap: 10px; padding: 12px 0; border-top: 1px dashed var(--border-color); border-bottom: 1px dashed var(--border-color); margin-bottom: 10px; }
+.po-design-mode { flex: 1; min-width: 240px; color: var(--text-muted); }
+.po-design-matrix { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-bottom: 1px dashed var(--border-color); margin-bottom: 8px; }
+/* One line per attribute - its name, then its values - so the frozen top
+   stays short. */
+.po-entry-attrs .pod-attr { display: flex; align-items: center; gap: 10px; }
+.po-entry-attrs .pod-attr-label { flex: 0 0 150px; margin-bottom: 0; }
+.po-entry-attrs .pod-add-attr { margin-top: 2px; }
+.po-entry-attrs .po-lines th, .po-entry-attrs .po-lines td { padding: 4px 10px; }
+.po-entry-attrs .po-lines .form-input { padding: 4px 8px; }
 .pod-attr-label { font-size: 12.5px; font-weight: 600; margin-bottom: 5px; }
 .pod-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .pod-chip { border: 1px solid var(--border-color); background: var(--panel-bg); color: var(--text-main); border-radius: 999px; padding: 4px 12px; font-size: 12.5px; cursor: pointer; transition: background var(--transition-fast, .15s); }
@@ -35,7 +43,6 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .pod-chip.on { background: var(--primary-color); border-color: var(--primary-color); color: var(--on-primary, #fff); }
 .pod-chip-all { border-style: dashed; color: var(--text-muted); }
 .pod-combos-head { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; margin-bottom: 6px; font-size: 13px; }
-.po-design-actions { display: flex; justify-content: flex-end; margin-top: 10px; }
 
 /* ---- Print dialog ---- */
 .td-overlay { position: fixed; inset: 0; z-index: 3000; background: rgba(15, 23, 42, .55); display: flex; align-items: center; justify-content: center; padding: 16px; }
@@ -63,7 +70,8 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 .tdp-page th, .tdp-page td { background-color: transparent; color: #111; font-size: inherit; text-transform: none; letter-spacing: normal; box-shadow: none; max-width: none; vertical-align: top; transition: none; }
 .tdp-page tr:hover td { background-color: transparent; }
 .tdp-el { position: absolute; overflow: hidden; padding: 0.6mm 1mm; white-space: normal; word-break: break-word; }
-.tdp-line, .tdp-image { padding: 0; }
+.tdp-line, .tdp-image, .tdp-qr { padding: 0; }
+.tdp-qr-ph { width: 100%; height: 100%; border: 0.3mm dashed #999; display: flex; align-items: center; justify-content: center; color: #777; font-size: 8pt; }
 .tdp-label { color: #555; }
 .tdp-strong { font-weight: 700; }
 .tdp-block-title { font-size: 0.85em; text-transform: uppercase; letter-spacing: .04em; color: #555; margin-bottom: 0.6mm; }
@@ -165,7 +173,7 @@ tr.grn-rate-diff td { background: var(--warning-soft-bg); }
 }
 
 /* Stage 65.4: design-number suggestions under the box, and adding a value or
-   an attribute to PIM from the design panel. */
+   an attribute to PIM from the item name's attributes. */
 .pod-dno-group {
   position: relative;
 }

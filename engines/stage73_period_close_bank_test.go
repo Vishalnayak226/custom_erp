@@ -148,6 +148,7 @@ func TestPeriodCloseTasksGateCloseAndReopenNeedsApproval(t *testing.T) {
 	if _, err := RequestPeriodReopen(tenantID, periodID, "a second request while one is pending", adminID, "admin", RoleSuperAdmin); validationCode(err) != "FIN-0509" {
 		t.Fatalf("second pending reopen: %v", err)
 	}
+	withSelfApproval(t, tenantID, SelfApprovalNobody) // Stage 92: the submitter may not decide
 	if err := DecideApproval(tenantID, "PeriodReopenRequest", reqID, adminID, RoleSuperAdmin, "", "Approved", ""); err == nil {
 		t.Fatalf("the requester approved their own reopen")
 	}

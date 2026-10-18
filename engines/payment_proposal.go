@@ -12,7 +12,10 @@ type PaymentProposalResultLine struct {
 	InvoiceID string `json:"invoice_id"`
 	Paid      bool   `json:"paid"`
 	Amount    int    `json:"amount,omitempty"`
-	Error     string `json:"error,omitempty"`
+	// AmountPaise (73.D.23) is what was paid, exactly; Amount stays as the
+	// rupee figure older readers expect. The payment file uses this one.
+	AmountPaise int64  `json:"amount_paise,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 // CreatePaymentProposal groups multiple Matched VendorInvoices into one
@@ -114,14 +117,14 @@ func ExecutePaymentProposal(tenantID, proposalID, userID string) ([]PaymentPropo
 	}
 
 	var results []PaymentProposalResultLine
-	totalPaid := 0
+	var totalPaise int64
 	for _, invID := range invoiceIDs {
 		// No override_reason - CreatePaymentProposal already required every
 		// invoice to be Matched, so this should never hit 24.11's
 		// approval-routing branch; pendingApproval is checked anyway rather
 		// than assumed, in case an invoice's status changed out from under
 		// the proposal between creation and execution.
-		amount, pendingApproval, err := PayVendorInvoice(tenantID, invID, userID, "", "")
+		paise, pendingApproval, err := payVendorInvoice(tenantID, invID, userID, "", "")
 		if err != nil {
 			results = append(results, PaymentProposalResultLine{InvoiceID: invID, Paid: false, Error: err.Error()})
 			continue
@@ -130,8 +133,8 @@ func ExecutePaymentProposal(tenantID, proposalID, userID string) ([]PaymentPropo
 			results = append(results, PaymentProposalResultLine{InvoiceID: invID, Paid: false, Error: "invoice is no longer Matched and requires override approval"})
 			continue
 		}
-		totalPaid += amount
-		results = append(results, PaymentProposalResultLine{InvoiceID: invID, Paid: true, Amount: amount})
+		totalPaise += paise
+		results = append(results, PaymentProposalResultLine{InvoiceID: invID, Paid: true, Amount: roundToRupees(PaiseToRupees(paise)), AmountPaise: paise})
 	}
 
 	resultsJSON, err := json.Marshal(results)
@@ -139,6 +142,7 @@ func ExecutePaymentProposal(tenantID, proposalID, userID string) ([]PaymentPropo
 		return nil, err
 	}
 	data["status"] = "Executed"
+	totalPaid := PaiseToRupees(totalPaise)
 	data["total_paid"] = totalPaid
 	data["execution_results"] = json.RawMessage(resultsJSON)
 	updatedBytes, err := json.Marshal(data)
@@ -151,6 +155,18 @@ func ExecutePaymentProposal(tenantID, proposalID, userID string) ([]PaymentPropo
 		return nil, err
 	}
 	LogAuditEvent(tenantID, userID, "EXECUTE_PAYMENT_PROPOSAL", "SUCCESS",
-		fmt.Sprintf("Executed payment proposal %s: %d/%d invoices paid, total %d", proposalID, totalPaid, len(invoiceIDs), totalPaid))
+		fmt.Sprintf("Executed payment proposal %s: %d/%d invoices paid, total %.2f", proposalID, paidCount(results), len(invoiceIDs), totalPaid))
 	return results, nil
+}
+
+// paidCount is how many of a run's invoices were paid. The audit line used to
+// print the total amount in this place.
+func paidCount(results []PaymentProposalResultLine) int {
+	n := 0
+	for _, r := range results {
+		if r.Paid {
+			n++
+		}
+	}
+	return n
 }

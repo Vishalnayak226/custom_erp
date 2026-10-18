@@ -80,6 +80,15 @@ func PayVendorInvoiceWithTDS(tenantID, invoiceID, sectionCode, userID string) (n
 	if amount <= 0 {
 		return 0, 0, fmt.Errorf("invoice_amount must be positive to pay")
 	}
+	// Stage 73.D.11: the amounts below are posted as rupees, so a bill in
+	// another currency was booked at its foreign figure. TDS sections here are
+	// for rupee bills (a foreign-currency bill is normally a non-resident's,
+	// withheld under a different rule); Pay settles it at the payment rate with
+	// its exchange gain or loss.
+	if position := documentFXPosition(tenantID, data, "invoice_amount"); position.Foreign {
+		return 0, 0, &ValidationError{Code: "FIN-0841", Message: fmt.Sprintf(
+			"vendor invoice %s is in %s; TDS is worked out on rupee bills - pay it with Pay, which converts at the payment rate, and record any withholding on a foreign payment separately", invoiceID, position.Currency)}
+	}
 	// Stage 73 / 55.10: TDS is deducted on the whole bill below, so a bill
 	// already part-paid would be paid (and taxed) twice over. It is finished
 	// with a plain payment of what is left instead.

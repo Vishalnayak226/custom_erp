@@ -22,6 +22,7 @@ func TestStage84SelfApprovalIsCoded(t *testing.T) {
 	}
 	cleanup()
 	defer cleanup()
+	withSelfApproval(t, tenantID, SelfApprovalNobody) // Stage 92: the submitter may not decide
 
 	voucherID, err := CreateJournalVoucher(tenantID, "2026-07-25", "TEST-JV84 self decision", []JournalVoucherLine{{AccountCode: "5100", Debit: 84}, {AccountCode: "1100", Credit: 84}}, "manager1")
 	if err != nil {

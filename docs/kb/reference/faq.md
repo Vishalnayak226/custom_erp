@@ -104,8 +104,11 @@ No. A purchase order does not require one, and nothing gates a PO on an RFQ
 existing.
 
 **Why can I not approve my own purchase order?**
-Self-approval is refused everywhere and is not configurable. Whoever raises a
-document cannot be the person who approves it.
+As shipped you can, if your role is the one the approval rule names (an admin
+always can). If you are refused, your administrator has set **Settings →
+Configuration → Security → Who can approve their own documents** to *Admins
+only* or *Nobody*; another approver decides it, or the admin changes the
+setting. A Super Admin's password reset always needs a second admin.
 
 **I edited an approved document and now it says Pending Approval again.**
 That is intended. An approval is of a specific version of a document, not of the
@@ -134,7 +137,7 @@ classified wrong.
 ## Orders
 
 **Did my marketplace order actually arrive?**
-Look at the **Source** column in Order Management - it shows the system the
+Look at the **Source** column on OMS → Orders - it shows the system the
 order came from and that system's own order id. If the channel's number is not
 there, the order has not arrived. You do not need anyone to check a database.
 

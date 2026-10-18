@@ -24,10 +24,15 @@ import (
 // StoreFields (Stage 76.8) names the document's own store, tried in order: the
 // number comes from that store's series, not the maker's session store, so a
 // PO raised at HO for Jayanagar carries Jayanagar's number.
+//
+// KeepID (Stage 76.11) marks a doctype whose id stays internal: a record-form
+// create fills NumberFields but not the id, the way the engines that create
+// these documents keep theirs (routes, links and replay keys use the id).
 type documentNumberSeries struct {
 	SeriesKey    string
 	NumberFields []string
 	StoreFields  []string
+	KeepID       bool
 }
 
 // documentNumberSeriesByDoctype is the whole scope of server-side numbering:
@@ -62,6 +67,41 @@ var documentNumberSeriesByDoctype = map[string]documentNumberSeries{
 	"CreditNote":       {SeriesKey: "CN", NumberFields: []string{"note_number"}},
 	"DebitNote":        {SeriesKey: "DN", NumberFields: []string{"note_number"}},
 	"VendorCreditNote": {SeriesKey: "VCN", NumberFields: []string{"note_number"}},
+	// Stage 76.11: documents engines create under an internal NewDocID. The
+	// id stays; the printed number goes in code (and a JV's voucher_number).
+	"SalesOrder":        {SeriesKey: "SO", NumberFields: []string{"code"}, KeepID: true},
+	"ReturnRequest":     {SeriesKey: "SR", NumberFields: []string{"code"}, StoreFields: []string{"return_location"}, KeepID: true},
+	"RefundRequest":     {SeriesKey: "RF", NumberFields: []string{"code"}, KeepID: true},
+	"JournalVoucher":    {SeriesKey: "JV", NumberFields: []string{"code", "voucher_number"}, KeepID: true},
+	"PhysicalInventory": {SeriesKey: "PI", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
+	"GatePass":          {SeriesKey: "GP", NumberFields: []string{"code"}, StoreFields: []string{"location_code"}, KeepID: true},
+	"ConsumptionEntry":  {SeriesKey: "CE", NumberFields: []string{"code"}, StoreFields: []string{"location"}, KeepID: true},
+	"BundleAssembly":    {SeriesKey: "KIT", NumberFields: []string{"code"}, StoreFields: []string{"location_code"}, KeepID: true},
+	"LandedCostVoucher": {SeriesKey: "LCV", NumberFields: []string{"code"}, KeepID: true},
+}
+
+// DocumentNumber (Stage 76.11) is the number a person reads for a document
+// kept under an internal id - its code - or the id when it has none.
+func DocumentNumber(tenantID, doctype, id string) string {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return id
+	}
+	var n string
+	if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(NULLIF(data->>'code', ''), id) FROM %s.documents WHERE doctype = $1 AND id = $2`, schema), doctype, id).Scan(&n); err != nil || n == "" {
+		return id
+	}
+	return n
+}
+
+// issueNumberInto (Stage 76.11) writes IssueDocumentNumber's result into
+// every number field of the doctype, so an engine fills the same fields a
+// record-form create would.
+func issueNumberInto(doc map[string]interface{}, tenantID, doctype, internalID, sessionStore string, documentStores ...string) {
+	n := IssueDocumentNumber(tenantID, doctype, internalID, sessionStore, documentStores...)
+	for _, f := range documentNumberSeriesByDoctype[doctype].NumberFields {
+		doc[f] = n
+	}
 }
 
 // IssueDocumentNumber (Stage 76.9) draws the printed number of a document an
@@ -199,7 +239,9 @@ func PrepareDocumentNumber(tenantID, location, doctype string, isCreate bool, pa
 		return fmt.Errorf("could not generate a %s number: %v", doctype, err)
 	}
 
-	payload["id"] = code
+	if !series.KeepID {
+		payload["id"] = code
+	}
 	for _, field := range series.NumberFields {
 		payload[field] = code
 	}

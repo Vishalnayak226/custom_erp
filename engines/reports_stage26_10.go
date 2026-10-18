@@ -281,7 +281,7 @@ func GetAttendanceSummaryReport(tenantID, start, end string) ([]map[string]inter
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT COALESCE(a.data->>'employee_id', '') AS employee_id,
 		       COALESCE(e.data->>'name', a.data->>'employee_id', '') AS employee_name,
-		       COALESCE(e.data->>'department', '') AS department,
+		       COALESCE(dpt.data->>'name', e.data->>'department', '') AS department,
 		       COUNT(*) FILTER (WHERE a.data->>'status' = 'Present') AS present_days,
 		       COUNT(*) FILTER (WHERE a.data->>'status' = 'Absent') AS absent_days,
 		       COUNT(*) FILTER (WHERE a.data->>'status' = 'Late') AS late_days,
@@ -291,11 +291,12 @@ func GetAttendanceSummaryReport(tenantID, start, end string) ([]map[string]inter
 		       COUNT(*) AS total_marked_days
 		FROM %s.documents a
 		LEFT JOIN %s.documents e ON e.doctype = 'Employee' AND e.id = a.data->>'employee_id'
+		LEFT JOIN %s.documents dpt ON dpt.doctype = 'Department' AND dpt.id = e.data->>'department'
 		WHERE a.doctype = 'Attendance'
 		  AND ($1 = '' OR a.data->>'date' >= $1)
 		  AND ($2 = '' OR a.data->>'date' <= $2)
-		GROUP BY a.data->>'employee_id', e.data->>'name', e.data->>'department'
-		ORDER BY employee_name`, schema, schema), start, end)
+		GROUP BY a.data->>'employee_id', e.data->>'name', e.data->>'department', dpt.data->>'name'
+		ORDER BY employee_name`, schema, schema, schema), start, end)
 	if err != nil {
 		return nil, err
 	}

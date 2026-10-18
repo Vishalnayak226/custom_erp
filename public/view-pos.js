@@ -211,10 +211,15 @@ function renderPOSView(container) {
   `;
   container.appendChild(panel);
 
+  // Stage 85.C6: the box's "+ Create" opens the phone-first form, never the
+  // generic quick-create (name + status, no mobile). The form attaches the
+  // customer itself, so nothing is handed back to pick.
   attachCodeNamePicker(
     document.getElementById('pos-customer-display'),
     document.getElementById('pos-customer'),
-    'Customer');
+    'Customer',
+    { onCreate: (typed) => posCustomerMod().then(m => m.openPOSCustomerForm(
+      /^\+?[\d\s-]{6,}$/.test(typed) ? { phone: typed.replace(/[\s-]/g, '') } : { name: typed })).then(() => null) });
 
   // Stage 30.7: re-evaluate offers when the coupon code or the customer
   // changes - a tier-restricted or coupon-gated offer depends on both.

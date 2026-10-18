@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -170,6 +171,10 @@ func Run() {
 	// StartRecurringJournalWorker precedent, spawning a Draft SalesInvoice
 	// per due RecurringSalesContract.
 	engines.StartRecurringBillingWorker(workerCtx, 1*time.Hour)
+
+	// Stage 75.2.6: the e-invoice (IRN) queue. A tenant with no enabled GSTIN
+	// costs one EXISTS query per tick.
+	engines.StartEInvoiceWorker(workerCtx, 1*time.Minute)
 
 	// Start Maintenance Scheduling Worker (Stage 37.9.4) - the identical
 	// pattern, spawning a Scheduled MaintenanceOrder per due
@@ -675,6 +680,16 @@ func registerRoutes() {
 	// as stored value (handlers_item_master.go).
 	http.HandleFunc("POST /api/v1/inventory/consumption", apiMiddleware(moduleGate("inventory", handlePostConsumptionEntry)))
 	http.HandleFunc("GET /api/v1/inventory/consumption/book", apiMiddleware(moduleGate("inventory", handleConsumptionBookStock)))
+	// Stage 89: the Item master asked once - org defaults, kinds of item, where
+	// each field is asked, attributes per type (handlers_item_setup.go).
+	http.HandleFunc("GET /api/v1/inventory/item-setup", apiMiddleware(handleGetItemSetup))
+	http.HandleFunc("PUT /api/v1/inventory/item-setup/fields", apiMiddleware(handleSaveItemFieldRules))
+	http.HandleFunc("POST /api/v1/inventory/item-setup/fields/list", apiMiddleware(handleCreateItemFieldList))
+	http.HandleFunc("GET /api/v1/inventory/item-attributes", apiMiddleware(handleGetItemAttributes))
+	http.HandleFunc("GET /api/v1/inventory/attribute-map/suggest", apiMiddleware(handleSuggestAttributeMap))
+	http.HandleFunc("POST /api/v1/inventory/attribute-value", apiMiddleware(handleAddItemAttributeValue))
+	http.HandleFunc("POST /api/v1/inventory/treatment-correction/preview", apiMiddleware(handleTreatmentCorrectionPreview))
+	http.HandleFunc("POST /api/v1/inventory/treatment-correction/apply", apiMiddleware(handleTreatmentCorrectionApply))
 	http.HandleFunc("POST /api/v1/pos/gift-card/issue", apiMiddleware(handleIssueGiftCard))
 	http.HandleFunc("POST /api/v1/pos/gift-card/balance", apiMiddleware(handleGiftCardBalance))
 	http.HandleFunc("POST /api/v1/stored-value/cards", apiMiddleware(handleRegisterGiftCards))
@@ -800,6 +815,18 @@ func registerRoutes() {
 	http.HandleFunc("GET /api/v1/reports/payables-ageing", apiMiddleware(moduleGate("reports", handlePayablesAgeingReport)))
 	http.HandleFunc("GET /api/v1/reports/receivables-ageing", apiMiddleware(moduleGate("reports", handleReceivablesAgeingReport)))
 	http.HandleFunc("GET /api/v1/reports/gst-return-summary", apiMiddleware(moduleGate("reports", handleGSTReturnSummary)))
+
+	// Stage 75.2.9: e-invoice (IRN) - Tax Integration Settings and the IRN
+	// Exception Workbench (handlers_einvoice.go).
+	http.HandleFunc("GET /api/v1/einvoice/profiles", apiMiddleware(moduleGate("finance", handleListEInvoiceProfiles)))
+	http.HandleFunc("POST /api/v1/einvoice/profiles", apiMiddleware(moduleGate("finance", handleSaveEInvoiceProfile)))
+	http.HandleFunc("POST /api/v1/einvoice/profiles/{gstin}/test", apiMiddleware(moduleGate("finance", handleTestEInvoiceProfile)))
+	http.HandleFunc("GET /api/v1/einvoice/documents", apiMiddleware(moduleGate("finance", handleListEInvoiceDocuments)))
+	http.HandleFunc("GET /api/v1/einvoice/documents/{id}", apiMiddleware(moduleGate("finance", handleGetEInvoiceDocument)))
+	http.HandleFunc("POST /api/v1/einvoice/documents/{id}/{action}", apiMiddleware(moduleGate("finance", handleEInvoiceDocumentAction)))
+	http.HandleFunc("GET /api/v1/einvoice/badges/{doctype}", apiMiddleware(handleEInvoiceBadges))
+	http.HandleFunc("GET /api/v1/einvoice/reconciliation", apiMiddleware(moduleGate("finance", handleEInvoiceReconciliation)))
+	http.HandleFunc("POST /api/v1/einvoice/run", apiMiddleware(moduleGate("finance", handleRunEInvoiceWorker)))
 
 	// Report Engine framework (Stage 20 Track B.4): generic catalog/run/
 	// drill-down/async-export, on top of the same reports above and new
@@ -1076,6 +1103,22 @@ func registerRoutes() {
 	http.HandleFunc("POST /api/v1/procurement/design/match", apiMiddleware(moduleGate("procurement", handleMatchDesign)))
 	// Stage 65.4: add a value (or a new attribute) to the PIM attributes from the PO.
 	http.HandleFunc("POST /api/v1/procurement/design-attribute", apiMiddleware(moduleGate("procurement", handleAddDesignAttributeValue)))
+	// Stage 95: Design and Combination ID images - the PO's Images page, the
+	// Design / Item screens' image strip, the image read routes (any module),
+	// and the client's own image drive (Configuration -> Integrations).
+	http.HandleFunc("GET /api/v1/procurement/purchase-order/{id}/images", apiMiddleware(moduleGate("procurement", handleGetPOImages)))
+	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/images", apiMiddleware(moduleGate("procurement", handleUploadPOImage)))
+	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/images/main", apiMiddleware(moduleGate("procurement", handlePOImageMain)))
+	http.HandleFunc("POST /api/v1/procurement/purchase-order/{id}/images/remove", apiMiddleware(moduleGate("procurement", handlePOImageRemove)))
+	http.HandleFunc("GET /api/v1/images", apiMiddleware(handleListOwnerImages))
+	http.HandleFunc("POST /api/v1/images", apiMiddleware(handleUploadOwnerImage))
+	http.HandleFunc("POST /api/v1/images/main", apiMiddleware(handleOwnerImageAction(true)))
+	http.HandleFunc("POST /api/v1/images/remove", apiMiddleware(handleOwnerImageAction(false)))
+	http.HandleFunc("GET /api/v1/images/{id}/thumbnail", apiMiddleware(handleImageThumbnail))
+	http.HandleFunc("GET /api/v1/images/{id}/file", apiMiddleware(handleImageFile))
+	http.HandleFunc("GET /api/v1/admin/image-drive", apiMiddleware(handleGetImageDrive))
+	http.HandleFunc("POST /api/v1/admin/image-drive", apiMiddleware(handleSaveImageDrive))
+	http.HandleFunc("POST /api/v1/admin/image-drive/test", apiMiddleware(handleTestImageDrive))
 	http.HandleFunc("POST /api/v1/finance/vendor-credit-note/{id}/post", apiMiddleware(handlePostVendorCreditNote))
 	// Stage 63: designed transaction prints and the Vendor PO in Excel.
 	http.HandleFunc("GET /api/v1/print/document/{txn}/{id}", apiMiddleware(handlePrintDocument))
@@ -1276,6 +1319,9 @@ func registerRoutes() {
 	// same declarations the server validates against - one list, not two.
 	http.HandleFunc("GET /api/v1/meta/field-formats", apiMiddleware(handleFieldFormats))
 	http.HandleFunc("GET /api/v1/master-codes/{doctype}", apiMiddleware(handleMasterCodeSeries))
+	// Stage 93.11: the guided clean-up of a master's old long codes (admin).
+	http.HandleFunc("GET /api/v1/master-codes/{doctype}/clean", apiMiddleware(handleMasterCodeClean))
+	http.HandleFunc("POST /api/v1/master-codes/{doctype}/clean", apiMiddleware(handleMasterCodeClean))
 	http.HandleFunc("GET /api/v1/meta/doctypes", apiMiddleware(handleGetDocTypes))
 	http.HandleFunc("POST /api/v1/meta/doctypes", apiMiddleware(handleSaveDocType))
 	http.HandleFunc("POST /api/v1/meta/{doctype}/fields", apiMiddleware(handleSaveFieldDefinition))
@@ -1364,6 +1410,9 @@ func registerRoutes() {
 	// unauthenticated before this. See static_fileserver.go.
 	fs := http.FileServer(noDirectoryListing(http.Dir("./public")))
 	http.Handle("/", onlyReadMethods(fs))
+	// 73.D.23: browsers ask for /favicon.ico on every page that names no icon
+	// (it 404'd); the icon is public/favicon.svg.
+	http.HandleFunc("GET /favicon.ico", handleFaviconRedirect)
 
 }
 
@@ -1382,6 +1431,15 @@ func runHTTPServer(cancelWorkers context.CancelFunc) {
 	// (deploy/Caddyfile) set HOST=127.0.0.1 so only the local reverse proxy can
 	// reach the Go process and nothing hits it directly from the network.
 	host := os.Getenv("HOST")
+
+	// Stage 96: on Windows an empty HOST binds loopback instead. Windows is only
+	// ever a dev/test box (production and the Docker image are Linux), and an
+	// all-interfaces bind makes Windows Firewall stop every freshly built
+	// erp-server.exe with an "allow public and private networks?" dialog.
+	// HOST=0.0.0.0 opts back in, e.g. to reach a dev server from a phone.
+	if host == "" && runtime.GOOS == "windows" {
+		host = "127.0.0.1"
+	}
 
 	// 24.13: explicit timeouts instead of the bare ListenAndServe's
 	// unbounded defaults - a slow/stalled client can no longer hold a
@@ -1404,7 +1462,7 @@ func runHTTPServer(cancelWorkers context.CancelFunc) {
 	// inert unless TENANT_BASE_DOMAIN is set.
 	srv := &http.Server{
 		Addr:         host + ":" + port,
-		Handler:      staticAssetCache(compressResponses(securityHeaders(tenantHostGate(http.DefaultServeMux)))),
+		Handler:      staticAssetCache(compressResponses(securityHeaders(tenantHostGate(apiMethodNotAllowed(http.DefaultServeMux))))),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 60 * time.Second,
 		IdleTimeout:  120 * time.Second,

@@ -120,7 +120,9 @@ func handlePostDebitNote(w http.ResponseWriter, r *http.Request) {
 	noteID := r.PathValue("id")
 	amount, err := engines.PostDebitNote(tenantID, noteID, userID)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		// Stage 73.D.14: coded refusals (a closed period's FIN-0260) keep
+		// their code, as Post Credit Note does; anything else reads as before.
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]interface{}{"status": "Posted", "id": noteID, "amount": amount})

@@ -129,6 +129,18 @@ func MatchVendorInvoice(tenantID, invoiceID, poID, grnID string, tolerancePercen
 	if err := json.Unmarshal([]byte(invDataStr), &invData); err != nil {
 		return out, err
 	}
+	// Stage 73.D.13: matching sets the status, so a bill that is paid, part-
+	// paid or waiting on an approval must not be matched again - it could
+	// flip a Paid bill back to Matched or MismatchHold (the ledger was safe,
+	// the status was not).
+	if paid := vendorInvoiceHasPayments(invData); paid || (invStatus != "Draft" && invStatus != "Matched" && invStatus != "MismatchHold") {
+		state := invStatus
+		if paid {
+			state += " with payments recorded"
+		}
+		return out, &ValidationError{Code: "FIN-0842", Message: fmt.Sprintf(
+			"vendor invoice %s is %s; only an unpaid bill (Draft, Matched or MismatchHold) can be matched", invoiceID, state)}
+	}
 	invoiceAmount := numFromInterface(invData["invoice_amount"])
 
 	resolveRef := func(given, field, label string) (string, error) {
@@ -293,6 +305,14 @@ func MatchVendorInvoice(tenantID, invoiceID, poID, grnID string, tolerancePercen
 // Stage 37.1.3 adds the realised FX leg. opts is variadic so all three existing
 // callers needed no change.
 func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason string, opts ...SettlementOptions) (paidAmount int, pendingApproval bool, err error) {
+	paise, pending, err := payVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason, opts...)
+	return roundToRupees(PaiseToRupees(paise)), pending, err
+}
+
+// payVendorInvoice is PayVendorInvoice with the amount paid in paise - exact
+// for a part-paid bill's remainder, which a payment file must carry to the
+// paisa (73.D.23).
+func payVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason string, opts ...SettlementOptions) (paidPaise int64, pendingApproval bool, err error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return 0, false, err
@@ -331,7 +351,6 @@ func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 	if amount <= 0 {
 		return 0, false, fmt.Errorf("invoice_amount must be positive to pay")
 	}
-	amountInt := int(amount)
 
 	if status != "Matched" {
 		requiredRole, rerr := RequiredApproverRoleForAmount(tenantID, "VendorInvoice", amount)
@@ -397,8 +416,6 @@ func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 	if ferr != nil {
 		return 0, false, ferr
 	}
-	amountInt = settlement.SettlementAmount
-
 	debits := inputGSTDebits(data, position)                       // clear GRN Suspense (goods) + input GST
 	credits := map[string]int{"1100": settlement.SettlementAmount} // Cash/Bank paid out
 	applyRealisedFXLine(debits, credits, settlement.RealisedGainLoss)
@@ -406,9 +423,6 @@ func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 	final, perr := vendorFinalPaymentFor(invoiceID, data, position, debits, credits)
 	if perr != nil {
 		return 0, false, perr
-	}
-	if final.PartPaid {
-		amountInt = roundToRupees(PaiseToRupees(final.Total))
 	}
 	payKey := fmt.Sprintf("VendorInvoice:%s:PAY", invoiceID)
 	if err := PostDoubleEntry(tenantID, "VendorInvoice", invoiceID, final.Debits, final.Credits, settlement.PostingDate(), payKey,
@@ -434,7 +448,7 @@ func PayVendorInvoice(tenantID, invoiceID, userID, actorRole, overrideReason str
 	}
 
 	LogAuditEvent(tenantID, userID, "PAY_VENDOR_INVOICE", "SUCCESS", settlementAuditDetail("vendor invoice", invoiceID, settlement))
-	return amountInt, false, nil
+	return final.Total, false, nil // paise: the open amount of a part-paid bill, else the full payment
 }
 
 // FinalizeVendorInvoiceOverridePayment (24.11) is called from

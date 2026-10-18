@@ -42,15 +42,22 @@ Appraisals, Training, Grievances.
 
 ## Setting up an employee
 
-**Setup → Master Data → Employee**: **Employee ID**, **Name**, and
-**Status** (Active/Inactive) are the only required fields — Department,
-Designation, Location, Reporting Manager and a linked ERP User ID are all
-optional. Two of these matter beyond record-keeping:
+**Setup → Master Data → Employee**: **Employee ID**, **Name**, **Status**
+(Active/Inactive) and **Department** are required — Designation, Location,
+Reporting Manager and a linked ERP User ID are optional. **Department** and
+**Location** are picked from the Department and Location lists (Stage 93.9),
+so every person maps to a team and a home store from day one; an employee
+saved before this with a typed department is asked to pick one at its next
+save. Three of these matter beyond record-keeping:
 
+- **Department** is where the person's work is counted: a payslip posts to
+  the employee's department, and their location's cost center.
 - **Linked ERP User ID** is what makes an Employee's status control login
   access: deactivate the Employee and the linked user account is
-  deactivated with it on the same save, no separate step. An Employee with
-  no linked user is unaffected either way.
+  deactivated with it on the same save, no separate step. The linked user
+  also takes the employee's **department** on every save — HR leads, so the
+  Users screen shows it as *from HR* and does not change it there. An
+  Employee with no linked user is unaffected either way.
 - **Bank Account Number** and **Bank IFSC** (added for payroll) are not
   required to create an Employee, but a payslip cannot be posted without
   them — see [Posting a payslip](#posting-a-payslip) below.

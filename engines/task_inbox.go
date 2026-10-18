@@ -74,7 +74,7 @@ func ListTaskInbox(tenantID string, scope TaskInboxScope) (*TaskInbox, error) {
 			_ = db.DB.QueryRow(fmt.Sprintf(
 				`SELECT COALESCE(created_by, ''), updated_at AT TIME ZONE current_setting('TimeZone') FROM %s.documents WHERE id = $1 AND doctype = $2`, schema),
 				id, doctype).Scan(&createdBy, &waiting)
-			if createdBy != "" && createdBy == scope.UserID {
+			if createdBy != "" && createdBy == scope.UserID && !SubmitterMayDecideOwn(tenantID, doctype, scope.Role) {
 				continue // maker-checker: someone else decides this one
 			}
 			amount := DocumentBaseAmount(doc)

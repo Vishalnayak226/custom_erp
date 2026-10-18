@@ -24,7 +24,7 @@ const (
 )
 
 // DesignAttribute is one attribute the org defines for its products
-// (ProductAttributeDef). A Select attribute offers its options as values to
+// (ItemAttribute, the ERP's list - Stage 86.3). A Select attribute offers its options as values to
 // pick - one value is a design attribute, several make it an axis whose
 // values multiply into combinations; any other type is typed once per design.
 type DesignAttribute struct {
@@ -53,9 +53,10 @@ func GetDesignMatrix(tenantID string) (DesignMatrix, error) {
 	if err != nil {
 		return out, err
 	}
+	// Stage 86.3: the ERP's own attribute list, not PIM's.
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, data FROM %s.documents
-		WHERE doctype = 'ProductAttributeDef' AND deleted_at IS NULL AND COALESCE(status, '') <> 'Inactive'`, schema))
+		WHERE doctype = 'ItemAttribute' AND deleted_at IS NULL AND COALESCE(status, '') <> 'Inactive'`, schema))
 	if err != nil {
 		return out, err
 	}
@@ -192,6 +193,96 @@ func parseOptionPairs(raw string) map[string]string {
 		out[k] = v
 	}
 	return out
+}
+
+// AttributeColumn is one attribute (Colour, Size...) given its own column on
+// the PO's lines and its print (Stage 87).
+type AttributeColumn struct {
+	Code  string `json:"code"`
+	Label string `json:"label"`
+}
+
+// ItemAttributeValues is an Item attribute by attribute: its design's
+// attributes (one value for the whole design) overlaid by its own combination
+// values. designs caches each design's attributes across the caller's lines.
+func ItemAttributeValues(tenantID string, item map[string]interface{}, designs map[string]map[string]string) map[string]string {
+	out := map[string]string{}
+	if fam := firstNonEmpty(strField(item, "family"), strField(item, "parent_product_code")); fam != "" {
+		attrs, ok := designs[fam]
+		if !ok {
+			attrs = map[string]string{}
+			if d, _, err := fetchDocData(tenantID, "ProductFamily", fam); err == nil {
+				attrs = parseOptionPairs(strField(d, "design_attributes"))
+			}
+			designs[fam] = attrs
+		}
+		for k, v := range attrs {
+			if v != "" {
+				out[k] = v
+			}
+		}
+	}
+	for k, v := range parseOptionPairs(strField(item, "variant_option_values")) {
+		if v != "" {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+// OrderAttributeColumns turns the attribute values a set of lines carry into
+// columns, in the tenant's attribute order (GetDesignMatrix) and then any
+// other code by name. It rewrites each line's keys to the attribute's own
+// code, so "Colour" and "colour" are one column.
+func OrderAttributeColumns(tenantID string, lines []map[string]string) []AttributeColumn {
+	seen := map[string]string{} // lower-case code -> the code as first written
+	for _, l := range lines {
+		for k, v := range l {
+			if lc := strings.ToLower(k); v != "" && seen[lc] == "" {
+				seen[lc] = k
+			}
+		}
+	}
+	if len(seen) == 0 {
+		return nil
+	}
+	cols := []AttributeColumn{}
+	canon := map[string]string{}
+	if m, err := GetDesignMatrix(tenantID); err == nil {
+		for _, a := range m.Attributes {
+			if lc := strings.ToLower(a.Code); seen[lc] != "" && canon[lc] == "" {
+				canon[lc] = a.Code
+				cols = append(cols, AttributeColumn{Code: a.Code, Label: a.Label})
+			}
+		}
+	}
+	rest := []string{}
+	for lc := range seen {
+		if canon[lc] == "" {
+			rest = append(rest, lc)
+		}
+	}
+	sort.Strings(rest)
+	for _, lc := range rest {
+		code := seen[lc]
+		label := strings.ReplaceAll(code, "_", " ")
+		label = strings.ToUpper(label[:1]) + label[1:]
+		canon[lc] = code
+		cols = append(cols, AttributeColumn{Code: code, Label: label})
+	}
+	for i, l := range lines {
+		if len(l) == 0 {
+			continue
+		}
+		out := make(map[string]string, len(l))
+		for k, v := range l {
+			if v != "" {
+				out[canon[strings.ToLower(k)]] = v
+			}
+		}
+		lines[i] = out
+	}
+	return cols
 }
 
 // GetDesign loads a design by its number (code or id) with every Item under

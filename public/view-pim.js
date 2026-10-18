@@ -22,7 +22,7 @@ function openPIMTab(tab) {
     return;
   }
   currentPIMSelectedItem = '';
-  renderView('pim');
+  renderView(`pim:${tab.id}`);
 }
 
 function renderPIMShellHeader(container) {
@@ -34,39 +34,12 @@ function renderPIMShellHeader(container) {
     </div>
   `;
   container.appendChild(header);
-
-  const activeGroup = PIM_GROUPS.find(group => group.tabs.includes(currentPIMTab)) || PIM_GROUPS[0];
-  const groupBar = document.createElement('nav');
-  groupBar.setAttribute('aria-label', 'PIM jobs');
-  groupBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;flex-shrink:0';
-  PIM_GROUPS.forEach(group => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `btn btn-sm ${group.id === activeGroup.id ? 'btn-primary' : 'btn-outline'}`;
-    button.textContent = group.label;
-    button.setAttribute('aria-current', group.id === activeGroup.id ? 'true' : 'false');
-    button.addEventListener('click', () => openPIMTab(PIM_TABS.find(tab => tab.id === group.tabs[0])));
-    groupBar.appendChild(button);
-  });
-  container.appendChild(groupBar);
-  const tabBar = document.createElement('nav');
-  tabBar.setAttribute('aria-label', `${activeGroup.label} screens`);
-  tabBar.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;flex-shrink:0;min-width:0';
-  activeGroup.tabs.forEach(id => {
-    const tab = PIM_TABS.find(candidate => candidate.id === id);
-    if (!tab) return;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = `btn btn-sm ${tab.id === currentPIMTab ? 'btn-primary' : 'btn-outline'}`;
-    button.textContent = tab.label;
-    button.setAttribute('aria-current', tab.id === currentPIMTab ? 'page' : 'false');
-    button.addEventListener('click', () => openPIMTab(tab));
-    tabBar.appendChild(button);
-  });
-  container.appendChild(tabBar);
 }
 
 async function renderPIMView(container) {
+  // Stage 88.1: each working page is its own menu entry ("pim:<tab>"); the group and tab bars are gone,
+  // and the setup tabs (families, attributes, channel maps, templates) are Setup > PIM lists.
+  if (currentViewTab) currentPIMTab = currentViewTab;
   renderPIMShellHeader(container);
 
   if (currentPIMTab === 'dashboard') renderPIMSetupPath(container);

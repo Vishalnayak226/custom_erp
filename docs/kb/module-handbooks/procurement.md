@@ -280,6 +280,31 @@ configured — which is the normal state of a tenant that hasn't set one up,
 and is never a dead end. Sending a **Draft** PO is refused outright; submit
 it for approval first.
 
+### Design and Combination ID photos (Images)
+
+**Images** on a PO's row (every PO with lines except a cancelled one) opens
+the PO's photo page: each design on the PO with the combinations ordered
+under it, then any line whose item has no design. Add photos under each
+one, or drop a folder of files on the box at the top — each file goes to
+the design or combination it is **named after** (full number with `/` as
+`-` or `_`, or just the part after the last `/` such as `000006-Red-S.jpg`
+when only one design on the PO ends that way; a suffix like `-2` or
+` back` is allowed; the longest match wins). A file matching nothing is
+listed in red with an **Add it to…** picker — never dropped. The first
+photo is the **main** one; **Make main** swaps, **Remove** retires a photo
+without deleting it. The Design (**Setup → Product Family**) and Item forms
+show the same photos in an **Images** section. Step by step: User Guide
+§6.11.
+
+Photos are ordinary `ProductMedia` records (`engines/owner_images.go`), so
+PIM, channel publish and the printed documents' item picture use them. They
+are stored on the client's own **image drive** — an S3-compatible bucket
+set in **Configuration → Integrations → Image drive** (Admin Guide §B.3.0) —
+or on the ERP server when none is switched on. Uploading needs the right to
+create purchase orders (`GET/POST /api/v1/procurement/purchase-order/{id}/images`,
+`.../images/main`, `.../images/remove`); the record forms use
+`/api/v1/images` with the record's own read / update permission.
+
 ### PO amendment
 
 **Amend** (any non-`Closed` PO) loads the PO back into the same composer,
@@ -431,6 +456,9 @@ registered report.
 | `GLOBAL-0002` | A receipt line's expiry date is not after its manufacture date. |
 | `MASTER-0049` | Vendor GSTIN isn't a valid 15-character GSTIN. |
 | `MASTER-0052` | Vendor bank account number isn't 9-18 digits. |
+| `PIM-0950` | Image drive settings incomplete or malformed — the message names the field. |
+| `PIM-0951` | The image drive refused or could not be reached — the message gives the reason (bucket, key, secret, permission, region). |
+| `PIM-0952` | A photo is on the image drive but the drive's settings were removed. |
 
 ## Troubleshooting
 

@@ -152,6 +152,7 @@ func ListOrdersForConsole(tenantID string, f OrderConsoleFilter) (*OrderConsoleR
 	rowArgs := append(append([]interface{}{}, args...), f.Limit, f.Offset)
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT d.id,
+		       COALESCE(NULLIF(d.data->>'code', ''), d.id),
 		       COALESCE(d.data->>'channel', ''),
 		       COALESCE(d.data->>'channel_order_id', ''),
 		       COALESCE(d.data->>'customer_name', ''),
@@ -185,11 +186,11 @@ func ListOrdersForConsole(tenantID string, f OrderConsoleFilter) (*OrderConsoleR
 	defer rows.Close()
 
 	for rows.Next() {
-		var id, channel, channelOrderID, customerName, customerPhone, status, holdReason, paymentStatus, priority, locations string
+		var id, orderNumber, channel, channelOrderID, customerName, customerPhone, status, holdReason, paymentStatus, priority, locations string
 		var totalAmount float64
 		var lineCount, ageMinutes int
 		var createdAt time.Time
-		if err := rows.Scan(&id, &channel, &channelOrderID, &customerName, &customerPhone, &status, &holdReason,
+		if err := rows.Scan(&id, &orderNumber, &channel, &channelOrderID, &customerName, &customerPhone, &status, &holdReason,
 			&paymentStatus, &totalAmount, &priority, &createdAt, &ageMinutes, &locations, &lineCount); err != nil {
 			return nil, err
 		}
@@ -201,7 +202,7 @@ func ListOrdersForConsole(tenantID string, f OrderConsoleFilter) (*OrderConsoleR
 			}
 		}
 		result.Rows = append(result.Rows, map[string]interface{}{
-			"order_id": id, "channel": channel, "channel_order_id": channelOrderID,
+			"order_id": id, "order_number": orderNumber, "channel": channel, "channel_order_id": channelOrderID, // order_number: Stage 76.11
 			"customer_name": customerName, "customer_phone": customerPhone,
 			"status": status, "hold_reason": holdReason, "payment_status": paymentStatus,
 			"total_amount": totalAmount, "priority": priority, "created_at": createdAt,
@@ -515,7 +516,8 @@ func SearchOrdersGlobal(tenantID, query string, limit int) ([]map[string]interfa
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		WITH matches AS (
 			SELECT d.id AS order_id, 'Order ID' AS matched_on FROM %s.documents d
-			  WHERE d.doctype = 'SalesOrder' AND d.deleted_at IS NULL AND d.id ILIKE '%%' || $1 || '%%'
+			  WHERE d.doctype = 'SalesOrder' AND d.deleted_at IS NULL
+			    AND (d.id ILIKE '%%' || $1 || '%%' OR d.data->>'code' ILIKE '%%' || $1 || '%%') -- Stage 76.11: the order number
 			UNION
 			SELECT d.id, 'Channel order ID' FROM %s.documents d
 			  WHERE d.doctype = 'SalesOrder' AND d.deleted_at IS NULL AND d.data->>'channel_order_id' ILIKE '%%' || $1 || '%%'
@@ -534,7 +536,8 @@ func SearchOrdersGlobal(tenantID, query string, limit int) ([]map[string]interfa
 		)
 		SELECT d.id, string_agg(DISTINCT m.matched_on, ', '), COALESCE(NULLIF(d.data->>'channel', ''), 'Manual'),
 		       COALESCE(d.data->>'channel_order_id', ''), COALESCE(d.data->>'customer_name', ''),
-		       d.status, COALESCE((d.data->>'total_amount')::numeric, 0), d.created_at
+		       d.status, COALESCE((d.data->>'total_amount')::numeric, 0), d.created_at,
+		       COALESCE(NULLIF(d.data->>'code', ''), d.id)
 		FROM matches m
 		JOIN %s.documents d ON d.id = m.order_id AND d.doctype = 'SalesOrder' AND d.deleted_at IS NULL
 		GROUP BY d.id, d.data, d.status, d.created_at
@@ -547,14 +550,14 @@ func SearchOrdersGlobal(tenantID, query string, limit int) ([]map[string]interfa
 
 	out := []map[string]interface{}{}
 	for rows.Next() {
-		var id, matchedOn, channel, channelOrderID, customerName, status string
+		var id, matchedOn, channel, channelOrderID, customerName, status, orderNumber string
 		var totalAmount float64
 		var createdAt time.Time
-		if err := rows.Scan(&id, &matchedOn, &channel, &channelOrderID, &customerName, &status, &totalAmount, &createdAt); err != nil {
+		if err := rows.Scan(&id, &matchedOn, &channel, &channelOrderID, &customerName, &status, &totalAmount, &createdAt, &orderNumber); err != nil {
 			return nil, err
 		}
 		out = append(out, map[string]interface{}{
-			"order_id": id, "matched_on": matchedOn, "channel": channel,
+			"order_id": id, "order_number": orderNumber, "matched_on": matchedOn, "channel": channel,
 			"channel_order_id": channelOrderID, "customer_name": customerName,
 			"status": status, "total_amount": totalAmount, "created_at": createdAt,
 		})

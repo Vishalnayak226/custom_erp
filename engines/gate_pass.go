@@ -88,6 +88,7 @@ func CreateGatePass(tenantID string, in GatePassInput, userID string) (string, e
 		"remarks":        strings.TrimSpace(in.Remarks),
 		"status":         "Draft",
 	}
+	issueNumberInto(data, tenantID, "GatePass", gatePassID, "", in.LocationCode) // Stage 76.11
 	encoded, err := json.Marshal(data)
 	if err != nil {
 		return "", err

@@ -890,7 +890,7 @@
           "title": "Warehouse (WMS) - what each screen is for",
           "section": "Module Handbooks",
           "order": 19,
-          "summary": "Start here for the WMS. What to set up once and in which order, how goods come in, sit in bins and go out, what every Stock → WMS menu entry does, and what the system does not do for you yet.",
+          "summary": "Start here for the WMS. What to set up once and in which order, how goods come in, sit in bins and go out, what every WMS menu entry does, and what the system does not do for you yet.",
           "audience": "warehouse operator, warehouse manager, store manager, admin",
           "screens": [
             "doctype:bin",
@@ -1317,6 +1317,11 @@
               "level": 3,
               "text": "Printing and sending",
               "slug": "printing-and-sending"
+            },
+            {
+              "level": 3,
+              "text": "Design and Combination ID photos (Images)",
+              "slug": "design-and-combination-id-photos-images"
             },
             {
               "level": 3,
@@ -2126,7 +2131,8 @@
             "module:finance",
             "journal-vouchers",
             "reports",
-            "configuration"
+            "configuration",
+            "einvoice"
           ],
           "last_verified": "2026-09-03",
           "owner": "documentation-maintainer",
@@ -2167,6 +2173,11 @@
               "level": 2,
               "text": "Accounts Receivable: Sales Invoices",
               "slug": "accounts-receivable-sales-invoices"
+            },
+            {
+              "level": 2,
+              "text": "E-invoice (IRN)",
+              "slug": "e-invoice-irn"
             },
             {
               "level": 2,
@@ -2988,6 +2999,16 @@
             },
             {
               "level": 3,
+              "text": "E-Invoice / IRN Status Register",
+              "slug": "e-invoice-irn-status-register"
+            },
+            {
+              "level": 3,
+              "text": "E-Invoice Error / Retry Report",
+              "slug": "e-invoice-error-retry-report"
+            },
+            {
+              "level": 3,
               "text": "Entity Trial Balance",
               "slug": "entity-trial-balance"
             },
@@ -3025,6 +3046,11 @@
               "level": 3,
               "text": "Gift Card Liability",
               "slug": "gift-card-liability"
+            },
+            {
+              "level": 3,
+              "text": "IRN Portal Manual Upload Report",
+              "slug": "irn-portal-manual-upload-report"
             },
             {
               "level": 3,
@@ -3664,7 +3690,26 @@
               "level": 2,
               "text": "2026-08-25",
               "slug": "2026-08-25"
-            },
+            }
+          ]
+        },
+        {
+          "slug": "release-notes-2",
+          "title": "Release notes (part 2)",
+          "section": "Reference",
+          "order": 26,
+          "summary": "Earlier releases, 2026-07-27 to 2026-08-22, continued from the release notes.",
+          "audience": "everyone",
+          "last_verified": "2026-09-10",
+          "owner": "documentation-maintainer",
+          "status": "active",
+          "topic_type": "reference",
+          "module": "platform",
+          "task": "Release notes (part 2)",
+          "prerequisites": "Authorized access to the relevant ERP task",
+          "applies_to": "source registries; not release acceptance",
+          "source_path": "reference/release-notes-2.md",
+          "headings": [
             {
               "level": 2,
               "text": "2026-08-22",
@@ -3690,30 +3735,6 @@
               "text": "2026-08-20",
               "slug": "2026-08-20"
             },
-            {
-              "level": 2,
-              "text": "2026-08-19",
-              "slug": "2026-08-19"
-            }
-          ]
-        },
-        {
-          "slug": "release-notes-2",
-          "title": "Release notes (part 2)",
-          "section": "Reference",
-          "order": 26,
-          "summary": "Earlier releases, 2026-07-27 to 2026-08-19, continued from the release notes.",
-          "audience": "everyone",
-          "last_verified": "2026-09-10",
-          "owner": "documentation-maintainer",
-          "status": "active",
-          "topic_type": "reference",
-          "module": "platform",
-          "task": "Release notes (part 2)",
-          "prerequisites": "Authorized access to the relevant ERP task",
-          "applies_to": "source registries; not release acceptance",
-          "source_path": "reference/release-notes-2.md",
-          "headings": [
             {
               "level": 2,
               "text": "2026-08-19",
@@ -4233,16 +4254,6 @@
               "level": 2,
               "text": "Order Management",
               "slug": "order-management"
-            },
-            {
-              "level": 2,
-              "text": "PIM",
-              "slug": "pim"
-            },
-            {
-              "level": 2,
-              "text": "PIM / Product Publishing",
-              "slug": "pim-product-publishing"
             }
           ]
         },
@@ -4251,7 +4262,7 @@
           "title": "Error code reference (part 2)",
           "section": "Troubleshooting",
           "order": 21,
-          "summary": "Error codes for POS / Billing to WMS / Logistics, continued from the error code reference.",
+          "summary": "Error codes for PIM to WMS / Logistics, continued from the error code reference.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -4267,6 +4278,16 @@
               "level": 2,
               "text": "Contents",
               "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "PIM",
+              "slug": "pim"
+            },
+            {
+              "level": 2,
+              "text": "PIM / Product Publishing",
+              "slug": "pim-product-publishing"
             },
             {
               "level": 2,
@@ -4322,6 +4343,11 @@
               "level": 2,
               "text": "RFQ",
               "slug": "rfq"
+            },
+            {
+              "level": 2,
+              "text": "Reports",
+              "slug": "reports"
             },
             {
               "level": 2,
@@ -4544,6 +4570,9 @@
     ],
     "dynamic-labels": [
       "journey-admin"
+    ],
+    "einvoice": [
+      "finance-tax"
     ],
     "expenses": [
       "expenses"

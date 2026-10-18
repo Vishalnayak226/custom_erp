@@ -146,24 +146,29 @@ func cachedItemTypes(tenantID string) map[string]ItemTypeRules {
 		if json.Unmarshal([]byte(raw), &data) != nil {
 			continue
 		}
-		rules[strings.ToLower(id)] = ItemTypeRules{
-			Name:            id,
-			BarcodeAt:       barcodeAtFromLabel(pimString(data["barcode_generate_at"])),
-			BarcodePerDate:  barcodePerDateFromLabel(pimString(data["barcode_per_receipt_date"])),
-			BatchMode:       grnBatchModeFromLabel(pimString(data["grn_batch_number"])),
-			StickerTemplate: pimString(data["sticker_template"]),
-			SellAtZeroPrice: yesValue(data["sell_at_zero_price"]),
-			NeedsParentItem: yesValue(data["needs_parent_item"]),
-			Backflush:       yesValue(data["backflush"]),
-			FixedAsset:      yesValue(data["fixed_asset"]),
-			Policy:          policyFromRecord(data),
-			ExpenseAccount:  pimString(data["expense_account"]),
-		}
+		rules[strings.ToLower(id)] = itemTypeRulesFromRecord(id, data)
 	}
 	itemTypeCacheMu.Lock()
 	itemTypeCache[tenantID] = itemTypeCacheEntry{rules: rules, loadedAt: time.Now()}
 	itemTypeCacheMu.Unlock()
 	return rules
+}
+
+// itemTypeRulesFromRecord reads one ItemType record's rules.
+func itemTypeRulesFromRecord(id string, data map[string]interface{}) ItemTypeRules {
+	return ItemTypeRules{
+		Name:            id,
+		BarcodeAt:       barcodeAtFromLabel(pimString(data["barcode_generate_at"])),
+		BarcodePerDate:  barcodePerDateFromLabel(pimString(data["barcode_per_receipt_date"])),
+		BatchMode:       grnBatchModeFromLabel(pimString(data["grn_batch_number"])),
+		StickerTemplate: pimString(data["sticker_template"]),
+		SellAtZeroPrice: yesValue(data["sell_at_zero_price"]),
+		NeedsParentItem: yesValue(data["needs_parent_item"]),
+		Backflush:       yesValue(data["backflush"]),
+		FixedAsset:      yesValue(data["fixed_asset"]),
+		Policy:          policyFromRecord(data),
+		ExpenseAccount:  pimString(data["expense_account"]),
+	}
 }
 
 // ItemRules is an Item's effective rules: its type's, with the Item's own

@@ -204,6 +204,13 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 		add(&out.Header, "Document", "fields.original_invoice_no", "Original invoice number")
 		add(&out.Header, "Document", "fields.original_invoice_date", "Original invoice date")
 		add(&out.Header, "Document", "fields.document_direction", "Document direction")
+		if txn == PrintTxnCreditNote {
+			// Stage 75.2.8a: the e-invoice details (blank until the IRP acknowledges).
+			for _, f := range [][2]string{{"irn", "IRN"}, {"irn_ack_no", "IRN Ack No"}, {"irn_ack_date", "IRN Ack date"},
+				{"irn_status", "IRN status (IRN PENDING)"}, {"irn_signed_qr", "IRN signed QR (for a QR code)"}} {
+				add(&out.Header, "E-invoice", "fields."+f[0], f[1])
+			}
+		}
 	case PrintTxnPurchaseReturn:
 		add(&out.Header, "Document", "fields.vendor_invoice_no", "Vendor invoice number")
 		add(&out.Header, "Document", "fields.vendor_invoice_date", "Vendor invoice date")
@@ -240,6 +247,12 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 		{"item_code", "Item / Barcode"},
 	} {
 		add(&out.Line, "Line", f[0], f[1])
+	}
+	// Stage 87: each variant attribute (Colour, Size...) as a column of its own.
+	if m, err := GetDesignMatrix(tenantID); err == nil {
+		for _, a := range m.Attributes {
+			add(&out.Line, "Attributes", "attributes."+a.Code, a.Label)
+		}
 	}
 	switch txn {
 	case PrintTxnGRN, PrintTxnGRNVendorCopy:

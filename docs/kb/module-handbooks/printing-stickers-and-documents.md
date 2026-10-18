@@ -31,7 +31,7 @@ The system prints two different things, and each has its own kind of template.
 | | Sticker template | Document print template |
 |---|---|---|
 | What it prints | The small barcode label that goes on the product | A transaction on paper: Purchase Order, Vendor PO, Goods Receipt, Vendor Copy, Purchase Return, Transfer Out, Transfer In, Debit Note, Credit Note, Sales Return |
-| Where you make it | **Stock → Sticker Printing → Sticker templates** | **Stock → Sticker Printing → Document templates**, or **Setup → Core → Print Template** (the same screen) |
+| Where you make it | **Inventory → Sticker Printing → Sticker templates** | **Inventory → Sticker Printing → Document templates**, or **Setup → Core → Print Template** (the same screen) |
 | Which one prints | The first rule that fits: the item's own, its item type's, its category's, then the default | The most specific that fits: for the vendor, then for the design, then for the category, then the transaction's default |
 | If you make none | The built-in standard label | The built-in **Standard layout** |
 
@@ -40,7 +40,7 @@ The system prints two different things, and each has its own kind of template.
 ## Print stickers
 
 1. Set up one **Printer** first (**Setup → Core → Printer**, Active). Without one, printing stops with *Select a printer first*.
-2. Open **Stock → Sticker Printing → Print**. Load the lines from a Goods Receipt or a Transfer Order, or add items by SKU.
+2. Open **Inventory → Sticker Printing → Print**. Load the lines from a Goods Receipt or a Transfer Order, or add items by SKU.
 3. Check the copies and the **Template** of each line. The template comes from the rules below; you can pick another one for this print only.
 4. Choose the printer and print.
 
@@ -50,7 +50,7 @@ The system prints two different things, and each has its own kind of template.
 
 ## Set up how a document prints
 
-1. Open **Stock → Sticker Printing → Document templates** (or **Setup → Core → Print Template**).
+1. Open **Inventory → Sticker Printing → Document templates** (or **Setup → Core → Print Template**).
 2. Each transaction shows its templates and its **Standard layout**. Press **Customise** to start from the standard layout, or pick a transaction under **New template for** and press **+ New template**.
 3. In the designer, drag fields onto the page and columns onto the items table, then **Save**. Use **Preview with** and a real document number to check it.
 4. To use a template only for one vendor, design or category, fill **Only for vendor**, **Only for designs / families** or **Only for categories**. **Make default** sets the one used when nothing more specific fits.

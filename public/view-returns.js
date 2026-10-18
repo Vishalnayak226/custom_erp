@@ -114,6 +114,7 @@ async function loadReturnsView() {
     const data = d.data || d;
     return {
       id: d.id || data.code,
+      number: data.code || d.id, // Stage 76.11: the SR series number; id stays the key
       requestType: data.request_type || '',
       originalOrderID: data.original_order_id || '',
       returnLocation: data.return_location || '',
@@ -159,7 +160,7 @@ function renderReturnsTable() {
     const qtySummary = r.items.reduce((n, it) => n + (Number(it.qty) || 0), 0);
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td style="font-weight:600;">${cfgEsc(r.id)}</td>
+      <td style="font-weight:600;">${cfgEsc(r.number)}</td>
       <td>${cfgEsc(r.requestType)}</td>
       <td>${cfgEsc(r.originalOrderID)}</td>
       <td>${cfgEsc(r.returnLocation)}</td>
@@ -232,7 +233,7 @@ async function openReturnQCDialog(row) {
       <select id="qc-disposition-${i}" class="form-input" data-qc-sku="${cfgEsc(it.sku)}">${RETURN_DISPOSITIONS.map(d => `<option value="${d}">${d}</option>`).join('')}</select>
       <input type="text" class="form-input" style="margin-top:6px;" data-qc-exchange="${cfgEsc(it.sku)}" aria-label="Exchange ${cfgEsc(names[i])} for (item code, optional)" placeholder="Exchange for item code (optional - blank refunds it)">
     </div>`).join('');
-  const picked = await posFormDialog(`Inspect ${row.id}`,
+  const picked = await posFormDialog(`Inspect ${row.number}`,
     'Record the condition of each item. Sellable goes back to stock; an exchange applies only to Sellable, Repairable or Damaged items.',
     html, (el) => [...el.querySelectorAll('[data-qc-sku]')].map(s => ({
       sku: s.dataset.qcSku, disposition: s.value,
@@ -281,20 +282,20 @@ async function runReturnRefundFlow(row) {
   // were paid - the split is fixed by the sale, so it is shown, not asked.
   const split = refundTenderSummary(refund);
   if (refund.status === 'Pending') {
-    const ok = await showCustomConfirm(`Approve a refund of ${Number(refund.amount).toFixed(2)} for return ${row.id}?${split ? `\n\nIt goes back as: ${split}.` : ''}`, 'Approve Refund');
+    const ok = await showCustomConfirm(`Approve a refund of ${Number(refund.amount).toFixed(2)} for return ${row.number}?${split ? `\n\nIt goes back as: ${split}.` : ''}`, 'Approve Refund');
     if (!ok) return;
     if (!await postReturnAction(`/api/v1/refunds/${encodeURIComponent(refund.id)}/approve`, {})) return;
   }
   let method = '';
   if (split) {
-    const ok = await showCustomConfirm(`Pay refund ${refund.id} back the way the items were paid: ${split}.\n\nReverse any card or UPI part on the terminal or app; cash comes out of the drawer.`, 'Process Refund');
+    const ok = await showCustomConfirm(`Pay refund ${refund.code || refund.id} back the way the items were paid: ${split}.\n\nReverse any card or UPI part on the terminal or app; cash comes out of the drawer.`, 'Process Refund');
     if (!ok) return;
   } else {
     method = await showCustomPrompt('How is the refund being paid (Cash / Card / UPI)?', 'Cash', 'Process Refund');
     if (!method) return;
   }
   if (await postReturnAction(`/api/v1/refunds/${encodeURIComponent(refund.id)}/process`, { refund_method: method.trim() })) {
-    await showCustomAlert(`Refund ${refund.id} processed. The return is now closed and the tax on the returned goods has been reversed.`, 'Refund Processed');
+    await showCustomAlert(`Refund ${refund.code || refund.id} processed. The return is now closed and the tax on the returned goods has been reversed.`, 'Refund Processed');
   }
 }
 

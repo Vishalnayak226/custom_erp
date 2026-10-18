@@ -20,7 +20,7 @@ screens: [reports]
 
 # Report catalog
 
-**118** reports across **15** categories, all reachable from
+**121** reports across **15** categories, all reachable from
 **Sales & Marketplace » Reports**.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -40,7 +40,7 @@ screenshot from another.
 - [BI](#bi) - 1 reports
 - [CRM](#crm) - 9 reports
 - [Exceptions](#exceptions) - 6 reports
-- [Finance](#finance) - 30 reports
+- [Finance](#finance) - 33 reports
 - [HR](#hr) - 2 reports
 - [Inventory](#inventory) - 13 reports
 - [Manufacturing](#manufacturing) - 3 reports
@@ -354,7 +354,7 @@ screenshot from another.
 - **From** (`start`) - date, **required**
 - **To** (`end`) - date, **required**
 
-**Columns:** Cost Center · Type · Amount *(sensitive)*
+**Columns:** Cost Center · Name · Type · Amount *(sensitive)*
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
@@ -377,7 +377,7 @@ screenshot from another.
 - **From** (`start`) - date, **required**
 - **To** (`end`) - date, **required**
 
-**Columns:** Department · Type · Amount *(sensitive)*
+**Columns:** Department · Name · Type · Amount *(sensitive)*
 
 **Drill-down:** yes - a row's **View Details** opens the transactions behind it.
 
@@ -388,6 +388,35 @@ screenshot from another.
 **Parameters:** none - it runs as soon as you pick it.
 
 **Columns:** Invoice · Customer · Due Date · Days Overdue · Amount *(sensitive)* · Tier · Last Notified
+
+**Drill-down:** no.
+
+### E-Invoice / IRN Status Register
+
+**Report id:** `einvoice-irn-register`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **GSTIN** (`gstin`) - text, optional
+- **State** (`state`) - select, optional, one of: ,NEEDS ACTION,QUEUED,UNKNOWN,REJECTED,ACKNOWLEDGED,CANCELLED
+
+**Columns:** Date · Type · Number · Seller GSTIN · IRN state · IRN · Ack No · Ack Date · Made by · Cancelled
+
+**Drill-down:** no.
+
+### E-Invoice Error / Retry Report
+
+**Report id:** `einvoice-errors`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **GSTIN** (`gstin`) - text, optional
+
+**Columns:** Date · Type · Number · Seller GSTIN · IRN state · Attempts · Next try · Last error / what to fix
 
 **Drill-down:** no.
 
@@ -495,6 +524,20 @@ screenshot from another.
 - **Status** (`status`) - select, optional, one of: ,Inactive,Active,Partially redeemed,Fully redeemed,Blocked,Cancelled
 
 **Columns:** Card · Profile · Status · Loaded · Used / cancelled · Outstanding · Expires · Store issued
+
+**Drill-down:** no.
+
+### IRN Portal Manual Upload Report
+
+**Report id:** `einvoice-manual-upload`
+
+**Parameters:**
+
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+- **GSTIN** (`gstin`) - text, optional
+
+**Columns:** Date · Type · Number · Seller GSTIN · IRN state · Why · IRN (when entered)
 
 **Drill-down:** no.
 

@@ -165,6 +165,14 @@ func PayExpenseClaim(tenantID, claimID string) (payableAmount int, err error) {
 	// has never reached gl_postings.department. Fixed here since it is the
 	// identical call site.
 	department, _ := data["department"].(string)
+	// Stage 93.9: a claim saved before the department was picked holds free
+	// text, which the posting would refuse; an unknown one is left to the
+	// claimant's own department (93.10) instead of blocking the payment.
+	if resolved, err := ResolveDepartmentReference(tenantID, department); err == nil {
+		department = resolved
+	} else {
+		department = ""
+	}
 	project, _ := data["project"].(string)
 	if err := PostDoubleEntry(tenantID, "ExpenseClaim", claimID, PaiseMap(debits), PaiseMap(credits), "", fmt.Sprintf("ExpenseClaim:%s:PAY", claimID),
 		PostingOptions{Department: department, Project: project}); err != nil {

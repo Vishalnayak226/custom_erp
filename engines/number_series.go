@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // Number series administration (Stage 60.1). GenerateSequence (numbering.go)
@@ -20,11 +21,15 @@ import (
 // disjoint, and storeNumberSegment keeps two stores from printing the same
 // store segment.
 
-// StoreSeriesOverride is one store's own prefix/suffix for a series. A blank
-// part falls back to the series' own.
+// StoreSeriesOverride is one store's own parts for a series. A blank part
+// falls back to the series' own (Code: the store's Short Code). Code is the
+// store segment (Stage 86.2); Prefix replaces the series prefix and is no
+// longer offered on the form - only kept where a store already had one, so
+// its numbers do not change.
 type StoreSeriesOverride struct {
-	Prefix string `json:"prefix"`
-	Suffix string `json:"suffix"`
+	Prefix string `json:"prefix,omitempty"`
+	Code   string `json:"code,omitempty"`
+	Suffix string `json:"suffix,omitempty"`
 }
 
 // NumberSeries is one prefix_configs row.
@@ -39,9 +44,55 @@ type NumberSeries struct {
 	ActiveStatus   bool                           `json:"active_status"`
 	IncludeStore   bool                           `json:"include_store"`
 	StoreOverrides map[string]StoreSeriesOverride `json:"store_overrides"`
+	YearFormat     string                         `json:"year_format"`
 }
 
 var validResetFrequency = map[string]bool{"ANNUAL": true, "MONTHLY": true, "NEVER": true}
+
+// validYearFormats are formatPeriodSegment's formats; blank is 26-27.
+var validYearFormats = map[string]bool{"": true, "FY_COMPACT": true, "FY_LONG": true, "START_YY": true, "START_YYYY": true}
+
+// gstNumberMaxLength: an invoice, credit or debit note number may have at
+// most 16 characters (CGST Rule 46(b)). The user, 2026-10-18: "Never exceed
+// 16 char in India" - held for every document series, since any of them can
+// end up on a tax document's reference.
+const gstNumberMaxLength = 16
+
+// otherCountryNumberMaxLength (Stage 76 D2): no published cap was found for
+// the other home countries, so they get a product cap, without GST's
+// character rule.
+const otherCountryNumberMaxLength = 20
+
+// seriesNumberRules is the length cap, and whether GST's character rule
+// applies, for a tenant's home country (blank = India, the default).
+func seriesNumberRules(country string) (maxLen int, gst bool) {
+	if c := strings.ToUpper(strings.TrimSpace(country)); c == "" || c == "IN" {
+		return gstNumberMaxLength, true
+	}
+	return otherCountryNumberMaxLength, false
+}
+
+// gstNumberPattern is what a document number may look like (the e-invoice
+// IRP's rule, CGST Rule 46's characters): capital letters, digits, "/" and
+// "-", not starting with 0, "/" or "-". Only the whole number's first
+// character counts - the running number may start with 0 (TOJAY00001).
+// The user, 2026-10-18: "Yes, that you can enforce."
+var gstNumberPattern = regexp.MustCompile(`^[A-Z1-9][A-Z0-9/\-]*$`)
+
+// validSeparators are the joiners GST allows; blank is none.
+var validSeparators = map[string]bool{"": true, "/": true, "-": true}
+
+// gstTextPattern is what a document series' prefix or suffix may contain.
+var gstTextPattern = regexp.MustCompile(`^[A-Z0-9\-]{0,20}$`)
+
+// seriesStoreCodePattern is what a store's own code in a series may be.
+var seriesStoreCodePattern = regexp.MustCompile(`^[A-Z0-9\-]{1,10}$`)
+
+// seriesStore is a store as a number prints it by default.
+type seriesStore struct {
+	Code    string // the store code (the counter key, and the overrides' key)
+	Segment string // its Short Code, else its store code (storeNumberSegment)
+}
 
 // counterSeries mint values that are never a document id: barcode digits and
 // GRN batch numbers (Stage 61.7).
@@ -61,7 +112,7 @@ func ListNumberSeries(tenantID string) ([]NumberSeries, error) {
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT id, doc_type, prefix, COALESCE(suffix, ''), COALESCE(separator, '/'), COALESCE(padding_width, 6),
 		       COALESCE(reset_frequency, 'ANNUAL'), COALESCE(active_status, TRUE), COALESCE(include_store, TRUE),
-		       COALESCE(store_overrides, '{}'::jsonb)::text
+		       COALESCE(store_overrides, '{}'::jsonb)::text, COALESCE(year_format, '')
 		  FROM %s.prefix_configs ORDER BY doc_type`, schema))
 	if err != nil {
 		return nil, err
@@ -72,7 +123,7 @@ func ListNumberSeries(tenantID string) ([]NumberSeries, error) {
 		var s NumberSeries
 		var overrides string
 		if err := rows.Scan(&s.ID, &s.DocType, &s.Prefix, &s.Suffix, &s.Separator, &s.PaddingWidth,
-			&s.ResetFrequency, &s.ActiveStatus, &s.IncludeStore, &overrides); err != nil {
+			&s.ResetFrequency, &s.ActiveStatus, &s.IncludeStore, &overrides, &s.YearFormat); err != nil {
 			return nil, err
 		}
 		s.StoreOverrides = parseStoreOverrides(overrides)
@@ -98,6 +149,10 @@ func SaveNumberSeries(tenantID string, s NumberSeries, includeStore *bool, overr
 	s.Prefix = strings.TrimSpace(s.Prefix)
 	s.Suffix = strings.TrimSpace(s.Suffix)
 	s.ResetFrequency = strings.ToUpper(strings.TrimSpace(s.ResetFrequency))
+	s.YearFormat = strings.ToUpper(strings.TrimSpace(s.YearFormat))
+	if s.YearFormat == "FY_SHORT" {
+		s.YearFormat = "" // 26-27 is stored as blank, the format every older series has
+	}
 
 	existing, err := ListNumberSeries(tenantID)
 	if err != nil {
@@ -116,25 +171,24 @@ func SaveNumberSeries(tenantID string, s NumberSeries, includeStore *bool, overr
 			overrides = map[string]StoreSeriesOverride{}
 		}
 	}
+	// A document number is capital letters (gstNumberPattern), so what is
+	// typed in lower case is saved in capitals. Counters keep what they have.
+	norm := strings.TrimSpace
+	if !counterSeries[s.DocType] {
+		norm = func(v string) string { return strings.ToUpper(strings.TrimSpace(v)) }
+		s.Prefix, s.Suffix = norm(s.Prefix), norm(s.Suffix)
+	}
 	cleaned := map[string]StoreSeriesOverride{}
 	for store, o := range overrides {
 		store = strings.TrimSpace(store)
-		o.Prefix, o.Suffix = strings.TrimSpace(o.Prefix), strings.TrimSpace(o.Suffix)
-		if store == "" || (o.Prefix == "" && o.Suffix == "") {
+		o.Prefix, o.Code, o.Suffix = norm(o.Prefix), norm(o.Code), norm(o.Suffix)
+		if store == "" || (o.Prefix == "" && o.Code == "" && o.Suffix == "") {
 			continue
 		}
 		cleaned[store] = o
 	}
 
-	if err := validateNumberSeries(s, current, cleaned, existing); err != nil {
-		return err
-	}
-
 	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return err
-	}
-	overridesJSON, err := json.Marshal(cleaned)
 	if err != nil {
 		return err
 	}
@@ -145,19 +199,135 @@ func SaveNumberSeries(tenantID string, s NumberSeries, includeStore *bool, overr
 	if includeStore != nil {
 		include = *includeStore
 	}
+	s.IncludeStore = include
+	stores, err := loadSeriesStores(schema)
+	if err != nil {
+		return err
+	}
+
+	if err := validateNumberSeries(s, current, cleaned, existing, stores, TenantPhoneCountry(tenantID)); err != nil {
+		return err
+	}
+
+	overridesJSON, err := json.Marshal(cleaned)
+	if err != nil {
+		return err
+	}
 	_, err = db.DB.Exec(fmt.Sprintf(`
-		INSERT INTO %s.prefix_configs (doc_type, prefix, suffix, separator, padding_width, reset_frequency, active_status, include_store, store_overrides)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
+		INSERT INTO %s.prefix_configs (doc_type, prefix, suffix, separator, padding_width, reset_frequency, active_status, include_store, store_overrides, year_format)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
 		ON CONFLICT (doc_type) DO UPDATE SET
 			prefix = EXCLUDED.prefix, suffix = EXCLUDED.suffix, separator = EXCLUDED.separator,
 			padding_width = EXCLUDED.padding_width, reset_frequency = EXCLUDED.reset_frequency,
 			active_status = EXCLUDED.active_status, include_store = EXCLUDED.include_store,
-			store_overrides = EXCLUDED.store_overrides`, schema),
-		s.DocType, s.Prefix, s.Suffix, s.Separator, s.PaddingWidth, s.ResetFrequency, s.ActiveStatus, include, string(overridesJSON))
+			store_overrides = EXCLUDED.store_overrides, year_format = EXCLUDED.year_format`, schema),
+		s.DocType, s.Prefix, s.Suffix, s.Separator, s.PaddingWidth, s.ResetFrequency, s.ActiveStatus, include, string(overridesJSON), s.YearFormat)
 	return err
 }
 
-func validateNumberSeries(s NumberSeries, current *NumberSeries, overrides map[string]StoreSeriesOverride, all []NumberSeries) error {
+// loadSeriesStores lists every store with the segment it prints by default -
+// storeNumberSegment's rule: its Short Code unless another store already
+// prints or is coded that, else its store code. Deleted stores are included:
+// their numbers exist, so a code they printed is still taken.
+func loadSeriesStores(schema string) ([]seriesStore, error) {
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT COALESCE(NULLIF(data->>'code', ''), id), COALESCE(TRIM(data->>'short_code'), '')
+		FROM %s.documents WHERE doctype = 'Location' ORDER BY 1`, schema))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	type loc struct{ code, short string }
+	var locs []loc
+	for rows.Next() {
+		var l loc
+		if err := rows.Scan(&l.code, &l.short); err != nil {
+			return nil, err
+		}
+		locs = append(locs, l)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]seriesStore, 0, len(locs))
+	for _, l := range locs {
+		segment := l.code
+		if l.short != "" {
+			segment = l.short
+			for _, other := range locs {
+				if other.code != l.code && (strings.EqualFold(other.short, l.short) || strings.EqualFold(other.code, l.short)) {
+					segment = l.code
+					break
+				}
+			}
+		}
+		out = append(out, seriesStore{Code: l.code, Segment: segment})
+	}
+	return out, nil
+}
+
+// seriesSample is the first number a series prints at one store ("" = no
+// store in the number, or no store yet).
+type seriesSample struct{ Number, Store string }
+
+// seriesSampleNumbers is the first number the series prints at every store -
+// what the GST rules (characters, 16 at most) are held against. The period is
+// today's; its length does not change from year to year. With no store yet,
+// "HQ" stands in, as the form's preview shows.
+func seriesSampleNumbers(s NumberSeries, overrides map[string]StoreSeriesOverride, stores []seriesStore) []seriesSample {
+	now := time.Now()
+	fy := documentFinancialYear(now)
+	_, period := sequencePeriod(s.ResetFrequency, fy, now)
+	if period != "" {
+		period = formatPeriodSegment(s.YearFormat, s.ResetFrequency, fy, now)
+	}
+	build := func(o StoreSeriesOverride, segment string) string {
+		parts := []string{}
+		prefix, suffix := s.Prefix, s.Suffix
+		if o.Prefix != "" {
+			prefix = o.Prefix
+		}
+		if o.Suffix != "" {
+			suffix = o.Suffix
+		}
+		if prefix != "" {
+			parts = append(parts, prefix)
+		}
+		if segment != "" {
+			parts = append(parts, segment)
+		}
+		if period != "" {
+			parts = append(parts, period)
+		}
+		parts = append(parts, fmt.Sprintf("%0*d", s.PaddingWidth, 1))
+		if suffix != "" {
+			parts = append(parts, suffix)
+		}
+		return strings.Join(parts, s.Separator)
+	}
+	if !s.IncludeStore {
+		return []seriesSample{{Number: build(StoreSeriesOverride{}, "")}}
+	}
+	if len(stores) == 0 {
+		return []seriesSample{{Number: build(StoreSeriesOverride{}, "HQ")}}
+	}
+	out := make([]seriesSample, 0, len(stores))
+	for _, st := range stores {
+		o := overrides[st.Code]
+		segment := st.Segment
+		if o.Code != "" {
+			segment = o.Code
+		}
+		out = append(out, seriesSample{Number: build(o, segment), Store: st.Code})
+	}
+	return out
+}
+
+func validateNumberSeries(s NumberSeries, current *NumberSeries, overrides map[string]StoreSeriesOverride, all []NumberSeries, stores []seriesStore, country ...string) error {
+	home := ""
+	if len(country) > 0 {
+		home = country[0]
+	}
+	maxLen, gstRules := seriesNumberRules(home)
 	bad := func(msg string) error { return &ValidationError{Code: "ADMINC-0311", SubFor: s.DocType, Message: msg} }
 	if s.DocType == "" {
 		return bad("choose the transaction this series numbers")
@@ -168,11 +338,18 @@ func validateNumberSeries(s NumberSeries, current *NumberSeries, overrides map[s
 	if s.PaddingWidth < 1 || s.PaddingWidth > 12 {
 		return bad("number length must be between 1 and 12 digits")
 	}
+	document := !counterSeries[s.DocType]
 	if len(s.Separator) > 3 || strings.ContainsAny(s.Separator, " \t") {
 		return bad("separator must be at most 3 characters with no spaces")
 	}
 	if !seriesTextPattern.MatchString(s.Prefix) || !seriesTextPattern.MatchString(s.Suffix) {
 		return bad("prefix and suffix may use only letters, digits, '-', '_' and '.', up to 20 characters")
+	}
+	if document && gstRules && !validSeparators[s.Separator] {
+		return bad("the separator may be /, - or none - GST allows no other character between the parts")
+	}
+	if document && gstRules && (!gstTextPattern.MatchString(s.Prefix) || !gstTextPattern.MatchString(s.Suffix)) {
+		return bad("prefix and suffix may use only capital letters, digits and '-' - the characters GST allows in a document number")
 	}
 	// An empty prefix is kept only where it already is (the barcode counters,
 	// which mint digits rather than document numbers). A document series with
@@ -183,6 +360,32 @@ func validateNumberSeries(s NumberSeries, current *NumberSeries, overrides map[s
 	for store, o := range overrides {
 		if !seriesTextPattern.MatchString(o.Prefix) || !seriesTextPattern.MatchString(o.Suffix) {
 			return bad(fmt.Sprintf("store %s: prefix and suffix may use only letters, digits, '-', '_' and '.', up to 20 characters", store))
+		}
+		if document && gstRules && (!gstTextPattern.MatchString(o.Prefix) || !gstTextPattern.MatchString(o.Suffix)) {
+			return bad(fmt.Sprintf("store %s: prefix and suffix may use only capital letters, digits and '-'", store))
+		}
+		if o.Code != "" && !seriesStoreCodePattern.MatchString(o.Code) {
+			return bad(fmt.Sprintf("store %s: its code in the number may use only capital letters, digits and '-', up to 10 characters", store))
+		}
+	}
+	if !validYearFormats[s.YearFormat] {
+		return bad("choose how the year is shown: 26-27, 2627, 2026-27, 26 or 2026")
+	}
+
+	// Two stores printing one code would both issue .../00001 - their counters
+	// are separate - and the second save would replace the first record.
+	if s.IncludeStore {
+		printedBy := map[string]string{}
+		for _, st := range stores {
+			segment := st.Segment
+			if o := overrides[st.Code]; o.Code != "" {
+				segment = o.Code
+			}
+			key := strings.ToUpper(segment)
+			if other, taken := printedBy[key]; taken {
+				return bad(fmt.Sprintf("stores %s and %s would both print %q in the number - give one of them its own code", other, st.Code, segment))
+			}
+			printedBy[key] = st.Code
 		}
 	}
 
@@ -201,6 +404,37 @@ func validateNumberSeries(s NumberSeries, current *NumberSeries, overrides map[s
 				return &ValidationError{Code: "ADMINC-0310", SubFor: s.DocType, Message: fmt.Sprintf(
 					"prefix %q is already used by the %s series - two series with one prefix can print the same number, and the second save would replace the first record", p, other.DocType)}
 			}
+		}
+	}
+
+	if document {
+		at := func(store string) string {
+			if store == "" {
+				return ""
+			}
+			return " at store " + store
+		}
+		var longest seriesSample
+		for _, n := range seriesSampleNumbers(s, overrides, stores) {
+			if gstRules && !gstNumberPattern.MatchString(n.Number) {
+				fix := "change the prefix"
+				if n.Store != "" {
+					fix = "give that store a Code in number"
+				}
+				return bad(fmt.Sprintf("the number%s would be %s - a GST document number may use only capital letters, digits, / and -, and may not start with 0, / or -. Change it: %s",
+					at(n.Store), n.Number, fix))
+			}
+			if len(n.Number) > len(longest.Number) {
+				longest = n
+			}
+		}
+		if len(longest.Number) > maxLen {
+			rule := "GST allows"
+			if !gstRules {
+				rule = "a document number here allows"
+			}
+			return bad(fmt.Sprintf("the number%s would be %s - %d characters, and %s at most %d. Shorten the prefix, show the year as 2627 or 26, use fewer digits or leave the separator blank",
+				at(longest.Store), longest.Number, len(longest.Number), rule, maxLen))
 		}
 	}
 	return nil

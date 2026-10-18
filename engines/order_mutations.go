@@ -331,7 +331,7 @@ func EditSalesOrder(tenantID, orderID string, edit OrderEdit, userID string) err
 	if err != nil {
 		return err
 	}
-	shippingAddress, _ := orderData["shipping_address"].(string)
+	shippingAddress := ShippingAddressText(orderData) // Stage 76.3: line 1 plus its parts
 	paymentStatus, _ := orderData["payment_status"].(string)
 	holdReason, err := validateOrderChain(tenantID, shippingAddress, paymentStatus, lines)
 	if err != nil {
@@ -458,13 +458,38 @@ func SwitchOrderFacility(tenantID, orderID, targetLocation, userID string) (int,
 			planLines[i] = SalesOrderLineInput{SKU: sku, Qty: int(numericFromAny(c.data["qty"]))}
 		}
 		channel, _ := orderData["channel"].(string)
-		shippingAddress, _ := orderData["shipping_address"].(string)
+		shippingAddress := ShippingAddressText(orderData) // Stage 76.3
 		plan, err = ResolveAllocationPlan(tenantID, channel, shippingAddress, planLines)
 		if err != nil {
 			return 0, err
 		}
+		// 73.B.6: an owner's order re-sources on that owner's stock only.
+		if plan, err = OwnerCheckedPlan(tenantID, strField(orderData, "owner_id"), planLines, plan); err != nil {
+			return 0, err
+		}
 		if plan == nil {
 			return 0, fmt.Errorf("no allocation plan is available for order %s under the configured rules", orderID)
+		}
+	} else if owner := strings.TrimSpace(strField(orderData, "owner_id")); owner != "" {
+		// 73.B.6: a store picked by hand must hold enough of the owner's own
+		// stock - never another owner's.
+		need := map[string]int{}
+		var skus []string
+		for _, c := range candidates {
+			sku, _ := c.data["sku"].(string)
+			if _, seen := need[sku]; !seen {
+				skus = append(skus, sku)
+			}
+			need[sku] += int(numericFromAny(c.data["qty"]))
+		}
+		for _, sku := range skus {
+			a, err := OwnerAvailableToSell(tenantID, sku, resolved, owner)
+			if err != nil {
+				return 0, err
+			}
+			if a.Available < need[sku] {
+				return 0, &ValidationError{Code: "ORDERM-0970", Message: fmt.Sprintf("%s has %d of %s's own %s, the order needs %d - pick a store holding the owner's stock", resolved, a.Available, owner, sku, need[sku])}
+			}
 		}
 	}
 

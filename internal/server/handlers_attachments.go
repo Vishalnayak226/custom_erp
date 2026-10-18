@@ -34,92 +34,47 @@ import (
 // lower the envelope's cap, never raise it.
 const attachmentUploadLimit = engines.MaxAttachmentBytes + 1<<20
 
-// documentReadRule is one request's read rule for one doctype, built from the
-// same pieces, in the same order, as handleGenericDoc's single-document GET
-// (handlers_core_doc_engine.go): role_permissions read, the doctype's module
-// gate, the session scope (engines.ResolveSessionScope), and then per document
-// the object-level scope (engines.ScopeConstraints/DocumentMatchesScope, or the
-// legacy location rule for a doctype the scope registry does not know) and the
-// supplier scope. It is never looser than that GET: an extension token, which
-// that GET admits read-only for its one doctype, is refused here outright.
-type documentReadRule struct {
-	doctype      string
-	role         string
-	location     string
-	supplierCode string
-	scope        engines.SessionScope
-}
-
-// newDocumentReadRule resolves the doctype-level half of the rule. On refusal
-// it has already written the response and returns ok=false.
+// newDocumentReadRule applies the doctype-level half of the read rule
+// (documentReadRule, document_read_rule.go) the way handleGenericDoc's
+// single-document GET does: role_permissions read, the doctype's module gate,
+// then the session scope. It is never looser than that GET: an extension
+// token, which that GET admits read-only for its one doctype, is refused here
+// outright. On refusal it has already written the response and returns
+// ok=false.
 func newDocumentReadRule(w http.ResponseWriter, r *http.Request, tenantID, doctype string) (documentReadRule, bool) {
 	role := r.Header.Get("Resolved-Role")
-	userID := r.Header.Get("Resolved-User-ID")
-	rule := documentReadRule{doctype: doctype, role: role, location: r.Header.Get("Resolved-Location")}
 	if r.Header.Get("Resolved-Purpose") == "extension" || role == "" {
 		writeAPIError(w, r, "GLOBAL-0011", "")
-		return rule, false
-	}
-	if role == supplierRole {
-		code, err := engines.SupplierCodeForUser(tenantID, userID)
-		if err != nil {
-			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve the supplier for this account")
-			return rule, false
-		}
-		if code == "" {
-			writeAPIError(w, r, "GLOBAL-0011", "")
-			return rule, false
-		}
-		rule.supplierCode = code
+		return documentReadRule{}, false
 	}
 	allowed, err := checkPermission(tenantID, role, doctype, "read")
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
-		return rule, false
+		return documentReadRule{}, false
 	}
 	if !allowed {
 		writeAPIError(w, r, "GLOBAL-0011", "")
-		return rule, false
+		return documentReadRule{}, false
 	}
 	moduleKey, err := engines.ModuleForDoctype(tenantID, doctype)
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)
-		return rule, false
+		return documentReadRule{}, false
 	}
 	if err := engines.RequireModules(tenantID, moduleKey); err != nil {
 		writeEngineError(w, r, err, http.StatusServiceUnavailable)
-		return rule, false
+		return documentReadRule{}, false
 	}
-	rule.scope, err = engines.ResolveSessionScope(tenantID, doctype,
-		engines.SessionScope{Role: role, UserID: userID, LocationCode: rule.location})
+	rule, err := sessionReadRule(r, tenantID, doctype)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve the access scope for this session")
 		return rule, false
 	}
+	if rule.noSupplier {
+		writeAPIError(w, r, "GLOBAL-0011", "")
+		return rule, false
+	}
 	return rule, true
-}
-
-// visible is the object-level half: may this session see this one document.
-func (rule documentReadRule) visible(data map[string]interface{}) bool {
-	if constraints, known := engines.ScopeConstraints(rule.doctype, rule.scope); known {
-		if engines.DocumentMatchesScope(constraints, data) != "" {
-			return false
-		}
-	} else {
-		docLoc, hasLoc := data["location"]
-		if !hasLoc {
-			docLoc, hasLoc = data["location_code"]
-		}
-		if hasLoc && fmt.Sprintf("%v", docLoc) != rule.location && !engines.IsSuperAdmin(rule.role) {
-			return false
-		}
-	}
-	if rule.supplierCode != "" {
-		if docSup, ok := data[supplierScopeField]; ok && fmt.Sprintf("%v", docSup) != rule.supplierCode {
-			return false
-		}
-	}
-	return true
 }
 
 // requireAttachmentDoctype refuses a doctype outside the attachment

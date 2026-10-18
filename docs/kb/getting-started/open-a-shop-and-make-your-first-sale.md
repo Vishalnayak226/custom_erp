@@ -31,9 +31,9 @@ from an empty system to a completed sale, so you can see how the pieces connect
 rather than reading about them one at a time. Allow about half an hour.
 
 > [!IMPORTANT]
-> **You need two user accounts.** Approvals refuse self-approval, so whoever
-> raises the purchase order cannot be the person who approves it. Ask your
-> administrator for a second login before you start.
+> **One login is enough as shipped** - whoever raises the purchase order may
+> approve it too. If your administrator set **Who can approve their own
+> documents** to *Nobody*, ask for a second login before you start.
 
 ## 1. Create the place you trade from
 

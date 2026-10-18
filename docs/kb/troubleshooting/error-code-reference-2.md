@@ -2,7 +2,7 @@
 title: Error code reference (part 2)
 section: Troubleshooting
 order: 21
-summary: Error codes for POS / Billing to WMS / Logistics, continued from the error code reference.
+summary: Error codes for PIM to WMS / Logistics, continued from the error code reference.
 audience: everyone
 last_verified: 2026-09-10
 owner: documentation-maintainer
@@ -20,11 +20,13 @@ applies_to: source registries; not release acceptance
 # Error code reference (part 2)
 
 This page continues the [error code reference](error-code-reference.md), which
-lists every area and explains how to read a code. It holds **168** codes, from
-POS / Billing to WMS / Logistics.
+lists every area and explains how to read a code. It holds **183** codes, from
+PIM to WMS / Logistics.
 
 ## Contents
 
+- [PIM](#pim) - 6 codes
+- [PIM / Product Publishing](#pim-product-publishing) - 8 codes
 - [POS / Billing](#pos-billing) - 35 codes
 - [POS / Offline & Cash Drawer](#pos-offline-cash-drawer) - 8 codes
 - [Patch / Bug Governance](#patch-bug-governance) - 3 codes
@@ -36,6 +38,7 @@ POS / Billing to WMS / Logistics.
 - [Purchase Return / RTV](#purchase-return-rtv) - 5 codes
 - [Quality & Maintenance](#quality-maintenance) - 6 codes
 - [RFQ](#rfq) - 6 codes
+- [Reports](#reports) - 1 codes
 - [Reports & Exports](#reports-exports) - 8 codes
 - [SaaS / Multi-Tenant](#saas-multi-tenant) - 8 codes
 - [Sales / POS](#sales-pos) - 9 codes
@@ -46,6 +49,30 @@ POS / Billing to WMS / Logistics.
 - [User Access & Security](#user-access-security) - 9 codes
 - [Vendor Invoice / AP](#vendor-invoice-ap) - 4 codes
 - [WMS / Logistics](#wms-logistics) - 3 codes
+
+## PIM
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PIM-0321` | Adding an attribute value from the PO that cannot be added | That value could not be added to the product attribute. | Type one value without commas, for an attribute chosen from a list; typed attributes take their value on the design itself. | Low | 422 |
+| `PIM-0690` | Deleting a product attribute that was set up from the attribute library | This attribute was set up for your business and cannot be deleted. | Switch it off instead: open it and set Status to Inactive. Its values can still be removed one by one. | Low | 422 |
+| `PIM-0691` | Creating a new product attribute from a purchase order when the business's attributes are set up for it | New attributes are not created from a purchase order here - your product attributes are set up for your business. | Pick one of the attributes shown, or ask your administrator to add one under Setup -> Item Attribute. | Low | 422 |
+| `PIM-0950` | Saving or testing image drive settings with a field missing or malformed | The image drive settings are not complete. | Fill in the field named in the message: the endpoint (https://...), the bucket name, the access key ID and the secret access key, as your storage provider shows them. | Low | 422 |
+| `PIM-0951` | The client's image drive could not be reached, or refused the keys, bucket or region | The image drive did not accept the request. | Read the reason in the message, correct the endpoint, region, bucket or keys in Settings > Configuration > Integrations > Image drive, and press Test connection. | Medium | 422 |
+| `PIM-0952` | Opening an image stored on the image drive after the drive's settings were removed | This image is stored on the image drive, which is not set up. | Ask your administrator to set the image drive up again in Settings > Configuration > Integrations > Image drive. | Medium | 422 |
+
+## PIM / Product Publishing
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `PIM-0229` | Product family missing | Product family is required before enrichment and publishing. | Select a product family. | High | 422 |
+| `PIM-0230` | Product completeness failed | Product is not complete for {channel}/{locale}. Please complete missing fields. | Fill missing fields shown in checklist. | High | 503 |
+| `PIM-0231` | Content approval pending | Product content is pending approval and cannot be published yet. | Wait for approval or request review. | High | 200 |
+| `PIM-0232` | Primary image missing | Primary product image is required before publishing. | Upload and assign a primary image. | High | 422 |
+| `PIM-0233` | Media hash duplicate | This media file already exists and has been linked to the product. | No action required. | Low | 200 |
+| `PIM-0234` | Field edit permission denied | You cannot edit this product field. Please contact administrator. | Request access or ask authorized user. | High | 403 |
+| `PIM-0235` | Bulk edit partially failed | Some products could not be updated. Please download the error file. | Download error file and correct failed rows. | Medium | 200 |
+| `PIM-0236` | Product already queued or published | This product already has an active publish job. Current status: {status}. | Review existing publish job. | Medium | 200 |
 
 ## POS / Billing
 
@@ -193,6 +220,12 @@ POS / Billing to WMS / Logistics.
 | `RFQ-0554` | Quote line or terms invalid | This quote cannot be recorded as entered. | Price at least one line; give the unit conversion when the vendor quotes in another unit, a validity date that is not over, and no negative amounts. | Medium | 422 |
 | `RFQ-0555` | RFQ already awarded, or quote not awardable | This RFQ has already been awarded, or that quote cannot be. | Open the purchase order created by the award; a second award is refused. | Medium | 422 |
 | `RFQ-0556` | Awarded quote cannot become a purchase order | The quote cannot become a purchase order yet. | Pick an item on every quoted RFQ line, use whole quantities, and award a quote that is still valid. | Medium | 422 |
+
+## Reports
+
+| Code | When it happens | What you see | What to do | Severity | HTTP |
+|---|---|---|---|---|---|
+| `REPORT-0987` | Report filter names a store outside the user's store access | You can only see reports for your own stores. | Choose one of your stores in the store filter, or leave it blank to see all of yours. An administrator widens store access on the User or Role screen. | Medium | 403 |
 
 ## Reports & Exports
 

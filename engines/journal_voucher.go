@@ -108,6 +108,11 @@ func createJournalVoucherInSchema(schema, voucherDate, narration string, lines [
 		"lines": string(linesJSON), "total_amount": totalAmount, "status": "Draft",
 		"cost_center": opts.CostCenter, "department": opts.Department, "entity": opts.Entity, "project": opts.Project,
 	}
+	// Stage 76.11: a company-level series (no store segment, migration 76_11).
+	// The recurring worker reaches here with only the schema.
+	if tenantID, err := tenantIDForSchema(schema); err == nil && tenantID != "" {
+		issueNumberInto(docData, tenantID, "JournalVoucher", voucherID, "")
+	}
 	marshaled, err := json.Marshal(docData)
 	if err != nil {
 		return "", err
@@ -229,9 +234,21 @@ func postApprovedJournalVoucher(tenantID, voucherID string) {
 		opt.Currency = currency
 		opt.ExchangeRate = rate
 	}
-	if err := PostDoubleEntry(tenantID, "JournalVoucher", voucherID, PaiseMap(debits), PaiseMap(credits), voucherDate, fmt.Sprintf("JournalVoucher:%s:POST", voucherID), opt); err != nil {
+	postingKey := fmt.Sprintf("JournalVoucher:%s:POST", voucherID)
+	if err := PostDoubleEntry(tenantID, "JournalVoucher", voucherID, PaiseMap(debits), PaiseMap(credits), voucherDate, postingKey, opt); err != nil {
 		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s approved but GL post failed: %v", voucherID, err), "")
 		return
+	}
+	// Stage 73.D.16: a backdated voucher belongs to its own date. Period
+	// reports read the GL row's created_at, which is the posting moment, so a
+	// voucher dated last month landed in this month. The rows take the
+	// voucher's date (keeping their time of day), as depreciation's rows take
+	// their month's end (asset_depreciation.go). A future date is left alone.
+	if _, perr := time.Parse("2006-01-02", voucherDate); perr == nil && voucherDate < time.Now().Format("2006-01-02") {
+		if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.gl_postings SET created_at = $1::date + CAST(created_at AS time)
+			WHERE idempotency_key = $2 AND document_type = 'JournalVoucher' AND document_id = $3`, schema), voucherDate, postingKey, voucherID); err != nil {
+			LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s posted but its rows keep today's date: %v", voucherID, err), "")
+		}
 	}
 	if err := updateJournalVoucherData(schema, voucherID, "Posted", data); err != nil {
 		LogSystemError(tenantID, "", "ERROR", "postApprovedJournalVoucher", fmt.Sprintf("voucher %s posted to GL but status update failed: %v", voucherID, err), "")

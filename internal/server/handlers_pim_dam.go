@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 )
 
@@ -14,7 +13,7 @@ import (
 // cover what's new - on-demand transform renditions, bulk zip up/down, and
 // the catalog-wide search the browse UI reads.
 
-// handlePIMMediaTransformPresets publishes exactly what GetMediaTransform
+// handlePIMMediaTransformPresets publishes exactly what ReadMediaTransform
 // implements, so the browse UI can never offer a preset the engine refuses.
 func handlePIMMediaTransformPresets(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -36,18 +35,16 @@ func handlePIMMediaTransform(w http.ResponseWriter, r *http.Request) {
 	}
 	mediaID := r.PathValue("id")
 	preset := r.PathValue("preset")
-	path, fileType, err := engines.GetMediaTransform(tenantID, mediaID, preset)
+	fileBytes, fileType, err := engines.ReadMediaTransform(tenantID, mediaID, preset)
 	if err != nil {
+		if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
+			writeEngineError(w, r, err, http.StatusBadGateway)
+			return
+		}
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
 		return
 	}
-	fileBytes, err := os.ReadFile(path)
-	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusNotFound, "stored transform missing")
-		return
-	}
-	w.Header().Set("Content-Type", fileType)
-	_, _ = w.Write(fileBytes)
+	writeMediaBytes(w, fileType, fileBytes)
 }
 
 // handlePIMMediaBulkUpload (36.6.2/36.6.4) accepts a zip of images and

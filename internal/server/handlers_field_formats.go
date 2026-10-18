@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"custom_erp/engines"
@@ -32,6 +33,51 @@ func handleFieldFormats(w http.ResponseWriter, r *http.Request) {
 // - "V", 5 digits, next V00001. Read-only; the format itself is confirmed by
 // the first record's own save (engines.PrepareMasterNumber), which already
 // carries that doctype's write permission.
+// handleMasterCodeClean (Stage 93.11) is the guided clean-up of a master's
+// old long codes: GET previews old -> new under the confirmed format (or the
+// one asked for in ?prefix=&length=, else the suggestion); POST, with the
+// same format in the body, renumbers them and rewrites every reference.
+// Admin only - it changes the key other records point at. Stage 76.6: every
+// master, ?detail=1 adds each column it rewrites, and POST needs a backup
+// from the last 24 hours (and acknowledge_warning for Item).
+func handleMasterCodeClean(w http.ResponseWriter, r *http.Request) {
+	if !requireHRAdmin(w, r, r.Header.Get("Resolved-Role")) {
+		return
+	}
+	tenantID, doctype := r.Header.Get("Resolved-Tenant-ID"), r.PathValue("doctype")
+	var req struct {
+		Prefix string `json:"prefix"`
+		Length int    `json:"length"`
+		// Stage 76.6: the admin read the warning for codes known outside
+		// the ERP (item stickers, channel SKUs).
+		AcknowledgeWarning bool `json:"acknowledge_warning"`
+	}
+	if r.Method == http.MethodPost {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
+			return
+		}
+	} else {
+		req.Prefix = r.URL.Query().Get("prefix")
+		fmt.Sscanf(r.URL.Query().Get("length"), "%d", &req.Length)
+	}
+	format := engines.NewMasterCodeFormat(req.Prefix, req.Length)
+	var plan engines.MasterRecodePlan
+	var err error
+	if r.Method == http.MethodPost {
+		plan, err = engines.ApplyMasterRecode(tenantID, doctype, format, req.AcknowledgeWarning, r.Header.Get("Resolved-Username"))
+	} else if r.URL.Query().Get("detail") == "1" {
+		plan, err = engines.PlanMasterRecodeWithTouches(tenantID, doctype, format) // 76.6: every column it rewrites
+	} else {
+		plan, err = engines.PlanMasterRecode(tenantID, doctype, format)
+	}
+	if err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	_ = json.NewEncoder(w).Encode(plan)
+}
+
 func handleMasterCodeSeries(w http.ResponseWriter, r *http.Request) {
 	series, err := engines.GetMasterCodeSeries(r.Header.Get("Resolved-Tenant-ID"), r.PathValue("doctype"))
 	if err != nil {

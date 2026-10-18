@@ -109,7 +109,8 @@ function field(id, label, value, attrs = '') {
 // address or PAN is what is missing. Resolves true when saved and attached.
 let lastSaved = null; // the customer the form saved last ({id, name, phone})
 
-export async function openPOSCustomerForm({ id = '', phone = '', title = '', need = '', attach = true } = {}) {
+// name: what was typed in the customer box (85.C6) - the mobile is still asked.
+export async function openPOSCustomerForm({ id = '', phone = '', name = '', title = '', need = '', attach = true } = {}) {
   let doc = {};
   if (id) {
     const res = await apiFetch(`/api/v1/doc/Customer/${encodeURIComponent(id)}`);
@@ -134,7 +135,7 @@ export async function openPOSCustomerForm({ id = '', phone = '', title = '', nee
         ${need ? `<div class="login-error">${esc(need)}</div>` : ''}
         <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
           ${field('pc-phone', 'Mobile number<span class="required">*</span>', doc.walk_in === 'Yes' ? '' : (doc.phone || phone), 'type="tel" inputmode="tel" required')}
-          ${field('pc-name', 'Name<span class="required">*</span>', doc.name || '', 'required')}
+          ${field('pc-name', 'Name<span class="required">*</span>', doc.name || name, 'required')}
           ${field('pc-email', 'Email', doc.email || '', 'type="email"')}
         </div>
         <details id="pc-more" ${need ? 'open' : ''}>

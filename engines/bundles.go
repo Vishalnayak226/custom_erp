@@ -380,7 +380,9 @@ func PostBundleAssembly(tenantID, bundleSKU, location string, quantity int, oper
 	id := NewDocID("BOP")
 	snapshot, _ := json.Marshal(bundle.Components)
 	postedAt := time.Now().UTC().Format(time.RFC3339)
-	data, _ := json.Marshal(map[string]interface{}{"code": id, "bundle": bundle.ID, "bundle_sku": bundleSKU, "location_code": location, "quantity": quantity, "operation": operation, "request_key": requestKey, "component_snapshot": json.RawMessage(snapshot), "posted_at": postedAt, "status": "Completed"})
+	opDoc := map[string]interface{}{"code": id, "bundle": bundle.ID, "bundle_sku": bundleSKU, "location_code": location, "quantity": quantity, "operation": operation, "request_key": requestKey, "component_snapshot": json.RawMessage(snapshot), "posted_at": postedAt, "status": "Completed"}
+	issueNumberInto(opDoc, tenantID, "BundleAssembly", id, "", location) // Stage 76.11
+	data, _ := json.Marshal(opDoc)
 	type movement struct {
 		sku string
 		qty int
@@ -417,14 +419,14 @@ func PostBundleAssembly(tenantID, bundleSKU, location string, quantity int, oper
 			var available, reserved, safety, blocked, qc, damaged, buffer, held int
 			err := tx.QueryRow(fmt.Sprintf(`SELECT available,reserved,safety_stock,blocked,qc_hold,damaged,channel_buffer,hold_qty FROM %s.inventory_availability WHERE sku=$1 AND location_code=$2 FOR UPDATE`, schema), item.sku, location).Scan(&available, &reserved, &safety, &blocked, &qc, &damaged, &buffer, &held)
 			if err == sql.ErrNoRows {
-				return id, fmt.Errorf("insufficient stock for SKU %s at %s: no inventory record", item.sku, location)
+				return id, &ValidationError{Code: "INVENT-0101", SubFor: "Quantity", Message: fmt.Sprintf("no stock of %s at %s", item.sku, location)} // 73.C.9
 			}
 			if err != nil {
 				return id, err
 			}
 			ats := computeATS(atsPolicyFor(schema), available, reserved, safety, blocked, qc, damaged, buffer, held)
 			if ats+item.qty < 0 {
-				return id, fmt.Errorf("insufficient ATS for SKU %s at %s: ATS %d, requested %d", item.sku, location, ats, -item.qty)
+				return id, &ValidationError{Code: "INVENT-0101", SubFor: "Quantity", Message: fmt.Sprintf("%s at %s: %d available to use, %d needed", item.sku, location, ats, -item.qty)} // 73.C.9
 			}
 		}
 		if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.inventory_availability(sku,location_code,on_hand,available) VALUES($1,$2,$3,$3) ON CONFLICT(sku,location_code) DO UPDATE SET on_hand=%s.inventory_availability.on_hand+EXCLUDED.on_hand,available=%s.inventory_availability.available+EXCLUDED.available,updated_at=CURRENT_TIMESTAMP`, schema, schema, schema), item.sku, location, item.qty); err != nil {

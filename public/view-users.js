@@ -15,18 +15,29 @@ const storeModule = () => loadViewModule('/view-store.js?v=1');
 
 const esc = (s) => window.escapeHTMLText(String(s ?? ''));
 
+// Stage 93.9 (user, 2026-10-18): "People should be mapped. I want to mapped
+// from day one." Every user has a department from the Department list, beside
+// their home store (a vendor's Supplier login excepted). A user linked to an
+// employee takes the employee's - HR leads, so it is changed there.
+let departments = [];
+const deptName = (id) => (departments.find(d => d.id === id) || {}).name || id || '';
+const deptOptions = (current) => departments.filter(d => d.status !== 'Inactive' || d.id === current)
+  .map(d => `<option value="${esc(d.id)}" ${d.id === current ? 'selected' : ''}>${esc(d.name || d.id)}</option>`).join('');
+
 export async function renderUsersView(container) {
-  const [usersRes, rolesRes, storesRes, store] = await Promise.all([
+  const [usersRes, rolesRes, storesRes, store, deptRes] = await Promise.all([
     apiFetch('/api/v1/admin/users'),
     apiFetch('/api/v1/admin/roles'),
     apiFetch('/api/v1/admin/users/stores'),
     storeModule(),
+    apiFetch('/api/v1/doc/Department'),
   ]);
   if (!usersRes || !rolesRes) return;
   if (!usersRes.ok) { renderErrorPanel(container, 'Failed to load users.', () => renderView('users')); return; }
   const users = await usersRes.json();
   const roles = rolesRes.ok ? await rolesRes.json() : [];
   const stores = storesRes && storesRes.ok ? ((await storesRes.json()).stores || []) : [];
+  departments = deptRes && deptRes.ok ? (await deptRes.json()) || [] : [];
   const storeName = (code) => (stores.find(o => o.code === code) || {}).name || code || 'HO';
 
   const form = document.createElement('div');
@@ -59,6 +70,13 @@ export async function renderUsersView(container) {
             : '<option value="HO">HO</option>'}
         </select>
       </div>
+      <div class="form-group" style="margin-bottom: 0;">
+        <label class="form-label" for="user-department">Department<span class="required">*</span></label>
+        <select id="user-department" class="form-select">
+          ${departments.length ? `<option value="" disabled selected>— Pick a department —</option>${deptOptions('')}`
+            : '<option value="" disabled selected>— No departments yet: add them under Setup → Department —</option>'}
+        </select>
+      </div>
     </div>
     <p class="txn-hint" style="margin-top: 12px;">The user works at their home store and at the stores their role gives them. Use <b>Stores</b> on the list to give them more.</p>
     <div style="margin-top: 16px;"><button class="btn btn-primary" id="user-create-btn">Create User</button></div>
@@ -69,19 +87,21 @@ export async function renderUsersView(container) {
   list.className = 'table-panel';
   list.innerHTML = `
     <table>
-      <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Home store</th><th>Stores</th><th>Status</th><th></th></tr></thead>
+      <thead><tr><th>Username</th><th>Email</th><th>Role</th><th>Home store</th><th>Department</th><th>Stores</th><th>Status</th><th></th></tr></thead>
       <tbody>${users.length === 0
-        ? `<tr><td colspan="7" style="text-align:center; color:var(--text-muted);">No users yet. Use <b>+ New User</b> to add the first one.</td></tr>`
+        ? `<tr><td colspan="8" style="text-align:center; color:var(--text-muted);">No users yet. Use <b>+ New User</b> to add the first one.</td></tr>`
         : users.map(u => `
         <tr>
           <td style="font-weight:600;">${esc(u.username)}</td>
           <td>${esc(u.email || '')}</td>
           <td>${esc(u.role)}</td>
           <td>${esc(storeName(u.location_code))}</td>
+          <td>${u.department ? esc(deptName(u.department)) : (u.role === 'Supplier' ? '' : '<span class="badge badge-warning">Not set</span>')}${u.employee_id ? ' <span style="color:var(--text-muted);">· from HR</span>' : ''}</td>
           <td>${isAdminRoleName(u.role) ? 'All stores' : esc(store.storeAccessSummary(u.store_access, u.stores))}</td>
           <td><span class="badge ${u.status === 'Active' ? 'badge-success' : 'badge-secondary'}">${esc(u.status)}</span></td>
           <td>
             <button class="action-btn" ${actionAttrs('editUserStores', [u.id, u.username])}>Stores</button>
+            ${u.role === 'Supplier' ? '' : `<button class="action-btn" ${actionAttrs('editUserDepartment', [u.id, u.username, u.department || '', u.employee_id || ''])}>Department</button>`}
             <button class="action-btn" ${actionAttrs('resetUserMFA', [u.id, u.username])}>Reset 2FA</button>
             <button class="action-btn" ${actionAttrs('resetUserPassword', [u.id, u.username])}>Reset Password</button>
             ${u.role === 'Supplier' ? `<button class="action-btn" ${actionAttrs('setUserSupplier', [u.id, u.supplier_code || ''])}>Link Vendor</button>` : ''}
@@ -114,16 +134,22 @@ async function createUserInner() {
   const email = document.getElementById('user-email').value.trim();
   const role = document.getElementById('user-role').value;
   const location_code = document.getElementById('user-location').value.trim();
+  const department = document.getElementById('user-department').value || '';
 
   if (!username || !password || !role) {
     errorEl.textContent = 'Username, password, and role are required.';
     errorEl.classList.remove('hidden');
     return;
   }
+  if (!department && role !== 'Supplier') {
+    errorEl.textContent = departments.length ? 'Pick the user\'s department.' : 'Add the departments first, under Setup → Department, then pick one here.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
 
   const res = await apiFetch('/api/v1/admin/users', {
     method: 'POST',
-    body: JSON.stringify({ username, password, email, role, location_code })
+    body: JSON.stringify({ username, password, email, role, location_code, department })
   });
   if (!res) return;
   const data = await res.json();
@@ -137,6 +163,49 @@ async function createUserInner() {
   showToast(`User ${username} created. Give them this password - they will be asked to set their own when they first sign in.`, { variant: 'success' });
   txnDone('users-screen');
   renderView('users');
+}
+
+// Stage 93.9: a user's department. Linked to an employee, it comes from HR
+// and is changed there; otherwise picked here.
+export async function editUserDepartment(id, username, current, employeeId) {
+  if (employeeId) {
+    await showCustomAlert(`${username}'s department comes from employee ${employeeId}. Change it on the employee (HR → Employees) and it follows here.`, 'Department');
+    return;
+  }
+  if (!departments.length) {
+    await showCustomAlert('There are no departments yet. Add them under Setup → Department first.', 'Department');
+    return;
+  }
+  document.getElementById('user-dept-dialog')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'user-dept-dialog';
+  overlay.innerHTML = `
+    <div class="modal-container" style="max-width: 420px;" role="dialog" aria-modal="true" aria-labelledby="user-dept-title">
+      <div class="modal-header"><h3 class="modal-title" id="user-dept-title">Department - ${esc(username)}</h3>
+        <button type="button" class="modal-close" aria-label="Close dialog" data-ud-close>&times;</button></div>
+      <div class="modal-body"><div class="form-group">
+        <label class="form-label" for="user-dept-select">Department<span class="required">*</span></label>
+        <select id="user-dept-select" class="form-select">${current ? '' : '<option value="" disabled selected>— Pick a department —</option>'}${deptOptions(current)}</select>
+      </div></div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline" data-ud-close>Cancel</button>
+        <button type="button" class="btn btn-primary" data-ud-save>Save</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelectorAll('[data-ud-close]').forEach(b => b.addEventListener('click', close));
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  const save = overlay.querySelector('[data-ud-save]');
+  save.addEventListener('click', () => guardAgainstDoubleSubmit(save, 'Saving...', async () => {
+    const department = overlay.querySelector('#user-dept-select').value;
+    if (!department) return;
+    const res = await apiFetch('/api/v1/admin/users/location', { method: 'POST', body: JSON.stringify({ id, department }) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'Could not change the department.'); return; }
+    close();
+    showToast(`${username} is now in ${deptName(department)}.`, { variant: 'success' });
+    renderView('users');
+  }));
 }
 
 // Stage 85.A2: the user's Stores section - home store and store access.

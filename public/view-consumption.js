@@ -90,7 +90,7 @@ async function cePost() {
   if (!res) return;
   if (!res.ok) { errorEl.textContent = await getErrorMessage(res, 'The entry was not posted.'); errorEl.classList.remove('hidden'); return; }
   const r = await res.json();
-  showToast(`${r.id} posted${r.cost_total ? ` - cost ${Number(r.cost_total).toFixed(2)} expensed` : ''}.`, { variant: 'success', title: 'Consumption Entry' });
+  showToast(`${r.number || r.id} posted${r.cost_total ? ` - cost ${Number(r.cost_total).toFixed(2)} expensed` : ''}.`, { variant: 'success', title: 'Consumption Entry' });
   ceLines = [];
   document.getElementById('consumption-entry-panel').dataset.key = `ce-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   renderView('inventory');

@@ -165,10 +165,12 @@ func processOutbox(schema string) {
 				webhookURL, _ := payloadMap["webhook_url"].(string)
 				rowCount, _ := payloadMap["row_count"].(float64)
 				if recipientEmail != "" {
-					log.Printf("[OUTBOX] [SCHEDULED_REPORT] Emailed report %q (%.0f rows) to %s", reportID, rowCount, recipientEmail)
+					// Stage 73.D.9: masked - a log is no place for an address
+					// or a webhook URL's token (the Schedules tab masks the same).
+					log.Printf("[OUTBOX] [SCHEDULED_REPORT] Emailed report %q (%.0f rows) to %s", reportID, rowCount, maskEmailAddress(recipientEmail))
 				}
 				if webhookURL != "" {
-					log.Printf("[OUTBOX] [SCHEDULED_REPORT] Posted report %q (%.0f rows) to webhook %s", reportID, rowCount, webhookURL)
+					log.Printf("[OUTBOX] [SCHEDULED_REPORT] Posted report %q (%.0f rows) to webhook %s", reportID, rowCount, webhookHostOnly(webhookURL))
 				}
 			}
 		}

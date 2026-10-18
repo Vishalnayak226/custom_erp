@@ -92,6 +92,11 @@ func GetDocTypeMeta(tenantID string, doctype string) ([]FieldMeta, error) {
 				f.PickFrom = "Location"
 			}
 		}
+		for _, df := range DepartmentReferenceFields[doctype] { // Stage 93.9
+			if df == f.Fieldname {
+				f.PickFrom = "Department"
+			}
+		}
 		fields = append(fields, f)
 	}
 	return fields, nil

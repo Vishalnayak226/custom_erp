@@ -25,6 +25,11 @@ type ReportColumn struct {
 	Key       string `json:"key"`
 	Label     string `json:"label"`
 	Sensitive bool   `json:"sensitive"`
+	// Type (Stage 75.3.4) is how the screen shows the value: "" text, or
+	// "image" (the value is a media id, drawn as a thumbnail). Total sums the
+	// column under the table.
+	Type  string `json:"type,omitempty"`
+	Total bool   `json:"total,omitempty"`
 }
 
 // ReportParam describes one input field, rendered generically by the
@@ -64,6 +69,9 @@ type ReportDefinition struct {
 	HasControlTotals bool   `json:"has_control_totals"`
 	Question         string `json:"question,omitempty"`
 	Description      string `json:"description,omitempty"`
+	// StoreKey (Stage 75.3.3) is the row field carrying the store, for store
+	// scope; empty = the first store-named column, "-" = no store dimension.
+	StoreKey string `json:"-"`
 }
 
 var reportRegistry = map[string]ReportDefinition{}
@@ -215,6 +223,13 @@ func RunReportContext(ctx context.Context, tenantID, reportID, role, userID stri
 			return nil, nil, false, fmt.Errorf("param %q is required", p.Key)
 		}
 	}
+	// Stage 75.3.3: a store-limited user sees only their stores.
+	storeAccess, storeLimited := reportStoreScope(tenantID, role, userID)
+	if storeLimited {
+		if err := checkReportStoreParams(d, params, storeAccess); err != nil {
+			return nil, nil, false, err
+		}
+	}
 	start := time.Now()
 	rows, err = runReportRaced(ctx, d, tenantID, params)
 	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -229,6 +244,11 @@ func RunReportContext(ctx context.Context, tenantID, reportID, role, userID stri
 		// own execution failing (a query error, a bad join), matching the
 		// catalog scenario's wording exactly.
 		return nil, nil, false, &ValidationError{Code: "REPORT-0162", Message: err.Error()}
+	}
+	if storeLimited {
+		if key := reportStoreKey(d); key != "" {
+			rows = filterReportRowsByStore(rows, key, storeAccess)
+		}
 	}
 	if reportID != "report-performance" {
 		writeReportRunLog(tenantID, reportID, userID, time.Since(start).Milliseconds(), len(rows))
@@ -296,7 +316,7 @@ func IsCancellation(err error) bool {
 // RunReportDrillDownContext is the cancellation-aware form of
 // RunReportDrillDown, racing the drill-down the same way RunReportContext
 // races the main run.
-func RunReportDrillDownContext(ctx context.Context, tenantID, reportID, role, rowKey string, params map[string]string) ([]map[string]interface{}, error) {
+func RunReportDrillDownContext(ctx context.Context, tenantID, reportID, role, rowKey string, params map[string]string, userID ...string) ([]map[string]interface{}, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -310,6 +330,18 @@ func RunReportDrillDownContext(ctx context.Context, tenantID, reportID, role, ro
 	if def.DrillDown == nil {
 		return nil, fmt.Errorf("report %q has no drill-down", reportID)
 	}
+	// Stage 75.3.3: the drill-down is cut to the user's stores too - a row
+	// key is typed by the caller, so it must not open another store's detail.
+	var storeAccess StoreAccess
+	storeLimited := false
+	if len(userID) > 0 {
+		storeAccess, storeLimited = reportStoreScope(tenantID, role, userID[0])
+		if storeLimited {
+			if err := checkReportStoreParams(def, params, storeAccess); err != nil {
+				return nil, err
+			}
+		}
+	}
 	wrapped := def
 	wrapped.Run = func(tenantID string, params map[string]string) ([]map[string]interface{}, error) {
 		return def.DrillDown(tenantID, rowKey, params)
@@ -317,6 +349,16 @@ func RunReportDrillDownContext(ctx context.Context, tenantID, reportID, role, ro
 	rows, err := runReportRaced(ctx, wrapped, tenantID, params)
 	if err != nil {
 		return nil, err
+	}
+	if storeLimited {
+		if key := reportStoreKey(def); key != "" {
+			if len(rows) > 0 {
+				if _, has := rows[0][key]; !has {
+					return nil, &ValidationError{Code: "REPORT-0987", Message: "this detail is not broken down by store, and your access covers only some stores"}
+				}
+			}
+			rows = filterReportRowsByStore(rows, key, storeAccess)
+		}
 	}
 	return maskSensitiveColumns(def.Columns, rows, role), nil
 }

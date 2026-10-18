@@ -40,7 +40,7 @@ var pimMediaTransformPresets = map[string]pimMediaTransformPreset{
 	"square": {maxDim: 600, square: true},
 }
 
-// ListPIMMediaTransformPresets publishes exactly what GetMediaTransform
+// ListPIMMediaTransformPresets publishes exactly what ReadMediaTransform
 // implements, so a caller can never ask for a preset the engine will refuse.
 func ListPIMMediaTransformPresets() []string {
 	names := make([]string, 0, len(pimMediaTransformPresets))
@@ -86,46 +86,53 @@ func centerCropSquareRGBA(src image.Image) image.Image {
 	return dst
 }
 
-// GetMediaTransform resolves a ProductMedia id + preset to a generated
-// rendition's file path, generating and caching it on first request - the
+// ReadMediaTransform resolves a ProductMedia id + preset to a generated
+// rendition's bytes, generating and caching it on first request - the
 // same lazy generate-once-then-serve-from-disk shape the existing thumbnail
 // already uses, just keyed by preset as well as checksum so presets can
 // never collide with each other or with the thumbnail.
-func GetMediaTransform(tenantID, mediaID, preset string) (path, fileType string, err error) {
+//
+// Stage 95.3: returns the bytes, and an image on the client's image drive
+// keeps its resized copies there too (beside the original), not on the ERP
+// server.
+func ReadMediaTransform(tenantID, mediaID, preset string) ([]byte, string, error) {
 	spec, ok := pimMediaTransformPresets[preset]
 	if !ok {
-		return "", "", fmt.Errorf("unknown transform preset %q - see GET /api/v1/pim/media/transform-presets", preset)
+		return nil, "", fmt.Errorf("unknown transform preset %q - see GET /api/v1/pim/media/transform-presets", preset)
 	}
-	sourcePath, sourceType, err := GetMediaFile(tenantID, mediaID)
+	data, err := activeMediaRecord(tenantID, mediaID)
 	if err != nil {
-		return "", "", err
+		return nil, "", err
 	}
-	if sourceType != "image/jpeg" && sourceType != "image/png" {
-		return "", "", fmt.Errorf("transformations are only available for JPEG/PNG originals (this asset is %s)", sourceType)
+	if sourceType := strField(data, "file_type"); sourceType != "image/jpeg" && sourceType != "image/png" {
+		return nil, "", fmt.Errorf("transformations are only available for JPEG/PNG originals (this asset is %s)", sourceType)
+	}
+	checksum := strField(data, "checksum")
+	if checksum == "" {
+		return nil, "", fmt.Errorf("media %q has no checksum on record", mediaID)
 	}
 
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return "", "", err
-	}
-	var checksum string
-	if err := db.DB.QueryRow(fmt.Sprintf(
-		`SELECT COALESCE(data->>'checksum','') FROM %s.documents WHERE doctype = 'ProductMedia' AND id = $1`, schema), mediaID).Scan(&checksum); err != nil || checksum == "" {
-		return "", "", fmt.Errorf("media %q has no checksum on record", mediaID)
+	var drive *s3Client
+	cacheKey, cachePath := "", mediaTransformStorePath(checksum, preset)
+	if mediaOnDrive(data) {
+		if drive, err = imageDriveForRead(tenantID); err != nil {
+			return nil, "", err
+		}
+		cacheKey = mediaDerivedKey(strField(data, "object_key"), preset)
+		if b, err := drive.get(cacheKey); err == nil {
+			return b, "image/jpeg", nil
+		}
+	} else if b, err := os.ReadFile(cachePath); err == nil {
+		return b, "image/jpeg", nil
 	}
 
-	cachePath := mediaTransformStorePath(checksum, preset)
-	if _, statErr := os.Stat(cachePath); statErr == nil {
-		return cachePath, "image/jpeg", nil
-	}
-
-	fileBytes, err := os.ReadFile(sourcePath)
+	fileBytes, _, _, err := ReadMediaFile(tenantID, mediaID)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to read stored original: %v", err)
+		return nil, "", fmt.Errorf("failed to read stored original: %v", err)
 	}
 	src, _, decErr := image.Decode(bytes.NewReader(fileBytes))
 	if decErr != nil {
-		return "", "", fmt.Errorf("failed to decode stored original: %v", decErr)
+		return nil, "", fmt.Errorf("failed to decode stored original: %v", decErr)
 	}
 	if spec.square {
 		src = centerCropSquareRGBA(src)
@@ -133,15 +140,19 @@ func GetMediaTransform(tenantID, mediaID, preset string) (path, fileType string,
 	rendered := resizeToMaxDim(src, spec.maxDim)
 	jpegBytes, ok := encodeJPEG(rendered)
 	if !ok {
-		return "", "", fmt.Errorf("failed to encode transformed image")
+		return nil, "", fmt.Errorf("failed to encode transformed image")
+	}
+	if drive != nil {
+		_ = drive.put(cacheKey, jpegBytes, "image/jpeg") // a cache: the copy is still served if it cannot be kept
+		return jpegBytes, "image/jpeg", nil
 	}
 	if err := os.MkdirAll(mediaStoreDir, 0755); err != nil {
-		return "", "", fmt.Errorf("failed to prepare media storage: %v", err)
+		return nil, "", fmt.Errorf("failed to prepare media storage: %v", err)
 	}
 	if err := os.WriteFile(cachePath, jpegBytes, 0644); err != nil {
-		return "", "", fmt.Errorf("failed to cache transformed image: %v", err)
+		return nil, "", fmt.Errorf("failed to cache transformed image: %v", err)
 	}
-	return cachePath, "image/jpeg", nil
+	return jpegBytes, "image/jpeg", nil
 }
 
 // --- 36.6.2 / 36.6.4: bulk zip up/download, filename auto-association ----
@@ -280,12 +291,8 @@ func BulkDownloadMediaZip(tenantID string, itemCodes []string) ([]byte, error) {
 			return nil, err
 		}
 		for _, asset := range assets {
-			path, fileType, fErr := GetMediaFile(tenantID, asset.ID)
+			fileBytes, fileType, _, fErr := ReadMediaFile(tenantID, asset.ID)
 			if fErr != nil {
-				continue
-			}
-			fileBytes, rErr := os.ReadFile(path)
-			if rErr != nil {
 				continue
 			}
 			ext := extensionForMediaFileType(fileType)

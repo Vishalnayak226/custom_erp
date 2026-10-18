@@ -220,8 +220,12 @@ func legacyPolicy(r ItemTypeRules) map[string]string {
 
 // ItemPolicyFor resolves an Item's behaviour from its own record and its type.
 func ItemPolicyFor(tenantID string, itemData map[string]interface{}) ItemPolicy {
-	typeName := ItemTypeName(itemData)
-	rules := ItemTypeRulesFor(tenantID, typeName)
+	return itemPolicyWithRules(itemData, ItemTypeRulesFor(tenantID, ItemTypeName(itemData)))
+}
+
+// itemPolicyWithRules resolves an item against given type rules - the type as
+// it is, or (Stage 89.8) as a correction would make it.
+func itemPolicyWithRules(itemData map[string]interface{}, rules ItemTypeRules) ItemPolicy {
 	legacy := legacyPolicy(rules)
 	defaults := defaultItemPolicy()
 	p := ItemPolicy{Profile: rules.Name, Source: map[string]string{}}
@@ -405,8 +409,10 @@ func guardPostedItemPolicyChange(tenantID, docID string, payload map[string]inte
 	if !skusHaveStockHistory(tenantID, sku) {
 		return nil
 	}
+	// Stage 89.8: no longer a dead end - an admin corrects it, seeing the
+	// effect on stock and the books first (engines/item_treatment_correction.go).
 	return &ValidationError{Code: "MASTER-0407", SubFor: "item_type", Message: fmt.Sprintf(
-		"%s already has stock history, so its stock tracking, valuation and accounting treatment cannot change (%s) - create a new item for the new treatment and stop using this one",
+		"%s already has stock, so its stock tracking, valuation and accounting can only be corrected by an admin (%s) - an admin uses Correct treatment on the item",
 		itemLabel(old, sku), describeTreatmentChange(before, after))}
 }
 
@@ -445,7 +451,7 @@ func guardPostedProfileChange(tenantID, docID string, payload map[string]interfa
 		return nil
 	}
 	return &ValidationError{Code: "MASTER-0407", SubFor: "stock_tracking", Message: fmt.Sprintf(
-		"items of type %s already have stock history, so the type's stock tracking, valuation and accounting treatment cannot change (%s) - create a new item type for the new treatment",
+		"items of type %s already have stock, so the type's stock tracking, valuation and accounting can only be corrected by an admin (%s) - an admin uses Correct treatment on the item type",
 		docID, describeTreatmentChange(before, after))}
 }
 

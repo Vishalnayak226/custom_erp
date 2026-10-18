@@ -318,9 +318,27 @@ func rateLimitCategory(path, method string) (category string, limit int) {
 		// server-side (Stage 1.4/hardening_roadmap Phase 2.4), so a
 		// generous budget is safe here.
 		return "search", 100
+	case method == "GET" && isImageReadPath(path):
+		// Stage 95: a PO's Images page loads one thumbnail per image - 40 on
+		// a 20-line PO - and the browser keeps each one (an image id never
+		// changes what it names), so image reads get their own bucket rather
+		// than spending the 60/min every other call shares.
+		return "image", 600
+	case method == "POST" && (path == "/api/v1/images" ||
+		(strings.HasPrefix(path, "/api/v1/procurement/purchase-order/") && strings.HasSuffix(path, "/images"))):
+		// Stage 95: dropping a folder of photos on a PO is one upload per file.
+		return "image-upload", 120
 	default:
 		return "default", 60
 	}
+}
+
+func isImageReadPath(path string) bool {
+	if strings.HasPrefix(path, "/api/v1/images/") {
+		return true
+	}
+	return strings.HasPrefix(path, "/api/v1/pim/media/") &&
+		(strings.HasSuffix(path, "/thumbnail") || strings.HasSuffix(path, "/file") || strings.Contains(path, "/transform/"))
 }
 
 // safeFilterKeyRe allowlists dynamic query-filter keys before they're spliced into SQL

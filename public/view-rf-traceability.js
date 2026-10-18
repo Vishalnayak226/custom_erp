@@ -89,10 +89,13 @@ async function renderRFTraceabilityView(container) {
   const wrap = document.createElement('div');
   wrap.className = 'rf-wrap';
   wrap.innerHTML = `
-    <div class="rf-header">
+    <div class="rf-header" style="padding-right:150px">
       <div class="rf-title" id="rf-title">Choose a task</div>
       <div class="rf-instruction" id="rf-instruction">Pick what you are doing. Everything after that is one scan at a time.</div>
-      <button class="rf-help-btn" type="button" aria-label="Help for RF Traceability" title="Help for this screen" ${actionAttrs('openHelpDrawer', ['rf-traceability'])}>Help</button>
+      <div style="position:absolute;top:0;right:0;display:flex;gap:8px">
+        <button class="rf-help-btn" style="position:static" type="button" aria-label="Help for RF Traceability" title="Help for this screen" ${actionAttrs('openHelpDrawer', ['rf-traceability'])}>Help</button>
+        <button class="rf-help-btn" style="position:static" type="button" title="Back to the rest of the app" ${actionAttrs('exitRFTraceability', [])}>Exit</button>
+      </div>
     </div>
     <div id="rf-body"></div>
     <div class="rf-status" id="rf-status" role="status" aria-live="assertive"></div>
@@ -383,4 +386,11 @@ async function requestRFSupervisor() {
   }
 }
 
-export { renderRFTraceabilityView, renderRFTaskMenu, openRFTask, focusFirstEmptyRFField, rfOutcomeForResponse, setRFStatus, rfTone, submitRFTask, rfSuccessMessage, requestRFSupervisor };
+// Stage 88.1 (user, 2026-10-18: "Can't close this"): the scanner layout hides the menu (47.6.2), so Exit
+// is the way back to the rest of the app from any step.
+function exitRFTraceability() {
+  restoreActiveMenuState('home');
+  renderView('home');
+}
+
+export { renderRFTraceabilityView, exitRFTraceability, renderRFTaskMenu, openRFTask, focusFirstEmptyRFField, rfOutcomeForResponse, setRFStatus, rfTone, submitRFTask, rfSuccessMessage, requestRFSupervisor };

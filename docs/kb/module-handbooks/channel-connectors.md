@@ -217,7 +217,7 @@ rather than `marketplace`. `RateLimit()` is 100/minute.
 
 ## Operating channels day to day: the OMS Workbench
 
-**Order Management** (`renderOMSWorkbenchView`) is where a connector's
+**OMS → Orders** (`renderOMSWorkbenchView`) is where a connector's
 ongoing health is watched and acted on, once credentials exist:
 
 - **Channel connectors** panel — one row per configured channel, reading
@@ -318,7 +318,7 @@ itself is the primary outcome. Check the server log for the platform's own
 media-rejection message (wrong MIME type, file too large) rather than
 assuming the whole publish failed.
 
-**An Amazon/Flipkart/marketplace order never showed up in Order Management.**
+**An Amazon/Flipkart/marketplace order never showed up in OMS → Orders.**
 Confirm the channel's connector declares `PullOrders` (its connector health
 row only shows a **Pull orders** button when it does) and that button has actually
 been run — pulling is on-demand from that button, not automatic on a timer,

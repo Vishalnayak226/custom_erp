@@ -12,24 +12,18 @@ import (
 // engines.validatePurchaseReturnRules); these two routes add what that API
 // cannot express - what a GRN can still return, and Post.
 
-// purchaseReturnInScope applies the same object-level scope rule the generic
-// doc API applies to a single record, so a location-scoped user can neither
-// read another location's GRN through the context call nor post another
-// location's return.
+// purchaseReturnInScope applies the one object-level read rule the generic
+// doc API applies to a single record (documentReadRule), so a location-scoped
+// user can neither read another location's GRN through the context call nor
+// post another location's return. Stage 73.D.20: it used to stop at the scope
+// registry - a doctype the registry does not know was visible to everyone,
+// and supplier scoping was skipped.
 func purchaseReturnInScope(r *http.Request, tenantID, doctype string, data map[string]interface{}) (bool, error) {
-	session := engines.SessionScope{
-		Role: r.Header.Get("Resolved-Role"), UserID: r.Header.Get("Resolved-User-ID"),
-		LocationCode: r.Header.Get("Resolved-Location"),
-	}
-	session, err := engines.ResolveSessionScope(tenantID, doctype, session)
+	rule, err := sessionReadRule(r, tenantID, doctype)
 	if err != nil {
 		return false, err
 	}
-	constraints, known := engines.ScopeConstraints(doctype, session)
-	if !known {
-		return true, nil
-	}
-	return engines.DocumentMatchesScope(constraints, data) == "", nil
+	return rule.visible(data), nil
 }
 
 // handlePurchaseReturnContext: GET /api/v1/procurement/purchase-returns/context

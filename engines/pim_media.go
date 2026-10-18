@@ -12,6 +12,7 @@ import (
 	_ "image/png" // registers the PNG decoder with image.Decode
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -21,7 +22,7 @@ import (
 // before this. Files are stored on local disk under mediaStoreDir (NOT
 // under public/, which is served unauthenticated via http.FileServer - see
 // internal/server/routes.go) and served back only through an authenticated
-// handler (GetMediaFile + handlePIMMediaFile in
+// handler (ReadMediaFile + handlePIMMediaFile in
 // internal/server/handlers_procurement_pim2.go) - the pragmatic in-house
 // equivalent of "private storage + signed URL" for a single-binary app
 // with no CDN/object-storage/signing infra. Content-addressed by SHA-256
@@ -273,6 +274,19 @@ func generateMediaID(itemCode, mediaRole, checksum string) string {
 // this item+role. altText/expiryDate are optional (Stage 26.4.4); pass ""
 // for either to leave them unset.
 func SaveMediaFile(tenantID string, fileBytes []byte, filename, itemCode, mediaRole, uploadedBy, altText, expiryDate string) (*ProductMediaAsset, error) {
+	return saveOwnedMediaFile(tenantID, "Item", fileBytes, filename, itemCode, mediaRole, uploadedBy, altText, expiryDate)
+}
+
+// saveOwnedMediaFile is SaveMediaFile for an Item or (Stage 95.4) a Design -
+// a ProductFamily. A design's images use the same record and rules, with the
+// design's number in "item" (document ids are unique across doctypes, so it
+// cannot clash with an item code) and owner_doctype saying which it is.
+//
+// Stage 95.3: with the client's image drive switched on the bytes, and the
+// thumbnail beside them, go to the drive (the client's design or combination folder, 95.9) and the
+// record keeps storage = "drive" and the object key; otherwise they go to
+// mediaStoreDir exactly as before.
+func saveOwnedMediaFile(tenantID, ownerDoctype string, fileBytes []byte, filename, itemCode, mediaRole, uploadedBy, altText, expiryDate string) (*ProductMediaAsset, error) {
 	if itemCode == "" {
 		return nil, fmt.Errorf("item is required")
 	}
@@ -292,26 +306,41 @@ func SaveMediaFile(tenantID string, fileBytes []byte, filename, itemCode, mediaR
 		return &ProductMediaAsset{ID: existingID, Item: itemCode, MediaRole: mediaRole, Checksum: checksum, FileType: fileType, Status: "Active"}, nil
 	}
 
-	if err := os.MkdirAll(mediaStoreDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to prepare media storage: %v", err)
+	drive, err := activeImageDrive(tenantID)
+	if err != nil {
+		return nil, err
 	}
 	ext := strings.ToLower(filepath.Ext(filename))
-	storedPath := filepath.Join(mediaStoreDir, checksum+ext)
-	if _, statErr := os.Stat(storedPath); os.IsNotExist(statErr) {
-		if err := os.WriteFile(storedPath, fileBytes, 0644); err != nil {
-			return nil, fmt.Errorf("failed to store file: %v", err)
-		}
-	}
-
+	thumbBytes, thumbOK := generateThumbnail(fileBytes, fileType, GetSettingInt(tenantID, "pim.thumbnail_max_dim"))
 	hasThumbnail := false
-	if thumbBytes, ok := generateThumbnail(fileBytes, fileType, GetSettingInt(tenantID, "pim.thumbnail_max_dim")); ok {
-		thumbPath := thumbnailStorePath(checksum)
-		if _, statErr := os.Stat(thumbPath); os.IsNotExist(statErr) {
-			if err := os.WriteFile(thumbPath, thumbBytes, 0644); err == nil {
+	storedPath, objectKey := "", ""
+	if drive != nil {
+		objectKey = drive.ownerKey(ownerDoctype, itemCode, checksum[:16]+ext)
+		if err := drive.put(objectKey, fileBytes, fileType); err != nil {
+			return nil, err
+		}
+		if thumbOK && drive.put(mediaDerivedKey(objectKey, "thumb"), thumbBytes, "image/jpeg") == nil {
+			hasThumbnail = true
+		}
+	} else {
+		if err := os.MkdirAll(mediaStoreDir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to prepare media storage: %v", err)
+		}
+		storedPath = filepath.Join(mediaStoreDir, checksum+ext)
+		if _, statErr := os.Stat(storedPath); os.IsNotExist(statErr) {
+			if err := os.WriteFile(storedPath, fileBytes, 0644); err != nil {
+				return nil, fmt.Errorf("failed to store file: %v", err)
+			}
+		}
+		if thumbOK {
+			thumbPath := thumbnailStorePath(checksum)
+			if _, statErr := os.Stat(thumbPath); os.IsNotExist(statErr) {
+				if err := os.WriteFile(thumbPath, thumbBytes, 0644); err == nil {
+					hasThumbnail = true
+				}
+			} else {
 				hasThumbnail = true
 			}
-		} else {
-			hasThumbnail = true
 		}
 	}
 
@@ -349,6 +378,12 @@ func SaveMediaFile(tenantID string, fileBytes []byte, filename, itemCode, mediaR
 		"alt_text":      altText,
 		"expiry_date":   expiryDate,
 		"has_thumbnail": hasThumbFlag,
+		"owner_doctype": ownerDoctype,
+	}
+	if drive != nil {
+		data["storage"] = "drive"
+		data["object_key"] = objectKey
+		data["drive_bucket"] = drive.bucket()
 	}
 	marshaled, err := json.Marshal(data)
 	if err != nil {
@@ -404,61 +439,105 @@ func UpdateMediaMetadata(tenantID, mediaID, altText, expiryDate string, tags *st
 	return err
 }
 
-// GetMediaThumbnail resolves a ProductMedia id to its generated thumbnail's
-// file path, if one exists (Stage 26.4.4) - same Active-only rule as
-// GetMediaFile.
-func GetMediaThumbnail(tenantID, mediaID string) (path string, err error) {
-	schema, err := db.GetTenantSchema(tenantID)
-	if err != nil {
-		return "", err
+// safeMediaPathPart is a number as a drive folder name: "/" and anything but
+// letters, digits, . _ - become "-" (Design/HO/26-27/000006 ->
+// Design-HO-26-27-000006), so the client finds it in their storage console.
+func safeMediaPathPart(s string) string {
+	var b strings.Builder
+	for _, r := range strings.TrimSpace(s) {
+		switch {
+		case r >= 'A' && r <= 'Z', r >= 'a' && r <= 'z', r >= '0' && r <= '9', r == '.', r == '_', r == '-':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('-')
+		}
 	}
-	var dataStr, status string
-	err = db.DB.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'ProductMedia' AND id = $1`, schema), mediaID).Scan(&dataStr, &status)
-	if err != nil {
-		return "", fmt.Errorf("media not found: %v", err)
+	if out := strings.Trim(b.String(), "-."); out != "" {
+		return out
 	}
-	if status != "Active" {
-		return "", fmt.Errorf("media is not active")
-	}
-	var data map[string]interface{}
-	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
-		return "", err
-	}
-	hasThumb, _ := data["has_thumbnail"].(string)
-	checksum, _ := data["checksum"].(string)
-	if hasThumb != "Yes" || checksum == "" {
-		return "", fmt.Errorf("no thumbnail available for this media")
-	}
-	return thumbnailStorePath(checksum), nil
+	return "untitled"
 }
 
-// GetMediaFile resolves a ProductMedia id to its stored file path and MIME
-// type, for the authenticated download handler. Only returns Active media -
-// a deactivated asset is no longer servable by id even if the caller knows
-// it.
-func GetMediaFile(tenantID, mediaID string) (path, fileType string, err error) {
+// mediaDerivedKey is a drive image's thumbnail or resized copy, beside it.
+func mediaDerivedKey(objectKey, suffix string) string {
+	return strings.TrimSuffix(objectKey, path.Ext(objectKey)) + "_" + suffix + ".jpg"
+}
+
+// activeMediaRecord loads an Active ProductMedia - a deactivated asset is no
+// longer servable by id even if the caller knows it.
+func activeMediaRecord(tenantID, mediaID string) (map[string]interface{}, error) {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	var dataStr, status string
 	err = db.DB.QueryRow(fmt.Sprintf(`SELECT data, status FROM %s.documents WHERE doctype = 'ProductMedia' AND id = $1`, schema), mediaID).Scan(&dataStr, &status)
 	if err != nil {
-		return "", "", fmt.Errorf("media not found: %v", err)
+		return nil, fmt.Errorf("media not found: %v", err)
 	}
 	if status != "Active" {
-		return "", "", fmt.Errorf("media is not active")
+		return nil, fmt.Errorf("media is not active")
 	}
 	var data map[string]interface{}
 	if err := json.Unmarshal([]byte(dataStr), &data); err != nil {
-		return "", "", err
+		return nil, err
 	}
-	path, _ = data["file_path"].(string)
-	fileType, _ = data["file_type"].(string)
-	if path == "" {
-		return "", "", fmt.Errorf("media record has no stored file")
+	return data, nil
+}
+
+func mediaOnDrive(data map[string]interface{}) bool { return strField(data, "storage") == "drive" }
+
+// ReadMediaThumbnail returns a ProductMedia's generated thumbnail (JPEG),
+// from wherever the image is stored (Stage 26.4.4; 95.3 the image drive).
+func ReadMediaThumbnail(tenantID, mediaID string) ([]byte, error) {
+	data, err := activeMediaRecord(tenantID, mediaID)
+	if err != nil {
+		return nil, err
 	}
-	return path, fileType, nil
+	checksum := strField(data, "checksum")
+	if strField(data, "has_thumbnail") != "Yes" || checksum == "" {
+		return nil, fmt.Errorf("no thumbnail available for this media")
+	}
+	if mediaOnDrive(data) {
+		drive, err := imageDriveForRead(tenantID)
+		if err != nil {
+			return nil, err
+		}
+		return drive.get(mediaDerivedKey(strField(data, "object_key"), "thumb"))
+	}
+	return os.ReadFile(thumbnailStorePath(checksum))
+}
+
+// ReadMediaFile returns a ProductMedia's stored bytes, MIME type and file
+// name, from the ERP server's disk or the client's image drive - the one
+// read every image download, zip, print and channel publish goes through.
+func ReadMediaFile(tenantID, mediaID string) (fileBytes []byte, fileType, name string, err error) {
+	data, err := activeMediaRecord(tenantID, mediaID)
+	if err != nil {
+		return nil, "", "", err
+	}
+	fileType = strField(data, "file_type")
+	if mediaOnDrive(data) {
+		key := strField(data, "object_key")
+		drive, err := imageDriveForRead(tenantID)
+		if err != nil {
+			return nil, "", "", err
+		}
+		b, err := drive.get(key)
+		if err != nil {
+			return nil, "", "", err
+		}
+		return b, fileType, path.Base(key), nil
+	}
+	stored := strField(data, "file_path")
+	if stored == "" {
+		return nil, "", "", fmt.Errorf("media record has no stored file")
+	}
+	b, err := os.ReadFile(stored)
+	if err != nil {
+		return nil, "", "", fmt.Errorf("stored file missing")
+	}
+	return b, fileType, filepath.Base(stored), nil
 }
 
 // ListMediaForItem returns all Active ProductMedia for an item, sorted by

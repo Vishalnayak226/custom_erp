@@ -55,6 +55,9 @@ type POLinePreview struct {
 	TaxAmount float64 `json:"tax_amount"`
 	LineTotal float64 `json:"line_total"`
 	Error     string  `json:"error,omitempty"`
+	// Attributes are the line's Colour / Size... values, keyed by the
+	// AttributeColumns codes (Stage 87).
+	Attributes map[string]string `json:"attributes,omitempty"`
 }
 
 // POPreview is everything the PO screen needs to render totals live, and
@@ -70,6 +73,8 @@ type POPreview struct {
 	// the screen can disable Save with a reason rather than letting the maker
 	// discover it on submit.
 	Blocking bool `json:"blocking"`
+	// AttributeColumns are the attributes the lines carry, one column each.
+	AttributeColumns []AttributeColumn `json:"attribute_columns,omitempty"`
 }
 
 // ParsePOLines reads the `items` field's stored JSON. An absent or empty
@@ -122,6 +127,7 @@ func PreviewPurchaseOrder(tenantID string, payload map[string]interface{}) (POPr
 	}
 	out.Breakdown.Interstate = interstate
 	inclusive := out.GSTMode != GSTModeExclusive
+	designs := map[string]map[string]string{}
 
 	for _, l := range lines {
 		p := POLinePreview{POLineInput: l}
@@ -141,6 +147,7 @@ func PreviewPurchaseOrder(tenantID string, payload map[string]interface{}) (POPr
 		if item, errItem := ResolveItemBySKU(tenantID, l.SKU); errItem == nil {
 			p.ItemName, _ = item.Data["name"].(string)
 			p.UOM, _ = item.Data["uom"].(string)
+			p.Attributes = ItemAttributeValues(tenantID, item.Data, designs)
 		}
 
 		info, errTax := GetItemTaxInfo(tenantID, l.SKU)
@@ -204,6 +211,15 @@ func PreviewPurchaseOrder(tenantID string, payload map[string]interface{}) (POPr
 		out.Breakdown.GSTRate = round2(out.Breakdown.TotalTax / out.Breakdown.TaxableAmount * 100)
 	}
 	out.GrandTotal = out.Breakdown.TotalAmount
+
+	attrs := make([]map[string]string, len(out.Lines))
+	for i := range out.Lines {
+		attrs[i] = out.Lines[i].Attributes
+	}
+	out.AttributeColumns = OrderAttributeColumns(tenantID, attrs)
+	for i := range out.Lines {
+		out.Lines[i].Attributes = attrs[i]
+	}
 	return out, nil
 }
 

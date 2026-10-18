@@ -90,8 +90,11 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 	// stores (Stage 85.A2) are read through to_jsonb so the list still loads
 	// on a schema the migration has not reached.
 	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, username, COALESCE(email, ''), role, status, location_code, COALESCE(supplier_code, ''),
-		COALESCE(to_jsonb(u)->>'store_access', 'Inherit'), COALESCE((to_jsonb(u)->'stores')::text, '[]')
-		FROM %s.users u ORDER BY username`, schema))
+		COALESCE(to_jsonb(u)->>'store_access', 'Inherit'), COALESCE((to_jsonb(u)->'stores')::text, '[]'),
+		COALESCE(to_jsonb(u)->>'department', ''),
+		COALESCE((SELECT e.id FROM %s.documents e WHERE e.doctype = 'Employee' AND e.deleted_at IS NULL AND e.data->>'user_id' = u.id
+		          ORDER BY (e.status = 'Active') DESC LIMIT 1), '')
+		FROM %s.users u ORDER BY username`, schema, schema))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
@@ -100,8 +103,8 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 	users := []map[string]interface{}{}
 	for rows.Next() {
-		var id, username, email, userRole, status, locationCode, supplierCode, storeAccess, storesJSON string
-		if err := rows.Scan(&id, &username, &email, &userRole, &status, &locationCode, &supplierCode, &storeAccess, &storesJSON); err != nil {
+		var id, username, email, userRole, status, locationCode, supplierCode, storeAccess, storesJSON, department, employeeID string
+		if err := rows.Scan(&id, &username, &email, &userRole, &status, &locationCode, &supplierCode, &storeAccess, &storesJSON, &department, &employeeID); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
@@ -110,6 +113,9 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 		users = append(users, map[string]interface{}{
 			"id": id, "username": username, "email": email, "role": userRole, "status": status, "location_code": locationCode,
 			"supplier_code": supplierCode, "store_access": storeAccess, "stores": stores,
+			// Stage 93.9: the person's department, and the employee it comes
+			// from when HR links one.
+			"department": department, "employee_id": employeeID,
 		})
 	}
 	_ = json.NewEncoder(w).Encode(users)
@@ -256,6 +262,7 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		Email        string `json:"email"`
 		Role         string `json:"role"`
 		LocationCode string `json:"location_code"`
+		Department   string `json:"department"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Invalid request payload")
@@ -302,6 +309,23 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Stage 93.9: every person belongs to a department from day one (a
+	// vendor's supplier-portal login excepted). Checked before the size limit
+	// so a refusal names what is actually missing.
+	var department interface{}
+	if engines.DepartmentNeededForRole(req.Role) {
+		if strings.TrimSpace(req.Department) == "" {
+			writeAPIErrorDetail(w, r, "MASTER-0931", "", "Pick the user's department.")
+			return
+		}
+		dept, err := engines.ResolveDepartmentReference(tenantID, req.Department)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+		department = dept
+	}
+
 	// 49.2.2: the shared baseline applies to an admin-chosen initial
 	// password exactly as it does to a self-service change/reset.
 	if err := engines.ValidatePasswordStrength(tenantID, req.Password, req.Username); err != nil {
@@ -339,8 +363,8 @@ func handleCreateUser(w http.ResponseWriter, r *http.Request) {
 	// the Profile screen afterwards. Falls back to the column DEFAULT behavior
 	// (30) via the setting's own registered default.
 	_, err = db.DB.Exec(fmt.Sprintf(
-		`INSERT INTO %s.users (id, username, password_hash, email, role, status, location_code, idle_timeout_minutes, must_change_password) VALUES ($1, $1, $2, $3, $4, 'Active', $5, $6, TRUE)`, schema),
-		req.Username, string(hash), req.Email, req.Role, req.LocationCode, engines.GetSettingInt(tenantID, "security.default_idle_timeout_minutes"))
+		`INSERT INTO %s.users (id, username, password_hash, email, role, status, location_code, idle_timeout_minutes, must_change_password, department) VALUES ($1, $1, $2, $3, $4, 'Active', $5, $6, TRUE, $7)`, schema),
+		req.Username, string(hash), req.Email, req.Role, req.LocationCode, engines.GetSettingInt(tenantID, "security.default_idle_timeout_minutes"), department)
 	if err != nil {
 		msg := "Failed to create user."
 		if strings.Contains(err.Error(), "duplicate key") || strings.Contains(err.Error(), "unique constraint") {
@@ -400,7 +424,9 @@ func handleSetUserStatus(w http.ResponseWriter, r *http.Request) {
 
 // handleSetUserLocation (24.1) is the update path for an existing user's
 // location_code - e.g. a Store Manager transferred to a different store.
-// Mirrors handleSetUserStatus's shape exactly.
+// Mirrors handleSetUserStatus's shape exactly. Stage 93.9: where the person
+// sits is their store and their department, so it takes the department too
+// (either or both); a user linked to an employee takes the employee's.
 func handleSetUserLocation(w http.ResponseWriter, r *http.Request) {
 	role := r.Header.Get("Resolved-Role")
 	if !requireHRAdmin(w, r, role) {
@@ -411,11 +437,12 @@ func handleSetUserLocation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req struct {
-		ID           string `json:"id"`
-		LocationCode string `json:"location_code"`
+		ID           string  `json:"id"`
+		LocationCode string  `json:"location_code"`
+		Department   *string `json:"department"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" || req.LocationCode == "" {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'id' and 'location_code' are required")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ID == "" || (req.LocationCode == "" && req.Department == nil) {
+		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Fields 'id' and 'location_code' (or 'department') are required")
 		return
 	}
 
@@ -425,6 +452,19 @@ func handleSetUserLocation(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
+	}
+
+	if req.Department != nil {
+		dept, err := engines.SetUserDepartment(tenantID, req.ID, *req.Department)
+		if err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+		engines.LogAuditEvent(tenantID, actorUsername, "USER_MANAGEMENT", "USER_DEPARTMENT_CHANGED", fmt.Sprintf("Set user %s department to %s", req.ID, dept))
+		if req.LocationCode == "" {
+			_ = json.NewEncoder(w).Encode(map[string]string{"status": "success", "department": dept})
+			return
+		}
 	}
 
 	if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.users SET location_code = $1 WHERE id = $2`, schema), req.LocationCode, req.ID); err != nil {

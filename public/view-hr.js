@@ -1044,9 +1044,15 @@ function hrSessionUser() {
 }
 
 async function hrEmployees() {
-  const list = canReadDoctype('Employee') ? await hrGetJSON('/api/v1/doc/Employee?limit=1000', []) : [];
+  // Stage 93.9: an employee's department is a Department record now - shown by its name.
+  const [list, depts] = await Promise.all([
+    canReadDoctype('Employee') ? hrGetJSON('/api/v1/doc/Employee?limit=1000', []) : [],
+    canReadDoctype('Department') ? hrGetJSON('/api/v1/doc/Department', []) : [],
+  ]);
   const byCode = new Map(list.map(e => [e.code || e.id, e]));
-  return { list, byCode, name: code => { const e = byCode.get(code); return e ? `${e.name || code} (${code})` : (code || ''); } };
+  const deptNames = new Map((depts || []).map(d => [d.id, d.name || d.id]));
+  return { list, byCode, name: code => { const e = byCode.get(code); return e ? `${e.name || code} (${code})` : (code || ''); },
+    dept: e => (e && e.department ? deptNames.get(e.department) || e.department : '') };
 }
 
 // A JSON list held in a Data field (the doctypes' convention). null = text
@@ -1413,7 +1419,7 @@ async function renderAppraisalsTab(container) {
         const [label, kind] = HR_APR_STATE[stateOf(r)] || [stateOf(r), 'secondary'];
         const action = r.a ? `<button class="action-btn" data-hr-apr-open="${hrEsc(r.a.id)}">Open</button>`
           : (canCreate ? `<button class="action-btn" data-hr-apr-start="${hrEsc(r.code)}">Start</button>` : '');
-        return `<tr><td>${hrEsc(emps.name(r.code))}</td><td>${hrEsc(r.emp && r.emp.department)}</td><td>${hrBadge(label, kind)}</td>
+        return `<tr><td>${hrEsc(emps.name(r.code))}</td><td>${hrEsc(emps.dept(r.emp))}</td><td>${hrBadge(label, kind)}</td>
           <td>${hrEsc(r.a ? (r.a.overall_rating ?? '') : '')}</td><td style="font-family:monospace;">${hrEsc(r.a ? (r.a.code || '') : '')}</td><td>${action}</td></tr>`;
       }).join('')}</tbody></table>`;
 
@@ -1624,7 +1630,7 @@ async function renderTrainingTab(container) {
           : row.r.status === 'Enrolled' ? (canUpdate ? `<button class="action-btn" data-hr-trn-result="${hrEsc(row.r.id)}">Record result</button>` : '')
           : row.r.status === 'Failed' && canCreate ? `<button class="action-btn" data-hr-trn-enrol="${hrEsc(row.code)}">Enrol again</button>` : '';
         return `<tr>${canCreate ? `<td>${enrollable(row) ? `<input type="checkbox" data-hr-trn-pick="${hrEsc(row.code)}" aria-label="Select ${hrEsc(row.code)}">` : ''}</td>` : ''}
-          <td>${hrEsc(emps.name(row.code))}</td><td>${hrEsc(row.emp && row.emp.department)}</td><td>${hrBadge(label, kind)}</td>
+          <td>${hrEsc(emps.name(row.code))}</td><td>${hrEsc(emps.dept(row.emp))}</td><td>${hrBadge(label, kind)}</td>
           <td>${hrEsc(row.r && row.r.status !== 'Enrolled' ? row.r.completion_date : '')}</td><td>${hrEsc(row.r ? (row.r.score ?? '') : '')}</td><td>${action}</td></tr>`;
       }).join('')}</tbody></table>`;
 

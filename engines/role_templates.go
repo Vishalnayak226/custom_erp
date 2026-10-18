@@ -252,6 +252,9 @@ var roleTemplates = []RoleTemplate{
 			"Appraisal": AccessRead, "OnboardingChecklist": AccessRead,
 			"Leave": AccessOperate, "ExpenseClaim": AccessOperate,
 			"Grievance": AccessOperate, "Employee": AccessRead,
+			// 73.D.24: the cycle an appraisal belongs to and the programme a
+			// training record is for - company-wide definitions, unscoped.
+			"AppraisalCycle": AccessRead, "TrainingProgram": AccessRead,
 		},
 		// No global scope at all: every row this role sees is its own,
 		// enforced by scope_policy.go's self dimension.
@@ -316,6 +319,22 @@ func RoleTemplates() []RoleTemplate {
 	out := make([]RoleTemplate, len(roleTemplates))
 	copy(out, roleTemplates)
 	return out
+}
+
+// roleTemplateGrantsGlobalScope reports whether the template this role is
+// named after declares dimension among its GlobalScopes (Stage 73.D.17 -
+// SessionScope.HasGlobalScope applies it).
+func roleTemplateGrantsGlobalScope(role string, dimension ScopeDimension) bool {
+	template, ok := RoleTemplateFor(role)
+	if !ok {
+		return false
+	}
+	for _, d := range template.GlobalScopes {
+		if d == dimension {
+			return true
+		}
+	}
+	return false
 }
 
 // RoleTemplateFor resolves a role string - canonical name or legacy name,

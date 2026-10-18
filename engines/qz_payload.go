@@ -670,6 +670,9 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 			b.WriteString(escDoubleOff + escBoldOff)
 		}
 		b.WriteString(store.Line() + "\n")
+		if store.Address != "" {
+			b.WriteString(store.Address + "\n")
+		}
 		if store.GSTIN != "" {
 			b.WriteString("GSTIN " + store.GSTIN + "\n")
 		}
@@ -764,6 +767,9 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 		storeHeader.WriteString(`<div class="t">Sales Receipt</div>`)
 	}
 	storeHeader.WriteString(`<div>` + html.EscapeString(store.Line()) + `</div>`)
+	if store.Address != "" {
+		storeHeader.WriteString(`<div>` + html.EscapeString(store.Address) + `</div>`)
+	}
 	if store.GSTIN != "" {
 		storeHeader.WriteString(`<div>GSTIN ` + html.EscapeString(store.GSTIN) + `</div>`)
 	}
@@ -815,6 +821,19 @@ func BuildInvoicePayload(tenantID, invoiceID string, printer QZPrinter) (*QZPrin
 	if err != nil {
 		return nil, err
 	}
+	// Stage 75.2.8: an e-invoiced sale prints its IRN and the IRP's signed QR,
+	// which the browser sheet draws - silent printing gives way to it. One on
+	// its way to the IRP prints "IRN PENDING".
+	irnPending := false
+	if badges, _ := EInvoiceBadges(tenantID, "SalesInvoice", invoiceID); badges != nil {
+		switch badges[invoiceID].State {
+		case IRPStateAcknowledged:
+			return nil, &ValidationError{Code: "EINV-0986", Message: "invoice " + invoiceID + " carries its IRN and the IRP's signed QR - it prints from the browser"}
+		case "", IRPStateNotRequired, IRPStateCancelled:
+		default:
+			irnPending = true
+		}
+	}
 
 	number, _ := data["invoice_number"].(string)
 	if number == "" {
@@ -847,6 +866,9 @@ func BuildInvoicePayload(tenantID, invoiceID string, printer QZPrinter) (*QZPrin
 		b.WriteString(escDoubleOff + escBoldOff)
 		if status != "Approved" && status != "Paid" {
 			b.WriteString(strings.ToUpper(status) + "\n")
+		}
+		if irnPending {
+			b.WriteString("IRN PENDING\n")
 		}
 		b.WriteString(escAlignLeft)
 		b.WriteString(strings.Repeat("-", cols) + "\n")
@@ -883,6 +905,9 @@ func BuildInvoicePayload(tenantID, invoiceID string, printer QZPrinter) (*QZPrin
 	watermark := ""
 	if status != "Approved" && status != "Paid" {
 		watermark = `<div class="draft">` + html.EscapeString(strings.ToUpper(status)) + `</div>`
+	}
+	if irnPending {
+		watermark += `<div class="draft">IRN PENDING</div>`
 	}
 	row := func(label, value string) string {
 		if value == "" {

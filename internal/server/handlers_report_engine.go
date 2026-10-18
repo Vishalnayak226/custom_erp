@@ -90,7 +90,7 @@ func handleReportDrillDown(w http.ResponseWriter, r *http.Request) {
 	reportID := r.PathValue("id")
 	rowKey := r.URL.Query().Get("row")
 	params := flattenQueryParams(r)
-	rows, err := engines.RunReportDrillDownContext(r.Context(), tenantID, reportID, role, rowKey, params)
+	rows, err := engines.RunReportDrillDownContext(r.Context(), tenantID, reportID, role, rowKey, params, r.Header.Get("Resolved-User-ID"))
 	if err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return

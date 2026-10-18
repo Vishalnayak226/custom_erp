@@ -3,6 +3,7 @@ package engines
 import (
 	"custom_erp/db"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -18,6 +19,9 @@ var LocationReferenceFields = map[string][]string{
 	"Asset":           {"location"},
 	"ExpenseClaim":    {"location"},
 	"ProductionOrder": {"location"},
+	// Stage 93.9: an employee's home store is picked, so their store (and so
+	// cost center) and department are both real records from day one.
+	"Employee": {"location"},
 }
 
 // ValidateLocationReference is Stage 17.9's validation half: a transaction
@@ -66,6 +70,11 @@ func ResolveLocationReference(tenantID, ref string) (string, error) {
 		 LIMIT 1`, schema),
 		ref).Scan(&id, &status)
 	if err == sql.ErrNoRows {
+		// Stage 93.11: an old long code cleaned to a short one still finds
+		// its store (a till or an integration that cached the old code).
+		if renamed := renamedMasterCode(schema, "Location", ref); renamed != "" && renamed != ref {
+			return ResolveLocationReference(tenantID, renamed)
+		}
 		return "", fmt.Errorf("location '%s' is not a registered Location", ref)
 	}
 	if err != nil {
@@ -168,6 +177,7 @@ func ValidatePOSSellableLocation(tenantID, locationCode string) error {
 type ReceiptStore struct {
 	Code       string
 	Name       string
+	Address    string // Stage 76.3: the store's lines, city and PIN, joined
 	EntityName string
 	GSTIN      string
 	State      string
@@ -183,15 +193,21 @@ func ReceiptStoreHeader(tenantID, locationCode string) ReceiptStore {
 		return out
 	}
 	var name, entity sql.NullString
+	var raw []byte
 	err = db.DB.QueryRow(fmt.Sprintf(
-		`SELECT data->>'name', data->>'legal_entity' FROM %s.documents
+		`SELECT data->>'name', data->>'legal_entity', data FROM %s.documents
 		  WHERE doctype = 'Location' AND id = $1 AND deleted_at IS NULL`, schema),
-		locationCode).Scan(&name, &entity)
+		locationCode).Scan(&name, &entity, &raw)
 	if err != nil {
 		return out
 	}
 	if strings.TrimSpace(name.String) != "" {
 		out.Name = strings.TrimSpace(name.String)
+	}
+	var loc map[string]interface{}
+	if json.Unmarshal(raw, &loc) == nil {
+		cityPIN := strings.TrimSpace(strField(loc, "city") + " " + strField(loc, "pincode"))
+		out.Address = strings.Join(nonEmpty(addressLines(loc), cityPIN), ", ")
 	}
 	entityCode := strings.TrimSpace(entity.String)
 	if entityCode == "" {

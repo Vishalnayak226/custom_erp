@@ -406,7 +406,7 @@ func GetMyEmployeeRecord(tenantID, userID string) (map[string]interface{}, error
 		return nil, err
 	}
 	var id, dataStr string
-	err = db.DB.QueryRow(fmt.Sprintf(`SELECT id, data FROM %s.documents WHERE doctype = 'Employee' AND data->>'user_id' = $1 LIMIT 1`, schema), userID).Scan(&id, &dataStr)
+	err = db.DB.QueryRow(fmt.Sprintf(`SELECT id, data FROM %s.documents WHERE doctype = 'Employee' AND data->>'user_id' = $1 AND deleted_at IS NULL LIMIT 1`, schema), userID).Scan(&id, &dataStr)
 	if err == sql.ErrNoRows {
 		return nil, nil
 	}

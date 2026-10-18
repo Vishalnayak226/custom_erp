@@ -299,7 +299,20 @@ type BackupFreshness struct {
 	// Err is set when the record could not be read (no backup_runs table, DB
 	// down). Reported as missing, never as fresh.
 	Err string `json:"error,omitempty"`
+	// Off-box copies (Stage 75.1.6). OffsiteExpected is true when a bucket is
+	// configured (OFFSITE_S3_BUCKET in this server's environment - the same
+	// /etc/erp/erp.env the backup cron reads) or an off-box result was ever
+	// recorded; a dev box or CI runner with neither is not checked.
+	OffsiteExpected bool      `json:"offsite_expected"`
+	OffsiteFound    bool      `json:"offsite_found"`
+	OffsiteNewest   time.Time `json:"offsite_newest,omitempty"`
+	OffsiteAgeHours float64   `json:"offsite_age_hours,omitempty"`
 }
+
+// offsiteBackupMaxAge is how old the newest off-box copy of the nightly may
+// get before BACKUP_OFFSITE_STALE (Stage 75.1.6): a day plus slack for a
+// slow upload.
+const offsiteBackupMaxAge = 26 * time.Hour
 
 // CheckBackupFreshness reads the newest successful whole-database run that
 // deploy/backup.sh recorded in public.backup_runs (Stage 56.9).
@@ -337,6 +350,20 @@ func CheckBackupFreshness() BackupFreshness {
 		 ORDER BY finished_at DESC LIMIT 1`).Scan(&result.LastOutcome); err == nil {
 		// A recorded run, even a failed one, means a backup job exists here.
 		result.Configured = true
+	}
+	result.OffsiteExpected = os.Getenv("OFFSITE_S3_BUCKET") != ""
+	var offsiteRuns int
+	if err := db.DB.QueryRow(`SELECT COUNT(*) FROM public.backup_runs WHERE offsite_outcome IS NOT NULL`).Scan(&offsiteRuns); err == nil && offsiteRuns > 0 {
+		result.OffsiteExpected = true
+	}
+	if result.OffsiteExpected {
+		if err := db.DB.QueryRow(`
+			SELECT finished_at FROM public.backup_runs
+			 WHERE scope = 'database' AND offsite_outcome = 'Success'
+			 ORDER BY finished_at DESC LIMIT 1`).Scan(&result.OffsiteNewest); err == nil {
+			result.OffsiteFound = true
+			result.OffsiteAgeHours = time.Since(result.OffsiteNewest).Hours()
+		}
 	}
 	return result
 }
@@ -389,6 +416,7 @@ var backupAlertState = struct {
 
 func checkBackupAge(maxAge time.Duration) {
 	fresh := CheckBackupFreshness()
+	checkOffsiteBackupAge(fresh)
 	if !fresh.Configured {
 		return
 	}
@@ -417,6 +445,46 @@ func checkBackupAge(maxAge time.Duration) {
 
 	if shouldAlert {
 		SendOpsAlert("BACKUP_STALE", "backup-monitor", message)
+	}
+}
+
+// offsiteAlertState throttles BACKUP_OFFSITE_STALE the same way.
+var offsiteAlertState = struct {
+	sync.Mutex
+	lastAlertAt time.Time
+}{}
+
+// offsiteBackupStaleMessage is the alert text when off-box copies are
+// expected and the newest is missing or older than offsiteBackupMaxAge, ""
+// otherwise. Like the nightly message, it names no host path or file.
+func offsiteBackupStaleMessage(fresh BackupFreshness) string {
+	switch {
+	case !fresh.OffsiteExpected:
+		return ""
+	case !fresh.OffsiteFound:
+		return "no off-box copy of a whole-database backup is recorded - every backup is on the server it protects"
+	case time.Since(fresh.OffsiteNewest) > offsiteBackupMaxAge:
+		return fmt.Sprintf("newest off-box backup copy is %.1fh old (limit %s), taken %s", fresh.OffsiteAgeHours, offsiteBackupMaxAge, fresh.OffsiteNewest.UTC().Format(time.RFC3339))
+	}
+	return ""
+}
+
+// checkOffsiteBackupAge (Stage 75.1.6) alerts BACKUP_OFFSITE_STALE. A
+// nightly that runs but whose upload keeps failing passes the nightly check,
+// so the off-box copy is watched on its own.
+func checkOffsiteBackupAge(fresh BackupFreshness) {
+	message := offsiteBackupStaleMessage(fresh)
+	if message == "" {
+		return
+	}
+	offsiteAlertState.Lock()
+	shouldAlert := offsiteAlertState.lastAlertAt.IsZero() || time.Since(offsiteAlertState.lastAlertAt) > offsiteBackupMaxAge
+	if shouldAlert {
+		offsiteAlertState.lastAlertAt = time.Now()
+	}
+	offsiteAlertState.Unlock()
+	if shouldAlert {
+		SendOpsAlert("BACKUP_OFFSITE_STALE", "backup-monitor", message)
 	}
 }
 

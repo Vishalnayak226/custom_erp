@@ -32,6 +32,23 @@ export const tradeStylesReady = (() => {
 
 const esc = (s) => window.escapeHTMLText ? window.escapeHTMLText(String(s ?? '')) : String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// Stage 75.2.8a: a QR element (the e-invoice's IRP-signed QR) is drawn with
+// sticker-engine.js's encoder, fetched only when a layout has one. Callers
+// await qrEncoderReady(layout) before renderPages.
+let encodeQR = null;
+export function qrEncoderReady(layout) {
+  if (encodeQR || !(layout?.elements || []).some(el => el.type === 'qr')) return Promise.resolve();
+  return import('./sticker-engine.js' + VERSION_QUERY).then(m => { encodeQR = m.encodeQR; }).catch(() => {});
+}
+
+function qrHTML(text) {
+  const qr = encodeQR && encodeQR(text, 'M');
+  if (!qr) return '';
+  const n = qr.size, q = 4, cells = [];
+  qr.modules.forEach((row, y) => row.forEach((on, x) => { if (on) cells.push(`M${x + q},${y + q}h1v1h-1z`); }));
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n + 2 * q} ${n + 2 * q}" width="100%" height="100%" preserveAspectRatio="xMinYMin meet" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${cells.join('')}" fill="#000"/></svg>`;
+}
+
 export const PAGE_SIZES = { A4: [210, 297], A5: [148, 210], Letter: [215.9, 279.4] };
 export const PX_PER_MM = 96 / 25.4;
 
@@ -122,7 +139,8 @@ const col = (key, label, width, extra = {}) => ({ key, label, width, align: extr
 
 // Stage 71: columns, header fields, totals and signatures follow the user's
 // "Standard ERP Transaction Print Formats" pack. Fields the ERP does not hold
-// (bin per line, cess, IRN, vehicle / LR, payment terms...) are left out
+// (bin per line, cess, vehicle / LR, payment terms...; IRN outside the credit
+// note, Stage 75.2.8a) are left out
 // rather than printed empty.
 const TXN_COLUMNS = {
   PurchaseOrder: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Item / Barcode', 20), col('description', 'Description / Variant', 38), col('hsn_code', 'HSN', 9), col('uom', 'UOM', 7), col('qty', 'Qty', 8), col('rate', 'Unit Price', 12), col('gst_rate', 'Tax %', 7), col('amount', 'Line Total', 14)],
@@ -197,7 +215,17 @@ const TXN_NOTE = {
   GRNVendorCopy: 'This acknowledges the quantity received at this location. It is not a confirmation of invoice acceptance, payment approval, final QC acceptance or agreed valuation.'
 };
 
-export function defaultLayout(txn) {
+// Stage 87: a PO whose lines carry attributes (Colour, Size...) prints one
+// column per attribute beside the item name, instead of "name · values".
+function withAttributeColumns(columns, txn, doc) {
+  const attrs = (doc && doc.attribute_columns) || [];
+  const i = columns.findIndex(c => c.key === 'description');
+  if (!attrs.length || i < 0 || !(txn === 'PurchaseOrder' || txn === 'VendorPO')) return columns;
+  return [...columns.slice(0, i), col('item_name', 'Description', Math.max(14, columns[i].width - 7 * attrs.length)),
+    ...attrs.map(a => col(`attributes.${a.code}`, a.label, 7, { format: 'text' })), ...columns.slice(i + 1)];
+}
+
+export function defaultLayout(txn, doc) {
   const blockTitle = { PurchaseOrder: 'Bill to', VendorPO: 'Bill to', GRN: 'Received at', GRNVendorCopy: 'Received at', PurchaseReturn: 'Dispatched from', TransferOut: 'From location', TransferIn: 'To location', DebitNote: 'Issuer', VendorCreditNote: 'Issuer', CreditNote: 'Issuer', SalesReturn: 'Store', POSTaxInvoice: 'Supplier' }[txn] || 'From';
   const E = (o) => ({ id: newElementId(), fontSize: 9, align: 'left', pages: 'first', ...o });
   const info = TXN_INFO[txn] || [];
@@ -220,11 +248,21 @@ export function defaultLayout(txn) {
       E({ type: 'block', block: 'store', title: blockTitle, x: 10, y: 30, w: 93, h: 30, border: true }),
       E({ type: 'block', block: 'party', title: '{party_title}', x: 107, y: 30, w: 93, h: 30, border: true }),
       ...info.map(([text, c, r]) => E({ type: 'text', text, x: c === 1 ? 107 : 10, y: 62 + r * 5, w: c === 2 ? 190 : 93, h: 5, fontSize: 8 })),
-      E({ type: 'table', x: 10, y: tableY, w: 190, h: 218 - tableY, columns: TXN_COLUMNS[txn] || TXN_COLUMNS.PurchaseOrder, fontSize: 8, headerBg: '#f1f3f5', imageSize: 14, pages: 'all' }),
+      E({ type: 'table', x: 10, y: tableY, w: 190, h: 218 - tableY, columns: withAttributeColumns(TXN_COLUMNS[txn] || TXN_COLUMNS.PurchaseOrder, txn, doc), fontSize: 8, headerBg: '#f1f3f5', imageSize: 14, pages: 'all' }),
       ...(noMoney ? [] : [E({ type: 'taxSummary', x: 10, y: 222, w: 112, h: 30, fontSize: 8, pages: 'last' })]),
       E({ type: 'totals', x: 128, y: 222, w: 72, h: 32, fontSize: 9, pages: 'last', rows: TXN_TOTALS[txn] || TXN_TOTALS.PurchaseOrder }),
       ...(noMoney ? [] : [E({ type: 'text', text: 'Amount in words: {amount_in_words}', x: 10, y: 255, w: 190, h: 6, fontSize: 8.5, italic: true, pages: 'last' })]),
       ...(note ? [E({ type: 'text', text: note, x: 10, y: 222, w: 112, h: 18, fontSize: 8, italic: true, border: true, pages: 'last' })] : []),
+      // Stage 75.2.8a: an e-invoiced credit note's IRN, Ack and signed QR
+      // (all blank, so nothing prints, for a note that is not e-invoiced);
+      // "IRN PENDING" in the same place while it is on its way.
+      ...(txn === 'CreditNote' ? [
+        E({ type: 'qr', key: 'fields.irn_signed_qr', x: 10, y: 222, w: 30, h: 30, pages: 'last' }),
+        E({ type: 'text', text: '{fields.irn_status}', x: 42, y: 222, w: 80, h: 6, fontSize: 10, bold: true, pages: 'last' }),
+        E({ type: 'text', text: 'IRN: {fields.irn}', x: 42, y: 222, w: 80, h: 12, fontSize: 7.5, pages: 'last' }),
+        E({ type: 'text', text: 'Ack No: {fields.irn_ack_no}', x: 42, y: 234.5, w: 80, h: 5, fontSize: 8, pages: 'last' }),
+        E({ type: 'text', text: 'Ack Date: {fields.irn_ack_date}', x: 42, y: 239.5, w: 80, h: 5, fontSize: 8, pages: 'last' })
+      ] : []),
       ...signs.flatMap((label, i) => [
         E({ type: 'line', x: 10 + i * 65, y: 275, w: 55, h: 0.3, thickness: 0.3, pages: 'last' }),
         E({ type: 'text', text: label, x: 10 + i * 65, y: 276, w: 55, h: 5, fontSize: 8, align: 'center', pages: 'last' })
@@ -237,13 +275,13 @@ export function defaultLayout(txn) {
   };
 }
 
-export function parseLayout(raw, txn) {
+export function parseLayout(raw, txn, doc) {
   if (raw && typeof raw === 'object') return raw;
   try {
     const l = JSON.parse(raw || '');
     if (l && Array.isArray(l.elements)) return l;
   } catch (e) { /* fall through */ }
-  return defaultLayout(txn);
+  return defaultLayout(txn, doc);
 }
 
 export function layoutUsesImages(layout) {
@@ -359,6 +397,13 @@ export function elementHTML(el, ctx, pageInfo) {
     case 'taxSummary': return taxSummaryHTML(el, ctx);
     case 'totals': return totalsHTML(el, ctx);
     case 'pageNo': return esc(fillTokens(el.text || 'Page {page} of {pages}', { ...ctx, page: pageInfo?.page ?? 1, pages: pageInfo?.pages ?? 1 }));
+    case 'qr': {
+      // Nothing prints until the value exists (an IRN still pending has no
+      // QR); the studio shows where it will go.
+      const v = String(resolvePath(ctx, el.key || 'fields.irn_signed_qr') ?? '');
+      if (v && encodeQR) return qrHTML(v);
+      return pageInfo?.design ? '<div class="tdp-qr-ph">QR</div>' : '';
+    }
     default: return '';
   }
 }
@@ -514,7 +559,7 @@ export function renderPages(layout, doc, opts = {}) {
         html += `<div class="${elementClass(el)}" style="${boxStyle({ ...el, y: top, h: bottom - top, border: false, bg: '' })}"><table class="tdp-table${el.rowLines === false ? ' tdp-norules' : ''}" style="font-size:${el.fontSize || 8}pt">${tableHead(el)}<tbody>${tableRowsHTML(el, rows)}</tbody></table></div>`;
         return;
       }
-      const inner = elementHTML(el, ctx, { page: pageNo, pages: total });
+      const inner = elementHTML(el, ctx, { page: pageNo, pages: total, design: !!opts.design });
       if (inner === '' && !['box', 'line'].includes(el.type)) return;
       html += `<div class="${elementClass(el)}" style="${boxStyle(el)}">${inner}</div>`;
     });
@@ -618,10 +663,11 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
 
   const currentLayout = () => {
     const t = (S.data?.templates || []).find(x => x.id === S.templateId);
-    return parseLayout(t ? t.layout : '', S.txn);
+    return parseLayout(t ? t.layout : '', S.txn, S.data?.document);
   };
-  const paint = () => {
+  const paint = async () => {
     const layout = currentLayout();
+    await qrEncoderReady(layout);
     const pages = renderPages(layout, S.data.document);
     const prev = q('preview');
     prev.innerHTML = '';
@@ -671,6 +717,7 @@ export async function printTransactionDocument(doctype, id, opts = {}) {
   q('print').addEventListener('click', async () => {
     if (!S.data) return;
     const layout = currentLayout();
+    await qrEncoderReady(layout);
     await printPages(renderPages(layout, S.data.document), layout);
   });
   q('excel').addEventListener('click', async () => {

@@ -19,17 +19,45 @@ applies_to: source registries; not release acceptance
 
 # Release notes
 
-Generated from `docs/project_ledger.md`'s own Stage sections - **140** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
+Generated from `docs/project_ledger.md`'s own Stage sections - **149** entries as of this build. Each excerpt is that section's own opening paragraph, not a rewritten summary, so it reads like an engineering build log because that is what it is. For the full detail behind any entry, including what was verified and how, read the ledger itself.
 
 Newest first. Earlier entries continue on:
 
-- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-08-19
+- [Part 2](release-notes-2.md) - 2026-07-27 to 2026-08-22
 
 ## 2026-10-18
+
+**Stage 96 — No Windows Firewall dialog for a dev erp-server** *(code + docs, NOT COMMITTED)*
+
+On Windows, an unset `HOST` now binds `127.0.0.1` (`internal/server/routes.go`), so a new `erp-server.exe` build no longer triggers Windows Firewall's "allow public and private networks?" dialog. Linux (production, Docker) is unchanged, and `HOST=0.0.0.0` opts back in for LAN access. ADMIN_GUIDE §B.1. Detail and verification: `micro_checklist.md` Stage 96.
+
+**Build run, steps 2 and 6-9: numbering, Inventory / WMS, small fixes, e-invoice, reports** *(code + docs, NOT COMMITTED)*
+
+From the user: *"Build 2 to 9 all"* (the module order recorded at the top of `micro_checklist.md`), then *"All approved which are recommended for me"* - recorded on 94.0, 95.0, 88 D12-D14, 73.0.1 and 74.0.1 (BRD defaults; CA sign-off still owed on the tax ones), 34.5 (not built). Full detail per item in `micro_checklist.md`.
+
+**Stage 95 — Images for each Design and Combination ID after the PO, stored on each client's own drive** *(code + docs, NOT COMMITTED)*
+
+From the user: *"We have to introduce image upload for Design and Varinat/Combination ID. Once PO doen, I will upload image"*, then *"You have suggest where I shoud upload that. Once config need to build to connect for erp and the upload drive. Client to client the url will change."* Suggested in chat and decided (asked): each client's own S3-compatible bucket (one connector for R2, Spaces, S3, B2, Wasabi, MinIO; Google Drive advised against - per-client OAuth, quotas, unstable links), uploads from the PO with the same strip on the Design / Item forms, the client's admin sets the drive. Full detail in `micro_checklist.md` Stage 95.
+
+**Stage 93 — A cost center for every location; legal entity and GSTIN required; every person in a department; postings carry store, company and team; old long codes cleaned once** *(code + docs, NOT COMMITTED)*
+
+From the user's Cost Center, Department, Legal Entity and Location screenshots: *"Can it create auto cost center once I create a store ... Not this lengthy name"*, then *"It should ask Mandatory field and auto linked ... If I create diff entity ... How to assign a user to dept? ... If HR, IF someone don't take HR than? ... I want to mapped from day one automatically ... Clean them and ask to set them once."* The three masters and Location were explained in chat first, at the user's request. Decisions (asked): every location type; existing locations linked or given one on release; tagging built in the same pass; department on the User with the Employee leading under HR; postings take the raiser's department; GSTIN mandatory, standard format only; old codes cleaned in a guided step. Full detail in `micro_checklist.md` Stage 93.
+
+**Stage 92 — The submitter may approve their own documents; Send to Vendor without a vendor email** *(code + docs, NOT COMMITTED)*
+
+From the user's Approvals screenshot (an admin refused on their own PO, APPROV-0840) and Send to Vendor screenshot: *"As Admin it should allow to approve all"*, *"Client also create PO and approve. Any one approve. Its ok."* Full detail in `micro_checklist.md` Stage 92.
+
+**Module-wise build, modules 3-5: Finance & Tax, Security & Access, Backups & Platform** *(code + docs, NOT COMMITTED)*
+
+The run the user set ("4,8,1,2,3 ... stop after 3") ends here. Full detail in `micro_checklist.md` 73.D.6-73.D.20, 75.1.4-75.1.8; the clean-slate request is recorded as Stage 91 (parked).
 
 **CI blockers 84.7-84.10 and Stage 90 — version numbers follow each release** *(code + docs, NOT DEPLOYED)*
 
 From the user's "do what needs to be done to fix" (the 840909b release's open items) and their Control Panel screenshot showing `0.1.0` and an empty Releases table. Full detail in `micro_checklist.md` 84.7-84.10 and Stage 90.
+
+**Stage 89 — The item master asked once: org defaults, kind of item, item name pick, where each field is asked, attributes per type, the admin's treatment correction** *(code + docs, NOT COMMITTED)*
+
+From the user's Edit Item screenshots and five follow-up messages; decisions D1-D5 asked (`micro_checklist.md` Stage 89). Full detail there.
 
 **Stage 85 — POS billing for a real store: store access, the working store on top, store stock locations, phone-first customers, GST bill, customer advance, and the rest of Stage 77** *(committed locally - not pushed, not deployed)*
 
@@ -42,6 +70,14 @@ Full detail in `micro_checklist.md` 76.7-76.9.
 **Module-wise build order, module 1: Procurement / GRN / Print — 84.2, 84.3, 84.4, 73.C.7** *(code + docs, committed, not pushed)*
 
 The user set a module-wise build order on 2026-10-18 (`micro_checklist.md`, top: "4,8,1,2,3,5,9,7,6", this run stops after Backups & Platform). This is the first module. Full detail under 84.2-84.5 and 73.C.7.
+
+**Stage 87 — Attributes asked in the PO's add row; a column per attribute on PO lines and the PO print** *(code + docs, NOT COMMITTED)*
+
+From the user's *"It should ask attribute in PO itself. Where is it."* on the New purchase order screen. Full detail in `micro_checklist.md` Stage 87.
+
+**Stage 86 — Refresh keeps your place; number series store code, year formats, GST length and characters, live preview; the ERP's own item attributes** *(code + docs, NOT COMMITTED)*
+
+From the user's Number Series - ASN screenshots, their attribute question, and a refresh that landed on Help. Full detail in `micro_checklist.md` Stage 86.
 
 **Release of §229-237 — Stage 73 batches A-D, Stages 76, 78-82, 71.8** *(one commit, pushed + deployed)*
 
@@ -440,60 +476,4 @@ Opens Stage 36's remaining five top-level items (36.3-36.7 — import, export/sy
 **Stage 35.8/35.9 — Settlement reconciliation ("UniReco") and returns depth** *(code + schema + UI)*
 
 Closes the last two open items of Stage 35's OMS parity plan: 35.8 (5 sub-items) and 35.9 (3 sub-items). Full item detail in `micro_checklist.md` Stage 35.
-
-## 2026-08-22
-
-**Stage 35.7 — commercial bundles and physically stocked kits** *(code + schema + UI)*
-
-All four Stage 35.7 items are complete. `ProductBundle` is intentionally not another manufacturing BOM: it describes a sellable commercial composition, with Virtual/Stocked fulfillment and Parent/Fixed/Component pricing. Validation pins every SKU to an active Item, forbids duplicate/self/nested components and keeps one active definition per bundle SKU.
-
-**Stage 35.6 — channel breadth becomes an operational SDK** *(code + schema + UI)*
-
-All seven Stage 35.6 items are code-complete. The new connector contract declares auth validation, order pull, inventory push, catalogue publish, status push, error mapping and capabilities; the scheduler and UI consume capabilities instead of platform-name conditionals. Amazon and Flipkart implement their public seller contracts, WooCommerce implements REST v3, and Myntra/Meesho/Ajio/Nykaa/Blinkit/Zepto/Swiggy Instamart use a fail-closed negotiated-path adapter because their seller contracts are private. Quick-commerce descriptors bind orders to a store location and forbid split allocation.
-
-## 2026-08-24
-
-**Stage 42.5.5 — Multi-owner stock segregation, closing Phase 42.5 and Stage 42** *(code + schema)*
-
-Closes the one item §110 left open: 42.D2 ("is 3PL/multi-owner a real target?") was resolved — yes, build it, the same call already made for §112's 42.6.6-42.6.9. Phase 42.5 is now 8/8 and Stage 42 (58 items across 6 phases) is fully closed. Full item detail in `micro_checklist.md` Stage 42.
-
-## 2026-08-22
-
-**Stage 42.6 — Labour and billing depth** *(code + schema)*
-
-All nine listed Phase 42.6 rows are built (the source heading calls the phase eight items, but the checklist contains 42.6.1 through 42.6.9).
-
-**Stage 35.5 — Courier integration crosses the provider boundary** *(code + schema)*
-
-All six Stage 35.5 items are code-complete using the parity plan's default first providers, Delhivery and Shiprocket; actually calling either account remains credential-gated. Full item detail is in `micro_checklist.md` Stage 35.
-
-**Stage 42.5 — Inventory control depth: physical inventory, CycleClass, replenishment breadth, slotting v2, facility hierarchy/copy/cross-facility inquiry** *(code + schema)*
-
-7 of 8 items (42.5.1-42.5.4, 42.5.6-42.5.8); 42.5.5 (multi-owner stock segregation) excluded, still gated on open decision 42.D2 (is 3PL a real target?). Full item-by-item detail in `micro_checklist.md` Stage 42.
-
-## 2026-08-21
-
-**Stage 46 — Money precision: paise migration** *(code + schema)*
-
-Closed the two items both `docs/DURABILITY_AUDIT_2026-07-31.md` and `docs/ERP_LOOPHOLES_ANALYSIS.md`'s 2026-08-20 re-evaluation still carried as genuinely open. Full item-by-item detail in `micro_checklist.md` Stage 46.
-
-**Stage 42.4 CLOSED — Outbound depth: waves, sortation, cartonization v2, packing validation, deconsolidation, loading + Bill of Lading, pre-ship gate, and VAS/kitting off the existing BOM** *(code + schema + frontend)*
-
-Closed all 11 items of Phase 42.4 in one pass. Full item-by-item detail in `micro_checklist.md` Stage 42.
-
-## 2026-08-20
-
-**Stage 42.3 CLOSED — Inbound depth: dock scheduling, yard, hold/release, configurable receipt rules, catch weight, planned cross-dock, hazmat compliance, and RF receiving** *(code + schema + frontend)*
-
-Closed all 10 items of Phase 42.3 in one pass. Full item-by-item detail in `micro_checklist.md` Stage 42.
-
-## 2026-08-19
-
-**Stage 42.2 CLOSED — Zone/PutawayStrategy/AllocationStrategy masters, directed putaway, exception follow-on, the warehouse cockpit, and a real bug found in Stage 45's own render mechanism** *(code + schema + frontend)*
-
-Asked to finish the rest of Phase 42.2 (the warehouse task spine — 4/10 done, 42.2.1-42.2.4 already closed by the prior session). Closed the remaining six items, 42.2.5-42.2.10. Full item-by-item detail in `micro_checklist.md` Stage 42.
-
-**Stage 45 round 1 — UI/UX design-bar sweep: the render race, the clipped tab bars, and a mid-session misdiagnosis corrected** *(frontend only)*
-
-User reported 8 issues live against `:8080` deployment screenshots (duplicate panels across three Financial Accounting screens, F&A frozen header, help icon styling, a Wholeops rebrand ask, Setup submenu visuals, PIM tab bar clipping at 90% zoom, a setup banner that shouldn't be dismissible), then asked for a broader "no one has ever seen it, brainless-intuitive" design-bar sweep and to fix everything found. Full item-by-item detail in `micro_checklist.md` Stage 45.
 

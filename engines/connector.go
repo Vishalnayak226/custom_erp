@@ -4,8 +4,6 @@ import (
 	"context"
 	"custom_erp/db"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -131,7 +129,7 @@ func classifyConnectorError(rawMessage string) string {
 // ChannelFieldMap row for the channel (not just the mandatory ones - this
 // builds the actual outbound payload, unlike engines/pim.go's
 // fetchChannelMandatoryFields which only checks readiness), and raw media
-// bytes for every Active ProductMedia (via the existing GetMediaFile,
+// bytes for every Active ProductMedia (via the existing ReadMediaFile,
 // Stage 15.2). Pure translation layer over data that already exists - no
 // new source of truth.
 func BuildChannelPayload(tenantID, itemCode, channelCode string) (*ChannelProductPayload, error) {
@@ -222,16 +220,12 @@ func BuildChannelPayload(tenantID, itemCode, channelCode string) (*ChannelProduc
 		return nil, err
 	}
 	for _, m := range mediaList {
-		path, fileType, errFile := GetMediaFile(tenantID, m.ID)
+		fileBytes, fileType, name, errFile := ReadMediaFile(tenantID, m.ID)
 		if errFile != nil {
 			continue // skip an unreadable asset rather than failing the whole payload
 		}
-		fileBytes, errRead := os.ReadFile(path)
-		if errRead != nil {
-			continue
-		}
 		payload.Images = append(payload.Images, ChannelImage{
-			Filename: filepath.Base(path),
+			Filename: name,
 			MIMEType: fileType,
 			Bytes:    fileBytes,
 		})

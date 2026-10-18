@@ -15,7 +15,7 @@ supersedes: none
 superseded_by: none
 section: Module Handbooks
 order: 19
-summary: Start here for the WMS. What to set up once and in which order, how goods come in, sit in bins and go out, what every Stock → WMS menu entry does, and what the system does not do for you yet.
+summary: Start here for the WMS. What to set up once and in which order, how goods come in, sit in bins and go out, what every WMS menu entry does, and what the system does not do for you yet.
 screens: [doctype:bin, doctype:zone, bin-conditions, lpn, bin-replenishment, doctype:binreplenishmentrule, mobile-picking, location-movement, doctype:dockdoor, doctype:trailer, doctype:holdcode, doctype:hold, doctype:holdreleaserequest, doctype:crossdockplan, doctype:wave, doctype:putawaystrategy, doctype:wavetemplate, doctype:sortstation, doctype:preshipvalidationrule, warehouse-cockpit, putaway, wave-picking, cycle-count, rf-receiving, rf-traceability, appointment-calendar, yard-board, place-hold, sortation, loading-dock]
 topic_type: how-to
 module: inventory
@@ -26,13 +26,13 @@ failure_behavior: Reload the screen before retrying; keep the record reference a
 
 # Warehouse (WMS) - what each screen is for
 
-Every WMS screen is under **Stock → WMS**. Goods come in through a Goods Receipt, which puts them *at a location*. The WMS screens then say *which bin* they sit in, whether they can be sold, and how they are picked and shipped.
+Every WMS screen is under **WMS**. Goods come in through a Goods Receipt, which puts them *at a location*. The WMS screens then say *which bin* they sit in, whether they can be sold, and how they are picked and shipped.
 
 ## Two kinds of stock count
 
 - **Location stock** is what a store or warehouse holds. A Goods Receipt, a Stock Transfer, a sale or dispatch, and an approved cycle count change it.
 - **Bin stock** is where that stock sits inside the location. Putaway, Location Movement and Bin Replenishment change it. Moving stock between bins never changes location stock.
-- **Available to sell** is location stock minus what is reserved for orders, what is on hold, and what is not in Good condition. **Stock → Inventory** shows all of these for each item and location.
+- **Available to sell** is location stock minus what is reserved for orders, what is on hold, and what is not in Good condition. **Inventory → Stock on Hand** shows all of these for each item and location.
 
 ## Set up once, in this order
 
@@ -40,24 +40,24 @@ Every WMS screen is under **Stock → WMS**. Goods come in through a Goods Recei
 |---|---|---|
 | 1 | **Setup → Location** | The warehouse or store itself. |
 | 2 | **Setup → Zone** | Only if you group bins into zones. |
-| 3 | **Stock → WMS → Bin** | **Bin Code**, **Location** and **Status** are required. A **Zone** must be an Active zone. **Capacity**, **Max Weight** and **Max Volume** are enforced at putaway. **Bin Type**: Reserve bins are used first to refill PickFace bins. **Bin Status** Blocked, Full or Counting stops putaway, moves and picking from that bin. |
+| 3 | **WMS → Storage & Control → Bin** | **Bin Code**, **Location** and **Status** are required. A **Zone** must be an Active zone. **Capacity**, **Max Weight** and **Max Volume** are enforced at putaway. **Bin Type**: Reserve bins are used first to refill PickFace bins. **Bin Status** Blocked, Full or Counting stops putaway, moves and picking from that bin. |
 | 4 | **Item** (the item form's **Batch, serial and expiry** section) | **Traceability**, shelf life and the **GRN batch number** rule. |
-| 5 | **Stock → WMS → Dock Doors** | **Door Code**, **Door Type** (Inbound, Outbound or Both) and **Status**. Add **Max Concurrent Appointments** to stop over-booking. |
-| 6 | **Stock → WMS → Hold Codes** | **Hold Code**, **Category** and **Status**. A hold can only use an Active code. |
+| 5 | **WMS → Inbound → Dock Doors** | **Door Code**, **Door Type** (Inbound, Outbound or Both) and **Status**. Add **Max Concurrent Appointments** to stop over-booking. |
+| 6 | **Setup → WMS → Hold Code** | **Hold Code**, **Category** and **Status**. A hold can only use an Active code. |
 | 7 | Optional, in **Setup** | **Putaway Strategy** (needed for **Suggest Bin**), **Bin Replenishment Rule** (under **Advanced**), **Wave Template**, **Pre-Ship Validation Rule**, **Sort Station**, **Trailers**, and Reason Codes in the category *Cycle Count Variance*. |
 
 ## Receiving goods
 
 1. **Procurement → ASN**: record what the vendor is sending against the PO. This is a record; it moves no stock.
-2. **Stock → WMS → Appointment Calendar**: book a dock door and a time slot (**+ New Appointment**). The door must allow that appointment type and must not be over its limit.
-3. **Stock → WMS → Yard Board**: **+ Check In Trailer** when the truck arrives, then **Assign to Door** → **Spot here**.
+2. **WMS → Inbound → Appointment Calendar**: book a dock door and a time slot (**+ New Appointment**). The door must allow that appointment type and must not be over its limit.
+3. **WMS → Inbound → Yard Board**: **+ Check In Trailer** when the truck arrives, then **Assign to Door** → **Spot here**.
 4. Receive the goods, in one of two ways:
-   - **Receive** on the Yard Board row (or **Stock → WMS → RF Receiving**): scan each carton's SKU and confirm the quantity, then **Post Receipt**. Use this for items without batches.
+   - **Receive** on the Yard Board row (or **WMS → Inbound → RF Receiving**): scan each carton's SKU and confirm the quantity, then **Post Receipt**. Use this for items without batches.
    - **Procurement → Goods Receipt**: **Load Items from ASN** or **Add PO & Load Items**, then enter received, rejected and damaged quantities and any batch, manufacture and expiry dates. Use this for batch-tracked items.
    
    Accepted stock becomes available at the location. Rejected stock goes to QC hold and damaged stock to Damaged. When the ASN is fully received, its appointment is marked Completed.
-5. **Stock → WMS → Putaway**: the list shows stock at the location that is not in a bin yet. It appears only at locations that have Active bins. Press **Put away** on a row, choose the bin (or **Suggest Bin**), then **Put Away**.
-6. For batch-tracked items, also open **Stock → WMS → RF Lot & Serial** → **Put a lot away**. Until you do this, that stock cannot be picked.
+5. **WMS → Inbound → Putaway**: the list shows stock at the location that is not in a bin yet. It appears only at locations that have Active bins. Press **Put away** on a row, choose the bin (or **Suggest Bin**), then **Put Away**.
+6. For batch-tracked items, also open **WMS → Storage & Control → RF Lot & Serial** → **Put a lot away**. Until you do this, that stock cannot be picked.
 
 ## Keeping stock right
 
@@ -76,7 +76,7 @@ Every WMS screen is under **Stock → WMS**. Goods come in through a Goods Recei
 3. Pick on paper from the pick list, or press **Pick on a phone** (**Mobile Picking**): confirm each line, then **Mark N order(s) packed**. Orders that are short stay as they are.
 4. **Sortation / Put-Wall** (optional): record which order goes into which slot of a sort station.
 5. **Loading**: **Open New Load** for a dock door and trailer, scan the invoiced packages, then **Complete Load** (which runs your pre-ship checks), **Record Exchange & Depart**, and **Print Bill of Lading** if you need one.
-6. **Sales & Marketplace → Fulfillment → Dispatch** is the step that takes the stock out of the location and its bins. Loading does not do this.
+6. **OMS → Fulfillment → Dispatch** is the step that takes the stock out of the location and its bins. Loading does not do this.
 
 ## Watching the floor
 

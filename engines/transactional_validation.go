@@ -43,6 +43,14 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 	if err := validatePostSaleEdit(doctype, docID, priorStatus, priorData, payload); err != nil {
 		return err
 	}
+	// Stage 73.D.8: a posted document's money is fixed (posted_amounts.go).
+	if err := validatePostedAmountsFrozen(doctype, docID, priorStatus, priorData, payload); err != nil {
+		return err
+	}
+	// Stage 75.2.7: once an IRN exists, the fields it certifies are fixed.
+	if err := validateEInvoiceLock(tenantID, doctype, docID, priorData, payload); err != nil {
+		return err
+	}
 
 	switch doctype {
 	case "StatusTransitionRule":
@@ -75,8 +83,25 @@ func ValidateTransactionalRules(tenantID, doctype, docID, priorStatus string, pr
 		return validateVendorQuoteRules(priorStatus, payload)
 	case "RFQ": // Stage 73.2.3: an awarded RFQ is final
 		return validateRFQEditRules(priorData)
+	case "Asset": // Stage 73.D.15
+		return validateAssetStatusWrite(priorStatus, payload)
 	}
 	return nil
+}
+
+// validateAssetStatusWrite (Stage 73.D.15): capitalising and disposing post
+// to the ledger (CapitalizeAssetWithLife: Dr 1400 / Cr 2100; disposal: the
+// net book value written off with any proceeds), so a record-form save may
+// not set either status itself - the register would show the asset
+// capitalised or written off with nothing in the books behind it.
+func validateAssetStatusWrite(priorStatus string, payload map[string]interface{}) error {
+	to := resolveWrittenStatus(payload)
+	if to == "" || to == priorStatus || (to != "Capitalised" && to != "Disposed") {
+		return nil
+	}
+	action := map[string]string{"Capitalised": "Capitalise", "Disposed": "Dispose"}[to]
+	return &ValidationError{Code: "ASSET-0843", Message: fmt.Sprintf(
+		"an asset becomes %s only through %s on HRM → Fixed Assets, which posts its ledger entry", to, action)}
 }
 
 // The generic form may create a blind count line, but only reconciliation and

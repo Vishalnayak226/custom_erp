@@ -321,7 +321,7 @@ func TestStage62Designs(t *testing.T) {
 			t.Fatalf("insert %s: %v", id, err)
 		}
 	}
-	ins(attr, "ProductAttributeDef", map[string]interface{}{"code": attr, "label": "Test Colour", "value_type": "Select", "value_options": "Red, Blue ,", "status": "Active"})
+	ins(attr, "ItemAttribute", map[string]interface{}{"code": attr, "label": "Test Colour", "value_type": "Select", "value_options": "Red, Blue ,", "status": "Active"})
 	ins(design, "ProductFamily", map[string]interface{}{"code": design, "name": "Stage 62 Test Kurta", "design_attributes": "Fabric:Cotton;Fit:Slim", "hsn_code": "6204", "gst_rate": 5})
 	ins(variant, "Item", map[string]interface{}{"code": variant, "name": "Kurta Red", "family": design, "parent_product_code": design, "variant_option_values": attr + ":Red", "hsn_code": "6204", "gst_rate": 5})
 

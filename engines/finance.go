@@ -147,6 +147,24 @@ func PostDoubleEntryTx(tx *sql.Tx, tenantID, schema string, docType string, docI
 	if err := validateProjectReference(tenantID, opt.Project); err != nil {
 		return err
 	}
+	// Stage 93.3 / 93.7 / 93.10: a posting with no cost center, entity or
+	// department of its own takes its source document's - the location's cost
+	// center and legal entity, the department of the document or of the user
+	// who raised it (engines/location_cost_center.go). Derived after the
+	// checks above on purpose: an Inactive one is skipped there, so a sale is
+	// never refused over its store's dimensions.
+	if opt.CostCenter == "" || opt.Entity == "" || opt.Department == "" {
+		dims := postingDimensionsTx(tx, schema, docID)
+		if opt.CostCenter == "" {
+			opt.CostCenter = dims.CostCenter
+		}
+		if opt.Entity == "" {
+			opt.Entity = dims.Entity
+		}
+		if opt.Department == "" {
+			opt.Department = dims.Department
+		}
+	}
 	var costCenterArg, departmentArg, entityArg, projectArg interface{}
 	if opt.CostCenter != "" {
 		costCenterArg = opt.CostCenter

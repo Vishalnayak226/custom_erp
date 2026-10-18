@@ -6,8 +6,10 @@
 // The industry attribute library (engines/attribute_library.json, generated
 // from the operator's workbook) is listed in three parts:
 //   - Variant attributes - what tells one sellable combination from another.
-//     Offered on the Item's variant options, in PO designs and on prints.
-//   - Product information - descriptive attributes for PIM enrichment.
+//     They go to the ERP's own list (Setup -> Item Attribute: the Item's
+//     variant options, PO designs, prints) and, for a client with PIM, to
+//     PIM's list too, mapped onto the ERP one (Stage 86.3).
+//   - Product information - descriptive attributes, PIM's list only.
 //   - Not added - kept elsewhere in the ERP already, or recorded per batch /
 //     serial unit rather than per item.
 // The workbook's own Variant Driver column decides the default; the operator
@@ -43,7 +45,7 @@ export async function renderAttributeLibrary(container, client, industry = '') {
     return `${shown}${a.values.length > 6 ? ` <span class="text-muted">+${a.values.length - 6} more</span>` : ''}`;
   };
   const clientCell = a => {
-    if (a.client) return `<span class="badge ${a.client.status === 'Inactive' ? 'badge-secondary' : 'badge-success'}">${a.client.status === 'Inactive' ? 'Has it · off' : 'Has it'}</span>`;
+    if (a.client) return `<span class="badge ${a.client.status === 'Inactive' ? 'badge-secondary' : 'badge-success'}">${a.client.status === 'Inactive' ? 'Has it · off' : 'Has it'} · ${escapeHTMLText(a.client.list || '')}</span>`;
     if (a.similar) return `<span class="text-muted" title="Not ticked: the client already has a similar attribute">Similar: ${escapeHTMLText(a.similar.label)}</span>`;
     return '';
   };
@@ -92,8 +94,8 @@ export async function renderAttributeLibrary(container, client, industry = '') {
         <div>Already has <b>${attrs.filter(a => a.client).length}</b> of these, and <b>${(lib.others || []).length}</b> attribute(s) of its own.</div>
       </div>
     </div>
-    ${table('Variant attributes', variantRows, 'variant')}
-    ${table('Product information (PIM)', productRows, 'product')}
+    ${table(`Variant attributes - ERP item attributes${lib.pim_enabled ? ', mapped into PIM too' : ''}`, variantRows, 'variant')}
+    ${table(lib.pim_enabled ? 'Product information - PIM only' : 'Product information - PIM only (this client has no PIM, so none are added)', productRows, 'product')}
     <details class="table-panel" style="margin-bottom:16px;">
       <summary style="padding:16px; cursor:pointer; font-weight:600;">Not added (${otherRows.length})</summary>
       <div class="table-wrapper"><table>
@@ -105,8 +107,8 @@ export async function renderAttributeLibrary(container, client, industry = '') {
     <details class="table-panel" style="margin-bottom:16px;">
       <summary style="padding:16px; cursor:pointer; font-weight:600;">${escapeHTMLText(name)}'s other attributes (${lib.others.length})</summary>
       <div class="table-wrapper"><table>
-        <thead><tr><th>Code</th><th>Attribute</th><th>Used for</th><th>Status</th></tr></thead>
-        <tbody>${lib.others.map(c => `<tr><td>${escapeHTMLText(c.code)}</td><td>${escapeHTMLText(c.label)}</td><td>${escapeHTMLText(c.used_for || 'Both')}</td><td>${escapeHTMLText(c.status)}</td></tr>`).join('')}</tbody>
+        <thead><tr><th>Code</th><th>Attribute</th><th>List</th><th>Status</th></tr></thead>
+        <tbody>${lib.others.map(c => `<tr><td>${escapeHTMLText(c.code)}</td><td>${escapeHTMLText(c.label)}</td><td>${escapeHTMLText(c.list)}</td><td>${escapeHTMLText(c.status)}</td></tr>`).join('')}</tbody>
       </table></div>
     </details>` : ''}
     <div class="table-panel" style="position:sticky; bottom:0; z-index:2;">
@@ -145,7 +147,7 @@ export async function renderAttributeLibrary(container, client, industry = '') {
     const p = picks();
     if (!p.length) return;
     const v = p.filter(x => x.used_for === USE_VARIANT).length;
-    if (!await showCustomConfirm(`Add ${p.length} attribute(s) to ${name} from the ${industryName(lib.industry)} library - ${v} as variant attributes, ${p.length - v} as product information?\n\n${name} can switch any of them off and remove values, but cannot delete them. Nothing it already has is changed.`, 'Add attributes')) return;
+    if (!await showCustomConfirm(`Add ${p.length} attribute(s) to ${name} from the ${industryName(lib.industry)} library - ${v} as variant attributes (ERP item attributes${lib.pim_enabled ? ', mapped into PIM' : ''}), ${p.length - v} as product information (PIM)?\n\n${name} can switch any of them off and remove values, but cannot delete them. Nothing it already has is changed.`, 'Add attributes')) return;
     btn.disabled = true;
     const r = await apiFetch(url, { method: 'POST', body: JSON.stringify({ attributes: p }) });
     if (!r) return;

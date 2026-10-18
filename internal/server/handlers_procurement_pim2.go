@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 
@@ -435,19 +434,30 @@ func handlePIMMediaThumbnail(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
-	mediaID := r.PathValue("id")
-	path, err := engines.GetMediaThumbnail(tenantID, mediaID)
+	fileBytes, err := engines.ReadMediaThumbnail(tenantID, r.PathValue("id"))
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusNotFound, err.Error())
+		writeMediaReadError(w, r, err)
 		return
 	}
-	fileBytes, err := os.ReadFile(path)
-	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusNotFound, "stored thumbnail missing")
+	writeMediaBytes(w, "image/jpeg", fileBytes)
+}
+
+// writeMediaBytes sends an image. A media id carries its file's checksum,
+// so what it names never changes and the browser may keep it.
+func writeMediaBytes(w http.ResponseWriter, contentType string, b []byte) {
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("Cache-Control", "private, max-age=86400")
+	_, _ = w.Write(b)
+}
+
+// writeMediaReadError: the client's image drive refusing or unreachable
+// (Stage 95, PIM-0951/0952) says so; anything else is a plain 404.
+func writeMediaReadError(w http.ResponseWriter, r *http.Request, err error) {
+	if verr, ok := err.(*engines.ValidationError); ok && verr.Code != "" {
+		writeEngineError(w, r, err, http.StatusBadGateway)
 		return
 	}
-	w.Header().Set("Content-Type", "image/jpeg")
-	_, _ = w.Write(fileBytes)
+	writeAPIErrorGeneric(w, r, http.StatusNotFound, err.Error())
 }
 
 // handlePIMMediaFile streams a stored media file back - authenticated (this
@@ -461,19 +471,12 @@ func handlePIMMediaFile(w http.ResponseWriter, r *http.Request) {
 		writeAPIErrorGeneric(w, r, http.StatusMethodNotAllowed, "Method not allowed.")
 		return
 	}
-	mediaID := r.PathValue("id")
-	path, fileType, err := engines.GetMediaFile(tenantID, mediaID)
+	fileBytes, fileType, _, err := engines.ReadMediaFile(tenantID, r.PathValue("id"))
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusNotFound, err.Error())
+		writeMediaReadError(w, r, err)
 		return
 	}
-	fileBytes, err := os.ReadFile(path)
-	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusNotFound, "stored file missing")
-		return
-	}
-	w.Header().Set("Content-Type", fileType)
-	_, _ = w.Write(fileBytes)
+	writeMediaBytes(w, fileType, fileBytes)
 }
 
 func handlePIMMediaList(w http.ResponseWriter, r *http.Request) {

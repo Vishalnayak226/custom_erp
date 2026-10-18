@@ -137,13 +137,32 @@ func isCancellationBlocked(tenantID, orderStatus string) (bool, error) {
 // positional string next to "customerName, shippingAddress, paymentStatus"
 // is the kind of signature where two arguments get silently transposed and
 // nothing complains until a customer's phone number shows up as their name.
+// ShippingAddressText (Stage 76.3) is a SalesOrder's whole delivery address on
+// one line. Since 76.2 shipping_address is Address Line 1, and a manual order
+// keeps line 2, city, state and PIN in fields of their own; validation,
+// sourcing and re-allocation read this, so a split address still carries its
+// PIN. A channel order, whose shipping_address is the whole address and has
+// none of the parts, reads back unchanged.
+func ShippingAddressText(order map[string]interface{}) string {
+	line1 := strings.TrimSpace(strField(order, "shipping_address"))
+	line2, city, pin := strings.TrimSpace(strField(order, "shipping_address_line2")), strings.TrimSpace(strField(order, "shipping_city")), strings.TrimSpace(strField(order, "shipping_pincode"))
+	if line2 == "" && city == "" && pin == "" {
+		return line1
+	}
+	tail := strings.TrimSpace(strField(order, "shipping_state") + " " + pin)
+	return strings.Join(nonEmpty(line1, line2, city, tail), ", ")
+}
+
 type SalesOrderInput struct {
 	Channel           string
 	ChannelOrderID    string
 	CustomerName      string
 	CustomerRef       string // Stage 73.2.9: a B2B customer's own PO number / reference
-	ShippingAddress   string
+	ShippingAddress   string // Address Line 1 when the parts below are given (Stage 76.3)
 	ShippingState     string
+	ShippingLine2     string
+	ShippingCity      string
+	ShippingPincode   string
 	PaymentStatus     string
 	PreferredLocation string
 	NoSplit           bool
@@ -176,6 +195,21 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 	channel, channelOrderID := in.Channel, in.ChannelOrderID
 	customerName, shippingAddress, paymentStatus := in.CustomerName, in.ShippingAddress, in.PaymentStatus
 	lines := in.Lines
+	// Stage 76.3: a split address is stored as its parts; the checks and
+	// sourcing below read it whole.
+	addressParts := map[string]interface{}{}
+	for k, v := range map[string]string{"shipping_address_line2": in.ShippingLine2, "shipping_city": in.ShippingCity, "shipping_pincode": in.ShippingPincode} {
+		if v = strings.TrimSpace(v); v != "" {
+			addressParts[k] = v
+		}
+	}
+	if len(addressParts) > 0 {
+		whole := map[string]interface{}{"shipping_address": in.ShippingAddress, "shipping_state": in.ShippingState}
+		for k, v := range addressParts {
+			whole[k] = v
+		}
+		shippingAddress = ShippingAddressText(whole)
+	}
 
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
@@ -273,7 +307,7 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 		"channel":          channel,
 		"channel_order_id": channelOrderID,
 		"customer_name":    customerName,
-		"shipping_address": shippingAddress,
+		"shipping_address": in.ShippingAddress,
 		"shipping_state":   in.ShippingState,
 		"payment_status":   paymentStatus,
 		"order_status":     orderStatus,
@@ -286,6 +320,16 @@ func CreateSalesOrder(tenantID string, in SalesOrderInput) (string, error) {
 	if owner := strings.TrimSpace(in.OwnerID); owner != "" {
 		orderDoc["owner_id"] = owner // Stage 59.2
 	}
+	for k, v := range addressParts {
+		orderDoc[k] = v // Stage 76.3
+	}
+	// Stage 76.11: the order's number comes from the SO series at the store
+	// that fulfils it (the first allocated line's), else HQ.
+	shipFrom := ""
+	if plan != nil && len(plan.LineLocations) > 0 {
+		shipFrom = plan.LineLocations[0]
+	}
+	issueNumberInto(orderDoc, tenantID, "SalesOrder", orderID, "", shipFrom)
 
 	// Stage 41: clean the channel-supplied phone number and record which
 	// country it belongs to.
@@ -513,7 +557,7 @@ func ReleaseOrderHold(tenantID, orderID string) error {
 		lines[i] = SalesOrderLineInput{SKU: sku, Qty: qty, UnitPrice: unitPrice}
 	}
 
-	shippingAddress, _ := orderData["shipping_address"].(string)
+	shippingAddress := ShippingAddressText(orderData) // Stage 76.3: line 1 plus its parts
 	paymentStatus, _ := orderData["payment_status"].(string)
 	holdReason, err := validateOrderChain(tenantID, shippingAddress, paymentStatus, lines)
 	if err != nil {
@@ -549,6 +593,11 @@ func ReleaseOrderHold(tenantID, orderID string) error {
 		channel, _ := orderData["channel"].(string)
 		plan, err := ResolveAllocationPlan(tenantID, channel, shippingAddress, pendingLines)
 		if err != nil {
+			return err
+		}
+		// 73.B.6: a held order re-allocates on its owner's stock only, as at
+		// first allocation (59.3).
+		if plan, err = OwnerCheckedPlan(tenantID, strField(orderData, "owner_id"), pendingLines, plan); err != nil {
 			return err
 		}
 		if plan == nil {

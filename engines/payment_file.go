@@ -60,7 +60,11 @@ func GeneratePaymentFile(tenantID, proposalID string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		if err := w.Write([]string{r.InvoiceID, name, account, ifsc, fmt.Sprintf("%d", r.Amount)}); err != nil {
+		amount := fmt.Sprintf("%d", r.Amount) // a run executed before 73.D.23 kept whole rupees only
+		if r.AmountPaise > 0 {
+			amount = fmt.Sprintf("%.2f", PaiseToRupees(r.AmountPaise)) // 73.D.23: to the paisa
+		}
+		if err := w.Write([]string{r.InvoiceID, name, account, ifsc, amount}); err != nil {
 			return "", err
 		}
 	}

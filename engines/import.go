@@ -296,6 +296,17 @@ func runDocDataImportContext(ctx context.Context, tenantID, doctype, userID, rol
 		})
 	}
 
+	// Stage 93.1: an imported location gets its cost center the same way one
+	// saved on screen does. Its row is committed already, so a failure here
+	// is reported against the import, not the location.
+	if !dryRun && doctype == "Location" {
+		for _, id := range append(append([]string{}, result.CreatedIDs...), result.UpdatedIDs...) {
+			if _, err := EnsureLocationCostCenter(tenantID, id, userID); err != nil {
+				result.Errors = append(result.Errors, RowValidationError{Message: fmt.Sprintf("location %s was imported, but its cost center could not be made: %v", id, err)})
+			}
+		}
+	}
+
 	return result, nil
 }
 
@@ -311,6 +322,7 @@ type importLookups struct {
 	permissionsErr error
 	isMaster       bool
 	isMasterErr    error
+	itemDefaults   *ItemDefaultsMemo // Stage 89: one import's item-name / category lookups
 }
 
 func newImportLookups(tenantID, schema, doctype, role string) (*importLookups, error) {
@@ -521,6 +533,15 @@ func importBatch(tenantID, schema, doctype, userID, role string, dryRun bool, do
 		// runs. A no-op for a standalone Item, for any other doctype, and for
 		// a row that already carries an explicit code.
 		if doctype == "Item" {
+			// Stage 89: the item name's category / type / HSN / GST and the org's
+			// defaults, as on the save path.
+			if lk.itemDefaults == nil {
+				lk.itemDefaults = NewItemDefaultsMemo()
+			}
+			if err := PrepareItemDefaultsMemo(tenantID, rowIsCreate, docData, lk.itemDefaults); err != nil {
+				recordImportError(result, rowNumber, err.Error())
+				continue
+			}
 			if err := PrepareItemVariantCode(tenantID, rowIsCreate, docData); err != nil {
 				recordImportError(result, rowNumber, err.Error())
 				continue

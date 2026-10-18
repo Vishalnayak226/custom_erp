@@ -5,7 +5,7 @@ order: 70
 summary: Every posting is balanced double-entry against a period that can be locked shut, with multi-currency revaluation and 25 registered reports behind it - though several of the deepest entry points are API-only today.
 audience: accountant, finance manager, admin
 last_verified: 2026-09-03
-screens: [finance, module:finance, journal-vouchers, reports, configuration]
+screens: [finance, module:finance, journal-vouchers, reports, configuration, einvoice]
 doc_id: DOC-DDBD8E5B5F
 type: procedure
 status: draft
@@ -69,6 +69,26 @@ without restructuring that). These dimensions are what the dimensioned P&L
 reports (Cost Center P&L, Department P&L, Project P&L) and the entity/
 consolidated trial balance reports filter and group by.
 
+**Cost center, entity and department come from the document (Stage 93).**
+Every Location has its own cost center — made with it, named after it — and
+belongs to one legal entity (both required; Admin Guide B.3.0.3b). A posting
+with none of its own takes:
+
+- **cost center and entity** from its document's location: POS sales, sales
+  invoices, GRNs, purchase returns, consumption, expense claims and assets
+  directly; credit notes, vendor invoices, debit / vendor credit notes,
+  refunds and payslips through the invoice, cart, GRN, return or employee
+  they come from;
+- **department** from the document (an expense claim's), else its parent (a
+  payslip's employee), else the user who raised it — every user has a
+  department from the day they are created. A journal voucher carries only
+  the department picked on it.
+
+Anything picked on the document is kept, and an Inactive record is skipped
+rather than refusing the posting. So the Cost Center P&L reads store by
+store, the Department P&L team by team, and the trial balance company by
+company, without anyone tagging a sale by hand.
+
 ## Accounting periods and closing
 
 **Create** a period (Finance → Accounting Periods) with a name and a
@@ -115,6 +135,25 @@ actually collected. A **deferred-revenue** invoice posts to a deferred
 liability account instead of straight to revenue, and a background worker
 recognizes it into revenue on schedule — see the **Deferred Revenue
 Roll-Forward** report to track one in progress.
+
+## E-invoice (IRN)
+
+For a GSTIN that must e-invoice (turnover above ₹5 crore), every posted
+B2B **sales invoice** and customer **credit note** gets its IRN from the
+government's IRP. An admin sets each GSTIN up once under **Financial
+Accounting → E-Invoice Settings** (on/off, send automatically or not,
+turnover band, document types, credentials); only the test provider exists
+until the IRIS sandbox is connected. Accountants work the queue in
+**Financial Accounting → E-Invoice (IRN)**: what needs fixing (HSN, unit,
+PIN code, GSTIN, a number over 16 characters) is listed with the fix,
+**Validate** rebuilds it, **Submit** sends it, **Unknown** means the IRP did
+not answer and the document is looked up before anything is sent again.
+Once it has an IRN, its tax details are locked; **Cancel IRN** within 24
+hours needs a second Accountant's approval, after that issue a credit note.
+B2C sales are never sent. The invoice print shows the IRN, Ack and the
+signed QR, or *IRN PENDING*. Outage path: generate it on the portal, then
+**Enter portal IRN** (verified by a second person). Reports: E-Invoice /
+IRN Status Register, Error / Retry Report, IRN Portal Manual Upload Report.
 
 ## Accounts Payable: Vendor Invoices and payment runs
 

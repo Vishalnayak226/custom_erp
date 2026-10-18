@@ -25,6 +25,12 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 		CustomerPhone   string `json:"customer_phone"`
 		CustomerRef     string `json:"customer_reference"` // Stage 73.2.9
 		ShippingAddress string `json:"shipping_address"`
+		// Stage 76.3: the manual order form sends the address in its parts
+		// (shipping_address is Address Line 1).
+		ShippingLine2   string `json:"shipping_address_line2"`
+		ShippingCity    string `json:"shipping_city"`
+		ShippingState   string `json:"shipping_state"`
+		ShippingPincode string `json:"shipping_pincode"`
 		PaymentStatus   string `json:"payment_status"`
 		OwnerID         string `json:"owner_id"` // Stage 59.2: the 3PL client (optional)
 		Lines           []struct {
@@ -63,6 +69,10 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 		ChannelOrderID:  req.ChannelOrderID,
 		CustomerName:    req.CustomerName,
 		ShippingAddress: req.ShippingAddress,
+		ShippingLine2:   req.ShippingLine2,
+		ShippingCity:    req.ShippingCity,
+		ShippingState:   req.ShippingState,
+		ShippingPincode: req.ShippingPincode,
 		PaymentStatus:   req.PaymentStatus,
 		CustomerPhone:   req.CustomerPhone,
 		CustomerRef:     req.CustomerRef,
@@ -75,7 +85,8 @@ func handleCreateSalesOrder(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{"order_id": orderID, "existing": existing != "" && existing == orderID})
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"order_id": orderID, "order_number": engines.DocumentNumber(tenantID, "SalesOrder", orderID), // Stage 76.11
+		"existing": existing != "" && existing == orderID})
 }
 
 // handlePlaceOrderHold is the Hold engine's manual entry point (a CS agent

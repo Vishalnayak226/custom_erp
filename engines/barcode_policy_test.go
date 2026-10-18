@@ -284,11 +284,11 @@ func TestBatchAgeingFIFOAndBands(t *testing.T) {
 func TestCounterSeriesPrefixMayRepeat(t *testing.T) {
 	all := []NumberSeries{{DocType: "PurchaseOrder", Prefix: "PO"}}
 	batch := NumberSeries{DocType: "GRNBatchSeq", Prefix: "PO", Separator: "-", PaddingWidth: 4, ResetFrequency: "ANNUAL"}
-	if err := validateNumberSeries(batch, &NumberSeries{DocType: "GRNBatchSeq", Prefix: "B"}, nil, all); err != nil {
+	if err := validateNumberSeries(batch, &NumberSeries{DocType: "GRNBatchSeq", Prefix: "B"}, nil, all, nil); err != nil {
 		t.Errorf("GRN batch series with prefix PO refused: %v", err)
 	}
 	grn := NumberSeries{DocType: "GRN", Prefix: "PO", Separator: "/", PaddingWidth: 5, ResetFrequency: "ANNUAL"}
-	if err := validateNumberSeries(grn, &NumberSeries{DocType: "GRN", Prefix: "GRN"}, nil, all); err == nil {
+	if err := validateNumberSeries(grn, &NumberSeries{DocType: "GRN", Prefix: "GRN"}, nil, all, nil); err == nil {
 		t.Error("a document series reusing PO's prefix must still be refused")
 	}
 }

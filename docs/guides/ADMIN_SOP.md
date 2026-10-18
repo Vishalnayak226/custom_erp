@@ -270,7 +270,7 @@ Below the table, **Who approves what** reads the rules back per record type — 
 Two things to get right:
 
 - **Leave no gap between bands.** A document whose amount falls in no band cannot be submitted for approval - it is refused (automatic checks such as the till's discount gate treat it as needing no approval). If Store Manager covers 0–49,999, the next band must start at 50,000, not 50,001.
-- **A rule needs two people to be useful.** Maker-checker refuses self-approval, so whoever creates the document cannot approve it — see §B.10.
+- **Who may approve their own document is a setting** (as shipped: anyone holding the approving role) — see §B.10.
 
 The underlying API (`GET`/`POST /api/v1/approval/rules`, Super Admin-only for writes) is still there if you need to script a bulk change:
 
@@ -293,15 +293,24 @@ Invoke-RestMethod -Method Post -Uri "http://localhost:8080/api/v1/approval/rules
 
 `max_amount` can be omitted/`null` for an open-ended top band. The save endpoint runs an overlap check against existing bands for that doctype and rejects a conflicting range with an error message explaining the conflict. Every change here is written to the Activity Log's Audit Logs tab (`SAVE_APPROVAL_RULE`) automatically, same as everything else in this system.
 
-### B.10 You need at least two user accounts — this is a hard prerequisite
+### B.10 Approving your own documents — one setting decides
 
-**Maker-checker refuses self-approval.** Whoever submits a document cannot be the person who approves it, at any role, for any amount, with no override. That is the entire point of the mechanism, and it is enforced server-side.
+**Settings → Configuration → Security → Who can approve their own documents** (Stage 92):
 
-The practical consequence catches out almost every new installation:
+| Choice | What it means |
+|---|---|
+| **Anyone who can approve it** (as shipped) | The person who submitted a PO, requisition, voucher, transfer... may approve or reject it themselves, as long as their role is the one the amount band names (§B.9) or they are an admin. One person can run the whole purchasing flow alone. |
+| **Admins only** | Only a Super Admin may decide their own; everyone else needs a second person. |
+| **Nobody - someone else always decides** | Strict maker-checker: whoever submits can never decide it, at any role or amount. |
 
-> **A single-user install can never complete an approval-gated document.** If you set the system up with one admin account and try to walk the purchasing flow yourself, your Purchase Order will submit, appear in Approvals — and refuse your own Approve click. Nothing is broken. You need a second account.
+Two things hold whatever you choose:
 
-So, before your first end-to-end run, create at least two users (§A.1):
+- **Every own decision is marked.** The approval history shows the comment starting *"[decided by the submitter]"* and the Activity Log has an **APPROVAL_SELF_DECISION** entry, so an auditor can list them.
+- **Two flows always need a second admin**: a Super Admin's password reset (§A.1) and an item treatment correction while *A second admin approves item treatment corrections* is on. Trying your own gives *"... this one always needs a second admin"* (APPROV-0840).
+
+When the setting stops you, the screen says *"You cannot approve or reject a document you submitted"* (APPROV-0840): another approver with the required role must decide it, or an admin changes the setting.
+
+**With "Nobody" you need at least two user accounts.** Create them before your first end-to-end run (§A.1):
 
 | Account | Role | Does |
 |---|---|---|

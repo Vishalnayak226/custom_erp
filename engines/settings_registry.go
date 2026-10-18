@@ -63,6 +63,10 @@ type SettingDefinition struct {
 var settingsRegistry = map[string]SettingDefinition{}
 var settingsRegistryOrder []string
 
+// settingChangeHooks run when a setting's value changes (SetSetting), before
+// it is stored: (tenantID, old value, new value, changed by).
+var settingChangeHooks = map[string]func(tenantID, from, to, by string) error{}
+
 // RegisterSetting adds one definition to the registry. Called only from
 // settings_definitions.go's init() - a duplicate key is a build-time
 // programmer error, so it panics rather than silently overwriting (same
@@ -267,6 +271,16 @@ func SetSetting(tenantID, key, value, updatedBy string) error {
 	schema, err := db.GetTenantSchema(tenantID)
 	if err != nil {
 		return err
+	}
+	// Stage 89: a setting whose change must also change data (the item name
+	// order renames item names) does that first; if it fails, the setting is
+	// left as it was.
+	if hook := settingChangeHooks[key]; hook != nil {
+		if old := rawSettingForSchema(schema, key); old != value {
+			if err := hook(tenantID, old, value, updatedBy); err != nil {
+				return err
+			}
+		}
 	}
 	if _, err := db.DB.Exec(fmt.Sprintf(`
 		INSERT INTO %s.system_settings (key, value, updated_at, updated_by)

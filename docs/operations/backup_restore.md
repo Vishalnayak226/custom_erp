@@ -65,7 +65,27 @@ sudo bash /opt/erp/deploy/install_backup_cron.sh
 
 It is idempotent (a marker comment identifies its own crontab line, so re-running replaces that line and never touches other jobs), it preflights the things that actually fail — missing `/etc/erp/erp.env`, missing `DATABASE_URL` or `BACKUP_ENCRYPTION_KEY`, missing `pg_dump`/`openssl`, missing `erp` user — and it **runs one backup immediately**, because a cron line existing is not evidence that a backup works.
 
-**Retention is 14 days, on-box only** (decision taken 2026-08-05). Override with `RETAIN_DAYS=` if that changes. There is deliberately no off-box copy: it would need storage credentials that do not exist yet. Note what that means — losing the droplet loses the backups with it.
+**Retention is 14 days, on-box only** (decision taken 2026-08-05). Override with `RETAIN_DAYS=` if that changes. Until Stage 75.1 there was no off-box copy, so losing the droplet lost the backups with it.
+
+### Off-box copy (Stage 75.1.4-75.1.6)
+
+`deploy/backup.sh` copies every encrypted dump and its `.sha256` to an S3-compatible bucket (Cloudflare R2 is the plan) as soon as these are set in `/etc/erp/erp.env`; with them unset it behaves exactly as before:
+
+| Variable | Value |
+|---|---|
+| `OFFSITE_S3_ENDPOINT` | `https://<account-id>.r2.cloudflarestorage.com` |
+| `OFFSITE_S3_BUCKET` | the private bucket, e.g. `erp-backups` |
+| `OFFSITE_S3_ACCESS_KEY_ID` / `OFFSITE_S3_SECRET_ACCESS_KEY` | an API token scoped to that bucket only |
+| `OFFSITE_S3_REGION` | optional, `auto` (R2) by default |
+| `OFFSITE_S3_PREFIX` | optional, the host's short name by default |
+
+- **What goes up:** `<prefix>/database/custom_erp_<ts>.dump.enc` (+ `.sha256`) each night; a tenant export goes under `<prefix>/tenant/`. The nightly also copies new or changed files under `/opt/erp/media_store` to `<prefix>/media/…` — upload-only, driven by `media_manifest.tsv` in the backup folder (a file goes up once, again only if its size or time changes; nothing is deleted off-box). Give the bucket a **30-day lifecycle rule** (and an object lock if offered) — that is the off-box retention.
+- **No new tool:** curl signs the requests itself (`--aws-sigv4`, curl 7.75+). The key pair is handed to curl on stdin, so it never appears in `ps`.
+- **What is recorded:** each run's `public.backup_runs` row carries `offsite_key` and `offsite_outcome` (`Success` / `Failed`, empty when no bucket is set); the media copy is its own row, scope `media`. Needs `db/migrations_stage75_1_offsite_backup.sql`.
+- **Alerts:** a failed upload → `BACKUP_OFFSITE_FAILED` (the local backup still completed); no successful off-box copy of a whole-database run for 26 h → `BACKUP_OFFSITE_STALE` (`incident_runbook.md`, trigger 3).
+- **Remember `deploy.ps1` does not ship `deploy/`** — copy the new `backup.sh` to `/opt/erp/deploy/` by hand after the release that brings it.
+- **Keep the backup key off the droplet too** — a copy of `BACKUP_ENCRYPTION_KEY` in a password manager. The bucket holds encrypted dumps; without the key they cannot be restored.
+- **Restore from the bucket alone** (the drill to record below, 75.1.7): download the dump and its `.sha256`, `sha256sum -c`, then decrypt and `pg_restore` into a scratch database exactly as for an on-box file.
 
 ### Why the cron line sources the env file with `set -a`
 

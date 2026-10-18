@@ -125,6 +125,168 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-19 "Fix all" on the build run's leftovers - 75.2.8a, 76.6, BLD020 test, manifest DONE (ship); 75.3 catalog
+  reports IN PROGRESS (do NOT ship).** Checklist 75.2.8a, 76.6, 75.3.2, 75.3.5. No migration.
+  - **Ship:** `engines/print_documents.go` (credit note `irn_signed_qr`), `print_templates.go` (E-invoice fields),
+    `einvoice_stage75_2_test.go`; `public/trade-docs.js` + `.css` (`qr` element), `print-template-studio.js`;
+    `engines/master_recode.go` (all masters, backup gate, Item warning, touches, chunked JSON), new
+    `master_recode_stage76_6_test.go`; `internal/server/handlers_field_formats.go`, `handlers_core_doc_engine.go` (old
+    code resolves on GET + search), `error_catalog_extensions.go` (MASTER-0990/0991 - regenerate ERROR_CODES / KB at
+    release); `public/view-master-recode.js`, `view-documents.js` (panel on every master list);
+    `internal/server/bld020_boundary_matrix_test.go` (skips when `users.department` is missing - the shared `custom_erp`
+    has not run Stage 93's migration; passes on a migrated DB); `docs/security/attack_surface.json` regenerated (copy
+    allowed this time); ADMIN_GUIDE (old long codes), USER_GUIDE (QR code element). A view-module `?v=` bump is needed so
+    browsers fetch the changed `trade-docs.js` / `view-master-recode.js` / `view-documents.js`.
+  - **Do not ship yet:** `engines/report_catalog.go`, `report_catalog_common.go`, `report_catalog_sales.go`,
+    `report_catalog_inventory.go`, `report_catalog_spec_generated.go`, `report_catalog_stage75_3_test.go`,
+    `cmd/gencatalog/`, `docs/specs/reports/`, and the `report_catalog_sales.go` entry in
+    `internal/securityscan/bypass_test.go`. Without them the manifest must drop `cmd/gencatalog` (regenerate it from the
+    committed set).
+  - Scratch DB `custom_erp_s766` (5490, fully migrated from empty: 246 migrations, no errors) left for the catalog work.
+
+- **2026-10-18 Stage 96 (Windows dev servers bind loopback) - BUILT, NOT COMMITTED, NOT DEPLOYED.** Ledger §251.
+  My hunks only: `internal/server/routes.go` (the `runtime` import plus an `if host == "" && runtime.GOOS == "windows"` block
+  after `host := os.Getenv("HOST")`), ADMIN_GUIDE §B.1 (one paragraph), the Stage 96 block in micro_checklist, and §251 here.
+  All four files also carry other sessions' uncommitted work, so stage only these hunks. Linux and prod behaviour is unchanged.
+  Scratch servers on Windows now listen on `127.0.0.1` unless `HOST=0.0.0.0` is set.
+- **2026-10-18 Build run steps 2 and 6-9 (numbering, Inventory / WMS, small fixes, e-invoice, reports) - BUILT, NOT
+  COMMITTED, NOT DEPLOYED.** Ledger §250; checklist build-order note at the top, 76.x, 73.B/C/D, 75.2, 75.3.
+  - **Migrations (3, additive, applied to local `custom_erp` twice - no change on rerun):**
+    `migrations_stage76_11_engine_document_series.sql`, `migrations_stage76_12_planned_document_series.sql`,
+    `migrations_stage75_2_einvoice.sql` (irp_* tables, append-only trigger, IRNCancellation / IRNManualImport + rules).
+  - **New files (mine):** engines `einvoice.go`, `einvoice_provider.go`, `einvoice_worker.go`, `einvoice_controls.go`,
+    `approval_hooks.go`, `report_store_scope.go`, `report_register_builder.go`; internal/server `handlers_einvoice.go`,
+    `method_not_allowed.go`; public `view-einvoice.js`, `favicon.svg`; tests `engine_document_numbers_stage76_11_test.go`,
+    `inventory_wms_step6_test.go`, `hr_ui_step7_test.go`, `einvoice_stage75_2_test.go`, `report_store_scope_stage75_3_test.go`,
+    `report_register_stage75_3_test.go`, `internal/server/method_not_allowed_stage73c8_test.go`.
+  - **Changed (my hunks only - most of these files carry other sessions' uncommitted work):** engines `document_numbering.go`,
+    `orders.go`, `order_mutations.go`, `order_changes.go`, `returns.go`, `returns_atomic.go`, `journal_voucher.go`,
+    `wms_physical_inventory.go`, `gate_pass.go`, `consumption_entry.go`, `bundles.go`, `costing.go`, `oms_console.go`,
+    `location_masters.go` (ReceiptStore.Address), `qz_payload.go`, `wms.go` (putawayRefused), `hr_payroll.go`, `role_templates.go`
+    (ESS), `vendor_invoice.go` (payVendorInvoice paise core), `payment_proposal.go`, `payment_file.go`, `approval.go`
+    (2 lines: dual control + `runApprovalDecisionHooks`), `transactional_validation.go` (e-invoice lock), `print_documents.go`
+    (credit-note IRN fields), `report_registry.go` (StoreKey, column Type/Total, store scope), `report_export.go`
+    (requested_by), `customer_reference_report.go`, `stage73_customer_reference_test.go`; internal/server `routes.go`
+    (einvoice routes + worker, `apiMethodNotAllowed` wrap, favicon), `route_capabilities.go`, `apierror.go` (405 map),
+    `handlers_orders.go`, `handlers_bundles.go`, `handlers_report_engine.go`, `static_fileserver.go`,
+    `error_catalog_extensions.go` (ORDERM-0970, INVENT-0971, EINV-0980..0986, REPORT-0987);
+    `internal/securityscan/surface_test.go` (favicon reviewed as public); public `app.js` (one LAZY_VIEW + MENU_MODULE_MAP
+    entry), `index.html` (2 menu entries + icon link), `view-oms.js`, `view-returns.js`, `view-consumption.js`, `view-admin.js`,
+    `view-finance.js`, `view-reports.js`, `styles.css` (`.field-format-note:empty`); docs guides / KB / brain / generated.
+  - **Behaviour to know at release:** engine-made documents get printed numbers in `code` (SO/SR/RF/PI/GP/CE/KIT/LCV/JV) -
+    lists, OMS search and the customer-reference report show them; a store-limited user's reports, exports and drill-downs are
+    cut to their stores; an e-invoiced invoice's tax fields lock after its IRN; the e-invoice worker ticks every minute (one
+    EXISTS per tenant when nothing is enabled); `styles.css?v=30` should be bumped at release.
+  - **Gates:** full `engines` + `internal/server` - only `TestBLD020RoleTenantSizeEntitlementMatrix` fails, from the Stage 93
+    session's uncommitted `department` column insert in `handlers_admin_identity.go`; `internal/securityscan`
+    `TestAttackSurfaceManifestIsCurrent` fails until `docs/security/attack_surface.json` is replaced by the generated
+    `%TEMP%\erp7613\attack_surface.json` (also covers Stage 95's routes) - the classifier refuses that overwrite, so the user
+    copies it.
+  - **Waiting on the user:** that copy; the two report catalog spreadsheets (75.3.2, Waves A-C); 76.6 after 93.11's commit;
+    75.2.0 IRIS sandbox; commit / push / deploy.
+
+- **2026-10-18 Stage 95 - Design / Combination ID images after the PO, on each client's own image drive - BUILT,
+  NOT COMMITTED, NOT DEPLOYED.** Ledger §249; checklist Stage 95. No migration.
+  - **New files (mine):** `engines/image_drive.go`, `engines/s3_sigv4.go`, `engines/owner_images.go`,
+    `engines/image_drive_stage95_test.go`, `engines/s3_sigv4_test.go`, `internal/server/handlers_images.go`,
+    `public/view-images.js`, `public/view-images.css`.
+  - **Changed (my hunks only - others have uncommitted work in several):** `engines/pim_media.go` (SaveMediaFile →
+    saveOwnedMediaFile, drive write, `Read*` replace `GetMediaFile`/`GetMediaThumbnail`), `engines/pim_dam.go`
+    (`ReadMediaTransform`, bulk zip; NOT the pre-existing gofmt misalignment in `BulkMediaUploadOutcome`),
+    `engines/pim_dam_test.go`, `engines/connector.go`, `engines/print_documents.go` (one hunk + `os` import),
+    `internal/server/handlers_procurement_pim2.go`, `handlers_pim_dam.go`, `routes.go` (13 routes after
+    design-attribute), `route_capabilities.go` (13 entries), `middleware.go` (rate buckets `image` / `image-upload`,
+    `isImageReadPath`), `error_catalog_extensions.go` (PIM-0950..0952 before PIM-0691), `public/view-procurement.js`
+    (Images row button, `openPOImages`, `renderPOImagesPage`, the `images` page branch), `public/view-admin.js`
+    (3 lines in `renderConfigIntegrations`), `public/view-documents.js` (Stage 95 hook after Stage 89's), docs
+    USER_GUIDE §6.11, ADMIN_GUIDE (Integrations paragraph + Image drive), KB `procurement.md`, `brain.map.json`
+    (PIM region), regenerated ERROR_CODES / error-code-reference / Knowledge Center.
+  - **Before release:** `internal/securityscan` fails until `docs/security/attack_surface.json` is regenerated -
+    generated at `%TEMP%\s95\attack_surface.json` (agent may not overwrite it: classifier). Brain redraw refused
+    while another session's `internal/server/method_not_allowed.go` is unclaimed. A view-module `?v=` bump may be
+    wanted so browsers fetch the changed `view-procurement.js` / `view-admin.js` / `view-documents.js`.
+  - **Behaviour to know at release:** nothing changes for a client until its admin sets a drive - images stay on the
+    ERP server. Production keeps `IMAGE_DRIVE_ALLOW_PRIVATE` unset (SaaS: https + public endpoints only).
+  - **Release decision (user, 2026-10-18):** ships with the full release, not on its own. After deploy: test on
+    app.wholeops.in (Minn's R2 bucket `minn-erp-images`, folders `app-test/Design Image` / `app-test/Combination
+    Image`), then the same details on minn with `Image/Design Image` / `Image/Combination Image` - checklist 95.8 (c).
+  - **95.9 (same day):** the single Folder became two required fields, Design images folder / Combination images
+    folder (spaces allowed); photos go to `<folder>/<ID>/`. Same files as above, no new ones.
+
+- **2026-10-18 Stage 93 - a cost center for every location; legal entity + GSTIN required; every person in a
+  department; postings carry cost center / entity / department; old long codes cleaned once - BUILT, VERIFIED ON A
+  SCRATCH INSTANCE, NOT COMMITTED, NOT DEPLOYED.** Ledger §248, micro_checklist Stage 93 (verification + release steps).
+  - **Migration:** `db/migrations_stage93_location_cost_center.sql` (Location.cost_center field, users.department,
+    master_code_changes, mandatory flags in every schema). **Not applied to local `custom_erp`** on purpose (other
+    sessions' half-written migrations would ride along); verified on scratch DBs `custom_erp_t93` / `custom_erp_t93b`
+    (5490, left in place). `TestPostingEntityDepartmentAndCodeCleanup` skips on an unmigrated DB.
+  - **Release behaviour:** `-migrate` now also runs `BackfillLocationCostCentersAllTenants` (creates cost centers on
+    app / minn) - tell the user before deploying.
+  - **New files (mine):** `engines/location_cost_center.go`, `engines/person_department.go`, `engines/master_recode.go`,
+    `engines/location_cost_center_test.go`, `public/view-master-recode.js`, the migration.
+  - **Changed (my hunks only - most of these files carry other sessions' work):** `engines/finance.go` (dimension
+    derivation in `PostDoubleEntryTx`), `engines/import.go` (end of `runDocDataImportContext`), `engines/gl_cost_center.go`
+    (names helper + two Name columns), `engines/doctype.go` (PickFrom Department), `engines/location_masters.go` (Employee
+    location + old-code alias), `engines/expense.go`, `engines/reports_stage26_10.go`, `cmd/server/main.go` (after the
+    schema sync), `internal/server/handlers_core_doc_engine.go` (department resolve loop, Location cost center before the
+    write, Employee department sync), `handlers_admin_identity.go`, `handlers_field_formats.go`, `routes.go`,
+    `route_capabilities.go`, `error_catalog_extensions.go` (MASTER-0931/0932), `bld020_boundary_matrix_test.go`;
+    `public/view-pickers.js` (`wireLocationCostCenter`), `view-documents.js` (3 hooks), `view-users.js`, `view-hr.js`;
+    `docs/brain/brain.map.json` (3 claims), `docs/security/attack_surface.json` (regenerated - redo at release, another
+    session's `engines/image_drive.go` drifted it again); guides / KB / generated docs.
+  - **Seen, not mine:** SB-024 at server start - `migrations_stage76_11_engine_document_series.sql` was edited after it
+    was applied somewhere; `TestStage73CustomerReference` fails on a fresh DB (sales order series number).
+
+- **2026-10-18 85.C6 - the till's customer box "+ Create" opens the phone-first form - BUILT, VERIFIED LIVE, NOT
+  COMMITTED, NOT DEPLOYED.** Ledger §243 (follow-up line). The user saw the generic *New Customer* dialog (name + status,
+  no mobile) on the till; that path exists in production (840909b) AND in local Stage 85 (0dee7ec), so deploying Stage
+  85 alone would not have fixed it. **Stage 85 itself is still unpushed/undeployed** (main ahead of origin by 3).
+  - **Changed (my hunks only):** `public/app.js` (one line in `attachTypeahead`'s create row: `opts.onCreate`; other
+    sessions have ~280 uncommitted lines in this file), `public/view-pos.js` (the customer `attachCodeNamePicker`
+    call), `public/view-pos-customer.js` (`openPOSCustomerForm` takes `name`), `docs/guides/USER_GUIDE.md` §4 step 5
+    (one bullet) + the regenerated KB / manuals.
+  - **Local data left:** test customer C00198 "QA Typed 429764" in local `custom_erp` (not deleted).
+
+- **2026-10-18 Stage 92 - the submitter may approve their own documents; Send to Vendor toast - BUILT, NOT
+  COMMITTED, NOT DEPLOYED.** Ledger §247. New Security setting `approvals.self_approval` (default *anyone*; *admins* /
+  *nobody*), `SubmitterMayDecideOwn` in `engines/approval.go` (also used by `task_inbox.go`); PasswordResetRequest and
+  ItemTreatmentCorrection always need a second admin. No migration.
+  - **New file (mine):** `engines/approval_self_approval_stage92_test.go`.
+  - **Changed (my hunks only - other sessions have uncommitted work in most of these):** `engines/approval.go`
+    (lines ~282-370 + the audit call after commit; NOT the 89.8 `applyApprovedTreatmentCorrection` hunk),
+    `engines/settings_definitions.go` (first Security entry), `engines/task_inbox.go`, `public/view-procurement.js`
+    (`sendPurchaseOrderToVendor` else-branch), `internal/server/error_catalog_extensions.go` (APPROV-0840 hint),
+    tests `approval_self_decision_stage84`, `task_inbox`, `stage73_period_close_bank`, `transfer_lifecycle`,
+    `vendor_invoice` (one `withSelfApproval(... Nobody)` line each); docs ADMIN_SOP §B.9/§B.10, ADMIN_GUIDE (5 lines),
+    USER_GUIDE, KB faq / journey-admin / open-a-shop / troubleshooting-index, regenerated ERROR_CODES +
+    error-code-reference + Knowledge Center.
+  - **Behaviour to know at release:** every client gets self-approval ON by default, including period reopen and
+    transfers above the direct limit; a client wanting strict two-person control sets *Nobody*.
+
+- **2026-10-18 Module-wise build, modules 3-5 (Finance & Tax 73.D.10-.16, Security & Access 73.D.6-.9/.17/.20,
+  Backups & Platform 75.1.4-75.1.6/75.1.8) - BUILT, NOT COMMITTED, NOT DEPLOYED.** Ledger §246. The user's run
+  stops here. Clean-slate request (prod app + minn wipe, guided setup) recorded as **Stage 91**, parked - not started.
+  - **Migration:** `db/migrations_stage75_1_offsite_backup.sql` (public.backup_runs `offsite_key` / `offsite_outcome`),
+    applied to local `custom_erp`. **`deploy/backup.sh` changed** - deploy.ps1 does not ship `deploy/`; copy it to
+    `/opt/erp/deploy/` by hand. Off-box upload is off until `OFFSITE_S3_*` is set (user, 75.1.1).
+  - **New files (only mine):** `engines/posted_amounts.go`, `engines/creator_owned.go`,
+    `internal/server/document_read_rule.go`, tests `engines/credit_note_gst_stage73d10_test.go`,
+    `engines/finance_tax_stage73d_test.go`, `engines/backup_offsite_stage75_test.go`,
+    `internal/server/{document_read_rule_stage73d20,approval_log_scope_stage73d6,report_schedule_owner_stage73d9,self_scope_write_stage73d7,generic_save_merge_stage73d8}_test.go`.
+  - **Changed (check other sessions' hunks before staging):** engines `notes.go`, `partial_settlement.go`, `tds.go`,
+    `vendor_invoice.go`, `budgeting.go`, `transactional_validation.go`, `journal_voucher.go`, `scope_policy.go`,
+    `role_templates.go`, `alerting.go`, `outbox.go`; internal/server `handlers_core_doc_engine.go` (read rule, creator
+    rule, self-scope write, merge-on-save), `handlers_attachments.go`, `handlers_purchase_return.go`,
+    `handlers_pim_pos_finance.go` (approval log + submit), `handlers_finance_maturity.go`, `error_catalog_extensions.go`
+    (FIN-0841/0842/0844, ASSET-0843 after APPROV-0840); docs USER/ADMIN_GUIDE, operations backup_restore /
+    incident_runbook / go_live_decisions.
+  - **Behaviour to know at release:** a generic save now MERGES with the stored record (keys not sent are kept);
+    posted money is frozen (FIN-0844); Accountant / AP / AR now see every store and HR Manager every employee's HR
+    records (role-template global scopes now apply); Store Managers no longer see each other's scheduled reports.
+  - **Tests:** full `go test -p 1` of `engines` and `internal/server` passed on the shared tree. Local Postgres had
+    stopped uncleanly (down 15:06-17:56); restarted with `pg_ctl ... -o "-p 5490"`, recovered cleanly.
+  - **Still uncommitted from module 2:** 76.7's country cap (waits on Stage 86's commit).
+
 - **2026-10-18 CI blockers 84.7-84.10 + Stage 90 (release version numbers) - COMMITTED, NOT PUSHED, NOT DEPLOYED.**
   Ledger §245; checklist 84.7-84.10, Stage 90.
   - **Versioning:** `deploy\deploy.ps1` now reads the live `/api/v1/version`, runs `cmd/releasever` (feat → MINOR,
@@ -135,6 +297,45 @@ for checking the current source and worktree.
   - **Waiting on the user:** the capability register's new dates (classifier: "CI Bypass"), the expired doc-review
     policy (84.8), push + deploy.
   - **Scratch DBs** `custom_erp_rel20261018` and `custom_erp_rel2_20261018` on 5490 can be dropped.
+
+- **2026-10-18 Stage 89 (item master asked once) - BUILT, NOT COMMITTED, NOT DEPLOYED.** Ledger §244; checklist Stage 89.
+  - **Migrations (2, additive, applied to local `custom_erp` on 5490 by psql, twice - no change on rerun):**
+    `migrations_stage89_1_item_master.sql` (Item.item_name / product_type, ProductType/Category.attribute_map),
+    `migrations_stage89_2_item_treatment_correction.sql` (ItemTreatmentCorrection doctype + approval rule → Super Admin).
+  - **New files:** `engines/item_setup.go`, `item_attribute_map.go`, `grn_item_values.go`, `item_treatment_correction.go`,
+    `item_master_stage89_test.go`, `internal/server/handlers_item_setup.go`, `public/view-item-form.js`.
+  - **Shared files, targeted hunks:** `engines/settings_registry.go` (change hooks), `settings_definitions.go` (7 settings),
+    `item_names.go`, `import.go`, `item_policy.go` (`itemPolicyWithRules`, MASTER-0407 wording), `item_types.go`
+    (`itemTypeRulesFromRecord`), `wms_receiving.go` (batch attributes), `stickers.go` (batch overlay), `approval.go` (hook),
+    `internal/server/handlers_core_doc_engine.go` (Item + GRN prepare), `handlers_po_design.go`, `routes.go`,
+    `route_capabilities.go` (7 routes), `error_catalog_extensions.go` (MASTER-0890..0895, 0407 text), `public/view-documents.js`,
+    `view-pickers.js` (Basics order, quick-create asks), `view-procurement.js` (PO matrix item_name, GRN columns),
+    `view-admin.js` (Configuration → Item fields), guides, brain map, checklist, ledger, this file.
+  - **Open:** 89.4.4 (client probably set to Medical - user to confirm industry); 89.6.3 one live step (posted GRN + sticker);
+    KB rebuild and attack-surface regen at the release gate (both blocked / mixed by other sessions' work).
+  - **Release note:** on deploy, a jewellery client's Gross / Net / Stone Weight and Purity leave the Item form (data kept) and
+    appear on GRN lines as optional; the free-text Type is hidden (data kept).
+
+- **2026-10-18 Stage 88.1 (menus: OMS / CRM / Inventory / WMS apart; Manufacturing, PIM, Reports, Setup, Settings as
+  menus; Home transactions only; RF Exit; phone drawer fix) - BUILT, NOT COMMITTED, NOT DEPLOYED.** Plan
+  `docs/product/navigation-simplification-plan-2026-10-18.md`; checklist Stage 88 (36+ items, each with a status; 88.2-88.5
+  not started, D12-D14 await the user). No migration, no route, no engine change.
+  - **Files (only these hunks are mine):** `public/index.html` (sidebar), `public/app.js` (`applyBorrowedMenuRules`,
+    `openSubFlyout` / `bindSubFlyoutRows` / `closeSubFlyouts`, `data-fill` hook in `openFlyout`, the `data-go` click
+    handler, `view:tab` split at the top of `renderViewContent` + `currentViewTab`, `restoreActiveMenuState` lookup,
+    `renderSidebarSubmenu` rewrite + `SETUP_INVENTORY_ERP`, global-search nesting, Home tiles, phone-drawer guard,
+    `VIEW_MODULE_VERSION` 47 → 48), `public/styles.css` (sub-flyout rules; Advanced-divider rules removed; one line in the
+    820 px block), `public/view-reports.js` (`fillReportsMenu`, no tab strip), `public/view-pim.js`,
+    `public/view-manufacturing.js`, `public/view-rf-traceability.js`, `public/view-oms.js` (title). Docs: USER_GUIDE,
+    ADMIN_GUIDE, 11 `docs/kb` articles, KB regenerated (`-Group KB`), `CLAUDE.md` (the every-ask-is-an-item rule),
+    micro_checklist header + Stage 88.
+  - **Shared files:** `app.js`, `index.html`, the guides and the trackers also carry Stage 85 / 86 / 87 / 89 sessions'
+    uncommitted edits (a session edited `app.js` and `index.html` while this was built) - stage by hunk.
+  - **Release budget:** cold core 182,453 / 184,320 gzip bytes (was 179,467 before 88.1).
+  - **Tests:** every `internal/server` test reading `index.html` / `app.js` passes. Unrelated failures seen on the shared
+    tree: `TestStage555ShortageRefusalThenCorrectedCartCompletes` (POS high-value buyer rule, Stage 85/77 work).
+    Brain `-Check` fails on another session's unclaimed `engines/item_setup.go`.
+  - Scratch server :8188 (`%TEMP%/erp88srv.exe`) stopped at hand-off; Playwright scripts are in the session scratchpad.
 
 - **2026-10-18 Stage 85 (POS billing for a real store) - COMMITTED LOCALLY on its own, NOT PUSHED, NOT DEPLOYED.** Ledger §243;
   checklist Stage 85; plan `docs/product/pos-store-billing-plan-2026-10-18.md`. The user chose "Stage 85 on its own" and "Commit
@@ -163,6 +364,10 @@ for checking the current source and worktree.
     uncommitted hunks rename them to Inventory -> when it lands.
   - **Scratch:** test data in `custom_erp` (Live Test Traders customers, CAHO26270000x advance, bills BHO2627000002-6,
     SM/HO moves 00001-2).
+- **2026-10-18 66.10 (HSN box suggests nothing once it holds a code) - BUILT, NOT COMMITTED, NOT DEPLOYED.** Checklist
+  66.10. No migration, no new route. **Files, targeted hunks only:** `public/app.js` (`attachTypeahead`: the `input`
+  listener browses on an emptied `showAllOnFocus` box; a new `click` listener browses on a filled one), `public/index.html`
+  (`app.js?v=48`), USER_GUIDE (HSN step 2), micro_checklist. KB not regenerated (two runs refused by concurrent edits).
 
 - **2026-10-18 Module-wise build order set by the user; module 1 (Procurement / GRN / Print: 84.2, 84.3, 84.4,
   73.C.7) - BUILT AND COMMITTED with module 2's first part (one commit, "feat: module-wise build 1-2"), NOT
@@ -201,6 +406,60 @@ for checking the current source and worktree.
     DN/HO/26-27/00009 + VCN/HO/26-27/000005, one sticker run. Scratch RFQ deleted. Scratch server :8241 stopped,
     `%TEMP%\erp84` removed.
 
+- **2026-10-18 Stage 87 (attributes asked in the PO's add row; a column per attribute on PO lines and the PO print)
+  - BUILT, NOT COMMITTED, NOT DEPLOYED.** Ledger §240; checklist Stage 87. No migration, no new route.
+  - **Files (only mine):** `public/view-procurement.js` (add row, `poEntrySearch` / `pickPOEntry` / `enterPODesignMode` /
+    `renderPOEntryAttrs` / `bindPODesignNumber`; the old panel functions are gone), `public/trade-docs.js`
+    (`withAttributeColumns`, `defaultLayout(txn, doc)`, `parseLayout(raw, txn, doc)`), `public/trade-docs.css`,
+    `engines/po_design.go`, `engines/purchase_order.go`, `engines/print_documents.go`, `engines/print_templates.go`,
+    `engines/settings_definitions.go` (label only), new `engines/po_attribute_columns_stage87_test.go`. Guides:
+    USER_GUIDE §6 step 3 + §6.9, ADMIN_GUIDE B.3.5b / B.3.6; KB regenerated with `-Group KB`.
+  - **Shared files touched with targeted edits only:** USER_GUIDE / ADMIN_GUIDE / micro_checklist / project_ledger /
+    this file also carry Stage 85 / 86 sessions' uncommitted edits - stage only Stage 87's hunks.
+  - **Brain not redrawn:** `update-brain.ps1 -Check` fails on Stage 85's 5 unclaimed new files (store_access,
+    stock_locations, store.css), not on this stage's test file, which is claimed. Redraw once Stage 85 claims them.
+  - **Full suite on the shared tree:** `internal/server` ok. `engines` fails only `TestEngines/OmnichannelAndWMS`
+    (ATS 8, expected 6), caused by Stage 85.B3's uncommitted ATS change in `engines/inventory.go`. The Stage 85 session
+    needs to update that expectation or its change.
+  - **Shared hunks with Stage 86.3 (erp-50):** in `engines/po_design.go` (DesignAttribute comment, GetDesignMatrix
+    comment + `'ItemAttribute'` query) and `public/view-procurement.js` (line ~812 comment, the two
+    `canCreateDoctype/canUpdateDoctype('ItemAttribute')` lines) those lines are 86.3's; the `inm &&` removal next to
+    them is 87's. The Stage 87 test's fixtures are `ItemAttribute` now and pass.
+  - **KB not regenerated after the last USER_GUIDE §6.9 wording fix** (Item Attribute, not PIM): `-Group KB` refused
+    twice ("Repository changed during generation"). Rerun once concurrent edits settle.
+  - Scratch server :8186 stopped and its %TEMP% binaries removed.
+
+- **2026-10-18 Stage 86 (refresh keeps your place; number series store code / year formats / GST length and
+  characters / live preview; the ERP's own item attributes, separate from PIM's) - BUILT, NOT COMMITTED, NOT
+  DEPLOYED.** Ledger §239; checklist Stage 86 (86.1-86.5 all done; the user's decisions are recorded in 86.4).
+  - **Migrations (2, additive, applied to the local `custom_erp` on 5490 by psql):** `migrations_stage86_2_series_year_format.sql`
+    (`prefix_configs.year_format`, blank = 26-27) and `migrations_stage86_3_item_attributes_core.sql` (new `ItemAttribute`
+    doctype + fields + role permissions copied from ProductAttributeDef's; ERP-used attributes copied to it with the same
+    code, id `IA-<code>`; PIM records gain `erp_attribute`). Ship both with the binary: `GenerateSequence` reads
+    `year_format` (without 86.2 every number fails) and the Item form / PO panel read ItemAttribute (without 86.3 they
+    show no attributes). An interim 86.3 that moved ProductAttributeDef's module_key to inventory was replaced before
+    commit and put back in the local DB.
+  - **Files only mine:** `engines/numbering.go`, `number_series.go`, `number_series_test.go`, `barcode_policy_test.go`,
+    `attribute_library_apply.go`, `attribute_library_test.go`, `item_names.go`, `item_names_test.go`, `grn_pricing_test.go`,
+    `master_codes.go`; `internal/server/handlers_po_design.go`; `public/view-admin.js`, `view-documents.js` (one line),
+    `view-pickers.js`, `view-attribute-library.js`, `styles.css`; the two migrations. Guides: ADMIN_GUIDE B.3.2 + C.9,
+    USER_GUIDE §1 refresh + item attributes.
+  - **Files shared with other sessions - stage only Stage 86's hunks:** `public/app.js` (mine: saveNavState /
+    loadNavScroll / input listener / init scroll lines / restoreLastView; the rest is Stage 85's),
+    `internal/server/handlers_core_doc_engine.go` (mine: the two `ItemAttributeDoctype` guards + handlePrefix
+    `year_format`; the `handleGenericDoc` +6 near the top is not), `engines/po_design.go` (mine: the DesignAttribute comment,
+    the GetDesignMatrix comment + query; the +90 is Stage 87's), `public/view-procurement.js` (mine: the line-744 comment and
+    the two `canCreate/UpdateDoctype('ItemAttribute')` lines - the `inm &&` removal beside them is Stage 87's),
+    `internal/server/error_catalog_extensions.go` (mine: PIM-0691's UserAction only). `engines/po_attribute_columns_stage87_test.go`
+    is Stage 87's file; I switched its two fixtures to ItemAttribute at erp-6e's request. ERROR_CODES.md regenerates at
+    release (gendocs) for the PIM-0691 hint.
+  - **Behaviour to know:** a series whose longest number is over 16 characters, or breaks the GST characters, is refused
+    on its next save (ADMINC-0311) but keeps issuing - prod series with the store in the number are likely over 16 and
+    will show red on the list.
+  - **Concurrent sessions:** Stage 85 (POS store access) and Stage 87 (PO line attributes, erp-6e) were built in this tree
+    at the same time. Stage 86 was verified in `%TEMP%/erp86wt` (HEAD + only Stage 86's hunks, built with
+    `scratchpad/pickhunks.js`). Scratch server :8231 and the worktree are removed at hand-off; the dev ASN series was
+    restored by psql.
 
 - **2026-10-18 Release of every entry below that says "NOT COMMITTED" (Stage 73 batches A-D + continuation,
   Stages 76, 78-82, 83.1, 71.8, the 73 pending reconciliation) in one commit, pushed and deployed.** This supersedes

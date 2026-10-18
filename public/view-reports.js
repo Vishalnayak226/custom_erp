@@ -15,7 +15,33 @@ const REPORT_TABS = [
   { id: 'schedules', label: 'Schedules' }
 ];
 
+// Stage 88.1 (user, 2026-10-18: "Report also. It will be grouped with Sales and show sub group of Sales
+// related in another flyout"): the Reports menu has one row per area, each opening its reports beside it -
+// the fixed report pages filed under their area, then the catalog's. app.js calls this the first time the
+// menu opens (data-fill). Every report is its own route: "reports:<tab>" or "reports:<catalog id>".
+const REPORT_TAB_AREAS = { 'current-stock': 'Inventory', 'sales-register': 'Sales', 'vendor-ledger': 'Procurement', 'payables-ageing': 'Finance', 'receivables-ageing': 'Finance', 'gst-return-summary': 'Finance' };
+const REPORT_AREA_ORDER = ['Sales', 'Procurement', 'Inventory', 'WMS', 'OMS', 'CRM', 'Finance', 'Manufacturing', 'PIM', 'HR', 'Assets', 'Service'];
+
+async function fillReportsMenu(flyout) {
+  const res = await apiFetch('/api/v1/reports/catalog');
+  if (!res || !res.ok) throw new Error('report catalog unavailable');
+  const areas = {};
+  const add = (area, id, label) => {
+    const list = areas[area] = areas[area] || [];
+    if (!list.some(r => r.label === label)) list.push({ id, label });
+  };
+  REPORT_TABS.filter(t => REPORT_TAB_AREAS[t.id]).forEach(t => add(REPORT_TAB_AREAS[t.id], t.id, t.label));
+  (await res.json()).forEach(d => add(d.category || 'Other', d.id, d.label));
+  const rank = area => (REPORT_AREA_ORDER.indexOf(area) + 1) || 99;
+  const rows = Object.keys(areas).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b)).map(area =>
+    `<li class="has-subflyout"><a class="menu-item submenu-parent">${escapeHTMLText(area)}</a><ul class="menu-subflyout">${areas[area].map(r =>
+      `<li><a class="menu-item" id="menu-report-${escapeHTMLText(r.id)}" data-go="reports:${escapeHTMLText(r.id)}" data-like="menu-reports"><span>${escapeHTMLText(r.label)}</span></a></li>`).join('')}</ul></li>`).join('');
+  flyout.lastElementChild.insertAdjacentHTML('beforebegin', rows);
+}
+
 async function renderReportsView(container) {
+  if (REPORT_TABS.some(t => t.id === currentViewTab)) currentReportTab = currentViewTab;
+  else if (currentViewTab) { currentReportTab = 'report-catalog'; reportCatalogSelectedId = currentViewTab; }
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
@@ -24,43 +50,6 @@ async function renderReportsView(container) {
     </div>
   `;
   container.appendChild(header);
-
-  const tabBar = document.createElement('div');
-  tabBar.style.display = 'flex';
-  tabBar.style.gap = '8px';
-  tabBar.style.marginBottom = '16px';
-  // Stage 45: at a narrow enough width/zoom this row is wider than the page
-  // - .page-container clips overflow-x rather than scrolling it, so without
-  // this the trailing tabs were just gone with no way back to them. Scoping
-  // the scroll to the bar itself (not the whole page) keeps the rest of the
-  // screen from picking up a horizontal scrollbar too.
-  //
-  // flex-shrink: 0 is load-bearing, not decorative. Verified live: setting
-  // only overflow-x on a flex item inside .page-container's column flexbox
-  // let the whole bar collapse to 0px height whenever the page's other
-  // content was tall enough to overflow vertically - overflow-x non-visible
-  // suppresses this item's automatic min-height (content-based sizing only
-  // applies when overflow is 'visible'), and per the CSS Overflow spec the
-  // *used* value of overflow-y becomes 'auto' here regardless of what's
-  // declared (confirmed: getComputedStyle still reports 'auto' even with
-  // overflow-y explicitly set to 'visible' below - that line documents
-  // intent but does not itself prevent the collapse). flex-shrink: 0 is what
-  // actually fixes it: it exempts the item from shrinking at all, which
-  // sidesteps the automatic-minimum-size calculation entirely rather than
-  // trying to win it.
-  tabBar.style.overflowX = 'auto';
-  tabBar.style.overflowY = 'visible';
-  tabBar.style.flexShrink = '0';
-  tabBar.innerHTML = REPORT_TABS.map(t =>
-    `<button class="btn ${t.id === currentReportTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-report-tab="${t.id}">${t.label}</button>`
-  ).join('');
-  container.appendChild(tabBar);
-  tabBar.querySelectorAll('[data-report-tab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      currentReportTab = btn.getAttribute('data-report-tab');
-      renderView('reports');
-    });
-  });
 
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -104,9 +93,7 @@ async function fetchReportRows(reportId, params) {
 }
 
 function execDashboardOpenReport(reportId) {
-  reportCatalogSelectedId = reportId;
-  currentReportTab = 'report-catalog';
-  renderView('reports');
+  renderView(`reports:${reportId}`);
 }
 
 // Stage 37.11: role dashboards - the four cards above are now this
@@ -1169,7 +1156,10 @@ function renderReportCatalogResultTable(container, result, params) {
   rows.forEach((row, idx) => {
     html += `<tr>`;
     columns.forEach(c => {
-      html += `<td>${escapeHTMLText(reportCellText(row[c.key]))}</td>`;
+      // Stage 75.3.4: an image column carries a media id, drawn as a thumbnail below.
+      html += c.type === 'image'
+        ? `<td>${row[c.key] ? `<img class="rc-thumb" data-rc-media="${escapeHTMLText(row[c.key])}" alt="" width="40" height="40" style="object-fit:cover;border-radius:4px;">` : ''}</td>`
+        : `<td>${escapeHTMLText(reportCellText(row[c.key]))}</td>`;
     });
     if (result.has_drill_down) {
       const rowKeyVal = drillKey ? String(row[drillKey]) : '';
@@ -1183,8 +1173,17 @@ function renderReportCatalogResultTable(container, result, params) {
     }
     html += `</tr><tr id="rc-drilldown-${idx}" class="hidden"><td colspan="${columns.length + extraCols}"></td></tr>`;
   });
-  html += `</tbody></table>`;
+  html += `</tbody>`;
+  // Stage 75.3.4: a column marked total is summed under the table.
+  if (rows.length && columns.some(c => c.total)) {
+    html += `<tfoot><tr>${columns.map((c, i) => {
+      if (c.total) return `<td><b>${escapeHTMLText(reportCellText(Math.round(rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0) * 100) / 100))}</b></td>`;
+      return i === 0 ? '<td><b>Total</b></td>' : '<td></td>';
+    }).join('')}${extraCols ? `<td colspan="${extraCols}"></td>` : ''}</tr></tfoot>`;
+  }
+  html += `</table>`;
   container.innerHTML = html;
+  loadReportThumbnails(container);
   container.dataset.params = JSON.stringify(params);
   container.querySelectorAll('[data-report-drill-index]').forEach(button => {
     button.addEventListener('click', () => runReportCatalogDrillDown(
@@ -1369,4 +1368,18 @@ async function downloadReportExportCSV(jobId) {
 // sheet. Nobody is blocked from printing because the bridge is down.
 
 
-export { renderReportsView, fetchReportRows, execDashboardOpenReport, defaultDashboardTiles, loadDashboardLayouts, renderExecDashboard, renderExecDashboardBody, renderExecDashboardTrendChart, renderInventoryView, renderCurrentStockReport, renderSalesRegisterReport, renderVendorLedgerReport, renderPayablesAgeingReport, renderReceivablesAgeingReport, renderGSTReturnSummaryReport, renderReportCatalogPanel, currentReportCatalogDef, initReportCatalogColumns, effectiveReportColumns, toggleReportColumnsPanel, renderReportColumnsPanel, moveReportColumn, applyReportColumnState, loadReportColumnProfiles, applyReportColumnProfile, saveReportColumnProfile, renderReportCatalogParams, collectReportCatalogParams, reportCatalogQueryString, runReportCatalogReport, renderReportCatalogResultTable, runReportCatalogDrillDown, loadReportCatalogSavedFilters, applyReportCatalogSavedFilter, saveReportCatalogFilter, exportReportCatalogReport, pollReportExportJob, downloadReportExportCSV };
+export { renderReportsView, fillReportsMenu, fetchReportRows, execDashboardOpenReport, defaultDashboardTiles, loadDashboardLayouts, renderExecDashboard, renderExecDashboardBody, renderExecDashboardTrendChart, renderInventoryView, renderCurrentStockReport, renderSalesRegisterReport, renderVendorLedgerReport, renderPayablesAgeingReport, renderReceivablesAgeingReport, renderGSTReturnSummaryReport, renderReportCatalogPanel, currentReportCatalogDef, initReportCatalogColumns, effectiveReportColumns, toggleReportColumnsPanel, renderReportColumnsPanel, moveReportColumn, applyReportColumnState, loadReportColumnProfiles, applyReportColumnProfile, saveReportColumnProfile, renderReportCatalogParams, collectReportCatalogParams, reportCatalogQueryString, runReportCatalogReport, renderReportCatalogResultTable, runReportCatalogDrillDown, loadReportCatalogSavedFilters, applyReportCatalogSavedFilter, saveReportCatalogFilter, exportReportCatalogReport, pollReportExportJob, downloadReportExportCSV };
+
+// loadReportThumbnails (Stage 75.3.4) fetches an image column's thumbnails with
+// the session (an <img src> cannot send it), the first 200 only; one that
+// cannot be read (no PIM, no image) just stays blank.
+async function loadReportThumbnails(container) {
+  const imgs = [...container.querySelectorAll('img[data-rc-media]')].slice(0, 200);
+  const headers = { Authorization: 'Bearer ' + (localStorage.getItem('erp_token') || ''), 'X-Tenant-ID': localStorage.getItem('erp_tenant_id') || 'default' };
+  for (const img of imgs) {
+    try {
+      const res = await fetch(`/api/v1/pim/media/${encodeURIComponent(img.dataset.rcMedia)}/thumbnail`, { headers });
+      if (res.ok) img.src = URL.createObjectURL(await res.blob());
+    } catch (e) { /* stays blank */ }
+  }
+}

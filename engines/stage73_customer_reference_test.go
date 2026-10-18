@@ -88,10 +88,15 @@ func TestStage73CustomerReference(t *testing.T) {
 	for _, r := range rows {
 		docs[r["document"].(string)] = r
 	}
-	if inv := docs["Sales Invoice"]; inv == nil || inv["order"] != orderID || inv["customer"] != "Acme Traders" || inv["customer_reference"] != ref {
+	// Stage 76.11: the order shows by its SO number on both rows.
+	soNumber := DocumentNumber(tenantID, "SalesOrder", orderID)
+	if !strings.HasPrefix(soNumber, "SO/") {
+		t.Errorf("the order has no SO number: %q", soNumber)
+	}
+	if inv := docs["Sales Invoice"]; inv == nil || inv["order"] != soNumber || inv["customer"] != "Acme Traders" || inv["customer_reference"] != ref {
 		t.Errorf("invoice row: %+v", inv)
 	}
-	if so := docs["Sales Order"]; so == nil || so["number"] != orderID || so["amount"] != 1000.0 {
+	if so := docs["Sales Order"]; so == nil || so["number"] != soNumber || so["amount"] != 1000.0 {
 		t.Errorf("order row: %+v", so)
 	}
 	if _, rows, _, _ = RunReport(tenantID, "sales-by-customer-reference", "HR/Admin", "admin", map[string]string{"customer": "walk"}); len(rows) != 0 {

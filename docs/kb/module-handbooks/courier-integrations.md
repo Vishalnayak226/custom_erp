@@ -134,8 +134,8 @@ warehouse actually uses today:
    Pincode, Carrier (leave blank to auto-select), optional Tracking Number,
    Shipping Charge. A blank Carrier with a Destination Pincode auto-selects
    the highest-priority **CourierServiceArea** row whose `pincode_prefix`
-   matches (**Setup → Advanced → Courier Service Area** — it's flagged
-   `setup_advanced` so it files behind Setup's Advanced divider rather than
+   matches (**Setup → OMS → Courier Service Area** — it's flagged
+   `setup_advanced` so it is listed under that module's Advanced heading rather than
    the everyday master-data list; fields are `courier`, `pincode_prefix`,
    `priority`, `status`) — a prefix match, not a real geo/zone lookup. No
    `CourierServiceArea` configured at all leaves

@@ -303,6 +303,7 @@ func TestTransferLifecycleStage7317(t *testing.T) {
 		if st != "Pending Approval" || numFromInterface(data["total_amount"]) != 5000 {
 			t.Fatalf("after submit: %s, total_amount %v", st, data["total_amount"])
 		}
+		withSelfApproval(t, tenantID, SelfApprovalNobody) // Stage 92: the submitter may not decide
 		if err := DecideApproval(tenantID, "TransferOrder", "TO-TF-APR2", "maker", "Store Manager", from, "Approved", ""); err == nil {
 			t.Fatalf("the maker must not approve their own transfer")
 		}

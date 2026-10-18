@@ -250,7 +250,7 @@ body {
    applySidebarPermissions() after a permission change doesn't need to
    rebuild the DOM. */
 .menu-item-container.perm-hidden,
-.menu-flyout > li.perm-hidden {
+.menu-flyout li.perm-hidden {
   display: none;
 }
 
@@ -260,7 +260,7 @@ body {
    applyModuleEntitlements() can each toggle their own condition
    independently without one overwriting the other's hide decision. */
 .menu-item-container.module-hidden,
-.menu-flyout > li.module-hidden {
+.menu-flyout li.module-hidden {
   display: none;
 }
 
@@ -366,7 +366,8 @@ body {
   transform: rotate(90deg);
 }
 
-.menu-flyout {
+.menu-flyout,
+.menu-subflyout {
   position: fixed;
   display: none;
   list-style: none;
@@ -390,10 +391,19 @@ body {
    already reaching for the next one is exactly the kind of lag being fixed
    here. transform/opacity only, so it never affects the scrollHeight
    openFlyout() measures right after adding this class. */
-.menu-flyout.open {
+.menu-flyout.open,
+.menu-subflyout.open {
   display: block;
   animation: flyout-in var(--transition-med) var(--ease-out);
 }
+
+/* Stage 88.1: a second menu beside a flyout row (WMS Inbound, Setup's modules, Reports' areas). */
+.menu-subflyout { z-index: 101; }
+@media (min-width: 821px) {
+  .menu-subflyout.cols-2 { column-count: 2; column-gap: 6px; }
+  .menu-subflyout.cols-2 > li { break-inside: avoid; }
+}.submenu-parent::after { content: '\203A'; margin-left: auto; padding-left: 12px; }
+.has-subflyout.subflyout-open > .submenu-parent { background-color: var(--bg-color); }
 
 @keyframes flyout-in {
   from { opacity: 0; transform: translateX(-6px); }
@@ -1678,6 +1688,11 @@ input:checked + .slider:before {
   color: var(--primary-color);
 }
 
+/* A number past GST's 16 characters (Prefix Configurations, Stage 86.2). */
+.series-too-long {
+  color: var(--danger-strong);
+}
+
 .py-8 {
   padding-top: 32px;
   padding-bottom: 32px;
@@ -2461,25 +2476,6 @@ input[type=number] { -moz-appearance: textfield; appearance: textfield; }
   border-radius: 5px;
 }
 
-.submenu-advanced-toggle {
-  margin-top: 6px;
-  border-top: 1px solid var(--border-color);
-}
-
-.submenu-advanced-toggle .submenu-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  font-weight: 600;
-  color: var(--text-muted);
-}
-
-.submenu-advanced-caret {
-  font-size: 11px;
-  opacity: 0.8;
-}
-
 /* JSON line editor (Stage 30.5.3) - the add-line table that replaced
    hand-typed JSON on BOM, Routing, AppraisalCycle and the two report
    profile masters. Reuses the existing .btn/.form-input vocabulary; only
@@ -2852,6 +2848,13 @@ input.form-input.num {
 
 .field-format-note.field-format-bad {
   color: var(--danger-color);
+}
+
+/* 73.D.23: an empty note takes no space, so the note created on blur does not
+   nudge a bottom-aligned row between mouse-down and mouse-up of the click that
+   blurred the box (the button moved and the click missed). */
+.field-format-note:empty {
+  display: none;
 }
 
 .field-format-invalid {
@@ -3933,6 +3936,8 @@ body.rf-shell #view-root {
 }
 
 @media (max-width: 820px) {
+  /* Stage 88.1: no room beside the menu - a second menu opens under its row. */
+  .menu-subflyout { position: static; border: 0; box-shadow: none; padding: 0 0 0 12px; animation: none; }
   .nav-toggle {
     /* 44px, not the 24px AA minimum: this is the control every operator hits
        first, on a device, often wearing gloves. */

@@ -279,9 +279,39 @@ func SubmitForApproval(tenantID, doctype, docID, requesterUserID, requesterRole 
 	return logApprovalAction(tenantID, doctype, docID, "Submitted", requesterUserID, requesterRole, amount, "")
 }
 
+// secondAdminDoctypes exist only to force a second admin (49.2.4's Super
+// Admin password reset, 89.8.3's opt-in treatment correction), so Stage 92's
+// self-decision never applies to them.
+var secondAdminDoctypes = map[string]bool{"PasswordResetRequest": true, "ItemTreatmentCorrection": true}
+
+// Stage 92: who may approve or reject a document they submitted themselves.
+// The approving-role check still applies on top.
+const (
+	SettingSelfApproval = "approvals.self_approval"
+	SelfApprovalAnyone  = "anyone" // the default (the user, 2026-10-18: "Any one approve. Its ok.")
+	SelfApprovalAdmins  = "admins"
+	SelfApprovalNobody  = "nobody"
+)
+
+// SubmitterMayDecideOwn reports whether a submitter in this role may decide
+// their own document under the tenant's SettingSelfApproval.
+func SubmitterMayDecideOwn(tenantID, doctype, role string) bool {
+	if secondAdminDoctypes[doctype] || isDualControlDoctype(doctype) {
+		return false
+	}
+	switch GetSettingString(tenantID, SettingSelfApproval) {
+	case SelfApprovalAnyone:
+		return true
+	case SelfApprovalAdmins:
+		return IsSuperAdmin(role)
+	}
+	return false
+}
+
 // DecideApproval approves or rejects a Pending Approval document. Enforces:
 //  1. Maker-checker segregation: the approver can never be the document's
-//     original creator, regardless of role - including HR/Admin.
+//     original creator - unless SubmitterMayDecideOwn (Stage 92), in which
+//     case the decision is marked as a self-decision in approval_log and audit.
 //  2. Role authorization: the approver's role must match the amount-slab's
 //     required_role, or be HR/Admin (the existing systemwide catch-all
 //     admin role, same override this codebase already grants it elsewhere).
@@ -334,10 +364,19 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 	if status != "Pending Approval" {
 		return fmt.Errorf("document is not awaiting approval (current status: %s)", status)
 	}
-	if actorUserID == createdBy {
+	selfDecision := actorUserID == createdBy
+	if selfDecision && !SubmitterMayDecideOwn(tenantID, doctype, actorRole) {
 		// Stage 84.3: coded, so the screen says another approver must decide
 		// instead of GLOBAL-0002's "Correct the field format".
-		return &ValidationError{Code: "APPROV-0840", Message: "maker-checker violation: you cannot approve or reject a document you submitted"}
+		msg := "maker-checker violation: you cannot approve or reject a document you submitted"
+		if secondAdminDoctypes[doctype] {
+			msg += " - this one always needs a second admin"
+		}
+		return &ValidationError{Code: "APPROV-0840", Message: msg}
+	}
+	if selfDecision {
+		// Stage 92: kept visible as an exception, never a silent pass.
+		comment = strings.TrimSpace("[decided by the submitter] " + comment)
 	}
 
 	// Stage 37.1.2: the BASE amount, so an approval slab written in the tenant's
@@ -376,6 +415,10 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 	if err := tx.Commit(); err != nil {
 		return err
 	}
+	if selfDecision {
+		LogAuditEvent(tenantID, actorUserID, "APPROVAL_SELF_DECISION", decision,
+			fmt.Sprintf("%s %s %s by its own submitter (%s)", doctype, docID, strings.ToLower(decision), actorRole))
+	}
 
 	// Stage 26.4.6: snapshot the just-approved ProductContent so a later bad
 	// edit can be rolled back to this known-good copy. Best-effort and
@@ -389,6 +432,13 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 	// Stage 26.4.10: a QC-approved supplier submission becomes ProductContent
 	// - as a Draft, so it still has to clear ProductContent's own approval
 	// gate before anything a supplier wrote can reach a live channel.
+	// Stage 89.8: a second admin approved an item treatment correction.
+	if doctype == TreatmentCorrectionDoctype && decision == "Approved" {
+		applyApprovedTreatmentCorrection(tenantID, docID, actorUserID)
+	}
+	// Stage 75.2: registered hooks (approval_hooks.go) - e-invoice cancel and
+	// manual import, and any later engine that acts on a decision.
+	runApprovalDecisionHooks(tenantID, doctype, docID, decision, actorUserID)
 	if doctype == "SupplierSubmission" && decision == "Approved" {
 		ApplyApprovedSupplierSubmission(tenantID, docID, data, actorUserID)
 	}

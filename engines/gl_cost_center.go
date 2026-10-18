@@ -131,7 +131,29 @@ func GetCostCenterPL(tenantID, startDate, endDate string) ([]map[string]interfac
 	if out == nil {
 		out = []map[string]interface{}{}
 	}
+	// Stage 93: codes are short now (CC00001), so each row also carries the
+	// cost center's name - the store it was made for.
+	attachMasterNames(schema, "CostCenter", "cost_center", "cost_center_name", out)
 	return out, nil
+}
+
+// attachMasterNames puts each row's master record name beside its code
+// (Stage 93) - one query for the whole report, a code with no record (the
+// "Unassigned" bucket) left with a blank name.
+func attachMasterNames(schema, doctype, codeKey, nameKey string, rows []map[string]interface{}) {
+	names := map[string]string{}
+	if nameRows, err := db.DB.Query(fmt.Sprintf(`SELECT id, COALESCE(data->>'name', '') FROM %s.documents WHERE doctype = $1`, schema), doctype); err == nil {
+		for nameRows.Next() {
+			var id, name string
+			if nameRows.Scan(&id, &name) == nil {
+				names[id] = name
+			}
+		}
+		nameRows.Close()
+	}
+	for _, row := range rows {
+		row[nameKey] = names[fmt.Sprint(row[codeKey])]
+	}
 }
 
 // GetDepartmentPL (Stage 37.5.2) is GetCostCenterPL's exact shape for the
@@ -187,6 +209,7 @@ func GetDepartmentPL(tenantID, startDate, endDate string) ([]map[string]interfac
 	if out == nil {
 		out = []map[string]interface{}{}
 	}
+	attachMasterNames(schema, "Department", "department", "department_name", out) // Stage 93
 	return out, nil
 }
 
@@ -242,7 +265,7 @@ func init() {
 	RegisterReport(ReportDefinition{
 		ID: "cost-center-pl", Label: "Cost Center P&L", Category: "Finance",
 		Columns: []ReportColumn{
-			{Key: "cost_center", Label: "Cost Center"}, {Key: "account_type", Label: "Type"},
+			{Key: "cost_center", Label: "Cost Center"}, {Key: "cost_center_name", Label: "Name"}, {Key: "account_type", Label: "Type"},
 			{Key: "amount", Label: "Amount", Sensitive: true},
 		},
 		Params: []ReportParam{
@@ -260,7 +283,7 @@ func init() {
 	RegisterReport(ReportDefinition{
 		ID: "department-pl", Label: "Department P&L", Category: "Finance",
 		Columns: []ReportColumn{
-			{Key: "department", Label: "Department"}, {Key: "account_type", Label: "Type"},
+			{Key: "department", Label: "Department"}, {Key: "department_name", Label: "Name"}, {Key: "account_type", Label: "Type"},
 			{Key: "amount", Label: "Amount", Sensitive: true},
 		},
 		Params: []ReportParam{

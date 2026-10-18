@@ -18103,6 +18103,231 @@
       "has_control_totals": false
     },
     {
+      "id": "einvoice-irn-register",
+      "label": "E-Invoice / IRN Status Register",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "doc_date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "doc_type",
+          "label": "Type",
+          "sensitive": false
+        },
+        {
+          "key": "doc_number",
+          "label": "Number",
+          "sensitive": false
+        },
+        {
+          "key": "gstin",
+          "label": "Seller GSTIN",
+          "sensitive": false
+        },
+        {
+          "key": "state",
+          "label": "IRN state",
+          "sensitive": false
+        },
+        {
+          "key": "irn",
+          "label": "IRN",
+          "sensitive": false
+        },
+        {
+          "key": "ack_no",
+          "label": "Ack No",
+          "sensitive": false
+        },
+        {
+          "key": "ack_date",
+          "label": "Ack Date",
+          "sensitive": false
+        },
+        {
+          "key": "source",
+          "label": "Made by",
+          "sensitive": false
+        },
+        {
+          "key": "cancelled_at",
+          "label": "Cancelled",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "gstin",
+          "label": "GSTIN",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "state",
+          "label": "State",
+          "type": "select",
+          "options": ",NEEDS ACTION,QUEUED,UNKNOWN,REJECTED,ACKNOWLEDGED,CANCELLED",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Every invoice and credit note that must have an IRN, its state, IRN and acknowledgement."
+    },
+    {
+      "id": "einvoice-errors",
+      "label": "E-Invoice Error / Retry Report",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "doc_date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "doc_type",
+          "label": "Type",
+          "sensitive": false
+        },
+        {
+          "key": "doc_number",
+          "label": "Number",
+          "sensitive": false
+        },
+        {
+          "key": "gstin",
+          "label": "Seller GSTIN",
+          "sensitive": false
+        },
+        {
+          "key": "state",
+          "label": "IRN state",
+          "sensitive": false
+        },
+        {
+          "key": "attempts",
+          "label": "Attempts",
+          "sensitive": false
+        },
+        {
+          "key": "next_attempt_at",
+          "label": "Next try",
+          "sensitive": false
+        },
+        {
+          "key": "last_error",
+          "label": "Last error / what to fix",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "gstin",
+          "label": "GSTIN",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Documents the IRP refused or that are still being retried, with the last error and the number of attempts."
+    },
+    {
+      "id": "einvoice-manual-upload",
+      "label": "IRN Portal Manual Upload Report",
+      "category": "Finance",
+      "module_key": "finance",
+      "columns": [
+        {
+          "key": "doc_date",
+          "label": "Date",
+          "sensitive": false
+        },
+        {
+          "key": "doc_type",
+          "label": "Type",
+          "sensitive": false
+        },
+        {
+          "key": "doc_number",
+          "label": "Number",
+          "sensitive": false
+        },
+        {
+          "key": "gstin",
+          "label": "Seller GSTIN",
+          "sensitive": false
+        },
+        {
+          "key": "state",
+          "label": "IRN state",
+          "sensitive": false
+        },
+        {
+          "key": "why",
+          "label": "Why",
+          "sensitive": false
+        },
+        {
+          "key": "irn",
+          "label": "IRN (when entered)",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "gstin",
+          "label": "GSTIN",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "description": "Documents to report on the IRP's portal by hand (the outage path), and the IRNs entered from the portal."
+    },
+    {
       "id": "profit-and-loss",
       "label": "Profit \u0026 Loss",
       "category": "Finance",
@@ -18680,6 +18905,11 @@
           "sensitive": false
         },
         {
+          "key": "cost_center_name",
+          "label": "Name",
+          "sensitive": false
+        },
+        {
           "key": "account_type",
           "label": "Type",
           "sensitive": false
@@ -18716,6 +18946,11 @@
         {
           "key": "department",
           "label": "Department",
+          "sensitive": false
+        },
+        {
+          "key": "department_name",
+          "label": "Name",
           "sensitive": false
         },
         {

@@ -33,25 +33,29 @@ For task instructions and error recovery, see [Find help for your task](using-ta
 
 ## The sidebar
 
-Twelve top-level entries. Most are module groups - hover one and its screens
+Fifteen top-level entries. Most are module groups - hover one and its screens
 slide out to the right, or click it if you are on a touchscreen or using the
-keyboard. **Home**, **Reports**, **Manufacturing** and **PIM** have no flyout
-and open straight away.
+keyboard. Some groups inside a module (WMS's **Inbound**, each **Setup** module,
+each **Reports** area, each **Settings** group) open a second menu beside them
+the same way; on a phone it opens under its row. **Home** and **Knowledge
+Center** have no flyout and open straight away.
 
 | Entry | What is inside |
 |---|---|
 | **Home** | Opens directly. Where you land when you first sign in: your own quick actions (only the day-to-day screens your role can actually use), anything waiting on you, what you last touched, and - on a tenant that is still mostly empty - a "Get started" nudge toward the first master record to set up. |
 | **POS** | POS / Billing · POS Profiles · Offline Sync Review · Offline Queue Gaps |
 | **Financial Accounting** | Finance / GL · Approvals · Vendor Invoice · Payment Proposals · Bank Reconciliation · Debit / Credit Notes · Sales Invoice |
-| **Sales & Marketplace** | Order Management · Fulfillment · Marketplace · Customer |
-| **Reports** | Opens directly. Its first tab is a dashboard of live figures. |
+| **OMS** | Orders · Fulfillment · Marketplace · Returns |
+| **CRM** | Customers · Loyalty · Campaigns · Vouchers · Service Tickets |
+| **Reports** | A dashboard of live figures, then one entry per area (Sales, Procurement, Inventory, WMS, OMS, CRM, Finance and the rest) whose reports open beside it, then Schedules. |
 | **Procurement** | Purchase Requisitions · Purchase Order · ASN · Goods Receipt · Vendors · RFQ / Quotes |
-| **Stock** | Inventory · Stock Transfer, then under a **WMS** heading every warehouse-operations screen (Bin, Putaway, Warehouse Cockpit, Picking, Cycle Count, Dock Doors, Appointment Calendar, Yard Board, Holds, Sortation, Loading, Sticker Printing and the rest) |
+| **Inventory** | Stock on Hand · Stock Transfer · Move Stock · Stock Locations · Sticker Printing |
+| **WMS** | Warehouse Cockpit, then **Inbound** (Appointment Calendar, Dock Doors, Yard Board, Trailers, RF Receiving, Putaway, Cross-Dock Plans), **Storage & Control** (Bin, Bin Conditions, LPN, Replenishment, Location Movement, Cycle Count, RF Lot & Serial, Holds) and **Outbound** (Waves, Picking, Sortation, Loading) |
 | **HRM** | HR · Fixed Assets · Expenses |
-| **Manufacturing** | Opens directly. |
-| **PIM** | Opens directly. |
-| **Setup** | Every reference list the system knows about - Items, Locations, Bins, Brands, Currencies and the rest. |
-| **Settings** | Administrator screens: Users · Roles · Prefix Configs · Approval Rules · Dynamic Labels · Database Schema Design · Extension Hooks · Activity Log · Configuration · System Status · Tenant Entitlements · Tenant Usage |
+| **Manufacturing** | Production Orders · Production Schedule · Subcontracting · MRP Suggestions · Supply Proposals · Quality Inspections · Certificates · Non-conformance · Maintenance Orders |
+| **PIM** | Dashboard · Workbench · My Work · Media Library · Supplier Submissions · Catalogs · PIM Reports |
+| **Setup** | The module names; point at one and its reference lists (Items, Locations, Bins, Brands, Currencies and the rest) open beside it. |
+| **Settings** | Administrator screens in four groups: Users & Access (Users · Roles · Approval Rules) · Customize (Configuration · Prefix Configs · Dynamic Labels · Database Schema Design · Extension Hooks) · Monitoring (Activity Log · System Status) · Platform |
 
 **You see only what your role can use.** A module missing from your menu is a
 permission, not a fault. A whole group disappears when you have access to

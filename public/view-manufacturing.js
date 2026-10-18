@@ -28,8 +28,7 @@ const MFG_TABS = [
 const QUALITY_TABS = ['quality', 'certificates', 'ncr', 'maintenance'];
 
 function openManufacturingTab(id) {
-  currentMfgTab = id;
-  renderView('manufacturing');
+  renderView(`manufacturing:${id}`);
 }
 
 // Stage 26.9: Manufacturing/MRP Maturity Sprint - Work Centers and Routing
@@ -39,6 +38,8 @@ function openManufacturingTab(id) {
 // (26.9.7's QC gate, submitted here then approved on the existing
 // Approvals inbox) and MRP Suggestions (26.9.5).
 async function renderManufacturingView(container) {
+  // Stage 88.1: each tab is its own menu entry ("manufacturing:<tab>"), so the tab strip is gone.
+  if (currentViewTab) currentMfgTab = currentViewTab;
   const header = document.createElement('div');
   header.className = 'page-header';
   header.innerHTML = `
@@ -47,43 +48,6 @@ async function renderManufacturingView(container) {
     </div>
   `;
   container.appendChild(header);
-
-  const tabBar = document.createElement('div');
-  tabBar.style.display = 'flex';
-  tabBar.style.gap = '8px';
-  tabBar.style.marginBottom = '16px';
-  // Stage 45: at a narrow enough width/zoom this row is wider than the page
-  // - .page-container clips overflow-x rather than scrolling it, so without
-  // this the trailing tabs were just gone with no way back to them. Scoping
-  // the scroll to the bar itself (not the whole page) keeps the rest of the
-  // screen from picking up a horizontal scrollbar too.
-  //
-  // flex-shrink: 0 is load-bearing, not decorative. Verified live: setting
-  // only overflow-x on a flex item inside .page-container's column flexbox
-  // let the whole bar collapse to 0px height whenever the page's other
-  // content was tall enough to overflow vertically - overflow-x non-visible
-  // suppresses this item's automatic min-height (content-based sizing only
-  // applies when overflow is 'visible'), and per the CSS Overflow spec the
-  // *used* value of overflow-y becomes 'auto' here regardless of what's
-  // declared (confirmed: getComputedStyle still reports 'auto' even with
-  // overflow-y explicitly set to 'visible' below - that line documents
-  // intent but does not itself prevent the collapse). flex-shrink: 0 is what
-  // actually fixes it: it exempts the item from shrinking at all, which
-  // sidesteps the automatic-minimum-size calculation entirely rather than
-  // trying to win it.
-  tabBar.style.overflowX = 'auto';
-  tabBar.style.overflowY = 'visible';
-  tabBar.style.flexShrink = '0';
-  tabBar.innerHTML = MFG_TABS.map(t =>
-    `<button class="btn ${t.id === currentMfgTab ? 'btn-primary' : 'btn-outline'} btn-sm" data-mfg-tab="${t.id}">${t.label}</button>`
-  ).join('');
-  container.appendChild(tabBar);
-  tabBar.querySelectorAll('[data-mfg-tab]').forEach(btn => {
-    btn.addEventListener('click', () => {
-      currentMfgTab = btn.getAttribute('data-mfg-tab');
-      renderView('manufacturing');
-    });
-  });
 
   if (currentMfgTab === 'orders') {
     await renderManufacturingOrdersTab(container);

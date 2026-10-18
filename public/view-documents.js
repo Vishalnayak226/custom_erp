@@ -117,6 +117,19 @@ async function renderDocTableView(container) {
       .then(m => m.renderServiceDeskPanel(deskHost, currentDoctype))
       .catch(error => console.error('[55.18] service desk panel failed to load', error));
   }
+  // Stage 93.11: a master still holding old long codes offers to clean them,
+  // once. 76.6: every master the server numbers (not Currency / UOM / HSN,
+  // whose code is typed) - the panel shows nothing when there is none.
+  const recodeMeta = state.activeDoctypes.find(d => d.name === currentDoctype);
+  const recodeMaster = (recodeMeta?.document_type === 'Master' || ['ProductFamily', 'Category', 'ProductType', 'ItemName'].includes(currentDoctype))
+    && !['Currency', 'UOM', 'HSNCode'].includes(currentDoctype);
+  if (recodeMaster && isAdminRoleName(localStorage.getItem('erp_role'))) {
+    const recodeHost = document.createElement('div');
+    container.appendChild(recodeHost);
+    loadViewModule('/view-master-recode.js' + new URL(import.meta.url).search)
+      .then(m => m.renderMasterRecodePanel(recodeHost, currentDoctype, getDoctypeLabel(currentDoctype)))
+      .catch(error => console.error('[93.11] code clean-up panel failed to load', error));
+  }
   // Stage 55.11: the Import Job list opens with "Fix and resume an import".
   if (currentDoctype === 'ImportJob') {
     const resumeHost = document.createElement('div');
@@ -283,10 +296,11 @@ function renderDocTable() {
         if (f.fieldname === 'status') {
           const cls = val === 'Active' ? 'badge-success' : 'badge-secondary';
           tableHTML += `<td><span class="badge ${cls}">${escapeHTMLText(val)}</span></td>`;
-        } else if (f.fieldtype === 'Link' && val && f.options) {
+        } else if (val && ((f.fieldtype === 'Link' && f.options) || f.pick_from)) {
           // Stage 57.1: marked as a reference, so the shell's name sweep shows
           // the record's name here (the copy chip still copies the code).
-          tableHTML += `<td data-link-doctype="${escapeHTMLText(f.options)}" data-link-ref="${escapeHTMLText(val)}">${copyableCell(val, val)}</td>`;
+          // Stage 93.9: a picked plain field (an employee's department) too.
+          tableHTML += `<td data-link-doctype="${escapeHTMLText(f.options && f.fieldtype === 'Link' ? f.options : f.pick_from)}" data-link-ref="${escapeHTMLText(val)}">${copyableCell(val, val)}</td>`;
         } else if (f.fieldtype === 'JSONTable' && val) {
           // Stage 55.0F: a line table reads as its lines ("SKU1 × 2, SKU2 × 1"),
           // not as the raw JSON it is stored as.
@@ -1470,6 +1484,8 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
 
   // Stage 57.10: an Offer's Scope Value follows its Scope.
   if (currentDoctype === 'Offer') wireOfferScopeValue(body);
+  // Stage 93.6: a location's cost center is suggested ("New: <name>"), never blank.
+  if (currentDoctype === 'Location') wireLocationCostCenter(body);
 
   // Stage 80: variant options as option + value rows, then the fields in
   // named sections (both no-ops on a form without them).
@@ -1477,7 +1493,19 @@ window.openDynamicModal = async function(existingRecord, createDefaults = {}) {
   const parentCode = body.querySelector('input[name="parent_product_code"]');
   if (parentCode && !isEdit) parentCode.placeholder = 'Same as the design if left blank';
   groupFormSections(body, currentDoctype, isEdit ? existingRecord : createDefaults);
-  if (currentDoctype === 'ProductAttributeDef') wireAttributeDefForm(body); // Stage 81
+  if (currentDoctype === 'ProductAttributeDef' || currentDoctype === 'ItemAttribute') wireAttributeDefForm(body); // Stage 81 / 86.3
+  // Stage 89: the Item form asked the org's way (kind of item, item name,
+  // defaults, attribute dropdowns); attributes per Product Type / Category.
+  if (['Item', 'ProductType', 'Category', 'ItemType'].includes(currentDoctype)) {
+    const itemForm = await loadViewModule('/view-item-form.js');
+    if (currentDoctype === 'Item') await itemForm.wireItemForm(body, { isEdit, record: isEdit ? existingRecord : createDefaults });
+    else if (currentDoctype === 'ItemType') await itemForm.wireItemTypeForm(body, isEdit ? existingRecord : null);
+    else await itemForm.wireAttributeMapForm(body, currentDoctype, isEdit ? existingRecord : null);
+  }
+  // Stage 95: a design's and a combination's images, on its edit form.
+  if (isEdit && (currentDoctype === 'Item' || currentDoctype === 'ProductFamily')) {
+    loadViewModule('/view-images.js').then(m => m.attachRecordImages(body, currentDoctype, existingRecord)).catch(() => {});
+  }
 
   // Stage 33: only the long forms get the wide, multi-column dialog. Item
   // renders ~20 fields and was taller than any screen in one column; a

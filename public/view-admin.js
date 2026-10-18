@@ -30,7 +30,6 @@ async function renderPrefixConfigsView(container) {
   `;
   container.appendChild(header);
 
-  const sampleStore = stores[0] ? seriesStoreSegment(stores[0]) : 'HQ';
   const restarts = { ANNUAL: 'Yearly', MONTHLY: 'Monthly', NEVER: 'Never' };
   const panel = document.createElement('div');
   panel.className = 'table-panel';
@@ -54,6 +53,7 @@ async function renderPrefixConfigsView(container) {
   `;
   state.prefixConfigs.forEach(c => {
     const overrides = Object.keys(c.store_overrides || {}).length;
+    const tooLong = seriesProblem(c);
     html += `
       <tr>
         <td style="font-weight:600;">${escapeHTMLText(seriesDisplayName(c.doc_type))}</td>
@@ -63,7 +63,7 @@ async function renderPrefixConfigsView(container) {
         <td>${(isGRNBatchSeries(c) ? GRN_BATCH_RESTARTS : restarts)[c.reset_frequency] || escapeHTMLText(c.reset_frequency)}</td>
         <td>${c.include_store === false ? 'No' : 'Yes'}</td>
         <td>${overrides ? overrides + (overrides === 1 ? ' store' : ' stores') : '-'}</td>
-        <td style="font-family: monospace;">${escapeHTMLText(prefixConfigSample(c, sampleStore))}</td>
+        <td style="font-family: monospace;">${escapeHTMLText(prefixConfigSample(c, stores[0]))}${tooLong ? `<div class="series-too-long" style="font-size: 12px; font-family: inherit;">${tooLong.store ? escapeHTMLText(tooLong.store.name) + ': ' : ''}${tooLong.short}</div>` : ''}</td>
         <td>${c.active_status ? 'Active' : 'Inactive'}</td>
         <td><button class="btn btn-outline btn-sm" ${actionAttrs('editPrefixConfig', [c.doc_type])}>Edit</button></td>
       </tr>
@@ -132,18 +132,54 @@ const SERIES_DISPLAY_NAMES = {
   PIMBarcodeSeq: 'Barcode (counter)',
   PIMDatedBarcodeSeq: 'Receipt-date barcode (counter)'
 };
+// Stage 76.11/76.12: the transaction each document series numbers. Names
+// only - unlike SERIES_DISPLAY_NAMES, these series keep the 16-character rule.
+const SERIES_TRANSACTION_NAMES = {
+  PR: 'Purchase requisition', PO: 'Purchase order', GRN: 'Goods receipt', ASN: 'Advance shipping notice', RFQ: 'Request for quotation',
+  QTN: 'Vendor quote', PRT: 'Purchase return', TO: 'Transfer order', TI: 'Transfer in', SI: 'Sales invoice', CN: 'Credit note',
+  DN: 'Debit note', VCN: 'Vendor credit note', SO: 'Sales order', SR: 'Sales return', RF: 'Refund', JV: 'Journal voucher',
+  PI: 'Physical inventory', GP: 'Gate pass', CE: 'Consumption entry', KIT: 'Kit / de-kit', LCV: 'Landed cost voucher',
+  CA: 'Customer advance', AVR: 'Advance refund voucher', POSBILL: 'POS bill', EXP: 'Expense claim', PRO: 'Production order',
+  ATT: 'Attendance', LV: 'Leave', LOAN: 'Employee loan', GRV: 'Grievance', MI: 'Material issue', MR: 'Material receipt',
+  DC: 'Delivery challan', JO: 'Job work out', JR: 'Job work return', CV: 'Store credit voucher', DMG: 'Damage', ADJ: 'Stock adjustment'
+};
 const GRN_BATCH_RESTARTS = { ANNUAL: 'Daily', MONTHLY: 'Monthly', NEVER: 'Never' };
 function seriesDisplayName(docType) {
-  return SERIES_DISPLAY_NAMES[docType] ? `${SERIES_DISPLAY_NAMES[docType]} (${docType})` : docType;
+  const name = SERIES_DISPLAY_NAMES[docType] || SERIES_TRANSACTION_NAMES[docType];
+  return name ? `${name} (${docType})` : docType;
 }
 function isGRNBatchSeries(c) {
   return c && c.doc_type === 'GRNBatchSeq';
 }
 
-function prefixConfigSample(c, storeSegment, storeCode) {
-  const o = (storeCode && c.store_overrides && c.store_overrides[storeCode]) || {};
+// Stage 86.2: how the year prints - engines/numbering.go formatPeriodSegment.
+// The counter is keyed by the financial year itself, so a format changed
+// mid-year carries the count on.
+const SERIES_YEAR_FORMATS = ['FY_SHORT', 'FY_COMPACT', 'FY_LONG', 'START_YY', 'START_YYYY'];
+function seriesYearText(format, reset) {
+  const d = new Date();
+  const fy = d.getMonth() < 3 ? d.getFullYear() - 1 : d.getFullYear();
+  const a = String(fy % 100).padStart(2, '0');
+  const b = String((fy + 1) % 100).padStart(2, '0');
+  const monthly = reset === 'MONTHLY';
+  const mm = monthly ? String(d.getMonth() + 1).padStart(2, '0') : '';
+  switch (format) {
+    case 'FY_COMPACT': return a + b + mm;
+    case 'FY_LONG': return fy + '-' + b + (monthly ? '-' + mm : '');
+    case 'START_YY': return monthly ? String(d.getFullYear() % 100).padStart(2, '0') + mm : a;
+    case 'START_YYYY': return monthly ? d.getFullYear() + mm : String(fy);
+    default: return a + '-' + b + (monthly ? '-' + mm : '');
+  }
+}
+
+// prefixConfigSample is the first number the series prints at a store (null:
+// no store yet, "HQ" stands in). The store's own code replaces only the store
+// segment; a store prefix saved before 86.2 still replaces the series prefix,
+// as the server keeps doing.
+function prefixConfigSample(c, store) {
+  const o = (store && c.store_overrides && c.store_overrides[store.code]) || {};
   const parts = [o.prefix || c.prefix];
-  if (c.include_store !== false) parts.push(storeSegment || 'HQ');
+  if (c.include_store !== false) parts.push(o.code || seriesStoreSegment(store));
   const reset = (c.reset_frequency || 'ANNUAL').toUpperCase();
   // NEVER is the only setting with no period segment - it never resets, so
   // there is no period to name.
@@ -153,12 +189,45 @@ function prefixConfigSample(c, storeSegment, storeCode) {
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     if (reset === 'MONTHLY') parts.push(yy + '-' + mm);
     else if (reset !== 'NEVER') parts.push(yy + mm + String(d.getDate()).padStart(2, '0'));
-  } else if (reset === 'MONTHLY') parts.push('26-27-04');
-  else if (reset !== 'NEVER') parts.push('26-27');
+  } else if (reset !== 'NEVER') parts.push(seriesYearText(c.year_format, reset));
   parts.push(String(1).padStart(c.padding_width || 1, '0'));
   const suffix = o.suffix || c.suffix;
   if (suffix) parts.push(suffix);
-  return parts.join(c.separator);
+  return parts.filter(Boolean).join(c.separator || '');
+}
+
+// GST (CGST Rule 46, the e-invoice IRP): a document number has at most 16
+// characters, only capital letters, digits, / and -, and does not start with
+// 0, / or - (its running number may: TOJAY00001). Every store's number is
+// checked; the server refuses the same (ADMINC-0311). Counters (barcode
+// digits, batch numbers) are not documents and are left alone.
+// Stage 76 D2: another home country gets a product cap of 20 and no GST
+// character rule (engines/number_series.go seriesNumberRules says the same).
+const seriesIndia = () => !window.FIELD_META || !window.FIELD_META.country || window.FIELD_META.country === 'IN';
+const seriesMaxLength = () => (seriesIndia() ? 16 : 20);
+const seriesCapRule = () => (seriesIndia() ? 'GST allows' : 'a document number here allows');
+const GST_NUMBER_PATTERN = /^[A-Z1-9][A-Z0-9/-]*$/;
+const seriesCharsOK = (sample) => !seriesIndia() || GST_NUMBER_PATTERN.test(sample);
+function seriesNumberOK(c, sample) {
+  return !!SERIES_DISPLAY_NAMES[c.doc_type] || (seriesCharsOK(sample) && sample.length <= seriesMaxLength());
+}
+function seriesProblem(c) {
+  if (SERIES_DISPLAY_NAMES[c.doc_type]) return null;
+  const stores = c.include_store === false || !(state.seriesStores || []).length ? [null] : state.seriesStores;
+  let worst = null;
+  for (const store of stores) {
+    const sample = prefixConfigSample(c, store);
+    const where = store ? store.name + ': ' : '';
+    if (!seriesCharsOK(sample)) {
+      return { store, short: 'not a valid GST number', text: `${where}${sample} - a GST number may use only capital letters, digits, / and -, and may not start with 0, / or -.${store ? ' Give that store a Code in number.' : ''}` };
+    }
+    if (sample.length > seriesMaxLength() && (!worst || sample.length > worst.sample.length)) worst = { sample, store, where };
+  }
+  return worst && {
+    store: worst.store,
+    short: `${worst.sample.length} characters - ${seriesCapRule()} ${seriesMaxLength()}`,
+    text: `${worst.where}${worst.sample} is ${worst.sample.length} characters - ${seriesCapRule()} at most ${seriesMaxLength()}. Shorten the prefix, show the year as ${seriesYearText('FY_COMPACT', 'ANNUAL')} or ${seriesYearText('START_YY', 'ANNUAL')}, use fewer digits or leave the separator blank.`
+  };
 }
 
 // The Number Series form lives here, not in index.html, so it costs nothing
@@ -183,11 +252,15 @@ function ensureEditPrefixModal() {
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
           <div class="form-group">
             <label class="form-label" for="edit-prefix-prefix">Prefix</label>
-            <input type="text" class="form-input" id="edit-prefix-prefix" maxlength="20" data-act="previewEditPrefix" data-act-on="input">
+            <input type="text" class="form-input" id="edit-prefix-prefix" maxlength="20" style="text-transform: uppercase;" data-act="previewEditPrefix" data-act-on="input">
           </div>
           <div class="form-group">
             <label class="form-label" for="edit-prefix-separator">Separator</label>
-            <input type="text" class="form-input" id="edit-prefix-separator" maxlength="3" data-act="previewEditPrefix" data-act-on="input">
+            <select class="form-select" id="edit-prefix-separator" data-act="previewEditPrefix" data-act-on="change">
+              <option value="/">/</option>
+              <option value="-">-</option>
+              <option value="">None</option>
+            </select>
           </div>
           <div class="form-group">
             <label class="form-label" for="edit-prefix-padding">Number length (digits)</label>
@@ -195,17 +268,21 @@ function ensureEditPrefixModal() {
           </div>
           <div class="form-group">
             <label class="form-label" for="edit-prefix-suffix">Suffix (optional)</label>
-            <input type="text" class="form-input" id="edit-prefix-suffix" maxlength="20" data-act="previewEditPrefix" data-act-on="input">
+            <input type="text" class="form-input" id="edit-prefix-suffix" maxlength="20" style="text-transform: uppercase;" data-act="previewEditPrefix" data-act-on="input">
           </div>
         </div>
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
           <div class="form-group">
             <label class="form-label" for="edit-prefix-reset">Restart numbering</label>
             <select class="form-select" id="edit-prefix-reset" required data-act="previewEditPrefix" data-act-on="change">
-              <option value="ANNUAL">Every financial year (year shown in the number)</option>
-              <option value="MONTHLY">Every month (year and month shown)</option>
-              <option value="NEVER">Never - one continuous series</option>
+              <option value="ANNUAL">Every financial year</option>
+              <option value="MONTHLY">Every month</option>
+              <option value="NEVER">Never - no year in the number</option>
             </select>
+          </div>
+          <div class="form-group" id="edit-prefix-year-group">
+            <label class="form-label" for="edit-prefix-year">Year in the number</label>
+            <select class="form-select" id="edit-prefix-year" data-act="previewEditPrefix" data-act-on="change"></select>
           </div>
           <div class="form-group">
             <label class="form-label" for="edit-prefix-store">Store in the number</label>
@@ -225,9 +302,10 @@ function ensureEditPrefixModal() {
         <div class="form-group">
           <span class="form-label">Next number looks like</span>
           <div id="edit-prefix-preview" style="font-family: Consolas, Monaco, monospace; font-size: 15px; padding: 8px 10px; border: 1px dashed var(--border-color); border-radius: 6px;"></div>
+          <div id="edit-prefix-length" role="status" aria-live="polite"></div>
         </div>
         <div class="form-group">
-          <span class="form-label">Store-wise prefix and suffix (optional - leave blank to use the series' own)</span>
+          <span class="form-label">Store-wise code and suffix (optional - blank uses the store's Short Code and the series' suffix)</span>
           <div id="edit-prefix-stores" style="max-height: 260px; overflow-y: auto;"></div>
         </div>
       </div>
@@ -245,39 +323,60 @@ function openEditPrefixModal(c) {
   const modal = document.getElementById('edit-prefix-modal');
   if (!modal) return;
   const isNew = !c;
-  const s = c || { doc_type: '', prefix: '', separator: '/', padding_width: 5, suffix: '', reset_frequency: 'ANNUAL', include_store: true, active_status: true, store_overrides: {} };
+  const s = c || { doc_type: '', prefix: '', separator: '/', padding_width: 5, suffix: '', reset_frequency: 'ANNUAL', include_store: true, active_status: true, store_overrides: {}, year_format: '' };
   const docInput = document.getElementById('edit-prefix-doctype');
   docInput.value = s.doc_type;
   docInput.readOnly = !isNew;
   document.getElementById('edit-prefix-title').textContent = isNew ? 'New Number Series' : 'Number Series - ' + seriesDisplayName(s.doc_type);
   document.getElementById('edit-prefix-prefix').value = s.prefix || '';
-  document.getElementById('edit-prefix-separator').value = s.separator || '';
+  // GST allows "/", "-" or none; an older series' other separator is shown
+  // as it is, so the form can say what is wrong with it.
+  const sepSel = document.getElementById('edit-prefix-separator');
+  sepSel.querySelectorAll('option[data-older]').forEach(o => o.remove());
+  if (![...sepSel.options].some(o => o.value === (s.separator || ''))) {
+    sepSel.insertAdjacentHTML('beforeend', `<option value="${escapeHTMLText(s.separator)}" data-older="1">${escapeHTMLText(s.separator)}</option>`);
+  }
+  sepSel.value = s.separator || '';
   document.getElementById('edit-prefix-padding').value = s.padding_width || 5;
   document.getElementById('edit-prefix-suffix').value = s.suffix || '';
   // A GRN batch number restarts with its date (Stage 61.7).
   const resetLabels = isGRNBatchSeries(s)
     ? { ANNUAL: 'Every day (receipt date shown, e.g. 261015)', MONTHLY: 'Every month (year and month shown)', NEVER: 'Never - no date in the number' }
-    : { ANNUAL: 'Every financial year (year shown in the number)', MONTHLY: 'Every month (year and month shown)', NEVER: 'Never - one continuous series' };
+    : { ANNUAL: 'Every financial year', MONTHLY: 'Every month', NEVER: 'Never - no year in the number' };
   document.querySelectorAll('#edit-prefix-reset option').forEach(o => { o.textContent = resetLabels[o.value] || o.textContent; });
   document.getElementById('edit-prefix-reset').value = s.reset_frequency || 'ANNUAL';
+  // A GRN batch number's period is its receipt date, not a year.
+  document.getElementById('edit-prefix-year-group').hidden = isGRNBatchSeries(s);
+  const yearSel = document.getElementById('edit-prefix-year');
+  yearSel.innerHTML = [...SERIES_YEAR_FORMATS, ''].map(f => `<option value="${f}"></option>`).join('');
+  yearSel.dataset.format = s.year_format || 'FY_SHORT';
+  yearSel.value = yearSel.dataset.format;
   document.getElementById('edit-prefix-store').value = s.include_store === false ? 'no' : 'yes';
   document.getElementById('edit-prefix-active').value = s.active_status === false ? 'no' : 'yes';
 
   const overrides = s.store_overrides || {};
   const stores = state.seriesStores || [];
   const box = document.getElementById('edit-prefix-stores');
+  // A store prefix saved before 86.2 replaced the series prefix. It is no
+  // longer offered, but a store that has one keeps it (its numbers must not
+  // change) and it can be cleared here.
+  const legacy = stores.some(st => (overrides[st.code] || {}).prefix);
+  const input = (i, part, value, label, max) =>
+    `<input type="text" class="form-input" maxlength="${max}" style="text-transform: uppercase;" data-store-index="${i}" data-store-part="${part}" value="${escapeHTMLText(value || '')}" aria-label="${label}" data-act="previewEditPrefix" data-act-on="input"${part === 'code' ? ` placeholder="${escapeHTMLText(seriesStoreSegment(stores[i]))}"` : ''}>`;
   const rows = stores.map((st, i) => {
     const o = overrides[st.code] || {};
     const label = escapeHTMLText(st.name);
     return `<tr>
       <td>${label}</td>
       <td style="font-family: monospace;">${escapeHTMLText(st.short_code || '-')}</td>
-      <td><input type="text" class="form-input" maxlength="20" data-store-index="${i}" data-store-part="prefix" value="${escapeHTMLText(o.prefix || '')}" aria-label="Prefix for ${label}"></td>
-      <td><input type="text" class="form-input" maxlength="20" data-store-index="${i}" data-store-part="suffix" value="${escapeHTMLText(o.suffix || '')}" aria-label="Suffix for ${label}"></td>
+      <td>${input(i, 'code', o.code, 'Code in the number for ' + label, 10)}</td>
+      ${legacy ? `<td>${input(i, 'prefix', o.prefix, 'Own prefix for ' + label, 20)}</td>` : ''}
+      <td>${input(i, 'suffix', o.suffix, 'Suffix for ' + label, 20)}</td>
+      <td style="font-family: monospace;" data-store-sample="${i}"></td>
     </tr>`;
   }).join('');
   box.innerHTML = stores.length
-    ? `<table><thead><tr><th>Store</th><th>Short Code</th><th>Prefix</th><th>Suffix</th></tr></thead><tbody>${rows}</tbody></table>`
+    ? `<table><thead><tr><th>Store</th><th>Short Code</th><th>Code in number</th>${legacy ? '<th>Own prefix (older setting)</th>' : ''}<th>Suffix</th><th>Next number</th></tr></thead><tbody>${rows}</tbody></table>`
     : '<p class="text-muted">No stores yet. Each store appears here once it is created under Setup -> Location.</p>';
 
   previewEditPrefix();
@@ -289,32 +388,61 @@ function openEditPrefixModal(c) {
 function readEditPrefixForm() {
   const overrides = {};
   const stores = state.seriesStores || [];
+  const docType = document.getElementById('edit-prefix-doctype').value.trim();
+  // A document number is in capitals (the server saves it so); counters keep
+  // what they have.
+  const text = id => {
+    const v = (typeof id === 'string' ? document.getElementById(id).value : id.value).trim();
+    return SERIES_DISPLAY_NAMES[docType] ? v : v.toUpperCase();
+  };
   document.querySelectorAll('#edit-prefix-stores input[data-store-index]').forEach(input => {
     const st = stores[Number(input.dataset.storeIndex)];
-    const v = input.value.trim();
+    const v = text(input);
     if (!st || !v) return;
     overrides[st.code] = overrides[st.code] || {};
     overrides[st.code][input.dataset.storePart] = v;
   });
+  const yearSel = document.getElementById('edit-prefix-year');
   return {
-    doc_type: document.getElementById('edit-prefix-doctype').value.trim(),
-    prefix: document.getElementById('edit-prefix-prefix').value.trim(),
+    doc_type: docType,
+    prefix: text('edit-prefix-prefix'),
     separator: document.getElementById('edit-prefix-separator').value,
     padding_width: parseInt(document.getElementById('edit-prefix-padding').value, 10) || 0,
-    suffix: document.getElementById('edit-prefix-suffix').value.trim(),
+    suffix: text('edit-prefix-suffix'),
     reset_frequency: document.getElementById('edit-prefix-reset').value,
     include_store: document.getElementById('edit-prefix-store').value === 'yes',
     active_status: document.getElementById('edit-prefix-active').value === 'yes',
     store_overrides: overrides,
+    year_format: (yearSel && yearSel.dataset.format) || 'FY_SHORT',
   };
 }
 
+// previewEditPrefix redraws on every keystroke: the next number, each
+// store's, and the 16-character check, so a problem shows before Save.
 function previewEditPrefix() {
   const el = document.getElementById('edit-prefix-preview');
   if (!el) return;
+  const reset = document.getElementById('edit-prefix-reset').value;
+  const yearSel = document.getElementById('edit-prefix-year');
+  if (yearSel.value) yearSel.dataset.format = yearSel.value;
+  yearSel.querySelectorAll('option').forEach(o => { o.textContent = o.value ? seriesYearText(o.value, reset) : 'No year'; });
+  yearSel.disabled = reset === 'NEVER';
+  yearSel.value = reset === 'NEVER' ? '' : yearSel.dataset.format;
+
   const s = readEditPrefixForm();
-  const first = (state.seriesStores || [])[0];
-  el.textContent = prefixConfigSample(s, seriesStoreSegment(first), first && first.code);
+  const stores = state.seriesStores || [];
+  el.textContent = prefixConfigSample(s, stores[0]);
+  stores.forEach((st, i) => {
+    const cell = document.querySelector(`#edit-prefix-stores [data-store-sample="${i}"]`);
+    if (!cell) return;
+    cell.textContent = prefixConfigSample(s, st);
+    cell.classList.toggle('series-too-long', !seriesNumberOK(s, cell.textContent));
+  });
+  const status = document.getElementById('edit-prefix-length');
+  const problem = seriesProblem(s);
+  status.className = problem ? 'series-too-long' : 'text-muted';
+  status.textContent = problem ? problem.text
+    : SERIES_DISPLAY_NAMES[s.doc_type] ? '' : `Longest number: ${Math.max(el.textContent.length, ...stores.map(st => prefixConfigSample(s, st).length))} of ${seriesMaxLength()} characters.`;
 }
 window.previewEditPrefix = previewEditPrefix;
 
@@ -330,6 +458,10 @@ window.submitEditPrefix = async function(e) {
   const body = readEditPrefixForm();
   if (!body.doc_type) {
     await showCustomAlert('Enter the transaction (record type) this series numbers.');
+    return;
+  }
+  if (seriesProblem(body)) {
+    await showCustomAlert(document.getElementById('edit-prefix-length').textContent);
     return;
   }
   const res = await apiFetch('/api/v1/prefix', { method: 'POST', body: JSON.stringify(body) });
@@ -1329,6 +1461,8 @@ async function renderConfigurationView(container) {
   // URLs belong on this screen with everything else, not on a separate page
   // the admin has to know exists. Rendered by renderConfigIntegrations().
   modules.push(CONFIG_INTEGRATIONS_MODULE);
+  // Stage 89: where each item field is asked - its own page, beside Inventory.
+  modules.splice(modules.includes('Inventory') ? modules.indexOf('Inventory') + 1 : modules.length - 1, 0, CONFIG_ITEM_FIELDS_MODULE);
   if (!configSelectedModule || !modules.includes(configSelectedModule)) configSelectedModule = modules[0];
   // Stage 82: the industry heads the rail; the page still opens on settings.
   modules.unshift(CONFIG_INDUSTRY_MODULE);
@@ -1392,6 +1526,8 @@ function configInputId(key) { return 'config-input-' + key; }
 // does, and the reason asked for in the panel itself. Same endpoints
 // (GET /admin/industries, GET /admin/industry/lock, POST /admin/industry).
 const CONFIG_INDUSTRY_MODULE = 'Industry';
+// Stage 89: Configuration -> Item fields (view-item-form.js renderConfigItemFields).
+const CONFIG_ITEM_FIELDS_MODULE = 'Item fields';
 
 async function renderConfigIndustry(host) {
   host.innerHTML = '<p class="text-muted">Loading…</p>';
@@ -1528,6 +1664,10 @@ async function renderConfigIntegrations(host) {
 
   host.innerHTML = results.map(r => configIntegrationSectionHtml(r.def, r.rows, r.unavailable)).join('');
   results.forEach(r => wireConfigIntegrationSection(r.def));
+  // Stage 95: the client's own image drive for Design / Combination ID images.
+  const drive = document.createElement('div');
+  host.prepend(drive);
+  loadViewModule('/view-images.js').then(m => m.renderImageDriveSection(drive));
 }
 
 function configIntegrationSectionHtml(def, rows, unavailable) {
@@ -1596,6 +1736,11 @@ function renderConfigFields() {
   }
   if (configSelectedModule === CONFIG_INDUSTRY_MODULE) {
     renderConfigIndustry(host);
+    updateConfigDirtyState();
+    return;
+  }
+  if (configSelectedModule === CONFIG_ITEM_FIELDS_MODULE) {
+    loadViewModule('/view-item-form.js').then(m => m.renderConfigItemFields(host));
     updateConfigDirtyState();
     return;
   }

@@ -304,6 +304,14 @@ func (s SessionScope) HasGlobalScope(dimension ScopeDimension, doctype string) b
 	if IsSuperAdmin(s.Role) {
 		return true
 	}
+	// Stage 73.D.17: a role named after a shipped role template gets the
+	// global scopes the template declares (HR Manager: self and location -
+	// HR works on other people's records by definition). They used to be
+	// described on the template and never applied, so an HR Manager saw only
+	// their own grievances and appraisals.
+	if roleTemplateGrantsGlobalScope(s.Role, dimension) {
+		return true
+	}
 	switch dimension {
 	case ScopeSelf:
 		return selfScopeExemptions[CanonicalRole(s.Role)][doctype]

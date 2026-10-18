@@ -349,9 +349,14 @@ async function openQuickCreateDialog(doctype, seedText) {
   const series = isMaster ? await loadMasterCodeSeries(doctype) : null;
   const isCode = f => f.auto_generated || (isMaster && f.fieldname.toLowerCase() === 'code' && !(series && series.typed));
   const seedField = ['name', 'hsn', 'description'].find(n => fields.some(f => f.fieldname === n));
+  // Stage 89: a new Item is asked its kind and its item name first - the
+  // item name fills HSN, GST and the name (view-item-form.js).
+  const itemAsks = doctype === 'Item' ? ['item_type', 'item_name'] : [];
   const asked = fields.filter(f =>
     f.fieldname !== 'id' && !f.mirrored && !isCode(f) && !isDerivedCompanionField(f.fieldname) && !isStateCodeFieldName(f.fieldname) &&
-    (f.mandatory || f.fieldname === seedField));
+    (f.mandatory || f.fieldname === seedField || itemAsks.includes(f.fieldname)))
+    .map(f => (itemAsks.includes(f.fieldname) ? { ...f, mandatory: true } : f))
+    .sort((a, b) => (itemAsks.includes(b.fieldname) ? 1 : 0) - (itemAsks.includes(a.fieldname) ? 1 : 0) || itemAsks.indexOf(a.fieldname) - itemAsks.indexOf(b.fieldname));
   // A required table/map field needs the full editor - hand over to the
   // full form rather than render half a record.
   if (asked.some(f => f.fieldtype === 'JSONTable' || f.fieldtype === 'JSONMap')) {
@@ -450,6 +455,7 @@ async function openQuickCreateDialog(doctype, seedText) {
     const gstBox = holder.querySelector('[name="gst_rate"]');
     const hsnBox = holder.querySelector('[name="hsn_code"]');
     if (hsnBox) attachSmartHSNPicker(hsnBox, gstBox);
+    if (doctype === 'Item') loadViewModule('/view-item-form.js').then(m => m.wireItemQuickCreate(holder)); // Stage 89
     // A 0% rate is valid only with a non-taxable Tax Treatment (MASTER-0044),
     // which this dialog does not otherwise ask - so the choice appears the
     // moment the rate is 0, and is sent only then.
@@ -830,7 +836,7 @@ function readMasterCodeFormat(form) {
 // ---------------------------------------------------------------------------
 const FORM_SECTIONS = {
   Item: [
-    { title: 'Basics', fields: ['name', 'code', 'item_type', 'category', 'barcode'] },
+    { title: 'Basics', fields: ['item_type', 'item_name', 'name', 'code', 'category', 'product_type', 'barcode'] },
     { title: 'Price and tax', fields: ['sale_price', 'mrp', 'standard_cost', 'hsn_code', 'tax_treatment', 'gst_rate'] },
     { title: 'Design and variant', fields: ['family', 'parent_product_code', 'variant_option_values'] },
     { title: 'Batch, serial and expiry', fields: ['tracking_mode', 'grn_batch_number', 'shelf_life_days', 'min_shelf_life_on_receipt_days', 'min_shelf_life_on_pick_days'] },
@@ -875,20 +881,20 @@ function groupFormSections(body, doctype, record) {
 // "Key:Value;Key:Value". Rows of attribute + value now write that same string
 // into the same input, so every reader of variant_option_values (variant
 // codes, the duplicate-combination check, PO designs, stickers) is unchanged.
-// Attributes come from Product Attribute setup and are stored by their code,
-// as PO designs store them; a key that matches none stays as typed.
+// Attributes come from Setup -> Item Attribute (the ERP's own list, Stage 86.3,
+// not PIM's) and are stored by their code, as PO designs store them; a key
+// that matches none stays as typed.
 async function attachVariantOptionsEditor(input) {
   if (!input || input.dataset.variantEditor) return;
   input.dataset.variantEditor = '1';
   let defs = [];
   let closed = false;
-  if (canReadDoctype('ProductAttributeDef')) {
-    const res = await apiFetch('/api/v1/doc/ProductAttributeDef?limit=500');
+  if (canReadDoctype('ItemAttribute')) {
+    const res = await apiFetch('/api/v1/doc/ItemAttribute?limit=500');
     const all = res && res.ok ? ((await res.json()) || []) : [];
-    // Stage 81: Product information is PIM's, not a variant option; and once
-    // the operator has set attributes up from the library they are the whole
-    // list - the form offers no "Other..." to invent one.
-    defs = all.filter(d => d.status !== 'Inactive' && d.used_for !== 'Product information');
+    // Stage 81: once the operator has set attributes up from the library they
+    // are the whole list - the form offers no "Other..." to invent one.
+    defs = all.filter(d => d.status !== 'Inactive');
     closed = all.some(d => d.library_id);
   }
   const byCode = new Map(defs.map(d => [String(d.code || d.id), d]));
@@ -1111,6 +1117,31 @@ function openLineUpload({ title = 'Upload lines', hint = '', template = 'lines',
   }));
 }
 
+// Stage 93.6 (user, 2026-10-18): "It should ask Mandatory field and auto
+// linked". A location's Cost Center is never blank: its blank choice reads
+// "New: <location name>" and is the one a new location starts on - the
+// server makes that cost center on save (engines/location_cost_center.go).
+// Picking an existing one links that instead. The options arrive after the
+// form is built, so the label is repainted whenever they are replaced.
+function wireLocationCostCenter(body) {
+  const select = body.querySelector('select[name="cost_center"]');
+  if (!select) return;
+  const nameInput = body.querySelector('[name="name"]');
+  const label = select.closest('.form-group')?.querySelector('.form-label');
+  if (label && !label.querySelector('.required')) label.insertAdjacentHTML('beforeend', '<span class="required">*</span>');
+  const paint = () => {
+    const blank = [...select.options].find(o => o.value === '');
+    if (!blank) return;
+    const name = String(nameInput?.value || '').trim();
+    blank.disabled = false;
+    blank.textContent = name ? `New: ${name}` : 'New: named after this location';
+  };
+  new MutationObserver(paint).observe(select, { childList: true });
+  nameInput?.addEventListener('input', paint);
+  paint();
+}
+
 export { openDatePicker, closeDatePicker, openQuickCreateDialog, attachSmartHSNPicker, wireAttributeDefForm,
   isStateFieldName, isStateCodeFieldName, buildStateSelect, fieldChecksumOK, fillStateFromTaxId, taxIdLabel,
-  loadMasterCodeSeries, masterCodeSetupRow, readMasterCodeFormat, groupFormSections, attachVariantOptionsEditor, openLineUpload };
+  loadMasterCodeSeries, masterCodeSetupRow, readMasterCodeFormat, groupFormSections, attachVariantOptionsEditor, openLineUpload,
+  wireLocationCostCenter };

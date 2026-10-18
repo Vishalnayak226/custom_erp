@@ -174,6 +174,7 @@ func TestVendorInvoice3WayMatchAndPayment(t *testing.T) {
 		// Same maker cannot approve their own override (maker-checker), a
 		// different HR/Admin checker can, and only then does the payment
 		// actually post.
+		withSelfApproval(t, tenantID, SelfApprovalNobody) // Stage 92: the submitter may not decide
 		if err := DecideApproval(tenantID, "VendorInvoice", "TEST-VI-INV5", makerID, "HR/Admin", "HO", "Approved", ""); err == nil {
 			t.Fatalf("expected the maker to be blocked from approving their own override")
 		}

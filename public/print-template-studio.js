@@ -29,9 +29,10 @@ const INSERTS = [
   { type: 'image', label: 'Logo / image', make: () => ({ w: 30, h: 15 }) },
   { type: 'line', label: 'Line', make: () => ({ w: 100, h: 0.4, thickness: 0.4 }) },
   { type: 'box', label: 'Box', make: () => ({ w: 60, h: 30, border: true }) },
-  { type: 'pageNo', label: 'Page number', make: () => ({ w: 40, h: 5, fontSize: 7, align: 'center', pages: 'all' }) }
+  { type: 'pageNo', label: 'Page number', make: () => ({ w: 40, h: 5, fontSize: 7, align: 'center', pages: 'all' }) },
+  { type: 'qr', label: 'QR code', make: () => ({ key: 'fields.irn_signed_qr', w: 30, h: 30 }) }
 ];
-const TYPE_LABEL = { text: 'Text', field: 'Field', block: 'Block', table: 'Items table', taxSummary: 'Tax summary', totals: 'Totals', image: 'Image', line: 'Line', box: 'Box', pageNo: 'Page number' };
+const TYPE_LABEL = { text: 'Text', field: 'Field', block: 'Block', table: 'Items table', taxSummary: 'Tax summary', totals: 'Totals', image: 'Image', line: 'Line', box: 'Box', pageNo: 'Page number', qr: 'QR code' };
 const PAGES_LABEL = { first: 'first page', last: 'last page', all: 'every page' };
 const FORMATS = [['text', 'Text'], ['money', 'Money (1,23,456.00)'], ['qty', 'Quantity'], ['percent', 'Percent'], ['date', 'Date (dd-mm-yyyy)'], ['image', 'Picture']];
 
@@ -332,7 +333,7 @@ function renderTop() {
   q('redo').addEventListener('click', redo);
   q('save').addEventListener('click', save);
   q('close').addEventListener('click', closeStudio);
-  q('test').addEventListener('click', () => T.printPages(T.renderPages(S.layout, S.sample), S.layout));
+  q('test').addEventListener('click', async () => { await T.qrEncoderReady(S.layout); T.printPages(T.renderPages(S.layout, S.sample), S.layout); });
   const sampleEl = q('sample');
   const doctype = (T.TRANSACTIONS.find(t => t.key === S.txn) || {}).doctype;
   if (window.attachLinkTypeahead && doctype) window.attachLinkTypeahead(sampleEl, doctype);
@@ -532,7 +533,7 @@ function elementInspector(el) {
     <div class="pts-section-title" style="margin-top:0;">${esc(TYPE_LABEL[el.type] || el.type)}</div>
     <div class="pts-grid4">${num('x', 'X', el.x)}${num('y', 'Y', el.y)}${num('w', 'W', el.w)}${num('h', 'H', el.h, el.type === 'line' ? 0.1 : 0.5)}</div>
     ${el.type === 'table' ? '' : byPosition ? `<div class="form-group"><label class="form-label">Prints on</label><select class="form-input" disabled>${opt(byPosition, byPosition === 'first' ? 'First page (above the items table)' : 'Last page (below the items table)', byPosition)}</select></div>` : `<div class="form-group"><label class="form-label">Prints on</label><select class="form-input" data-prop="pages">${opt('first', 'First page', el.pages)}${opt('all', 'Every page', el.pages)}${opt('last', 'Last page', el.pages)}</select></div>`}
-    ${['line', 'image', 'box'].includes(el.type) ? '' : `
+    ${['line', 'image', 'box', 'qr'].includes(el.type) ? '' : `
     <div class="pts-grid2">${num('fontSize', 'Font size (pt)', el.fontSize ?? 9)}<div class="form-group"><label class="form-label">Colour</label><input type="color" class="form-input" data-prop="color" value="${esc(el.color || '#111111')}"></div></div>
     <div class="pts-toggles">
       <button type="button" data-tog="bold" class="${el.bold ? 'on' : ''}"><b>B</b></button>
@@ -591,6 +592,10 @@ function elementInspector(el) {
         <div class="form-group" style="margin-top:8px;"><label class="form-label">Add row</label><select class="form-input" data-addtrow><option value="">Choose...</option>${headerFields.filter(f => f.key.startsWith('totals.') || f.key.startsWith('fields.')).map(f => opt(f.key, f.label, '')).join('')}</select></div>`;
       break;
     }
+    case 'qr':
+      extra = `<div class="form-group"><label class="form-label">Value to encode</label><select class="form-input" data-prop="key">${headerFields.map(f => opt(f.key, `${f.group}: ${f.label}`, el.key)).join('')}</select></div>
+        <p class="pts-hint">Prints nothing while the value is blank - an e-invoice QR appears once the IRP has acknowledged the document.</p>`;
+      break;
     case 'taxSummary':
       extra = '<p class="pts-hint">One row per GST rate: taxable value with CGST + SGST within a state, or IGST across states - chosen automatically per document.</p>';
       break;

@@ -36,7 +36,7 @@ matter where an order came from.
 
 ## The OMS Workbench
 
-One screen (**sidebar → Order Management**), not tabs: dashboard tiles,
+One screen (**sidebar → OMS → Orders**), not tabs: dashboard tiles,
 channel-connector sync health with unmapped-SKU exceptions, bundle/kit
 operations, a global search across order id/channel order id/AWB/phone/
 customer/SKU, manual order entry, and the main order queue with saved

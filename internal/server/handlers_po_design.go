@@ -4,6 +4,7 @@ import (
 	"custom_erp/engines"
 	"encoding/json"
 	"net/http"
+	"strings"
 )
 
 // Stage 62: the PO's "Add design" panel (read side - designs and their Items
@@ -30,7 +31,8 @@ func handleGetDesignMatrix(w http.ResponseWriter, r *http.Request) {
 	if !requireDocPermission(w, r, "PurchaseOrder", "create", "You do not have permission to create purchase orders") {
 		return
 	}
-	m, err := engines.GetDesignMatrix(r.Header.Get("Resolved-Tenant-ID"))
+	// Stage 89: for an item name, only what the PO asks, as its type maps it.
+	m, err := engines.GetDesignMatrixFor(r.Header.Get("Resolved-Tenant-ID"), strings.TrimSpace(r.URL.Query().Get("item_name")))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to load the product attributes")
 		return
@@ -159,13 +161,14 @@ func handleVendorPOExcel(w http.ResponseWriter, r *http.Request) {
 
 // handleAddDesignAttributeValue adds a value to a product attribute, or
 // creates the attribute, from the PO's design panel (Stage 65.4). Needs the
-// same right the PIM screen would: update on ProductAttributeDef to extend
-// one, create to add a new one.
+// same right the Item Attribute screen would - update on ItemAttribute (the
+// ERP's own list, Stage 86.3) to extend one, create to add a new one.
 func handleAddDesignAttributeValue(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Code  string `json:"code"`
-		Label string `json:"label"`
-		Value string `json:"value"`
+		Code     string `json:"code"`
+		Label    string `json:"label"`
+		Value    string `json:"value"`
+		ItemName string `json:"item_name"` // Stage 89: map the new value onto the item name's type
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusBadRequest, "Invalid request body")
@@ -175,11 +178,15 @@ func handleAddDesignAttributeValue(w http.ResponseWriter, r *http.Request) {
 	if body.Code == "" {
 		action, denied = "create", "You do not have permission to create product attributes"
 	}
-	if !requireDocPermission(w, r, "ProductAttributeDef", action, denied) {
+	if !requireDocPermission(w, r, engines.ItemAttributeDoctype, action, denied) {
 		return
 	}
 	attr, err := engines.AddDesignAttributeValue(r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-User-ID"), body.Code, body.Label, body.Value)
 	if err != nil {
+		writeEngineError(w, r, err, http.StatusInternalServerError)
+		return
+	}
+	if err := engines.MapAttributeValueToItemName(r.Header.Get("Resolved-Tenant-ID"), r.Header.Get("Resolved-User-ID"), body.ItemName, attr.Code, strings.TrimSpace(body.Value)); err != nil {
 		writeEngineError(w, r, err, http.StatusInternalServerError)
 		return
 	}

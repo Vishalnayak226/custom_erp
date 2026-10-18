@@ -126,6 +126,17 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Printf("Client schemas in step with tenant_default (%d checked).\n", len(reports))
+
+		// Stage 93.2: every location that has never had a cost center is
+		// linked to a same-name one or given its own - once, idempotent.
+		ccDone, err := engines.BackfillLocationCostCentersAllTenants()
+		for tenant, n := range ccDone {
+			fmt.Printf("  [cost-center] %s: %d location(s) linked or given a cost center\n", tenant, n)
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "location cost center backfill failed: %v\n", err)
+			os.Exit(1)
+		}
 		return
 	}
 

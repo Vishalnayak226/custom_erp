@@ -266,7 +266,8 @@ func CreateLandedCostVoucher(tenantID, grnID string, chargeLines []map[string]in
 	if grnID == "" {
 		return "", fmt.Errorf("grn_reference is required")
 	}
-	if _, _, err := fetchDocData(tenantID, "GRN", grnID); err != nil {
+	grnData, _, err := fetchDocData(tenantID, "GRN", grnID)
+	if err != nil {
 		return "", fmt.Errorf("grn_reference: %v", err)
 	}
 	if len(chargeLines) == 0 {
@@ -290,6 +291,8 @@ func CreateLandedCostVoucher(tenantID, grnID string, chargeLines []map[string]in
 		"id": id, "code": id, "grn_reference": grnID,
 		"charge_lines": string(linesJSON), "status": "Draft",
 	}
+	grnLocation, _ := grnData["location"].(string)
+	issueNumberInto(docData, tenantID, "LandedCostVoucher", id, "", grnLocation) // Stage 76.11: the GRN's store
 	marshaled, err := json.Marshal(docData)
 	if err != nil {
 		return "", err

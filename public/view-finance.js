@@ -1196,7 +1196,7 @@ async function renderFinanceNotesView(container) {
               <td>${documentSearchLink('SalesInvoice', n.sales_invoice_id)}${n.status === 'Posted' && n.applied_to_invoice != null ? `<div style="font-size:12px; color:var(--text-muted);">Applied ${formatMoney(n.applied_to_invoice)}${Number(n.refunded_amount) > 0 ? `, refunded ${formatMoney(n.refunded_amount)}` : ''}</div>` : ''}</td>
               <td>${(n.amount ?? 0).toLocaleString()}</td>
               <td>${n.reason || ''}</td>
-              <td><span class="badge ${n.status === 'Posted' ? 'badge-success' : 'badge-secondary'}">${n.status}</span></td>
+              <td data-einv-id="${escapeHTMLText(n.id)}"><span class="badge ${n.status === 'Posted' ? 'badge-success' : 'badge-secondary'}">${n.status}</span></td>
               <td>${n.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('postFinanceNote', ['CreditNote', n.id])}>Post</button> ` : ''}<button class="action-btn" ${actionAttrs('printTransactionDocument', ['CreditNote', n.id])}>Print</button></td>
             </tr>
           `).join('')}
@@ -1218,6 +1218,9 @@ async function renderFinanceNotesView(container) {
     currentDoctype = 'VendorCreditNote'; currentSearchQuery = ''; currentTablePage = 1;
     renderView('doctype-table');
   });
+  // Stage 75.2.9: each customer credit note's IRN state, from one call.
+  const einvCells = [...container.querySelectorAll('[data-einv-id]')];
+  einvoiceModule().then(m => m.einvoiceBadgesInto(einvCells, 'CreditNote')).catch(() => {});
 }
 
 // vendorNotesTable lists vendor-side notes (debit and Stage 62 credit) with
@@ -1312,7 +1315,7 @@ async function renderSalesInvoicesView(container) {
               <td>${escapeHTMLText(v.customer || '')}</td>
               <td>${(v.total_amount ?? 0).toLocaleString()}</td>
               <td class="num">${v.status === 'Draft' || v.status === 'Cancelled' ? '&mdash;' : formatMoney(openBalance(v, 'total_amount', ['Approved']))}</td>
-              <td><span class="badge ${partPaid ? 'badge-warning' : (STATUS_BADGE[v.status] || 'badge-secondary')}">${partPaid ? 'Part paid' : escapeHTMLText(v.status)}</span></td>
+              <td data-einv-id="${escapeHTMLText(v.id)}"><span class="badge ${partPaid ? 'badge-warning' : (STATUS_BADGE[v.status] || 'badge-secondary')}">${partPaid ? 'Part paid' : escapeHTMLText(v.status)}</span></td>
               <td>
                 ${v.status === 'Draft' ? `<button class="action-btn" ${actionAttrs('postSalesInvoiceAction', [v.id])}>Post</button>` : ''}
                 ${v.status === 'Approved' ? `<button class="action-btn" data-si-settle="${escapeHTMLText(v.id)}">Settle</button>` : ''}
@@ -1326,6 +1329,9 @@ async function renderSalesInvoicesView(container) {
   });
   container.querySelectorAll('[data-si-settle]').forEach(btn => btn.addEventListener('click', () => settleSalesInvoiceAction(btn.getAttribute('data-si-settle'))));
   wirePaymentHistory(container);
+  // Stage 75.2.9: each invoice's IRN state, from one call.
+  const einvCells = [...container.querySelectorAll('[data-einv-id]')];
+  einvoiceModule().then(m => m.einvoiceBadgesInto(einvCells, 'SalesInvoice')).catch(() => {});
   document.getElementById('si-new-btn').addEventListener('click', () => {
     currentDoctype = 'SalesInvoice'; currentSearchQuery = ''; currentTablePage = 1;
     renderView('doctype-table');
@@ -1355,10 +1361,16 @@ window.printSalesInvoice = async function(id) {
     await showApiError(res, 'Failed to load the invoice.');
     return;
   }
-  renderInvoicePrintSheet(await res.json());
+  const invoice = await res.json();
+  // Stage 75.2.8: IRN, Ack and the IRP's signed QR; "IRN pending" until then.
+  const m = await einvoiceModule().catch(() => null);
+  const irn = m ? await m.einvoiceFor('SalesInvoice', id) : null;
+  renderInvoicePrintSheet(invoice, irn, m);
 };
 
-function renderInvoicePrintSheet(invoice) {
+const einvoiceModule = () => import('./view-einvoice.js' + new URL(import.meta.url).search);
+
+async function renderInvoicePrintSheet(invoice, irn, einv) {
   const area = document.getElementById('invoice-print-area');
   if (!area) return;
   const status = invoice.status || '';
@@ -1381,8 +1393,10 @@ function renderInvoicePrintSheet(invoice) {
         ${row('Status', status)}
       </table>
       <div class="invoice-total">Total: ${Number(invoice.total_amount || 0).toFixed(2)}</div>
+      ${einv ? einv.einvoicePrintBlock(irn) : ''}
     </div>
   `;
+  if (einv && irn && irn.signed_qr) await einv.einvoiceQRInto(area.querySelector('.einv-print-qr'), irn.signed_qr);
   area.classList.add('printing');
   window.print();
   setTimeout(() => area.classList.remove('printing'), 500);

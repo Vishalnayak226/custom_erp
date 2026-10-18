@@ -1649,6 +1649,23 @@ func handleSubmitApproval(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}
+	// Stage 73.D.7: a document is submitted only by someone who may see it
+	// (documentReadRule) - a self-service user only their own leave or
+	// grievance. A missing document still gets the engine's own answer.
+	rule, err := sessionReadRule(r, tenantID, req.Doctype)
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to resolve the access scope for this session")
+		return
+	}
+	docs, err := engines.LoadAttachmentParents(tenantID, req.Doctype, []string{req.DocumentID})
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if doc, found := docs[req.DocumentID]; found && !rule.visible(doc.Data) {
+		writeAPIError(w, r, "GLOBAL-0011", "")
+		return
+	}
 
 	if err := engines.SubmitForApproval(tenantID, req.Doctype, req.DocumentID, userID, role); err != nil {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
@@ -1813,6 +1830,23 @@ func handleApprovalLog(w http.ResponseWriter, r *http.Request) {
 	documentID := r.URL.Query().Get("document_id")
 	if doctype == "" || documentID == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Query parameters 'doctype' and 'document_id' are required")
+		return
+	}
+	// Stage 73.D.6: an approval history (reject reasons included) is as
+	// private as its document - the same read rule as opening the document
+	// (documentReadRule). A missing document answers the same as a hidden
+	// one, so the route does not say which ids exist.
+	rule, ok := newDocumentReadRule(w, r, tenantID, doctype)
+	if !ok {
+		return
+	}
+	docs, err := engines.LoadAttachmentParents(tenantID, doctype, []string{documentID})
+	if err != nil {
+		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if doc, found := docs[documentID]; !found || !rule.visible(doc.Data) {
+		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}
 	results, err := engines.ListApprovalLog(tenantID, doctype, documentID)

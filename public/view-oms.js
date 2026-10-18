@@ -48,7 +48,7 @@ async function renderOMSWorkbenchView(container) {
   container.innerHTML = `
    <div id="oms-screen" class="txn-paged txn-on-landing" data-landing="list">
     <div class="page-section-bar">
-      ${txnPageTitle({ screen: 'oms-screen', title: 'Order Management', page: 'New manual order', landing: 'list' })}
+      ${txnPageTitle({ screen: 'oms-screen', title: 'Orders', page: 'New manual order', landing: 'list' })}
       <span class="page-section-actions txn-landing-only">
         <button class="btn btn-outline" id="oms-refresh">Refresh</button>
         ${txnNewButton({ screen: 'oms-screen', label: 'New Order' })}
@@ -443,7 +443,7 @@ function renderOMSOrderTable(result) {
             const age = o.age_minutes < 60 ? `${o.age_minutes}m` : o.age_minutes < 1440 ? `${Math.floor(o.age_minutes / 60)}h` : `${Math.floor(o.age_minutes / 1440)}d`;
             return `<tr>
               <td><input type="checkbox" class="oms-row-select" aria-label="Select order ${escapeHTMLText(o.order_id)}" data-order="${escapeHTMLText(o.order_id)}"${omsConsoleState.selected.has(o.order_id) ? ' checked' : ''}></td>
-              <td style="font-family:monospace;">${copyableCell(o.order_id, o.order_id)}${o.priority === 'Expedite' ? '<div class="badge badge-warning oms-expedite">Expedite</div>' : ''}</td>
+              <td style="font-family:monospace;">${copyableCell(o.order_number || o.order_id, o.order_number || o.order_id)}${o.priority === 'Expedite' ? '<div class="badge badge-warning oms-expedite">Expedite</div>' : ''}</td>
               <td>${source}</td>
               <td>${escapeHTMLText(o.customer_name || '—')}${o.customer_phone ? `<div class="oms-channel-ref">${escapeHTMLText(o.customer_phone)}</div>` : ''}</td>
               <td>${omsStatusBadge(o.status, o.hold_reason)}</td>
@@ -550,7 +550,7 @@ async function runOMSGlobalSearch() {
       <table><thead><tr><th>Order</th><th>Matched on</th><th>Source</th><th>Customer</th><th>Status</th><th></th></tr></thead>
       <tbody>${results.map(r => `
         <tr>
-          <td style="font-family:monospace;">${escapeHTMLText(r.order_id)}</td>
+          <td style="font-family:monospace;">${escapeHTMLText(r.order_number || r.order_id)}</td>
           <td>${escapeHTMLText(r.matched_on)}</td>
           <td>${escapeHTMLText(r.channel)}${r.channel_order_id ? `<div class="oms-channel-ref">${escapeHTMLText(r.channel_order_id)}</div>` : ''}</td>
           <td>${escapeHTMLText(r.customer_name || '—')}</td>
@@ -673,7 +673,7 @@ window.openOMSOrderDetail = async function(orderID) {
   overlay.innerHTML = `
     <div class="modal-container oms-detail-container">
       <div class="modal-header">
-        <h3 class="modal-title">Order ${escapeHTMLText(orderID)}</h3>
+        <h3 class="modal-title">Order ${escapeHTMLText(order.code || orderID)}</h3>
         <button type="button" class="modal-close" aria-label="Close">×</button>
       </div>
       <div class="modal-body">
@@ -688,7 +688,7 @@ window.openOMSOrderDetail = async function(orderID) {
           ${order.original_order_id ? `<div><span class="stat-label">${escapeHTMLText(order.replacement_kind || 'Replacement')} of</span><div><button class="action-btn" data-open-original="${escapeHTMLText(order.original_order_id)}">${escapeHTMLText(order.original_order_id)}</button></div></div>` : ''}
         </div>
         ${nextActions.length ? `<div class="oms-next-step" role="status"><strong>Next step:</strong> ${escapeHTMLText(nextActions[0].label)} <span class="text-muted">- ${escapeHTMLText(nextActions[0].reason)}</span> <button class="btn btn-primary btn-sm" data-next-step="${escapeHTMLText(nextActions[0].action)}">${escapeHTMLText(nextActions[0].label)}</button>${nextActions.slice(1).map(a => `<div class="text-muted">Also: ${escapeHTMLText(a.label)} - ${escapeHTMLText(a.reason)}</div>`).join('')}</div>` : ''}
-        <div class="oms-detail-address"><span class="stat-label">Ship to</span><div>${escapeHTMLText(order.shipping_address || '—')}</div></div>
+        <div class="oms-detail-address"><span class="stat-label">Ship to</span><div>${escapeHTMLText(omsShipTo(order) || '—')}</div></div>
 
         <div class="oms-action-bar">
           ${status === 'Reserved' ? `<button class="btn btn-primary btn-sm" data-action="fulfil" title="Create the pick tasks for this order at its sourcing location(s)">Release to Fulfillment</button>` : ''}
@@ -767,7 +767,7 @@ window.openOMSOrderDetail = async function(orderID) {
       sessionStorage.setItem('erp_marketplace_booking_context', JSON.stringify({
         order_id: orderID,
         fulfillment_task_id: taskForBooking.id,
-        destination_pincode: String(order.shipping_address || '').match(/\b\d{6}\b/)?.[0] || ''
+        destination_pincode: order.shipping_pincode || String(order.shipping_address || '').match(/\b\d{6}\b/)?.[0] || ''
       }));
       close();
       return renderView('marketplace');
@@ -1078,9 +1078,17 @@ function renderManualOrderPanel(panel) {
         </select>
       </div>
     </div>
-    <div class="form-group">
-      <label class="form-label" for="mo-address">Shipping address</label>
-      <textarea id="mo-address" class="form-textarea" rows="2" placeholder="Full delivery address including PIN code"></textarea>
+    <div class="po-header-grid">
+      <div class="form-group"><label class="form-label" for="mo-address">Address line 1</label>
+        <input id="mo-address" class="form-input" placeholder="House / flat, street" autocomplete="off"></div>
+      <div class="form-group"><label class="form-label" for="mo-address2">Address line 2</label>
+        <input id="mo-address2" class="form-input" placeholder="Area, landmark" autocomplete="off"></div>
+      <div class="form-group"><label class="form-label" for="mo-city">City</label>
+        <input id="mo-city" class="form-input" autocomplete="off"></div>
+      <div class="form-group"><label class="form-label" for="mo-state">State</label>
+        <input id="mo-state" class="form-input" autocomplete="off"></div>
+      <div class="form-group"><label class="form-label" for="mo-pin">PIN code</label>
+        <input id="mo-pin" class="form-input" inputmode="numeric" maxlength="6" autocomplete="off"></div>
     </div>
 
     <div class="po-lines-head">
@@ -1108,6 +1116,13 @@ function renderManualOrderPanel(panel) {
   });
   document.getElementById('mo-create').addEventListener('click', createManualOrder);
   decorateFieldFormats(panel);
+  // Stage 76.3: State is the home country's list, as on every other form.
+  if ((window.FIELD_META?.regions || []).length) {
+    loadViewModule('/view-pickers.js?v=1').then(p => {
+      const slot = document.getElementById('mo-state');
+      if (slot && p.buildStateSelect) slot.replaceWith(p.buildStateSelect({ id: 'mo-state', name: 'shipping_state', value: '' }));
+    }).catch(() => {});
+  }
 }
 
 function renderManualOrderLines() {
@@ -1150,8 +1165,10 @@ async function createManualOrderInner() {
   errorEl.classList.add('hidden');
   const fail = (msg) => { errorEl.textContent = msg; errorEl.classList.remove('hidden'); };
 
-  const address = document.getElementById('mo-address').value.trim();
-  if (!address) { fail('A shipping address is required - the Order Engine needs somewhere to ship to.'); return; }
+  const val = id => (document.getElementById(id)?.value || '').trim();
+  const address = val('mo-address');
+  if (!address) { fail('Address line 1 is required - the Order Engine needs somewhere to ship to.'); return; }
+  if (!/^\d{6}$/.test(val('mo-pin'))) { fail('Enter the 6-digit PIN code - couriers and stock sourcing go by it.'); return; }
 
   const lines = manualOrderLines
     .filter(l => l.sku || l.qty)
@@ -1169,6 +1186,10 @@ async function createManualOrderInner() {
       customer_phone: document.getElementById('mo-phone').value.trim(),
       customer_reference: document.getElementById('mo-custref').value.trim(),
       shipping_address: address,
+      shipping_address_line2: val('mo-address2'),
+      shipping_city: val('mo-city'),
+      shipping_state: val('mo-state'),
+      shipping_pincode: val('mo-pin'),
       payment_status: document.getElementById('mo-payment').value,
       lines
     })
@@ -1180,9 +1201,9 @@ async function createManualOrderInner() {
   manualOrderLines = [{ sku: '', qty: '', unit_price: '' }];
   // FA-20261005-06: a repeated reference returns the order it already made.
   if (data.existing) {
-    await showCustomAlert(`This reference already has order ${data.order_id}. Nothing new was created - the existing order is unchanged.`, 'Existing Order');
+    await showCustomAlert(`This reference already has order ${data.order_number || data.order_id}. Nothing new was created - the existing order is unchanged.`, 'Existing Order');
   } else {
-    await showCustomAlert(`Order ${data.order_id} created. It is now in the Orders table with its fulfillment, shipment and invoice state, exactly like a channel order.`, 'Order Created');
+    await showCustomAlert(`Order ${data.order_number || data.order_id} created. It is now in the Orders table with its fulfillment, shipment and invoice state, exactly like a channel order.`, 'Order Created');
   }
   (await loadTxnScreen()).txnDone('oms-screen');
   renderView('oms');
@@ -1877,3 +1898,11 @@ window.viewShippingLabel = async function(bookingId) {
 // working POST /api/v1/approval/decide.
 
 export { renderOMSWorkbenchView, loadOMSBundleOperations, runOMSBundleOperation, loadOMSConnectorOperations, formatOMSLag, runOMSChannelSync, resolveOMSChannelSKU, loadOMSTiles, loadOMSOrders, renderOMSFacets, omsStatusBadge, renderOMSOrderTable, updateOMSBulkBar, runOMSBulkAction, runOMSGlobalSearch, loadOMSSavedViews, saveCurrentOMSView, applySelectedOMSView, deleteSelectedOMSView, omsPost, openOMSOrderEdit, renderManualOrderPanel, renderManualOrderLines, createManualOrder, createManualOrderInner, openOMSDoctype, releaseOMSOrder, cancelOMSOrder, renderMarketplaceView, renderSettlementReconciliationPanel, loadSettlementVarianceQueue, runSettlementReconcile, raiseSettlementDisputeUI, resolveSettlementDisputeUI, writeOffSettlementVarianceUI, populateMarketplaceChannelOptions, submitMarketplaceReconcile, submitLogisticsBooking, renderLogisticsBookingActions, submitGenerateManifest };
+
+// omsShipTo (Stage 76.3) is the delivery address on one line: line 1 plus the
+// parts a manual order keeps apart (engines.ShippingAddressText).
+function omsShipTo(o) {
+  const tail = [o.shipping_state, o.shipping_pincode].filter(Boolean).join(' ');
+  if (!o.shipping_address_line2 && !o.shipping_city && !o.shipping_pincode) return o.shipping_address || '';
+  return [o.shipping_address, o.shipping_address_line2, o.shipping_city, tail].filter(Boolean).join(', ');
+}

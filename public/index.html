@@ -4,10 +4,11 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Wholeops</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <!-- Absolute, not relative (Stage 39.4): the SPA is served for multi-segment
        URLs like /help/<article>, where a relative "styles.css" would resolve to
        /help/styles.css and be answered with the SPA shell itself. -->
-  <link rel="stylesheet" href="/styles.css?v=30">
+  <link rel="stylesheet" href="/styles.css?v=31">
   <!-- Stage 28.2/47.8: external same-origin theme bootstrap avoids an inline
        script exception in the strict CSP candidate. -->
   <script src="/theme-boot.js?v=1"></script>
@@ -196,32 +197,55 @@
             <li><a class="menu-item" id="menu-bank-reconciliation"><span>Bank Reconciliation</span></a></li>
             <li><a class="menu-item" id="menu-finance-notes"><span>Debit / Credit Notes</span></a></li>
             <li><a class="menu-item" id="menu-sales-invoices"><span>Sales Invoice</span></a></li>
+            <li><a class="menu-item" id="menu-einvoice" data-go="einvoice" data-like="menu-finance"><span>E-Invoice (IRN)</span></a></li>
+            <li><a class="menu-item" id="menu-einvoice-settings" data-go="einvoice:settings" data-like="menu-prefix-configs"><span>E-Invoice Settings</span></a></li>
             <li><a class="menu-item" id="menu-journal-vouchers"><span>Journal Vouchers</span></a></li>
           </ul>
         </li>
 
-        <!-- Module: Fulfillment & Marketplace (21.11: "Fulfillment" -> "Sales", Odoo/ERPNext's own name for the order-to-delivery pipeline; "& Marketplace" kept as-is, neither reference ERP has a clean equivalent for the channel-connector piece; internal id left as module-fulfillment -->
+        <!-- Stage 88.1: menus per module; data-go/data-like/data-doctype - see applyBorrowedMenuRules (app.js). -->
         <li class="menu-item-container has-flyout">
           <a class="menu-item menu-item-group" href="#" id="module-fulfillment">
-            <span>Sales &amp; Marketplace</span>
+            <span>OMS</span>
             <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 6 15 12 9 18"></polyline>
             </svg>
           </a>
           <ul class="menu-flyout">
-			<li><a class="menu-item" id="menu-oms"><span>Order Management</span></a></li>
-            <li><a class="menu-item" id="menu-returns"><span>Returns</span></a></li>
-            <li><a class="menu-item" id="menu-loyalty"><span>Loyalty</span></a></li>
+            <li><a class="menu-item" id="menu-oms"><span>Orders</span></a></li>
             <li><a class="menu-item" id="menu-fulfillment"><span>Fulfillment</span></a></li>
             <li><a class="menu-item" id="menu-marketplace"><span>Marketplace</span></a></li>
-            <li><a class="menu-item" id="menu-customers"><span>Customer</span></a></li>
+            <li><a class="menu-item" id="menu-returns"><span>Returns</span></a></li>
           </ul>
         </li>
 
-        <li class="menu-item-container">
-          <a class="menu-item" id="menu-reports">
-            <span>Reports</span>
+        <li class="menu-item-container has-flyout">
+          <a class="menu-item menu-item-group" href="#" id="module-crm">
+            <span>CRM</span>
+            <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 6 15 12 9 18"></polyline>
+            </svg>
           </a>
+          <ul class="menu-flyout">
+            <li><a class="menu-item" id="menu-customers" data-doctype="Customer"><span>Customers</span></a></li>
+            <li><a class="menu-item" id="menu-loyalty"><span>Loyalty</span></a></li>
+            <li><a class="menu-item" id="menu-campaigns" data-go="doctype-table" data-doctype="Campaign"><span>Campaigns</span></a></li>
+            <li><a class="menu-item" id="menu-vouchers" data-go="doctype-table" data-doctype="Voucher"><span>Vouchers</span></a></li>
+            <li><a class="menu-item" id="menu-service-tickets" data-go="doctype-table" data-doctype="ServiceTicket"><span>Service Tickets</span></a></li>
+          </ul>
+        </li>
+
+        <li class="menu-item-container has-flyout">
+          <a class="menu-item menu-item-group" href="#" id="module-reports">
+            <span>Reports</span>
+            <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 6 15 12 9 18"></polyline>
+            </svg>
+          </a>
+          <ul class="menu-flyout" data-fill="view-reports.js:fillReportsMenu">
+            <li><a class="menu-item" id="menu-reports" data-go="reports:exec-dashboard"><span>Dashboard</span></a></li>
+            <li><a class="menu-item" id="menu-report-schedules" data-go="reports:schedules" data-like="menu-reports"><span>Schedules</span></a></li>
+          </ul>
         </li>
 
         <!-- Stage 45: the full Knowledge Center (renderHelpView, /help) had no
@@ -254,58 +278,65 @@
           </ul>
         </li>
 
-        <!-- Module: Inventory & WMS (21.11: renamed to ERPNext's own module name, which already covers Bin/Warehouse/Transfer; internal id/module_key left as inventory) -->
         <li class="menu-item-container has-flyout">
           <a class="menu-item menu-item-group" href="#" id="module-inventory">
-            <span>Stock</span>
+            <span>Inventory</span>
             <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <polyline points="9 6 15 12 9 18"></polyline>
             </svg>
           </a>
           <ul class="menu-flyout">
-            <!-- Stage 57 (user QA): Stock holds the stock itself and moving it
-                 between locations; every warehouse-operations screen sits
-                 under its own WMS heading below. Headings hide themselves when
-                 a role can see none of their entries (syncFlyoutHeadings). -->
-            <li><a class="menu-item" id="menu-inventory"><span>Inventory</span></a></li>
+            <li><a class="menu-item" id="menu-inventory"><span>Stock on Hand</span></a></li>
             <li><a class="menu-item" id="menu-transfers"><span>Stock Transfer</span></a></li>
             <!-- Stage 85.B: the store's own stock locations (ERP, not WMS). -->
             <li><a class="menu-item" id="menu-stock-moves"><span>Move Stock</span></a></li>
             <li><a class="menu-item" id="menu-stock-locations"><span>Stock Locations</span></a></li>
-            <!-- Stage 57.9 (user decision 2026-10-07): bin-to-bin moves inside one location. -->
-            <li><a class="menu-item" id="menu-location-movement"><span>Location Movement</span></a></li>
-            <li class="submenu-group-label" role="presentation">WMS</li>
-            <li><a class="menu-item" id="menu-bins"><span>Bin</span></a></li>
-            <li><a class="menu-item" id="menu-putaway"><span>Putaway</span></a></li>
-            <li><a class="menu-item" id="menu-warehouse-cockpit"><span>Warehouse Cockpit</span></a></li>
-            <li><a class="menu-item" id="menu-bin-conditions"><span>Bin Conditions</span></a></li>
-            <li><a class="menu-item" id="menu-lpn"><span>LPN / Cartons / Pallets</span></a></li>
-            <li><a class="menu-item" id="menu-bin-replenishment"><span>Bin Replenishment</span></a></li>
-            <li><a class="menu-item" id="menu-wave-picking"><span>Wave / Batch Picking</span></a></li>
-            <li><a class="menu-item" id="menu-mobile-picking"><span>Mobile Picking</span></a></li>
-            <li><a class="menu-item" id="menu-rf-traceability"><span>RF Lot &amp; Serial</span></a></li>
-            <li><a class="menu-item" id="menu-cycle-count"><span>Cycle Count</span></a></li>
-            <li><a class="menu-item" id="menu-dock-doors"><span>Dock Doors</span></a></li>
-            <li><a class="menu-item" id="menu-appointments"><span>Appointment Calendar</span></a></li>
-            <li><a class="menu-item" id="menu-yard-board"><span>Yard Board</span></a></li>
-            <li><a class="menu-item" id="menu-trailers"><span>Trailers</span></a></li>
-            <li><a class="menu-item" id="menu-hold-codes"><span>Hold Codes</span></a></li>
-            <li><a class="menu-item" id="menu-holds"><span>Holds</span></a></li>
-            <li><a class="menu-item" id="menu-place-hold"><span>Place Hold</span></a></li>
-            <li><a class="menu-item" id="menu-hold-release-requests"><span>Hold Release Requests</span></a></li>
-            <li><a class="menu-item" id="menu-crossdock-plans"><span>Cross-Dock Plans</span></a></li>
-            <li><a class="menu-item" id="menu-rf-receiving"><span>RF Receiving</span></a></li>
-            <!-- Stage 42.4: outbound depth. Waves/SortSlots/LoadingTasks ride
-                 the generic doctype-table screen like Hold/CrossDockPlan
-                 above; Sortation and Loading are dedicated scan screens. -->
-            <li><a class="menu-item" id="menu-waves"><span>Waves</span></a></li>
-            <li><a class="menu-item" id="menu-sortation"><span>Sortation / Put-Wall</span></a></li>
-            <li><a class="menu-item" id="menu-loading"><span>Loading</span></a></li>
             <!-- Stage 30.5.5: the "Stores" entry was removed here. It opened a
                  master that nothing in the system could select - a shop is a
                  Location with Type = Store, and always was. Its four unique
                  fields now live on Location. Do not restore this entry. -->
             <li><a class="menu-item" id="menu-stickers"><span>Sticker Printing</span></a></li>
+          </ul>
+        </li>
+
+        <li class="menu-item-container has-flyout">
+          <a class="menu-item menu-item-group" href="#" id="module-wms">
+            <span>WMS</span>
+            <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 6 15 12 9 18"></polyline>
+            </svg>
+          </a>
+          <ul class="menu-flyout">
+            <li><a class="menu-item" id="menu-warehouse-cockpit"><span>Warehouse Cockpit</span></a></li>
+            <li class="has-subflyout"><a class="menu-item submenu-parent">Inbound</a><ul class="menu-subflyout">
+              <li><a class="menu-item" id="menu-appointments"><span>Appointment Calendar</span></a></li>
+              <li><a class="menu-item" id="menu-dock-doors"><span>Dock Doors</span></a></li>
+              <li><a class="menu-item" id="menu-yard-board"><span>Yard Board</span></a></li>
+              <li><a class="menu-item" id="menu-trailers"><span>Trailers</span></a></li>
+              <li><a class="menu-item" id="menu-rf-receiving"><span>RF Receiving</span></a></li>
+              <li><a class="menu-item" id="menu-putaway"><span>Putaway</span></a></li>
+              <li><a class="menu-item" id="menu-crossdock-plans"><span>Cross-Dock Plans</span></a></li>
+            </ul></li>
+            <li class="has-subflyout"><a class="menu-item submenu-parent">Storage &amp; Control</a><ul class="menu-subflyout">
+              <li><a class="menu-item" id="menu-bins"><span>Bin</span></a></li>
+              <li><a class="menu-item" id="menu-bin-conditions"><span>Bin Conditions</span></a></li>
+              <li><a class="menu-item" id="menu-lpn"><span>LPN / Cartons / Pallets</span></a></li>
+              <li><a class="menu-item" id="menu-bin-replenishment"><span>Bin Replenishment</span></a></li>
+              <!-- Stage 57.9 (user decision 2026-10-07): bin-to-bin moves inside one location. -->
+              <li><a class="menu-item" id="menu-location-movement"><span>Location Movement</span></a></li>
+              <li><a class="menu-item" id="menu-cycle-count"><span>Cycle Count</span></a></li>
+              <li><a class="menu-item" id="menu-rf-traceability"><span>RF Lot &amp; Serial</span></a></li>
+              <li><a class="menu-item" id="menu-holds"><span>Holds</span></a></li>
+              <li><a class="menu-item" id="menu-place-hold"><span>Place Hold</span></a></li>
+              <li><a class="menu-item" id="menu-hold-release-requests"><span>Hold Release Requests</span></a></li>
+            </ul></li>
+            <li class="has-subflyout"><a class="menu-item submenu-parent">Outbound</a><ul class="menu-subflyout">
+              <li><a class="menu-item" id="menu-waves"><span>Waves</span></a></li>
+              <li><a class="menu-item" id="menu-wave-picking"><span>Wave / Batch Picking</span></a></li>
+              <li><a class="menu-item" id="menu-mobile-picking"><span>Mobile Picking</span></a></li>
+              <li><a class="menu-item" id="menu-sortation"><span>Sortation / Put-Wall</span></a></li>
+              <li><a class="menu-item" id="menu-loading"><span>Loading</span></a></li>
+            </ul></li>
           </ul>
         </li>
 
@@ -324,16 +355,46 @@
           </ul>
         </li>
 
-        <li class="menu-item-container">
-          <a class="menu-item" id="menu-manufacturing">
+        <li class="menu-item-container has-flyout">
+          <a class="menu-item menu-item-group" href="#" id="module-manufacturing">
             <span>Manufacturing</span>
+            <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 6 15 12 9 18"></polyline>
+            </svg>
           </a>
+          <ul class="menu-flyout">
+            <li class="submenu-group-label" role="presentation">Production</li>
+            <li><a class="menu-item" id="menu-manufacturing" data-go="manufacturing:orders"><span>Production Orders</span></a></li>
+            <li><a class="menu-item" id="menu-mfg-schedule" data-go="manufacturing:schedule" data-like="menu-manufacturing"><span>Production Schedule</span></a></li>
+            <li><a class="menu-item" id="menu-mfg-subcontracting" data-go="manufacturing:subcontracting" data-like="menu-manufacturing"><span>Subcontracting</span></a></li>
+            <li class="submenu-group-label" role="presentation">Planning</li>
+            <li><a class="menu-item" id="menu-mfg-mrp" data-go="manufacturing:mrp" data-like="menu-manufacturing"><span>MRP Suggestions</span></a></li>
+            <li><a class="menu-item" id="menu-mfg-proposals" data-go="manufacturing:proposals" data-like="menu-manufacturing"><span>Supply Proposals</span></a></li>
+            <li class="submenu-group-label" role="presentation">Quality</li>
+            <li><a class="menu-item" id="menu-mfg-quality" data-go="manufacturing:quality" data-like="menu-manufacturing"><span>Quality Inspections</span></a></li>
+            <li><a class="menu-item" id="menu-mfg-certificates" data-go="manufacturing:certificates" data-like="menu-manufacturing"><span>Certificates</span></a></li>
+            <li><a class="menu-item" id="menu-mfg-ncr" data-go="manufacturing:ncr" data-like="menu-manufacturing"><span>Non-conformance</span></a></li>
+            <li class="submenu-group-label" role="presentation">Maintenance</li>
+            <li><a class="menu-item" id="menu-mfg-maintenance" data-go="manufacturing:maintenance" data-like="menu-manufacturing"><span>Maintenance Orders</span></a></li>
+          </ul>
         </li>
 
-        <li class="menu-item-container">
-          <a class="menu-item" id="menu-pim">
+        <li class="menu-item-container has-flyout">
+          <a class="menu-item menu-item-group" href="#" id="module-pim">
             <span>PIM</span>
+            <svg class="menu-item-arrow flyout-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="9 6 15 12 9 18"></polyline>
+            </svg>
           </a>
+          <ul class="menu-flyout">
+            <li><a class="menu-item" id="menu-pim" data-go="pim:dashboard"><span>Dashboard</span></a></li>
+            <li><a class="menu-item" id="menu-pim-workbench" data-go="pim:workbench" data-like="menu-pim"><span>Workbench</span></a></li>
+            <li><a class="menu-item" id="menu-pim-my-work" data-go="pim:my-work" data-like="menu-pim"><span>My Work</span></a></li>
+            <li><a class="menu-item" id="menu-pim-media" data-go="pim:media-library" data-like="menu-pim"><span>Media Library</span></a></li>
+            <li><a class="menu-item" id="menu-pim-submissions" data-go="doctype-table" data-doctype="SupplierSubmission"><span>Supplier Submissions</span></a></li>
+            <li><a class="menu-item" id="menu-pim-catalogs" data-go="doctype-table" data-doctype="PIMCatalog"><span>Catalogs</span></a></li>
+            <li><a class="menu-item" id="menu-pim-reports" data-go="pim:reports" data-like="menu-pim"><span>PIM Reports</span></a></li>
+          </ul>
         </li>
 
         <!-- Master Definition Dropdown (21.11: renamed to "Setup", ERPNext's own term for master/reference-list configuration; dynamically populated - see renderSidebarSubmenu; internal id left as menu-master-definition -->
@@ -364,24 +425,28 @@
             </svg>
           </a>
           <ul class="menu-flyout">
-            <li class="submenu-group-label" role="presentation">Users &amp; Access</li>
-            <li><a class="menu-item" id="menu-users"><span>Users</span></a></li>
-            <li><a class="menu-item" id="menu-roles"><span>Roles</span></a></li>
-            <li><a class="menu-item" id="menu-approval-rules"><span>Approval Rules</span></a></li>
-            <li class="submenu-group-label" role="presentation">Customize</li>
-            <li><a class="menu-item" id="menu-configuration"><span>Configuration</span></a></li>
-            <li><a class="menu-item" id="menu-prefix-configs"><span>Prefix Configs</span></a></li>
-            <li><a class="menu-item" id="menu-dynamic-labels"><span>Dynamic Labels</span></a></li>
-            <li><a class="menu-item" id="menu-doctype-builder"><span>Database Schema Design</span></a></li>
-            <li><a class="menu-item" id="menu-extension-hooks"><span>Extension Hooks</span></a></li>
-            <li class="submenu-group-label" role="presentation">Monitoring</li>
-            <li><a class="menu-item" id="menu-audit-logs"><span>Activity Log</span></a></li>
-            <li><a class="menu-item" id="menu-system-status"><span>System Status</span></a></li>
-            <li class="submenu-group-label" role="presentation">Platform</li>
-            <li><a class="menu-item" id="menu-control-panel"><span>Control Panel</span></a></li>
-            <li><a class="menu-item" id="menu-tenant-entitlements"><span>Tenant Entitlements</span></a></li>
-            <li><a class="menu-item" id="menu-tenant-usage"><span>Tenant Usage</span></a></li>
-            <li><a class="menu-item" id="menu-platform-console"><span>Data Console</span></a></li>
+            <li class="has-subflyout"><a class="menu-item submenu-parent">Users &amp; Access</a><ul class="menu-subflyout">
+              <li><a class="menu-item" id="menu-users"><span>Users</span></a></li>
+              <li><a class="menu-item" id="menu-roles"><span>Roles</span></a></li>
+              <li><a class="menu-item" id="menu-approval-rules"><span>Approval Rules</span></a></li>
+            </ul></li>
+            <li class="has-subflyout"><a class="menu-item submenu-parent">Customize</a><ul class="menu-subflyout">
+              <li><a class="menu-item" id="menu-configuration"><span>Configuration</span></a></li>
+              <li><a class="menu-item" id="menu-prefix-configs"><span>Prefix Configs</span></a></li>
+              <li><a class="menu-item" id="menu-dynamic-labels"><span>Dynamic Labels</span></a></li>
+              <li><a class="menu-item" id="menu-doctype-builder"><span>Database Schema Design</span></a></li>
+              <li><a class="menu-item" id="menu-extension-hooks"><span>Extension Hooks</span></a></li>
+            </ul></li>
+            <li class="has-subflyout"><a class="menu-item submenu-parent">Monitoring</a><ul class="menu-subflyout">
+              <li><a class="menu-item" id="menu-audit-logs"><span>Activity Log</span></a></li>
+              <li><a class="menu-item" id="menu-system-status"><span>System Status</span></a></li>
+            </ul></li>
+            <li class="has-subflyout"><a class="menu-item submenu-parent">Platform</a><ul class="menu-subflyout">
+              <li><a class="menu-item" id="menu-control-panel"><span>Control Panel</span></a></li>
+              <li><a class="menu-item" id="menu-tenant-entitlements"><span>Tenant Entitlements</span></a></li>
+              <li><a class="menu-item" id="menu-tenant-usage"><span>Tenant Usage</span></a></li>
+              <li><a class="menu-item" id="menu-platform-console"><span>Data Console</span></a></li>
+            </ul></li>
           </ul>
         </li>
       </ul>
@@ -720,7 +785,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=48"></script>
+  <script src="/app.js?v=49"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=1"></script>

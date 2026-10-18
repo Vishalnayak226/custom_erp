@@ -34,6 +34,7 @@ var genericCodeForStatus = map[int]string{
 	http.StatusUnauthorized:        "GLOBAL-0009", // Session expired
 	http.StatusForbidden:           "GLOBAL-0011", // Permission denied
 	http.StatusNotFound:            "GLOBAL-0004", // Record not found
+	http.StatusMethodNotAllowed:    "GLOBAL-0303", // Request method not allowed (73.C.8: was GLOBAL-0002, "Correct the field format")
 	http.StatusConflict:            "GLOBAL-0006", // Concurrent update
 	http.StatusUnprocessableEntity: "GLOBAL-0002", // Invalid format
 	http.StatusTooManyRequests:     "SEC-0280",    // Rate limit exceeded
@@ -290,7 +291,7 @@ func writeAPIErrorGeneric(w http.ResponseWriter, r *http.Request, status int, me
 	code, ok := genericCodeForStatus[status]
 	if !ok {
 		// GLOBAL-0302 ("Unexpected server error") only fits an unmapped 5xx -
-		// an unmapped 4xx (e.g. 405 Method Not Allowed) is a client-side
+		// an unmapped 4xx (e.g. 413 Payload Too Large) is a client-side
 		// rejection, not a server failure, so it falls back to the generic
 		// "Invalid format" bucket instead.
 		if status >= 500 {

@@ -55,7 +55,7 @@ func IsServerNumberedMaster(doctype string) bool { return serverNumberedMasters[
 var suggestedMasterPrefixes = map[string]string{
 	"Vendor": "V", "Customer": "C", "Item": "I", "Employee": "E",
 	"ProductFamily": "D", "Location": "S", "LegalEntity": "LE",
-	"Category": "CAT", "ProductType": "PT", "ItemName": "IN", "Brand": "B",
+	"Category": "CAT", "ProductType": "PT", "ItemName": "IN", "Brand": "B", "ItemAttribute": "IA",
 }
 
 const (

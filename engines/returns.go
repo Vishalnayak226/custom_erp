@@ -715,6 +715,8 @@ func ApplyReturnQC(tenantID, returnRequestID string, dispositions map[string]str
 		if len(refundTenders) > 0 {
 			refundDoc["tenders"] = refundTenders
 		}
+		returnLocation, _ := data["return_location"].(string)
+		issueNumberInto(refundDoc, tenantID, "RefundRequest", refundRequestID, "", returnLocation) // Stage 76.11
 		refundMarshaled, err := json.Marshal(refundDoc)
 		if err != nil {
 			return 0, "", err

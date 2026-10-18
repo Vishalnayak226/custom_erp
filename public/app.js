@@ -316,7 +316,7 @@ const viewModuleLoadAttempts = new Map();
 // means the screen code itself. Without it Reset cleared every app-level cache
 // and then re-imported the same stale module from the HTTP cache, which is
 // precisely the "refresh keeps the cache" complaint this work exists to fix.
-const VIEW_MODULE_VERSION = '48';
+const VIEW_MODULE_VERSION = '49';
 let viewModuleCacheBust = '';
 function loadViewModule(src) {
   if (loadedViewModules.has(src)) return loadedViewModules.get(src);
@@ -348,6 +348,7 @@ const LAZY_VIEW_MODULES = {
   'bank-reconciliation': ['view-finance.js', 'renderBankReconciliationView', 'Bank Reconciliation'],
   'finance-notes': ['view-finance.js', 'renderFinanceNotesView', 'Finance Notes', 'txn-screen.css'],
   'sales-invoices': ['view-finance.js', 'renderSalesInvoicesView', 'Sales Invoices', 'txn-screen.css'],
+  einvoice: ['view-einvoice.js', 'renderEInvoiceView', 'E-Invoice (IRN)', 'txn-screen.css'],
   'journal-vouchers': ['view-journal.js', 'renderJournalVouchersView', 'Journal Vouchers', 'txn-screen.css'],
   roles: ['view-roles.js', 'renderRolesView', 'Roles', 'txn-screen.css'],
   users: ['view-users.js', 'renderUsersView', 'Users', 'txn-screen.css'],
@@ -812,14 +813,18 @@ function saveNavState() {
     // fresh deep link before this, since deepLinkForDoctype's own hint/
     // "open in new tab" callers never pass page/search and so are
     // unaffected - see deepLinkForDoctype's own comment).
-    const target = currentView === 'doctype-table' && currentDoctype
+    let target = currentView === 'doctype-table' && currentDoctype
       ? deepLinkForDoctype(currentDoctype, { page: currentTablePage, search: currentSearchQuery })
-      : deepLinkForView(currentView);
-    if (window.location.hash !== target) {
+      : deepLinkForView(currentViewTab ? `${currentView}:${currentViewTab}` : currentView);
+    // An article's /help/<slug> path outlives the article: leaving Help
+    // changed only the hash, so a refresh reopened Help (user, 2026-10-18).
+    const leavingHelpPath = currentView !== 'help' && /^\/help(\/|$)/.test(location.pathname);
+    if (leavingHelpPath) target = ((state.modules.solePackage && state.modules.solePackage.url_prefix) || '/') + target;
+    if (window.location.hash !== target || leavingHelpPath) {
       const screenOf = h => String(h || '').split('?')[0];
       const freshDetour = history.state && history.state.erpSetupDetour &&
         quickCreateReturn && window.location.hash === quickCreateReturn.hash;
-      if (parseDeepLink() && !freshDetour && screenOf(window.location.hash) !== screenOf(target)) {
+      if (parseDeepLink() && !freshDetour && screenOf(window.location.hash) !== screenOf(target.slice(target.indexOf('#')))) {
         history.pushState(null, '', target);
       } else {
         history.replaceState(history.state, '', target); // keeps a setup detour's marker (Stage 57.2)
@@ -849,6 +854,31 @@ function loadNavState() {
   } catch (e) {
     return null;
   }
+}
+
+// A refresh keeps the menu and the page scrolled where they were (user,
+// 2026-10-18: "It should same height in menu and stay in same page"). Per
+// tab (sessionStorage), written as the page unloads; the page's own scroll
+// only comes back when the same screen does.
+const NAV_SCROLL_KEY = 'erp_nav_scroll';
+window.addEventListener('pagehide', () => {
+  const menu = document.querySelector('.sidebar-menu');
+  const page = document.getElementById('view-root');
+  try {
+    sessionStorage.setItem(NAV_SCROLL_KEY, JSON.stringify({
+      menu: menu ? menu.scrollTop : 0, page: page ? page.scrollTop : 0, hash: location.hash
+    }));
+  } catch (e) { /* storage off - the refresh just starts at the top */ }
+});
+function loadNavScroll() {
+  try { return JSON.parse(sessionStorage.getItem(NAV_SCROLL_KEY) || 'null'); } catch (e) { return null; }
+}
+function restoreNavScroll(saved) {
+  if (!saved) return;
+  const menu = document.querySelector('.sidebar-menu');
+  if (menu) menu.scrollTop = saved.menu || 0;
+  const page = document.getElementById('view-root');
+  if (page && saved.hash === location.hash) page.scrollTop = saved.page || 0;
 }
 
 // API Helper wrapper
@@ -1174,7 +1204,8 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
           closeMenu();
           // Committed through pick(), so a field storing something other
           // than the code (valueFields - the HSN number) gets the right value.
-          openQuickCreate(doctype, typed).then(doc => { if (doc && inputEl.isConnected) pick(doc); });
+          // opts.onCreate: the screen's own create form (the till's phone-first customer, 85.C6).
+          (opts.onCreate ? opts.onCreate(typed) : openQuickCreate(doctype, typed)).then(doc => { if (doc && inputEl.isConnected) pick(doc); });
         });
       }
       menu.appendChild(row);
@@ -1279,9 +1310,17 @@ function attachTypeahead(inputEl, doctype, opts = {}) {
     // What the user typed - on a name-display field .value is the committed
     // code, which is not what they are searching for.
     const q = typedTextOf(inputEl).trim();
-    debounceTimer = setTimeout(() => search(q), 250);
+    // 66.10: a browsable box emptied to choose again shows the list again.
+    debounceTimer = setTimeout(() => search(q, { browse: showAllOnFocus && !q }), 250);
   }, { signal: listeners.signal });
   if (showAllOnFocus) {
+    // 66.10: a click is asking for the choices, so a box that already holds
+    // one (Edit Item's HSN) opens on the list too - as its <select> did.
+    inputEl.addEventListener('click', () => {
+      if (menu || !inputEl.value.trim()) return;
+      clearTimeout(debounceTimer);
+      search('', { browse: true });
+    }, { signal: listeners.signal });
     inputEl.addEventListener('focus', () => {
       // Only the empty case browses. Focusing a field that already holds a
       // value (tabbing back through a half-filled form, or the focus()
@@ -2172,6 +2211,10 @@ document.addEventListener('change', handleDelegatedAction);
 // handlers call event.preventDefault() themselves, which is why they receive
 // the event through the $event sentinel rather than relying on data-act-prevent.
 document.addEventListener('submit', handleDelegatedAction);
+// 'input' is what actionAttrs' on:'input' authors (a live preview as you
+// type); without it those handlers never ran - the Number Series preview sat
+// still while the prefix and separator changed (user, 2026-10-18).
+document.addEventListener('input', handleDelegatedAction);
 
 // makeClickable turns a plain <div>-with-a-click-listener tile into something
 // a keyboard/screen-reader user can actually reach and activate. Found during
@@ -3489,7 +3532,9 @@ async function init() {
     fetchLocalization()
   ]);
   applyProductPathRouting();
+  const scrollAtUnload = loadNavScroll();
   await restoreLastView();
+  restoreNavScroll(scrollAtUnload);
   fetchAndApplyProfile();
   fetchAndRenderEnvironmentBanner();
   loadAppVersion();
@@ -3690,7 +3735,6 @@ const MENU_PERMISSION_MAP = {
   'menu-appointments': { doctypes: ['Appointment'] },
   'menu-yard-board': { doctypes: ['YardCheckIn'] },
   'menu-trailers': { doctypes: ['Trailer'] },
-  'menu-hold-codes': { doctypes: ['HoldCode'] },
   'menu-holds': { doctypes: ['Hold'] },
   'menu-place-hold': { modules: ['Inventory'] },
   'menu-hold-release-requests': { doctypes: ['HoldReleaseRequest'] },
@@ -3929,7 +3973,8 @@ const MENU_MODULE_MAP = {
   "menu-finance": {
     "module": "finance",
     "views": [
-      "finance"
+      "finance",
+      "einvoice"
     ]
   },
   "menu-appointments": {
@@ -4192,6 +4237,21 @@ function isMenuRuleVisible(rule) {
 // once every one of its own flyout children is hidden - an empty arrow
 // with nothing behind it is worse than no entry at all. Re-run whenever
 // permissions or the dynamic Setup submenu (renderSidebarSubmenu) change.
+// Stage 88.1: data-like="<id>" borrows that entry's rules; a data-doctype entry needs its list active and
+// readable. A second-level row (li.has-subflyout) hides once everything in its own menu is hidden.
+function applyBorrowedMenuRules() {
+  document.querySelectorAll('.sidebar-menu [data-like], .sidebar-menu [data-doctype]').forEach(el => {
+    const li = el.closest('li'), name = el.dataset.doctype;
+    const d = name && state.activeDoctypes.find(x => x.name === name);
+    li.classList.toggle('perm-hidden', name ? !d || !isMenuRuleVisible({ doctypes: [name] }) : !isMenuRuleVisible(MENU_PERMISSION_MAP[el.dataset.like]));
+    if (state.modules.loaded) li.classList.toggle('module-hidden', !isMenuModuleVisible(name ? d && d.module_key : (MENU_MODULE_MAP[el.dataset.like] || {}).module));
+  });
+  ['perm-hidden', 'module-hidden'].forEach(cls => document.querySelectorAll('li.has-subflyout').forEach(row => {
+    const items = [...row.querySelectorAll('.menu-subflyout > li')].filter(li => li.querySelector('a'));
+    row.classList.toggle(cls, items.length > 0 && items.every(li => li.classList.contains(cls)));
+  }));
+}
+
 function applySidebarPermissions() {
   Object.keys(MENU_PERMISSION_MAP).forEach(id => {
     const el = document.getElementById(id);
@@ -4203,6 +4263,7 @@ function applySidebarPermissions() {
     if (!item) return;
     item.classList.toggle('perm-hidden', !isMenuRuleVisible(MENU_PERMISSION_MAP[id]));
   });
+  applyBorrowedMenuRules();
 
   // Hide a flyout module once it has no visible children left - including
   // Setup, whose submenu is built dynamically (renderSidebarSubmenu) and
@@ -4251,6 +4312,7 @@ function applyModuleEntitlements() {
     if (!item) return;
     item.classList.toggle('module-hidden', !isMenuModuleVisible(MENU_MODULE_MAP[id].module));
   });
+  applyBorrowedMenuRules();
 
   document.querySelectorAll('.has-flyout').forEach(container => {
     // Section headings (Stage 57) are never module-hidden themselves, so
@@ -4396,23 +4458,24 @@ async function fetchRegisteredDoctypes() {
 }
 
 // Stage 30.5.4: the Setup flyout used to be a flat alphabetical dump of every
-// Master doctype - 50+ entries with RoboticsIntegrationCredential and
-// ChannelValidationRule sitting between Brand and Color. It is now grouped by
-// each doctype's own `module`, filterable, and the system-internal ones are
-// filed behind an "Advanced" divider (the setup_advanced flag comes from
-// doctype_meta, so there is no doctype list duplicated here in JavaScript).
-//
-// Persisted per tab, not per session: someone who opened Advanced to reach
-// StatusTransitionRule almost always has more than one to change.
+// Master doctype. It is grouped by each doctype's own `module`, filterable,
+// and the system-internal ones (doctype_meta.setup_advanced) sit under an
+// "Advanced" label. Stage 88.1 (user decision D1, 2026-10-18): the flyout
+// lists module names only, each opening its lists beside it; typing in the
+// filter lists every match flat. A list with its own menu entry
+// (data-doctype, e.g. CRM > Customers) is not repeated here.
 let setupMenuFilter = '';
-let setupAdvancedOpen = sessionStorage.getItem('erp_setup_advanced_open') === '1';
+// Stage 88.1: Inventory-module lists that belong to the ERP side; every other one is filed under WMS.
+// A new ERP inventory list is added here.
+const SETUP_INVENTORY_ERP = ['Item', 'ItemAttribute', 'ItemBarcode', 'ItemException', 'ItemType', 'ReorderPointConfig', 'BackflushRule', 'Printer', 'StickerTemplate'];
 
 function renderSidebarSubmenu() {
   const sub = document.getElementById('submenu-master');
   if (!sub) return;
   sub.innerHTML = '';
 
-  const visible = state.activeDoctypes.filter(d => d.document_type === 'Master' && canReadDoctype(d.name));
+  const visible = state.activeDoctypes.filter(d => d.document_type === 'Master' && canReadDoctype(d.name) &&
+    !document.querySelector(`.sidebar-menu [data-doctype="${d.name}"]`));
   const needle = setupMenuFilter.trim().toLowerCase();
   const matches = d =>
     !needle ||
@@ -4447,66 +4510,35 @@ function renderSidebarSubmenu() {
     }
   });
 
-  const appendEntries = (list) => {
-    const byModule = {};
-    list.forEach(d => { (byModule[d.module || 'Other'] = byModule[d.module || 'Other'] || []).push(d); });
-    Object.keys(byModule).sort().forEach(mod => {
-      const heading = document.createElement('li');
-      heading.className = 'submenu-group-label';
-      heading.textContent = mod;
-      sub.appendChild(heading);
-      byModule[mod]
-        .sort((a, b) => String(getDoctypeLabel(a.name)).localeCompare(String(getDoctypeLabel(b.name))))
-        .forEach(d => {
-          const li = document.createElement('li');
-          li.innerHTML = `<a class="submenu-item" data-view="${escapeHTMLText(d.name)}">${escapeHTMLText(getDoctypeLabel(d.name))}</a>`;
-          sub.appendChild(li);
-        });
-    });
-  };
-
-  const everyday = visible.filter(d => !d.setup_advanced && matches(d));
-  const advanced = visible.filter(d => d.setup_advanced && matches(d));
-
-  appendEntries(everyday);
-
-  if (needle && everyday.length === 0 && advanced.length === 0) {
-    const none = document.createElement('li');
-    none.className = 'submenu-group-label';
-    none.textContent = 'No setup list matches that.';
-    sub.appendChild(none);
-  }
-
-  if (advanced.length > 0) {
-    // A filter hit inside Advanced expands it on its own - otherwise
-    // searching for "channel" would report nothing while the match sat
-    // hidden behind a collapsed divider.
-    const expanded = setupAdvancedOpen || !!needle;
-    const divider = document.createElement('li');
-    divider.className = 'submenu-advanced-toggle';
-    divider.innerHTML = `<a class="submenu-item" href="#" role="button" aria-expanded="${expanded}">
-      <span>Advanced (${advanced.length})</span><span class="submenu-advanced-caret">${expanded ? '▾' : '▸'}</span>
-    </a>`;
-    divider.querySelector('a').addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setupAdvancedOpen = !expanded;
-      sessionStorage.setItem('erp_setup_advanced_open', setupAdvancedOpen ? '1' : '0');
-      renderSidebarSubmenu();
-    });
-    sub.appendChild(divider);
-    if (expanded) appendEntries(advanced);
-  }
+  const groupOf = d => d.module === 'Inventory' && !SETUP_INVENTORY_ERP.includes(d.name) ? 'WMS' : (d.module || 'Other');
+  const label = d => String(getDoctypeLabel(d.name));
+  const entry = d => `<li><a class="submenu-item" data-view="${escapeHTMLText(d.name)}">${escapeHTMLText(label(d))}</a></li>`;
+  const byModule = {};
+  visible.filter(matches).forEach(d => (byModule[groupOf(d)] = byModule[groupOf(d)] || []).push(d));
+  Object.keys(byModule).sort().forEach(mod => {
+    const list = byModule[mod].sort((a, b) => label(a).localeCompare(label(b)));
+    const advanced = list.filter(d => d.setup_advanced).map(entry).join('');
+    const items = list.filter(d => !d.setup_advanced).map(entry).join('') + (advanced ? `<li class="submenu-group-label">Advanced</li>${advanced}` : '');
+    const row = document.createElement('li');
+    if (needle) {
+      row.className = 'submenu-group-label';
+      row.textContent = mod;
+      sub.appendChild(row);
+      sub.insertAdjacentHTML('beforeend', items);
+      return;
+    }
+    row.className = 'has-subflyout';
+    row.innerHTML = `<a class="menu-item submenu-parent">${escapeHTMLText(mod)}</a><ul class="menu-subflyout">${items}</ul>`;
+    sub.appendChild(row);
+  });
+  if (needle && !Object.keys(byModule).length) sub.insertAdjacentHTML('beforeend', '<li class="submenu-group-label">No setup list matches that.</li>');
+  bindSubFlyoutRows(sub);
   // Setup's own flyout trigger has no read access left once every Master
   // doctype it lists is filtered out - re-evaluate the flyout-hiding pass
   // now that the list this depends on just changed.
   applySidebarPermissions();
 
-  // Rebind event listeners to submenu items. [data-view] matters: the
-  // Advanced divider (30.5.4) is also a .submenu-item so it inherits the
-  // menu's styling, but it carries no doctype and has its own handler -
-  // without this qualifier the generic handler below would also fire on it
-  // and navigate to a doctype named "null".
+  // Rebind event listeners to the list entries (module rows carry no data-view).
   sub.querySelectorAll('.submenu-item[data-view]').forEach(item => {
     item.addEventListener('click', (e) => {
       e.preventDefault();
@@ -4611,7 +4643,7 @@ function initNavDrawer() {
     sidebar.addEventListener('click', (e) => {
       if (!navDrawerIsActive()) return;
       const item = e.target && e.target.closest && e.target.closest('.menu-item');
-      if (item && !item.closest('.has-submenu')) closeNavDrawer();
+      if (item && !item.matches('.menu-item-group, .submenu-parent')) closeNavDrawer();
     });
   }
 
@@ -4758,11 +4790,15 @@ function setupEventListeners() {
     renderView('doctype-table');
   });
 
-  document.getElementById('menu-reports').addEventListener('click', (e) => {
+  // Stage 88.1: an entry declared data-go="<view>[:tab]" (data-doctype for a list) needs no listener of its own.
+  document.querySelector('.sidebar-menu').addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-go]');
+    if (!a) return;
     e.preventDefault();
-    setActiveMenu('menu-reports');
+    setActiveMenu(a.id);
     closeSubmenus();
-    renderView('reports');
+    if (a.dataset.doctype) { currentDoctype = a.dataset.doctype; currentSearchQuery = ''; currentTablePage = 1; }
+    renderView(a.dataset.go);
   });
 
   document.getElementById('menu-knowledge-center').addEventListener('click', (e) => {
@@ -4806,22 +4842,6 @@ function setupEventListeners() {
     setActiveMenu('menu-expenses');
     closeSubmenus();
     renderView('expenses');
-  });
-
-  document.getElementById('menu-manufacturing').addEventListener('click', (e) => {
-    e.preventDefault();
-    setActiveMenu('menu-manufacturing');
-    closeSubmenus();
-    renderView('manufacturing');
-  });
-
-  document.getElementById('menu-pim').addEventListener('click', (e) => {
-    e.preventDefault();
-    setActiveMenu('menu-pim');
-    closeSubmenus();
-    currentPIMTab = 'workbench';
-    currentPIMSelectedItem = '';
-    renderView('pim');
   });
 
   // Purchase Requisition (Stage 26.3.2) - same generic doctype-table pattern
@@ -4888,7 +4908,6 @@ function setupEventListeners() {
   // pattern, same as Bin above.
   document.getElementById('menu-dock-doors').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-dock-doors'); closeSubmenus(); currentDoctype = 'DockDoor'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
   document.getElementById('menu-trailers').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-trailers'); closeSubmenus(); currentDoctype = 'Trailer'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
-  document.getElementById('menu-hold-codes').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-hold-codes'); closeSubmenus(); currentDoctype = 'HoldCode'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
   document.getElementById('menu-holds').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-holds'); closeSubmenus(); currentDoctype = 'Hold'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
   document.getElementById('menu-hold-release-requests').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-hold-release-requests'); closeSubmenus(); currentDoctype = 'HoldReleaseRequest'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
   document.getElementById('menu-crossdock-plans').addEventListener('click', (e) => { e.preventDefault(); setActiveMenu('menu-crossdock-plans'); closeSubmenus(); currentDoctype = 'CrossDockPlan'; currentSearchQuery = ''; currentTablePage = 1; renderView('doctype-table'); });
@@ -5387,8 +5406,19 @@ function openFlyout(container) {
 
   const rect = trigger.getBoundingClientRect();
   const margin = 12;
-  flyout.style.left = `${Math.round(rect.right + FLYOUT_GAP_PX)}px`;
   flyout.classList.add('open');   // must be displayed before scrollHeight is meaningful
+  // Stage 88.1: on a phone the drawer is nearly full width, so the menu overlaps it rather than run off-screen.
+  flyout.style.left = `${Math.round(Math.max(0, Math.min(rect.right + FLYOUT_GAP_PX, innerWidth - 8 - flyout.offsetWidth)))}px`;
+  // Stage 88.1: data-fill="<module>:<fn>" fills a flyout from a lazy module the first time it opens.
+  const [file, fill] = (flyout.dataset.fill || '').split(':');
+  if (fill && !flyout.dataset.filled) {
+    flyout.dataset.filled = '1';
+    loadViewModule(`/${file}?v=1`).then(m => m[fill](flyout)).then(() => {
+      applySidebarPermissions();
+      bindSubFlyoutRows(flyout);
+      if (container.classList.contains('flyout-open')) openFlyout(container);
+    }).catch(() => delete flyout.dataset.filled);
+  }
 
   // A long flyout (Stock's 11 screens, Master Definition's ~25 master
   // doctypes) anchored to a trigger low in the sidebar used to be capped at
@@ -5442,6 +5472,7 @@ function closeSubmenus(except) {
     c.classList.remove('flyout-open');
     const f = c.querySelector('.menu-flyout');
     if (f) f.classList.remove('open');
+    closeSubFlyouts(c);
     const b = c.querySelector('.menu-flyout-bridge');
     if (b) b.style.display = 'none';
   });
@@ -5459,9 +5490,50 @@ function closeSubmenus(except) {
 // again after a view (e.g. Database Schema Design) injects its own new
 // `.has-flyout` markup - re-running only binds the newly-added containers,
 // it never double-binds the sidebar's own.
+// Stage 88.1: a second menu beside a flyout row (WMS's Inbound, Setup's modules, Reports' areas). It is a
+// DOM child of the row, so moving into it never counts as leaving the module, and it sits flush against
+// the flyout so it needs no hover bridge. Switching rows waits a moment, so a diagonal reach into the
+// open menu can cross a neighbouring row without swapping it.
+let subFlyoutTimer = null;
+function closeSubFlyouts(scope, except) {
+  scope.querySelectorAll('.subflyout-open').forEach(row => {
+    if (row === except) return;
+    row.classList.remove('subflyout-open');
+    row.querySelector('.menu-subflyout').classList.remove('open');
+  });
+}
+function openSubFlyout(row) {
+  clearTimeout(subFlyoutTimer);
+  const flyout = row.closest('.menu-flyout'), panel = row.querySelector('.menu-subflyout');
+  closeSubFlyouts(flyout, row);
+  panel.classList.add('open');
+  panel.classList.toggle('cols-2', panel.children.length > 14);
+  row.classList.add('subflyout-open');
+  const f = flyout.getBoundingClientRect(), r = row.getBoundingClientRect(), m = 12;
+  const max = Math.max(120, innerHeight - m * 2), h = Math.min(panel.scrollHeight, max);
+  panel.style.left = `${Math.round(Math.max(m, Math.min(f.right - 2, innerWidth - m - panel.offsetWidth)))}px`;
+  panel.style.top = `${Math.round(Math.max(m, Math.min(r.top - 7, innerHeight - m - h)))}px`;
+  panel.style.maxHeight = `${max}px`;
+}
+function bindSubFlyoutRows(flyout) {
+  flyout.querySelectorAll(':scope > li').forEach(row => {
+    if (row.dataset.subBound) return;
+    row.dataset.subBound = '1';
+    const sub = row.classList.contains('has-subflyout');
+    row.addEventListener('pointerenter', () => {
+      clearTimeout(subFlyoutTimer);
+      if (sub && !flyout.querySelector('.subflyout-open')) return openSubFlyout(row);
+      if (!row.classList.contains('subflyout-open')) subFlyoutTimer = setTimeout(() => sub ? openSubFlyout(row) : closeSubFlyouts(flyout), 150);
+    });
+    row.addEventListener('pointerleave', () => clearTimeout(subFlyoutTimer));
+    // Focusable, so a tap keeps focus inside the module (focusout would otherwise close it on a phone).
+    if (sub) { row.firstElementChild.tabIndex = 0; row.firstElementChild.addEventListener('click', () => openSubFlyout(row)); }
+  });
+}
+
 let moduleFlyoutDocListenersBound = false;
 function setupModuleFlyouts() {
-  // Sibling entries with no flyout of their own (Reports, Manufacturing, PIM). Hovering one should put the open menu away - but on
+  // Sibling entries with no flyout of their own (Home, Knowledge Center). Hovering one should put the open menu away - but on
   // the same dwell rule as switching modules, because the diagonal from a
   // module row down to an item near the bottom of its flyout sweeps straight
   // across these too. Without this they were dead zones: the pointer sat on
@@ -5484,6 +5556,7 @@ function setupModuleFlyouts() {
     const flyout = container.querySelector('.menu-flyout');
     if (!trigger || !flyout) return;
     container.dataset.flyoutBound = '1';
+    bindSubFlyoutRows(flyout);
     const show = () => { cancelFlyoutOpen(); openFlyout(container); };
 
     // When the pointer arrived on this row. The dwell is measured from here
@@ -5610,8 +5683,8 @@ function buildGlobalSearchIndex() {
     const group = li.querySelector(':scope > .menu-item-group');
     const moduleLabel = group ? group.textContent.trim() : '';
     const anchors = group
-      ? [...li.querySelectorAll(':scope > .menu-flyout > li')]
-          .filter(row => !isHidden(row))
+      ? [...li.querySelectorAll('.menu-flyout li:not(.has-subflyout)')]
+          .filter(row => !row.closest('.perm-hidden, .module-hidden'))
           .map(row => row.querySelector('.menu-item, .submenu-item'))
           .filter(Boolean)
       : [li.querySelector(':scope > .menu-item')].filter(Boolean);
@@ -5867,7 +5940,9 @@ function restoreActiveMenuState(view, doctype) {
   // Also runs (and correctly clears any stale highlight) for a view with no
   // sidebar entry of its own, e.g. the Profile screen - setActiveMenu(undefined)
   // still clears every .active class even though it won't find an element to add one to.
-  setActiveMenu(STATIC_VIEW_MENU_IDS[view]);
+  // Stage 88.1: an entry declared for this exact view (or list) wins.
+  const own = document.querySelector(doctype ? `.sidebar-menu [data-doctype="${doctype}"]` : `.sidebar-menu [data-go="${view}"]`);
+  setActiveMenu(own ? own.id : STATIC_VIEW_MENU_IDS[view.split(':')[0]]);
   scrollActiveMenuIntoView();
 }
 
@@ -5881,7 +5956,11 @@ async function restoreLastView() {
   // Stage 39.4: /help and /help/<slug> are real URLs. A tab opened on one must
   // land on that article, ahead of any deep link or saved view - the whole
   // point of giving articles their own URL is that the link works cold.
-  if (location.pathname === '/help' || location.pathname.startsWith('/help/')) {
+  // A hash naming another screen means the tab moved on from the article
+  // (saveNavState writes where it is now), so that screen wins.
+  const helpPathLink = parseDeepLink();
+  if ((location.pathname === '/help' || location.pathname.startsWith('/help/')) &&
+      (!helpPathLink || (helpPathLink.kind === 'view' && helpPathLink.view === 'help'))) {
     currentHelpSlug = decodeURIComponent(location.pathname.slice('/help/'.length) || '');
     await renderView('help');
     return;
@@ -6016,6 +6095,8 @@ async function renderView(view) {
 }
 
 async function renderViewContent(view, root) {
+  // Stage 88.1: "view:tab" opens one tab of a tabbed screen as its own page; the screen reads currentViewTab.
+  [view, currentViewTab = ''] = view.split(':');
   // Invalidate a pending quick-create return target the moment navigation
   // strays anywhere other than the new master's own list or back to the
   // screen the shortcut was launched from - otherwise a later, unrelated
@@ -6572,16 +6653,14 @@ const HOME_QUICK_ACTIONS = [
   { id: 'grn', label: 'Goods Receipt (GRN)', desc: 'Receive against open purchase orders.', view: 'doctype-table', doctype: 'GRN', menuId: 'menu-grn' },
   { id: 'vendor-invoices', label: 'Vendor Invoices', desc: 'Match and process what the company owes.', view: 'doctype-table', doctype: 'VendorInvoice', menuId: 'menu-vendor-invoices' },
   { id: 'payment-proposals', label: 'Payment Proposals', desc: 'Review and release vendor payments.', view: 'doctype-table', doctype: 'PaymentProposal', menuId: 'menu-payment-proposals' },
-  { id: 'vendors', label: 'Vendors', desc: 'Vendor master records.', view: 'doctype-table', doctype: 'Vendor', menuId: 'menu-vendors' },
   { id: 'finance', label: 'Finance / GL', desc: 'Journals, period close, tax and the statements that come out of them.', view: 'finance', menuId: 'menu-finance' },
   { id: 'approvals', label: 'Approvals', desc: 'Documents waiting on your sign-off.', view: 'approvals', menuId: 'menu-approvals' },
   { id: 'sales-invoices', label: 'Sales Invoices', desc: 'What customers owe the company.', view: 'sales-invoices', menuId: 'menu-sales-invoices' },
   { id: 'journal-vouchers', label: 'Journal Vouchers', desc: 'Manual entries: accruals, corrections, opening balances.', view: 'journal-vouchers', menuId: 'menu-journal-vouchers' },
-  { id: 'customers', label: 'Customers', desc: 'Customer master records.', view: 'doctype-table', doctype: 'Customer', menuId: 'menu-customers' },
-  { id: 'oms', label: 'Order Management', desc: 'Track orders across every channel.', view: 'oms', menuId: 'menu-oms' },
+  { id: 'oms', label: 'Orders', desc: 'Track orders across every channel.', view: 'oms', menuId: 'menu-oms' },
   { id: 'fulfillment', label: 'Fulfillment', desc: 'Pick, pack and ship open orders.', view: 'fulfillment', menuId: 'menu-fulfillment' },
   { id: 'returns', label: 'Returns', desc: 'Process customer returns and exceptions.', view: 'returns', menuId: 'menu-returns' },
-  { id: 'hr', label: 'HR & People', desc: 'Employee records, leave, attendance.', view: 'hr', menuId: 'menu-hr' }
+  { id: 'hr', label: 'HR & People', desc: 'Leave and attendance.', view: 'hr', menuId: 'menu-hr' }
 ];
 
 // isHomeActionVisible reuses the exact predicates the sidebar itself is
@@ -7194,7 +7273,7 @@ function renderPrintSheet(labels, copies) {
 // than duplicating list/table rendering. Workbench is the one bespoke
 // screen, since it needs the completeness score/missing-field data the
 // generic doc endpoint doesn't have.
-let currentPIMTab = 'dashboard';
+let currentPIMTab = 'dashboard', currentViewTab = '';
 let currentPIMFamilyFilter = '';
 let currentPIMSelectedItem = '';
 const PIM_TABS = [

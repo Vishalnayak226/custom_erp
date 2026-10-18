@@ -110,23 +110,35 @@ trap 'failed_stage="${BASH_COMMAND%% *}"; failed_line="$LINENO"' ERR
 # because its record could not be written. A missing record is still caught,
 # because the monitor then sees no fresh row and alerts BACKUP_STALE.
 started_ms="$(date +%s%3N)"
+# RUN_SCOPE overrides the scope ('media' for the media copy, Stage 75.1.5);
+# OFFSITE_KEY / OFFSITE_OUTCOME say where this run's off-box copy went and
+# whether it got there (Stage 75.1.4) - both blank when no bucket is set.
+RUN_SCOPE=""
+OFFSITE_KEY=""
+OFFSITE_OUTCOME=""
 record_run() {
   local outcome="$1" file_name="${2:-}" size_bytes="${3:-}" sha="${4:-}" detail="${5:-}"
   local scope=database duration_ms
   [ -n "${DATABASE_URL:-}" ] || return 0
   if [ -n "${TENANT_SCHEMA:-}" ]; then scope=tenant; fi
+  if [ -n "$RUN_SCOPE" ]; then scope="$RUN_SCOPE"; fi
   duration_ms=$(( $(date +%s%3N) - started_ms ))
-  if ! psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 \
+  # The database URL goes last: psql and pg_dump built without GNU argument
+  # reordering (the Windows builds) ignore every option after it.
+  if ! psql -X -q -v ON_ERROR_STOP=1 \
       -v scope="$scope" -v tenant_schema="${TENANT_SCHEMA:-}" -v outcome="$outcome" \
       -v file_name="$file_name" -v size_bytes="$size_bytes" -v duration_ms="$duration_ms" \
       -v sha="$sha" -v detail="$detail" -v host="$(hostname -s 2>/dev/null || echo unknown-host)" \
-      -v started_ms="$started_ms" >/dev/null 2>&1 <<'SQL'
+      -v started_ms="$started_ms" -v offsite_key="$OFFSITE_KEY" -v offsite_outcome="$OFFSITE_OUTCOME" \
+      "$DATABASE_URL" >/dev/null 2>&1 <<'SQL'
 INSERT INTO public.backup_runs
-  (scope, tenant_schema, outcome, file_name, size_bytes, duration_ms, sha256, detail, host, started_at, finished_at)
+  (scope, tenant_schema, outcome, file_name, size_bytes, duration_ms, sha256, detail, host, started_at, finished_at,
+   offsite_key, offsite_outcome)
 VALUES
   (:'scope', NULLIF(:'tenant_schema', ''), :'outcome', NULLIF(:'file_name', ''),
    NULLIF(:'size_bytes', '')::bigint, :'duration_ms'::bigint, NULLIF(:'sha', ''),
-   NULLIF(:'detail', ''), :'host', to_timestamp(:'started_ms'::bigint / 1000.0), now());
+   NULLIF(:'detail', ''), :'host', to_timestamp(:'started_ms'::bigint / 1000.0), now(),
+   NULLIF(:'offsite_key', ''), NULLIF(:'offsite_outcome', ''));
 SQL
   then
     alert_ops BACKUP_RECORD_FAILED "${TENANT_SCHEMA:-whole-database} backup ran ($outcome) but its row could not be written to public.backup_runs -- has the 56.9 migration been applied?"
@@ -143,6 +155,85 @@ on_exit() {
   alert_ops BACKUP_FAILED "${TENANT_SCHEMA:-whole-database} backup FAILED -- $detail. See /var/log/erp-backup.log" || true
 }
 trap on_exit EXIT
+
+# ---------------------------------------------------------------------------
+# Off-box copy (Stage 75.1.4) - the dumps used to stay on the droplet, so
+# losing the droplet lost every backup with it.
+# ---------------------------------------------------------------------------
+# Set in /etc/erp/erp.env to turn it on (any S3-compatible bucket; Cloudflare
+# R2 is the plan - a private bucket, a token scoped to it, a 30-day lifecycle
+# rule):
+#   OFFSITE_S3_ENDPOINT           e.g. https://<account-id>.r2.cloudflarestorage.com
+#   OFFSITE_S3_BUCKET             e.g. erp-backups
+#   OFFSITE_S3_ACCESS_KEY_ID
+#   OFFSITE_S3_SECRET_ACCESS_KEY
+#   OFFSITE_S3_REGION             optional, "auto" (R2) by default
+#   OFFSITE_S3_PREFIX             optional, this host's short name by default
+# Uploads are signed by curl itself (--aws-sigv4, curl 7.75+) - no new tool.
+# The key pair goes to curl on stdin, never on its command line, so it does
+# not show in `ps`. Unset = no off-box copy, exactly as before.
+offsite_enabled() {
+  [ -n "${OFFSITE_S3_ENDPOINT:-}" ] && [ -n "${OFFSITE_S3_BUCKET:-}" ] \
+    && [ -n "${OFFSITE_S3_ACCESS_KEY_ID:-}" ] && [ -n "${OFFSITE_S3_SECRET_ACCESS_KEY:-}" ]
+}
+offsite_prefix() {
+  printf '%s' "${OFFSITE_S3_PREFIX:-$(hostname -s 2>/dev/null || echo erp)}"
+}
+# offsite_put LOCAL_FILE OBJECT_KEY
+offsite_put() {
+  printf 'user = "%s:%s"\n' "$OFFSITE_S3_ACCESS_KEY_ID" "$OFFSITE_S3_SECRET_ACCESS_KEY" \
+    | curl -fsS -m 900 --retry 3 --retry-delay 5 -K - \
+        --aws-sigv4 "aws:amz:${OFFSITE_S3_REGION:-auto}:s3" \
+        -H "x-amz-content-sha256: UNSIGNED-PAYLOAD" \
+        -T "$1" "${OFFSITE_S3_ENDPOINT%/}/$OFFSITE_S3_BUCKET/$2" >/dev/null
+}
+
+# media_sync (Stage 75.1.5): an upload-only copy of media_store - product
+# images and other uploads, in no backup before. MEDIA_MANIFEST lists, one
+# "path<TAB>size<TAB>mtime" line each, the files already copied: a file goes
+# up once, again only when its size or time changes, and nothing is ever
+# deleted off-box (the bucket's lifecycle rule ages objects). Recorded as its
+# own backup_runs row, scope 'media'.
+media_sync() {
+  local dir="${MEDIA_DIR:-/opt/erp/media_store}"
+  local manifest="${MEDIA_MANIFEST:-$BACKUP_DIR/media_manifest.tsv}"
+  local prefix sent=0 bytes=0 failed=0 current todo line rel size outcome
+  [ -d "$dir" ] || return 0
+  prefix="$(offsite_prefix)"
+  touch "$manifest"
+  current="$(mktemp)"
+  todo="$(mktemp)"
+  # Guarded: under set -e a failure here would end the script after the
+  # database backup was recorded, and the exit trap would then report the
+  # database run as failed.
+  if ! (cd "$dir" && find . -type f -printf '%P\t%s\t%T@\n') | LC_ALL=C sort > "$current" \
+     || ! LC_ALL=C sort -u "$manifest" | LC_ALL=C comm -13 - "$current" > "$todo"; then
+    rm -f "$current" "$todo"
+    alert_ops BACKUP_OFFSITE_FAILED "media copy: could not list $dir or read its manifest"
+    return 0
+  fi
+  while IFS= read -r line; do
+    rel="${line%%$'\t'*}"
+    size="$(printf '%s' "$line" | cut -f2)"
+    if offsite_put "$dir/$rel" "$prefix/media/$rel"; then
+      printf '%s\n' "$line" >> "$manifest"
+      sent=$((sent + 1))
+      bytes=$((bytes + size))
+    else
+      failed=$((failed + 1))
+    fi
+  done < "$todo"
+  rm -f "$current" "$todo"
+  outcome=Success
+  [ "$failed" -eq 0 ] || outcome=Failed
+  RUN_SCOPE=media OFFSITE_KEY="$prefix/media/" OFFSITE_OUTCOME="$outcome"
+  record_run "$outcome" "" "$bytes" "" "copied $sent new or changed file(s), $failed failed"
+  RUN_SCOPE="" OFFSITE_KEY="" OFFSITE_OUTCOME=""
+  if [ "$failed" -ne 0 ]; then
+    alert_ops BACKUP_OFFSITE_FAILED "media copy: $failed file(s) could not be uploaded off-box ($sent copied)"
+  fi
+  return 0
+}
 
 TENANT_SCHEMA="${TENANT_SCHEMA:-}"
 while [ $# -gt 0 ]; do
@@ -184,7 +275,7 @@ if [ -n "$TENANT_SCHEMA" ]; then
       exit 2
       ;;
   esac
-  exists="$(psql "$DATABASE_URL" -tAc "SELECT 1 FROM information_schema.schemata WHERE schema_name = '$TENANT_SCHEMA'")"
+  exists="$(psql -tAc "SELECT 1 FROM information_schema.schemata WHERE schema_name = '$TENANT_SCHEMA'" "$DATABASE_URL")"
   if [ "$exists" != "1" ]; then
     echo "refusing to export '$TENANT_SCHEMA': no such schema in this database" >&2
     exit 2
@@ -196,9 +287,9 @@ fi
 enc="$dump.enc"
 
 if [ -n "$TENANT_SCHEMA" ]; then
-  pg_dump "$DATABASE_URL" --schema="$TENANT_SCHEMA" -F c -f "$dump"
+  pg_dump --schema="$TENANT_SCHEMA" -F c -f "$dump" "$DATABASE_URL"
 else
-  pg_dump "$DATABASE_URL" -F c -f "$dump"
+  pg_dump -F c -f "$dump" "$DATABASE_URL"
 fi
 openssl enc -aes-256-cbc -pbkdf2 -salt -in "$dump" -out "$enc" -pass pass:"$BACKUP_ENCRYPTION_KEY"
 rm -f "$dump"
@@ -215,7 +306,27 @@ fi
 find "$BACKUP_DIR" -name "$prune_glob.enc" -mtime +"$RETAIN_DAYS" -delete
 find "$BACKUP_DIR" -name "$prune_glob.enc.sha256" -mtime +"$RETAIN_DAYS" -delete
 
+# Off-box copy of the dump and its checksum (Stage 75.1.4). A failed upload
+# does not fail the backup - the local copy is good - but it is alerted and
+# recorded, and the server's monitor alerts when no off-box copy is fresh.
+if offsite_enabled; then
+  kind=database
+  [ -n "$TENANT_SCHEMA" ] && kind=tenant
+  OFFSITE_KEY="$(offsite_prefix)/$kind/$(basename "$enc")"
+  if offsite_put "$enc" "$OFFSITE_KEY" && offsite_put "$enc.sha256" "$OFFSITE_KEY.sha256"; then
+    OFFSITE_OUTCOME=Success
+  else
+    OFFSITE_OUTCOME=Failed
+    alert_ops BACKUP_OFFSITE_FAILED "${TENANT_SCHEMA:-whole-database} backup completed locally but could not be copied off-box"
+  fi
+fi
+
 # sha256sum prefixes the hash with "\" when the file name needed escaping.
 enc_sha="$(cut -d' ' -f1 "$enc.sha256")"
 record_run Success "$(basename "$enc")" "$(wc -c < "$enc" | tr -d ' ')" "${enc_sha#\\}"
-echo "backup complete: $enc"
+echo "backup complete: $enc${OFFSITE_OUTCOME:+ (off-box: $OFFSITE_OUTCOME)}"
+
+# The nightly whole-database run also brings the media copy up to date.
+if offsite_enabled && [ -z "$TENANT_SCHEMA" ]; then
+  media_sync
+fi

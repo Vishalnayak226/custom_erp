@@ -26,16 +26,16 @@ prerequisites: Signed-in account with permission for the described task; observe
 
 # Product Information Management
 
-The PIM screen is one shell (**Dashboard**, **Workbench**, **Reports**,
-**My Work**, **Media Library**, plus a row of doctype-backed tabs for every
-taxonomy and channel-mapping record type) built entirely on the generic
-document machinery — every tab that isn't a bespoke screen is a plain
+The PIM menu holds its working pages (**Dashboard**, **Workbench**, **PIM Reports**,
+**My Work**, **Media Library**, **Supplier Submissions**, **Catalogs**); every
+taxonomy and channel-mapping record type is a **Setup → PIM** list, built on the generic
+document machinery — each one that isn't a bespoke screen is a plain
 doctype table with create/list/edit/RBAC/audit/CSV-import for free. This
 article covers items, categories/attributes and price lists; grouping
 products for bulk action is its own article,
 [Product Groups](pim-product-groups.md); day-to-day task/workflow handout is
-covered in the User Guide's "Handing out PIM work" section and the PIM
-dashboard's own **My Work** tab.
+covered in the User Guide's "Handing out PIM work" section and the
+**PIM → My Work** page.
 
 ## Setting up PIM, in order
 

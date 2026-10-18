@@ -378,16 +378,21 @@ func GetDunningQueue(tenantID string) ([]map[string]interface{}, error) {
 // VendorInvoice stores invoice_amount (engines/vendor_invoice.go) - two
 // pre-existing, differently-named fields for the same "what this invoice is
 // for" concept, not something this stage invented or can unify.
-func openInvoiceDueTotalsByDate(schema, doctype, amountField, asOfDate, horizonEndDate string) (map[string]float64, error) {
-	// amountField is always one of this file's own two hardcoded call-site
-	// literals ("total_amount"/"invoice_amount"), never external input, so a
-	// direct %s interpolation into the JSON field name is as safe as this
-	// codebase's many other doctype/column-name interpolations elsewhere.
+//
+// openStatuses (Stage 73.D.12) is the doctype's unpaid statuses as a quoted
+// SQL list: a sales invoice is open while Approved, but a supplier bill is
+// open while Matched / MismatchHold / Pending Approval / Approved - filtering
+// both on Approved left almost every supplier bill out of the outflows.
+func openInvoiceDueTotalsByDate(schema, doctype, amountField, openStatuses, asOfDate, horizonEndDate string) (map[string]float64, error) {
+	// amountField and openStatuses are always this file's own hardcoded
+	// call-site literals, never external input, so a direct %s interpolation
+	// is as safe as this codebase's many other doctype/column-name
+	// interpolations elsewhere.
 	rows, err := db.DB.Query(fmt.Sprintf(`
 		SELECT data->>'due_date', COALESCE((data->>'outstanding_amount')::numeric, (data->>'%s')::numeric, 0)
 		FROM %s.documents
-		WHERE doctype = $1 AND status = 'Approved' AND deleted_at IS NULL
-		  AND data->>'due_date' >= $2 AND data->>'due_date' <= $3`, amountField, schema),
+		WHERE doctype = $1 AND status IN (%s) AND deleted_at IS NULL
+		  AND data->>'due_date' >= $2 AND data->>'due_date' <= $3`, amountField, schema, openStatuses),
 		doctype, asOfDate, horizonEndDate)
 	if err != nil {
 		return nil, err
@@ -442,11 +447,11 @@ func GetCashFlowForecast(tenantID, asOfDate string, horizonDays int) ([]map[stri
 	}
 	horizonEnd := start.AddDate(0, 0, horizonDays).Format("2006-01-02")
 
-	inflows, err := openInvoiceDueTotalsByDate(schema, "SalesInvoice", "total_amount", asOfDate, horizonEnd)
+	inflows, err := openInvoiceDueTotalsByDate(schema, "SalesInvoice", "total_amount", "'Approved'", asOfDate, horizonEnd)
 	if err != nil {
 		return nil, err
 	}
-	outflows, err := openInvoiceDueTotalsByDate(schema, "VendorInvoice", "invoice_amount", asOfDate, horizonEnd)
+	outflows, err := openInvoiceDueTotalsByDate(schema, "VendorInvoice", "invoice_amount", "'Matched', 'MismatchHold', 'Pending Approval', 'Approved'", asOfDate, horizonEnd)
 	if err != nil {
 		return nil, err
 	}

@@ -195,8 +195,23 @@ func TestBLD020RoleTenantSizeEntitlementMatrix(t *testing.T) {
 			_, _ = db.DB.Exec("DELETE FROM " + schema + ".tenant_limits WHERE tenant_id = 'default' AND limit_key = 'max_users'")
 		})
 
+		// Stage 93.9: a new user needs a department. User creation writes
+		// users.department, so on a dev database that has not run that
+		// stage's migration every create fails - skip rather than report a
+		// limit bug that isn't there (a migrated database always has it).
+		var hasDepartment bool
+		_ = db.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'users' AND column_name = 'department')`, schema).Scan(&hasDepartment)
+		if !hasDepartment {
+			t.Skip("needs migrations_stage93_location_cost_center.sql (users.department) - run erp-server -migrate on this database")
+		}
+		deptID := "TEST-BLD020-DEPT-" + stage47UniqueID()
+		if _, err := db.DB.Exec("INSERT INTO "+schema+".documents (id, doctype, data, status, created_by) VALUES ($1, 'Department', $2, 'Active', 'system')",
+			deptID, `{"code":"`+deptID+`","name":"BLD020 Test Dept","status":"Active"}`); err != nil {
+			t.Fatalf("seed department: %v", err)
+		}
+		t.Cleanup(func() { _, _ = db.DB.Exec("DELETE FROM "+schema+".documents WHERE id = $1", deptID) })
 		bodyAt := func(username string) []byte {
-			b, _ := json.Marshal(map[string]string{"username": username, "password": "Str0ng!Pw12345", "role": engines.RoleCashier, "email": username + "@test.invalid"})
+			b, _ := json.Marshal(map[string]string{"username": username, "password": "Str0ng!Pw12345", "role": engines.RoleCashier, "email": username + "@test.invalid", "department": deptID})
 			return b
 		}
 

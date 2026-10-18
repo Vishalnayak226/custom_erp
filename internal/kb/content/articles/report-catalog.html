@@ -1,9 +1,9 @@
 <h1 id="report-catalog">Report catalog <a class="kb-anchor" href="#report-catalog" aria-label="Copy link to this section">#</a></h1>
-<p><strong>118</strong> reports across <strong>15</strong> categories, all reachable from <strong>Sales &amp; Marketplace » Reports</strong>.</p>
+<p><strong>121</strong> reports across <strong>15</strong> categories, all reachable from <strong>Sales &amp; Marketplace » Reports</strong>.</p>
 <p>Pick one from the catalog list on that screen, fill in any parameter marked <strong>required</strong>, and run it. Where a report supports drill-down, clicking a figure opens the individual transactions behind it. <strong>Export in Background</strong> queues a CSV for any report large enough to time out a normal request.</p>
 <p>Columns marked <em>sensitive</em> are masked as <code>•••</code> for roles other than Super Admin and Store Manager. They are masked rather than dropped, so the table has the same shape whoever runs it and a screenshot from one person lines up with a screenshot from another.</p>
 <h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
-<ul><li><a href="#admin">Admin</a> - 1 reports</li><li><a href="#assets">Assets</a> - 1 reports</li><li><a href="#bi">BI</a> - 1 reports</li><li><a href="#crm">CRM</a> - 9 reports</li><li><a href="#exceptions">Exceptions</a> - 6 reports</li><li><a href="#finance">Finance</a> - 30 reports</li><li><a href="#hr">HR</a> - 2 reports</li><li><a href="#inventory">Inventory</a> - 13 reports</li><li><a href="#manufacturing">Manufacturing</a> - 3 reports</li><li><a href="#oms">OMS</a> - 12 reports</li><li><a href="#pim">PIM</a> - 4 reports</li><li><a href="#procurement">Procurement</a> - 4 reports</li><li><a href="#sales">Sales</a> - 9 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#wms">WMS</a> - 22 reports</li></ul>
+<ul><li><a href="#admin">Admin</a> - 1 reports</li><li><a href="#assets">Assets</a> - 1 reports</li><li><a href="#bi">BI</a> - 1 reports</li><li><a href="#crm">CRM</a> - 9 reports</li><li><a href="#exceptions">Exceptions</a> - 6 reports</li><li><a href="#finance">Finance</a> - 33 reports</li><li><a href="#hr">HR</a> - 2 reports</li><li><a href="#inventory">Inventory</a> - 13 reports</li><li><a href="#manufacturing">Manufacturing</a> - 3 reports</li><li><a href="#oms">OMS</a> - 12 reports</li><li><a href="#pim">PIM</a> - 4 reports</li><li><a href="#procurement">Procurement</a> - 4 reports</li><li><a href="#sales">Sales</a> - 9 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#wms">WMS</a> - 22 reports</li></ul>
 <h2 id="admin">Admin <a class="kb-anchor" href="#admin" aria-label="Copy link to this section">#</a></h2>
 <h3 id="knowledge-center-feedback">Knowledge Center Feedback <a class="kb-anchor" href="#knowledge-center-feedback" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>help-article-feedback</code></p>
@@ -151,7 +151,7 @@
 <p><strong>Report id:</strong> <code>cost-center-pl</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>To</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
-<p><strong>Columns:</strong> Cost Center · Type · Amount <em>(sensitive)</em></p>
+<p><strong>Columns:</strong> Cost Center · Name · Type · Amount <em>(sensitive)</em></p>
 <p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
 <h3 id="deferred-revenue-roll-forward">Deferred Revenue Roll-Forward <a class="kb-anchor" href="#deferred-revenue-roll-forward" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>deferred-revenue-roll-forward</code></p>
@@ -162,12 +162,24 @@
 <p><strong>Report id:</strong> <code>department-pl</code></p>
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>start</code>) - date, <strong>required</strong></li><li><strong>To</strong> (<code>end</code>) - date, <strong>required</strong></li></ul>
-<p><strong>Columns:</strong> Department · Type · Amount <em>(sensitive)</em></p>
+<p><strong>Columns:</strong> Department · Name · Type · Amount <em>(sensitive)</em></p>
 <p><strong>Drill-down:</strong> yes - a row&#39;s <strong>View Details</strong> opens the transactions behind it.</p>
 <h3 id="dunning-queue">Dunning Queue <a class="kb-anchor" href="#dunning-queue" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>dunning-queue</code></p>
 <p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
 <p><strong>Columns:</strong> Invoice · Customer · Due Date · Days Overdue · Amount <em>(sensitive)</em> · Tier · Last Notified</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="e-invoice-irn-status-register">E-Invoice / IRN Status Register <a class="kb-anchor" href="#e-invoice-irn-status-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>einvoice-irn-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>GSTIN</strong> (<code>gstin</code>) - text, optional</li><li><strong>State</strong> (<code>state</code>) - select, optional, one of: ,NEEDS ACTION,QUEUED,UNKNOWN,REJECTED,ACKNOWLEDGED,CANCELLED</li></ul>
+<p><strong>Columns:</strong> Date · Type · Number · Seller GSTIN · IRN state · IRN · Ack No · Ack Date · Made by · Cancelled</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="e-invoice-error-retry-report">E-Invoice Error / Retry Report <a class="kb-anchor" href="#e-invoice-error-retry-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>einvoice-errors</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>GSTIN</strong> (<code>gstin</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Date · Type · Number · Seller GSTIN · IRN state · Attempts · Next try · Last error / what to fix</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="entity-trial-balance">Entity Trial Balance <a class="kb-anchor" href="#entity-trial-balance" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>entity-trial-balance</code></p>
@@ -216,6 +228,12 @@
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Status</strong> (<code>status</code>) - select, optional, one of: ,Inactive,Active,Partially redeemed,Fully redeemed,Blocked,Cancelled</li></ul>
 <p><strong>Columns:</strong> Card · Profile · Status · Loaded · Used / cancelled · Outstanding · Expires · Store issued</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="irn-portal-manual-upload-report">IRN Portal Manual Upload Report <a class="kb-anchor" href="#irn-portal-manual-upload-report" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>einvoice-manual-upload</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li><li><strong>GSTIN</strong> (<code>gstin</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Date · Type · Number · Seller GSTIN · IRN state · Why · IRN (when entered)</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="intercompany-reconciliation">Intercompany Reconciliation <a class="kb-anchor" href="#intercompany-reconciliation" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>intercompany-reconciliation</code></p>

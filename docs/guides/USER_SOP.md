@@ -220,6 +220,16 @@ Reached via the **Financial Accounting** flyout → **Sales Invoice**. This is t
 2. Click **Post** on a Draft invoice to recognize the receivable in the ledger — it becomes **Approved**.
 3. Once the customer actually pays, click **Settle** and confirm — it becomes **Paid**. (This is the source feeding the Receivables Ageing report, §14.)
 
+### 11.1 E-invoice (IRN) — when the IRP is down (outage)
+
+For a GSTIN that e-invoices (Financial Accounting → **E-Invoice Settings** shows it **On**). Every B2B invoice and credit note needs its IRN; the ERP sends them itself. When the IRP does not answer for a long time:
+
+1. Open Financial Accounting → **E-Invoice (IRN)**. Documents still waiting show under **Queued** or **Unknown**. **Unknown** means the IRP may already have registered it — the ERP looks it up before sending again; never re-key such an invoice on the portal while it is Unknown.
+2. If the outage goes on and goods must leave, generate the IRN on the IRP's own portal for the invoices under **Queued** (Reports → **IRN Portal Manual Upload Report** lists them).
+3. For each one, open it in the workbench → **Enter portal IRN**: paste the IRN, Ack No, Ack Date and the signed QR text exactly as the portal shows them, and say why. **Send for verification.**
+4. A second person (Accountant) checks it against the portal and approves it under **Approvals**. Only then is the invoice **IRN generated** and prints with that IRN and QR.
+5. When the IRP is back, press **Check now** on the workbench; anything still queued goes out.
+
 ---
 
 ## 12. Fulfillment

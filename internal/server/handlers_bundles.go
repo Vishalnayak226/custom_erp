@@ -35,7 +35,7 @@ func handleBundleAssembly(w http.ResponseWriter, r *http.Request) {
 	}
 	id, err := engines.PostBundleAssembly(r.Header.Get("Resolved-Tenant-ID"), req.BundleSKU, req.LocationCode, req.Quantity, operation, r.Header.Get("Resolved-User-ID"), req.RequestKey)
 	if err != nil {
-		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, err.Error())
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity) // 73.C.9: a stock shortage is INVENT-0101
 		return
 	}
 	_ = json.NewEncoder(w).Encode(map[string]string{"operation_id": id, "status": "Completed", "operation": operation})

@@ -107,6 +107,7 @@
       "match": [
         "public/app.js",
         "public/index.html",
+        "public/favicon.svg",
         "public/styles.css",
         "public/store.css",
         "public/components/*",
@@ -144,6 +145,7 @@
         "internal/server/middleware.go",
         "internal/server/middleware_compress.go",
         "internal/server/request_envelope.go",
+        "internal/server/method_not_allowed.go",
         "internal/server/tenant_host.go",
         "internal/server/handlers_csp.go",
         "internal/server/VERSION",
@@ -175,6 +177,7 @@
         "engines/numbering.go",
         "engines/number_series.go",
         "engines/master_codes.go",
+        "engines/master_recode.go",
         "engines/document_regions.go",
         "engines/master_data_validation.go",
         "engines/hsn_catalog.go",
@@ -209,6 +212,8 @@
         "engines/roles.go",
         "engines/sensitive_fields.go",
         "engines/scope_policy.go",
+        "engines/creator_owned.go",
+        "internal/server/document_read_rule.go",
         "engines/role_templates.go",
         "engines/role_template_migration.go",
         "engines/sod_catalog.go",
@@ -257,6 +262,7 @@
       "role": "Amount-banded approval rules, submit → decide → log, bulk decisions, and reset-to-pending when an approved document is edited. Every approval-gated flow in the system routes through this one engine rather than rolling its own.",
       "match": [
         "engines/approval.go",
+        "engines/approval_hooks.go",
         "engines/task_inbox.go",
         "internal/server/handlers_task_inbox.go"
       ]
@@ -291,6 +297,7 @@
         "engines/currency.go",
         "engines/finance_reports_stage26.go",
         "engines/gl_cost_center.go",
+        "engines/location_cost_center.go",
         "engines/journal_voucher.go",
         "engines/accounting_periods.go",
         "engines/voucher.go",
@@ -308,6 +315,7 @@
         "engines/order_invoice.go",
         "engines/customer_reference_report.go",
         "engines/notes.go",
+        "engines/posted_amounts.go",
         "internal/server/handlers_finance_maturity.go",
         "internal/server/handlers_finance_stage26.go",
         "engines/currency_documents.go",
@@ -327,14 +335,16 @@
       "id": "tax",
       "lobe": "business",
       "name": "Tax & Statutory",
-      "role": "GST computation and enforcement (CGST/SGST/IGST, place-of-supply) and TDS. Called from PO creation, checkout and invoicing rather than living inside any one of them.",
+      "role": "GST computation and enforcement (CGST/SGST/IGST, place-of-supply), TDS, and e-invoice (IRN) readiness - GSTIN rules, the canonical e-invoice JSON, the IRP queue and its test provider (Stage 75.2). Called from PO creation, checkout and invoicing rather than living inside any one of them.",
       "match": [
         "engines/gst.go",
         "engines/tds.go",
         "engines/gst_place_of_supply.go",
         "engines/regions.go",
         "engines/tax_ids.go",
-        "engines/amount_words.go"
+        "engines/amount_words.go",
+        "engines/einvoice*.go",
+        "internal/server/handlers_einvoice.go"
       ]
     },
     {
@@ -366,7 +376,7 @@
       "id": "inventory",
       "lobe": "business",
       "name": "Inventory & Planning",
-      "role": "Stock ledger and Available-to-Sell read model (Available − Reserved − Safety Stock − Channel Holds), item lookup by SKU/barcode, location masters, transfer orders, the replenishment/velocity/demand-forecast engines, and planning depth (trend-weighted forecasting, per-item reorder-point config, demand/supply pegging, and a report wired onto the existing production capacity scheduler).",
+      "role": "Stock ledger and Available-to-Sell read model (Available − Reserved − Safety Stock − Channel Holds), item lookup by SKU/barcode, location masters, transfer orders, the replenishment/velocity/demand-forecast engines, and planning depth (trend-weighted forecasting, per-item reorder-point config, demand/supply pegging, and a report wired onto the existing production capacity scheduler). The item master asked once (Stage 89): org item defaults, kinds of item, where each field is asked (Item / PO / GRN), attributes mapped to the type, and the admin's treatment correction after stock moves.",
       "match": [
         "engines/inventory.go",
         "engines/item_lookup.go",
@@ -377,6 +387,11 @@
         "engines/backflush_rules.go",
         "engines/consumption_entry.go",
         "internal/server/handlers_item_master.go",
+        "engines/item_setup.go",
+        "engines/item_attribute_map.go",
+        "engines/grn_item_values.go",
+        "engines/item_treatment_correction.go",
+        "internal/server/handlers_item_setup.go",
         "engines/transfer_orders.go",
         "engines/location_masters.go",
         "engines/stock_locations.go",
@@ -482,9 +497,14 @@
       "id": "pim",
       "lobe": "business",
       "name": "Product Information (PIM)",
-      "role": "Family/attribute framework, taxonomy, approval-gated content with versions and rollback, completeness scoring, media library, bulk edit and CSV round-trip, channel publish queue, and barcode/label printing. Stage 36.2 adds the task & workflow engine: assignable tasks with a terminal-state machine and an append-only comment thread, reusable task templates instantiated against a product group, and declarative table-driven workflow definitions whose runs advance on task completion against a closed condition vocabulary. Stage 36.5 adds declarative value-transform rules (a closed function vocabulary, applied by both the channel-publish and import paths); Stage 36.3 adds import depth on top of it: column-mapping templates, a scheduled directory scan, an inbound webhook, and variant-parent-aware preview.",
+      "role": "Family/attribute framework, taxonomy, approval-gated content with versions and rollback, completeness scoring, media library, bulk edit and CSV round-trip, channel publish queue, and barcode/label printing. Stage 36.2 adds the task & workflow engine: assignable tasks with a terminal-state machine and an append-only comment thread, reusable task templates instantiated against a product group, and declarative table-driven workflow definitions whose runs advance on task completion against a closed condition vocabulary. Stage 36.5 adds declarative value-transform rules (a closed function vocabulary, applied by both the channel-publish and import paths); Stage 36.3 adds import depth on top of it: column-mapping templates, a scheduled directory scan, an inbound webhook, and variant-parent-aware preview. Stage 95 adds Design and Combination ID images (the PO's Images page, file-name matching) and each client's own S3-compatible image drive (hand-written SigV4) that every product image is read from and written to.",
       "match": [
         "engines/pim*.go",
+        "engines/image_drive*.go",
+        "engines/owner_images*.go",
+        "engines/s3_sigv4*.go",
+        "internal/server/handlers_images.go",
+        "public/view-images.css",
         "engines/attribute_library*",
         "cmd/genattrlib/*",
         "engines/stickers.go",
@@ -523,6 +543,7 @@
       "role": "Employee records, attendance and leave, payroll runs and export, and the employee↔user access link.",
       "match": [
         "engines/hr.go",
+        "engines/person_department.go",
         "engines/hr_payroll.go",
         "internal/server/handlers_hr_payroll_stage26.go",
         "engines/hr_leave_balance.go",

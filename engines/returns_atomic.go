@@ -219,6 +219,7 @@ func createReturnRequestLocked(tenantID, requestType, returnLocation, originalOr
 		// than it living only in an infrastructure table.
 		"idempotency_key": claimKey,
 	}
+	issueNumberInto(doc, tenantID, "ReturnRequest", returnID, "", prepared.returnLocation) // Stage 76.11
 	// Stage 85.E4 (77.8): a bill returned at another store says where it was
 	// sold - the return is booked here (stock comes back where the goods
 	// are), and store-wise reports can still put it against the selling store.

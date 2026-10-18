@@ -469,6 +469,12 @@ func resolveAndLogSticker(tenantID, schema, sku string, copies int, printerCode,
 			label.Category = v
 		}
 		label.Fields = stickerItemFields(item)
+		// Stage 89 (D3): a receipt's batch carries what was asked at its GRN -
+		// this piece's weight and purity print, not the item master's blank.
+		code, _ := item["code"].(string)
+		for k, v := range batchItemValues(schema, firstNonEmpty(code, sku), batchNo) {
+			label.Fields[k] = v
+		}
 	}
 	// A SKU not found as a real Item still gets printed (matches MB
 	// 15.3's "Print by ... barcode range" case, where the barcode range

@@ -95,6 +95,6 @@ For concepts rather than initials, see the [Glossary](glossary.md).
 | **DC** | Distribution Centre | A warehouse that supplies stores rather than customers |
 | **FEFO** | First Expired, First Out | Picking the earliest expiry first |
 | **FIFO** | First In, First Out | Picking the oldest stock first |
-| **OMS** | Order Management System | The screen that follows an order end to end |
+| **OMS** | Order Management System | The module that follows an order end to end (sidebar → OMS) |
 | **PIM** | Product Information Management | The product content and readiness layer |
 | **WMS** | Warehouse Management System | The bin, pick, pack and count screens |

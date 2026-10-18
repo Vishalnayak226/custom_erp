@@ -58,9 +58,10 @@ see, which makes testing a role a matter of signing in as one.
 permissions.
 
 **5. Approval Rules.** Which documents need a second pair of eyes, above what
-threshold, decided by whom. Self-approval is refused everywhere and is not
-configurable - the person who raises a document cannot be the person who
-approves it.
+threshold, decided by whom. Whether the person who raises a document may also
+approve it is **Configuration → Security → Who can approve their own
+documents** (as shipped: anyone who can approve it; *Nobody* for strict
+two-person control). Each own decision is marked in the approval history.
 
 **6. Master data.** Locations, then Vendors, then Items. Nothing transactional
 works until these exist, and the application will tell users so with a banner

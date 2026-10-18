@@ -51,6 +51,7 @@ type ConsumptionEntryLine struct {
 // ConsumptionEntryResult is what was posted.
 type ConsumptionEntryResult struct {
 	ID        string                   `json:"id"`
+	Number    string                   `json:"number,omitempty"` // Stage 76.11: the CE series number
 	Location  string                   `json:"location"`
 	Mode      string                   `json:"mode"`
 	Lines     []map[string]interface{} `json:"lines"`
@@ -220,6 +221,7 @@ func PostConsumptionEntry(tenantID, userName string, req ConsumptionEntryRequest
 	if key := strings.TrimSpace(req.IdempotencyKey); key != "" {
 		data["idempotency_key"] = key
 	}
+	issueNumberInto(data, tenantID, "ConsumptionEntry", id, "", req.Location) // Stage 76.11
 	raw, _ := json.Marshal(data)
 	if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'ConsumptionEntry', $2, 'Posted', $3)`, schema), id, raw, userName); err != nil {
 		return nil, err
@@ -228,11 +230,11 @@ func PostConsumptionEntry(tenantID, userName string, req ConsumptionEntryRequest
 		return nil, err
 	}
 	WriteStockLedgerLines(tenantID, req.Location, "ConsumptionEntry", id, userName, ledger)
-	return &ConsumptionEntryResult{ID: id, Location: req.Location, Mode: req.Mode, Lines: lines, CostTotal: PaiseToRupees(costTotal)}, nil
+	return &ConsumptionEntryResult{ID: id, Number: pimString(data["code"]), Location: req.Location, Mode: req.Mode, Lines: lines, CostTotal: PaiseToRupees(costTotal)}, nil
 }
 
 func consumptionResultFromData(id string, data map[string]interface{}, replayed bool) *ConsumptionEntryResult {
-	out := &ConsumptionEntryResult{ID: id, Location: pimString(data["location"]), Mode: pimString(data["mode"]), CostTotal: numFromInterface(data["cost_total"]), Replayed: replayed}
+	out := &ConsumptionEntryResult{ID: id, Number: pimString(data["code"]), Location: pimString(data["location"]), Mode: pimString(data["mode"]), CostTotal: numFromInterface(data["cost_total"]), Replayed: replayed}
 	if arr, ok := data["lines"].([]interface{}); ok {
 		for _, v := range arr {
 			if m, ok := v.(map[string]interface{}); ok {

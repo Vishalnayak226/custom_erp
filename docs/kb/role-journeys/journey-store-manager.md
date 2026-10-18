@@ -44,13 +44,13 @@ that is not happening and a sale that has not been charged.
 You cannot approve your own document. If Approve is missing on something you
 raised, that is the rule working.
 
-**2. Orders on hold.** **Sales & Marketplace » Order Management**, filter
+**2. Orders on hold.** **OMS » Orders**, filter
 **Status = On Hold**. Every dropdown shows a count, so you can see the size of
 the backlog before opening it. Open an order, read the hold reason, fix the
 cause, click **Release hold**. Resolved several with the same cause? Tick them
 and release them together.
 
-**3. The four tiles** at the top of Order Management are live counts and each
+**3. The four tiles** at the top of OMS → Orders are live counts and each
 opens the report behind it: integration exceptions, SLA breached, allocation
 pending, reconciliation variance. *Allocation pending* is the one that usually
 means "you are out of stock and do not know it yet".
@@ -105,7 +105,7 @@ fault; it is the system declining to promise stock you do not have.
 
 ## Finding one order fast
 
-The search box at the top of Order Management searches, in one go: the ERP's
+The search box at the top of OMS → Orders searches, in one go: the ERP's
 order id, the channel's order id, an AWB or tracking number, the customer's
 phone, the customer's name, and any SKU on the order. Each result says which of
 those matched. Type whatever the customer reads out over the phone.
@@ -119,7 +119,7 @@ private to you.
 |---|---|---|
 | Sessions closed | **POS » POS / Billing** | No session left open overnight |
 | Today's sales | **Reports » Sales Register** | The day's total matches the till |
-| Nothing stuck | **Order Management**, filter On Hold | Ideally empty |
+| Nothing stuck | **OMS → Orders**, filter On Hold | Ideally empty |
 | Receipts posted | **Stock » Inventory** | Today's deliveries actually raised stock |
 
 ## Next

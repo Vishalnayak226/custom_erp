@@ -34,7 +34,8 @@ func PrepareItemNameFields(tenantID, doctype string, payload map[string]interfac
 		if strings.TrimSpace(strField(payload, "name")) != "" {
 			return nil
 		}
-		name := strings.TrimSpace(masterDisplayName(schema, "Category", strField(payload, "category")) + " " +
+		// Stage 89: in the org's order - Antique Necklace or Necklace Antique.
+		name := composeItemName(ItemNameOrder(tenantID), masterDisplayName(schema, "Category", strField(payload, "category")),
 			masterDisplayName(schema, "ProductType", strField(payload, "product_type")))
 		if name != "" {
 			payload["name"] = name
@@ -89,10 +90,11 @@ func masterDisplayName(schema, doctype, ref string) string {
 
 var attributeCodeRE = regexp.MustCompile(`[^A-Za-z0-9]+`)
 
-// AddDesignAttributeValue adds a value to a Select product attribute - or,
-// given a label no attribute has, creates that attribute with the value - so
-// a buyer can add a colour or a new attribute from the PO instead of going to
-// PIM first. A value the attribute already has (any case) is not added twice.
+// AddDesignAttributeValue adds a value to a Select item attribute (the ERP's
+// own list, ItemAttribute - Stage 86.3) - or, given a label no attribute has,
+// creates that attribute with the value - so a buyer can add a colour or a new
+// attribute from the PO instead of going to Setup first. A value the attribute
+// already has (any case) is not added twice.
 func AddDesignAttributeValue(tenantID, userID, code, label, value string) (DesignAttribute, error) {
 	code, label, value = strings.TrimSpace(code), strings.TrimSpace(label), strings.TrimSpace(value)
 	if value == "" || strings.Contains(value, ",") {
@@ -107,7 +109,7 @@ func AddDesignAttributeValue(tenantID, userID, code, label, value string) (Desig
 	}
 	var id, raw string
 	err = db.DB.QueryRow(fmt.Sprintf(`SELECT id, data::text FROM %s.documents
-		WHERE doctype = 'ProductAttributeDef' AND deleted_at IS NULL
+		WHERE doctype = 'ItemAttribute' AND deleted_at IS NULL
 		  AND (($1 <> '' AND (lower(id) = lower($1) OR lower(data->>'code') = lower($1)))
 		    OR ($1 = '' AND lower(data->>'label') = lower($2)))
 		ORDER BY created_at LIMIT 1`, schema), code, label).Scan(&id, &raw)
@@ -122,7 +124,7 @@ func AddDesignAttributeValue(tenantID, userID, code, label, value string) (Desig
 		// Stage 81: once the operator has set this client's attributes up from
 		// the library, a PO adds values to them but never a new attribute.
 		if TenantHasLibraryAttributes(tenantID) {
-			return DesignAttribute{}, &ValidationError{Code: "PIM-0691", Message: fmt.Sprintf("%q is not one of your product attributes. Pick one of the attributes shown, or ask your administrator to add it under PIM -> Attribute Definitions.", label)}
+			return DesignAttribute{}, &ValidationError{Code: "PIM-0691", Message: fmt.Sprintf("%q is not one of your product attributes. Pick one of the attributes shown, or ask your administrator to add it under Setup -> Item Attribute.", label)}
 		}
 		newCode := strings.ToUpper(strings.Trim(attributeCodeRE.ReplaceAllString(label, "_"), "_"))
 		if newCode == "" {
@@ -131,7 +133,7 @@ func AddDesignAttributeValue(tenantID, userID, code, label, value string) (Desig
 		base := newCode
 		for n := 2; ; n++ {
 			var taken bool
-			if err := db.DB.QueryRow(fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %s.documents WHERE id = $1)`, schema), newCode).Scan(&taken); err != nil {
+			if err := db.DB.QueryRow(fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %s.documents WHERE id = $1)`, schema), itemAttributeID(newCode)).Scan(&taken); err != nil {
 				return DesignAttribute{}, err
 			}
 			if !taken {
@@ -143,7 +145,7 @@ func AddDesignAttributeValue(tenantID, userID, code, label, value string) (Desig
 			"code": newCode, "label": label, "value_type": "Select", "value_options": value, "status": "Active",
 		})
 		if _, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by)
-			VALUES ($1, 'ProductAttributeDef', $2::jsonb, 'Active', $3)`, schema), newCode, string(data), userID); err != nil {
+			VALUES ($1, 'ItemAttribute', $2::jsonb, 'Active', $3)`, schema), itemAttributeID(newCode), string(data), userID); err != nil {
 			return DesignAttribute{}, err
 		}
 		LogAuditEvent(tenantID, userID, "DESIGN_ATTRIBUTE_CREATED", "SUCCESS", fmt.Sprintf("%s (%s) with value %s, from a purchase order", newCode, label, value))
@@ -172,7 +174,7 @@ func AddDesignAttributeValue(tenantID, userID, code, label, value string) (Desig
 	attr.Options = append(attr.Options, value)
 	if _, err := db.DB.Exec(fmt.Sprintf(`UPDATE %s.documents
 		SET data = jsonb_set(data, '{value_options}', to_jsonb($2::text)), updated_at = CURRENT_TIMESTAMP
-		WHERE id = $1 AND doctype = 'ProductAttributeDef'`, schema), id, strings.Join(attr.Options, ",")); err != nil {
+		WHERE id = $1 AND doctype = 'ItemAttribute'`, schema), id, strings.Join(attr.Options, ",")); err != nil {
 		return DesignAttribute{}, err
 	}
 	LogAuditEvent(tenantID, userID, "DESIGN_ATTRIBUTE_VALUE_ADDED", "SUCCESS", fmt.Sprintf("%s: %s, from a purchase order", attr.Code, value))

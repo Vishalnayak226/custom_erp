@@ -8,13 +8,13 @@ import (
 
 // Stage 65.3/65.4: the three masters are numbered on the server, an item name
 // is named from its two parts, a design takes the item name's HSN / GST, and
-// a PO can add a value - or a new attribute - to the PIM attributes.
+// a PO can add a value - or a new attribute - to the ERP's item attributes.
 func TestItemNamesAndInlineAttributes(t *testing.T) {
 	db.InitDB(testConnStr())
 	const tenant = "default"
 	const cat, ptype, item, attr = "CAT-T65", "PT-T65", "ITEMNAME-T65", "ATTR_T65"
 	clean := func() {
-		db.DB.Exec(`DELETE FROM tenant_default.documents WHERE id IN ($1, $2, $3, $4) OR (doctype = 'ProductAttributeDef' AND data->>'label' = 'Stone T65')`, cat, ptype, item, attr)
+		db.DB.Exec(`DELETE FROM tenant_default.documents WHERE id IN ($1, $2, $3, $4) OR (doctype = 'ItemAttribute' AND data->>'label' = 'Stone T65')`, cat, ptype, item, attr)
 	}
 	clean()
 	t.Cleanup(clean)
@@ -22,7 +22,7 @@ func TestItemNamesAndInlineAttributes(t *testing.T) {
 		($1, 'Category', '{"code":"CAT-T65","name":"Necklaces","status":"Active"}', 'Active', 'system'),
 		($2, 'ProductType', '{"code":"PT-T65","name":"Antique","status":"Active"}', 'Active', 'system'),
 		($3, 'ItemName', '{"code":"ITEMNAME-T65","name":"Necklaces Antique","category":"CAT-T65","product_type":"PT-T65","hsn_code":"7117","gst_rate":3}', 'Active', 'system'),
-		($4, 'ProductAttributeDef', '{"code":"ATTR_T65","label":"Colour T65","value_type":"Select","value_options":"Gold,Silver","status":"Active"}', 'Active', 'system')`,
+		($4, 'ItemAttribute', '{"code":"ATTR_T65","label":"Colour T65","value_type":"Select","value_options":"Gold,Silver","status":"Active"}', 'Active', 'system')`,
 		cat, ptype, item, attr); err != nil {
 		t.Fatalf("seed: %v", err)
 	}

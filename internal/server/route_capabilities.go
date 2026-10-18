@@ -221,6 +221,8 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/meta/doctypes":                                     {LevelAuthenticated, "meta.default"},
 	"GET /api/v1/meta/field-formats":                                {LevelAuthenticated, "meta.default"},
 	"GET /api/v1/master-codes/{doctype}":                            {LevelAuthenticated, "meta.default"},
+	"GET /api/v1/master-codes/{doctype}/clean":                      {LevelAdmin, "admin.master-codes"}, // Stage 93.11
+	"POST /api/v1/master-codes/{doctype}/clean":                     {LevelAdmin, "admin.master-codes"},
 	"GET /api/v1/oms/bundles/{sku}/availability":                    {LevelAuthenticated, "oms.default"},
 	"GET /api/v1/oms/gate-passes":                                   {LevelAuthenticated, "oms.default"},
 	"GET /api/v1/oms/orders":                                        {LevelAuthenticated, "oms.default"},
@@ -284,6 +286,19 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/procurement/design/{code}":                         {LevelAuthenticated, "procurement.default"},
 	"POST /api/v1/procurement/design/match":                         {LevelAuthenticated, "procurement.default"},
 	"POST /api/v1/procurement/design-attribute":                     {LevelAuthenticated, "procurement.default"},
+	"GET /api/v1/procurement/purchase-order/{id}/images":            {LevelAuthenticated, "procurement.default"},
+	"POST /api/v1/procurement/purchase-order/{id}/images":           {LevelAuthenticated, "procurement.default"},
+	"POST /api/v1/procurement/purchase-order/{id}/images/main":      {LevelAuthenticated, "procurement.default"},
+	"POST /api/v1/procurement/purchase-order/{id}/images/remove":    {LevelAuthenticated, "procurement.default"},
+	"GET /api/v1/images":                                            {LevelAuthenticated, "images.default"},
+	"POST /api/v1/images":                                           {LevelAuthenticated, "images.default"},
+	"POST /api/v1/images/main":                                      {LevelAuthenticated, "images.default"},
+	"POST /api/v1/images/remove":                                    {LevelAuthenticated, "images.default"},
+	"GET /api/v1/images/{id}/thumbnail":                             {LevelAuthenticated, "images.default"},
+	"GET /api/v1/images/{id}/file":                                  {LevelAuthenticated, "images.default"},
+	"GET /api/v1/admin/image-drive":                                 {LevelAdmin, "admin.image_drive"},
+	"POST /api/v1/admin/image-drive":                                {LevelAdmin, "admin.image_drive"},
+	"POST /api/v1/admin/image-drive/test":                           {LevelAdmin, "admin.image_drive"},
 	"POST /api/v1/finance/vendor-credit-note/{id}/post":             {LevelAuthenticated, "finance.default"},
 	"GET /api/v1/print/document/{txn}/{id}":                         {LevelAuthenticated, "doc.default"},
 	"GET /api/v1/print/catalog":                                     {LevelAuthenticated, "doc.default"},
@@ -295,6 +310,15 @@ var routeCapabilities = map[string]RouteClassification{
 	"GET /api/v1/reports/export/{id}":                               {LevelAuthenticated, "reports.default"},
 	"GET /api/v1/reports/exports":                                   {LevelAuthenticated, "reports.default"},
 	"GET /api/v1/reports/gst-return-summary":                        {LevelAuthenticated, "finance.statements"},
+	"GET /api/v1/einvoice/profiles":                                 {LevelAuthenticated, "finance.statements"},
+	"POST /api/v1/einvoice/profiles":                                {LevelAdmin, "admin.einvoice"},
+	"POST /api/v1/einvoice/profiles/{gstin}/test":                   {LevelAdmin, "admin.einvoice"},
+	"GET /api/v1/einvoice/documents":                                {LevelAuthenticated, "finance.statements"},
+	"GET /api/v1/einvoice/documents/{id}":                           {LevelAuthenticated, "finance.statements"},
+	"POST /api/v1/einvoice/documents/{id}/{action}":                 {LevelAuthenticated, "finance.statements"},
+	"GET /api/v1/einvoice/badges/{doctype}":                         {LevelAuthenticated, ""},
+	"GET /api/v1/einvoice/reconciliation":                           {LevelAuthenticated, "finance.statements"},
+	"POST /api/v1/einvoice/run":                                     {LevelAuthenticated, "finance.statements"},
 	"GET /api/v1/reports/payables-ageing":                           {LevelAuthenticated, "finance.statements"},
 	"GET /api/v1/reports/receivables-ageing":                        {LevelAuthenticated, "finance.statements"},
 	"GET /api/v1/reports/run/{id}":                                  {LevelAuthenticated, "reports.default"},
@@ -570,6 +594,14 @@ var routeCapabilities = map[string]RouteClassification{
 	"POST /api/v1/stored-value/cards/action":                        {LevelAuthenticated, "pos.default"},       // Stage 72.8, manager-only in handler
 	"POST /api/v1/inventory/consumption":                            {LevelAuthenticated, "inventory.default"}, // Stage 72.6, manager-only in handler
 	"GET /api/v1/inventory/consumption/book":                        {LevelAuthenticated, "inventory.default"}, // Stage 72.6
+	"GET /api/v1/inventory/item-setup":                              {LevelAuthenticated, "doc.default"},       // Stage 89, Item read in handler
+	"PUT /api/v1/inventory/item-setup/fields":                       {LevelAuthenticated, "doc.default"},       // Stage 89, admin-only in handler
+	"POST /api/v1/inventory/item-setup/fields/list":                 {LevelAuthenticated, "doc.default"},       // Stage 89, admin-only in handler
+	"GET /api/v1/inventory/item-attributes":                         {LevelAuthenticated, "doc.default"},       // Stage 89, Item read in handler
+	"GET /api/v1/inventory/attribute-map/suggest":                   {LevelAuthenticated, "doc.default"},       // Stage 89
+	"POST /api/v1/inventory/treatment-correction/preview":           {LevelAuthenticated, "doc.default"},       // Stage 89.8, admin-only in handler
+	"POST /api/v1/inventory/treatment-correction/apply":             {LevelAuthenticated, "doc.default"},       // Stage 89.8, admin-only in handler
+	"POST /api/v1/inventory/attribute-value":                        {LevelAuthenticated, "doc.default"},       // Stage 89, ItemAttribute update/create in handler
 	"POST /api/v1/pos/price-override":                               {LevelAuthenticated, "pos.price_override"},
 	"POST /api/v1/pos/offline-heartbeat":                            {LevelAuthenticated, "pos.default"},
 	"POST /api/v1/pos/session/close":                                {LevelAuthenticated, "pos.default"},

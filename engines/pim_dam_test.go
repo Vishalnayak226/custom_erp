@@ -107,29 +107,30 @@ func TestGetMediaTransform(t *testing.T) {
 	// test binary exits - no per-asset file cleanup needed here.
 
 	t.Run("refuses an unknown preset", func(t *testing.T) {
-		if _, _, err := GetMediaTransform("default", asset.ID, "gigantic"); err == nil {
+		if _, _, err := ReadMediaTransform("default", asset.ID, "gigantic"); err == nil {
 			t.Fatal("expected an error for an unknown preset")
 		}
 	})
 	t.Run("generates and caches a known preset", func(t *testing.T) {
-		path, fileType, err := GetMediaTransform("default", asset.ID, "small")
+		first, fileType, err := ReadMediaTransform("default", asset.ID, "small")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if fileType != "image/jpeg" {
-			t.Fatalf("expected image/jpeg, got %q", fileType)
+		if fileType != "image/jpeg" || len(first) == 0 {
+			t.Fatalf("expected JPEG bytes, got %q (%d bytes)", fileType, len(first))
 		}
+		path := mediaTransformStorePath(asset.Checksum, "small")
 		if _, statErr := os.Stat(path); statErr != nil {
 			t.Fatalf("expected the transform to be cached on disk: %v", statErr)
 		}
 		defer os.Remove(path)
-		// Second call should hit the cache and return the identical path.
-		path2, _, err := GetMediaTransform("default", asset.ID, "small")
+		// Second call should hit the cache and return the identical bytes.
+		second, _, err := ReadMediaTransform("default", asset.ID, "small")
 		if err != nil {
 			t.Fatalf("unexpected error on second call: %v", err)
 		}
-		if path2 != path {
-			t.Fatalf("expected the cached path to be reused, got %q vs %q", path2, path)
+		if !bytes.Equal(first, second) {
+			t.Fatal("expected the cached rendition to be reused")
 		}
 	})
 }

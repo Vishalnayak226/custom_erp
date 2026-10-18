@@ -56,7 +56,7 @@ below.
 |---|---|---|---|
 | "You do not have permission" | Your role | `GLOBAL-0011` | Ask an administrator. Nothing lets you grant it to yourself |
 | "You do not have access to this store" | Role is fine, store scope is not | `USERAC-0027` | Administrator adds the location to your access |
-| "The same user cannot create and approve" | Self-approval, which is never allowed | `USERAC-0029` | A second person approves it |
+| "The same user cannot create and approve" / "you cannot approve or reject a document you submitted" | Self-approval, which **Who can approve their own documents** (Configuration → Security) does not allow for your role | `USERAC-0029` / `APPROV-0840` | A second person approves it, or an admin changes the setting |
 | "This action is not allowed for the current document status" | The document has moved past that action | `GLOBAL-0019` | Check the status. Shipped, Delivered, Closed and Cancelled close most actions |
 | Approve button missing | You raised the document, or it is not in an approvable state | - | Both are the rules working |
 | "This approval action is already completed" | Someone decided it while your screen was open | `APPROV-0158` | Refresh |
@@ -145,7 +145,7 @@ below.
 | What you saw | Usually | Codes | Do this |
 |---|---|---|---|
 | Manual order refused | Not enough stock to reserve | `INVENT-0101` | Receive the stock. A manual order goes through the same engine a channel order does, on purpose |
-| "Order cannot be confirmed because stock is not allocated" | Allocation has not run or failed | `ORDERM-0135` | Check the **Allocation pending** tile on Order Management |
+| "Order cannot be confirmed because stock is not allocated" | Allocation has not run or failed | `ORDERM-0135` | Check the **Allocation pending** tile on OMS → Orders |
 | "Order is already dispatched" | Too late to change it | `ORDERM-0136` | The goods have physically moved; use a return |
 | Order stuck On Hold | A hold rule fired | - | Open it, read the reason, fix the cause, **Release hold** |
 | Channel order missing | It never arrived | - | Check the **Source** column for the channel's own order id. If it is not there, it did not sync |
