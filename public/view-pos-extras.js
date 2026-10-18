@@ -37,12 +37,19 @@ export function renderPOSReturnPanel(panel) {
   // panel is the empty #pos-return-pane renderPOSView made.
   panel.innerHTML = `
     <div class="txn-head pos-return-head">
+      <!-- Stage 85.E4 (77.8): find the bill by its number, the customer's
+           mobile or name, or the day - at this store, or any of yours. -->
       <div class="form-group">
-        <label class="form-label" for="pos-return-order-id">Original Bill / Cart Number</label>
-        <input type="text" id="pos-return-order-id" class="form-input" placeholder="e.g. POS-HO-171..." autocomplete="off">
+        <label class="form-label" for="pos-return-order-id">Bill no., mobile or name</label>
+        <input type="text" id="pos-return-order-id" class="form-input" placeholder="Scan the bill, or type its number / the mobile" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="pos-return-date">Bill date</label>
+        <input type="date" id="pos-return-date" class="form-input">
       </div>
       <div class="form-group pos-return-lookup">
-        <button class="btn btn-outline" id="pos-return-lookup-btn" type="button">Look Up Bill</button>
+        <label style="display:flex; gap:6px; align-items:center; font-size:12px;"><input type="checkbox" id="pos-return-all-stores"> All my stores</label>
+        <button class="btn btn-outline" id="pos-return-lookup-btn" type="button">Find Bill</button>
       </div>
       <div class="form-group">
         <label class="form-label" for="pos-return-location-display">Return Location</label>
@@ -51,9 +58,11 @@ export function renderPOSReturnPanel(panel) {
       </div>
       <div class="pos-return-total">
         <span>Refund if all accepted <b id="pos-return-total">0.00</b></span>
+        <button class="btn btn-outline" id="pos-return-upload-btn" type="button" title="Return quantities from a CSV (Barcode, Qty) for this bill's items">Upload</button>
         <button class="btn btn-primary" id="pos-return-submit-btn" type="button" disabled>Raise Return</button>
       </div>
     </div>
+    <div id="pos-return-results" class="hidden pos-search-results"></div>
     <div id="pos-return-eligibility" class="txn-hint"></div>
     <div id="pos-return-error" class="login-error hidden"></div>
     <div class="txn-grid">
@@ -73,14 +82,29 @@ export function renderPOSReturnPanel(panel) {
     document.getElementById('pos-return-location-display'),
     document.getElementById('pos-return-location'),
     'Location');
-  document.getElementById('pos-return-lookup-btn').addEventListener('click', lookUpPOSReturnBill);
+  document.getElementById('pos-return-lookup-btn').addEventListener('click', findPOSReturnBill);
   document.getElementById('pos-return-order-id').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      lookUpPOSReturnBill();
+      findPOSReturnBill();
     }
   });
   document.getElementById('pos-return-submit-btn').addEventListener('click', submitPOSReturn);
+  // Stage 85.E8: return quantities from a CSV, for the bill looked up.
+  document.getElementById('pos-return-upload-btn').addEventListener('click', async () => {
+    if (!posReturnCart.length) { await showCustomAlert('Find the bill first - the upload sets how many of its items come back.', 'Upload'); return; }
+    const pickers = await loadViewModule('/view-pickers.js?v=1');
+    pickers.openLineUpload({ title: 'Upload return quantities', template: 'sales-return', onRows: async (rows) => {
+      const notOnBill = [];
+      rows.forEach(r => {
+        const line = posReturnCart.find(l => l.sku === r.sku);
+        if (!line) { notOnBill.push(r.sku); return; }
+        line.qty = Math.min(line.remaining, (line.qty || 0) + r.qty);
+      });
+      renderPOSReturnTable();
+      if (notOnBill.length) await showCustomAlert(`Not on this bill (not added): ${notOnBill.join(', ')}`, 'Upload');
+    } });
+  });
 
   // Stage 55.5: a return is taken where the till is. The Return Location
   // follows the till's store whenever that is set and this box is still
@@ -93,7 +117,7 @@ export function renderPOSReturnPanel(panel) {
     const display = document.getElementById('pos-return-location-display');
     if (!tillStore || !hidden || !display || hidden.value.trim() || !tillStore.value.trim()) return;
     hidden.value = tillStore.value.trim();
-    display.value = (document.getElementById('pos-location-display') || {}).value || hidden.value;
+    display.value = (window.posStoreLabel && window.posStoreLabel()) || hidden.value;
     display.dataset.resolved = '1';
   };
   if (tillStore) tillStore.addEventListener('change', followTillStore);
@@ -102,8 +126,47 @@ export function renderPOSReturnPanel(panel) {
   renderPOSReturnTable();
 }
 
-// lookUpPOSReturnBill asks the server what is returnable. Nothing is typed by
-// the clerk except the bill number.
+// findPOSReturnBill (Stage 85.E4) searches the store's paid bills; one match
+// is looked up at once, several are listed to pick from.
+let posReturnBillStore = '';
+async function findPOSReturnBill() {
+  const errorEl = document.getElementById('pos-return-error');
+  const list = document.getElementById('pos-return-results');
+  errorEl.classList.add('hidden');
+  list.classList.add('hidden');
+  const q = document.getElementById('pos-return-order-id').value.trim();
+  const date = document.getElementById('pos-return-date').value;
+  if (!q && !date) {
+    errorEl.textContent = 'Type the bill number or the customer\'s mobile, or pick the bill date.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  const scope = document.getElementById('pos-return-all-stores').checked ? 'mine' : '';
+  const res = await apiFetch(`/api/v1/pos/bills?q=${encodeURIComponent(q)}&date=${encodeURIComponent(date)}&scope=${scope}`);
+  if (!res) return;
+  if (!res.ok) { errorEl.textContent = await getErrorMessage(res, 'Bills could not be searched.'); errorEl.classList.remove('hidden'); return; }
+  const bills = await res.json();
+  const exact = bills.find(b => [b.cart_number, b.bill_number].some(n => n && n.toLowerCase() === q.toLowerCase()));
+  if (exact || bills.length === 1) return pickPOSReturnBill(exact || bills[0]);
+  if (!bills.length) {
+    errorEl.textContent = scope ? 'No paid bill matches at your stores.' : 'No paid bill matches at this store. Tick All my stores to look further.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  list.innerHTML = bills.map((b, i) => `<button type="button" class="pos-search-result" data-bill="${i}">
+    <span><b>${cfgEsc(b.bill_number || b.cart_number)}</b> · ${cfgEsc(b.date)}</span>
+    <span>${cfgEsc(b.customer || 'Walk-in')}${b.phone ? ' · ' + cfgEsc(b.phone) : ''} · ${Number(b.total).toFixed(2)}${b.store !== posLocation ? ' · ' + cfgEsc(b.store) : ''}</span></button>`).join('');
+  list.classList.remove('hidden');
+  list.querySelectorAll('[data-bill]').forEach(btn => btn.addEventListener('click', () => { list.classList.add('hidden'); pickPOSReturnBill(bills[Number(btn.dataset.bill)]); }));
+}
+
+function pickPOSReturnBill(b) {
+  document.getElementById('pos-return-order-id').value = b.cart_number;
+  posReturnBillStore = b.store || '';
+  return lookUpPOSReturnBill();
+}
+
+// lookUpPOSReturnBill asks the server what is returnable for one bill.
 async function lookUpPOSReturnBill() {
   const errorEl = document.getElementById('pos-return-error');
   errorEl.classList.add('hidden');
@@ -161,6 +224,7 @@ function renderPOSReturnTable() {
         <div style="padding:10px 12px; border-radius:6px; border:1px solid ${ok ? 'var(--border-color)' : 'var(--warning-soft-border, var(--border-color))'};
                     background: ${ok ? 'var(--bg-color)' : 'var(--warning-soft-bg, var(--bg-color))'};">
           ${cfgEsc(posReturnEligibility.explanation || '')}
+          ${posReturnBillStore && posReturnBillStore !== posLocation ? `<div style="margin-top:4px;"><b>Sold at ${cfgEsc(posReturnBillStore)}.</b> The return is taken here: the goods come back into this store's stock, and the return keeps the store that sold it.</div>` : ''}
           ${posReturnEligibility.sale_date ? `<span style="color:var(--text-muted);"> Sold ${cfgEsc(posReturnEligibility.sale_date)}; return window ${posReturnEligibility.window_days} days.</span>` : ''}
         </div>`;
     }
@@ -257,31 +321,8 @@ async function submitPOSReturnInner() {
   if (open) renderView('returns');
 }
 
-// defaultPOSStore (Stage 55.5): a cashier signed in at a store finds the till
-// already on it, instead of having to search for their own store before they
-// can open a session. Only the signed-in user's own location (the token's loc
-// claim, as the screen's context line shows it), and only when it is a
-// sellable store - the Store picker's own filter (Stage 53.3) - so an admin
-// signed in at HO still picks one. Applied exactly as a pick is: the hidden
-// code, the name shown, then the change event the till listens for.
-export async function defaultPOSStore() {
-  let loc = '';
-  try {
-    loc = new URLSearchParams(atob((localStorage.getItem('erp_token') || '').split('.')[0].replace(/-/g, '+').replace(/_/g, '/'))).get('loc') || '';
-  } catch (_) { return; }
-  if (!loc) return;
-  const res = await apiFetch(`/api/v1/doc/Location?q=${encodeURIComponent(loc)}&limit=10&sellable=Yes`).catch(() => null);
-  if (!res || !res.ok) return;
-  const rows = await res.json().catch(() => []);
-  const store = (rows || []).find(d => String(d.code || d.id || '').toLowerCase() === loc.toLowerCase());
-  const hidden = document.getElementById('pos-location');
-  const display = document.getElementById('pos-location-display');
-  if (!store || !hidden || !display || hidden.value.trim()) return;
-  hidden.value = store.code || store.id;
-  display.value = store.name || hidden.value;
-  display.dataset.resolved = '1';
-  hidden.dispatchEvent(new Event('change', { bubbles: true }));
-}
+// defaultPOSStore (Stage 55.5) is gone (Stage 85.A5): the till always works
+// at the working store chosen at the top of the screen.
 
 // describeReturnRefund reads the return just raised: its lines carry their
 // share of what the bill was paid with (Stage 73.1.1), so the cashier can tell
@@ -311,58 +352,8 @@ async function describeReturnRefund(returnID) {
 // dispatcher, which only resolves names that are own properties of window.
 Object.assign(window, { updatePOSReturnLine });
 
-// quickAddPOSCustomer creates a customer from the till. The alternative is
-// what the screen used to force: leave POS, go to the Customer master, create
-// the record, come back, and find the cart gone - with a queue waiting.
-//
-// Deliberately asks for the two things a counter can actually get (a name and
-// a phone number) and lets the server mint the code; everything else about the
-// customer can be filled in later from the master.
-export async function quickAddPOSCustomer() {
-  const name = await showCustomPrompt('Customer name?', '', 'New Customer');
-  if (name === null) return;
-  if (!name.trim()) {
-    await showCustomAlert('A customer needs a name.', 'New Customer');
-    return;
-  }
-  const phone = await showCustomPrompt(`Phone number for ${name.trim()}? (optional)`, '', 'New Customer');
-  if (phone === null) return;
-  // Stage 55.17a: no consent, no SMS / WhatsApp offers. Ask, with both
-  // unticked; Cancel here records no consent (the customer is still added).
-  // The save stamps when and by whom.
-  let consent = { sms: false, whatsapp: false };
-  if (phone.trim()) {
-    consent = await posFormDialog('New Customer', `Has ${name.trim()} agreed to receive offers? Tick only what they agreed to.`,
-      `<label style="display:flex; gap:8px; align-items:center; margin:6px 0;"><input type="checkbox" data-consent="sms"> Offers by SMS</label>
-       <label style="display:flex; gap:8px; align-items:center; margin:6px 0;"><input type="checkbox" data-consent="whatsapp"> Offers by WhatsApp</label>`,
-      el => ({ sms: el.querySelector('[data-consent="sms"]').checked, whatsapp: el.querySelector('[data-consent="whatsapp"]').checked }))
-      || { sms: false, whatsapp: false };
-  }
-
-  const res = await apiFetch('/api/v1/doc/Customer', {
-    method: 'POST',
-    body: JSON.stringify({ name: name.trim(), phone: phone.trim(), status: 'Active', consent_sms: consent.sms, consent_whatsapp: consent.whatsapp })
-  });
-  if (!res) return;
-  if (!res.ok) {
-    await showApiError(res, 'The customer was not created.');
-    return;
-  }
-  const created = await res.json();
-  const code = created.id || created.code || '';
-  if (!code) {
-    await showCustomAlert('The customer was created but the till could not read its code back - search for them by name.', 'New Customer');
-    return;
-  }
-  const hidden = document.getElementById('pos-customer');
-  const display = document.getElementById('pos-customer-display');
-  if (display) { display.value = name.trim(); display.dataset.resolved = '1'; }
-  if (hidden) {
-    hidden.value = code;
-    hidden.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-  showToast(`${name.trim()} added and attached to this sale.`, { variant: 'success', title: 'New Customer' });
-}
+// quickAddPOSCustomer (Stage 53.5: name + phone in two prompts) is replaced
+// by the phone-first customer form in view-pos-customer.js (Stage 85.C3).
 
 // CRM/Loyalty (Stage 13.13d, scoped MVP) - POS integration. Earning
 // happens automatically server-side (handleCheckout) once customer_id is
@@ -531,7 +522,12 @@ async function pickPOSReason(category, title, message) {
 function posCashBreakdown(p) {
   return `Float ${Number(p.opening_cash).toFixed(2)} + cash sales ${Number(p.cash_sales).toFixed(2)} - cash refunds ${Number(p.cash_refunds).toFixed(2)}`
     + ` + paid in ${Number(p.paid_in).toFixed(2)} - paid out ${Number(p.paid_out).toFixed(2)} - safe drops ${Number(p.safe_drops).toFixed(2)}`
-    + ` = ${Number(p.expected_cash).toFixed(2)} expected.`;
+    + (p.advances_in || p.advances_out ? ` + advances ${Number(p.advances_in || 0).toFixed(2)} - advance refunds ${Number(p.advances_out || 0).toFixed(2)}` : '')
+    + ` = ${Number(p.expected_cash).toFixed(2)} expected.`
+    // Stage 85.E5: what the session's bills took by each tender - card and
+    // UPI to tally with the terminal and the bank, cash counted above.
+    + (p.tenders && Object.keys(p.tenders).length ? `
+By tender: ${Object.entries(p.tenders).map(([k, v]) => `${k} ${Number(v).toFixed(2)}`).join(' · ')}.` : '');
 }
 
 export async function closePOSSessionFlow(t) {
@@ -727,8 +723,25 @@ const POS_MORE_ACTIONS = [
   ['takeover', 'Take over this till (shift handover)', () => openPOSTakeover()],
   ['hold', 'Hold this bill', () => holdPOSBill()],
   ['resume', 'Resume a held bill', () => resumePOSBill()],
-  ['exchange', 'Exchange (take items back against this bill)', () => openPOSExchange()]
+  ['exchange', 'Exchange (take items back against this bill)', () => openPOSExchange()],
+  // Stage 85.E8: a bill's lines from a CSV (Barcode, Qty).
+  ['upload', 'Upload lines (CSV)', () => uploadPOSLines()]
 ];
+
+// uploadPOSLines adds uploaded lines to the cart the way a scan does (price
+// and stock from the server), then sets each line's quantity.
+async function uploadPOSLines() {
+  const pickers = await loadViewModule('/view-pickers.js?v=1');
+  pickers.openLineUpload({ title: 'Upload bill lines', template: 'pos-bill', onRows: async (rows) => {
+    for (const r of rows) {
+      const before = (posCart.find(l => l.sku === r.sku) || {}).qty || 0;
+      await window.addResolvedItemToPOSCart(r.sku, r.name);
+      const line = posCart.find(l => l.sku === r.sku);
+      if (line) line.qty = before + r.qty;
+    }
+    window.renderPOSCartTable();
+  } });
+}
 
 // Stage 73.2.6: exchange. The items coming back are returned (received and
 // inspected here, at the counter); their value becomes a credit that pays
@@ -877,14 +890,17 @@ async function openPOSSplitPayment() {
   }
   const due = parseFloat(document.getElementById('pos-cart-total').textContent) || 0;
   const rest = document.getElementById('pos-payment-mode').value;
-  const current = Object.fromEntries((till.split || []).map(s => [s.mode, s.amount]));
-  const html = ['Cash', 'Card', 'UPI'].map(m => `<div class="form-group" style="margin-top:8px;">
-      <label class="form-label" for="pos-split-${m}">${m}</label>
-      <input type="number" min="0" step="0.01" id="pos-split-${m}" class="form-input" data-split="${m}" placeholder="0.00" value="${current[m] ? current[m].toFixed(2) : ''}">
+  // Stage 85.E2: the store's own tenders (each posts by its kind).
+  const custMod = await import('./view-pos-customer.js' + new URL(import.meta.url).search).catch(() => null);
+  const tenders = (custMod && custMod.posStoreTenders().length) ? custMod.posStoreTenders() : ['Cash', 'Card', 'UPI'].map(k => ({ name: k, kind: k }));
+  const current = Object.fromEntries((till.split || []).map(s => [s.name || s.mode, s.amount]));
+  const html = tenders.map((t, i) => `<div class="form-group" style="margin-top:8px;">
+      <label class="form-label" for="pos-split-${i}">${cfgEsc(t.name)}</label>
+      <input type="number" min="0" step="0.01" id="pos-split-${i}" class="form-input" data-split="${cfgEsc(t.kind)}" data-name="${cfgEsc(t.name)}" placeholder="0.00" value="${current[t.name] ? current[t.name].toFixed(2) : ''}">
     </div>`).join('');
   const picked = await posFormDialog('Split payment',
     `The bill is ${due.toFixed(2)}. Enter what is paid each way; whatever is left is taken by ${rest} (the Payment Mode). Leave all blank to pay one way.`,
-    html, extra => Array.from(extra.querySelectorAll('[data-split]')).map(el => ({ mode: el.dataset.split, amount: Math.round((parseFloat(el.value) || 0) * 100) / 100 })).filter(s => s.amount > 0));
+    html, extra => Array.from(extra.querySelectorAll('[data-split]')).map(el => ({ mode: el.dataset.split, name: el.dataset.name, amount: Math.round((parseFloat(el.value) || 0) * 100) / 100 })).filter(s => s.amount > 0));
   if (picked === null) return;
   const fixed = picked.reduce((s, p) => s + p.amount, 0);
   if (fixed - due > 0.004) {
@@ -903,7 +919,7 @@ function renderPOSSplitRow(parts) {
     row.id = 'pos-split-row';
     document.getElementById('pos-giftcard-row').after(row);
   }
-  row.textContent = `Split: ${parts.map(p => `${p.mode} ${p.amount.toFixed(2)}`).join(' + ')}; the rest by Payment Mode`;
+  row.textContent = `Split: ${parts.map(p => `${p.name || p.mode} ${p.amount.toFixed(2)}`).join(' + ')}; the rest by Payment Mode`;
 }
 
 // --- Stage 72.8: gift cards --------------------------------------------------

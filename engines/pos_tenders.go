@@ -29,6 +29,10 @@ import (
 type POSTender struct {
 	Mode   string  `json:"mode"`
 	Amount float64 `json:"amount"`
+	// Name (Stage 85.E2) is the store's own tender ("HDFC Card") of kind
+	// Mode; Reference is its card slip / UTR when the tender asks for one.
+	Name      string `json:"name,omitempty"`
+	Reference string `json:"reference,omitempty"`
 }
 
 // tenderPart is one tender of a settled sale, in paise.

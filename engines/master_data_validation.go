@@ -559,8 +559,14 @@ func validateVendorMasterRules(tenantID, docID string, payload map[string]interf
 // a customer master, not a domestic-only list. The country is recorded on the
 // record so it stays a usable targeting signal.
 func validateCustomerMasterRules(tenantID, docID string, payload map[string]interface{}) error {
+	// Stage 85.C1: PAN and GSTIN (India), PAN filled from the GSTIN.
+	if err := validateCustomerTaxIDs(tenantID, payload); err != nil {
+		return err
+	}
 	phone := strField(payload, "phone")
-	if phone == "" {
+	// A store's walk-in customer carries a placeholder number (85.C3), not a
+	// real one, so it is not held to the country's mobile rule.
+	if phone == "" || strField(payload, "walk_in") == "Yes" {
 		return nil
 	}
 	// Which country's rule to hold this number to is decided by
@@ -599,6 +605,7 @@ func validateCustomerMasterRules(tenantID, docID string, payload map[string]inte
 	err = db.DB.QueryRow(fmt.Sprintf(`
 		SELECT id FROM %s.documents
 		WHERE doctype = 'Customer' AND data->>'phone' = $1 AND id != $2 AND status != 'Cancelled'
+		  AND deleted_at IS NULL AND COALESCE(data->>'merged_into', '') = ''
 		LIMIT 1`, schema), phone, docID).Scan(&existingID)
 	if err == nil {
 		return &ValidationError{Code: "CUSTOM-0133", Message: fmt.Sprintf("A customer with mobile number %q already exists (%s)", phone, existingID)}

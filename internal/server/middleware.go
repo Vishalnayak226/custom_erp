@@ -959,7 +959,10 @@ func apiMiddleware(next http.HandlerFunc) http.HandlerFunc {
 					// location reassignment takes effect on the live session
 					// rather than at next login.
 					role = live.Role
-					locationCode = live.LocationCode
+					// Stage 85.A: the token's store is the working store the
+					// user switched to - kept only while they may still work
+					// there, otherwise their home store.
+					locationCode = live.WorkingStore(locationCode)
 
 					// 49.2.2/49.2.4: a full session token (purpose == "",
 					// i.e. never an MFA enrollment/challenge or extension

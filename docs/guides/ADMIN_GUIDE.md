@@ -97,6 +97,11 @@ Add `-Env test` or `-Env live` to target an environment other than the default (
   - **Full access** ticks all four. **Create, Update and Delete include Read** — ticking one of them ticks Read, and clearing Read clears them.
   - Nothing is stored until **Save access**: the bar at the bottom counts the record types changed, **Discard changes** puts the ticks back, and leaving the page with unsaved ticks asks first. Everything ticked is saved together, in one go.
   - Super Admin and HR/Admin show as **Full access (built in)** and have nothing to set. A role with no access to a record type gets **no access at all** to it (fails closed) — Super Admin always has full access and never needs a row here. See `../ERP_BLUEPRINT.md` §3 for how role checks are enforced (server-side, on every action — never trust a UI-only restriction).
+- **Which stores a person works at (Stage 85.A) — role first, then user.**
+  - **On the role:** Roles → a role's **Stores** button (on the list, or **Stores:** on its access page). Choose **All stores** (includes every store added later — nothing to edit when you open a shop), **Selected stores** (tick them), or **Home store only** (each user's own store). A role never set is **Home store only**. Super Admin always works at every store and cannot be narrowed.
+  - **On the user:** Users → **Stores** on the user's row: their **Home store** (where they sign in), and **Same as role** (plus any extra stores you tick), **All stores**, **Only these stores**, or **Home store only**. The Users list shows each user's home store and a one-line summary of their access.
+  - **What it controls:** the store switcher at the top of the screen lists only these stores; the server re-checks every switch and every request, so taking a store away ends the person's work there within half a minute. A till session, a sale, a gift card issue and an advance are refused at a store the person was not given (`STORE-0850`). A switch is refused while their till session is open at the current store (`STORE-0854`). Lists show the working store's records (as they always followed the user's store).
+  - **After the Stage 85 release nobody is locked out:** each user was given the stores they had already opened till sessions at, on top of their home store. Review Users → Stores once and narrow or widen as you intend.
 - **What a role sees in the menu (Stage 57.17)**: a module appears once the role can read something in it, and only then. A "Store Keeper" granted the Inventory module sees **Home, Reports, Knowledge Center, Stock** and the matching **Setup** lists — not POS, Finance, Sales, Procurement, HRM or PIM. **Approvals** is shared by every module: an approver reaches it from the "waiting on you" card on Home even when their role has no Finance menu. (Before Stage 57 most module screens were shown to every role regardless of grants; the server still refused the data, but the menu did not reflect the role.)
 - **Super Admin** and other privileged roles require MFA (Multi-Factor Authentication — a 6-digit code from an authenticator app).
 - **Resetting a user's two-factor setup.** On the **Users** screen each row has a **Reset 2FA** action. Use it when someone has lost both their phone *and* their recovery codes. It clears their authenticator and every recovery code they hold, and forces them to set two-factor up again on a new device at their next login — it does **not** turn MFA off for that account. (The old route, the `cmd/reset_mfa` command-line utility, still exists for the case where nobody can log in at all; it needs shell and database access on the server.)
@@ -246,7 +251,7 @@ It is deliberately **not** the same question as **Type**. A warehouse with a tra
 
 | Where | Behaviour when `Sellable = No` |
 |---|---|
-| The POS screen's **Store** picker | The location does not appear at all. It cannot be typed in either — keying the code and tabbing away clears the box rather than committing it. |
+| The **POS till** | The till sells from the working store at the top of the screen; a store with `Sellable = No` shows *"… is not a selling store"* on the session line and offers no Open Session. |
 | **Open Session** | Refused, with error `POSOFF-0245`: *"… is not a selling location — a POS till cannot sell from it."* |
 | **Complete Sale** | Refused with the same error, independently of the session check. |
 
@@ -306,6 +311,42 @@ These are the two buttons at the top right of the shell, and support calls go wr
 - **It refuses to run while offline POS sales are queued.** `erp_pos_offline_queue` holds *completed sales that have not reached the server*. They are not cache, and clearing them would destroy them, so Reset blocks with a message naming the count rather than proceeding — the same posture `closePOSSessionFlow` already takes. Let them sync, then Reset.
 
 > **Deploy note.** Lazy view modules are versioned by `VIEW_MODULE_VERSION` in `public/app.js`, which must be kept **in step with `index.html`'s `app.js?v=N`** on every release. Before Stage 53.17 the lazy modules had no cache-busting at all, so the shell could update while the screens a user actually looks at kept running the previous deploy's code. If you bump one, bump the other.
+
+#### B.3.0.7 Stock locations — what sells, store by store (Stage 85.B)
+
+**Stock → Stock Locations** (Super Admin). Stock inside a store sits in named locations; this is the master that names them, says which sell and says which each store uses. It is part of the ERP, not the WMS: a client without the warehouse module has all of it.
+
+| Location | What it is | Sells? |
+|---|---|---|
+| **Main** | the selling stock | always |
+| **Inward** | received (goods receipt or transfer in), not yet on sale | never |
+| **In-Transit** | sent on a transfer, not received yet | never |
+| **QC Hold** | waiting for a quality check | **your choice** |
+| **Damage** | damaged stock | **your choice** |
+| **On Hold** | held by a hold code (recall, dispute) | never |
+| **Purchase Return** | set aside for the vendor (warehouses) | never |
+| your own (*Alteration*, *Display only*…) | stock kept away from sale | never |
+
+- **Names, store kinds, "for new stores" and "in use"** are editable on every location; **+ New Location** adds your own. A location still holding stock cannot be switched off or taken from a store (`STKLOC-0861`) — move the stock out first (**Stock → Move Stock**).
+- **Stores tab:** which locations each store uses. A store never saved here uses every location marked for new stores; Main is always on.
+- **Transactions tab:** each transaction's from / to. **Goods Receipt** and **Transfer In** "to" can be **Inward** (goods are checked before they go on sale) or one of your locations; the receipt lands there in the same transaction. The rest show how they work (a sale takes Main, then any location marked sellable; a sales return goes where its QC result sends it).
+- **What "sellable" changes:** the available-to-sell figure everywhere (till, online channels, sourcing, reports, the public API) counts Main plus QC Hold / Damage when you mark them sellable, and a sale that is short in Main takes the rest from them. A sale can never take stock held in your own locations or under a hold code.
+- **Corrected at the Stage 85 release — available-to-sell rises where you have damaged or QC stock.** QC Hold and Damage were subtracted from the good stock's figure although they were never part of it (a store with 10 good and 2 damaged showed 8 sellable). They are now counted only if sellable. Expect higher, correct figures on the till and the channels for those items.
+- **The WMS follows it:** a bin's condition Good / Damaged / QC-Hold / RTV moves the units into Main / Damage / QC Hold / Purchase Return, and the Bin Conditions screen shows the ERP names.
+- **Reports:** *Stock by Location*.
+
+#### B.3.0.8 The till's customers, tenders, salesmen, bills and advances (Stage 85.C–85.E)
+
+- **One mobile number is one customer.** A second customer with a number already on file is refused (`CUSTOM-0133`); deleted and merged customers no longer count. Customers that already share a number (from before this rule) are listed by *Reports → Customers Sharing a Mobile Number* — merge them from the Customer master. Nothing is merged automatically.
+- **Customer master fields:** Address Line 1/2, City, State (+ code), PIN, PAN, GSTIN, date of birth, anniversary, gender. An Indian GSTIN is checked with its check digit (`CUSTOM-0869`) and fills the State and the PAN; a PAN is checked (`CUSTOM-0870`).
+- **Walk-in customers:** each store's first walk-in bill creates its walk-in customer (*Walk-in - <store>*, placeholder number 1111111111, 2222222222 … for the next store). It is never printed on a bill, never earns points, and every bill without a customer is billed to it. Do not edit it into a real customer.
+- **Large bills** (Configuration → Point of Sale): *Buyer's address needed from*, *PAN needed above*, *Cash refused from*. Blank uses your home country's rule (India: ₹50,000 to a buyer without a GSTIN, CGST Rule 46(e); PAN above ₹2,00,000 or Form 97, IT Rules r.159; cash of ₹2,00,000 or more refused, s.269ST. UK and Germany: full details from 250; UAE: AED 10,000). **0 switches a rule off.** Enforced at checkout (`POSOFF-0866 / 0867 / 0868`).
+- **Tenders:** Setup → Masters → **POS Tender**. Name (*HDFC Card*, *Paytm*), **Kind** (Cash / Card / UPI — this decides the clearing account, 1100 / 1101 / 1102, so nothing changes in the books), *Ask for a reference*, *Opens the cash drawer*, **Stores** (codes, comma separated; blank = every store), order, status. Cash, Card and UPI are seeded. Bills keep the tender's name: *Reports → Tender-wise Sales*, and the session close lists every tender.
+- **Salesmen:** Setup → Masters → **Salesman** (name, store, phone, *Default salesman of the store*, Active / Left), and on each **Location** *Ask the salesman at the till*: Off / Optional / Mandatory (`POSOFF-0876`). *Reports → Salesman-wise Sales*.
+- **The cashier's discount** comes off the price (as a % or an amount), shared across the lines like a voucher. *Configuration → Point of Sale → Discount needs a reason above* (5% as shipped; `POSOFF-0877`). Above an Approval Rule slab for POSCart a manager approves, as before.
+- **Bill numbers** are issued by the server when the sale completes, per store: **prefix + store Short Code + financial year + 6 digits**, at most 16 characters (CGST Rule 46(b)), drawn inside the sale so a failed sale leaves no gap. Give every store a Short Code of up to 4 characters (Setup → Location) for readable numbers; without one a fixed 4-character tag is used. The prefix is Prefix Configurations → **POSBILL** (*B*); the advance receipt voucher is **CA** and its refund voucher **AVR**. A sale rung up offline gets its number when it syncs.
+- **GST (B2B) invoice:** a customer with a GSTIN gets **Print GST Invoice** on the finished bill — the print transaction *Tax Invoice (GST bill from the till)*. Design its layout like any other print (Print Templates); the place of supply is the store's state (over the counter).
+- **Customer advances** (POS → Advance tab) are stored value on the profile *Customer Advance*: receipt Dr tender clearing / Cr **2640 Customer Advance Liability**; used on a later bill of the same customer only; refunded to the tender it was paid by, with a reason. The cashier chooses **Goods** (no GST on the advance — Notification 66/2017-CT) or **Services** (GST at receipt, given back when used or refunded) — **have your CA confirm which applies to your business before go-live.** *Reports → Customer Advance Register* ties to account 2640.
 
 #### B.3.0.1 Setting up POS offers
 

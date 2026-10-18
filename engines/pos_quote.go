@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -113,6 +114,11 @@ type QuoteRequest struct {
 	// RedeemPoints (Stage 73.1.5) is the points the cashier wants this bill
 	// to take; the quote prices them and caps them at what the bill allows.
 	RedeemPoints int `json:"redeem_points"`
+	// ManualDiscountPct / ManualDiscountAmount (Stage 85.E7, 77.13): the
+	// cashier's own bill discount, as a % or an amount, applied after the
+	// offers and vouchers.
+	ManualDiscountPct    float64 `json:"manual_discount_pct"`
+	ManualDiscountAmount float64 `json:"manual_discount_amount"`
 	// AsOf lets a backdated or offline-replayed sale price against the rules
 	// that were in force when it happened. Zero means "now".
 	AsOf time.Time `json:"-"`
@@ -424,6 +430,7 @@ func ResolvePOSQuote(tenantID string, req QuoteRequest) (*QuoteResult, error) {
 		return nil, err
 	}
 	applyTillVoucher(tenantID, req.CustomerID, result, offerEval)
+	applyManualDiscount(req, result, offerEval)
 
 	gstLines := make([]GSTLineInput, len(result.Lines))
 	for i := range result.Lines {
@@ -513,6 +520,79 @@ func applyTillVoucher(tenantID, customerID string, result *QuoteResult, offerEva
 
 // OfferTypeVoucher marks an applied "offer" that is an issued voucher.
 const OfferTypeVoucher = "Voucher"
+
+// OfferTypeManual marks the cashier's own bill discount (Stage 85.E7).
+const OfferTypeManual = "Manual"
+
+// applyManualDiscount (Stage 85.E7, 77.13) takes the cashier's bill discount
+// - a % of what the offers left, or an amount, never more than that - off the
+// bill the way a voucher is: shared across the lines by their remaining
+// value, so it reaches the net, the GST, the receipt and a later return.
+// Whether it needs a reason or a manager is checkout's (approval slabs).
+func applyManualDiscount(req QuoteRequest, result *QuoteResult, offerEval *OfferEvaluation) {
+	if req.ManualDiscountPct <= 0 && req.ManualDiscountAmount <= 0 {
+		return
+	}
+	weights := make([]int64, len(result.Lines))
+	var left int64
+	for i, l := range result.Lines {
+		share := 0.0
+		if i < len(offerEval.LineDiscounts) {
+			share = offerEval.LineDiscounts[i]
+		}
+		weights[i] = RupeesToPaise(l.LineTotal) - RupeesToPaise(share)
+		if weights[i] < 0 {
+			weights[i] = 0
+		}
+		left += weights[i]
+	}
+	var discount int64
+	if req.ManualDiscountAmount > 0 {
+		discount = RupeesToPaise(req.ManualDiscountAmount)
+	} else {
+		pct := req.ManualDiscountPct
+		if pct > 100 {
+			pct = 100
+		}
+		discount = int64(math.Round(float64(left) * pct / 100))
+	}
+	if discount > left {
+		discount = left
+	}
+	if discount <= 0 {
+		return
+	}
+	for i, share := range allocatePaise(discount, weights) {
+		if i < len(offerEval.LineDiscounts) {
+			offerEval.LineDiscounts[i] = PaiseToRupees(RupeesToPaise(offerEval.LineDiscounts[i]) + share)
+		}
+	}
+	amount := PaiseToRupees(discount)
+	desc := "cashier's bill discount"
+	if req.ManualDiscountAmount <= 0 {
+		desc = fmt.Sprintf("%.2f%% bill discount", req.ManualDiscountPct)
+	}
+	result.AppliedOffers = append(result.AppliedOffers, AppliedOffer{
+		OfferID: "MANUAL", Name: "Discount", OfferType: OfferTypeManual, Scope: offerScopeBill, Discount: amount, Description: desc,
+	})
+	result.OfferDiscount = round2(result.OfferDiscount + amount)
+}
+
+// ManualDiscountShare is the cashier's discount as a % of the bill before it,
+// from a quote - what the reason rule and the approval slabs look at.
+func ManualDiscountShare(q *QuoteResult) float64 {
+	manual := 0.0
+	for _, o := range q.AppliedOffers {
+		if o.OfferType == OfferTypeManual {
+			manual += o.Discount
+		}
+	}
+	base := q.Subtotal - (q.OfferDiscount - manual)
+	if manual <= 0 || base <= 0 {
+		return 0
+	}
+	return round2(manual / base * 100)
+}
 
 // quoteLoyalty prices the points a cart wants to redeem against what the bill
 // and the customer's balance allow. A negative balance (a return took back

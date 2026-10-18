@@ -140,6 +140,7 @@ var doctypeScopes = map[string]DoctypeScope{
 	"POSProfile":             locScope("location", true),
 	"POSSession":             locScope("location", true),
 	"PhysicalInventory":      locScope("location", true),
+	"StockMove":              locScope("location", true), // Stage 85.B
 	"ProductionOrder":        locScope("location", true),
 	"PurchaseOrder":          locScope("location", true),
 	"ReorderPointConfig":     locScope("location_code", true),

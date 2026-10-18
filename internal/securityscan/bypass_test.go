@@ -68,6 +68,9 @@ var reviewedBypassFindings = map[string]map[string]struct {
 			card number the store registers (printed on the card) - the key the till looks a card up by.
 			Never shown in full after registration: engines/stored_value.go masks it on every response,
 			and the data console masks the column (engines/platform_console.go's secretColumnRe).`},
+		"engines/customer_advance.go": {1, `Stage 85.D3: a customer advance is a stored-value instrument
+			whose card_number is the advance's own receipt voucher number (CA..., the same value as its
+			instrument_id) - a reference the ERP issues and prints, never a payment card.`},
 		"engines/platform_console.go": {1, `secretColumnRe listing card_number, so the data console
 			shows the gift card column masked - the control, not a use.`},
 		"engines/stored_value.go": {15, `Register, issue, balance, redeem, block and cancel look a gift

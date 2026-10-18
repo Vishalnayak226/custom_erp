@@ -358,6 +358,24 @@
   border-radius: 6px;
 }
 
+/* Stage 85.E4: a bill found by the Return search, one row each. */
+.pos-search-result {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.pos-search-result:hover,
+.pos-search-result:focus-visible { background: var(--surface-subtle); outline: none; }
+
 .pos-offers {
   margin: 8px 14px;
   padding: 10px 12px;

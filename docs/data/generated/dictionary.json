@@ -21187,6 +21187,285 @@
       "description": "Quotes side by side for one request for quotation."
     },
     {
+      "id": "stock-by-location",
+      "label": "Stock by Location",
+      "category": "Inventory",
+      "module_key": "inventory",
+      "columns": [
+        {
+          "key": "location_code",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "sku",
+          "label": "SKU",
+          "sensitive": false
+        },
+        {
+          "key": "main",
+          "label": "Main",
+          "sensitive": false
+        },
+        {
+          "key": "inward",
+          "label": "Inward",
+          "sensitive": false
+        },
+        {
+          "key": "in_transit",
+          "label": "In-Transit",
+          "sensitive": false
+        },
+        {
+          "key": "qc_hold",
+          "label": "QC Hold",
+          "sensitive": false
+        },
+        {
+          "key": "damaged",
+          "label": "Damage",
+          "sensitive": false
+        },
+        {
+          "key": "on_hold",
+          "label": "On Hold",
+          "sensitive": false
+        },
+        {
+          "key": "purchase_return",
+          "label": "Purchase Return",
+          "sensitive": false
+        },
+        {
+          "key": "own_locations",
+          "label": "Own locations",
+          "sensitive": false
+        },
+        {
+          "key": "sellable",
+          "label": "Sellable",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "store",
+          "label": "Store code (blank = all)",
+          "type": "text",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What sits in each location of each store, and what can be sold?",
+      "description": "Main, Inward, In-Transit, QC Hold, Damage, On Hold, Purchase Return and your own locations per item and store, with the sellable figure."
+    },
+    {
+      "id": "advance-register",
+      "label": "Customer Advance Register",
+      "category": "Sales",
+      "module_key": "sales",
+      "columns": [
+        {
+          "key": "number",
+          "label": "Receipt voucher",
+          "sensitive": false
+        },
+        {
+          "key": "taken_at",
+          "label": "Taken",
+          "sensitive": false
+        },
+        {
+          "key": "location",
+          "label": "Store",
+          "sensitive": false
+        },
+        {
+          "key": "customer_name",
+          "label": "Customer",
+          "sensitive": false
+        },
+        {
+          "key": "purpose",
+          "label": "For",
+          "sensitive": false
+        },
+        {
+          "key": "expected_date",
+          "label": "Expected",
+          "sensitive": false
+        },
+        {
+          "key": "amount",
+          "label": "Taken",
+          "sensitive": false
+        },
+        {
+          "key": "applied",
+          "label": "Used",
+          "sensitive": false
+        },
+        {
+          "key": "refunded",
+          "label": "Refunded",
+          "sensitive": false
+        },
+        {
+          "key": "balance",
+          "label": "Balance",
+          "sensitive": false
+        },
+        {
+          "key": "status",
+          "label": "Status",
+          "sensitive": false
+        },
+        {
+          "key": "payment_mode",
+          "label": "Paid by",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "store",
+          "label": "Store code (blank = all)",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "open",
+          "label": "Open only",
+          "type": "select",
+          "options": ",Yes",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "What do we owe customers in advances?",
+      "description": "Every advance taken at the till - used, refunded and what is still owed (2640 Customer Advance Liability)."
+    },
+    {
+      "id": "tender-sales",
+      "label": "Tender-wise Sales",
+      "category": "Sales",
+      "module_key": "sales",
+      "columns": [
+        {
+          "key": "tender",
+          "label": "Tender",
+          "sensitive": false
+        },
+        {
+          "key": "amount",
+          "label": "Amount",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "store",
+          "label": "Store code (blank = all)",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "How was the money taken?",
+      "description": "Paid bills by the store's own tenders (Cash, HDFC Card, Paytm...) for a store and dates."
+    },
+    {
+      "id": "salesman-sales",
+      "label": "Salesman-wise Sales",
+      "category": "Sales",
+      "module_key": "sales",
+      "columns": [
+        {
+          "key": "salesman",
+          "label": "Salesman",
+          "sensitive": false
+        },
+        {
+          "key": "bills",
+          "label": "Bills",
+          "sensitive": false
+        },
+        {
+          "key": "amount",
+          "label": "Sales",
+          "sensitive": false
+        }
+      ],
+      "params": [
+        {
+          "key": "store",
+          "label": "Store code (blank = all)",
+          "type": "text",
+          "required": false
+        },
+        {
+          "key": "from",
+          "label": "From",
+          "type": "date",
+          "required": false
+        },
+        {
+          "key": "to",
+          "label": "To",
+          "type": "date",
+          "required": false
+        }
+      ],
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Who sold what?",
+      "description": "Paid bills and sales per salesman for a store and dates."
+    },
+    {
+      "id": "customer-duplicate-phones",
+      "label": "Customers Sharing a Mobile Number",
+      "category": "CRM",
+      "module_key": "crm_loyalty",
+      "columns": [
+        {
+          "key": "phone",
+          "label": "Mobile",
+          "sensitive": true
+        },
+        {
+          "key": "count",
+          "label": "Customers",
+          "sensitive": false
+        },
+        {
+          "key": "customers",
+          "label": "Customer codes and names",
+          "sensitive": false
+        }
+      ],
+      "params": null,
+      "has_drill_down": false,
+      "has_control_totals": false,
+      "question": "Which customers share one mobile number?",
+      "description": "Customers on file before the one-number-one-customer rule; merge them from the Customer master."
+    },
+    {
       "id": "stock-ledger",
       "label": "Stock Ledger",
       "category": "Inventory",

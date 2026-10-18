@@ -44,6 +44,10 @@ const (
 	PrintTxnPurchaseReturn = "PurchaseReturn"
 	PrintTxnCreditNote     = "CreditNote"
 	PrintTxnSalesReturn    = "SalesReturn"
+	// Stage 85.D2 (77.15): a till sale to a buyer with a GSTIN is a tax
+	// invoice - buyer, GSTIN, place of supply, HSN-wise tax - in its own
+	// print format; a B2C sale keeps the receipt.
+	PrintTxnPOSTaxInvoice = "POSTaxInvoice"
 )
 
 // PrintTransactions lists them with the doctype each prints from.
@@ -61,6 +65,7 @@ var PrintTransactions = []struct {
 	{PrintTxnPurchaseReturn, "Purchase Return (return to vendor)", "PurchaseReturn"},
 	{PrintTxnCreditNote, "Credit Note (to customer)", "CreditNote"},
 	{PrintTxnSalesReturn, "Sales Return", "ReturnRequest"},
+	{PrintTxnPOSTaxInvoice, "Tax Invoice (GST bill from the till)", "POSCart"},
 }
 
 func printTxnDoctype(txn string) string {
@@ -87,8 +92,10 @@ type PrintStore struct {
 	Email     string `json:"email,omitempty"`
 }
 
-// PrintTaxRow is one GST rate's share of the document.
+// PrintTaxRow is one GST rate's share of the document - or, on a tax
+// invoice, one HSN code's at one rate (HSN set).
 type PrintTaxRow struct {
+	HSN     string  `json:"hsn_code,omitempty"`
 	GSTRate float64 `json:"gst_rate"`
 	Taxable float64 `json:"taxable"`
 	CGST    float64 `json:"cgst"`
@@ -315,14 +322,22 @@ var printQtyTotals = []string{"accepted_qty", "rejected_qty", "damaged_qty", "po
 
 // finish computes the tax summary, totals and amount in words from the lines.
 func (d *PrintDocument) finish() {
-	byRate := map[float64]*PrintTaxRow{}
+	// A tax invoice sums by HSN code and rate (Rule 46(g)); every other
+	// print by rate.
+	byHSN := d.Transaction == PrintTxnPOSTaxInvoice
+	byRate := map[string]*PrintTaxRow{}
 	tot := map[string]float64{}
 	for _, l := range d.Lines {
 		rate := numFromInterface(l["gst_rate"])
-		r := byRate[rate]
+		key, hsn := fmt.Sprintf("%08.3f", rate), ""
+		if byHSN {
+			hsn = strField(l, "hsn_code")
+			key = hsn + "|" + key
+		}
+		r := byRate[key]
 		if r == nil {
-			r = &PrintTaxRow{GSTRate: rate}
-			byRate[rate] = r
+			r = &PrintTaxRow{GSTRate: rate, HSN: hsn}
+			byRate[key] = r
 		}
 		r.Taxable += numFromInterface(l["taxable"])
 		r.CGST += numFromInterface(l["cgst"])
@@ -339,11 +354,11 @@ func (d *PrintDocument) finish() {
 			}
 		}
 	}
-	rates := make([]float64, 0, len(byRate))
+	rates := make([]string, 0, len(byRate))
 	for k := range byRate {
 		rates = append(rates, k)
 	}
-	sort.Float64s(rates)
+	sort.Strings(rates)
 	d.TaxSummary = []PrintTaxRow{}
 	for _, k := range rates {
 		r := byRate[k]
@@ -638,6 +653,47 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 		amount := numFromInterface(data["amount"])
 		d.addLine(tenantID, printLineIn{Qty: 1, Rate: amount, Taxable: amount,
 			Extra: map[string]interface{}{"item_name": strField(data, "reason"), "description": strField(data, "reason")}}, cache, false)
+	case PrintTxnPOSTaxInvoice:
+		d.Title = "Tax Invoice"
+		if status != "Paid" {
+			return d, &ValidationError{Code: "GLOBAL-0019", Message: fmt.Sprintf("sale %s is %s, not Paid - only a completed sale has a tax invoice", id, strings.ToLower(status))}
+		}
+		d.Number = firstNonEmpty(strField(data, "bill_number"), id)
+		defaultStore = strField(data, "location")
+		d.Party, d.PartyTitle = loadPrintCustomer(tenantID, strField(data, "customer_id")), "Buyer"
+		if gb, ok := data["gst_breakdown"].(map[string]interface{}); ok {
+			d.Interstate, _ = gb["interstate"].(bool)
+		}
+		d.Fields["supply_type"] = map[bool]string{true: "B2B", false: "B2C"}[d.Party.GSTIN != ""]
+		d.Fields["buyer_gstin"] = d.Party.GSTIN
+		// Place of supply is set below, from the store: goods handed over at
+		// the counter are supplied where the store is (IGST Act s.10(1)).
+		d.Fields["reverse_charge"] = "No"
+		d.Fields["payment_mode"] = strField(data, "payment_mode")
+		d.Fields["cart_number"] = id
+		var lines []map[string]interface{}
+		if raw, ok := data["items"].([]interface{}); ok {
+			for _, r := range raw {
+				if m, ok := r.(map[string]interface{}); ok {
+					lines = append(lines, m)
+				}
+			}
+		}
+		for _, l := range lines {
+			sku := strField(l, "sku")
+			qty := numFromInterface(l["qty"])
+			unit := numFromInterface(l["sale_price"])
+			// The till's prices include GST: the line's net (after offers)
+			// is split back into taxable value and tax at the item's rate.
+			value := numFromInterface(l["net_total"])
+			if value == 0 {
+				value = round2(unit * qty)
+			}
+			gstRate := numFromInterface(printItemFields(tenantID, sku, cache)["gst_rate"])
+			taxable := round2(value / (1 + gstRate/100))
+			d.addLine(tenantID, printLineIn{SKU: sku, Qty: qty, Rate: unit, Taxable: taxable, GST: round2(value - taxable), GSTRate: gstRate,
+				Extra: map[string]interface{}{"discount": round2(numFromInterface(l["offer_share"]))}}, cache, withImages)
+		}
 	case PrintTxnSalesReturn:
 		d.Title = "Sales Return"
 		d.Number = firstNonEmpty(strField(data, "code"), id)
@@ -678,6 +734,13 @@ func BuildPrintDocument(tenantID, txn, id, store string, withImages bool) (Print
 	}
 
 	d.Store = LoadPrintStore(tenantID, firstNonEmpty(strings.TrimSpace(store), defaultStore))
+	if txn == PrintTxnPOSTaxInvoice {
+		pos := strings.TrimSpace(d.Store.State)
+		if pos != "" && d.Store.StateCode != "" {
+			pos += " (" + d.Store.StateCode + ")"
+		}
+		d.Fields["place_of_supply"] = pos
+	}
 	d.Brand = map[string]string{"name": printBrandName(tenantID, d.Store)}
 	d.finish()
 	// Stage 71: the common header and audit fields every print carries.
@@ -817,6 +880,24 @@ func loadPrintCustomer(tenantID, customerID string) PrintStore {
 	if c, _, err := fetchDocData(tenantID, "Customer", customerID); err == nil {
 		out.Name = firstNonEmpty(str(c, "name"), customerID)
 		out.Phone, out.Email = str(c, "phone"), str(c, "email")
+		// Stage 85.C1: the customer's address block and GSTIN, for a tax
+		// invoice's buyer details. A walk-in's placeholder number never prints.
+		out.Address = strings.TrimSpace(strings.Join(nonEmpty(str(c, "address"), str(c, "address_line2")), ", "))
+		out.City, out.Pincode, out.State, out.StateCode = str(c, "city"), str(c, "pincode"), str(c, "state"), str(c, "state_code")
+		out.GSTIN = str(c, "gstin")
+		if str(c, "walk_in") == "Yes" {
+			out.Phone = ""
+		}
+	}
+	return out
+}
+
+func nonEmpty(vals ...string) []string {
+	out := []string{}
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			out = append(out, strings.TrimSpace(v))
+		}
 	}
 	return out
 }

@@ -7,7 +7,7 @@
 > **Generated 2026-09-10.** This page is produced from `engines`' report registry (`report_definitions.go`), for this source revision.
 > It is not release or tenant assurance. Hand edits are lost on the next run - change the source instead.
 
-Every report reachable from **Sales & Marketplace -> Reports**. There are **113**
+Every report reachable from **Sales & Marketplace -> Reports**. There are **118**
 across **15** categories.
 
 Pick one from the catalog list on that screen, fill in any parameter marked
@@ -24,16 +24,16 @@ table has the same shape whoever runs it.
 - [Admin](#admin) - 1 reports
 - [Assets](#assets) - 1 reports
 - [BI](#bi) - 1 reports
-- [CRM](#crm) - 8 reports
+- [CRM](#crm) - 9 reports
 - [Exceptions](#exceptions) - 6 reports
 - [Finance](#finance) - 30 reports
 - [HR](#hr) - 2 reports
-- [Inventory](#inventory) - 12 reports
+- [Inventory](#inventory) - 13 reports
 - [Manufacturing](#manufacturing) - 3 reports
 - [OMS](#oms) - 12 reports
 - [PIM](#pim) - 4 reports
 - [Procurement](#procurement) - 4 reports
-- [Sales](#sales) - 6 reports
+- [Sales](#sales) - 9 reports
 - [Service](#service) - 1 reports
 - [WMS](#wms) - 22 reports
 
@@ -124,6 +124,16 @@ table has the same shape whoever runs it.
 - **Churn Threshold Days (default 90)** (`churn_days`) - text, optional
 
 **Columns:** Customer · Lifetime Value *(sensitive)* · Orders · First Order · Last Order · Churned?
+
+**Drill-down:** no.
+
+### Customers Sharing a Mobile Number
+
+**Report id:** `customer-duplicate-phones`
+
+**Parameters:** none - it runs as soon as you pick it.
+
+**Columns:** Mobile *(sensitive)* · Customers · Customer codes and names
 
 **Drill-down:** no.
 
@@ -804,6 +814,18 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Stock by Location
+
+**Report id:** `stock-by-location`
+
+**Parameters:**
+
+- **Store code (blank = all)** (`store`) - text, optional
+
+**Columns:** Store · SKU · Main · Inward · In-Transit · QC Hold · Damage · On Hold · Purchase Return · Own locations · Sellable
+
+**Drill-down:** no.
+
 
 ## Manufacturing
 
@@ -1074,6 +1096,19 @@ table has the same shape whoever runs it.
 
 **Drill-down:** no.
 
+### Customer Advance Register
+
+**Report id:** `advance-register`
+
+**Parameters:**
+
+- **Store code (blank = all)** (`store`) - text, optional
+- **Open only** (`open`) - select, optional, one of: ,Yes
+
+**Columns:** Receipt voucher · Taken · Store · Customer · For · Expected · Taken · Used · Refunded · Balance · Status · Paid by
+
+**Drill-down:** no.
+
 ### Customer Ledger
 
 **Report id:** `customer-ledger`
@@ -1136,6 +1171,34 @@ table has the same shape whoever runs it.
 - **Customer** (`customer`) - text, optional
 
 **Columns:** Customer PO / Ref · Document · Number · Date · Customer · From order · Amount · Status
+
+**Drill-down:** no.
+
+### Salesman-wise Sales
+
+**Report id:** `salesman-sales`
+
+**Parameters:**
+
+- **Store code (blank = all)** (`store`) - text, optional
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Salesman · Bills · Sales
+
+**Drill-down:** no.
+
+### Tender-wise Sales
+
+**Report id:** `tender-sales`
+
+**Parameters:**
+
+- **Store code (blank = all)** (`store`) - text, optional
+- **From** (`from`) - date, optional
+- **To** (`to`) - date, optional
+
+**Columns:** Tender · Amount
 
 **Drill-down:** no.
 

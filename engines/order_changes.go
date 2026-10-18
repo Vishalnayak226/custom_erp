@@ -143,7 +143,7 @@ func reserveLineDeltaTx(tx *sql.Tx, tenantID, schema, sku, loc string, qty int, 
 	} else if err != nil {
 		return err
 	}
-	if ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held); ats < qty {
+	if ats := computeATS(atsPolicyFor(schema), available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held); ats < qty {
 		return &ValidationError{Code: "ORDERM-0469", SubFor: "qty",
 			Message: fmt.Sprintf("only %d more of %s can be reserved at %s (asked for %d)", ats, sku, loc, qty)}
 	}

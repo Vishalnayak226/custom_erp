@@ -269,6 +269,9 @@
                  a role can see none of their entries (syncFlyoutHeadings). -->
             <li><a class="menu-item" id="menu-inventory"><span>Inventory</span></a></li>
             <li><a class="menu-item" id="menu-transfers"><span>Stock Transfer</span></a></li>
+            <!-- Stage 85.B: the store's own stock locations (ERP, not WMS). -->
+            <li><a class="menu-item" id="menu-stock-moves"><span>Move Stock</span></a></li>
+            <li><a class="menu-item" id="menu-stock-locations"><span>Stock Locations</span></a></li>
             <!-- Stage 57.9 (user decision 2026-10-07): bin-to-bin moves inside one location. -->
             <li><a class="menu-item" id="menu-location-movement"><span>Location Movement</span></a></li>
             <li class="submenu-group-label" role="presentation">WMS</li>
@@ -461,6 +464,8 @@
                  placeholder="Search screens and setup lists...">
         </div>
         <div class="header-actions">
+          <!-- Stage 85.A5: the working store (view-store.js). -->
+          <div class="store-switch hidden" id="store-switch"></div>
           <!-- Stage 82: the industry is chosen in Settings → Configuration →
                Industry (org admin only), not here. -->
           <button class="btn btn-outline" id="sync-btn" title="Refresh: re-fetch labels and screen definitions, keeping everything you have open and everything cached">
@@ -715,7 +720,7 @@
   <!-- 21.14: this app's first Web Component - plain <script>, no build
        step, registers <erp-typeahead> globally before app.js runs. -->
   <script src="/components/erp-typeahead.js?v=1"></script>
-  <script src="/app.js?v=47"></script>
+  <script src="/app.js?v=48"></script>
   <!-- 31.1: QZ Tray bridge for silent printing. Loaded after app.js because
        it calls apiFetch() for the certificate and per-request signature. -->
   <script src="/qz-print.js?v=1"></script>

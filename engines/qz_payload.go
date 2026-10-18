@@ -539,7 +539,15 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 
 	location, _ := data["location"].(string)
 	paymentMode, _ := data["payment_mode"].(string)
-	customer, _ := data["customer_id"].(string)
+	// Stage 85.D1: the bill says its bill number; a sale finalised before the
+	// server issued them keeps its cart number.
+	billNo := cartNumber
+	if b, _ := data["bill_number"].(string); strings.TrimSpace(b) != "" {
+		billNo = b
+	}
+	// Stage 85.C3 (77.3): the customer's name and real number, never the code.
+	customerID, _ := data["customer_id"].(string)
+	customer := ReceiptCustomerLine(tenantID, customerID)
 	// Stage 53.12: which shop, and which company. Before this the header was
 	// the bare location code and nothing else - a customer could not tell
 	// which branch of a chain had sold to them, and it would not stand up as a
@@ -668,7 +676,7 @@ func BuildReceiptPayload(tenantID, cartNumber string, printer QZPrinter) (*QZPri
 		if store.State != "" {
 			b.WriteString(store.State + "\n")
 		}
-		b.WriteString(cartNumber + "\n")
+		b.WriteString("Bill No: " + billNo + "\n")
 		b.WriteString(createdAt.Format("02 Jan 2006 15:04") + "\n")
 		if cashier != "" {
 			b.WriteString("Cashier: " + cashier + "\n")
@@ -780,7 +788,7 @@ table{width:100%;border-collapse:collapse;} td{padding:1px 0;} td.r{text-align:r
 .total td{font-weight:700;font-size:15px;padding-top:4px;}
 </style></head><body>
 <div class="c">` + storeHeader.String() + `
-<div>` + html.EscapeString(cartNumber) + `</div>
+<div>Bill No: ` + html.EscapeString(billNo) + `</div>
 <div>` + createdAt.Format("02 Jan 2006 15:04") + `</div>` + cashierLine + customerLine + `</div><hr>
 <table>` + rows.String() + `<tr class="total"><td>TOTAL (` + html.EscapeString(paymentMode) + `)</td>
 <td class="r">` + money(totals.amountDue) + `</td></tr>` + func() string {

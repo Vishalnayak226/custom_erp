@@ -343,6 +343,10 @@ func GenerateBinPickList(tenantID, taskID string) ([]PickListLine, error) {
 
 var validBinConditions = map[string]bool{"Good": true, "Damaged": true, "QC-Hold": true, "RTV": true}
 
+// binConditionBucket is each bin condition's stock-location bucket (Stage
+// 85.B6; the master's wms_condition column says the same the other way).
+var binConditionBucket = map[string]string{"Good": "available", "Damaged": "damaged", "QC-Hold": "qc_hold", "RTV": "rtv"}
+
 // TransitionBinStockCondition (20.23) moves qty of a SKU in a bin from one
 // condition to another (Good -> Damaged/QC-Hold, QC-Hold -> Good/Damaged/RTV,
 // Damaged -> RTV, etc. - any pair is allowed, the workflow judgment of which
@@ -446,11 +450,17 @@ func TransitionBinStockConditionForOwner(tenantID, binCode, sku string, qty int,
 	} else if fromCondition != "Good" && toCondition == "Good" {
 		availabilityDelta = qty
 	}
-	if availabilityDelta != 0 {
+	// Stage 85.B6: the WMS takes its stock picture from the ERP's stock
+	// locations - a Damaged / QC-Hold / RTV bin condition IS the store's
+	// Damage / QC Hold / Purchase Return location - so the units leave one
+	// bucket and arrive in the other, instead of only leaving available and
+	// being counted nowhere.
+	if fromCondition != toCondition {
+		fromCol, toCol := binConditionBucket[fromCondition], binConditionBucket[toCondition]
 		if _, err := tx.Exec(fmt.Sprintf(
-			`UPDATE %s.inventory_availability SET available = GREATEST(0, available + $1), updated_at = CURRENT_TIMESTAMP
-			 WHERE sku = $2 AND location_code = $3`, schema),
-			availabilityDelta, sku, locationCode); err != nil {
+			`UPDATE %s.inventory_availability SET %s = GREATEST(0, %s - $1), %s = %s + $1, updated_at = CURRENT_TIMESTAMP
+			 WHERE sku = $2 AND location_code = $3`, schema, fromCol, fromCol, toCol, toCol),
+			qty, sku, locationCode); err != nil {
 			return err
 		}
 	}

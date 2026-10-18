@@ -460,7 +460,7 @@ func getStockMismatchReport(tenantID string, params map[string]string) ([]map[st
 		if err := rows.Scan(&sku, &location, &onHand, &available, &reserved, &safetyStock, &blocked, &qcHold, &damaged, &channelBuffer, &held); err != nil {
 			return nil, err
 		}
-		ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
+		ats := computeATS(atsPolicyFor(schema), available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 		if ats >= 0 {
 			continue
 		}

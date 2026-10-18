@@ -33,7 +33,7 @@ func GetCurrentStockReport(tenantID string) ([]map[string]interface{}, error) {
 			&blocked, &qcHold, &damaged, &channelBuffer, &held); err != nil {
 			return nil, err
 		}
-		sellable := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
+		sellable := computeATS(atsPolicyFor(schema), available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 		results = append(results, map[string]interface{}{
 			"sku": sku, "location_code": location, "on_hand": onHand,
 			"available": available, "available_to_sell": sellable, "committed": committed,

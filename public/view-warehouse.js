@@ -1955,7 +1955,12 @@ async function renderBinConditionsView(container) {
   `;
   container.appendChild(header);
 
-  const options = BIN_STOCK_CONDITIONS.map(c => `<option value="${c}">${c}</option>`).join('');
+  // Stage 85.B6: each condition is one of the ERP's stock locations (Stock ->
+  // Stock Locations), named the way the store names it.
+  const locRes = await apiFetch('/api/v1/stock-locations').catch(() => null);
+  const locs = locRes && locRes.ok ? ((await locRes.json().catch(() => ({}))).locations || []) : [];
+  const erpName = (c) => (locs.find(l => l.wms_condition === c) || {}).name;
+  const options = BIN_STOCK_CONDITIONS.map(c => `<option value="${c}">${c}${erpName(c) && erpName(c) !== c ? ` - ${escapeHTMLText(erpName(c))}` : ''}</option>`).join('');
   const panel = document.createElement('div');
   panel.className = 'table-panel';
   panel.style.padding = '24px';
@@ -1988,7 +1993,7 @@ async function renderBinConditionsView(container) {
       <button class="btn btn-primary" id="bincond-submit-btn" type="button">Move</button>
     </div>
     <div id="bincond-form-error" class="login-error hidden" style="margin-top: 16px;"></div>
-    <p style="margin: 12px 0 0; color: var(--text-muted); font-size: 13px;">Moving Good stock to Damaged, QC-Hold or RTV takes it out of available-to-sell at once (on hand stays the same); moving it back to Good returns it. Units reserved for an open pick cannot change condition until that pick is short-picked or rejected. In a bin shared by several 3PL owners, name the owner.</p>
+    <p style="margin: 12px 0 0; color: var(--text-muted); font-size: 13px;">Each condition is a stock location of the store (Stock &rarr; Stock Locations): moving Good stock to Damaged, QC-Hold or RTV moves it to that location at once (on hand stays the same), and it sells only if that location is marked sellable; moving it back to Good returns it to Main. Units reserved for an open pick cannot change condition until that pick is short-picked or rejected. In a bin shared by several 3PL owners, name the owner.</p>
   `;
   container.appendChild(panel);
   document.getElementById('bincond-to').value = 'Damaged';

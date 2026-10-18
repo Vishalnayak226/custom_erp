@@ -219,6 +219,14 @@ func createReturnRequestLocked(tenantID, requestType, returnLocation, originalOr
 		// than it living only in an infrastructure table.
 		"idempotency_key": claimKey,
 	}
+	// Stage 85.E4 (77.8): a bill returned at another store says where it was
+	// sold - the return is booked here (stock comes back where the goods
+	// are), and store-wise reports can still put it against the selling store.
+	var soldAt string
+	_ = tx.QueryRow(fmt.Sprintf(`SELECT COALESCE(data->>'location', '') FROM %s.documents WHERE doctype = 'POSCart' AND id = $1`, schema), prepared.originalOrderID).Scan(&soldAt)
+	if soldAt != "" {
+		doc["original_store"] = soldAt
+	}
 	// 47.4.5: an exception is recorded ON the return, not implied by its
 	// absence of a bill - so a later reviewer sees "No Receipt, authorised by
 	// X because Y", never an anomalous-looking return with no explanation.

@@ -69,6 +69,9 @@ type LiveUserState struct {
 	// when the user sets their own. apiMiddleware refuses everything but the
 	// change-password call until then.
 	MustChangePassword bool
+	// Access (Stage 85.A) is the stores this user may work at; the token's
+	// "loc" claim is honoured only while Access allows it (WorkingStore).
+	Access StoreAccess
 }
 
 type authStateEntry struct {
@@ -131,12 +134,16 @@ func ResolveLiveUserState(tenantID, userID string) (LiveUserState, error) {
 	// keeps working on a schema the Stage 57 migration has not reached yet -
 	// a missing column here would otherwise fail every session, not just one
 	// feature.
+	// store_access / stores (Stage 85.A) are read the same tolerant way.
 	var state LiveUserState
+	var storeMode, storesJSON string
 	err = db.DB.QueryRow(fmt.Sprintf(
 		`SELECT role, location_code, credential_version,
-		        COALESCE((to_jsonb(u)->>'must_change_password')::boolean, FALSE)
+		        COALESCE((to_jsonb(u)->>'must_change_password')::boolean, FALSE),
+		        COALESCE(to_jsonb(u)->>'store_access', 'Inherit'),
+		        COALESCE((to_jsonb(u)->'stores')::text, '[]')
 		   FROM %s.users u WHERE id = $1 AND status = 'Active'`, schema),
-		userID).Scan(&state.Role, &state.LocationCode, &state.CredentialVersion, &state.MustChangePassword)
+		userID).Scan(&state.Role, &state.LocationCode, &state.CredentialVersion, &state.MustChangePassword, &storeMode, &storesJSON)
 
 	switch {
 	case err == sql.ErrNoRows:
@@ -157,6 +164,8 @@ func ResolveLiveUserState(tenantID, userID string) (LiveUserState, error) {
 		cacheAuthState(key, LiveUserState{}, ttl)
 		return LiveUserState{}, errUserNotActive
 	}
+
+	state.Access = loadStoreAccess(schema, state.Role, state.LocationCode, storeMode, storesJSON)
 
 	cacheAuthState(key, state, ttl)
 	return state, nil
@@ -186,6 +195,19 @@ func IsUserNotActiveError(err error) bool { return errors.Is(err, errUserNotActi
 func InvalidateLiveUserState(tenantID, userID string) {
 	authStateMu.Lock()
 	delete(authStateCache, tenantID+"|"+userID)
+	authStateMu.Unlock()
+}
+
+// InvalidateLiveUserStatesForTenant drops every cached user of one tenant -
+// for a change (a role's store access) that reaches all holders of a role.
+func InvalidateLiveUserStatesForTenant(tenantID string) {
+	prefix := tenantID + "|"
+	authStateMu.Lock()
+	for key := range authStateCache {
+		if strings.HasPrefix(key, prefix) {
+			delete(authStateCache, key)
+		}
+	}
 	authStateMu.Unlock()
 }
 

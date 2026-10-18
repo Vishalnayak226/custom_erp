@@ -573,6 +573,13 @@ func ReceiveTransferOrderLines(tenantID, transferOrderID, userID string, req Tra
 				sku, toWarehouse, p.toOnHand, p.toAvail, p.toDamaged); err != nil {
 				return nil, err
 			}
+			// Stage 85.B4: received good stock lands in Transfer In's
+			// default location (Main unless the client chose otherwise).
+			if p.toAvail > 0 {
+				if err := applyReceiptDefaultTx(tx, schema, "Transfer In", toWarehouse, []PostedStockLine{{SKU: sku, Qty: p.toAvail}}); err != nil {
+					return nil, err
+				}
+			}
 		}
 		for _, sm := range p.serials {
 			docID, _, err := lockSerialTx(tx, schema, sku, sm.serial)

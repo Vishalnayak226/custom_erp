@@ -110,6 +110,9 @@ func handleIssueGiftCard(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
+	if !requireStoreAccess(w, r, req.Location) {
+		return
+	}
 	sessionID, err := engines.GetOpenSessionForCashier(tenantID, req.Location, cashier)
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, "Failed to check cashier session")

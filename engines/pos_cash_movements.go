@@ -38,7 +38,13 @@ type POSSessionCash struct {
 	PaidIn      float64 `json:"paid_in"`
 	PaidOut     float64 `json:"paid_out"`
 	SafeDrops   float64 `json:"safe_drops"`
-	Expected    float64 `json:"expected_cash"`
+	// Stage 85.D3: customer advances taken and refunded in cash here.
+	AdvancesIn  float64 `json:"advances_in"`
+	AdvancesOut float64 `json:"advances_out"`
+	// Tenders (Stage 85.E5) is what the session's bills took by tender, so
+	// the close shows card and UPI beside the counted cash.
+	Tenders  map[string]float64 `json:"tenders"`
+	Expected float64            `json:"expected_cash"`
 }
 
 // SessionCashPosition reads one session's drawer, every figure from the
@@ -69,7 +75,11 @@ func SessionCashPosition(tenantID, sessionID string) (*POSSessionCash, error) {
 	}
 	out.PaidIn, out.PaidOut, out.SafeDrops = moves[CashPaidIn], moves[CashPaidOut], moves[CashSafeDrop]
 	out.CashSales = round2(out.CashSales)
-	out.Expected = round2(out.Opening + out.CashSales - out.CashRefunds + out.PaidIn - out.PaidOut - out.SafeDrops)
+	out.AdvancesIn, out.AdvancesOut = sessionAdvanceCash(schema, sessionID)
+	if t, terr := TenderTotals(tenantID, sessionID, "", "", ""); terr == nil {
+		out.Tenders = t
+	}
+	out.Expected = round2(out.Opening + out.CashSales - out.CashRefunds + out.PaidIn - out.PaidOut - out.SafeDrops + out.AdvancesIn - out.AdvancesOut)
 	return out, nil
 }
 

@@ -82,7 +82,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference-2.html",
-      "sha256": "c96d15de841306d26516d37f788e97d74ea707ae06f24509ce2b4e66017f1654",
+      "sha256": "6d867ddb1bf90b522e5d6409736ef25793118b33a67f9f9c41c8bcf369356a8a",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -91,7 +91,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference.html",
-      "sha256": "6a0d457637489246dcd41eb085d66c15e247b2af595fffc4147fe8d73a711af7",
+      "sha256": "c7fb2994f4a46de050b47b95777534ffb4fdc4f28f4d28343e8a09485003e9c7",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -190,7 +190,7 @@
     },
     {
       "path": "internal/kb/content/articles/inventory-wms-operations.html",
-      "sha256": "9f23fca59e327e9d9d8288af0f577e40ef1c6b9759e636bcb7dbe498aecafeba",
+      "sha256": "47b4664d0193c068edfcb3dbfaf990de07573b32bb516a0cd6a24a16622c62fd",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -361,7 +361,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "70a9d58118afba6d13b407ea9f9b505e6ba5f726301d2a609785ffc8d761197b",
+      "sha256": "7496cb502b52f2eeec2ec58d24a1650431fcff7296de21bcd1dc6d655838e149",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -370,7 +370,7 @@
     },
     {
       "path": "internal/kb/content/articles/report-catalog.html",
-      "sha256": "4caea5f671f859d628b824900d9fd36dfca1db7ffe7479cb8adeed059797b90e",
+      "sha256": "f45bcd2ee8b9131d617f85b32b7932df0035b7f9af116be28d30f15c0f8d5dd6",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -478,7 +478,7 @@
     },
     {
       "path": "internal/kb/content/index.json",
-      "sha256": "2e784eb0496ec12e02c6b49c6ec1bee56c3d93aa5eee40ccc196e0f9c67d12cd",
+      "sha256": "44d34af1f9300a35f04a63ec0439e03b09a255e9df22de4056a811a43686a4cd",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -487,7 +487,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "30619251c62534bbd139141c73516461e28c5439c38a0dcf445900471da8ee62",
+      "sha256": "30efb5e5a37b3caa8101e19d6f7bb50e50da6e3d06d94ee6cc05377cba9839f2",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

@@ -5,7 +5,7 @@ order: 20
 summary: Receive stock against a PO, put it away, pick and pack it back out, count it, adjust it, and move it between locations — the floor-ops backbone every other WMS feature sits on top of.
 audience: warehouse operator, warehouse manager, admin
 last_verified: 2026-09-03
-screens: [grn, rf-receiving, putaway, wave-picking, cycle-count, transfers, warehouse-cockpit, inventory, module:inventory, reports]
+screens: [grn, rf-receiving, putaway, wave-picking, cycle-count, transfers, warehouse-cockpit, inventory, stock-locations, stock-moves, module:inventory, reports]
 doc_id: DOC-79A300F5E0
 type: procedure
 status: draft
@@ -390,6 +390,33 @@ Damaged quantities) and the batch expiry sweep's quarantine move both write
 into — see
 [Batch, Serial & Expiry Traceability](traceability-batch-serial.md) for how
 an expired lot ends up in `QC-Hold` automatically.
+
+## Stock locations inside a store (ERP, not WMS)
+
+Every store's stock also sits in named **stock locations**: **Main** (the
+selling floor), **Inward**, **In-Transit**, **QC Hold**, **Damage**, **On
+Hold**, **Purchase Return**, and any the business adds (an *Alteration* rack,
+say). They belong to the ERP, so a client without WMS has them too. WMS reads
+them: a bin's condition Good / Damaged / QC-Hold / RTV is the store's Main /
+Damage / QC Hold / Purchase Return, and changing a bin's condition moves the
+units into that location.
+
+- **Stock → Stock Locations** (Super Admin) has three tabs. **Locations**:
+  each one's name, whether it sells, which kinds of store use it, and whether
+  new stores get it. **Stores**: which locations each store uses.
+  **Transactions**: where a Goods Receipt or Transfer In lands (e.g. Inward)
+  and where a damage move goes. Main always sells; QC Hold and Damage sell
+  only when you mark them; the others never do. A location still holding
+  stock cannot be switched off (`STKLOC-0861`).
+- **Stock → Move Stock** moves an item between two locations of one store:
+  **+ New Move**, then the item, quantity, From, To and a reason. Each move is
+  a **Stock Move** document (series `SM`) and moves the stock in the same
+  step. Stock Move records cannot be made any other way (`STKLOC-0865`), and a
+  move larger than the From location holds is refused (`STKLOC-0864`).
+- **What can be sold** (the till, the online channels, sourcing, reports and
+  the public API) is Main, plus QC Hold / Damage when they are marked to
+  sell. **Reports → Stock by Location** shows every store location by
+  location.
 
 ## Transfers (Stock Transfer)
 

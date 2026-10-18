@@ -222,16 +222,20 @@ func TestEngines(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Failed to fetch available to sell stock post bucket update: %v", err)
 		}
-		if atsResBuckets["ats"].(int) != 6 {
-			t.Errorf("Expected ATS to reduce to 6 (10 - 1 - 1 - 1 - 1 across the 4 new buckets), got: %v", atsResBuckets)
+		// Stage 85.B3: Blocked and the channel buffer are inside available and
+		// come off it; QC Hold and Damage are pools OUTSIDE available (every
+		// writer keeps them there), so they are not subtracted a second time -
+		// they count only when the client marks them sellable.
+		if atsResBuckets["ats"].(int) != 8 {
+			t.Errorf("Expected ATS 8 (15 - reserved 5 - blocked 1 - channel buffer 1; QC Hold / Damage are not part of available), got: %v", atsResBuckets)
 		}
 
-		bestNode, err := FindBestFulfillmentNode(tenantID, []map[string]interface{}{{"sku": sku, "qty": 7}})
+		bestNode, err := FindBestFulfillmentNode(tenantID, []map[string]interface{}{{"sku": sku, "qty": 9}})
 		if err != nil {
 			t.Fatalf("Failed to resolve fulfillment node: %v", err)
 		}
 		if bestNode != "HO" {
-			t.Errorf("Expected sourcing to fall back to HO once ATS (6) can't cover the requested qty (7) at %s, got node: %s", location, bestNode)
+			t.Errorf("Expected sourcing to fall back to HO once ATS (8) can't cover the requested qty (9) at %s, got node: %s", location, bestNode)
 		}
 	})
 

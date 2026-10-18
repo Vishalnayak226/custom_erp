@@ -248,6 +248,30 @@ func registerStage282Settings() {
 		},
 		Description: "Where a POS line's price comes from. In both modes a price the server can resolve (price list, or the item's Sale Price/MRP) overrides anything the till sends. Strict additionally refuses to sell an item nothing on the server prices.",
 	})
+	// Stage 85.C4: high-value bills. Blank = the home country's rule
+	// (engines/pos_customers.go countryHighValueDefaults); 0 = no rule.
+	// Stage 85.E7: a bill discount above this % needs the cashier's reason.
+	RegisterSetting(SettingDefinition{
+		Key: "pos.manual_discount.reason_above_pct", Module: "Point of Sale",
+		Label: "Discount needs a reason above", Type: SettingTypeFloat, Default: "5", Unit: "%",
+		Min:         settingBound(0),
+		Description: "A bill discount the cashier gives above this percentage needs a reason, printed nowhere and kept on the bill. Above an approval slab (Approval Rules, POSCart) it also waits for a manager, as before.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "pos.high_value.address_from", Module: "Point of Sale",
+		Label: "Buyer's address needed from (bill total)", Type: SettingTypeString, Default: "",
+		Description: "A bill of this total or more needs the buyer's address before it completes. Blank uses your country's rule (India: 50,000 to a buyer with no GSTIN, CGST Rule 46(e); UK and Germany: 250; UAE: 10,000). 0 turns it off.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "pos.high_value.pan_above", Module: "Point of Sale",
+		Label: "PAN needed above (bill total)", Type: SettingTypeString, Default: "",
+		Description: "A bill above this total needs the buyer's PAN, or a signed Form 97 when they have none. Blank uses your country's rule (India: 2,00,000, Income-tax Rules r.159). 0 turns it off.",
+	})
+	RegisterSetting(SettingDefinition{
+		Key: "pos.high_value.cash_limit", Module: "Point of Sale",
+		Label: "Cash refused from (per bill)", Type: SettingTypeString, Default: "",
+		Description: "Cash of this much or more on one bill is refused; the rest is taken by card or UPI. Blank uses your country's rule (India: 2,00,000, s.269ST). 0 turns it off.",
+	})
 	RegisterSetting(SettingDefinition{
 		Key: "pos.default_price_list", Module: "Point of Sale",
 		Label: "Default price list", Type: SettingTypeString, Default: "",

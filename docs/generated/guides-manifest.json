@@ -23,7 +23,7 @@
     },
     {
       "path": "docs/data/generated/dictionary.json",
-      "sha256": "7848bc321c23f7082bc829881bc44148abc65f03dd40abcb5d586b9882a83f4f",
+      "sha256": "12c0bb98a97422e556f3fd329660fae9647153a9c7364dba343a615f859a2eaa",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -49,7 +49,7 @@
     },
     {
       "path": "docs/guides/ERROR_CODES.md",
-      "sha256": "725584ef9477b2002eb26c014d382a23fcc5f6425eb03ebb4b984beaf1d294fb",
+      "sha256": "ec301c66d56241cdf8a030d4b5a4c0a393221358f5786583b395f6dd8a02bba8",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -62,7 +62,7 @@
     },
     {
       "path": "docs/guides/REPORT_CATALOG.md",
-      "sha256": "1ea1aeb66eb2c93e22ad46d2a884ccab58a32b7f98a1c9a752b66e2474ea1894",
+      "sha256": "f267ce9df9cc06f98794370944e8de9c43956c6af4b3e4e09dbae91b47536f1a",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -88,7 +88,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes.md",
-      "sha256": "6eb01c041ba84aacda722aa4536a97338f8cf151f7dd260c9d1707e6d81361e8",
+      "sha256": "9a90d9c116de14c9507fe6433a403e599a32544bc5aaffb95d8c2aa31db9eff2",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -101,7 +101,7 @@
     },
     {
       "path": "docs/kb/reference/report-catalog.md",
-      "sha256": "8dc87581c3125992a8f42b388c5a5a8953ba493c93fe0c1b450d2b8de2fbbf7a",
+      "sha256": "2058837c84f9796fef101d390cd10722dc7c1a63e2f8c176c98171eb336adae3",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -114,7 +114,7 @@
     },
     {
       "path": "docs/kb/troubleshooting/error-code-reference-2.md",
-      "sha256": "ec6c18b33cf89a92efc542c41518a7703037959824727d86d195c85e14ebf2c9",
+      "sha256": "90d6064dd2a905a115bb34ae3a9debae66d1a6f41d9dd7e0732b111c55451102",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -127,7 +127,7 @@
     },
     {
       "path": "docs/kb/troubleshooting/error-code-reference.md",
-      "sha256": "0b73f9c027aeec329ce03caf34806cdeae0dc32db41c4af1e964a3ba51904871",
+      "sha256": "7574e91e71f2a1dcbe3842aa9ba1bf4d94791e3ab1e972a44f8a1f04b6b7a43b",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

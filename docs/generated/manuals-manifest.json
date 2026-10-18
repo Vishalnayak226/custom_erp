@@ -21,7 +21,7 @@
     },
     {
       "path": "docs/user/user-manual.html",
-      "sha256": "d83459bfd6b9656251d7f8525d592c4bf349d3f68b139f9b9b911ac7d52dbcd5",
+      "sha256": "e4cf6e4ce0d937f7227aec0b0e5443423305e1dc58331065c875968dd54fc377",
       "sources": [
         "docs/governance/manual-selection.json",
         "docs/kb/**/*.md",

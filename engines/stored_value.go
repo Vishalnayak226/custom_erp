@@ -693,6 +693,13 @@ func redeemGiftCardTendersTx(tx *sql.Tx, schema, tenantID, cartNumber, location,
 			"", fmt.Sprintf("POSCart:%s:GIFTCARD:%s", cartNumber, t.InstrumentID)); err != nil {
 			return err
 		}
+		// Stage 85.D3: a customer advance for services paid its GST when it
+		// was taken; the bill charges the full tax, so that part comes back.
+		if c.Profile == AdvanceProfileID {
+			if err := postAdvanceTaxOnUseTx(tx, tenantID, schema, cartNumber, t.InstrumentID, t.AmountPaise); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

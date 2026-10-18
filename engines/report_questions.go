@@ -37,15 +37,20 @@ var reportQuestions = map[string]reportQuestion{
 	"payroll-reconciliation":  {"Does payroll agree from gross pay to the bank and the ledger?", "Payslip gross, deductions and net against the GL, salary paid, and payments confirmed on the bank statement."},
 
 	// Selling.
-	"sales-register":          {"What did we sell at the till?", "Paid and settled POS sales with their total; control totals tie them to revenue and output GST."},
-	"customer-lifetime-value": {"Which customers are worth the most?", "Spend and visits per customer over their history."},
-	"rfm-segmentation":        {"Which customers are loyal, lapsing or new?", "Recency, frequency and spend scores per customer."},
-	"points-liability":        {"What do we owe in loyalty points?", "Unredeemed points per customer at their redemption value."},
-	"loyalty-summary":         {"How are points being earned and used?", "Earned, redeemed and balance per customer."},
-	"campaign-roi":            {"Did this campaign pay off?", "Campaign spend against the sales it drove."},
+	"sales-register":            {"What did we sell at the till?", "Paid and settled POS sales with their total; control totals tie them to revenue and output GST."},
+	"customer-lifetime-value":   {"Which customers are worth the most?", "Spend and visits per customer over their history."},
+	"rfm-segmentation":          {"Which customers are loyal, lapsing or new?", "Recency, frequency and spend scores per customer."},
+	"points-liability":          {"What do we owe in loyalty points?", "Unredeemed points per customer at their redemption value."},
+	"loyalty-summary":           {"How are points being earned and used?", "Earned, redeemed and balance per customer."},
+	"tender-sales":              {"How was the money taken?", "Paid bills by the store's own tenders (Cash, HDFC Card, Paytm...) for a store and dates."},
+	"salesman-sales":            {"Who sold what?", "Paid bills and sales per salesman for a store and dates."},
+	"advance-register":          {"What do we owe customers in advances?", "Every advance taken at the till - used, refunded and what is still owed (2640 Customer Advance Liability)."},
+	"customer-duplicate-phones": {"Which customers share one mobile number?", "Customers on file before the one-number-one-customer rule; merge them from the Customer master."},
+	"campaign-roi":              {"Did this campaign pay off?", "Campaign spend against the sales it drove."},
 
 	// Stock.
 	"current-stock":            {"How much do we have, and where?", "On hand, available, committed and reserved per item and location."},
+	"stock-by-location":        {"What sits in each location of each store, and what can be sold?", "Main, Inward, In-Transit, QC Hold, Damage, On Hold, Purchase Return and your own locations per item and store, with the sellable figure."},
 	"inventory-valuation":      {"What is our stock worth?", "On-hand quantity at moving average cost; control totals tie it to 1200 Inventory Control."},
 	"non-valuated-stock":       {"Which stock has no cost on record?", "Items with stock but no unit cost - valued at zero until costed."},
 	"stock-ledger":             {"What moved in and out of stock?", "Every stock movement with its source document."},

@@ -52,7 +52,9 @@ export const TRANSACTIONS = [
   { key: 'GRNVendorCopy', label: 'Vendor Copy (goods receipt acknowledgement)', doctype: 'GRN' },
   { key: 'PurchaseReturn', label: 'Purchase Return (return to vendor)', doctype: 'PurchaseReturn' },
   { key: 'CreditNote', label: 'Credit Note (to customer)', doctype: 'CreditNote' },
-  { key: 'SalesReturn', label: 'Sales Return', doctype: 'ReturnRequest' }
+  { key: 'SalesReturn', label: 'Sales Return', doctype: 'ReturnRequest' },
+  // Stage 85.D2: a till sale to a GSTIN buyer.
+  { key: 'POSTaxInvoice', label: 'Tax Invoice (GST bill from the till)', doctype: 'POSCart' }
 ];
 export const txnLabel = (k) => (TRANSACTIONS.find(t => t.key === k) || {}).label || k;
 
@@ -132,6 +134,7 @@ const TXN_COLUMNS = {
   TransferIn: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode / Combination', 20), col('description', 'Description', 36), col('shipped_qty', 'Shipped Qty', 11), col('received_qty', 'Received Qty', 11), col('short_qty', 'Short', 9), col('reason', 'Reason', 22)],
   DebitNote: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Item', 15), col('hsn_code', 'HSN', 8), col('description', 'Description / Reason', 28), col('original_taxable', 'Original Taxable', 13), col('taxable', 'Debit Taxable', 13), col('cgst', 'CGST', 10), col('sgst', 'SGST', 10), col('igst', 'IGST', 10), col('amount', 'Debit Total', 13)],
   CreditNote: [col('sr', 'Ln', 5, { align: 'center' }), col('description', 'Description / Reason', 120), col('amount', 'Credit Amount', 30)],
+  POSTaxInvoice: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Item / Barcode', 16), col('description', 'Description', 30), col('hsn_code', 'HSN', 9), col('qty', 'Qty', 7), col('rate', 'Rate (incl. GST)', 12), col('discount', 'Discount', 10), col('taxable', 'Taxable', 12), col('gst_rate', 'GST %', 7), col('amount', 'Amount', 13)],
   SalesReturn: [col('sr', 'Ln', 4, { align: 'center' }), col('item_code', 'Barcode', 16), col('description', 'Item / Description', 28), col('original_qty', 'Original Qty', 9), col('return_qty', 'Return Qty', 9), col('mrp', 'MRP', 11), col('original_disc', 'Original Disc.', 11), col('tax', 'Tax', 10), col('amount', 'Refund Value', 13), col('condition', 'Condition', 12)]
 };
 TXN_COLUMNS.VendorCreditNote = TXN_COLUMNS.DebitNote.map(c => ({ ...c,
@@ -148,6 +151,7 @@ const TXN_INFO = {
   TransferIn: [['Master transfer order: {number}', 0, 0], ['Receipt status: {fields.receipt_status}', 1, 0], ['Transfer type: {fields.supply_type}', 0, 1], ['Stock status after posting: {fields.stock_status_after}', 1, 1]],
   DebitNote: [['Original invoice no.: {fields.original_invoice_no}', 0, 0], ['Original invoice date: {fields.original_invoice_date|date}', 1, 0], ['Against GRN: {fields.grn_id}', 0, 1], ['PO: {fields.po_numbers}', 1, 1], ['Document direction: {fields.document_direction}', 0, 2], ['Place of supply: {fields.place_of_supply}', 1, 2], ['Reason: {fields.reason}', 2, 3]],
   CreditNote: [['Original invoice no.: {fields.original_invoice_no}', 0, 0], ['Original invoice date: {fields.original_invoice_date|date}', 1, 0], ['Reason: {fields.reason}', 2, 1]],
+  POSTaxInvoice: [['Buyer GSTIN: {fields.buyer_gstin}', 0, 0], ['Place of supply: {fields.place_of_supply}', 1, 0], ['Supply: {fields.supply_type} · Reverse charge: {fields.reverse_charge}', 0, 1], ['Payment: {fields.payment_mode}', 1, 1]],
   SalesReturn: [['Original bill no.: {fields.original_order}', 0, 0], ['Original bill date: {fields.original_invoice_date|date}', 1, 0], ['Refund method: {fields.refund_method}', 0, 1], ['Refund no.: {fields.refund_no}', 1, 1], ['Return type: {fields.return_type}', 0, 2]]
 };
 TXN_INFO.VendorPO = TXN_INFO.PurchaseOrder;
@@ -166,6 +170,7 @@ const TXN_TOTALS = {
   DebitNote: [tot('taxable', 'Taxable amount debited'), tot('tax', 'Tax debited'), tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'Total debit note', { strong: true })],
   VendorCreditNote: [tot('taxable', 'Taxable amount credited'), tot('tax', 'Tax credited'), tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'Total credit note', { strong: true })],
   CreditNote: [tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'Total credit note', { strong: true })],
+  POSTaxInvoice: [tot('taxable', 'Taxable value'), ...TAX_ROWS, tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'Invoice total', { strong: true })],
   SalesReturn: [tot('taxable', 'Return subtotal'), tot('tax', 'Tax reversal'), tot('round_off', 'Round off', { hideZero: true }), tot('grand_total', 'Net refund / credit', { strong: true })]
 };
 TXN_TOTALS.VendorPO = TXN_TOTALS.PurchaseOrder;
@@ -178,7 +183,8 @@ const TXN_SIGNATURES = {
   TransferOut: ['Picked / Packed By', 'Dispatched By', 'Transporter / Handover'],
   TransferIn: ['Received By', 'Verified By', 'Posted / Approved By'],
   DebitNote: ['Prepared By', 'Approved By', 'Authorised Signatory'],
-  SalesReturn: ['Processed By', 'Verified / Approved By', 'Customer Acknowledgement']
+  SalesReturn: ['Processed By', 'Verified / Approved By', 'Customer Acknowledgement'],
+  POSTaxInvoice: ['Prepared By', "Customer's Signature", 'Authorised Signatory']
 };
 TXN_SIGNATURES.VendorPO = TXN_SIGNATURES.PurchaseOrder;
 TXN_SIGNATURES.VendorCreditNote = TXN_SIGNATURES.CreditNote = TXN_SIGNATURES.DebitNote;
@@ -192,7 +198,7 @@ const TXN_NOTE = {
 };
 
 export function defaultLayout(txn) {
-  const blockTitle = { PurchaseOrder: 'Bill to', VendorPO: 'Bill to', GRN: 'Received at', GRNVendorCopy: 'Received at', PurchaseReturn: 'Dispatched from', TransferOut: 'From location', TransferIn: 'To location', DebitNote: 'Issuer', VendorCreditNote: 'Issuer', CreditNote: 'Issuer', SalesReturn: 'Store' }[txn] || 'From';
+  const blockTitle = { PurchaseOrder: 'Bill to', VendorPO: 'Bill to', GRN: 'Received at', GRNVendorCopy: 'Received at', PurchaseReturn: 'Dispatched from', TransferOut: 'From location', TransferIn: 'To location', DebitNote: 'Issuer', VendorCreditNote: 'Issuer', CreditNote: 'Issuer', SalesReturn: 'Store', POSTaxInvoice: 'Supplier' }[txn] || 'From';
   const E = (o) => ({ id: newElementId(), fontSize: 9, align: 'left', pages: 'first', ...o });
   const info = TXN_INFO[txn] || [];
   const infoRows = info.reduce((n, i) => Math.max(n, i[2] + 1), 0);
@@ -308,8 +314,10 @@ function tableRowsHTML(el, lines) {
 function taxSummaryHTML(el, ctx) {
   const rows = ctx.tax_summary || [];
   const inter = !!ctx.interstate;
-  const head = inter ? ['GST %', 'Taxable', 'IGST', 'Total tax'] : ['GST %', 'Taxable', 'CGST', 'SGST', 'Total tax'];
-  const body = rows.map(r => `<tr><td>${formatValue(r.gst_rate, 'percent')}</td><td class="num">${formatValue(r.taxable, 'money')}</td>${inter ? `<td class="num">${formatValue(r.igst, 'money')}</td>` : `<td class="num">${formatValue(r.cgst, 'money')}</td><td class="num">${formatValue(r.sgst, 'money')}</td>`}<td class="num">${formatValue(r.tax, 'money')}</td></tr>`).join('');
+  // Stage 85.D2: a tax invoice's summary is HSN-wise.
+  const hsn = rows.some(r => r.hsn_code !== undefined);
+  const head = (hsn ? ['HSN'] : []).concat(inter ? ['GST %', 'Taxable', 'IGST', 'Total tax'] : ['GST %', 'Taxable', 'CGST', 'SGST', 'Total tax']);
+  const body = rows.map(r => `<tr>${hsn ? `<td>${esc(r.hsn_code || '-')}</td>` : ''}<td>${formatValue(r.gst_rate, 'percent')}</td><td class="num">${formatValue(r.taxable, 'money')}</td>${inter ? `<td class="num">${formatValue(r.igst, 'money')}</td>` : `<td class="num">${formatValue(r.cgst, 'money')}</td><td class="num">${formatValue(r.sgst, 'money')}</td>`}<td class="num">${formatValue(r.tax, 'money')}</td></tr>`).join('');
   return `<table class="tdp-table tdp-tax"><thead><tr>${head.map((h, i) => `<th${i ? ' class="num"' : ''}>${h}</th>`).join('')}</tr></thead><tbody>${body || `<tr><td colspan="${head.length}">No tax</td></tr>`}</tbody></table>`;
 }
 

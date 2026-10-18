@@ -16,12 +16,20 @@ import (
 func TestStage555ShortageRefusalThenCorrectedCartCompletes(t *testing.T) {
 	f := newPOSPricingFixture(t, 250)
 	cart := "P555SHORT-" + f.suffix
+	// Stage 85.C4: 600 x 250 is a 1,50,000 bill, which needs a buyer with an
+	// address (CGST Rule 46(e)) before the shortage is even reached.
+	customer := "P555CUST-" + f.suffix
+	if _, err := db.DB.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'Customer', $2, 'Active', 'system')`, f.schema),
+		customer, `{"name": "P555 Buyer", "address": "1 Test Road", "city": "Pune", "state": "Maharashtra"}`); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() {
 		db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.command_idempotency WHERE idempotency_key LIKE $1`, f.schema), "%"+cart)
+		db.DB.Exec(fmt.Sprintf(`DELETE FROM %s.documents WHERE id = $1`, f.schema), customer)
 	})
 	sale := func(qty int) (int, map[string]interface{}) {
 		return f.checkout(f.cashierToken, map[string]interface{}{
-			"cart_number": cart, "location": f.location, "payment_mode": "Cash",
+			"cart_number": cart, "location": f.location, "payment_mode": "Cash", "customer_id": customer,
 			"items": []map[string]interface{}{{"sku": f.sku, "qty": qty}},
 		})
 	}

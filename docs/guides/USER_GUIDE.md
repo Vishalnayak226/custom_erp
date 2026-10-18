@@ -180,7 +180,7 @@ The POS till is the exception: it opens ready to sell, and its **Sale** / **Retu
 | **Sales & Marketplace** | Order Management · Fulfillment · Marketplace · Customer |
 | **Reports** | Opens directly (§9). Its first tab is a dashboard of live figures. |
 | **Procurement** | Purchase Requisitions · Purchase Order (§6) · ASN · **Goods Receipt** · **Purchase Return** (§6.5) · Vendors · RFQ / Quotes |
-| **Stock** | Inventory (§5) · Stock Transfer (§7), then under the **WMS** heading every warehouse-operations screen: Bin · Putaway · Warehouse Cockpit · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · RF Lot & Serial · Cycle Count · Dock Doors · Appointment Calendar · Yard Board · Trailers · Holds · Cross-Dock Plans · RF Receiving · Waves · Sortation · Loading · Sticker Printing (§7A) |
+| **Stock** | Inventory (§5) · Stock Transfer (§7) · Move Stock · Stock Locations, then under the **WMS** heading every warehouse-operations screen: Bin · Putaway · Warehouse Cockpit · Bin Conditions · LPN / Cartons / Pallets · Bin Replenishment · Wave / Batch Picking · Mobile Picking · RF Lot & Serial · Cycle Count · Dock Doors · Appointment Calendar · Yard Board · Trailers · Holds · Cross-Dock Plans · RF Receiving · Waves · Sortation · Loading · Sticker Printing (§7A) |
 | **HRM** | HR · Fixed Assets (§6.7) · Expenses |
 | **Manufacturing** | Opens directly. |
 | **PIM** | Opens directly. |
@@ -211,6 +211,8 @@ Home is where you land right after signing in (and the "Home" link at the top of
 
 From your second visit onward you land back on whichever screen you were last using instead of Home, so you can pick up where you left off — click **Home** in the sidebar any time you want to return to it on purpose.
 
+**The store you are working at is at the top right**, beside Refresh. Everything you do — a sale, a purchase order, a transfer — is done at that store, and the lists you see are its records. If you have been given more than one store, click it and pick another (type to find it in a long list); the screen reloads for that store. With a till session open you cannot switch until you close it. Which stores you can pick is set by an administrator (Users → Stores, Roles → Stores).
+
 > **If you are a supplier**, your account is deliberately narrow: you sign in to the same app as everyone else, but the only screen you can reach is **Supplier Submissions**, and within it you see only the submissions filed under your own company — never another supplier's. Fill in the product details you want to propose (the product, the language, a title, and whatever descriptions, tags or image URL you have), save it, then use **Submit for Approval**. A reviewer at the company approves or rejects it; a rejection always carries a written reason, which you can read on the submission itself. Approved text does **not** go live automatically — it becomes a draft that the company still reviews and publishes on its own schedule. If the app tells you your account is not linked to a vendor yet, that's a setup step your contact at the company needs to finish.
 
 **Two search boxes, and they do different things:**
@@ -235,17 +237,18 @@ This is the screen a cashier uses most.
 
 > **Before your first sale — three things must already exist.** Skip any of them and the sale will be refused, with an error that only makes sense once you know this list.
 >
-> 1. **A Location you are allowed to sell from.** Setup → Core → **Location**, with **Sellable = Yes**. A location with **Sellable = No** — a back warehouse, a head office — will not appear in the till's **Store** box at all, and both opening a session and completing a sale there are refused. See §4.0.
+> 1. **A store you are allowed to sell from.** Setup → Core → **Location**, with **Sellable = Yes**, and given to you (an administrator does that in **Users → Stores**, or on your role in **Roles → Stores**). The till always sells from the store shown at the **top of the screen** (§4.0). A location with **Sellable = No** — a back warehouse, a head office — cannot open a session or complete a sale.
 > 2. **At least one Item, with its HSN Code and GST Rate filled in.** Setup → Inventory → **Item**. Both tax fields are required and the system will not let you save without them, because it cannot price a sale it can't tax. (If the item genuinely isn't taxed — produce, unbranded grain, exports — set its **Tax Treatment** instead of entering a 0 rate; see §9 Step 3.) Stock also has to exist: an Item on its own has a quantity of zero until a **Goods Receipt** brings some in (§6).
 > 3. **An open cashier session at that store.** This is the one people miss. Checkout refuses with *"Cash opening is required before billing"* until a session is open. Opening one is step 3 below.
 
 ### 4.0 Open the till for the shift
 
 1. Click **POS / Billing** (under the **POS** module).
-2. If your user is set up at a shop, **Store** already shows it when the till opens. Otherwise, or to sell from another shop, start typing the shop's **name** into **Store** and pick it from the list (the code and short code work too, if that is what you know it by). The session line just under the screen's title bar shows whether a session is open there.
+2. **Check the store at the top right of the screen** (beside Refresh). It is the store you are working at, and the till sells from it. If you work at more than one store, click it and pick the shop from the list (type to find it). If you have only one, it is simply shown. The session line under the till's title bar names the store and says whether a session is open there.
+   - **The shop you expect is not in the list?** Either you have not been given it (ask an administrator to add it in **Users → Stores**), or it is not a selling store (**Sellable = No** on its Location) — the session line then says *"… is not a selling store"*.
    - **Only sellable locations appear here.** If the shop you expect is missing, it is almost certainly set to **Sellable = No** on its Location record — ask an administrator to change it. This is deliberate: it is what stops a sale being rung up against a warehouse or head office by accident.
 3. If the session line says *"No open session … open one before selling"*, click **Open Session**, type the **cash physically in the till right now**, and confirm. The bar changes to *"Session open at …"*.
-4. **The till is now bound to that store.** The **Store** box goes read-only and shows *"Bound to … for this session"* underneath. This is on purpose — it means you cannot drift onto another shop's stock halfway through a shift. To change it, see **Reset Terminal** in §4.5.
+4. **While your session is open you stay at that store.** Switching store at the top is refused with *"Your till session is still open at this store"* — close the session first. This stops a till drifting onto another shop's stock mid-shift.
 5. At the end of the shift, click **Close Session** and enter the cash you counted. The system shows what it expected, what you counted, and the difference.
    - **If the count is off by more than the allowed amount** (₹50 unless your administrator changed it), the till says by how much and asks **why**. Type the reason. The session then waits for a **Store Manager** to accept it under **Approvals** — nothing more can be sold on it meanwhile. If the manager rejects it, the session opens again so you can recount and close once more.
 
@@ -265,22 +268,31 @@ You open a session once per shift, not once per sale.
 
 ### 4.1 Ring it up
 
-1. **Scan it, or search for it — same box.** Point the scanner at the barcode and it rings straight up, no extra keypress. If you have no barcode, type part of the **product's name** instead and press Enter:
+1. **Scan it, or search for it — same box.** Point the scanner at the barcode and it rings straight up — **no Enter key needed**: the till sees a scan as one fast burst and adds the line when it ends (this works in every scan box in the system: transfers, returns, receiving). Typing by hand is slower and is never submitted on its own. If you have no barcode, type part of the **product's name** instead and press Enter:
    - If what you typed is an exact **code** or **barcode**, the item is added immediately with no list.
    - Otherwise a short list of matching products appears underneath. Click one, or walk the list with the **↑ ↓** arrow keys and press **Enter**. **Esc** closes it.
    - If nothing matches you are told so plainly — *"No product matches …"* — rather than a blank line being added to the cart.
 2. Repeat for every item the customer is buying. Scanning the same item twice adds 2, it does not create a second line.
 3. **Adjust quantities with the − and + buttons** on the line, or type straight into the quantity box for a larger number. Pressing **−** on a quantity of 1 removes the line.
-4. **Read the Available column before you promise anything.** It shows the quantity you can actually sell at this store. If some of that item is held back — quarantined by QC, damaged, or blocked — a second line says so: *"3 not sellable (QC hold / damaged / blocked)"*. That stock is physically in the shop but must not be sold. If you ask for more than can be sold, the row turns red and says *"Only N can be sold here"*. Clicking **Complete Sale** anyway names the item and how many are available (e.g. *"LAMP … available 0, requested 1"*). Click **Remove** on that line, or lower the quantity, and click **Complete Sale** again. Nothing was charged, and the bill keeps its number.
-5. **If the customer is a returning or loyalty customer**, type their **name** (or phone number, or code) into **Customer** and pick them from the list. The line beneath the box reads *"Walk-in — no customer attached"* until you do, so you always know which you are on.
-   - **The customer isn't in the system yet?** Click **+ New Customer**, enter their name and phone, and they are created and attached to this sale without leaving the till. With a phone number, the till then asks whether they have agreed to receive offers. Tick **Offers by SMS** and/or **Offers by WhatsApp** only if they said yes; both start unticked. Without a tick, no SMS or WhatsApp campaign is sent to them. **Customer details** shows what they agreed to.
+4. **Read the Available column before you promise anything.** It shows the quantity you can actually sell at this store. Stock held in a location that does not sell is listed under it by the store's own names — *"Not sellable here: Damage 2 · Inward 3"* (the locations are set up under **Stock → Stock Locations**, §5.1). That stock is physically in the shop but must not be sold. If you ask for more than can be sold, the row turns red and says *"Only N can be sold here"*. Clicking **Complete Sale** anyway names the item and how many are available (e.g. *"LAMP … available 0, requested 1"*). Click **Remove** on that line, or lower the quantity, and click **Complete Sale** again. Nothing was charged.
+5. **Ask the customer's mobile number — on every bill.** Type it into **Customer mobile** and press **Enter**. One number is one customer:
+   - **A number already on file** puts that customer on the bill. The line under the box reads *"Name · number"*, and *"GST bill (GSTIN)"* when they have a GSTIN.
+   - **A new number** opens the customer form with the number filled in. Type the **name**; open **More details** for the address (Line 1, Line 2, City, State, PIN), **PAN**, **GSTIN**, date of birth, anniversary and gender. A GSTIN fills the State itself and makes this a **GST (B2B) bill** (§4.1a). Click **Add to bill**. Tick the offer consents (SMS / WhatsApp) only if the customer agreed; both start unticked.
+   - **The customer will not give a number?** Click **Walk-in**. The bill goes to the store's walk-in customer; nothing about them is printed and no points are earned.
+   - **Forgot to ask?** **Complete Sale** asks for the number first (with **Walk-in** to skip), so no bill goes out without the question.
+   - **With a customer on the bill, + New Customer becomes Edit Customer** — open it to add their address, PAN or GSTIN later.
+   - You can still type a **name** instead of a number and pick from the list.
+   - **Customer details** shows what the customer agreed to receive, alongside their points (below).
    - **Customer details** shows who you are serving: their points and what they are worth, their tier and what it gives (*Bronze — Birthday voucher*), how much more they need to spend for the next tier, their last few bills and returns, and any **vouchers issued to them that they can use today** (type the code into **Coupon code**). The phone number shows only its last four digits. **Redeem Points** spends points on this sale. Add the items first: the till then tells you the customer's balance, what one point is worth (set by your administrator — it is not always ₹1) and the most this bill can take, and you type how many to use. The amount comes off the **Total** at once (the bar shows *Loyalty: −270.00 (270 pt)*), and the points are only actually deducted once the sale completes.
    - **The customer may need to confirm.** If your shop asks customers to confirm redemptions, a one-time code is sent to the customer; type the code they read back into the box that appears. A wrong code redeems nothing — choose **Redeem Points** again to send a new one.
    - **A large redemption needs a manager.** Above the value your administrator set (₹500 as shipped), the till asks you to **choose a reason** and raises a request for a Store Manager. The info line names the request and says it is waiting under **Approvals**. Once the manager approves it there, complete the sale as normal; until then, **Complete Sale** refuses with *"needs a manager's approval"*. Each approval is for this one bill and this number of points — it cannot be reused on another bill.
    - **Points the customer has already spent elsewhere can make the balance negative** after a return (see §4.7). Such a customer cannot redeem until new purchases bring the balance back above zero.
 6. **Any offers that apply appear on their own, in a panel under the items** — see §4.2. If the customer has a coupon, type it into the **Coupon code** box.
-7. Check the **Total** at the top right of the screen — tax is calculated automatically, you don't need to work it out.
-8. **Choose how they're paying.** If it is **Cash**, type what the customer handed you into **Cash tendered** and **Change due** appears beside the Total at the top before you commit to anything (or *"Short by …"* if it isn't enough). Card and UPI are for the exact amount, so the box disappears for those.
+7. Check the **Total** at the top right of the screen. The bar beside it shows the discount and the tax split — **CGST · SGST**, or **IGST** — so you can read them out to the customer.
+8. **Choose how they're paying.** **Payment Mode** lists the tenders your store takes, by their own names (*Cash*, *HDFC Card*, *Paytm*...). If it is **Cash**, type what the customer handed you into **Cash tendered** and **Change due** appears beside the Total at the top before you commit to anything (or *"Short by …"* if it isn't enough). A tender that needs a reference (a card slip, a UPI reference / UTR) asks for it once at **Complete Sale**.
+   - **Salesman.** If your store records who made the sale, a **Salesman** box sits beside the payment boxes with the store's default salesman chosen. Change it if someone else served the customer. Where the store makes it compulsory, the sale cannot complete without one.
+   - **Discount.** Type a bill discount into **Discount** and choose **%** or **Rs**. It comes off the price straight away — the bar shows *Discount −99.90* and the Total drops; the tax is worked out on the discounted price. Above 5% (your administrator can change this) the till asks **why**; above your approval rules a manager must approve the sale, as before (§4.1a). To discount one line only, use **Override** on that line.
+   - **Paying from an advance.** If the customer has paid an advance (§4.9), **Use advance** appears beside the customer buttons with the amount. Click it and the bar shows *Advance: −300.00*; the Total is what is left to pay.
    - **Paying more than one way?** Click **More… → Split payment**. Type the fixed parts — say **Card 1,000** and **UPI 200** — and leave the rest blank. Whatever is left is paid by the **Payment Mode** you have selected; the bar shows *Split: Card 1000.00 + UPI 200.00; the rest by Payment Mode*. If the rest is cash, **Cash tendered** and **Change due** work on the cash part only. Parts that add up to more than the bill are refused. To go back to one payment mode, open **Split payment** again and clear the boxes. A split sale cannot be queued offline with a gift card, and a payment-terminal sale is never split.
 9. Click **Complete Sale** (top right, next to the Total).
 
@@ -290,11 +302,12 @@ You open a session once per shift, not once per sale.
 
 This is deliberate and is the biggest change from how this screen used to work.
 
-When the sale goes through, **the till stops and shows the finished bill**: the bill number, the store, each line, the total collected, the cash tendered and the change due. Everything below it is hidden, and **nothing can be scanned onto it**.
+When the sale goes through, **the till stops and shows the finished bill**: the **bill number** (given by the server, per store, at most 16 characters — e.g. *BJAY2627000123*), the store, each line, any advance used, the total collected, the cash tendered and the change due. Everything below it is hidden, and **nothing can be scanned onto it**.
+- **A GST (B2B) bill** — a customer with a GSTIN — also has **Print GST Invoice**: the tax invoice with your company and the buyer's GSTIN, the buyer's address, the place of supply (your store's state, since the goods are handed over at the counter), each line's HSN, and the tax summary HSN by HSN. A customer without a GSTIN gets the receipt as usual.
 
 - The bill stays there as long as you need it — read the change back to the customer, answer a question about a line, print the receipt.
 - When you are ready for the next customer, click **New Sale (Reset)**. The cart, customer, coupon, discount and tendered amount are all cleared for a clean start.
-- **The store stays bound.** You do not re-pick your shop between customers.
+- **The store stays as it is.** You do not re-pick your shop between customers.
 
 Why it works this way: before, the cart silently emptied behind a dialog and the screen looked exactly as it had a moment earlier — so the next customer's items could be scanned onto what you still believed was the previous sale. Now there is an unmistakable boundary between one bill and the next.
 
@@ -312,7 +325,7 @@ You do not apply offers by hand. Whatever your head office has set up in the ERP
 - **Issued vouchers go in the same box.** A voucher your company issued (a printed or emailed code — *WELCOME100*, a customer's birthday voucher) is typed into **Coupon code** like any coupon. It is applied after the offers, on what they left, and shows in the panel as *Voucher WELCOME100 — issued voucher −100.00*. One voucher per bill. If it cannot be used the panel says why — *used up*, *expired*, *restricted to a different customer*, *for Online use only*, *can be used from …*. A voucher restricted to a customer needs that customer on the sale first. It is used up only when the sale completes; if someone else used its last use in the meantime, **Complete Sale** says so — remove the code and the bill is priced again without it.
 - **Some offers only apply to certain customers** (a loyalty tier, for instance). Look the customer up *before* expecting those to show — with no customer on the sale, a tier-restricted offer will not appear.
 - **The final say is the server's, not this screen's.** The panel is a preview; the discount is recalculated for real when you take payment. In normal use the two agree. If they ever don't, the amount charged is the correct one.
-- **The discount box is separate.** The **Discount %** field is still there for a manual, cashier-applied discount, and large manual discounts may still need a manager's approval. Offers are not manual discounts and don't need approval — they're the rules head office already signed off.
+- **The discount box is separate.** **Discount** (% or Rs) is the cashier's own bill discount — it comes off the price, needs a reason above the limit and a manager's approval above your approval rules. Offers are not manual discounts and don't need approval — they're the rules head office already signed off.
 
 ### 4.3 Printing the receipt
 
@@ -324,7 +337,7 @@ To get the one-click version, your administrator installs **QZ Tray** on the til
 
 A few things worth knowing:
 
-- **The receipt says which shop sold it.** The header carries your company's name and GSTIN, the shop's name and code, the bill number, the date and time, and who was on the till. A customer holding the receipt can tell which branch of a chain they bought from — and it stands up as a tax document.
+- **The receipt says which shop sold it.** The header carries your company's name and GSTIN, the shop's name and code, the **bill number**, the date and time, and who was on the till. The customer is printed by **name and mobile number** — never a customer code, and nothing at all for a walk-in. A customer holding the receipt can tell which branch of a chain they bought from — and it stands up as a tax document.
 - **The receipt shows what was actually collected.** Offers and loyalty points spent both appear as their own lines, so the printed total matches the cash in the drawer.
 - **A sale waiting on manager approval will not print a receipt.** The money hasn't been collected yet. Once the manager approves it from the **Approvals** screen the sale completes and can be printed.
 - **Reprinting later is safe.** The receipt is rebuilt from the recorded sale, not from whatever is on screen, so it always shows what was originally rung up.
@@ -336,15 +349,15 @@ A few things worth knowing:
 
 Occasionally the back office changes a price between the moment the cart was priced and the moment you press **Complete Sale**. The system never quietly charges either figure. It stops, shows you what changed and the new total, and asks you to confirm. Nothing is charged until you do.
 
-### 4.5 Reset Terminal — changing which shop the till sells from
+### 4.5 Reset Terminal — starting the till again
 
-**Reset Terminal** is in the bar at the top, next to the session buttons. Use it when the till is bound to the wrong store, or when you are genuinely moving this till to a different shop.
+**Reset Terminal** is in the session bar, next to the session buttons. It clears the cart, customer, coupon, discount and tender. Use it when a bill has gone wrong and you want to start it again.
 
-1. Click **Reset Terminal**. It tells you exactly what will happen — including how many cart lines will be thrown away — and asks you to confirm. **The cart is not saved.**
-2. If **no session is open**, the **Store** box unlocks and you can pick a different shop.
-3. If a **session is still open**, the cart is cleared but the store stays bound, and you are told why: a session is a cash-accountability record, so you must **Close Session** first. This is not a way to walk away from an open till.
+1. Click **Reset Terminal**. It tells you how many cart lines will be thrown away and asks you to confirm. **The cart is not saved.**
+2. The store does not change: it is the store at the top of the screen. To sell from another shop, close your session and switch store there (§4.0).
+3. Your session stays open — a session is a cash-accountability record, and only **Close Session** ends it.
 
-Day to day you will not need this button. Between customers, use **New Sale (Reset)** on the finished bill instead — that keeps the store binding, which is what you want.
+Day to day you will not need this button. Between customers, use **New Sale (Reset)** on the finished bill instead.
 
 ### 4.6 Packaging, free gifts, gift cards — and items the till won't sell
 
@@ -373,7 +386,7 @@ The finished bill and the receipt show each gift card as its own line (*Gift car
 
 A return pays back **what the customer actually paid for those items**, the way they paid it. It is never the price on the tag when the bill had an offer, and never cash for something paid with points or a gift card.
 
-1. **Raise it at the till.** Open the **Return** tab on the POS screen, type the **bill number** from the receipt and click **Look Up Bill**. Each line shows what can still be returned and its price — the price after the bill's offer, e.g. a ₹1,000 shirt on a bill with 10% off shows **900.00**. **Return Location** is already filled with the till's store. Type the quantities coming back and click **Raise Return**. A box tells you what the customer will get back once it is refunded (for example *Cash 900.00 and 90 points*) and offers to **open Returns**. **Sales & Marketplace → Returns → + New Return** brings you back to this tab.
+1. **Raise it at the till.** Open the **Return** tab on the POS screen and find the bill: scan or type the **bill number**, or type the customer's **mobile number** or name, and/or pick the **Bill date**, then click **Find Bill**. One match opens at once; several are listed to pick from. It looks at this store's bills; tick **All my stores** for a bill bought at another of your stores — the return is then taken here (the goods come back into this store's stock) and keeps the store that sold it. Each line shows what can still be returned and its price — the price after the bill's offer, e.g. a ₹1,000 shirt on a bill with 10% off shows **900.00**. **Return Location** is already filled with the till's store. Type the quantities coming back (or **Upload** a CSV of *Barcode, Qty* for a long bill) and click **Raise Return**.
 2. **A manager takes it from there** on **Sales & Marketplace → Returns**: **Approve** (if your business has turned on second-person approval, someone other than the person who raised the return must approve it, and its refund), then **Receive Goods** when the items are physically back, then **Inspect**. Inspect opens one form with each item by name. Choose its condition from the list: Sellable, Damaged and Repairable are refunded; Missing, Wrong Item and Rejected are not. Optionally, type an item code to exchange it instead. Until the inspection, **Refund Eligible** shows the expected amount, marked *expected*.
 3. **Refund.** Click **Refund** on the return. For a till bill you are shown exactly where the money goes, for example *Card 333.33, Cash 410.00, UPI 66.66, 90 points back to the customer* — confirm to approve, and confirm again to pay. Reverse any card or UPI part on the terminal or payment app; cash comes out of the drawer. You are only asked *"How is the refund being paid?"* for a return with no till bill behind it (an online order).
 
@@ -402,6 +415,36 @@ Returning a line in pieces works out to the paisa: two identical shirts returned
 - **Tiers** — each tier's **Spend from** threshold, **Earn multiplier**, **Benefits** (shown to the cashier at the till) and **Grace days**. A customer's tier follows what they actually spent, net of offers and refunds. When their spend drops below their tier, they keep it for its grace days before moving down. Edit a row and click **Save**; **Add a tier** for a new one.
 - **Points movement** — for a period (blank = all time): opening balance, points earned, given back on returns, credited, redeemed, taken back on returns, debited, expired, and the closing balance, each with its value. If your company accounts for points as a liability, the last two lines compare the liability in the books with the points outstanding — they should agree.
 - **Vouchers & campaigns** — every voucher in plain words: what it gives (*100 off the bill*, *10% off the bill*), who it is for, where it works (till, online or both), its dates, how often it has been used (*0 of 1*), whether it can be used **now** or why not (*expired on …*, *can be used from …*, *has reached its maximum uses*, *not active*), and the discount it has given on paid bills. Below that, every campaign: its trigger, what it is **Sent by**, the message as it will be sent, how many customers it **would pick today** (only those who agreed to that channel), how many matched but were **skipped for no consent**, how many it has been sent to, sales from them since, its cost and return. A campaign hands each message to CleverTap; whether the message reached the customer is tracked there, not here. **Add or edit vouchers** / **Add or edit campaigns** open their records.
+
+### 4.9 Customer advances — the Advance tab
+
+A customer pays now for something they take later — a custom order, an alteration, an item kept for them or not yet in stock. Take it on the **Advance** tab of the POS screen (an open session is needed, as for a sale):
+
+1. Type the customer's **mobile number** and press **Enter** (a new number opens the customer form). An advance always belongs to a customer — not Walk-in.
+2. Type the **Amount**, how it was **Paid by** (Cash / Card / UPI), what it is **For**, and when it is **Expected on**.
+3. **Supply**: **Goods** for an advance against goods (no GST is charged on the advance itself), or **Services** for an advance against a service (GST is taken now, at the rate you enter, and given back when the advance is used on the bill). Your accountant decides which applies.
+4. Click **Take Advance**. The advance gets its receipt voucher number (*CA…*); print the **advance receipt voucher** for the customer.
+
+The list under it shows the customer's advances (or the store's open ones): taken, used, refunded, balance and status (**Open**, **Partially used**, **Fully used**, **Refunded**).
+
+- **Using it.** When the customer comes back, put them on the bill (their mobile number) and click **Use advance** (§4.1 step 8). Only the customer who paid it can use it. It can pay part of the bill; what is left stays for next time.
+- **Refunding it.** Click **Refund** on the advance, type how much (all that is left, unless you change it) and **why**. It goes back the way it was paid — cash from the drawer, a card or UPI reversed on the terminal or app — under its own refund voucher (*AVR…*), which you can print.
+- **The drawer.** Cash advances taken and refunded count in the session's expected cash at close.
+
+### 4.10 Large bills — address, PAN and the cash limit
+
+The law asks for more on a large bill. The till asks first; the server refuses a bill that is still missing something.
+
+- **₹50,000 or more to a buyer with no GSTIN** needs the buyer's **address** (Line 1, State, and City or PIN). The till opens the customer's form at the address.
+- **Above ₹2,00,000** needs the buyer's **PAN**. If they have none, choose the **Form 97** option once they have signed the declaration.
+- **₹2,00,000 or more in cash on one bill is refused.** Take part of it by card or UPI (**More… → Split payment**).
+- A **Walk-in** bill cannot carry these — take the customer's mobile number.
+
+These are India's rules. In another country your administrator sets that country's limits (§ Admin Guide, *POS settings*).
+
+### 4.11 Many lines at once — Upload lines
+
+For a long bill, click **More… → Upload lines (CSV)**. **Download template** gives a file with two columns, **Barcode** and **Qty**. Fill it in, pick it, and the till checks every code: it says how many lines are ready and lists any code that is not an item — those are not added. Click **Add lines** and they are rung up as if scanned. The same **Upload lines** is on the **Stock Transfer** form, and on the **Return** tab (it sets the quantities coming back for the bill you found).
 
 ## 5. Checking Stock
 
@@ -492,6 +535,15 @@ This only applies to locations that keep stock in **bins**. A store with no bins
 - **Reserved stock stays put.** You can't move it to another bin (§7.1), or mark it Damaged or QC-Hold, while a task holds it. Short-pick or reject that task first, then move or mark the stock.
 
 **Checking the bins against the books.** Open **Reports → Bin Stock Reconciliation**. For each item and location it shows on-hand stock, how much the bins hold, how much has been picked but not yet dispatched, and the **Difference**. "Bins over-state stock" means the bins claim more than the location holds. Before October 2026, shipped units were never taken out of bins, so older bins will show this. Settle it with a cycle count of those bins. The report only shows the gap; it changes nothing.
+
+### 5.1 Stock locations inside a store — what sells and what doesn't
+
+Inside every store the stock sits in **locations**: **Main** (the selling floor), **Inward** (received, not yet on sale), **In-Transit** (sent on a transfer), **QC Hold**, **Damage**, **On Hold** (held by a hold code), **Purchase Return** (set aside for the vendor), and any of your own — *Alteration*, *Display only*. This is part of the ERP, not the warehouse module: every client has it.
+
+- **Stock → Stock Locations** (administrators) — **Locations**: each one's name, whether it **sells**, which kind of store it applies to, and whether new stores get it. **Main** always sells; **QC Hold** and **Damage** sell only if you mark them **Sellable** (for example, to sell damaged stock as it is); Inward, In-Transit, On Hold and Purchase Return never sell. Your own locations hold stock away from sale. A location still holding stock cannot be switched off. **Stores**: which locations each store uses (a store you never saved uses every location marked for new stores). **Transactions**: where each transaction takes stock from and puts it — for example, **Goods Receipt → Inward** if goods are checked before they go on sale (the default is Main).
+- **Stock → Move Stock** — move an item between two locations of your store: **+ New Move**, pick the item (its stock by location is shown), the quantity, **From** and **To**, and a reason; **Move Stock**. Stock promised to an order cannot be moved. Every move is listed with its number (*SM/…*).
+- The till and the online channels sell only what is in a selling location. **Reports → Stock by Location** shows every store's stock location by location, and what can be sold.
+- The warehouse module uses the same locations: a bin's condition **Good / Damaged / QC-Hold / RTV** is the store's Main / Damage / QC Hold / Purchase Return.
 
 ## 6. Ordering More Stock (Purchase Order)
 
@@ -1868,7 +1920,7 @@ Two buttons sit together at the top right of every screen. They are not two stre
 
 Reset will warn you before it runs, and it discards anything unsaved on screen — including a part-built POS cart. If you are mid-sale, finish or abandon it deliberately first.
 
-> **At the till specifically**, you usually want one of the POS screen's own buttons instead: **New Sale (Reset)** between customers (§4.1a), or **Reset Terminal** to change which shop the till sells from (§4.5). The header Reset is the bigger hammer, for when the application itself looks wrong.
+> **At the till specifically**, you usually want one of the POS screen's own buttons instead: **New Sale (Reset)** between customers (§4.1a), or **Reset Terminal** to start a bill again (§4.5). The header Reset is the bigger hammer, for when the application itself looks wrong.
 
 ---
 
@@ -1925,9 +1977,9 @@ Back as the first user: **Procurement → Goods Receipt**. Click **+ New Goods R
 
 ### Step 7 — Open the till
 
-**POS → POS / Billing.** Start typing your shop name into **Store** and pick it from the list (typing the code `MAIN` finds it too), click **Open Session**, and enter the cash physically in the drawer. The Store box then locks to that shop for the shift (§4.0).
+**POS → POS / Billing.** Check that the store at the top right of the screen is your shop (click it and pick the shop if you work at several), click **Open Session**, and enter the cash physically in the drawer. While the session is open you stay at that shop (§4.0).
 
-> **Shop not in the list?** It is set to **Sellable = No**. Open Setup → Core → **Location**, find it, set **Sellable = Yes** and save. Only sellable locations can run a till — see §4.0 step 2.
+> **Shop not in the list at the top?** You have not been given it (an administrator adds it in **Users → Stores**), or it is set to **Sellable = No** — open Setup → Core → **Location**, find it, set **Sellable = Yes** and save. See §4.0 step 2.
 
 ### Step 8 — Sell something
 

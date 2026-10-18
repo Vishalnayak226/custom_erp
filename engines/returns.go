@@ -775,7 +775,7 @@ func deductExchangeStock(tx *sql.Tx, schema, sku, locationCode string, qty int, 
 	if err != nil {
 		return err
 	}
-	ats := computeATS(available, reserved, safety, blocked, qc, damaged, buffer, held)
+	ats := computeATS(atsPolicyFor(schema), available, reserved, safety, blocked, qc, damaged, buffer, held)
 	if ats < qty {
 		return fmt.Errorf("insufficient ATS for exchange sku %s at %s: ATS %d, requested %d", sku, locationCode, ats, qty)
 	}

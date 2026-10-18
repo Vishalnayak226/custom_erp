@@ -80,6 +80,8 @@ async function renderTransfersView(container) {
           <input type="number" id="transfer-line-qty" class="form-input" min="1">
         </div>
         <button class="btn btn-outline" id="transfer-add-line-btn" type="button">Add Line</button>
+        <!-- Stage 85.E8: lines from a CSV (Barcode, Qty). -->
+        <button class="btn btn-outline" id="transfer-upload-btn" type="button">Upload lines</button>
       </div>
       <div class="txn-grid"><div id="transfer-lines-list"></div></div>
     </div>
@@ -115,6 +117,17 @@ async function renderTransfersView(container) {
 
   renderTransferLinesList();
   document.getElementById('transfer-add-line-btn').addEventListener('click', addTransferLine);
+  document.getElementById('transfer-upload-btn').addEventListener('click', async () => {
+    const pickers = await loadViewModule('/view-pickers.js?v=1');
+    pickers.openLineUpload({ title: 'Upload transfer lines', template: 'stock-transfer', onRows: (rows) => {
+      rows.forEach(r => {
+        const qty = Math.round(r.qty);
+        const existing = transferLineItems.find(l => l.sku === r.sku);
+        if (existing) existing.qty += qty; else transferLineItems.push({ sku: r.sku, qty });
+      });
+      renderTransferLinesList();
+    } });
+  });
   document.getElementById('transfer-create-btn').addEventListener('click', createTransferOrder);
   attachLinkTypeahead(document.getElementById('transfer-from'), 'Location');
   attachLinkTypeahead(document.getElementById('transfer-to'), 'Location');

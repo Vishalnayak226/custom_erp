@@ -205,7 +205,7 @@ func ListPublicInventory(tenantID, sku, locationCode string) ([]PublicInventoryL
 		}
 		// The same computeATS choke point every internal caller uses, so a
 		// public read can never disagree with what the order path will accept.
-		level.Available = computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
+		level.Available = computeATS(atsPolicyFor(schema), available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 		if level.Available < 0 {
 			level.Available = 0
 		}

@@ -86,8 +86,12 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// supplier_code (26.4.10) is COALESCEd because it is null for every
-	// non-supplier account, which is almost all of them.
-	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, username, COALESCE(email, ''), role, status, location_code, COALESCE(supplier_code, '') FROM %s.users ORDER BY username`, schema))
+	// non-supplier account, which is almost all of them. store_access /
+	// stores (Stage 85.A2) are read through to_jsonb so the list still loads
+	// on a schema the migration has not reached.
+	rows, err := db.DB.Query(fmt.Sprintf(`SELECT id, username, COALESCE(email, ''), role, status, location_code, COALESCE(supplier_code, ''),
+		COALESCE(to_jsonb(u)->>'store_access', 'Inherit'), COALESCE((to_jsonb(u)->'stores')::text, '[]')
+		FROM %s.users u ORDER BY username`, schema))
 	if err != nil {
 		writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 		return
@@ -96,14 +100,16 @@ func handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 	users := []map[string]interface{}{}
 	for rows.Next() {
-		var id, username, email, userRole, status, locationCode, supplierCode string
-		if err := rows.Scan(&id, &username, &email, &userRole, &status, &locationCode, &supplierCode); err != nil {
+		var id, username, email, userRole, status, locationCode, supplierCode, storeAccess, storesJSON string
+		if err := rows.Scan(&id, &username, &email, &userRole, &status, &locationCode, &supplierCode, &storeAccess, &storesJSON); err != nil {
 			writeAPIErrorGeneric(w, r, http.StatusInternalServerError, err.Error())
 			return
 		}
+		stores := []string{}
+		_ = json.Unmarshal([]byte(storesJSON), &stores)
 		users = append(users, map[string]interface{}{
 			"id": id, "username": username, "email": email, "role": userRole, "status": status, "location_code": locationCode,
-			"supplier_code": supplierCode,
+			"supplier_code": supplierCode, "store_access": storeAccess, "stores": stores,
 		})
 	}
 	_ = json.NewEncoder(w).Encode(users)

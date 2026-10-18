@@ -369,7 +369,7 @@ func OwnerAvailableToSell(tenantID, sku, locationCode, owner string) (OwnerAvail
 	if err != nil && err != sql.ErrNoRows {
 		return OwnerAvailability{}, err
 	}
-	ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
+	ats := computeATS(atsPolicyFor(schema), available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 	return ownerAvailabilityQ(db.DB, tenantID, schema, sku, locationCode, strings.TrimSpace(owner), ats)
 }
 

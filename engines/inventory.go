@@ -202,6 +202,13 @@ func PostInventoryLedgerWithVoucher(tenantID string, locationCode string, items 
 	if err != nil {
 		return nil, err
 	}
+	// Stage 85.B4: a goods receipt lands in its default location (Inward,
+	// say) rather than Main, in the same transaction.
+	if voucherType == "GRN" {
+		if err := applyReceiptDefaultTx(tx, schema, "Goods Receipt", locationCode, ledgerLines); err != nil {
+			return nil, err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
@@ -281,9 +288,12 @@ func PostInventoryLedgerWithVoucherTx(tx *sql.Tx, schema string, locationCode st
 		// stock below zero. Locks the row (FOR UPDATE) so concurrent checkouts against
 		// the same SKU/location can't both pass the check before either commits.
 		if qtyVal < 0 {
+			// Stage 85.B3: the floor is Main - available less what is held
+			// inside it (the client's own locations, hold codes) - so a sale
+			// cannot take a unit set aside in Alteration or under a recall.
 			var currentAvailable int
 			err := tx.QueryRow(fmt.Sprintf(`
-				SELECT available FROM %s.inventory_availability
+				SELECT available - blocked - hold_qty FROM %s.inventory_availability
 				WHERE sku = $1 AND location_code = $2
 				FOR UPDATE`, schema), sku, locationCode).Scan(&currentAvailable)
 			if err == sql.ErrNoRows {
@@ -293,6 +303,15 @@ func PostInventoryLedgerWithVoucherTx(tx *sql.Tx, schema string, locationCode st
 				currentAvailable = 0
 			} else if err != nil {
 				return nil, nil, err
+			}
+			// Stage 85.B3: Main short, but QC Hold / Damage marked sellable -
+			// the units the till offered come from there.
+			if currentAvailable+qtyVal < 0 {
+				covered, perr := drawFromSellablePoolsTx(tx, schema, sku, locationCode, -(currentAvailable + qtyVal))
+				if perr != nil {
+					return nil, nil, perr
+				}
+				currentAvailable += covered
 			}
 			if currentAvailable+qtyVal < 0 {
 				if !allowNegative {
@@ -397,15 +416,29 @@ func WriteStockLedgerLines(tenantID, locationCode, voucherType, voucherID, userI
 	}
 }
 
-// computeATS is the ATP formula's one shared choke point - Available minus
-// Reserved/Safety Stock plus the 26.12.6 held-back buckets (Blocked/QC
-// Hold/Damaged/Channel Buffer, the blueprint's 7-term ATP - see
-// docs/specs/oms_master_blueprint_reference.md §4). CreateReservation's
-// admission check, GetAvailableToSell's read, and FindBestFulfillmentNode's
-// sourcing comparison (engines/sourcing.go) all call this instead of each
-// repeating the formula, so they can't drift out of sync with each other.
-func computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held int) int {
-	return available - reserved - safetyStock - blocked - qcHold - damaged - channelBuffer - held
+// computeATS is the ATP formula's one shared choke point - CreateReservation's
+// admission check, GetAvailableToSell's read, FindBestFulfillmentNode's
+// sourcing comparison (engines/sourcing.go) and every report call this
+// instead of each repeating the formula, so they can't drift apart.
+//
+// Stage 85.B3: Main is available less the carve-outs inside it (blocked = the
+// client's own locations, held = hold codes); reserved, safety stock and the
+// channel buffer come off that. QC Hold and Damage are pools OUTSIDE
+// available - every writer (returns QC, goods-receipt QC, transfer-in damage)
+// adds them to on_hand and never to available - so they are added when the
+// client marks them sellable, and otherwise simply not counted. Until 85.B
+// this subtracted them as well, so a damaged return lowered the sellable
+// figure of the good stock beside it (engines_test's "3 Sellable + 2
+// Damaged" case read as 1 sellable).
+func computeATS(p ATSPolicy, available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held int) int {
+	ats := available - reserved - safetyStock - blocked - channelBuffer - held
+	if p.QCHoldSellable {
+		ats += qcHold
+	}
+	if p.DamagedSellable {
+		ats += damaged
+	}
+	return ats
 }
 
 // ReservationAttribution (Stage 35.3.7) names the order line a reservation was
@@ -451,7 +484,7 @@ func CreateReservation(tenantID string, sku string, locationCode string, qty int
 		return "", fmt.Errorf("insufficient stock for reservation of SKU: %s", sku)
 	}
 
-	ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
+	ats := computeATS(atsPolicyFor(schema), available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 	if ats < qty {
 		return "", fmt.Errorf("insufficient stock available for reservation (ATS: %d, requested: %d)", ats, qty)
 	}
@@ -540,8 +573,8 @@ func GetAvailableToSell(tenantID string, sku string, locationCode string) (map[s
 		return nil, err
 	}
 
-	ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
-	return map[string]interface{}{
+	ats := computeATS(atsPolicyFor(schema), available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
+	out := map[string]interface{}{
 		"sku":            sku,
 		"location_code":  locationCode,
 		"on_hand":        onHand,
@@ -555,5 +588,12 @@ func GetAvailableToSell(tenantID string, sku string, locationCode string) (map[s
 		"channel_buffer": channelBuffer,
 		"hold_qty":       held,
 		"ats":            ats,
-	}, nil
+	}
+	// Stage 85.B5: the same stock by named location (Main, Damage, Inward,
+	// the client's own...), each saying whether it sells - what the till and
+	// the WMS show. Best-effort: a schema without the master just omits it.
+	if locs, lerr := StockLocationBalances(tenantID, sku, locationCode); lerr == nil {
+		out["locations"] = locs
+	}
+	return out, nil
 }

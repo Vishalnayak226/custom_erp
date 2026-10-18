@@ -1,9 +1,9 @@
 <h1 id="report-catalog">Report catalog <a class="kb-anchor" href="#report-catalog" aria-label="Copy link to this section">#</a></h1>
-<p><strong>113</strong> reports across <strong>15</strong> categories, all reachable from <strong>Sales &amp; Marketplace » Reports</strong>.</p>
+<p><strong>118</strong> reports across <strong>15</strong> categories, all reachable from <strong>Sales &amp; Marketplace » Reports</strong>.</p>
 <p>Pick one from the catalog list on that screen, fill in any parameter marked <strong>required</strong>, and run it. Where a report supports drill-down, clicking a figure opens the individual transactions behind it. <strong>Export in Background</strong> queues a CSV for any report large enough to time out a normal request.</p>
 <p>Columns marked <em>sensitive</em> are masked as <code>•••</code> for roles other than Super Admin and Store Manager. They are masked rather than dropped, so the table has the same shape whoever runs it and a screenshot from one person lines up with a screenshot from another.</p>
 <h2 id="contents">Contents <a class="kb-anchor" href="#contents" aria-label="Copy link to this section">#</a></h2>
-<ul><li><a href="#admin">Admin</a> - 1 reports</li><li><a href="#assets">Assets</a> - 1 reports</li><li><a href="#bi">BI</a> - 1 reports</li><li><a href="#crm">CRM</a> - 8 reports</li><li><a href="#exceptions">Exceptions</a> - 6 reports</li><li><a href="#finance">Finance</a> - 30 reports</li><li><a href="#hr">HR</a> - 2 reports</li><li><a href="#inventory">Inventory</a> - 12 reports</li><li><a href="#manufacturing">Manufacturing</a> - 3 reports</li><li><a href="#oms">OMS</a> - 12 reports</li><li><a href="#pim">PIM</a> - 4 reports</li><li><a href="#procurement">Procurement</a> - 4 reports</li><li><a href="#sales">Sales</a> - 6 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#wms">WMS</a> - 22 reports</li></ul>
+<ul><li><a href="#admin">Admin</a> - 1 reports</li><li><a href="#assets">Assets</a> - 1 reports</li><li><a href="#bi">BI</a> - 1 reports</li><li><a href="#crm">CRM</a> - 9 reports</li><li><a href="#exceptions">Exceptions</a> - 6 reports</li><li><a href="#finance">Finance</a> - 30 reports</li><li><a href="#hr">HR</a> - 2 reports</li><li><a href="#inventory">Inventory</a> - 13 reports</li><li><a href="#manufacturing">Manufacturing</a> - 3 reports</li><li><a href="#oms">OMS</a> - 12 reports</li><li><a href="#pim">PIM</a> - 4 reports</li><li><a href="#procurement">Procurement</a> - 4 reports</li><li><a href="#sales">Sales</a> - 9 reports</li><li><a href="#service">Service</a> - 1 reports</li><li><a href="#wms">WMS</a> - 22 reports</li></ul>
 <h2 id="admin">Admin <a class="kb-anchor" href="#admin" aria-label="Copy link to this section">#</a></h2>
 <h3 id="knowledge-center-feedback">Knowledge Center Feedback <a class="kb-anchor" href="#knowledge-center-feedback" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>help-article-feedback</code></p>
@@ -45,6 +45,11 @@
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>Churn Threshold Days (default 90)</strong> (<code>churn_days</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Customer · Lifetime Value <em>(sensitive)</em> · Orders · First Order · Last Order · Churned?</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="customers-sharing-a-mobile-number">Customers Sharing a Mobile Number <a class="kb-anchor" href="#customers-sharing-a-mobile-number" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>customer-duplicate-phones</code></p>
+<p><strong>Parameters:</strong> none - it runs as soon as you pick it.</p>
+<p><strong>Columns:</strong> Mobile <em>(sensitive)</em> · Customers · Customer codes and names</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h3 id="loyalty-ledger-summary">Loyalty Ledger Summary <a class="kb-anchor" href="#loyalty-ledger-summary" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>loyalty-summary</code></p>
@@ -358,6 +363,12 @@
 <ul><li><strong>SKU (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Location (optional)</strong> (<code>location_code</code>) - text, optional</li><li><strong>Voucher Type (optional)</strong> (<code>voucher_type</code>) - text, optional</li><li><strong>From (optional)</strong> (<code>start</code>) - date, optional</li><li><strong>To (optional)</strong> (<code>end</code>) - date, optional</li></ul>
 <p><strong>Columns:</strong> Date · SKU · Location · Qty Delta · Running Balance · Voucher Type · Voucher ID · From Location/Bin · To Location/Bin · From Condition · To Condition · User</p>
 <p><strong>Drill-down:</strong> no.</p>
+<h3 id="stock-by-location">Stock by Location <a class="kb-anchor" href="#stock-by-location" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>stock-by-location</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Store code (blank = all)</strong> (<code>store</code>) - text, optional</li></ul>
+<p><strong>Columns:</strong> Store · SKU · Main · Inward · In-Transit · QC Hold · Damage · On Hold · Purchase Return · Own locations · Sellable</p>
+<p><strong>Drill-down:</strong> no.</p>
 <h2 id="manufacturing">Manufacturing <a class="kb-anchor" href="#manufacturing" aria-label="Copy link to this section">#</a></h2>
 <h3 id="production-capacity-schedule">Production Capacity Schedule <a class="kb-anchor" href="#production-capacity-schedule" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>production-capacity-schedule</code></p>
@@ -489,6 +500,12 @@
 <ul><li><strong>Platform (optional)</strong> (<code>platform</code>) - select, optional, one of: Amazon,Flipkart,Myntra,Meesho,Ajio,Nykaa,Tata Cliq,JioMart,eBay,Own Website,Other</li><li><strong>Our SKU (optional)</strong> (<code>sku</code>) - text, optional</li><li><strong>Observed on or after (optional)</strong> (<code>since</code>) - date, optional</li><li><strong>We are (optional)</strong> (<code>position</code>) - select, optional, one of: Above,At,Below,No price on file</li></ul>
 <p><strong>Columns:</strong> Our SKU · Item · Our Price · Our Price From · Best Competitor Price · Platform · Gap (₹) · Gap (%) · We Are · Observed On · Observations · Source</p>
 <p><strong>Drill-down:</strong> no.</p>
+<h3 id="customer-advance-register">Customer Advance Register <a class="kb-anchor" href="#customer-advance-register" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>advance-register</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Store code (blank = all)</strong> (<code>store</code>) - text, optional</li><li><strong>Open only</strong> (<code>open</code>) - select, optional, one of: ,Yes</li></ul>
+<p><strong>Columns:</strong> Receipt voucher · Taken · Store · Customer · For · Expected · Taken · Used · Refunded · Balance · Status · Paid by</p>
+<p><strong>Drill-down:</strong> no.</p>
 <h3 id="customer-ledger">Customer Ledger <a class="kb-anchor" href="#customer-ledger" aria-label="Copy link to this section">#</a></h3>
 <p><strong>Report id:</strong> <code>customer-ledger</code></p>
 <p><strong>Parameters:</strong></p>
@@ -517,6 +534,18 @@
 <p><strong>Parameters:</strong></p>
 <ul><li><strong>From</strong> (<code>from_date</code>) - date, optional</li><li><strong>To</strong> (<code>to_date</code>) - date, optional</li><li><strong>Customer PO / Ref</strong> (<code>customer_reference</code>) - text, optional</li><li><strong>Customer</strong> (<code>customer</code>) - text, optional</li></ul>
 <p><strong>Columns:</strong> Customer PO / Ref · Document · Number · Date · Customer · From order · Amount · Status</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="salesman-wise-sales">Salesman-wise Sales <a class="kb-anchor" href="#salesman-wise-sales" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>salesman-sales</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Store code (blank = all)</strong> (<code>store</code>) - text, optional</li><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Salesman · Bills · Sales</p>
+<p><strong>Drill-down:</strong> no.</p>
+<h3 id="tender-wise-sales">Tender-wise Sales <a class="kb-anchor" href="#tender-wise-sales" aria-label="Copy link to this section">#</a></h3>
+<p><strong>Report id:</strong> <code>tender-sales</code></p>
+<p><strong>Parameters:</strong></p>
+<ul><li><strong>Store code (blank = all)</strong> (<code>store</code>) - text, optional</li><li><strong>From</strong> (<code>from</code>) - date, optional</li><li><strong>To</strong> (<code>to</code>) - date, optional</li></ul>
+<p><strong>Columns:</strong> Tender · Amount</p>
 <p><strong>Drill-down:</strong> no.</p>
 <h2 id="service">Service <a class="kb-anchor" href="#service" aria-label="Copy link to this section">#</a></h2>
 <h3 id="service-sla-breaches">Service SLA Breaches <a class="kb-anchor" href="#service-sla-breaches" aria-label="Copy link to this section">#</a></h3>

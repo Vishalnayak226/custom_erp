@@ -65,7 +65,7 @@ func FindBestFulfillmentNode(tenantID string, items []map[string]interface{}) (s
 				return "", err
 			}
 
-			ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
+			ats := computeATS(atsPolicyFor(schema), available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 			// Stage 59.3: an item naming its owner counts only that owner's stock.
 			if owner, _ := item["owner_id"].(string); owner != "" {
 				ats = OwnerCappedATS(tenantID, sku, loc, owner, ats)
@@ -166,7 +166,7 @@ func qualifyingLocations(schema string, items []map[string]interface{}) ([]candi
 				return nil, err
 			}
 
-			ats := computeATS(available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
+			ats := computeATS(atsPolicyFor(schema), available, reserved, safetyStock, blocked, qcHold, damaged, channelBuffer, held)
 			if ats < reqQty {
 				hasAll = false
 				break

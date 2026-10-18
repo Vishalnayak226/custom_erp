@@ -172,7 +172,7 @@ func rawSKUATS(tenantID, sku, location string) (int, error) {
 		if err := rows.Scan(&available, &reserved, &safety, &blocked, &qc, &damaged, &buffer, &held); err != nil {
 			return 0, err
 		}
-		ats := computeATS(available, reserved, safety, blocked, qc, damaged, buffer, held)
+		ats := computeATS(atsPolicyFor(schema), available, reserved, safety, blocked, qc, damaged, buffer, held)
 		if ats > 0 {
 			total += ats
 		}
@@ -422,7 +422,7 @@ func PostBundleAssembly(tenantID, bundleSKU, location string, quantity int, oper
 			if err != nil {
 				return id, err
 			}
-			ats := computeATS(available, reserved, safety, blocked, qc, damaged, buffer, held)
+			ats := computeATS(atsPolicyFor(schema), available, reserved, safety, blocked, qc, damaged, buffer, held)
 			if ats+item.qty < 0 {
 				return id, fmt.Errorf("insufficient ATS for SKU %s at %s: ATS %d, requested %d", item.sku, location, ats, -item.qty)
 			}

@@ -377,6 +377,15 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		CustomerID     string  `json:"customer_id"`
 		Interstate     bool    `json:"interstate"`
 		DiscountPct    float64 `json:"discount_pct"`
+		// ManualDiscountPct / ManualDiscountAmount / DiscountReason (Stage
+		// 85.E7): the cashier's bill discount, APPLIED by the quote (as a % or
+		// an amount), and why when it is over the reason limit. DiscountPct
+		// above keeps its old meaning - a declaration the approval gate reads,
+		// never a price change - so an integration that declares the discount
+		// of a price it already lowered is not discounted twice.
+		ManualDiscountPct    float64 `json:"manual_discount_pct"`
+		ManualDiscountAmount float64 `json:"manual_discount_amount"`
+		DiscountReason       string  `json:"discount_reason"`
 		// RedeemPoints (Stage 30.2.5): loyalty points to pay part of this
 		// sale with. Validated below and burned by FinalizePOSCheckout only
 		// once the sale actually goes through - never at "Redeem Points"
@@ -394,6 +403,15 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// ExchangeCreditID (Stage 73.2.6): the credit an exchange's returned
 		// items carry to this sale (engines.StartTillExchange).
 		ExchangeCreditID string `json:"exchange_credit_id"`
+		// Form97 (Stage 85.C4): the buyer of a bill above the PAN limit has no
+		// PAN and signed a Form 97 declaration instead.
+		Form97 bool `json:"form_97"`
+		// PaymentTender / PaymentReference (Stage 85.E2): the store's own
+		// tender the rest of the bill is paid by, and its slip / UTR;
+		// SalesmanID (85.E3) the salesman on the bill.
+		PaymentTender    string `json:"payment_tender"`
+		PaymentReference string `json:"payment_reference"`
+		SalesmanID       string `json:"salesman_id"`
 		// CouponCodes (Stage 30.7): coupon-gated offers the cashier keyed in.
 		// A code that matches no live offer is reported back rather than
 		// silently ignored, so the cashier learns it didn't apply.
@@ -428,6 +446,9 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// bill. The full numbers are used here and never stored: the cart
 		// keeps engines.GiftCardTender (masked, internal card id).
 		GiftCards []engines.GiftCardTenderRequest `json:"gift_cards"`
+		// Advances (Stage 85.D3) are the customer's advances paying part or
+		// all of the bill - stored value, redeemed with the gift cards.
+		Advances []engines.AdvanceTenderRequest `json:"advances"`
 		// Items carries SELECTION inputs only. sale_price is accepted for one
 		// narrowing purpose - an item the tenant has not priced anywhere, in
 		// pos.pricing_mode 'assisted' (see engines.ResolvePOSQuote) - and is
@@ -550,6 +571,9 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 		return
 	}
+	if !requireStoreAccess(w, r, req.Location) {
+		return
+	}
 
 	// Stage 47.2 - the single authoritative pricing step. ResolvePOSQuote
 	// prices every line from tenant master data (approved price list, item
@@ -574,10 +598,18 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		CouponCodes:  req.CouponCodes,
 		Lines:        quoteLines,
 		RedeemPoints: req.RedeemPoints,
+		// Stage 85.E7: the cashier's bill discount comes off the price.
+		ManualDiscountPct:    req.ManualDiscountPct,
+		ManualDiscountAmount: req.ManualDiscountAmount,
 	})
 	if quoteErr != nil {
 		writeEngineError(w, r, quoteErr, http.StatusUnprocessableEntity)
 		return
+	}
+	// Stage 85.E7: the approval gate below sees the cashier's discount too.
+	manualShare := engines.ManualDiscountShare(quote)
+	if manualShare > req.DiscountPct {
+		req.DiscountPct = manualShare
 	}
 	gstBreakdown := quote.GSTBreakdown
 
@@ -679,6 +711,25 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Stage 85.D3: the customer's advances pay after points and gift cards,
+	// through the same stored-value redemption. Online only, the bill's own
+	// customer only.
+	if len(req.Advances) > 0 {
+		if req.OfflineSynced || req.AuthorizeOnly {
+			writeAPIErrorDetail(w, r, "POSOFF-0872", "", "An advance is used online at the till - it cannot be queued offline or sent to the payment terminal.")
+			return
+		}
+		paid := 0.0
+		for _, t := range giftTenders {
+			paid += engines.PaiseToRupees(t.AmountPaise)
+		}
+		advTenders, advErr := engines.PrepareAdvanceTenders(tenantID, req.CustomerID, req.Advances, engines.RupeesToPaise(quote.AmountDue-paid)) // AmountDue is already net of points
+		if advErr != nil {
+			writeEngineError(w, r, advErr, http.StatusUnprocessableEntity)
+			return
+		}
+		giftTenders = append(giftTenders, advTenders...)
+	}
 	giftPaid := 0.0
 	for _, t := range giftTenders {
 		giftPaid += engines.PaiseToRupees(t.AmountPaise)
@@ -717,6 +768,50 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := engines.ValidatePOSTenders(req.Tenders, req.PaymentMode, quote.AmountDue-giftPaid-exchangeUse); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+	}
+
+	// Stage 85.C3/85.C4: every bill has a customer - the one the cashier
+	// took, or the store's walk-in customer - and a high-value bill has the
+	// buyer's details its country's law asks for (address, PAN, cash limit).
+	if strings.TrimSpace(req.CustomerID) == "" {
+		if walkIn, werr := engines.EnsureWalkInCustomer(tenantID, req.Location); werr == nil {
+			req.CustomerID = walkIn.ID
+		}
+	}
+	// Stage 85.E2/85.E3: named tenders are the store's own; the salesman is
+	// the store's and present when the store asks for one.
+	if err := engines.ValidateStoreTender(tenantID, req.Location, req.PaymentTender, firstNonBlank(req.PaymentMode, "Cash")); err != nil {
+		writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+		return
+	}
+	for _, t := range req.Tenders {
+		if err := engines.ValidateStoreTender(tenantID, req.Location, t.Name, t.Mode); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+	}
+	if !req.OfflineSynced {
+		if err := engines.ValidateBillSalesman(tenantID, req.Location, req.SalesmanID); err != nil {
+			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
+			return
+		}
+	}
+	if !req.OfflineSynced {
+		cash := 0.0
+		fixed := 0.0
+		for _, t := range req.Tenders {
+			fixed += t.Amount
+			if strings.EqualFold(t.Mode, "Cash") {
+				cash += t.Amount
+			}
+		}
+		if strings.EqualFold(req.PaymentMode, "Cash") || req.PaymentMode == "" {
+			cash += quote.AmountDue - giftPaid - exchangeUse - fixed
+		}
+		if err := engines.CheckHighValueSale(tenantID, req.CustomerID, quote.Total, cash, req.Form97); err != nil {
 			writeEngineError(w, r, err, http.StatusUnprocessableEntity)
 			return
 		}
@@ -793,6 +888,15 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 		// "no approval rule configured" rather than reaching that approver.
 		if requiredRole != "" && slabAmount > gateDiscountPct {
 			gateDiscountPct = slabAmount
+		}
+	}
+	// Stage 85.E7: a cashier's discount over the limit that no manager will
+	// see (below every approval slab) needs the cashier's reason; one that
+	// goes to a manager is the manager's decision.
+	if requiredRole == "" && manualShare > 0 {
+		if limit := engines.GetSettingFloat(tenantID, "pos.manual_discount.reason_above_pct"); manualShare > limit && strings.TrimSpace(req.DiscountReason) == "" {
+			writeAPIErrorDetail(w, r, "POSOFF-0877", "", fmt.Sprintf("A %.2f%% discount is over %.2f%% - say why.", manualShare, limit))
+			return
 		}
 	}
 
@@ -964,6 +1068,9 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 			// discount on it would reasonably think the till was broken.
 			"message":       posApprovalMessage(measuredDiscountPct, requiredRole, quote.HasUnverifiedPrice),
 			"quote_version": quote.Version,
+			// Stage 85.E7: what the bill will come to once approved, for the
+			// frozen screen (it read 0.00).
+			"sale_total": quote.AmountDue,
 		})
 		// A cart waiting on approval has not posted anything, but it HAS
 		// consumed its cart number and raised an approval request - a retry
@@ -1086,6 +1193,7 @@ func handleCheckout(w http.ResponseWriter, r *http.Request) {
 	}
 	response["sale_total"] = outcome.SaleTotal
 	response["loyalty_discount"] = outcome.LoyaltyDiscount
+	response["bill_number"] = outcome.BillNumber
 	response["amount_due"] = outcome.SaleTotal - float64(outcome.LoyaltyDiscount) - quote.OfferDiscount - giftPaid - exchangeUse
 	response["gift_card_paid"] = giftPaid
 	if req.ExchangeCreditID != "" {
@@ -1288,6 +1396,9 @@ func handlePOSSessionOpen(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.Location == "" {
 		writeAPIErrorGeneric(w, r, http.StatusUnprocessableEntity, "Field 'location' is required")
+		return
+	}
+	if !requireStoreAccess(w, r, req.Location) {
 		return
 	}
 

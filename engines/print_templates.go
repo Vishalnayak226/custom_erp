@@ -188,6 +188,11 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 		}
 	case PrintTxnPurchaseOrder, PrintTxnVendorPO:
 		add(&out.Header, "Document", "fields.gst_mode", "GST treatment of prices")
+	case PrintTxnPOSTaxInvoice:
+		for _, f := range [][2]string{{"buyer_gstin", "Buyer GSTIN"}, {"place_of_supply", "Place of supply"}, {"supply_type", "Supply type (B2B / B2C)"},
+			{"reverse_charge", "Reverse charge"}, {"payment_mode", "Payment mode"}, {"cart_number", "Till cart number"}} {
+			add(&out.Header, "Document", "fields."+f[0], f[1])
+		}
 	case PrintTxnSalesReturn:
 		for _, f := range [][2]string{{"original_order", "Original bill / order"}, {"original_invoice_date", "Original bill date"},
 			{"return_type", "Return type"}, {"refund_method", "Refund method"}, {"refund_no", "Refund number"}, {"refund_status", "Refund status"}} {
@@ -265,6 +270,8 @@ func GetPrintCatalog(tenantID, txn string) (PrintCatalog, error) {
 		for _, f := range [][2]string{{"received_qty", "Received qty (GRN)"}, {"return_qty", "Return qty"}, {"stock_bucket", "Returned from (accepted / rejected / damaged)"}, {"reason", "Reason"}} {
 			add(&out.Line, "Line", f[0], f[1])
 		}
+	case PrintTxnPOSTaxInvoice:
+		add(&out.Line, "Line", "discount", "Discount (offer share)")
 	case PrintTxnSalesReturn:
 		for _, f := range [][2]string{{"original_qty", "Original qty"}, {"return_qty", "Return qty"}, {"original_disc", "Original discount / unit"},
 			{"condition", "Condition"}, {"exchange_sku", "Exchanged for"}} {

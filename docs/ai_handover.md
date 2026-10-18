@@ -125,6 +125,34 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-18 Stage 85 (POS billing for a real store) - COMMITTED LOCALLY on its own, NOT PUSHED, NOT DEPLOYED.** Ledger §243;
+  checklist Stage 85; plan `docs/product/pos-store-billing-plan-2026-10-18.md`. The user chose "Stage 85 on its own" and "Commit
+  only" (2026-10-18): push and deploy wait for them.
+  - **Migrations (5, additive, applied to local `custom_erp` on 5490):** `migrations_stage85_1_store_access.sql` (role_store_access,
+    users.store_access/stores, POS-history grant), `85_2_stock_locations` (stock_locations / store_stock_locations /
+    stock_location_defaults / stock_location_balance, inventory_availability.inward + rtv, StockMove doctype, SM series),
+    `85_3_customer_details` (Customer fields), `85_4_customer_advance` (2640, customer_advances / refunds, profile, POSBILL / CA /
+    AVR series), `85_5_pos_tenders_salesmen` (POSTender, Salesman, Location.salesman_mode). Ship them with the binary.
+  - **Behaviour changes to tell the client:** ATS rises where damaged / QC stock exists (85.B3 fix); a sale can no longer take
+    held units; the till's Discount now reduces the price and needs a reason above 5%; every bill has a customer (walk-in
+    default) and a server bill number; big bills need address / PAN (India rules, settings blank = country rule); users only
+    reach stores they were given (seeded from their POS history - review Users -> Stores after deploy).
+  - **New files:** engines `store_access.go`, `stock_locations.go`, `pos_customers.go`, `pos_bill_number.go`, `customer_advance.go`,
+    `pos_tender_master.go`, `line_upload.go`, `report_definitions_stage85.go` (+ tests); server `handlers_store_access.go`,
+    `handlers_stock_locations.go`, `handlers_pos_customers.go`; public `view-store.js`, `store.css`, `view-users.js`,
+    `view-stock-locations.js`, `view-pos-customer.js`. 21 new routes; attack surface regenerated in the commit.
+  - **The commit holds only Stage 85's hunks.** The other sessions' uncommitted work in the same files (Stages 86 / 87 / 88.1 /
+    89, 66.10, 76.7-76.9, 84.x, release versions) is still uncommitted in the tree: `public/app.js`, `index.html`,
+    `trade-docs.js`, `view-pickers.js`, `internal/server/middleware.go`, `routes.go`, `route_capabilities.go`,
+    `error_catalog_extensions.go`, `handlers_core_doc_engine.go`, `engines/print_documents.go`, `print_templates.go`,
+    `settings_definitions.go`, the guides, trackers and brain map. Verified in a clean worktree holding only HEAD + Stage 85:
+    build, vet, fresh-DB migrate (236), full `go test -p 1` (only 84.7's three from-zero `Stores` tests fail; they pass on `custom_erp`), release budget
+    (cold core 179,834 / 184,320), attack surface (617 -> 639 routes), docs pipeline and brain.
+  - **Guides name this commit's menus** (Stock -> Move Stock / Stock Locations, Reports -> Stock by Location); Stage 88.1's
+    uncommitted hunks rename them to Inventory -> when it lands.
+  - **Scratch:** test data in `custom_erp` (Live Test Traders customers, CAHO26270000x advance, bills BHO2627000002-6,
+    SM/HO moves 00001-2).
+
 - **2026-10-18 Module-wise build order set by the user; module 1 (Procurement / GRN / Print: 84.2, 84.3, 84.4,
   73.C.7) - BUILT AND COMMITTED with module 2's first part (one commit, "feat: module-wise build 1-2"), NOT
   PUSHED, NOT DEPLOYED.** The commit is HEAD + only these hunks, built and tested in a scratch worktree; other

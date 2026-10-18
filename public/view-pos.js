@@ -3,7 +3,7 @@
 // Shared app services and offline-queue boot helpers remain in the shell.
 
 // Stage 68: the transaction-screen bar's shared pieces, same version.
-const { txnContext, txnTabs, txnRestorePane } = await import('./txn-screen.js' + new URL(import.meta.url).search);
+const { txnContext, txnTabs, txnRestorePane, sessionStore } = await import('./txn-screen.js' + new URL(import.meta.url).search);
 
 // ---------------------------------------------------------------------------
 // Stage 53: this screen rebuilt as a standard retail till.
@@ -16,8 +16,9 @@ const { txnContext, txnTabs, txnRestorePane } = await import('./txn-screen.js' +
 //
 // What a till actually does, and what this now does:
 //
-//   * It is BOUND to a store. Once a session is open the location is locked
-//     and shown, not editable (posTerminalLocked). Reset Terminal unbinds it.
+//   * It works at ONE store: the working store chosen at the top of the
+//     screen (Stage 85.A5), never a box on the form. Switching store there is
+//     refused while a session is open, so a till cannot drift mid-shift.
 //   * Nobody knows a customer code. You search a person by name or phone, or
 //     you add them at the counter in two fields, or - the common case - you
 //     sell to nobody at all and the field reads Walk-in.
@@ -32,12 +33,6 @@ const { txnContext, txnTabs, txnRestorePane } = await import('./txn-screen.js' +
 //     cashier is looking at are the same thing until New Sale is pressed.
 // ---------------------------------------------------------------------------
 
-// Stage 53.9: is the till bound to its store? Set when a session is confirmed
-// open at posLocation, cleared by Reset Terminal. While true the location
-// picker is read-only - a cashier cannot wander onto another store's stock
-// mid-shift, which before this was one stray click.
-let posTerminalLocked = false;
-
 // Stage 53.10: the sale just completed, or null. While this is set the till is
 // frozen: the completed bill is on screen and scanning, pricing and Complete
 // Sale are all disabled until New Sale clears it. It is deliberately ONE
@@ -45,12 +40,32 @@ let posTerminalLocked = false;
 // "what is it frozen showing" can never disagree.
 let posCompletedSale = null;
 
+// Stage 85.E6: the GST split of the last server quote, for the bar.
+let posGST = null;
+// Stage 85.E7: the cashier's reason for a discount over the limit.
+let posDiscountReason = '';
+
+// posManualDiscount is the bill discount box as the quote and checkout take it.
+function posManualDiscount() {
+  const v = parseFloat((document.getElementById('pos-discount-pct') || {}).value) || 0;
+  const amt = (document.getElementById('pos-discount-mode') || {}).value === 'amt';
+  return { manual_discount_pct: amt ? 0 : v, manual_discount_amount: amt ? v : 0 };
+}
+
 // Stage 53.6: the last product search's results, awaiting a pick. Held so the
 // keyboard handler and the click handler resolve the same row.
 let posSearchResults = [];
 let posSearchActiveIndex = -1;
 
 function renderPOSView(container) {
+  // Stage 85.A5: the store is the session's working store. A cart built at
+  // another store does not follow the till here.
+  const working = sessionStore();
+  if (working !== posLocation) {
+    if (posLocation && posCart.length) clearPOSTillState();
+    posLocation = working;
+    posStoreProfile = null;
+  }
   // Stage 68: the frozen transaction layout (txn-screen.css) - the bar carries
   // who and where, the bill total and Complete Sale; only the cart scrolls.
   const panel = document.createElement('div');
@@ -59,11 +74,13 @@ function renderPOSView(container) {
   panel.innerHTML = `
     <div class="txn-bar">
       <h1 class="page-title txn-title">POS / Billing</h1>
-      ${txnTabs('txnShowPane', 'pos-screen:sale', [['pos-screen:sale', 'Sale'], ['pos-screen:return', 'Return']])}
+      ${txnTabs('txnShowPane', 'pos-screen:sale', [['pos-screen:sale', 'Sale'], ['pos-screen:return', 'Return'], ['pos-screen:advance', 'Advance']])}
       ${txnContext()}
       <div class="txn-sum txn-main-only">
+        <span id="pos-tax-row" class="hidden"></span>
         <span id="pos-loyalty-discount-row" class="hidden"></span>
         <span id="pos-giftcard-row" class="hidden"></span>
+        <span id="pos-advance-row" class="hidden"></span>
         <span id="pos-change-due" class="hidden"></span>
         <span class="txn-total">Total <span id="pos-cart-total">0.00</span></span>
       </div>
@@ -90,22 +107,16 @@ function renderPOSView(container) {
 
     <div id="pos-till-body" class="txn-pane">
       <div class="txn-head">
-        <div class="form-group">
-          <!-- Stage 41: the cashier searches and sees the location's NAME;
-               #pos-location stays the code, because every downstream call
-               (session, availability, cart number, receipt) keys off it.
-               Stage 53.3 narrows it to sellable locations only. -->
-          <label class="form-label" for="pos-location-display">Store</label>
-          <input type="text" id="pos-location-display" class="form-input" placeholder="Search by store name or code" autocomplete="off">
-          <input type="hidden" id="pos-location" value="${posLocation}">
-          <div id="pos-location-lock-note" class="txn-hint hidden"></div>
-        </div>
+        <!-- Stage 85.A5: the store is picked at the top of the screen. Every
+             downstream call (session, availability, cart number, receipt)
+             still reads its code from here. -->
+        <input type="hidden" id="pos-location" value="${posLocation}">
         <div class="form-group">
           <!-- Stage 53.4: same split-value control as the store box: the
                cashier searches a NAME (phone and code match too), and
                #pos-customer still carries the code. -->
-          <label class="form-label" for="pos-customer-display">Customer (optional)</label>
-          <input type="text" id="pos-customer-display" class="form-input" placeholder="Search by name or phone" autocomplete="off">
+          <label class="form-label" for="pos-customer-display">Customer mobile</label>
+          <input type="text" id="pos-customer-display" class="form-input" placeholder="Mobile number (Enter), or a name" autocomplete="off" inputmode="tel">
           <input type="hidden" id="pos-customer" value="">
           <div id="pos-customer-note" class="txn-hint">Walk-in &mdash; no customer attached.</div>
         </div>
@@ -114,8 +125,12 @@ function renderPOSView(container) {
           <input type="text" id="pos-coupon-code" class="form-input" placeholder="Optional" autocomplete="off">
         </div>
         <div class="form-group">
-          <label class="form-label" for="pos-discount-pct">Discount %</label>
-          <input type="number" min="0" max="100" step="0.1" value="0" id="pos-discount-pct" class="form-input">
+          <!-- Stage 85.E7: a % or an amount, off the price on the server. -->
+          <label class="form-label" for="pos-discount-pct">Discount</label>
+          <div style="display:flex; gap:4px;">
+            <input type="number" min="0" step="0.01" value="0" id="pos-discount-pct" class="form-input">
+            <select id="pos-discount-mode" class="form-input" style="width:64px;" aria-label="Discount as"><option value="pct">%</option><option value="amt">Rs</option></select>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label" for="pos-payment-mode">Payment Mode</label>
@@ -127,13 +142,20 @@ function renderPOSView(container) {
         </div>
         <!-- Stage 53.11: cash tendered and change due (in the bar). Shown for
              Cash only; a card or UPI sale is for the exact amount. -->
+        <!-- Stage 85.E3: shown when the store asks for the salesman. -->
+        <div class="form-group hidden" id="pos-salesman-group">
+          <label class="form-label" for="pos-salesman">Salesman</label>
+          <select id="pos-salesman" class="form-input"></select>
+        </div>
         <div class="form-group" id="pos-tender-group">
           <label class="form-label" for="pos-cash-tendered">Cash tendered</label>
           <input type="number" min="0" step="0.01" id="pos-cash-tendered" class="form-input" placeholder="0.00">
         </div>
       </div>
       <div class="pos-customer-actions">
+        <button class="btn btn-outline btn-sm" id="pos-customer-walkin-btn" type="button" title="The customer will not give a number - bill to the store's walk-in customer">Walk-in</button>
         <button class="btn btn-outline btn-sm" id="pos-customer-new-btn" type="button" title="Add a customer standing at the counter">+ New Customer</button>
+        <button class="btn btn-outline btn-sm hidden" id="pos-advance-use-btn" type="button" title="Pay this bill from the customer's advance first">Use advance</button>
         <button class="btn btn-outline btn-sm" id="pos-loyalty-check-btn" type="button">Customer details</button>
         <button class="btn btn-outline btn-sm" id="pos-loyalty-redeem-btn" type="button">Redeem Points</button>
         <!-- Stage 72.8: pay with a gift card, issue one, check a balance. -->
@@ -189,42 +211,31 @@ function renderPOSView(container) {
   `;
   container.appendChild(panel);
 
-  // Stage 53.3: the till may only sell from a sellable location, so the picker
-  // offers only those. Deliberately scoped to THIS picker rather than to the
-  // shared Location defaults - a warehouse is still a perfectly valid transfer
-  // destination on the other ~15 screens that pick a location.
-  attachCodeNamePicker(
-    document.getElementById('pos-location-display'),
-    document.getElementById('pos-location'),
-    'Location',
-    { filters: { sellable: 'Yes' } });
   attachCodeNamePicker(
     document.getElementById('pos-customer-display'),
     document.getElementById('pos-customer'),
     'Customer');
 
-  // Still the hidden input's change event: attachCodeNamePicker dispatches it
-  // there precisely so this listener (and every other reader of
-  // #pos-location) needed no change.
-  document.getElementById('pos-location').addEventListener('change', (e) => {
-    posLocation = e.target.value.trim();
-    // Stage 53.12: the receipt header's three records are reloaded here,
-    // because the bound store is the only thing that can invalidate them -
-    // and here, not at print time, so a cashier is never waiting on three
-    // round trips with a customer in front of them.
-    posStoreProfile = null;
-    loadPOSStoreProfile();
-    refreshPOSSessionStatus();
-  });
   // Stage 30.7: re-evaluate offers when the coupon code or the customer
   // changes - a tier-restricted or coupon-gated offer depends on both.
   const couponEl = document.getElementById('pos-coupon-code');
   if (couponEl) couponEl.addEventListener('change', () => refreshPOSQuote());
+  ['pos-discount-pct', 'pos-discount-mode'].forEach(id => document.getElementById(id).addEventListener('change', () => { posDiscountReason = ''; refreshPOSQuote(); }));
   document.getElementById('pos-customer').addEventListener('change', () => {
     renderPOSCustomerNote();
     refreshPOSQuote();
+    // Stage 85.D3: the customer's open advances, for Use advance.
+    posCustomerMod().then(m => m.posLoadOpenAdvances()).catch(() => {});
   });
-  document.getElementById('pos-customer-new-btn').addEventListener('click', quickAddPOSCustomer);
+  document.getElementById('pos-advance-use-btn').addEventListener('click', () => posCustomerMod().then(m => m.posToggleAdvance()));
+  // Stage 85.C3: phone first - Enter looks the number up (view-pos-customer.js).
+  // With a customer on the bill this is Edit Customer (renderPOSCustomerNote).
+  document.getElementById('pos-customer-new-btn').addEventListener('click', () => posCustomerMod().then(m =>
+    m.openPOSCustomerForm({ id: (document.getElementById('pos-customer') || {}).value || '' })));
+  document.getElementById('pos-customer-walkin-btn').addEventListener('click', () => posCustomerMod().then(m => m.posAttachWalkIn()));
+  document.getElementById('pos-customer-display').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && /\d{6}/.test(e.target.value)) { e.preventDefault(); posCustomerMod().then(m => m.posCustomerFind()); }
+  });
   document.getElementById('pos-add-btn').addEventListener('click', addSKUToPOSCart);
   document.getElementById('pos-packaging-btn').addEventListener('click', openPOSPackaging);
   document.getElementById('pos-giftcard-btn').addEventListener('click', openPOSGiftCard);
@@ -241,46 +252,31 @@ function renderPOSView(container) {
 
   renderPOSCustomerNote();
   renderPOSCartTable();
-  refreshPOSSessionStatus();
-  loadPOSStoreProfile();
+  // Stage 85.A5: drawn before the top bar knew the working store - draw again
+  // once it does, if it is not the store this till took.
+  document.addEventListener('erp:working-store', (e) => {
+    if (panel.isConnected && e.detail && e.detail.code && e.detail.code !== posLocation && currentView === 'pos') renderView('pos');
+  }, { once: true });
+  // Stage 53.12: the receipt header's records load once per store, before
+  // the session line, which names the store from them.
+  loadPOSStoreProfile().then(refreshPOSSessionStatus, refreshPOSSessionStatus);
   // Stage 68: the Return tab's pane, filled by view-pos-extras.js.
   const returnPane = document.createElement('div');
   returnPane.className = 'txn-pane hidden';
   returnPane.id = 'pos-return-pane';
   returnPane.dataset.pane = 'return';
   panel.appendChild(returnPane);
-  posExtras().then(m => { if (returnPane.isConnected) { m.renderPOSReturnPanel(returnPane); if (!posLocation) m.defaultPOSStore(); } }, () => {});
+  posExtras().then(m => { if (returnPane.isConnected) m.renderPOSReturnPanel(returnPane); }, () => {});
+  // Stage 85.D3: the Advance tab (view-pos-customer.js).
+  const advancePane = document.createElement('div');
+  advancePane.className = 'txn-pane hidden';
+  advancePane.id = 'pos-advance-pane';
+  advancePane.dataset.pane = 'advance';
+  panel.appendChild(advancePane);
+  posCustomerMod().then(m => { if (advancePane.isConnected) { m.renderPOSAdvancePanel(advancePane); m.posLoadTillOptions(posLocation); } }, () => {});
   txnRestorePane('pos-screen');
   renderOfflineQueueBadge();
   trySyncOfflineQueue();
-}
-
-// --- Stage 53.9: terminal binding -------------------------------------------
-//
-// applyPOSTerminalLock is the single place that decides what a locked till
-// looks like, called from refreshPOSSessionStatus (which is the only thing
-// that knows whether a session is open) rather than from each of the places
-// that might want to lock. The store box goes read-only and explains itself;
-// the picker's own menu is suppressed by the readonly attribute, so there is
-// no second control to disable.
-function applyPOSTerminalLock(locked, storeLabel) {
-  posTerminalLocked = !!locked;
-  const display = document.getElementById('pos-location-display');
-  const note = document.getElementById('pos-location-lock-note');
-  if (!display || !note) return;
-  display.readOnly = posTerminalLocked;
-  display.style.background = posTerminalLocked ? 'var(--bg-color)' : '';
-  display.style.cursor = posTerminalLocked ? 'not-allowed' : '';
-  display.title = posTerminalLocked
-    ? 'This till is bound to this store for the open session. Use Reset Terminal to change it.'
-    : '';
-  if (posTerminalLocked) {
-    note.textContent = `Bound to ${storeLabel || posLocation} for this session.`;
-    note.classList.remove('hidden');
-  } else {
-    note.textContent = '';
-    note.classList.add('hidden');
-  }
 }
 
 // clearPOSTillState wipes everything this screen is holding, silently and with
@@ -312,41 +308,34 @@ function clearPOSTillState() {
   const customerDisplay = document.getElementById('pos-customer-display');
   if (customerHidden) customerHidden.value = '';
   if (customerDisplay) { customerDisplay.value = ''; customerDisplay.dataset.resolved = ''; }
+  if (posCustomerRef) posCustomerRef.posClearCustomer();
   const couponEl = document.getElementById('pos-coupon-code');
   if (couponEl) couponEl.value = '';
   const discountEl = document.getElementById('pos-discount-pct');
   if (discountEl) discountEl.value = '0';
+  posDiscountReason = '';
   const infoEl = document.getElementById('pos-loyalty-info');
   if (infoEl) infoEl.textContent = '';
 
   renderPOSCustomerNote();
 }
 
-// resetPOSTerminal unbinds the till. It confirms first and says what will be
+// resetPOSTerminal clears the till. It confirms first and says what will be
 // lost, because the cart is cleared with it: a part-built cart vanishing
-// silently is a worse bug than the one this button exists to fix.
+// silently is a worse bug than the one this button exists to fix. The store
+// is not part of it (Stage 85.A5): it is the working store at the top.
 async function resetPOSTerminal() {
   const lines = posCart.length;
   const warning = lines > 0
-    ? `This clears the ${lines} line(s) in the current cart and unbinds the till from ${posLocation || 'its store'}. The cart is NOT saved.`
-    : `This unbinds the till from ${posLocation || 'its store'} so a different store can be selected.`;
+    ? `This clears the ${lines} line(s) in the current cart. The cart is NOT saved.`
+    : 'This clears the customer, coupon, discount and tender on the till.';
   if (!await showCustomConfirm(`${warning}\n\nReset the terminal?`, 'Reset Terminal')) return;
 
   clearPOSTillState();
-
-  // The store itself is only released when no session is holding it. A session
-  // is a cash-accountability record, not a UI state, so Reset must not be a
-  // way to walk away from one - it stays bound, and the cashier is told why.
-  applyPOSTerminalLock(false, '');
   renderPOSCartTable();
   renderPOSTender();
-  if (posOpenSessionId) {
-    await showCustomAlert('The cart is cleared. The store stays bound because a cashier session is still open here - close the session to sell from a different store.', 'Session Still Open');
-    await refreshPOSSessionStatus();
-    return;
-  }
-  const display = document.getElementById('pos-location-display');
-  if (display) display.focus();
+  await loadPOSStoreProfile();
+  await refreshPOSSessionStatus();
 }
 
 // --- Stage 53.4/53.5: the customer ------------------------------------------
@@ -360,11 +349,11 @@ function renderPOSCustomerNote() {
   if (!note) return;
   const code = (document.getElementById('pos-customer') || {}).value || '';
   const shown = (document.getElementById('pos-customer-display') || {}).value || '';
-  if (!code) {
-    note.textContent = 'Walk-in — no customer attached.';
-    return;
-  }
-  note.textContent = `${shown || code} (${code}) — loyalty points will be earned on this sale.`;
+  const newBtn = document.getElementById('pos-customer-new-btn');
+  if (newBtn) newBtn.textContent = code ? 'Edit Customer' : '+ New Customer';
+  // Stage 85.C5: one line - who, their number, GST bill when it is one.
+  note.textContent = posCustomerRef ? posCustomerRef.posCustomerSummary(code, shown)
+    : (code ? shown || code : 'Ask the mobile number - Enter looks it up. Walk-in if they will not give one.');
 }
 
 // Stage 20.7: reflects whether the acting cashier already has an Open
@@ -376,9 +365,15 @@ async function refreshPOSSessionStatus() {
   const closeBtn = document.getElementById('pos-session-close-btn');
   if (!statusEl) return;
 
-  if (!posLocation) {
+  // Stage 85.A5: the store comes from the top of the screen, so that is
+  // where both messages send the cashier.
+  const shown = posStoreLabel();
+  const notSelling = posStoreProfile && posStoreProfile.code === posLocation && !posStoreProfile.sellable;
+  if (!posLocation || notSelling) {
     posOpenSessionId = '';
-    statusEl.textContent = 'Choose a location to check for an open cashier session.';
+    statusEl.textContent = posLocation
+      ? `${shown} is not a selling store. Switch to the store you are selling from at the top of the screen.`
+      : 'Pick the store you are working at, at the top of the screen.';
     openBtn.classList.add('hidden');
     closeBtn.classList.add('hidden');
     return;
@@ -391,10 +386,6 @@ async function refreshPOSSessionStatus() {
   }
   const data = await res.json();
   posOpenSessionId = data.open ? data.session_id : '';
-  // Stage 41: name the location the way the cashier does. The display box
-  // already holds the resolved name; the code is the fallback for the moment
-  // before it resolves, and for a code typed but not yet matched.
-  const shown = (document.getElementById('pos-location-display') || {}).value || posLocation;
   if (posOpenSessionId) {
     statusEl.textContent = `Session open at ${shown}.`;
     openBtn.classList.add('hidden');
@@ -404,17 +395,11 @@ async function refreshPOSSessionStatus() {
     openBtn.classList.remove('hidden');
     closeBtn.classList.add('hidden');
   }
-  // Stage 53.9: an open session is what binds the till to its store, so this -
-  // the one function that establishes whether there is one - is where the lock
-  // is applied. A cart with lines in it also holds the binding: changing store
-  // underneath a half-built cart would reprice and re-availability every line
-  // against stock that is somewhere else.
-  applyPOSTerminalLock(!!posOpenSessionId || posCart.length > 0, shown);
 }
 
 async function openPOSSessionFlow() {
   if (!posLocation) {
-    await showCustomAlert('Choose a location first.', 'Location Required');
+    await showCustomAlert('Pick the store you are working at, at the top of the screen.', 'Store Required');
     return;
   }
   const openingStr = await showCustomPrompt('Opening cash float for this session?');
@@ -606,6 +591,9 @@ async function addResolvedItemToPOSCart(sku, name) {
   // see "12 available" for stock that was 12 units of quarantined goods.
   const sellable = avail.ats ?? avail.available ?? 0;
   const withheld = (avail.qc_hold || 0) + (avail.damaged || 0) + (avail.blocked || 0) + (avail.hold_qty || 0);
+  // Stage 85.B5: what cannot be sold here, by the store's own location names.
+  const heldText = (Array.isArray(avail.locations) ? avail.locations : [])
+    .filter(l => !l.sellable && l.qty > 0).map(l => `${l.name} ${l.qty}`).join(' · ');
 
   posLastAddedSku = sku;
   const existing = posCart.find(line => line.sku === sku);
@@ -613,19 +601,16 @@ async function addResolvedItemToPOSCart(sku, name) {
     existing.qty += 1;
     existing.available = sellable;
     existing.withheld = withheld;
+    existing.heldText = heldText;
   } else {
     // Stage 47.2: salePrice starts unknown and is filled in by the server's
     // own quote (refreshPOSQuote below). costPrice is gone from the line
     // shape entirely - the till neither collects nor sends a cost.
-    posCart.push({ sku, name: name || sku, available: sellable, withheld, qty: 1, salePrice: 0, referencePrice: 0, priceSource: '', overrideId: '', unpriced: false });
+    posCart.push({ sku, name: name || sku, available: sellable, withheld, heldText, qty: 1, salePrice: 0, referencePrice: 0, priceSource: '', overrideId: '', unpriced: false });
   }
   if (skuInput) { skuInput.value = ''; skuInput.focus(); }
   if (errorEl) errorEl.classList.add('hidden');
   renderPOSCartTable();
-  // Stage 53.9: the first line binds the till to the store it was priced
-  // against, exactly as an open session does.
-  applyPOSTerminalLock(!!posOpenSessionId || posCart.length > 0,
-    (document.getElementById('pos-location-display') || {}).value || posLocation);
 }
 
 // Stage 53.8: the +/- steppers. A counter is operated with one hand and often
@@ -698,6 +683,18 @@ function renderPOSCartTable(skipQuote) {
     redeemRow.classList.toggle('hidden', !pointsValue);
   }
 
+  // Stage 85.E6 (77.12): the bar carries the discount and the tax split of
+  // the server's quote, beside the total.
+  const taxRow = document.getElementById('pos-tax-row');
+  if (taxRow) {
+    const g = posCart.length ? posGST : null;
+    const parts = [];
+    if (posOfferDiscount > 0) parts.push(`Discount -${posOfferDiscount.toFixed(2)}`);
+    if (g && g.interstate && g.igst) parts.push(`IGST ${Number(g.igst).toFixed(2)}`);
+    if (g && !g.interstate && (g.cgst || g.sgst)) parts.push(`CGST ${Number(g.cgst).toFixed(2)} · SGST ${Number(g.sgst).toFixed(2)}`);
+    taxRow.textContent = parts.join(' · ');
+    taxRow.classList.toggle('hidden', !parts.length);
+  }
   // Stage 72.8: gift cards paying the bill come off what is still due.
   const giftPaid = posGiftCardTenders.reduce((s, g) => s + g.amount, 0);
   const giftRow = document.getElementById('pos-giftcard-row');
@@ -708,7 +705,20 @@ function renderPOSCartTable(skipQuote) {
   const due = total - pointsValue - posOfferDiscount - giftPaid;
   const exRow = document.getElementById('pos-exchange-row');
   if (exRow && posExchange) exRow.textContent = `Exchange credit: -${posExchange.amount.toFixed(2)}${posExchange.amount > due ? ` (${(posExchange.amount - due).toFixed(2)} back to the customer)` : ''}`;
-  document.getElementById('pos-cart-total').textContent = Math.max(0, due - (posExchange ? posExchange.amount : 0)).toFixed(2);
+  // Stage 85.D3: the customer's advance pays next; the bar keeps the bill's
+  // value (for the high-value rules) and what is due before the advance.
+  const totalEl = document.getElementById('pos-cart-total');
+  const beforeAdvance = Math.max(0, due - (posExchange ? posExchange.amount : 0));
+  const advances = posCustomerRef ? posCustomerRef.posAdvanceApplied(beforeAdvance) : [];
+  const advanceUsed = advances.reduce((s, a) => s + a.amount, 0);
+  const advRow = document.getElementById('pos-advance-row');
+  if (advRow) {
+    advRow.textContent = advanceUsed > 0 ? `Advance: -${advanceUsed.toFixed(2)}` : '';
+    advRow.classList.toggle('hidden', !(advanceUsed > 0));
+  }
+  totalEl.dataset.gross = (total - posOfferDiscount).toFixed(2);
+  totalEl.dataset.beforeAdvance = beforeAdvance.toFixed(2);
+  totalEl.textContent = Math.max(0, beforeAdvance - advanceUsed).toFixed(2);
   renderPOSTender();
   if (!skipQuote) refreshPOSQuote();
 }
@@ -734,8 +744,8 @@ function posAvailabilityCell(line) {
   // already waiting.
   const over = line.qty > sellable;
   const main = `<div style="font-weight:600; ${over ? 'color: var(--danger-color, #b3261e);' : ''}">${sellable} sellable</div>`;
-  const held = withheld > 0
-    ? `<div style="font-size:11.5px; color:var(--text-muted);">${withheld} not sellable (QC hold / damaged / blocked)</div>`
+  const held = line.heldText || withheld > 0
+    ? `<div style="font-size:11.5px; color:var(--text-muted);">${line.heldText ? `Not sellable here: ${escapeHTMLText(line.heldText)}` : `${withheld} not sellable (QC hold / damaged / blocked)`}</div>`
     : '';
   const warn = over
     ? `<div style="font-size:11.5px; color: var(--danger-color, #b3261e);">Only ${sellable} can be sold here</div>`
@@ -947,6 +957,7 @@ async function refreshPOSQuote() {
         customer_id: customerId.trim(),
         coupon_codes: currentPOSCouponCodes(),
         redeem_points: posRedeemPoints,
+        ...posManualDiscount(),
         // Selection only, plus the operator's own figure for anything the
         // tenant has not priced - which the server uses ONLY if it can find
         // no price of its own (and then flags for approval).
@@ -983,6 +994,7 @@ async function refreshPOSQuote() {
   // what the ERP says, every time the cart changes.
   posQuoteVersion = data.quote_version || '';
   posLoyalty = data.loyalty || null;
+  posGST = data.gst_breakdown || null;
   posRedeemPoints = posLoyalty ? posLoyalty.points : 0;
   (data.lines || []).forEach(ql => {
     const line = posCart.find(l => l.sku === ql.sku);
@@ -1080,6 +1092,16 @@ async function submitPOSCheckoutInner() {
     errorEl.classList.remove('hidden');
     return;
   }
+  // Stage 85.C3/85.C4: a mobile number on every bill (or Walk-in), and the
+  // buyer's address / PAN when the bill's size needs them.
+  const totalBox = document.getElementById('pos-cart-total') || { dataset: {} };
+  const billTotal = parseFloat(totalBox.dataset.gross || totalBox.textContent) || 0;
+  const cashPart = document.getElementById('pos-payment-mode').value === 'Cash' ? (parseFloat(totalBox.textContent) || 0) - posTenders.reduce((s, t) => s + (t.mode === 'Cash' ? 0 : t.amount), 0) : posTenders.reduce((s, t) => s + (t.mode === 'Cash' ? t.amount : 0), 0);
+  const customerStep = await (await posCustomerMod()).posEnsureCustomer({ total: billTotal, cash: cashPart });
+  if (!customerStep) return;
+  // Stage 85.E2/85.E3: the tender's own name and reference, and the salesman.
+  const tillPayment = await posCustomerRef.posTillPayment();
+  if (!tillPayment) return;
   // Stage 72.2: a gift / free-with-item line is priced 0 by the server on
   // purpose (it used to be refused here, so no free item could ever be billed).
   if (posCart.some(line => line.qty <= 0 || (line.salePrice <= 0 && !POS_FREE_SOURCES.has(line.priceSource)))) {
@@ -1093,7 +1115,7 @@ async function submitPOSCheckoutInner() {
     // to the sale it was authorised for.
     const cartNumber = posCurrentCartNumber();
     const paymentMode = document.getElementById('pos-payment-mode').value;
-    const discountPct = parseFloat(document.getElementById('pos-discount-pct').value) || 0;
+    const discount = posManualDiscount();
     // Stage 47.2.2: selection inputs only. sale_price rides along solely for
     // a line nothing on the server prices (assisted mode) and is ignored for
     // every other line; cost_price is not sent at all any more.
@@ -1111,8 +1133,13 @@ async function submitPOSCheckoutInner() {
       location: posLocation,
       payment_mode: paymentMode,
       customer_id: customerId,
-      discount_pct: discountPct,
+      discount_pct: discount.manual_discount_pct,
+      ...discount,
+      discount_reason: posDiscountReason,
       redeem_points: redeemPoints,
+      form_97: customerStep.form97,
+      ...tillPayment,
+      advances: posCustomerRef ? posCustomerRef.posAdvanceApplied(parseFloat(totalBox.dataset.beforeAdvance) || 0) : [],
       ...posRedemptionAuth,
       tenders: posTenders,
       exchange_credit_id: posExchange ? posExchange.id : '',
@@ -1204,9 +1231,16 @@ async function submitPOSCheckoutInner() {
       }
       return;
     }
+    if (!res.ok && data.code === 'POSOFF-0877') {
+      // Stage 85.E7: over the limit the discount needs its reason.
+      const reason = await showCustomPrompt(`${data.detail || 'This discount needs a reason.'}`, '', 'Discount Reason');
+      if (reason && reason.trim()) { posDiscountReason = reason.trim(); await submitPOSCheckoutInner(); }
+      return;
+    }
     if (!res.ok) {
       errorEl.textContent = composeErrorText({ message: data.error, detail: data.detail, userAction: data.user_action }) || 'Checkout failed.';
       errorEl.classList.remove('hidden');
+      if (data.code === 'POSOFF-0866' || data.code === 'POSOFF-0867') (await posCustomerMod()).posFixCustomerForBill(data);
       return;
     }
 
@@ -1247,6 +1281,8 @@ async function submitPOSCheckoutInner() {
     const rest = (Number(amountDue) || 0) - posTenders.reduce((s, t) => s + t.amount, 0);
     freezePOSTill({
       cartNumber: data.cart_number,
+      billNumber: data.bill_number || '',
+      gstBill: !!(posCustomerRef && posCustomerRef.posCustomerIsB2B()),
       status: 'paid',
       heading: 'Sale complete',
       // 73.2.6: an exchange whose credit was more than the new bill.
@@ -1260,6 +1296,7 @@ async function submitPOSCheckoutInner() {
       offerDiscount: Number(data.offer_discount) || 0,
       // Stage 72.8: read before freezePOSTill clears the tenders.
       giftCards: posGiftCardTenders.map(g => ({ card: g.card, amount: g.amount })),
+      advanceUsed: (checkoutPayload.advances || []).reduce((sum, a) => sum + a.amount, 0),
       tendered: isNaN(tendered) ? null : tendered,
       changeDue: isNaN(tendered) ? null : tendered - rest,
       canPrint: true
@@ -1343,16 +1380,17 @@ function freezePOSTill(sale) {
   panel.innerHTML = `
     <div style="display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:10px;">
       <span style="font-size:19px; font-weight:700; color:${colour};">${cfgEsc(sale.heading)}</span>
-      <span style="font-size:13px; color:var(--text-muted);">${cfgEsc(sale.cartNumber || '')}</span>
+      <span style="font-size:13px; color:var(--text-muted);">${cfgEsc(sale.billNumber ? `Bill ${sale.billNumber}` : (sale.cartNumber || ''))}</span>
       <span style="font-size:13px; color:var(--text-muted);">${cfgEsc(posStoreLabel())}</span>
       <span style="font-size:13px; color:var(--text-muted);">${cfgEsc(sale.paymentMode || '')}</span>
     </div>
     ${sale.note ? `<div style="font-size:13px; margin-bottom:10px;">${cfgEsc(sale.note)}</div>` : ''}
     <div style="max-width:420px;">
       ${lines}
-      ${sale.offerDiscount > 0 ? money('Offer discount', -sale.offerDiscount) : ''}
+      ${sale.offerDiscount > 0 ? money('Discount (offers and bill)', -sale.offerDiscount) : ''}
       ${sale.loyaltyDiscount > 0 ? money(`Loyalty points applied${sale.loyaltyPoints ? ` (${sale.loyaltyPoints} pt)` : ''}`, -sale.loyaltyDiscount) : ''}
       ${(sale.giftCards || []).map(g => money(`Gift card ${g.card}`, -g.amount)).join('')}
+      ${sale.advanceUsed > 0 ? money('Advance used', -sale.advanceUsed) : ''}
       ${money(sale.status === 'paid' ? 'Collected' : 'Total', sale.amountDue, true)}
       ${sale.tendered !== null && sale.tendered !== undefined ? money('Cash tendered', sale.tendered) : ''}
       ${sale.changeDue !== null && sale.changeDue !== undefined ? money('Change due', sale.changeDue, true) : ''}
@@ -1360,6 +1398,7 @@ function freezePOSTill(sale) {
     <div style="display:flex; gap:10px; margin-top:16px;">
       <button class="btn btn-primary" id="pos-new-sale-btn" type="button">New Sale (Reset)</button>
       ${sale.canPrint ? '<button class="btn btn-outline" id="pos-print-receipt-btn" type="button">Print Receipt</button>' : ''}
+      ${sale.gstBill && sale.status === 'paid' ? '<button class="btn btn-outline" id="pos-print-gst-btn" type="button">Print GST Invoice</button>' : ''}
     </div>
   `;
   panel.classList.remove('hidden');
@@ -1368,6 +1407,10 @@ function freezePOSTill(sale) {
   if (newBtn) { newBtn.addEventListener('click', startNewPOSSale); newBtn.focus(); }
   const printBtn = document.getElementById('pos-print-receipt-btn');
   if (printBtn) printBtn.addEventListener('click', () => printCompletedPOSSale());
+  // Stage 85.D2: the tax invoice, from the Stage 71 print pack.
+  const gstBtn = document.getElementById('pos-print-gst-btn');
+  if (gstBtn) gstBtn.addEventListener('click', () => import('./trade-docs.js' + new URL(import.meta.url).search)
+    .then(m => m.printTransactionDocument('POSCart', sale.cartNumber, { txn: 'POSTaxInvoice' })));
 }
 
 // startNewPOSSale is the only way out of the freeze. It restores the till to a
@@ -1388,8 +1431,10 @@ function startNewPOSSale() {
   const customerDisplay = document.getElementById('pos-customer-display');
   if (customerHidden) customerHidden.value = '';
   if (customerDisplay) { customerDisplay.value = ''; customerDisplay.dataset.resolved = ''; }
+  if (posCustomerRef) posCustomerRef.posClearCustomer();
   const discountEl = document.getElementById('pos-discount-pct');
   if (discountEl) discountEl.value = '0';
+  posDiscountReason = '';
   const tenderedEl = document.getElementById('pos-cash-tendered');
   if (tenderedEl) tenderedEl.value = '';
   const infoEl = document.getElementById('pos-loyalty-info');
@@ -1418,17 +1463,17 @@ async function printCompletedPOSSale() {
   // Receipt printer configured is the normal case, not an error, and
   // must simply fall through to the print sheet below.
   if (await qzTryPrint('Receipt', { documentRef: sale.cartNumber, quiet: true })) return;
-  printPOSReceipt(sale.cartNumber, posLocation, sale.paymentMode, sale.items,
+  printPOSReceipt(sale.billNumber || sale.cartNumber, posLocation, sale.paymentMode, sale.items,
     sale.saleTotal, sale.loyaltyDiscount || 0, sale.offerDiscount || 0);
 }
 
-// posStoreLabel is how the store reads to a human - the resolved name the
-// picker is showing, falling back to the code only before it resolves. Used on
-// the frozen bill and on the browser-printed receipt, so both say the same
-// thing. Name only (Stage 57.1): the code no longer rides along in brackets.
+// posStoreLabel is how the store reads to a human - its name, falling back to
+// the code only before the record loads. Used on the session line, the frozen
+// bill and the browser-printed receipt, so all say the same thing. Name only
+// (Stage 57.1): the code no longer rides along in brackets.
 function posStoreLabel() {
-  const shown = (document.getElementById('pos-location-display') || {}).value || '';
-  return shown || posLocation || '';
+  const p = posStoreProfile, w = window.erpWorkingStore;
+  return (p && p.code === posLocation && p.name) || (w && w.code === posLocation && w.name) || posLocation || '';
 }
 
 // --- Stage 53.12: who the bill is from --------------------------------------
@@ -1449,12 +1494,15 @@ async function loadPOSStoreProfile() {
   if (!code) { posStoreProfile = null; return; }
   if (posStoreProfile && posStoreProfile.code === code) return;
 
-  const profile = { code, name: code, type: '', entityName: '', gstin: '', stateName: '', cashier: '' };
+  // sellable follows engines.LocationIsSellable: no Location record sells
+  // (unregistered codes keep working), a blank flag follows the type.
+  const profile = { code, name: code, type: '', sellable: true, entityName: '', gstin: '', stateName: '', cashier: '' };
   const locRes = await apiFetch(`/api/v1/doc/Location/${encodeURIComponent(code)}`);
   if (locRes && locRes.ok) {
     const loc = await locRes.json();
     profile.name = loc.name || code;
     profile.type = loc.type || '';
+    profile.sellable = loc.sellable ? loc.sellable === 'Yes' : profile.type === 'Store';
     if (loc.legal_entity) {
       const entRes = await apiFetch(`/api/v1/doc/LegalEntity/${encodeURIComponent(loc.legal_entity)}`);
       if (entRes && entRes.ok) {
@@ -1589,6 +1637,12 @@ function renderPOSPackagingRow() {
 // this module's state.
 const posExtras = () => import('./view-pos-extras.js' + new URL(import.meta.url).search)
   .catch(e => { showCustomAlert('Part of the till did not load. Check the connection, then reload the page.', 'POS'); throw e; });
+// Stage 85.C: the phone-first customer (view-pos-customer.js); posCustomerRef
+// once loaded, for the synchronous one-line note.
+let posCustomerRef = null;
+const posCustomerMod = () => import('./view-pos-customer.js' + new URL(import.meta.url).search)
+  .then(m => (posCustomerRef = m))
+  .catch(e => { showCustomAlert('Part of the till did not load. Check the connection, then reload the page.', 'POS'); throw e; });
 const posTill = {
   get packaging() { return posPackaging; },
   get overrides() { return posPackagingOverrides; },
@@ -1620,7 +1674,6 @@ const openPOSPackaging = posLazy('openPOSPackaging');
 const openPOSGiftCard = posLazy('openPOSGiftCard');
 const openPOSMore = posLazy('openPOSMore');
 const closePOSSessionFlow = posLazy('closePOSSessionFlow');
-const quickAddPOSCustomer = posLazy('quickAddPOSCustomer');
 const checkPOSLoyaltyBalance = posLazy('checkPOSLoyaltyBalance');
 const redeemPOSLoyaltyPoints = posLazy('redeemPOSLoyaltyPoints');
 
@@ -1646,4 +1699,4 @@ async function dropPOSRefusedLine(res) {
   return true;
 }
 
-export { renderPOSView, refreshPOSSessionStatus, openPOSSessionFlow, closePOSSessionFlow, addSKUToPOSCart, removeSKUFromPOSCart, updatePOSCartLine, renderPOSCartTable, posCanOverridePrice, posPriceCell, openPOSPriceOverride, posCurrentCartNumber, currentPOSCouponCodes, refreshPOSQuote, submitPOSCheckout, submitPOSCheckoutInner, printPOSReceipt, checkPOSLoyaltyBalance, clearPOSRedemption, redeemPOSLoyaltyPoints, applyPOSTerminalLock, resetPOSTerminal, renderPOSCustomerNote, quickAddPOSCustomer, clearPOSProductSearch, onPOSScanKeyDown, highlightPOSSearchResult, renderPOSSearchResults, pickPOSSearchResult, addResolvedItemToPOSCart, stepPOSCartLine, posAvailabilityCell, renderPOSTender, posReceiptItems, freezePOSTill, startNewPOSSale, printCompletedPOSSale, posStoreLabel, loadPOSStoreProfile, clearPOSTillState };
+export { renderPOSView, refreshPOSSessionStatus, openPOSSessionFlow, closePOSSessionFlow, addSKUToPOSCart, removeSKUFromPOSCart, updatePOSCartLine, renderPOSCartTable, posCanOverridePrice, posPriceCell, openPOSPriceOverride, posCurrentCartNumber, currentPOSCouponCodes, refreshPOSQuote, submitPOSCheckout, submitPOSCheckoutInner, printPOSReceipt, checkPOSLoyaltyBalance, clearPOSRedemption, redeemPOSLoyaltyPoints, resetPOSTerminal, renderPOSCustomerNote, clearPOSProductSearch, onPOSScanKeyDown, highlightPOSSearchResult, renderPOSSearchResults, pickPOSSearchResult, addResolvedItemToPOSCart, stepPOSCartLine, posAvailabilityCell, renderPOSTender, posReceiptItems, freezePOSTill, startNewPOSSale, printCompletedPOSSale, posStoreLabel, loadPOSStoreProfile, clearPOSTillState };

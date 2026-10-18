@@ -329,6 +329,35 @@ func registerRoutes() {
 	// 26.4.10: links a Supplier login to the Vendor it speaks for. Without
 	// it a supplier account cannot be finished from inside the app.
 	http.HandleFunc("POST /api/v1/admin/users/supplier", apiMiddleware(handleSetUserSupplier))
+	// Stage 85.A: store access per role and user, and the working store at
+	// the top of the screen (handlers_store_access.go).
+	http.HandleFunc("GET /api/v1/admin/users/stores", apiMiddleware(handleUserStores))
+	http.HandleFunc("POST /api/v1/admin/users/stores", apiMiddleware(handleUserStores))
+	http.HandleFunc("GET /api/v1/admin/roles/stores", apiMiddleware(handleRoleStores))
+	http.HandleFunc("POST /api/v1/admin/roles/stores", apiMiddleware(handleRoleStores))
+	http.HandleFunc("GET /api/v1/me/stores", apiMiddleware(handleMyStores))
+	http.HandleFunc("POST /api/v1/me/working-store", apiMiddleware(handleSwitchWorkingStore))
+	// Stage 85.B: store stock locations (handlers_stock_locations.go).
+	http.HandleFunc("GET /api/v1/stock-locations", apiMiddleware(handleStockLocations))
+	http.HandleFunc("POST /api/v1/stock-locations", apiMiddleware(handleStockLocations))
+	http.HandleFunc("POST /api/v1/stock-locations/stores", apiMiddleware(handleStoreStockLocations))
+	http.HandleFunc("POST /api/v1/stock-locations/defaults", apiMiddleware(handleStockLocationDefault))
+	http.HandleFunc("GET /api/v1/stock-locations/balance", apiMiddleware(handleStockLocationBalance))
+	http.HandleFunc("POST /api/v1/stock-locations/move", apiMiddleware(handleMoveStock))
+	// Stage 85.E8: uploaded line codes to items.
+	http.HandleFunc("POST /api/v1/lines/resolve", apiMiddleware(handleResolveLineCodes))
+	// Stage 85.C: the customer at the till (handlers_pos_customers.go).
+	http.HandleFunc("GET /api/v1/pos/customer-lookup", apiMiddleware(handlePOSCustomerLookup))
+	http.HandleFunc("POST /api/v1/pos/walk-in-customer", apiMiddleware(handlePOSWalkInCustomer))
+	http.HandleFunc("GET /api/v1/pos/high-value-policy", apiMiddleware(handlePOSHighValuePolicy))
+	// Stage 85.D3: customer advances.
+	http.HandleFunc("GET /api/v1/pos/advances", apiMiddleware(handlePOSAdvances))
+	http.HandleFunc("POST /api/v1/pos/advances", apiMiddleware(handlePOSAdvances))
+	http.HandleFunc("POST /api/v1/pos/advances/refund", apiMiddleware(handlePOSAdvanceRefund))
+	// Stage 85.E2/85.E3: the store's tenders and salesmen.
+	http.HandleFunc("GET /api/v1/pos/tenders", apiMiddleware(handlePOSTenders))
+	http.HandleFunc("GET /api/v1/pos/salesmen", apiMiddleware(handlePOSSalesmen))
+	http.HandleFunc("GET /api/v1/pos/bills", apiMiddleware(handlePOSBills))
 	http.HandleFunc("GET /api/v1/admin/roles", apiMiddleware(handleListRoles))
 	// Stage 57.17: create a role before anyone holds it, so an admin can set
 	// up "Purchase Clerk" and its permissions first and then assign people.

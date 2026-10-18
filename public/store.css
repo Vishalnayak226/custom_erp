@@ -1,0 +1,119 @@
+/* ===========================================================================
+   Stage 85.A5: the working store in the top bar (view-store.js). Loaded with
+   that module, not in the cold core. Existing tokens only, so dark mode
+   follows.
+   =========================================================================== */
+
+.store-switch {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-right: 8px;
+}
+
+.store-switch-btn,
+.store-switch-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 260px;
+  font-weight: 600;
+}
+
+.store-switch-name {
+  padding: 0 12px;
+  height: 36px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-main);
+  background: var(--surface-subtle);
+}
+
+.store-switch-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.store-switch-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 60;
+  width: 300px;
+  max-width: calc(100vw - 32px);
+  padding: 6px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+}
+
+.store-switch-search {
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.store-switch-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.store-switch-opt {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.store-switch-opt:hover,
+.store-switch-opt:focus-visible {
+  background: var(--surface-subtle);
+  outline: none;
+}
+
+.store-switch-opt.active {
+  background: var(--primary-light);
+  font-weight: 600;
+}
+
+.store-switch-meta {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 640px) {
+  .store-switch-btn,
+  .store-switch-name { max-width: 150px; }
+}
+
+/* Stage 85.A1/85.A2: the Stores editor (Users and Roles). */
+.sa-body { display: flex; flex-direction: column; gap: 14px; }
+.sa-modes { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; border: 0; }
+.sa-mode { display: flex; align-items: baseline; gap: 8px; cursor: pointer; }
+.sa-hint { color: var(--text-muted); font-size: 12px; }
+.sa-search { margin-bottom: 6px; }
+.sa-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 4px;
+}
+.sa-store { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; }
+.sa-store:hover { background: var(--surface-subtle); }
+.sa-store > span:nth-child(2) { flex: 1; }

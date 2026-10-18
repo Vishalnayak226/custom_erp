@@ -4,10 +4,12 @@
 
 const esc = (s) => window.escapeHTMLText(String(s ?? ''));
 
-// sessionStore is the store this session signed in at - the token's `loc`
-// claim (base64 of "id=..&user=..&loc=.."; display only, the server re-checks
-// everything it is sent).
-function sessionStore() {
+// sessionStore is the store this session works at. The server's own answer
+// (view-store.js, from /api/v1/me/stores) wins once it is in; before that the
+// token's `loc` claim (base64 of "id=..&user=..&loc=.."). Display and routing
+// only - the server re-checks everything it is sent.
+export function sessionStore() {
+  if (window.erpWorkingStore && window.erpWorkingStore.code) return window.erpWorkingStore.code;
   try {
     const claims = (localStorage.getItem('erp_token') || '').split('.')[0];
     return new URLSearchParams(atob(claims.replace(/-/g, '+').replace(/_/g, '/'))).get('loc') || '';
@@ -24,7 +26,9 @@ function sessionStore() {
 export function txnContext(store) {
   const user = localStorage.getItem('erp_username') || '';
   const role = localStorage.getItem('erp_role') || '';
-  const where = store || sessionStore();
+  // Stage 85.A5: the working store's name once view-store.js has it.
+  const code = sessionStore(), w = window.erpWorkingStore;
+  const where = store || (w && w.code === code && w.name) || code;
   return `<span class="txn-ctx" title="Signed in as ${esc(user)}${role ? ` (${esc(role)})` : ''}"><b>${esc(user)}</b>${where ? ` · <span class="txn-ctx-store">${esc(where)}</span>` : ''}</span>`;
 }
 

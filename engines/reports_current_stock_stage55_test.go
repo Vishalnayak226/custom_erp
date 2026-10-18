@@ -41,9 +41,11 @@ func TestCurrentStockReportUsesReservationSellableMath(t *testing.T) {
 		}
 		t.Fatalf("report omitted %s", sku)
 	}
-	check(3)
+	// Stage 85.B3: 12 - reserved 2 - safety 1 - blocked 1 - buffer 1 - hold 2.
+	// QC Hold and Damage are pools outside available, not subtracted from it.
+	check(5)
 	if _, err := db.DB.Exec(`UPDATE tenant_default.inventory_availability SET hold_qty=3 WHERE sku=$1 AND location_code='HO'`, sku); err != nil {
 		t.Fatal(err)
 	}
-	check(2)
+	check(4)
 }

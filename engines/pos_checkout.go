@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 )
 
 // FinalizePOSCheckout runs the side effects of a completed sale - inventory
@@ -120,6 +121,8 @@ type posCartLine struct {
 // can build its response from the same numbers that were posted, and so the
 // idempotency record can store that response verbatim for replay (47.3.1).
 type FinalizeOutcome struct {
+	// BillNumber (Stage 85.D1) is the store's server-issued bill number.
+	BillNumber      string
 	SaleTotal       float64
 	CostTotal       float64
 	LoyaltyDiscount int
@@ -392,11 +395,17 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	if err != nil {
 		return nil, err
 	}
+	// Stage 85.D1: the bill number is drawn here, in the sale's transaction -
+	// a sale that rolls back gives it back, so the store's series has no gap.
+	billNumber, err := issuePOSBillNumberTx(tx, schema, cart.Location, time.Now())
+	if err != nil {
+		return nil, err
+	}
 	if _, err := tx.Exec(fmt.Sprintf(
 		`UPDATE %s.documents SET status = 'Paid',
-		   data = jsonb_set(data, '{payment_state}', to_jsonb('Posted'::text)) || jsonb_build_object('allocation', $2::jsonb, 'amount_paid', $3::numeric),
+		   data = jsonb_set(data, '{payment_state}', to_jsonb('Posted'::text)) || jsonb_build_object('allocation', $2::jsonb, 'amount_paid', $3::numeric, 'bill_number', $4::text),
 		   updated_at = CURRENT_TIMESTAMP
-		 WHERE doctype = 'POSCart' AND id = $1`, schema), cartNumber, string(allocation), PaiseToRupees(netSalePaise)); err != nil {
+		 WHERE doctype = 'POSCart' AND id = $1`, schema), cartNumber, string(allocation), PaiseToRupees(netSalePaise), billNumber); err != nil {
 		return nil, err
 	}
 
@@ -412,6 +421,7 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 	}
 
 	outcome := &FinalizeOutcome{
+		BillNumber:      billNumber,
 		SaleTotal:       PaiseToRupees(totalSalePaise),
 		CostTotal:       PaiseToRupees(totalCostPaise),
 		LoyaltyDiscount: loyaltyDiscount,
@@ -430,6 +440,7 @@ func finalizePOSCheckoutTx(tenantID, schema, cartNumber, correlationID string, t
 		}
 		response["sale_total"] = outcome.SaleTotal
 		response["loyalty_discount"] = outcome.LoyaltyDiscount
+		response["bill_number"] = outcome.BillNumber
 		if err := CompleteCommandTx(tx, schema, idempotencyKey, cartNumber, response); err != nil {
 			return nil, err
 		}

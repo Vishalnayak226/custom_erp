@@ -1025,6 +1025,92 @@ function wireAttributeDefForm(body) {
   follow();
 }
 
+
+// --- Stage 85.E8 (77.14): lines from a template ---------------------------------
+//
+// openLineUpload is the one "Upload lines" every transaction screen uses: a
+// template to download (Barcode, Qty), a CSV to pick, each code checked on
+// the server (POST /api/v1/lines/resolve - item code, id or barcode), and the
+// rows that match nothing LISTED back, never dropped. onRows gets
+// [{ sku, name, qty }] for the rows that matched, and adds them its own way.
+function parseLineCSV(text) {
+  const rows = [];
+  String(text || '').split(/\r?\n/).forEach(raw => {
+    const line = raw.trim();
+    if (!line) return;
+    const cells = line.split(/[,;\t]/).map(c => c.trim().replace(/^"(.*)"$/, '$1'));
+    rows.push(cells);
+  });
+  if (rows.length && isNaN(parseFloat(rows[0][1]))) rows.shift(); // the header
+  return rows.map(c => ({ code: c[0] || '', qty: parseFloat(c[1]) || 0 })).filter(r => r.code);
+}
+
+function openLineUpload({ title = 'Upload lines', hint = '', template = 'lines', onRows }) {
+  document.getElementById('line-upload-dialog')?.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay open';
+  overlay.id = 'line-upload-dialog';
+  overlay.innerHTML = `
+    <div class="modal-container" style="max-width: 560px;" role="dialog" aria-modal="true" aria-labelledby="line-upload-title">
+      <div class="modal-header"><h3 class="modal-title" id="line-upload-title">${escapeHTMLText(title)}</h3>
+        <button type="button" class="modal-close" aria-label="Close dialog" data-lu-close>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button></div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+        <p style="margin:0;">${escapeHTMLText(hint || 'A CSV with two columns: Barcode (or item code) and Qty. Download the template, fill it in, then pick it here.')}</p>
+        <div><button type="button" class="btn btn-outline btn-sm" data-lu-template>Download template</button></div>
+        <input type="file" accept=".csv,text/csv,text/plain" class="form-input" data-lu-file aria-label="CSV file">
+        <div data-lu-summary class="txn-hint"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-outline" data-lu-close>Cancel</button>
+        <button type="button" class="btn btn-primary" data-lu-add disabled>Add lines</button></div>
+    </div>`;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelectorAll('[data-lu-close]').forEach(b => b.addEventListener('click', close));
+  overlay.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  overlay.querySelector('[data-lu-template]').addEventListener('click', () => {
+    const blob = new Blob(['Barcode,Qty\r\n'], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${template}-template.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  let ready = [];
+  const summary = overlay.querySelector('[data-lu-summary]');
+  const add = overlay.querySelector('[data-lu-add]');
+  overlay.querySelector('[data-lu-file]').addEventListener('change', async (e) => {
+    const file = e.target.files && e.target.files[0];
+    ready = [];
+    add.disabled = true;
+    if (!file) return;
+    const rows = parseLineCSV(await file.text());
+    if (!rows.length) { summary.textContent = 'No lines found in that file - the first column is the barcode, the second the quantity.'; return; }
+    summary.textContent = 'Checking the codes...';
+    const res = await apiFetch('/api/v1/lines/resolve', { method: 'POST', body: JSON.stringify({ codes: rows.map(r => r.code) }) });
+    if (!res) return;
+    if (!res.ok) { await showApiError(res, 'The codes could not be checked.'); summary.textContent = ''; return; }
+    const resolved = await res.json();
+    const missing = [];
+    const badQty = [];
+    resolved.forEach((r, i) => {
+      if (!r.found) missing.push(rows[i].code);
+      else if (!(rows[i].qty > 0)) badQty.push(rows[i].code);
+      else ready.push({ sku: r.sku, name: r.name, qty: rows[i].qty });
+    });
+    summary.innerHTML = `<b>${ready.length} line${ready.length === 1 ? '' : 's'} ready.</b>`
+      + (missing.length ? `<div style="color:var(--danger-color);">Not an item (${missing.length}): ${escapeHTMLText(missing.slice(0, 20).join(', '))}${missing.length > 20 ? ', ...' : ''}</div>` : '')
+      + (badQty.length ? `<div style="color:var(--danger-color);">No quantity (${badQty.length}): ${escapeHTMLText(badQty.slice(0, 20).join(', '))}</div>` : '');
+    add.disabled = !ready.length;
+  });
+  add.addEventListener('click', () => guardAgainstDoubleSubmit(add, 'Adding...', async () => {
+    await onRows(ready);
+    close();
+    showToast(`${ready.length} line${ready.length === 1 ? '' : 's'} added.`, { variant: 'success' });
+  }));
+}
+
 export { openDatePicker, closeDatePicker, openQuickCreateDialog, attachSmartHSNPicker, wireAttributeDefForm,
   isStateFieldName, isStateCodeFieldName, buildStateSelect, fieldChecksumOK, fillStateFromTaxId, taxIdLabel,
-  loadMasterCodeSeries, masterCodeSetupRow, readMasterCodeFormat, groupFormSections, attachVariantOptionsEditor };
+  loadMasterCodeSeries, masterCodeSetupRow, readMasterCodeFormat, groupFormSections, attachVariantOptionsEditor, openLineUpload };

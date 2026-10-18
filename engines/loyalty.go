@@ -230,6 +230,11 @@ func ReverseLoyaltyRedemption(tenantID, customerID string, points int, reference
 // enhancements on top of the points already earned/inserted, so a failure
 // in either never undoes or blocks the earn itself.
 func EarnLoyaltyPoints(tenantID, customerID string, netSaleAmount int, referenceID string) error {
+	// Stage 85.C3: a store's walk-in customer stands for "nobody" - it
+	// never collects points.
+	if IsWalkInCustomer(tenantID, customerID) {
+		return nil
+	}
 	rupeesPerPoint := GetSettingInt(tenantID, "loyalty.rupees_per_point")
 	if rupeesPerPoint <= 0 {
 		rupeesPerPoint = 100 // defensive: the setting is min-1 validated, never 0

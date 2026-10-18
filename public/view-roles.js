@@ -83,16 +83,20 @@ function summarise(role) {
 }
 
 export async function renderRolesView(container) {
-  const [permsRes, rolesRes, usersRes] = await Promise.all([
+  const [permsRes, rolesRes, usersRes, storesRes] = await Promise.all([
     apiFetch('/api/v1/admin/role-permissions'),
     apiFetch('/api/v1/admin/roles'),
-    apiFetch('/api/v1/admin/users')
+    apiFetch('/api/v1/admin/users'),
+    apiFetch('/api/v1/admin/roles/stores')
   ]);
   if (!permsRes || !rolesRes) return;
   if (!permsRes.ok || !rolesRes.ok) { renderErrorPanel(container, 'Failed to load roles.', () => renderView('roles')); return; }
   const grants = await permsRes.json();
   const roles = await rolesRes.json();
   const users = usersRes && usersRes.ok ? await usersRes.json().catch(() => []) : [];
+  // Stage 85.A1: each role's store access, for the list's Stores column.
+  storesByRole = storesRes && storesRes.ok ? ((await storesRes.json().catch(() => ({}))).roles || {}) : {};
+  storeModule = await loadViewModule('/view-store.js?v=1').catch(() => null);
 
   grantsByRole = new Map();
   for (const g of grants) {
@@ -170,7 +174,7 @@ function drawList(ordered) {
   }
   host.innerHTML = `
     <table class="roles-list-table">
-      <thead><tr><th>Role</th><th>Access</th><th>Users</th><th></th></tr></thead>
+      <thead><tr><th>Role</th><th>Access</th><th>Stores</th><th>Users</th><th></th></tr></thead>
       <tbody>${ordered.map(role => {
         const admin = isAdminRoleName(role);
         const { mods, types } = summarise(role);
@@ -182,15 +186,31 @@ function drawList(ordered) {
         return `<tr data-role="${escapeHTMLText(role)}"${admin ? ' data-admin="1"' : ''}>
           <td style="font-weight: 600;">${escapeHTMLText(role)}</td>
           <td>${access}</td>
+          <td>${admin ? 'All stores' : escapeHTMLText(roleStoresText(role))}</td>
           <td>${who}</td>
-          <td style="text-align: right;">${admin ? '' : `<button type="button" class="btn btn-outline btn-sm">Set access</button>`}</td>
+          <td style="text-align: right;">${admin ? '' : `<button type="button" class="btn btn-outline btn-sm" data-role-stores>Stores</button> <button type="button" class="btn btn-outline btn-sm">Set access</button>`}</td>
         </tr>`;
       }).join('')}</tbody>
     </table>`;
-  host.querySelectorAll('tbody tr').forEach(tr => tr.addEventListener('click', () => {
+  host.querySelectorAll('tbody tr').forEach(tr => tr.addEventListener('click', e => {
+    if (e.target.closest('[data-role-stores]')) { editRoleStores(tr.dataset.role); return; }
     if (tr.dataset.admin) { showToast(`${tr.dataset.role} has full access to everything - there is nothing to set.`, { variant: 'info' }); return; }
     openRole(tr.dataset.role);
   }));
+}
+
+// Stage 85.A1 (user: "First role than user"): a role's store access - All
+// stores (new ones included), Selected, or each user's home store only.
+let storesByRole = {};
+let storeModule = null;
+function roleStoresText(role) {
+  const s = storesByRole[role];
+  if (!s) return 'Home store only';
+  return storeModule ? storeModule.storeAccessSummary(s.access, s.stores) : s.access;
+}
+async function editRoleStores(role) {
+  if (!storeModule) return;
+  await storeModule.openStoreAccessEditor({ kind: 'role', id: role, title: `Stores - ${role}`, onSaved: () => renderView('roles') });
 }
 
 function cloneGrants(map) {
@@ -223,6 +243,7 @@ function drawAccess() {
       <input type="search" class="form-input" id="roles-filter" placeholder="Find a module or record type" aria-label="Find a module or record type" value="${escapeHTMLText(filterText)}" autocomplete="off">
       <button type="button" class="btn btn-outline btn-sm" id="roles-expand">Expand all</button>
       <button type="button" class="btn btn-outline btn-sm" id="roles-collapse">Collapse all</button>
+      <button type="button" class="btn btn-outline btn-sm" id="roles-stores" title="Which stores holders of this role work at">Stores: ${escapeHTMLText(roleStoresText(selectedRole))}</button>
       <span class="roles-held">${holders.length ? `Held by ${holders.length} user${holders.length === 1 ? '' : 's'}: ${escapeHTMLText(holders.slice(0, 5).join(', '))}${holders.length > 5 ? ', …' : ''}` : 'No user holds this role yet - assign it on the Users screen.'}</span>
     </div>
     <div class="roles-matrix-wrap">
@@ -243,6 +264,7 @@ function drawAccess() {
   host.querySelector('#roles-collapse').addEventListener('click', () => { expanded = new Set(); drawRows(); });
   host.querySelector('#roles-discard').addEventListener('click', () => { draft = cloneGrants(saved); syncTicks(); });
   host.querySelector('#roles-save').addEventListener('click', saveAccess);
+  host.querySelector('#roles-stores').addEventListener('click', () => editRoleStores(selectedRole));
 
   const body = host.querySelector('#roles-matrix-body');
   body.addEventListener('change', e => {

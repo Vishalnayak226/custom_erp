@@ -92,6 +92,12 @@ func handleGenericDoc(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, r, "GLOBAL-0011", "")
 		return
 	}
+	// Stage 85.B: a StockMove is written only by Move Stock, which moves the
+	// stock in the same transaction; a record made here would move nothing.
+	if doctype == "StockMove" && r.Method != http.MethodGet {
+		writeAPIError(w, r, "STKLOC-0865", "")
+		return
+	}
 
 	// 26.4.10: a Supplier login is an OUTSIDE party. Doctype-level RBAC alone
 	// would let every supplier read every other supplier's submissions, so

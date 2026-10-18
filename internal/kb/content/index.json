@@ -992,6 +992,8 @@
             "transfers",
             "warehouse-cockpit",
             "inventory",
+            "stock-locations",
+            "stock-moves",
             "module:inventory",
             "reports"
           ],
@@ -1084,6 +1086,11 @@
               "level": 2,
               "text": "Stock Adjustments",
               "slug": "stock-adjustments"
+            },
+            {
+              "level": 2,
+              "text": "Stock locations inside a store (ERP, not WMS)",
+              "slug": "stock-locations-inside-a-store-erp-not-wms"
             },
             {
               "level": 2,
@@ -2815,6 +2822,11 @@
             },
             {
               "level": 3,
+              "text": "Customers Sharing a Mobile Number",
+              "slug": "customers-sharing-a-mobile-number"
+            },
+            {
+              "level": 3,
               "text": "Loyalty Ledger Summary",
               "slug": "loyalty-ledger-summary"
             },
@@ -3104,6 +3116,11 @@
               "slug": "stock-ledger"
             },
             {
+              "level": 3,
+              "text": "Stock by Location",
+              "slug": "stock-by-location"
+            },
+            {
               "level": 2,
               "text": "Manufacturing",
               "slug": "manufacturing"
@@ -3250,6 +3267,11 @@
             },
             {
               "level": 3,
+              "text": "Customer Advance Register",
+              "slug": "customer-advance-register"
+            },
+            {
+              "level": 3,
               "text": "Customer Ledger",
               "slug": "customer-ledger"
             },
@@ -3272,6 +3294,16 @@
               "level": 3,
               "text": "Sales by Customer Reference",
               "slug": "sales-by-customer-reference"
+            },
+            {
+              "level": 3,
+              "text": "Salesman-wise Sales",
+              "slug": "salesman-wise-sales"
+            },
+            {
+              "level": 3,
+              "text": "Tender-wise Sales",
+              "slug": "tender-wise-sales"
             },
             {
               "level": 2,
@@ -4009,6 +4041,11 @@
             },
             {
               "level": 2,
+              "text": "CRM / Customers",
+              "slug": "crm-customers"
+            },
+            {
+              "level": 2,
               "text": "Channel Connectors",
               "slug": "channel-connectors"
             },
@@ -4084,6 +4121,11 @@
             },
             {
               "level": 2,
+              "text": "Inventory",
+              "slug": "inventory"
+            },
+            {
+              "level": 2,
               "text": "Inventory / Warehouse",
               "slug": "inventory-warehouse"
             },
@@ -4131,11 +4173,6 @@
               "level": 2,
               "text": "PIM / Product Publishing",
               "slug": "pim-product-publishing"
-            },
-            {
-              "level": 2,
-              "text": "POS / Billing",
-              "slug": "pos-billing"
             }
           ]
         },
@@ -4144,7 +4181,7 @@
           "title": "Error code reference (part 2)",
           "section": "Troubleshooting",
           "order": 21,
-          "summary": "Error codes for POS / Offline \u0026 Cash Drawer to WMS / Logistics, continued from the error code reference.",
+          "summary": "Error codes for POS / Billing to WMS / Logistics, continued from the error code reference.",
           "audience": "everyone",
           "last_verified": "2026-09-10",
           "owner": "documentation-maintainer",
@@ -4160,6 +4197,11 @@
               "level": 2,
               "text": "Contents",
               "slug": "contents"
+            },
+            {
+              "level": 2,
+              "text": "POS / Billing",
+              "slug": "pos-billing"
             },
             {
               "level": 2,
@@ -4621,6 +4663,12 @@
       "printing-stickers-and-documents",
       "journey-category-manager",
       "journey-warehouse-operator"
+    ],
+    "stock-locations": [
+      "inventory-wms-operations"
+    ],
+    "stock-moves": [
+      "inventory-wms-operations"
     ],
     "system-status": [
       "backup-and-restore",
