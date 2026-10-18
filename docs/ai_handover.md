@@ -125,6 +125,44 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-18 Module-wise build order set by the user; module 1 (Procurement / GRN / Print: 84.2, 84.3, 84.4,
+  73.C.7) - BUILT AND COMMITTED with module 2's first part (one commit, "feat: module-wise build 1-2"), NOT
+  PUSHED, NOT DEPLOYED.** The commit is HEAD + only these hunks, built and tested in a scratch worktree; other
+  sessions' work in the same files stays uncommitted in the tree. Ledger §241; checklist top block (the order: Procurement →
+  Numbering/Masters → Finance & Tax → Security → Backups & Platform, then stop) and 84.2-84.5, 73.C.7.
+  - **Module 2 started the same day (ledger §242): 76.7, 76.8, 76.9 done and committed in the same commit -
+    except 76.7's country cap**, which edits Stage 86's uncommitted `engines/number_series.go` / `public/view-admin.js`
+    and so stays uncommitted with `engines/number_series_country_stage76_test.go` and ADMIN_GUIDE B.3.2's "20
+    characters" sentence: commit it with or after Stage 86. Next: 76.11 (remaining
+    `NewDocID` documents), 76.12, 76.6 (re-code tool), 76.13. Migration `migrations_stage76_9_tax_document_series.sql`
+    (CN series added, unused SI series moved to 16 characters) applied to local `custom_erp` by psql. Files: new
+    `engines/document_numbering_store_stage76_test.go`, `engines/number_series_country_stage76_test.go`,
+    `engines/tax_document_numbers_stage76_test.go`; `engines/document_numbering.go`, `rfq_sourcing.go`,
+    `po_receipt_policy.go`, `purchase_return.go`, `grn_pricing.go`, `order_invoice.go`, `pack_invoice.go`,
+    `deferred_prepaid.go`, `cancellation_credit_note.go`, `wms_labour_billing.go`, `consumption_entry.go` (only mine);
+    **Stage 86's uncommitted files, targeted hunks:** `engines/numbering.go` (ADMINC-0030 message),
+    `engines/number_series.go` (`seriesNumberRules`, `validateNumberSeries` country), `public/view-admin.js`
+    (`seriesMaxLength` / `seriesCapRule`); ADMIN_GUIDE B.3.2. `internal/server` now also fails
+    `TestA02DiscountApprovalBypassedByPriceTamperingInsteadOfDiscountPct` - POSOFF-0877 (Stage 85.E7's discount-reason
+    rule), not this work.
+  - **Migration (1, additive, applied to local `custom_erp` on 5490 by psql):** `migrations_stage84_line_table_columns.sql`
+    (column specs for RFQ.lines / vendor_invitations, VendorQuote.lines, ConsumptionEntry.lines; empty specs only).
+  - **Files (only mine):** `engines/approval.go` (APPROV-0840), new `engines/approval_self_decision_stage84_test.go`,
+    `public/view-document-links.js` (`.doc-link`). **Shared files, targeted hunks only:** `internal/server/error_catalog_extensions.go`
+    (APPROV-0840 at the end; Stage 85 adds STORE-/STKLOC-/POSOFF-/CUSTOM- entries in the same file), `public/app.js`
+    (`renderJSONLineEditor` collect/buildRow), `public/view-procurement.js` (GRN PO box + `grnPOLineContext`; Stage 87's
+    add-row work is in the same file), `public/styles.css` (`.doc-link`, next to Stage 86's `.series-too-long`),
+    USER_GUIDE (§6 step 9, My work), micro_checklist, project_ledger, this file. KB regenerated with `-Group KB`
+    (ERROR_CODES.md + error-code KB article carry APPROV-0840, and Stage 85's codes from the shared tree).
+  - **Tests on the shared tree:** engines (approval, RFQ, GRN, PO receipt, purchase return, Stage 62, JV, bundle) ok;
+    `internal/server` fails only `TestStage555ShortageRefusalThenCorrectedCartCompletes` (POSOFF-0866 - Stage 85.C4's
+    uncommitted high-value rule refuses the test's ₹1.5 lakh cart). Release budget: cold core 178,793 / 184,320.
+  - **Brain:** `-Check` lists only Stage 85's unclaimed files; this module's two new files are claimed. Not redrawn.
+  - **Local walk data (84.5, ask before cleaning):** GRN/HO/26-27/00045 (PO 00062), POs 00083 / 00085, GRN 00046 with
+    DN/HO/26-27/00009 + VCN/HO/26-27/000005, one sticker run. Scratch RFQ deleted. Scratch server :8241 stopped,
+    `%TEMP%\erp84` removed.
+
+
 - **2026-10-18 Release of every entry below that says "NOT COMMITTED" (Stage 73 batches A-D + continuation,
   Stages 76, 78-82, 83.1, 71.8, the 73 pending reconciliation) in one commit, pushed and deployed.** This supersedes
   those tags. Ledger §238; checklist 73.R and 84.7-84.9.

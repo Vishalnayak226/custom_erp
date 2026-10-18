@@ -324,6 +324,17 @@ func advanceBillingDate(dateStr, frequency string) (string, error) {
 	return t.Format("2006-01-02"), nil
 }
 
+// recurringInvoiceNumber (Stage 76.9): a recurring invoice's printed number
+// from the SI series; the job knows only the schema, so the tenant is looked
+// up, and an unknown tenant keeps the internal id as before.
+func recurringInvoiceNumber(schema, invoiceID, store string) string {
+	tenantID, err := tenantIDForSchema(schema)
+	if err != nil || tenantID == "" {
+		return invoiceID
+	}
+	return IssueDocumentNumber(tenantID, "SalesInvoice", invoiceID, "", store)
+}
+
 func runRecurringBillingForSchema(schema string) {
 	rows, err := db.DB.Query(fmt.Sprintf(
 		`SELECT id, data FROM %s.documents WHERE doctype = 'RecurringSalesContract' AND status = 'Active' AND deleted_at IS NULL`, schema))
@@ -359,7 +370,7 @@ func runRecurringBillingForSchema(schema string) {
 
 		invoiceID := NewDocID("INV")
 		invoiceData := map[string]interface{}{
-			"id": invoiceID, "code": invoiceID, "invoice_number": invoiceID,
+			"id": invoiceID, "code": invoiceID, "invoice_number": recurringInvoiceNumber(schema, invoiceID, strField(data, "location")),
 			"customer": customer, "total_amount": amount,
 			"recurring_contract_id": c.id, "status": "Draft",
 		}

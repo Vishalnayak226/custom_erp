@@ -334,9 +334,7 @@ func PostGRNRateDifferenceNotes(tenantID, grnID, userID, storeCode string) GRNNo
 	if len(debit) == 0 && len(credit) == 0 {
 		return res
 	}
-	if strings.TrimSpace(storeCode) == "" {
-		storeCode = "HQ"
-	}
+	storeCode = numberingStore(tenantID, storeCode, strField(data, "location")) // Stage 76.8: the GRN's own store
 	var warnings []string
 	raise := func(doctype, series string, lines []GRNRateDifferenceLine) string {
 		id, werr := raiseGRNRateNote(tenantID, grnID, userID, storeCode, doctype, series, data, lines)

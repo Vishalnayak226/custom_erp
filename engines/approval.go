@@ -335,7 +335,9 @@ func DecideApproval(tenantID, doctype, docID, actorUserID, actorRole, actorLocat
 		return fmt.Errorf("document is not awaiting approval (current status: %s)", status)
 	}
 	if actorUserID == createdBy {
-		return fmt.Errorf("maker-checker violation: you cannot approve or reject a document you submitted")
+		// Stage 84.3: coded, so the screen says another approver must decide
+		// instead of GLOBAL-0002's "Correct the field format".
+		return &ValidationError{Code: "APPROV-0840", Message: "maker-checker violation: you cannot approve or reject a document you submitted"}
 	}
 
 	// Stage 37.1.2: the BASE amount, so an approval slab written in the tenant's

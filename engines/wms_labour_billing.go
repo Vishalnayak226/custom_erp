@@ -923,7 +923,8 @@ func GenerateInvoiceFromCapturedCharges(tenantID, ownerID, start, end, userID st
 		result.TotalAmount = roundTo2(result.TotalAmount)
 		result.ChargeCount = len(charges)
 		invoice := map[string]interface{}{
-			"code": invoiceID, "invoice_number": invoiceID, "customer": ownerID, "location": location,
+			"code": invoiceID, "invoice_number": IssueDocumentNumber(tenantID, "SalesInvoice", invoiceID, "", location), // Stage 76.9
+			"customer": ownerID, "location": location,
 			"total_amount": result.TotalAmount, "status": "Draft", "charge_batch_key": batchKey,
 			"charge_event_count": len(charges), "billing_period_start": start, "billing_period_end": end,
 			"charge_event_ids": chargeIDs, "source": "WMS Captured Charges",

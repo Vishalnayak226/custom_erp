@@ -535,7 +535,8 @@ func PostPurchaseReturn(tenantID, returnID, userID, storeCode string) (*Purchase
 		// GenerateSequence commits on its own connection, like every generated
 		// number: a rolled-back post leaves a gap in the DN series, never a
 		// duplicate. Only drawn when there is a value to raise a note for.
-		if dnID, err = GenerateSequence(tenantID, "DN", storeCode, documentFinancialYear(time.Now())); err != nil {
+		// Stage 76.8: the note is numbered at the return's own store.
+		if dnID, err = GenerateSequence(tenantID, "DN", numberingStore(tenantID, storeCode, ctx.Location), documentFinancialYear(time.Now())); err != nil {
 			return nil, fmt.Errorf("could not number the debit note: %w", err)
 		}
 		if err := PostDoubleEntryTx(tx, tenantID, schema, "PurchaseReturn", returnID,

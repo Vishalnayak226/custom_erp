@@ -49,7 +49,7 @@
     },
     {
       "path": "docs/guides/ERROR_CODES.md",
-      "sha256": "010f9f40092858fecaea9396ff17db99129917ed6c8da3984bb2795bdd9d89d3",
+      "sha256": "725584ef9477b2002eb26c014d382a23fcc5f6425eb03ebb4b984beaf1d294fb",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -88,7 +88,7 @@
     },
     {
       "path": "docs/kb/reference/release-notes.md",
-      "sha256": "87a0132f098b7b4b91073a181a5edb2844958cd77114f4f310e6c5f0b3d0c33b",
+      "sha256": "6eb01c041ba84aacda722aa4536a97338f8cf151f7dd260c9d1707e6d81361e8",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",
@@ -127,7 +127,7 @@
     },
     {
       "path": "docs/kb/troubleshooting/error-code-reference.md",
-      "sha256": "fedd131bdec718ad20e52314b0ce8959942129b21995fe222d670a85bc855979",
+      "sha256": "0b73f9c027aeec329ce03caf34806cdeae0dc32db41c4af1e964a3ba51904871",
       "sources": [
         "cmd/gendocs/*.go",
         "engines/*.go",

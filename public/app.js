@@ -1890,13 +1890,18 @@ function renderJSONLineEditor(fg, f, existingVal) {
     }
   };
 
+  // 84 / 73.C.7: a row starts from what is stored, so keys with no column
+  // (engine-written totals, flags) survive a save, and an untouched cell
+  // keeps its stored type.
   const collect = () => Array.from(wrap.querySelectorAll('[data-line-row]')).map(tr => {
-    const row = {};
+    const orig = tr._line || {};
+    const row = { ...orig };
     cols.forEach(c => {
       const input = tr.querySelector(`[data-line-key="${c.key}"]`);
       if (!input) return;
       const v = input.value;
-      if (v === '') return;
+      if (v === String(orig[c.key] ?? '')) return;
+      if (v === '') { delete row[c.key]; return; }
       row[c.key] = (c.type === 'number') ? Number(v) : v;
     });
     return row;
@@ -1937,6 +1942,7 @@ function renderJSONLineEditor(fg, f, existingVal) {
   const buildRow = (r, idx) => {
     const tr = document.createElement('tr');
     tr.setAttribute('data-line-row', String(idx));
+    tr._line = r;
     cols.forEach(c => {
       const td = document.createElement('td');
       const input = document.createElement('input');

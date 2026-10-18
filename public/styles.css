@@ -1672,6 +1672,12 @@ input:checked + .slider:before {
   color: var(--text-muted);
 }
 
+/* A link to a saved document (view-document-links.js) - theme colour, not the
+   browser's default blue, which is unreadable on the dark theme (Stage 84.4). */
+.doc-link {
+  color: var(--primary-color);
+}
+
 .py-8 {
   padding-top: 32px;
   padding-bottom: 32px;

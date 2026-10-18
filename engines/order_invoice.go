@@ -104,7 +104,7 @@ func CreateSalesInvoiceFromOrder(tenantID, orderID, userID string) (string, erro
 		return "", fmt.Errorf("sales order %s has no invoiceable total", orderID)
 	}
 	invoiceData := map[string]interface{}{
-		"code": orderID, "invoice_number": invoiceID, "sales_order_id": orderID,
+		"code": orderID, "invoice_number": IssueDocumentNumber(tenantID, "SalesInvoice", invoiceID, "", location), "sales_order_id": orderID,
 		"customer": orderData["customer_name"], "location": location,
 		"total_amount": total, "status": "Draft",
 	}

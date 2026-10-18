@@ -1661,6 +1661,10 @@ let grnLoadedASNId = '';
 // the function the server re-prices with on save) and an editable
 // invoice_rate that defaults to the PO rate.
 let grnPOs = [];
+// Stage 84.4: sku -> { po_id, po_rate, gst_rate } of the loaded POs, so a line
+// removed and added back to record rejected / damaged units (USER_GUIDE §6
+// step 9) keeps its PO and rates. A SKU on two POs is ambiguous: not carried.
+let grnPOLineContext = {};
 
 async function renderGRNWorkbenchView(container) {
   const res = await apiFetch('/api/v1/doc/GRN');
@@ -1671,6 +1675,7 @@ async function renderGRNWorkbenchView(container) {
   grnLineItems = [];
   grnLoadedASNId = '';
   grnPOs = [];
+  grnPOLineContext = {};
 
   // Stage 68: the frozen transaction layout (txn-screen.css). Stage 69: opens
   // on the list; New is its own page, switched in place - the receipt being
@@ -2062,6 +2067,7 @@ window.removeGRNPO = function(i) {
   if (!p) return;
   grnPOs.splice(i, 1);
   grnLineItems = grnLineItems.filter(l => l.po_id !== p.id);
+  Object.keys(grnPOLineContext).forEach(sku => { if (grnPOLineContext[sku].po_id === p.id) delete grnPOLineContext[sku]; });
   renderGRNPOChips();
   renderGRNLinesList();
 };
@@ -2204,6 +2210,11 @@ async function addGRNLine() {
   if (width !== null) line.width = width;
   if (height !== null) line.height = height;
   if (dimUom) line.dim_uom = dimUom;
+  const poLine = grnPOLineContext[sku];
+  if (poLine && !poLine.ambiguous) {
+    line.po_id = poLine.po_id;
+    if (poLine.po_rate !== undefined) Object.assign(line, { po_rate: poLine.po_rate, gst_rate: poLine.gst_rate, invoice_rate: poLine.po_rate });
+  }
   grnLineItems.push(line);
 
   skuEl.value = '';
@@ -2356,21 +2367,52 @@ async function loadGRNItemsFromPO() {
   }
 }
 
+// Stage 84.2: the PO box shows the PO's number, never its internal id (on
+// older POs the id is not the number). The id it was loaded by is kept on
+// the box, so loading and posting still use the id.
+function showGRNPOInBox(id, label) {
+  const el = document.getElementById('grn-po');
+  el.value = label;
+  el.dataset.poLabel = label;
+  el.dataset.poId = id;
+}
+
+function grnPOBoxRef() {
+  const el = document.getElementById('grn-po');
+  const typed = el.value.trim();
+  return typed && typed === el.dataset.poLabel ? (el.dataset.poId || typed) : typed;
+}
+
+// fetchGRNSourcePO reads a PO by id, else by its number (what the box's
+// picker fills in). undefined = the request itself was cut off.
+async function fetchGRNSourcePO(ref) {
+  const byId = await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(ref)}`);
+  if (!byId) return undefined;
+  if (byId.ok) return byId.json();
+  const search = await apiFetch(`/api/v1/doc/PurchaseOrder?q=${encodeURIComponent(ref)}&limit=10`);
+  if (!search || !search.ok) return null;
+  const lower = ref.toLowerCase();
+  const hit = ((await search.json()) || []).find(d => [d.po_number, d.code, d.id].some(v => String(v || '').toLowerCase() === lower));
+  if (!hit || !hit.id) return null;
+  const res = await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(hit.id)}`);
+  return res && res.ok ? res.json() : null;
+}
+
 async function loadGRNItemsFromPOInner() {
-  const poId = document.getElementById('grn-po').value.trim();
+  const poId = grnPOBoxRef();
   const noteEl = document.getElementById('grn-po-note');
   if (!poId) { noteEl.textContent = ''; return; }
 
-  const res = await apiFetch(`/api/v1/doc/PurchaseOrder/${encodeURIComponent(poId)}`);
-  if (!res) return;
-  if (!res.ok) {
+  const po = await fetchGRNSourcePO(poId);
+  if (po === undefined) return;
+  if (!po) {
     noteEl.textContent = 'Could not find that PO - enter lines manually below.';
     return;
   }
-  const po = await res.json();
   const poKey = po.id || poId;
   const poLabel = po.po_number || po.code || poKey;
   const poVendor = po.vendor || po.vendor_id || '';
+  showGRNPOInBox(poKey, poLabel);
 
   // Stage 62: several POs may go on one receipt, but only of one vendor
   // (GOODSR-0318 on the server says the same).
@@ -2439,6 +2481,9 @@ async function loadGRNItemsFromPOInner() {
     if (open <= 0) { closed++; continue; }
     const barcode = await lookupGRNBarcode(sku);
     const r = rates[sku];
+    const known = grnPOLineContext[sku];
+    grnPOLineContext[sku] = known && known.po_id !== poKey ? { ambiguous: true }
+      : { po_id: poKey, ...(r ? { po_rate: r.rate, gst_rate: r.gst } : {}) };
     grnLineItems.push({
       po_id: poKey, sku, ordered_qty: open, qty: open, accepted_qty: open, rejected_qty: 0, rejection_reason: '', damaged_qty: 0, damage_reason: '', barcode,
       ...(r ? { po_rate: r.rate, gst_rate: r.gst, invoice_rate: r.rate } : {})
@@ -2476,7 +2521,11 @@ async function loadGRNItemsFromASN() {
   const asn = await res.json();
 
   const poEl = document.getElementById('grn-po');
-  if (!poEl.value && asn.po_id) poEl.value = asn.po_id;
+  if (!poEl.value && asn.po_id) {
+    poEl.value = asn.po_id;
+    const po = await fetchGRNSourcePO(asn.po_id);
+    if (po) showGRNPOInBox(po.id || asn.po_id, po.po_number || po.code || asn.po_id);
+  }
 
   let items = [];
   try { items = JSON.parse(asn.expected_items || '[]'); } catch (e) { items = []; }
@@ -2487,6 +2536,7 @@ async function loadGRNItemsFromASN() {
 
   grnLineItems = [];
   grnPOs = [];
+  grnPOLineContext = {};
   renderGRNPOChips();
   for (const it of items) {
     const sku = it.sku || '';
@@ -2513,7 +2563,7 @@ async function createGRNInner() {
 
   // Stage 62: the POs added above; a PO typed but not added (or one an ASN
   // filled in) still counts as the receipt's PO.
-  const typedPO = document.getElementById('grn-po').value.trim();
+  const typedPO = grnPOBoxRef();
   const poIds = grnPOs.length ? grnPOs.map(p => p.id) : (typedPO ? [typedPO] : []);
   const poId = poIds.join(', ');
   const location = document.getElementById('grn-location').value.trim();

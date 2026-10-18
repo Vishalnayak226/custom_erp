@@ -390,6 +390,9 @@ func raiseShortCloseClaim(tenantID, schema, userID, storeCode string, recon *POR
 	if err := validatePurchaseReturnRules(tenantID, "", "", nil, payload); err != nil {
 		return "", fmt.Errorf("the claim for receipt %s could not be raised: %w", g.Number, err)
 	}
+	// Stage 76.8: the claim is numbered at its own (the receipt's) store.
+	grnDoc, _, _ := fetchDocData(tenantID, "GRN", g.ID)
+	storeCode = numberingStore(tenantID, storeCode, strField(payload, "location"), strField(grnDoc, "location"))
 	id, err := GenerateSequence(tenantID, "PRT", storeCode, documentFinancialYear(time.Now()))
 	if err != nil {
 		return "", fmt.Errorf("could not number the claim for receipt %s: %w", g.Number, err)

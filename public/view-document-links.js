@@ -9,7 +9,7 @@ function safeText(value) {
 function documentSearchLink(doctype, id, label = id) {
   if (!id) return '<span class="text-muted">—</span>';
   const href = `#/setup/${encodeURIComponent(doctype)}?q=${encodeURIComponent(String(id))}`;
-  return `<a href="${safeText(href)}" title="Find ${safeText(doctype)} ${safeText(id)}">${safeText(label)}</a>`;
+  return `<a class="doc-link" href="${safeText(href)}" title="Find ${safeText(doctype)} ${safeText(id)}">${safeText(label)}</a>`;
 }
 
 export { documentSearchLink };

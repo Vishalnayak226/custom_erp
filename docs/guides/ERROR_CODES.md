@@ -9,7 +9,7 @@
 
 Every error dialog in the app shows a code like `GLOBAL-0001`. Look it up here.
 
-There are **447** codes. Each row says what the user is shown, what to do about
+There are **448** codes. Each row says what the user is shown, what to do about
 it, and how serious it is.
 
 **How to read an error dialog** - it has up to three lines: the *headline* (the
@@ -21,7 +21,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 ## Contents
 
 - [Admin / Configuration](#admin--configuration) - 14 codes
-- [Approvals / Workflow](#approvals--workflow) - 3 codes
+- [Approvals / Workflow](#approvals--workflow) - 4 codes
 - [Audit & Compliance](#audit--compliance) - 2 codes
 - [Backup / DR](#backup--dr) - 4 codes
 - [Channel Connectors](#channel-connectors) - 5 codes
@@ -99,6 +99,7 @@ fix. See [USER_GUIDE](USER_GUIDE.md) §12.
 | `APPROV-0157` | Approver not found | No approver is configured for this transaction. Please contact administrator. | Correct details or retry. Contact admin if repeated. | High | 404 |
 | `APPROV-0158` | Approval already completed | This approval action is already completed. Please refresh the page. | Correct details or retry. Contact admin if repeated. | High | 409 |
 | `APPROV-0159` | Reject reason missing | Rejection reason is required. | Correct details or retry. Contact admin if repeated. | High | 422 |
+| `APPROV-0840` | Approver is the person who submitted the document | You cannot approve or reject a document you submitted. | Ask another approver with the required role to approve or reject it. | Medium | 422 |
 
 ## Audit & Compliance
 

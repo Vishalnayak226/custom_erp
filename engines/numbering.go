@@ -85,7 +85,8 @@ func GenerateSequence(tenantID, docType, storeCode, financialYear string) (strin
 		// number series available for this doctype" (the no-row-at-all
 		// case deliberately falls back to defaults just above rather than
 		// erroring, so it isn't this scenario).
-		return "", &ValidationError{Code: "ADMINC-0030", Message: fmt.Sprintf("numbering configuration for %s is inactive", docType)}
+		// Stage 76.8: the message names the screen that fixes it.
+		return "", &ValidationError{Code: "ADMINC-0030", Message: fmt.Sprintf("the %s number series is switched off - an administrator turns it on in Settings → Customize → Prefix Configs", docType)}
 	}
 
 	// 2. Resolve which counter this number draws from. The bucket always

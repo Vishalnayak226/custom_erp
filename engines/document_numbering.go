@@ -1,6 +1,7 @@
 package engines
 
 import (
+	"custom_erp/db"
 	"fmt"
 	"strings"
 	"time"
@@ -19,9 +20,14 @@ import (
 // this project's history - db/migration.sql declared po_number, and
 // db/migrations_phase3.sql declared code - and both are still mandatory, so
 // both are still filled, exactly as the create form did by hand before.
+//
+// StoreFields (Stage 76.8) names the document's own store, tried in order: the
+// number comes from that store's series, not the maker's session store, so a
+// PO raised at HO for Jayanagar carries Jayanagar's number.
 type documentNumberSeries struct {
 	SeriesKey    string
 	NumberFields []string
+	StoreFields  []string
 }
 
 // documentNumberSeriesByDoctype is the whole scope of server-side numbering:
@@ -36,19 +42,79 @@ type documentNumberSeries struct {
 // PO's* number, not the ASN's own, and overwriting it would silently detach
 // every ASN from its purchase order.
 var documentNumberSeriesByDoctype = map[string]documentNumberSeries{
-	"PurchaseOrder":   {SeriesKey: "PO", NumberFields: []string{"po_number", "code"}},
-	"GRN":             {SeriesKey: "GRN", NumberFields: []string{"code"}},
-	"ASN":             {SeriesKey: "ASN", NumberFields: []string{"asn_number"}},
-	"RFQ":             {SeriesKey: "RFQ", NumberFields: []string{"code"}},
+	"PurchaseOrder":   {SeriesKey: "PO", NumberFields: []string{"po_number", "code"}, StoreFields: []string{"location", "target_warehouse"}},
+	"GRN":             {SeriesKey: "GRN", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
+	"ASN":             {SeriesKey: "ASN", NumberFields: []string{"asn_number"}, StoreFields: []string{"location"}},
+	"RFQ":             {SeriesKey: "RFQ", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
 	"VendorQuote":     {SeriesKey: "QTN", NumberFields: []string{"code"}},
-	"TransferOrder":   {SeriesKey: "TO", NumberFields: []string{"transfer_number"}},
-	"ExpenseClaim":    {SeriesKey: "EXP", NumberFields: []string{"code"}},
+	"TransferOrder":   {SeriesKey: "TO", NumberFields: []string{"transfer_number"}, StoreFields: []string{"from_warehouse"}},
+	"ExpenseClaim":    {SeriesKey: "EXP", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
 	"Leave":           {SeriesKey: "LV", NumberFields: []string{"code"}},
 	"EmployeeLoan":    {SeriesKey: "LOAN", NumberFields: []string{"code"}},
 	"Grievance":       {SeriesKey: "GRV", NumberFields: []string{"code"}},
-	"ProductionOrder": {SeriesKey: "PRO", NumberFields: []string{"code"}},
-	"Attendance":      {SeriesKey: "ATT", NumberFields: []string{"code"}},
-	"PurchaseReturn":  {SeriesKey: "PRT", NumberFields: []string{"code"}},
+	"ProductionOrder": {SeriesKey: "PRO", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
+	"Attendance":      {SeriesKey: "ATT", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
+	"PurchaseReturn":  {SeriesKey: "PRT", NumberFields: []string{"code"}, StoreFields: []string{"location"}},
+	// Stage 76.9: tax documents. A manual note or invoice on the record form
+	// is issued its number, not typed; the ones engines create keep their
+	// internal id and take the number through IssueDocumentNumber.
+	"SalesInvoice":     {SeriesKey: "SI", NumberFields: []string{"invoice_number"}, StoreFields: []string{"location"}},
+	"CreditNote":       {SeriesKey: "CN", NumberFields: []string{"note_number"}},
+	"DebitNote":        {SeriesKey: "DN", NumberFields: []string{"note_number"}},
+	"VendorCreditNote": {SeriesKey: "VCN", NumberFields: []string{"note_number"}},
+}
+
+// IssueDocumentNumber (Stage 76.9) draws the printed number of a document an
+// engine creates under an internal id of its own (the id stays the key), from
+// the doctype's series at the document's store. A series that cannot issue
+// (switched off) leaves fallback - today's internal number - and logs why, so
+// a cascade such as a shipment's invoice never stops on numbering.
+func IssueDocumentNumber(tenantID, doctype, fallback, sessionStore string, documentStores ...string) string {
+	series, ok := documentNumberSeriesByDoctype[doctype]
+	if !ok {
+		return fallback
+	}
+	n, err := GenerateSequence(tenantID, series.SeriesKey, numberingStore(tenantID, sessionStore, documentStores...), documentFinancialYear(time.Now()))
+	if err != nil || n == "" {
+		LogSystemError(tenantID, "", "ERROR", "document-numbering", fmt.Sprintf("%s %s kept its internal number: the %s series could not issue one: %v", doctype, fallback, series.SeriesKey, err), "")
+		return fallback
+	}
+	return n
+}
+
+// DocumentStoreCode (Stage 76.8) returns the first candidate that names a
+// store - a Location, by id or code - as that Location's code, or "" when none
+// does. A value that is not a store never reaches a number; the caller falls
+// back to the maker's session store, as before.
+func DocumentStoreCode(tenantID string, candidates ...string) string {
+	schema, err := db.GetTenantSchema(tenantID)
+	if err != nil {
+		return ""
+	}
+	for _, c := range candidates {
+		c = strings.TrimSpace(c)
+		if c == "" {
+			continue
+		}
+		var code string
+		if err := db.DB.QueryRow(fmt.Sprintf(`SELECT COALESCE(NULLIF(TRIM(data->>'code'), ''), id) FROM %s.documents
+			WHERE doctype = 'Location' AND deleted_at IS NULL AND (id = $1 OR data->>'code' = $1) LIMIT 1`, schema), c).Scan(&code); err == nil && code != "" {
+			return code
+		}
+	}
+	return ""
+}
+
+// numberingStore is the store a generated number is drawn from: the
+// document's own (DocumentStoreCode), else the session's, else "HQ".
+func numberingStore(tenantID, sessionStore string, documentStores ...string) string {
+	if s := DocumentStoreCode(tenantID, documentStores...); s != "" {
+		return s
+	}
+	if s := strings.TrimSpace(sessionStore); s != "" {
+		return s
+	}
+	return "HQ"
 }
 
 // autoNumberedFields is the set of a doctype's fields the server fills in with
@@ -112,14 +178,15 @@ func PrepareDocumentNumber(tenantID, location, doctype string, isCreate bool, pa
 		return nil
 	}
 
-	// Store segment: the maker's resolved location, matching what
-	// PreparePurchaseRequisition does. "HQ" is the fallback for a session with
-	// no location (an HR/Admin acting centrally), not a silent failure - the
-	// number still has to come from somewhere deterministic.
-	storeCode := strings.TrimSpace(location)
-	if storeCode == "" {
-		storeCode = "HQ"
+	// Store segment (Stage 76.8): the document's own store; else the maker's
+	// resolved location; "HQ" for a session with no location (an HR/Admin
+	// acting centrally) - the number still has to come from somewhere
+	// deterministic.
+	own := make([]string, 0, len(series.StoreFields))
+	for _, f := range series.StoreFields {
+		own = append(own, strField(payload, f))
 	}
+	storeCode := numberingStore(tenantID, location, own...)
 
 	code, err := GenerateSequence(tenantID, series.SeriesKey, storeCode, documentFinancialYear(time.Now()))
 	if err != nil {

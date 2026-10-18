@@ -104,7 +104,7 @@ func GenerateInvoiceForPackage(tenantID, packageID, userID string, opts PackInvo
 	invoiceID := NewDocID("SINV")
 	invoiceData := map[string]interface{}{
 		"code":                invoiceID,
-		"invoice_number":      invoiceID,
+		"invoice_number":      IssueDocumentNumber(tenantID, "SalesInvoice", invoiceID, "", p.LocationCode), // Stage 76.9
 		"sales_order_id":      p.OrderID,
 		"shipping_package_id": p.ID,
 		"customer":            customerName,

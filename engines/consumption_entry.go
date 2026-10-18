@@ -215,6 +215,11 @@ func PostConsumptionEntry(tenantID, userName string, req ConsumptionEntryRequest
 		"reason": strings.TrimSpace(req.Reason), "lines": lines, "cost_total": PaiseToRupees(costTotal),
 		"posted_by": userName, "approved_by": userName, "posted_at": time.Now().UTC().Format(time.RFC3339), "status": "Posted",
 	}
+	// Stage 76.9: the replay key in a field of its own, so the id need not
+	// carry it once the entry is numbered from a series.
+	if key := strings.TrimSpace(req.IdempotencyKey); key != "" {
+		data["idempotency_key"] = key
+	}
 	raw, _ := json.Marshal(data)
 	if _, err := tx.Exec(fmt.Sprintf(`INSERT INTO %s.documents (id, doctype, data, status, created_by) VALUES ($1, 'ConsumptionEntry', $2, 'Posted', $3)`, schema), id, raw, userName); err != nil {
 		return nil, err

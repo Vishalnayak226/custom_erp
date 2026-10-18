@@ -226,9 +226,7 @@ func SaveRFQ(tenantID, userID, storeCode string, in RFQInput) (string, error) {
 		"target_date": in.TargetDate, "response_due_date": in.DueDate, "location": in.Location,
 	}
 	if strings.TrimSpace(in.ID) == "" {
-		if strings.TrimSpace(storeCode) == "" {
-			storeCode = "HQ"
-		}
+		storeCode = numberingStore(tenantID, storeCode, in.Location) // Stage 76.8: the RFQ's own store
 		id, err := GenerateSequence(tenantID, "RFQ", storeCode, documentFinancialYear(time.Now()))
 		if err != nil {
 			return "", err
@@ -492,9 +490,9 @@ func RecordVendorQuote(tenantID, userID, storeCode string, in QuoteInput) (strin
 	if err != nil {
 		return "", err
 	}
-	if strings.TrimSpace(storeCode) == "" {
-		storeCode = "HQ"
-	}
+	// Stage 76.8: a quote is numbered at its RFQ's store.
+	rfqDoc, _, _ := fetchDocData(tenantID, "RFQ", in.RFQID)
+	storeCode = numberingStore(tenantID, storeCode, strField(rfqDoc, "location"))
 	quoteID, err := GenerateSequence(tenantID, "QTN", storeCode, documentFinancialYear(time.Now()))
 	if err != nil {
 		return "", err
@@ -722,9 +720,10 @@ func AwardRFQ(tenantID, rfqID, quoteID, userID, storeCode string, opts AwardOpti
 	if err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(storeCode) == "" {
-		storeCode = "HQ"
-	}
+	// Stage 76.8: the PO is numbered at its own store - the location asked
+	// for, else the RFQ's (the same rule that sets the PO's location below).
+	rfqDoc, _, _ := fetchDocData(tenantID, "RFQ", rfqID)
+	storeCode = numberingStore(tenantID, storeCode, location, strField(rfqDoc, "location"))
 	// The number is taken before the transaction, as every converter here
 	// does; a refusal below leaves a gap in the series, never a duplicate.
 	poID, err := GenerateSequence(tenantID, "PO", storeCode, documentFinancialYear(time.Now()))

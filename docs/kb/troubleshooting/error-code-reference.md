@@ -19,7 +19,7 @@ applies_to: source registries; not release acceptance
 
 # Error code reference
 
-Every refusal in this application carries a code. There are **447** of them,
+Every refusal in this application carries a code. There are **448** of them,
 across **50** areas. This page is produced from the running catalog, so it
 cannot describe a code the application does not have, or miss one it does.
 
@@ -39,7 +39,7 @@ open the right page.
 ## Contents
 
 - [Admin / Configuration](#admin-configuration) - 14 codes
-- [Approvals / Workflow](#approvals-workflow) - 3 codes
+- [Approvals / Workflow](#approvals-workflow) - 4 codes
 - [Audit & Compliance](#audit-compliance) - 2 codes
 - [Backup / DR](#backup-dr) - 4 codes
 - [Channel Connectors](#channel-connectors) - 5 codes
@@ -115,6 +115,7 @@ open the right page.
 | `APPROV-0157` | Approver not found | No approver is configured for this transaction. Please contact administrator. | Correct details or retry. Contact admin if repeated. | High | 404 |
 | `APPROV-0158` | Approval already completed | This approval action is already completed. Please refresh the page. | Correct details or retry. Contact admin if repeated. | High | 409 |
 | `APPROV-0159` | Reject reason missing | Rejection reason is required. | Correct details or retry. Contact admin if repeated. | High | 422 |
+| `APPROV-0840` | Approver is the person who submitted the document | You cannot approve or reject a document you submitted. | Ask another approver with the required role to approve or reject it. | Medium | 422 |
 
 ## Audit & Compliance
 

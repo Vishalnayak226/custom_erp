@@ -91,7 +91,7 @@
     },
     {
       "path": "internal/kb/content/articles/error-code-reference.html",
-      "sha256": "6cc2bf9b38ef05ac1e5780977d28748820be5b7da8f2dd4e60e26f81f0e40c58",
+      "sha256": "6a0d457637489246dcd41eb085d66c15e247b2af595fffc4147fe8d73a711af7",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -361,7 +361,7 @@
     },
     {
       "path": "internal/kb/content/articles/release-notes.html",
-      "sha256": "9dd1ad92b6424f74f04b39b5886e7acb902a7ddd2adca1bb9de49e7fdc6ae8ba",
+      "sha256": "70a9d58118afba6d13b407ea9f9b505e6ba5f726301d2a609785ffc8d761197b",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",
@@ -487,7 +487,7 @@
     },
     {
       "path": "internal/kb/content/search.json",
-      "sha256": "227cdf95dd89c8b048fac8d3fba826b5b3b656f461f10c61bf8fb7e75434c464",
+      "sha256": "30619251c62534bbd139141c73516461e28c5439c38a0dcf445900471da8ee62",
       "sources": [
         "docs/kb/**/*.md",
         "internal/kb/*.go",

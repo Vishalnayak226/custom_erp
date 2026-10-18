@@ -110,7 +110,7 @@ func IssueCancellationCreditNotes(tenantID, orderID, reasonCode, userID string) 
 		noteID := NewDocID("CRN")
 		noteData := map[string]interface{}{
 			"code":             noteID,
-			"note_number":      noteID,
+			"note_number":      IssueDocumentNumber(tenantID, "CreditNote", noteID, "", strField(inv.data, "location")), // Stage 76.9
 			"customer_id":      customer,
 			"sales_order_id":   orderID,
 			"sales_invoice_id": inv.id,

@@ -44,6 +44,25 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 242. Module 2 (Numbering / Masters), first part — 76.7, 76.8, 76.9 (2026-10-18, code + docs, committed with §241, not pushed; 76.7's country cap waits on Stage 86's commit)
+
+Full detail in `micro_checklist.md` 76.7-76.9.
+
+- **76.7** Closed as already built: Prefix Configs (Stages 60 / 86) is the store × transaction numbering screen. Added the D2 country cap: India 16 + GST's character rule, other home countries 20.
+- **76.8** A number comes from the document's own store (PO billing store, GRN / return store, transfer from-store, RFQ deliver-to; quote and award follow the RFQ), checked against the Location master; the session store only when the document names none. A switched-off series' refusal names Prefix Configs.
+- **76.9** Sales invoices (SI) and customer credit notes (new CN series) are numbered from their store's series; DN / VCN manual notes are issued, not typed. Engine-made invoices and notes keep their internal id and print the series number; a switched-off series never stops a shipment. Migration `migrations_stage76_9_tax_document_series.sql`.
+- **Verified:** build, vet, `TestStage768NumberFromDocumentStore`, `TestSeriesLengthCapFollowsHomeCountry`, `TestStage769TaxDocumentNumbers` and the numbering / invoice / credit note / RFQ / PO receipt / purchase return / WMS billing tests; `internal/server` (two failures, both from Stage 85's uncommitted rules: POSOFF-0866 high-value, POSOFF-0877 discount reason); live credit note numbering on a scratch server.
+
+## 241. Module-wise build order, module 1: Procurement / GRN / Print — 84.2, 84.3, 84.4, 73.C.7 (2026-10-18, code + docs, committed, not pushed)
+
+The user set a module-wise build order on 2026-10-18 (`micro_checklist.md`, top: "4,8,1,2,3,5,9,7,6", this run stops after Backups & Platform). This is the first module. Full detail under 84.2-84.5 and 73.C.7.
+
+- **84.2** The goods receipt's PO box shows the PO number, never the internal id, and finds an older PO (id ≠ number) by its number.
+- **84.3** Self-approval is refused as APPROV-0840 with "ask another approver", at the one approval choke point (`DecideApproval`).
+- **73.C.7** Found to be data loss: the shared line editor rebuilt rows from the spec's columns, so saving a Draft RFQ in the generic form wiped its lines and invited vendors. Rows now keep every stored key; four tables get column specs (`migrations_stage84_line_table_columns.sql`).
+- **84.4** PO → approval → GRN → prints → stickers → multi-PO GRN with debit and credit notes walked in Chrome on the current tree. Two fixes from the walk: a GRN line added back keeps its PO and rates, and document links use the theme colour.
+- **Verified:** build, vet, `TestStage84SelfApprovalIsCoded` and the related engine tests, `internal/server` (one failure, from Stage 85's uncommitted high-value rule), release budget, the walk above. 84.5 (local walk data) waits on the user.
+
 ## 238. Release of §229-237 — Stage 73 batches A-D, Stages 76, 78-82, 71.8 (2026-10-18, one commit, pushed + deployed)
 
 At the user's *"if all task done, push all and deploy all to minn and app"*. This supersedes the "NOT COMMITTED" tags on §229-237. Full detail in `micro_checklist.md` 73.R and 84.7-84.9.
