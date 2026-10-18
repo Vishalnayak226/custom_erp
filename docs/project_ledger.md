@@ -44,6 +44,14 @@ Started as a static, client-side HTML dashboard. Brand/Style data lived in a moc
 > This file carries the project genesis/architecture sections plus SS 63 onward.
 > Append new Stage sections here as usual.
 
+## 257. Release 0.2.0 to app and minn (2026-10-19, release)
+
+- **Commits:** `57d3d04` (module-wise build 2-9, Stages 86-89, 92, 93, 95, 96) and `455f4f9` (88.1.14 / 88.1.15, Stage 97), pushed with Stage 85, module build 1-2 and Stage 90 (origin `9a7d674` → `455f4f9`). Each was built in a `%TEMP%` worktree from a snapshot of the shared tree, regenerated there (attack surface, guides, KB, manuals, brain, document register), migrated from empty (246 migrations) and fully tested on a fresh DB.
+- **Left out, still uncommitted:** the 75.3 catalog reports (half-built), Stage 98, and every other stage opened after the 00:09 snapshot except 88.1.14 / 88.1.15 and 97.
+- **Deploy:** backup `custom_erp_20261018T222055Z.dump.enc` (sha256 OK), `rollback_20261018_222056`, DEPLOY-OK, 17 migrations, `[sync] tenant_minn`, cost-center backfill default 2 / minn 1 (user's OK). `https://app.wholeops.in` and `https://minn.wholeops.in`: `/`, health and version all 200, `/api/v1/version` = 0.2.0 (455f4f9).
+- **Flaky, not a release fault:** `TestAuditVerificationOverdueDetectsSilence` failed once with a -19µs checkpoint age (database clock vs the test process); it passed 5/5 on rerun.
+- **Open:** the 0.1.0 backfill row for `840909b` (`erp-server -record-release -version 0.1.0 -commit 840909b -at 2026-10-18T04:45:51Z`, refused in-session as a remote write); CI's `update-docs.ps1 -Group Content -Check` fails on the expired capability reviews (84.8, the user sets those dates).
+
 ## 252. Stage 97 — The docs folder made simple: one front door, one archive (2026-10-19, docs + doc tooling)
 
 At the user's request, `docs/` was reorganised in one pass. 48 files moved: dated audits and evidence from `docs/`, `audits/`, `assurance/` and `qa/` went to `archive/audits/`; superseded specs, plans, the blueprint and the old BRD/PRD went to `archive/legacy/`; old handovers went to `archive/handovers/`; loose checklists, API docs, research notes and the contract template got proper homes. Three sets of small pages were merged (data handbook, *Running the service*, SSDF section). Four approved files were deleted: the duplicate OpenAPI copy, the never-run Stage 48 migration preview (2) and a stale local PDF. A script rewrote 262 links and 73 path mentions. `docs/README.md` is now a plain "I want to…" front door with a folder map, and `docs/archive/readme.md` maps every old path to its new one, replacing redirect stubs. `cmd/gendocs` no longer writes the OpenAPI copy, and its permission snapshots now land under `archive/audits/permissions/`. The top of `docs/` went from 14 files and 23 folders to 6 files and 20 folders. doclint: 0 broken links and 0 unregistered or missing files. Detail and verification: `micro_checklist.md` Stage 97.

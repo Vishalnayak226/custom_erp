@@ -125,6 +125,14 @@ for checking the current source and worktree.
 
 ## 6. Version Control
 
+- **2026-10-19 Release 0.2.0 - COMMITTED, PUSHED, DEPLOYED to app and minn.** Ledger §257. `57d3d04` + `455f4f9` on origin/main;
+  prod reports 0.2.0 (455f4f9), both hosts 200. Backup `custom_erp_20261018T222055Z`, rollback dir `rollback_20261018_222056`.
+  - **Still uncommitted in the shared tree:** the 75.3 catalog reports (`engines/report_catalog*.go`, `cmd/gencatalog/`,
+    `docs/specs/reports/`, their `bypass_test.go` entry and the tree's `attack_surface.json`, which lists `cmd/gencatalog`), Stage 98
+    and every stage entry written after 00:09 on 2026-10-19. Stage those from their sessions' own patches, not the shared tree.
+  - **To do by hand:** the 0.1.0 backfill row (`-record-release -version 0.1.0 -commit 840909b -at 2026-10-18T04:45:51Z` on the
+    box), refused in-session as a remote write.
+
 - **2026-10-19 Stage 103 (repository tidy-up) - APPROVED, NOT STARTED; run only after the in-flight dev stages finish.**
   The plan and the user's decisions are in checklist Stage 103: free about 900 MB (old graph snapshots, `git gc`, root
   `.exe` builds, stale worktrees), builds to `bin/`, private notes to `.local/`, `db/migrations/`, `engines/data/`,
